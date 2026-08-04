@@ -170,6 +170,7 @@ Global* Module::addGlobal(StringId globalName, LocationId source) {
 Function* addAnonymousFunction(Module& module, StringId functionName, LocationId source) {
     auto function = new (module.arena) Function(&module, functionName);
     function->source = source;
+    function->anonymous = true;
     module.functionOrder.push(module.arena, function - *module.arena);
     function->addBlock(module);
     return function;
@@ -2177,6 +2178,18 @@ static void markPlace(ModuleBase local, const Place& place) {
  * that tears its type down is the only thing keeping that glue alive, and dropping the relocation
  * instead would leave a slot the emitted code calls through holding zero.
  */
+/*
+ * A closure header no path leads to any more - see markClosureHeaders in compiler/opt.
+ *
+ * Kept out of the walk rather than merely out of the emitted output, because what a table holds is
+ * the point: the entry functions in a header are reached from that header and from nowhere else, so
+ * a dead one that is still walked keeps a `dropAt$` alive that nothing can call.
+ */
+static bool isDeadClosureHeader(ModuleBase local, ModulePtr<Global> table) {
+    auto lambda = local[table]->prefixOf;
+    return lambda && !local[lambda]->closureHeaderRead;
+}
+
 static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
                           Array<ModulePtr<Global>>& tables) {
     ModuleBase local = *program.arena;
@@ -2190,6 +2203,7 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
 
     auto reachTable = [&](ModulePtr<Global> table) {
         if(!table || local[table]->used) return;
+        if(isDeadClosureHeader(local, table)) return;
 
         local[table]->used = true;
         tables.push(table);
@@ -2208,6 +2222,17 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
         if(pending.isEmpty()) continue;
         auto function = local[pending.pop().unwrap()];
         auto& reach = reachFunction;
+
+        /*
+         * A lifted lambda's closure header, which nothing in the IR names.
+         *
+         * It is attached to the function rather than referred to by it - `Function::closureHeader`,
+         * emitted in front of the entry point natively and as `$h` on JS - so no instruction the
+         * walk below can see mentions it. That went unnoticed while every root-module table was
+         * seeded as reached; now that they are not, this is the only edge that keeps a live header's
+         * entry functions alive, and without it the table is emitted naming functions that are not.
+         */
+        if(function->closureHeader && function->closureHeaderRead) reachTable(function->closureHeader);
 
         for(auto blockPointer: function->blocks.contents(local)) {
             for(auto instructionPointer: local[blockPointer]->instructions.contents(local)) {
@@ -2274,17 +2299,36 @@ void markProgramReachable(Program& program) {
     Array<ModulePtr<Global>> tables;
 
     for(auto module: program.modules) {
+        /*
+         * A named function of the root module is part of the program whether or not this compilation
+         * can see a call to it; everything else has to be reached.
+         *
+         * The exception is what the root check is *for*. A module the program merely imports
+         * contributes what it is used for, and the root module is the program - so its declarations
+         * are the roots of the walk rather than its findings. What that swept in with them was every
+         * compiler-built function generated *into* the root module, which is most of them: glue is
+         * built in the module that asked for it, so a program's own teardowns, entry thunks and
+         * descriptors all land here and were all kept unconditionally. `reclaim$Step` with an empty
+         * body and no caller is what that looks like.
+         *
+         * Anonymous is the right test rather than a proxy for one: `addAnonymousFunction` is
+         * documented as "reachable through something other than its name", so a function that is one
+         * has, by construction, a reference somewhere for this walk to find - a call, a table slot,
+         * an `InstDrop` half. If there is none, nothing can ever run it.
+         */
         for(auto function: module->functionOrder.contents(local)) {
-            local[function]->used = module->root;
-            if(module->root) pending.push(function);
+            local[function]->used = module->root && !local[function]->anonymous;
+            if(local[function]->used) pending.push(function);
         }
 
         // The root module's tables are seeded alongside its functions rather than being taken as
         // already-reached, because what a table *holds* is the point: marking one used without
         // walking it would keep the bytes and drop everything their relocations name.
+        // The same split the functions above get, and for the same reason: a *declared* global of
+        // the root module is a root of the walk, and every compiler-built table is a finding.
         for(auto global_: module->globalOrder.contents(local)) {
-            local[global_]->used = module->root;
-            if(module->root) tables.push(global_);
+            local[global_]->used = module->root && !local[global_]->anonymous;
+            if(local[global_]->used) tables.push(global_);
         }
     }
 

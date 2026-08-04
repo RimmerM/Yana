@@ -3,19 +3,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-drop$Pair<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 8: Ptr
-    call_complex freeHeap, %v_3
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
-  }
-}
-
 branch<complex>(%flag: Int): Long {
   b_0 {
     call_complex +=(I64), @liveBuffers, 1
@@ -508,15 +495,6 @@ main<complex>(): Long {
 
   b_54 {
     ret %v_49
-  }
-}
-
-Drop(Buffer).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
   }
 }
 

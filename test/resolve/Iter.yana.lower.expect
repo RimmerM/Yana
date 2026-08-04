@@ -735,22 +735,6 @@ ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 }
 
-counted(Int)<complex>(%body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %v_2: Int
-    %v_7 = loads @log, 4: Int
-    %v_8 = add %v_7, 10: Int
-    store @log, %v_8, 4
-    ret %v_6
-  }
-}
-
 grid<complex>(%rows: Int, %columns: Int): Int {
   b_0 {
     %total = alloca 4, 4: Ptr
@@ -799,22 +783,6 @@ ResolveTest.continuation$12<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_13 = add %v_12, 10: Int
     store @log, %v_13, 4
     store %v_0, 0, 1
-    ret 
-  }
-}
-
-counted(())<complex>(%body: Ptr) {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    call_complex %v_4, %v_5, %v_2
-    %v_6 = loads @log, 4: Int
-    %v_7 = add %v_6, 10: Int
-    store @log, %v_7, 4
     ret 
   }
 }

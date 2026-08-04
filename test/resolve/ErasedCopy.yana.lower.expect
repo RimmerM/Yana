@@ -18,27 +18,17 @@ copyInto<complex>(%genEnv: Ptr, %slot: Ptr, %from: Ptr) {
   }
 }
 
-Copy(Tracked).copy<complex>(%v_0: Ptr, %from$value: Int) {
-  b_1 {
-    %v_2 = loads @copyCalls, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @copyCalls, %v_3, 4
-    store %v_0, %from$value, 4
+moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 4
     ret 
   }
 }
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {
-    ret 
-  }
-}
-
-moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    %v_1 = bitcast %to: Ptr
-    %v_2 = bitcast %from: Ptr
-    copy %v_1, %v_2, 4
     ret 
   }
 }

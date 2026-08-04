@@ -322,15 +322,6 @@ main<complex>(): Int {
   }
 }
 
-Drop(Buffer).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
-  }
-}
-
 touch<complex>(%it: Ptr): Long {
   b_0 {
     ret 0

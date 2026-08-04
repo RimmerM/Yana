@@ -3354,6 +3354,41 @@ static void fillPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> p
     block.addInst(lower.lower, result);
 }
 
+/*
+ * A name no function in this module has yet, which for a generated one is not the name it arrived
+ * with.
+ *
+ * `derivedName` builds a symbol out of a type's *printed form*, and two distinct types can print
+ * alike: a lambda's environment tuple is minted fresh rather than interned (see resolveLambda), so
+ * two lambdas capturing identical shapes have two types, two derived teardowns, and one name for
+ * both. Source can collide the same way through two modules with the same qualified path.
+ *
+ * A LowerModule holds its functions in a map keyed by name, so a collision there is not two
+ * functions sharing a label - it is *one function with two bodies*. `addFunction` finds the existing
+ * entry, the second lowering appends its arguments and its blocks to that one, and what reaches the
+ * backend has two parameter lists and two entry blocks with nothing able to reach the second. x64's
+ * `orderBlocks` asserts on it; a build with assertions off emits it.
+ *
+ * The tail is only a tail, not a mangling: these are linker symbols, and two of them may not be the
+ * same string whatever produced them. The counter is per base name, so a name that never collides
+ * never grows one - the same policy `uniqueName` applies on the JS side, where the problem showed up
+ * first because that target sanitizes every name and therefore had to answer this already.
+ */
+static StringId uniqueFunctionName(LowerContext& lower, StringId name) {
+    if(!lower.to.functions.get(name)) return name;
+
+    auto base = lower.context.findName(name);
+
+    for(U32 suffix = 1; ; suffix++) {
+        StringBuilder text;
+        text << base << '$';
+        show(suffix, text);
+
+        auto candidate = builtName(lower.context, text);
+        if(!lower.to.functions.get(candidate)) return candidate;
+    }
+}
+
 // Lowering covers the whole program: a call from the root module into Core has to reach a
 // LowerFunction, and the two live in the same arena precisely so that it can.
 Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
@@ -3462,7 +3497,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     for(auto module: program.modules) {
         for(auto globalPointer: module->globalOrder.contents(lower.local)) {
             auto source = lower.local[globalPointer];
-            if(!module->root && !source->used) continue;
+            if(!source->used) continue;
 
             // A closure header is emitted in front of the function it belongs to rather than into
             // the module's data, so it is not one of these - see LowerFunction::prefix.
@@ -3482,7 +3517,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             // path to it. Where every call site specialized, its instantiations are what reaches the
             // backend and the generic body is a compile-time artifact.
             if(lower.local[functionPointer]->gen && !lower.local[functionPointer]->genericallyUsed) continue;
-            if(!module->root && !lower.local[functionPointer]->used) continue;
+            if(!lower.local[functionPointer]->used) continue;
             emitted.push(functionPointer);
         }
     }
@@ -3490,7 +3525,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     for(auto functionPointer: emitted) {
         auto function = lower.local[functionPointer];
 
-        auto target = result->addFunction(function->name);
+        auto target = result->addFunction(uniqueFunctionName(lower, function->name));
         target->source = function->source;
 
         if(!isUnit(lower.global, function->returnType) && !isMemoryType(lower.global, function->returnType)) {
@@ -3498,8 +3533,9 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         }
 
         // A lifted lambda's closure header travels with it, because where those bytes go is stated
-        // relative to this function's entry point and nowhere else.
-        if(function->closureHeader) {
+        // relative to this function's entry point and nowhere else - and is left out entirely where
+        // nothing computes that address any more, which is markClosureHeaders' answer.
+        if(function->closureHeader && function->closureHeaderRead) {
             target->prefix = lowerGlobal(function->closureHeader) - lower.lower;
         }
 

@@ -127,11 +127,6 @@ function main() {
   }
 }
 
-function Drop_Tracked_drop(value) {
-  sub_eq_Int(liveNodes, "$v", 1, 1);
-  return;
-}
-
 function unwrapOr_Tree(m, fallback) {
   var v2;
   if (m.$v === null) {
@@ -157,22 +152,10 @@ function drop$Maybe_Tree(value) {
   return;
 }
 
-function reclaim$Tree(value) {
-  return;
-}
-
-function reclaim$Maybe_Tree(value) {
-  return;
-}
-
 function drop$List(value) {
   if (!(value === null)) {
     drop$List(value.tail.$v);
   }
-  return;
-}
-
-function reclaim$List(value) {
   return;
 }
 
@@ -181,9 +164,5 @@ function drop$Chain(value) {
     sub_eq_Int(liveNodes, "$v", 1, 1);
     drop$Chain(value.rest.$v);
   }
-  return;
-}
-
-function reclaim$Chain(value) {
   return;
 }

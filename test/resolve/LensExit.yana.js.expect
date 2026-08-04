@@ -1,10 +1,5 @@
 "use strict";
 var log = 0;
-const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
-const closure$ResolveTest_continuation$1 = [teardown$none, teardown$none];
-const closure$ResolveTest_continuation$2 = [teardown$none, teardown$none];
-const closure$ResolveTest_continuation$5 = [teardown$none, teardown$none];
-const closure$ResolveTest_continuation$4 = [teardown$none, teardown$none];
 
 // Core
 function teardown$none(value) {
@@ -51,7 +46,6 @@ function main() {
 function ResolveTest_continuation$0(env) {
   return env.$v + 1 | 0;
 }
-ResolveTest_continuation$0.$h = closure$ResolveTest_continuation$0;
 
 function scope_Int(body$c, body$e) {
   log = log + 1 | 0;
@@ -67,7 +61,6 @@ function ResolveTest_continuation$1(env) {
     return env.$v + 2 | 0;
   }
 }
-ResolveTest_continuation$1.$h = closure$ResolveTest_continuation$1;
 
 function ResolveTest_continuation$2(env) {
   if (env.$v > 100) {
@@ -77,7 +70,6 @@ function ResolveTest_continuation$2(env) {
     return null;
   }
 }
-ResolveTest_continuation$2.$h = closure$ResolveTest_continuation$2;
 
 function scope_Outcome_Int(body$c, body$e) {
   log = log + 1 | 0;
@@ -94,19 +86,10 @@ function ResolveTest_continuation$3(env, value) {
   }
 }
 
-function handing_Int(x, body$c, body$e) {
-  log = log + 1 | 0;
-  var v8 = body$c(body$e, Math.imul(x, 2) | 0);
-  log = log + 100 | 0;
-  return v8;
-}
-
 function ResolveTest_continuation$4(env) {
   return scope_Int(ResolveTest_continuation$5, { $v: env.$v });
 }
-ResolveTest_continuation$4.$h = closure$ResolveTest_continuation$4;
 
 function ResolveTest_continuation$5(env) {
   return env.$v + 3 | 0;
 }
-ResolveTest_continuation$5.$h = closure$ResolveTest_continuation$5;

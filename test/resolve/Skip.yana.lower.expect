@@ -167,23 +167,6 @@ Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))<complex>(%v_0: Ptr, %value: Ptr
   }
 }
 
-doubled(Int)<complex>(%x: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = imul %x, 2: Int
-    %v_4 = add %body, 8: Ptr
-    %v_5 = load %body, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6, %v_3: Int
-    %v_8 = loads @log, 4: Int
-    %v_9 = add %v_8, 10: Int
-    store @log, %v_9, 4
-    ret %v_7
-  }
-}
-
 written<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr

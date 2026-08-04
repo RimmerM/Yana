@@ -110,27 +110,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-reclaim${xs: Array(Int)}<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Ptr
-    call_complex freeHeap, %v_8
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr

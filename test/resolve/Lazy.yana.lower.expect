@@ -20,14 +20,6 @@ maskSkips<complex>(): Int {
   }
 }
 
-Logic(Mask).not<complex>(%v_0: Ptr, %value$bits: Int) {
-  b_1 {
-    %v_2 = xor %value$bits, 15: Int
-    store %v_0, %v_2, 4
-    ret 
-  }
-}
-
 ResolveTest.deferred$0<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads @effects, 4: Int
@@ -162,22 +154,6 @@ Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
   b_5 {
     %v_12 = phi [b_3, %lhs], [b_4, %v_10]: Ptr
     copy %v_0, %v_12, 4
-    ret 
-  }
-}
-
-Logic(Mask).and<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
-  b_1 {
-    %v_2 = and %lhs$bits, %rhs$bits: Int
-    store %v_0, %v_2, 4
-    ret 
-  }
-}
-
-Logic(Mask).or<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
-  b_1 {
-    %v_2 = or %lhs$bits, %rhs$bits: Int
-    store %v_0, %v_2, 4
     ret 
   }
 }
@@ -449,14 +425,6 @@ main<complex>(): Int {
     %v_79 = loads @effects, 4: Int
     %v_80 = add %v_78, %v_79: Int
     ret %v_80
-  }
-}
-
-Logic(Mask).xor<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
-  b_1 {
-    %v_2 = xor %lhs$bits, %rhs$bits: Int
-    store %v_0, %v_2, 4
-    ret 
   }
 }
 

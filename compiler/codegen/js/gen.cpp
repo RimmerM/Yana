@@ -141,13 +141,44 @@ bool hasBody(Gen& g, Module* module, ModulePtr<Function> pointer) {
 
     // A generic function has a body of its own only where something took the erased path to it.
     if(function->gen && !function->genericallyUsed) return false;
-    if(!module->root && !function->used) return false;
+    // Not `!module->root && !used`, which is what this was. A named declaration of the root module
+    // is a root of the reachability walk and is therefore always `used`; what the root check
+    // additionally exempted was every compiler-built function generated into that module, which is
+    // where a program's own glue is built. See markProgramReachable.
+    if(!function->used) return false;
 
     return true;
 }
 
 bool emitFunction(Gen& g, Module* module, ModulePtr<Function> pointer) {
     return hasBody(g, module, pointer) && !g.excluded.contains(U32(pointer));
+}
+
+/*
+ * Whether a closure of this lambda has to carry its own teardown metadata.
+ *
+ * The header's two slots are the environment's `Drop` and its `Reclaim`, and the second is nothing
+ * here - the host collector owns reclamation, which is Design-Memory §4's carve-out for this target.
+ * So the question is only whether the captures have an authored `Drop` between them, and where they
+ * do not there is nothing for a teardown to reach and nothing to attach.
+ *
+ * Decidable from the lambda alone, which is what makes it safe to act on: the environment type is
+ * this lambda's own, and no part of the program can change the answer. What makes it *sound* is that
+ * the shared glue tests the header rather than the environment - see teardownFunValue - so a value
+ * whose lambda skipped one is a branch that does not fire rather than a property read of `undefined`.
+ */
+bool closureNeedsTeardown(Gen& g, Function& function) {
+    if(!function.closureHeader || function.args.isEmpty()) return false;
+
+    // Nothing can find it - see markClosureHeaders. Asked first because it is the answer that does
+    // not depend on the environment's type: a closure the compiler tore down by name has a dead
+    // header whatever was in it.
+    if(!function.closureHeaderRead) return false;
+
+    auto envType = pointeeType(g.global, g.local[function.args.get(g.local, 0)]->type);
+    if(!envType) return false;
+
+    return ownershipOf(*function.module, envType).drop != TeardownKind::None;
 }
 
 /*
@@ -158,13 +189,27 @@ bool emitFunction(Gen& g, Module* module, ModulePtr<Function> pointer) {
  *
  * A closure header is emitted like any other table. On native it is `prefixOf` - bytes placed
  * immediately in front of a lifted function, reached by subtracting from the code address - and here
- * it is an ordinary module-level `const` that the lambda's factory attaches to each closure it
- * builds. Same two slots, same contents, and the only difference is how a teardown gets to it.
+ * it is an ordinary module-level `const` assigned to the code word as `$h`. Same two slots, same
+ * contents, and the only difference is how a teardown gets to it.
+ *
+ * Except where the lambda it belongs to does not get one: a header whose slots are all
+ * `teardown$none` is not attached (see closureNeedsTeardown), and emitting the table anyway would
+ * leave a `const` in every file that nothing names. Native cannot make that choice - the bytes are
+ * *placed* in front of the entry point, so they exist whether or not anything reads them - which is
+ * why this is asked here rather than of the global.
  */
 bool emitGlobal(Gen& g, Module* module, ModulePtr<Global> pointer) {
     auto global_ = g.local[pointer];
 
-    if(!module->root && !global_->used && !global_->prefixOf) return false;
+    if(auto lambda = global_->prefixOf) {
+        if(!closureNeedsTeardown(g, *g.local[lambda])) return false;
+    }
+
+    // Not `!module->root && ...`: a declared global of the root module is always `used`, and what
+    // the root check additionally exempted was every compiler-built table generated into it. A
+    // header is the exception that keeps `prefixOf` here - it belongs to a function rather than to
+    // the module, and the line above is what decides it. See markProgramReachable.
+    if(!global_->used && !global_->prefixOf) return false;
     return !nativeModule(g, module);
 }
 
@@ -494,6 +539,7 @@ StmtList genBody(Gen& g, Function& function) {
     });
 }
 
+
 /*
  * One function, and there is now only one form of one.
  *
@@ -662,7 +708,7 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
      * again rather than this one giving something up: what the elision saved was two stores per
      * closure, and there are none of those left to save.
      */
-    if(auto header = function.closureHeader) {
+    if(auto header = closureNeedsTeardown(g, function) ? function.closureHeader : nullptr) {
         auto code = variable(g, result->name);
         g.file.statements.push(g.file.arena, asStmt(g, make<ExprStmt>(g,
             assign(g, field(g, code, g.headerField), globalValue(g, header)))));

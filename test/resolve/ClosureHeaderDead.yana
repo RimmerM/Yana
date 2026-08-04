@@ -1,0 +1,55 @@
+-- When the header in front of a lifted lambda is worth emitting, and when nothing can reach it.
+--
+-- A closure header is found through the code word and through nothing else, so a closure the
+-- compiler tears down *by name* has one that no path leads to. `analyze_drop`'s `closureTeardown`
+-- makes that the ordinary case rather than an exotic one - it rewrites a contained closure's drop to
+-- its environment's - and `markClosureHeaders` is what goes back and asks whether the table is still
+-- worth writing. Both lambdas below capture a `Guard`, so the *type* has a teardown either way and
+-- `closureNeedsTeardown` alone cannot tell them apart.
+--
+--  * `inFrame` builds the value, calls it and lets it die where it was built. Its drop is the
+--    environment's, reached by name, and the emitted lambda has no header table, no store of one,
+--    and natively no bytes in front of its entry point.
+--  * `handedOff` gives the value away. `consume` takes it by `->` and drops it there, through the
+--    generic teardown, which finds the environment by reading the header - so the header has to be
+--    there.
+--
+-- The second is the whole reason this is decided from the *code word* and not from where the
+-- environment landed. Escape analysis leaves `handedOff`'s environment on the stack and is right to:
+-- `consume` returns before `handedOff` does, so nothing outlives anything. The value still crosses
+-- into a frame whose drop cannot name the lambda. A rule phrased as "the environment did not escape,
+-- so only this frame can drop it" reads as though it should work, and would delete a header that is
+-- read - which is a null dereference in the callee, not a wrong number.
+--
+-- Asserted by counting, because a header that should have been emitted and was not is only visible
+-- as a teardown that did not run.
+
+let &dropCalls = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        dropCalls = dropCalls + 1
+
+-- Takes ownership, so this is where the value dies - and here the lambda is not in view.
+fn consume(->f: (Int) -> Int) -> Int = f(1)
+
+fn inFrame(id: Int) -> Int:
+    let g = Guard {id: id}
+    let f = (x: Int) -> x + g.id
+    return f(10)
+
+fn handedOff(id: Int) -> Int:
+    let g = Guard {id: id}
+    return consume((x: Int) -> x + g.id)
+
+fn main() -> Int:
+    -- 10 + 3 = 13, and the capture is released once.
+    let a = inFrame(3)
+
+    -- 1 + 5 = 6, released once in `consume`.
+    let b = handedOff(5)
+
+    -- 13 + 6 + 2 = 21
+    return a + b + dropCalls

@@ -1,7 +1,5 @@
 "use strict";
 var log = 0;
-const closure$ResolveTest_continuation$5 = [teardown$none, teardown$none];
-const closure$ResolveTest_continuation$10 = [teardown$none, teardown$none];
 
 // Core
 function teardown$none(value) {
@@ -103,27 +101,12 @@ function ResolveTest_continuation$1(env) {
   return v4;
 }
 
-function scope_Int(body$c, body$e) {
-  log = Math.imul(log, 2) | 0;
-  var v5 = body$c(body$e);
-  log = log + 100 | 0;
-  return v5;
-}
-
 function ResolveTest_continuation$2(env, n) {
   return Math.imul(n, 2) | 0;
 }
 
-function plusOne_Int(x, body$c, body$e) {
-  return body$c(body$e, x + 1 | 0);
-}
-
 function ResolveTest_continuation$3(env, low, high) {
   return (Math.imul(low, 100) | 0) + high | 0;
-}
-
-function split_Int(x, body$c, body$e) {
-  return body$c(body$e, x % 10 | 0, x / 10 | 0);
 }
 
 function ResolveTest_continuation$4(env, value) {
@@ -141,28 +124,9 @@ function ResolveTest_continuation$5(env, value) {
   }
   return v10;
 }
-ResolveTest_continuation$5.$h = closure$ResolveTest_continuation$5;
-
-function twiceOver_Bool_Int(value, body$c, body$e) {
-  log = log + 1 | 0;
-  return body$c(body$e, value);
-}
-
-function twiceOver_Int_Int(value, body$c, body$e) {
-  log = log + 1 | 0;
-  return body$c(body$e, value);
-}
 
 function ResolveTest_continuation$6(env, value) {
   return value;
-}
-
-function bumped_Int(c$o, c$k, c$s, body$c, body$e) {
-  var v5 = c$o[c$k] + 1 | 0;
-  c$o[c$k] = v5;
-  var v9 = body$c(body$e, v5);
-  c$o[c$k] = c$o[c$k] + 10 | 0;
-  return v9;
 }
 
 function ResolveTest_lambda$7(env, n) {
@@ -180,14 +144,5 @@ function ResolveTest_continuation$9(env, b) {
 function ResolveTest_continuation$10(env, value) {
   var v2 = env.$v;
   v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return;
-}
-ResolveTest_continuation$10.$h = closure$ResolveTest_continuation$10;
-
-function logged(body$c, body$e) {
-  var v3 = log + 1 | 0;
-  log = v3;
-  body$c(body$e, v3);
-  log = log + 10 | 0;
   return;
 }

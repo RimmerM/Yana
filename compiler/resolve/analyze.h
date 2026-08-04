@@ -186,6 +186,15 @@ ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardow
 // definition for why the two cannot be one function.
 ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, LocationId source);
 
+/*
+ * The teardown of a function type with the header test left out, for a drop site that has proved
+ * what the test would have found - see devirtualizeClosureDrop, its one caller.
+ *
+ * Interned per type beside the conditional glue, and generated on demand: a program where no site
+ * can prove it never builds one.
+ */
+ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, Teardown half, LocationId source);
+
 // Writes the analysis result for the whole program, in the same golden-file spirit as the resolve
 // and lower IR dumps. This is what makes liveness inspectable rather than only trusted.
 void printOwnership(Net::Writer& writer, Context& context, Program& program);

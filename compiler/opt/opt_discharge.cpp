@@ -89,6 +89,14 @@ struct Discharge {
          */
         if(drop.flag != maxLimit<U32>) return false;
 
+        /*
+         * A function value whose code word this frame can see is discharged into the teardown its
+         * header names, rather than into the search that finds it - see opt_closure.cpp. First
+         * because it is the same expansion with a constant already folded in, so what it declines is
+         * exactly what the general form below is for.
+         */
+        if(devirtualizeClosureDrop(opt, block, index, drop)) return true;
+
         auto type = placeType(module, function, drop.place);
         if(!type) return false;
 
@@ -361,10 +369,26 @@ struct Discharge {
 void dischargeOwnership(OptContext& opt) {
     Discharge discharge { opt, opt.repr.target.family == TargetFamily::Managed };
 
+    /*
+     * The list is copied before it is walked, because discharging can *add* to it:
+     * `devirtualizeClosureDrop` generates the header-free form of a function type's teardown the
+     * first time a site proves it may have one, and `addAnonymousFunction` registers that in the
+     * module's function order. Walking the live list while appending to it is a dangling read the
+     * moment it grows.
+     *
+     * Nothing is lost by not visiting what was added: the glue this generates holds one `CallDyn`
+     * and no ownership instruction, so there is nothing in it to discharge. It is still optimized
+     * and still emitted - the loops after this one read the order afresh.
+     */
+    Array<ModulePtr<Function>> functions;
+
     for(auto module: opt.program.modules) {
         opt.module = module;
 
-        for(auto pointer: module->functionOrder.contents(opt.local)) {
+        functions.clear();
+        for(auto pointer: module->functionOrder.contents(opt.local)) functions.push(pointer);
+
+        for(auto pointer: functions) {
             auto function = opt.local[pointer];
             if(function->signature || function->blocks.isEmpty()) continue;
 

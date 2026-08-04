@@ -34,15 +34,6 @@ whole<complex>(): Long {
   }
 }
 
-drop$Holder<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -388,15 +379,6 @@ pick<complex>(%a: Ptr, %b: Ptr, %first: Int): Ptr {
   b_3 {
     %v_4 = phi [b_1, %a], [b_2, %b]: Ptr
     ret %v_4
-  }
-}
-
-Drop(Buffer).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
   }
 }
 

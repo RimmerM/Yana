@@ -2,9 +2,72 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-reclaim$Ring<complex>(%value: Ptr) {
-  b_0 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %value
+slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long, %to: Long) {
+  b_1 {
+    %v_2 = cmp_ilt %from, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 0], [b_4, %from]: Long
+    %v_7 = cmp_igt %v_6, %self$length: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    jmp b_10
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_8, %self$length], [b_9, %v_6]: Long
+    %v_12 = cmp_ilt %to, %v_11: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    jmp b_15
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_13, %v_11], [b_14, %to]: Long
+    %v_17 = cmp_igt %v_16, %self$length: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    jmp b_20
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
+    %v_22 = alloca 16, 8: Ptr
+    %v_23 = imul %v_11, 4: Long
+    %v_24 = add %self$items, %v_23: Ptr
+    %v_25 = sub %v_21, %v_11: Long
+    store %v_22, %v_24, 8
+    %v_26 = add %v_22, 8: Ptr
+    store %v_26, %v_25, 8
+    copy %v_0, %v_22, 16
     ret 
   }
 }
@@ -59,6 +122,31 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
+Chunked(Ring, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    call_complex Contiguous(Ring, Int).elements, %v_2, %self
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = alloca 1, 1: Ptr
+    call_complex %v_4, %v_6, %v_5, %v_2
+    %v_7 = loads %v_6, 1: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    copy %v_0, %v_6, 1
+    ret 
+  }
+
+  b_10 {
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
 firstOfEachChunk<complex>(%xs: Ptr): Int {
   b_0 {
     %total = alloca 4, 4: Ptr
@@ -76,6 +164,117 @@ firstOfEachChunk<complex>(%xs: Ptr): Int {
   }
 }
 
+@closure$ResolveTest.continuation$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, ResolveTest.continuation$3, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_2, 8
+    %xs$items = load %value, 8: Ptr
+    %v_6 = add %value, 8: Ptr
+    %xs$length = loads %v_6, 8: Long
+    %v_7 = alloca 1, 1: Ptr
+    call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
+@closure$ResolveTest.continuation$7 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$7<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = loads %env, 4: Int
+    store %v_2, %v_3, 4
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, ResolveTest.continuation$8, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_2, 8
+    %xs$items = load %value, 8: Ptr
+    %v_6 = add %value, 8: Ptr
+    %xs$length = loads %v_6, 8: Long
+    %v_7 = alloca 8, 4: Ptr
+    call_complex each(Int, Int), %v_7, %xs$items, %xs$length, %v_4
+    %v_8 = loads %v_7, 4: Int
+    %v_9 = cmp_eq %v_8, 1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = add %v_7, 4: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, 1, 4
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, %v_13, 4
+    copy %v_0, %v_14, 8
+    ret 
+  }
+
+  b_11 {
+    %v_16 = alloca 8, 4: Ptr
+    store %v_16, 0, 4
+    copy %v_0, %v_16, 8
+    ret 
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+sumChunked<complex>(%xs: Ptr): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %total, 8
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.continuation$0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 1, 1: Ptr
+    call_complex Chunked(Chunks, Int).chunks(()), %v_4, %xs, %v_2
+    %v_5 = loads %total, 4: Int
+    ret %v_5
+  }
+}
+
+Contiguous(Array(a), a).elements(Int)<complex>(%v_0: Ptr, %self: Ptr) {
+  b_1 {
+    %v_2 = add %self, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %v_4 = cast %v_3: Int
+    %v_5 = cast %v_4: Long
+    %v_6 = load %self, 8: Ptr
+    %v_7 = alloca 16, 8: Ptr
+    call_complex slice(Int), %v_7, %v_6, %v_5, 0, %v_5
+    copy %v_0, %v_7, 16
+    ret 
+  }
+}
+
 @closure$ResolveTest.continuation$6 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$6<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   b_1 {
@@ -85,6 +284,12 @@ ResolveTest.continuation$6<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_5 = add %v_4, %value: Int
     store %v_2, %v_5, 4
     store %v_0, 0, 1
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
     ret 
   }
 }
@@ -232,6 +437,19 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
   }
 }
 
+@closure$ResolveTest.continuation$10 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$10<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 1, 1
+    ret 
+  }
+}
+
 firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -258,48 +476,16 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 }
 
-each(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
+@closure$ResolveTest.continuation$5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$5<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   b_1 {
-    %n = cast %xs$length: Int
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
-    %v_6 = cmp_ilt %v_3, %n: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 0, 4
-    copy %v_0, %v_9, 8
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 0, 1
     ret 
-  }
-
-  b_7 {
-    %v_10 = sext %v_3: Long
-    %v_11 = imul %v_10, 4: Long
-    %v_12 = add %xs$items, %v_11: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = add %body, 8: Ptr
-    %v_15 = load %body, 8: Ptr
-    %v_16 = load %v_14, 8: Ptr
-    %v_17 = alloca 8, 4: Ptr
-    call_complex %v_15, %v_17, %v_16, %v_13
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_4
-  }
-
-  b_20 {
-    copy %v_0, %v_17, 8
-    ret 
-  }
-
-  b_4 {
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
   }
 }
 
@@ -380,6 +566,51 @@ threeChunks<complex>(%v_0: Ptr, %x: Int) {
   }
 }
 
+each(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
+  b_1 {
+    %n = cast %xs$length: Int
+    jmp b_2
+  }
+
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 0, 4
+    copy %v_0, %v_9, 8
+    ret 
+  }
+
+  b_7 {
+    %v_10 = sext %v_3: Long
+    %v_11 = imul %v_10, 4: Long
+    %v_12 = add %xs$items, %v_11: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = add %body, 8: Ptr
+    %v_15 = load %body, 8: Ptr
+    %v_16 = load %v_14, 8: Ptr
+    %v_17 = alloca 8, 4: Ptr
+    call_complex %v_15, %v_17, %v_16, %v_13
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = cmp_eq %v_18, 1: Int
+    je %v_19, b_20, b_4
+  }
+
+  b_20 {
+    copy %v_0, %v_17, 8
+    ret 
+  }
+
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
+  }
+}
+
 @closure$ResolveTest.continuation$9 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$9<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
   b_1 {
@@ -395,348 +626,6 @@ ResolveTest.continuation$9<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
     %xs$length = loads %v_6, 8: Long
     %v_7 = alloca 1, 1: Ptr
     call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-Contiguous(Ring, Int).elements<complex>(%v_0: Ptr, %self: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Int), %v_2, %self
-    copy %v_0, %v_2, 16
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    store %v_2, %v_3, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$1, 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %xs$items = load %value, 8: Ptr
-    %v_6 = add %value, 8: Ptr
-    %xs$length = loads %v_6, 8: Long
-    %v_7 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
-  b_1 {
-    %n = cast %xs$length: Int
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
-    %v_6 = cmp_ilt %v_3, %n: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    store %v_0, 0, 1
-    ret 
-  }
-
-  b_7 {
-    %v_9 = sext %v_3: Long
-    %v_10 = imul %v_9, 4: Long
-    %v_11 = add %xs$items, %v_10: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = add %body, 8: Ptr
-    %v_14 = load %body, 8: Ptr
-    %v_15 = load %v_13, 8: Ptr
-    %v_16 = alloca 1, 1: Ptr
-    call_complex %v_14, %v_16, %v_15, %v_12
-    %v_17 = loads %v_16, 1: Int
-    %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_4
-  }
-
-  b_19 {
-    copy %v_0, %v_16, 1
-    ret 
-  }
-
-  b_4 {
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
-  }
-}
-
-Chunked(Array(a), a).chunks(Int, ())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Int), %v_2, %self
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = alloca 1, 1: Ptr
-    call_complex %v_4, %v_6, %v_5, %v_2
-    %v_7 = loads %v_6, 1: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    copy %v_0, %v_6, 1
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long, %to: Long) {
-  b_1 {
-    %v_2 = cmp_ilt %from, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 0], [b_4, %from]: Long
-    %v_7 = cmp_igt %v_6, %self$length: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    jmp b_10
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_8, %self$length], [b_9, %v_6]: Long
-    %v_12 = cmp_ilt %to, %v_11: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_13 {
-    jmp b_15
-  }
-
-  b_14 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_16 = phi [b_13, %v_11], [b_14, %to]: Long
-    %v_17 = cmp_igt %v_16, %self$length: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
-    jmp b_20
-  }
-
-  b_19 {
-    jmp b_20
-  }
-
-  b_20 {
-    %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
-    %v_22 = alloca 16, 8: Ptr
-    %v_23 = imul %v_11, 4: Long
-    %v_24 = add %self$items, %v_23: Ptr
-    %v_25 = sub %v_21, %v_11: Long
-    store %v_22, %v_24, 8
-    %v_26 = add %v_22, 8: Ptr
-    store %v_26, %v_25, 8
-    copy %v_0, %v_22, 16
-    ret 
-  }
-}
-
-Chunked(Ring, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    call_complex Contiguous(Ring, Int).elements, %v_2, %self
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = alloca 1, 1: Ptr
-    call_complex %v_4, %v_6, %v_5, %v_2
-    %v_7 = loads %v_6, 1: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    copy %v_0, %v_6, 1
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$7 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$7<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = loads %env, 4: Int
-    store %v_2, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$8, 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %xs$items = load %value, 8: Ptr
-    %v_6 = add %value, 8: Ptr
-    %xs$length = loads %v_6, 8: Long
-    %v_7 = alloca 8, 4: Ptr
-    call_complex each(Int, Int), %v_7, %xs$items, %xs$length, %v_4
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = cmp_eq %v_8, 1: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    %v_12 = add %v_7, 4: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = alloca 8, 4: Ptr
-    store %v_14, 1, 4
-    %v_15 = add %v_14, 4: Ptr
-    store %v_15, %v_13, 4
-    copy %v_0, %v_14, 8
-    ret 
-  }
-
-  b_11 {
-    %v_16 = alloca 8, 4: Ptr
-    store %v_16, 0, 4
-    copy %v_0, %v_16, 8
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    store %v_2, %v_3, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$3, 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %xs$items = load %value, 8: Ptr
-    %v_6 = add %value, 8: Ptr
-    %xs$length = loads %v_6, 8: Long
-    %v_7 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Ptr
-    call_complex freeHeap, %v_8
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-sumChunked<complex>(%xs: Ptr): Int {
-  b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %total, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$0, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex Chunked(Chunks, Int).chunks(()), %v_4, %xs, %v_2
-    %v_5 = loads %total, 4: Int
-    ret %v_5
-  }
-}
-
-Contiguous(Array(a), a).elements(Int)<complex>(%v_0: Ptr, %self: Ptr) {
-  b_1 {
-    %v_2 = add %self, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = cast %v_3: Int
-    %v_5 = cast %v_4: Long
-    %v_6 = load %self, 8: Ptr
-    %v_7 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_7, %v_6, %v_5, 0, %v_5
-    copy %v_0, %v_7, 16
-    ret 
-  }
-}
-
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
-count(Int)<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %v_1 = cast %xs$length: Int
-    ret %v_1
-  }
-}
-
-@closure$ResolveTest.continuation$10 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$10<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
-    store %v_0, 1, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$5<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
     store %v_0, 0, 1
     ret 
   }
@@ -996,15 +885,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-@closure$ResolveTest.continuation$3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$3<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+Contiguous(Ring, Int).elements<complex>(%v_0: Ptr, %self: Ptr) {
   b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
-    store %v_0, 0, 1
+    %v_2 = alloca 16, 8: Ptr
+    call_complex Contiguous(Array(a), a).elements(Int), %v_2, %self
+    copy %v_0, %v_2, 16
     ret 
   }
 }
@@ -1026,6 +911,26 @@ sumContiguous<complex>(%xs: Ptr): Int {
   }
 }
 
+@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, ResolveTest.continuation$1, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_2, 8
+    %xs$items = load %value, 8: Ptr
+    %v_6 = add %value, 8: Ptr
+    %xs$length = loads %v_6, 8: Long
+    %v_7 = alloca 1, 1: Ptr
+    call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
 @closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   b_1 {
@@ -1036,6 +941,104 @@ ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     store %v_2, %v_5, 4
     store %v_0, 0, 1
     ret 
+  }
+}
+
+@closure$ResolveTest.continuation$3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$3<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
+total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %sum = alloca 4, 4: Ptr
+    store %sum, 0, 4
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %sum, 8
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.continuation$6, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 1, 1: Ptr
+    call_complex each(Int, ()), %v_4, %xs$items, %xs$length, %v_2
+    %v_5 = loads %sum, 4: Int
+    ret %v_5
+  }
+}
+
+Chunked(Array(a), a).chunks(Int, ())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    call_complex Contiguous(Array(a), a).elements(Int), %v_2, %self
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = alloca 1, 1: Ptr
+    call_complex %v_4, %v_6, %v_5, %v_2
+    %v_7 = loads %v_6, 1: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    copy %v_0, %v_6, 1
+    ret 
+  }
+
+  b_10 {
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
+each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
+  b_1 {
+    %n = cast %xs$length: Int
+    jmp b_2
+  }
+
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    store %v_0, 0, 1
+    ret 
+  }
+
+  b_7 {
+    %v_9 = sext %v_3: Long
+    %v_10 = imul %v_9, 4: Long
+    %v_11 = add %xs$items, %v_10: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = add %body, 8: Ptr
+    %v_14 = load %body, 8: Ptr
+    %v_15 = load %v_13, 8: Ptr
+    %v_16 = alloca 1, 1: Ptr
+    call_complex %v_14, %v_16, %v_15, %v_12
+    %v_17 = loads %v_16, 1: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_4
+  }
+
+  b_19 {
+    copy %v_0, %v_16, 1
+    ret 
+  }
+
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 
@@ -1056,34 +1059,6 @@ ResolveTest.continuation$4<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
     call_complex each(Int, ()), %v_7, %xs$items, %xs$length, %v_4
     store %v_0, 0, 1
     ret 
-  }
-}
-
-reclaim$Chunks<complex>(%value: Ptr) {
-  b_0 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %value
-    %v_1 = add %value, 16: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_2 = add %value, 32: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_2
-    ret 
-  }
-}
-
-total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %sum = alloca 4, 4: Ptr
-    store %sum, 0, 4
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %sum, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$6, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_4, %xs$items, %xs$length, %v_2
-    %v_5 = loads %sum, 4: Int
-    ret %v_5
   }
 }
 

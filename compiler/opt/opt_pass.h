@@ -569,3 +569,23 @@ void inlineCalls(OptContext& opt);
  * function - *a non-generic body contains no `Drop`* - and that is the form every consumer needs.
  */
 void dischargeOwnership(OptContext& opt);
+
+/*
+ * The teardown of a function value every reaching lambda leaves empty, deleted rather than searched
+ * for at run time - see opt_closure.cpp.
+ *
+ * Called by `dischargeDrop` before the generic expansion, and answers whether it took the drop.
+ * Separate from that function because what it is is an analysis: what it discharges to is nothing,
+ * and everything worth reading is the proof that it is.
+ */
+bool devirtualizeClosureDrop(OptContext& opt, Block& block, Size index, InstDrop& drop);
+
+/*
+ * Which lifted lambdas still need the header emitted in front of them - see opt_closure.cpp.
+ *
+ * Program-wide and before `dischargeOwnership`, because what it reads is the drops as the ownership
+ * passes left them: a closure whose drop `closureTeardown` already resolved to its environment is
+ * exactly the one whose header nothing goes through. Clears `Function::closureHeaderRead`, which
+ * both backends consult before emitting the table.
+ */
+void markClosureHeaders(OptContext& opt);

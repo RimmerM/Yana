@@ -16,10 +16,29 @@ answer<complex>(): Int {
   }
 }
 
+annotated<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = add %x, 1: Int
+    ret %v_1
+  }
+}
+
+useLater<complex>(): Int {
+  b_0 {
+    ret 42
+  }
+}
+
 double<complex>(%x: Int): Int {
   b_0 {
     %v_1 = imul %x, 2: Int
     ret %v_1
+  }
+}
+
+later<complex>(): Int {
+  b_0 {
+    ret 41
   }
 }
 
@@ -43,32 +62,6 @@ fact<complex>(%n: Int): Int {
   b_4 {
     %v_8 = phi [b_2, 1], [b_3, %v_7]: Int
     ret %v_8
-  }
-}
-
-annotated<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = add %x, 1: Int
-    ret %v_1
-  }
-}
-
-useLater<complex>(): Int {
-  b_0 {
-    ret 42
-  }
-}
-
-later<complex>(): Int {
-  b_0 {
-    ret 41
-  }
-}
-
-sum(Int)<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = add %lhs, %rhs: Int
-    ret %v_1
   }
 }
 

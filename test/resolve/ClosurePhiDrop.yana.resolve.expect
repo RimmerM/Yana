@@ -1,0 +1,140 @@
+let &dropCalls: Int = 0
+
+table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
+  .0 drop${g: Guard}
+  .1 teardown$none
+}
+
+table closure$ResolveTest.lambda$1 before ResolveTest.lambda$1 {
+  .0 drop${g: Guard}
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn either(%pick: Int, %id: Int) -> Int {
+  b0:
+    %g = alloc : Guard
+    init %local0@Guard.id, %id
+    %v6 = cmp_lt %pick, 1 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = alloc : {g: Guard}
+    %g = move %local0 : Guard
+    init %local1.g, %g
+    %v11 = addressof %local1 : %()
+    %v12 = alloc : (x: Int) -> Int
+    %v13 = symbol ResolveTest.lambda$0 : %()
+    init %local2.code, %v13
+    init %local2.env, %v11
+    jmp b3
+
+  b2:
+    %v16 = alloc : {g: Guard}
+    %g = move %local0 : Guard
+    init %local3.g, %g
+    %v19 = addressof %local3 : %()
+    %v20 = alloc : (x: Int) -> Int
+    %v21 = symbol ResolveTest.lambda$1 : %()
+    init %local4.code, %v21
+    init %local4.env, %v19
+    jmp b3
+
+  b3:
+    %f = phi [b1, %v12], [b2, %v20] : (x: Int) -> Int
+    %v28 = calldyn %f, 10 : Int
+    drop_derived %local5 via drop$(x: Int) -> Int reclaim reclaim$(x: Int) -> Int
+    ret %v28
+}
+
+fn main() -> Int {
+  b0:
+    %a = call either, 0, 3 : Int
+    %b = call either, 2, 5 : Int
+    %v6 = add %a, %b : Int
+    %v7 = load dropCalls : Int
+    %v8 = add %v6, %v7 : Int
+    ret %v8
+}
+
+fn Drop(Guard).drop(%self: Guard) -> () {
+  b0:
+    %v1 = load dropCalls : Int
+    %v4 = add %v1, 1 : Int
+    assign dropCalls, %v4
+    ret
+}
+
+fn ResolveTest.lambda$0(%env: %{g: Guard}, %x: Int) -> Int {
+  b0:
+    %v2 = load [%env].g : Guard
+    %v3 = load [%env].g@Guard.id : Int
+    %v4 = add %x, %v3 : Int
+    ret %v4
+}
+
+fn drop${g: Guard}(%value: {g: Guard}) -> () {
+  b0:
+    drop %value.g via Drop(Guard).drop
+    ret
+}
+
+fn ResolveTest.lambda$1(%env: %{g: Guard}, %x: Int) -> Int {
+  b0:
+    %v2 = load [%env].g : Guard
+    %v3 = load [%env].g@Guard.id : Int
+    %v4 = mul %x, %v3 : Int
+    ret %v4
+}
+
+fn drop${g: Guard}(%value: {g: Guard}) -> () {
+  b0:
+    drop %value.g via Drop(Guard).drop
+    ret
+}
+
+fn drop$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].drop : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].reclaim : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}

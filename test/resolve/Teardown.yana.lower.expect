@@ -4,77 +4,6 @@
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 @released = [0, 0, 0, 0]
 
-drop$Session<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %value, 12: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_1, %v_3: Int
-    store @effects, %v_4, 4
-    ret 
-  }
-}
-
-useSession<complex>(%s: Ptr): Int {
-  b_0 {
-    %v_1 = add %s, 12: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = loads @effects, 4: Int
-    %v_4 = add %v_3, %v_2: Int
-    store @effects, %v_4, 4
-    %v_5 = loads @released, 4: Int
-    %v_6 = add %v_5, 1: Int
-    store @released, %v_6, 4
-    %v_7 = load %s, 8: Ptr
-    %v_8 = bitcast %v_7: Ptr
-    call_complex freeHeap, %v_8
-    ret %v_2
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-Drop(Handle).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = loads %value, 4: Int
-    %v_3 = add %v_1, %v_2: Int
-    store @effects, %v_3, 4
-    ret 
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -213,18 +142,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-reclaim$Session<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @released, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @released, %v_2, 4
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Ptr
-    call_complex freeHeap, %v_4
-    ret 
-  }
-}
-
 makeBuffer<complex>(%v_0: Ptr, %count: Int) {
   b_1 {
     %v_2 = imul %count, 8: Int
@@ -240,15 +157,20 @@ makeBuffer<complex>(%v_0: Ptr, %count: Int) {
   }
 }
 
-Reclaim(Buffer).reclaim<complex>(%value: Ptr) {
+useSession<complex>(%s: Ptr): Int {
   b_0 {
-    %v_1 = loads @released, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @released, %v_2, 4
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Ptr
-    call_complex freeHeap, %v_4
-    ret 
+    %v_1 = add %s, 12: Ptr
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = loads @effects, 4: Int
+    %v_4 = add %v_3, %v_2: Int
+    store @effects, %v_4, 4
+    %v_5 = loads @released, 4: Int
+    %v_6 = add %v_5, 1: Int
+    store @released, %v_6, 4
+    %v_7 = load %s, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    ret %v_2
   }
 }
 
@@ -276,13 +198,35 @@ main<complex>(): Int {
   }
 }
 
-duplicate(Int)<complex>(%v_0: Ptr, %x: Int) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, %x, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %x, 4
-    copy %v_0, %v_2, 8
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
     ret 
   }
 }

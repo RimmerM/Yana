@@ -180,22 +180,6 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-reclaim$Cell<complex>(%value: Ptr) {
-  b_0 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %value
-    ret 
-  }
-}
-
-Drop(Cell).drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @reclaims, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @reclaims, %v_2, 4
-    ret 
-  }
-}
-
 resize(Int)<complex>(%self: Ptr, %wanted: Int): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr

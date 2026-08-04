@@ -396,30 +396,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-reclaim$Outcome(Array(Int), ())<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 12: Ptr
-    %v_2 = load %v_1, 4: Long
-    %v_3 = cmp_le %v_2, 1073741823: Int
-    %v_4 = select 0, 1, %v_3: Int
-    %v_5 = cmp_eq %v_4, 0: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_8 {
-    ret 
-  }
-
-  b_6 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %value
-    jmp b_8
-  }
-
-  b_7 {
-    jmp b_8
-  }
-}
-
 Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr

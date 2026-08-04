@@ -1,38 +1,5 @@
 @drops = [0, 0, 0, 0]
 
-Eq(Held).!=<complex>(%lhs: Ptr, %rhs: Ptr): Int {
-  b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    %v_4 = xor %v_3, 1: Int
-    ret %v_4
-  }
-}
-
-drop$Maybe(Held)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_5 {
-    ret 
-  }
-
-  b_3 {
-    %v_6 = loads @drops, 4: Int
-    %v_7 = add %v_6, 1: Int
-    store @drops, %v_7, 4
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-}
-
 sameMaybe<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   b_0 {
     %v_1 = loads %lhs, 4: Int
@@ -78,15 +45,6 @@ sameMaybe<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   b_17 {
     %v_21 = phi [b_11, %v_16], [b_20, 1], [b_8, 0]: Int
     ret %v_21
-  }
-}
-
-Eq(Held).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
-  b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
   }
 }
 
@@ -188,15 +146,6 @@ ordered<complex>(%a: Ptr, %b: Ptr, %c: Int): Int {
   b_19 {
     %v_26 = phi [b_13, %v_18], [b_22, %v_25], [b_8, 0]: Int
     ret %v_26
-  }
-}
-
-Drop(Held).drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @drops, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @drops, %v_2, 4
-    ret 
   }
 }
 

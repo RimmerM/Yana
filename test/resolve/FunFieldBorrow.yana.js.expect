@@ -13,7 +13,6 @@ function negate(x) {
 }
 
 function retarget(slot$o, slot$k, slot$ke) {
-  drop$_Int_sub_gt_Int(slot$o[slot$k], slot$o[slot$ke]);
   slot$o[slot$k] = funvalue$triple;
   slot$o[slot$ke] = null;
   return;
@@ -21,7 +20,6 @@ function retarget(slot$o, slot$k, slot$ke) {
 
 function reweight(step, weight) {
   step.weight = weight;
-  drop$_Int_sub_gt_Int(step.run$c, step.run$e);
   step.run$c = funvalue$negate;
   step.run$e = null;
   return;
@@ -33,13 +31,9 @@ function main() {
   retarget(v0, "run$c", "run$e");
   var after = Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0;
   v0.weight = 4;
-  drop$_Int_sub_gt_Int(v0.run$c, v0.run$e);
   v0.run$c = funvalue$negate;
   v0.run$e = null;
-  var v35 = v0.run$c(v0.run$e, 10);
-  var v37 = v0.weight;
-  drop$_Int_sub_gt_Int(v0.run$c, v0.run$e);
-  return (before + after | 0) + (Math.imul(v35, v37) | 0) | 0;
+  return (before + after | 0) + (Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0) | 0;
 }
 
 function funvalue$triple(env, x) {
@@ -52,27 +46,4 @@ function funvalue$negate(env, x) {
 
 function funvalue$double(env, x) {
   return Math.imul(x, 2) | 0;
-}
-
-function drop$_Int_sub_gt_Int(value$c, value$e) {
-  if (value$e != null) {
-    value$c.$h[0](value$e);
-  }
-  return;
-}
-
-function reclaim$_Int_sub_gt_Int(value$c, value$e) {
-  if (value$e != null) {
-    value$c.$h[8](value$e);
-  }
-  return;
-}
-
-function drop$Step(value) {
-  drop$_Int_sub_gt_Int(value.run$c, value.run$e);
-  return;
-}
-
-function reclaim$Step(value) {
-  return;
 }

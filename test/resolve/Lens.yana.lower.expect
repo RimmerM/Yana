@@ -22,51 +22,6 @@ written<complex>(): Int {
   }
 }
 
-scope(Int)<complex>(%body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = imul %v_1, 2: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5: Int
-    %v_7 = loads @log, 4: Int
-    %v_8 = add %v_7, 100: Int
-    store @log, %v_8, 4
-    ret %v_6
-  }
-}
-
-twiceOver(Int, Int)<complex>(%value: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %value: Int
-    ret %v_6
-  }
-}
-
-logged(())<complex>(%body: Ptr) {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    call_complex %v_4, %v_5, %v_2
-    %v_6 = loads @log, 4: Int
-    %v_7 = add %v_6, 10: Int
-    store @log, %v_7, 4
-    ret 
-  }
-}
-
 ResolveTest.continuation$2<complex>(%env: Ptr, %n: Int): Int {
   b_0 {
     %v_1 = imul %n, 2: Int
@@ -114,19 +69,6 @@ ResolveTest.continuation$8<complex>(%env: Ptr, %value: Int): Int {
     %v_7 = load %v_5, 8: Ptr
     %v_8 = call_complex %v_6, %v_7, %v_4: Int
     ret %v_8
-  }
-}
-
-twiceOver(Bool, Int)<complex>(%value: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %value: Int
-    ret %v_6
   }
 }
 
@@ -179,17 +121,6 @@ inLoop<complex>(%n: Int): Int {
     %v_17 = add %v_16, 10: Int
     store @log, %v_17, 4
     jmp b_1
-  }
-}
-
-plusOne(Int)<complex>(%x: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = add %x, 1: Int
-    %v_2 = add %body, 8: Ptr
-    %v_3 = load %body, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = call_complex %v_3, %v_4, %v_1: Int
-    ret %v_5
   }
 }
 
@@ -256,37 +187,9 @@ nested<complex>(): Int {
   }
 }
 
-bumped(Int)<complex>(%c: Ptr, %body: Ptr): Int {
-  b_0 {
-    %v_1 = loads %c, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store %c, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %v_2: Int
-    %v_7 = loads %c, 4: Int
-    %v_8 = add %v_7, 10: Int
-    store %c, %v_8, 4
-    ret %v_6
-  }
-}
-
 ResolveTest.continuation$9<complex>(%env: Ptr, %b: Int): Int {
   b_0 {
     ret %b
-  }
-}
-
-split(Int)<complex>(%x: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = irem %x, 10: Int
-    %v_2 = idiv %x, 10: Int
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %v_1, %v_2: Int
-    ret %v_6
   }
 }
 

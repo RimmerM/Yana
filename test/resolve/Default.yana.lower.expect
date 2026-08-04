@@ -5,48 +5,6 @@ described<complex>(): Int {
   }
 }
 
-Ord(Metres).compare<complex>(%lhs$value: Int, %rhs$value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
-    %v_2 = cmp_igt %lhs$value, %rhs$value: Int
-    %v_3 = select 2, 0, %v_2: Int
-    %v_4 = select 1, %v_3, %v_1: Int
-    ret %v_4
-  }
-}
-
-Num(Cents).-<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
-  b_1 {
-    %v_2 = sub %lhs$value, %rhs$value: Int
-    store %v_0, %v_2, 4
-    ret 
-  }
-}
-
-Logic(Flags).not<complex>(%v_0: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    %v_3 = load %value, 1: Int
-    %v_4 = and %v_3, 1: Int
-    %v_5 = cast %v_4: Int
-    %v_6 = xor %v_5, 1: Int
-    %v_7 = shr %v_3, 1: Int
-    %v_8 = and %v_7, 1: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = xor %v_9, 1: Int
-    %v_11 = cast %v_6: Int
-    %v_12 = cast %v_10: Int
-    %v_13 = and %v_12, 1: Int
-    %v_14 = shl %v_13, 1: Int
-    %v_15 = and %v_11, 1: Int
-    %v_16 = or %v_15, %v_14: Int
-    store %v_2, %v_16, 1
-    copy %v_0, %v_2, 1
-    ret 
-  }
-}
-
 overridden<complex>(): Int {
   b_0 {
     ret 64
@@ -56,222 +14,6 @@ overridden<complex>(): Int {
 ordered<complex>(): Int {
   b_0 {
     ret 63
-  }
-}
-
-FromInt(Cents).fromInt<complex>(%v_0: Ptr, %value: Long) {
-  b_1 {
-    %v_2 = cast %value: Int
-    store %v_0, %v_2, 4
-    ret 
-  }
-}
-
-@closure$ResolveTest.deferred$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.deferred$0<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    copy %v_0, %env, 1
-    ret 
-  }
-}
-
-Eq(Feet).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
-    ret %v_1
-  }
-}
-
-Eq(Feet).!=<complex>(%lhs$value: Int, %rhs$value: Int): Int {
-  b_0 {
-    %v_1 = cmp_neq %lhs$value, %rhs$value: Int
-    ret %v_1
-  }
-}
-
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
-Describe.doubled(Metres)<complex>(%value$value: Int): Int {
-  b_0 {
-    %v_1 = add %value$value, %value$value: Int
-    ret %v_1
-  }
-}
-
-Eq(Box(a)).==(Int)<complex>(%lhs$item: Int, %rhs$item: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs$item, %rhs$item: Int
-    ret %v_1
-  }
-}
-
-Describe(Metres).size<complex>(%value$value: Int): Int {
-  b_0 {
-    ret %value$value
-  }
-}
-
-Num(Cents)./<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
-  b_1 {
-    %v_2 = idiv %lhs$value, %rhs$value: Int
-    store %v_0, %v_2, 4
-    ret 
-  }
-}
-
-Logic(Flags).and<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    store %v_2, 0, 1
-    %v_3 = load %lhs, 1: Int
-    %v_4 = and %v_3, 1: Int
-    %v_5 = cast %v_4: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_8 = load %rhs, 1: Int
-    %v_9 = and %v_8, 1: Int
-    %v_10 = cast %v_9: Int
-    jmp b_11
-  }
-
-  b_7 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_12 = phi [b_6, %v_10], [b_7, %v_5]: Int
-    %v_13 = load %lhs, 1: Int
-    %v_14 = shr %v_13, 1: Int
-    %v_15 = and %v_14, 1: Int
-    %v_16 = cast %v_15: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_17 {
-    %v_19 = load %rhs, 1: Int
-    %v_20 = shr %v_19, 1: Int
-    %v_21 = and %v_20, 1: Int
-    %v_22 = cast %v_21: Int
-    jmp b_23
-  }
-
-  b_18 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = phi [b_17, %v_22], [b_18, %v_16]: Int
-    %v_25 = load %v_2, 1: Int
-    %v_26 = cast %v_12: Int
-    %v_27 = and %v_26, 1: Int
-    %v_28 = and %v_25, 18446744073709551614: Int
-    %v_29 = or %v_28, %v_27: Int
-    %v_30 = cast %v_24: Int
-    %v_31 = and %v_30, 1: Int
-    %v_32 = shl %v_31, 1: Int
-    %v_33 = and %v_29, 18446744073709551613: Int
-    %v_34 = or %v_33, %v_32: Int
-    store %v_2, %v_34, 1
-    copy %v_0, %v_2, 1
-    ret 
-  }
-}
-
-Logic(Flags).or<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    store %v_2, 0, 1
-    %v_3 = load %lhs, 1: Int
-    %v_4 = and %v_3, 1: Int
-    %v_5 = cast %v_4: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = load %rhs, 1: Int
-    %v_9 = and %v_8, 1: Int
-    %v_10 = cast %v_9: Int
-    jmp b_11
-  }
-
-  b_6 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_12 = phi [b_7, %v_10], [b_6, %v_5]: Int
-    %v_13 = load %lhs, 1: Int
-    %v_14 = shr %v_13, 1: Int
-    %v_15 = and %v_14, 1: Int
-    %v_16 = cast %v_15: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    %v_19 = load %rhs, 1: Int
-    %v_20 = shr %v_19, 1: Int
-    %v_21 = and %v_20, 1: Int
-    %v_22 = cast %v_21: Int
-    jmp b_23
-  }
-
-  b_17 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = phi [b_18, %v_22], [b_17, %v_16]: Int
-    %v_25 = load %v_2, 1: Int
-    %v_26 = cast %v_12: Int
-    %v_27 = and %v_26, 1: Int
-    %v_28 = and %v_25, 18446744073709551614: Int
-    %v_29 = or %v_28, %v_27: Int
-    %v_30 = cast %v_24: Int
-    %v_31 = and %v_30, 1: Int
-    %v_32 = shl %v_31, 1: Int
-    %v_33 = and %v_29, 18446744073709551613: Int
-    %v_34 = or %v_33, %v_32: Int
-    store %v_2, %v_34, 1
-    copy %v_0, %v_2, 1
-    ret 
-  }
-}
-
-Logic(Flags).xor<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    %v_3 = load %lhs, 1: Int
-    %v_4 = and %v_3, 1: Int
-    %v_5 = cast %v_4: Int
-    %v_6 = load %rhs, 1: Int
-    %v_7 = and %v_6, 1: Int
-    %v_8 = cast %v_7: Int
-    %v_9 = xor %v_5, %v_8: Int
-    %v_10 = shr %v_3, 1: Int
-    %v_11 = and %v_10, 1: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = shr %v_6, 1: Int
-    %v_14 = and %v_13, 1: Int
-    %v_15 = cast %v_14: Int
-    %v_16 = xor %v_12, %v_15: Int
-    %v_17 = cast %v_9: Int
-    %v_18 = cast %v_16: Int
-    %v_19 = and %v_18, 1: Int
-    %v_20 = shl %v_19, 1: Int
-    %v_21 = and %v_17, 1: Int
-    %v_22 = or %v_21, %v_20: Int
-    store %v_2, %v_22, 1
-    copy %v_0, %v_2, 1
-    ret 
   }
 }
 
@@ -294,32 +36,16 @@ boxes<complex>(): Int {
   }
 }
 
-Eq(Cents).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
-    ret %v_1
-  }
-}
-
-Num(Cents).*<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
+@closure$ResolveTest.deferred$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.deferred$0<complex>(%v_0: Ptr, %env: Ptr) {
   b_1 {
-    %v_2 = imul %lhs$value, %rhs$value: Int
-    store %v_0, %v_2, 4
+    copy %v_0, %env, 1
     ret 
   }
 }
 
-Eq(Metres).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
+teardown$none<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
-    ret %v_1
-  }
-}
-
-Num(Cents).+<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
-  b_1 {
-    %v_2 = add %lhs$value, %rhs$value: Int
-    store %v_0, %v_2, 4
     ret 
   }
 }

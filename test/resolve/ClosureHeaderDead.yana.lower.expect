@@ -1,0 +1,131 @@
+@dropCalls = [0, 0, 0, 0]
+
+handedOff<complex>(%id: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %id, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = call_complex consume, %v_2: Int
+    ret %v_4
+  }
+}
+
+ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = add %x, %v_1: Int
+    ret %v_2
+  }
+}
+
+inFrame<complex>(%id: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %id, 4
+    %f = alloca 16, 8: Ptr
+    store %f, ResolveTest.lambda$0, 8
+    %v_2 = add %f, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = add %f, 8: Ptr
+    %v_4 = load %f, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, 10: Int
+    call_complex drop${g: Guard}, %v_1
+    ret %v_6
+  }
+}
+
+drop${g: Guard}<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
+  }
+}
+
+drop${g: Guard}$1<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+consume<complex>(%f: Ptr): Int {
+  b_0 {
+    %v_1 = add %f, 8: Ptr
+    %v_2 = load %f, 8: Ptr
+    %v_3 = load %v_1, 8: Ptr
+    %v_4 = call_complex %v_2, %v_3, 1: Int
+    %v_5 = add %f, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = bitcast 0: Ptr
+    %v_8 = cmp_neq %v_6, %v_7: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = load %f, 8: Ptr
+    %v_12 = bitcast %v_11: Long
+    %v_13 = sub %v_12, 16: Long
+    %v_14 = bitcast %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    call_complex %v_15, %v_6
+    jmp b_10
+  }
+
+  b_10 {
+    %v_16 = add %f, 8: Ptr
+    %v_17 = load %v_16, 8: Ptr
+    %v_18 = bitcast 0: Ptr
+    %v_19 = cmp_neq %v_17, %v_18: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    %v_22 = load %f, 8: Ptr
+    %v_23 = bitcast %v_22: Long
+    %v_24 = sub %v_23, 16: Long
+    %v_25 = bitcast %v_24: Ptr
+    %v_26 = add %v_25, 8: Ptr
+    %v_27 = load %v_26, 8: Ptr
+    call_complex %v_27, %v_17
+    jmp b_21
+  }
+
+  b_21 {
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %a = call_complex inFrame, 3: Int
+    %b = call_complex handedOff, 5: Int
+    %v_1 = add %a, %b: Int
+    %v_2 = loads @dropCalls, 4: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+@closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = add %x, %v_1: Int
+    ret %v_2
+  }
+}
+

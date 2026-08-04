@@ -273,6 +273,16 @@ struct Function {
      */
     bool disposer = false;
 
+    /*
+     * Set by `addAnonymousFunction`: this is reached through something other than its name.
+     *
+     * A class instance's implementation, a specialization, and every piece of compiler-built glue.
+     * What they have in common is the property `markProgramReachable` reads it for - a reference
+     * exists somewhere for the walk to find, so being unreached means nothing can ever run it, even
+     * in the root module where a *named* declaration is a root of the walk rather than a finding.
+     */
+    bool anonymous = false;
+
     // Set when the function is generic: its type variables, and the class requirements its
     // signature declared or its body turned out to need. The body is resolved once against these
     // and specialized by cloning - see generic.h.
@@ -287,6 +297,21 @@ struct Function {
     // of this function's entry point, which is where its closures' teardown reads the environment
     // descriptor and the storage decision from. See ClosureHeaderLayout.
     ModulePtr<Global> closureHeader = nullptr;
+
+    /*
+     * Whether anything can still find that header at run time - see markClosureHeaders in
+     * compiler/opt/opt_closure.cpp, which is the only thing that ever clears it.
+     *
+     * A header is reached through the code word and through nothing else, so a closure whose every
+     * value is built, called and torn down where the compiler can see it has one that no path leads
+     * to. `analyze_drop`'s `closureTeardown` is what makes that common rather than exotic: it
+     * rewrites such a closure's drop to its environment's, by name, and the header it would have
+     * gone through is then dead the moment it is written.
+     *
+     * True until proved otherwise, so a build that never runs the optimizer - `-no-opt`, and every
+     * consumer that reaches a backend by another road - keeps emitting it.
+     */
+    bool closureHeaderRead = true;
 
     /*
      * Set when this function is a *code word*: a lifted lambda, or the thunk that makes a named
@@ -532,6 +557,16 @@ struct Global {
     bool isTable = false;
 
     /*
+     * Set by `addAnonymousGlobal`: nothing in the source can name this.
+     *
+     * Every compiler-built table - a witness, a type descriptor, a closure header. Read by
+     * `markProgramReachable` on the same terms as `Function::anonymous`: such a table is reached
+     * through a reference the walk can find, so being unreached means nothing can ever read it, even
+     * in the root module where a *declared* global is a root of the walk rather than a finding.
+     */
+    bool anonymous = false;
+
+    /*
      * The bytes of a string literal - Implementation-String.md part 9, and the second exception to
      * "an initializer is a constant".
      *
@@ -672,6 +707,12 @@ struct Program {
     HashMap<U32, ModulePtr<Function>> dropGlue;
     HashMap<U32, ModulePtr<Function>> reclaimGlue;
 
+    // The same glue for a function type with the header test left out, for the drop sites that can
+    // prove it - see funTeardownKnownHeader and devirtualizeClosureDrop. Only the function types
+    // some site proved it for are in here.
+    HashMap<U32, ModulePtr<Function>> dropGlueKnown;
+    HashMap<U32, ModulePtr<Function>> reclaimGlueKnown;
+
     /*
      * The *erased* entry point of a teardown half, interned the same way - see teardownEntryFor.
      *
@@ -762,6 +803,25 @@ struct Program {
      * leaving the two to be the same by luck.
      */
     bool optimized = false;
+
+    /*
+     * Whether any function value in this program can carry a teardown at all - see
+     * markClosureHeaders, which is the only thing that ever clears it.
+     *
+     * A teardown is found through the closure header a code word leads to, and only a *lambda* has
+     * one: the thunk that makes a plain function into a function value carries a null environment
+     * and no header, by construction. So a program whose every function value is a thunk - or whose
+     * every lambda captured nothing droppable, or had its header proved unreachable - has nothing
+     * for any `(a) -> b` teardown to find, anywhere, and the generic one is a call that tests a
+     * property no function in the program has.
+     *
+     * Whole-program, and therefore not a question resolve may ask: `ownershipOf` runs while bodies
+     * are still being resolved, and a lambda declared later would change an answer already given.
+     * Here it is asked once, after every body exists and nothing more can be added.
+     *
+     * True until proved otherwise, so a build that never runs the optimizer keeps the generic form.
+     */
+    bool funValuesCarryTeardown = true;
 
     // What the ownership passes found, per function, kept for printing rather than for any later
     // stage - see analyze.h. Held behind a pointer because analyze.h is written against this

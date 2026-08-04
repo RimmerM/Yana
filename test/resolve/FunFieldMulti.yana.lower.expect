@@ -6,64 +6,6 @@ funvalue$double<complex>(%env: Ptr, %x: Int): Int {
   }
 }
 
-drop$(Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 16: Long
-    %v_10 = bitcast %v_9: Ptr
-    %v_11 = load %v_10, 8: Ptr
-    call_complex %v_11, %v_2
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-reclaim$(Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 16: Long
-    %v_10 = bitcast %v_9: Ptr
-    %v_11 = add %v_10, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    call_complex %v_12, %v_2
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-drop$Handlers<complex>(%value: Ptr) {
-  b_0 {
-    call_complex drop$(Int) -> Int, %value
-    %v_1 = add %value, 16: Ptr
-    call_complex drop$(Int) -> Int, %v_1
-    ret 
-  }
-}
-
 retarget<complex>(%slot: Ptr) {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -71,8 +13,6 @@ retarget<complex>(%slot: Ptr) {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    call_complex drop$(Int) -> Int, %slot
-    call_complex reclaim$(Int) -> Int, %slot
     copy %slot, %v_1, 16
     ret 
   }
@@ -127,16 +67,12 @@ retargetBoth<complex>(%a: Ptr, %b: Ptr) {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    call_complex drop$(Int) -> Int, %a
-    call_complex reclaim$(Int) -> Int, %a
     copy %a, %v_1, 16
     %v_4 = alloca 16, 8: Ptr
     store %v_4, funvalue$square, 8
     %v_5 = bitcast 0: Ptr
     %v_6 = add %v_4, 8: Ptr
     store %v_6, %v_5, 8
-    call_complex drop$(Int) -> Int, %b
-    call_complex reclaim$(Int) -> Int, %b
     copy %b, %v_4, 16
     ret 
   }
@@ -146,15 +82,6 @@ negate<complex>(%x: Int): Int {
   b_0 {
     %v_1 = sub 0, %x: Int
     ret %v_1
-  }
-}
-
-reclaim$Handlers<complex>(%value: Ptr) {
-  b_0 {
-    call_complex reclaim$(Int) -> Int, %value
-    %v_1 = add %value, 16: Ptr
-    call_complex reclaim$(Int) -> Int, %v_1
-    ret 
   }
 }
 
@@ -206,16 +133,10 @@ main<complex>(): Int {
     %v_34 = load %v_32, 8: Ptr
     %v_35 = load %v_33, 8: Ptr
     %v_36 = call_complex %v_34, %v_35, 10: Int
-    call_complex drop$(Int) -> Int, %v_1
-    %v_37 = add %v_1, 16: Ptr
-    call_complex drop$(Int) -> Int, %v_37
-    call_complex reclaim$(Int) -> Int, %v_1
-    %v_38 = add %v_1, 16: Ptr
-    call_complex reclaim$(Int) -> Int, %v_38
     %both = add %v_31, %v_36: Int
-    %v_39 = add %before, %one: Int
-    %v_40 = add %v_39, %both: Int
-    ret %v_40
+    %v_37 = add %before, %one: Int
+    %v_38 = add %v_37, %both: Int
+    ret %v_38
   }
 }
 

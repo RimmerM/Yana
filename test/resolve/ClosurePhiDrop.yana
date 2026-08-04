@@ -1,0 +1,39 @@
+-- Two lambdas reaching one drop, each capturing something with a teardown - the boundary of
+-- opt_closure.cpp, from the side it declines.
+--
+-- ClosureTeardown.yana has the case it takes: a phi of two closures over nothing droppable, whose
+-- headers both read `teardown$none`, so the merged answer is "nothing to run" and the drop is
+-- deleted outright. Here both headers name a real `drop${g: Guard}` and the two are *different
+-- functions* - a lambda's environment tuple is minted fresh rather than interned (see
+-- resolveLambda), so two captures of identical shape are two types and two entries. There is no one
+-- call the merge could become, and the generic teardown is what stays.
+--
+-- Asserted by counting, because both failures are silent. A pass that resolved the merge to either
+-- arm's entry would tear down the wrong environment and still answer; one that mistook "the two
+-- disagree" for "there is nothing here" would delete the drop and leave the answer short by exactly
+-- the drops that did not run. The `+ dropCalls` is what makes the second visible.
+
+let &dropCalls = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        dropCalls = dropCalls + 1
+
+-- One `Guard`, captured by whichever arm runs, so both environments have the same shape and neither
+-- closure escapes. The value merges at the join and is dropped there.
+fn either(pick: Int, id: Int) -> Int:
+    let g = Guard {id: id}
+    let f = if pick < 1 then (x: Int) -> x + g.id else (x: Int) -> x * g.id
+    return f(10)
+
+fn main() -> Int:
+    -- 10 + 3 = 13, and each call drops its own capture exactly once.
+    let a = either(0, 3)
+
+    -- 10 * 5 = 50.
+    let b = either(2, 5)
+
+    -- 13 + 50 + 2 = 65
+    return a + b + dropCalls

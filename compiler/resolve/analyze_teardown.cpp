@@ -21,7 +21,8 @@
 
 // The two halves differ only in which classification decides whether a member contributes and which
 // instance an authored member reaches, so they share one generator rather than being written twice.
-static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source);
+static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source,
+                                           bool headerKnown = false);
 
 static TeardownKind teardownKind(const Ownership& ownership, Teardown half) {
     return half == Teardown::Drop ? ownership.drop : ownership.reclaim;
@@ -29,7 +30,11 @@ static TeardownKind teardownKind(const Ownership& ownership, Teardown half) {
 
 // The name a glue function is printed and linked under. It is not addressable in source; what it
 // needs is to be unique and to say what it tears down.
-static StringId teardownGlueName(Module& module, TypePtr type, Teardown half) {
+static StringId teardownGlueName(Module& module, TypePtr type, Teardown half, bool headerKnown) {
+    if(headerKnown) {
+        return derivedName(module, half == Teardown::Drop ? "dropKnown$"_v : "reclaimKnown$"_v, type);
+    }
+
     return derivedName(module, half == Teardown::Drop ? "drop$"_v : "reclaim$"_v, type);
 }
 
@@ -213,18 +218,56 @@ static bool contributes(Module& module, TypePtr type, Teardown half) {
  * where it is known, in which reclaim the header names, and what is left here is a call.
  */
 static void teardownFunValue(ExprResolver& resolver, Module& module, Place base, Teardown half,
-                             LocationId source) {
+                             LocationId source, bool headerKnown) {
     auto address = funValueFieldType(module, FunValueLayout::kEnv);
     auto word = module.scalar.long_;
 
     auto env = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kEnv), source);
     auto empty = resolver.constantBits(address, 0, source);
-    auto present = resolver.emit<InstCmp>(source, 0, module.scalar.bool_, env, empty, CompareOp::Ne);
 
-    auto run = resolver.addBlock();
-    auto exit = resolver.addBlock();
-    resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit, resolver.ref(present), run, exit));
-    resolver.current = run;
+    /*
+     * `headerKnown` is the caller saying the test below has one answer.
+     *
+     * This is interned per function *type* and therefore has to assume the worst about a value: a
+     * lambda that captured nothing has no header at all, and so does the thunk that makes a plain
+     * function into a function value. A *drop site* often knows better - see
+     * devirtualizeClosureDrop, which proves that every lambda able to reach one particular drop has
+     * a header that is emitted and non-empty - and this is the same glue with the question already
+     * answered. The two are separate interned functions rather than a parameter, because which one
+     * a site gets is decided per site while the body is shared by all of them.
+     */
+    ModulePtr<Block> exit = nullptr;
+
+    /*
+     * What the branch tests, which is not the same question on the two targets.
+     *
+     * Native tests the **environment**: a header always exists in front of a lifted lambda's entry
+     * point, so a null environment is the only thing that says there is nothing here to release.
+     *
+     * A target that hangs the header on the code word tests the **header** instead, and gets a
+     * strictly better answer for it. A missing header means one of two things and both are "nothing
+     * to run": the value captured nothing, or it captured only things with no teardown between them
+     * - and the second is a lambda whose header would have held `teardown$none` in every slot. So
+     * the test subsumes the environment's *and* lets that header stop being emitted at all, which is
+     * one static table and one store per lambda that no longer exist. See closureNeedsTeardown.
+     *
+     * It is also one property load where the environment test was a load and then a second load to
+     * reach the header, so the branch that does fire is no more expensive than it was.
+     */
+    if(!headerKnown) {
+        ModulePtr<Value> tested = env;
+
+        if(isJsMode(module.context.settings.mode)) {
+            tested = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source);
+        }
+
+        auto present = resolver.emit<InstCmp>(source, 0, module.scalar.bool_, tested, empty, CompareOp::Ne);
+
+        auto run = resolver.addBlock();
+        exit = resolver.addBlock();
+        resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit, resolver.ref(present), run, exit));
+        resolver.current = run;
+    }
 
     /*
      * The header, from wherever this target keeps it.
@@ -271,8 +314,12 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     teardown->args.push(module.arena, env);
     resolver.append(teardown);
 
-    resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
-    resolver.current = exit;
+    // Nothing to rejoin where there was no branch: the call is the whole body and the caller's
+    // `ret` follows it.
+    if(exit) {
+        resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+        resolver.current = exit;
+    }
 }
 
 /*
@@ -284,14 +331,18 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
  * on instance coherence: two modules that can both see a type agree on what tearing it down means,
  * and the language already requires that.
  */
-static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source) {
+static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source,
+                                           bool headerKnown) {
     auto& program = module.program;
-    auto& interned = half == Teardown::Drop ? program.dropGlue : program.reclaimGlue;
+    auto& interned = half == Teardown::Drop
+        ? (headerKnown ? program.dropGlueKnown : program.dropGlue)
+        : (headerKnown ? program.reclaimGlueKnown : program.reclaimGlue);
+
     if(auto found = interned.get(U32(type))) return found.unwrap();
 
     // addAnonymousFunction already registers it in the module's function order, which is what puts
     // it in front of printing and lowering.
-    auto function = addAnonymousFunction(module, teardownGlueName(module, type, half), source);
+    auto function = addAnonymousFunction(module, teardownGlueName(module, type, half, headerKnown), source);
     auto pointer = function - *module.arena;
 
     // Registered before the body is built, so a type reachable from itself finds the entry rather
@@ -332,7 +383,7 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
     auto global = *module.types;
 
     if(global[type]->kind == Type::Fun) {
-        teardownFunValue(resolver, module, base, half, source);
+        teardownFunValue(resolver, module, base, half, source, headerKnown);
     } else if(global[type]->kind == Type::Array) {
         /*
          * `[T *n]` - Implementation-Containers.md §6's "derived teardown over exactly `n` members".
@@ -581,4 +632,16 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
     resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
 
     return pointer;
+}
+
+/*
+ * The drop-site form of the glue above: the same body with the header test left out.
+ *
+ * Only for a function type, and only for a caller that has proved what the test would have found -
+ * see devirtualizeClosureDrop, which is the one caller. Interned per type beside the conditional
+ * one, so a program in which no site can prove it never generates one.
+ */
+ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, Teardown half, LocationId source) {
+    assertTrue((*module.types)[type]->kind == Type::Fun);
+    return teardownGlueFor(module, type, half, source, true);
 }

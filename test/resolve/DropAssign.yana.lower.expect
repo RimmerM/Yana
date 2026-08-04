@@ -50,15 +50,6 @@ throughBorrow<complex>(): Long {
   }
 }
 
-drop$Holder<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -440,15 +431,6 @@ main<complex>(): Long {
 
   b_34 {
     ret %v_29
-  }
-}
-
-Drop(Buffer).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    ret 
   }
 }
 

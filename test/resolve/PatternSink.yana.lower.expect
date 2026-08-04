@@ -17,15 +17,6 @@ borrowed<complex>(): Long {
   }
 }
 
-Drop(Buffer).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @live, 1
-    ret 
-  }
-}
-
 touchBox<complex>(%it: Ptr): Long {
   b_0 {
     ret 0

@@ -316,19 +316,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-levelIn(Int)<complex>(%c: Ptr, %body: Ptr): Int {
-  b_0 {
-    %v_1 = load %c, 8: Ptr
-    %v_2 = add %v_1, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %body, 8: Ptr
-    %v_5 = load %body, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6, %v_3: Int
-    ret %v_7
-  }
-}
-
 @closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
   b_0 {

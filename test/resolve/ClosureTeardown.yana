@@ -11,8 +11,13 @@ fn direct(base: Int) -> Int = apply((x) -> x + base, 1)
 
 -- Two lambdas reaching one drop. Both environments are in the frame and neither closure escapes, so
 -- the *site* is known; which lambda the value holds is not, because the phi decides it at run time.
--- This is what the closure header exists for, and what stops the devirtualization above from being
--- unconditional.
+-- That is what stops the rewrite above - `closureTeardown` needs one environment to name, and a
+-- merge gives it none - and it is not what stops the drop from going away.
+--
+-- opt_closure.cpp takes it from the other end: both lambdas capture one copied `Int`, so both
+-- headers read `teardown$none` twice, and "which of them is this" stops being a question worth
+-- answering. The emitted `either` has no teardown in it on either target. ClosurePhiDrop.yana is
+-- the same merge over captures that *do* have one, where the header is still what finds it.
 fn either(pick: Int, a: Int, b: Int) -> Int:
     let f = if pick < 1 then (x: Int) -> x + a else (x: Int) -> x * b
     return apply(f, 10)

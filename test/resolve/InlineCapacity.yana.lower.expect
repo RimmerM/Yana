@@ -106,13 +106,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-reclaim$Buffer<complex>(%value: Ptr) {
-  b_0 {
-    call_complex reclaim$@inline(4) @capacity(4) Array(Int), %value
-    ret 
-  }
-}
-
 Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
@@ -583,22 +576,6 @@ drop$@inline(2) @capacity(2) Array(Handle)<complex>(%value: Ptr) {
   }
 }
 
-drop$Holder<complex>(%value: Ptr) {
-  b_0 {
-    call_complex drop$@inline(2) @capacity(2) Array(Handle), %value
-    ret 
-  }
-}
-
-Drop(Handle).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveHandles, 1
-    ret 
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -762,12 +739,6 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
     %v_4 = add %v_2, %v_13: Int
     %v_6 = add %v_5, 1: Int
     jmp b_1
-  }
-}
-
-reclaim$Holder<complex>(%value: Ptr) {
-  b_0 {
-    ret 
   }
 }
 

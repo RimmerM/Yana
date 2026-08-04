@@ -1,0 +1,46 @@
+"use strict";
+var dropCalls = 0;
+const closure$ResolveTest_lambda$0 = [dropAt$_g_Guard, teardown$none];
+const closure$ResolveTest_lambda$1 = [dropAt$_g_Guard$1, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function either(pick, id) {
+  var f;
+  if (pick < 1) {
+    f = { $c: ResolveTest_lambda$0, $e: { $v: id } };
+  } else {
+    f = { $c: ResolveTest_lambda$1, $e: { $v: id } };
+  }
+  var v28 = f.$c(f.$e, 10);
+  f.$c.$h[0](f.$e);
+  return v28;
+}
+
+function main() {
+  return (either(0, 3) + either(2, 5) | 0) + dropCalls | 0;
+}
+
+function ResolveTest_lambda$0(env, x) {
+  return x + env.$v | 0;
+}
+ResolveTest_lambda$0.$h = closure$ResolveTest_lambda$0;
+
+function dropAt$_g_Guard(value) {
+  dropCalls = dropCalls + 1 | 0;
+  return;
+}
+
+function ResolveTest_lambda$1(env, x) {
+  return Math.imul(x, env.$v) | 0;
+}
+ResolveTest_lambda$1.$h = closure$ResolveTest_lambda$1;
+
+function dropAt$_g_Guard$1(value) {
+  dropCalls = dropCalls + 1 | 0;
+  return;
+}

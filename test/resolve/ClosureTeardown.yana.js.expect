@@ -1,9 +1,4 @@
 "use strict";
-const closure$ResolveTest_lambda$0 = [teardown$none, teardown$none];
-const closure$ResolveTest_lambda$1 = [teardown$none, teardown$none];
-const closure$ResolveTest_lambda$2 = [teardown$none, teardown$none];
-const closure$ResolveTest_lambda$3 = [teardown$none, null];
-
 // Core
 function teardown$none(value) {
   return;
@@ -25,9 +20,7 @@ function either(pick, a, b) {
   } else {
     f = { $c: ResolveTest_lambda$2, $e: { $v: b } };
   }
-  var v30 = f.$c(f.$e, 10);
-  drop$_Int_sub_gt_Int(f.$c, f.$e);
-  return v30;
+  return f.$c(f.$e, 10);
 }
 
 function escaping(amount) {
@@ -40,40 +33,25 @@ function main() {
   var c = either(2, 3, 7);
   var f = escaping(100);
   var d = f.$c(f.$e, 1);
-  drop$_Int_sub_gt_Int(f.$c, f.$e);
+  var v21 = f.$e;
+  if (f.$c.$h != null) {
+    f.$c.$h[0](v21);
+  }
   return ((a + b | 0) + c | 0) + d | 0;
 }
 
 function ResolveTest_lambda$0(env, x) {
   return x + env.$v | 0;
 }
-ResolveTest_lambda$0.$h = closure$ResolveTest_lambda$0;
 
 function ResolveTest_lambda$1(env, x) {
   return x + env.$v | 0;
 }
-ResolveTest_lambda$1.$h = closure$ResolveTest_lambda$1;
 
 function ResolveTest_lambda$2(env, x) {
   return Math.imul(x, env.$v) | 0;
 }
-ResolveTest_lambda$2.$h = closure$ResolveTest_lambda$2;
 
 function ResolveTest_lambda$3(env, x) {
   return x + env.$v | 0;
-}
-ResolveTest_lambda$3.$h = closure$ResolveTest_lambda$3;
-
-function drop$_Int_sub_gt_Int(value$c, value$e) {
-  if (value$e != null) {
-    value$c.$h[0](value$e);
-  }
-  return;
-}
-
-function reclaim$_Int_sub_gt_Int(value$c, value$e) {
-  if (value$e != null) {
-    value$c.$h[8](value$e);
-  }
-  return;
 }

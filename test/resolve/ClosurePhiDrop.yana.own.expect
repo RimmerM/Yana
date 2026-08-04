@@ -1,0 +1,52 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn either {
+  arg pick readonly
+  arg id readonly
+  %local0: Guard droppable readonly live [0, 6) [13, 15)
+  %local1: {g: Guard} closure droppable writable addressed live [4, 12)
+  %local2: (x: Int) -> Int droppable readonly live [8, 13)
+  %local3: {g: Guard} closure droppable writable addressed live [13, 21)
+  %local4: (x: Int) -> Int droppable readonly live [17, 22)
+  %local5: (x: Int) -> Int droppable readonly live [22, 24)
+}
+
+fn main {
+}
+
+fn Drop(Guard).drop {
+  arg self readonly
+  %self: Guard borrowed droppable readonly live never
+}
+
+fn ResolveTest.lambda$0 {
+  arg env readonly
+  arg x readonly
+}
+
+fn drop${g: Guard} {
+  arg value readonly
+  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+}
+
+fn ResolveTest.lambda$1 {
+  arg env readonly
+  arg x readonly
+}
+
+fn drop${g: Guard} {
+  arg value readonly
+  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+}
+
+fn drop$(x: Int) -> Int {
+  arg value unknown retained
+  %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
+}
+
+fn reclaim$(x: Int) -> Int {
+  arg value unknown retained
+  %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
+}

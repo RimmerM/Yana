@@ -15,54 +15,6 @@ openHandle<complex>(%v_0: Ptr, %mark: Long) {
   }
 }
 
-drop$[Handle *2]<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = mul 0, 8: Long
-    %v_2 = add %value, %v_1: Ptr
-    call_complex Drop(Handle).drop, %v_2
-    %v_3 = mul 1, 8: Long
-    %v_4 = add %value, %v_3: Ptr
-    call_complex Drop(Handle).drop, %v_4
-    ret 
-  }
-}
-
-drop$Pair<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = mul 0, 8: Long
-    %v_2 = add %value, %v_1: Ptr
-    call_complex Drop(Handle).drop, %v_2
-    %v_3 = mul 1, 8: Long
-    %v_4 = add %value, %v_3: Ptr
-    call_complex Drop(Handle).drop, %v_4
-    ret 
-  }
-}
-
-drop$[Handle *6]<complex>(%value: Ptr) {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = cmp_ilt %v_2, 6: Int
-    je %v_5, b_3, b_6
-  }
-
-  b_3 {
-    %v_7 = mul %v_2, 8: Long
-    %v_8 = add %value, %v_7: Ptr
-    call_complex Drop(Handle).drop, %v_8
-    %v_4 = add %v_2, 1: Long
-    jmp b_1
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
 nested<complex>(): Long {
   b_0 {
     %p = alloca 24, 8: Ptr

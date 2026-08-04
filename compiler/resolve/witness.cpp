@@ -97,6 +97,7 @@ Global* addAnonymousGlobal(Module& module, StringId name, LocationId source) {
     global_->source = source;
     global_->type = module.scalar.unit;
     global_->used = true;
+    global_->anonymous = true;
     module.globalOrder.push(module.arena, global_ - *module.arena);
     return global_;
 }

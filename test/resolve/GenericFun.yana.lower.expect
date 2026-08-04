@@ -1,39 +1,4 @@
 
-leftOf(Int, Bool)<complex>(%value$first: Int, %value$second: Int): Int {
-  b_0 {
-    ret %value$first
-  }
-}
-
-middle(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
-  b_0 {
-    %v_1 = cmp_ilt %x, %y: Int
-    %v_2 = select %x, %y, %v_1: Int
-    %v_3 = cmp_ilt %v_2, %z: Int
-    %v_4 = select %v_2, %z, %v_3: Int
-    ret %v_4
-  }
-}
-
-smaller(Int)<complex>(%x: Int, %y: Int): Int {
-  b_0 {
-    %v_1 = cmp_ilt %x, %y: Int
-    %v_2 = select %x, %y, %v_1: Int
-    ret %v_2
-  }
-}
-
-swap(Bool, Int)<complex>(%v_0: Ptr, %value$first: Int, %value$second: Int) {
-  b_1 {
-    %v_2 = alloca 5, 4: Ptr
-    store %v_2, %value$second, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %value$first, 1
-    copy %v_0, %v_2, 5
-    ret 
-  }
-}
-
 orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -57,33 +22,6 @@ orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
   }
 }
 
-wrap(Int)<complex>(%v_0: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %value, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
-twice(Int)<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = add %x, %x: Int
-    ret %v_1
-  }
-}
-
-empty(Int)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 0, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
@@ -101,12 +39,6 @@ main<complex>(): Int {
     %v_8 = call_complex orElse(Int), %v_7, 7: Int
     %v_9 = add %v_5, %v_8: Int
     ret %v_9
-  }
-}
-
-identity(Int)<complex>(%value: Int): Int {
-  b_0 {
-    ret %value
   }
 }
 

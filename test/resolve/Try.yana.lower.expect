@@ -400,15 +400,6 @@ twoSteps<complex>(%v_0: Ptr, %n: Int) {
   }
 }
 
-Drop(Token).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropped, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropped, %v_2, 4
-    ret 
-  }
-}
-
 paired<complex>(%v_0: Ptr, %a: Int, %b: Int) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
@@ -641,29 +632,6 @@ empty<complex>(%m: Ptr): Int {
     %v_2 = cmp_eq %v_1, 1: Int
     %v_3 = select 0, 1, %v_2: Int
     ret %v_3
-  }
-}
-
-drop$Outcome(Token, ())<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_5 {
-    ret 
-  }
-
-  b_3 {
-    %v_6 = loads @dropped, 4: Int
-    %v_7 = add %v_6, 1: Int
-    store @dropped, %v_7, 4
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
   }
 }
 

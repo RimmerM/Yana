@@ -40,23 +40,6 @@ sometimesLeaves<complex>(%x: Int): Int {
   }
 }
 
-handing(Int)<complex>(%x: Int, %body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = imul %x, 2: Int
-    %v_4 = add %body, 8: Ptr
-    %v_5 = load %body, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6, %v_3: Int
-    %v_8 = loads @log, 4: Int
-    %v_9 = add %v_8, 100: Int
-    store @log, %v_9, 4
-    ret %v_7
-  }
-}
-
 @closure$ResolveTest.continuation$5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$5<complex>(%env: Ptr): Int {
   b_0 {
@@ -85,22 +68,6 @@ leavesWithValue<complex>(%x: Int): Int {
     %v_12 = add %v_11, 100: Int
     store @log, %v_12, 4
     ret %v_10
-  }
-}
-
-scope(Int)<complex>(%body: Ptr): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = add %body, 8: Ptr
-    %v_4 = load %body, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5: Int
-    %v_7 = loads @log, 4: Int
-    %v_8 = add %v_7, 100: Int
-    store @log, %v_8, 4
-    ret %v_6
   }
 }
 

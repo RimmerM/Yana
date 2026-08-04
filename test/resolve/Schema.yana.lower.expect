@@ -1,24 +1,4 @@
 
-tagOf(Labelled)<complex>(%value$tag: Int, %value$weight: Int): Int {
-  b_0 {
-    ret 7
-  }
-}
-
-scale(Int)<complex>(%x: Int, %y: Int): Int {
-  b_0 {
-    %v_1 = imul %x, %y: Int
-    %v_2 = add %v_1, %x: Int
-    ret %v_2
-  }
-}
-
-doubled(Labelled)<complex>(%value$tag: Int, %value$weight: Int): Int {
-  b_0 {
-    ret 8
-  }
-}
-
 double<complex>(%n: Int): Int {
   b_0 {
     %v_1 = imul %n, 2: Int
@@ -26,47 +6,9 @@ double<complex>(%n: Int): Int {
   }
 }
 
-bothEqual(Int, Bool)<complex>(%p: Int, %q: Int, %r: Int, %s: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %p, %q: Int
-    %v_2 = cmp_eq %r, %s: Int
-    %v_3 = select %v_2, %v_1, %v_1: Int
-    ret %v_3
-  }
-}
-
-smallest(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
-  b_0 {
-    %v_1 = cmp_ilt %x, %y: Int
-    %v_2 = cmp_ilt %x, %z: Int
-    %v_3 = select %x, %z, %v_2: Int
-    %v_4 = cmp_ilt %y, %z: Int
-    %v_5 = select %y, %z, %v_4: Int
-    %v_6 = select %v_3, %v_5, %v_1: Int
-    ret %v_6
-  }
-}
-
-pairUp(Int, Bool)<complex>(%v_0: Ptr, %x: Int, %y: Int) {
-  b_1 {
-    %v_2 = alloca 5, 4: Ptr
-    store %v_2, %x, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %y, 1
-    copy %v_0, %v_2, 5
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     ret 53
-  }
-}
-
-identity(Int)<complex>(%value: Int): Int {
-  b_0 {
-    ret %value
   }
 }
 

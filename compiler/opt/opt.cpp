@@ -491,6 +491,11 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
 
+    // Before the discharge, because what it reads is the drops as the ownership passes left them -
+    // and the discharge is what turns those into calls. Answers which lambdas still need a closure
+    // header emitted in front of them, which is a question no later stage can reconstruct.
+    markClosureHeaders(opt);
+
     // Before anything else here, because everything else here is written under the constraint it
     // removes - see dischargeOwnership. What it leaves behind is ordinary calls, which the passes
     // below are entitled to move, fold and copy like any other.
@@ -535,7 +540,7 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
              * here is a superset of the truth, which is the safe direction - the cost is optimizing
              * a function that has since become unreachable, and never skipping one that is emitted.
              */
-            if(!module->root && !function->used) continue;
+            if(!function->used) continue;
 
             optimizeFunction(opt, *function);
         }

@@ -432,7 +432,19 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                 if(owner == g.headerType) {
                     auto entry = g.repr.fieldOf(owner, step.index);
                     if(!entry) break;
-                    if(expr) *expr = tableCell(g, *expr, entry->offset);
+
+                    /*
+                     * The *slot* rather than the byte offset, which is what every other table here
+                     * is read by - `genEnv[1][6]` is `TypeDescFields::kCopyInit`, not a distance in
+                     * bytes. The header is materialized as an array with one element per slot, so a
+                     * native offset indexes past the end of it: `kReclaim` is slot 1 and offset 8,
+                     * and `$h[8]` on a two-element array is `undefined`.
+                     *
+                     * Latent rather than observed, because the reclaim half compiles to nothing on
+                     * this target - the host collector owns reclamation, Design-Memory §4 - so the
+                     * only slot anything reads is `kDrop`, whose offset and index are both zero.
+                     */
+                    if(expr) *expr = tableCell(g, *expr, step.index);
                     type = entry->type;
                     break;
                 }
