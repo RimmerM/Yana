@@ -171,13 +171,17 @@ Name valueName(Gen& g, Value& value) {
 }
 
 /*
- * One part of a flattened narrow reference, named after the reference itself.
+ * One part of a value this target carries in pieces, named after the value itself.
  *
- * `flip(p$o, p$k, p$s)` rather than three anonymous slots, so that emitted source still reads as a
- * reference to `p` taken apart rather than as three unrelated parameters. Each part goes through
- * uniqueName like any other local, since the base name it is built from is already taken.
+ * `flip(p$o, p$k, p$s)` rather than three anonymous slots, and `apply(f$c, f$e, x)` rather than two,
+ * so that emitted source still reads as one value taken apart rather than as several unrelated
+ * parameters. Each part goes through uniqueName like any other local, since the base name it is
+ * built from is already taken.
+ *
+ * Shared by the two multi-part representations - the reference triple and the function-value pair -
+ * because naming a part is the same job in both and the suffix is the whole of the difference.
  */
-Name refPartName(Gen& g, Value& value, StringView suffix) {
+Name partName(Gen& g, Value& value, StringView suffix) {
     char buffer[512];
     Size length = 0;
 
@@ -231,6 +235,24 @@ Name fieldName(Gen& g, StringId name, U16 index) {
     buffer[0] = 'f';
     auto length = 1 + show(U64(index), buffer + 1, sizeof(buffer) - 1);
     return Name { internText(g, StringView { buffer, length }) };
+}
+
+/*
+ * One word of a function-value field, named after the field - `run$c` and `run$e`.
+ *
+ * A property rather than an identifier, so it needs no disambiguation: two fields cannot share a
+ * name, so neither can their words, and the suffixes are ones `propertyName` never produces from a
+ * source name because `$` is not in the sanitized alphabet.
+ */
+Name fieldPartName(Gen& g, Name field, StringView suffix) {
+    auto text = stringView(g.context.findName(field.text));
+
+    char buffer[512];
+    auto length = text.length < sizeof(buffer) - 8 ? text.length : sizeof(buffer) - 8;
+    copy(text.ptr, buffer, length);
+    copy(suffix.ptr, buffer + length, suffix.length);
+
+    return Name { internText(g, StringView { buffer, length + suffix.length }) };
 }
 
 } // namespace js

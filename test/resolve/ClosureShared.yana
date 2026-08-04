@@ -1,0 +1,34 @@
+-- One local mutably captured by two closures, one after the other.
+--
+-- This is Implementation-JS-Closure.md part 4's negative case, and it exists to pin the behaviour
+-- the promotion described there must not break. Promotion lets the environment *be* the captured
+-- local's storage, which removes the box and a load: sound when exactly one closure mutably borrows
+-- the local over one contiguous region, because the borrow checker has already proved nothing else
+-- can name it while that closure lives.
+--
+-- Two closures cannot have that. Each gets an environment of its own, so the storage has to be one
+-- object both of them reach, and that object is the box. What the goldens here say is that it stays
+-- one - a promoted `total` would give the second closure a copy of the first's, and the arithmetic
+-- is what notices.
+--
+-- Closure.yana covers the promotable shape - one closure, one region - so the two fixtures are the
+-- two sides of the rule rather than one of them twice.
+
+fn applyUnit(f: () -> {}) -> {} = f()
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    -- The first borrow ends at its closure's last use, which is what lets the second one exist at
+    -- all: they are sequential rather than simultaneous, and exclusivity is about overlap.
+    applyUnit((): total = total + 1)
+    applyUnit((): total = total * 10)
+
+    -- A read between two captures, so the fixture also says the frame sees the first closure's
+    -- write rather than a copy of what it captured.
+    let seen = total
+
+    applyUnit((): total = total + 5)
+
+    -- ((0 + 1) * 10) = 10, seen = 10, then 10 + 5 = 15. 15 + 10 = 25.
+    return total + seen

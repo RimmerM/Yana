@@ -9,6 +9,7 @@ table typeDesc$Handle {
   .5 Sink(Handle).sink
   .6 teardown$none
   .7 teardown$none
+  .8 teardown$none
 }
 
 table genEnv$relocate(Handle) {
@@ -25,6 +26,7 @@ table typeDesc$Pair {
   .5 moveInit$Pair
   .6 teardown$none
   .7 teardown$none
+  .8 teardown$none
 }
 
 table genEnv$relocate(Pair) {
@@ -39,8 +41,9 @@ table typeDesc$Int {
   .3 strideof Int
   .4 131
   .5 moveInit$Int
-  .6 teardown$none
+  .6 copyInit$Int
   .7 teardown$none
+  .8 teardown$none
 }
 
 table witness$Num(Int) {
@@ -83,8 +86,9 @@ table typeDesc$I64 {
   .3 strideof I64
   .4 131
   .5 moveInit$I64
-  .6 teardown$none
+  .6 copyInit$I64
   .7 teardown$none
+  .8 teardown$none
 }
 
 table witness$Num(I64) {
@@ -275,6 +279,15 @@ fn moveInit$Int(%to: %Int, %from: %Int) -> () {
     ret
 }
 
+fn copyInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
 fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
   b0:
     %v3 = load [%lhs] : Int
@@ -327,6 +340,15 @@ fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
 }
 
 fn moveInit$I64(%to: %I64, %from: %I64) -> () {
+  b0:
+    %v2 = sizeof I64 : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$I64(%to: %I64, %from: %I64) -> () {
   b0:
     %v2 = sizeof I64 : Long
     %v3 = cast %to : %()

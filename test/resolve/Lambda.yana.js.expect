@@ -1,0 +1,121 @@
+"use strict";
+// ResolveTest
+function double(x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function apply(f$c, f$e, x) {
+  return f$c(f$e, x);
+}
+
+function runOn(f$c, f$e, target$o, target$k, target$s) {
+  f$c(f$e, target$o, target$k, target$s);
+  return;
+}
+
+function twice(f$c, f$e, x) {
+  return f$c(f$e, f$c(f$e, x));
+}
+
+function consume(xs) {
+  return xs.length;
+}
+
+function run(f$c, f$e) {
+  return f$c(f$e, [1, 2, 3]);
+}
+
+function runStep(s, x) {
+  return Math.imul(s.run$c(s.run$e, x), s.weight) | 0;
+}
+
+function main() {
+  var v94 = ResolveTest_lambda$0(null, 10);
+  var v95 = funvalue$double(null, 20);
+  var c = ResolveTest_lambda$1(null, 5);
+  var v24$e = null;
+  var v97 = ResolveTest_lambda$2(v24$e, ResolveTest_lambda$2(v24$e, 1));
+  var e = ResolveTest_lambda$3(null, 4);
+  var step = { weight: 0, run$c: null, run$e: null };
+  var v46 = null;
+  step.weight = 2;
+  step.run$c = ResolveTest_lambda$4;
+  step.run$e = v46;
+  var v101 = Math.imul(step.run$c(step.run$e, 6), 2) | 0;
+  if (v46 != null) {
+    step.run$c.$h[0](v46);
+  }
+  var v52$e = null;
+  var v115 = ResolveTest_lambda$5(v52$e, ResolveTest_lambda$5(v52$e, 1));
+  var v129 = funvalue$consume(null, [1, 2, 3]);
+  var counter = { $v: 100 };
+  ResolveTest_lambda$6(null, counter, "$v", 1);
+  return (((((((v94 + v95 | 0) + c | 0) + v97 | 0) + e | 0) + v101 | 0) + v115 | 0) + v129 | 0) + counter.$v | 0;
+}
+
+function ResolveTest_lambda$0(env, x) {
+  return x + 1 | 0;
+}
+
+function funvalue$double(env, x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function ResolveTest_lambda$1(env, x) {
+  return Math.imul(x, x) | 0;
+}
+
+function ResolveTest_lambda$2(env, x) {
+  return x + 3 | 0;
+}
+
+function ResolveTest_lambda$3(env, x) {
+  return Math.imul(x, 3) | 0;
+}
+
+function ResolveTest_lambda$4(env, x) {
+  return x - 1 | 0;
+}
+
+function ResolveTest_lambda$5(env, x) {
+  return x + 10 | 0;
+}
+
+function twiceGeneric_Int(f$c, f$e, x) {
+  return f$c(f$e, f$c(f$e, x));
+}
+
+function funvalue$consume(env, xs) {
+  return consume(xs);
+}
+
+function ResolveTest_lambda$6(env, t$o, t$k, t$s) {
+  t$o[t$k] = t$o[t$k] + 5 | 0;
+  return;
+}
+
+function drop$Step(value) {
+  var v5 = value.run$e;
+  if (v5 != null) {
+    value.run$c.$h[0](v5);
+  }
+  return;
+}
+
+function drop$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
+  }
+  return;
+}
+
+function reclaim$Step(value) {
+  return;
+}
+
+function reclaim$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[8](value$e);
+  }
+  return;
+}

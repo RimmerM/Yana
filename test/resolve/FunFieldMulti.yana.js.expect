@@ -1,0 +1,87 @@
+"use strict";
+// ResolveTest
+function double(x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function triple(x) {
+  return Math.imul(x, 3) | 0;
+}
+
+function negate(x) {
+  return 0 - x | 0;
+}
+
+function square(x) {
+  return Math.imul(x, x) | 0;
+}
+
+function retarget(slot$o, slot$k, slot$ke) {
+  drop$_Int_sub_gt_Int(slot$o[slot$k], slot$o[slot$ke]);
+  slot$o[slot$k] = funvalue$triple;
+  slot$o[slot$ke] = null;
+  return;
+}
+
+function retargetBoth(a$o, a$k, a$ke, b$o, b$k, b$ke) {
+  drop$_Int_sub_gt_Int(a$o[a$k], a$o[a$ke]);
+  a$o[a$k] = funvalue$negate;
+  a$o[a$ke] = null;
+  drop$_Int_sub_gt_Int(b$o[b$k], b$o[b$ke]);
+  b$o[b$k] = funvalue$square;
+  b$o[b$ke] = null;
+  return;
+}
+
+function main() {
+  var v0 = { first$c: funvalue$double, first$e: null, second$c: funvalue$triple, second$e: null };
+  var before = v0.first$c(v0.first$e, 10) + v0.second$c(v0.second$e, 10) | 0;
+  retarget(v0, "first$c", "first$e");
+  var one = v0.first$c(v0.first$e, 10) + v0.second$c(v0.second$e, 10) | 0;
+  retargetBoth(v0, "first$c", "first$e", v0, "second$c", "second$e");
+  var v47 = v0.first$c(v0.first$e, 10);
+  var v51 = v0.second$c(v0.second$e, 10);
+  drop$_Int_sub_gt_Int(v0.first$c, v0.first$e);
+  drop$_Int_sub_gt_Int(v0.second$c, v0.second$e);
+  return (before + one | 0) + (v47 + v51 | 0) | 0;
+}
+
+function funvalue$triple(env, x) {
+  return Math.imul(x, 3) | 0;
+}
+
+function funvalue$negate(env, x) {
+  return 0 - x | 0;
+}
+
+function funvalue$square(env, x) {
+  return Math.imul(x, x) | 0;
+}
+
+function funvalue$double(env, x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function drop$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
+  }
+  return;
+}
+
+function reclaim$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[8](value$e);
+  }
+  return;
+}
+
+function drop$Handlers(value) {
+  drop$_Int_sub_gt_Int(value.first$c, value.first$e);
+  drop$_Int_sub_gt_Int(value.second$c, value.second$e);
+  return;
+}
+
+function reclaim$Handlers(value) {
+  return;
+}

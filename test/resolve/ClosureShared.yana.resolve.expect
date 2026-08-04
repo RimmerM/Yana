@@ -1,0 +1,92 @@
+table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.lambda$1 before ResolveTest.lambda$1 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.lambda$2 before ResolveTest.lambda$2 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn applyUnit(%f: () -> ()) -> () {
+  b0:
+    calldyn %f
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v3 = alloc : {total: &mut Int}
+    %v4 = borrow_mut %total : &mut Int
+    init %local1.total, %v4
+    %v6 = addressof %local1 : %()
+    %v7 = alloc : () -> ()
+    %v8 = symbol ResolveTest.lambda$0 : %()
+    init %local2.code, %v8
+    init %local2.env, %v6
+    call applyUnit, %v7
+    %v12 = alloc : {total: &mut Int}
+    %v13 = borrow_mut %total : &mut Int
+    init %local3.total, %v13
+    %v15 = addressof %local3 : %()
+    %v16 = alloc : () -> ()
+    %v17 = symbol ResolveTest.lambda$1 : %()
+    init %local4.code, %v17
+    init %local4.env, %v15
+    call applyUnit, %v16
+    %seen = load %total : Int
+    %v22 = alloc : {total: &mut Int}
+    %v23 = borrow_mut %total : &mut Int
+    init %local5.total, %v23
+    %v25 = addressof %local5 : %()
+    %v26 = alloc : () -> ()
+    %v27 = symbol ResolveTest.lambda$2 : %()
+    init %local6.code, %v27
+    init %local6.env, %v25
+    call applyUnit, %v26
+    %v31 = load %total : Int
+    %v32 = add %v31, %seen : Int
+    ret %v32
+}
+
+fn ResolveTest.lambda$0(%env: %{total: &mut Int}) -> () {
+  b0:
+    %v1 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%v2] : Int
+    %v6 = add %v3, 1 : Int
+    assign [%v1], %v6
+    ret
+}
+
+fn ResolveTest.lambda$1(%env: %{total: &mut Int}) -> () {
+  b0:
+    %v1 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%v2] : Int
+    %v6 = mul %v3, 10 : Int
+    assign [%v1], %v6
+    ret
+}
+
+fn ResolveTest.lambda$2(%env: %{total: &mut Int}) -> () {
+  b0:
+    %v1 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%v2] : Int
+    %v6 = add %v3, 5 : Int
+    assign [%v1], %v6
+    ret
+}

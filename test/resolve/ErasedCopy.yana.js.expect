@@ -1,0 +1,65 @@
+"use strict";
+var copyCalls = 0;
+const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
+const witness$TrivialCopy_Int = [9140, 1, 0, typeDesc$Int];
+const genEnv$copyInto_Int = [0, typeDesc$Int, witness$TrivialCopy_Int];
+const typeDesc$Point = [52132, 8, 4, 8, 131, moveInit$Point, copyInit$Point, teardown$none, teardown$none];
+const witness$TrivialCopy_Point = [9140, 1, 0, typeDesc$Point];
+const genEnv$copyInto_Point = [0, typeDesc$Point, witness$TrivialCopy_Point];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function copyInto(genEnv, slot, from) {
+  genEnv[1][6](slot, from);
+  return;
+}
+
+function main() {
+  var number = { $v: 0 };
+  copyInto(genEnv$copyInto_Int, number, { $v: 7 });
+  var pair = { x: 3, y: 4 };
+  var v13 = { x: 0, y: 0 };
+  copyInto(genEnv$copyInto_Point, v13, pair);
+  if (pair.x !== 3) {
+    return -1;
+  } else {
+    var v62 = copyCalls + 1 | 0;
+    copyCalls = v62;
+    if (v62 !== 1) {
+      return -2;
+    } else {
+      return (((number.$v + v13.x | 0) + v13.y | 0) + 10 | 0) + copyCalls | 0;
+    }
+  }
+}
+
+function Copy_Tracked_copy(from$value) {
+  copyCalls = copyCalls + 1 | 0;
+  return from$value;
+}
+
+function moveInit$Int(to, from) {
+  to.$v = from.$v;
+  return;
+}
+
+function copyInit$Int(to, from) {
+  to.$v = from.$v;
+  return;
+}
+
+function moveInit$Point(to, from) {
+  to.x = from.x;
+  to.y = from.y;
+  return;
+}
+
+function copyInit$Point(to, from) {
+  to.x = from.x;
+  to.y = from.y;
+  return;
+}

@@ -4,22 +4,23 @@ const closure$ResolveTest_lambda$0 = [dropAt$_g_Guard, null];
 
 // ResolveTest
 function guarded(id) {
-  return ResolveTest_lambda$0$make({ $v: id });
+  return { $c: ResolveTest_lambda$0, $e: { $v: id } };
 }
 
 function plain() {
-  return ResolveTest_lambda$1;
+  return { $c: ResolveTest_lambda$1, $e: null };
 }
 
 function main() {
   var f = guarded(7);
-  var a = f();
-  drop$_sub_gt_Int(f);
+  var a = f.$c(f.$e);
+  drop$_sub_gt_Int(f.$c, f.$e);
   if (dropCalls !== 1) {
     return -1;
   } else {
-    var b = ResolveTest_lambda$1();
-    drop$_sub_gt_Int(ResolveTest_lambda$1);
+    var v35$e = null;
+    var b = ResolveTest_lambda$1(v35$e);
+    drop$_sub_gt_Int(ResolveTest_lambda$1, v35$e);
     if (dropCalls !== 1) {
       return -2;
     } else {
@@ -33,14 +34,10 @@ function Drop_Guard_drop(self) {
   return;
 }
 
-function ResolveTest_lambda$0$make(env) {
-  var closure = function() {
-    return env.$v;
-  };
-  closure.$e = env;
-  closure.$h = closure$ResolveTest_lambda$0;
-  return closure;
+function ResolveTest_lambda$0(env) {
+  return env.$v;
 }
+ResolveTest_lambda$0.$h = closure$ResolveTest_lambda$0;
 
 function drop$_g_Guard(value) {
   dropCalls = dropCalls + 1 | 0;
@@ -52,22 +49,20 @@ function dropAt$_g_Guard(value) {
   return;
 }
 
-function ResolveTest_lambda$1() {
+function ResolveTest_lambda$1(env) {
   return 5;
 }
 
-function drop$_sub_gt_Int(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[0](v1);
+function drop$_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
   }
   return;
 }
 
-function reclaim$_sub_gt_Int(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[8](v1);
+function reclaim$_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[8](value$e);
   }
   return;
 }

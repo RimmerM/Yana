@@ -144,33 +144,18 @@ JsPtr<Expr>* headerOf(Gen& g, Stmt* stmt) {
     }
 }
 
-// The body of every closure inside one expression. A closure is a statement list reached from an
-// expression, which is the one place in this tree where those two nest the other way round.
-template<class F>
-void eachClosureBody(Gen& g, JsPtr<Expr> pointer, F&& f) {
-    auto expr = g.base[pointer];
-
-    if(expr->kind == Expr::Function) {
-        f(((FunValueExpr*)expr)->body);
-        return;
-    }
-
-    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { eachClosureBody(g, operand, f); });
-}
 
 /*
  * The statement lists one statement contains, in the order control reaches them.
  *
- * A closure in the statement's own expression is one of them, and it is one scope with what
- * surrounds it: the factory and the closure it returns share a name scope, so a binding read once
- * inside the closure is read once by the counts here. What does *not* cross the boundary is
- * substitution - eachOperand stops at a function expression - because moving a computation into a
- * closure would move it from once to once per call.
+ * There is no expression here that contains one, and there used to be: a capturing lambda was built
+ * by a factory returning a function *expression*, which is the one place in this tree where a
+ * statement list hangs off an expression rather than the other way round. That shape is gone - a
+ * code word is an ordinary top-level declaration now - so this walk is the statements alone, and
+ * `eachOperand` no longer has a boundary it must not substitute across.
  */
 template<class F>
 void eachBody(Gen& g, Stmt* stmt, F&& f) {
-    if(auto header = headerOf(g, stmt)) eachClosureBody(g, *header, f);
-
     switch(stmt->kind) {
         case Stmt::Block:
             f(((BlockStmt*)stmt)->body);

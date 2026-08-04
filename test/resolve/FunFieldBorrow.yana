@@ -1,0 +1,61 @@
+-- A function value reached through a `&`, in the two ways a record can offer one.
+--
+-- The rule behind both is that **a reference needs a slot**, and the two flattened forms this
+-- target has answer that differently rather than alike. A narrow reference's three parts *describe*
+-- a slot somewhere else, so passing them by value loses nothing - writing through them writes
+-- `owner[key]`, which is where the value lives. A function value's two words *are* the value, so
+-- passing those by value makes a write to a parameter a write to a local and the caller never sees
+-- it. Which is why `refIsFlattened` flattens exactly when the convention **is** `&` and
+-- `funIsFlattened` exactly when it is **not**.
+--
+-- The two functions below are the two sides of it, and they get different answers:
+--
+--  * `retarget` borrows the *field*, so its parameter is a function value and the flattening would
+--    apply if the convention did not decline it. The field stays spread into `run$c`/`run$e`, and
+--    what the borrow names is the pair `{$o: record, $k: "run$c", $ke: "run$e"}` - one owner and
+--    two keys, which is `refIsTriple`'s answer for a function value and works wherever the two
+--    words live.
+--  * `reweight` borrows the *record*, which is an object and therefore its own reference on this
+--    target. Nothing about the function value is flattened away by that, and the field inside it is
+--    still reached the way any field is.
+--
+-- Asserted by a number, because both failures are silent: a flattened reference is written in the
+-- callee's own parameters and a materialized one is written into a copy, and in each case the
+-- emitted JavaScript reads as though it worked.
+
+fn double(x: Int) -> Int = x * 2
+fn triple(x: Int) -> Int = x * 3
+fn negate(x: Int) -> Int = 0 - x
+
+data Step {weight: Int, run: (Int) -> Int}
+
+-- A mutable borrow of the *field*. The callee writes a new function value through it, and the
+-- caller has to see the replacement.
+fn retarget(&slot: (Int) -> Int) -> {}:
+    slot = triple
+
+-- A mutable borrow of the *record*, which replaces the same field from the outside. The record is
+-- an object here, so this is the ordinary case - and the field it writes may still be spread into
+-- two properties, since nothing borrowed the field itself.
+fn reweight(&step: Step, weight: Int) -> {}:
+    step.weight = weight
+    step.run = negate
+
+fn main() -> Int:
+    let &s = Step {weight: 1, run: double}
+
+    -- 10 through `double` is 20, and the weight is 1.
+    let before = s.run(10) * s.weight
+
+    retarget(s.run)
+
+    -- The replacement is visible here or the borrow was a copy: 10 through `triple` is 30.
+    let after = s.run(10) * s.weight
+
+    reweight(s, 4)
+
+    -- Both writes land through one borrow of the record: -10 * 4.
+    let last = s.run(10) * s.weight
+
+    -- 20 + 30 - 40 = 10
+    return before + after + last

@@ -55,13 +55,23 @@ namespace TypeDescFields {
 
     static constexpr U16 kFlags = 4;
 
-    // The three lifecycle operations, each a code address or null. See TypeDescFlags for what null
-    // means in each case - it is "nothing to do", never "unavailable".
+    /*
+     * The four lifecycle operations, each a code address or null. See TypeDescFlags for what null
+     * means in each case - it is "nothing to do", never "unavailable".
+     *
+     * `kCopyInit` is the *duplicate* where `kMoveInit` is the relocation, and the two are separate
+     * for the reason Implementation-JS-Closure.md part 5.2 gives: a move can be a `memmove` on
+     * native and a property-by-property rewrite on a managed target, and a copy is neither of those
+     * plus a call - it runs the authored `Copy` of every member that has one. Without it an erased
+     * write that is not a relocation had nothing to reach, which is what `codegen/js/README.md`
+     * gap 4 was.
+     */
     static constexpr U16 kMoveInit = 5;
-    static constexpr U16 kReclaim = 6;
-    static constexpr U16 kDrop = 7;
+    static constexpr U16 kCopyInit = 6;
+    static constexpr U16 kReclaim = 7;
+    static constexpr U16 kDrop = 8;
 
-    static constexpr U16 kCount = 8;
+    static constexpr U16 kCount = 9;
 
     // Where the words stop and the addresses begin. A materializer that has the slots in hand does
     // not need this; one describing the *shape* without an instance of it - which is what a reader
@@ -387,6 +397,23 @@ bool genericBodyLowerable(Module& module, ModulePtr<Function> function);
  * copy of nothing, and null with a diagnostic where this compiler cannot state one at all.
  */
 ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source);
+
+/*
+ * `copyInit(dst, src)`: initialize uninitialized `dst` as a structural duplicate of `src`, leaving
+ * `src` alive and owning what it owned.
+ *
+ * The same three-way answer moveInit has, over `Copy` instead of `Sink`: the bytes alone for a
+ * TrivialCopy type, the authored `Copy` where the type has one, and the bytes plus a call per
+ * non-trivial member for an aggregate that contains one. Null where duplicating is a copy of
+ * nothing, and null with a diagnostic where this compiler cannot state one at all - which is the
+ * constraint being reported during context construction rather than at the write.
+ *
+ * Generated as *resolve IR* rather than as anything target-specific, which is the whole reason this
+ * closes the gap rather than moving it: each backend compiles the same function its own way, so the
+ * block copy inside it becomes a `memcpy` on native and a property-by-property duplicate here, and
+ * neither backend needs a case for the other's.
+ */
+ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source);
 
 /*
  * The relocation a *concrete* move runs, or null when it is a block copy the mover emits itself.

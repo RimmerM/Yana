@@ -92,8 +92,6 @@ bool isWideNumber(Gen& g, TypePtr type) {
  * This is what `isMemoryType` is on native, asked of this target instead - and it is a different
  * question in three places, which is exactly why it is asked here rather than borrowed:
  *
- *  - a *function value* is a host function, not an aggregate: §3.2's `{code, env}` pair became one
- *    closure, so there is nothing to project into and nothing to build;
  *  - a *newtype* is the value it wraps, so one over `Int` is a number however many words native
  *    gives it;
  *  - a value of a type this body cannot see is a reference already, whatever it turns out to be,
@@ -112,7 +110,6 @@ bool isWideNumber(Gen& g, TypePtr type) {
  */
 bool isJsObject(Gen& g, TypePtr type) {
     if(!type || !isMemoryType(g.global, type)) return false;
-    if(g.global[type]->kind == Type::Fun) return false;
 
     /*
      * A `String` is the host `string` *primitive* here, not an object -
@@ -123,8 +120,7 @@ bool isJsObject(Gen& g, TypePtr type) {
      * calling convention and the wrong one for this question, which is about what the host value
      * *is*: strings are immutable primitives there, so writing through a `&String` has to replace
      * the binding rather than write a property of something that stays the same object. Exactly the
-     * reasoning the niche-folded case below gives, and exactly the reason `Type::Fun` is on the line
-     * above.
+     * reasoning the niche-folded case below gives.
      *
      * Without this, `fn pushString(&self: String, other: String)` compiled to a function whose body
      * was `return;` - the assignment wrote a local nothing read again, and the append was silently
@@ -199,6 +195,23 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
     FieldProperty property;
     property.name = fieldName(g, entry.name, index);
     property.type = entry.type;
+
+    /*
+     * A function value is two properties, not one holding an object -
+     * Implementation-JS-Closure.md part 2.2.
+     *
+     * The two words are inline at the field's offset on native, and this is the same statement in
+     * this target's terms: `run$c` and `run$e` beside the record's other properties, rather than a
+     * nested `{$c, $e}` that has to be allocated when the record is built and dereferenced whenever
+     * it is called. Named after the field for the same reason a flattened parameter's parts are -
+     * see partName - so the emitted source still says which field they belong to.
+     */
+    if(entry.type && g.global[entry.type]->kind == Type::Fun) {
+        property.envName = fieldPartName(g, property.name, "$e"_v);
+        property.name = fieldPartName(g, property.name, "$c"_v);
+        property.fun = true;
+    }
+
     return property;
 }
 
@@ -349,9 +362,10 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
             if(discriminantOnly(g.global, *(RecordType*)value)) return number(g, 0);
             break;
         case Type::Fun:
-            // A function value is a host function, and a slot that has not been given one holds
-            // nothing rather than an object with two empty words - see genFunValueWord.
-            return nullValue(g);
+            // Two null words, through eachProperty at the end like any other shape. A slot that has
+            // not been given a function value holds the same two properties every function value of
+            // that type has, which is what keeps them to one hidden class.
+            break;
         case Type::Tup:
             break;
         case Type::Array: {
@@ -543,8 +557,9 @@ JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId wher
     }
 
     // Anything that is not an object here is duplicated by being read - a number, a bigint, a
-    // boolean, and a function value, whose copy is the same closure over the same environment
-    // exactly as native's copy is the same two words over the same storage.
+    // boolean. A function value is not one of those any more: it is the two words, so its copy is a
+    // fresh pair holding the same code word and the same environment, which is exactly what native's
+    // copy of the two words is.
     if(!isJsObject(g, type)) return source;
 
     if(g.global[type]->kind == Type::Gen) {

@@ -2,12 +2,12 @@
 var effects = 0;
 
 // Core
-function q_q_Int(value, fallback) {
+function q_q_Int(value, fallback$c, fallback$e) {
   var v2;
   if (!(value === null)) {
     v2 = value;
   } else {
-    v2 = fallback();
+    v2 = fallback$c(fallback$e);
   }
   return v2;
 }
@@ -65,7 +65,7 @@ function bound(m) {
 }
 
 function fallbackSkipped(m) {
-  return q_q_Int(m, ResolveTest_deferred$0);
+  return q_q_Int(m, ResolveTest_deferred$0, null);
 }
 
 function bumpMask() {
@@ -74,16 +74,16 @@ function bumpMask() {
 }
 
 function maskSkips() {
-  return Logic_Mask_and_and(0, ResolveTest_deferred$1);
+  return Logic_Mask_and_and(0, ResolveTest_deferred$1, null);
 }
 
 function maskRuns() {
-  return Logic_Mask_and_and(7, ResolveTest_deferred$2);
+  return Logic_Mask_and_and(7, ResolveTest_deferred$2, null);
 }
 
-function once(flag, value) {
+function once(flag, value$c, value$e) {
   if (flag) {
-    return value() + 1 | 0;
+    return value$c(value$e) + 1 | 0;
   } else {
     return 0;
   }
@@ -112,24 +112,24 @@ function main() {
     score = score + 256 | 0;
   }
   score = score + 512 | 0;
-  if ((ResolveTest_deferred$4() + 1 | 0) === 8) {
+  if ((ResolveTest_deferred$4(null) + 1 | 0) === 8) {
     score = score + 1024 | 0;
   }
-  if (Logic_Mask_and_and(0, ResolveTest_deferred$1) === 0) {
+  if (Logic_Mask_and_and(0, ResolveTest_deferred$1, null) === 0) {
     score = score + 2048 | 0;
   }
-  if (Logic_Mask_and_and(7, ResolveTest_deferred$2) === 3) {
+  if (Logic_Mask_and_and(7, ResolveTest_deferred$2, null) === 3) {
     score = score + 4096 | 0;
   }
   return (Math.imul(score, 100) | 0) + effects | 0;
 }
 
-function Logic_Mask_and_and(lhs$bits, rhs) {
+function Logic_Mask_and_and(lhs$bits, rhs$c, rhs$e) {
   var v11;
   if (lhs$bits === 0) {
     v11 = lhs$bits;
   } else {
-    v11 = lhs$bits & rhs() | 0;
+    v11 = lhs$bits & rhs$c(rhs$e) | 0;
   }
   return v11;
 }
@@ -150,27 +150,27 @@ function Logic_Mask_not(value$bits) {
   return value$bits ^ 15 | 0;
 }
 
-function ResolveTest_deferred$0() {
+function ResolveTest_deferred$0(env) {
   effects = effects + 1 | 0;
   return 7;
 }
 
-function ResolveTest_deferred$1() {
+function ResolveTest_deferred$1(env) {
   effects = effects + 1 | 0;
   return 3;
 }
 
-function ResolveTest_deferred$2() {
+function ResolveTest_deferred$2(env) {
   effects = effects + 1 | 0;
   return 3;
 }
 
-function ResolveTest_deferred$3() {
+function ResolveTest_deferred$3(env) {
   effects = effects + 1 | 0;
   return 7;
 }
 
-function ResolveTest_deferred$4() {
+function ResolveTest_deferred$4(env) {
   effects = effects + 1 | 0;
   return 7;
 }

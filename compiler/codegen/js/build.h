@@ -95,7 +95,40 @@ struct RefParts {
     JsPtr<Expr> key = nullptr;
     JsPtr<Expr> scale = nullptr;    // `2**shift`, or null where the target carries none
 
+    /*
+     * The environment word's key, set only for a reference to a *function value* - see refIsTriple.
+     *
+     * A function value is two words, so a reference to one names two properties of the same owner:
+     * `{$o: record, $k: "run$c", $ke: "run$e"}`. That is the same pair every other reference is,
+     * with the second key where a narrow one carries a shift, and it is why a borrowed function
+     * value needs no representation of its own.
+     */
+    JsPtr<Expr> envKey = nullptr;
+
     bool valid() const { return owner != nullptr; }
+};
+
+/*
+ * The two words of a function value, however this one is being carried.
+ *
+ * The same arrangement as `RefParts` above and for the same reason: a function value that arrived
+ * flat - a parameter, or a local whose every use these two can serve - has each word in a variable
+ * of its own and there is no object anywhere. One that did not is an ordinary `{$c, $e}`, and the
+ * words are its properties. Every consumer wants the words rather than the object, which is what
+ * lets the two forms coexist without a flag at each use.
+ *
+ * The one thing this does not share with `RefParts` is *when* the parts are known. A reference is
+ * built by one instruction, so its parts exist the moment the value does; a function value is
+ * storage that two `Init`s fill, so the parts here are the two variables those writes assign and
+ * they hold nothing until the writes have been emitted. Which is why nothing materializes an object
+ * at the top of the body the way a flattened reference parameter does - see genBody - and why
+ * `useValue` builds one at the point of use instead.
+ */
+struct FunParts {
+    JsPtr<Expr> code = nullptr;
+    JsPtr<Expr> env = nullptr;
+
+    bool valid() const { return code != nullptr; }
 };
 
 struct Gen {
@@ -194,6 +227,7 @@ struct Gen {
     Name tagField;
     Name payloadField;
     Name boxField;
+    Name codeField;
     Name envField;
     Name headerField;
 
@@ -218,6 +252,9 @@ struct Gen {
     Name refKey;
     Name refScale;
 
+    // The second key a reference to a function value carries - see RefParts::envKey.
+    Name refEnvKey;
+
     // The tuple ClosureHeaderLayout is also described as - see closureHeaderPlaceType. A place into
     // one is a cell read rather than a property, because the header is a compiler-built table here
     // exactly as it is bytes there.
@@ -238,9 +275,15 @@ struct Gen {
     // see refIsFlattened. A value is in here instead of, or as well as, `values`.
     HashMap<U32, RefParts> flatRefs;
 
-    // The code word each function-value local has been given, by local index, between the two Inits
-    // that build one - see genFunValueWord.
-    HashMap<U32, U32> pendingCode;
+    // The function values being carried as their two words rather than as an object - see
+    // funPartsOf. A value in here is *not* in `values`: an object for one is built where a use
+    // genuinely needs one value, and `useValue` is where that happens.
+    HashMap<U32, FunParts> funParts;
+
+    // Which locals of function type are carried that way, by local index - see prepareFunLocals.
+    // The place walk reads this to answer `local@Fun.code` with a variable rather than a property.
+    IndexSet flatFuns;
+
 
     // Which locals are stored as a one-property box, by local index. See gen.cpp's file comment.
     IndexSet boxed;
@@ -470,12 +513,15 @@ Name generatedName(Gen& g, StringView prefix, U32 index);
 Name valueName(Gen& g, Value& value);
 Name fieldName(Gen& g, StringId name, U16 index);
 
+// One word of a function-value field - `run$c`, `run$e`. See FieldProperty::fun.
+Name fieldPartName(Gen& g, Name field, StringView suffix);
+
 // The property a run of co-packed fields shares - `$p0` for the word at offset zero. See name.cpp.
 Name packedWordName(Gen& g, U32 offset);
 
 // One part of a flattened narrow reference - `p$o`, `p$k`, `p$s` - named after the reference it
 // came from so the emitted source still says which one that was.
-Name refPartName(Gen& g, Value& value, StringView suffix);
+Name partName(Gen& g, Value& value, StringView suffix);
 
 /*
  * type.cpp - what a type is on this target.
@@ -542,14 +588,21 @@ bool isJsObject(Gen& g, TypePtr type);
  *
  * `leader` is true for exactly one field of each word - the one at bit zero - so that a walk listing a
  * type's properties emits a shared word once rather than once per field it holds.
+ *
+ * `fun` is the opposite direction: one field that occupies *two* properties, because a function value
+ * is the two words FunValueLayout describes and this target spreads them into the record the way
+ * native has them inline at the field's offset. `name` is then the code word's property and
+ * `envName` the environment's.
  */
 struct FieldProperty {
     Name name;
+    Name envName;              // the environment word's property, where `fun`
     TypePtr type = nullptr;    // the field's own, or `Int` for a word several of them share
     U8 bitOffset = 0;
     U8 bitWidth = 0;           // zero where the field owns its property
     U8 wordBits = 32;          // how wide the shared word is, which decides how it is taken apart
     bool leader = true;
+    bool fun = false;
 
     bool isPacked() const { return bitWidth != 0; }
 };
@@ -613,28 +666,44 @@ inline U32 maxWordBits(Gen& g) {
     return min(g.repr.target.maxPackBits, U32(kMaxNumberBits));
 }
 
-/*
- * Whether a `&` of this pointee crosses a call as separate arguments rather than as one object.
- *
- * The descriptor is what makes a narrow reference cost anything here: native's shift rides in spare
- * bits of a word already being passed, and this target has to allocate an object per borrow to carry
- * the same three things. Passing them as three arguments removes the allocation and most of the cost -
- * measured at 151% for one borrow and 366% for four through a callee V8 declines to inline, with the
- * extra arity free in that range and the shift argument free in particular.
- *
- * Decided from the declaration and nothing else, because it is a calling convention: a witness-table
- * slot, a closure and a `CallDyn` all have to agree with the direct call without seeing the callee,
- * exactly as native's narrow-borrow rule is decided from the pointee type alone.
- *
- * Asked of a *declaration* - `&f: Flags` - rather than of a type, because that is the form the
- * question exists in: a parameter's type is its pointee and the `&` is a binding convention beside
- * it, and only a mutable borrow becomes a reference at all (see resolveArgs, where `borrowed` is set
- * for exactly that case). An immutable borrow of a narrow value is passed by value and has nothing
- * to write back through.
- */
-inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType convention) {
-    return convention == ast::BindType::Ref && !isJsObject(g, declaredType);
+// Whether this type is a function value, which is the two words FunValueLayout describes.
+inline bool isFunValue(Gen& g, TypePtr type) {
+    return type && g.global[type]->kind == Type::Fun;
 }
+
+/*
+ * Whether a parameter declared with a type variable crosses a call in pieces, which it never does.
+ *
+ * Implementation-JS-Closure.md part 5.1: flattening is a *concrete-signature* optimization, and a
+ * body compiled once against `a` cannot know how many host values `a` occupies. So a flattened value
+ * is gathered before it crosses an erased boundary and scattered again on the other side, and one
+ * sentence covers every multi-part representation this target has or later grows rather than one
+ * case each.
+ *
+ * Both predicates below already declined it, and by two accidents rather than by this rule: a
+ * `Type::Gen` has an opaque Repr, so `isJsObject` answers true for it and the reference test fails;
+ * and it is not a `Type::Fun`, so the function-value test fails. Two accidents are two things that
+ * can independently stop being true, which is what stating it once is for.
+ */
+inline bool crossesErased(Gen& g, TypePtr declaredType) {
+    return isGeneric(g.global, declaredType);
+}
+
+/*
+ * The two flattened forms flatten under *opposite* conditions, and it is worth saying why before
+ * either is read.
+ *
+ * A narrow reference is flattened exactly when it **is** a `&`, and a function value exactly when it
+ * is **not**. That is not an inconsistency: the three parts of a reference are a *description of a
+ * slot somewhere else*, so passing them by value loses nothing - writing through them writes
+ * `owner[key]`, which is where the value lives. The two words of a function value *are* the value,
+ * so passing them by value makes a write to a parameter a write to a local, and the caller never
+ * sees it.
+ *
+ * So the rule both share is not about references. It is: **a flattened representation is whatever
+ * can be handed over without a slot**, and a reference's parts qualify because the slot they name is
+ * not one of them. `FunFieldBorrow.yana` is the fixture for the half that does not.
+ */
 
 /*
  * Whether a **borrow** of this pointee is the `{$o, $k, $s}` triple rather than the object itself.
@@ -667,7 +736,45 @@ inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType conventio
  * on the shape that matters is element access being an intrinsic, not this.
  */
 inline bool refIsTriple(Gen& g, TypePtr pointee) {
-    return !isJsObject(g, pointee);
+    /*
+     * A **function value** is one, and it is the one case where an object is not its own reference.
+     *
+     * The two words are spread wherever they can be held apart - two properties of a record, two
+     * variables of a frame - so there is no `{$c, $e}` object at the field for a reference to point
+     * at. The pair names them instead: one owner and two keys, which works wherever they live.
+     *
+     * The alternative was to keep the field whole wherever the program borrowed it, and that made
+     * the record's *layout* depend on a whole-program fact - so a module's shape changed when an
+     * unrelated part of the program started borrowing one of its fields, and a separately compiled
+     * consumer would have disagreed with the library it was built against. Deciding the reference
+     * form from the pointee type instead is what `opt_arg.cpp` means by "a function of what both of
+     * them can read: the declaration", and it is what a `Gen::opaqueFunFields` set would have got wrong.
+     */
+    return !isJsObject(g, pointee) || isFunValue(g, pointee);
+}
+
+/*
+ * Whether a `&` of this pointee crosses a call as separate arguments rather than as one object.
+ *
+ * The descriptor is what makes a narrow reference cost anything here: native's shift rides in spare
+ * bits of a word already being passed, and this target has to allocate an object per borrow to carry
+ * the same three things. Passing them as three arguments removes the allocation and most of the cost -
+ * measured at 151% for one borrow and 366% for four through a callee V8 declines to inline, with the
+ * extra arity free in that range and the shift argument free in particular.
+ *
+ * Decided from the declaration and nothing else, because it is a calling convention: a witness-table
+ * slot, a closure and a `CallDyn` all have to agree with the direct call without seeing the callee,
+ * exactly as native's narrow-borrow rule is decided from the pointee type alone.
+ *
+ * Asked of a *declaration* - `&f: Flags` - rather than of a type, because that is the form the
+ * question exists in: a parameter's type is its pointee and the `&` is a binding convention beside
+ * it, and only a mutable borrow becomes a reference at all (see resolveArgs, where `borrowed` is set
+ * for exactly that case). An immutable borrow of a narrow value is passed by value and has nothing
+ * to write back through.
+ */
+inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType convention) {
+    if(crossesErased(g, declaredType)) return false;
+    return convention == ast::BindType::Ref && refIsTriple(g, declaredType);
 }
 
 /*
@@ -682,13 +789,66 @@ inline bool addressIsTriple(Gen& g, TypePtr pointee) {
 }
 
 
-// How many arguments a flattened reference occupies. Two where the target has no bit ranges in it and
-// the scale is provably one - see narrowRefCarriesScale.
-inline U32 flatRefArity(Gen& g) { return narrowRefCarriesScale(g) ? 3 : 2; }
+/*
+ * How many arguments a flattened reference occupies.
+ *
+ * Three for a function value - one owner and two keys - whatever the target packs, since neither key
+ * is a bit position and there is no shift to leave out. Otherwise two, or three where the target has
+ * bit ranges in it and the scale is not provably one; see narrowRefCarriesScale.
+ */
+inline U32 flatRefArity(Gen& g, TypePtr pointee) {
+    if(isFunValue(g, pointee)) return 3;
+    return narrowRefCarriesScale(g) ? 3 : 2;
+}
+
+/*
+ * Whether a parameter of this declared type crosses a call as its two words rather than as one
+ * object - the function value's counterpart to `refIsFlattened`, and a calling convention on the
+ * same terms.
+ *
+ * Decided from the *declaration* and nothing else, because a witness-table slot, a closure and a
+ * `CallDyn` all have to agree with the direct call without seeing the callee.
+ *
+ * **A mutable borrow is declined**, which is the *opposite* of what `refIsFlattened` does with the
+ * same convention - see the note above the two of them. `&f` is a reference and a reference needs a
+ * slot to write back through; two words passed by value have none, so the callee assigns its own
+ * parameters and the caller never sees it. A reference's three parts survive being passed by value
+ * because the slot they describe is somewhere else; a function value's two words do not, because
+ * they are the value.
+ *
+ * `FunFieldBorrow.yana` is what says so, by a number: with the convention ignored here it answers 20
+ * where both the fixture and the native build say 10.
+ */
+inline bool funIsFlattened(Gen& g, TypePtr declaredType, ast::BindType convention) {
+    if(crossesErased(g, declaredType)) return false;
+    return convention != ast::BindType::Ref && isFunValue(g, declaredType);
+}
+
+// How many arguments a flattened function value occupies. A constant, unlike the reference arity:
+// the two words are what FunValueLayout says they are on every target.
+constexpr U32 kFlatFunArity = 2;
+
+// What a `&T` or a `%T` refers to. The two spellings are what tell a borrow from a storage handle,
+// and both sides of a call read the pointee off the declaration the same way.
+inline TypePtr referencedType(Gen& g, TypePtr type) {
+    if(!type) return nullptr;
+    if(g.global[type]->kind == Type::Borrow) return ((BorrowType*)g.global[type])->to;
+
+    return pointeeType(g.global, type);
+}
 
 RefParts refPartsOf(Gen& g, ModulePtr<Value> reference);
-RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference);
+
+// `fun` says the reference is to a function value, which carries a second key where a narrow one
+// carries a shift - see RefParts::envKey. The object form cannot tell from itself which it is.
+RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference, bool fun);
 JsPtr<Expr> materializeRef(Gen& g, RefParts parts);
+
+FunParts funPartsOf(Gen& g, ModulePtr<Value> value);
+FunParts funPartsOfExpr(Gen& g, JsPtr<Expr> value);
+FunParts funPartsOfPlace(Gen& g, const Place& place);
+Maybe<FunParts> destinationFunParts(Gen& g, const Place& place);
+JsPtr<Expr> materializeFun(Gen& g, FunParts parts);
 
 // Whether some use of a flattened reference needs it to be one value after all - a return, a store,
 // a capture. Defined in gen.cpp beside the other use-list questions.
@@ -697,6 +857,10 @@ bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
 // Whether the parameter at one argument position of a call takes its reference flat. The emitter and
 // the question above both decide a reference argument's arity from this, and they have to agree.
 bool callParameterIsFlatRef(Gen& g, Value& user, Size index);
+
+// The same for a function-value argument. Read by pushArg to decide the arity and by the callee to
+// decide how many parameters it declares, which is the one thing the two have to agree about.
+bool callParameterIsFlatFun(Gen& g, Value& user, Size index);
 
 // Whether the parameter at one argument position was declared as a value rather than as a reference,
 // which is what decides whether a borrow handed over for it travels as itself or as the box the
@@ -710,7 +874,7 @@ bool callParameterIsAbsent(Gen& g, Value& user, Size index);
 
 // Whether this signature flattens its references at all - the arity guard, which is all-or-nothing
 // for a signature so that the caller and the callee reach it independently and agree.
-bool functionFlattensRefs(Gen& g, Function& function);
+bool functionFlattensArgs(Gen& g, Function& function);
 
 /*
  * A bit range within the value a place names, or nothing where the place names the whole of one.
@@ -821,9 +985,20 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
 
     auto value = g.global[type];
 
-    // A function value has no properties here: it is a host function, and the two words
-    // FunValueLayout describes are the closure itself and what it closed over.
-    if(value->kind == Type::Fun) return;
+    /*
+     * A function value is the two words FunValueLayout describes, exactly as it is on native - a
+     * code word and the environment it is entered with - and here those are two properties.
+     *
+     * `$c` is a top-level function taking the environment as parameter zero, which is what
+     * `Function::takesEnv` has meant on every other target all along; `$e` is the environment
+     * object, or `null` for a lambda that captured nothing and for the thunk that makes a named
+     * function a value. Calling one is `f.$c(f.$e, ...)`, so the two shapes are one shape.
+     */
+    if(value->kind == Type::Fun) {
+        f(g.codeField, funValueFieldType(*g.program.core, FunValueLayout::kCode));
+        f(g.envField, funValueFieldType(*g.program.core, FunValueLayout::kEnv));
+        return;
+    }
 
     if(value->kind == Type::Tup) {
         // A one-field tuple is that field here, so its properties are the field's - see isNewtype,
@@ -839,7 +1014,17 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
             // A co-packed run is one property, contributed by the field at bit zero of it. Skipping
             // the others is what keeps the object's shape the *words* it has rather than the fields.
             auto property = fieldProperty(g, type, slot);
-            if(property.leader) f(property.name, property.type);
+            if(!property.leader) continue;
+
+            // A function value is two, in FunValueLayout's order, so that the record has the two
+            // words where native has them inline - see FieldProperty::fun.
+            if(property.fun) {
+                f(property.name, funValueFieldType(*g.program.core, FunValueLayout::kCode));
+                f(property.envName, funValueFieldType(*g.program.core, FunValueLayout::kEnv));
+                continue;
+            }
+
+            f(property.name, property.type);
         }
 
         return;
@@ -895,6 +1080,16 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
             if(known) continue;
 
             seen.push(property.name.text);
+
+            // Two properties for a function-value field here too. Sharing between constructors is
+            // by name and both words are named after the field, so a payload that two constructors
+            // both carry shares both of them or neither.
+            if(property.fun) {
+                f(property.name, funValueFieldType(*g.program.core, FunValueLayout::kCode));
+                f(property.envName, funValueFieldType(*g.program.core, FunValueLayout::kEnv));
+                continue;
+            }
+
             f(property.name, property.type);
         }
     }
@@ -965,6 +1160,10 @@ JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit =
 // value that is not an object has to arrive in a box the way any other reference does.
 JsPtr<Expr> referenceTo(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value);
+
+// The storage a reference names, as the handle the erased ABI passes - nothing where the reference
+// names a slot inside something else. See the definition.
+Maybe<JsPtr<Expr>> erasedStorageOf(Gen& g, const Place& place);
 
 // A constant table is an array of 32-bit cells, so every offset the native side loads at becomes a
 // cell index. `>> 2` is the whole of the translation, and it is exact because every pointer field in

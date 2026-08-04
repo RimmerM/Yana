@@ -17,8 +17,8 @@ function teardown$none(value) {
 }
 
 // Collections
-function Chunked_Array_a_a_chunks_Int(self, body) {
-  var v4 = body(Contiguous_Array_a_a_elements_Int(self));
+function Chunked_Array_a_a_chunks_Int(self, body$c, body$e) {
+  var v4 = body$c(body$e, Contiguous_Array_a_a_elements_Int(self));
   if (v4 === 1) {
     return v4;
   } else {
@@ -69,30 +69,30 @@ function threeChunks(x) {
 
 function sumChunked(xs) {
   var total$1 = { $v: 0 };
-  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$0$make({ $v: { $o: total$1, $k: "$v", $s: 1 } }));
+  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$0, { $v: { $o: total$1, $k: "$v", $s: 1 } });
   return total$1.$v;
 }
 
 function sumContiguous(xs) {
   var total$1 = { $v: 0 };
-  var v12 = Chunked_Ring_Int_chunks(xs, ResolveTest_continuation$2$make({ $v: { $o: total$1, $k: "$v", $s: 1 } }));
+  var v12 = Chunked_Ring_Int_chunks(xs, ResolveTest_continuation$2, { $v: { $o: total$1, $k: "$v", $s: 1 } });
   return total$1.$v;
 }
 
 function sumArray(xs) {
   var total$1 = { $v: 0 };
-  var v12 = Chunked_Array_a_a_chunks_Int(xs, ResolveTest_continuation$4$make({ $v: { $o: total$1, $k: "$v", $s: 1 } }));
+  var v12 = Chunked_Array_a_a_chunks_Int(xs, ResolveTest_continuation$4, { $v: { $o: total$1, $k: "$v", $s: 1 } });
   return total$1.$v;
 }
 
 function total(xs$items, xs$length, xs$offset) {
   var sum = { $v: 0 };
-  var v12 = each_Int(xs$items, xs$length, xs$offset, ResolveTest_continuation$6$make({ $v: { $o: sum, $k: "$v", $s: 1 } }));
+  var v12 = each_Int(xs$items, xs$length, xs$offset, ResolveTest_continuation$6, { $v: { $o: sum, $k: "$v", $s: 1 } });
   return sum.$v;
 }
 
 function firstOver(xs, bound) {
-  var v9 = Chunked_Chunks_Int_chunks_Int(xs, ResolveTest_continuation$7$make({ $v: bound }));
+  var v9 = Chunked_Chunks_Int_chunks_Int(xs, ResolveTest_continuation$7, { $v: bound });
   if (!(v9 === null)) {
     return v9;
   } else {
@@ -102,7 +102,7 @@ function firstOver(xs, bound) {
 
 function firstOfEachChunk(xs) {
   var total$1 = { $v: 0 };
-  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$9$make({ $v: { $o: total$1, $k: "$v", $s: 1 } }));
+  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$9, { $v: { $o: total$1, $k: "$v", $s: 1 } });
   return total$1.$v;
 }
 
@@ -125,27 +125,24 @@ function Contiguous_Ring_Int_elements(self) {
   return Contiguous_Array_a_a_elements_Int(self);
 }
 
-function ResolveTest_continuation$0$make(env) {
-  return function(value) {
-    var v7 = ResolveTest_continuation$1$make({ $v: env.$v });
-    var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return 0;
-  };
+function ResolveTest_continuation$0(env, value) {
+  var v11 = each_Int(value.items, value.length, value.offset, ResolveTest_continuation$1, { $v: env.$v });
+  return 0;
 }
+ResolveTest_continuation$0.$h = closure$ResolveTest_continuation$0;
 
-function ResolveTest_continuation$1$make(env) {
-  return function(value) {
-    var v2 = env.$v;
-    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return 0;
-  };
+function ResolveTest_continuation$1(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
 }
+ResolveTest_continuation$1.$h = closure$ResolveTest_continuation$1;
 
-function each_Int(xs$items, xs$length, xs$offset, body) {
+function each_Int(xs$items, xs$length, xs$offset, body$c, body$e) {
   var i = 0;
   L0: for (;;) {
     if (i < xs$length) {
-      var v21 = body(xs$items[xs$offset + i | 0]);
+      var v21 = body$c(body$e, xs$items[xs$offset + i | 0]);
       if (v21 === 1) {
         return v21;
       } else {
@@ -159,16 +156,16 @@ function each_Int(xs$items, xs$length, xs$offset, body) {
   }
 }
 
-function Chunked_Chunks_Int_chunks(self, body) {
+function Chunked_Chunks_Int_chunks(self, body$c, body$e) {
   var v4 = self.a;
-  var v11 = body({ items: v4, length: v4.length, offset: 0 });
+  var v11 = body$c(body$e, { items: v4, length: v4.length, offset: 0 });
   if (v11 === 1) {
     return v11;
   } else {
     B0: {
       if (self.used > 1) {
         var v23 = self.b;
-        var v30 = body({ items: v23, length: v23.length, offset: 0 });
+        var v30 = body$c(body$e, { items: v23, length: v23.length, offset: 0 });
         if (v30 === 1) {
           return v30;
         }
@@ -177,7 +174,7 @@ function Chunked_Chunks_Int_chunks(self, body) {
     B1: {
       if (self.used > 2) {
         var v44 = self.c;
-        var v51 = body({ items: v44, length: v44.length, offset: 0 });
+        var v51 = body$c(body$e, { items: v44, length: v44.length, offset: 0 });
         if (v51 === 1) {
           return v51;
         }
@@ -187,24 +184,21 @@ function Chunked_Chunks_Int_chunks(self, body) {
   }
 }
 
-function ResolveTest_continuation$2$make(env) {
-  return function(value) {
-    var v7 = ResolveTest_continuation$3$make({ $v: env.$v });
-    var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return 0;
-  };
+function ResolveTest_continuation$2(env, value) {
+  var v11 = each_Int(value.items, value.length, value.offset, ResolveTest_continuation$3, { $v: env.$v });
+  return 0;
 }
+ResolveTest_continuation$2.$h = closure$ResolveTest_continuation$2;
 
-function ResolveTest_continuation$3$make(env) {
-  return function(value) {
-    var v2 = env.$v;
-    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return 0;
-  };
+function ResolveTest_continuation$3(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
 }
+ResolveTest_continuation$3.$h = closure$ResolveTest_continuation$3;
 
-function Chunked_Ring_Int_chunks(self, body) {
-  var v6 = body(Contiguous_Ring_Int_elements(self));
+function Chunked_Ring_Int_chunks(self, body$c, body$e) {
+  var v6 = body$c(body$e, Contiguous_Ring_Int_elements(self));
   if (v6 === 1) {
     return v6;
   } else {
@@ -212,57 +206,50 @@ function Chunked_Ring_Int_chunks(self, body) {
   }
 }
 
-function ResolveTest_continuation$4$make(env) {
-  return function(value) {
-    var v7 = ResolveTest_continuation$5$make({ $v: env.$v });
-    var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return 0;
-  };
+function ResolveTest_continuation$4(env, value) {
+  var v11 = each_Int(value.items, value.length, value.offset, ResolveTest_continuation$5, { $v: env.$v });
+  return 0;
 }
+ResolveTest_continuation$4.$h = closure$ResolveTest_continuation$4;
 
-function ResolveTest_continuation$5$make(env) {
-  return function(value) {
-    var v2 = env.$v;
-    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return 0;
-  };
+function ResolveTest_continuation$5(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
 }
+ResolveTest_continuation$5.$h = closure$ResolveTest_continuation$5;
 
-function ResolveTest_continuation$6$make(env) {
-  return function(value) {
-    var v2 = env.$v;
-    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return 0;
-  };
+function ResolveTest_continuation$6(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
 }
+ResolveTest_continuation$6.$h = closure$ResolveTest_continuation$6;
 
-function ResolveTest_continuation$7$make(env) {
-  return function(value) {
-    var v6 = ResolveTest_continuation$8$make({ $v: env.$v });
-    var v10 = each_Int_Int(value.items, value.length, value.offset, v6);
-    if (!(v10 === null)) {
-      return v10;
-    } else {
-      return null;
-    }
-  };
+function ResolveTest_continuation$7(env, value) {
+  var v10 = each_Int_Int(value.items, value.length, value.offset, ResolveTest_continuation$8, { $v: env.$v });
+  if (!(v10 === null)) {
+    return v10;
+  } else {
+    return null;
+  }
 }
+ResolveTest_continuation$7.$h = closure$ResolveTest_continuation$7;
 
-function ResolveTest_continuation$8$make(env) {
-  return function(value) {
-    if (value > env.$v) {
-      return value;
-    } else {
-      return null;
-    }
-  };
+function ResolveTest_continuation$8(env, value) {
+  if (value > env.$v) {
+    return value;
+  } else {
+    return null;
+  }
 }
+ResolveTest_continuation$8.$h = closure$ResolveTest_continuation$8;
 
-function each_Int_Int(xs$items, xs$length, xs$offset, body) {
+function each_Int_Int(xs$items, xs$length, xs$offset, body$c, body$e) {
   var i = 0;
   L0: for (;;) {
     if (i < xs$length) {
-      var v21 = body(xs$items[xs$offset + i | 0]);
+      var v21 = body$c(body$e, xs$items[xs$offset + i | 0]);
       if (!(v21 === null)) {
         return v21;
       } else {
@@ -276,16 +263,16 @@ function each_Int_Int(xs$items, xs$length, xs$offset, body) {
   }
 }
 
-function Chunked_Chunks_Int_chunks_Int(self, body) {
+function Chunked_Chunks_Int_chunks_Int(self, body$c, body$e) {
   var v4 = self.a;
-  var v11 = body({ items: v4, length: v4.length, offset: 0 });
+  var v11 = body$c(body$e, { items: v4, length: v4.length, offset: 0 });
   if (!(v11 === null)) {
     return v11;
   } else {
     B0: {
       if (self.used > 1) {
         var v23 = self.b;
-        var v30 = body({ items: v23, length: v23.length, offset: 0 });
+        var v30 = body$c(body$e, { items: v23, length: v23.length, offset: 0 });
         if (!(v30 === null)) {
           return v30;
         }
@@ -294,7 +281,7 @@ function Chunked_Chunks_Int_chunks_Int(self, body) {
     B1: {
       if (self.used > 2) {
         var v44 = self.c;
-        var v51 = body({ items: v44, length: v44.length, offset: 0 });
+        var v51 = body$c(body$e, { items: v44, length: v44.length, offset: 0 });
         if (!(v51 === null)) {
           return v51;
         }
@@ -304,21 +291,18 @@ function Chunked_Chunks_Int_chunks_Int(self, body) {
   }
 }
 
-function ResolveTest_continuation$9$make(env) {
-  return function(value) {
-    var v7 = ResolveTest_continuation$10$make({ $v: env.$v });
-    var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return 0;
-  };
+function ResolveTest_continuation$9(env, value) {
+  var v11 = each_Int(value.items, value.length, value.offset, ResolveTest_continuation$10, { $v: env.$v });
+  return 0;
 }
+ResolveTest_continuation$9.$h = closure$ResolveTest_continuation$9;
 
-function ResolveTest_continuation$10$make(env) {
-  return function(value) {
-    var v2 = env.$v;
-    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return 1;
-  };
+function ResolveTest_continuation$10(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 1;
 }
+ResolveTest_continuation$10.$h = closure$ResolveTest_continuation$10;
 
 function count_Int(xs$items, xs$length, xs$offset) {
   return xs$length;

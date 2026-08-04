@@ -203,6 +203,26 @@ bool assignPlace(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> value) {
 void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value) {
     auto& produced = *g.local[value];
 
+    /*
+     * A whole function value written into storage this body holds as two variables.
+     *
+     * Two assignments rather than one, because there is no single slot to name: `placeExpr` answers
+     * a whole-value place of that kind with a freshly built `{$c, $e}`, which is the right answer
+     * for every *read* of one and is an object literal on the left of an assignment here. The
+     * source is taken apart rather than built, so nothing is allocated on either side.
+     *
+     * Reached by a niche-folded `Maybe((Int) -> Int)` binding its payload, which is the shortest
+     * shape that writes a function value into a local rather than constructing one there.
+     */
+    if(auto destination = destinationFunParts(g, place)) {
+        auto parts = destination.unwrap();
+        auto from = funPartsOf(g, value);
+
+        emitExpr(g, assign(g, parts.code, from.code));
+        emitExpr(g, assign(g, parts.env, from.env));
+        return;
+    }
+
     if(assignPlace(g, place, type, useValue(g, value))) return;
 
     auto target = placeExpr(g, place);
@@ -214,17 +234,27 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
         if(moved && erasedRelocate(g, target, useValue(g, value), type)) return;
 
         /*
-         * The erased write that is not a relocation - Analysis-JS.md §3.4's remaining half.
+         * The erased write that is not a relocation - Analysis-JS.md §3.4's remaining half, and
+         * what `README.md` gap 4 used to report rather than emit.
          *
          * Native block-copies the descriptor's `size` bytes, which is a shallow copy of storage
          * whose shape it does not need. This target has no shallow copy of one whole value: a
          * nested aggregate is a separate object here and inline bytes there, so copying property by
-         * property is the only form, and which properties there are is exactly what is unknown. The
-         * descriptor has no operation that answers it, and inventing one that runs `moveInit`
-         * instead would relocate a value native does not relocate.
+         * property is the only form, and which properties there are is exactly what is unknown.
+         *
+         * So it is the descriptor that answers, exactly as it answers the relocation next door -
+         * `copyInit` rather than `moveInit`, because this duplicates a value the source keeps.
+         * What is in that slot is one generated function per concrete type, compiled by whichever
+         * backend is emitting: a `memcpy` there, genBlockCopy's structural duplicate here.
          */
         if(g.genEnv && isGeneric(g.global, type) && !rebindsOwnStorage(g, place)) {
-            g.context.diagnostics.error("the JS target cannot write a value of a type it cannot see the shape of into storage this function does not own - a descriptor operation for it is the target split Analysis-JS.md §3.4 asks for"_v,
+            if(auto descriptor = genTypeDesc(g, type)) {
+                emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kCopyInit),
+                                 referenceTo(g, type, target), referenceTo(g, type, useValue(g, value))));
+                return;
+            }
+
+            g.context.diagnostics.error("the JS target cannot write a value of a type it has no descriptor for"_v,
                                         produced.source);
             return;
         }
@@ -537,6 +567,34 @@ void genDrop(Gen& g, InstDrop& instruction) {
     auto takesAddress = callee->args.isNotEmpty() &&
                         isPointer(g.global, g.local[callee->args.get(g.local, 0)]->type);
 
+    /*
+     * A function value's teardown takes the two words rather than the value -
+     * Implementation-JS-Closure.md part 3, and the one place flattening forces a convention change
+     * rather than an optimization.
+     *
+     * The glue is generated per *type* and shared by every holder: one `drop$_Int_sub_gt_Int` for
+     * every `(Int) -> Int` in the program. Once the two words can live as two variables of a frame
+     * or two properties of an arbitrary record, there is no one value to hand it and no property
+     * name it could agree with every holder about - so it is handed the words, which works wherever
+     * they live because it never asks.
+     *
+     * It falls out of the argument convention rather than being a signature of its own: the glue
+     * declares `->value: T` like any other teardown, `funIsFlattened` says a function value crosses
+     * as two arguments, and both sides read that off the same declaration. Which is why the header
+     * is still reached as `FunValueLayout::kHeader` inside the glue - the place walk answers it from
+     * the parts, exactly as it answers `$o`/`$k` for a flattened reference parameter.
+     */
+    if(!takesAddress && isFunValue(g, placeType(g, instruction.place)) &&
+       callee->args.isNotEmpty() && functionFlattensArgs(g, *callee) &&
+       funIsFlattened(g, ((Arg*)g.local[callee->args.get(g.local, 0)])->type,
+                      ((Arg*)g.local[callee->args.get(g.local, 0)])->convention)) {
+        auto parts = funPartsOfPlace(g, instruction.place);
+
+        emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
+                         parts.code, parts.env));
+        return;
+    }
+
     emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
                      takesAddress ? referenceTo(g, instruction.place)
                                   : placeExpr(g, instruction.place)));
@@ -545,18 +603,37 @@ void genDrop(Gen& g, InstDrop& instruction) {
 /*
  * One argument, as however many the convention says it occupies.
  *
- * A narrow reference goes as its parts - see refIsFlattened. The decision is the *declared parameter*
- * type rather than the argument's, and the difference is not hypothetical: a concrete `&Bool` handed
- * to a generic `&a` reaches a body compiled against a type variable, which has no width to mask with
- * and takes the object. Where the two agree - every specialized call - reading the parameter costs a
- * lookup and says the same thing.
+ * A narrow reference goes as its parts and a function value as its two words - see refIsFlattened
+ * and funIsFlattened. The decision is the *declared parameter* type rather than the argument's, and
+ * the difference is not hypothetical: a concrete `&Bool` handed to a generic `&a` reaches a body
+ * compiled against a type variable, which has no width to mask with and takes the object. Where the
+ * two agree - every specialized call - reading the parameter costs a lookup and says the same thing.
+ *
+ * That is also the whole of why an erased boundary is never flat, for either form: a parameter
+ * declared `a` is a `Type::Gen`, so neither predicate matches it and what crosses is the reference
+ * the erased ABI already passes. One sentence covers every multi-part representation this target
+ * has or later grows rather than one case each.
  */
-void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat, bool value) {
+void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat, bool value,
+             bool flatFun) {
     if(arg && flat) {
         auto parts = refPartsOf(g, arg);
         args.push(parts.owner);
         args.push(parts.key);
+
+        // The third, whichever of the two it is - see refPartsOfExpr. Never both, so this is one
+        // position rather than two, and the callee binds it as one parameter.
         if(parts.scale) args.push(parts.scale);
+        if(parts.envKey) args.push(parts.envKey);
+        return;
+    }
+
+    // The two words, in FunValueLayout's order. No object is built here and none is taken apart:
+    // where the argument is a local the body holds flat, these *are* its two variables.
+    if(arg && flatFun) {
+        auto parts = funPartsOf(g, arg);
+        args.push(parts.code);
+        args.push(parts.env);
         return;
     }
 
@@ -591,7 +668,8 @@ void genCall(Gen& g, ModulePtr<Value> pointer, InstCall& instruction) {
     for(auto arg: instruction.args.contents(g.local)) {
         if(!callParameterIsAbsent(g, instruction, index)) {
             pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index),
-                    callParameterTakesValue(g, instruction, index));
+                    callParameterTakesValue(g, instruction, index),
+                    callParameterIsFlatFun(g, instruction, index));
         }
 
         index++;
@@ -607,14 +685,23 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
 
     if(instruction.callable) {
         /*
-         * An ordinary call. A function value is a host function here, so there is no code word to
-         * load and no environment to pass: whatever a capturing lambda closed over, it closed over
-         * when it was built, and a non-capturing one and a plain function referenced by name have
-         * nothing to close over at all. All three are one shape, which is what the `{code, env}`
-         * pair bought on native and what the host gives for nothing.
+         * An ordinary call of a function value, which is the two words: `f.$c(f.$e, ...)`, exactly
+         * the entry native performs with the same two words in registers.
+         *
+         * The environment is passed whatever the value is. A lambda that captured nothing and the
+         * thunk that makes a named function a value both hold `null` there and both ignore the
+         * parameter, so there is one call shape rather than a test at each site - the same trade
+         * `functionThunk` already makes for the arity.
          */
-        callee = useValue(g, instruction.callable);
+        auto parts = funPartsOf(g, instruction.callable);
+        callee = parts.code;
+        args.push(parts.env);
     } else {
+        /*
+         * A bare address, which is the compiler calling something it generated - a teardown reached
+         * through a closure header or a descriptor slot. There is no function value and no
+         * environment convention: whatever the caller pushed is the whole argument list.
+         */
         callee = useValue(g, instruction.address);
     }
 
@@ -622,7 +709,8 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
     for(auto arg: instruction.args.contents(g.local)) {
         if(!callParameterIsAbsent(g, instruction, index)) {
             pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index),
-                    callParameterTakesValue(g, instruction, index));
+                    callParameterTakesValue(g, instruction, index),
+                    callParameterIsFlatFun(g, instruction, index));
         }
 
         index++;
@@ -714,9 +802,54 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
         // A narrow reference the callee declared narrow goes flat here too. One it declared generic
         // does not, and that is the case this list has always been about: an erased body holds a
         // type variable and has neither the width to mask with nor the shift to apply.
-        if(parameter && functionFlattensRefs(g, *function) &&
+        if(parameter && functionFlattensArgs(g, *function) &&
            refIsFlattened(g, parameter->type, parameter->convention)) {
-            pushArg(g, declared, arg, true, false);
+            pushArg(g, declared, arg, true, false, false);
+            argIndex++;
+            continue;
+        }
+
+        // A function value the callee declared as one goes flat here too, and one it declared
+        // generic does not - the same split, for the same reason and read off the same declaration.
+        if(parameter && functionFlattensArgs(g, *function) &&
+           funIsFlattened(g, parameter->type, parameter->convention)) {
+            pushArg(g, declared, arg, false, false, true);
+            argIndex++;
+            continue;
+        }
+
+        /*
+         * A mutable borrow crossing into a parameter the callee declared generic.
+         *
+         * It cannot cross as itself: what this caller holds is the `{$o, $k, $s}` triple, and every
+         * use the callee can make of an `&a` - `moveInit`, `copyInit`, the erased teardown - reads
+         * through its argument as a *slot*. So what goes over is the storage the triple names, which
+         * is erasedStorageOf's job, and where there is no such slot this is `README.md` gap 1 and is
+         * reported rather than written into the wrong object.
+         */
+        // What the argument refers to, which is what decides whether a slot exists to hand over. A
+        // `&T` and a `%T` say it in the two different ways this target already tells apart.
+        auto referenced = concrete && g.global[concrete]->kind == Type::Borrow
+            ? ((BorrowType*)g.global[concrete])->to
+            : pointeeType(g.global, concrete);
+
+        if(parameter && parameter->isMutableBorrow() && isGeneric(g.global, parameter->type) &&
+           arg && referenced && !isJsObject(g, referenced)) {
+            auto borrowed = g.local[arg];
+            Maybe<JsPtr<Expr>> storage;
+
+            if(borrowed->kind == Value::Borrow) {
+                storage = erasedStorageOf(g, ((InstBorrow*)borrowed)->place);
+            } else if(borrowed->kind == Value::Address) {
+                storage = erasedStorageOf(g, ((InstAddress*)borrowed)->place);
+            }
+
+            if(!storage) {
+                g.context.diagnostics.error("the JS target cannot hand a mutable borrow of this storage to a parameter of a type it cannot see the shape of - it names a slot inside something else, and the erased ABI passes the slot itself (README.md gap 1)"_v,
+                                            instruction.source);
+            }
+
+            declared.push(storage ? storage.unwrap() : useValue(g, arg));
             argIndex++;
             continue;
         }
@@ -776,61 +909,6 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
     if(!isUnit(g.global, instruction.type)) {
         g.values.add(U32(pointer), directResult ? field(g, place, g.boxField) : place);
     }
-}
-
-/*
- * Building a function value - Analysis-JS.md §3.2, answered with a host closure.
- *
- * `makeFunValue` writes the two words FunValueLayout describes, in that order, into storage it
- * allocated for exactly that. On this target those two words are one thing: a function value *is* a
- * host function, so the code word is the value and the environment is what the closure closed over
- * rather than a second field to load at every call.
- *
- * Which means the value cannot be built until both words are known, so the code word is remembered
- * and the environment is what emits. Nothing is guessed - the pattern is one function's output and
- * anything else falls through to the ordinary write, which for a whole function value is an
- * assignment of the reference and correct.
- *
- * The environment is supplied by calling the lambda's *factory*, which is what genFunction emits in
- * place of a capturing lambda: `L$make(env)` returns a closure over `env`, so every closure of one
- * lambda is a separate function object over a separate environment, which is what a value the
- * program can hold has to be.
- */
-bool genFunValueWord(Gen& g, Value& instruction, InstInit& init) {
-    auto projections = init.place.projections;
-    if(init.place.root != PlaceRoot::Local || projections.size() != 1) return false;
-
-    auto projection = projections.get(g.local, 0);
-    if(projection.kind != ProjectionKind::Field) return false;
-
-    auto base = init.place;
-    base.projections.clear();
-
-    auto type = placeType(g, base);
-    if(!type || g.global[type]->kind != Type::Fun) return false;
-
-    if(projection.index == FunValueLayout::kCode) {
-        auto& source = *g.local[init.value];
-        if(source.kind != Value::Symbol || !((InstSymbol&)source).callee) return false;
-
-        g.pendingCode.add(init.place.local, U32(((InstSymbol&)source).callee));
-        return true;
-    }
-
-    if(projection.index != FunValueLayout::kEnv) return false;
-
-    auto found = g.pendingCode.get(init.place.local);
-    if(!found) return false;
-
-    auto callee = ModulePtr<Function>(found.unwrap());
-    auto code = functionValue(g, callee, instruction.source);
-
-    // A lambda that captured nothing, and the thunk that makes a named function a value, are the
-    // function itself: this target does not pass the environment, so there is nothing to bind.
-    auto value = g.local[callee]->closureHeader ? call(g, code, useValue(g, init.value)) : code;
-
-    emitExpr(g, assign(g, placeExpr(g, base), value));
-    return true;
 }
 
 /*
@@ -929,19 +1007,59 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
      */
     JsPtr<Expr> owner = nullptr;
     JsPtr<Expr> keyExpr = nullptr;
+    JsPtr<Expr> envKeyExpr = nullptr;
     PlaceBits bits;
 
-    PlaceBits walked;
-    auto word = placeOwner(g, place, walked);
+    // One access node taken apart into the pair it already is. `owner.key` and `owner[key]` are the
+    // two shapes a read of a place ever has here, which is what makes a reference two children of
+    // one node rather than a second walk that could disagree with the first.
+    auto split = [&](JsPtr<Expr> access, JsPtr<Expr>& into) {
+        if(!access) return false;
 
-    if(!walked.foldedTag && word && g.base[word]->kind == Expr::Field) {
-        auto& access = (FieldExpr&)*g.base[word];
-        owner = access.object;
-        keyExpr = asExpr(g, make<StringExpr>(g, access.field.text));
-    } else if(!walked.foldedTag && word && g.base[word]->kind == Expr::Index) {
-        auto& access = (IndexExpr&)*g.base[word];
-        owner = access.array;
-        keyExpr = access.index;
+        if(g.base[access]->kind == Expr::Field) {
+            auto& read = (FieldExpr&)*g.base[access];
+            owner = read.object;
+            into = asExpr(g, make<StringExpr>(g, read.field.text));
+            return true;
+        }
+
+        if(g.base[access]->kind == Expr::Index) {
+            auto& read = (IndexExpr&)*g.base[access];
+            owner = read.array;
+            into = read.index;
+            return true;
+        }
+
+        return false;
+    };
+
+    PlaceBits walked;
+
+    /*
+     * A function value, whose two words are two properties of one owner - so the reference is that
+     * owner and *both* keys.
+     *
+     * The words are taken from the place walk rather than from the projections, on the same terms
+     * as the single-key case below: whichever form they are in - two properties of a record, two of
+     * the pair object a local was kept in - each is `owner.key`, and they share the owner because
+     * one walk produced both.
+     */
+    if(isFunValue(g, type)) {
+        auto words = funPartsOfPlace(g, place);
+
+        if(!split(words.code, keyExpr) || !split(words.env, envKeyExpr)) {
+            g.context.diagnostics.error("the JS target cannot make a reference to a function value that is not reachable through an object"_v,
+                                        instruction.source);
+            return false;
+        }
+    }
+
+    auto word = envKeyExpr ? JsPtr<Expr>(nullptr) : placeOwner(g, place, walked);
+
+    if(envKeyExpr) {
+        // Already taken apart above; the bit range is not a question a function value has.
+    } else if(!walked.foldedTag && split(word, keyExpr)) {
+        // Answered by the split.
     } else {
         /*
          * The last resort, and what makes this function total.
@@ -991,12 +1109,13 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         auto trivial = kind == Expr::Var || kind == Expr::Number || kind == Expr::String ||
                        kind == Expr::Bool || kind == Expr::Null;
 
-        return trivial ? value : declare(g, refPartName(g, instruction, suffix), value);
+        return trivial ? value : declare(g, partName(g, instruction, suffix), value);
     };
 
     RefParts parts;
     parts.owner = part("$o"_v, owner);
     parts.key = part("$k"_v, keyExpr);
+    if(envKeyExpr) parts.envKey = part("$ke"_v, envKeyExpr);
 
     /*
      * The scale, on a target that has bit ranges in it at all. Where nothing is packed every narrow
@@ -1009,7 +1128,7 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
      * computing `2**s` from `s` at every access would be a `Math.pow` per read. Composition is a
      * multiply where it used to be an add, and both operands are constants at every site.
      */
-    if(narrowRefCarriesScale(g)) {
+    if(narrowRefCarriesScale(g) && !envKeyExpr) {
         auto scale = bits.scale ? bits.scale : number(g, 1);
         if(bits.offset) {
             auto step = number(g, powerOfTwo(bits.offset));
@@ -1325,15 +1444,26 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             }
 
             /*
-             * A function value has no zero worth writing: it is a host function, and the closure
-             * that fills the slot is built by the environment word rather than by this - see
-             * genFunValueWord. The binding still has to exist, because the two writes that follow
-             * name it.
+             * Storage for a function value the body holds as its two words, which is two variables
+             * and no object at all - see prepareFunLocals.
+             *
+             * Both start `null` rather than being left undeclared, and that is not caution: the two
+             * `Init`s that follow assign them, and `var v$c = null; v$c = L;` is what the peephole's
+             * "`var v = 0; v = x`" rewrite collapses into the declaration. Leaving them undeclared
+             * would make the assignments implicit globals under a strict-mode script.
              */
-            if(instruction.type && g.global[instruction.type]->kind == Type::Fun && !boxed) {
-                auto name = valueName(g, instruction);
-                emit(g, make<DeclStmt>(g, name, JsPtr<Expr>(nullptr), false));
-                g.values.add(U32(value), variable(g, name));
+            if(allocation.local < g.flatFuns.size() && g.flatFuns[allocation.local] && !boxed) {
+                auto code = partName(g, instruction, "$c"_v);
+                auto env = partName(g, instruction, "$e"_v);
+
+                emit(g, make<DeclStmt>(g, code, nullValue(g), false));
+                emit(g, make<DeclStmt>(g, env, nullValue(g), false));
+
+                FunParts parts;
+                parts.code = variable(g, code);
+                parts.env = variable(g, env);
+
+                g.funParts.add(U32(value), parts);
                 break;
             }
 
@@ -1356,6 +1486,21 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 emitExpr(g, call(g, tableCell(g, witness, PropertyWitnessFields::kRead),
                                  propertyOwner(g, loadInst.place), out));
                 g.values.add(U32(value), propertyContents(g, instruction.type, out));
+                break;
+            }
+
+            /*
+             * A whole function value read out of a place stays two words.
+             *
+             * Reading `s.run` is reading `s.run$c` and `s.run$e`, and joining them into an object
+             * here would put back exactly the allocation part 2.2 removed from the record - one per
+             * read rather than one per record, which is worse. So the load registers the two words
+             * as this value's parts and binds nothing, and whatever reads it gets them: a call
+             * enters with them, an argument passes them, and only a use that needs one value asks
+             * `useValue` and builds the object there.
+             */
+            if(isFunValue(g, instruction.type)) {
+                g.funParts.add(U32(value), funPartsOfPlace(g, loadInst.place));
                 break;
             }
 
@@ -1383,8 +1528,6 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              * it, with no lens anywhere in it.
              */
             if(isUnit(g.global, g.local[init.value]->type)) break;
-
-            if(genFunValueWord(g, instruction, init)) break;
 
             /*
              * Writing through the witness, which takes the replacement by reference for the same

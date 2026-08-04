@@ -6,7 +6,8 @@
 -- runs is whatever the closure's own header says, which is the one thing about a lambda the two
 -- targets represent differently. Native puts the header in front of the entry point and subtracts a
 -- constant from the code word to reach it; the JS target has no bytes in front of a function, so it
--- keeps the header in a module-level `const` and the lambda's factory hangs it on each closure.
+-- keeps the header in a module-level `const` and assigns it to the code word as `$h`, once beside
+-- that function's declaration rather than once per closure.
 --
 -- Asserted by counting, because a teardown that never ran and one that ran twice are both invisible
 -- in the value: the environment is collected either way.

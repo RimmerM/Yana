@@ -1,0 +1,155 @@
+fn double(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 2 : Int
+    ret %v3
+}
+
+fn triple(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 3 : Int
+    ret %v3
+}
+
+fn negate(%x: Int) -> Int {
+  b0:
+    %v3 = sub 0, %x : Int
+    ret %v3
+}
+
+fn retarget(%slot: (Int) -> Int) -> () {
+  b0:
+    %v1 = alloc : (Int) -> Int
+    %v2 = symbol funvalue$triple : %()
+    init %local1.code, %v2
+    %v5 = cast 0 : %()
+    init %local1.env, %v5
+    drop_derived %slot via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    assign %slot, %v1
+    ret
+}
+
+fn reweight(%step: Step, %weight: Int) -> () {
+  b0:
+    assign %step@Step.weight, %weight
+    %v3 = alloc : (Int) -> Int
+    %v4 = symbol funvalue$negate : %()
+    init %local1.code, %v4
+    %v7 = cast 0 : %()
+    init %local1.env, %v7
+    drop_derived %step@Step.run via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    assign %step@Step.run, %v3
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Step
+    %v2 = alloc : (Int) -> Int
+    %v3 = symbol funvalue$double : %()
+    init %local1.code, %v3
+    %v6 = cast 0 : %()
+    init %local1.env, %v6
+    init %s@Step.weight, 1
+    init %s@Step.run, %v2
+    %v10 = load %s : Step
+    %v11 = load %s@Step.run : (Int) -> Int
+    %v13 = calldyn %v11, 10 : Int
+    %v14 = load %s : Step
+    %v15 = load %s@Step.weight : Int
+    %before = mul %v13, %v15 : Int
+    %v17 = load %s : Step
+    %v18 = load %s@Step.run : (Int) -> Int
+    %v19 = borrow_mut %s@Step.run : &mut (Int) -> Int
+    call retarget, %v19
+    %v21 = load %s : Step
+    %v22 = load %s@Step.run : (Int) -> Int
+    %v24 = calldyn %v22, 10 : Int
+    %v25 = load %s : Step
+    %v26 = load %s@Step.weight : Int
+    %after = mul %v24, %v26 : Int
+    %v28 = load %s : Step
+    %v30 = borrow_mut %s : &mut Step
+    call reweight, %v30, 4
+    %v32 = load %s : Step
+    %v33 = load %s@Step.run : (Int) -> Int
+    %v35 = calldyn %v33, 10 : Int
+    %v36 = load %s : Step
+    %v37 = load %s@Step.weight : Int
+    drop_derived %s via drop$Step reclaim reclaim$Step
+    %last = mul %v35, %v37 : Int
+    %v39 = add %before, %after : Int
+    %v40 = add %v39, %last : Int
+    ret %v40
+}
+
+fn funvalue$triple(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call triple, %x : Int
+    ret %v2
+}
+
+fn funvalue$negate(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call negate, %x : Int
+    ret %v2
+}
+
+fn funvalue$double(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call double, %x : Int
+    ret %v2
+}
+
+fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].drop : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].reclaim : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn drop$Step(%value: Step) -> () {
+  b0:
+    drop_derived %value@Step.run via drop$(Int) -> Int
+    ret
+}
+
+fn reclaim$Step(%value: Step) -> () {
+  b0:
+    drop_derived %value@Step.run reclaim reclaim$(Int) -> Int
+    ret
+}

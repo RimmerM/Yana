@@ -39,20 +39,19 @@ function Try_Result_e_a_a_e_toOutcome_Int_Node(value) {
 function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
   var v1;
   if (!(value === null)) {
-    v1 = value;
+    v1 = { $c: value.$c, $e: value.$e };
   } else {
     if (!(value === null)) {
-      drop$_Int_sub_gt_Int(value);
+      drop$_Int_sub_gt_Int(value.$c, value.$e);
     }
     v1 = null;
   }
   return v1;
 }
 
-function drop$_Int_sub_gt_Int(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[0](v1);
+function drop$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
   }
   return;
 }
@@ -213,7 +212,7 @@ function twice(x) {
 
 function maybeFn(n) {
   if (n > 0) {
-    return funvalue$twice;
+    return { $c: funvalue$twice, $e: null };
   } else {
     return null;
   }
@@ -226,7 +225,7 @@ function called(n) {
     drop$Outcome_Int_sub_gt_Int(v3);
     v16 = null;
   } else {
-    var v10 = v3(21);
+    var v10 = v3.$c(v3.$e, 21);
     drop$Outcome_Int_sub_gt_Int(v3);
     v16 = v10;
   }
@@ -264,7 +263,7 @@ function Drop_Node_drop(value) {
   return;
 }
 
-function funvalue$twice(x) {
+function funvalue$twice(env, x) {
   return Math.imul(x, 2) | 0;
 }
 
@@ -284,7 +283,7 @@ function drop$Outcome_Node_Int(value) {
 
 function drop$Outcome_Int_sub_gt_Int(value) {
   if (!(value === null)) {
-    drop$_Int_sub_gt_Int(value);
+    drop$_Int_sub_gt_Int(value.$c, value.$e);
   }
   return;
 }

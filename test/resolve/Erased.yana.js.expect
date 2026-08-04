@@ -1,10 +1,10 @@
 "use strict";
-const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, teardown$none, teardown$none];
-const typeDesc$ = [48, 0, 1, 0, 131, teardown$none, teardown$none, teardown$none];
+const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
+const typeDesc$ = [48, 0, 1, 0, 131, teardown$none, teardown$none, teardown$none, teardown$none];
 const genEnv$pick_Int = [0, typeDesc$Int, typeDesc$];
 const genEnv$identity_Int = [0, typeDesc$Int];
 const genEnv$firstOf_Int = [0, typeDesc$Int];
-const typeDesc$Bool = [432, 1, 1, 1, 131, moveInit$Bool, teardown$none, teardown$none];
+const typeDesc$Bool = [432, 1, 1, 1, 131, moveInit$Bool, copyInit$Bool, teardown$none, teardown$none];
 const genEnv$pick_Int_Bool = [0, typeDesc$Int, typeDesc$Bool];
 const witness$Num_Int = [5348, 327681, 1, typeDesc$Int, thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
 const witness$FromInt_Int = [3652, 65537, 0, typeDesc$Int, thunk$FromInt_Int_fromInt_0];
@@ -82,7 +82,17 @@ function moveInit$Int(to, from) {
   return;
 }
 
+function copyInit$Int(to, from) {
+  to.$v = from.$v;
+  return;
+}
+
 function moveInit$Bool(to, from) {
+  to.$v = from.$v;
+  return;
+}
+
+function copyInit$Bool(to, from) {
   to.$v = from.$v;
   return;
 }

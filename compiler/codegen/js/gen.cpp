@@ -12,11 +12,12 @@
  *  - a sum type is that object plus a `$tag` property, with every constructor's payload *flattened*
  *    into the same object - which is what makes a Downcast free, exactly as it is on native where
  *    the payload is inline. A constructor whose content is not a tuple keeps it in `$p`;
- *  - a function value is a host *function*. The two words FunValueLayout describes are the closure
- *    and what it closed over, so calling one is an ordinary call with nothing to unpack, and a
- *    capturing lambda is built by a factory - `L$make(env)` - which is what gives each closure its
- *    own environment. A lambda that captured nothing, and a plain function used as a value, are the
- *    function itself and cost no allocation at all;
+ *  - a function value is the two words FunValueLayout describes, exactly as it is on native: a code
+ *    word and an environment, here as the two properties `{$c, $e}`. The code word is an ordinary
+ *    top-level declaration taking the environment as parameter zero, so calling one is
+ *    `f.$c(f.$e, ...)` and there is no factory anywhere. A lambda that captured nothing, and a plain
+ *    function used as a value, hold `null` in `$e` and ignore the parameter, which is what keeps one
+ *    call shape for all three;
  *  - a compiler-built constant table is an array, one element per slot, so that a load the native
  *    side writes as `[base + 24]` is `table[5]` here. Resolve describes those tables as slots and
  *    nothing else, so this is a materialization rather than a reinterpretation - which is what it
@@ -381,20 +382,73 @@ void prepareLocals(Gen& g, Function& function) {
 }
 
 /*
- * Whether a closure of this lambda has to carry its own teardown metadata.
+ * Which function-value locals are carried as their two words rather than as an object.
  *
- * The header's two slots are the environment's `Drop` and its `Reclaim`, and the second is nothing
- * here - the host collector owns reclamation, which is Design-Memory §4's carve-out for this target.
- * So the question is only whether the captures have an authored `Drop` between them, and where they
- * do not there is nothing for a teardown to reach and nothing to attach.
+ * The default is flat and the rule is what takes it away, which is the opposite of how the boxing
+ * above reads and deliberately so: every use a function value has *wants* the two words - the call
+ * enters with them, the teardown runs off them, a flattened argument passes them - and the uses
+ * that want one value are the exceptions, which `useValue` builds an object for where it finds one.
+ *
+ * Two disqualifications, and each is about something that needs the storage to be an object:
+ *
+ *  - **a borrow or an address of it.** An object is its own reference here, which is what makes
+ *    `InstBorrow` free (§3.3) - and two variables are not an object. There is nothing for the
+ *    reference to name, and boxing the pair instead would be the copy-with-write-back that
+ *    refIsTriple exists to avoid.
+ *  - **a projection that is not one of the two words.** A `Fun` is a leaf, so in a well-formed body
+ *    there is no such projection; declining on one is what keeps a place the walk cannot answer
+ *    from becoming a silently wrong answer rather than an obvious one.
+ *
+ * A `&` parameter is excluded by the first: the storage is the caller's and arrives as a reference,
+ * so this frame has no words to hold. A parameter *declared* as a function value is the opposite
+ * case and is registered in genFunction, where the two words are two parameters.
  */
-bool closureNeedsTeardown(Gen& g, Function& function) {
-    if(!function.closureHeader || function.args.isEmpty()) return false;
+void prepareFunLocals(Gen& g, Function& function) {
+    g.flatFuns.reset(function.localCount());
 
-    auto envType = pointeeType(g.global, g.local[function.args.get(g.local, 0)]->type);
-    if(!envType) return false;
+    for(Size i = 0; i < function.localCount(); i++) {
+        auto slot = function.localAt(g.local, i);
+        if(!slot.type || g.global[slot.type]->kind != Type::Fun) continue;
+        if(slot.borrowed) continue;
 
-    return ownershipOf(*function.module, envType).drop != TeardownKind::None;
+        g.flatFuns.set(i, true);
+    }
+
+    eachInstruction(g, function, [&](Value& instruction) {
+        auto decline = [&](const Place& place) {
+            if(place.root != PlaceRoot::Local || place.local >= g.flatFuns.size()) return;
+            g.flatFuns.set(place.local, false);
+        };
+
+        if(instruction.kind == Value::Borrow) {
+            decline(((InstBorrow&)instruction).place);
+            return;
+        }
+
+        if(instruction.kind == Value::Address) {
+            decline(((InstAddress&)instruction).place);
+            return;
+        }
+
+        eachPlace(instruction, [&](const Place& place) {
+            if(place.root != PlaceRoot::Local || place.local >= g.flatFuns.size()) return;
+            if(!g.flatFuns[place.local]) return;
+
+            auto projections = place.projections;
+            if(projections.isEmpty()) return;
+
+            if(projections.size() > 1) {
+                g.flatFuns.set(place.local, false);
+                return;
+            }
+
+            auto projection = projections.get(g.local, 0);
+            if(projection.kind != ProjectionKind::Field ||
+               projection.index >= FunValueLayout::kProjectionCount) {
+                g.flatFuns.set(place.local, false);
+            }
+        });
+    });
 }
 
 // The body, once the parameters have been named and bound. Split out because a capturing lambda's
@@ -402,6 +456,7 @@ bool closureNeedsTeardown(Gen& g, Function& function) {
 // nothing else about building one differs.
 StmtList genBody(Gen& g, Function& function) {
     prepareLocals(g, function);
+    prepareFunLocals(g, function);
     prepareCfg(g, function);
 
     return collect(g, [&] {
@@ -440,24 +495,23 @@ StmtList genBody(Gen& g, Function& function) {
 }
 
 /*
- * One function, in whichever of the two forms it has here.
+ * One function, and there is now only one form of one.
  *
- * A *code word* - a lifted lambda, or the thunk that makes a named function a function value - does
- * not take the environment as a parameter on this target, because a function value is a host
- * function and there is no second word to pass. Which leaves two shapes:
+ * A *code word* - a lifted lambda, or the thunk that makes a named function a function value - is an
+ * ordinary top-level declaration taking the environment as parameter zero, which is what
+ * `Function::takesEnv` has meant on every other target all along. There is no factory and no
+ * function expression: a function value is the `{$c, $e}` pair, so the thing that varies per closure
+ * is the environment word of the value rather than the identity of the code.
  *
- *  - one that captured nothing has the parameter dropped and is otherwise an ordinary declaration,
- *    since its body never reads it;
- *  - one that captured something becomes a *factory*: `L$make(env)` returning a closure over `env`.
- *    The environment is a parameter of the factory rather than of the closure, so each call builds
- *    a separate function object over separate storage - which is what a value the program can hold
- *    and return has to be, and what binding the environment into the emitted lambda directly could
- *    not give, since `var` is function-scoped and a loop would hand every closure the last one.
+ * That is what removed the shape this used to have. The factory existed because the environment had
+ * to be a parameter of *something* - `var` is function-scoped, so a closure built in a loop would
+ * otherwise have seen the last iteration's - and with the environment travelling in the value there
+ * is nothing to bind and nothing to build.
  *
- * The captures themselves still go through the environment object rather than becoming parameters
- * of the factory. That object is storage the ownership model tracks - it is the local whose drop a
- * closure's teardown devirtualizes to, and the one the header's reclaim names - so dissolving it is
- * a decision for the resolver rather than a rewrite here.
+ * The captures still go through the environment object rather than becoming parameters. That object
+ * is storage the ownership model tracks - it is the local whose drop a closure's teardown
+ * devirtualizes to, and the one the header's reclaim names - so dissolving it is a decision for the
+ * resolver rather than a rewrite here.
  */
 void genFunction(Gen& g, ModulePtr<Function> pointer) {
     auto& function = *g.local[pointer];
@@ -469,7 +523,7 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
     g.values.reset();
     g.phis.reset();
     g.localNames.reset();
-    g.pendingCode.reset();
+    g.funParts.reset();
     g.labelCounter = 0;
     g.genEnv = nullptr;
     g.genContext = functionGen(g.global, function);
@@ -477,7 +531,6 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
 
     auto found = g.functionNames.get(U32(pointer));
     auto result = make<FunStmt>(g, found ? found.unwrap() : Name {});
-    auto closure = function.takesEnv && function.closureHeader ? make<FunValueExpr>(g) : nullptr;
 
     // The environment comes first, on the same terms as native: every unspecialized generic
     // function receives it, whatever its signature says.
@@ -488,20 +541,18 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
     }
 
     U16 index = 0;
-    JsPtr<Expr> environment = nullptr;
 
-    // The same answer every caller computes from the same declarations - see functionFlattensRefs.
-    auto flattensRefs = functionFlattensRefs(g, function);
+    // The same answer every caller computes from the same declarations - see functionFlattensArgs.
+    auto flattensArgs = functionFlattensArgs(g, function);
 
     for(auto argPointer: function.args.contents(g.local)) {
         auto arg = g.local[argPointer];
         auto name = valueName(g, *arg);
 
         if(function.takesEnv && index == 0) {
-            // The environment: the factory's parameter where there is a factory, and nothing at all
-            // where nothing was captured, since the body never reads it.
-            if(closure) result->args.push(g.file.arena, name);
-            environment = variable(g, name);
+            // The environment, received by every code word alike. One that captured nothing is
+            // handed `null` and never reads it, which is what keeps `f.$c(f.$e, ...)` one shape.
+            result->args.push(g.file.arena, name);
             g.values.add(U32((ModulePtr<Value>)argPointer), variable(g, name));
             index++;
             continue;
@@ -515,7 +566,7 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             continue;
         }
 
-        auto& into = closure ? closure->args : result->args;
+        auto& into = result->args;
 
         /*
          * A narrow reference arrives as its three parts rather than as an object - see
@@ -526,9 +577,9 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
          * The parts are named after the parameter so that the emitted source still says which
          * reference they belong to, and the whole triple is dropped if the body never touches it.
          */
-        if(flattensRefs && refIsFlattened(g, arg->type, arg->convention)) {
-            auto owner = refPartName(g, *arg, "$o"_v);
-            auto key = refPartName(g, *arg, "$k"_v);
+        if(flattensArgs && refIsFlattened(g, arg->type, arg->convention)) {
+            auto owner = partName(g, *arg, "$o"_v);
+            auto key = partName(g, *arg, "$k"_v);
 
             into.push(g.file.arena, owner);
             into.push(g.file.arena, key);
@@ -537,8 +588,15 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             parts.owner = variable(g, owner);
             parts.key = variable(g, key);
 
-            if(narrowRefCarriesScale(g)) {
-                auto scale = refPartName(g, *arg, "$s"_v);
+            // A reference to a function value carries a second key where a narrow one carries a
+            // shift - see RefParts::envKey. Both sides count the arity from the declaration, so
+            // this has to be the same split flatRefArity makes.
+            if(isFunValue(g, arg->type)) {
+                auto envKey = partName(g, *arg, "$ke"_v);
+                into.push(g.file.arena, envKey);
+                parts.envKey = variable(g, envKey);
+            } else if(narrowRefCarriesScale(g)) {
+                auto scale = partName(g, *arg, "$s"_v);
                 into.push(g.file.arena, scale);
                 parts.scale = variable(g, scale);
             }
@@ -548,46 +606,68 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             continue;
         }
 
+        /*
+         * A function value arrives as its two words, on the same terms and for the same reason -
+         * see funIsFlattened. `apply(f$c, f$e, x)` enters the callee with the pair already taken
+         * apart, so the callee's own call of it is `f$c(f$e, x)` and no object is built on either
+         * side of the handoff. That is the pattern the language produces most of, and it is the one
+         * the whole representation was chosen for.
+         */
+        if(flattensArgs && funIsFlattened(g, arg->type, arg->convention)) {
+            auto code = partName(g, *arg, "$c"_v);
+            auto env = partName(g, *arg, "$e"_v);
+
+            into.push(g.file.arena, code);
+            into.push(g.file.arena, env);
+
+            FunParts parts;
+            parts.code = variable(g, code);
+            parts.env = variable(g, env);
+
+            g.funParts.add(U32((ModulePtr<Value>)argPointer), parts);
+            index++;
+            continue;
+        }
+
         into.push(g.file.arena, name);
         g.values.add(U32((ModulePtr<Value>)argPointer), variable(g, name));
         index++;
     }
 
-    if(!closure) {
-        result->body = genBody(g, function);
-    } else {
-        closure->body = genBody(g, function);
+    result->body = genBody(g, function);
+    g.file.statements.push(g.file.arena, asStmt(g, result));
 
-        /*
-         * The teardown metadata, where the environment has any.
-         *
-         * A closure the program can hold is torn down by whatever its *lambda* captured, and which
-         * lambda a value came from is a run-time fact once two of them reach one drop. Native
-         * answers that by putting the header in front of the entry point; here the factory hangs it
-         * on the closure it just built, along with the environment the header's slots are run over.
-         *
-         * Two stores, and only for a closure whose environment has something to tear down - which
-         * is what keeps the ordinary lambda, the one over an `Int`, at one allocation and nothing
-         * else. Everything else is left to the host collector, exactly as §3.3 says.
-         */
-        auto header = closureNeedsTeardown(g, function) ? function.closureHeader : nullptr;
-
-        if(!header) {
-            result->body.push(g.file.arena, asStmt(g, make<ReturnStmt>(g, asExpr(g, closure))));
-        } else {
-            auto name = uniqueName(g, "closure"_v, true);
-            auto self = variable(g, name);
-
-            result->body.push(g.file.arena, asStmt(g, make<DeclStmt>(g, name, asExpr(g, closure), false)));
-            result->body.push(g.file.arena, asStmt(g, make<ExprStmt>(g,
-                assign(g, field(g, self, g.envField), environment))));
-            result->body.push(g.file.arena, asStmt(g, make<ExprStmt>(g,
-                assign(g, field(g, self, g.headerField), globalValue(g, header)))));
-            result->body.push(g.file.arena, asStmt(g, make<ReturnStmt>(g, self)));
-        }
+    /*
+     * The teardown metadata, where the environment has any.
+     *
+     * A closure the program can hold is torn down by whatever its *lambda* captured, and which
+     * lambda a value came from is a run-time fact once two of them reach one drop. Native answers
+     * that by putting the header in front of the entry point and subtracting a constant from the
+     * code word; a JS function has no bytes in front of it, so the header is a property of the code
+     * word instead - one assignment beside the declaration, for every closure of this lambda that
+     * will ever exist.
+     *
+     * That is the whole of what moved. It used to be two stores *per closure*, hung on each function
+     * object by the factory; it is now one store per lambda and none per closure, and the place walk
+     * reaches it as `value.$c.$h` where native reaches it as `code - sizeof(header)`.
+     *
+     * **Every lambda that has a header gets it**, including one whose captures have nothing to tear
+     * down, and that is a change rather than an oversight. It used to be conditional on the captures
+     * having an authored `Drop` between them, which was sound only because the environment word was
+     * conditional in the same way: `drop$T` guards on `value.$e != null`, and a closure that had
+     * neither word skipped the branch. The pair always carries an environment, so the guard now
+     * passes for every capturing lambda and the header has to be there when it does. Native has
+     * always worked this way - `closureHeaderFor` emits one for every capturing lambda and the drop
+     * slot is `teardown$none` where there is nothing to run - so this is the two targets agreeing
+     * again rather than this one giving something up: what the elision saved was two stores per
+     * closure, and there are none of those left to save.
+     */
+    if(auto header = function.closureHeader) {
+        auto code = variable(g, result->name);
+        g.file.statements.push(g.file.arena, asStmt(g, make<ExprStmt>(g,
+            assign(g, field(g, code, g.headerField), globalValue(g, header)))));
     }
 
-    g.file.statements.push(g.file.arena, asStmt(g, result));
     g.function = nullptr;
 }
 
@@ -789,9 +869,14 @@ void opaqueTuples(Gen& g) {
 
                 // A reference to a whole root is the case that already has an answer, whichever
                 // root it is - a boxed local, or a pointer that is its own slot.
-                if(!place || const_cast<Place*>(place)->projections.isEmpty()) return;
+                if(!place) return;
+
+                auto projections = const_cast<Place*>(place)->projections;
+                auto count = projections.size();
+                if(!count) return;
 
                 auto type = placeType(g, *place);
+
                 if(!type || isJsObject(g, type)) return;
 
                 if(auto tuple = transparentTupleOf(g, type)) g.opaqueTuples.add(U32(tuple));
@@ -821,21 +906,6 @@ void nameProgram(Gen& g) {
 
             auto function = g.local[pointer];
             auto text = stringView(g.context.findName(function->name));
-
-            /*
-             * A capturing lambda is emitted as the factory that builds its closures rather than as
-             * itself - see genFunction - so what this name belongs to is the factory, and saying
-             * so is the difference between reading the output and guessing at it.
-             */
-            if(function->takesEnv && function->closureHeader) {
-                char buffer[512];
-                auto length = min(text.length, sizeof(buffer) - 8);
-                copy(text.ptr, buffer, length);
-                copy("$make", buffer + length, 5);
-
-                g.functionNames.add(U32(pointer), uniqueName(g, StringView { buffer, length + 5 }, false));
-                continue;
-            }
 
             g.functionNames.add(U32(pointer), uniqueName(g, text, false));
         }
@@ -873,53 +943,67 @@ void nameProgram(Gen& g) {
  * All or nothing for a signature, and computed from the declarations alone, because the caller and
  * the callee decide it separately and have to agree: a per-parameter rule would need both of them to
  * arrive at the same count anyway, and this way the count is the rule.
+ *
+ * **One count for both flattened forms**, references and function values together, which is what
+ * `opt/opt_arg.cpp` says about its own: "a signature is flattened once, counting flattened fields
+ * and ordinary parameters together". Two counters would let a signature flatten its references and
+ * decline its function values, and the arity the guard is protecting is the whole signature's.
  */
 static const Size kFlatArityLimit = 24;
 
 template<class F>
-static bool signatureFlattens(Gen& g, Size count, F&& isRef) {
+static bool signatureFlattens(Gen& g, Size count, F&& arityOf) {
     Size arity = 0;
     auto any = false;
 
     for(Size i = 0; i < count; i++) {
-        if(isRef(i)) {
-            arity += flatRefArity(g);
-            any = true;
-        } else {
-            arity++;
-        }
+        auto width = arityOf(i);
+
+        arity += width;
+        if(width > 1) any = true;
     }
 
     return any && arity <= kFlatArityLimit;
 }
 
-bool functionFlattensRefs(Gen& g, Function& function) {
-    return signatureFlattens(g, function.args.size(), [&](Size i) {
+bool functionFlattensArgs(Gen& g, Function& function) {
+    return signatureFlattens(g, function.args.size(), [&](Size i) -> Size {
         auto arg = g.local[function.args.get(g.local, i)];
-        return refIsFlattened(g, arg->type, arg->convention);
+        if(refIsFlattened(g, arg->type, arg->convention)) return flatRefArity(g, arg->type);
+        if(funIsFlattened(g, arg->type, arg->convention)) return kFlatFunArity;
+
+        return 1;
     });
 }
 
-static bool funTypeFlattensRefs(Gen& g, FunType& type) {
-    return signatureFlattens(g, type.args.size(), [&](Size i) {
+static bool funTypeFlattensArgs(Gen& g, FunType& type) {
+    return signatureFlattens(g, type.args.size(), [&](Size i) -> Size {
         auto arg = type.args.get(g.global, i);
-        return refIsFlattened(g, arg.type, arg.convention);
+        if(refIsFlattened(g, arg.type, arg.convention)) return flatRefArity(g, arg.type);
+        if(funIsFlattened(g, arg.type, arg.convention)) return kFlatFunArity;
+
+        return 1;
     });
 }
 
-// The declared parameter at one argument position, whichever kind of call this is. The arity a
-// reference argument occupies is decided from this and never from the argument's own type - see
-// pushArg - so both the emitter and the question below have to read it from the same place.
-bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
+/*
+ * The declared parameter at one argument position, whichever kind of call this is.
+ *
+ * The arity an argument occupies is decided from this and never from the argument's own type - see
+ * pushArg - so both the emitter and the question below have to read it from the same place. The two
+ * flattened forms ask it the same way and differ only in what they then ask of the declaration,
+ * which is why the walk is written once here.
+ */
+template<class Declared, class Signature>
+static bool callParameterIs(Gen& g, Value& user, Size index, Declared&& declared, Signature&& signature) {
     auto fromFunction = [&](ModulePtr<Function> callee) {
         if(!callee) return false;
 
         auto function = g.local[callee];
         if(index >= function->args.size()) return false;
-        if(!functionFlattensRefs(g, *function)) return false;
+        if(!functionFlattensArgs(g, *function)) return false;
 
-        auto arg = g.local[function->args.get(g.local, index)];
-        return refIsFlattened(g, arg->type, arg->convention);
+        return declared(*(Arg*)g.local[function->args.get(g.local, index)]);
     };
 
     switch(user.kind) {
@@ -930,19 +1014,30 @@ bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
         case Value::CallDyn: {
             // An indirect call has a signature where a direct one has a callee, and it carries the
             // same declarations.
-            auto signature = ((InstCallDyn&)user).signature;
-            if(!signature || g.global[signature]->kind != Type::Fun) return false;
+            auto declaredType = ((InstCallDyn&)user).signature;
+            if(!declaredType || g.global[declaredType]->kind != Type::Fun) return false;
 
-            auto type = (FunType*)g.global[signature];
+            auto type = (FunType*)g.global[declaredType];
             if(index >= type->args.size()) return false;
-            if(!funTypeFlattensRefs(g, *type)) return false;
+            if(!funTypeFlattensArgs(g, *type)) return false;
 
-            auto arg = type->args.get(g.global, index);
-            return refIsFlattened(g, arg.type, arg.convention);
+            return signature(type->args.get(g.global, index));
         }
         default:
             return false;
     }
+}
+
+bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
+    return callParameterIs(g, user, index,
+        [&](Arg& arg) { return refIsFlattened(g, arg.type, arg.convention); },
+        [&](const FunArg& arg) { return refIsFlattened(g, arg.type, arg.convention); });
+}
+
+bool callParameterIsFlatFun(Gen& g, Value& user, Size index) {
+    return callParameterIs(g, user, index,
+        [&](Arg& arg) { return funIsFlattened(g, arg.type, arg.convention); },
+        [&](const FunArg& arg) { return funIsFlattened(g, arg.type, arg.convention); });
 }
 
 /*
@@ -1131,10 +1226,12 @@ Ptr<File> genProgram(Context& context, Program& program) {
     g.tagField = literalName(g, "$tag"_v);
     g.payloadField = literalName(g, "$p"_v);
     g.boxField = literalName(g, "$v"_v);
+    g.codeField = literalName(g, "$c"_v);
     g.envField = literalName(g, "$e"_v);
     g.refObject = literalName(g, "$o"_v);
     g.refKey = literalName(g, "$k"_v);
     g.refScale = literalName(g, "$s"_v);
+    g.refEnvKey = literalName(g, "$ke"_v);
     g.headerField = literalName(g, "$h"_v);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 

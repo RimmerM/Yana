@@ -1,0 +1,171 @@
+let &copyCalls: Int = 0
+
+table typeDesc$Int {
+  .0 Int
+  .1 sizeof Int
+  .2 alignof Int
+  .3 strideof Int
+  .4 131
+  .5 moveInit$Int
+  .6 copyInit$Int
+  .7 teardown$none
+  .8 teardown$none
+}
+
+table witness$TrivialCopy(Int) {
+  .0 TrivialCopy
+  .1 1
+  .2 0
+  .3 typeDesc$Int
+}
+
+table genEnv$copyInto(Int) {
+  .0 0
+  .1 typeDesc$Int
+  .2 witness$TrivialCopy(Int)
+}
+
+table typeDesc$Point {
+  .0 Point
+  .1 sizeof Point
+  .2 alignof Point
+  .3 strideof Point
+  .4 131
+  .5 moveInit$Point
+  .6 copyInit$Point
+  .7 teardown$none
+  .8 teardown$none
+}
+
+table witness$TrivialCopy(Point) {
+  .0 TrivialCopy
+  .1 1
+  .2 0
+  .3 typeDesc$Point
+}
+
+table genEnv$copyInto(Point) {
+  .0 0
+  .1 typeDesc$Point
+  .2 witness$TrivialCopy(Point)
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+(TrivialCopy(a)) fn copyInto(%slot: a, %from: a) -> () {
+  schema {
+    #0 type a
+    #1 class TrivialCopy(a)
+  }
+
+  b0:
+    assign %slot, %from
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %number = alloc : Int
+    init %number, 0
+    %v3 = load %number : Int
+    %v6 = borrow_mut %number : &mut Int
+    gencall env genEnv$copyInto(Int) copyInto(Int), %v6, 7
+    %pair = alloc : Point
+    init %local1@Point.x, 3
+    init %local1@Point.y, 4
+    %v13 = alloc : Point
+    init %target@Point.x, 0
+    init %target@Point.y, 0
+    %v18 = load %target : Point
+    %v19 = borrow_mut %target : &mut Point
+    gencall env genEnv$copyInto(Point) copyInto(Point), %v19, %pair
+    %v21 = load %local1@Point.x : Int
+    %v24 = cmp_ne %v21, 3 : Bool
+    je %v24, b1, b2
+
+  b1:
+    %v28 = neg 1 : Int
+    ret %v28
+
+  b2:
+    jmp b3
+
+  b3:
+    %v31 = alloc : Tracked
+    init %local3@Tracked.value, 10
+    %tracked = call Copy(Tracked).copy, %v31 : Tracked
+    %v35 = load copyCalls : Int
+    %v38 = cmp_ne %v35, 1 : Bool
+    je %v38, b4, b5
+
+  b4:
+    %v42 = neg 2 : Int
+    ret %v42
+
+  b5:
+    jmp b6
+
+  b6:
+    %v45 = load %number : Int
+    %v46 = load %target : Point
+    %v47 = load %target@Point.x : Int
+    %v48 = add %v45, %v47 : Int
+    %v49 = load %target : Point
+    %v50 = load %target@Point.y : Int
+    %v51 = add %v48, %v50 : Int
+    %v52 = load %local4@Tracked.value : Int
+    %v53 = add %v51, %v52 : Int
+    %v54 = load copyCalls : Int
+    %v55 = add %v53, %v54 : Int
+    ret %v55
+}
+
+fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
+  b0:
+    %v1 = load copyCalls : Int
+    %v4 = add %v1, 1 : Int
+    assign copyCalls, %v4
+    %v6 = alloc : Tracked
+    %v7 = load %from@Tracked.value : Int
+    init %local1@Tracked.value, %v7
+    ret %v6
+}
+
+fn moveInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn moveInit$Point(%to: %Point, %from: %Point) -> () {
+  b0:
+    %v2 = sizeof Point : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Point(%to: %Point, %from: %Point) -> () {
+  b0:
+    %v2 = sizeof Point : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}

@@ -212,11 +212,11 @@ function looped(n) {
 }
 
 function throughLens(n) {
-  return doubled_Maybe_Int(n, ResolveTest_continuation$0);
+  return doubled_Maybe_Int(n, ResolveTest_continuation$0, null);
 }
 
 function viaSkipping(n) {
-  var v9 = Try_Maybe_a_a_toOutcome_Int(firstPositive_Int(n, ResolveTest_continuation$1));
+  var v9 = Try_Maybe_a_a_toOutcome_Int(firstPositive_Int(n, ResolveTest_continuation$1, null));
   if (v9 === null) {
     return 0;
   } else {
@@ -297,7 +297,7 @@ function Drop_Token_drop(value) {
   return;
 }
 
-function ResolveTest_continuation$0(value) {
+function ResolveTest_continuation$0(env, value) {
   var v7 = Try_Maybe_a_a_toOutcome_Int(parse(value - 8 | 0));
   if (v7 === null) {
     return null;
@@ -306,23 +306,23 @@ function ResolveTest_continuation$0(value) {
   }
 }
 
-function doubled_Maybe_Int(x, body) {
+function doubled_Maybe_Int(x, body$c, body$e) {
   log = log + 1000 | 0;
-  var v8 = body(Math.imul(x, 2) | 0);
+  var v8 = body$c(body$e, Math.imul(x, 2) | 0);
   log = log + 10000 | 0;
   return v8;
 }
 
-function ResolveTest_continuation$1(found) {
+function ResolveTest_continuation$1(env, found) {
   return found + 1 | 0;
 }
 
-function firstPositive_Int(n, body) {
+function firstPositive_Int(n, body$c, body$e) {
   var v5 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v5 === null) {
     return null;
   } else {
-    return body(v5);
+    return body$c(body$e, v5);
   }
 }
 

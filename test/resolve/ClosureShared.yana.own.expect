@@ -1,0 +1,30 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn applyUnit {
+  arg f readonly
+  %f: () -> () borrowed droppable readonly live [0, 1)
+}
+
+fn main {
+  %total: Int writable live [0, 31)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: () -> () droppable readonly live [6, 11)
+  %local3: {total: &mut Int} closure writable addressed live [11, 19)
+  %local4: () -> () droppable readonly live [15, 20)
+  %local5: {total: &mut Int} closure writable addressed live [21, 29)
+  %local6: () -> () droppable readonly live [25, 30)
+}
+
+fn ResolveTest.lambda$0 {
+  arg env readonly
+}
+
+fn ResolveTest.lambda$1 {
+  arg env readonly
+}
+
+fn ResolveTest.lambda$2 {
+  arg env readonly
+}

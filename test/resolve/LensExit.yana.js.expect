@@ -13,17 +13,17 @@ function teardown$none(value) {
 
 // ResolveTest
 function alwaysLeaves(x) {
-  return scope_Int(ResolveTest_continuation$0$make({ $v: x }));
+  return scope_Int(ResolveTest_continuation$0, { $v: x });
 }
 
 function sometimesLeaves(x) {
-  return scope_Int(ResolveTest_continuation$1$make({ $v: x }));
+  return scope_Int(ResolveTest_continuation$1, { $v: x });
 }
 
 function insideArm(x) {
   B0: {
     if (x > 0) {
-      var v12 = scope_Outcome_Int(ResolveTest_continuation$2$make({ $v: x }));
+      var v12 = scope_Outcome_Int(ResolveTest_continuation$2, { $v: x });
       if (!(v12 === null)) {
         return v12;
       }
@@ -34,13 +34,13 @@ function insideArm(x) {
 
 function leavesWithValue(x) {
   log = log + 1 | 0;
-  var v15 = ResolveTest_continuation$3(Math.imul(x, 2) | 0);
+  var v15 = ResolveTest_continuation$3(null, Math.imul(x, 2) | 0);
   log = log + 100 | 0;
   return v15;
 }
 
 function twoDeep(x) {
-  return scope_Int(ResolveTest_continuation$4$make({ $v: x }));
+  return scope_Int(ResolveTest_continuation$4, { $v: x });
 }
 
 function main() {
@@ -48,48 +48,45 @@ function main() {
   return (((((((alwaysLeaves(1) + sometimesLeaves(5) | 0) + sometimesLeaves(200) | 0) + insideArm(3) | 0) + insideArm(-1) | 0) + leavesWithValue(9) | 0) + leavesWithValue(2) | 0) + twoDeep(4) | 0) + log | 0;
 }
 
-function ResolveTest_continuation$0$make(env) {
-  return function() {
-    return env.$v + 1 | 0;
-  };
+function ResolveTest_continuation$0(env) {
+  return env.$v + 1 | 0;
 }
+ResolveTest_continuation$0.$h = closure$ResolveTest_continuation$0;
 
-function scope_Int(body) {
+function scope_Int(body$c, body$e) {
   log = log + 1 | 0;
-  var v5 = body();
+  var v5 = body$c(body$e);
   log = log + 100 | 0;
   return v5;
 }
 
-function ResolveTest_continuation$1$make(env) {
-  return function() {
-    if (env.$v > 100) {
-      return 0;
-    } else {
-      return env.$v + 2 | 0;
-    }
-  };
+function ResolveTest_continuation$1(env) {
+  if (env.$v > 100) {
+    return 0;
+  } else {
+    return env.$v + 2 | 0;
+  }
 }
+ResolveTest_continuation$1.$h = closure$ResolveTest_continuation$1;
 
-function ResolveTest_continuation$2$make(env) {
-  return function() {
-    if (env.$v > 100) {
-      return 0;
-    } else {
-      log = log + 1000 | 0;
-      return null;
-    }
-  };
+function ResolveTest_continuation$2(env) {
+  if (env.$v > 100) {
+    return 0;
+  } else {
+    log = log + 1000 | 0;
+    return null;
+  }
 }
+ResolveTest_continuation$2.$h = closure$ResolveTest_continuation$2;
 
-function scope_Outcome_Int(body) {
+function scope_Outcome_Int(body$c, body$e) {
   log = log + 1 | 0;
-  var v5 = body();
+  var v5 = body$c(body$e);
   log = log + 100 | 0;
   return v5;
 }
 
-function ResolveTest_continuation$3(value) {
+function ResolveTest_continuation$3(env, value) {
   if (value > 10) {
     return value;
   } else {
@@ -97,21 +94,19 @@ function ResolveTest_continuation$3(value) {
   }
 }
 
-function handing_Int(x, body) {
+function handing_Int(x, body$c, body$e) {
   log = log + 1 | 0;
-  var v8 = body(Math.imul(x, 2) | 0);
+  var v8 = body$c(body$e, Math.imul(x, 2) | 0);
   log = log + 100 | 0;
   return v8;
 }
 
-function ResolveTest_continuation$4$make(env) {
-  return function() {
-    return scope_Int(ResolveTest_continuation$5$make({ $v: env.$v }));
-  };
+function ResolveTest_continuation$4(env) {
+  return scope_Int(ResolveTest_continuation$5, { $v: env.$v });
 }
+ResolveTest_continuation$4.$h = closure$ResolveTest_continuation$4;
 
-function ResolveTest_continuation$5$make(env) {
-  return function() {
-    return env.$v + 3 | 0;
-  };
+function ResolveTest_continuation$5(env) {
+  return env.$v + 3 | 0;
 }
+ResolveTest_continuation$5.$h = closure$ResolveTest_continuation$5;

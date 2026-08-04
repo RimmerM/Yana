@@ -1,0 +1,64 @@
+-- The *duplicate* a body that cannot see the type performs, on both targets.
+--
+-- ErasedRelocate.yana is the other half of this and the half that already worked: a move of a type
+-- variable calls the descriptor's `moveInit`, and storage of unknown shape is an empty object that
+-- the relocation's own writes give the right shape to. What was missing was the write that is not a
+-- relocation - `codegen/js/README.md` gap 4 - because native writes a whole value of unknown shape
+-- by block-copying the descriptor's `size` bytes, and this target has no shallow copy of one value.
+-- `TypeDescFields::kCopyInit` is the operation that answers it, and this fixture is what says so.
+--
+-- Compiled with specialization declined (see the `.generic` marker), so `duplicate` below really is
+-- the erased form rather than one instantiation per call site.
+--
+-- Asserted by counting, on the same terms and for the same reason: a copy that silently aliased its
+-- source instead of duplicating it produces the right *number* out of `value` and the wrong one out
+-- of the counter, and only the counter can tell the two apart.
+
+let &copyCalls = 0 :: Int
+
+-- A type whose duplicate is not its bytes, so the descriptor's slot holds the adapter around this
+-- instance rather than the block copy. That adapter is the one shape `Copy` needs and `Sink` does
+-- not: `copy` returns the duplicate where `sink` is handed the destination, so the slot cannot name
+-- it directly.
+data Tracked {value: Int}
+
+-- An aggregate whose duplicate *is* its bytes, which is the answer the erased write below actually
+-- reaches: the slot holds the generated block copy, and each backend compiles that its own way - a
+-- `memcpy` natively, a property-by-property duplicate on JS.
+data Point {x: Int, y: Int}
+
+instance Copy(Tracked):
+    fn copy(from: Tracked) -> Tracked:
+        copyCalls = copyCalls + 1
+        return Tracked {value: from.value}
+
+-- The write gap 4 named: `slot` is storage the caller owns and `from` is borrowed rather than
+-- consumed, so filling one from the other is a *duplicate* and not a relocation. Neither the shape
+-- nor the size of `a` is known here, which is what left this reported rather than emitted.
+--
+-- `TrivialCopy(a)` rather than `Copy(a)`, and that is the language rather than a narrower test: an
+-- unconstrained duplicate of a non-TrivialCopy type does not exist - `sinkValue` emits a move for
+-- one, and the borrow checker rejects storing a borrowed value outright - so this constraint is
+-- what the reachable erased copy is stated under. The authored half of the slot is exercised by
+-- `Tracked` having a descriptor at all; see copyInitFor for why both answers have to be in it.
+fn (TrivialCopy(a)) copyInto(&slot: a, from: a) -> {}:
+    slot = from
+
+fn main() -> Int:
+    let &number = 0 :: Int
+    copyInto(number, 7)
+
+    let pair = Point {x: 3, y: 4}
+    let &target = Point {x: 0, y: 0}
+    copyInto(target, pair)
+
+    -- The source survives the duplicate, which is the whole difference from a move.
+    if pair.x != 3 then return -1
+
+    -- The authored instance is reachable directly, which is what keeps `Tracked`'s descriptor - and
+    -- so the adapter in its copyInit slot - in the emitted program.
+    let tracked = copy(Tracked {value: 10})
+    if copyCalls != 1 then return -2
+
+    -- 7 + 3 + 4 + 10 + 1 = 25
+    return number + target.x + target.y + tracked.value + copyCalls

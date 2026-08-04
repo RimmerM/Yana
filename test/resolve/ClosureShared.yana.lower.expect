@@ -1,0 +1,94 @@
+
+@closure$ResolveTest.lambda$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$2<complex>(%env: Ptr) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %env, 8: Ptr
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = add %v_3, 5: Int
+    store %v_1, %v_4, 4
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %total, 8
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = add %v_2, 8: Ptr
+    %v_5 = load %v_2, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    call_complex %v_5, %v_6
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, %total, 8
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, ResolveTest.lambda$1, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, %v_7, 8
+    %v_10 = add %v_8, 8: Ptr
+    %v_11 = load %v_8, 8: Ptr
+    %v_12 = load %v_10, 8: Ptr
+    call_complex %v_11, %v_12
+    %seen = loads %total, 4: Int
+    %v_13 = alloca 8, 8: Ptr
+    store %v_13, %total, 8
+    %v_14 = alloca 16, 8: Ptr
+    store %v_14, ResolveTest.lambda$2, 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, %v_13, 8
+    %v_16 = add %v_14, 8: Ptr
+    %v_17 = load %v_14, 8: Ptr
+    %v_18 = load %v_16, 8: Ptr
+    call_complex %v_17, %v_18
+    %v_19 = loads %total, 4: Int
+    %v_20 = add %v_19, %seen: Int
+    ret %v_20
+  }
+}
+
+@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$0<complex>(%env: Ptr) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %env, 8: Ptr
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = add %v_3, 1: Int
+    store %v_1, %v_4, 4
+    ret 
+  }
+}
+
+@closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$1<complex>(%env: Ptr) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %env, 8: Ptr
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = imul %v_3, 10: Int
+    store %v_1, %v_4, 4
+    ret 
+  }
+}
+
+applyUnit<complex>(%f: Ptr) {
+  b_0 {
+    %v_1 = add %f, 8: Ptr
+    %v_2 = load %f, 8: Ptr
+    %v_3 = load %v_1, 8: Ptr
+    call_complex %v_2, %v_3
+    ret 
+  }
+}
+

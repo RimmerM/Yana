@@ -5,8 +5,9 @@ table typeDesc$Person {
   .3 strideof Person
   .4 131
   .5 moveInit$Person
-  .6 teardown$none
+  .6 copyInit$Person
   .7 teardown$none
+  .8 teardown$none
 }
 
 table property$Person.name {
@@ -23,8 +24,9 @@ table typeDesc$Int {
   .3 strideof Int
   .4 131
   .5 moveInit$Int
-  .6 teardown$none
+  .6 copyInit$Int
   .7 teardown$none
+  .8 teardown$none
 }
 
 table genEnv$nameOf(Person) {
@@ -40,8 +42,9 @@ table typeDesc$Item {
   .3 strideof Item
   .4 131
   .5 moveInit$Item
-  .6 teardown$none
+  .6 copyInit$Item
   .7 teardown$none
+  .8 teardown$none
 }
 
 table property$Item.name {
@@ -70,8 +73,9 @@ table typeDesc$Left {
   .3 strideof Left
   .4 131
   .5 moveInit$Left
-  .6 teardown$none
+  .6 copyInit$Left
   .7 teardown$none
+  .8 teardown$none
 }
 
 table property$Left.name {
@@ -102,8 +106,9 @@ table typeDesc$Right {
   .3 strideof Right
   .4 131
   .5 moveInit$Right
-  .6 teardown$none
+  .6 copyInit$Right
   .7 teardown$none
+  .8 teardown$none
 }
 
 table property$Right.name {
@@ -214,7 +219,25 @@ fn moveInit$Person(%to: %Person, %from: %Person) -> () {
     ret
 }
 
+fn copyInit$Person(%to: %Person, %from: %Person) -> () {
+  b0:
+    %v2 = sizeof Person : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
 fn moveInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Int(%to: %Int, %from: %Int) -> () {
   b0:
     %v2 = sizeof Int : Long
     %v3 = cast %to : %()
@@ -246,6 +269,15 @@ fn moveInit$Item(%to: %Item, %from: %Item) -> () {
     ret
 }
 
+fn copyInit$Item(%to: %Item, %from: %Item) -> () {
+  b0:
+    %v2 = sizeof Item : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
 fn read$Item.name(%owner: %Item, %out: %Int) -> () {
   b0:
     %v2 = load [%owner]@Item.name : Int
@@ -261,6 +293,15 @@ fn set$Item.name(%owner: %Item, %value: %Int) -> () {
 }
 
 fn moveInit$Left(%to: %Left, %from: %Left) -> () {
+  b0:
+    %v2 = sizeof Left : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Left(%to: %Left, %from: %Left) -> () {
   b0:
     %v2 = sizeof Left : Long
     %v3 = cast %to : %()
@@ -298,6 +339,15 @@ fn set$Left.tag(%owner: %Left, %value: %Int) -> () {
 }
 
 fn moveInit$Right(%to: %Right, %from: %Right) -> () {
+  b0:
+    %v2 = sizeof Right : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Right(%to: %Right, %from: %Right) -> () {
   b0:
     %v2 = sizeof Right : Long
     %v3 = cast %to : %()

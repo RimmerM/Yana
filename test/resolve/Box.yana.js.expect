@@ -48,7 +48,7 @@ function throughLens() {
   v0.hot = 3;
   v0.cold = { count: 0, level: 0 };
   v0.cold = v2;
-  return ResolveTest_continuation$0$make({ $v: v0 })(v0.cold.level);
+  return ResolveTest_continuation$0({ $v: v0 }, v0.cold.level);
 }
 
 function countOf(h) {
@@ -69,14 +69,13 @@ function main() {
   }
 }
 
-function ResolveTest_continuation$0$make(env) {
-  return function(value) {
-    return value + env.$v.cold.count | 0;
-  };
+function ResolveTest_continuation$0(env, value) {
+  return value + env.$v.cold.count | 0;
 }
+ResolveTest_continuation$0.$h = closure$ResolveTest_continuation$0;
 
-function levelIn_Int(c, body) {
-  return body(c.cold.level);
+function levelIn_Int(c, body$c, body$e) {
+  return body$c(body$e, c.cold.level);
 }
 
 function reclaim$Config(value) {

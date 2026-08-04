@@ -480,9 +480,21 @@ static bool runJsPass(const String& path, const String& jsPath, StringView sourc
     js::formatFile(writer, context, *file, false);
     auto pass = compareText(jsPath, writer.getBuffered());
 
-    // The forced-generic build emits the same program through the erased ABI, and its *result* is
-    // what that mode asserts - running it twice would only assert Node twice.
-    if(expectedRun && !forceGeneric && nodeAvailable()) {
+    /*
+     * Run it, whichever specialization mode the fixture asked for.
+     *
+     * `!forceGeneric` used to guard this, copied from the native side where it means "do not build a
+     * second time" - `runGenericPass` is a *second* build of a fixture that is otherwise specialized,
+     * and asserting the same number twice would be nothing. It means something else here, because
+     * there is only ever one JS build and `forceGeneric` decides what it *is*: with the guard, a
+     * `.generic` fixture's JavaScript was emitted, diffed and never executed.
+     *
+     * That is the half the second target exists for. `ErasedCopy.yana` is what found it - the
+     * emitted file compared clean against its golden and answered 18 where both the fixture and the
+     * native build say 25 - and `ErasedRelocate.yana` had been in the same position since it was
+     * written.
+     */
+    if(expectedRun && nodeAvailable()) {
         auto actual = executeJsMain(path, writer.getBuffered());
         ran = actual;
 

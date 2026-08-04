@@ -1,0 +1,187 @@
+fn double(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 2 : Int
+    ret %v3
+}
+
+fn triple(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 3 : Int
+    ret %v3
+}
+
+fn negate(%x: Int) -> Int {
+  b0:
+    %v3 = sub 0, %x : Int
+    ret %v3
+}
+
+fn square(%x: Int) -> Int {
+  b0:
+    %v1 = mul %x, %x : Int
+    ret %v1
+}
+
+fn retarget(%slot: (Int) -> Int) -> () {
+  b0:
+    %v1 = alloc : (Int) -> Int
+    %v2 = symbol funvalue$triple : %()
+    init %local1.code, %v2
+    %v5 = cast 0 : %()
+    init %local1.env, %v5
+    drop_derived %slot via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    assign %slot, %v1
+    ret
+}
+
+fn retargetBoth(%a: (Int) -> Int, %b: (Int) -> Int) -> () {
+  b0:
+    %v2 = alloc : (Int) -> Int
+    %v3 = symbol funvalue$negate : %()
+    init %local2.code, %v3
+    %v6 = cast 0 : %()
+    init %local2.env, %v6
+    drop_derived %a via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    assign %a, %v2
+    %v9 = alloc : (Int) -> Int
+    %v10 = symbol funvalue$square : %()
+    init %local3.code, %v10
+    %v13 = cast 0 : %()
+    init %local3.env, %v13
+    drop_derived %b via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    assign %b, %v9
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Handlers
+    %v1 = alloc : (Int) -> Int
+    %v2 = symbol funvalue$double : %()
+    init %local1.code, %v2
+    %v5 = cast 0 : %()
+    init %local1.env, %v5
+    %v7 = alloc : (Int) -> Int
+    %v8 = symbol funvalue$triple : %()
+    init %local2.code, %v8
+    %v11 = cast 0 : %()
+    init %local2.env, %v11
+    init %h@Handlers.first, %v1
+    init %h@Handlers.second, %v7
+    %v15 = load %h : Handlers
+    %v16 = load %h@Handlers.first : (Int) -> Int
+    %v18 = calldyn %v16, 10 : Int
+    %v19 = load %h : Handlers
+    %v20 = load %h@Handlers.second : (Int) -> Int
+    %v22 = calldyn %v20, 10 : Int
+    %before = add %v18, %v22 : Int
+    %v24 = load %h : Handlers
+    %v25 = load %h@Handlers.first : (Int) -> Int
+    %v26 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
+    call retarget, %v26
+    %v28 = load %h : Handlers
+    %v29 = load %h@Handlers.first : (Int) -> Int
+    %v31 = calldyn %v29, 10 : Int
+    %v32 = load %h : Handlers
+    %v33 = load %h@Handlers.second : (Int) -> Int
+    %v35 = calldyn %v33, 10 : Int
+    %one = add %v31, %v35 : Int
+    %v37 = load %h : Handlers
+    %v38 = load %h@Handlers.first : (Int) -> Int
+    %v39 = load %h : Handlers
+    %v40 = load %h@Handlers.second : (Int) -> Int
+    %v41 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
+    %v42 = borrow_mut %h@Handlers.second : &mut (Int) -> Int
+    call retargetBoth, %v41, %v42
+    %v44 = load %h : Handlers
+    %v45 = load %h@Handlers.first : (Int) -> Int
+    %v47 = calldyn %v45, 10 : Int
+    %v48 = load %h : Handlers
+    %v49 = load %h@Handlers.second : (Int) -> Int
+    %v51 = calldyn %v49, 10 : Int
+    drop_derived %h via drop$Handlers reclaim reclaim$Handlers
+    %both = add %v47, %v51 : Int
+    %v53 = add %before, %one : Int
+    %v54 = add %v53, %both : Int
+    ret %v54
+}
+
+fn funvalue$triple(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call triple, %x : Int
+    ret %v2
+}
+
+fn funvalue$negate(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call negate, %x : Int
+    ret %v2
+}
+
+fn funvalue$square(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call square, %x : Int
+    ret %v2
+}
+
+fn funvalue$double(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call double, %x : Int
+    ret %v2
+}
+
+fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].drop : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].reclaim : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn drop$Handlers(%value: Handlers) -> () {
+  b0:
+    drop_derived %value@Handlers.first via drop$(Int) -> Int
+    drop_derived %value@Handlers.second via drop$(Int) -> Int
+    ret
+}
+
+fn reclaim$Handlers(%value: Handlers) -> () {
+  b0:
+    drop_derived %value@Handlers.first reclaim reclaim$(Int) -> Int
+    drop_derived %value@Handlers.second reclaim reclaim$(Int) -> Int
+    ret
+}

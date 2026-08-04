@@ -69,7 +69,7 @@ function consume(it) {
 function captured(h) {
   var v1 = { value: 0n };
   Sink_Handle_sink(v1, h);
-  return ResolveTest_lambda$0$make(v1);
+  return { $c: ResolveTest_lambda$0, $e: v1 };
 }
 
 function retag(p) {
@@ -116,11 +116,11 @@ function main() {
             } else {
               var closed = captured({ value: 30n });
               if (sinkCalls.$v !== 5n) {
-                drop$_sub_gt_I64(closed);
+                drop$_sub_gt_I64(closed.$c, closed.$e);
                 return -7n;
               } else {
-                var v109 = closed();
-                drop$_sub_gt_I64(closed);
+                var v109 = closed.$c(closed.$e);
+                drop$_sub_gt_I64(closed.$c, closed.$e);
                 result = BigInt.asIntN(64, result + v109);
                 var retagged = retag({ left: { value: 60n }, right: 6n });
                 if (sinkCalls.$v !== 6n) {
@@ -180,11 +180,10 @@ function moveInit$Either(to, from) {
   return;
 }
 
-function ResolveTest_lambda$0$make(env) {
-  return function() {
-    return env.value;
-  };
+function ResolveTest_lambda$0(env) {
+  return env.value;
 }
+ResolveTest_lambda$0.$h = closure$ResolveTest_lambda$0;
 
 function relocate_Handle(x) {
   var y = { value: 0n };
@@ -198,18 +197,16 @@ function relocate_Pair(x) {
   return y;
 }
 
-function drop$_sub_gt_I64(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[0](v1);
+function drop$_sub_gt_I64(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
   }
   return;
 }
 
-function reclaim$_sub_gt_I64(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[8](v1);
+function reclaim$_sub_gt_I64(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[8](value$e);
   }
   return;
 }

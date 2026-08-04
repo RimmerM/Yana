@@ -105,7 +105,6 @@ struct Expr {
         Ternary,
         Assign,
         Call,
-        Function,
     };
 
     explicit Expr(Kind kind): kind(kind) {}
@@ -241,24 +240,6 @@ struct CallExpr: Expr {
 
 using StmtList = JsList<JsPtr<Stmt>, false>;
 
-/*
- * `function(a, b) { ... }` - an anonymous function expression, and what a closure is on this target.
- *
- * A function value is a host function rather than a `{code, env}` pair (see gen.cpp), so building
- * one is building a function that has the captures in scope. That is a closure in the host's own
- * sense: the engine allocates the context, the call is an ordinary call, and nothing has to be
- * unpacked at the call site.
- *
- * Exactly one of these is emitted per lifted lambda, inside the factory that supplies the
- * environment - see genFunction. There is no nesting beyond that, which is why this carries a body
- * rather than the generator carrying a stack of them.
- */
-struct FunValueExpr: Expr {
-    FunValueExpr(): Expr(Function) {}
-
-    JsList<Name, false> args;
-    StmtList body;
-};
 
 struct Stmt {
     enum Kind: U8 {

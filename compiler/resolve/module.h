@@ -688,6 +688,7 @@ struct Program {
     HashMap<U32, ModulePtr<Function>> reclaimEntry;
 
     HashMap<U32, ModulePtr<Function>> moveInitGlue;
+    HashMap<U32, ModulePtr<Function>> copyInitGlue;
 
     // The reclaim a closure whose environment is heap-placed runs, keyed by the environment type -
     // see closureReleaseFor. Only the environment types that turned out to need one are in here.

@@ -25,6 +25,7 @@ TypePtr typeDescPlaceType(Module& module) {
         Field { word, context.addUnqualifiedName("stride", 6) },
         Field { word, context.addUnqualifiedName("flags", 5) },
         Field { address, context.addUnqualifiedName("moveInit", 8) },
+        Field { address, context.addUnqualifiedName("copyInit", 8) },
         Field { address, context.addUnqualifiedName("reclaim", 7) },
         Field { address, context.addUnqualifiedName("drop", 4) },
     };
@@ -33,7 +34,7 @@ TypePtr typeDescPlaceType(Module& module) {
     // reads the table by slot number through repr/table.h, and this tuple is how the typed IR reads
     // the same words. A target free to reorder the fields would make the second description disagree
     // with the first - which is what checkTableTypes in resolve/lower.cpp asserts it does not.
-    auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation, TypeLayout::C);
+    auto tuple = resolveTupleType(module, { fields, 9 }, kNullLocation, TypeLayout::C);
     return (Type*)tuple - *module.types;
 }
 
@@ -441,6 +442,109 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
             resolver.current = exit;
         }
     }
+
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    return pointer;
+}
+
+/*
+ * copyInit - Implementation-JS-Closure.md part 5.2, and the operation `codegen/js/README.md` gap 4
+ * said was missing.
+ *
+ * Three answers, which is `moveInit`'s list with `Copy` where that one has `Sink`:
+ *
+ *  - **TrivialCopy**: the bytes, as a real function rather than a flag, because the caller is
+ *    generic code that does not know the size. Each backend compiles that block copy its own way -
+ *    a `memcpy` natively, a property-by-property duplicate on JS - which is the whole reason this is
+ *    generated resolve IR rather than a descriptor operation each target implements.
+ *  - **An authored `Copy`**: an adapter, and unlike `Sink` it needs one. `fn sink(&to: a, ->from: a)`
+ *    is already two addresses and a unit result, so a slot can name it directly; `fn copy(from: a)
+ *    -> a` *returns* the duplicate, and a slot has to be entered with the destination. So the
+ *    adapter is the call plus the write, and it is one function per type rather than a shape at
+ *    every erased site.
+ *  - **Neither**: null, and that is the language rather than a gap. A concrete duplicate of a
+ *    non-TrivialCopy type with no authored `Copy` does not exist either - `copyValue` emits a *move*
+ *    for one - so an erased body only reaches this slot when its own context declared `Copy(a)` or
+ *    `TrivialCopy(a)`, and in both of those the answer above is a real function. The constraint is
+ *    reported where it is stated, during context construction, rather than at the write.
+ *
+ * No structural recursion, and that is the difference from moveInitFor worth stating: an aggregate
+ * whose members are all TrivialCopy is itself TrivialCopy, and one whose members are not cannot be
+ * duplicated at all without an authored `Copy` that says how. There is no fourth case where the
+ * bytes plus a call per member is the answer.
+ */
+ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source) {
+    auto& program = module.program;
+    if(!type || isGeneric(*module.types, type)) return nullptr;
+
+    if(auto found = program.copyInitGlue.get(U32(type))) return found.unwrap();
+
+    // Nothing to duplicate, on the same terms as moveInitFor: a fact about `()` rather than about
+    // how wide it happens to be on the target that asked.
+    if(isUnit(*module.types, type)) return nullptr;
+
+    auto ownership = ownershipOf(module, type);
+    if(!ownership.trivialCopy && !ownership.authoredCopy) return nullptr;
+
+    auto function = addAnonymousFunction(module, derivedName(module, "copyInit$"_v, type), source);
+    auto pointer = function - *module.arena;
+
+    // Registered before the body, so a type reachable from itself finds the entry rather than
+    // generating glue forever - the same arrangement moveInitFor and teardownGlueFor rely on.
+    *program.copyInitGlue.add(U32(type)).value = pointer;
+
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    auto pointerType = resolvePointerType(module, type);
+    auto to = function->addArg(module, module.context.addQualifiedName("to", 2, 1), pointerType, source);
+    auto from = function->addArg(module, module.context.addQualifiedName("from", 4, 1), pointerType, source);
+
+    ExprResolver resolver(module.context, module, *function);
+    auto toValue = (ModulePtr<Value>)(to - *module.arena);
+    auto fromValue = (ModulePtr<Value>)(from - *module.arena);
+
+    if(ownership.authoredCopy) {
+        auto implementation = instanceImplementation(module, module.coreClasses.copy, type, source);
+
+        if(implementation) {
+            /*
+             * `*to = copy(from)`.
+             *
+             * The argument is the pointer rather than a load of it, because `from: a` of a memory
+             * type is passed as the address of the caller's storage - which is exactly what this
+             * frame was handed. The result is a value of that type, and the write is the ordinary
+             * initialization of uninitialized storage that every constructor performs.
+             */
+            auto duplicate = resolver.create<InstCall>(source, 0, type, implementation);
+            duplicate->args.push(module.arena, fromValue);
+            resolver.append(duplicate);
+
+            resolver.initialize(Place::atPointer(toValue), resolver.ref(duplicate), source);
+        }
+
+        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+        return pointer;
+    }
+
+    /*
+     * The bytes, through copyMemory for the reason moveInitFor gives: the size is a constant here
+     * and the type may be an aggregate with no register form at all. What each backend makes of it
+     * is its own business, and on JS that is genBlockCopy's structural duplicate rather than
+     * anything that would alias.
+     */
+    auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, module.scalar.long_,
+                                                            type, TypeMetricKind::Size));
+    auto byteType = resolvePointerType(module, module.scalar.unit);
+
+    auto castTo = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast, toValue));
+    auto castFrom = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast, fromValue));
+
+    auto copyInst = resolver.create<InstNative>(source, 0, module.scalar.unit, NativeOp::CopyMemory);
+    copyInst->args.push(module.arena, castTo);
+    copyInst->args.push(module.arena, castFrom);
+    copyInst->args.push(module.arena, bytes);
+    resolver.append(copyInst);
 
     resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
     return pointer;
@@ -1424,6 +1528,7 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
      * signature for every type that could fill it, and erased code has an address and nothing else.
      */
     table.putFunction(TypeDescFields::kMoveInit, orEmpty(moveInitFor(module, type, source)));
+    table.putFunction(TypeDescFields::kCopyInit, orEmpty(copyInitFor(module, type, source)));
     table.putFunction(TypeDescFields::kReclaim,
                       orEmpty(teardownEntry(module, type, Teardown::Reclaim, source)));
     table.putFunction(TypeDescFields::kDrop,

@@ -5,8 +5,9 @@ table typeDesc$Int {
   .3 strideof Int
   .4 131
   .5 moveInit$Int
-  .6 teardown$none
+  .6 copyInit$Int
   .7 teardown$none
+  .8 teardown$none
 }
 
 table typeDesc$() {
@@ -18,6 +19,7 @@ table typeDesc$() {
   .5 teardown$none
   .6 teardown$none
   .7 teardown$none
+  .8 teardown$none
 }
 
 table genEnv$pick(Int, ()) {
@@ -43,8 +45,9 @@ table typeDesc$Bool {
   .3 strideof Bool
   .4 131
   .5 moveInit$Bool
-  .6 teardown$none
+  .6 copyInit$Bool
   .7 teardown$none
+  .8 teardown$none
 }
 
 table genEnv$pick(Int, Bool) {
@@ -282,7 +285,25 @@ fn moveInit$Int(%to: %Int, %from: %Int) -> () {
     ret
 }
 
+fn copyInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
 fn moveInit$Bool(%to: %Bool, %from: %Bool) -> () {
+  b0:
+    %v2 = sizeof Bool : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Bool(%to: %Bool, %from: %Bool) -> () {
   b0:
     %v2 = sizeof Bool : Long
     %v3 = cast %to : %()

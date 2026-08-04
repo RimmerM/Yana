@@ -10,74 +10,68 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function apply(f, x) {
-  return f(x);
+function apply(f$c, f$e, x) {
+  return f$c(f$e, x);
 }
 
-function applyUnit(f) {
-  f();
+function applyUnit(f$c, f$e) {
+  f$c(f$e);
   return;
 }
 
 function makeAdder(amount) {
-  return ResolveTest_lambda$0$make({ $v: amount });
+  return { $c: ResolveTest_lambda$0, $e: { $v: amount } };
 }
 
 function makeScaler(scale, offset) {
-  return ResolveTest_lambda$1$make({ scale: scale, offset: offset });
+  return { $c: ResolveTest_lambda$1, $e: { scale: scale, offset: offset } };
 }
 
 function main() {
-  var v43 = ResolveTest_lambda$2$make({ $v: 10 })(1);
+  var v43 = ResolveTest_lambda$2({ $v: 10 }, 1);
   var total = { $v: 0 };
-  ResolveTest_lambda$3$make({ $v: { $o: total, $k: "$v", $s: 1 } })();
+  ResolveTest_lambda$3({ $v: { $o: total, $k: "$v", $s: 1 } });
   var add5 = makeAdder(5);
-  var b = add5(20);
-  drop$_Int_sub_gt_Int(add5);
+  var b = add5.$c(add5.$e, 20);
+  drop$_Int_sub_gt_Int(add5.$c, add5.$e);
   var scale = makeScaler(3, 4);
-  var c = scale(10);
-  drop$_Int_sub_gt_Int(scale);
+  var c = scale.$c(scale.$e, 10);
+  drop$_Int_sub_gt_Int(scale.$c, scale.$e);
   return ((v43 + total.$v | 0) + b | 0) + c | 0;
 }
 
-function ResolveTest_lambda$0$make(env) {
-  return function(x) {
-    return x + env.$v | 0;
-  };
+function ResolveTest_lambda$0(env, x) {
+  return x + env.$v | 0;
 }
+ResolveTest_lambda$0.$h = closure$ResolveTest_lambda$0;
 
-function ResolveTest_lambda$1$make(env) {
-  return function(x) {
-    return (Math.imul(x, env.scale) | 0) + env.offset | 0;
-  };
+function ResolveTest_lambda$1(env, x) {
+  return (Math.imul(x, env.scale) | 0) + env.offset | 0;
 }
+ResolveTest_lambda$1.$h = closure$ResolveTest_lambda$1;
 
-function ResolveTest_lambda$2$make(env) {
-  return function(x) {
-    return x + env.$v | 0;
-  };
+function ResolveTest_lambda$2(env, x) {
+  return x + env.$v | 0;
 }
+ResolveTest_lambda$2.$h = closure$ResolveTest_lambda$2;
 
-function ResolveTest_lambda$3$make(env) {
-  return function() {
-    var v1 = env.$v;
-    v1.$o[v1.$k] = v1.$o[v1.$k] + 7 | 0;
-    return;
-  };
+function ResolveTest_lambda$3(env) {
+  var v1 = env.$v;
+  v1.$o[v1.$k] = v1.$o[v1.$k] + 7 | 0;
+  return;
 }
+ResolveTest_lambda$3.$h = closure$ResolveTest_lambda$3;
 
-function drop$_Int_sub_gt_Int(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[0](v1);
+function drop$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[0](value$e);
   }
   return;
 }
 
-function reclaim$_Int_sub_gt_Int(value) {
-  var v1 = value.$e;
-  if (v1 != null) {
-    value.$h[8](v1);
+function reclaim$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$e != null) {
+    value$c.$h[8](value$e);
   }
   return;
 }

@@ -70,6 +70,20 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer) {
     if(!pointer) return nullValue(g);
     if(auto found = g.values.get(U32(pointer))) return found.unwrap();
 
+    /*
+     * A function value being carried as its two words, in a position that wants one value.
+     *
+     * Built here rather than once beside the parts - which is what a flattened reference parameter
+     * does in genBody - because the two words of a *local* are variables the `Init`s assign, so an
+     * object built before those writes would hold what the slot held before it was filled. Built at
+     * the use, it holds what the words hold there.
+     *
+     * The positions that reach this are the ones flattening cannot cover: a return, a store into a
+     * record field, an erased boundary. Everything else - the call, the two-word argument, the
+     * teardown - asks funPartsOf instead and never builds an object at all.
+     */
+    if(auto parts = g.funParts.get(U32(pointer))) return materializeFun(g, parts.unwrap());
+
     auto& value = *g.local[pointer];
     if(isConstant(value)) {
         auto result = constantValue(g, value);
@@ -109,18 +123,51 @@ JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer) {
  * projecting the object itself, which is what keeps flattening a decision about the *convention*
  * rather than something each use has to know about.
  */
-RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference) {
+RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference, bool fun) {
     RefParts parts;
     parts.owner = field(g, reference, g.refObject);
     parts.key = field(g, reference, g.refKey);
-    if(narrowRefCarriesScale(g)) parts.scale = field(g, reference, g.refScale);
+
+    // The third part is the shift for a narrow value and the second key for a function value, and
+    // never both: one names where inside a word the value sits, the other names a second word.
+    if(fun) {
+        parts.envKey = field(g, reference, g.refEnvKey);
+    } else if(narrowRefCarriesScale(g)) {
+        parts.scale = field(g, reference, g.refScale);
+    }
 
     return parts;
 }
 
 RefParts refPartsOf(Gen& g, ModulePtr<Value> reference) {
     if(auto found = g.flatRefs.get(U32(reference))) return found.unwrap();
-    return refPartsOfExpr(g, useValue(g, reference));
+
+    auto pointee = referencedType(g, g.local[reference]->type);
+    return refPartsOfExpr(g, useValue(g, reference), isFunValue(g, pointee));
+}
+
+FunParts funPartsOfExpr(Gen& g, JsPtr<Expr> value) {
+    FunParts parts;
+    parts.code = field(g, value, g.codeField);
+    parts.env = field(g, value, g.envField);
+
+    return parts;
+}
+
+FunParts funPartsOf(Gen& g, ModulePtr<Value> value) {
+    if(auto found = g.funParts.get(U32(value))) return found.unwrap();
+    return funPartsOfExpr(g, useValue(g, value));
+}
+
+// The object form, on the same terms as materializeRef below: JS has no multi-value return, so a
+// function value that is returned, stored in a record or handed across an erased boundary has to
+// become one value again.
+JsPtr<Expr> materializeFun(Gen& g, FunParts parts) {
+    auto pair = make<ObjectExpr>(g);
+    pair->properties.push(g.file.arena, Property { g.codeField, parts.code });
+    pair->properties.push(g.file.arena, Property { g.envField, parts.env });
+
+    return asExpr(g, pair);
 }
 
 // The object form, for the uses flattening cannot cover: JS has no multi-value return, so a
@@ -130,6 +177,7 @@ JsPtr<Expr> materializeRef(Gen& g, RefParts parts) {
     pair->properties.push(g.file.arena, Property { g.refObject, parts.owner });
     pair->properties.push(g.file.arena, Property { g.refKey, parts.key });
     if(parts.scale) pair->properties.push(g.file.arena, Property { g.refScale, parts.scale });
+    if(parts.envKey) pair->properties.push(g.file.arena, Property { g.refEnvKey, parts.envKey });
 
     return asExpr(g, pair);
 }
@@ -144,9 +192,13 @@ JsPtr<Expr> materializeRef(Gen& g, RefParts parts) {
 namespace {
 
 TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
-                  PlaceBits* bits = nullptr) {
+                  PlaceBits* bits = nullptr, FunParts* funParts = nullptr) {
     TypePtr type = nullptr;
     PlaceBits within;
+
+    // The two words of the root, where the root is a function value held as two variables. Valid
+    // only for that root, and consumed by the first `Type::Fun` field step - see the local case.
+    FunParts rootFun;
 
     /*
      * Whether this reference names a *run* of values rather than one.
@@ -219,7 +271,14 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
             auto triple = place.root == PlaceRoot::Borrow ? refIsTriple(g, type)
                                                          : addressIsTriple(g, type);
 
-            if(!indexedRoot && triple) {
+            if(!indexedRoot && triple && isFunValue(g, type)) {
+                // Both words, off the one owner the reference carries - see refIsTriple. Left as the
+                // pair for the `Type::Fun` step below, or joined up by the tail of this walk.
+                auto parts = refPartsOf(g, place.pointer);
+                rootFun.code = elementAt(g, parts.owner, parts.key);
+                rootFun.env = elementAt(g, parts.owner, parts.envKey);
+                *expr = nullptr;
+            } else if(!indexedRoot && triple) {
                 auto parts = refPartsOf(g, place.pointer);
                 *expr = elementAt(g, parts.owner, parts.key);
 
@@ -256,7 +315,13 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
             // derived teardown's parameter is handed the box `referenceTo` makes and is borrowed
             // without being one. Dropping this test compiled every derived `drop` to read `$o`/`$k`
             // out of a `{$v: …}` its caller built.
-            if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type)) {
+            if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type) &&
+               isFunValue(g, type)) {
+                auto parts = refPartsOf(g, root.value);
+                rootFun.code = elementAt(g, parts.owner, parts.key);
+                rootFun.env = elementAt(g, parts.owner, parts.envKey);
+                *expr = nullptr;
+            } else if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type)) {
                 auto parts = refPartsOf(g, root.value);
                 *expr = elementAt(g, parts.owner, parts.key);
 
@@ -265,6 +330,28 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                     within.width = narrowWidth(g, type);
                     within.word = maxWordBits(g);
                 }
+            } else if(auto parts = g.funParts.get(U32(root.value))) {
+                /*
+                 * A function value held as its two words, which is storage with no object behind it.
+                 *
+                 * Left null here and answered by the `Type::Fun` field step below, because what this
+                 * root *has* is two variables and neither of them is the value: asking `useValue`
+                 * would build the object the flattening exists to remove, at a place walk that was
+                 * only ever going to project one word out of it again.
+                 *
+                 * The two shapes that reach here are the only two a place into a function value can
+                 * be - `local` and `local@Fun.word` - because a `Fun` is a leaf and there is nothing
+                 * inside a word to descend into. The whole-value case is picked up at the end, where
+                 * an empty walk is what says the caller wanted the value rather than a word of it.
+                 *
+                 * Keyed on the parts actually existing rather than on `flatFuns`, and the difference
+                 * matters for a function-value parameter a wide signature declined to flatten: that
+                 * local is one this body would happily hold flat, but what arrived is an object, and
+                 * taking it apart here only to build another one at the end of the walk would be a
+                 * copy of a value that was already the right shape.
+                 */
+                rootFun = parts.unwrap();
+                *expr = nullptr;
             } else {
                 *expr = useValue(g, root.value);
                 if(place.local < g.boxed.size() && g.boxed[place.local]) {
@@ -351,18 +438,44 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                 }
 
                 /*
-                 * The two words of a function value, which are not two properties here.
+                 * The two words of a function value, which are two properties here - the same two
+                 * `FunValueLayout` describes, in the same order, reached the same way.
                  *
-                 * The code word *is* the value: a function value is a host function, so what a
-                 * native reader would load out of the first word is the thing it would have loaded
-                 * it from. The environment is what the closure closed over, and it is reachable at
-                 * all only where something attached it - see genFunValueWord.
+                 * The third projection is the closure header, and it is the one place this target
+                 * answers differently from native rather than merely spelling it differently. Native
+                 * puts the header in front of the entry point and subtracts a constant from the code
+                 * word to reach it; a JS function has no bytes in front of it, so the header is a
+                 * property *of the code word* - `code.$h`, assigned once at module level beside the
+                 * code word's declaration. Either way the header is reached from the first word and
+                 * never from the value, which is why one shared teardown serves both.
                  */
                 if(g.global[owner]->kind == Type::Fun) {
-                    if(expr && step.index == FunValueLayout::kEnv) {
+                    if(!expr) break;
+
+                    // Held as two variables, so each word *is* a variable and the header is a
+                    // property of the one holding the code. Consumed here: a `Fun` is a leaf, so
+                    // this step is the only one that can follow such a root.
+                    if(rootFun.valid()) {
+                        auto parts = rootFun;
+                        rootFun = FunParts {};
+
+                        if(step.index == FunValueLayout::kCode) {
+                            *expr = parts.code;
+                        } else if(step.index == FunValueLayout::kEnv) {
+                            *expr = parts.env;
+                        } else if(step.index == FunValueLayout::kHeader) {
+                            *expr = field(g, parts.code, g.headerField);
+                        }
+
+                        break;
+                    }
+
+                    if(step.index == FunValueLayout::kCode) {
+                        *expr = field(g, *expr, g.codeField);
+                    } else if(step.index == FunValueLayout::kEnv) {
                         *expr = field(g, *expr, g.envField);
-                    } else if(expr && step.index == FunValueLayout::kHeader) {
-                        *expr = field(g, *expr, g.headerField);
+                    } else if(step.index == FunValueLayout::kHeader) {
+                        *expr = field(g, field(g, *expr, g.codeField), g.headerField);
                     }
 
                     break;
@@ -420,6 +533,27 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                  * fields and an object is not one.
                  */
                 auto property = fieldProperty(g, owner, step.index);
+
+                /*
+                 * A function-value field, which is two properties rather than one holding an object.
+                 *
+                 * Left as the pair for the same reason the flat local root is: what follows is
+                 * either a word of it - answered above from these two - or nothing, in which case
+                 * the tail of this walk builds the object. Either way no `{$c, $e}` is projected
+                 * *through*, which is the allocation part 2.2 removes from every record that holds
+                 * a function value.
+                 */
+                if(property.fun) {
+                    if(expr) {
+                        rootFun.code = field(g, *expr, property.name);
+                        rootFun.env = field(g, *expr, property.envName);
+                        *expr = nullptr;
+                    }
+
+                    within = PlaceBits {};
+                    break;
+                }
+
                 if(expr) *expr = field(g, *expr, property.name);
 
                 within = PlaceBits {};
@@ -467,6 +601,24 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
 
         return true;
     }, limit);
+
+    /*
+     * A place that named the whole of a two-word function value rather than one word of it, which
+     * the walk leaves as the pair it declined to join up.
+     *
+     * A caller that asked for the words takes them - a teardown, a flattened argument, a *write*,
+     * which needs two assignable halves rather than an object literal it cannot assign to. One that
+     * did not gets the object built here, which is the only place in the walk that allocates for a
+     * function value: a return, a store across an erased boundary, an argument the callee declared
+     * generic.
+     */
+    if(rootFun.valid()) {
+        if(funParts) {
+            *funParts = rootFun;
+        } else if(expr) {
+            *expr = materializeFun(g, rootFun);
+        }
+    }
 
     if(bits) *bits = within;
     return type;
@@ -987,6 +1139,38 @@ void encodeNicheTag(Gen& g, JsPtr<Expr> target, TypePtr record, U64 constructor)
     emitExpr(g, assign(g, target, pattern));
 }
 
+/*
+ * The two words of a *place*, which is what a teardown site has where a call site has a value.
+ *
+ * Both of these are the walk asked to stop one step short of joining the pair up, which is the only
+ * way to get at the words wherever they live: two variables for a local this body holds flat, two
+ * properties for a field of a record, two properties of a materialized object for anything else.
+ * Going through `placeExpr` instead would build the object and then take it apart again.
+ *
+ * The difference between them is what a failure means. A *read* can always fall back on the object,
+ * so funPartsOfPlace answers unconditionally; a *write* cannot, because an object literal is not
+ * assignable, so destinationFunParts answers nothing and lets the caller emit the ordinary store.
+ */
+FunParts funPartsOfPlace(Gen& g, const Place& place) {
+    JsPtr<Expr> expr = nullptr;
+    FunParts parts;
+
+    walkJsPlace(g, place, &expr, maxLimit<Size>, nullptr, &parts);
+    if(parts.valid()) return parts;
+
+    return funPartsOfExpr(g, expr);
+}
+
+Maybe<FunParts> destinationFunParts(Gen& g, const Place& place) {
+    JsPtr<Expr> expr = nullptr;
+    FunParts parts;
+
+    walkJsPlace(g, place, &expr, maxLimit<Size>, nullptr, &parts);
+    if(parts.valid()) return Just(parts);
+
+    return Nothing();
+}
+
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
     PlaceBits bits;
@@ -1009,6 +1193,35 @@ JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit) 
 // the chain rather than building one nobody reads.
 TypePtr placeType(Gen& g, const Place& place, Size limit) {
     return walkJsPlace(g, place, nullptr, limit);
+}
+
+/*
+ * The storage a reference names, as the handle the *erased* ABI passes.
+ *
+ * `%a` on this target is a slot - a box, an object, whatever the value is stored in - and the triple
+ * `{$o, $k, $s}` is not one: it is three values describing where a slot is, which is exactly the
+ * flat form Implementation-JS-Closure.md part 5.1 says an erased boundary never sees. A callee
+ * compiled against `a` hands its argument to `moveInit`/`copyInit`/`drop`, and every one of those
+ * reads through it as a slot, so handing over the triple makes the write land on the descriptor
+ * instead of on the storage.
+ *
+ * Answered only for the shape where a slot genuinely exists: a whole local this frame boxed, whose
+ * box *is* the storage. A borrow of a field, an element or a bit range names a slot inside something
+ * else, and the one-property object that would stand in for it is a snapshot with a commit point -
+ * which is the copy-with-write-back refIsTriple exists to have removed. That case is `README.md`
+ * gap 1 and it is reported rather than silently miscompiled.
+ */
+Maybe<JsPtr<Expr>> erasedStorageOf(Gen& g, const Place& place) {
+    auto projections = place.projections;
+
+    if(place.root != PlaceRoot::Local || projections.isNotEmpty()) return Nothing();
+    if(place.local >= g.boxed.size() || !g.boxed[place.local]) return Nothing();
+    if(place.local >= g.function->localCount()) return Nothing();
+
+    auto root = g.function->localAt(g.local, place.local);
+    if(root.borrowed) return Nothing();
+
+    return Just(useValue(g, root.value));
 }
 
 JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value) {

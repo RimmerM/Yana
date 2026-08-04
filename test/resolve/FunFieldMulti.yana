@@ -1,0 +1,43 @@
+-- Several function values in one record, each taken as a mutable borrow.
+--
+-- One record, two function-value fields, and both are borrowed - sequentially in `retarget` and
+-- simultaneously in `retargetBoth`. What is being checked is that each borrow names *its own* slot:
+-- the exclusion that keeps a borrowed function-value field from being spread into two properties is
+-- keyed on the containing tuple rather than on the field, so borrowing either one keeps both whole,
+-- and two live borrows have two distinct objects to point at rather than one shared pair.
+--
+-- Asserted by a number because the failure mode is aliasing: two borrows that resolved to one slot
+-- produce emitted JavaScript that reads correctly and answers with whichever write happened last.
+
+fn double(x: Int) -> Int = x * 2
+fn triple(x: Int) -> Int = x * 3
+fn negate(x: Int) -> Int = 0 - x
+fn square(x: Int) -> Int = x * x
+
+data Handlers {first: (Int) -> Int, second: (Int) -> Int}
+
+fn retarget(&slot: (Int) -> Int) -> {}:
+    slot = triple
+
+-- Two mutable borrows alive at once, of two fields of one record. They are disjoint, so this is
+-- legal, and each write has to land in its own field.
+fn retargetBoth(&a: (Int) -> Int, &b: (Int) -> Int) -> {}:
+    a = negate
+    b = square
+
+fn main() -> Int:
+    let &h = Handlers {first: double, second: triple}
+
+    -- 10 through `double` plus 10 through `triple` = 20 + 30.
+    let before = h.first(10) + h.second(10)
+
+    -- One field borrowed, the other untouched: `first` becomes `triple`, so 30 + 30.
+    retarget(h.first)
+    let one = h.first(10) + h.second(10)
+
+    -- Both at once: `first` becomes `negate` and `second` becomes `square`, so -10 + 100.
+    retargetBoth(h.first, h.second)
+    let both = h.first(10) + h.second(10)
+
+    -- 50 + 60 + 90 = 200
+    return before + one + both

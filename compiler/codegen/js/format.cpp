@@ -34,7 +34,6 @@ const OpInfo kBinaryOps[] = {
 // Below everything, so a function expression is bare where it stands alone - a `return`, an
 // initializer, an argument - and parenthesized everywhere else. `(function(){}).x` needs them and
 // `return function(){}` does not, and one number decides both.
-constexpr U8 kFunctionPrecedence = 1;
 constexpr U8 kAssignPrecedence = 2;
 constexpr U8 kTernaryPrecedence = 3;
 constexpr U8 kUnaryPrecedence = 14;
@@ -142,7 +141,6 @@ bool identifierText(Format& f, StringId value) {
 
 U8 precedenceOf(Format& f, JsPtr<Expr> pointer) {
     switch(f.base[pointer]->kind) {
-        case Expr::Function: return kFunctionPrecedence;
         case Expr::Unary: return kUnaryPrecedence;
         case Expr::Binary: return kBinaryOps[U32(((BinaryExpr*)f.base[pointer])->op)].precedence;
         case Expr::Ternary: return kTernaryPrecedence;
@@ -389,14 +387,6 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
                 writeExpr(f, arg);
             }
             f.write(')');
-            break;
-        }
-        case Expr::Function: {
-            auto function = (FunValueExpr*)expr;
-            f.write("function"_v);
-            writeArgs(f, function->args);
-            f.space();
-            writeBody(f, function->body);
             break;
         }
     }
