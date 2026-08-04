@@ -261,8 +261,12 @@ Maybe<Place> ExprResolver::findPlace(ModulePtr<Value> value) {
         return Just(((InstLoadPlace*)local[value])->place);
     }
 
-    for(U32 i = 0; i < function.localCount(); i++) {
-        if(function.localAt(local, i).value == value) return Just(Place::inLocal(i));
+    // The slot the value fills, recorded when the two were paired rather than searched for - see
+    // Value::slot, and backingLocal, which is the ownership passes' half of the same question.
+    auto slot = local[value]->slot;
+    if(slot < function.localCount()) {
+        assertTrue(function.localAt(local, slot).value == value);
+        return Just(Place::inLocal(slot));
     }
 
     return Nothing();

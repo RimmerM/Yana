@@ -122,8 +122,8 @@ fn Drop(Counter).drop(%value: Counter) -> () {
     ret
 }
 
-fn drop$Owning(%value: %Owning) -> () {
+fn drop$Owning(%value: Owning) -> () {
   b0:
-    drop [%value]@Owning.held via Drop(Counter).drop
+    drop %value@Owning.held via Drop(Counter).drop
     ret
 }

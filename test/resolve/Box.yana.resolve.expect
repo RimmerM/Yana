@@ -403,14 +403,14 @@ fn levelIn(Int)(%c: Config, %body: (value: Int) -> Int) -> Int {
     ret %v4
 }
 
-fn reclaim$Config(%value: %Config) -> () {
+fn reclaim$Config(%value: Config) -> () {
   b0:
-    drop_derived [%value]@Config.cold.* release
+    drop_derived %value@Config.cold.* release
     ret
 }
 
-fn reclaim$Pinned(%value: %Pinned) -> () {
+fn reclaim$Pinned(%value: Pinned) -> () {
   b0:
-    drop_derived [%value]@Pinned.detail.* release
+    drop_derived %value@Pinned.detail.* release
     ret
 }

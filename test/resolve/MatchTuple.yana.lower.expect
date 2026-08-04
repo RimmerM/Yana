@@ -22,8 +22,9 @@ drop$Maybe(Held)<complex>(%value: Ptr) {
   }
 
   b_3 {
-    %v_6 = add %value, 4: Ptr
-    call_complex Drop(Held).drop, %v_6
+    %v_6 = loads @drops, 4: Int
+    %v_7 = add %v_6, 1: Int
+    store @drops, %v_7, 4
     jmp b_5
   }
 
@@ -100,13 +101,37 @@ main<complex>(): Int {
     %v_2 = add %b, 4: Ptr
     store %v_2, 4, 4
     %v_3 = call_complex ordered, %a, %b, 0: Int
-    call_complex drop$Maybe(Held), %a
-    call_complex drop$Maybe(Held), %b
-    %v_4 = loads @drops, 4: Int
-    %v_5 = imul %v_4, 10: Int
-    %v_6 = add %v_3, %v_5: Int
-    %v_7 = add %v_6, 7: Int
-    ret %v_7
+    %v_4 = loads %a, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = loads @drops, 4: Int
+    %v_9 = add %v_8, 1: Int
+    store @drops, %v_9, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_10 = loads %b, 4: Int
+    %v_11 = cmp_eq %v_10, 1: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = loads @drops, 4: Int
+    %v_15 = add %v_14, 1: Int
+    store @drops, %v_15, 4
+    jmp b_13
+  }
+
+  b_13 {
+    %v_16 = loads @drops, 4: Int
+    %v_17 = imul %v_16, 10: Int
+    %v_18 = add %v_3, %v_17: Int
+    %v_19 = add %v_18, 7: Int
+    ret %v_19
   }
 }
 

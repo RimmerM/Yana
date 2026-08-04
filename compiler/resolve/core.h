@@ -28,3 +28,7 @@ void defineCore(Program& program);
  * asked for them.
  */
 void defineCollections(Program& program);
+
+// `Text` - String's operations, over what NativeText hands out. Implicitly imported, and defined
+// last for that reason: see Program::text.
+void defineText(Program& program);

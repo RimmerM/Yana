@@ -98,84 +98,63 @@ main<complex>(): Int {
     %v_68 = add %v_66, %v_67: Int
     %v_69 = call_complex swapped: Int
     %v_70 = add %v_68, %v_69: Int
-    call_complex makePair
-    %v_71 = loads @dropped, 8: Long
-    %v_72 = cast %v_71: Int
-    %v_73 = add %v_70, %v_72: Int
-    %v_74 = call_complex folded: Int
-    %v_75 = add %v_73, %v_74: Int
-    %v_76 = alloca 8, 4: Ptr
-    store %v_76, 0, 8
-    store %v_76, 0, 4
-    %v_77 = add %v_76, 4: Ptr
-    store %v_77, 1, 1
-    %v_78 = call_complex heldValue, %v_76: Int
-    %v_79 = alloca 8, 4: Ptr
-    store %v_79, 0, 8
-    store %v_79, 1, 4
-    %v_80 = add %v_79, 4: Ptr
-    store %v_80, 5, 4
-    %v_81 = call_complex heldValue, %v_79: Int
-    %v_82 = imul %v_81, 100: Int
-    %v_83 = add %v_78, %v_82: Int
-    %v_84 = alloca 8, 4: Ptr
-    store %v_84, 0, 8
-    store %v_84, 2, 4
-    %v_85 = call_complex heldValue, %v_84: Int
-    %v_86 = imul %v_85, 10000: Int
-    %v_87 = add %v_83, %v_86: Int
-    %v_88 = add %v_75, %v_87: Int
-    %v_89 = call_complex reordered: Int
-    %v_90 = add %v_88, %v_89: Int
-    %v_91 = call_complex pinned: Int
-    %v_92 = add %v_90, %v_91: Int
-    %v_93 = call_complex hostShaped: Int
+    %p = alloca 2, 1: Ptr
+    store %p, 0, 2
+    %v_71 = alloca 1, 1: Ptr
+    store %v_71, 0, 1
+    store %v_71, 1, 1
+    %v_72 = alloca 1, 1: Ptr
+    store %v_72, 0, 1
+    store %v_72, 2, 1
+    copy %p, %v_71, 1
+    %v_73 = add %p, 1: Ptr
+    copy %v_73, %v_72, 1
+    call_complex Drop(Owned).drop, %p
+    %v_74 = add %p, 1: Ptr
+    call_complex Drop(Owned).drop, %v_74
+    %v_75 = loads @dropped, 8: Long
+    %v_76 = cast %v_75: Int
+    %v_77 = add %v_70, %v_76: Int
+    %v_78 = call_complex folded: Int
+    %v_79 = add %v_77, %v_78: Int
+    %v_80 = alloca 8, 4: Ptr
+    store %v_80, 0, 8
+    store %v_80, 0, 4
+    %v_81 = add %v_80, 4: Ptr
+    store %v_81, 1, 1
+    %v_82 = call_complex heldValue, %v_80: Int
+    %v_83 = alloca 8, 4: Ptr
+    store %v_83, 0, 8
+    store %v_83, 1, 4
+    %v_84 = add %v_83, 4: Ptr
+    store %v_84, 5, 4
+    %v_85 = call_complex heldValue, %v_83: Int
+    %v_86 = imul %v_85, 100: Int
+    %v_87 = add %v_82, %v_86: Int
+    %v_88 = alloca 8, 4: Ptr
+    store %v_88, 0, 8
+    store %v_88, 2, 4
+    %v_89 = call_complex heldValue, %v_88: Int
+    %v_90 = imul %v_89, 10000: Int
+    %v_91 = add %v_87, %v_90: Int
+    %v_92 = add %v_79, %v_91: Int
+    %v_93 = call_complex reordered: Int
     %v_94 = add %v_92, %v_93: Int
-    %v_95 = call_complex hostBorrowed: Int
+    %v_95 = call_complex pinned: Int
     %v_96 = add %v_94, %v_95: Int
-    ret %v_96
+    %v_97 = call_complex hostShaped: Int
+    %v_98 = add %v_96, %v_97: Int
+    %v_99 = call_complex hostBorrowed: Int
+    %v_100 = add %v_98, %v_99: Int
+    ret %v_100
   }
 }
 
 drop$Pair<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = load %value, 1: Long
-    %v_2 = and %v_1, 1: Long
-    %v_3 = cast %v_2: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 2]: Int
-    %v_8 = sext %v_7: Long
-    call_complex +=(I64), @dropped, %v_8
-    %v_9 = add %value, 1: Ptr
-    %v_10 = load %v_9, 1: Long
-    %v_11 = and %v_10, 1: Long
-    %v_12 = cast %v_11: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    jmp b_15
-  }
-
-  b_13 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_16 = phi [b_13, 1], [b_14, 2]: Int
-    %v_17 = sext %v_16: Long
-    call_complex +=(I64), @dropped, %v_17
+    call_complex Drop(Owned).drop, %value
+    %v_1 = add %value, 1: Ptr
+    call_complex Drop(Owned).drop, %v_1
     ret 
   }
 }
@@ -428,10 +407,23 @@ Drop(Owned).drop<complex>(%value: Ptr) {
 
 owned<complex>(): Int {
   b_0 {
-    call_complex makePair
-    %v_1 = loads @dropped, 8: Long
-    %v_2 = cast %v_1: Int
-    ret %v_2
+    %p = alloca 2, 1: Ptr
+    store %p, 0, 2
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    store %v_1, 1, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 2, 1
+    copy %p, %v_1, 1
+    %v_3 = add %p, 1: Ptr
+    copy %v_3, %v_2, 1
+    call_complex Drop(Owned).drop, %p
+    %v_4 = add %p, 1: Ptr
+    call_complex Drop(Owned).drop, %v_4
+    %v_5 = loads @dropped, 8: Long
+    %v_6 = cast %v_5: Int
+    ret %v_6
   }
 }
 
@@ -852,7 +844,9 @@ makePair<complex>() {
     copy %p, %v_1, 1
     %v_3 = add %p, 1: Ptr
     copy %v_3, %v_2, 1
-    call_complex drop$Pair, %p
+    call_complex Drop(Owned).drop, %p
+    %v_4 = add %p, 1: Ptr
+    call_complex Drop(Owned).drop, %v_4
     ret 
   }
 }

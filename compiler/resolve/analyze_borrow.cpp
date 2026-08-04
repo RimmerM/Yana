@@ -280,6 +280,73 @@ static bool wholeMove(Analysis& analysis, Place place) {
 }
 
 /*
+ * What storage a departing operand names, and whether this frame owns it.
+ *
+ * The one question checkTransfer asks. It used to be asked twice, because a handover reaches a
+ * departure point in two shapes and each half derived the answer its own way - the place half from
+ * the root, the other from `backingLocal` - which is §0's shape exactly, and it had already gone
+ * wrong once in the way recorded above `checkTransfer`.
+ *
+ * `place` is the only thing the two shapes may still differ by afterwards, and what it decides is
+ * which diagnostic is right rather than whether there is one. See the reports.
+ */
+struct TransferSource {
+    // The tracked slot, where there is one. `maxLimit<U32>` covers both a root that is not a local
+    // at all and a value with no slot behind it, which is why `owned` is recorded beside it rather
+    // than derived from it: a borrow root has no local and is not owned, and a fresh call result
+    // has no local and is.
+    U32 local = maxLimit<U32>;
+
+    // Whether this frame is the one responsible for releasing what the operand names.
+    bool owned = false;
+
+    // A raw pointer's target - `%T` carries no owner, so nothing here has an opinion about it.
+    bool outsideModel = false;
+
+    // Set where the operand is a read of a place, and null where it is the value that produced an
+    // aggregate. Not "which shape was it" for its own sake: a place can be told to write `->` on
+    // the binding that names it, and a borrowed parameter travelling as its `Arg` has no binding to
+    // write it on.
+    Place* place = nullptr;
+};
+
+static TransferSource transferSource(Analysis& analysis, ModulePtr<Value> value) {
+    TransferSource result;
+
+    /*
+     * The handover reached without a load at all.
+     *
+     * An aggregate parameter travels as its `Arg` rather than as a read of a place - the rule
+     * analyze_effects states as "aggregates travel through the IR as the value that produced them"
+     * - so `fn f(v: Held, &out: Held): out = v` is `assign %out, %v` with no LoadPlace anywhere.
+     * transferFrom does find the slot and marks it moved, which is right for a slot this frame owns
+     * and worse than useless for one it does not: the caller still owns what it lent, and the
+     * destination now owns it too.
+     *
+     * A value with no slot behind it owns itself - a call result the resolver did not give storage,
+     * a construction - so there is nothing here for this frame not to own.
+     */
+    if(analysis.local[value]->kind != Value::LoadPlace) {
+        result.local = backingLocal(analysis, value);
+        result.owned = result.local == maxLimit<U32> || analysis.tracked[result.local].owned;
+        return result;
+    }
+
+    auto& place = ((InstLoadPlace*)analysis.local[value])->place;
+    result.place = &place;
+
+    if(place.root == PlaceRoot::Pointer) {
+        result.outsideModel = true;
+        return result;
+    }
+
+    result.local = rootLocal(analysis, place);
+    result.owned = place.root != PlaceRoot::Borrow && place.root != PlaceRoot::Global &&
+                   (result.local == maxLimit<U32> || analysis.tracked[result.local].owned);
+    return result;
+}
+
+/*
  * Ownership leaving the frame through a value that was never moved out of anything.
  *
  * The four points where ownership departs - a write into another place, an exchange, a return, and a
@@ -302,51 +369,27 @@ static bool wholeMove(Analysis& analysis, Place place) {
  * "whichever slot that value is the whole contents of". It does not: backingLocal matches a slot
  * whose defining value *is* the operand, which is true of a call result or a construction and false
  * of a load. So `b = a` for two owned `Held` locals read `a`, dropped `b`'s old contents, aliased
- * `a`'s into `b`, and then dropped both names - three drops for two objects. `writeInto` is what
- * says which departure points this applies to, and it is not all four: see the note at the call in
- * checkMoves for why `ret` is left alone for now.
+ * `a`'s into `b`, and then dropped both names - three drops for two objects.
+ *
+ * One rule for all four departure points, which `eachTransferOperand` is the list of. It briefly
+ * had a flag saying which of them it applied to; every caller passed the same answer, so what the
+ * flag described was a distinction that had already stopped existing.
+ *
+ * And one derivation of the rule's one input, which `transferSource` is. The two shapes a handover
+ * arrives in used to answer "does this frame own what is departing" separately, in opposite orders,
+ * and the three-drops bug above is what a disagreement between them looks like: it is not that one
+ * half was wrong, it is that there were two halves to keep right. What survives the merge is the
+ * only difference that was ever load-bearing - whether there is a *place* the reader can be pointed
+ * at - and it decides which advice is printed rather than whether anything is.
  */
-static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source,
-                          bool writeInto) {
+static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source) {
     if(!value) return;
 
-    /*
-     * The same handover reached without a load at all.
-     *
-     * An aggregate parameter travels as its `Arg` rather than as a read of a place - the rule
-     * analyze_effects states as "aggregates travel through the IR as the value that produced them"
-     * - so `fn f(v: Held, &out: Held): out = v` is `assign %out, %v` with no LoadPlace anywhere,
-     * and everything below it misses the case. transferFrom does find the slot and marks it moved,
-     * which is right for a slot this frame owns and worse than useless for one it does not: the
-     * caller still owns what it lent, and the destination now owns it too.
-     *
-     * Restricted to slots this frame does not own, because the owned case *is* a move and is
-     * already right. Restricted to the departure points, which is what keeps it off the case that
-     * should stay legal: handing a borrowed value on as an *argument* re-borrows it - another
-     * immutable borrow, or the one mutable borrow forwarded - and an argument is not a departure
-     * point, so nothing here ever looks at one.
-     */
-    if(writeInto && analysis.local[value]->kind != Value::LoadPlace) {
-        auto held = backingLocal(analysis, value);
-        if(held == maxLimit<U32> || analysis.tracked[held].owned) return;
+    auto from = transferSource(analysis, value);
 
-        auto lent = ownershipIn(analysis.module, functionGen(analysis.global, analysis.function),
-                                analysis.local[value]->type);
-        if(!lent.needsTeardown()) return;
-
-        report(analysis, "this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here"_v,
-               source);
-        return;
-    }
-
-    if(analysis.local[value]->kind != Value::LoadPlace) return;
-
-    auto& place = ((InstLoadPlace*)analysis.local[value])->place;
-    if(place.projections.isEmpty() && !writeInto) return;
-
-    // A raw pointer's target is outside the ownership model - `%T` carries no owner - so `return *p`
-    // stays what Native needs it to be.
-    if(place.root == PlaceRoot::Pointer) return;
+    // A raw pointer's target is outside the ownership model, so `return *p` stays what Native needs
+    // it to be.
+    if(from.outsideModel) return;
 
     // Asked of the *context* rather than of the type, exactly as sinkValue asks it: an unconstrained
     // `a` owns something inside the body whatever a caller substitutes, and a declared
@@ -356,15 +399,35 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
                                  analysis.local[value]->type);
     if(!ownership.needsTeardown()) return;
 
-    auto root = rootLocal(analysis, place);
-    auto borrowed = place.root == PlaceRoot::Borrow ||
-                    (root != maxLimit<U32> && !analysis.tracked[root].owned);
+    /*
+     * Storage this frame only borrows, handed on to somebody who will release it.
+     *
+     * Two messages for one rule, and the difference is what the reader can do about it. An operand
+     * that is a read of a place has a binding to put `->` on or a borrow to answer instead; one
+     * that is a borrowed parameter travelling as its own `Arg` has neither, and the only honest
+     * advice is to change the signature.
+     *
+     * Nothing here ever looks at an *argument*: handing a borrowed value on as one re-borrows it -
+     * another immutable borrow, or the one mutable borrow forwarded - and an argument is not a
+     * departure point, which is what eachTransferOperand is the list of.
+     */
+    if(!from.owned) {
+        if(from.place) {
+            report(analysis, "this hands ownership on out of storage this frame only borrows - take the whole value with `->` in the signature, or answer a borrow instead"_v,
+                   source);
+        } else {
+            report(analysis, "this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here"_v,
+                   source);
+        }
 
-    if(borrowed || place.root == PlaceRoot::Global) {
-        report(analysis, "this hands ownership on out of storage this frame only borrows - take the whole value with `->` in the signature, or answer a borrow instead"_v,
-               source);
         return;
     }
+
+    // A slot this frame owns, departing as the value that produced it. That *is* the move, and
+    // transferFrom marks it moved; there is nothing to report and no place to report it about.
+    if(!from.place) return;
+
+    auto& place = *from.place;
 
     /*
      * The whole slot, written into another place. `b = a` and nothing else.
@@ -395,36 +458,13 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
     report(analysis, "cannot move a part of a value out of it - move the whole value instead"_v, source);
 }
 
-// The value each of the four departure points hands over, or none for everything else.
-static ModulePtr<Value> transferredValue(Inst& instruction) {
-    switch(instruction.kind) {
-        case Value::Init:
-        case Value::Assign:
-            return ((InstInit&)instruction).value;
-        case Value::Exchange:
-            return ((InstExchange&)instruction).value;
-        case Value::Ret:
-            return ((InstRet&)instruction).value;
-        default:
-            return nullptr;
-    }
-}
-
 /*
  * Use after move, and the moves that cannot be represented at all.
  */
 void checkMoves(Analysis& analysis) {
-    // A phi input departs on the edge into the join rather than at the join, which is where
-    // attributePhiEdges puts its transfer. The diagnostic points at the phi, because the operand is
-    // a value with no instruction of its own to name.
-    for(Size b = 0; b < analysis.blockCount(); b++) {
-        for(auto phiPointer: analysis.blockAt(b)->phis.contents(analysis.local)) {
-            auto& phi = *analysis.local[phiPointer];
-            for(auto input: phi.inputs.contents(analysis.local)) {
-                checkTransfer(analysis, input.value, phi.source, true);
-            }
-        }
-    }
+    auto transfer = [&](ModulePtr<Value> value, LocationId source) {
+        checkTransfer(analysis, value, source);
+    };
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
         auto& instruction = *analysis.local[analysis.order[i]];
@@ -442,8 +482,15 @@ void checkMoves(Analysis& analysis) {
          *
          * Returning a whole *owned* slot never reaches here: returnValue makes it an InstMove, and
          * a move is the thing this check exists to ask for.
+         *
+         * A phi's inputs are here too, and used to be a loop of their own over every block's phi
+         * list. They departed on the edge into the join rather than at the join, which is where
+         * attributePhiEdges puts the *transfer* - but that is a statement about where ownership
+         * changes hands, not about where the operand is written, and `numberFunction` puts a phi in
+         * the instruction order like everything else. Two loops meant the enumeration had to name
+         * which points belonged to which, and naming it once is the whole of eachTransferOperand.
          */
-        checkTransfer(analysis, transferredValue(instruction), instruction.source, true);
+        eachTransferOperand(analysis.local, instruction, transfer);
 
         if(instruction.kind == Value::Move) {
             auto& moved = (InstMove&)instruction;

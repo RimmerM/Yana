@@ -181,6 +181,22 @@ struct Function {
     Local localAt(ModuleBase base, U32 index) { return locals.get(base, index); }
     Size localCount() { return locals.size(); }
 
+    /*
+     * Repointing a slot at the value that fills it, after `addLocal` made it.
+     *
+     * The pairing is two fields - `Local::value` here and `Value::slot` there - and a rewrite that
+     * set one of them left the other answering with a value that no longer exists. That is what this
+     * is for and the only reason it is a method: there are four rewrites that repoint a slot (the
+     * two halves of specialization, the inliner splicing a result, and opt_arg giving a flattened
+     * parameter storage), and each of them used to write the field directly.
+     */
+    void setLocalValue(ModuleBase base, U32 index, ModulePtr<Value> value) {
+        auto slot = locals.get(base, index);
+        slot.value = value;
+        locals.set(base, index, slot);
+        if(value) base[value]->slot = index;
+    }
+
     Module* module;
     StringId name;
     LocationId source = kNullLocation;
@@ -212,6 +228,25 @@ struct Function {
     // Set when this function implements a class signature, for diagnostics and printing.
     GlobalPtr<TypeClass> instanceOf = nullptr;
     ModuleList<TypePtr, false> instanceArgs;
+
+    /*
+     * Whether this function *is* the end of its argument's life, so the frame does not owe it a
+     * drop of its own.
+     *
+     * The three authored cases are recognizable by `instanceOf` - `Drop::drop` receives the value in
+     * order to release it, `Reclaim::reclaim` the same, and `Sink::sink` empties its source into a
+     * destination so what is left is not something to release. Derived teardown glue is the fourth
+     * and is *anonymous*, so it has no class to be recognized by; it used to have no need of one
+     * either, because its parameter was a `%T` and a raw pointer is outside the ownership model
+     * entirely.
+     *
+     * It stopped being a `%T` when the storage handle turned out to be an allocation per drop site
+     * on a managed target - see analyze_teardown.cpp. What the flag replaces is the property that
+     * fell out of the pointer: without it, glue takes a `->` parameter the frame owns, the drop pass
+     * inserts a drop of the value into the function whose whole job is to drop it, and the recursion
+     * is at *run* time rather than at compile time - a fixture that hangs, not a diagnostic.
+     */
+    bool disposer = false;
 
     // Set when the function is generic: its type variables, and the class requirements its
     // signature declared or its body turned out to need. The body is resolved once against these
@@ -612,6 +647,21 @@ struct Program {
     HashMap<U32, ModulePtr<Function>> dropGlue;
     HashMap<U32, ModulePtr<Function>> reclaimGlue;
 
+    /*
+     * The *erased* entry point of a teardown half, interned the same way - see teardownEntryFor.
+     *
+     * A teardown's own signature takes its subject by `->`, which is what the concrete drop sites
+     * that know the type call. A descriptor slot cannot: erased code holds storage and a slot has
+     * one signature for every type that might fill it, so what a slot holds is a `%T` entry that
+     * drops through the address it was handed.
+     *
+     * Only the types that actually reach a descriptor get one, which is why this is keyed the same
+     * way and filled from typeDescFor rather than beside the glue. A program with no erased generics
+     * has none of these at all.
+     */
+    HashMap<U32, ModulePtr<Function>> dropEntry;
+    HashMap<U32, ModulePtr<Function>> reclaimEntry;
+
     HashMap<U32, ModulePtr<Function>> moveInitGlue;
 
     // The reclaim a closure whose environment is heap-placed runs, keyed by the environment type -
@@ -773,6 +823,25 @@ struct Program {
     // build, since every declaration in it is `@platform(js)`. Recorded so that Collections can be
     // handed an import of it without naming a module that may have read nothing.
     Module* host = nullptr;
+
+    /*
+     * The two halves `String` was split into - Implementation-Simplification.md §17.
+     *
+     * `nativeText` holds the reinterpretations that say what a native string is *made of* and is
+     * **not** implicitly imported, on the same terms as Native and for the same reason: forging a
+     * `String` out of unvalidated bytes should take an import that says so. Empty on JS, where a
+     * string is the host string and has no run to hand out.
+     *
+     * `text` holds the algorithms over them, and *is* implicitly imported, because a string literal
+     * is grammar and what `print` and `Show` mean has to be reachable without being asked for.
+     *
+     * Two modules rather than one because the reinterpretation names `Array(U8)`, so it has to sit
+     * above Collections - and the algorithms use it, so they have to sit above that. Null until
+     * their define functions have run, which is what keeps everything built before them from being
+     * handed an implicit import of a module that does not exist yet.
+     */
+    Module* nativeText = nullptr;
+    Module* text = nullptr;
 
     // Native's `Run(a)` - the allocation primitive every container is built on
     // (Implementation-Containers.md §2). Recorded for the same reason the array is: `newRun` is an

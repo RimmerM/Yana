@@ -461,8 +461,8 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     ret
 }
 
-fn drop$Holder(%value: %Holder) -> () {
+fn drop$Holder(%value: Holder) -> () {
   b0:
-    drop [%value]@Holder.slot via Drop(Buffer).drop
+    drop %value@Holder.slot via Drop(Buffer).drop
     ret
 }

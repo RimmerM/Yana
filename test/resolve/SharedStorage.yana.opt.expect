@@ -68,7 +68,8 @@ fn sunk() -> Int {
     init %local1@Counter.value, 36
     init %local0@Owning.tag, 1
     init %local0@Owning.held, %v2
-    drop_derived %local0 via drop$Owning
+    %v17 = borrow_mut released : &mut Int
+    call +=(Int), %v17, 1
     ret 36
 }
 
@@ -79,10 +80,15 @@ fn guarded() -> Int {
 
 fn main() -> Int {
   b0:
-    %v3 = call sunk : Int
-    %v6 = add %v3, 106 : Int
+    %o = alloc : Owning
+    %v13 = alloc : Counter
+    init %local6@Counter.value, 36
+    init %local5@Owning.tag, 1
+    init %local5@Owning.held, %v13
+    %v19 = borrow_mut released : &mut Int
+    call +=(Int), %v19, 1
     %v7 = load released : Int
-    %v8 = add %v6, %v7 : Int
+    %v8 = add %v7, 142 : Int
     ret %v8
 }
 
@@ -93,8 +99,9 @@ fn Drop(Counter).drop(%value: Counter) -> () {
     ret
 }
 
-fn drop$Owning(%value: %Owning) -> () {
+fn drop$Owning(%value: Owning) -> () {
   b0:
-    drop [%value]@Owning.held via Drop(Counter).drop
+    %v6 = borrow_mut released : &mut Int
+    call +=(Int), %v6, 1
     ret
 }

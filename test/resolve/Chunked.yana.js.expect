@@ -19,17 +19,15 @@ function teardown$none(value) {
 // Collections
 function Chunked_Array_a_a_chunks_Int(self, body) {
   var v4 = body(Contiguous_Array_a_a_elements_Int(self));
-  if (v4.$tag === 1) {
+  if (v4 === 1) {
     return v4;
   } else {
-    return { $tag: 0 };
+    return 0;
   }
 }
 
 function Contiguous_Array_a_a_elements_Int(self) {
-  var v2 = self.items.length;
-  var v4 = self.items;
-  return slice_Int({ items: v4, length: v4.length, offset: 0 }, 0, v2);
+  return slice_Int({ items: self, length: self.length, offset: 0 }, 0, self.length);
 }
 
 function slice_Int(self, from, to) {
@@ -59,30 +57,13 @@ function slice_Int(self, from, to) {
 
 // ResolveTest
 function threeChunks(x) {
-  var v1 = { a: { items: null }, b: { items: null }, c: { items: null }, used: 0 };
-  var v4 = x + 1 | 0;
-  var v5 = { items: null };
-  var v6 = [];
-  v5.items = v6;
-  v6[0] = x;
-  v6[1] = v4;
-  var v14 = x + 2 | 0;
-  var v17 = x + 3 | 0;
-  var v18 = { items: null };
-  var v19 = [];
-  v18.items = v19;
-  v19[0] = v14;
-  v19[1] = v17;
-  var v27 = x + 4 | 0;
-  var v30 = x + 5 | 0;
-  var v31 = { items: null };
-  var v32 = [];
-  v31.items = v32;
-  v32[0] = v27;
-  v32[1] = v30;
-  v1.a = v5;
-  v1.b = v18;
-  v1.c = v31;
+  var v1 = { a: null, b: null, c: null, used: 0 };
+  var v6 = [x, x + 1 | 0];
+  var v19 = [x + 2 | 0, x + 3 | 0];
+  var v32 = [x + 4 | 0, x + 5 | 0];
+  v1.a = v6;
+  v1.b = v19;
+  v1.c = v32;
   v1.used = 3;
   return v1;
 }
@@ -127,24 +108,18 @@ function firstOfEachChunk(xs) {
 }
 
 function main() {
-  var cs = threeChunks(1);
-  var ring = { items: { items: null } };
-  var v6 = { items: null };
-  var v7 = [];
-  v6.items = v7;
-  v7[0] = 10;
-  v7[1] = 20;
-  v7[2] = 30;
-  ring.items = v6;
-  var arr = { items: null };
-  var v20 = [];
-  arr.items = v20;
-  v20[0] = 4;
-  v20[1] = 5;
-  v20[2] = 6;
-  var v33 = (sumChunked(cs) + sumContiguous(ring) | 0) + sumArray(arr) | 0;
+  var v57 = { a: null, b: null, c: null, used: 0 };
+  var v61 = [1, 2];
+  var v72 = [3, 4];
+  var v83 = [5, 6];
+  v57.a = v61;
+  v57.b = v72;
+  v57.c = v83;
+  v57.used = 3;
+  var ring = { items: [10, 20, 30] };
+  var v33 = (sumChunked(v57) + sumContiguous(ring) | 0) + sumArray([4, 5, 6]) | 0;
   var v35 = Contiguous_Ring_Int_elements(ring);
-  return (((v33 + total(v35.items, v35.length, v35.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0) + firstOver(cs, 3) | 0) + firstOfEachChunk(cs) | 0;
+  return (((v33 + total(v35.items, v35.length, v35.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0) + firstOver(v57, 3) | 0) + firstOfEachChunk(v57) | 0;
 }
 
 function Contiguous_Ring_Int_elements(self) {
@@ -155,7 +130,7 @@ function ResolveTest_continuation$0$make(env) {
   return function(value) {
     var v7 = ResolveTest_continuation$1$make({ total: env.total });
     var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -163,7 +138,7 @@ function ResolveTest_continuation$1$make(env) {
   return function(value) {
     var v2 = env.total;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -172,44 +147,44 @@ function each_Int(xs$items, xs$length, xs$offset, body) {
   L0: for (;;) {
     if (i < xs$length) {
       var v21 = body(xs$items[xs$offset + i | 0]);
-      if (v21.$tag === 1) {
+      if (v21 === 1) {
         return v21;
       } else {
         i = i + 1 | 0;
         continue L0;
       }
     } else {
-      return { $tag: 0 };
+      return 0;
     }
     break L0;
   }
 }
 
 function Chunked_Chunks_Int_chunks(self, body) {
-  var v4 = self.a.items;
+  var v4 = self.a;
   var v11 = body({ items: v4, length: v4.length, offset: 0 });
-  if (v11.$tag === 1) {
+  if (v11 === 1) {
     return v11;
   } else {
     B0: {
       if (self.used > 1) {
-        var v23 = self.b.items;
+        var v23 = self.b;
         var v30 = body({ items: v23, length: v23.length, offset: 0 });
-        if (v30.$tag === 1) {
+        if (v30 === 1) {
           return v30;
         }
       }
     }
     B1: {
       if (self.used > 2) {
-        var v44 = self.c.items;
+        var v44 = self.c;
         var v51 = body({ items: v44, length: v44.length, offset: 0 });
-        if (v51.$tag === 1) {
+        if (v51 === 1) {
           return v51;
         }
       }
     }
-    return { $tag: 0 };
+    return 0;
   }
 }
 
@@ -217,7 +192,7 @@ function ResolveTest_continuation$2$make(env) {
   return function(value) {
     var v7 = ResolveTest_continuation$3$make({ total: env.total });
     var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -225,16 +200,16 @@ function ResolveTest_continuation$3$make(env) {
   return function(value) {
     var v2 = env.total;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return { $tag: 0 };
+    return 0;
   };
 }
 
 function Chunked_Ring_Int_chunks(self, body) {
   var v6 = body(Contiguous_Ring_Int_elements(self));
-  if (v6.$tag === 1) {
+  if (v6 === 1) {
     return v6;
   } else {
-    return { $tag: 0 };
+    return 0;
   }
 }
 
@@ -242,7 +217,7 @@ function ResolveTest_continuation$4$make(env) {
   return function(value) {
     var v7 = ResolveTest_continuation$5$make({ total: env.total });
     var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -250,7 +225,7 @@ function ResolveTest_continuation$5$make(env) {
   return function(value) {
     var v2 = env.total;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -258,7 +233,7 @@ function ResolveTest_continuation$6$make(env) {
   return function(value) {
     var v2 = env.sum;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -303,14 +278,14 @@ function each_Int_Int(xs$items, xs$length, xs$offset, body) {
 }
 
 function Chunked_Chunks_Int_chunks_Int(self, body) {
-  var v4 = self.a.items;
+  var v4 = self.a;
   var v11 = body({ items: v4, length: v4.length, offset: 0 });
   if (!(v11 === null)) {
     return v11;
   } else {
     B0: {
       if (self.used > 1) {
-        var v23 = self.b.items;
+        var v23 = self.b;
         var v30 = body({ items: v23, length: v23.length, offset: 0 });
         if (!(v30 === null)) {
           return v30;
@@ -319,7 +294,7 @@ function Chunked_Chunks_Int_chunks_Int(self, body) {
     }
     B1: {
       if (self.used > 2) {
-        var v44 = self.c.items;
+        var v44 = self.c;
         var v51 = body({ items: v44, length: v44.length, offset: 0 });
         if (!(v51 === null)) {
           return v51;
@@ -334,7 +309,7 @@ function ResolveTest_continuation$9$make(env) {
   return function(value) {
     var v7 = ResolveTest_continuation$10$make({ total: env.total });
     var v11 = each_Int(value.items, value.length, value.offset, v7);
-    return { $tag: 0 };
+    return 0;
   };
 }
 
@@ -342,7 +317,7 @@ function ResolveTest_continuation$10$make(env) {
   return function(value) {
     var v2 = env.total;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-    return { $tag: 1 };
+    return 1;
   };
 }
 

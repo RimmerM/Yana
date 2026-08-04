@@ -473,36 +473,36 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     ret
 }
 
-fn drop$[Handle *2](%value: %[Handle *2]) -> () {
+fn drop$[Handle *2](%value: [Handle *2]) -> () {
   b0:
-    drop [%value][0] via Drop(Handle).drop
-    drop [%value][1] via Drop(Handle).drop
+    drop %value[0] via Drop(Handle).drop
+    drop %value[1] via Drop(Handle).drop
     ret
 }
 
-fn drop$[Handle *6](%value: %[Handle *6]) -> () {
+fn drop$[Handle *6](%value: [Handle *6]) -> () {
   b0:
     %v1 = alloc : I64
-    init %local0, 0
+    init %local1, 0
     jmp b1
 
   b1:
-    %v5 = load %local0 : I64
+    %v5 = load %local1 : I64
     %v7 = cmp_lt %v5, 6 : Bool
     je %v7, b2, b3
 
   b2:
-    drop [%value][%v5] via Drop(Handle).drop
+    drop %value[%v5] via Drop(Handle).drop
     %v11 = add %v5, 1 : I64
-    assign %local0, %v11
+    assign %local1, %v11
     jmp b1
 
   b3:
     ret
 }
 
-fn drop$Pair(%value: %Pair) -> () {
+fn drop$Pair(%value: Pair) -> () {
   b0:
-    drop_derived [%value]@Pair.handles via drop$[Handle *2]
+    drop_derived %value@Pair.handles via drop$[Handle *2]
     ret
 }

@@ -63,17 +63,23 @@ static void useRoot(Analysis& analysis, Effects& effects, const Place& place) {
     }
 }
 
-// The local a value is the contents of, or none. An aggregate that lives in storage is named by
-// the value that produced it - a call result, a copy, an allocation - and Function::locals records
-// that pairing, which is what lets an SSA operand be recognized as an owned slot.
+/*
+ * The local a value is the contents of, or none. An aggregate that lives in storage is named by
+ * the value that produced it - a call result, a copy, an allocation - which is what lets an SSA
+ * operand be recognized as an owned slot.
+ *
+ * Read off the value rather than searched for. It was a scan of the local table for the slot whose
+ * `value` matched, run once per operand per instruction per fixpoint round; `Value::slot` is the
+ * same pairing recorded where it is made, which is `Function::addLocal`.
+ */
 U32 backingLocal(Analysis& analysis, ModulePtr<Value> value) {
     if(!value) return maxLimit<U32>;
 
-    for(U32 i = 0; i < analysis.localCount; i++) {
-        if(analysis.function.localAt(analysis.local, i).value == value) return i;
-    }
+    auto slot = analysis.local[value]->slot;
+    if(slot >= analysis.localCount) return maxLimit<U32>;
 
-    return maxLimit<U32>;
+    assertTrue(analysis.function.localAt(analysis.local, slot).value == value);
+    return slot;
 }
 
 // Reading a value that is the contents of a slot is a use of that slot. Aggregates travel through

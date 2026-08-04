@@ -8,18 +8,12 @@ function Try_Maybe_a_a_toOutcome_Node(value) {
   if (!(value === null)) {
     v1 = value;
   } else {
-    drop$Maybe_Node({ $v: value });
+    if (!(value === null)) {
+      dropped = dropped + 1 | 0;
+    }
     v1 = null;
   }
   return v1;
-}
-
-function Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(value) {
-  return value;
-}
-
-function Try_Maybe_a_a_fromExit_Int() {
-  return null;
 }
 
 function Try_Maybe_a_a_toOutcome_Leaf(value) {
@@ -42,65 +36,23 @@ function Try_Result_e_a_a_e_toOutcome_Int_Node(value) {
   return v1;
 }
 
-function Rewrap_Result_e_a_b_Result_e_b_rewrap_Int_Node_Int(value) {
-  return { $tag: 1, $p: value };
-}
-
-function Try_Result_e_a_a_e_fromExit_Int_Int(reason) {
-  return { $tag: 0, $p: reason };
-}
-
-function Rewrap_Maybe_a_b_Maybe_b_rewrap_Leaf_Int(value) {
-  return value;
-}
-
 function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
   var v1;
   if (!(value === null)) {
     v1 = value;
   } else {
-    drop$Maybe_Int_sub_gt_Int({ $v: value });
+    if (!(value === null)) {
+      drop$_Int_sub_gt_Int(value);
+    }
     v1 = null;
   }
   return v1;
 }
 
-function Rewrap_Maybe_a_b_Maybe_b_rewrap_Int_sub_gt_Int_Int(value) {
-  return value;
-}
-
-function drop$Maybe_Node(value) {
-  if (!(value.$v === null)) {
-    Drop_Node_drop(value.$v);
-  }
-  return;
-}
-
-function drop$Maybe_Int_sub_gt_Int(value) {
-  if (!(value.$v === null)) {
-    drop$_Int_sub_gt_Int({ $v: value.$v });
-  }
-  return;
-}
-
 function drop$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[0](v1);
-  }
-  return;
-}
-
-function reclaim$Maybe_Int_sub_gt_Int(value) {
-  if (!(value.$v === null)) {
-  }
-  return;
-}
-
-function reclaim$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
-  if (v1 != null) {
-    value.$v.$h[8](v1);
+    value.$h[0](v1);
   }
   return;
 }
@@ -119,15 +71,13 @@ function node(n) {
   if (n <= 0) {
     return null;
   } else {
-    var v15 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
     var v18 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
     var v19 = { deep: { value: Math.imul(n, 2) | 0 } };
     var v26 = leafFor(n);
     v18.inner = v19;
     v18.leaf = v26;
     v18.id = n;
-    v15 = v18;
-    return v15;
+    return v18;
   }
 }
 
@@ -152,12 +102,12 @@ function tail(n) {
   var v17;
   var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
   if (v3 === null) {
-    drop$Outcome_Node({ $v: v3 });
-    v17 = Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v3);
+    v17 = null;
   } else {
     var v11 = v3.inner.deep.value;
-    drop$Outcome_Node({ $v: v3 });
-    v17 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v11);
+    drop$Outcome_Node(v3);
+    v17 = v11;
   }
   return v17;
 }
@@ -166,16 +116,16 @@ function twoChecks(n) {
   var v26;
   var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
   if (v3 === null) {
-    drop$Outcome_Node({ $v: v3 });
-    v26 = Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v3);
+    v26 = null;
   } else {
     var v10 = v3.leaf === null ? null : { value: v3.leaf.value };
-    drop$Outcome_Node({ $v: v3 });
+    drop$Outcome_Node(v3);
     var v11 = Try_Maybe_a_a_toOutcome_Leaf(v10);
     if (v11 === null) {
-      v26 = Try_Maybe_a_a_fromExit_Int();
+      v26 = null;
     } else {
-      v26 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v11.value);
+      v26 = v11.value;
     }
   }
   return v26;
@@ -187,11 +137,11 @@ function viaResult(n) {
   if (v3.$tag === 1) {
     var v8 = v3.$p;
     drop$Outcome_Node_Int(v3);
-    v15 = Try_Result_e_a_a_e_fromExit_Int_Int(v8);
+    v15 = { $tag: 0, $p: v8 };
   } else {
     var v10 = v3.$p.id;
     drop$Outcome_Node_Int(v3);
-    v15 = Rewrap_Result_e_a_b_Result_e_b_rewrap_Int_Node_Int(v10);
+    v15 = { $tag: 1, $p: v10 };
   }
   return v15;
 }
@@ -205,21 +155,21 @@ function inArgument(a, b) {
   var v31;
   var v4 = Try_Maybe_a_a_toOutcome_Node(node(a));
   if (v4 === null) {
-    drop$Outcome_Node({ $v: v4 });
-    v16 = Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v4);
+    v16 = null;
   } else {
     var v10 = v4.id;
-    drop$Outcome_Node({ $v: v4 });
-    v16 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v10);
+    drop$Outcome_Node(v4);
+    v16 = v10;
   }
   var v19 = Try_Maybe_a_a_toOutcome_Node(node(b));
   if (v19 === null) {
-    drop$Outcome_Node({ $v: v19 });
-    v31 = Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v19);
+    v31 = null;
   } else {
     var v25 = v19.id;
-    drop$Outcome_Node({ $v: v19 });
-    v31 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v25);
+    drop$Outcome_Node(v19);
+    v31 = v25;
   }
   return unwrapOr(v16, 0) + (Math.imul(unwrapOr(v31, 0), 100) | 0) | 0;
 }
@@ -228,16 +178,16 @@ function both(n) {
   var v26;
   var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
   if (v3 === null) {
-    drop$Outcome_Node({ $v: v3 });
-    return Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v3);
+    return null;
   } else {
     var v13 = v3.leaf === null ? null : { value: v3.leaf.value };
-    drop$Outcome_Node({ $v: v3 });
+    drop$Outcome_Node(v3);
     var v14 = Try_Maybe_a_a_toOutcome_Leaf(v13);
     if (v14 === null) {
-      v26 = Try_Maybe_a_a_fromExit_Int();
+      v26 = null;
     } else {
-      v26 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Leaf_Int(v14.value);
+      v26 = v14.value;
     }
     return v26;
   }
@@ -247,11 +197,11 @@ function parenthesized(n) {
   var v1 = null;
   var v6 = Try_Maybe_a_a_toOutcome_Node(node(n));
   if (v6 === null) {
-    drop$Outcome_Node({ $v: v6 });
-    return Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Node(v6);
+    return null;
   } else {
     var v15 = v6.id;
-    drop$Outcome_Node({ $v: v6 });
+    drop$Outcome_Node(v6);
     v1 = v15;
     return v1;
   }
@@ -273,12 +223,12 @@ function called(n) {
   var v16;
   var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(maybeFn(n));
   if (v3 === null) {
-    drop$Outcome_Int_sub_gt_Int({ $v: v3 });
-    v16 = Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Int_sub_gt_Int(v3);
+    v16 = null;
   } else {
     var v10 = v3(21);
-    drop$Outcome_Int_sub_gt_Int({ $v: v3 });
-    v16 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Int_sub_gt_Int_Int(v10);
+    drop$Outcome_Int_sub_gt_Int(v3);
+    v16 = v10;
   }
   return v16;
 }
@@ -319,28 +269,28 @@ function funvalue$twice(x) {
 }
 
 function drop$Outcome_Node(value) {
-  if (!(value.$v === null)) {
-    Drop_Node_drop(value.$v);
+  if (!(value === null)) {
+    dropped = dropped + 1 | 0;
   }
   return;
 }
 
 function drop$Outcome_Node_Int(value) {
   if (value.$tag === 0) {
-    Drop_Node_drop(value.$p);
+    dropped = dropped + 1 | 0;
   }
   return;
 }
 
 function drop$Outcome_Int_sub_gt_Int(value) {
-  if (!(value.$v === null)) {
-    drop$_Int_sub_gt_Int({ $v: value.$v });
+  if (!(value === null)) {
+    drop$_Int_sub_gt_Int(value);
   }
   return;
 }
 
 function reclaim$Outcome_Int_sub_gt_Int(value) {
-  if (!(value.$v === null)) {
+  if (!(value === null)) {
   }
   return;
 }

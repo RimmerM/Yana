@@ -524,8 +524,8 @@ fn main() -> Int {
     jmp b16
 }
 
-fn reclaim$Quad(%value: %Quad) -> () {
+fn reclaim$Quad(%value: Quad) -> () {
   b0:
-    drop [%value]@Quad.values reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Quad.values reclaim Reclaim(Array(a)).reclaim(Int)
     ret
 }

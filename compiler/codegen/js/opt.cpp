@@ -659,12 +659,117 @@ bool foldInitializers(Gen& g, StmtList& list, Size index) {
 }
 
 /*
+ * `var v = []; v[0] = a; v[1] = b;` -> `var v = [a, b];`
+ *
+ * `foldInitializers` for the indexed case, and it earns itself for a reason the object one does not
+ * have to argue: filling an empty array by index walks the element-kind transitions a literal skips,
+ * so the two forms are not the same program to a host that specializes on them. An array literal is
+ * also what the source wrote - `[7, 8, 9]` compiles through an `alloc` and three `init`s because
+ * that is what the IR has, not because anything wanted the host to see it that way.
+ *
+ * Consecutive from zero and no further. A gap would leave a hole, which is a different kind of array
+ * on every engine that has element kinds; an index that repeats one already folded is a *second*
+ * write to the same slot and has to stay a write, since folding it would move it in front of a read
+ * that came between. Anything that is not a literal index stops the walk - `v[v.length] = x` is a
+ * push and is not this.
+ *
+ * The values do not move relative to each other and cross only the empty literal, so there is no
+ * effect question to ask beyond the one the name itself raises.
+ */
+bool foldArrayElements(Gen& g, StmtList& list, Size index) {
+    auto declaration = g.base[list.get(g.base, index)];
+    if(declaration->kind != Stmt::Decl) return false;
+
+    auto& decl = *(DeclStmt*)declaration;
+    if(!decl.value || g.base[decl.value]->kind != Expr::Array) return false;
+
+    auto& array = *(ArrayExpr*)g.base[decl.value];
+    if(array.values.isNotEmpty()) return false;
+
+    auto changed = false;
+
+    while(index + 1 < list.size()) {
+        auto next = g.base[list.get(g.base, index + 1)];
+        if(next->kind != Stmt::Expression) break;
+
+        auto written = g.base[((ExprStmt*)next)->value];
+        if(written->kind != Expr::Assign) break;
+
+        auto target = g.base[((AssignExpr*)written)->target];
+        if(target->kind != Expr::Index) break;
+
+        auto owner = g.base[((IndexExpr*)target)->array];
+        if(owner->kind != Expr::Var || ((VarExpr*)owner)->name.text != decl.name.text) break;
+
+        auto position = g.base[((IndexExpr*)target)->index];
+        if(position->kind != Expr::Number || !((NumberExpr*)position)->integral) break;
+        if(((NumberExpr*)position)->value != F64(array.values.size())) break;
+
+        // A value read out of the array it is going into would be reading a slot that does not
+        // exist yet once the write becomes an element.
+        auto value = ((AssignExpr*)written)->value;
+        if(mentions(g, value, decl.name)) break;
+
+        array.values.push(g.file.arena, value);
+        list.remove(g.base, index + 1);
+        changed = true;
+    }
+
+    return changed;
+}
+
+// Whether one statement has anything at all to do with a name - its own expression, every nested
+// body, and every closure reached from either. The conservative half of the sink below: a statement
+// a declaration moves past has to be one that cannot tell.
+bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name) {
+    auto stmt = g.base[pointer];
+    if(auto header = headerOf(g, stmt)) {
+        if(mentions(g, *header, name)) return true;
+    }
+
+    // A second declaration of the same name is not a read, but moving past one would put two of
+    // them out of order - so it stops the search like anything else.
+    if(stmt->kind == Stmt::Decl && ((DeclStmt*)stmt)->name.text == name.text) return true;
+
+    auto found = false;
+    eachBody(g, stmt, [&](StmtList& body) {
+        if(found) return;
+
+        for(auto inner: body.contents(g.base)) {
+            if(mentionsStmt(g, inner, name)) {
+                found = true;
+                return;
+            }
+        }
+    });
+
+    return found;
+}
+
+/*
  * `var v = 0; v = x;` -> `var v = x;`
  *
  * The same rewrite as above for a value that is not built property by property. The emitter writes
  * the zero because storage exists before anything fills it - a resolve `Alloc` is one instruction
- * and the `Init` that follows it is another - and where the fill is the next statement, nothing can
- * observe that it was ever anything else.
+ * and the `Init` that follows it is another - and where nothing can observe that the storage was
+ * ever anything else, the two statements are one.
+ *
+ * ## Why the write need not be the next statement
+ *
+ * Because what the fill needs is usually declared *between* the two. An array literal is the
+ * everyday case - the owner's slot, then the buffer, then the owner pointed at it:
+ *
+ *     var v3 = null;  var v4 = [];  v3 = v4;
+ *
+ * The strict form saw `var v4 = []` in the way and stopped, leaving a binding and two statements
+ * where hand-written JS has one.
+ *
+ * What moves is the *declaration*, downwards, and what makes that invisible is that `var` is
+ * function-scoped: the binding exists from the top of the function either way, and all that changes
+ * is whether it holds the emitter's zero or `undefined` over a stretch where nothing reads it. So
+ * the condition is exactly that - no statement in between mentions the name at all, in its own
+ * expression, in any nested body, or in any closure. The assigned value does not move, so nothing
+ * has to be said about what it would have crossed.
  */
 bool foldInitialValue(Gen& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
@@ -673,24 +778,38 @@ bool foldInitialValue(Gen& g, StmtList& list, Size index) {
     auto& decl = *(DeclStmt*)declaration;
     if(decl.constant) return false;
     if(decl.value && !effectsOf(g, decl.value).inert()) return false;
-    if(index + 1 >= list.size()) return false;
 
-    auto next = g.base[list.get(g.base, index + 1)];
-    if(next->kind != Stmt::Expression) return false;
+    for(Size at = index + 1; at < list.size(); at++) {
+        auto pointer = list.get(g.base, at);
+        auto next = g.base[pointer];
 
-    auto written = g.base[((ExprStmt*)next)->value];
-    if(written->kind != Expr::Assign) return false;
+        if(next->kind == Stmt::Expression) {
+            auto written = g.base[((ExprStmt*)next)->value];
 
-    auto target = g.base[((AssignExpr*)written)->target];
-    if(target->kind != Expr::Var || ((VarExpr*)target)->name.text != decl.name.text) return false;
+            if(written->kind == Expr::Assign) {
+                auto target = g.base[((AssignExpr*)written)->target];
 
-    // `v = v + 1` reads what is being replaced, so the zero is observable after all.
-    auto value = ((AssignExpr*)written)->value;
-    if(mentions(g, value, decl.name)) return false;
+                if(target->kind == Expr::Var && ((VarExpr*)target)->name.text == decl.name.text) {
+                    // `v = v + 1` reads what is being replaced, so the zero is observable after all.
+                    auto value = ((AssignExpr*)written)->value;
+                    if(mentions(g, value, decl.name)) return false;
 
-    decl.value = value;
-    list.remove(g.base, index + 1);
-    return true;
+                    // The declaration becomes the write, in the write's own position. Removing the
+                    // original afterwards is what keeps the two rewrites one statement apart rather
+                    // than needing the list shifted twice.
+                    decl.value = value;
+                    list.set(g.base, at, list.get(g.base, index));
+                    list.remove(g.base, index);
+                    return true;
+                }
+            }
+        }
+
+        // Anything else that has to do with the name stops the search - see mentionsStmt.
+        if(mentionsStmt(g, pointer, decl.name)) return false;
+    }
+
+    return false;
 }
 
 /*
@@ -878,7 +997,8 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
         // next one - which is what collapses a chain of one-use bindings in a single walk.
-        if(foldInitializers(g, list, index) || foldInitialValue(g, list, index)) {
+        if(foldInitializers(g, list, index) || foldArrayElements(g, list, index) ||
+           foldInitialValue(g, list, index)) {
             changed = true;
             continue;
         }

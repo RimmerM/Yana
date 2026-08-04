@@ -253,23 +253,9 @@ escaping<complex>(): Int {
     %v_8 = imul %v_4, 2: Long
     %v_9 = add %v_1, %v_8: Ptr
     %v_10 = loads %v_9, 4: Int
-    %v_11 = add %xs, 8: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = shr %v_12, 30: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    %v_17 = load %xs, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
-    jmp b_16
-  }
-
-  b_16 {
-    %v_19 = add %v_7, %v_10: Int
-    ret %v_19
+    call_complex Reclaim(Array(a)).reclaim(Int), %xs
+    %v_11 = add %v_7, %v_10: Int
+    ret %v_11
   }
 }
 
@@ -373,6 +359,27 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 make<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -446,30 +453,16 @@ main<complex>(): Int {
     %v_27 = call_complex sum, %v_22, %v_26: Int
     %v_28 = add %v_1, 12: Ptr
     %v_29 = load %v_28, 4: Int
-    %v_30 = add %v_1, 8: Ptr
-    %v_31 = load %v_30, 4: Int
-    %v_32 = shr %v_31, 30: Int
-    %v_33 = cmp_eq %v_32, 1: Int
-    je %v_33, b_34, b_35
-  }
-
-  b_34 {
-    %v_36 = load %v_1, 8: Ptr
-    %v_37 = bitcast %v_36: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_35
-  }
-
-  b_35 {
-    %v_38 = cast %v_29: Int
-    %v_39 = cast %v_38: Long
-    %v_40 = sext %v_27: Long
-    %v_41 = add %v_40, %v_39: Long
-    %v_42 = call_complex escaping: Int
-    %v_43 = sext %v_42: Long
-    %v_44 = add %v_41, %v_43: Long
-    %v_45 = cast %v_44: Int
-    ret %v_45
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_30 = cast %v_29: Int
+    %v_31 = cast %v_30: Long
+    %v_32 = sext %v_27: Long
+    %v_33 = add %v_32, %v_31: Long
+    %v_34 = call_complex escaping: Int
+    %v_35 = sext %v_34: Long
+    %v_36 = add %v_33, %v_35: Long
+    %v_37 = cast %v_36: Int
+    ret %v_37
   }
 }
 

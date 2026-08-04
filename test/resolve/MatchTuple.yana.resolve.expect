@@ -191,9 +191,9 @@ fn Eq(Held).!=(%lhs: Held, %rhs: Held) -> Bool {
     ret %v4
 }
 
-fn drop$Maybe(Held)(%value: %Maybe(Held)) -> () {
+fn drop$Maybe(Held)(%value: Maybe(Held)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -201,7 +201,7 @@ fn drop$Maybe(Held)(%value: %Maybe(Held)) -> () {
     ret
 
   b2:
-    drop [%value]@Just via Drop(Held).drop
+    drop %value@Just via Drop(Held).drop
     jmp b1
 
   b3:

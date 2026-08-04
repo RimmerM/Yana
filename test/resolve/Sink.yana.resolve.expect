@@ -673,15 +673,15 @@ fn closureRelease${h: Handle}(%env: %{h: Handle}) -> () {
     ret
 }
 
-fn drop$() -> I64(%value: %() -> I64) -> () {
+fn drop$() -> I64(%value: () -> I64) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long
@@ -694,15 +694,15 @@ fn drop$() -> I64(%value: %() -> I64) -> () {
     ret
 }
 
-fn reclaim$() -> I64(%value: %() -> I64) -> () {
+fn reclaim$() -> I64(%value: () -> I64) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long

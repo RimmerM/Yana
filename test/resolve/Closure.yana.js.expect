@@ -28,16 +28,16 @@ function makeScaler(scale, offset) {
 }
 
 function main() {
-  var a = apply(ResolveTest_lambda$2$make({ base: 10 }), 1);
+  var v43 = ResolveTest_lambda$2$make({ base: 10 })(1);
   var total = { $v: 0 };
-  applyUnit(ResolveTest_lambda$3$make({ total: { $o: total, $k: "$v", $s: 1 } }));
+  ResolveTest_lambda$3$make({ total: { $o: total, $k: "$v", $s: 1 } })();
   var add5 = makeAdder(5);
   var b = add5(20);
-  drop$_Int_sub_gt_Int({ $v: add5 });
+  drop$_Int_sub_gt_Int(add5);
   var scale = makeScaler(3, 4);
   var c = scale(10);
-  drop$_Int_sub_gt_Int({ $v: scale });
-  return ((a + total.$v | 0) + b | 0) + c | 0;
+  drop$_Int_sub_gt_Int(scale);
+  return ((v43 + total.$v | 0) + b | 0) + c | 0;
 }
 
 function ResolveTest_lambda$0$make(env) {
@@ -67,17 +67,17 @@ function ResolveTest_lambda$3$make(env) {
 }
 
 function drop$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[0](v1);
+    value.$h[0](v1);
   }
   return;
 }
 
 function reclaim$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[8](v1);
+    value.$h[8](v1);
   }
   return;
 }

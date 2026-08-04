@@ -1269,6 +1269,72 @@ instance Chunked(Flat(a), a):
             let ->doomed = hostRead(value.items, i :: Size)
             i = i + 1
 
+)COLLECTIONS";
+
+void defineCollections(Program& program) {
+    auto& context = program.context;
+
+    auto name = context.addQualifiedName("Collections", 11, 1);
+    Lexer lexer(context, context.diagnostics, StringView { kCollectionsSource, stringLength(kCollectionsSource) }, name);
+    Parser parser(context, lexer, name);
+    auto ast = new ast::Module(parser.parseModule());
+
+    auto module = program.addModule(ast->name, *ast->region);
+    program.embeddedAsts.push(ast);
+
+    resolveModuleDecls(*module, *ast, nullptr);
+
+    /*
+     * Before the bodies, not after them.
+     *
+     * `Program::arrayType` is what makes `Array(a)` recognizable *as* the growable array - it is
+     * what `sliceOf` asks, so it is what decides whether the ordinary conversion to a slice exists.
+     * Setting it afterwards meant this module alone could not use its own container: `elements`,
+     * whose whole body is `slice(self, 0, self.length)`, saw `Array(a)` as an unrelated record and
+     * reported that it does not fit `Flat(a)`.
+     *
+     * The declaration is what the pointer names, so it is available as soon as the declarations have
+     * been read; nothing in this module's signatures writes `[a]`, which is the only thing that
+     * would have needed it earlier still.
+     */
+    program.collections = module;
+    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
+    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
+
+    // §5's two, looked up here for the reason Core's are looked up where they are declared: what
+    // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
+    program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
+    program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
+
+    // After `arrayType` above, and before this module's own bodies below - several of which
+    // subscript, and would reach an instance that does not exist yet.
+    defineContainerInstances(*module);
+
+    resolveModuleBodies(*module);
+}
+
+/*
+ * Text.
+ *
+ * `String`'s operations, split out of Collections - Implementation-Simplification.md §17.
+ *
+ * It is a module of its own for one reason, and the reason is a *cycle* rather than a division of
+ * subject matter. What a native string is made of is Native's - a `Run(U8)` and a count - so the
+ * reinterpretation that hands those two words out has to live behind an import that already means
+ * "this is unsafe". But the run those words describe is a container, and the container's declaration
+ * has to be implicitly visible because `[a]` is grammar. So the unsafe half sits *above* the
+ * container it names and *below* the algorithms that use it, and one module cannot be on both sides
+ * of that. See NativeText, which is the half in between.
+ *
+ * Implicitly imported, like Collections and for the same reason: a string literal is grammar, and
+ * what `print` and `Show` mean has to be reachable without being asked for. That costs nothing in
+ * safety, because an import is not transitive - see findInstances in name.cpp, and Program::native.
+ */
+static const char* kTextSource = R"TEXT(
+import Native
+import NativeText
+import Host
+
 {-
    ==========================================================================================
    `String` - Implementation-String.md parts 3 and 8, and Implementation-Storage.md part B's sink.
@@ -1299,7 +1365,7 @@ instance Chunked(Flat(a), a):
     -- a cast straight between them is not one the lower IR accepts. Through the unrefined width
     -- first, exactly as `resize` reads a run's capacity.
     fn length(self: String) -> Size:
-        let units = stringData(self).length :: Int
+        let units = stringData(self).bytes.length :: Int
         return units :: Size
 
 @platform(js) instance Length(String):
@@ -1326,7 +1392,7 @@ instance Chunked(Flat(a), a):
    (Implementation-Containers.md §15) lands.
 -}
 @platform(native) fn stringUnit(self: String, index: Size) -> Int =
-    (*(stringData(self).run.items + index)) :: Int
+    (*(stringData(self).bytes.run.items + index)) :: Int
 
 @platform(js) fn stringUnit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
 
@@ -1349,8 +1415,8 @@ instance Chunked(Flat(a), a):
         let rightLength = length(rhs)
 
         let &fresh = newStringOfCapacity(leftLength + rightLength)
-        appendUnits(fresh, stringData(lhs).run.items, leftLength)
-        appendUnits(fresh, stringData(rhs).run.items, rightLength)
+        appendUnits(fresh, stringData(lhs).bytes.run.items, leftLength)
+        appendUnits(fresh, stringData(rhs).bytes.run.items, rightLength)
 
         return fresh
 
@@ -1438,7 +1504,7 @@ instance Chunked(Flat(a), a):
    of the difference, and it is why this is `@platform`-split rather than a body with a branch in it.
 -}
 @platform(native) instance Reclaim(String):
-    fn reclaim(->value: String) -> {} = releaseRun(stringData(value).run)
+    fn reclaim(->value: String) -> {} = releaseRun(stringData(value).bytes.run)
 
 {-
    ==========================================================================================
@@ -1460,7 +1526,7 @@ instance Chunked(Flat(a), a):
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
 @platform(native) fn newStringOfCapacity(capacity: Size) -> String =
-    stringFromData(StringData {run: newRun(capacity :: Int), length: (0 :: Count)})
+    stringFromData(StringData {bytes: Array {run: newRun(capacity :: Int), length: (0 :: Count)}})
 
 @platform(js) fn newStringOfCapacity(capacity: Size) -> String = ""
 
@@ -1473,16 +1539,11 @@ instance Chunked(Flat(a), a):
    being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
 -}
 @platform(native) fn reserveString(&self: String, wanted: Size) -> {}:
+    -- The container's own growth, which is what this used to be a second copy of. `reserve` takes
+    -- the capacity to reach and this takes the amount to add, which is the only difference between
+    -- the two and the only thing left here.
     let target = stringDataMut(self)
-    let room = target.run.capacity :: Int
-    let needed = (target.length :: Int) + (wanted :: Int)
-    if needed <= room then return {}
-
-    -- Geometric, with the requested size as the floor - so a large append still gets exactly what it
-    -- asked for rather than doubling until it happens to fit.
-    let &grown = room * 2
-    if grown < needed then grown = needed
-    let _ = resize(target.run, grown)
+    reserve(target.bytes, (target.bytes.length :: Int) + (wanted :: Int))
 
 @platform(js) fn reserveString(&self: String, wanted: Size) -> {} = {}
 
@@ -1495,17 +1556,16 @@ instance Chunked(Flat(a), a):
    and the reserve above them is the only check.
 -}
 @platform(native) fn pushUnit(&self: String, unit: Int) -> {}:
-    reserveString(self, 1)
-    let target = stringDataMut(self)
-    store(target.run.items + (target.length :: I64), unit :: U8)
-    target.length = ((target.length :: Int) + 1) :: Count
+    -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
+    -- them written twice until the bytes became an `Array(U8)`.
+    push(stringDataMut(self).bytes, unit :: U8)
 
 @platform(js) fn pushUnit(&self: String, unit: Int) -> {}:
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
 @platform(native) fn pushString(&self: String, other: String) -> {}:
-    appendUnits(self, stringData(other).run.items, length(other))
+    appendUnits(self, stringData(other).bytes.run.items, length(other))
 
 @platform(js) fn pushString(&self: String, other: String) -> {}:
     self = hostConcat(self, other)
@@ -1517,8 +1577,8 @@ instance Chunked(Flat(a), a):
     reserveString(self, count)
 
     let target = stringDataMut(self)
-    copyMemory(target.run.items + (target.length :: I64), from, byteSpan(from, count :: Int))
-    target.length = ((target.length :: Int) + (count :: Int)) :: Count
+    copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count :: Int))
+    target.bytes.length = ((target.bytes.length :: Int) + (count :: Int)) :: Count
 
 {-
    ==========================================================================================
@@ -1640,7 +1700,7 @@ fn formatBound(bound: Maybe(Int)) -> Int = match bound:
 -}
 @platform(native) fn print(text: String) -> {}:
     let bytes = stringData(text)
-    let _ = writeStandardOutput(bytes.run.items, length(text))
+    let _ = writeStandardOutput(bytes.bytes.run.items, length(text))
 
 @platform(js) fn print(text: String) -> {} = hostLog(text)
 
@@ -1671,13 +1731,13 @@ fn formatBound(bound: Maybe(Int)) -> Int = match bound:
    constant that folds and `Show(String)`'s is a runtime value that does not, which is the property
    part 7 designed the `Maybe(Int)` shape for.
 -}
-)COLLECTIONS";
+)TEXT";
 
-void defineCollections(Program& program) {
+void defineText(Program& program) {
     auto& context = program.context;
 
-    auto name = context.addQualifiedName("Collections", 11, 1);
-    Lexer lexer(context, context.diagnostics, StringView { kCollectionsSource, stringLength(kCollectionsSource) }, name);
+    auto name = context.addQualifiedName("Text", 4, 1);
+    Lexer lexer(context, context.diagnostics, StringView { kTextSource, stringLength(kTextSource) }, name);
     Parser parser(context, lexer, name);
     auto ast = new ast::Module(parser.parseModule());
 
@@ -1685,28 +1745,7 @@ void defineCollections(Program& program) {
     program.embeddedAsts.push(ast);
 
     resolveModuleDecls(*module, *ast, nullptr);
-
-    /*
-     * Before the bodies, not after them.
-     *
-     * `Program::arrayType` is what makes `Array(a)` recognizable *as* the growable array - it is
-     * what `sliceOf` asks, so it is what decides whether the ordinary conversion to a slice exists.
-     * Setting it afterwards meant this module alone could not use its own container: `elements`,
-     * whose whole body is `slice(self, 0, self.length)`, saw `Array(a)` as an unrelated record and
-     * reported that it does not fit `Flat(a)`.
-     *
-     * The declaration is what the pointer names, so it is available as soon as the declarations have
-     * been read; nothing in this module's signatures writes `[a]`, which is the only thing that
-     * would have needed it earlier still.
-     */
-    program.collections = module;
-    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
-    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
-
-    // §5's two, looked up here for the reason Core's are looked up where they are declared: what
-    // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
-    program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
-    program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
+    program.text = module;
 
     /*
      * The three functions a format expression is built out of - Implementation-Storage.md part 8.
@@ -1715,18 +1754,15 @@ void defineCollections(Program& program) {
      * chunk list and a set of resolved holes and no call site for name resolution to start from.
      * Everything else about a format is an ordinary call to an ordinary function.
      */
-    auto findCollection = [&](const char* text, Size length) -> ModulePtr<Function> {
+    auto findText = [&](const char* text, Size length) -> ModulePtr<Function> {
         auto found = module->functions.get(context.addUnqualifiedName(text, length));
         return found ? found.unwrap() : nullptr;
     };
 
-    program.newString = findCollection("newStringOfCapacity", 19);
-    program.pushString = findCollection("pushString", 10);
-    program.formatBound = findCollection("formatBound", 11);
-
-    // After `arrayType` above, and before this module's own bodies below - several of which
-    // subscript, and would reach an instance that does not exist yet.
-    defineContainerInstances(*module);
+    program.newString = findText("newStringOfCapacity", 19);
+    program.pushString = findText("pushString", 10);
+    program.formatBound = findText("formatBound", 11);
 
     resolveModuleBodies(*module);
 }
+

@@ -1310,16 +1310,16 @@ fn count(Int)(%xs: Flat(Int)) -> Int {
     ret %v2
 }
 
-fn reclaim$Chunks(%value: %Chunks) -> () {
+fn reclaim$Chunks(%value: Chunks) -> () {
   b0:
-    drop [%value]@Chunks.a reclaim Reclaim(Array(a)).reclaim(Int)
-    drop [%value]@Chunks.b reclaim Reclaim(Array(a)).reclaim(Int)
-    drop [%value]@Chunks.c reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.a reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.b reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.c reclaim Reclaim(Array(a)).reclaim(Int)
     ret
 }
 
-fn reclaim$Ring(%value: %Ring) -> () {
+fn reclaim$Ring(%value: Ring) -> () {
   b0:
-    drop [%value]@Ring.items reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Ring.items reclaim Reclaim(Array(a)).reclaim(Int)
     ret
 }

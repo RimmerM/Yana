@@ -13,16 +13,14 @@ function Try_Maybe_a_a_toOutcome_Int(value) {
   return v1;
 }
 
-function Try_Maybe_a_a_fromExit_Int() {
-  return null;
-}
-
 function Try_Maybe_a_a_toOutcome_Token(value) {
   var v1;
   if (!(value === null)) {
     v1 = value;
   } else {
-    drop$Maybe_Token({ $v: value });
+    if (!(value === null)) {
+      Drop_Token_drop(value);
+    }
     v1 = null;
   }
   return v1;
@@ -36,21 +34,6 @@ function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
     v1 = { $tag: 1, $p: value.$p };
   }
   return v1;
-}
-
-function Try_Result_e_a_a_e_fromExit_Int_Int(reason) {
-  return { $tag: 0, $p: reason };
-}
-
-function Try_Result_e_a_a_e_fromExit_Int_Bool(reason) {
-  return { $tag: 0, $p: reason };
-}
-
-function drop$Maybe_Token(value) {
-  if (!(value.$v === null)) {
-    Drop_Token_drop(value.$v);
-  }
-  return;
 }
 
 // ResolveTest
@@ -79,7 +62,7 @@ function checked(n) {
 function oneStep(n) {
   var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v3 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     return v3 + 1 | 0;
   }
@@ -88,11 +71,11 @@ function oneStep(n) {
 function twoSteps(n) {
   var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v3 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     var v17 = Try_Maybe_a_a_toOutcome_Int(parse(v3 - 10 | 0));
     if (v17 === null) {
-      return Try_Maybe_a_a_fromExit_Int();
+      return null;
     } else {
       return v3 + v17 | 0;
     }
@@ -107,11 +90,11 @@ function valuePosition(x, y) {
   var v2 = null;
   var v7 = Try_Maybe_a_a_toOutcome_Int(parse(x));
   if (v7 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     var v18 = Try_Maybe_a_a_toOutcome_Int(parse(y));
     if (v18 === null) {
-      return Try_Maybe_a_a_fromExit_Int();
+      return null;
     } else {
       v2 = v7 + v18 | 0;
       return v2;
@@ -139,14 +122,14 @@ function paired(a, b) {
   var v2 = null;
   var v7 = Try_Maybe_a_a_toOutcome_Token(token(a));
   if (v7 === null) {
-    drop$Outcome_Token({ $v: v7 });
-    return Try_Maybe_a_a_fromExit_Int();
+    drop$Outcome_Token(v7);
+    return null;
   } else {
     var v18 = Try_Maybe_a_a_toOutcome_Token(token(b));
     if (v18 === null) {
-      drop$Outcome_Token({ $v: v7 });
-      drop$Outcome_Token({ $v: v18 });
-      return Try_Maybe_a_a_fromExit_Int();
+      drop$Outcome_Token(v7);
+      drop$Outcome_Token(v18);
+      return null;
     } else {
       v2 = combine(v7, v18);
       return v2;
@@ -158,11 +141,11 @@ function operands(x, y) {
   var v2 = null;
   var v7 = Try_Maybe_a_a_toOutcome_Int(parse(x));
   if (v7 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     var v18 = Try_Maybe_a_a_toOutcome_Int(parse(y));
     if (v18 === null) {
-      return Try_Maybe_a_a_fromExit_Int();
+      return null;
     } else {
       v2 = v7 + v18 | 0;
       return v2;
@@ -174,7 +157,7 @@ function reasoned(n) {
   var v1 = checked(n);
   var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
   if (v3.$tag === 1) {
-    return Try_Result_e_a_a_e_fromExit_Int_Int(v3.$p);
+    return { $tag: 0, $p: v3.$p };
   } else {
     return { $tag: 1, $p: v3.$p + 100 | 0 };
   }
@@ -184,7 +167,7 @@ function viaHelper(n) {
   var v1 = checked(n);
   var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
   if (v3.$tag === 1) {
-    return Try_Result_e_a_a_e_fromExit_Int_Bool(v3.$p);
+    return { $tag: 0, $p: v3.$p };
   } else {
     return { $tag: 1, $p: v3.$p > 5 };
   }
@@ -193,7 +176,7 @@ function viaHelper(n) {
 function conditional(n) {
   var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v3 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     if (v3 > 10) {
       return 1;
@@ -213,7 +196,7 @@ function looped(n) {
         var v14 = total;
         var v18 = Try_Maybe_a_a_toOutcome_Int(parse(n - i | 0));
         if (v18 === null) {
-          return Try_Maybe_a_a_fromExit_Int();
+          return null;
         } else {
           total = v14 + v18 | 0;
           var v29 = v9;
@@ -352,7 +335,7 @@ function Drop_Token_drop(value) {
 function ResolveTest_continuation$0(value) {
   var v7 = Try_Maybe_a_a_toOutcome_Int(parse(value - 8 | 0));
   if (v7 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     return v7 + value | 0;
   }
@@ -372,15 +355,15 @@ function ResolveTest_continuation$1(found) {
 function firstPositive_Int(n, body) {
   var v5 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v5 === null) {
-    return Try_Maybe_a_a_fromExit_Int();
+    return null;
   } else {
     return body(v5);
   }
 }
 
 function drop$Outcome_Token(value) {
-  if (!(value.$v === null)) {
-    Drop_Token_drop(value.$v);
+  if (!(value === null)) {
+    Drop_Token_drop(value);
   }
   return;
 }

@@ -26,8 +26,17 @@ sometimesLeaves<complex>(%x: Int): Int {
     store %v_2, ResolveTest.continuation$1, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = call_complex scope(Int), %v_2: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_2, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 100: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 
@@ -64,8 +73,18 @@ leavesWithValue<complex>(%x: Int): Int {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = call_complex handing(Int), %x, %v_1: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = imul %x, 2: Int
+    %v_7 = add %v_1, 8: Ptr
+    %v_8 = load %v_1, 8: Ptr
+    %v_9 = load %v_7, 8: Ptr
+    %v_10 = call_complex %v_8, %v_9, %v_6: Int
+    %v_11 = loads @log, 4: Int
+    %v_12 = add %v_11, 100: Int
+    store @log, %v_12, 4
+    ret %v_10
   }
 }
 
@@ -217,8 +236,17 @@ ResolveTest.continuation$4<complex>(%env: Ptr): Int {
     store %v_3, ResolveTest.continuation$5, 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, %v_1, 8
-    %v_5 = call_complex scope(Int), %v_3: Int
-    ret %v_5
+    %v_5 = loads @log, 4: Int
+    %v_6 = add %v_5, 1: Int
+    store @log, %v_6, 4
+    %v_7 = add %v_3, 8: Ptr
+    %v_8 = load %v_3, 8: Ptr
+    %v_9 = load %v_7, 8: Ptr
+    %v_10 = call_complex %v_8, %v_9: Int
+    %v_11 = loads @log, 4: Int
+    %v_12 = add %v_11, 100: Int
+    store @log, %v_12, 4
+    ret %v_10
   }
 }
 
@@ -236,8 +264,17 @@ alwaysLeaves<complex>(%x: Int): Int {
     store %v_2, ResolveTest.continuation$0, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = call_complex scope(Int), %v_2: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_2, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 100: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 
@@ -249,8 +286,17 @@ twoDeep<complex>(%x: Int): Int {
     store %v_2, ResolveTest.continuation$4, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = call_complex scope(Int), %v_2: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_2, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 100: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 

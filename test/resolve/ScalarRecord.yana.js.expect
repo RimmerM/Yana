@@ -112,12 +112,16 @@ function swapped() {
 }
 
 function makePair() {
-  drop$Pair({ x: 1, y: 2 });
+  var p = { x: 1, y: 2 };
+  Drop_Owned_drop(p.x);
+  Drop_Owned_drop(p.y);
   return;
 }
 
 function owned() {
-  makePair();
+  var p = { x: 1, y: 2 };
+  Drop_Owned_drop(p.x);
+  Drop_Owned_drop(p.y);
   return Number(dropped.$v) | 0;
 }
 
@@ -216,7 +220,9 @@ function main() {
   v74 = v74 & 4294967294 | 1 & 1;
   v74 = v74 & ~(1 << 3) | (1 & 1) << 3;
   var v12 = (((v4 + (valueOf(v74 & 3) + (Math.imul(valueOf(v74 >>> 2 & 3), 10) | 0) | 0) | 0) + ((Math.imul(valueOf(2), 10) | 0) + valueOf(1) | 0) | 0) + reborrowed() | 0) + swapped() | 0;
-  makePair();
+  var p = { x: 1, y: 2 };
+  Drop_Owned_drop(p.x);
+  Drop_Owned_drop(p.y);
   return ((((((v12 + (Number(dropped.$v) | 0) | 0) + folded() | 0) + ((heldValue({ $tag: 0, $p: 1 }) + (Math.imul(heldValue({ $tag: 1, $p: 5 }), 100) | 0) | 0) + (Math.imul(heldValue({ $tag: 2, $p: null }), 10000) | 0) | 0) | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
 }
 
@@ -232,20 +238,8 @@ function Drop_Owned_drop(value) {
 }
 
 function drop$Pair(value) {
-  var v4;
-  var v16;
-  if (value.x & 1) {
-    v4 = 1;
-  } else {
-    v4 = 2;
-  }
-  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(v4)));
-  if (value.y & 1) {
-    v16 = 1;
-  } else {
-    v16 = 2;
-  }
-  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(v16)));
+  Drop_Owned_drop(value.x);
+  Drop_Owned_drop(value.y);
   return;
 }
 

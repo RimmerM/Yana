@@ -526,11 +526,30 @@ struct Inliner {
      * another body would read some other schema's slots, which is a miscompile rather than a
      * missing feature. It only ever appears in a generic body, so what would have to be checked
      * first is that both schemas agree.
+     *
+     * ## `Move` is in, and it is the one of the ownership four that belongs here
+     *
+     * The header's rule is that copying an ownership instruction asserts the decision travels. A
+     * graft is what *makes* it travel: the whole body is copied, drops and all, and the copy runs
+     * once per call exactly as the callee did. What the rule is really about is a decision copied
+     * away from the rest of the decision it belongs to, and that is not this.
+     *
+     * `Move` is additionally not a decision at all by the time this runs. It is the relocation
+     * itself - `codegen/js` emits nothing for one but the name, and reads its kind to alias rather
+     * than deep-clone - so there is no lower form to discharge it into and nothing left in it to
+     * spend. `Drop`, `Swap` and `Exchange` are the ones that still expand into something.
+     *
+     * The hazard is re-rooting rather than the instruction: a cloned `Move` whose place was rewritten
+     * to name the *caller's* storage would empty a slot the caller's ownership state knows nothing
+     * about. Two guards already exclude it - the borrow check rejects a move out of a `&` parameter
+     * before this stage runs, and a `->` parameter is declined at the site below - and `movesLocal`
+     * is the belt that says so in this pass rather than in two others.
      */
     bool clonableKind(Value::Kind kind) {
         switch(kind) {
             case Value::Alloc: case Value::LoadPlace: case Value::Init: case Value::Assign:
-            case Value::Borrow: case Value::Copy: case Value::TypeMetric: case Value::Symbol:
+            case Value::Borrow: case Value::Copy: case Value::Move:
+            case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Neg: case Value::Not:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
@@ -557,6 +576,43 @@ struct Inliner {
      * once: whether it can be inlined at all does not depend on who is calling, and only the budget
      * below does.
      */
+    /*
+     * Whether the body relocates *out of* this local.
+     *
+     * The belt `clonableKind` names for admitting `Move`. A move out of a slot that stays the
+     * callee's own is renamed by the value map like anything else; a move out of one this graft
+     * re-roots at the caller's storage would empty a place the caller's ownership state was not
+     * told about, and no later pass would notice - a relocated aggregate and a live one are the
+     * same bytes.
+     *
+     * Both departure points are asked about, because both name a place: `Move` is the relocation and
+     * `Exchange` writes a new value over one it takes out. Neither is reachable today for a
+     * re-rooted parameter - the borrow check refuses the `&` case and `describe` refuses the sink
+     * case - so this is the statement that they stay unreachable, made where the copy happens rather
+     * than in the two passes that currently imply it.
+     */
+    bool movesLocal(Candidate& candidate, U32 local) {
+        auto rootedHere = [&](const Place& place) {
+            return place.root == PlaceRoot::Local && place.local == local;
+        };
+
+        for(auto blockPointer: candidate.blocks) {
+            auto block = opt.local[blockPointer];
+
+            for(auto pointer: block->instructions.contents(opt.local)) {
+                auto& instruction = *opt.local[pointer];
+
+                if(instruction.kind == Value::Move &&
+                   rootedHere(((InstMove&)instruction).place)) return true;
+
+                if(instruction.kind == Value::Exchange &&
+                   rootedHere(((InstExchange&)instruction).place)) return true;
+            }
+        }
+
+        return false;
+    }
+
     // Whether any place in the body is rooted in this local, which is the difference between a slot
     // that is storage and a slot that is only a name.
     bool namesLocal(Candidate& candidate, U32 local) {
@@ -723,17 +779,41 @@ struct Inliner {
             auto arg = opt.local[argPointer];
 
             /*
-             * A sink transfers ownership into the callee and a `return` parameter is one the
-             * caller's loan was sized against. Both are decisions taken at the site rather than in
-             * the body, and a *call* site's neither survives being spliced away.
+             * A sink transfers ownership into the callee, which is a decision taken at the site
+             * rather than in the body and does not survive being spliced away.
              *
              * A `drop` site's sink does, and is the whole of what it is: `drop p reclaim f` says
              * that the value at `p` is `f`'s now, so a copy of `f` re-rooted at `p` is the same
              * statement with the call boundary taken out. Which is why this is the only relaxation
              * the teardown path asks for.
+             *
+             * A `return` parameter used to be refused beside it, on the reading that the caller's
+             * loan had been sized against the *summary* rather than against the body - so splicing
+             * the body in would leave a loan measured against a call that no longer exists. It is
+             * the other way round: the borrow check has already run and the loan it computed is
+             * already in this function's ownership result, which nothing after this stage recomputes.
+             * A summary-sized extent is *wider* than the body's own would have been, so what a
+             * splice can do to it is make it conservative, and conservative is the direction a loan
+             * is allowed to be wrong in. §4 measured this and found zero `.run.expect` failures; what
+             * it wanted before removing the guard was this argument rather than that measurement.
              */
-            if(arg->returnRoot) return Nothing();
-            if(arg->convention == ast::BindType::Sink && !(sink && callee->args.size() == 1)) {
+            /*
+             * A `->` parameter is what the site relocated into, and the relocation stays where it
+             * was: the caller's `InstMove` is in front of the call and survives the splice, so what
+             * the graft has to preserve is only what the *body* then did with the value.
+             *
+             * Which is one of two things, because the callee owns the slot. Either it hands it on -
+             * a `Move`, an `init` from the parameter, a `ret` - which the value map renames like any
+             * other operand; or it owes a drop, and a body containing one is refused by
+             * `clonableKind` before this. The third shape, a body that reaches the parameter through
+             * a *place* and relocates out of it, is the one that would empty storage the caller
+             * still names, and `movesLocal` refuses it below.
+             *
+             * The teardown path's relaxation is unchanged and is a different statement:
+             * `drop p reclaim f` says the value at `p` is `f`'s now, so a copy of `f` re-rooted at
+             * `p` is that same statement with the call boundary taken out.
+             */
+            if(arg->convention == ast::BindType::Sink && sink && callee->args.size() != 1) {
                 return Nothing();
             }
 
@@ -789,17 +869,24 @@ struct Inliner {
             if(slot.closureEnv) return Nothing();
 
             /*
-             * A parameter whose storage is the caller's is exempt, and that is what lets anything
-             * taking a container inline at all: `push(&self: Array(a), ...)` has a local of a type
-             * owing a teardown and runs none of it, because the array is the caller's.
+             * A local of a type owing a teardown used to be refused outright here, exempting only a
+             * parameter whose storage is the caller's. The rule was a *belt*, and its own comment
+             * said so: a body with such a local either owes a `Drop`, which `clonableKind` refuses,
+             * or hands ownership on through a `Move` or a `ret`, which it also refused - so nothing
+             * reached here that had not already been declined, and this was the line that would
+             * catch a kind admitted to `clonableKind` later.
              *
-             * What the rule is for is a local the *body* made. One of those owes a `Drop` this pass
-             * declines to clone, or hands ownership on through a `Move` or a `ret` it also declines
-             * - so a body reaching here with such a local has already been refused by one of those,
-             * and the check is the belt that catches a kind admitted to `clonableKind` later.
+             * A kind was admitted later, and it is the one the belt was insurance against. So the
+             * question it was standing in for has to be answered rather than re-tightened, and the
+             * answer is the one clonableKind gives: a graft copies a whole body, so the callee's own
+             * local becomes a fresh local of this frame's and the relocation out of it is renamed
+             * with everything else. What is *not* renamed is a re-rooted parameter, which is the
+             * case that is genuinely different and the one thing left here.
              */
-            if(rerootedParameter(candidate, local)) continue;
-            if(slot.type && needsTeardown(*opt.module, slot.type)) return Nothing();
+            if(rerootedParameter(candidate, local)) {
+                // The one thing a re-rooted slot may not do - see movesLocal.
+                if(movesLocal(candidate, local)) return Nothing();
+            }
         }
 
         auto& first = (InstRet&)*opt.local[opt.local[candidate.returns[0]]->terminator];
@@ -814,7 +901,6 @@ struct Inliner {
             if(!ret.value) continue;
 
             auto type = opt.local[ret.value]->type;
-            if(type && needsTeardown(*opt.module, type)) return Nothing();
 
             /*
              * A result the target holds in memory is returned out of storage rather than in a
@@ -1250,6 +1336,15 @@ struct Inliner {
                 cloned->local = copy.local == maxLimit<U32> ? maxLimit<U32> : clone.locals[copy.local];
                 return (Inst*)cloned;
             }
+            case Value::Move: {
+                // The sink travels unchanged: which function relocates a type is a property of the
+                // type, and the type did not move. See clonableKind for why the instruction may.
+                auto& move = (InstMove&)instruction;
+                auto cloned = createInst<InstMove>(module, function, into, source, name, type,
+                                                   place(move.place));
+                cloned->sink = move.sink;
+                return (Inst*)cloned;
+            }
             case Value::TypeMetric: {
                 auto& metric = (InstTypeMetric&)instruction;
                 return (Inst*)createInst<InstTypeMetric>(module, function, into, source, name, type,
@@ -1436,9 +1531,7 @@ struct Inliner {
             auto mapped = clone.values.getValue(U32(source));
             if(!mapped) continue;
 
-            auto slot = opt.function->localAt(opt.local, index);
-            slot.value = ModulePtr<Value>(mapped.unwrap());
-            opt.function->locals.set(opt.local, index, slot);
+            opt.function->setLocalValue(opt.local, index, ModulePtr<Value>(mapped.unwrap()));
         }
     }
 
@@ -1861,10 +1954,11 @@ struct Inliner {
         // And the slots that named the site as their storage, which is not a use and so is not
         // something `replaceValue` reaches - a place rooted in one of them is recorded against the
         // *value* the slot holds, and that value is about to stop existing.
-        for(auto local: resultSlots) {
-            auto slot = opt.function->localAt(opt.local, local);
-            slot.value = result;
-            opt.function->locals.set(opt.local, local, slot);
+        // Lowest last, so that the back edge `setLocalValue` writes - Value::slot, which is what
+        // findPlace and backingLocal answer with - names the same slot the scan above took, since
+        // both used to read the first match and only one of the two directions can win.
+        for(Size i = resultSlots.size(); i-- > 0;) {
+            opt.function->setLocalValue(opt.local, resultSlots[i], result);
         }
 
         return true;

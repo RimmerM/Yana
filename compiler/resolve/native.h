@@ -24,3 +24,8 @@
  * today amd64 Linux is the only backend, so it is the only one built.
  */
 void defineNative(Program& program);
+
+// `NativeText` - what a native string is made of, and the three reinterpretations that hand it
+// out. A module of its own because it names `Array(U8)` and so must sit above Collections, while
+// staying out of the implicit imports - see Program::nativeText.
+void defineNativeText(Program& program);

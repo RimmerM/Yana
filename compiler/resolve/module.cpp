@@ -216,6 +216,15 @@ U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModuleP
         .closureEnv = closureEnv,
     });
 
+    // The back edge, so that "which slot is this value the contents of" is a read rather than a
+    // scan of this table - see Value::slot. The assertion is the half of that pairing this cannot
+    // state in a type: a value filling two slots would answer with the later one, and every reader
+    // of the old scan took the earlier.
+    if(value) {
+        assertTrue((*module.arena)[value]->slot == maxLimit<U32>);
+        (*module.arena)[value]->slot = index;
+    }
+
     return index;
 }
 
@@ -2090,6 +2099,16 @@ void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) 
         collections.localName = module.program.collections->name;
     }
 
+    // And Text, on exactly the same terms: a string literal is grammar, so `Show`, `print` and the
+    // rest of what a string can do have to be reachable without being asked for. It is built last of
+    // all, so nothing it imports is handed one of these - which is what keeps the implicit import
+    // from turning Collections and NativeText into a cycle. See Program::text.
+    if(module.program.text && &module != module.program.text) {
+        auto& text = *module.imports.push();
+        text.module = module.program.text;
+        text.localName = module.program.text->name;
+    }
+
     for(auto imported: ast.imports.contents(module.parse)) {
         if(imported.from == module.name) {
             module.context.diagnostics.error("a module cannot import itself"_v, imported.source);
@@ -2281,10 +2300,21 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // Core, Native and Collections are built under it too - they are where most generic code is.
     program->specialization = specialization;
 
+    /*
+     * The order is the dependency order and every step of it is load-bearing - see §17 of
+     * Implementation-Simplification.md, and Program::nativeText for the cycle the last two break.
+     *
+     * `Text` is last because it is implicitly imported, and a module built before it is one that
+     * never receives that import: `resolveImports` reads `program.text`, which is null until the
+     * line below has run. That is what keeps Collections and NativeText - both of which Text
+     * imports - from importing it back.
+     */
     defineCore(*program);
     defineNative(*program);
     defineHost(*program);
     defineCollections(*program);
+    defineNativeText(*program);
+    defineText(*program);
 
     auto module = program->addModule(root.name, *root.region);
     module->root = true;

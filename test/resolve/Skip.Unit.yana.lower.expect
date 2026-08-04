@@ -29,13 +29,13 @@ loopingOut<complex>(%n: Int): Int {
     store %v_13, ResolveTest.continuation$0, 8
     %v_14 = add %v_13, 8: Ptr
     store %v_14, %v_12, 8
-    %v_15 = alloca 4, 4: Ptr
+    %v_15 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_15, %v_11, %v_13
-    %v_16 = alloca 4, 4: Ptr
-    copy %v_16, %v_15, 4
-    %v_17 = alloca 4, 4: Ptr
+    %v_16 = alloca 1, 1: Ptr
+    copy %v_16, %v_15, 1
+    %v_17 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_17, %v_16
-    %v_18 = loads %v_17, 4: Int
+    %v_18 = loads %v_17, 1: Int
     %v_19 = cmp_eq %v_18, 1: Int
     je %v_19, b_9, b_20
   }
@@ -55,27 +55,27 @@ loopingOut<complex>(%n: Int): Int {
 
 Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
-    %v_2 = loads %value, 4: Int
+    %v_2 = loads %value, 1: Int
     %v_3 = cmp_eq %v_2, 1: Int
     je %v_3, b_4, b_5
   }
 
   b_5 {
-    %v_6 = alloca 4, 4: Ptr
-    store %v_6, 1, 4
+    %v_6 = alloca 1, 1: Ptr
+    store %v_6, 1, 1
     jmp b_7
   }
 
   b_4 {
     %inner = alloca 1, 1: Ptr
-    %v_8 = alloca 4, 4: Ptr
-    store %v_8, 0, 4
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 0, 1
     jmp b_7
   }
 
   b_7 {
     %v_9 = phi [b_4, %v_8], [b_5, %v_6]: Ptr
-    copy %v_0, %v_9, 4
+    copy %v_0, %v_9, 1
     ret 
   }
 }
@@ -95,13 +95,13 @@ statementTail<complex>(%n: Int): Int {
     store %v_5, ResolveTest.continuation$1, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, %v_4, 8
-    %v_7 = alloca 4, 4: Ptr
+    %v_7 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_7, %n, %v_5
-    %v_8 = alloca 4, 4: Ptr
-    copy %v_8, %v_7, 4
-    %v_9 = alloca 4, 4: Ptr
+    %v_8 = alloca 1, 1: Ptr
+    copy %v_8, %v_7, 1
+    %v_9 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_9, %v_8
-    %v_10 = loads %v_9, 4: Int
+    %v_10 = loads %v_9, 1: Int
     %v_11 = cmp_eq %v_10, 1: Int
     je %v_11, b_12, b_13
   }
@@ -136,13 +136,13 @@ leavingWithNothing<complex>(%n: Int) {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_4, %n, %v_1
-    %v_5 = alloca 4, 4: Ptr
-    copy %v_5, %v_4, 4
-    %v_6 = alloca 4, 4: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    copy %v_5, %v_4, 1
+    %v_6 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
-    %v_7 = loads %v_6, 4: Int
+    %v_7 = loads %v_6, 1: Int
     %v_8 = cmp_eq %v_7, 1: Int
     je %v_8, b_9, b_10
   }
@@ -182,13 +182,13 @@ returningNothing<complex>(%n: Int) {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_4, %n, %v_1
-    %v_5 = alloca 4, 4: Ptr
-    copy %v_5, %v_4, 4
-    %v_6 = alloca 4, 4: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    copy %v_5, %v_4, 1
+    %v_6 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
-    %v_7 = loads %v_6, 4: Int
+    %v_7 = loads %v_6, 1: Int
     %v_8 = cmp_eq %v_7, 1: Int
     je %v_8, b_9, b_10
   }
@@ -248,7 +248,7 @@ findFirst(())<complex>(%v_0: Ptr, %n: Int, %body: Ptr) {
     %v_11 = loads @log, 4: Int
     %v_12 = add %v_11, 100: Int
     store @log, %v_12, 4
-    store %v_0, 1, 4
+    store %v_0, 1, 1
     ret 
   }
 
@@ -257,7 +257,7 @@ findFirst(())<complex>(%v_0: Ptr, %n: Int, %body: Ptr) {
   }
 
   b_13 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }

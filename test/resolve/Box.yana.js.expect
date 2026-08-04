@@ -39,7 +39,7 @@ function pinnedValue() {
   p.tag = 5;
   p.detail = { count: 0, level: 0 };
   p.detail = v2;
-  return ((Math.imul(p.tag, 100) | 0) + (Math.imul(p.detail.count, 10) | 0) | 0) + p.detail.level | 0;
+  return ((Math.imul(p.detail.count, 10) | 0) + 500 | 0) + p.detail.level | 0;
 }
 
 function throughLens() {
@@ -48,7 +48,7 @@ function throughLens() {
   v0.hot = 3;
   v0.cold = { count: 0, level: 0 };
   v0.cold = v2;
-  return levelIn_Int(v0, ResolveTest_continuation$0$make({ c: v0 }));
+  return ResolveTest_continuation$0$make({ c: v0 })(v0.cold.level);
 }
 
 function countOf(h) {

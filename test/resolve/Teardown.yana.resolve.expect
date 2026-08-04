@@ -312,14 +312,14 @@ fn duplicate(Int)(%x: Int) -> {left: Int, right: Int} {
     ret %v5
 }
 
-fn drop$Session(%value: %Session) -> () {
+fn drop$Session(%value: Session) -> () {
   b0:
-    drop [%value]@Session.owner via Drop(Handle).drop
+    drop %value@Session.owner via Drop(Handle).drop
     ret
 }
 
-fn reclaim$Session(%value: %Session) -> () {
+fn reclaim$Session(%value: Session) -> () {
   b0:
-    drop [%value]@Session.pages reclaim Reclaim(Buffer).reclaim
+    drop %value@Session.pages reclaim Reclaim(Buffer).reclaim
     ret
 }

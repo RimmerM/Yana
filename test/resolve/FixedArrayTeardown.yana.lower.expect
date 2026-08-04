@@ -19,23 +19,22 @@ drop$[Handle *2]<complex>(%value: Ptr) {
   b_0 {
     %v_1 = mul 0, 8: Long
     %v_2 = add %value, %v_1: Ptr
-    %v_3 = load %v_2, 8: Ptr
-    call_complex freeHeap, %v_3
-    call_complex -=(I64), @liveHandles, 1
-    call_complex +=(I64), @releases, 1
-    %v_4 = mul 1, 8: Long
-    %v_5 = add %value, %v_4: Ptr
-    %v_6 = load %v_5, 8: Ptr
-    call_complex freeHeap, %v_6
-    call_complex -=(I64), @liveHandles, 1
-    call_complex +=(I64), @releases, 1
+    call_complex Drop(Handle).drop, %v_2
+    %v_3 = mul 1, 8: Long
+    %v_4 = add %value, %v_3: Ptr
+    call_complex Drop(Handle).drop, %v_4
     ret 
   }
 }
 
 drop$Pair<complex>(%value: Ptr) {
   b_0 {
-    call_complex drop$[Handle *2], %value
+    %v_1 = mul 0, 8: Long
+    %v_2 = add %value, %v_1: Ptr
+    call_complex Drop(Handle).drop, %v_2
+    %v_3 = mul 1, 8: Long
+    %v_4 = add %value, %v_3: Ptr
+    call_complex Drop(Handle).drop, %v_4
     ret 
   }
 }
@@ -54,10 +53,7 @@ drop$[Handle *6]<complex>(%value: Ptr) {
   b_3 {
     %v_7 = mul %v_2, 8: Long
     %v_8 = add %value, %v_7: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    call_complex freeHeap, %v_9
-    call_complex -=(I64), @liveHandles, 1
-    call_complex +=(I64), @releases, 1
+    call_complex Drop(Handle).drop, %v_8
     %v_4 = add %v_2, 1: Long
     jmp b_1
   }
@@ -70,28 +66,37 @@ drop$[Handle *6]<complex>(%value: Ptr) {
 nested<complex>(): Long {
   b_0 {
     %p = alloca 24, 8: Ptr
-    %v_1 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_1, 7
-    %v_2 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_2, 8
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = mul 0, 8: Long
-    %v_5 = add %v_3, %v_4: Ptr
-    copy %v_5, %v_1, 8
-    %v_6 = mul 1, 8: Long
-    %v_7 = add %v_3, %v_6: Ptr
-    copy %v_7, %v_2, 8
-    copy %p, %v_3, 16
-    %v_8 = add %p, 16: Ptr
-    %v_9 = imm 100: Long
-    store %v_8, %v_9, 8
-    %v_10 = add %p, 8: Ptr
-    %v_11 = load %v_10, 8: Ptr
-    %v_12 = bitcast %v_11: Ptr
-    %v_13 = loads %v_12, 8: Long
-    call_complex drop$Pair, %p
-    %v_14 = add %v_13, %v_9: Long
-    ret %v_14
+    call_complex +=(I64), @liveHandles, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    %v_2 = bitcast %v_1: Ptr
+    store %v_2, 7, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_3 = call_complex allocateHeap, 16: Ptr
+    %v_4 = bitcast %v_3: Ptr
+    store %v_4, 8, 8
+    %v_5 = alloca 16, 8: Ptr
+    %v_6 = mul 0, 8: Long
+    %v_7 = add %v_5, %v_6: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = mul 1, 8: Long
+    %v_9 = add %v_5, %v_8: Ptr
+    store %v_9, %v_3, 8
+    copy %p, %v_5, 16
+    %v_10 = add %p, 16: Ptr
+    %v_11 = imm 100: Long
+    store %v_10, %v_11, 8
+    %v_12 = add %p, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = bitcast %v_13: Ptr
+    %v_15 = loads %v_14, 8: Long
+    %v_16 = mul 0, 8: Long
+    %v_17 = add %p, %v_16: Ptr
+    call_complex Drop(Handle).drop, %v_17
+    %v_18 = mul 1, 8: Long
+    %v_19 = add %p, %v_18: Ptr
+    call_complex Drop(Handle).drop, %v_19
+    %v_20 = add %v_15, %v_11: Long
+    ret %v_20
   }
 }
 
@@ -248,76 +253,114 @@ marker<complex>(%it: Ptr): Long {
 
 small<complex>(): Long {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_1, 1
-    %v_2 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_2, 2
+    call_complex +=(I64), @liveHandles, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    %v_2 = bitcast %v_1: Ptr
+    store %v_2, 1, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_3 = call_complex allocateHeap, 16: Ptr
+    %v_4 = bitcast %v_3: Ptr
+    store %v_4, 2, 8
     %hs = alloca 16, 8: Ptr
-    %v_3 = mul 0, 8: Long
-    %v_4 = add %hs, %v_3: Ptr
-    copy %v_4, %v_1, 8
-    %v_5 = mul 1, 8: Long
+    %v_5 = mul 0, 8: Long
     %v_6 = add %hs, %v_5: Ptr
-    copy %v_6, %v_2, 8
-    %v_7 = add %hs, 0: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = bitcast %v_8: Ptr
-    %v_10 = loads %v_9, 8: Long
-    %v_11 = add %hs, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    %v_13 = bitcast %v_12: Ptr
-    %v_14 = loads %v_13, 8: Long
-    call_complex drop$[Handle *2], %hs
-    %v_15 = add %v_10, %v_14: Long
-    ret %v_15
+    store %v_6, %v_1, 8
+    %v_7 = mul 1, 8: Long
+    %v_8 = add %hs, %v_7: Ptr
+    store %v_8, %v_3, 8
+    %v_9 = add %hs, 0: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_11 = bitcast %v_10: Ptr
+    %v_12 = loads %v_11, 8: Long
+    %v_13 = add %hs, 8: Ptr
+    %v_14 = load %v_13, 8: Ptr
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = loads %v_15, 8: Long
+    %v_17 = mul 0, 8: Long
+    %v_18 = add %hs, %v_17: Ptr
+    call_complex Drop(Handle).drop, %v_18
+    %v_19 = mul 1, 8: Long
+    %v_20 = add %hs, %v_19: Ptr
+    call_complex Drop(Handle).drop, %v_20
+    %v_21 = add %v_12, %v_16: Long
+    ret %v_21
   }
 }
 
 large<complex>(): Long {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_1, 1
-    %v_2 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_2, 2
-    %v_3 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_3, 3
-    %v_4 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_4, 4
-    %v_5 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_5, 5
-    %v_6 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_6, 6
+    call_complex +=(I64), @liveHandles, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    %v_2 = bitcast %v_1: Ptr
+    store %v_2, 1, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_3 = call_complex allocateHeap, 16: Ptr
+    %v_4 = bitcast %v_3: Ptr
+    store %v_4, 2, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_5 = call_complex allocateHeap, 16: Ptr
+    %v_6 = bitcast %v_5: Ptr
+    store %v_6, 3, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_7 = call_complex allocateHeap, 16: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    store %v_8, 4, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_9 = call_complex allocateHeap, 16: Ptr
+    %v_10 = bitcast %v_9: Ptr
+    store %v_10, 5, 8
+    call_complex +=(I64), @liveHandles, 1
+    %v_11 = call_complex allocateHeap, 16: Ptr
+    %v_12 = bitcast %v_11: Ptr
+    store %v_12, 6, 8
     %hs = alloca 48, 8: Ptr
-    %v_7 = mul 0, 8: Long
-    %v_8 = add %hs, %v_7: Ptr
-    copy %v_8, %v_1, 8
-    %v_9 = mul 1, 8: Long
-    %v_10 = add %hs, %v_9: Ptr
-    copy %v_10, %v_2, 8
-    %v_11 = mul 2, 8: Long
-    %v_12 = add %hs, %v_11: Ptr
-    copy %v_12, %v_3, 8
-    %v_13 = mul 3, 8: Long
+    %v_13 = mul 0, 8: Long
     %v_14 = add %hs, %v_13: Ptr
-    copy %v_14, %v_4, 8
-    %v_15 = mul 4, 8: Long
+    store %v_14, %v_1, 8
+    %v_15 = mul 1, 8: Long
     %v_16 = add %hs, %v_15: Ptr
-    copy %v_16, %v_5, 8
-    %v_17 = mul 5, 8: Long
+    store %v_16, %v_3, 8
+    %v_17 = mul 2, 8: Long
     %v_18 = add %hs, %v_17: Ptr
-    copy %v_18, %v_6, 8
-    %v_19 = add %hs, 0: Ptr
-    %v_20 = load %v_19, 8: Ptr
-    %v_21 = bitcast %v_20: Ptr
-    %v_22 = loads %v_21, 8: Long
-    %v_23 = imul 8, 5: Long
+    store %v_18, %v_5, 8
+    %v_19 = mul 3, 8: Long
+    %v_20 = add %hs, %v_19: Ptr
+    store %v_20, %v_7, 8
+    %v_21 = mul 4, 8: Long
+    %v_22 = add %hs, %v_21: Ptr
+    store %v_22, %v_9, 8
+    %v_23 = mul 5, 8: Long
     %v_24 = add %hs, %v_23: Ptr
-    %v_25 = load %v_24, 8: Ptr
-    %v_26 = bitcast %v_25: Ptr
-    %v_27 = loads %v_26, 8: Long
-    call_complex drop$[Handle *6], %hs
-    %v_28 = add %v_22, %v_27: Long
-    ret %v_28
+    store %v_24, %v_11, 8
+    %v_25 = add %hs, 0: Ptr
+    %v_26 = load %v_25, 8: Ptr
+    %v_27 = bitcast %v_26: Ptr
+    %v_28 = loads %v_27, 8: Long
+    %v_29 = imul 8, 5: Long
+    %v_30 = add %hs, %v_29: Ptr
+    %v_31 = load %v_30, 8: Ptr
+    %v_32 = bitcast %v_31: Ptr
+    %v_33 = loads %v_32, 8: Long
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = phi [b_0, 0], [b_36, %v_37]: Long
+    %v_38 = cmp_ilt %v_35, 6: Int
+    je %v_38, b_36, b_39
+  }
+
+  b_39 {
+    %v_40 = add %v_28, %v_33: Long
+    ret %v_40
+  }
+
+  b_36 {
+    %v_41 = mul %v_35, 8: Long
+    %v_42 = add %hs, %v_41: Ptr
+    call_complex Drop(Handle).drop, %v_42
+    %v_37 = add %v_35, 1: Long
+    jmp b_34
   }
 }
 

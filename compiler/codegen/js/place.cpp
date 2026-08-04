@@ -294,7 +294,7 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
             case ProjectionKind::Discriminant: {
                 // An enum *is* its discriminant, so there is nothing to project out of it.
                 auto record = recordType(g, step.owner);
-                if(record && record->layout != RecordType::Enum) {
+                if(record && !discriminantOnly(g.global, *record)) {
                     // Neither is a folded record, for the stronger reason: its tag is not stored
                     // anywhere at all. The place stays on the payload and the load and the store
                     // intercept - see PlaceBits::foldedTag.
@@ -368,6 +368,19 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
 
                     break;
                 }
+
+                /*
+                 * The one field of a tuple that is that field here - `data Array(a) {items: %a}`,
+                 * whose value is the host array rather than an object holding one. There is no
+                 * property to descend into and the walk stays exactly where it is.
+                 *
+                 * Before the scalar case below rather than after it: a transparent tuple's own
+                 * `scalarBits` is zero, so `isJsObject` answers about its *field*, and a field that
+                 * is not an object would otherwise send this into the bit-range branch with a word
+                 * width of nothing.
+                 */
+                TypePtr transparent = nullptr;
+                if(isNewtype(g, owner, transparent)) break;
 
                 auto entry = ((TupType*)g.global[owner])->fields.get(g.global, step.index);
 

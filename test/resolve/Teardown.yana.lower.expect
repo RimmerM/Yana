@@ -30,8 +30,15 @@ useSession<complex>(%s: Ptr): Int {
   b_0 {
     %v_1 = add %s, 12: Ptr
     %v_2 = loads %v_1, 4: Int
-    call_complex drop$Session, %s
-    call_complex reclaim$Session, %s
+    %v_3 = loads @effects, 4: Int
+    %v_4 = add %v_3, %v_2: Int
+    store @effects, %v_4, 4
+    %v_5 = loads @released, 4: Int
+    %v_6 = add %v_5, 1: Int
+    store @released, %v_6, 4
+    %v_7 = load %s, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
     ret %v_2
   }
 }
@@ -220,20 +227,24 @@ Reclaim(Buffer).reclaim<complex>(%value: Ptr) {
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    call_complex makeBuffer, %v_2, 4
-    copy %v_1, %v_2, 12
-    %v_3 = add %v_1, 12: Ptr
-    store %v_3, 7, 4
+    %v_2 = call_complex allocateHeap, 32: Ptr
+    %cells = bitcast %v_2: Ptr
+    %v_3 = alloca 12, 8: Ptr
+    store %v_3, %cells, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 4, 4
+    copy %v_1, %v_3, 12
+    %v_5 = add %v_1, 12: Ptr
+    store %v_5, 7, 4
     %session = alloca 16, 8: Ptr
     copy %session, %v_1, 16
     %used = call_complex useSession, %session: Int
-    %v_4 = add %used, 35: Int
-    %v_5 = loads @effects, 4: Int
-    %v_6 = add %v_4, %v_5: Int
-    %v_7 = loads @released, 4: Int
-    %v_8 = sub %v_6, %v_7: Int
-    ret %v_8
+    %v_6 = add %used, 35: Int
+    %v_7 = loads @effects, 4: Int
+    %v_8 = add %v_6, %v_7: Int
+    %v_9 = loads @released, 4: Int
+    %v_10 = sub %v_8, %v_9: Int
+    ret %v_10
   }
 }
 

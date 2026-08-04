@@ -529,25 +529,23 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
 
         // The slot bindFunctionArgs made for the parameter. It held the caller's address; it is
         // about to hold this frame's storage, which is the only thing about the body that changes.
-        auto local = maxLimit<U32>;
-        for(U32 j = 0; j < function.localCount(); j++) {
-            if(function.localAt(opt.local, j).value == (ModulePtr<Value>)argPointer) local = j;
-        }
-
+        auto local = arg->slot;
         assertTrue(local != maxLimit<U32>);
 
         auto allocation = createInst<InstAlloc>(*opt.module, *opt.function, *entry, arg->source,
                                                 arg->name, arg->type, local);
         prologue.push(allocation);
 
+        auto storage = (ModulePtr<Value>)(allocation - opt.local);
+        function.setLocalValue(opt.local, local, storage);
+
         auto slot = function.localAt(opt.local, local);
-        slot.value = (ModulePtr<Value>)(allocation - opt.local);
         slot.borrowed = false;
         slot.convention = ast::BindType::Borrow;
         function.locals.set(opt.local, local, slot);
 
         retired.push((ModulePtr<Value>)argPointer);
-        standIn.push(slot.value);
+        standIn.push(storage);
 
         for(Size j = 0; j < plan.count[i]; j++) {
             auto& leaf = plan.leaves[plan.start[i] + j];

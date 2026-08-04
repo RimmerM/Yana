@@ -1069,9 +1069,9 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     ret
 }
 
-fn drop$Maybe(Buffer)(%value: %Maybe(Buffer)) -> () {
+fn drop$Maybe(Buffer)(%value: Maybe(Buffer)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -1079,7 +1079,7 @@ fn drop$Maybe(Buffer)(%value: %Maybe(Buffer)) -> () {
     ret
 
   b2:
-    drop [%value]@Just via Drop(Buffer).drop
+    drop %value@Just via Drop(Buffer).drop
     jmp b1
 
   b3:

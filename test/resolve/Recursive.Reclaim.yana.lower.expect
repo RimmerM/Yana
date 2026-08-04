@@ -151,7 +151,9 @@ reclaim$List<complex>(%value: Ptr) {
   b_6 {
     %v_9 = load %value, 8: Ptr
     call_complex reclaim$List, %v_9
-    call_complex freeHeap, %v_9
+    %v_10 = load %value, 8: Ptr
+    %v_11 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_11
     jmp b_8
   }
 

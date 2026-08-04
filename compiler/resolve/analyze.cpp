@@ -99,9 +99,14 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
          * itself forever; `Sink::sink` empties its source into the destination, so what is left is
          * not something to release either. Both are the two places in the language where a `->`
          * parameter's disposal is the body's own business.
+         *
+         * Derived teardown glue is the third and is asked by flag rather than by class, because it
+         * is anonymous and has no `instanceOf` to be recognized by - see Function::disposer, which
+         * records why it needs one now and did not before.
          */
         auto parameter = isParameterSlot(analysis, l);
-        auto disposer = function.instanceOf == module.coreClasses.drop ||
+        auto disposer = function.disposer ||
+                        function.instanceOf == module.coreClasses.drop ||
                         function.instanceOf == module.coreClasses.reclaim ||
                         function.instanceOf == module.coreClasses.sink;
 

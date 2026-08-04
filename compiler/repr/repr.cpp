@@ -357,6 +357,25 @@ void ReprTable::compute(TypePtr type, Repr& into) {
 }
 
 /*
+ * The declaration answers Enum/Single/Multi; this answers what the *arguments* made of it - see the
+ * header, which is where the argument for both lives.
+ *
+ * What it is for is a substituted unit. `Step(r)` is `Outcome({}, r)`, so an iterator's per-step
+ * signal is a two-constructor sum whose payloads are both empty, and on JS it was an object with one
+ * `$tag` property allocated once per loop iteration.
+ */
+bool discriminantOnly(GlobalBase global, RecordType& record) {
+    if(record.layout == RecordType::Enum) return true;
+    if(record.layout != RecordType::Multi) return false;
+
+    for(auto constructor: record.constructors.contents(global)) {
+        if(constructor.content && !isUnit(global, constructor.content)) return false;
+    }
+
+    return true;
+}
+
+/*
  * The niche a host value has, on a target where a value is not a word.
  *
  * Run over every representation after the search has produced whatever it produces, because the
@@ -402,7 +421,7 @@ void ReprTable::hostNiche(TypePtr type, Repr& into) {
             if(record->layout == RecordType::Single) return;
 
             // An enum is its discriminant, which is a number.
-            if(record->layout == RecordType::Enum) {
+            if(discriminantOnly(global, *record)) {
                 isNumber = true;
                 break;
             }
@@ -1005,10 +1024,18 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
         payloadAlign = max(payloadAlign, content.align);
     }
 
-    if(record.layout == RecordType::Enum) {
-        // A payload-free sum *is* its discriminant, so it is a scalar of however many bits its
-        // constructor count needs - which is what lets a pair of `Bool`s share a byte.
-        into.scalarBits = valueWidth(global, (Type*)&record - global).logical;
+    if(discriminantOnly(global, record)) {
+        /*
+         * A payload-free sum *is* its discriminant, so it is a scalar of however many bits its
+         * constructor count needs - which is what lets a pair of `Bool`s share a byte.
+         *
+         * Computed here rather than asked of `valueWidth`, which answers about the *declaration* and
+         * so declines a `Multi` record whatever its arguments substituted to. The two agree wherever
+         * both have an answer, and where they do not this is the one that has seen the arguments.
+         */
+        U32 bits = 1;
+        while((Size(1) << bits) < constructors.size()) bits++;
+        into.scalarBits = bits;
 
         /*
          * No payload at all: the value is its discriminant, and it costs what that discriminant

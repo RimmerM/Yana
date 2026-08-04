@@ -542,9 +542,9 @@ fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> &Tree {
     ret %v2
 }
 
-fn drop$Tree(%value: %Tree) -> () {
+fn drop$Tree(%value: Tree) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -552,17 +552,17 @@ fn drop$Tree(%value: %Tree) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Branch.left via drop$Maybe(Tree)
-    drop_derived [%value]@Branch.right via drop$Maybe(Tree)
+    drop_derived %value@Branch.left via drop$Maybe(Tree)
+    drop_derived %value@Branch.right via drop$Maybe(Tree)
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Maybe(Tree)(%value: %Maybe(Tree)) -> () {
+fn drop$Maybe(Tree)(%value: Maybe(Tree)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -570,16 +570,16 @@ fn drop$Maybe(Tree)(%value: %Maybe(Tree)) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Just.* via drop$Tree
+    drop_derived %value@Just.* via drop$Tree
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$Tree(%value: %Tree) -> () {
+fn reclaim$Tree(%value: Tree) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -587,17 +587,17 @@ fn reclaim$Tree(%value: %Tree) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Branch.left reclaim reclaim$Maybe(Tree)
-    drop_derived [%value]@Branch.right reclaim reclaim$Maybe(Tree)
+    drop_derived %value@Branch.left reclaim reclaim$Maybe(Tree)
+    drop_derived %value@Branch.right reclaim reclaim$Maybe(Tree)
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$Maybe(Tree)(%value: %Maybe(Tree)) -> () {
+fn reclaim$Maybe(Tree)(%value: Maybe(Tree)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -605,16 +605,16 @@ fn reclaim$Maybe(Tree)(%value: %Maybe(Tree)) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Just.* reclaim reclaim$Tree release
+    drop_derived %value@Just.* reclaim reclaim$Tree release
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$List(%value: %List) -> () {
+fn drop$List(%value: List) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -622,16 +622,16 @@ fn drop$List(%value: %List) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Cons.tail.* via drop$List
+    drop_derived %value@Cons.tail.* via drop$List
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$List(%value: %List) -> () {
+fn reclaim$List(%value: List) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -639,16 +639,16 @@ fn reclaim$List(%value: %List) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Cons.tail.* reclaim reclaim$List release
+    drop_derived %value@Cons.tail.* reclaim reclaim$List release
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Chain(%value: %Chain) -> () {
+fn drop$Chain(%value: Chain) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -656,17 +656,17 @@ fn drop$Chain(%value: %Chain) -> () {
     ret
 
   b2:
-    drop [%value]@Link.payload via Drop(Tracked).drop
-    drop_derived [%value]@Link.rest.* via drop$Chain
+    drop %value@Link.payload via Drop(Tracked).drop
+    drop_derived %value@Link.rest.* via drop$Chain
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$Chain(%value: %Chain) -> () {
+fn reclaim$Chain(%value: Chain) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -674,7 +674,7 @@ fn reclaim$Chain(%value: %Chain) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Link.rest.* reclaim reclaim$Chain release
+    drop_derived %value@Link.rest.* reclaim reclaim$Chain release
     jmp b1
 
   b3:

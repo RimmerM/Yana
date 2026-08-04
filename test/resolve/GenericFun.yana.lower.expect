@@ -7,9 +7,35 @@ leftOf(Int, Bool)<complex>(%value$first: Int, %value$second: Int): Int {
 
 middle(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
   b_0 {
-    %v_1 = call_complex smaller(Int), %x, %y: Int
-    %v_2 = call_complex smaller(Int), %v_1, %z: Int
-    ret %v_2
+    %v_1 = cmp_ilt %x, %y: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %x], [b_3, %y]: Int
+    %v_6 = cmp_ilt %v_5, %z: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_7, %v_5], [b_8, %z]: Int
+    ret %v_10
   }
 }
 
@@ -96,26 +122,21 @@ empty(Int)<complex>(%v_0: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex identity(Int), 1: Int
-    %v_2 = add %v_1, 26: Int
-    %v_3 = call_complex smaller(Int), 9, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = call_complex smaller(Int), 30, 8: Int
-    %v_6 = call_complex smaller(Int), %v_5, 12: Int
-    %v_7 = add %v_4, %v_6: Int
-    %v_8 = alloca 8, 4: Ptr
-    call_complex wrap(Int), %v_8, 5
-    %v_9 = alloca 8, 4: Ptr
-    copy %v_9, %v_8, 8
-    %v_10 = call_complex orElse(Int), %v_9, 0: Int
-    %v_11 = add %v_7, %v_10: Int
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, 0, 4
-    %v_13 = alloca 8, 4: Ptr
-    copy %v_13, %v_12, 8
-    %v_14 = call_complex orElse(Int), %v_13, 7: Int
-    %v_15 = add %v_11, %v_14: Int
-    ret %v_15
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = alloca 8, 4: Ptr
+    copy %v_3, %v_1, 8
+    %v_4 = call_complex orElse(Int), %v_3, 0: Int
+    %v_5 = add %v_4, 39: Int
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 0, 4
+    %v_7 = alloca 8, 4: Ptr
+    copy %v_7, %v_6, 8
+    %v_8 = call_complex orElse(Int), %v_7, 7: Int
+    %v_9 = add %v_5, %v_8: Int
+    ret %v_9
   }
 }
 

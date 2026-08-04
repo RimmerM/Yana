@@ -93,11 +93,13 @@ fn ResolveTest.lambda$3 {
 }
 
 fn drop$(Int) -> Int {
-  arg value readonly
+  arg value unknown retained
+  %value: (Int) -> Int borrowed droppable unknown escapes live [0, 11)
 }
 
 fn reclaim$(Int) -> Int {
-  arg value readonly
+  arg value unknown retained
+  %value: (Int) -> Int borrowed droppable unknown escapes live [0, 11)
 }
 
 fn closureRelease${amount: Int} {

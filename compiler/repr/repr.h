@@ -304,6 +304,20 @@ inline bool isNarrowRepr(const Repr& repr) {
 }
 
 /*
+ * Whether this record is its discriminant and nothing else - at *this* instantiation.
+ *
+ * `computeRecordLayout` in resolve answers Enum/Single/Multi from the declaration alone, and that
+ * invariant is right and is not touched: a generic body projecting into `Maybe(a)` has to emit the
+ * projection every instantiation uses, so a content it cannot see counts as a payload whatever it
+ * turns out to be. What that costs is a substituted unit, and it is the one this asks about.
+ *
+ * Here rather than in resolve because it is only ever true of a *concrete* type, which is what an
+ * emitter has and the resolver does not. Everything that emits a tag asks it, so that "this value is
+ * its tag" is one answer rather than one per backend.
+ */
+bool discriminantOnly(GlobalBase global, RecordType& record);
+
+/*
  * Everything one target decides differently, and nothing else.
  *
  * A `ReprTable` is this plus a cache, so the difference between the native and the JS families is

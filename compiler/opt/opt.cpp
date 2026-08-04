@@ -479,9 +479,14 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
 
-    // Before anything else, and over the whole program at once: it changes signatures, so it is the
-    // one thing here that a single function's optimization cannot contain. What it leaves behind -
-    // a record rebuilt in the callee, taken apart at the caller - is what the passes below remove.
+    // Before anything else here, because everything else here is written under the constraint it
+    // removes - see dischargeOwnership. What it leaves behind is ordinary calls, which the passes
+    // below are entitled to move, fold and copy like any other.
+    dischargeOwnership(opt);
+
+    // Over the whole program at once: it changes signatures, so it is the one thing here that a
+    // single function's optimization cannot contain. What it leaves behind - a record rebuilt in
+    // the callee, taken apart at the caller - is what the passes below remove.
     flattenArguments(opt);
 
     // Also program-wide, also before any function is optimized, and after flattening rather than

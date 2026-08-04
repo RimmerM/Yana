@@ -501,73 +501,8 @@ instance Reclaim(Run(a)):
    answered here instead.
 -}
 
-{-
-   What a `String` is on this target - Implementation-String.md part 2's growable row, and exactly
-   `Array(U8)`'s two words.
 
-   `String` is a primitive rather than a record (see Type::String), because on JS it is the host
-   string and a wrapper there would cost an allocation per string. That leaves the native half
-   needing somewhere to say what the bytes *are*, and this is it: the same run-plus-count a container
-   uses, so a string's capacity, its placement tag and its growth path are `Run`'s and not a second
-   implementation of them.
 
-   `length` is the count in native units - UTF-8 bytes here - which part 3 is careful to say is not a
-   portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
-   differ for exactly the reason they differ in an array.
-
-   Reached only through `stringData` below. Nothing constructs one of these directly, and a program
-   cannot name it: it is in `Native`, so it is behind an import that already means "this is unsafe",
-   and every function that reads it is in Collections.
--}
-@platform(native) data StringData {run: Run(U8), length: Count}
-
-{-
-   The two words of a string, as the record that describes them - Implementation-String.md part 2.
-
-   A **borrow in and a borrow out**, which is the whole of why this is sound. Returning a
-   `StringData` by value would hand back a second owner of one run and the frame would release it
-   twice; returning a borrow of one hands back a *view*, rooted in the string by the ordinary
-   `return` marker, so the borrow checker gives it the string's extent and nothing about ownership
-   moves. It is the same shape `values(self: Flat(a))` has and the same shape `convertSlice` builds,
-   and it costs nothing at run time: the two types occupy the same bytes with the same layout, by
-   construction, since `computeString` asks this record for the string's Repr.
-
-   `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
-   written in terms of this one is native-only and its JS sibling is written against `Host` instead.
--}
-@platform(native) fn stringData(return self: String) -> &StringData
-@platform(native) fn stringDataMut(return &self: String) -> &StringData
-
-{-
-   The other direction, and the only one that makes a string out of nothing.
-
-   Takes its argument by `->` and answers a value, because this *is* the handover: whoever built the
-   `StringData` owned the run, and after this the string owns it. A borrow would be wrong here in the
-   way a value is wrong in `stringData` above - there would be two owners rather than none.
-
-   No `Sink` runs and nothing is copied. The bytes are already in the right shape and the right
-   place; what changes is which type the compiler calls them, exactly as in the other direction.
--}
-@platform(native) fn stringFromData(->value: StringData) -> String
-
-{-
-   What a string literal lowers to - Implementation-String.md part 9.
-
-   The bytes are a constant in the module's data and this is the two words that describe them. It is
-   an ordinary function rather than a compiler-built value because there is nothing compiler-specific
-   left once the bytes exist: resolve emits the global, takes its address, and calls this.
-
-   **`runBorrowed` is what makes a literal free, and it is also what makes it grow correctly.** The
-   run does not own its slots, so `releaseRun` hands nothing back and a literal costs no teardown at
-   all. And `resize` refuses only a `runFixed` run - a *borrowed* one it relocates, by allocating,
-   copying the old capacity and freeing nothing, since there was nothing of its own to free. That is
-   copy-on-write, and it falls out of Implementation-Containers.md §2's existing three answers rather
-   than needing a fourth: appending to a literal copies it to the heap once, and appending again does
-   not.
-
-   `capacity` is the byte length rather than zero, because the bytes really are there to be read -
-   this is what lets a literal be indexed and compared without the run ever being touched.
--}
 {-
    The standard output descriptor, as a function rather than as a number Collections would have to
    know - Implementation-Storage.md part 9.
@@ -579,11 +514,6 @@ instance Reclaim(Run(a)):
 -}
 fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
 
-@platform(native) fn stringLiteral(bytes: %U8, length: Int) -> String =
-    stringFromData(StringData {
-        run: Run {items: bytes, capacity: length :: Count, ownsHeap: runBorrowed},
-        length: length :: Count
-    })
 )NATIVE";
 
 /*
@@ -968,13 +898,151 @@ void defineNative(Program& program) {
     // resolved - which happens once every module's declarations have been read.
     defineNativeIndexInstances(*native);
 
+}
+
+/*
+ * NativeText - the half in between.
+ *
+ * Four declarations, and the module exists for the cycle they sit in rather than for what they do.
+ * A native `String` is a run of bytes and a count; a run is Native's, so handing those two words
+ * out has to be behind an import that already means "this is unsafe". But the two words *are* an
+ * `Array(U8)`, and `Array`'s declaration has to be implicitly visible because `[a]` is grammar - so
+ * the reinterpretation is above the container it names and below the algorithms that use it, and
+ * Collections cannot be on both sides of itself.
+ *
+ * So this is the middle layer: it imports Collections, and `Text` imports it. It is **not**
+ * implicitly imported, which is the whole of what keeps `stringFromData` - a `String` forged out of
+ * bytes with no UTF-8 validation anywhere - from being reachable by writing nothing.
+ *
+ * See Implementation-Simplification.md §17. What this replaces is a plan to move `Array` down into
+ * Native, which cannot work: only Core and Collections are implicitly imported, so the type would
+ * leave the scope of every program that writes it out.
+ */
+static const char* kNativeTextSource = R"NATIVETEXT(
+import Native
+
+{-
+   What a `String` is on this target - Implementation-String.md part 2's growable row, and exactly
+   `Array(U8)`'s two words.
+
+   `String` is a primitive rather than a record (see Type::String), because on JS it is the host
+   string and a wrapper there would cost an allocation per string. That leaves the native half
+   needing somewhere to say what the bytes *are*, and this is it: the same run-plus-count a container
+   uses, so a string's capacity, its placement tag and its growth path are `Run`'s and not a second
+   implementation of them.
+
+   `length` is the count in native units - UTF-8 bytes here - which part 3 is careful to say is not a
+   portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
+   differ for exactly the reason they differ in an array.
+
+   **The bytes are an `Array(U8)`, and this is a one-field wrapper over it.** They used to be a
+   second record declared field for field identically - a run and a live prefix - which meant
+   `reserveString` and `reserve` were the same geometric growth written twice and `pushUnit` and
+   `push` the same store-and-bump. Now there is one of each, and copy-on-write is a `Run(a)` property
+   the string inherits rather than a rule anyone writes.
+
+   **The wrapper is not ceremony.** `&Array(U8)` is a *slice* - `resolveType`'s Borrow case says so,
+   and that is the fixed point of the container design: a borrow of a container is a descriptor, never
+   an address of the owner. The string algorithms need the owner, because growing is what they do. So
+   the reinterpretation hands back a borrow of something that is *not* a container and whose one field
+   is, which costs nothing: a single-field record is its field, so the layout `computeString` reads is
+   still exactly `Array(U8)`'s two words.
+
+   Reached only through `stringData` below. A program cannot forge one: this module is not implicitly
+   imported, so naming `stringFromData` takes an import that already means "this is unsafe".
+-}
+@platform(native) data StringData {bytes: Array(U8)}
+
+{-
+   The two words of a string, as the record that describes them - Implementation-String.md part 2.
+
+   A **borrow in and a borrow out**, which is the whole of why this is sound. Returning an
+   `Array(U8)` by value would hand back a second owner of one run and the frame would release it
+   twice; returning a borrow of one hands back a *view*, rooted in the string by the ordinary
+   `return` marker, so the borrow checker gives it the string's extent and nothing about ownership
+   moves. It is the same shape `values(self: Flat(a))` has and the same shape `convertSlice` builds,
+   and it costs nothing at run time: the two types occupy the same bytes with the same layout, by
+   construction, since `computeString` asks this record for the string's Repr.
+
+   `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
+   written in terms of this one is native-only and its JS sibling is written against `Host` instead.
+-}
+@platform(native) fn stringData(return self: String) -> &StringData
+@platform(native) fn stringDataMut(return &self: String) -> &StringData
+
+{-
+   The other direction, and the only one that makes a string out of nothing.
+
+   Takes its argument by `->` and answers a value, because this *is* the handover: whoever built the
+   `Array(U8)` owned the run, and after this the string owns it. A borrow would be wrong here in the
+   way a value is wrong in `stringData` above - there would be two owners rather than none.
+
+   No `Sink` runs and nothing is copied. The bytes are already in the right shape and the right
+   place; what changes is which type the compiler calls them, exactly as in the other direction.
+-}
+@platform(native) fn stringFromData(->value: StringData) -> String
+
+{-
+   What a string literal lowers to - Implementation-String.md part 9.
+
+   The bytes are a constant in the module's data and this is the two words that describe them. It is
+   an ordinary function rather than a compiler-built value because there is nothing compiler-specific
+   left once the bytes exist: resolve emits the global, takes its address, and calls this.
+
+   **`runBorrowed` is what makes a literal free, and it is also what makes it grow correctly.** The
+   run does not own its slots, so `releaseRun` hands nothing back and a literal costs no teardown at
+   all. And `resize` refuses only a `runFixed` run - a *borrowed* one it relocates, by allocating,
+   copying the old capacity and freeing nothing, since there was nothing of its own to free. That is
+   copy-on-write, and it falls out of Implementation-Containers.md §2's existing three answers rather
+   than needing a fourth: appending to a literal copies it to the heap once, and appending again does
+   not.
+
+   `capacity` is the byte length rather than zero, because the bytes really are there to be read -
+   this is what lets a literal be indexed and compared without the run ever being touched.
+-}
+@platform(native) fn stringLiteral(bytes: %U8, length: Int) -> String =
+    stringFromData(StringData {bytes: Array {
+        run: Run {items: bytes, capacity: length :: Count, ownsHeap: runBorrowed},
+        length: length :: Count
+    }})
+
+)NATIVETEXT";
+
+void defineNativeText(Program& program) {
+    auto& context = program.context;
+
+    auto name = context.addQualifiedName("NativeText", 10, 1);
+    Lexer lexer(context, context.diagnostics, StringView { kNativeTextSource, stringLength(kNativeTextSource) }, name);
+    Parser parser(context, lexer, name);
+
+    // The three reinterpretations are declarations without bodies - `attachIntrinsic` below is what
+    // gives them one - so this module is parsed on the same terms as Core, Native and Host.
+    parser.allowSignatures = true;
+
+    auto ast = new ast::Module(parser.parseModule());
+
+    auto module = program.addModule(ast->name, *ast->region);
+    program.embeddedAsts.push(ast);
+    program.nativeText = module;
+
+    resolveModuleDecls(*module, *ast, nullptr);
+
+    auto named = [&](const char* text, Size length) -> TypePtr {
+        auto found = module->namedTypes.get(context.addQualifiedName(text, length, 1));
+        return found ? found.unwrap() : nullptr;
+    };
+
     /*
      * What a native `String` occupies - see Type::String and `computeString`.
      *
-     * Set here rather than in `defineCore`, because the record naming it is declared above and Core
-     * is built first. Nothing asks a string for its layout before lowering, which is long after
-     * this. On JS the declaration is `@platform`-excluded, so `named` answers null and the string
-     * stays what it is there: one host value with nothing to lay out.
+     * The wrapper rather than `Array(U8)` itself, and the two are the same bytes: a single-field
+     * record is its field. What the wrapper buys is that a borrow of it is a *borrow* - see the
+     * declaration, and `resolveType`'s Borrow case, which makes a borrow of a container a slice.
+     *
+     * Set here rather than in `defineCore` or `defineNative` because the record is declared in this
+     * module and both of those are built first. Nothing asks a string for its layout until lowering,
+     * which is long after. On JS the declaration is `@platform`-excluded, so `named` answers null and
+     * the string stays what it is there: one host value with nothing to lay out.
      */
     auto stringData = named("StringData", 10);
     ((StringType*)(*program.types)[program.scalar.string_])->content =
@@ -985,19 +1053,22 @@ void defineNative(Program& program) {
      * The two reinterpretations, which are the only compiler-supplied String operations: everything
      * else about a native string is written in Yana over the record they hand back.
      *
-     * Attached only where they were declared, exactly as `Host` attaches its own. Both are
-     * `@platform(native)`, so a JS build read neither declaration and there is nothing to hook -
+     * Attached only where they were declared, exactly as `Host` attaches its own. All are
+     * `@platform(native)`, so a JS build read none of the declarations and there is nothing to hook -
      * which `attachIntrinsic` reports as an internal error rather than skipping, and rightly, since
      * a missing declaration is normally a typo.
      */
     if(stringData) {
-        attachIntrinsic(*native, "stringData"_v, emitStringData<false>);
-        attachIntrinsic(*native, "stringDataMut"_v, emitStringData<true>);
-        attachIntrinsic(*native, "stringFromData"_v, emitStringFromData);
+        attachIntrinsic(*module, "stringData"_v, emitStringData<false>);
+        attachIntrinsic(*module, "stringDataMut"_v, emitStringData<true>);
+        attachIntrinsic(*module, "stringFromData"_v, emitStringFromData);
 
         // Recorded for the same reason `allocateHeap` is: a string literal is emitted by the
         // resolver, which has a global's address and a length and no name resolution to reach a
         // constructor through. See Program::stringLiteral.
-        program.stringLiteral = findNative("stringLiteral", 13);
+        auto literal = module->functions.get(context.addUnqualifiedName("stringLiteral", 13));
+        program.stringLiteral = literal ? literal.unwrap() : nullptr;
     }
+
+    resolveModuleBodies(*module);
 }

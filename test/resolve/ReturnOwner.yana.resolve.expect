@@ -1587,8 +1587,8 @@ fn roundTrip(Int)(%xs: Array(Int)) -> Array(Int) {
     ret %ys
 }
 
-fn reclaim$Cell(%value: %Cell) -> () {
+fn reclaim$Cell(%value: Cell) -> () {
   b0:
-    drop [%value]@Cell.slots reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Cell.slots reclaim Reclaim(Array(a)).reclaim(Int)
     ret
 }

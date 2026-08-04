@@ -214,7 +214,8 @@ writesThrough<complex>(): Int {
 reclaim$Config<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
+    %v_2 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_2
     ret 
   }
 }

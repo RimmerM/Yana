@@ -12,38 +12,42 @@ Try(Maybe(a), a, ()).toOutcome(Array(Int))<complex>(%v_0: Ptr, %value: Ptr) {
     je %v_6, b_7, b_8
   }
 
-  b_9 {
-    %v_10 = alloca 16, 8: Ptr
-    %v_11 = add %v_10, 12: Ptr
-    store %v_11, 1073741824, 4
-    jmp b_12
+  b_8 {
+    %v_9 = add %value, 12: Ptr
+    %v_10 = load %v_9, 4: Long
+    %v_11 = cmp_le %v_10, 1073741823: Int
+    %v_12 = select 1, 0, %v_11: Int
+    %v_13 = cmp_eq %v_12, 1: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_14 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %value
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = alloca 16, 8: Ptr
+    %v_18 = add %v_17, 12: Ptr
+    store %v_18, 1073741824, 4
+    jmp b_19
   }
 
   b_7 {
     %inner = alloca 16, 8: Ptr
     copy %inner, %value, 16
-    %v_13 = alloca 16, 8: Ptr
-    copy %v_13, %inner, 16
-    jmp b_12
+    %v_20 = alloca 16, 8: Ptr
+    copy %v_20, %inner, 16
+    jmp b_19
   }
 
-  b_12 {
-    %v_14 = phi [b_7, %v_13], [b_9, %v_10]: Ptr
-    copy %v_0, %v_14, 16
-    ret 
-  }
-
-  b_8 {
-    call_complex reclaim$Maybe(Array(Int)), %value
-    jmp b_9
-  }
-}
-
-Try(Maybe(a), a, ()).fromExit(Int)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 0, 4
-    copy %v_0, %v_2, 8
+  b_19 {
+    %v_21 = phi [b_7, %v_20], [b_16, %v_17]: Ptr
+    copy %v_0, %v_21, 16
     ret 
   }
 }
@@ -85,32 +89,64 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
     je %v_8, b_9, b_10
   }
 
-  b_11 {
-    %v_12 = alloca 1, 1: Ptr
-    %v_13 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_13
-    jmp b_14
-  }
-
   b_10 {
-    %v_15 = load %v_3, 8: Ptr
-    %v_16 = add %v_15, 4: Ptr
-    %v_17 = loads %v_16, 4: Int
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_18 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_18, %v_17
-    jmp b_14
+    %v_11 = load %v_3, 8: Ptr
+    %v_12 = add %v_11, 4: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = add %v_3, 12: Ptr
+    %v_15 = load %v_14, 4: Long
+    %v_16 = cmp_le %v_15, 1073741823: Int
+    %v_17 = select 0, 1, %v_16: Int
+    %v_18 = cmp_eq %v_17, 0: Int
+    je %v_18, b_19, b_20
   }
 
-  b_14 {
-    %v_19 = phi [b_10, %v_18], [b_11, %v_13]: Ptr
-    copy %v_0, %v_19, 8
-    ret 
+  b_20 {
+    jmp b_21
+  }
+
+  b_19 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = alloca 8, 4: Ptr
+    store %v_22, 1, 4
+    %v_23 = add %v_22, 4: Ptr
+    store %v_23, %v_13, 4
+    jmp b_24
   }
 
   b_9 {
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    jmp b_11
+    %v_25 = add %v_3, 12: Ptr
+    %v_26 = load %v_25, 4: Long
+    %v_27 = cmp_le %v_26, 1073741823: Int
+    %v_28 = select 0, 1, %v_27: Int
+    %v_29 = cmp_eq %v_28, 0: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_31 {
+    jmp b_32
+  }
+
+  b_30 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = alloca 1, 1: Ptr
+    %v_34 = alloca 8, 4: Ptr
+    store %v_34, 0, 4
+    jmp b_24
+  }
+
+  b_24 {
+    %v_35 = phi [b_21, %v_22], [b_32, %v_34]: Ptr
+    copy %v_0, %v_35, 8
+    ret 
   }
 }
 
@@ -128,42 +164,63 @@ sum<complex>(%v_0: Ptr, %n: Int) {
     je %v_8, b_9, b_10
   }
 
-  b_11 {
-    %v_12 = alloca 1, 1: Ptr
-    %v_13 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_13
-    jmp b_14
-  }
-
   b_10 {
-    %v_15 = load %v_3, 8: Ptr
-    %v_16 = add %v_15, 0: Ptr
-    %v_17 = loads %v_16, 4: Int
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_18 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_18, %v_17
-    jmp b_14
+    %v_11 = load %v_3, 8: Ptr
+    %v_12 = add %v_11, 0: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = add %v_3, 12: Ptr
+    %v_15 = load %v_14, 4: Long
+    %v_16 = cmp_le %v_15, 1073741823: Int
+    %v_17 = select 0, 1, %v_16: Int
+    %v_18 = cmp_eq %v_17, 0: Int
+    je %v_18, b_19, b_20
   }
 
-  b_14 {
-    %v_19 = phi [b_10, %v_18], [b_11, %v_13]: Ptr
-    copy %v_0, %v_19, 8
-    ret 
+  b_20 {
+    jmp b_21
+  }
+
+  b_19 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = alloca 8, 4: Ptr
+    store %v_22, 1, 4
+    %v_23 = add %v_22, 4: Ptr
+    store %v_23, %v_13, 4
+    jmp b_24
   }
 
   b_9 {
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    jmp b_11
+    %v_25 = add %v_3, 12: Ptr
+    %v_26 = load %v_25, 4: Long
+    %v_27 = cmp_le %v_26, 1073741823: Int
+    %v_28 = select 0, 1, %v_27: Int
+    %v_29 = cmp_eq %v_28, 0: Int
+    je %v_29, b_30, b_31
   }
-}
 
-Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int)<complex>(%v_0: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %value, 4
-    copy %v_0, %v_2, 8
+  b_31 {
+    jmp b_32
+  }
+
+  b_30 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = alloca 1, 1: Ptr
+    %v_34 = alloca 8, 4: Ptr
+    store %v_34, 0, 4
+    jmp b_24
+  }
+
+  b_24 {
+    %v_35 = phi [b_21, %v_22], [b_32, %v_34]: Ptr
+    copy %v_0, %v_35, 8
     ret 
   }
 }
@@ -310,66 +367,37 @@ reclaim$Outcome(Array(Int), ())<complex>(%value: Ptr) {
     je %v_5, b_6, b_7
   }
 
-  b_7 {
-    jmp b_8
-  }
-
-  b_6 {
-    %v_9 = add %value, 8: Ptr
-    %v_10 = load %v_9, 4: Long
-    %v_11 = shr %v_10, 30: Long
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    %v_17 = load %value, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
-    jmp b_16
-  }
-
-  b_16 {
-    jmp b_8
-  }
-
   b_8 {
     ret 
   }
-}
-
-reclaim$Maybe(Array(Int))<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 12: Ptr
-    %v_2 = load %v_1, 4: Long
-    %v_3 = cmp_le %v_2, 1073741823: Int
-    %v_4 = select 1, 0, %v_3: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
 
   b_6 {
-    %v_8 = add %value, 12: Ptr
-    %v_9 = load %v_8, 4: Int
-    %v_10 = add %value, 8: Ptr
-    %v_11 = load %v_10, 4: Long
-    %v_12 = shr %v_11, 30: Long
-    %v_13 = cast %v_12: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = cmp_eq %v_14, 1: Int
-    je %v_15, b_16, b_7
-  }
-
-  b_16 {
-    %v_17 = load %value, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
-    jmp b_7
+    call_complex Reclaim(Array(a)).reclaim(Int), %value
+    jmp b_8
   }
 
   b_7 {
+    jmp b_8
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
     ret 
   }
 }

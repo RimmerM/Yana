@@ -302,9 +302,9 @@ fn ResolveTest.lambda$0(%env: %{g: Guard}) -> Int {
     ret %v2
 }
 
-fn drop${g: Guard}(%value: %{g: Guard}) -> () {
+fn drop${g: Guard}(%value: {g: Guard}) -> () {
   b0:
-    drop [%value].g via Drop(Guard).drop
+    drop %value.g via Drop(Guard).drop
     ret
 }
 
@@ -320,15 +320,15 @@ fn closureRelease${g: Guard}(%env: %{g: Guard}) -> () {
     ret
 }
 
-fn drop$() -> Int(%value: %() -> Int) -> () {
+fn drop$() -> Int(%value: () -> Int) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long
@@ -341,15 +341,15 @@ fn drop$() -> Int(%value: %() -> Int) -> () {
     ret
 }
 
-fn reclaim$() -> Int(%value: %() -> Int) -> () {
+fn reclaim$() -> Int(%value: () -> Int) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long

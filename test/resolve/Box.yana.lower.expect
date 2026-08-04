@@ -6,7 +6,8 @@ reclaim$Pinned<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
     %v_2 = load %v_1, 8: Ptr
-    call_complex freeHeap, %v_2
+    %v_3 = bitcast %v_2: Ptr
+    call_complex freeHeap, %v_3
     ret 
   }
 }
@@ -30,16 +31,23 @@ throughLens<complex>(): Int {
     store %v_8, ResolveTest.continuation$0, 8
     %v_9 = add %v_8, 8: Ptr
     store %v_9, %v_7, 8
-    %v_10 = call_complex levelIn(Int), %v_1, %v_8: Int
+    %v_10 = load %v_1, 8: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = add %v_8, 8: Ptr
+    %v_14 = load %v_8, 8: Ptr
+    %v_15 = load %v_13, 8: Ptr
+    %v_16 = call_complex %v_14, %v_15, %v_12: Int
     call_complex reclaim$Config, %v_1
-    ret %v_10
+    ret %v_16
   }
 }
 
 reclaim$Config<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
+    %v_2 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_2
     ret 
   }
 }
@@ -64,20 +72,18 @@ pinnedValue<complex>(): Int {
     %v_5 = add %p, 8: Ptr
     %v_6 = load %v_5, 8: Ptr
     copy %v_6, %v_1, 8
-    %v_7 = loads %p, 4: Int
-    %v_8 = imul %v_7, 100: Int
-    %v_9 = add %p, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = loads %v_10, 4: Int
-    %v_12 = imul %v_11, 10: Int
-    %v_13 = add %v_8, %v_12: Int
-    %v_14 = add %p, 8: Ptr
-    %v_15 = load %v_14, 8: Ptr
-    %v_16 = add %v_15, 4: Ptr
-    %v_17 = loads %v_16, 4: Int
+    %v_7 = add %p, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = imul %v_9, 10: Int
+    %v_11 = add %v_10, 500: Int
+    %v_12 = add %p, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = add %v_13, 4: Ptr
+    %v_15 = loads %v_14, 4: Int
     call_complex reclaim$Pinned, %p
-    %v_18 = add %v_13, %v_17: Int
-    ret %v_18
+    %v_16 = add %v_11, %v_15: Int
+    ret %v_16
   }
 }
 

@@ -115,9 +115,9 @@ fn Try(Result(e, a), a, e).fromExit(Int, Bool)(%reason: Int) -> Result(Int, Bool
     ret %v1
 }
 
-fn drop$Maybe(Token)(%value: %Maybe(Token)) -> () {
+fn drop$Maybe(Token)(%value: Maybe(Token)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -125,7 +125,7 @@ fn drop$Maybe(Token)(%value: %Maybe(Token)) -> () {
     ret
 
   b2:
-    drop [%value]@Just via Drop(Token).drop
+    drop %value@Just via Drop(Token).drop
     jmp b1
 
   b3:
@@ -876,9 +876,9 @@ fn firstPositive(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
     ret %v14
 }
 
-fn drop$Outcome(Token, ())(%value: %Outcome(Token, ())) -> () {
+fn drop$Outcome(Token, ())(%value: Outcome(Token, ())) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -886,7 +886,7 @@ fn drop$Outcome(Token, ())(%value: %Outcome(Token, ())) -> () {
     ret
 
   b2:
-    drop [%value]@Proceed via Drop(Token).drop
+    drop %value@Proceed via Drop(Token).drop
     jmp b1
 
   b3:

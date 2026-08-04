@@ -49,9 +49,9 @@ fn Try(Maybe(a), a, ()).fromExit(Int)(%reason: ()) -> Maybe(Int) {
     ret %v1
 }
 
-fn reclaim$Maybe(Array(Int))(%value: %Maybe(Array(Int))) -> () {
+fn reclaim$Maybe(Array(Int))(%value: Maybe(Array(Int))) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -59,7 +59,7 @@ fn reclaim$Maybe(Array(Int))(%value: %Maybe(Array(Int))) -> () {
     ret
 
   b2:
-    drop [%value]@Just reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Just reclaim Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b3:
@@ -485,9 +485,9 @@ fn main() -> Int {
     ret %v22
 }
 
-fn reclaim$Outcome(Array(Int), ())(%value: %Outcome(Array(Int), ())) -> () {
+fn reclaim$Outcome(Array(Int), ())(%value: Outcome(Array(Int), ())) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -495,7 +495,7 @@ fn reclaim$Outcome(Array(Int), ())(%value: %Outcome(Array(Int), ())) -> () {
     ret
 
   b2:
-    drop [%value]@Proceed reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Proceed reclaim Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b3:

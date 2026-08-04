@@ -502,8 +502,18 @@ nested<complex>(%n: Int): Int {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = call_complex doubled(Int), %n, %v_1: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = imul %n, 2: Int
+    %v_7 = add %v_1, 8: Ptr
+    %v_8 = load %v_1, 8: Ptr
+    %v_9 = load %v_7, 8: Ptr
+    %v_10 = call_complex %v_8, %v_9, %v_6: Int
+    %v_11 = loads @log, 4: Int
+    %v_12 = add %v_11, 10: Int
+    store @log, %v_12, 4
+    ret %v_10
   }
 }
 
@@ -642,25 +652,48 @@ main<complex>(): Int {
     %i = call_complex reasoned, 18446744073709551615: Int
     %j = call_complex guarded, 1: Int
     %k = call_complex guarded, 0: Int
-    %l = call_complex written, 6: Int
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.lambda$7, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 8, 4: Ptr
+    call_complex findFirst(Int), %v_4, 6, %v_1
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    %v_10 = add %v_4, 4: Ptr
+    %v = loads %v_10, 4: Int
+    jmp b_9
+  }
+
+  b_9 {
+    %v_11 = phi [b_7, %v], [b_8, 0]: Int
     %m = call_complex nested, 3: Int
     %n = call_complex nested, 18446744073709551615: Int
-    %v_1 = add %a, %b: Int
-    %v_2 = add %v_1, %c: Int
-    %v_3 = add %v_2, %d: Int
-    %v_4 = add %v_3, %e: Int
-    %v_5 = add %v_4, %f: Int
-    %v_6 = add %v_5, %g: Int
-    %v_7 = add %v_6, %h: Int
-    %v_8 = add %v_7, %i: Int
-    %v_9 = add %v_8, %j: Int
-    %v_10 = add %v_9, %k: Int
-    %v_11 = add %v_10, %l: Int
-    %v_12 = add %v_11, %m: Int
-    %v_13 = add %v_12, %n: Int
-    %v_14 = loads @log, 4: Int
-    %v_15 = add %v_13, %v_14: Int
-    ret %v_15
+    %v_12 = add %a, %b: Int
+    %v_13 = add %v_12, %c: Int
+    %v_14 = add %v_13, %d: Int
+    %v_15 = add %v_14, %e: Int
+    %v_16 = add %v_15, %f: Int
+    %v_17 = add %v_16, %g: Int
+    %v_18 = add %v_17, %h: Int
+    %v_19 = add %v_18, %i: Int
+    %v_20 = add %v_19, %j: Int
+    %v_21 = add %v_20, %k: Int
+    %v_22 = add %v_21, %v_11: Int
+    %v_23 = add %v_22, %m: Int
+    %v_24 = add %v_23, %n: Int
+    %v_25 = loads @log, 4: Int
+    %v_26 = add %v_24, %v_25: Int
+    ret %v_26
   }
 }
 

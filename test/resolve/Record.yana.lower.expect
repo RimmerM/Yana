@@ -429,32 +429,33 @@ main<complex>(): Int {
     %v_2 = alloca 1, 1: Ptr
     copy %v_2, %v_1, 1
     %v_3 = alloca 1, 1: Ptr
-    call_complex movedExec, %v_3, %v_2
-    %v_4 = call_complex flagBits, %v_3: Int
-    %v_5 = alloca 16, 4: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 2, 4
-    %v_7 = add %v_5, 8: Ptr
-    store %v_7, 3, 4
-    %v_8 = add %v_5, 12: Ptr
-    store %v_8, 4, 4
-    %v_9 = alloca 16, 4: Ptr
-    copy %v_9, %v_5, 16
-    %v_10 = alloca 16, 4: Ptr
-    call_complex movedTo, %v_10, %v_9, 8, 9
-    %v_11 = add %v_10, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = add %v_4, %v_12: Int
+    store %v_3, 0, 1
+    store %v_3, 0, 1
+    copy %v_3, %v_2, 1
+    %v_4 = load %v_3, 1: Int
+    %v_5 = and %v_4, 18446744073709551611: Int
+    %v_6 = or %v_5, 4: Int
+    store %v_3, %v_6, 1
+    %v_7 = call_complex flagBits, %v_3: Int
+    %v_8 = alloca 16, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = add %v_8, 8: Ptr
+    store %v_10, 3, 4
+    %v_11 = add %v_8, 12: Ptr
+    store %v_11, 4, 4
+    %v_12 = alloca 16, 4: Ptr
+    copy %v_12, %v_8, 16
+    %v_13 = add %v_7, 9: Int
     %v_14 = alloca 8, 4: Ptr
     store %v_14, 41, 4
     %v_15 = add %v_14, 4: Ptr
     store %v_15, 0, 4
     %v_16 = alloca 8, 4: Ptr
     copy %v_16, %v_14, 8
-    %v_17 = alloca 8, 4: Ptr
-    call_complex bumpX, %v_17, %v_16
-    %v_18 = loads %v_17, 4: Int
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %v_17, 1: Int
     %v_19 = add %v_13, %v_18: Int
     %v_20 = alloca 16, 4: Ptr
     store %v_20, 1, 4
@@ -466,9 +467,8 @@ main<complex>(): Int {
     store %v_23, 4, 4
     %v_24 = alloca 16, 4: Ptr
     copy %v_24, %v_20, 16
-    %v_25 = alloca 16, 4: Ptr
-    call_complex movedCorners, %v_25, %v_24
-    %v_26 = loads %v_25, 4: Int
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = add %v_25, 10: Int
     %v_27 = add %v_19, %v_26: Int
     %v_28 = alloca 16, 4: Ptr
     store %v_28, 1, 4
@@ -480,44 +480,35 @@ main<complex>(): Int {
     store %v_31, 4, 4
     %v_32 = alloca 16, 4: Ptr
     copy %v_32, %v_28, 16
-    %v_33 = alloca 16, 4: Ptr
-    call_complex movedCorners, %v_33, %v_32
-    %v_34 = add %v_33, 12: Ptr
-    %v_35 = loads %v_34, 4: Int
-    %v_36 = add %v_27, %v_35: Int
-    %v_37 = add %v_36, 6: Int
-    %v_38 = alloca 8, 4: Ptr
-    store %v_38, 0, 4
-    %v_39 = add %v_38, 4: Ptr
-    store %v_39, 0, 4
-    %v_40 = alloca 8, 4: Ptr
-    copy %v_40, %v_38, 8
-    %v_41 = alloca 8, 4: Ptr
-    call_complex movedWithX, %v_41, %v_40, 6
-    %v_42 = loads %v_41, 4: Int
-    %moved = add %v_37, %v_42: Int
-    %v_43 = alloca 1, 1: Ptr
-    store %v_43, 0, 1
-    store %v_43, 0, 1
-    %v_44 = call_complex flagBits, %v_43: Int
-    %v_45 = add %moved, %v_44: Int
-    %v_46 = alloca 1, 1: Ptr
-    store %v_46, 0, 1
-    store %v_46, 1, 1
-    %v_47 = call_complex flagBits, %v_46: Int
-    %v_48 = add %v_45, %v_47: Int
-    %v_49 = alloca 1, 1: Ptr
-    store %v_49, 0, 1
-    store %v_49, 7, 1
-    %v_50 = call_complex flagBits, %v_49: Int
-    %v_51 = add %v_48, %v_50: Int
-    %scalars = add %v_51, 433: Int
-    %v_52 = bitcast 0: Ptr
-    %v_53 = bitcast %v_52: Long
-    %v_54 = add %v_53, 11: Long
-    %v_55 = cast %v_54: Int
-    %v_56 = add %scalars, %v_55: Int
-    ret %v_56
+    %v_33 = alloca 8, 4: Ptr
+    store %v_33, 0, 4
+    %v_34 = add %v_33, 4: Ptr
+    store %v_34, 0, 4
+    %v_35 = alloca 8, 4: Ptr
+    copy %v_35, %v_33, 8
+    %moved = add %v_27, 20: Int
+    %v_36 = alloca 1, 1: Ptr
+    store %v_36, 0, 1
+    store %v_36, 0, 1
+    %v_37 = call_complex flagBits, %v_36: Int
+    %v_38 = add %moved, %v_37: Int
+    %v_39 = alloca 1, 1: Ptr
+    store %v_39, 0, 1
+    store %v_39, 1, 1
+    %v_40 = call_complex flagBits, %v_39: Int
+    %v_41 = add %v_38, %v_40: Int
+    %v_42 = alloca 1, 1: Ptr
+    store %v_42, 0, 1
+    store %v_42, 7, 1
+    %v_43 = call_complex flagBits, %v_42: Int
+    %v_44 = add %v_41, %v_43: Int
+    %scalars = add %v_44, 433: Int
+    %v_45 = bitcast 0: Ptr
+    %v_46 = bitcast %v_45: Long
+    %v_47 = add %v_46, 11: Long
+    %v_48 = cast %v_47: Int
+    %v_49 = add %scalars, %v_48: Int
+    ret %v_49
   }
 }
 

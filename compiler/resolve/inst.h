@@ -320,6 +320,23 @@ struct Value {
     LocationId source = kNullLocation;
     StringId name = 0;
     U32 id = 0;
+
+    /*
+     * The slot this value is the whole contents of, or maxLimit for one that occupies no storage.
+     *
+     * The other half of `Local::value`, and the reason it is a field rather than a search: an
+     * aggregate travels through the IR as the value that produced it, so every pass that asks "which
+     * storage is this" - liveness, the borrow check, the resolver placing a projection - was
+     * answering it by scanning the local table for the slot whose `value` matched. That is O(locals)
+     * per operand per instruction per fixpoint round, and it is a *derivation* of a decision the
+     * frontend already made: `call->local` names the destination at the point the call is built.
+     *
+     * Written by Function::addLocal, which is the one place a slot is paired with the value that
+     * fills it. A value bound to two slots would answer with the later one, which is why nothing
+     * binds one twice - see the assertion in backingLocal.
+     */
+    U32 slot = maxLimit<U32>;
+
     Kind kind;
 };
 
@@ -1101,6 +1118,44 @@ inline bool firstPlace(const Value& instruction, Place& target) {
 
     target = places[0];
     return true;
+}
+
+/*
+ * The operands one instruction hands ownership *out* through.
+ *
+ * The four departure points - a write into another place, an exchange, a return, and a phi input -
+ * and the argument for gathering them is the one `instructionPlaces` makes above: they were four
+ * cases enumerated by hand in the borrow checker, and an instruction added to the IR that departs in
+ * a fifth way would have been silently exempt from every rule written over them.
+ *
+ * An *argument* is deliberately not one. Handing a borrowed value on as an argument re-borrows it -
+ * another immutable borrow, or the one mutable borrow forwarded - and the callee's convention is
+ * what says whether it was taken. That is what keeps this off the case that should stay legal.
+ *
+ * `f` is called with the operand and the location to blame for it. A phi's inputs are blamed on the
+ * phi, because the operand is a value with no instruction of its own to name.
+ */
+template<class F>
+inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
+    switch(instruction.kind) {
+        case Value::Init:
+        case Value::Assign:
+            f(((InstInit&)instruction).value, instruction.source);
+            break;
+        case Value::Exchange:
+            f(((InstExchange&)instruction).value, instruction.source);
+            break;
+        case Value::Ret:
+            f(((InstRet&)instruction).value, instruction.source);
+            break;
+        case Value::Phi:
+            for(auto input: ((InstPhi&)instruction).inputs.contents(base)) {
+                f(input.value, instruction.source);
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 // How a binding convention is named in a diagnostic. The sigil for the two that have one, and a

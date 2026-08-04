@@ -1130,8 +1130,7 @@ static void cloneBody(Clone& clone, Function& to) {
         if(!argument) continue;
 
         auto allocation = clone.resolver.emit<InstAlloc>(clone.source, target.name, target.type, U32(i));
-        target.value = clone.resolver.ref(allocation);
-        to.locals.set(local, i, target);
+        to.setLocalValue(local, U32(i), clone.resolver.ref(allocation));
         materialized.set(i, true);
 
         clone.resolver.initialize(Place::inLocal(U32(i)), argument, clone.source);
@@ -1154,9 +1153,7 @@ static void cloneBody(Clone& clone, Function& to) {
         auto slot = from.localAt(local, U32(i));
         if(!slot.value || local[slot.value]->kind != Value::Arg) continue;
 
-        auto target = to.localAt(local, U32(i));
-        target.value = cloneDefinition(clone, slot.value);
-        to.locals.set(local, i, target);
+        to.setLocalValue(local, U32(i), cloneDefinition(clone, slot.value));
     }
 
     // Phi shells first: a phi is the one instruction whose operands need not dominate it, so
@@ -1205,9 +1202,7 @@ static void cloneBody(Clone& clone, Function& to) {
     for(Size i = 0; i < from.localCount(); i++) {
         if(materialized[i]) continue;
 
-        auto slot = to.localAt(local, U32(i));
-        slot.value = cloneDefinition(clone, from.localAt(local, U32(i)).value);
-        to.locals.set(local, i, slot);
+        to.setLocalValue(local, U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
     }
 }
 

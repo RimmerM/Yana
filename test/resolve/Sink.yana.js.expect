@@ -81,15 +81,24 @@ function retag(p) {
 }
 
 function main() {
-  var result = direct();
+  var h = { value: 10n };
+  var g = { value: 0n };
+  Sink_Handle_sink(g, h);
+  var result = g.value;
   if (sinkCalls.$v !== 1n) {
     return -1n;
   } else {
-    result = BigInt.asIntN(64, result + derived());
+    var p = { left: { value: 20n }, right: 3n };
+    var q = { left: { value: 0n }, right: 0n };
+    moveInit$Pair(q, p);
+    result = BigInt.asIntN(64, result + BigInt.asIntN(64, q.left.value + q.right));
     if (sinkCalls.$v !== 2n) {
       return -2n;
     } else {
-      result = BigInt.asIntN(64, result + nested());
+      var n = { inner: { left: { value: 40n }, right: 1n }, tag: 4n };
+      var m = { inner: { left: { value: 0n }, right: 0n }, tag: 0n };
+      moveInit$Nest(m, n);
+      result = BigInt.asIntN(64, result + BigInt.asIntN(64, BigInt.asIntN(64, m.inner.left.value + m.inner.right) + m.tag));
       if (sinkCalls.$v !== 3n) {
         return -3n;
       } else {
@@ -107,11 +116,11 @@ function main() {
             } else {
               var closed = captured({ value: 30n });
               if (sinkCalls.$v !== 5n) {
-                drop$_sub_gt_I64({ $v: closed });
+                drop$_sub_gt_I64(closed);
                 return -7n;
               } else {
                 var v109 = closed();
-                drop$_sub_gt_I64({ $v: closed });
+                drop$_sub_gt_I64(closed);
                 result = BigInt.asIntN(64, result + v109);
                 var retagged = retag({ left: { value: 60n }, right: 6n });
                 if (sinkCalls.$v !== 6n) {
@@ -127,9 +136,9 @@ function main() {
                     if (sinkCalls.$v !== 8n) {
                       return -10n;
                     } else {
-                      var v218 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
-                      result = v218;
-                      return BigInt.asIntN(64, v218 + sinkCalls.$v);
+                      var v265 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
+                      result = v265;
+                      return BigInt.asIntN(64, v265 + sinkCalls.$v);
                     }
                   }
                 }
@@ -191,17 +200,17 @@ function relocate_Pair(x) {
 }
 
 function drop$_sub_gt_I64(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[0](v1);
+    value.$h[0](v1);
   }
   return;
 }
 
 function reclaim$_sub_gt_I64(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[8](v1);
+    value.$h[8](v1);
   }
   return;
 }

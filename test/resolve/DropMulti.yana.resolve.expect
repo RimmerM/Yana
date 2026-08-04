@@ -315,9 +315,9 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     ret
 }
 
-fn drop$Slot(%value: %Slot) -> () {
+fn drop$Slot(%value: Slot) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -325,17 +325,17 @@ fn drop$Slot(%value: %Slot) -> () {
     ret
 
   b2:
-    drop [%value]@One.only via Drop(Buffer).drop
+    drop %value@One.only via Drop(Buffer).drop
     jmp b1
 
   b3:
-    %v7 = load [%value].discriminant : Int
+    %v7 = load %value.discriminant : Int
     %v9 = cmp_eq %v7, 2 : Bool
     je %v9, b4, b5
 
   b4:
-    drop [%value]@Two.first via Drop(Buffer).drop
-    drop [%value]@Two.second via Drop(Buffer).drop
+    drop %value@Two.first via Drop(Buffer).drop
+    drop %value@Two.second via Drop(Buffer).drop
     jmp b1
 
   b5:

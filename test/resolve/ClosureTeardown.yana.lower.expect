@@ -79,10 +79,13 @@ either<complex>(%pick: Int, %a: Int, %b: Int): Int {
 
   b_7 {
     %f = phi [b_2, %v_5], [b_3, %v_9]: Ptr
-    %v_11 = call_complex apply, %f, 10: Int
+    %v_11 = add %f, 8: Ptr
+    %v_12 = load %f, 8: Ptr
+    %v_13 = load %v_11, 8: Ptr
+    %v_14 = call_complex %v_12, %v_13, 10: Int
     call_complex drop$(Int) -> Int, %f
     call_complex reclaim$(Int) -> Int, %f
-    ret %v_11
+    ret %v_14
   }
 }
 
@@ -94,8 +97,11 @@ direct<complex>(%base: Int): Int {
     store %v_2, ResolveTest.lambda$0, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = call_complex apply, %v_2, 1: Int
-    ret %v_4
+    %v_4 = add %v_2, 8: Ptr
+    %v_5 = load %v_2, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = call_complex %v_5, %v_6, 1: Int
+    ret %v_7
   }
 }
 

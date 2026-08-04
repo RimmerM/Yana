@@ -177,7 +177,14 @@ enum class Teardown: U8 {
 // for a derived one - or null where that half has nothing to do. Exposed because a TypeDesc names
 // both halves and is built outside this pass; `module` is where the instances are looked up and
 // where generated glue lands.
+//
+// This is what a *concrete* drop site calls, and it takes its subject by `->`.
 ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardown half, LocationId source);
+
+// The same half, entered the way a descriptor slot has to enter it: one `%T` parameter, whatever the
+// implementation's own convention is. Null exactly where teardownImplementation is null. See the
+// definition for why the two cannot be one function.
+ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, LocationId source);
 
 // Writes the analysis result for the whole program, in the same golden-file spirit as the resolve
 // and lower IR dumps. This is what makes liveness inspectable rather than only trusted.

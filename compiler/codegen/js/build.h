@@ -775,6 +775,8 @@ TypePtr foldedPayload(Gen& g, TypePtr record);
  * constructors that both name a field share the property. That is sound because only one of them is
  * live at a time, and it is what keeps the type to one hidden class instead of one per constructor.
  */
+bool isNewtype(Gen& g, TypePtr type, TypePtr& content);
+
 template<class F>
 void eachProperty(Gen& g, TypePtr type, F&& f) {
     if(!type || isUnit(g.global, type)) return;
@@ -786,6 +788,14 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
     if(value->kind == Type::Fun) return;
 
     if(value->kind == Type::Tup) {
+        // A one-field tuple is that field here, so its properties are the field's - see isNewtype,
+        // which is where that unwrapping is decided for every reader of a shape.
+        TypePtr inner = nullptr;
+        if(isNewtype(g, type, inner)) {
+            eachProperty(g, inner, forward<F>(f));
+            return;
+        }
+
         auto count = ((TupType*)value)->fields.size();
         for(U16 slot = 0; slot < count; slot++) {
             // A co-packed run is one property, contributed by the field at bit zero of it. Skipping
@@ -800,7 +810,11 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
     if(value->kind != Type::Record) return;
 
     auto record = (RecordType*)value;
-    if(record->layout == RecordType::Enum) return;
+
+    // A record that is its discriminant has no properties at all - the value is the tag number.
+    // Asked of the instantiation rather than of the declared layout, since a sum whose payloads all
+    // substituted to unit is one of these too; see discriminantOnly.
+    if(discriminantOnly(g.global, *record)) return;
 
     if(record->layout == RecordType::Single) {
         if(record->constructors.isNotEmpty()) {

@@ -15,7 +15,7 @@ function apply(f, x) {
 }
 
 function direct(base) {
-  return apply(ResolveTest_lambda$0$make({ base: base }), 1);
+  return ResolveTest_lambda$0$make({ base: base })(1);
 }
 
 function either(pick, a, b) {
@@ -25,9 +25,9 @@ function either(pick, a, b) {
   } else {
     f = ResolveTest_lambda$2$make({ b: b });
   }
-  var v25 = apply(f, 10);
-  drop$_Int_sub_gt_Int({ $v: f });
-  return v25;
+  var v30 = f(10);
+  drop$_Int_sub_gt_Int(f);
+  return v30;
 }
 
 function escaping(amount) {
@@ -40,7 +40,7 @@ function main() {
   var c = either(2, 3, 7);
   var f = escaping(100);
   var d = f(1);
-  drop$_Int_sub_gt_Int({ $v: f });
+  drop$_Int_sub_gt_Int(f);
   return ((a + b | 0) + c | 0) + d | 0;
 }
 
@@ -69,17 +69,17 @@ function ResolveTest_lambda$3$make(env) {
 }
 
 function drop$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[0](v1);
+    value.$h[0](v1);
   }
   return;
 }
 
 function reclaim$_Int_sub_gt_Int(value) {
-  var v1 = value.$v.$e;
+  var v1 = value.$e;
   if (v1 != null) {
-    value.$v.$h[8](v1);
+    value.$h[8](v1);
   }
   return;
 }

@@ -530,3 +530,13 @@ void flattenArguments(OptContext& opt);
  * because what it is for is giving the passes below something to see - see opt_inline.cpp.
  */
 void inlineCalls(OptContext& opt);
+
+/*
+ * Ownership spent into ordinary operations - Implementation-Simplification.md §14.
+ *
+ * Program-wide and before everything else here, because what it removes is the constraint the rest
+ * of this stage is written under: `clonableKind` refuses a body containing an ownership instruction,
+ * so the shapes most worth inlining were the ones that could not be. Its postcondition is per
+ * function - *a non-generic body contains no `Drop`* - and that is the form every consumer needs.
+ */
+void dischargeOwnership(OptContext& opt);

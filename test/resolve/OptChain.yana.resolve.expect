@@ -167,9 +167,9 @@ fn Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int)(%value: Int) -> Maybe
     ret %v1
 }
 
-fn drop$Maybe(Node)(%value: %Maybe(Node)) -> () {
+fn drop$Maybe(Node)(%value: Maybe(Node)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -177,16 +177,16 @@ fn drop$Maybe(Node)(%value: %Maybe(Node)) -> () {
     ret
 
   b2:
-    drop [%value]@Just via Drop(Node).drop
+    drop %value@Just via Drop(Node).drop
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
+fn drop$Maybe((Int) -> Int)(%value: Maybe((Int) -> Int)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -194,22 +194,22 @@ fn drop$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Just via drop$(Int) -> Int
+    drop_derived %value@Just via drop$(Int) -> Int
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
+fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long
@@ -222,9 +222,9 @@ fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
     ret
 }
 
-fn reclaim$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
+fn reclaim$Maybe((Int) -> Int)(%value: Maybe((Int) -> Int)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -232,22 +232,22 @@ fn reclaim$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Just reclaim reclaim$(Int) -> Int
+    drop_derived %value@Just reclaim reclaim$(Int) -> Int
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
+fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
   b0:
-    %v1 = load [%value].env : %()
+    %v1 = load %value.env : %()
     %v3 = cast 0 : %()
     %v4 = cmp_ne %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].code : %()
+    %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
     %v8 = sizeof {drop: %(), reclaim: %()} : Long
     %v9 = sub %v7, %v8 : Long
@@ -764,9 +764,9 @@ fn funvalue$twice(%env: %(), %x: Int) -> Int {
     ret %v2
 }
 
-fn drop$Outcome(Node, ())(%value: %Outcome(Node, ())) -> () {
+fn drop$Outcome(Node, ())(%value: Outcome(Node, ())) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -774,16 +774,16 @@ fn drop$Outcome(Node, ())(%value: %Outcome(Node, ())) -> () {
     ret
 
   b2:
-    drop [%value]@Proceed via Drop(Node).drop
+    drop %value@Proceed via Drop(Node).drop
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Outcome(Node, Int)(%value: %Outcome(Node, Int)) -> () {
+fn drop$Outcome(Node, Int)(%value: Outcome(Node, Int)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -791,16 +791,16 @@ fn drop$Outcome(Node, Int)(%value: %Outcome(Node, Int)) -> () {
     ret
 
   b2:
-    drop [%value]@Proceed via Drop(Node).drop
+    drop %value@Proceed via Drop(Node).drop
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
+fn drop$Outcome((Int) -> Int, ())(%value: Outcome((Int) -> Int, ())) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -808,16 +808,16 @@ fn drop$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Proceed via drop$(Int) -> Int
+    drop_derived %value@Proceed via drop$(Int) -> Int
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn reclaim$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
+fn reclaim$Outcome((Int) -> Int, ())(%value: Outcome((Int) -> Int, ())) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -825,7 +825,7 @@ fn reclaim$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
     ret
 
   b2:
-    drop_derived [%value]@Proceed reclaim reclaim$(Int) -> Int
+    drop_derived %value@Proceed reclaim reclaim$(Int) -> Int
     jmp b1
 
   b3:

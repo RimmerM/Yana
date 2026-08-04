@@ -20,7 +20,9 @@ reclaim$List<complex>(%value: Ptr) {
   b_6 {
     %v_9 = load %value, 8: Ptr
     call_complex reclaim$List, %v_9
-    call_complex freeHeap, %v_9
+    %v_10 = load %value, 8: Ptr
+    %v_11 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_11
     jmp b_8
   }
 
@@ -46,7 +48,9 @@ reclaim$Chain<complex>(%value: Ptr) {
   b_6 {
     %v_9 = load %value, 8: Ptr
     call_complex reclaim$Chain, %v_9
-    call_complex freeHeap, %v_9
+    %v_10 = load %value, 8: Ptr
+    %v_11 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_11
     jmp b_8
   }
 
@@ -144,29 +148,27 @@ drop$Maybe(Tree)<complex>(%value: Ptr) {
 buildChain<complex>(): Int {
   b_0 {
     %c = alloca 12, 8: Ptr
-    %v_1 = alloca 4, 4: Ptr
-    call_complex track, %v_1, 4
+    call_complex +=(Int), @liveNodes, 1
+    %v_1 = alloca 12, 8: Ptr
+    call_complex +=(Int), @liveNodes, 1
     %v_2 = alloca 12, 8: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex track, %v_3, 5
-    %v_4 = alloca 12, 8: Ptr
-    store %v_4, 0, 8
-    %v_5 = add %v_2, 8: Ptr
-    copy %v_5, %v_3, 4
-    %v_6 = call_complex allocateHeap, 12: Ptr
-    store %v_2, %v_6, 8
-    %v_7 = load %v_2, 8: Ptr
-    copy %v_7, %v_4, 12
-    %v_8 = add %c, 8: Ptr
-    copy %v_8, %v_1, 4
-    %v_9 = call_complex allocateHeap, 12: Ptr
-    store %c, %v_9, 8
-    %v_10 = load %c, 8: Ptr
-    copy %v_10, %v_2, 12
-    %v_11 = call_complex idsOf, %c: Int
+    store %v_2, 0, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 5, 4
+    %v_4 = call_complex allocateHeap, 12: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = load %v_1, 8: Ptr
+    copy %v_5, %v_2, 12
+    %v_6 = add %c, 8: Ptr
+    store %v_6, 4, 4
+    %v_7 = call_complex allocateHeap, 12: Ptr
+    store %c, %v_7, 8
+    %v_8 = load %c, 8: Ptr
+    copy %v_8, %v_1, 12
+    %v_9 = call_complex idsOf, %c: Int
     call_complex drop$Chain, %c
     call_complex reclaim$Chain, %c
-    ret %v_11
+    ret %v_9
   }
 }
 
@@ -275,7 +277,9 @@ reclaim$Maybe(Tree)<complex>(%value: Ptr) {
   b_6 {
     %v_9 = load %value, 8: Ptr
     call_complex reclaim$Tree, %v_9
-    call_complex freeHeap, %v_9
+    %v_10 = load %value, 8: Ptr
+    %v_11 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_11
     jmp b_8
   }
 
@@ -389,10 +393,9 @@ drop$Chain<complex>(%value: Ptr) {
   }
 
   b_6 {
-    %v_9 = add %value, 8: Ptr
-    call_complex Drop(Tracked).drop, %v_9
-    %v_10 = load %value, 8: Ptr
-    call_complex drop$Chain, %v_10
+    call_complex -=(Int), @liveNodes, 1
+    %v_9 = load %value, 8: Ptr
+    call_complex drop$Chain, %v_9
     jmp b_8
   }
 

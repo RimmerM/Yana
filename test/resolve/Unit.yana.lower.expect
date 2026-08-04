@@ -80,7 +80,7 @@ capturing<complex>(%n: Int): Int {
 
 isSomething(())<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = loads %m, 4: Int
+    %v_1 = loads %m, 1: Int
     %v_2 = cmp_eq %v_1, 1: Int
     je %v_2, b_3, b_4
   }
@@ -123,14 +123,14 @@ firstOf(())<complex>(%pair: Ptr): Int {
 
 wrap(())<complex>(%v_0: Ptr) {
   b_1 {
-    store %v_0, 1, 4
+    store %v_0, 1, 1
     ret 
   }
 }
 
 matching(())<complex>(%m: Ptr) {
   b_0 {
-    %v_1 = loads %m, 4: Int
+    %v_1 = loads %m, 1: Int
     %v_2 = cmp_eq %v_1, 1: Int
     je %v_2, b_3, b_4
   }
@@ -166,7 +166,6 @@ branching<complex>(%c: Int): Int {
   }
 
   b_2 {
-    call_complex identity(())
     jmp b_3
   }
 
@@ -177,45 +176,28 @@ branching<complex>(%c: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    call_complex identity(())
-    call_complex identity(())
     %v_1 = alloca 16, 8: Ptr
     store %v_1, ResolveTest.lambda$1, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %i = call_complex applyTo, %v_1: Int
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.lambda$2, 8
-    %v_5 = bitcast 0: Ptr
-    %v_6 = add %v_4, 8: Ptr
-    store %v_6, %v_5, 8
-    %j = call_complex callWith(()), %v_4: Int
+    %v_4 = add %v_1, 8: Ptr
+    %v_5 = load %v_1, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = call_complex %v_5, %v_6: Int
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, ResolveTest.lambda$2, 8
+    %v_9 = bitcast 0: Ptr
+    %v_10 = add %v_8, 8: Ptr
+    store %v_10, %v_9, 8
+    %v_11 = add %v_8, 8: Ptr
+    %v_12 = load %v_8, 8: Ptr
+    %v_13 = load %v_11, 8: Ptr
+    %v_14 = call_complex %v_12, %v_13: Int
     %k = call_complex capturing, 8: Int
-    %v_7 = alloca 4, 4: Ptr
-    store %v_7, 1, 4
-    call_complex matching(()), %v_7
-    %v_8 = alloca 4, 4: Ptr
-    call_complex wrap(()), %v_8
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_11 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_11, 1], [b_12, 0]: Int
-    %v_15 = alloca 1, 1: Ptr
-    %v_16 = alloca 4, 4: Ptr
-    call_complex wrap(()), %v_16
-    %v_17 = loads %v_16, 4: Int
+    %v_15 = imm 24: Int
+    %v_16 = shl 1, %v_15: Int
+    %v_17 = sar %v_16, %v_15: Int
     %v_18 = cmp_eq %v_17, 1: Int
     je %v_18, b_19, b_20
   }
@@ -225,20 +207,18 @@ main<complex>(): Int {
   }
 
   b_19 {
+    %inner = alloca 1, 1: Ptr
     jmp b_21
   }
 
   b_21 {
-    %v_22 = phi [b_19, 1], [b_20, 0]: Int
+    %v_22 = alloca 1, 1: Ptr
     %v_23 = alloca 1, 1: Ptr
-    %v_24 = add %i, 34: Int
-    %v_25 = add %v_24, %j: Int
+    %v_24 = add %v_7, 34: Int
+    %v_25 = add %v_24, %v_14: Int
     %v_26 = add %v_25, %k: Int
-    %v_27 = add %v_26, 3: Int
-    %v_28 = add %v_27, %v_14: Int
-    %v_29 = add %v_28, %v_22: Int
-    %v_30 = add %v_29, 23: Int
-    ret %v_30
+    %v_27 = add %v_26, 28: Int
+    ret %v_27
   }
 }
 

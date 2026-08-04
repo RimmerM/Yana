@@ -1148,45 +1148,45 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     ret
 }
 
-fn reclaim$@inline(4) @capacity(4) Array(Int)(%value: %@inline(4) @capacity(4) Array(Int)) -> () {
+fn reclaim$@inline(4) @capacity(4) Array(Int)(%value: @inline(4) @capacity(4) Array(Int)) -> () {
   b0:
     %v1 = alloc : Array(Int)
-    %v2 = addressof [%value]@Array.run : %Int
-    init %local0@Array.run@Run.items, %v2
-    init %local0@Array.run@Run.capacity, 4
-    init %local0@Array.run@Run.ownsHeap, 2
-    %v8 = load [%value]@Array.length : @bits(30) U32
-    init %local0@Array.length, %v8
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    %v2 = addressof %value@Array.run : %Int
+    init %local1@Array.run@Run.items, %v2
+    init %local1@Array.run@Run.capacity, 4
+    init %local1@Array.run@Run.ownsHeap, 2
+    %v8 = load %value@Array.length : @bits(30) U32
+    init %local1@Array.length, %v8
+    drop %local1 reclaim Reclaim(Array(a)).reclaim(Int)
     ret
 }
 
-fn reclaim$Buffer(%value: %Buffer) -> () {
+fn reclaim$Buffer(%value: Buffer) -> () {
   b0:
-    drop [%value]@Buffer.items reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %value@Buffer.items reclaim reclaim$@inline(4) @capacity(4) Array(Int)
     ret
 }
 
-fn drop$@inline(2) @capacity(2) Array(Handle)(%value: %@inline(2) @capacity(2) Array(Handle)) -> () {
+fn drop$@inline(2) @capacity(2) Array(Handle)(%value: @inline(2) @capacity(2) Array(Handle)) -> () {
   b0:
     %v1 = alloc : Array(Handle)
-    %v2 = addressof [%value]@Array.run : %Handle
-    init %local0@Array.run@Run.items, %v2
-    init %local0@Array.run@Run.capacity, 2
-    init %local0@Array.run@Run.ownsHeap, 2
-    %v8 = load [%value]@Array.length : @bits(30) U32
-    init %local0@Array.length, %v8
-    drop %local0 via Reclaim(Array(a)).reclaim(Handle)
+    %v2 = addressof %value@Array.run : %Handle
+    init %local1@Array.run@Run.items, %v2
+    init %local1@Array.run@Run.capacity, 2
+    init %local1@Array.run@Run.ownsHeap, 2
+    %v8 = load %value@Array.length : @bits(30) U32
+    init %local1@Array.length, %v8
+    drop %local1 via Reclaim(Array(a)).reclaim(Handle)
     ret
 }
 
-fn drop$Holder(%value: %Holder) -> () {
+fn drop$Holder(%value: Holder) -> () {
   b0:
-    drop [%value]@Holder.hs via drop$@inline(2) @capacity(2) Array(Handle)
+    drop %value@Holder.hs via drop$@inline(2) @capacity(2) Array(Handle)
     ret
 }
 
-fn reclaim$Holder(%value: %Holder) -> () {
+fn reclaim$Holder(%value: Holder) -> () {
   b0:
     ret
 }

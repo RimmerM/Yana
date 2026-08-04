@@ -705,9 +705,9 @@ fn Drop(Owned).drop(%value: Owned) -> () {
     ret
 }
 
-fn drop$Pair(%value: %Pair) -> () {
+fn drop$Pair(%value: Pair) -> () {
   b0:
-    drop [%value]@Pair.x via Drop(Owned).drop
-    drop [%value]@Pair.y via Drop(Owned).drop
+    drop %value@Pair.x via Drop(Owned).drop
+    drop %value@Pair.y via Drop(Owned).drop
     ret
 }

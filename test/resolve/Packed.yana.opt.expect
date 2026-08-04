@@ -156,40 +156,7 @@ fn optionOf(%f: Flags) -> &mut Bool {
 
 fn returned() -> Int {
   b0:
-    %v0 = alloc : Flags
-    init %f@Flags.optionA:unit8, 2
-    %v6 = borrow_mut %f : &mut Flags
-    %v7 = call optionOf, %v6 : &mut Bool
-    assign [%v7], True
-    %v50 = load %f@Flags.optionA:unit8 : U32
-    %v52 = and %v50, 1 : U32
-    %v53 = cast %v52 : Bool
-    je %v53, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v19 = phi [b1, 1], [b2, 0] : Int
-    %v54 = load %f@Flags.optionA:unit8 : U32
-    %v56 = shr %v54, 1 : U32
-    %v58 = and %v56, 1 : U32
-    %v59 = cast %v58 : Bool
-    je %v59, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v29 = phi [b4, 2], [b5, 0] : Int
-    %v30 = add %v19, %v29 : Int
-    ret %v30
+    ret 3
 }
 
 fn swapBools(%a: Bool, %b: Bool) -> () {
@@ -401,35 +368,7 @@ fn liveOf(%e: Entry) -> &mut Bool {
 
 fn kept() -> Int {
   b0:
-    %v0 = alloc : Entry
-    init %e@Entry.live:unit8, 1
-    init %e@Entry.count, 2
-    %v8 = borrow_mut %e : &mut Entry
-    %v9 = call liveOf, %v8 : &mut Bool
-    assign [%v9], True
-    %v55 = load %e@Entry.live:unit8 : U32
-    %v57 = shr %v55, 3 : U32
-    %v59 = and %v57, 1 : U32
-    %v60 = cast %v59 : Bool
-    je %v60, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v21 = phi [b1, 1], [b2, 0] : Int
-    %v61 = load %e@Entry.live:unit8 : U32
-    %v63 = and %v61, 7 : U32
-    %v25 = cast %v63 : Int
-    %v28 = mul %v25, 10 : Int
-    %v29 = add %v21, %v28 : Int
-    %v31 = load %e@Entry.count : Int
-    %v34 = mul %v31, 100 : Int
-    %v35 = add %v29, %v34 : Int
-    ret %v35
+    ret 211
 }
 
 fn dispatch() -> Int {
@@ -446,61 +385,27 @@ fn main() -> Int {
     %v8 = add %v6, 85 : Int
     %v9 = call loaned : Int
     %v10 = add %v8, %v9 : Int
-    %v31 = alloc : Flags
-    init %f@Flags.optionA:unit8, 2
-    %v37 = borrow_mut %f : &mut Flags
-    %v38 = call optionOf, %v37 : &mut Bool
-    assign [%v38], True
-    %v98 = load %f@Flags.optionA:unit8 : U32
-    %v100 = and %v98, 1 : U32
-    %v101 = cast %v100 : Bool
-    je %v101, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v29 = phi [b2, 1], [b1, 0] : Int
-    %v102 = load %f@Flags.optionA:unit8 : U32
-    %v104 = shr %v102, 1 : U32
-    %v106 = and %v104, 1 : U32
-    %v107 = cast %v106 : Bool
-    je %v107, b5, b4
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v30 = phi [b5, 2], [b4, 0] : Int
-    %v51 = add %v29, %v30 : Int
-    %v12 = add %v10, %v51 : Int
+    %v12 = add %v10, 3 : Int
     %v13 = call interleaved : Int
     %v14 = add %v12, %v13 : Int
-    %v57 = alloc : Header
+    %v30 = alloc : Header
     init %h@Header.version:unit32, 2162788
-    %v66 = borrow_mut %h@Header.length : &mut @bits(13) U32
-    call nudgeTwice, %v66
-    %v136 = load %h@Header.version:unit32 : U32
-    %v138 = and %v136, 8191 : U32
-    %v71 = cast %v138 : Int
-    %v73 = mul %v71, 10 : Int
-    %v141 = shr %v136, 16 : U32
-    %v143 = and %v141, 15 : U32
-    %v77 = cast %v143 : Int
-    %v78 = add %v73, %v77 : Int
-    %v16 = add %v14, %v78 : Int
+    %v39 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v39
+    %v82 = load %h@Header.version:unit32 : U32
+    %v84 = and %v82, 8191 : U32
+    %v44 = cast %v84 : Int
+    %v46 = mul %v44, 10 : Int
+    %v87 = shr %v82, 16 : U32
+    %v89 = and %v87, 15 : U32
+    %v50 = cast %v89 : Int
+    %v51 = add %v46, %v50 : Int
+    %v16 = add %v14, %v51 : Int
     %v17 = call wide : Int
     %v18 = add %v16, %v17 : Int
     %v19 = call tally : Int
     %v20 = add %v18, %v19 : Int
-    %v21 = call kept : Int
-    %v22 = add %v20, %v21 : Int
+    %v22 = add %v20, 211 : Int
     %v23 = call dispatch : Int
     %v24 = add %v22, %v23 : Int
     ret %v24

@@ -393,6 +393,27 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 atCursor<complex>(%c$items$items: Ptr, %c$items$length: Long, %c$at: Int): Int {
   b_0 {
     %v_1 = sext %c$at: Long
@@ -542,125 +563,41 @@ main<complex>(): Int {
     %v_77 = cast %v_76: Int
     %v_78 = cast %v_77: Long
     %v_79 = call_complex total, %v_74, %v_78: Int
-    %v_80 = add %v_1, 8: Ptr
-    %v_81 = load %v_80, 4: Int
-    %v_82 = shr %v_81, 30: Int
-    %v_83 = cmp_eq %v_82, 1: Int
-    je %v_83, b_84, b_85
-  }
-
-  b_84 {
-    %v_86 = load %v_1, 8: Ptr
-    %v_87 = bitcast %v_86: Ptr
-    call_complex freeHeap, %v_87
-    jmp b_85
-  }
-
-  b_85 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret %v_79
   }
 
   b_72 {
-    %v_88 = add %v_1, 8: Ptr
-    %v_89 = load %v_88, 4: Int
-    %v_90 = shr %v_89, 30: Int
-    %v_91 = cmp_eq %v_90, 1: Int
-    je %v_91, b_92, b_93
-  }
-
-  b_92 {
-    %v_94 = load %v_1, 8: Ptr
-    %v_95 = bitcast %v_94: Ptr
-    call_complex freeHeap, %v_95
-    jmp b_93
-  }
-
-  b_93 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551611
   }
 
   b_64 {
-    %v_96 = imul %v_68, %v_10: Long
-    %v_97 = add %v_57, %v_96: Ptr
-    %v_98 = loads %v_97, 4: Int
-    %v_67 = add %v_66, %v_98: Int
+    %v_80 = imul %v_68, %v_10: Long
+    %v_81 = add %v_57, %v_80: Ptr
+    %v_82 = loads %v_81, 4: Int
+    %v_67 = add %v_66, %v_82: Int
     %v_65 = add %v_63, 1: Int
     jmp b_62
   }
 
   b_55 {
-    %v_99 = add %v_1, 8: Ptr
-    %v_100 = load %v_99, 4: Int
-    %v_101 = shr %v_100, 30: Int
-    %v_102 = cmp_eq %v_101, 1: Int
-    je %v_102, b_103, b_104
-  }
-
-  b_103 {
-    %v_105 = load %v_1, 8: Ptr
-    %v_106 = bitcast %v_105: Ptr
-    call_complex freeHeap, %v_106
-    jmp b_104
-  }
-
-  b_104 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551612
   }
 
   b_48 {
-    %v_107 = add %v_1, 8: Ptr
-    %v_108 = load %v_107, 4: Int
-    %v_109 = shr %v_108, 30: Int
-    %v_110 = cmp_eq %v_109, 1: Int
-    je %v_110, b_111, b_112
-  }
-
-  b_111 {
-    %v_113 = load %v_1, 8: Ptr
-    %v_114 = bitcast %v_113: Ptr
-    call_complex freeHeap, %v_114
-    jmp b_112
-  }
-
-  b_112 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551613
   }
 
   b_32 {
-    %v_115 = add %v_1, 8: Ptr
-    %v_116 = load %v_115, 4: Int
-    %v_117 = shr %v_116, 30: Int
-    %v_118 = cmp_eq %v_117, 1: Int
-    je %v_118, b_119, b_120
-  }
-
-  b_119 {
-    %v_121 = load %v_1, 8: Ptr
-    %v_122 = bitcast %v_121: Ptr
-    call_complex freeHeap, %v_122
-    jmp b_120
-  }
-
-  b_120 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551614
   }
 
   b_20 {
-    %v_123 = add %v_1, 8: Ptr
-    %v_124 = load %v_123, 4: Int
-    %v_125 = shr %v_124, 30: Int
-    %v_126 = cmp_eq %v_125, 1: Int
-    je %v_126, b_127, b_128
-  }
-
-  b_127 {
-    %v_129 = load %v_1, 8: Ptr
-    %v_130 = bitcast %v_129: Ptr
-    call_complex freeHeap, %v_130
-    jmp b_128
-  }
-
-  b_128 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551615
   }
 }

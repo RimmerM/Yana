@@ -134,7 +134,18 @@ bool isJsObject(Gen& g, TypePtr type) {
     if(g.global[type]->kind == Type::String) return false;
 
     TypePtr content = nullptr;
-    if(isNewtype(g, type, content)) return content && isJsObject(g, content);
+    if(isNewtype(g, type, content)) {
+        /*
+         * A wrapper over a raw pointer is a host reference, which is an object - `hostArray()` is
+         * `[]`, and the box the erased ABI hands about is `{$v}`. Answered here rather than by
+         * `isJsObject` of the pointer itself, which is the *reference* question and has to keep its
+         * own answer: `%T` against `&T` is what tells a storage handle from a borrow, and both sides
+         * of a call read it off the declaration.
+         */
+        if(content && g.global[content]->kind == Type::Ptr) return true;
+
+        return content && isJsObject(g, content);
+    }
 
     // A generic body has no layout to consult and treats every opaque value as a reference, which is
     // what the erased convention hands it. `of` answers an empty Repr for one, so this asks `opaque`
@@ -191,12 +202,60 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
     return property;
 }
 
+/*
+ * A tuple with one field, which on this target is that field.
+ *
+ * The reason it is here and not in `compiler/repr` is that it is only true where an aggregate has no
+ * layout: natively `{items: %a}` is one word at offset zero of a record, and the record *is* the
+ * word already - there is nothing wrapping anything. Here the same declaration is an object with one
+ * property, so the wrapper is real, costs an allocation and a hidden class per value, and shows up in
+ * exactly the place Analysis-JS.md's contract is about - `data Array(a) {items: %a}` made every array
+ * `{items: hostArray}` rather than the host array.
+ *
+ * Three exclusions, each of which is a case where the field is not the whole of the value:
+ *
+ *  - a scalarized tuple, which is a `number` and has no property to remove;
+ *  - a `@box`ed field, where the wrapper is the indirection rather than the value behind it;
+ *  - a unit field, which contributes no property at all - so the object is already empty and the
+ *    field has no value for the wrapper to *be*.
+ *
+ * ## Why only a raw pointer
+ *
+ * Because that is the case where the field is *already* a host reference, so removing the wrapper
+ * removes an object and changes nothing else about what the value is. Every other one-field tuple
+ * was tried and each of them moves a second question: a wrapper over a `number` is a value where an
+ * object was, so a `&` of it stops being the object and becomes the triple, and a local holding one
+ * needs boxed storage it did not need before. Those are all *correct* forms and none of them is what
+ * this is for - `Array(a)`'s wrapper is the one Analysis-JS.md's contract names, and it is the one
+ * whose removal is free.
+ */
+static bool isTransparentTuple(Gen& g, TypePtr type, TypePtr& content) {
+    if(!type || g.global[type]->kind != Type::Tup) return false;
+
+    auto& tuple = *(TupType*)g.global[type];
+    if(tuple.fields.size() != 1) return false;
+
+    // Read off the Repr rather than through `isJsObject`, which asks this question on the way to
+    // answering its own.
+    auto& repr = g.repr.of(type);
+    if(repr.opaque || repr.scalarBits != 0) return false;
+
+    auto field = tuple.fields.get(g.global, 0);
+    if(field.boxed || !field.type || g.global[field.type]->kind != Type::Ptr) return false;
+
+    content = field.type;
+    return true;
+}
+
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content) {
+    if(isTransparentTuple(g, type, content)) return true;
+
     auto record = recordType(g, type);
     if(!record || record->layout != RecordType::Single) return false;
 
     content = record->constructors.isEmpty() ? nullptr : record->constructors.get(g.global, 0).content;
-    return !content || g.global[content]->kind != Type::Tup;
+    return !content || g.global[content]->kind != Type::Tup ||
+           isTransparentTuple(g, content, content);
 }
 
 /*
@@ -231,8 +290,8 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
             if(isBool(g, type)) return number(g, 0);
 
             // An enum is its discriminant and nothing else, so it is a number here exactly as it is
-            // a machine word on native.
-            if(((RecordType*)value)->layout == RecordType::Enum) return number(g, 0);
+            // a machine word on native - and so is a sum whose payloads all substituted to unit.
+            if(discriminantOnly(g.global, *(RecordType*)value)) return number(g, 0);
             break;
         case Type::Fun:
             // A function value is a host function, and a slot that has not been given one holds

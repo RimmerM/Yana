@@ -83,8 +83,7 @@ bump<complex>(%value: Ptr): Int {
 
 drop$Owning<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = add %value, 4: Ptr
-    call_complex Drop(Counter).drop, %v_1
+    call_complex +=(Int), @released, 1
     ret 
   }
 }
@@ -98,11 +97,14 @@ Drop(Counter).drop<complex>(%value: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex sunk: Int
-    %v_2 = add %v_1, 106: Int
-    %v_3 = loads @released, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    ret %v_4
+    %o = alloca 8, 4: Ptr
+    store %o, 1, 4
+    %v_1 = add %o, 4: Ptr
+    store %v_1, 36, 4
+    call_complex +=(Int), @released, 1
+    %v_2 = loads @released, 4: Int
+    %v_3 = add %v_2, 142: Int
+    ret %v_3
   }
 }
 
@@ -113,7 +115,7 @@ sunk<complex>(): Int {
     store %o, 1, 4
     %v_2 = add %o, 4: Ptr
     store %v_2, %v_1, 4
-    call_complex drop$Owning, %o
+    call_complex +=(Int), @released, 1
     ret %v_1
   }
 }

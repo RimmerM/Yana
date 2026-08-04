@@ -85,27 +85,13 @@ grown<complex>(): Int {
     %v_19 = loads %v_18, 4: Int
     %v_20 = add %v_1, 12: Ptr
     %v_21 = load %v_20, 4: Int
-    %v_22 = add %v_1, 8: Ptr
-    %v_23 = load %v_22, 4: Int
-    %v_24 = shr %v_23, 30: Int
-    %v_25 = cmp_eq %v_24, 1: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_26 {
-    %v_28 = load %v_1, 8: Ptr
-    %v_29 = bitcast %v_28: Ptr
-    call_complex freeHeap, %v_29
-    jmp b_27
-  }
-
-  b_27 {
-    %v_30 = cast %v_21: Int
-    %v_31 = cast %v_30: Long
-    %v_32 = sext %v_19: Long
-    %v_33 = add %v_32, %v_31: Long
-    %v_34 = cast %v_33: Int
-    ret %v_34
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_22 = cast %v_21: Int
+    %v_23 = cast %v_22: Long
+    %v_24 = sext %v_19: Long
+    %v_25 = add %v_24, %v_23: Long
+    %v_26 = cast %v_25: Int
+    ret %v_26
   }
 }
 
@@ -324,8 +310,30 @@ frameOnly<complex>(): Int {
     %v_18 = imul %v_11, 2: Long
     %v_19 = add %v_3, %v_18: Ptr
     %v_20 = loads %v_19, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %xs
     %v_21 = add %v_17, %v_20: Int
     ret %v_21
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
   }
 }
 
@@ -354,6 +362,7 @@ boundMutable<complex>(): Int {
     %v_16 = add %v_1, 12: Ptr
     store %v_16, 3, 4
     %v_17 = loads %v_13, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret %v_17
   }
 }

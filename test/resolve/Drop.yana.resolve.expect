@@ -498,9 +498,9 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     ret
 }
 
-fn drop$Pair(%value: %Pair) -> () {
+fn drop$Pair(%value: Pair) -> () {
   b0:
-    drop [%value]@Pair.left via Drop(Buffer).drop
-    drop [%value]@Pair.right via Drop(Buffer).drop
+    drop %value@Pair.left via Drop(Buffer).drop
+    drop %value@Pair.right via Drop(Buffer).drop
     ret
 }

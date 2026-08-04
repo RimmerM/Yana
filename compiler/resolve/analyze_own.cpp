@@ -46,9 +46,27 @@ static void transferState(Analysis& analysis, Size index, Array<OwnState>& state
 
     for(auto init: effects.inits) states[init] = OwnState::Owned;
 
+    /*
+     * A drop ends the life of what it names, and *what it names* is the whole of the rule.
+     *
+     * Only an unprojected drop empties the slot. A drop of `x.f` is one member's teardown, and this
+     * lattice is per local - so marking the root would say the whole of `x` owns nothing, which is
+     * both wrong and unrepresentable here: the honest state after a partial teardown is one this
+     * pass does not have, and the conservative reading of a state it cannot represent is to leave
+     * the slot as it was. The whole-slot drop that follows is what actually empties it.
+     *
+     * It was unrestricted for as long as no projected drop was ever rooted in a local. Derived
+     * teardown glue is what made one: its members used to hang off a `%T` parameter, where
+     * `rootLocal` answers nothing, and they now hang off the `->` parameter's own slot - so
+     * `drop$Pair` dropped `value.left`, marked all of `value` moved, and reported `value.right` as
+     * a use after a move. The other projected drop is the one a write owes for what it replaces
+     * (makeOverwriteDrop), which survived only because the write immediately after it put the slot
+     * back to Owned.
+     */
     if(instruction.kind == Value::Drop) {
-        auto root = rootLocal(analysis, ((InstDrop&)instruction).place);
-        if(root != maxLimit<U32>) states[root] = OwnState::Moved;
+        auto& place = ((InstDrop&)instruction).place;
+        auto root = rootLocal(analysis, place);
+        if(root != maxLimit<U32> && place.projections.isEmpty()) states[root] = OwnState::Moved;
     }
 }
 

@@ -1,20 +1,7 @@
 
 fromInstance<complex>(): Int {
   b_0 {
-    %x = call_complex Elem(Int, Bool).head, 7: Int
-    je %x, b_1, b_2
-  }
-
-  b_1 {
     ret 1
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    ret 0
   }
 }
 
@@ -31,8 +18,7 @@ fromParametric<complex>(): Int {
 
 agreeingAscription<complex>(): Int {
   b_0 {
-    %v_1 = call_complex Elem(Int, Bool).head, 7: Int
-    ret %v_1
+    ret 1
   }
 }
 
@@ -57,34 +43,19 @@ Elem(Wrap(a), Wrap(a)).head(Int)<complex>(%v_0: Ptr, %self: Ptr) {
 
 fromOtherInstance<complex>(): Int {
   b_0 {
-    %v_1 = call_complex Elem(Bool, Int).head, 1: Int
-    ret %v_1
+    ret 7
   }
 }
 
 viaConstraint<complex>(): Int {
   b_0 {
-    %x = call_complex first(Int, Bool), 7: Int
-    je %x, b_1, b_2
-  }
-
-  b_1 {
     ret 1
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    ret 0
   }
 }
 
 first(Int, Bool)<complex>(%self: Int): Int {
   b_0 {
-    %v_1 = call_complex Elem(Int, Bool).head, %self: Int
-    ret %v_1
+    ret 1
   }
 }
 
@@ -96,38 +67,7 @@ Deep(Int, Bool).deep<complex>(%self: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    %x = call_complex Elem(Int, Bool).head, 7: Int
-    je %x, b_1, b_2
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_3 {
-    %a = phi [b_2, 0], [b_1, 1]: Int
-    %v_4 = call_complex Elem(Bool, Int).head, 1: Int
-    %x = call_complex first(Int, Bool), 7: Int
-    je %x, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    jmp b_7
-  }
-
-  b_7 {
-    %c = phi [b_6, 0], [b_5, 1]: Int
-    %v_8 = add %a, %v_4: Int
-    %v_9 = add %v_8, %c: Int
-    ret %v_9
+    ret 9
   }
 }
 

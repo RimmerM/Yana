@@ -1180,9 +1180,9 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     ret
 }
 
-fn drop$Maybe(Handle)(%value: %Maybe(Handle)) -> () {
+fn drop$Maybe(Handle)(%value: Maybe(Handle)) -> () {
   b0:
-    %v1 = load [%value].discriminant : Int
+    %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -1190,7 +1190,7 @@ fn drop$Maybe(Handle)(%value: %Maybe(Handle)) -> () {
     ret
 
   b2:
-    drop [%value]@Just via Drop(Handle).drop
+    drop %value@Just via Drop(Handle).drop
     jmp b1
 
   b3:

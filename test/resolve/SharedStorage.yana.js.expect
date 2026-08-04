@@ -39,7 +39,7 @@ function sunk() {
   var v2 = { value: 36 };
   o.tag = 1;
   o.held = v2;
-  drop$Owning(o);
+  add_eq_Int(released, "$v", 1, 1);
   return 36;
 }
 
@@ -48,7 +48,13 @@ function guarded() {
 }
 
 function main() {
-  return (((unwrapOr(35, 0) + unwrapOr(36, 0) | 0) + sunk() | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released.$v | 0;
+  var v2 = unwrapOr(35, 0) + unwrapOr(36, 0) | 0;
+  var o = { tag: 0, held: { value: 0 } };
+  var v42 = { value: 36 };
+  o.tag = 1;
+  o.held = v42;
+  add_eq_Int(released, "$v", 1, 1);
+  return ((v2 + 36 | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released.$v | 0;
 }
 
 function Drop_Counter_drop(value) {
@@ -57,6 +63,6 @@ function Drop_Counter_drop(value) {
 }
 
 function drop$Owning(value) {
-  Drop_Counter_drop(value.held);
+  add_eq_Int(released, "$v", 1, 1);
   return;
 }

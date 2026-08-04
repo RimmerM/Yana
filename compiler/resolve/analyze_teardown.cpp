@@ -301,11 +301,34 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
     function->returnType = module.scalar.unit;
     function->used = true;
 
+    /*
+     * The subject, taken by `->` rather than as a `%T`.
+     *
+     * A teardown *consumes*, so `->` is the convention that states what is true - and both halves
+     * of Design-Memory §4 are statements about a value whose lifetime ends here. What it replaces
+     * is a storage handle, which is the *erased* ABI's form and was being used at every site
+     * whether or not the site was erased. Natively that is the same address either way, because a
+     * memory type's `->` parameter is passed by address; on a managed target a `%T` whose pointee is
+     * not a host object is a **box**, so every concrete drop of one allocated an object to be read
+     * once and thrown away. Thirty-seven of the JS corpus's remaining boxes were this.
+     *
+     * `disposer`, because a `->` parameter is storage this frame owns, and without it the drop pass
+     * gives this function a drop of the value it exists to drop. See Function::disposer for what
+     * that failure looks like, which is not a diagnostic.
+     *
+     * The erased entry point is unaffected and is not this: a descriptor slot has one signature for
+     * every type it might hold and still takes an address. See teardownEntryFor.
+     */
     auto valueName = module.context.addQualifiedName("value", 5, 1);
-    auto arg = function->addArg(module, valueName, resolvePointerType(module, type), source);
+    auto arg = function->addArg(module, valueName, type, source);
+    arg->convention = ast::BindType::Sink;
+    function->disposer = true;
+
+    auto subject = function->addLocal(module, type, valueName,
+                                      (ModulePtr<Value>)(arg - *module.arena), ast::BindType::Sink);
 
     ExprResolver resolver(module.context, module, *function);
-    auto base = Place::atPointer((ModulePtr<Value>)(arg - *module.arena));
+    auto base = Place::inLocal(subject);
     auto global = *module.types;
 
     if(global[type]->kind == Type::Fun) {
@@ -495,4 +518,67 @@ bool checkReclaimShape(Module& module, Function& function) {
 // Declared in analyze.h so that a TypeDesc can name both halves - see witness.cpp.
 ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardown half, LocationId source) {
     return teardownFor(module, type, half, source);
+}
+
+/*
+ * The erased entry point of one type's teardown half - what a descriptor slot holds.
+ *
+ * A teardown takes its subject by `->`, and both halves of that convention are decided by the
+ * *target*: natively a memory type's `->` parameter is an address, and on a managed target it is
+ * the host value. A descriptor slot cannot be either, because erased code has neither - it holds
+ * storage, and the slot has one signature for every type that might fill it. So the slot holds a
+ * `%T` entry, and the entry is a single `InstDrop` through the address it was handed.
+ *
+ * This is `erasedThunkFor`'s argument (witness.cpp) applied to the one uniform-ABI slot that did not
+ * have one. Before, a teardown reached both ways happened to agree with both call sites - a `%T`
+ * glue read through a pointer and a JS reference to an *object* is that object, so the two coincided
+ * for every shape the corpus had. They stop coinciding as soon as a type is not a host object, which
+ * is what made every concrete drop of a niche-folded value allocate a box.
+ *
+ * Generated only where a descriptor asks for one, so a program with no erased generics emits none.
+ */
+ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, LocationId source) {
+    auto implementation = teardownFor(module, type, half, source);
+    if(!implementation) return nullptr;
+
+    /*
+     * Natively there is nothing to adapt, so the entry *is* the implementation.
+     *
+     * A teardown's subject is always a memory type, and a memory type's `->` parameter is passed as
+     * its address - which is what a slot hands over. The two spellings name one convention, and
+     * generating a forwarder for them would put a real call in front of every erased teardown to
+     * change nothing.
+     *
+     * Asked of the mode rather than of a layout, on the same terms as teardownFunValue above: where
+     * the header lives is the same kind of question and is asked the same way. Over-generating an
+     * entry is only a wasted call and under-generating one is a miscompile, so the JS side keeps
+     * its entry unconditionally - the case it exists for is a subject that is not a host object,
+     * and which types those are is a Repr answer this pass deliberately cannot see.
+     */
+    if(!isJsMode(module.context.settings.mode)) return implementation;
+
+    auto& program = module.program;
+    auto& interned = half == Teardown::Drop ? program.dropEntry : program.reclaimEntry;
+    if(auto found = interned.get(U32(type))) return found.unwrap();
+
+    auto name = derivedName(module, half == Teardown::Drop ? "dropAt$"_v : "reclaimAt$"_v, type);
+    auto function = addAnonymousFunction(module, name, source);
+    auto pointer = function - *module.arena;
+
+    // Registered before the body, on the same terms as the glue above: the InstDrop below can reach
+    // a type whose own entry is being built.
+    *interned.add(U32(type)).value = pointer;
+
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    auto valueName = module.context.addQualifiedName("value", 5, 1);
+    auto arg = function->addArg(module, valueName, resolvePointerType(module, type), source);
+
+    ExprResolver resolver(module.context, module, *function);
+    teardownPlace(resolver, module, Place::atPointer((ModulePtr<Value>)(arg - *module.arena)),
+                  type, false, half, source);
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+
+    return pointer;
 }

@@ -150,7 +150,7 @@ ResolveTest.continuation$6<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_8 = add %v_4, %v_7: Int
     %v_9 = add %v_8, %value: Int
     store %v_2, %v_9, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -160,15 +160,15 @@ twice(Int, ())<complex>(%v_0: Ptr, %value: Int, %body: Ptr) {
     %v_2 = add %body, 8: Ptr
     %v_3 = load %body, 8: Ptr
     %v_4 = load %v_2, 8: Ptr
-    %v_5 = alloca 4, 4: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex %v_3, %v_5, %v_4, %value
-    %v_6 = loads %v_5, 4: Int
+    %v_6 = loads %v_5, 1: Int
     %v_7 = cmp_eq %v_6, 1: Int
     je %v_7, b_8, b_9
   }
 
   b_8 {
-    copy %v_0, %v_5, 4
+    copy %v_0, %v_5, 1
     ret 
   }
 
@@ -176,20 +176,20 @@ twice(Int, ())<complex>(%v_0: Ptr, %value: Int, %body: Ptr) {
     %v_10 = add %body, 8: Ptr
     %v_11 = load %body, 8: Ptr
     %v_12 = load %v_10, 8: Ptr
-    %v_13 = alloca 4, 4: Ptr
+    %v_13 = alloca 1, 1: Ptr
     call_complex %v_11, %v_13, %v_12, %value
-    %v_14 = loads %v_13, 4: Int
+    %v_14 = loads %v_13, 1: Int
     %v_15 = cmp_eq %v_14, 1: Int
     je %v_15, b_16, b_17
   }
 
   b_16 {
-    copy %v_0, %v_13, 4
+    copy %v_0, %v_13, 1
     ret 
   }
 
   b_17 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -202,7 +202,7 @@ ResolveTest.continuation$8<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_4 = loads %v_2, 4: Int
     %v_5 = add %v_4, %value: Int
     store %v_2, %v_5, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -251,7 +251,7 @@ withLens<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$12, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_4, %n, %v_2
     %v_5 = loads %total, 4: Int
     ret %v_5
@@ -270,7 +270,7 @@ corners(())<complex>(%v_0: Ptr, %n: Int, %body: Ptr) {
   }
 
   b_8 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 
@@ -283,15 +283,15 @@ corners(())<complex>(%v_0: Ptr, %n: Int, %body: Ptr) {
     %v_12 = add %body, 8: Ptr
     %v_13 = load %body, 8: Ptr
     %v_14 = load %v_12, 8: Ptr
-    %v_15 = alloca 4, 4: Ptr
+    %v_15 = alloca 1, 1: Ptr
     call_complex %v_13, %v_15, %v_14, %v_9
-    %v_16 = loads %v_15, 4: Int
+    %v_16 = loads %v_15, 1: Int
     %v_17 = cmp_eq %v_16, 1: Int
     je %v_17, b_18, b_4
   }
 
   b_18 {
-    copy %v_0, %v_15, 4
+    copy %v_0, %v_15, 1
     ret 
   }
 
@@ -365,7 +365,7 @@ sum<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$0, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_4, %n, %v_2
     %v_5 = loads %total, 4: Int
     ret %v_5
@@ -379,9 +379,9 @@ stopAt<complex>(%n: Int) {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_4, %n, %v_1
-    %v_5 = loads %v_4, 4: Int
+    %v_5 = loads %v_4, 1: Int
     %v_6 = cmp_eq %v_5, 1: Int
     je %v_6, b_7, b_8
   }
@@ -415,7 +415,7 @@ ResolveTest.continuation$9<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 
   b_8 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -428,8 +428,17 @@ loopInLens<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$14, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = call_complex counted(Int), %v_2: Int
-    ret %v_4
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @log, %v_5, 4
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_2, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8, %v_5: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 10: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 
@@ -443,7 +452,7 @@ corners_<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$7, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex corners(()), %v_4, %n, %v_2
     %v_5 = loads %total, 4: Int
     ret %v_5
@@ -458,7 +467,7 @@ ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_4 = loads %v_2, 4: Int
     %v_5 = add %v_4, %value: Int
     store %v_2, %v_5, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -470,7 +479,7 @@ ResolveTest.continuation$16<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 
   b_3 {
-    store %v_0, 1, 4
+    store %v_0, 1, 1
     ret 
   }
 
@@ -482,7 +491,7 @@ ResolveTest.continuation$16<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_6 = loads @visited, 4: Int
     %v_7 = add %v_6, %value: Int
     store @visited, %v_7, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -497,7 +506,7 @@ upToFive<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$2, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_4, %n, %v_2
     %v_5 = loads %total, 4: Int
     ret %v_5
@@ -549,15 +558,15 @@ twice(Bool, ())<complex>(%v_0: Ptr, %value: Int, %body: Ptr) {
     %v_2 = add %body, 8: Ptr
     %v_3 = load %body, 8: Ptr
     %v_4 = load %v_2, 8: Ptr
-    %v_5 = alloca 4, 4: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex %v_3, %v_5, %v_4, %value
-    %v_6 = loads %v_5, 4: Int
+    %v_6 = loads %v_5, 1: Int
     %v_7 = cmp_eq %v_6, 1: Int
     je %v_7, b_8, b_9
   }
 
   b_8 {
-    copy %v_0, %v_5, 4
+    copy %v_0, %v_5, 1
     ret 
   }
 
@@ -565,20 +574,20 @@ twice(Bool, ())<complex>(%v_0: Ptr, %value: Int, %body: Ptr) {
     %v_10 = add %body, 8: Ptr
     %v_11 = load %body, 8: Ptr
     %v_12 = load %v_10, 8: Ptr
-    %v_13 = alloca 4, 4: Ptr
+    %v_13 = alloca 1, 1: Ptr
     call_complex %v_11, %v_13, %v_12, %value
-    %v_14 = loads %v_13, 4: Int
+    %v_14 = loads %v_13, 1: Int
     %v_15 = cmp_eq %v_14, 1: Int
     je %v_15, b_16, b_17
   }
 
   b_16 {
-    copy %v_0, %v_13, 4
+    copy %v_0, %v_13, 1
     ret 
   }
 
   b_17 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -586,9 +595,29 @@ twice(Bool, ())<complex>(%v_0: Ptr, %value: Int, %body: Ptr) {
 stopped<complex>(): Int {
   b_0 {
     store @visited, 0, 4
-    call_complex stopAt, 10
-    %v_1 = loads @visited, 4: Int
-    ret %v_1
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$16, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 1, 1: Ptr
+    call_complex upTo(()), %v_4, 10, %v_1
+    %v_5 = loads %v_4, 1: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = loads @visited, 4: Int
+    ret %v_10
   }
 }
 
@@ -604,7 +633,7 @@ upTo(())<complex>(%v_0: Ptr, %limit: Int, %body: Ptr) {
   }
 
   b_8 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 
@@ -612,15 +641,15 @@ upTo(())<complex>(%v_0: Ptr, %limit: Int, %body: Ptr) {
     %v_9 = add %body, 8: Ptr
     %v_10 = load %body, 8: Ptr
     %v_11 = load %v_9, 8: Ptr
-    %v_12 = alloca 4, 4: Ptr
+    %v_12 = alloca 1, 1: Ptr
     call_complex %v_10, %v_12, %v_11, %v_3
-    %v_13 = loads %v_12, 4: Int
+    %v_13 = loads %v_12, 1: Int
     %v_14 = cmp_eq %v_13, 1: Int
     je %v_14, b_15, b_4
   }
 
   b_15 {
-    copy %v_0, %v_12, 4
+    copy %v_0, %v_12, 1
     ret 
   }
 
@@ -688,7 +717,7 @@ ResolveTest.continuation$7<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
     %v_6 = add %v_5, %x: Int
     %v_7 = add %v_6, %y: Int
     store %v_3, %v_7, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -701,7 +730,7 @@ ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 
   b_3 {
-    store %v_0, 1, 4
+    store %v_0, 1, 1
     ret 
   }
 
@@ -715,7 +744,7 @@ ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_8 = loads %v_6, 4: Int
     %v_9 = add %v_8, %value: Int
     store %v_6, %v_9, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -748,7 +777,7 @@ grid<complex>(%rows: Int, %columns: Int): Int {
     store %v_3, ResolveTest.continuation$5, 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, %v_1, 8
-    %v_5 = alloca 4, 4: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_5, %rows, %v_3
     %v_6 = loads %total, 4: Int
     ret %v_6
@@ -773,8 +802,17 @@ ResolveTest.continuation$12<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     store %v_5, ResolveTest.continuation$13, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, %v_2, 8
-    call_complex counted(()), %v_5
-    store %v_0, 0, 4
+    %v_7 = loads @log, 4: Int
+    %v_8 = add %v_7, 1: Int
+    store @log, %v_8, 4
+    %v_9 = add %v_5, 8: Ptr
+    %v_10 = load %v_5, 8: Ptr
+    %v_11 = load %v_9, 8: Ptr
+    call_complex %v_10, %v_11, %v_8
+    %v_12 = loads @log, 4: Int
+    %v_13 = add %v_12, 10: Int
+    store @log, %v_13, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -805,7 +843,7 @@ odds<complex>(%n: Int): Int {
     store %v_2, ResolveTest.continuation$1, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_4, %n, %v_2
     %v_5 = loads %total, 4: Int
     ret %v_5
@@ -872,9 +910,9 @@ ResolveTest.continuation$5<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     store %v_7, ResolveTest.continuation$6, 8
     %v_8 = add %v_7, 8: Ptr
     store %v_8, %v_4, 8
-    %v_9 = alloca 4, 4: Ptr
+    %v_9 = alloca 1, 1: Ptr
     call_complex upTo(()), %v_9, %v_3, %v_7
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -919,7 +957,7 @@ ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 
   b_4 {
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 
@@ -933,7 +971,7 @@ ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_9 = loads %v_7, 4: Int
     %v_10 = add %v_9, %value: Int
     store %v_7, %v_10, 4
-    store %v_0, 0, 4
+    store %v_0, 0, 1
     ret 
   }
 }
@@ -1037,7 +1075,7 @@ generic<complex>(): Int {
     store %v_2, ResolveTest.continuation$8, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
-    %v_4 = alloca 4, 4: Ptr
+    %v_4 = alloca 1, 1: Ptr
     call_complex twice(Int, ()), %v_4, 7, %v_2
     %v_5 = alloca 8, 8: Ptr
     store %v_5, %total, 8
@@ -1045,7 +1083,7 @@ generic<complex>(): Int {
     store %v_6, ResolveTest.continuation$9, 8
     %v_7 = add %v_6, 8: Ptr
     store %v_7, %v_5, 8
-    %v_8 = alloca 4, 4: Ptr
+    %v_8 = alloca 1, 1: Ptr
     call_complex twice(Bool, ()), %v_8, 1, %v_6
     %v_9 = loads %total, 4: Int
     ret %v_9
@@ -1096,10 +1134,30 @@ main<complex>(): Int {
     %v_24 = call_complex loopInLens, 5: Int
     %v_25 = add %v_23, %v_24: Int
     store @visited, 0, 4
-    call_complex stopAt, 10
-    %v_26 = loads @visited, 4: Int
-    %v_27 = add %v_25, %v_26: Int
-    ret %v_27
+    %v_26 = alloca 16, 8: Ptr
+    store %v_26, ResolveTest.continuation$16, 8
+    %v_27 = bitcast 0: Ptr
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = alloca 1, 1: Ptr
+    call_complex upTo(()), %v_29, 10, %v_26
+    %v_30 = loads %v_29, 1: Int
+    %v_31 = cmp_eq %v_30, 1: Int
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
+    jmp b_34
+  }
+
+  b_32 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = loads @visited, 4: Int
+    %v_36 = add %v_25, %v_35: Int
+    ret %v_36
   }
 }
 

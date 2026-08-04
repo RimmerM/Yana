@@ -69,27 +69,17 @@ function buildList() {
   xs.tail = { $v: { head: 0, tail: null } };
   xs.tail.$v = v4;
   var v30 = sum(xs);
-  drop$List({ $v: xs });
+  drop$List(xs);
   return v30;
 }
 
 function buildTree() {
   var deep = { $tag: 1, left: null, right: null, label: 0, $p: 0 };
-  var v6 = null;
-  var v9 = { $tag: 0, left: null, right: null, label: 0, $p: 20 };
-  v6 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
-  v6 = v9;
+  var v6 = { $tag: 0, left: null, right: null, label: 0, $p: 20 };
   deep.left = null;
   deep.right = v6;
   deep.label = 5;
-  var t = { $tag: 1, left: null, right: null, label: 0, $p: 0 };
-  var v25 = null;
-  var v28 = { $tag: 0, left: null, right: null, label: 0, $p: 10 };
-  v25 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
-  v25 = v28;
-  t.left = v25;
-  t.right = deep;
-  t.label = 7;
+  var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: deep, label: 7, $p: 0 };
   var v48 = total(t);
   var v49 = leftOf(t);
   drop$Tree(t);
@@ -113,17 +103,18 @@ function idsOf(c) {
 
 function buildChain() {
   var c = { payload: { id: 0 }, rest: null };
-  var v4 = track(4);
+  add_eq_Int(liveNodes, "$v", 1, 1);
+  var v32 = { id: 4 };
   var v5 = { payload: { id: 0 }, rest: null };
-  var v9 = track(5);
-  v5.payload = v9;
+  add_eq_Int(liveNodes, "$v", 1, 1);
+  v5.payload = { id: 5 };
   v5.rest = { $v: { payload: { id: 0 }, rest: null } };
   v5.rest.$v = null;
-  c.payload = v4;
+  c.payload = v32;
   c.rest = { $v: { payload: { id: 0 }, rest: null } };
   c.rest.$v = v5;
   var v23 = idsOf(c);
-  drop$Chain({ $v: c });
+  drop$Chain(c);
   return v23;
 }
 
@@ -154,15 +145,15 @@ function unwrapOr_Tree(m, fallback) {
 
 function drop$Tree(value) {
   if (value.$tag === 1) {
-    drop$Maybe_Tree({ $v: value.left });
-    drop$Maybe_Tree({ $v: value.right });
+    drop$Maybe_Tree(value.left);
+    drop$Maybe_Tree(value.right);
   }
   return;
 }
 
 function drop$Maybe_Tree(value) {
-  if (!(value.$v === null)) {
-    drop$Tree(value.$v);
+  if (!(value === null)) {
+    drop$Tree(value);
   }
   return;
 }
@@ -174,34 +165,34 @@ function reclaim$Tree(value) {
 }
 
 function reclaim$Maybe_Tree(value) {
-  if (!(value.$v === null)) {
+  if (!(value === null)) {
   }
   return;
 }
 
 function drop$List(value) {
-  if (!(value.$v === null)) {
-    drop$List({ $v: value.$v.tail.$v });
+  if (!(value === null)) {
+    drop$List(value.tail.$v);
   }
   return;
 }
 
 function reclaim$List(value) {
-  if (!(value.$v === null)) {
+  if (!(value === null)) {
   }
   return;
 }
 
 function drop$Chain(value) {
-  if (!(value.$v === null)) {
-    Drop_Tracked_drop(value.$v.payload);
-    drop$Chain({ $v: value.$v.rest.$v });
+  if (!(value === null)) {
+    sub_eq_Int(liveNodes, "$v", 1, 1);
+    drop$Chain(value.rest.$v);
   }
   return;
 }
 
 function reclaim$Chain(value) {
-  if (!(value.$v === null)) {
+  if (!(value === null)) {
   }
   return;
 }

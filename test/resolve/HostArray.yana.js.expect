@@ -14,18 +14,12 @@ function sub_eq_Int(target$o, target$k, target$s, amount) {
 }
 
 // Collections
-function push_Handle(self, item) {
-  var v3 = self.items;
-  v3[v3.length] = item;
-  return;
-}
-
 function remove_Handle(self, index) {
-  if (index >>> 0 >= self.items.length >>> 0) {
+  if (index >>> 0 >= self.length >>> 0) {
     return null;
   } else {
-    var doomed = self.items[index];
-    self.items.splice(index, 1);
+    var doomed = self[index];
+    self.splice(index, 1);
     return doomed;
   }
 }
@@ -56,13 +50,11 @@ function slice_Handle(self, from, to) {
 }
 
 function Reclaim_Array_a_reclaim_Handle(value) {
-  var count = value.items.length;
+  var count = value.length;
   var i = 0;
   L0: for (;;) {
     if (i < count) {
-      var doomed = value.items[i];
-      sub_eq_Int(live, "$v", 1, 1);
-      closed = closed + doomed.id | 0;
+      Drop_Handle_drop(value[i]);
       i = i + 1 | 0;
       continue L0;
     }
@@ -92,49 +84,45 @@ function idsOf(xs$items, xs$length, xs$offset) {
 }
 
 function container() {
-  var v1 = openHandle(1);
-  var v3 = openHandle(2);
-  var v4 = { items: null };
-  var v5 = [];
-  v4.items = v5;
-  v5[0] = v1;
-  v5[1] = v3;
-  push_Handle(v4, openHandle(3));
-  var v21 = v4.items;
-  var v24 = openHandle(4);
-  sub_eq_Int(live, "$v", 1, 1);
-  closed = closed + v21[0].id | 0;
-  v21[0] = v24;
+  add_eq_Int(live, "$v", 1, 1);
+  var v153 = { id: 1 };
+  add_eq_Int(live, "$v", 1, 1);
+  var v5 = [v153, { id: 2 }];
+  add_eq_Int(live, "$v", 1, 1);
+  v5[v5.length] = { id: 3 };
+  add_eq_Int(live, "$v", 1, 1);
+  var v177 = { id: 4 };
+  Drop_Handle_drop(v5[0]);
+  v5[0] = v177;
   if (live.$v !== 3) {
-    Reclaim_Array_a_reclaim_Handle(v4);
+    Reclaim_Array_a_reclaim_Handle(v5);
     return -1;
   } else {
     if (closed !== 1) {
-      Reclaim_Array_a_reclaim_Handle(v4);
+      Reclaim_Array_a_reclaim_Handle(v5);
       return -2;
     } else {
       var score = 0;
-      var v53 = remove_Handle(v4, 1);
+      var v53 = remove_Handle(v5, 1);
       if (!(v53 === null)) {
         var v62 = v53.id;
-        sub_eq_Int(live, "$v", 1, 1);
-        closed = closed + v62 | 0;
+        Drop_Handle_drop(v53);
         score = v62;
         if (live.$v !== 2) {
-          Reclaim_Array_a_reclaim_Handle(v4);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return -4;
         } else {
-          var v81 = v4.items;
-          var whole = idsOf(v81, v81.length, 0);
-          var v93 = v4.items;
-          var v103 = slice_Handle({ items: v93, length: v93.length, offset: 0 }, 1, 2);
+          var whole = idsOf(v5, v5.length, 0);
+          var v103 = slice_Handle({ items: v5, length: v5.length, offset: 0 }, 1, 2);
           var tail = idsOf(v103.items, v103.length, v103.offset);
-          Reclaim_Array_a_reclaim_Handle(v4);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return ((Math.imul(score, 1000) | 0) + (Math.imul(whole, 10) | 0) | 0) + tail | 0;
         }
       } else {
-        Reclaim_Array_a_reclaim_Handle(v4);
-        drop$Maybe_Handle({ $v: v53 });
+        Reclaim_Array_a_reclaim_Handle(v5);
+        if (!(v53 === null)) {
+          Drop_Handle_drop(v53);
+        }
         return -3;
       }
     }
@@ -165,9 +153,8 @@ function Drop_Handle_drop(value) {
 }
 
 function drop$Maybe_Handle(value) {
-  if (!(value.$v === null)) {
-    sub_eq_Int(live, "$v", 1, 1);
-    closed = closed + value.$v.id | 0;
+  if (!(value === null)) {
+    Drop_Handle_drop(value);
   }
   return;
 }

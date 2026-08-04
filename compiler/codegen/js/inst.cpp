@@ -519,21 +519,27 @@ void genDrop(Gen& g, InstDrop& instruction) {
     }
 
     /*
-     * A scalarized record goes by value; everything else keeps the box it always had.
+     * Which form the argument takes, asked of the *callee* rather than worked out from the type.
      *
-     * `referenceTo` boxes whatever is not an object, and for as long as every aggregate here *was*
-     * one that meant "aggregates unboxed, scalars boxed" - which is what every teardown was compiled
-     * against. Scalarization moves aggregates from one side of that to the other, and the callee did
-     * not move with them: it reads the by-value parameter it declares, so a box would make it read
-     * `{$v: 3} & 1` and get zero. Keeping the box for everything else leaves the teardowns that
-     * genuinely take a reference - a closure's, `Sink`'s - exactly as they were.
+     * It used to be worked out: a scalarized record went by value and everything else kept the box,
+     * on the reading that "aggregates unboxed, scalars boxed" was what every teardown had been
+     * compiled against. That was true only for as long as the two populations happened to line up.
+     * An authored `Drop` declares `->value: T` and reads the value; derived glue declared a `%T` and
+     * read through it; and the two agreed with one call site because a JS reference to an *object*
+     * is that object. A type that is not an object - anything niche-folded - was the case where they
+     * did not, and the box was allocated there to be read once and discarded.
+     *
+     * Now every teardown declares `->`, and the one thing left that genuinely takes an address is
+     * the erased entry (teardownEntry), which a concrete site never names. So the question is the
+     * parameter's declared type, which is a fact rather than a population.
      */
-    auto scalarized = type && isMemoryType(g.global, type) &&
-                      g.global[type]->kind != Type::Fun && g.repr.of(type).scalarBits != 0;
+    auto callee = g.local[instruction.drop];
+    auto takesAddress = callee->args.isNotEmpty() &&
+                        isPointer(g.global, g.local[callee->args.get(g.local, 0)]->type);
 
     emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
-                     scalarized ? placeExpr(g, instruction.place)
-                                : referenceTo(g, instruction.place)));
+                     takesAddress ? referenceTo(g, instruction.place)
+                                  : placeExpr(g, instruction.place)));
 }
 
 /*

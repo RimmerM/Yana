@@ -49,10 +49,8 @@ holdsNothing<complex>(): Long {
     %s = alloca 24, 8: Ptr
     store %s, 0, 4
     %counted = loads @liveBuffers, 8: Long
-    %v_1 = call_complex touch, %s: Long
     call_complex drop$Slot, %s
-    %v_2 = add %counted, %v_1: Long
-    ret %v_2
+    ret %counted
   }
 }
 
@@ -60,15 +58,13 @@ holdsOne<complex>(): Long {
   b_0 {
     %s = alloca 24, 8: Ptr
     store %s, 1, 4
-    %v_1 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_1, 16
+    call_complex +=(I64), @liveBuffers, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
     %v_2 = add %s, 8: Ptr
-    copy %v_2, %v_1, 8
+    store %v_2, %v_1, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_3 = call_complex touch, %s: Long
     call_complex drop$Slot, %s
-    %v_4 = add %counted, %v_3: Long
-    ret %v_4
+    ret %counted
   }
 }
 
@@ -108,19 +104,17 @@ holdsTwo<complex>(): Long {
   b_0 {
     %s = alloca 24, 8: Ptr
     store %s, 2, 4
-    %v_1 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_1, 16
-    %v_2 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_2, 16
+    call_complex +=(I64), @liveBuffers, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    call_complex +=(I64), @liveBuffers, 1
+    %v_2 = call_complex allocateHeap, 16: Ptr
     %v_3 = add %s, 8: Ptr
-    copy %v_3, %v_1, 8
+    store %v_3, %v_1, 8
     %v_4 = add %s, 16: Ptr
-    copy %v_4, %v_2, 8
+    store %v_4, %v_2, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_5 = call_complex touch, %s: Long
     call_complex drop$Slot, %s
-    %v_6 = add %counted, %v_5: Long
-    ret %v_6
+    ret %counted
   }
 }
 
@@ -286,17 +280,38 @@ drop$Slot<complex>(%value: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %two = call_complex holdsTwo: Long
-    %one = call_complex holdsOne: Long
-    %none = call_complex holdsNothing: Long
-    %v_1 = imul %two, 100: Long
-    %v_2 = imul %one, 10: Long
-    %v_3 = add %v_1, %v_2: Long
-    %v_4 = add %v_3, %none: Long
-    %v_5 = loads @liveBuffers, 8: Long
-    %v_6 = add %v_4, %v_5: Long
-    %v_7 = cast %v_6: Int
-    ret %v_7
+    %s = alloca 24, 8: Ptr
+    store %s, 2, 4
+    call_complex +=(I64), @liveBuffers, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    call_complex +=(I64), @liveBuffers, 1
+    %v_2 = call_complex allocateHeap, 16: Ptr
+    %v_3 = add %s, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = add %s, 16: Ptr
+    store %v_4, %v_2, 8
+    %counted = loads @liveBuffers, 8: Long
+    call_complex drop$Slot, %s
+    %s = alloca 24, 8: Ptr
+    store %s, 1, 4
+    call_complex +=(I64), @liveBuffers, 1
+    %v_5 = call_complex allocateHeap, 16: Ptr
+    %v_6 = add %s, 8: Ptr
+    store %v_6, %v_5, 8
+    %counted = loads @liveBuffers, 8: Long
+    call_complex drop$Slot, %s
+    %s = alloca 24, 8: Ptr
+    store %s, 0, 4
+    %counted = loads @liveBuffers, 8: Long
+    call_complex drop$Slot, %s
+    %v_7 = imul %counted, 100: Long
+    %v_8 = imul %counted, 10: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = add %v_9, %counted: Long
+    %v_11 = loads @liveBuffers, 8: Long
+    %v_12 = add %v_10, %v_11: Long
+    %v_13 = cast %v_12: Int
+    ret %v_13
   }
 }
 

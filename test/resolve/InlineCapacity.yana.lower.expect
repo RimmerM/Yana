@@ -68,7 +68,7 @@ nestedSize<complex>(): Long {
     copy %b, %v_1, 20
     %v_5 = add %b, 20: Ptr
     store %v_5, 7, 4
-    call_complex reclaim$Buffer, %b
+    call_complex reclaim$@inline(4) @capacity(4) Array(Int), %b
     %v_6 = sub 24, 4: Long
     ret %v_6
   }
@@ -113,22 +113,42 @@ reclaim$Buffer<complex>(%value: Ptr) {
   }
 }
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 holdInRecord<complex>(): Int {
   b_0 {
     %h = alloca 24, 8: Ptr
-    %v_1 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_1
+    call_complex +=(I64), @liveHandles, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
     %v_2 = alloca 20, 8: Ptr
     %v_3 = add %v_2, 0: Ptr
-    copy %v_3, %v_1, 8
+    store %v_3, %v_1, 8
     %v_4 = add %v_2, 16: Ptr
     store %v_4, 1, 4
     copy %h, %v_2, 20
     %v_5 = add %h, 20: Ptr
     %v_6 = imm 5: Int
     store %v_5, %v_6, 4
-    call_complex drop$Holder, %h
-    call_complex reclaim$Holder, %h
+    call_complex drop$@inline(2) @capacity(2) Array(Handle), %h
     ret %v_6
   }
 }
@@ -421,21 +441,22 @@ plainSize<complex>(): Long {
     store %v_16, 4, 4
     %v_17 = add %xs, 12: Ptr
     store %v_17, 4, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %xs
     ret 16
   }
 }
 
 holdHandles<complex>(): Long {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_1
-    %v_2 = alloca 8, 8: Ptr
-    call_complex openHandle, %v_2
+    call_complex +=(I64), @liveHandles, 1
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    call_complex +=(I64), @liveHandles, 1
+    %v_2 = call_complex allocateHeap, 16: Ptr
     %v_3 = alloca 20, 8: Ptr
     %v_4 = add %v_3, 0: Ptr
-    copy %v_4, %v_1, 8
+    store %v_4, %v_1, 8
     %v_5 = add %v_3, 8: Ptr
-    copy %v_5, %v_2, 8
+    store %v_5, %v_2, 8
     %v_6 = add %v_3, 16: Ptr
     store %v_6, 2, 4
     %v_7 = alloca 16, 8: Ptr
@@ -489,6 +510,7 @@ reclaim$@inline(4) @capacity(4) Array(Int)<complex>(%value: Ptr) {
     %v_16 = load %v_15, 4: Int
     %v_17 = add %v_1, 12: Ptr
     store %v_17, %v_16, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 
   }
 }

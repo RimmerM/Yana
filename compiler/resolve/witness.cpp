@@ -1418,11 +1418,16 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
         return implementation ? implementation : emptyTeardown(module, source);
     };
 
+    /*
+     * The *entry* rather than the implementation, which is the difference between what a slot can
+     * be called with and what the teardown itself declares - see teardownEntry. A slot holds one
+     * signature for every type that could fill it, and erased code has an address and nothing else.
+     */
     table.putFunction(TypeDescFields::kMoveInit, orEmpty(moveInitFor(module, type, source)));
     table.putFunction(TypeDescFields::kReclaim,
-                      orEmpty(teardownImplementation(module, type, Teardown::Reclaim, source)));
+                      orEmpty(teardownEntry(module, type, Teardown::Reclaim, source)));
     table.putFunction(TypeDescFields::kDrop,
-                      orEmpty(teardownImplementation(module, type, Teardown::Drop, source)));
+                      orEmpty(teardownEntry(module, type, Teardown::Drop, source)));
 
     return pointer;
 }
@@ -1458,14 +1463,17 @@ ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, T
         return implementation ? implementation : emptyTeardown(module, source);
     };
 
+    // The entries rather than the implementations, for the reason typeDescFor gives: teardownFunValue
+    // reaches these through an InstCallDyn with the environment's *address*, which is the same
+    // uniform slot ABI a descriptor has and not the convention a teardown declares.
     table.putFunction(ClosureHeaderFields::kDrop,
-                      orEmpty(teardownImplementation(module, envType, Teardown::Drop, source)));
+                      orEmpty(teardownEntry(module, envType, Teardown::Drop, source)));
 
     // The frame-environment answer, which is also the safe one to start from: a header that never
     // reaches selectStorage releases the captures and leaves the storage alone, and storage nothing
     // decided about is storage in the frame.
     table.putFunction(ClosureHeaderFields::kReclaim,
-                      orEmpty(teardownImplementation(module, envType, Teardown::Reclaim, source)));
+                      orEmpty(teardownEntry(module, envType, Teardown::Reclaim, source)));
 
     function->closureHeader = pointer;
     return pointer;
@@ -1501,8 +1509,12 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
     if(auto reclaim = teardownImplementation(module, envType, Teardown::Reclaim, source)) {
         local[reclaim]->used = true;
 
+        // The implementation takes its subject by `->`, and this wrapper was handed the address -
+        // so the read is what bridges the slot ABI to the teardown's own. It is the same bridge
+        // teardownEntry is, written inline because this function already exists and already has the
+        // address; a second entry function here would be one more call for nothing.
         auto inner = resolver.create<InstCall>(source, 0, module.scalar.unit, reclaim);
-        inner->args.push(module.arena, env);
+        inner->args.push(module.arena, resolver.load(Place::atPointer(env), source));
         resolver.append(inner);
     }
 
