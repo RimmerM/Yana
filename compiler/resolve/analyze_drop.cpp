@@ -453,6 +453,11 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
 
             positions.push(position);
             instructions.push(drop);
+
+            // The drop is spliced in below rather than appended, so `Block::add` never sees it and
+            // the uses it owes have to be recorded here - see recordInstUses. A drop that named a
+            // local and was in no use list is what made `rebuildUses` in compiler/opt necessary.
+            recordInstUses(analysis.module, drop);
         }
 
         block->instructions.clear();
@@ -491,7 +496,10 @@ static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArr
 
     for(auto localIndex: locals) {
         auto drop = makeDrop(analysis, *split, localIndex, split->source);
-        if(drop) split->instructions.push(module.arena, (ModulePtr<Inst>)(drop - base));
+        if(!drop) continue;
+
+        split->instructions.push(module.arena, (ModulePtr<Inst>)(drop - base));
+        recordInstUses(module, drop);
     }
 
     auto jump = createInst<InstJmp>(module, analysis.function, *split, split->source, 0,

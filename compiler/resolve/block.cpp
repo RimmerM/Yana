@@ -1,10 +1,13 @@
 #include "block.h"
 #include "module.h"
 
-static void addUse(Module& module, ModulePtr<Value> value, Inst* user) {
+void recordUse(Module& module, ModulePtr<Value> value, ModulePtr<Inst> user) {
     if(!value) return;
-    auto base = *module.arena;
-    base[value]->uses.push(module.arena, user - base);
+    (*module.arena)[value]->uses.push(module.arena, user);
+}
+
+static void addUse(Module& module, ModulePtr<Value> value, Inst* user) {
+    recordUse(module, value, user - *module.arena);
 }
 
 // A place is used through whatever it is rooted in, so that the value the storage came from - an
@@ -28,6 +31,99 @@ static void addPlaceUse(Module& module, const Place& place, Inst* user) {
     auto projections = place.projections;
     for(auto projection: projections.contents(base)) {
         if(projection.value) addUse(module, projection.value, user);
+    }
+}
+
+/*
+ * Recording one ordinary instruction as a user of everything it names.
+ *
+ * The half of `Block::add` below that is about the *instruction* rather than about the block, split
+ * out because one pass legitimately builds an instruction and splices it in itself: the drop pass
+ * inserts a whole block's drops at once, against positions computed before any of them existed, so
+ * it rebuilds the instruction list rather than appending to it (see `insertBlockDrops`). What it
+ * still owes is this, and owing it and not paying was what made `rebuildUses` in compiler/opt
+ * necessary rather than merely defensive - a drop that named a local and was in no use list let the
+ * dead-local rule delete a heap allocation whose release was still there.
+ *
+ * Phis and terminators are deliberately not here: both of those are *block* structure - a phi joins
+ * the incoming edges and a terminator creates them - so neither is something to splice in.
+ */
+void recordInstUses(Module& module, Inst* inst) {
+    auto base = *module.arena;
+
+    // The storage half, which is the same list for every pass that walks places - see
+    // instructionPlaces. What is left below is the operands, which are per instruction.
+    eachPlace(*inst, [&](const Place& place) { addPlaceUse(module, place, inst); });
+
+    switch(inst->kind) {
+        // A run's length is an operand of the allocation - see InstAlloc::extent. Null for the
+        // allocation of one object, which is every other one.
+        case Value::Alloc:
+            addUse(module, ((InstAlloc*)inst)->extent, inst);
+            break;
+        case Value::Init:
+        case Value::Assign:
+            addUse(module, ((InstInit*)inst)->value, inst);
+            break;
+        case Value::Exchange:
+            addUse(module, ((InstExchange*)inst)->value, inst);
+            break;
+        case Value::Native:
+            for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(module, arg, inst);
+            break;
+        case Value::Aggregate: {
+            auto aggregate = (InstAggregate*)inst;
+            eachAggregateComponent(base, *aggregate,
+                                   [&](const AggregateComponent& component, Size) {
+                addUse(module, component.value, inst);
+                addUse(module, component.step.value, inst);
+            });
+            break;
+        }
+        case Value::Cast:
+        case Value::Neg:
+        case Value::Not:
+            addUse(module, ((InstUnary*)inst)->from, inst);
+            break;
+        case Value::Add:
+        case Value::Sub:
+        case Value::Mul:
+        case Value::Div:
+        case Value::Rem:
+        case Value::Shl:
+        case Value::Shr:
+        case Value::Sar:
+        case Value::And:
+        case Value::Or:
+        case Value::Xor:
+        case Value::Cmp: {
+            auto binary = (InstBinary*)inst;
+            addUse(module, binary->lhs, inst);
+            addUse(module, binary->rhs, inst);
+            break;
+        }
+        case Value::Select: {
+            auto select = (InstSelect*)inst;
+            addUse(module, select->cond, inst);
+            addUse(module, select->whenTrue, inst);
+            addUse(module, select->whenFalse, inst);
+            break;
+        }
+        case Value::Call:
+            for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
+            break;
+        case Value::CallDyn: {
+            auto call = (InstCallDyn*)inst;
+            addUse(module, call->callable, inst);
+            addUse(module, call->address, inst);
+            for(auto arg: call->args.contents(base)) addUse(module, arg, inst);
+            break;
+        }
+        case Value::GenCall:
+            for(auto arg: ((InstGenCall*)inst)->args.contents(base)) addUse(module, arg, inst);
+            break;
+        default:
+            break;
     }
 }
 
@@ -60,81 +156,7 @@ Inst* Block::add(Module& module, Inst* inst) {
         }
     } else {
         instructions.push(module.arena, pointer);
-
-        // The storage half, which is the same list for every pass that walks places - see
-        // instructionPlaces. What is left below is the operands, which are per instruction.
-        eachPlace(*inst, [&](const Place& place) { addPlaceUse(module, place, inst); });
-
-        switch(inst->kind) {
-            // A run's length is an operand of the allocation - see InstAlloc::extent. Null for the
-            // allocation of one object, which is every other one.
-            case Value::Alloc:
-                addUse(module, ((InstAlloc*)inst)->extent, inst);
-                break;
-            case Value::Init:
-            case Value::Assign:
-                addUse(module, ((InstInit*)inst)->value, inst);
-                break;
-            case Value::Exchange:
-                addUse(module, ((InstExchange*)inst)->value, inst);
-                break;
-            case Value::Native:
-                for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(module, arg, inst);
-                break;
-            case Value::Aggregate: {
-                auto aggregate = (InstAggregate*)inst;
-                eachAggregateComponent(base, *aggregate,
-                                       [&](const AggregateComponent& component, Size) {
-                    addUse(module, component.value, inst);
-                    addUse(module, component.step.value, inst);
-                });
-                break;
-            }
-            case Value::Cast:
-            case Value::Neg:
-            case Value::Not:
-                addUse(module, ((InstUnary*)inst)->from, inst);
-                break;
-            case Value::Add:
-            case Value::Sub:
-            case Value::Mul:
-            case Value::Div:
-            case Value::Rem:
-            case Value::Shl:
-            case Value::Shr:
-            case Value::Sar:
-            case Value::And:
-            case Value::Or:
-            case Value::Xor:
-            case Value::Cmp: {
-                auto binary = (InstBinary*)inst;
-                addUse(module, binary->lhs, inst);
-                addUse(module, binary->rhs, inst);
-                break;
-            }
-            case Value::Select: {
-                auto select = (InstSelect*)inst;
-                addUse(module, select->cond, inst);
-                addUse(module, select->whenTrue, inst);
-                addUse(module, select->whenFalse, inst);
-                break;
-            }
-            case Value::Call:
-                for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
-                break;
-            case Value::CallDyn: {
-                auto call = (InstCallDyn*)inst;
-                addUse(module, call->callable, inst);
-                addUse(module, call->address, inst);
-                for(auto arg: call->args.contents(base)) addUse(module, arg, inst);
-                break;
-            }
-            case Value::GenCall:
-                for(auto arg: ((InstGenCall*)inst)->args.contents(base)) addUse(module, arg, inst);
-                break;
-            default:
-                break;
-        }
+        recordInstUses(module, inst);
     }
 
     return inst;

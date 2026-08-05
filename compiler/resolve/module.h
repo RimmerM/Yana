@@ -422,6 +422,32 @@ struct Function {
 };
 
 /*
+ * The storage roots one instruction names, as the values whose use lists record them.
+ *
+ * A place rooted in a *local* is a use of the `Alloc` that gave the local its storage - see
+ * `addPlaceUse` in resolve/block.cpp, which is what makes "every access to this local" answerable by
+ * walking one use list. That use has no operand slot holding it: the root is a local index, and the
+ * Alloc is reached through the function's local table.
+ *
+ * Which is why this is separate from `mapOperands` rather than part of it. A *rewrite* must not
+ * touch the root - pointing it somewhere else is not something a place can express - while a *use
+ * count* must, or an erased instruction leaves a reader the Alloc still believes in. Erasing the
+ * redundant store in opt_place.cpp is exactly that case.
+ *
+ * Together with `mapOperands`, this is the whole of what `Block::add` records a use for, which is
+ * the statement `verifyFunction` checks a use list against.
+ */
+template<class F>
+inline void eachPlaceRootValue(ModuleBase base, Function& function, const Value& instruction, F&& f) {
+    eachPlace(instruction, [&](const Place& place) {
+        if(place.root != PlaceRoot::Local) return;
+        if(place.local >= function.localCount()) return;
+
+        if(auto storage = function.localAt(base, place.local).value) f(storage);
+    });
+}
+
+/*
  * What one cell of a compiler-built table holds.
  *
  * A table is built as a list of these and nothing else - no bytes, no offsets, no byte order. That

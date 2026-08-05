@@ -335,6 +335,12 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
 
         if(phi.inputs.isEmpty()) {
             replaceValue(opt, (ModulePtr<Value>)phiPointer, selected);
+
+            // And the slots this phi filled, which `replaceValue` does not reach: a slot names the
+            // value its storage came from rather than reading it, so the storage follows the phi
+            // into the select that replaced it. Left behind, it is a slot naming an instruction that
+            // is in no block - see repointLocalValue.
+            repointLocalValue(opt, (ModulePtr<Value>)phiPointer, selected);
             join->phis.remove(opt.local, i);
         } else {
             phi.inputs.push(opt.program.arena, PhiInput { pointer, selected });

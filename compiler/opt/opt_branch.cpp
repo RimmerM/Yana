@@ -282,6 +282,33 @@ bool removeUnreachableBlocks(OptContext& opt) {
         }
     }
 
+    /*
+     * And the slots the departing blocks filled.
+     *
+     * `Local::value` is the other half of `Value::slot` - see Function::setLocalValue - so a block
+     * that goes takes the contents of every slot its instructions were the whole of. Leaving one
+     * behind is storage whose provenance later passes read and get a wrong answer from:
+     * `eachPlaceRootValue` attributes a place's use to it, `storageOf` hands it back as the root to
+     * project from, and `lowerProgram` asks it who reads the storage and is told "nobody".
+     *
+     * Cleared rather than repointed, because the instruction that produced the storage is gone: the
+     * slot has no contents rather than different ones. Anything still rooted in it is in a block
+     * that has gone too, which is what makes that safe.
+     */
+    for(auto pointer: opt.function->blocks.contents(opt.local)) {
+        if((*reachable)[opt.local[pointer]->index]) continue;
+
+        for(auto instruction: opt.local[pointer]->instructions.contents(opt.local)) {
+            forgetLocalValue(opt, (ModulePtr<Value>)instruction);
+        }
+
+        // The phis too: a join that merges two arms' storage is the value a slot was filled from
+        // just as an allocation is, and a block that goes takes its phis with it.
+        for(auto phi: opt.local[pointer]->phis.contents(opt.local)) {
+            forgetLocalValue(opt, (ModulePtr<Value>)phi);
+        }
+    }
+
     // A block's index is its position in this list, which is what every walk in opt_flow.cpp
     // assumes - so compacting the list means renumbering with it.
     opt.function->blocks.clear();
@@ -323,6 +350,11 @@ void collapseSinglePhis(OptContext& opt) {
 
                 replaceValue(opt, (ModulePtr<Value>)pointer, only);
                 dropUse(opt, only, (ModulePtr<Inst>)pointer);
+
+                // And the slots this phi filled, which `replaceValue` does not reach: a slot names
+                // the value its storage came from rather than reading it, so the storage follows the
+                // phi into whatever it became.
+                repointLocalValue(opt, (ModulePtr<Value>)pointer, only);
                 block->phis.remove(opt.local, i);
                 changed = true;
             }

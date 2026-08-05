@@ -35,17 +35,23 @@ void eachFunctionValue(OptContext& opt, F&& f) {
 /*
  * Recomputing every use list from the instructions that exist.
  *
- * Necessary rather than tidy, and the reason is a real gap: `Block::add` is what records a use, and
- * the drop pass does not go through it. `insertBlockDrops` and `splitEdge` in analyze_drop.cpp build
- * an `InstDrop` with `createInst` and push it straight into the block, so a drop is an instruction
- * that names a local and is in no use list - and a pass that asked "who touches this local" would be
- * told "only these writes" about storage that is also released.
+ * What it is *no longer* for is the drop pass. `insertBlockDrops` and `splitEdge` in
+ * analyze_drop.cpp build an `InstDrop` with `createInst` and splice it in rather than appending it,
+ * so `Block::add` never saw one and a drop was an instruction that named a local and was in no use
+ * list - and the dead-local rule below then removed a heap allocation whose `drop ... release` was
+ * still there. That is a crash, and it is closed at the source: those two sites call
+ * `recordInstUses`, which is the half of `Block::add` they owed.
  *
- * That was a crash rather than a subtlety: the dead-local rule below removed a heap allocation whose
- * `drop ... release` was still there, and the call to free it was left naming a value that no longer
- * existed. Repairing the lists once here is better than teaching each pass to distrust them, and it
- * also fixes the narrower version of the same gap - an overwrite drop's place may carry an index
- * value, which nothing had recorded a use of either.
+ * What is left is one pass that genuinely declines the invariant. `flattenArguments` rewrites
+ * signatures and rebuilds call sites wholesale, and repairing lists per rewrite there would be
+ * bookkeeping over an IR half of whose instructions are about to be replaced - so it leaves every
+ * list for this call, which is the last thing before the first pass reads one. `mergeBlocks` is the
+ * other, for the narrower reason that an instruction in a block it deleted is still in the use list
+ * of everything it read.
+ *
+ * So this is a repair with two named callers rather than a blanket distrust, and `verifyFunction`
+ * runs immediately after it - see resolve/verify.h, and the checkpoint at the top of
+ * `optimizeProgram`, which is what asks whether the lists arrived here correct.
  *
  * Two passes, because a list may only be cleared before anything is pushed into it.
  */
@@ -83,37 +89,53 @@ void rebuildUses(OptContext& opt) {
 // rather than a hang.
 static constexpr Size kMaxRounds = 8;
 
+/*
+ * One pass, and the IR it left behind - see resolve/verify.h.
+ *
+ * A pass is the smallest thing that can be blamed, so this is the checkpoint the verifier exists for
+ * and the reason the whole of it is written against a *stage* rather than one point in the pipeline.
+ * Running it here also gives the "before" of every pass for free, since the check after one is the
+ * check before the next; the round below opens with one for the first pass of the first round.
+ *
+ * Confined to assertion builds by `verifyIr`, because this is one full walk of a function per pass
+ * per round - the fixed point runs the list up to eight times over every function in the program.
+ */
+#define runPass(pass) \
+    pass(opt); \
+    verifyIr(*opt.module, *opt.function, VerifyStage::Optimized, \
+             (StringView { "after " #pass, sizeof("after " #pass) - 1 }))
+
 void optimizeRounds(OptContext& opt) {
     for(Size round = 0; round < kMaxRounds; round++) {
         opt.changed = false;
 
-        foldFunction(opt);
+        runPass(foldFunction);
 
         // Before the place passes rather than after them, because what it changes is which storage a
         // place names: a read left rooted in a borrow is one `forwardPlaces` cannot match against the
         // write that produced it, and one `computeContainment` refuses to call contained at all.
-        collapseBorrows(opt);
+        runPass(collapseBorrows);
 
-        forwardPlaces(opt);
-        scalarizeLocals(opt);
+        runPass(forwardPlaces);
+        runPass(scalarizeLocals);
 
         // After the scalarizer rather than before it: what promotion has to work on is one place per
         // field, and a record written whole is one place until `splitAggregateWrite` has taken it
         // apart. The removal that pays for this is the *next* round's - promotion leaves a local
         // whose whole use list is writes, which is the state `eliminateDeadLocal` removes it in.
-        promotePlaces(opt);
+        runPass(promotePlaces);
 
         // Immediately in front of the fold, because what it produces *is* a constant condition: a
         // loop it decides does nothing is one whose exit test it writes down as false, and every
         // consequence of that - the arm nothing reaches, the phi with one alternative left, the
         // header merged back into the block above it - belongs to the pass below.
-        eliminateDeadLoops(opt);
+        runPass(eliminateDeadLoops);
 
         // After the place passes rather than before them, because most constant conditions are made
         // rather than written: a `Bool` inlining turned into a literal, a field forwarding answered
         // from the write above it. Ahead of the loop pass so that neither it nor the dominance walk
         // spends its time on blocks nothing reaches.
-        foldBranches(opt);
+        runPass(foldBranches);
 
         /*
          * And the branches nothing folded, which are the ones that decide a value rather than a
@@ -125,16 +147,16 @@ void optimizeRounds(OptContext& opt) {
          * rather than at the end of the round - a read and the write that answers it are only in one
          * block once the join has been merged back.
          */
-        convertSelects(opt);
+        runPass(convertSelects);
 
         // After forwarding rather than before it: a read the block-local pass already answered is
         // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead
         // of CSE for the same reason in the other direction - two hoisted copies of one computation
         // land in the preheader together, where the dominator walk unifies them.
-        hoistLoopValues(opt);
+        runPass(hoistLoopValues);
 
-        eliminateCommonValues(opt);
-        eliminateDeadValues(opt);
+        runPass(eliminateCommonValues);
+        runPass(eliminateDeadValues);
 
         if(!opt.changed) break;
     }
@@ -152,10 +174,17 @@ namespace {
  */
 void optimizeFunction(OptContext& opt, Function& function) {
     opt.function = &function;
+
+    // After `rebuildUses` rather than before it: what the lists were on the way in is asked once
+    // for the whole program at the top of this stage, and between there and here sits a pass that
+    // rewrites signatures and leaves the repair to exactly this call.
     rebuildUses(opt);
+    verifyIr(*opt.module, function, VerifyStage::Ownership, "before optimizing"_v);
 
     optimizeRounds(opt);
     if(expandPacking(opt)) optimizeRounds(opt);
+
+    verifyIr(*opt.module, function, VerifyStage::Optimized, "after optimizing"_v);
 }
 
 }
@@ -197,6 +226,53 @@ void replaceValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to) {
     opt.changed = true;
 }
 
+/*
+ * Every slot one value was the whole contents of, emptied.
+ *
+ * `Local::value` is the other half of `Value::slot` - see Function::setLocalValue - and a slot left
+ * naming an instruction that is no longer in any block is storage whose provenance every later pass
+ * reads and gets a wrong answer from: `eachPlaceRootValue` attributes a place's use to it,
+ * `storageOf` hands it back as the root to project from, and `lowerProgram` asks it who reads the
+ * storage and is told "nobody", which is how a slot with readers came to look like one that could
+ * stay in registers.
+ *
+ * By scan rather than through `Value::slot`, and that is the whole reason this is a function.
+ * `Value::slot` holds *one* answer while several slots may name one value - the inliner points every
+ * slot that named a call at the value that replaced it, deliberately, since a class default reached
+ * through an instance ends up with two of them. Clearing only the one the value names back leaves
+ * the others behind.
+ *
+ * Cleared rather than repointed, because the instruction that produced the storage is gone: the slot
+ * has no contents rather than different ones.
+ */
+void forgetLocalValue(OptContext& opt, ModulePtr<Value> value) {
+    for(U32 local = 0; local < opt.function->localCount(); local++) {
+        if(opt.function->localAt(opt.local, local).value != value) continue;
+
+        opt.function->setLocalValue(opt.local, local, nullptr);
+    }
+}
+
+/*
+ * The same slots, refilled from another value rather than emptied.
+ *
+ * What a pass that *replaces* an instruction and then takes it out of its block owes, against the
+ * `forgetLocalValue` a pass that simply removes one owes: the storage did not stop existing, it is
+ * now named by whatever the readers were pointed at. `collapseSinglePhis` is the case - a join whose
+ * phi has one alternative left is that alternative, storage included.
+ *
+ * Lowest last, so that the `Value::slot` back edge names the lowest slot of the several that may
+ * hold one value. That is the answer `findPlace` and `backingLocal` give, and the one opt_inline.cpp
+ * already settled on for the same reason.
+ */
+void repointLocalValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to) {
+    for(U32 local = U32(opt.function->localCount()); local-- > 0;) {
+        if(opt.function->localAt(opt.local, local).value != from) continue;
+
+        opt.function->setLocalValue(opt.local, local, to);
+    }
+}
+
 void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction) {
     auto value = opt.local[instruction];
     assertTrue(value->uses.isEmpty());
@@ -219,6 +295,9 @@ void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction) {
             break;
         }
     }
+
+    // And the slots this value was the whole contents of, which stop existing with it.
+    forgetLocalValue(opt, (ModulePtr<Value>)instruction);
 
     opt.changed = true;
 }
@@ -486,20 +565,40 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // `-no-opt`, and the second half of the fixture runner's equivalence check. Marked as optimized
     // on the way past anyway, so that "this program has been through the stage" stays one question
     // with one answer rather than depending on what the stage decided to do.
-    if(!context.settings.optimizeIr) return;
+    //
+    // Still verified on the way out, at the stage the IR is actually at: the check below stands
+    // between the IR and a backend, and switching this stage off does not make what a backend
+    // assumes any weaker.
+    if(!context.settings.optimizeIr) {
+        verifyIrProgram(program, VerifyStage::Ownership, "before lowering"_v);
+        return;
+    }
 
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
+
+    /*
+     * What the resolver and the ownership passes left, before this stage touches it.
+     *
+     * The one checkpoint that sees the use lists as *they* built them: `flattenArguments` below
+     * deliberately does not maintain them - it rewrites signatures and leaves every list for the
+     * `rebuildUses` at the top of `optimizeFunction` - so a check placed after that pass would be
+     * asking for an invariant nothing in between is claiming. This is therefore where the two-sided
+     * def-use structure is asked about, and everything below is checked against the repaired lists.
+     */
+    verifyIrProgram(program, VerifyStage::Ownership, "on entry to the optimizer"_v);
 
     // Before the discharge, because what it reads is the drops as the ownership passes left them -
     // and the discharge is what turns those into calls. Answers which lambdas still need a closure
     // header emitted in front of them, which is a question no later stage can reconstruct.
     markClosureHeaders(opt);
+    verifyIrProgram(program, VerifyStage::Ownership, "after markClosureHeaders"_v);
 
     // Before anything else here, because everything else here is written under the constraint it
     // removes - see dischargeOwnership. What it leaves behind is ordinary calls, which the passes
     // below are entitled to move, fold and copy like any other.
     dischargeOwnership(opt);
+    verifyIrProgram(program, VerifyStage::Ownership, "after dischargeOwnership"_v);
 
     // Over the whole program at once: it changes signatures, so it is the one thing here that a
     // single function's optimization cannot contain. What it leaves behind - a record rebuilt in
@@ -559,4 +658,15 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
      * the end of the pass that first needed it.
      */
     markProgramReachable(program);
+
+    /*
+     * And the last checkpoint - see resolve/verify.h.
+     *
+     * Unconditional rather than confined to assertion builds, unlike the per-pass checks above,
+     * because this is the one that stands between the IR and a backend: everything below reads the
+     * IR as a promise, and a promise broken here is a crash inside a code generator or a program
+     * that computes the wrong number. One walk per program at the end of a stage that has already
+     * walked every function eight times is not a cost worth trading that for.
+     */
+    verifyIrProgram(program, VerifyStage::Optimized, "before lowering"_v);
 }

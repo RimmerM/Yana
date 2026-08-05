@@ -76,6 +76,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/analyze_print.cpp
     resolve/print.cpp
     resolve/print.h
+    resolve/verify.h
+    resolve/verify.cpp
     resolve/explain.h
     resolve/explain.cpp
     resolve/builder.h

@@ -3,6 +3,7 @@
 #include "opt.h"
 #include "../resolve/builder.h"
 #include "../resolve/place.h"
+#include "../resolve/verify.h"
 
 /*
  * What the passes share: the state one function is optimized against, and the handful of IR
@@ -68,183 +69,11 @@ struct OptContext {
     bool changed = false;
 };
 
-/*
- * The operands of one instruction, in the order `Block::add` records uses in.
- *
- * `f` is handed each operand and answers what it should become, which is the one shape that serves
- * a field and a list element alike - a `ModuleList` element is reached through `get`/`set` and
- * there is no reference to hand out. Returning the operand unchanged is the read-only use.
- *
- * This has to name exactly what `Block::add` names. An operand it misses is one a replacement walks
- * past, leaving a use of a value that is no longer defined; an operand it invents is a use count
- * that never balances.
- */
-template<class F>
-void mapOperands(ModuleBase base, Value& instruction, F&& f) {
-    auto place = [&](Place& p) {
-        if(p.root == PlaceRoot::Pointer || p.root == PlaceRoot::Borrow) p.pointer = f(p.pointer);
-
-        for(Size i = 0; i < p.projections.size(); i++) {
-            auto projection = p.projections.get(base, i);
-            if(!projection.value) continue;
-
-            projection.value = f(projection.value);
-            p.projections.set(base, i, projection);
-        }
-    };
-
-    auto list = [&](ModuleList<ModulePtr<Value>, false>& values) {
-        for(Size i = 0; i < values.size(); i++) values.set(base, i, f(values.get(base, i)));
-    };
-
-    Place* places[kMaxPlaces];
-    auto placeCount = instructionPlaceSlots(instruction, places);
-    for(Size i = 0; i < placeCount; i++) place(*places[i]);
-
-    switch(instruction.kind) {
-        /*
-         * How many slots a run holds - InstAlloc::extent, which every pass here had been blind to.
-         *
-         * It is an operand in every sense that matters: `Block::add` records it as a use, and a
-         * rewrite that renumbers values has to renumber it. Leaving it out of this walk meant the
-         * dead-value pass saw the instruction computing it with no users and deleted it, and the
-         * allocation was then left naming a value no block defined - which lowering reports as
-         * "resolve value was used before it was lowered".
-         *
-         * The reason nothing caught it is that every run until now got its extent from an array
-         * literal, where the count is a `ConstInt`. A constant belongs to no block and is
-         * materialized per function on demand, so it cannot be deleted and needs no remapping - the
-         * hole was real from the day `extent` was added and unreachable until something passed a
-         * *computed* count. `newStringOfCapacity` is the first thing that does.
-         *
-         * `storageFlag` is deliberately not here for exactly that reason: it is always the constant
-         * the escape analysis patched, so it is never in a block and never at risk. Adding it would
-         * be describing a use that does not exist.
-         */
-        case Value::Alloc: {
-            auto& allocation = (InstAlloc&)instruction;
-            if(allocation.extent) allocation.extent = f(allocation.extent);
-            break;
-        }
-        case Value::Init:
-        case Value::Assign: {
-            auto& init = (InstInit&)instruction;
-            init.value = f(init.value);
-            break;
-        }
-        case Value::Exchange: {
-            auto& exchange = (InstExchange&)instruction;
-            exchange.value = f(exchange.value);
-            break;
-        }
-        case Value::Native:
-            list(((InstNative&)instruction).args);
-            break;
-        // The aggregate's own root travels through the place walk above; these are the components
-        // going into it, and each is a hand-over rather than a read - see deriveEffects. A step
-        // carries a value only in the indexed form, and `f` is asked nothing about a null one for
-        // the same reason the place walk skips those.
-        case Value::Aggregate: {
-            auto& aggregate = (InstAggregate&)instruction;
-
-            for(Size i = 0; i < aggregate.components.size(); i++) {
-                auto component = aggregate.components.get(base, i);
-
-                component.value = f(component.value);
-                if(component.step.value) component.step.value = f(component.step.value);
-
-                aggregate.components.set(base, i, component);
-            }
-            break;
-        }
-        case Value::Cast:
-        case Value::Neg:
-        case Value::Not: {
-            auto& unary = (InstUnary&)instruction;
-            unary.from = f(unary.from);
-            break;
-        }
-        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
-        case Value::Shl: case Value::Shr: case Value::Sar:
-        case Value::And: case Value::Or: case Value::Xor: case Value::Cmp: {
-            auto& binary = (InstBinary&)instruction;
-            binary.lhs = f(binary.lhs);
-            binary.rhs = f(binary.rhs);
-            break;
-        }
-        case Value::Select: {
-            auto& select = (InstSelect&)instruction;
-            select.cond = f(select.cond);
-            select.whenTrue = f(select.whenTrue);
-            select.whenFalse = f(select.whenFalse);
-            break;
-        }
-        case Value::Call:
-            list(((InstCall&)instruction).args);
-            break;
-        case Value::CallDyn: {
-            auto& call = (InstCallDyn&)instruction;
-            call.callable = f(call.callable);
-            call.address = f(call.address);
-            list(call.args);
-            break;
-        }
-        case Value::GenCall:
-            list(((InstGenCall&)instruction).args);
-            break;
-        case Value::Je: {
-            auto& branch = (InstJe&)instruction;
-            branch.cond = f(branch.cond);
-            break;
-        }
-        case Value::Ret: {
-            auto& ret = (InstRet&)instruction;
-            ret.value = f(ret.value);
-            break;
-        }
-        case Value::Phi: {
-            auto& phi = (InstPhi&)instruction;
-            for(Size i = 0; i < phi.inputs.size(); i++) {
-                auto input = phi.inputs.get(base, i);
-                input.value = f(input.value);
-                phi.inputs.set(base, i, input);
-            }
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-template<class F>
-inline void eachOperand(ModuleBase base, Value& instruction, F&& f) {
-    mapOperands(base, instruction, [&](ModulePtr<Value> operand) {
-        if(operand) f(operand);
-        return operand;
-    });
-}
-
-/*
- * The storage roots one instruction names, as the values whose use lists record them.
- *
- * A place rooted in a *local* is a use of the `Alloc` that gave the local its storage - see
- * `addPlaceUse` in resolve/block.cpp, which is what makes "every access to this local" answerable by
- * walking one use list. That use has no operand slot holding it: the root is a local index, and the
- * Alloc is reached through the function's local table.
- *
- * Which is why this is separate from `mapOperands` rather than part of it. A *rewrite* must not
- * touch the root - pointing it somewhere else is not something a place can express - while a *use
- * count* must, or an erased instruction leaves a reader the Alloc still believes in. Erasing the
- * redundant store in opt_place.cpp is exactly that case.
- */
+// The storage roots one instruction names - see eachPlaceRootValue in resolve/module.h, which is
+// where it lives now that the verifier asks the same question outside this stage.
 template<class F>
 inline void eachRootValue(OptContext& opt, Value& instruction, F&& f) {
-    eachPlace(instruction, [&](const Place& place) {
-        if(place.root != PlaceRoot::Local) return;
-        if(place.local >= opt.function->localCount()) return;
-
-        if(auto storage = opt.function->localAt(opt.local, place.local).value) f(storage);
-    });
+    eachPlaceRootValue(opt.local, *opt.function, instruction, forward<F>(f));
 }
 
 /*
@@ -300,6 +129,14 @@ void replaceValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to);
 // Taking an instruction out of circulation: it stops counting as a user of everything it read, and
 // is dropped from its block. Only ever called on a pure instruction nothing reads.
 void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction);
+
+// Every local slot one value was the whole contents of, emptied - see opt.cpp. Owed by anything that
+// takes an instruction out of its block, which `eraseInstruction` does for its own caller.
+void forgetLocalValue(OptContext& opt, ModulePtr<Value> value);
+
+// The same slots, refilled from another value - what a pass that replaced an instruction and then
+// removed it owes instead. See opt.cpp.
+void repointLocalValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to);
 
 /*
  * An integer type the optimizer is willing to compute in, and the two numbers it needs.

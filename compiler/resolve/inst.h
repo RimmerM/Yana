@@ -1381,6 +1381,168 @@ inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
     }
 }
 
+/*
+ * The operands of one instruction, in the order `Block::add` records uses in.
+ *
+ * `f` is handed each operand and answers what it should become, which is the one shape that serves
+ * a field and a list element alike - a `ModuleList` element is reached through `get`/`set` and
+ * there is no reference to hand out. Returning the operand unchanged is the read-only use.
+ *
+ * This has to name exactly what `Block::add` names. An operand it misses is one a replacement walks
+ * past, leaving a use of a value that is no longer defined; an operand it invents is a use count
+ * that never balances.
+ *
+ * Which is why it is here rather than in compiler/opt, where it was written: it is the same list as
+ * `instructionPlaces` above, stated the other way round, and an instruction added to the IR has to
+ * reach both or the one it misses is silently wrong about it. `Block::add` records the uses, this
+ * walks them, and `verifyFunction` checks that the two agree - three readers of one list, and the
+ * check is worth nothing if it reads a different list from the one the rewrites do.
+ */
+template<class F>
+void mapOperands(ModuleBase base, Value& instruction, F&& f) {
+    auto place = [&](Place& p) {
+        if(p.root == PlaceRoot::Pointer || p.root == PlaceRoot::Borrow) p.pointer = f(p.pointer);
+
+        for(Size i = 0; i < p.projections.size(); i++) {
+            auto projection = p.projections.get(base, i);
+            if(!projection.value) continue;
+
+            projection.value = f(projection.value);
+            p.projections.set(base, i, projection);
+        }
+    };
+
+    auto list = [&](ModuleList<ModulePtr<Value>, false>& values) {
+        for(Size i = 0; i < values.size(); i++) values.set(base, i, f(values.get(base, i)));
+    };
+
+    Place* places[kMaxPlaces];
+    auto placeCount = instructionPlaceSlots(instruction, places);
+    for(Size i = 0; i < placeCount; i++) place(*places[i]);
+
+    switch(instruction.kind) {
+        /*
+         * How many slots a run holds - InstAlloc::extent, which every pass here had been blind to.
+         *
+         * It is an operand in every sense that matters: `Block::add` records it as a use, and a
+         * rewrite that renumbers values has to renumber it. Leaving it out of this walk meant the
+         * dead-value pass saw the instruction computing it with no users and deleted it, and the
+         * allocation was then left naming a value no block defined - which lowering reports as
+         * "resolve value was used before it was lowered".
+         *
+         * The reason nothing caught it is that every run until now got its extent from an array
+         * literal, where the count is a `ConstInt`. A constant belongs to no block and is
+         * materialized per function on demand, so it cannot be deleted and needs no remapping - the
+         * hole was real from the day `extent` was added and unreachable until something passed a
+         * *computed* count. `newStringOfCapacity` is the first thing that does.
+         *
+         * `storageFlag` is deliberately not here for exactly that reason: it is always the constant
+         * the escape analysis patched, so it is never in a block and never at risk. Adding it would
+         * be describing a use that does not exist.
+         */
+        case Value::Alloc: {
+            auto& allocation = (InstAlloc&)instruction;
+            if(allocation.extent) allocation.extent = f(allocation.extent);
+            break;
+        }
+        case Value::Init:
+        case Value::Assign: {
+            auto& init = (InstInit&)instruction;
+            init.value = f(init.value);
+            break;
+        }
+        case Value::Exchange: {
+            auto& exchange = (InstExchange&)instruction;
+            exchange.value = f(exchange.value);
+            break;
+        }
+        case Value::Native:
+            list(((InstNative&)instruction).args);
+            break;
+        // The aggregate's own root travels through the place walk above; these are the components
+        // going into it, and each is a hand-over rather than a read - see deriveEffects. A step
+        // carries a value only in the indexed form, and `f` is asked nothing about a null one for
+        // the same reason the place walk skips those.
+        case Value::Aggregate: {
+            auto& aggregate = (InstAggregate&)instruction;
+
+            for(Size i = 0; i < aggregate.components.size(); i++) {
+                auto component = aggregate.components.get(base, i);
+
+                component.value = f(component.value);
+                if(component.step.value) component.step.value = f(component.step.value);
+
+                aggregate.components.set(base, i, component);
+            }
+            break;
+        }
+        case Value::Cast:
+        case Value::Neg:
+        case Value::Not: {
+            auto& unary = (InstUnary&)instruction;
+            unary.from = f(unary.from);
+            break;
+        }
+        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+        case Value::Shl: case Value::Shr: case Value::Sar:
+        case Value::And: case Value::Or: case Value::Xor: case Value::Cmp: {
+            auto& binary = (InstBinary&)instruction;
+            binary.lhs = f(binary.lhs);
+            binary.rhs = f(binary.rhs);
+            break;
+        }
+        case Value::Select: {
+            auto& select = (InstSelect&)instruction;
+            select.cond = f(select.cond);
+            select.whenTrue = f(select.whenTrue);
+            select.whenFalse = f(select.whenFalse);
+            break;
+        }
+        case Value::Call:
+            list(((InstCall&)instruction).args);
+            break;
+        case Value::CallDyn: {
+            auto& call = (InstCallDyn&)instruction;
+            call.callable = f(call.callable);
+            call.address = f(call.address);
+            list(call.args);
+            break;
+        }
+        case Value::GenCall:
+            list(((InstGenCall&)instruction).args);
+            break;
+        case Value::Je: {
+            auto& branch = (InstJe&)instruction;
+            branch.cond = f(branch.cond);
+            break;
+        }
+        case Value::Ret: {
+            auto& ret = (InstRet&)instruction;
+            ret.value = f(ret.value);
+            break;
+        }
+        case Value::Phi: {
+            auto& phi = (InstPhi&)instruction;
+            for(Size i = 0; i < phi.inputs.size(); i++) {
+                auto input = phi.inputs.get(base, i);
+                input.value = f(input.value);
+                phi.inputs.set(base, i, input);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+template<class F>
+inline void eachOperand(ModuleBase base, Value& instruction, F&& f) {
+    mapOperands(base, instruction, [&](ModulePtr<Value> operand) {
+        if(operand) f(operand);
+        return operand;
+    });
+}
+
 // How a binding convention is named in a diagnostic. The sigil for the two that have one, and a
 // description for the default, since "declared ``" reads as a compiler bug rather than as a rule.
 StringView conventionName(ast::BindType convention);

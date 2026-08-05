@@ -1826,12 +1826,43 @@ struct Inliner {
             candidate.parameters[i].storage = storage.unwrap();
         }
 
+        /*
+         * A call that produces nothing and that something still reads as a value.
+         *
+         * The graft has no result to hand back for one - a unit value has no representation, so the
+         * splice produces no value at all - and the site is removed from its block afterwards. That
+         * is fine for the readers the removal *does* settle, which are the slots that named the call
+         * as their storage; it is not fine for one that names it as an *operand*, because there is
+         * nothing to point that operand at and no constant for `{}` to invent.
+         *
+         * `let chosen = if c then unitValue() else identity(unitValue())` is the case: the join is a
+         * unit-typed phi whose alternatives are the two calls, and inlining one of them left the phi
+         * naming an instruction that was no longer in any block - and the *next* graft then wrote
+         * that dead value into `chosen`'s slot as its own result. Invisible in every dump, because
+         * nothing below resolve reads a unit value; found by verifyFunction.
+         *
+         * Declined rather than repaired, and it costs nothing worth having: what is not inlined is a
+         * call whose whole result is a value with no bytes.
+         */
+        if(isUnit(opt.global, call.type)) {
+            auto read = false;
+
+            for(auto user: call.uses.contents(opt.local)) {
+                eachOperand(opt.local, *opt.local[user], [&](ModulePtr<Value> operand) {
+                    if(operand == (ModulePtr<Value>)pointer) read = true;
+                });
+            }
+
+            if(read) return false;
+        }
+
         if(!worthInlining(candidate)) return false;
         if(!graft(candidate, block, index, pointer, grafted)) return false;
 
         // By hand rather than through `eraseInstruction`, which asserts that nothing reads the
         // instruction - true of a call whose result the graft replaced and not of one returning
-        // unit, whose place-root uses are recorded on the locals it named.
+        // unit, whose place-root uses are recorded on the locals it named. The operand case is
+        // declined above, which is what makes those the only ones left.
         for(auto argument: call.args.contents(opt.local)) dropUse(opt, argument, pointer);
         removeFromBlock(block, pointer);
 

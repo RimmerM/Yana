@@ -40,9 +40,9 @@ unitValue<complex>() {
   }
 }
 
-ResolveTest.lambda$1<complex>(%env: Ptr): Int {
+identity(())<complex>() {
   b_0 {
-    ret 6
+    ret 
   }
 }
 
@@ -62,10 +62,13 @@ branching<complex>(%c: Int): Int {
   }
 
   b_1 {
+    call_complex unitValue
     jmp b_3
   }
 
   b_2 {
+    call_complex unitValue
+    call_complex identity(())
     jmp b_3
   }
 
@@ -81,6 +84,7 @@ main<complex>(): Int {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
+    call_complex unitValue
     %v_4 = add %v_1, 8: Ptr
     %v_5 = load %v_1, 8: Ptr
     %v_6 = load %v_4, 8: Ptr
@@ -90,11 +94,14 @@ main<complex>(): Int {
     %v_9 = bitcast 0: Ptr
     %v_10 = add %v_8, 8: Ptr
     store %v_10, %v_9, 8
+    call_complex unitValue
     %v_11 = add %v_8, 8: Ptr
     %v_12 = load %v_8, 8: Ptr
     %v_13 = load %v_11, 8: Ptr
     %v_14 = call_complex %v_12, %v_13: Int
+    call_complex unitValue
     %k = call_complex capturing, 8: Int
+    call_complex unitValue
     %v_15 = imm 24: Int
     %v_16 = shl 1, %v_15: Int
     %v_17 = sar %v_16, %v_15: Int
@@ -119,6 +126,12 @@ main<complex>(): Int {
     %v_26 = add %v_25, %k: Int
     %v_27 = add %v_26, 28: Int
     ret %v_27
+  }
+}
+
+ResolveTest.lambda$1<complex>(%env: Ptr): Int {
+  b_0 {
+    ret 6
   }
 }
 

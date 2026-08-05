@@ -1174,13 +1174,22 @@ static void cloneBody(Clone& clone, Function& to) {
      * aggregate has no place", which makes it build storage of its own and store a value the frame
      * only borrows into it.
      */
+    // Which slots hold a value before the body is cloned, and therefore have their uses recorded by
+    // `Block::add` in the ordinary way. Everything else is owed them afterwards - see below.
+    IndexSet filled;
+    filled.reset(from.localCount());
+
     for(Size i = 0; i < from.localCount(); i++) {
-        if(materialized[i]) continue;
+        if(materialized[i]) {
+            filled.set(i, true);
+            continue;
+        }
 
         auto slot = from.localAt(local, U32(i));
         if(!slot.value || local[slot.value]->kind != Value::Arg) continue;
 
         to.setLocalValue(local, U32(i), cloneDefinition(clone, slot.value));
+        filled.set(i, true);
     }
 
     // Phi shells first: a phi is the one instruction whose operands need not dominate it, so
@@ -1230,6 +1239,39 @@ static void cloneBody(Clone& clone, Function& to) {
         if(materialized[i]) continue;
 
         to.setLocalValue(local, U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
+    }
+
+    /*
+     * And the uses those slots owe, which is the price of filling the table last.
+     *
+     * A place rooted in a local is a use of the value that fills the slot - `addPlaceUse` in
+     * block.cpp, which is what makes "everything that touches this storage" answerable by walking one
+     * use list. Every instruction above was added while its slot still held nothing, so `Block::add`
+     * had nothing to attribute the use to and recorded none, and the specialization went out with
+     * a value whose readers were invisible.
+     *
+     * `compiler/opt` hid it: `rebuildUses` runs before anything else there. What did not was
+     * everything in between - the ownership analyses read use lists, and so does `lowerProgram`'s
+     * decision about which aggregate slots can be held in registers, which `-no-opt` reaches with
+     * no repair in front of it. Found by verifyFunction, on a `reserve(U8)` whose `wide` was named
+     * by six instructions and read by none.
+     */
+    for(auto blockPointer: to.blocks.contents(local)) {
+        for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+            // Per place rather than per instruction, and only the slots that were empty: a swap
+            // names two, either of which may have been filled already, and a use recorded twice is
+            // as wrong as one not recorded at all.
+            eachPlace(*local[instruction], [&](const Place& place) {
+                if(place.root != PlaceRoot::Local || place.local >= to.localCount()) return;
+
+                // A slot the *clone* created - the storage a Move, a Copy or a call result wanted -
+                // was filled the moment it was made, so its uses were recorded the ordinary way.
+                // `filled` is the original table's size, and reading past it answers false.
+                if(place.local >= from.localCount() || filled[place.local]) return;
+
+                recordUse(clone.module, to.localAt(local, place.local).value, instruction);
+            });
+        }
     }
 }
 

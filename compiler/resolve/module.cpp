@@ -7,6 +7,7 @@
 #include "index.h"
 #include "name.h"
 #include "native.h"
+#include "verify.h"
 #include "witness.h"
 #include "../parse/ast.h"
 
@@ -2446,10 +2447,18 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // while it is being resolved.
     prepareGenericCalls(*program);
 
+    // The first of the three checkpoints - see resolve/verify.h. Here rather than only at the end
+    // because what it separates is the resolver's own bookkeeping from the passes that rewrite it:
+    // a use list that is already wrong before ownership runs is a body that was built wrongly, and
+    // one that is wrong only afterwards is a pass.
+    verifyIrProgram(*program, VerifyStage::Resolved, "after resolving every body"_v);
+
     // Ownership runs over the finished program rather than per module, because a generic
     // function's specializations only exist once every body that calls one has been resolved -
     // and it is the specializations, not the generic body, that get drops.
     runProgramOwnership(*program);
+
+    verifyIrProgram(*program, VerifyStage::Ownership, "after inserting drops"_v);
 
     markProgramReachable(*program);
     return program;
