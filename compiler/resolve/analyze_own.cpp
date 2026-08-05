@@ -112,7 +112,7 @@ void computeOwnership(Analysis& analysis) {
             transferState(analysis, i, states);
         }
 
-        for(auto successor: block->outgoing) {
+        for(auto successor: block->successors()) {
             if(!successor) continue;
 
             auto successorIndex = analysis.local[successor]->index;

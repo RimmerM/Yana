@@ -89,9 +89,9 @@ Size placeRootUses(OptContext& opt, Value& user, ModulePtr<Value> value) {
  */
 bool collapsible(OptContext& opt, ModulePtr<Inst> pointer) {
     auto borrow = opt.local[pointer];
-    if(borrow->uses.isEmpty()) return false;
+    if(borrow->useCount() == 0) return false;
 
-    for(auto user: borrow->uses.contents(opt.local)) {
+    for(auto user: borrow->uses(opt.local)) {
         auto& instruction = *opt.local[user];
         if(!rewritableReader(instruction)) return false;
 
@@ -122,19 +122,33 @@ Place substituted(OptContext& opt, const Place& base, Place& reader) {
     return result;
 }
 
+/*
+ * Every reader repointed, and its use bookkeeping restated around the substitution.
+ *
+ * What changes is which storage a place is rooted in, and a root is a use recorded against the value
+ * the storage came from - so a reader that named the borrow now names whatever the borrowed place is
+ * rooted in, plus one use per index in the path it inherited. `rewriteOperands` states both halves
+ * around the substitution, which is the exact repair; working out which entries moved is the version
+ * of this that is wrong in one case nobody thought of.
+ *
+ * Over a snapshot of the use list, because that list is what the repair is editing.
+ */
 void rewriteReaders(OptContext& opt, ModulePtr<Inst> pointer, const Place& borrowed) {
-    auto borrow = opt.local[pointer];
+    SmallArray<ModulePtr<Inst>, 16> readers;
+    for(auto user: opt.local[pointer]->uses(opt.local)) readers.push(user);
 
-    for(auto user: borrow->uses.contents(opt.local)) {
-        Place* places[kMaxPlaces];
-        auto count = instructionPlaceSlots(*opt.local[user], places);
+    for(auto user: readers) {
+        opt.ir().rewriteOperands(user, [&](Value& instruction) {
+            Place* places[kMaxPlaces];
+            auto count = instructionPlaceSlots(instruction, places);
 
-        for(Size i = 0; i < count; i++) {
-            if(places[i]->root != PlaceRoot::Borrow) continue;
-            if(places[i]->pointer != (ModulePtr<Value>)pointer) continue;
+            for(Size i = 0; i < count; i++) {
+                if(places[i]->root != PlaceRoot::Borrow) continue;
+                if(places[i]->pointer != (ModulePtr<Value>)pointer) continue;
 
-            *places[i] = substituted(opt, borrowed, *places[i]);
-        }
+                *places[i] = substituted(opt, borrowed, *places[i]);
+            }
+        });
     }
 }
 
@@ -148,13 +162,13 @@ void collapseBorrows(OptContext& opt) {
      * borrow is defined before the borrow taken through it, so by the time the inner one is looked at
      * its own place has already been rewritten to name the outer one's storage.
      *
-     * The use lists go stale as this goes - a rewritten reader is still in the list of the borrow it
-     * no longer names - but only for borrows already dealt with, and nothing below asks about those.
+     * The lists stay right as this goes, which is what lets `collapsible` be asked about the inner
+     * borrow after the outer one has been rewritten underneath it.
      */
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
-        for(auto pointer: block->instructions.contents(opt.local)) {
+        for(auto pointer: block->instructions(opt.local)) {
             if(opt.local[pointer]->kind != Value::Borrow) continue;
             if(!collapsible(opt, pointer)) continue;
 
@@ -165,12 +179,8 @@ void collapseBorrows(OptContext& opt) {
 
     if(collapsed.isEmpty()) return;
 
-    // Rebuilt rather than repaired, because what changed is which storage a dozen places are rooted
-    // in and every one of those is a use recorded against the root. Doing it once here is cheaper
-    // than getting each of them right by hand, and it is the same repair the driver already performs
-    // once per function for the drop pass's benefit.
-    rebuildUses(opt);
-
-    for(auto pointer: collapsed) eraseInstruction(opt, pointer);
+    // Nothing reads any of them by now - that is what the rewrite above did - which is the condition
+    // `eraseInstruction` asserts rather than assumes.
+    for(auto pointer: collapsed) opt.ir().eraseInstruction(pointer);
     opt.changed = true;
 }

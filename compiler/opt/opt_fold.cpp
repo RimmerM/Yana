@@ -366,9 +366,9 @@ struct Folder {
      * has - it stays where it is, and the dead-value pass takes it if this was the last one.
      *
      * Written as a rewrite in place rather than as a replacement value, because what changes is which
-     * two operands this instruction has rather than what it computes to. That is also why the use
-     * lists are edited by hand here: `Block::add` is what normally records them, and the instruction
-     * is already in its block.
+     * two operands this instruction has rather than what it computes to. That is also why the two
+     * use entries are moved one at a time here: appending is what normally records them, and this
+     * instruction is already in its block.
      *
      * Not a general reassociation - nothing is reordered and no operation moves between blocks. It
      * exists because the packing expansion produces exactly this shape: a word cleared field by
@@ -404,13 +404,10 @@ struct Folder {
 
         auto value = makeConstant(opt, instruction, instruction.type, narrowToWidth(combined, facts));
 
-        dropUse(opt, instruction.lhs, pointer);
-        instruction.lhs = inner.lhs;
-        opt.local[instruction.lhs]->uses.push(opt.program.arena, pointer);
-
-        dropUse(opt, instruction.rhs, pointer);
-        instruction.rhs = value;
-        opt.local[value]->uses.push(opt.program.arena, pointer);
+        opt.ir().rewriteOperands(pointer, [&](Value&) {
+            instruction.lhs = inner.lhs;
+            instruction.rhs = value;
+        });
 
         opt.changed = true;
         return true;
@@ -516,9 +513,7 @@ struct Folder {
         auto source = ((InstUnary&)*inner).from;
         if(!conversionBits(opt.local[source]->type)) return false;
 
-        dropUse(opt, instruction.from, pointer);
-        instruction.from = source;
-        opt.local[source]->uses.push(opt.program.arena, pointer);
+        opt.ir().replaceOperand(pointer, instruction.from, source);
 
         opt.changed = true;
         return true;
@@ -839,10 +834,10 @@ void foldFunction(OptContext& opt) {
 
         // Nothing is inserted into or removed from the list here - a replaced instruction is left
         // for the dead-value pass to collect - so a plain index walk sees each instruction once.
-        for(Size i = 0; i < block->instructions.size(); i++) {
-            auto pointer = block->instructions.get(opt.local, i);
+        for(Size i = 0; i < block->instructionCount(); i++) {
+            auto pointer = block->instructionAt(opt.local, i);
             auto folded = folder.fold(pointer, *opt.local[pointer]);
-            if(folded) replaceValue(opt, (ModulePtr<Value>)pointer, folded);
+            if(folded) opt.ir().replaceValue((ModulePtr<Value>)pointer, folded);
         }
 
         // A branch on a constant is left alone *here*: removing the edge is a CFG rewrite, and the

@@ -780,14 +780,14 @@ static void printFunction(ResolvePrint& print, Function& function) {
         printBlockRef(print, *block);
         print.writer.writeString(":\n"_v);
 
-        for(auto phi: block->phis.contents(print.local)) {
+        for(auto phi: block->phis(print.local)) {
             printInstruction(print, *print.local[phi]);
         }
 
-        for(auto instruction: block->instructions.contents(print.local)) {
+        for(auto instruction: block->instructions(print.local)) {
             printInstruction(print, *print.local[instruction]);
         }
-        if(block->terminator) printInstruction(print, *print.local[block->terminator]);
+        if(block->terminator()) printInstruction(print, *print.local[block->terminator()]);
     }
 
     print.writer.writeString("}\n"_v);

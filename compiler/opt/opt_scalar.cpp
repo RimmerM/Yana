@@ -30,15 +30,16 @@
  * None of that is asked here, because the use list answers all of it and answers it exactly.
  *
  * Every instruction naming a place rooted in a local is recorded as a user of that local's `Alloc`
- * (`addPlaceUse` in resolve/block.cpp). So a local whose users are all writes has, by construction,
+ * (`addPlaceUse` in resolve/edit.cpp). So a local whose users are all writes has, by construction,
  * had its address taken by nothing, been passed to nothing, been borrowed by nothing and been
  * dropped by nothing - because each of those is an instruction, and each would be in the list. The
  * one thing the list cannot say is whether removing the writes drops a value on the floor, and that
  * is the `needsTeardown` test rather than an analysis.
  *
- * That argument rests entirely on the use list being complete, which as the IR arrives here it is
- * not - the drop pass inserts its instructions without going through `Block::add`. `rebuildUses` in
- * opt.cpp is what makes the premise true, and this pass is the reason it exists.
+ * That argument rests entirely on the use list being complete, and it is: every rewrite between the
+ * resolver and this pass goes through `IrEditor` (resolve/edit.h), which is the whole reason that
+ * type exists. It used not to be - the drop pass spliced its instructions into a block without
+ * appending them - and a `rebuildUses` in front of the optimizer is what stood in for it.
  *
  * That is also why this is safe where the analysis is conservative: a local written after being read
  * is not read-only and evaporates here anyway, since SSA renaming is what forwarding already did.
@@ -216,10 +217,10 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
         replacement.push(stored);
     }
 
-    insertInstructions(opt, block, index, replacement);
+    opt.ir().insert(block, index, replacement);
 
     // The write itself, now that what replaces it is in front of it.
-    eraseInstruction(opt, (ModulePtr<Inst>)(&write - opt.local));
+    opt.ir().eraseInstruction((ModulePtr<Inst>)(&write - opt.local));
 
     opt.changed = true;
     return true;
@@ -257,7 +258,7 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
 
     SmallArray<ModulePtr<Inst>, 8> writes;
 
-    for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
+    for(auto user: opt.local[slot.value]->uses(opt.local)) {
         auto& instruction = *opt.local[user];
 
         if(instruction.kind == Value::Aggregate) {
@@ -291,14 +292,15 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
 
     if(writes.isEmpty()) return false;
 
-    for(auto write: writes) eraseInstruction(opt, write);
-    eraseInstruction(opt, (ModulePtr<Inst>)slot.value);
+    for(auto write: writes) opt.ir().eraseInstruction(write);
 
     // The slot keeps its name and its type for anything that prints it, and stops claiming storage
-    // that no longer exists. `scalarizable` in resolve/lower.cpp reads exactly this field to decide
-    // whether a local has an allocation to take apart.
-    slot.value = nullptr;
-    opt.function->locals.set(opt.local, index, slot);
+    // that no longer exists - which the erase below does on its own, since removing an instruction
+    // empties every slot it was the whole contents of. `scalarizable` in resolve/lower.cpp reads
+    // exactly that field to decide whether a local has an allocation to take apart. Emptying it here
+    // as well used to be the way this was written, and was worse than redundant: `slot` is a copy
+    // taken before any of the erasing, so writing it back would put back whatever else had changed.
+    opt.ir().eraseInstruction((ModulePtr<Inst>)slot.value);
 
     return true;
 }
@@ -340,8 +342,8 @@ bool splitAggregate(OptContext& opt, Block& block, Size index, InstAggregate& ag
             place, value, Value::Init));
     });
 
-    insertInstructions(opt, block, index, replacement);
-    eraseInstruction(opt, (ModulePtr<Inst>)(&aggregate - opt.local));
+    opt.ir().insert(block, index, replacement);
+    opt.ir().eraseInstruction((ModulePtr<Inst>)(&aggregate - opt.local));
 
     opt.changed = true;
     return true;
@@ -356,8 +358,8 @@ void scalarizeLocals(OptContext& opt) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
-        for(Size i = 0; i < block->instructions.size(); i++) {
-            auto pointer = block->instructions.get(opt.local, i);
+        for(Size i = 0; i < block->instructionCount(); i++) {
+            auto pointer = block->instructionAt(opt.local, i);
             auto instruction = opt.local[pointer];
 
             if(instruction->kind == Value::Aggregate) {

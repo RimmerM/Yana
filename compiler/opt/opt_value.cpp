@@ -72,8 +72,8 @@ void eliminateInBlock(OptContext& opt, Dominance& dominance, U32 index,
     auto scope = available.size();
     auto block = opt.local[dominance.blocks[index]];
 
-    for(Size i = 0; i < block->instructions.size(); i++) {
-        auto pointer = block->instructions.get(opt.local, i);
+    for(Size i = 0; i < block->instructionCount(); i++) {
+        auto pointer = block->instructionAt(opt.local, i);
         auto instruction = opt.local[pointer];
         if(!isPureValue(*instruction)) continue;
 
@@ -86,7 +86,7 @@ void eliminateInBlock(OptContext& opt, Dominance& dominance, U32 index,
         }
 
         if(existing) {
-            replaceValue(opt, (ModulePtr<Value>)pointer, (ModulePtr<Value>)existing);
+            opt.ir().replaceValue((ModulePtr<Value>)pointer, (ModulePtr<Value>)existing);
         } else {
             available.push(pointer);
         }
@@ -172,17 +172,17 @@ void eliminateDeadValues(OptContext& opt) {
         for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
             auto block = opt.local[blockPointer];
 
-            for(Size i = block->instructions.size(); i-- > 0;) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = block->instructionCount(); i-- > 0;) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto instruction = opt.local[pointer];
 
-                if(instruction->uses.isNotEmpty()) continue;
+                if(instruction->useCount() != 0) continue;
                 if(!isPureValue(*instruction) && !isDeadRead(opt, *instruction) &&
                    !isDischargedCheck(opt, *instruction)) {
                     continue;
                 }
 
-                eraseInstruction(opt, pointer);
+                opt.ir().eraseInstruction(pointer);
                 changed = true;
             }
         }

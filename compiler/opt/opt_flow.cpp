@@ -54,7 +54,7 @@ void computeDominance(OptContext& opt, Dominance& result) {
             ScratchSet next(opt.sets, count);
             auto first = true;
 
-            for(auto predecessor: block->incoming.contents(opt.local)) {
+            for(auto predecessor: block->incoming(opt.local)) {
                 auto from = opt.local[predecessor]->index;
 
                 if(first) {
@@ -138,7 +138,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
     for(Size i = 0; i < count; i++) {
         auto block = opt.local[dominance.blocks[i]];
 
-        for(auto successor: block->outgoing) {
+        for(auto successor: block->successors()) {
             if(!successor) continue;
 
             auto header = opt.local[successor]->index;
@@ -171,7 +171,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
             while(pending.size()) {
                 auto index = pending.pop().unwrap();
 
-                for(auto predecessor: opt.local[dominance.blocks[index]]->incoming.contents(opt.local)) {
+                for(auto predecessor: opt.local[dominance.blocks[index]]->incoming(opt.local)) {
                     auto from = opt.local[predecessor]->index;
                     if(!loop.contains.add(from)) continue;
 
@@ -199,7 +199,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
          * edge, which is CFG surgery with phis attached, and every loop this front end emits already
          * has one: `while` builds the test as a block of its own with a single `jmp` into it.
          */
-        for(auto predecessor: opt.local[dominance.blocks[loop.header]]->incoming.contents(opt.local)) {
+        for(auto predecessor: opt.local[dominance.blocks[loop.header]]->incoming(opt.local)) {
             auto from = opt.local[predecessor]->index;
             if(loop.contains[from]) continue;
 
@@ -209,7 +209,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
             }
 
             auto block = opt.local[predecessor];
-            auto single = block->outgoing[0] == dominance.blocks[loop.header] && !block->outgoing[1];
+            auto single = block->successor(0) == dominance.blocks[loop.header] && !block->successor(1);
             loop.preheader = single ? from : Loop::kNone;
 
             if(loop.preheader == Loop::kNone) break;
@@ -256,7 +256,7 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
                   !slot.borrowed && !slot.closureEnv;
 
         if(ok) {
-            for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
+            for(auto user: opt.local[slot.value]->uses(opt.local)) {
                 auto& instruction = *opt.local[user];
 
                 switch(instruction.kind) {
@@ -303,7 +303,7 @@ void computeReachable(OptContext& opt, IndexSet& reachable) {
     while(pending.size()) {
         auto index = pending.pop().unwrap();
 
-        for(auto successor: opt.local[opt.function->blocks.get(opt.local, index)]->outgoing) {
+        for(auto successor: opt.local[opt.function->blocks.get(opt.local, index)]->successors()) {
             if(!successor) continue;
 
             auto to = opt.local[successor]->index;

@@ -1205,7 +1205,7 @@ bool prepareGenericCalls(Program& program) {
                 if(function->gen && !function->genericallyUsed) continue;
 
                 for(auto blockPointer: function->blocks.contents(local)) {
-                    for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+                    for(auto instruction: local[blockPointer]->instructions(local)) {
                         auto& inst = *local[instruction];
                         if(inst.kind != Value::GenCall) continue;
 
@@ -1236,7 +1236,7 @@ bool prepareGenericCalls(Program& program) {
             if(function->gen && !function->genericallyUsed) continue;
 
             for(auto blockPointer: function->blocks.contents(local)) {
-                for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+                for(auto instruction: local[blockPointer]->instructions(local)) {
                     auto& inst = *local[instruction];
                     if(inst.kind != Value::GenCall) continue;
 
@@ -1325,7 +1325,7 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
     for(auto blockPointer: target->blocks.contents(local)) {
         auto block = local[blockPointer];
 
-        for(auto instruction: block->instructions.contents(local)) {
+        for(auto instruction: block->instructions(local)) {
             auto& inst = *local[instruction];
 
             // An explicit copy of a value whose type the body cannot see needs the `Copy` witness,

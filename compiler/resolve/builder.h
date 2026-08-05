@@ -1,6 +1,6 @@
 #pragma once
 
-#include "module.h"
+#include "edit.h"
 
 /*
  * Instruction construction, in the same spirit as lower/lower_builder.h.
@@ -12,7 +12,7 @@
  * about bookkeeping, and it is why every Inst constructor takes (block, type) first.
  */
 
-// Creates an instruction without appending it. Calls and phis need this: Block::add is what
+// Creates an instruction without appending it. Calls and phis need this: `IrEditor::append` is what
 // records an instruction's uses, so an operand list that is filled in after construction has to
 // be complete before the instruction reaches its block.
 template<class T, class... Args>
@@ -30,7 +30,7 @@ inline T* createInst(Module& module, Function& function, Block& block, LocationI
 template<class T, class... Args>
 inline T* addInst(Module& module, Function& function, Block& block, LocationId source, StringId name, TypePtr type, Args&&... args) {
     auto inst = createInst<T>(module, function, block, source, name, type, forward<Args>(args)...);
-    block.add(module, inst);
+    IrEditor(module, function).append(block, inst);
     return inst;
 }
 

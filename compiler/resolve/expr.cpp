@@ -2571,11 +2571,10 @@ static void checkLazyForcing(Module& module, Function& function) {
         auto arg = local[argPointer];
         if(!arg->isLazy()) continue;
 
-        auto uses = arg->uses;
-        if(uses.size() < 2) continue;
+        if(arg->useCount() < 2) continue;
 
         auto isUse = [&](ModulePtr<Inst> instruction) {
-            for(auto user: uses.contents(local)) {
+            for(auto user: arg->uses(local)) {
                 if(user == instruction) return true;
             }
 
@@ -2597,13 +2596,13 @@ static void checkLazyForcing(Module& module, Function& function) {
                 auto block = local[function.blocks.get(local, i)];
 
                 auto used = false;
-                for(auto incoming: block->incoming.contents(local)) {
+                for(auto incoming: block->incoming(local)) {
                     if(exit[local[incoming]->index]) used = true;
                 }
 
                 if(i == 0) used = false;
 
-                for(auto instPointer: block->instructions.contents(local)) {
+                for(auto instPointer: block->instructions(local)) {
                     if(!isUse(instPointer)) continue;
 
                     if(used) {

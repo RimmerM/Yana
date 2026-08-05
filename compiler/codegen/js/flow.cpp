@@ -26,7 +26,7 @@ U32 blockOf(Gen& g, ModulePtr<Block> pointer) {
 
 void successorsOf(Gen& g, U32 block, U32* target, U32& count) {
     count = 0;
-    auto terminator = g.local[g.blocks[block]]->terminator;
+    auto terminator = g.local[g.blocks[block]]->terminator();
     if(!terminator) return;
 
     auto& instruction = *g.local[terminator];
@@ -151,9 +151,9 @@ void computeDominators(Gen& g) {
 
     auto& sets = g.dominators;
     dominanceSets(sets, g.flowScratch, count, 0, [&](U32 block, auto&& yield) {
-        auto incoming = g.local[g.blocks[block]]->incoming;
+        auto incoming = g.local[g.blocks[block]]->incoming(g.local);
 
-        for(auto predecessor: incoming.contents(g.local)) {
+        for(auto predecessor: incoming) {
             auto p = blockOf(g, predecessor);
             if(p != kNoBlock) yield(p);
         }
@@ -201,9 +201,9 @@ Exit* findExit(Gen& g, U32 block) {
 }
 
 U32 predecessorCount(Gen& g, U32 block) {
-    auto incoming = g.local[g.blocks[block]]->incoming;
+    auto incoming = g.local[g.blocks[block]]->incoming(g.local);
     U32 count = 0;
-    for(auto predecessor: incoming.contents(g.local)) {
+    for(auto predecessor: incoming) {
         if(blockOf(g, predecessor) != kNoBlock) count++;
     }
 
@@ -320,7 +320,7 @@ void genPhiCopies(Gen& g, U32 from, U32 to) {
     auto source = g.blocks[from];
     auto target = g.local[g.blocks[to]];
 
-    for(auto phiPointer: target->phis.contents(g.local)) {
+    for(auto phiPointer: target->phis(g.local)) {
         auto& phi = *g.local[phiPointer];
         auto found = g.phis.get(U32(phiPointer));
         if(!found) continue;
@@ -334,7 +334,7 @@ void genPhiCopies(Gen& g, U32 from, U32 to) {
 }
 
 void emitTerminator(Gen& g, U32 block, U32& next, U32 stopAt, bool& done) {
-    auto terminator = g.local[g.blocks[block]]->terminator;
+    auto terminator = g.local[g.blocks[block]]->terminator();
     done = false;
 
     if(!terminator) {
@@ -488,7 +488,7 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
 
         g.emitted.set(block, true);
 
-        for(auto instruction: g.local[g.blocks[block]]->instructions.contents(g.local)) {
+        for(auto instruction: g.local[g.blocks[block]]->instructions(g.local)) {
             genInstruction(g, instruction);
         }
 

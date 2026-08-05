@@ -51,6 +51,7 @@ done
 
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
+echo "edit|$build/test/YanaEditTest" >> "$jobfile"
 echo "lsp|$build/test/YanaLspTest" >> "$jobfile"
 echo "lsp-protocol|$build/test/YanaLspProtocolTest" >> "$jobfile"
 

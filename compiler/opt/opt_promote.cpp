@@ -143,7 +143,7 @@ Size candidateOf(OptContext& opt, Array<Candidate>& candidates, const Place& pla
  */
 void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candidate>& into) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
-        for(auto pointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+        for(auto pointer: opt.local[blockPointer]->instructions(opt.local)) {
             auto instruction = opt.local[pointer];
             if(instruction->kind != Value::LoadPlace) continue;
 
@@ -184,7 +184,7 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
-        for(auto pointer: block->instructions.contents(opt.local)) {
+        for(auto pointer: block->instructions(opt.local)) {
             auto instruction = opt.local[pointer];
             auto written = isWrite(*instruction) || instruction->kind == Value::Aggregate;
 
@@ -225,7 +225,7 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                  * stopped being true.
                  */
                 if(instruction->kind != Value::LoadPlace) return;
-                if(!holdsLoadableValue(opt, instruction->type) && instruction->uses.isNotEmpty()) {
+                if(!holdsLoadableValue(opt, instruction->type) && instruction->useCount() != 0) {
                     usable = false;
                 }
             };
@@ -289,7 +289,7 @@ void computeAvailability(OptContext& opt, Candidate& candidate, const IndexSet& 
             auto block = opt.local[blockPointer];
             if(!reachable[block->index]) continue;
 
-            auto incoming = block->incoming.contents(opt.local);
+            auto incoming = block->incoming(opt.local);
 
             auto in = incoming.size() != 0;
             for(auto predecessor: incoming) {
@@ -320,7 +320,7 @@ bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reac
 
         U8 written = candidate.available[block->index];
 
-        for(auto pointer: block->instructions.contents(opt.local)) {
+        for(auto pointer: block->instructions(opt.local)) {
             auto instruction = opt.local[pointer];
 
             if(instruction->kind == Value::Aggregate) {
@@ -353,8 +353,8 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
     ValueList current;
     for(auto& candidate: candidates) current.push(candidate.entry[block.index]);
 
-    for(Size i = 0; i < block.instructions.size(); i++) {
-        auto pointer = block.instructions.get(opt.local, i);
+    for(Size i = 0; i < block.instructionCount(); i++) {
+        auto pointer = block.instructionAt(opt.local, i);
         auto instruction = opt.local[pointer];
 
         if(instruction->kind == Value::LoadPlace) {
@@ -366,8 +366,8 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
             // program this pass has to cope with.
             assertTrue(current[which] != nullptr);
 
-            replaceValue(opt, (ModulePtr<Value>)pointer, current[which]);
-            eraseInstruction(opt, pointer);
+            opt.ir().replaceValue((ModulePtr<Value>)pointer, current[which]);
+            opt.ir().eraseInstruction(pointer);
             i--;
         } else {
             eachWrittenPlace(opt, *instruction, [&](const Place& place, ModulePtr<Value> stored) {
@@ -378,25 +378,6 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
     }
 
     for(Size i = 0; i < candidates.size(); i++) candidates[i].exit[block.index] = current[i];
-}
-
-// Removing a phi from its block, and from the use lists of everything it read. Separate from
-// `eraseInstruction` because a phi is not in its block's instruction list - it is in the phi list,
-// which is what makes "before everything else in the block" a property of the IR rather than of the
-// order things were added in.
-void erasePhi(OptContext& opt, ModulePtr<InstPhi> pointer) {
-    auto phi = opt.local[pointer];
-    auto user = (ModulePtr<Inst>)pointer;
-
-    for(auto input: phi->inputs.contents(opt.local)) dropUse(opt, input.value, user);
-
-    auto block = opt.local[phi->block];
-    for(Size i = 0; i < block->phis.size(); i++) {
-        if(block->phis.get(opt.local, i) != pointer) continue;
-
-        block->phis.remove(opt.local, i);
-        break;
-    }
 }
 
 /*
@@ -421,8 +402,8 @@ void removeTrivialPhis(OptContext& opt, Array<ModulePtr<InstPhi>>& phis) {
             auto pointer = phis[at];
             auto phi = opt.local[pointer];
 
-            if(phi->uses.isEmpty()) {
-                erasePhi(opt, pointer);
+            if(phi->useCount() == 0) {
+                opt.ir().erasePhi(pointer);
                 phis.remove(at--);
                 changed = true;
                 continue;
@@ -440,8 +421,8 @@ void removeTrivialPhis(OptContext& opt, Array<ModulePtr<InstPhi>>& phis) {
 
             if(!trivial || !only) continue;
 
-            replaceValue(opt, (ModulePtr<Value>)pointer, only);
-            erasePhi(opt, pointer);
+            opt.ir().replaceValue((ModulePtr<Value>)pointer, only);
+            opt.ir().erasePhi(pointer);
             phis.remove(at--);
             changed = true;
         }
@@ -487,8 +468,8 @@ void promotePlaces(OptContext& opt) {
      * A phi wherever the place arrives already written, which is every block a value has to be merged
      * into and a good many where it does not - see `removeTrivialPhis`.
      *
-     * Built detached. `Block::add` is what records a phi's alternatives as uses, so it may not happen
-     * until they exist, and they are what the blocks below turn out to hold.
+     * Built detached. `IrEditor::append` is what records a phi's alternatives as uses, so it may not
+     * happen until they exist, and they are what the blocks below turn out to hold.
      */
     Array<ModulePtr<InstPhi>> phis;
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
@@ -524,7 +505,7 @@ void promotePlaces(OptContext& opt) {
 
             auto phi = (InstPhi*)opt.local[candidate.entry[block->index]];
 
-            for(auto predecessor: block->incoming.contents(opt.local)) {
+            for(auto predecessor: block->incoming(opt.local)) {
                 auto value = candidate.exit[opt.local[predecessor]->index];
 
                 // Availability is exactly the statement that this is not null: every predecessor
@@ -533,7 +514,7 @@ void promotePlaces(OptContext& opt) {
                 phi->inputs.push(opt.program.arena, PhiInput { predecessor, value });
             }
 
-            block->add(*opt.module, phi);
+            opt.ir().append(*block, phi);
             phis.push((ModulePtr<InstPhi>)(phi - opt.local));
         }
     }

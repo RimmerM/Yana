@@ -399,7 +399,7 @@ struct ExprResolver {
         return createInst<T>(module, function, block(), source, name, type, forward<Args>(args)...);
     }
 
-    void append(Inst* inst) { block().add(module, inst); }
+    void append(Inst* inst) { IrEditor(module, function).append(block(), inst); }
 
     template<class T, class... Args>
     ModulePtr<Value> constant(LocationId source, TypePtr type, Args&&... args) {

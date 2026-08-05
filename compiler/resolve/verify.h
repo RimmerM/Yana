@@ -11,8 +11,8 @@
  * users, a block names its successors and every block names its predecessors, a local names the
  * value that fills it and that value names the slot - and a pass that writes one side leaves an IR
  * that *prints correctly and walks wrongly*. See Implementation-IR.md part 2 for the structures, and
- * `rebuildUses` in compiler/opt/opt.cpp for the repair one pass still relies on rather than
- * maintaining its own lists.
+ * `IrEditor` in resolve/edit.h, which is the other half of the answer: this detects the failure and
+ * that one is where every rewrite goes so as not to be able to express it.
  *
  * The failures it is meant to turn into a message are, in the order they have actually happened:
  *
@@ -40,10 +40,7 @@
  * is the whole of how they are reached:
  *
  *  - after every body is resolved, and again after the drop pass, in `resolveProgram`;
- *  - at the top of `optimizeProgram`, which is the last point at which the use lists are as the
- *    resolver and the ownership passes built them - `flattenArguments` immediately below leaves
- *    every list for the `rebuildUses` at the top of `optimizeFunction`, so this is where the
- *    two-sided def-use structure is asked about and everything after is checked against the repair;
+ *  - at the top of `optimizeProgram`, and after each of the three program-wide passes below it;
  *  - after each pass of the optimizer, which is what makes a finding name the pass that caused it;
  *  - at the end of `optimizeProgram`, immediately in front of both backends.
  *

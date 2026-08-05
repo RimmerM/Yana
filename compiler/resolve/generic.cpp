@@ -1138,7 +1138,7 @@ static void cloneBody(Clone& clone, Function& to) {
     for(auto blockPointer: from.blocks.contents(local)) {
         auto block = local[blockPointer];
 
-        for(auto instruction: block->instructions.contents(local)) {
+        for(auto instruction: block->instructions(local)) {
             eachPlace(*local[instruction], note);
         }
     }
@@ -1157,7 +1157,7 @@ static void cloneBody(Clone& clone, Function& to) {
         if(!argument) continue;
 
         auto allocation = clone.resolver.emit<InstAlloc>(clone.source, target.name, target.type, U32(i));
-        to.setLocalValue(local, U32(i), clone.resolver.ref(allocation));
+        IrEditor(clone.module, to).setLocalValue(U32(i), clone.resolver.ref(allocation));
         materialized.set(i, true);
 
         clone.resolver.initialize(Place::inLocal(U32(i)), argument, clone.source);
@@ -1175,7 +1175,7 @@ static void cloneBody(Clone& clone, Function& to) {
      * only borrows into it.
      */
     // Which slots hold a value before the body is cloned, and therefore have their uses recorded by
-    // `Block::add` in the ordinary way. Everything else is owed them afterwards - see below.
+    // `IrEditor::append` in the ordinary way. Everything else is owed them afterwards - see below.
     IndexSet filled;
     filled.reset(from.localCount());
 
@@ -1188,14 +1188,14 @@ static void cloneBody(Clone& clone, Function& to) {
         auto slot = from.localAt(local, U32(i));
         if(!slot.value || local[slot.value]->kind != Value::Arg) continue;
 
-        to.setLocalValue(local, U32(i), cloneDefinition(clone, slot.value));
+        IrEditor(clone.module, to).setLocalValue(U32(i), cloneDefinition(clone, slot.value));
         filled.set(i, true);
     }
 
     // Phi shells first: a phi is the one instruction whose operands need not dominate it, so
     // anything else may reference one before the block it lives in has been reached.
     for(auto blockPointer: from.blocks.contents(local)) {
-        for(auto phiPointer: local[blockPointer]->phis.contents(local)) {
+        for(auto phiPointer: local[blockPointer]->phis(local)) {
             auto phi = local[phiPointer];
             clone.resolver.current = cloneBlock(clone, blockPointer);
 
@@ -1208,15 +1208,15 @@ static void cloneBody(Clone& clone, Function& to) {
         auto block = local[blockPointer];
         clone.resolver.current = cloneBlock(clone, blockPointer);
 
-        for(auto instruction: block->instructions.contents(local)) {
+        for(auto instruction: block->instructions(local)) {
             cloneInstruction(clone, *local[instruction]);
         }
 
-        if(block->terminator) cloneInstruction(clone, *local[block->terminator]);
+        if(block->terminator()) cloneInstruction(clone, *local[block->terminator()]);
     }
 
     for(auto blockPointer: from.blocks.contents(local)) {
-        for(auto phiPointer: local[blockPointer]->phis.contents(local)) {
+        for(auto phiPointer: local[blockPointer]->phis(local)) {
             auto phi = local[phiPointer];
             auto created = (InstPhi*)local[ModulePtr<Value>(clone.values.getValue(phiPointer).unwrap())];
 
@@ -1231,33 +1231,35 @@ static void cloneBody(Clone& clone, Function& to) {
                 created->inputs.push(clone.module.arena, PhiInput { from, cloneValue(clone, input.value) });
             }
 
-            local[cloneBlock(clone, blockPointer)]->add(clone.module, created);
+            IrEditor(clone.module, to).append(*local[cloneBlock(clone, blockPointer)], created);
         }
     }
 
     for(Size i = 0; i < from.localCount(); i++) {
         if(materialized[i]) continue;
 
-        to.setLocalValue(local, U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
+        IrEditor(clone.module, to).setLocalValue(U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
     }
 
     /*
      * And the uses those slots owe, which is the price of filling the table last.
      *
      * A place rooted in a local is a use of the value that fills the slot - `addPlaceUse` in
-     * block.cpp, which is what makes "everything that touches this storage" answerable by walking one
-     * use list. Every instruction above was added while its slot still held nothing, so `Block::add`
+     * edit.cpp, which is what makes "everything that touches this storage" answerable by walking one
+     * use list. Every instruction above was added while its slot still held nothing, so `recordUses`
      * had nothing to attribute the use to and recorded none, and the specialization went out with
      * a value whose readers were invisible.
      *
-     * `compiler/opt` hid it: `rebuildUses` runs before anything else there. What did not was
-     * everything in between - the ownership analyses read use lists, and so does `lowerProgram`'s
-     * decision about which aggregate slots can be held in registers, which `-no-opt` reaches with
-     * no repair in front of it. Found by verifyFunction, on a `reserve(U8)` whose `wide` was named
-     * by six instructions and read by none.
+     * `compiler/opt` used to hide it, by rebuilding every list before anything else ran there. What
+     * it did not hide was everything in between - the ownership analyses read use lists, and so does
+     * `lowerProgram`'s decision about which aggregate slots can be held in registers, which `-no-opt`
+     * reaches with no repair in front of it. Found by verifyFunction, on a `reserve(U8)` whose `wide`
+     * was named by six instructions and read by none. There is no such repair any more.
      */
+    IrEditor editor(clone.module, to);
+
     for(auto blockPointer: to.blocks.contents(local)) {
-        for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+        for(auto instruction: local[blockPointer]->instructions(local)) {
             // Per place rather than per instruction, and only the slots that were empty: a swap
             // names two, either of which may have been filled already, and a use recorded twice is
             // as wrong as one not recorded at all.
@@ -1269,7 +1271,7 @@ static void cloneBody(Clone& clone, Function& to) {
                 // `filled` is the original table's size, and reading past it answers false.
                 if(place.local >= from.localCount() || filled[place.local]) return;
 
-                recordUse(clone.module, to.localAt(local, place.local).value, instruction);
+                editor.recordUse(to.localAt(local, place.local).value, instruction);
             });
         }
     }

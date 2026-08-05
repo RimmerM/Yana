@@ -34,7 +34,7 @@ void CallSiteIndex::build(Program& program) {
             for(auto blockPointer: function->blocks.contents(base)) {
                 auto block = base[blockPointer];
 
-                for(auto instPointer: block->instructions.contents(base)) {
+                for(auto instPointer: block->instructions(base)) {
                     auto inst = base[instPointer];
 
                     if(inst->kind == Value::Call) {

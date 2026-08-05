@@ -552,9 +552,9 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
             auto block = local[function.blocks.get(local, i)];
 
             auto anyPath = false;
-            auto allPaths = block->incoming.size() != 0;
+            auto allPaths = block->predecessorCount() != 0;
 
-            for(auto incoming: block->incoming.contents(local)) {
+            for(auto incoming: block->incoming(local)) {
                 auto predecessor = local[incoming]->index;
 
                 // The two facts are read off different halves of the same edge: one path having
@@ -590,10 +590,10 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
 
         // Every way out of the body, which is one list: the fall-through return the caller has
         // already appended is a Ret like any other by the time this runs.
-        if(local[block->terminator]->kind != Value::Ret) continue;
+        if(local[block->terminator()]->kind != Value::Ret) continue;
 
         context.diagnostics.error("this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped"_v,
-                                  local[block->terminator]->source);
+                                  local[block->terminator()]->source);
         return;
     }
 }

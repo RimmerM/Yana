@@ -380,7 +380,7 @@ void prepareLocals(Gen& g, Function& function) {
         if(!found) continue;
         auto local = found.unwrap();
 
-        for(auto userPointer: g.local[borrow]->uses.contents(g.local)) {
+        for(auto userPointer: g.local[borrow]->uses(g.local)) {
             auto& user = *g.local[userPointer];
 
             if(!borrowStaysHere(g, user, borrow)) {
@@ -559,7 +559,7 @@ StmtList genBody(Gen& g, Function& function) {
          * structure and one value in the IR.
          */
         for(auto blockPointer: function.blocks.contents(g.local)) {
-            for(auto phiPointer: g.local[blockPointer]->phis.contents(g.local)) {
+            for(auto phiPointer: g.local[blockPointer]->phis(g.local)) {
                 auto& phi = *g.local[phiPointer];
                 auto name = valueName(g, phi);
 
@@ -1260,7 +1260,7 @@ static bool passedFlat(Gen& g, Value& user, ModulePtr<Value> reference) {
 }
 
 bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference) {
-    for(auto userPointer: g.local[reference]->uses.contents(g.local)) {
+    for(auto userPointer: g.local[reference]->uses(g.local)) {
         auto& user = *g.local[userPointer];
 
         switch(user.kind) {

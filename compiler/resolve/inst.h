@@ -316,9 +316,21 @@ struct Value {
     Value(Kind kind, ModulePtr<Block> block, TypePtr type):
         block(block), type(type), kind(kind) {}
 
+    /*
+     * Everything that reads this value, one entry per naming - an instruction that reads it twice is
+     * in the list twice, which is what makes "does anything still read this" a count rather than a
+     * search.
+     *
+     * Read-only, on the same terms as `Block`'s lists: this is the second half of a statement whose
+     * first half is the reading instruction's own operand, and `IrEditor` (edit.h) is the only thing
+     * that may write one without writing the other. See eachOperand for the list the two agree on.
+     */
+    auto uses(ModuleBase base) { return useList.contents(base); }
+    Size useCount() { return useList.size(); }
+    ModulePtr<Inst> useAt(ModuleBase base, Size index) { return useList.get(base, index); }
+
     ModulePtr<Block> block;
     TypePtr type;
-    ModuleList<ModulePtr<Inst>, false> uses;
     LocationId source = kNullLocation;
     StringId name = 0;
     U32 id = 0;
@@ -340,6 +352,11 @@ struct Value {
     U32 slot = maxLimit<U32>;
 
     Kind kind;
+
+private:
+    friend struct IrEditor;
+
+    ModuleList<ModulePtr<Inst>, false> useList;
 };
 
 /*
@@ -447,7 +464,7 @@ struct InstAlloc: Inst {
      * would grow the frame per iteration. That is Implementation-Containers.md §12's third strategy
      * and it is deferred with its own placement rule; until then the conservative answer is the heap.
      *
-     * Taken by the constructor rather than set afterwards, because Block::add is what records an
+     * Taken by the constructor rather than set afterwards, because IrEditor::append is what records an
      * operand's uses and it runs once, when the instruction reaches its block.
      */
     ModulePtr<Value> extent;
@@ -1382,19 +1399,19 @@ inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
 }
 
 /*
- * The operands of one instruction, in the order `Block::add` records uses in.
+ * The operands of one instruction, in the order `IrEditor::append` records uses in.
  *
  * `f` is handed each operand and answers what it should become, which is the one shape that serves
  * a field and a list element alike - a `ModuleList` element is reached through `get`/`set` and
  * there is no reference to hand out. Returning the operand unchanged is the read-only use.
  *
- * This has to name exactly what `Block::add` names. An operand it misses is one a replacement walks
+ * This has to name exactly what `IrEditor::append` names. An operand it misses is one a replacement walks
  * past, leaving a use of a value that is no longer defined; an operand it invents is a use count
  * that never balances.
  *
  * Which is why it is here rather than in compiler/opt, where it was written: it is the same list as
  * `instructionPlaces` above, stated the other way round, and an instruction added to the IR has to
- * reach both or the one it misses is silently wrong about it. `Block::add` records the uses, this
+ * reach both or the one it misses is silently wrong about it. `IrEditor::append` records the uses, this
  * walks them, and `verifyFunction` checks that the two agree - three readers of one list, and the
  * check is worth nothing if it reads a different list from the one the rewrites do.
  */
@@ -1424,7 +1441,7 @@ void mapOperands(ModuleBase base, Value& instruction, F&& f) {
         /*
          * How many slots a run holds - InstAlloc::extent, which every pass here had been blind to.
          *
-         * It is an operand in every sense that matters: `Block::add` records it as a use, and a
+         * It is an operand in every sense that matters: `IrEditor::append` records it as a use, and a
          * rewrite that renumbers values has to renumber it. Leaving it out of this walk meant the
          * dead-value pass saw the instruction computing it with no users and deleted it, and the
          * allocation was then left naming a value no block defined - which lowering reports as

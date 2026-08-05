@@ -36,12 +36,12 @@ using EdgeDropList = SmallArray<EdgeDrop, 8>;
 static Size positionInBlock(Analysis& analysis, Size blockIndex, U32 index) {
     auto block = analysis.blockAt(blockIndex);
     auto range = analysis.blockRanges[blockIndex];
-    auto phis = block->phis.size();
+    auto phis = block->phiCount();
 
     if(index <= range.first + phis) return 0;
 
     auto position = Size(index - range.first - phis);
-    return min(position, block->instructions.size());
+    return min(position, block->instructionCount());
 }
 
 static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& edgeDrops) {
@@ -107,7 +107,7 @@ static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& e
         // The branch case: live down one arm and dead down the other. liveOut is the union over
         // successors, so this can only arise where a block has more than one - which is why there
         // is no corresponding "drop at the end of the block" case.
-        for(auto successor: block->outgoing) {
+        for(auto successor: block->successors()) {
             if(!successor) continue;
 
             auto successorIndex = analysis.local[successor]->index;
@@ -123,7 +123,7 @@ static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& e
                 // state on the edge.
                 if(state == OwnState::Maybe) {
                     report(analysis, "this value is owned on only some paths reaching this branch - conditional drops need drop flags, which are not implemented yet"_v,
-                           analysis.local[block->terminator]->source);
+                           analysis.local[block->terminator()]->source);
                 } else if(state == OwnState::Owned) {
                     edgeDrops.push(EdgeDrop { U32(l), b, successorIndex });
                 }
@@ -432,14 +432,16 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
         if(blockDrops[b].isEmpty()) continue;
 
+        IrEditor editor(analysis.module, analysis.function);
+
         auto block = analysis.blockAt(b);
         SmallArray<ModulePtr<Inst>, 8> existing;
-        for(auto instruction: block->instructions.contents(analysis.local)) existing.push(instruction);
+        for(auto instruction: block->instructions(analysis.local)) existing.push(instruction);
 
         // Positions are computed against the original numbering, so they are resolved before
         // anything is inserted and applied in one pass afterwards.
         SmallArray<Size, 8> positions;
-        SmallArray<InstDrop*, 8> instructions;
+        SmallArray<ModulePtr<Inst>, 8> instructions;
 
         for(auto& pending: blockDrops[b]) {
             auto position = positionInBlock(analysis, b, pending.before);
@@ -452,23 +454,24 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
             if(!drop) continue;
 
             positions.push(position);
-            instructions.push(drop);
 
-            // The drop is spliced in below rather than appended, so `Block::add` never sees it and
-            // the uses it owes have to be recorded here - see recordInstUses. A drop that named a
-            // local and was in no use list is what made `rebuildUses` in compiler/opt necessary.
-            recordInstUses(analysis.module, drop);
+            // Appended rather than spliced, because appending is what records the uses a drop owes -
+            // a drop that named a local and was in no use list is what made a whole-function use
+            // rebuild necessary in compiler/opt. The list is put into the order the positions ask
+            // for below, which is a permutation and so costs nothing.
+            instructions.push((ModulePtr<Inst>)(editor.append(*block, drop) - analysis.local));
         }
 
-        block->instructions.clear();
+        SmallArray<ModulePtr<Inst>, 16> ordered;
         for(Size i = 0; i <= existing.size(); i++) {
             for(Size d = 0; d < positions.size(); d++) {
-                if(positions[d] != i) continue;
-                block->instructions.push(analysis.module.arena, (ModulePtr<Inst>)(instructions[d] - analysis.local));
+                if(positions[d] == i) ordered.push(instructions[d]);
             }
 
-            if(i < existing.size()) block->instructions.push(analysis.module.arena, existing[i]);
+            if(i < existing.size()) ordered.push(existing[i]);
         }
+
+        editor.reorder(*block, Buffer<ModulePtr<Inst>>(ordered.pointer(), ordered.size()));
     }
 }
 
@@ -477,64 +480,32 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
  *
  * The alternative would be to put the drop at the top of the successor, which is only correct when
  * every path into it agreed - and the case this exists for is precisely the one where they do not.
- * Everything that names the old edge has to be redirected: the branch, both block graphs, and any
- * phi in the successor that reads a value from this predecessor.
+ * Everything that names the old edge has to be redirected, which is `IrEditor::splitEdge`'s job:
+ * the branch arm, both block graphs, and the alternative each phi in the successor reads over it.
+ *
+ * Per *arm* rather than per successor, because `je %c, X, X` is two edges into one block and each
+ * of them owes these drops. It cannot arise today and the loop is still written this way: the drop
+ * only exists where a value is live down one arm and dead down the other, and two arms at one block
+ * make `liveOut` the union of one thing with itself. Writing it as "the edge to X" would be one
+ * unstated assumption standing between that argument and a wrong answer.
  */
 static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArray<U32, 8>& locals) {
-    auto& module = analysis.module;
     auto base = analysis.local;
     auto from = analysis.blockAt(fromIndex);
-    auto to = analysis.blockAt(toIndex);
-
-    auto fromPointer = analysis.function.blocks.get(base, fromIndex);
     auto toPointer = analysis.function.blocks.get(base, toIndex);
 
-    auto split = analysis.function.addBlock(module);
-    auto splitPointer = split - base;
-    split->index = U16(analysis.function.blocks.size() - 1);
-    split->source = base[from->terminator]->source;
+    IrEditor editor(analysis.module, analysis.function);
 
-    for(auto localIndex: locals) {
-        auto drop = makeDrop(analysis, *split, localIndex, split->source);
-        if(!drop) continue;
+    for(Size successor = 0; successor < 2; successor++) {
+        if(from->successor(successor) != toPointer) continue;
 
-        split->instructions.push(module.arena, (ModulePtr<Inst>)(drop - base));
-        recordInstUses(module, drop);
-    }
+        auto split = editor.splitEdge(*from, successor);
 
-    auto jump = createInst<InstJmp>(module, analysis.function, *split, split->source, 0,
-                                    module.scalar.unit, toPointer);
-    split->terminator = (ModulePtr<Inst>)(jump - base);
-    split->outgoing[0] = toPointer;
+        for(auto localIndex: locals) {
+            auto drop = makeDrop(analysis, *split, localIndex, split->source);
+            if(!drop) continue;
 
-    // The branch now leaves through the split block instead.
-    auto terminator = base[from->terminator];
-    if(terminator->kind == Value::Je) {
-        auto& branch = (InstJe&)*terminator;
-        if(branch.thenBlock == toPointer) branch.thenBlock = splitPointer;
-        else if(branch.elseBlock == toPointer) branch.elseBlock = splitPointer;
-    } else if(terminator->kind == Value::Jmp) {
-        ((InstJmp&)*terminator).target = splitPointer;
-    }
-
-    for(auto& outgoing: from->outgoing) {
-        if(outgoing == toPointer) outgoing = splitPointer;
-    }
-
-    for(Size i = 0; i < to->incoming.size(); i++) {
-        if(to->incoming.get(base, i) == fromPointer) to->incoming.set(base, i, splitPointer);
-    }
-
-    split->incoming.push(module.arena, fromPointer);
-
-    for(auto phiPointer: to->phis.contents(base)) {
-        auto& phi = *base[phiPointer];
-        for(Size i = 0; i < phi.inputs.size(); i++) {
-            auto input = phi.inputs.get(base, i);
-            if(input.block != fromPointer) continue;
-
-            input.block = splitPointer;
-            phi.inputs.set(base, i, input);
+            editor.append(*split, drop);
         }
     }
 }

@@ -1,87 +1,18 @@
 #include "opt_pass.h"
 
 /*
- * The driver, and the IR surgery every pass performs.
+ * The driver, and the questions about types and storage every pass asks.
  *
  * Which passes run and how many times is here; what each of them decides lives in the file that
  * decides it. The loop is a fixed point rather than a sequence because the three feed each other -
  * folding an operand turns `x * 1` into an identity, an identity leaves a value nothing reads, and
  * removing that one can leave its operand unread in turn.
+ *
+ * The IR surgery used to be here too, and is now `IrEditor` in resolve/edit.h - reached from every
+ * pass as `opt.ir()`. It moved because it is not about this stage: the resolver and the ownership
+ * passes edit the same two-sided structures, and a rewrite that maintains only one side fails the
+ * same way wherever it is written.
  */
-
-namespace {
-
-
-/*
- * Every value of one function, in no particular order: the parameters, the phis, the instructions
- * and each block's terminator.
- *
- * Constants are not among them and cannot be - one belongs to no block and is reached only through
- * whatever names it - so a caller that needs those too finds them by walking operands.
- */
-template<class F>
-void eachFunctionValue(OptContext& opt, F&& f) {
-    for(auto arg: opt.function->args.contents(opt.local)) f((ModulePtr<Value>)arg);
-
-    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
-        auto block = opt.local[blockPointer];
-
-        for(auto phi: block->phis.contents(opt.local)) f((ModulePtr<Value>)phi);
-        for(auto instruction: block->instructions.contents(opt.local)) f((ModulePtr<Value>)instruction);
-        if(block->terminator) f((ModulePtr<Value>)block->terminator);
-    }
-}
-
-/*
- * Recomputing every use list from the instructions that exist.
- *
- * What it is *no longer* for is the drop pass. `insertBlockDrops` and `splitEdge` in
- * analyze_drop.cpp build an `InstDrop` with `createInst` and splice it in rather than appending it,
- * so `Block::add` never saw one and a drop was an instruction that named a local and was in no use
- * list - and the dead-local rule below then removed a heap allocation whose `drop ... release` was
- * still there. That is a crash, and it is closed at the source: those two sites call
- * `recordInstUses`, which is the half of `Block::add` they owed.
- *
- * What is left is one pass that genuinely declines the invariant. `flattenArguments` rewrites
- * signatures and rebuilds call sites wholesale, and repairing lists per rewrite there would be
- * bookkeeping over an IR half of whose instructions are about to be replaced - so it leaves every
- * list for this call, which is the last thing before the first pass reads one. `mergeBlocks` is the
- * other, for the narrower reason that an instruction in a block it deleted is still in the use list
- * of everything it read.
- *
- * So this is a repair with two named callers rather than a blanket distrust, and `verifyFunction`
- * runs immediately after it - see resolve/verify.h, and the checkpoint at the top of
- * `optimizeProgram`, which is what asks whether the lists arrived here correct.
- *
- * Two passes, because a list may only be cleared before anything is pushed into it.
- */
-
-}
-
-void rebuildUses(OptContext& opt) {
-    auto forget = [&](ModulePtr<Value> value) {
-        if(value) opt.local[value]->uses.clear();
-    };
-
-    eachFunctionValue(opt, [&](ModulePtr<Value> value) {
-        forget(value);
-
-        // Constants and arguments reached only from here, which is why this clears operands as well
-        // as definitions rather than only the latter.
-        eachOperand(opt.local, *opt.local[value], forget);
-        eachRootValue(opt, *opt.local[value], forget);
-    });
-
-    eachFunctionValue(opt, [&](ModulePtr<Value> value) {
-        auto user = (ModulePtr<Inst>)value;
-        auto record = [&](ModulePtr<Value> operand) {
-            opt.local[operand]->uses.push(opt.program.arena, user);
-        };
-
-        eachOperand(opt.local, *opt.local[value], record);
-        eachRootValue(opt, *opt.local[value], record);
-    });
-}
 
 // A cap on the fixed point rather than a trusted termination proof. Every rewrite here strictly
 // reduces something - an operand becomes a constant, or an instruction goes away - so the loop
@@ -175,10 +106,9 @@ namespace {
 void optimizeFunction(OptContext& opt, Function& function) {
     opt.function = &function;
 
-    // After `rebuildUses` rather than before it: what the lists were on the way in is asked once
-    // for the whole program at the top of this stage, and between there and here sits a pass that
-    // rewrites signatures and leaves the repair to exactly this call.
-    rebuildUses(opt);
+    // The lists as `flattenArguments` and `inlineCalls` left them, which is a question worth asking
+    // here rather than a repair worth performing: both of those maintain them now, so a failure at
+    // this checkpoint names the pass that broke one.
     verifyIr(*opt.module, function, VerifyStage::Ownership, "before optimizing"_v);
 
     optimizeRounds(opt);
@@ -187,119 +117,6 @@ void optimizeFunction(OptContext& opt, Function& function) {
     verifyIr(*opt.module, function, VerifyStage::Optimized, "after optimizing"_v);
 }
 
-}
-
-void dropUse(OptContext& opt, ModulePtr<Value> value, ModulePtr<Inst> user) {
-    if(!value) return;
-
-    auto& uses = opt.local[value]->uses;
-    for(Size i = 0; i < uses.size(); i++) {
-        if(uses.get(opt.local, i) == user) {
-            uses.remove(opt.local, i);
-            return;
-        }
-    }
-}
-
-void replaceValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to) {
-    if(from == to) return;
-
-    // Null would mean pointing a reader at nothing, which every caller is supposed to have already
-    // decided against. Asserted rather than tolerated because the result is otherwise a use of
-    // whatever sits at offset zero of the arena.
-    assertTrue(to != nullptr);
-
-    auto& uses = opt.local[from]->uses;
-    while(uses.size()) {
-        auto userPointer = uses.get(opt.local, uses.size() - 1);
-        uses.remove(opt.local, uses.size() - 1);
-
-        // Every matching operand at once, and one use entry per visit: an instruction reading the
-        // value twice is in the list twice, so the two counts stay equal either way round.
-        mapOperands(opt.local, *opt.local[userPointer], [&](ModulePtr<Value> operand) {
-            return operand == from ? to : operand;
-        });
-
-        opt.local[to]->uses.push(opt.program.arena, userPointer);
-    }
-
-    opt.changed = true;
-}
-
-/*
- * Every slot one value was the whole contents of, emptied.
- *
- * `Local::value` is the other half of `Value::slot` - see Function::setLocalValue - and a slot left
- * naming an instruction that is no longer in any block is storage whose provenance every later pass
- * reads and gets a wrong answer from: `eachPlaceRootValue` attributes a place's use to it,
- * `storageOf` hands it back as the root to project from, and `lowerProgram` asks it who reads the
- * storage and is told "nobody", which is how a slot with readers came to look like one that could
- * stay in registers.
- *
- * By scan rather than through `Value::slot`, and that is the whole reason this is a function.
- * `Value::slot` holds *one* answer while several slots may name one value - the inliner points every
- * slot that named a call at the value that replaced it, deliberately, since a class default reached
- * through an instance ends up with two of them. Clearing only the one the value names back leaves
- * the others behind.
- *
- * Cleared rather than repointed, because the instruction that produced the storage is gone: the slot
- * has no contents rather than different ones.
- */
-void forgetLocalValue(OptContext& opt, ModulePtr<Value> value) {
-    for(U32 local = 0; local < opt.function->localCount(); local++) {
-        if(opt.function->localAt(opt.local, local).value != value) continue;
-
-        opt.function->setLocalValue(opt.local, local, nullptr);
-    }
-}
-
-/*
- * The same slots, refilled from another value rather than emptied.
- *
- * What a pass that *replaces* an instruction and then takes it out of its block owes, against the
- * `forgetLocalValue` a pass that simply removes one owes: the storage did not stop existing, it is
- * now named by whatever the readers were pointed at. `collapseSinglePhis` is the case - a join whose
- * phi has one alternative left is that alternative, storage included.
- *
- * Lowest last, so that the `Value::slot` back edge names the lowest slot of the several that may
- * hold one value. That is the answer `findPlace` and `backingLocal` give, and the one opt_inline.cpp
- * already settled on for the same reason.
- */
-void repointLocalValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to) {
-    for(U32 local = U32(opt.function->localCount()); local-- > 0;) {
-        if(opt.function->localAt(opt.local, local).value != from) continue;
-
-        opt.function->setLocalValue(opt.local, local, to);
-    }
-}
-
-void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction) {
-    auto value = opt.local[instruction];
-    assertTrue(value->uses.isEmpty());
-
-    eachOperand(opt.local, *value, [&](ModulePtr<Value> operand) {
-        dropUse(opt, operand, instruction);
-    });
-
-    // The storage a place is rooted in, which `eachOperand` deliberately does not yield - see
-    // eachRootValue. Missing it leaves the Alloc believing in a reader that is no longer in any
-    // block, which is invisible until a pass asks the Alloc who reads it.
-    eachRootValue(opt, *value, [&](ModulePtr<Value> storage) {
-        dropUse(opt, storage, instruction);
-    });
-
-    auto block = opt.local[value->block];
-    for(Size i = 0; i < block->instructions.size(); i++) {
-        if(block->instructions.get(opt.local, i) == instruction) {
-            block->instructions.remove(opt.local, i);
-            break;
-        }
-    }
-
-    // And the slots this value was the whole contents of, which stop existing with it.
-    forgetLocalValue(opt, (ModulePtr<Value>)instruction);
-
-    opt.changed = true;
 }
 
 bool isConstructorIndex(OptContext& opt, TypePtr type) {
@@ -427,40 +244,6 @@ ModulePtr<Value> makeFloatConstant(OptContext& opt, Value& at, TypePtr type, F64
     return (ModulePtr<Value>)(constant - opt.local);
 }
 
-void insertInstructions(OptContext& opt, Block& block, Size index, InstList& instructions) {
-    /*
-     * Registered through `Block::add` rather than written into the list directly, because `add` is
-     * what records every use - a use list a pass filled in by hand would be one more place for the
-     * two directions of the IR to disagree. It appends, so the list is rebuilt afterwards with the
-     * new instructions moved to where they were wanted.
-     */
-    auto existing = block.instructions.size();
-    for(auto instruction: instructions) block.add(*opt.module, instruction);
-
-    SmallArray<ModulePtr<Inst>, 48> ordered;
-    for(Size i = 0; i < existing; i++) {
-        if(i == index) {
-            for(auto j = existing; j < block.instructions.size(); j++) {
-                ordered.push(block.instructions.get(opt.local, j));
-            }
-        }
-
-        ordered.push(block.instructions.get(opt.local, i));
-    }
-
-    // An index at the end of the list, which nothing above would have reached.
-    if(index >= existing) {
-        for(auto j = existing; j < block.instructions.size(); j++) {
-            ordered.push(block.instructions.get(opt.local, j));
-        }
-    }
-
-    block.instructions.clear();
-    for(auto instruction: ordered) block.instructions.push(opt.program.arena, instruction);
-
-    opt.changed = true;
-}
-
 Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value) {
     if(!value) return Nothing();
 
@@ -577,15 +360,9 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
 
-    /*
-     * What the resolver and the ownership passes left, before this stage touches it.
-     *
-     * The one checkpoint that sees the use lists as *they* built them: `flattenArguments` below
-     * deliberately does not maintain them - it rewrites signatures and leaves every list for the
-     * `rebuildUses` at the top of `optimizeFunction` - so a check placed after that pass would be
-     * asking for an invariant nothing in between is claiming. This is therefore where the two-sided
-     * def-use structure is asked about, and everything below is checked against the repaired lists.
-     */
+    // What the resolver and the ownership passes left, before this stage touches it. There is no
+    // longer anything special about this checkpoint - every pass below maintains the use lists, so
+    // this is simply the first of them.
     verifyIrProgram(program, VerifyStage::Ownership, "on entry to the optimizer"_v);
 
     // Before the discharge, because what it reads is the drops as the ownership passes left them -
@@ -605,12 +382,20 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // the callee, taken apart at the caller - is what the passes below remove.
     flattenArguments(opt);
 
+    // A checkpoint that could not exist before this pass maintained its own use lists: it rewrote
+    // signatures and call sites wholesale and left every list for a `rebuildUses`, so there was no
+    // invariant here to ask about. It now drops and records the argument uses it moves, and retires
+    // a parameter with `replaceValue`, which is exactly what this asks. Worth 4% of the assertion
+    // build's fixture corpus, measured, for the two of them.
+    verifyIrProgram(program, VerifyStage::Ownership, "after flattenArguments"_v);
+
     // Also program-wide, also before any function is optimized, and after flattening rather than
     // before it: a signature this stage is going to rewrite should be rewritten once, in the callee,
     // rather than once per copy of the callee. What inlining leaves behind is again work for the
     // passes below - a constructor's `alloc` in its caller's own block, which opt_scalar.cpp
     // removes, and arguments that are now constants, which opt_fold.cpp propagates.
     inlineCalls(opt);
+    verifyIrProgram(program, VerifyStage::Optimized, "after inlineCalls"_v);
 
     for(auto module: program.modules) {
         opt.module = module;

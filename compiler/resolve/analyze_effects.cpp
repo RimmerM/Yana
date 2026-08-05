@@ -15,9 +15,9 @@ void numberFunction(Analysis& analysis) {
         BlockRange range;
         range.first = U32(analysis.order.size());
 
-        for(auto phi: block->phis.contents(analysis.local)) analysis.order.push((ModulePtr<Inst>)phi);
-        for(auto instruction: block->instructions.contents(analysis.local)) analysis.order.push(instruction);
-        if(block->terminator) analysis.order.push(block->terminator);
+        for(auto phi: block->phis(analysis.local)) analysis.order.push((ModulePtr<Inst>)phi);
+        for(auto instruction: block->instructions(analysis.local)) analysis.order.push(instruction);
+        if(block->terminator()) analysis.order.push(block->terminator());
 
         range.end = U32(analysis.order.size());
         analysis.blockRanges.push(range);
@@ -494,7 +494,7 @@ static void extendBorrowUses(Analysis& analysis) {
         auto root = rootLocal(analysis, place);
         if(root == maxLimit<U32>) continue;
 
-        for(auto user: instruction.uses.contents(analysis.local)) {
+        for(auto user: instruction.uses(analysis.local)) {
             auto index = analysis.indexOf.get(U32(user));
             if(index) analysis.effects[index.unwrap()].uses.push(root);
         }
@@ -514,14 +514,14 @@ static void attributePhiEdges(Analysis& analysis) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
         auto block = analysis.blockAt(b);
 
-        for(auto phiPointer: block->phis.contents(analysis.local)) {
+        for(auto phiPointer: block->phis(analysis.local)) {
             auto& phi = *analysis.local[phiPointer];
 
             for(auto input: phi.inputs.contents(analysis.local)) {
                 auto from = analysis.local[input.block];
-                if(!from->terminator) continue;
+                if(!from->terminator()) continue;
 
-                auto index = analysis.indexOf.get(U32(from->terminator));
+                auto index = analysis.indexOf.get(U32(from->terminator()));
                 if(!index) continue;
 
                 transferFrom(analysis, analysis.effects[index.unwrap()], input.value);

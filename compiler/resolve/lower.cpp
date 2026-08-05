@@ -108,7 +108,7 @@ static bool scalarizable(LowerContext& lower, Function& function, U32 index, Own
     // Every use has to be one this translation can rewrite, and all of them in one block.
     ModulePtr<Block> only = nullptr;
 
-    for(auto user: lower.local[slot.value]->uses.contents(lower.local)) {
+    for(auto user: lower.local[slot.value]->uses(lower.local)) {
         auto& instruction = *lower.local[user];
 
         if(!only) only = instruction.block;
@@ -3691,7 +3691,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // back around a loop is a value this walk has already heard of by the time it is asked for.
         SmallArray<LowerInstPhi*, 16> phis;
         for(auto blockPointer: function->blocks.contents(lower.local)) {
-            for(auto phi: lower.local[blockPointer]->phis.contents(lower.local)) {
+            for(auto phi: lower.local[blockPointer]->phis(lower.local)) {
                 phis.push(createPhi(lower, phi));
             }
         }
@@ -3700,12 +3700,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             auto sourceBlock = lower.local[blockPointer];
             auto targetBlock = lower.lower[lower.blocks.getValue(blockPointer).unwrap()];
 
-            for(auto instruction: sourceBlock->instructions.contents(lower.local)) {
+            for(auto instruction: sourceBlock->instructions(lower.local)) {
                 lowerInstruction(lower, *targetBlock, instruction);
             }
 
-            if(sourceBlock->terminator) {
-                lowerTerminator(lower, *targetBlock, sourceBlock->terminator);
+            if(sourceBlock->terminator()) {
+                lowerTerminator(lower, *targetBlock, sourceBlock->terminator());
             }
         }
 
@@ -3713,7 +3713,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         for(auto blockPointer: function->blocks.contents(lower.local)) {
             auto targetBlock = lower.lower[lower.blocks.getValue(blockPointer).unwrap()];
 
-            for(auto phi: lower.local[blockPointer]->phis.contents(lower.local)) {
+            for(auto phi: lower.local[blockPointer]->phis(lower.local)) {
                 fillPhi(lower, *targetBlock, phi, phis[phiIndex++]);
             }
         }

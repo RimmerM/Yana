@@ -95,7 +95,7 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
         if(visited) continue;
         seen.push(value);
 
-        for(auto user: analysis.local[value]->uses.contents(analysis.local)) {
+        for(auto user: analysis.local[value]->uses(analysis.local)) {
             auto index = analysis.indexOf.get(U32(user));
             if(index && index.unwrap() > last) last = index.unwrap();
 
@@ -223,8 +223,7 @@ void checkBorrows(Analysis& analysis) {
             // The instructions that consume the borrow reach the storage *through* it, which is
             // the whole point of handing one out rather than a conflict with it.
             auto consumed = false;
-            auto uses = analysis.local[borrow.instruction]->uses;
-            for(auto user: uses.contents(analysis.local)) {
+            for(auto user: analysis.local[borrow.instruction]->uses(analysis.local)) {
                 if(user == other) consumed = true;
             }
 

@@ -248,7 +248,7 @@ void addressTaken(OptContext& opt, HashMap<U32, bool>& taken) {
             auto function = opt.local[pointer];
 
             for(auto blockPointer: function->blocks.contents(opt.local)) {
-                for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+                for(auto instructionPointer: opt.local[blockPointer]->instructions(opt.local)) {
                     auto& instruction = *opt.local[instructionPointer];
 
                     switch(instruction.kind) {
@@ -491,13 +491,18 @@ Size rewriteCall(OptContext& opt, HashMap<U32, bool>& taken, Block& block, Size 
         }
     }
 
-    insertInstructions(opt, block, index, loads);
+    opt.ir().insert(block, index, loads);
 
-    // The argument list itself. Use lists are not repaired here and do not need to be: this whole
-    // pass runs before the first `rebuildUses`, which recomputes every one of them from what the
-    // instructions say.
-    args.clear();
-    for(auto value: replacement) args.push(opt.program.arena, value);
+    /*
+     * The argument list itself: the call stops reading the records it was passed and starts reading
+     * the fields loaded out of them. The loads above recorded their own uses when they reached the
+     * block; this is the other side of the same exchange, and it changes the list's *length*, which
+     * is why it is `rewriteOperands` rather than a per-operand replacement.
+     */
+    opt.ir().rewriteOperands((ModulePtr<Inst>)(&call - opt.local), [&](Value&) {
+        args.clear();
+        for(auto value: replacement) args.push(opt.program.arena, value);
+    });
 
     return loads.size();
 }
@@ -508,8 +513,8 @@ void rewriteCalls(OptContext& opt, HashMap<U32, bool>& taken, Function& function
     for(auto blockPointer: function.blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
-        for(Size i = 0; i < block->instructions.size(); i++) {
-            auto instruction = opt.local[block->instructions.get(opt.local, i)];
+        for(Size i = 0; i < block->instructionCount(); i++) {
+            auto instruction = opt.local[block->instructionAt(opt.local, i)];
 
             switch(instruction->kind) {
                 case Value::Call: {
@@ -577,7 +582,7 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
         prologue.push(allocation);
 
         auto storage = (ModulePtr<Value>)(allocation - opt.local);
-        function.setLocalValue(opt.local, local, storage);
+        opt.ir().setLocalValue(local, storage);
 
         auto slot = function.localAt(opt.local, local);
         slot.borrowed = false;
@@ -610,39 +615,14 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
     /*
      * Every remaining mention of a retired parameter, pointed at its allocation.
      *
-     * A place rooted in the parameter's local needed nothing - the root is an index and the local
-     * table is what says where its storage is, which the loop above has already updated. This is for
-     * the other half: `call g, %it` hands the whole record on and names the parameter as a value,
-     * and `ret %it` returns it. Both mean "the storage this names", which is what an `Alloc` result
-     * is, so the substitution is exact.
-     *
-     * Done by walking rather than through `replaceValue`, because use lists at this point are
-     * whatever the call rewriting above left them as. `rebuildUses` recomputes them all before the
-     * first pass runs.
+     * Two kinds of mention, and `replaceValue` settles both because both are recorded as uses of the
+     * `Arg`. One is the operand case - `call g, %it` hands the whole record on and names the
+     * parameter as a value, and `ret %it` returns it; the other is every place rooted in the
+     * parameter's local, which was recorded against whatever the slot held when the instruction
+     * reached its block. Both mean "the storage this names", which is what an `Alloc` result is, so
+     * the substitution is exact - and the slot itself was repointed by the loop above.
      */
-    if(retired.isNotEmpty()) {
-        auto substitute = [&](ModulePtr<Value> operand) {
-            for(Size i = 0; i < retired.size(); i++) {
-                if(operand == retired[i]) return standIn[i];
-            }
-
-            return operand;
-        };
-
-        for(auto blockPointer: function.blocks.contents(opt.local)) {
-            auto block = opt.local[blockPointer];
-
-            for(auto phi: block->phis.contents(opt.local)) {
-                mapOperands(opt.local, *opt.local[phi], substitute);
-            }
-
-            for(auto instruction: block->instructions.contents(opt.local)) {
-                mapOperands(opt.local, *opt.local[instruction], substitute);
-            }
-
-            if(block->terminator) mapOperands(opt.local, *opt.local[block->terminator], substitute);
-        }
-    }
+    for(Size i = 0; i < retired.size(); i++) opt.ir().replaceValue(retired[i], standIn[i]);
 
     function.args.clear();
     for(auto argument: arguments) function.args.push(opt.program.arena, argument);
@@ -672,7 +652,7 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
     function.summary.args.clear();
     for(auto& summary: summaries) function.summary.args.push(opt.program.arena, summary);
 
-    insertInstructions(opt, *entry, 0, prologue);
+    opt.ir().insert(*entry, 0, prologue);
 }
 
 }

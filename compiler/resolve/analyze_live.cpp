@@ -41,7 +41,7 @@ void computeLiveness(Analysis& analysis) {
             auto block = analysis.blockAt(index);
             live.reset(count);
 
-            for(auto successor: block->outgoing) {
+            for(auto successor: block->successors()) {
                 if(!successor) continue;
                 live.unionWith(analysis.liveIn[analysis.local[successor]->index]);
             }

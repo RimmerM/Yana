@@ -206,22 +206,6 @@ struct Function {
     Local localAt(ModuleBase base, U32 index) { return locals.get(base, index); }
     Size localCount() { return locals.size(); }
 
-    /*
-     * Repointing a slot at the value that fills it, after `addLocal` made it.
-     *
-     * The pairing is two fields - `Local::value` here and `Value::slot` there - and a rewrite that
-     * set one of them left the other answering with a value that no longer exists. That is what this
-     * is for and the only reason it is a method: there are four rewrites that repoint a slot (the
-     * two halves of specialization, the inliner splicing a result, and opt_arg giving a flattened
-     * parameter storage), and each of them used to write the field directly.
-     */
-    void setLocalValue(ModuleBase base, U32 index, ModulePtr<Value> value) {
-        auto slot = locals.get(base, index);
-        slot.value = value;
-        locals.set(base, index, slot);
-        if(value) base[value]->slot = index;
-    }
-
     Module* module;
     StringId name;
     LocationId source = kNullLocation;
@@ -419,13 +403,32 @@ struct Function {
     // What callers may assume about this function, computed by the ownership passes and read by
     // every call site of it. See FunctionSummary.
     FunctionSummary summary;
+
+private:
+    friend struct IrEditor;
+
+    /*
+     * Repointing a slot at the value that fills it, after `addLocal` made it.
+     *
+     * The pairing is two fields - `Local::value` here and `Value::slot` there - and a rewrite that
+     * set one of them left the other answering with a value that no longer exists. That is why it
+     * is a method rather than two assignments, and why it is private: it is the sixth of the
+     * two-sided structures `IrEditor` exists to move together, and the only one that used to be
+     * writable from outside it. `IrEditor::setLocalValue` is how a pass says this now.
+     */
+    void setLocalValue(ModuleBase base, U32 index, ModulePtr<Value> value) {
+        auto slot = locals.get(base, index);
+        slot.value = value;
+        locals.set(base, index, slot);
+        if(value) base[value]->slot = index;
+    }
 };
 
 /*
  * The storage roots one instruction names, as the values whose use lists record them.
  *
  * A place rooted in a *local* is a use of the `Alloc` that gave the local its storage - see
- * `addPlaceUse` in resolve/block.cpp, which is what makes "every access to this local" answerable by
+ * `addPlaceUse` in resolve/edit.cpp, which is what makes "every access to this local" answerable by
  * walking one use list. That use has no operand slot holding it: the root is a local index, and the
  * Alloc is reached through the function's local table.
  *
@@ -434,7 +437,7 @@ struct Function {
  * count* must, or an erased instruction leaves a reader the Alloc still believes in. Erasing the
  * redundant store in opt_place.cpp is exactly that case.
  *
- * Together with `mapOperands`, this is the whole of what `Block::add` records a use for, which is
+ * Together with `mapOperands`, this is the whole of what `IrEditor::append` records a use for, which is
  * the statement `verifyFunction` checks a use list against.
  */
 template<class F>

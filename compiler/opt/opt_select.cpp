@@ -148,18 +148,18 @@ ModulePtr<Block> armTarget(OptContext& opt, ModulePtr<Block> head, ModulePtr<Blo
     // edge does not mean one way in for it.
     if(block->index == 0) return nullptr;
 
-    if(block->phis.isNotEmpty()) return nullptr;
-    if(block->incoming.size() != 1 || block->incoming.get(opt.local, 0) != head) return nullptr;
-    if(!block->terminator || opt.local[block->terminator]->kind != Value::Jmp) return nullptr;
+    if(block->phiCount() != 0) return nullptr;
+    if(block->predecessorCount() != 1 || block->predecessorAt(opt.local, 0) != head) return nullptr;
+    if(!block->terminator() || opt.local[block->terminator()]->kind != Value::Jmp) return nullptr;
 
-    return ((InstJmp&)*opt.local[block->terminator]).target;
+    return ((InstJmp&)*opt.local[block->terminator()]).target;
 }
 
 // The instructions of one arm, or nothing where one of them may not be made unconditional.
 Maybe<Size> armCost(OptContext& opt, ModulePtr<Block> arm) {
     Size count = 0;
 
-    for(auto pointer: opt.local[arm]->instructions.contents(opt.local)) {
+    for(auto pointer: opt.local[arm]->instructions(opt.local)) {
         if(!speculatable(opt, *opt.local[pointer])) return Nothing();
         count++;
     }
@@ -179,7 +179,7 @@ ModulePtr<Value> inputFrom(OptContext& opt, InstPhi& phi, ModulePtr<Block> from)
 // Whether a value is one of the phis of this block, which is what a select may not be built out of.
 // See the guard in `convertBranch` for why.
 bool isPhiOf(OptContext& opt, Block& block, ModulePtr<Value> value) {
-    for(auto phi: block.phis.contents(opt.local)) {
+    for(auto phi: block.phis(opt.local)) {
         if((ModulePtr<Value>)phi == value) return true;
     }
 
@@ -236,9 +236,9 @@ bool findDiamond(OptContext& opt, ModulePtr<Block> head, InstJe& branch, Diamond
 
 bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
     auto head = opt.local[pointer];
-    if(!head->terminator) return false;
+    if(!head->terminator()) return false;
 
-    auto terminator = opt.local[head->terminator];
+    auto terminator = opt.local[head->terminator()];
     if(terminator->kind != Value::Je) return false;
 
     auto& branch = (InstJe&)*terminator;
@@ -264,7 +264,7 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
      * type a select cannot hold declines the whole conversion.
      */
     auto join = opt.local[diamond.join];
-    for(auto phiPointer: join->phis.contents(opt.local)) {
+    for(auto phiPointer: join->phis(opt.local)) {
         auto& phi = *opt.local[phiPointer];
         if(!selectableType(opt, phi.type)) return false;
 
@@ -294,18 +294,12 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
     for(auto arm: diamond.arms) {
         if(!arm) continue;
 
-        auto block = opt.local[arm];
-        for(auto instruction: block->instructions.contents(opt.local)) {
-            opt.local[instruction]->block = pointer;
-            head->instructions.push(opt.program.arena, instruction);
-        }
-
-        block->instructions.clear();
+        opt.ir().moveInstructions(*opt.local[arm], *head);
     }
 
     // Backwards, because a phi that is answered entirely is removed from the list.
-    for(Size i = join->phis.size(); i-- > 0;) {
-        auto phiPointer = join->phis.get(opt.local, i);
+    for(Size i = join->phiCount(); i-- > 0;) {
+        auto phiPointer = join->phiAt(opt.local, i);
         auto& phi = *opt.local[phiPointer];
 
         auto whenTrue = inputFrom(opt, phi, diamond.trueSource);
@@ -329,63 +323,45 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
             auto input = phi.inputs.get(opt.local, j);
             if(input.block != diamond.trueSource && input.block != diamond.falseSource) continue;
 
-            dropUse(opt, input.value, (ModulePtr<Inst>)phiPointer);
-            phi.inputs.remove(opt.local, j);
+            opt.ir().removePhiInput(phiPointer, j);
         }
 
         if(phi.inputs.isEmpty()) {
-            replaceValue(opt, (ModulePtr<Value>)phiPointer, selected);
+            opt.ir().replaceValue((ModulePtr<Value>)phiPointer, selected);
 
             // And the slots this phi filled, which `replaceValue` does not reach: a slot names the
             // value its storage came from rather than reading it, so the storage follows the phi
-            // into the select that replaced it. Left behind, it is a slot naming an instruction that
-            // is in no block - see repointLocalValue.
-            repointLocalValue(opt, (ModulePtr<Value>)phiPointer, selected);
-            join->phis.remove(opt.local, i);
+            // into the select that replaced it. Before the removal, since `erasePhi` empties every
+            // slot the phi was the whole contents of.
+            opt.ir().repointLocalValue((ModulePtr<Value>)phiPointer, selected);
+            opt.ir().erasePhi(phiPointer);
         } else {
-            phi.inputs.push(opt.program.arena, PhiInput { pointer, selected });
-            opt.local[selected]->uses.push(opt.program.arena, (ModulePtr<Inst>)phiPointer);
+            opt.ir().addPhiInput(phiPointer, PhiInput { pointer, selected });
         }
     }
 
     /*
-     * And the branch itself, replaced the way opt_branch.cpp replaces a folded one: written into the
-     * block rather than added through `Block::add`, which would record the edge into the join a
-     * second time. The condition loses its use here and gains one per select above.
+     * And the branch itself, which becomes a jump straight to the join. The condition loses its use
+     * here and gains one per select above.
+     *
+     * The head's edge into the join is created only where it did not already have one, and that is
+     * `setTerminator`'s multiset rule rather than a test written here: a triangle's branch already
+     * led to the join down one side, and that is the edge that survives.
      */
-    dropUse(opt, branch.cond, head->terminator);
-
     auto jump = createInst<InstJmp>(*opt.module, *opt.function, *head, terminator->source, 0,
                                     opt.program.scalar.unit, diamond.join);
 
-    head->terminator = (ModulePtr<Inst>)((Value*)jump - opt.local);
-    head->outgoing[0] = diamond.join;
-    head->outgoing[1] = nullptr;
+    opt.ir().setTerminator(*head, jump);
 
+    /*
+     * The arms are now unreachable and hold nothing. Emptied rather than left for the sweep to find,
+     * so that no edge into the join outlives the block it came from - and after the head's own
+     * terminator rather than before it, since it is that rewrite which takes the last way in.
+     */
     for(auto arm: diamond.arms) {
         if(!arm) continue;
 
-        for(Size i = 0; i < join->incoming.size(); i++) {
-            if(join->incoming.get(opt.local, i) != arm) continue;
-
-            join->incoming.remove(opt.local, i);
-            break;
-        }
-
-        // The arm is now unreachable and holds nothing. Emptied rather than left for the sweep to
-        // find, so that no edge into the join outlives the block it came from.
-        auto block = opt.local[arm];
-        while(block->incoming.size()) block->incoming.remove(opt.local, block->incoming.size() - 1);
-
-        block->terminator = nullptr;
-        block->outgoing[0] = nullptr;
-        block->outgoing[1] = nullptr;
-    }
-
-    // The head's own edge into the join, where it did not already have one. A triangle did: the side
-    // of the branch that was already the join is the edge that survived.
-    if(diamond.trueSource != pointer && diamond.falseSource != pointer) {
-        join->incoming.push(opt.program.arena, pointer);
+        opt.ir().clearTerminator(*opt.local[arm]);
     }
 
     opt.changed = true;
@@ -416,8 +392,4 @@ void convertSelects(OptContext& opt) {
      */
     removeUnreachableBlocks(opt);
     mergeBlocks(opt);
-
-    // An instruction in a block that no longer exists is still in the use list of everything it
-    // read, and the phi rewrite above pushed alternatives by hand. Rebuilding settles both.
-    rebuildUses(opt);
 }

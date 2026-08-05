@@ -333,7 +333,7 @@ struct Expander {
         for(auto blockPointer: function.blocks.contents(opt.local)) {
             auto block = opt.local[blockPointer];
 
-            for(auto pointer: block->instructions.contents(opt.local)) {
+            for(auto pointer: block->instructions(opt.local)) {
                 auto instruction = opt.local[pointer];
 
                 Place* place = nullptr;
@@ -404,8 +404,8 @@ struct Expander {
             auto storage = opt.function->localAt(opt.local, place.local).value;
             auto block = opt.local[opt.local[storage]->block];
 
-            for(Size i = 0; i < block->instructions.size(); i++) {
-                if(block->instructions.get(opt.local, i) != (ModulePtr<Inst>)storage) continue;
+            for(Size i = 0; i < block->instructionCount(); i++) {
+                if(block->instructionAt(opt.local, i) != (ModulePtr<Inst>)storage) continue;
 
                 InstList written;
                 written.push(createInst<InstInit>(
@@ -413,7 +413,7 @@ struct Expander {
                     opt.program.scalar.unit, place,
                     makeConstant(opt, *opt.local[storage], unit, 0), Value::Init));
 
-                insertInstructions(opt, *block, i + 1, written);
+                opt.ir().insert(*block, i + 1, written);
                 break;
             }
         }
@@ -533,10 +533,10 @@ struct Expander {
         auto value = decode(block, load.source, load.name, replacement, valueOf(word), access,
                             load.type);
 
-        insertInstructions(opt, block, index, replacement);
+        opt.ir().insert(block, index, replacement);
 
-        replaceValue(opt, (ModulePtr<Value>)pointer, value);
-        eraseInstruction(opt, pointer);
+        opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
+        opt.ir().eraseInstruction(pointer);
         return true;
     }
 
@@ -561,8 +561,8 @@ struct Expander {
         replacement.push(createInst<InstInit>(*opt.module, *opt.function, block, store.source, 0,
                                               opt.program.scalar.unit, place, merged, store.kind));
 
-        insertInstructions(opt, block, index, replacement);
-        eraseInstruction(opt, pointer);
+        opt.ir().insert(block, index, replacement);
+        opt.ir().eraseInstruction(pointer);
         return true;
     }
 
@@ -584,11 +584,11 @@ struct Expander {
         for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
             auto block = opt.local[blockPointer];
 
-            for(Size i = 0; i < block->instructions.size(); i++) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = 0; i < block->instructionCount(); i++) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto kind = opt.local[pointer]->kind;
 
-                auto before = block->instructions.size();
+                auto before = block->instructionCount();
                 auto rewritten = kind == Value::LoadPlace ? rewriteLoad(*block, i, pointer)
                     : (kind == Value::Init || kind == Value::Assign) ? rewriteStore(*block, i, pointer)
                     : false;
@@ -597,7 +597,7 @@ struct Expander {
 
                 // The replacements went in at `i` and the original came out, so the next instruction
                 // this has not seen is where the replacements end.
-                i += block->instructions.size() - before;
+                i += block->instructionCount() - before;
                 changed = true;
             }
         }

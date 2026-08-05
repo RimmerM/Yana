@@ -713,7 +713,7 @@ struct Forwarder {
         // A phi is defined at the top of its block, so it precedes every instruction in it.
         if(definition.kind == Value::Phi) return true;
 
-        for(auto pointer: opt.local[block]->instructions.contents(opt.local)) {
+        for(auto pointer: opt.local[block]->instructions(opt.local)) {
             if(pointer == at) return false;
             if((ModulePtr<Value>)pointer == value) return true;
         }
@@ -809,10 +809,10 @@ struct Forwarder {
             if(previous == value) return false;
             if(needsTeardown(*opt.module, opt.local[previous]->type)) return false;
 
-            component.value = value;
-            aggregate.components.set(opt.local, entry.slot, component);
-            dropUse(opt, previous, entry.pending);
-            opt.local[value]->uses.push(opt.program.arena, entry.pending);
+            opt.ir().rewriteOperands(entry.pending, [&](Value&) {
+                component.value = value;
+                aggregate.components.set(opt.local, entry.slot, component);
+            });
 
             entry.value = value;
             opt.changed = true;
@@ -894,7 +894,7 @@ struct Forwarder {
             if(entry.array != array) continue;
 
             auto constant = makeConstant(opt, instruction, instruction.type, entry.length);
-            replaceValue(opt, (ModulePtr<Value>)pointer, constant);
+            opt.ir().replaceValue((ModulePtr<Value>)pointer, constant);
             return;
         }
     }
@@ -1163,11 +1163,11 @@ struct Forwarder {
 
     bool sharedStorageSurvives(Block& block, Size index, ModulePtr<Value> loaded,
                                const Place& place, const Known& entry) {
-        auto remaining = opt.local[loaded]->uses.size();
+        auto remaining = opt.local[loaded]->useCount();
         if(!remaining) return false;
 
-        for(Size i = index + 1; i < block.instructions.size(); i++) {
-            auto pointer = block.instructions.get(opt.local, i);
+        for(Size i = index + 1; i < block.instructionCount(); i++) {
+            auto pointer = block.instructionAt(opt.local, i);
             auto instruction = opt.local[pointer];
 
             bool uses = false;
@@ -1253,7 +1253,7 @@ struct Forwarder {
 
             auto pending = known[i].pending;
             known[i].pending = nullptr;
-            eraseInstruction(opt, pending);
+            opt.ir().eraseInstruction(pending);
             return true;
         }
 
@@ -1263,8 +1263,8 @@ struct Forwarder {
     void run(Block& block) {
         forget();
 
-        for(Size i = 0; i < block.instructions.size(); i++) {
-            auto pointer = block.instructions.get(opt.local, i);
+        for(Size i = 0; i < block.instructionCount(); i++) {
+            auto pointer = block.instructionAt(opt.local, i);
             auto instruction = opt.local[pointer];
 
             switch(instruction->kind) {
@@ -1276,7 +1276,7 @@ struct Forwarder {
                     // stays removable. That is the case every read-modify-write chain is made of.
                     if(forwardable(load.type)) {
                         if(auto value = knownValue(load.place)) {
-                            replaceValue(opt, (ModulePtr<Value>)pointer, value);
+                            opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
                             break;
                         }
                     }
@@ -1287,7 +1287,7 @@ struct Forwarder {
                         auto value = sharedStorage(block, i, (ModulePtr<Value>)pointer, load.place,
                                                    load.type);
                         if(value) {
-                            replaceValue(opt, (ModulePtr<Value>)pointer, value);
+                            opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
                             break;
                         }
                     }
@@ -1301,7 +1301,7 @@ struct Forwarder {
                     auto& store = (InstInit&)*instruction;
                     auto type = opt.local[store.value]->type;
 
-                    if(forwardable(type) && instruction->uses.isEmpty()) {
+                    if(forwardable(type) && instruction->useCount() == 0) {
                         /*
                          * A write of what is already there.
                          *
@@ -1313,7 +1313,7 @@ struct Forwarder {
                          * it was already holding.
                          */
                         if(knownValue(store.place) == store.value) {
-                            eraseInstruction(opt, pointer);
+                            opt.ir().eraseInstruction(pointer);
                             i--;
                             break;
                         }
@@ -1326,7 +1326,7 @@ struct Forwarder {
                      * one of them is right for it: there is no separate store to erase.
                      */
                     if(forwardable(type) && foldIntoAggregate(store.place, store.value)) {
-                        eraseInstruction(opt, pointer);
+                        opt.ir().eraseInstruction(pointer);
                         i--;
                         break;
                     }
@@ -1438,7 +1438,7 @@ static void computeUnaddressed(OptContext& opt, IndexSet& unaddressed) {
                   !slot.borrowed && !slot.closureEnv;
 
         if(ok) {
-            for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
+            for(auto user: opt.local[slot.value]->uses(opt.local)) {
                 switch(opt.local[user]->kind) {
                     case Value::Init: case Value::Assign:
                     case Value::LoadPlace: case Value::Copy:

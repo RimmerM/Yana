@@ -6,13 +6,13 @@
 #include "../resolve/verify.h"
 
 /*
- * What the passes share: the state one function is optimized against, and the handful of IR
- * operations that are the same in all of them.
+ * What the passes share: the state one function is optimized against, and the questions about types
+ * and storage that are the same in all of them.
  *
- * Every rewrite here is a use-list rewrite. The resolve IR keeps both directions - an instruction
- * names its operands and every value names its users - and a pass that updates one without the
- * other leaves an IR that prints correctly and walks wrongly, which is the failure mode worth
- * spending a header on preventing.
+ * What is *not* here any more is the IR surgery. Every rewrite in this directory goes through
+ * `opt.ir()` - see resolve/edit.h - because each of them is a two-sided edit: an instruction names
+ * its operands and every value names its users, an edge is written down in three places, and a pass
+ * that updates one side without the other leaves an IR that prints correctly and walks wrongly.
  */
 
 /*
@@ -67,6 +67,15 @@ struct OptContext {
     // Set by any rewrite. The driver runs the passes to a fixed point over one function, because
     // folding exposes identities and identities expose more folding.
     bool changed = false;
+
+    /*
+     * The one way this directory edits the IR - see resolve/edit.h.
+     *
+     * Built per call rather than held, because an editor is bound to one function and this context
+     * outlives every function it visits: three references and a flag, so a pass asking for one in a
+     * loop costs nothing worth arranging around.
+     */
+    IrEditor ir() { return IrEditor(*module, *function, &changed); }
 };
 
 // The storage roots one instruction names - see eachPlaceRootValue in resolve/module.h, which is
@@ -118,25 +127,6 @@ inline bool isPureValue(const Value& value) {
 inline bool isCheckCall(OptContext& opt, ModulePtr<Function> callee) {
     return callee && callee == opt.program.checkCondition;
 }
-
-// Removing one entry from a value's use list. One rather than all: an instruction naming the same
-// value twice appears twice, and the list has to keep saying so.
-void dropUse(OptContext& opt, ModulePtr<Value> value, ModulePtr<Inst> user);
-
-// Pointing every reader of one value at another, use lists and operands together.
-void replaceValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to);
-
-// Taking an instruction out of circulation: it stops counting as a user of everything it read, and
-// is dropped from its block. Only ever called on a pure instruction nothing reads.
-void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction);
-
-// Every local slot one value was the whole contents of, emptied - see opt.cpp. Owed by anything that
-// takes an instruction out of its block, which `eraseInstruction` does for its own caller.
-void forgetLocalValue(OptContext& opt, ModulePtr<Value> value);
-
-// The same slots, refilled from another value - what a pass that replaced an instruction and then
-// removed it owes instead. See opt.cpp.
-void repointLocalValue(OptContext& opt, ModulePtr<Value> from, ModulePtr<Value> to);
 
 /*
  * An integer type the optimizer is willing to compute in, and the two numbers it needs.
@@ -206,19 +196,6 @@ ModulePtr<Value> makeFloatConstant(OptContext& opt, Value& at, TypePtr type, F64
  * infinity from itself is the only other way to reach one.
  */
 inline bool isFoldableFloat(F64 value) { return value == value && value - value == 0.0; }
-
-// Putting freshly built instructions into a block at one position, uses and all. They are added in
-// the order given and end up in that order in front of whatever was at `index`.
-/*
- * A short run of instructions being built before it is spliced into a block: what one packed store
- * expands into, what materializing an argument takes, what an inlined body emits per instruction.
- *
- * Eight inline. These are expansions of a single instruction, so the count is decided by the widest
- * expansion in the pass rather than by anything about the program being compiled.
- */
-using InstList = SmallArray<Inst*, 8>;
-
-void insertInstructions(OptContext& opt, Block& block, Size index, InstList& instructions);
 
 /*
  * The place a value came out of, or nothing where it came out of no storage this function can name.
@@ -321,11 +298,6 @@ void computeContainment(OptContext& opt, IndexSet& contained);
 // that stays inside the allocation rather than leaving through a pointer, an element or a witness.
 bool staysInFrame(OptContext& opt, const IndexSet& contained, const Place& place);
 
-// Recomputing every use list from the instructions that exist - see opt.cpp, which says why it is
-// necessary rather than tidy. Any pass that rewrites a function it did not arrive at through the
-// driver has to do this first.
-void rebuildUses(OptContext& opt);
-
 // Every function the program can reach other than by naming it in a `Call` or a `GenCall` - see
 // opt_arg.cpp. A call site cannot be rewritten on behalf of one of these, because there is no
 // declaration at the site to read the rule from.
@@ -349,16 +321,6 @@ bool samePlace(OptContext& opt, const Place& a, const Place& b);
 // load merely names. Forwarding one of the second kind would replace a place with a value that is
 // not the same thing.
 bool holdsLoadableValue(OptContext& opt, TypePtr type);
-
-/*
- * A successor's record of where one edge arrived from, pointed at a different block: its predecessor
- * entry and every phi alternative that named the old one. Both halves, because a phi is a value the
- * *predecessors* produce and an alternative left naming a block the edge no longer leaves from is an
- * input no backend can find a copy for.
- *
- * Every match rather than the first, since a `je` with both arms at one block leaves two of each.
- */
-void retargetEdge(OptContext& opt, Block* target, ModulePtr<Block> from, ModulePtr<Block> to);
 
 /*
  * A block whose one predecessor ends by jumping straight to it, folded back into that predecessor -
@@ -401,8 +363,7 @@ void eliminateDeadLoops(OptContext& opt);
  *
  * What a call site is judged against is the callee as it will be *emitted*, and answering that is
  * running the passes on it - see `settle` in opt_inline.cpp, and Implementation-Containers.md §13.2
- * for the case that made a chosen few of them not enough. Expects `rebuildUses` to have been called
- * for the function it is about to work on, which is the one thing it does not do itself.
+ * for the case that made a chosen few of them not enough.
  */
 void optimizeRounds(OptContext& opt);
 void scalarizeLocals(OptContext& opt);

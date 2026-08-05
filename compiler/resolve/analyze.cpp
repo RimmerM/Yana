@@ -251,7 +251,7 @@ struct SummaryWork {
  */
 static void collectCallees(ModuleBase base, Function& function, SmallArray<ModulePtr<Function>, 16>& target) {
     for(auto blockPointer: function.blocks.contents(base)) {
-        for(auto instructionPointer: base[blockPointer]->instructions.contents(base)) {
+        for(auto instructionPointer: base[blockPointer]->instructions(base)) {
             auto& instruction = *base[instructionPointer];
             if(instruction.kind != Value::Call) continue;
 

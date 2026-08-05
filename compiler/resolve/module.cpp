@@ -2300,7 +2300,7 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
         if(function->closureHeader && function->closureHeaderRead) reachTable(function->closureHeader);
 
         for(auto blockPointer: function->blocks.contents(local)) {
-            for(auto instructionPointer: local[blockPointer]->instructions.contents(local)) {
+            for(auto instructionPointer: local[blockPointer]->instructions(local)) {
                 auto& instruction = *local[instructionPointer];
 
                 // A global is part of the program exactly when something that runs names storage

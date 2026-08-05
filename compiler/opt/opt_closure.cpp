@@ -118,7 +118,7 @@ struct HeaderReach {
      * looking for.
      */
     bool contained(U32 index, ModulePtr<Value> storage) {
-        for(auto user: opt.local[storage]->uses.contents(opt.local)) {
+        for(auto user: opt.local[storage]->uses(opt.local)) {
             auto& instruction = *opt.local[user];
 
             auto names = false;
@@ -175,10 +175,10 @@ struct HeaderReach {
     // The code word this symbol becomes, and whether it stays put. A symbol used for anything other
     // than filling one is a code word going somewhere this cannot follow.
     bool containedSymbol(Function& function, ModulePtr<Value> symbol) {
-        auto uses = opt.local[symbol]->uses;
-        if(uses.size() != 1) return false;
+        auto value = opt.local[symbol];
+        if(value->useCount() != 1) return false;
 
-        auto& user = *opt.local[uses.get(opt.local, 0)];
+        auto& user = *opt.local[value->useAt(opt.local, 0)];
         if(user.kind != Value::Init) return false;
 
         auto& write = (InstInit&)user;
@@ -282,7 +282,7 @@ struct Devirtualize {
     Reach localReach(U32 index, ModulePtr<Value> storage) {
         ModulePtr<Function> lambda = nullptr;
 
-        for(auto user: opt.local[storage]->uses.contents(opt.local)) {
+        for(auto user: opt.local[storage]->uses(opt.local)) {
             auto& instruction = *opt.local[user];
 
             // Whether this use is *of the slot* rather than of the value that made it. A phi
@@ -390,7 +390,7 @@ void markClosureHeaders(OptContext& opt) {
             opt.function = function;
 
             for(auto blockPointer: function->blocks.contents(opt.local)) {
-                for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+                for(auto instructionPointer: opt.local[blockPointer]->instructions(opt.local)) {
                     auto& instruction = *opt.local[instructionPointer];
                     if(instruction.kind != Value::Symbol) continue;
 
@@ -461,7 +461,7 @@ bool devirtualizeClosureDrop(OptContext& opt, Block& block, Size index, InstDrop
      * value at all: a field of a record, a place behind a borrow, the subject of derived glue.
      */
     if(!opt.program.funValuesCarryTeardown) {
-        eraseInstruction(opt, (ModulePtr<Inst>)(&drop - opt.local));
+        opt.ir().eraseInstruction((ModulePtr<Inst>)(&drop - opt.local));
         opt.changed = true;
         return true;
     }
@@ -479,7 +479,7 @@ bool devirtualizeClosureDrop(OptContext& opt, Block& block, Size index, InstDrop
     auto reach = devirtualize.reachOf(slot.value);
 
     if(reach == Reach::Empty) {
-        eraseInstruction(opt, (ModulePtr<Inst>)(&drop - opt.local));
+        opt.ir().eraseInstruction((ModulePtr<Inst>)(&drop - opt.local));
         opt.changed = true;
         return true;
     }

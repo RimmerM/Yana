@@ -181,8 +181,8 @@ struct Discharge {
 
         // A drop whose every half was the collector's is nothing at all here, and removing it is the
         // whole of what it discharges to.
-        insertInstructions(opt, block, index, replacement);
-        eraseInstruction(opt, (ModulePtr<Inst>)(&drop - opt.local));
+        opt.ir().insert(block, index, replacement);
+        opt.ir().eraseInstruction((ModulePtr<Inst>)(&drop - opt.local));
 
         opt.changed = true;
         return true;
@@ -270,8 +270,8 @@ struct Discharge {
         write(block, replacement, source, swap.b,
               relocate(block, replacement, source, content, held, swap.sink), Value::Assign);
 
-        insertInstructions(opt, block, index, replacement);
-        eraseInstruction(opt, (ModulePtr<Inst>)(&swap - opt.local));
+        opt.ir().insert(block, index, replacement);
+        opt.ir().eraseInstruction((ModulePtr<Inst>)(&swap - opt.local));
 
         opt.changed = true;
         return true;
@@ -312,7 +312,7 @@ struct Discharge {
                                                     exchange.name, content, exchange.local);
             old = (ModulePtr<Value>)(allocation - opt.local);
             replacement.push(allocation);
-            opt.function->setLocalValue(opt.local, exchange.local, old);
+            opt.ir().setLocalValue(exchange.local, old);
 
             write(block, replacement, source, Place::inLocal(exchange.local),
                   relocate(block, replacement, source, content, exchange.place, exchange.sink),
@@ -322,9 +322,9 @@ struct Discharge {
         // After the read, which is the whole of what the temporary in a swap exists to avoid needing.
         write(block, replacement, source, exchange.place, exchange.value, Value::Assign);
 
-        insertInstructions(opt, block, index, replacement);
-        replaceValue(opt, (ModulePtr<Value>)pointer, old);
-        eraseInstruction(opt, pointer);
+        opt.ir().insert(block, index, replacement);
+        opt.ir().replaceValue((ModulePtr<Value>)pointer, old);
+        opt.ir().eraseInstruction(pointer);
 
         opt.changed = true;
         return true;
@@ -342,8 +342,8 @@ struct Discharge {
              * before `index` has moved. Going backwards means the positions still to visit are the
              * ones nothing has touched.
              */
-            for(Size i = block->instructions.size(); i-- > 0;) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = block->instructionCount(); i-- > 0;) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto& instruction = *opt.local[pointer];
 
                 switch(instruction.kind) {

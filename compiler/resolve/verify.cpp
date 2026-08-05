@@ -91,9 +91,9 @@ struct Verifier {
         for(Size b = 0; b < blockCount(); b++) {
             auto block = blockAt(b);
 
-            for(auto phi: block->phis.contents(local)) f((ModulePtr<Value>)phi);
-            for(auto instruction: block->instructions.contents(local)) f((ModulePtr<Value>)instruction);
-            if(block->terminator) f((ModulePtr<Value>)block->terminator);
+            for(auto phi: block->phis(local)) f((ModulePtr<Value>)phi);
+            for(auto instruction: block->instructions(local)) f((ModulePtr<Value>)instruction);
+            if(block->terminator()) f((ModulePtr<Value>)block->terminator());
         }
     }
 
@@ -134,7 +134,7 @@ void Verifier::computeDominators() {
 
             incoming.reset(count);
 
-            for(auto predecessorPointer: block->incoming.contents(local)) {
+            for(auto predecessorPointer: block->incoming(local)) {
                 auto predecessor = local[predecessorPointer]->index;
                 if(predecessor >= count) continue;
 
@@ -174,12 +174,12 @@ void Verifier::verifyBlockStructure() {
             fail(block->source, "block %@ belongs to a different function"_v, U32(b));
         }
 
-        if(!block->terminator) {
+        if(!block->terminator()) {
             fail(block->source, "block %@ has no terminator"_v, U32(b));
             continue;
         }
 
-        for(auto phiPointer: block->phis.contents(local)) {
+        for(auto phiPointer: block->phis(local)) {
             auto phi = local[phiPointer];
 
             if(phi->kind != Value::Phi) {
@@ -190,7 +190,7 @@ void Verifier::verifyBlockStructure() {
             if(phi->block != blockPointer) fail(phi->source, "phi %%@ names another block"_v, phi->id);
         }
 
-        for(auto instructionPointer: block->instructions.contents(local)) {
+        for(auto instructionPointer: block->instructions(local)) {
             auto instruction = local[instructionPointer];
 
             if(isTerminator(*instruction)) {
@@ -209,7 +209,7 @@ void Verifier::verifyBlockStructure() {
             }
         }
 
-        auto terminator = local[block->terminator];
+        auto terminator = local[block->terminator()];
         if(!isTerminator(*terminator)) {
             fail(terminator->source, "block %@ ends with %%@, which is not a terminator"_v,
                  U32(b), terminator->id);
@@ -238,15 +238,15 @@ void Verifier::collectDefinitions() {
         auto block = blockAt(b);
         U32 order = 1;
 
-        for(auto phiPointer: block->phis.contents(local)) {
+        for(auto phiPointer: block->phis(local)) {
             define((ModulePtr<Value>)phiPointer, U32(b), order++);
         }
 
-        for(auto instructionPointer: block->instructions.contents(local)) {
+        for(auto instructionPointer: block->instructions(local)) {
             define((ModulePtr<Value>)instructionPointer, U32(b), order++);
         }
 
-        if(block->terminator) define((ModulePtr<Value>)block->terminator, U32(b), order);
+        if(block->terminator()) define((ModulePtr<Value>)block->terminator(), U32(b), order);
     }
 }
 
@@ -255,13 +255,17 @@ void Verifier::collectDefinitions() {
  * Implementation-IR.md and `retargetEdge` in opt_branch.cpp.
  *
  * Counted rather than tested for membership, because a `Je` whose two arms are the same block is a
- * real shape: `Block::add` pushes the predecessor into that successor's `incoming` twice, and a pass
- * that removes one of the two edges has to remove one of the two entries.
+ * real shape: `IrEditor::append` pushes the predecessor into that successor's `incoming` twice, and
+ * a pass that removes one of the two edges has to remove one of the two entries.
+ *
+ * No fixture produces one, measured - so every per-arm case in `IrEditor` is reasoned rather than
+ * exercised, and this count is the whole of what stands behind them. A membership test here would
+ * make all of them unfalsifiable at once.
  */
 void Verifier::verifyControlFlow() {
     auto successorCount = [&](Block& block, ModulePtr<Block> successor) {
         Size count = 0;
-        for(auto outgoing: block.outgoing) {
+        for(auto outgoing: block.successors()) {
             if(outgoing == successor) count++;
         }
         return count;
@@ -269,7 +273,7 @@ void Verifier::verifyControlFlow() {
 
     auto predecessorCount = [&](Block& block, ModulePtr<Block> predecessor) {
         Size count = 0;
-        for(auto incoming: block.incoming.contents(local)) {
+        for(auto incoming: block.incoming(local)) {
             if(incoming == predecessor) count++;
         }
         return count;
@@ -278,31 +282,31 @@ void Verifier::verifyControlFlow() {
     for(Size b = 0; b < blockCount(); b++) {
         auto blockPointer = function.blocks.get(local, b);
         auto block = local[blockPointer];
-        if(!block->terminator) continue;
+        if(!block->terminator()) continue;
 
-        auto terminator = local[block->terminator];
+        auto terminator = local[block->terminator()];
 
         // What the terminator says, against what the block's own edge list says. They are written
-        // together by `Block::add` and repointed separately by everything else.
+        // together by `IrEditor::append` and repointed separately by everything else.
         if(terminator->kind == Value::Je) {
             auto& branch = (InstJe&)*terminator;
 
-            if(block->outgoing[0] != branch.thenBlock || block->outgoing[1] != branch.elseBlock) {
+            if(block->successor(0) != branch.thenBlock || block->successor(1) != branch.elseBlock) {
                 fail(terminator->source, "block %@ branches somewhere its successor list does not name"_v,
                      U32(b));
             }
         } else if(terminator->kind == Value::Jmp) {
             auto& jump = (InstJmp&)*terminator;
 
-            if(block->outgoing[0] != jump.target || block->outgoing[1]) {
+            if(block->successor(0) != jump.target || block->successor(1)) {
                 fail(terminator->source, "block %@ jumps somewhere its successor list does not name"_v,
                      U32(b));
             }
-        } else if(block->outgoing[0] || block->outgoing[1]) {
+        } else if(block->successor(0) || block->successor(1)) {
             fail(terminator->source, "block %@ returns and has successors"_v, U32(b));
         }
 
-        for(auto outgoing: block->outgoing) {
+        for(auto outgoing: block->successors()) {
             if(!outgoing) continue;
 
             auto successor = local[outgoing];
@@ -318,7 +322,7 @@ void Verifier::verifyControlFlow() {
             }
         }
 
-        for(auto incoming: block->incoming.contents(local)) {
+        for(auto incoming: block->incoming(local)) {
             auto predecessor = local[incoming];
 
             if(predecessor->function != &function - local) {
@@ -340,18 +344,18 @@ void Verifier::verifyPhis() {
     for(Size b = 0; b < blockCount(); b++) {
         auto block = blockAt(b);
 
-        for(auto phiPointer: block->phis.contents(local)) {
+        for(auto phiPointer: block->phis(local)) {
             auto phi = local[phiPointer];
 
-            if(phi->inputs.size() != block->incoming.size()) {
+            if(phi->inputs.size() != block->predecessorCount()) {
                 fail(phi->source, "phi %%@ has %@ alternatives and block %@ has %@ predecessors"_v,
-                     phi->id, U32(phi->inputs.size()), U32(b), U32(block->incoming.size()));
+                     phi->id, U32(phi->inputs.size()), U32(b), U32(block->predecessorCount()));
                 continue;
             }
 
             for(auto input: phi->inputs.contents(local)) {
                 Size found = 0;
-                for(auto incoming: block->incoming.contents(local)) {
+                for(auto incoming: block->incoming(local)) {
                     if(incoming == input.block) found++;
                 }
 
@@ -402,8 +406,8 @@ void Verifier::verifyOperands() {
 
         auto definition = definitions.get(U32(operand));
         if(!definition) {
-            // The failure `rebuildUses` exists to survive: an operand naming an instruction that has
-            // been taken out of its block, or a value belonging to another function entirely.
+            // An operand naming an instruction that has been taken out of its block, or a value
+            // belonging to another function entirely.
             fail(user.source, "%%@ names %%@, which this function does not define"_v,
                  user.id, idOf(operand));
             return;
@@ -464,12 +468,12 @@ void Verifier::verifyUseLists() {
         auto expected = operandCounts.getValue(U32(valuePointer));
         auto count = expected ? expected.unwrap() : 0;
 
-        if(value.uses.size() != count) {
+        if(value.useCount() != count) {
             fail(value.source, "%%@ is named by %@ operands and its use list holds %@"_v,
-                 value.id, count, U32(value.uses.size()));
+                 value.id, count, U32(value.useCount()));
         }
 
-        for(auto userPointer: value.uses.contents(local)) {
+        for(auto userPointer: value.uses(local)) {
             if(!definitions.get(U32(userPointer))) {
                 fail(value.source, "%%@ is used by an instruction this function does not define"_v,
                      value.id);
@@ -886,7 +890,7 @@ bool hasBody(ModuleBase base, Function& function) {
     if(function.signature || function.intrinsic || function.deferredIntrinsic) return false;
     if(function.resolving || function.blocks.isEmpty()) return false;
 
-    return base[function.blocks.get(base, 0)]->terminator != nullptr;
+    return base[function.blocks.get(base, 0)]->terminator() != nullptr;
 }
 
 } // namespace

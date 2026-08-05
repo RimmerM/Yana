@@ -19,9 +19,10 @@
  *     a diamond whose two arms merge a constant each collapses to one of them, and everything
  *     downstream then folds against it.
  *
- * The use lists are rebuilt rather than repaired. What changed is which instructions exist at all,
- * and an instruction in a deleted block is a reader of values that are still live elsewhere - so the
- * cheap correct move is the repair the driver already performs once per function.
+ * The use lists are repaired as the blocks go rather than rebuilt afterwards. What changed is which
+ * instructions exist at all, and an instruction in a deleted block is a reader of values that are
+ * still live elsewhere - which is what `IrEditor::discardBlock` settles at the point the block stops
+ * existing. `rebuildUses` used to be the answer, and is now a repair nothing here needs.
  *
  * ## Why the constant is there at all
  *
@@ -64,31 +65,6 @@
 
 namespace {
 
-// One edge from `from` into `into`, removed: the predecessor entry and the phi alternative that
-// arrived over it. One of each rather than all, because two edges between the same pair of blocks
-// are two entries and removing one is what folding one of them means.
-void removeEdge(OptContext& opt, ModulePtr<Block> into, ModulePtr<Block> from) {
-    auto block = opt.local[into];
-
-    for(Size i = 0; i < block->incoming.size(); i++) {
-        if(block->incoming.get(opt.local, i) != from) continue;
-
-        block->incoming.remove(opt.local, i);
-        break;
-    }
-
-    for(auto phiPointer: block->phis.contents(opt.local)) {
-        auto phi = opt.local[phiPointer];
-
-        for(Size i = 0; i < phi->inputs.size(); i++) {
-            if(phi->inputs.get(opt.local, i).block != from) continue;
-
-            phi->inputs.remove(opt.local, i);
-            break;
-        }
-    }
-}
-
 /*
  * A block containing nothing but a jump, spliced out of the graph.
  *
@@ -100,42 +76,35 @@ bool spliceEmptyBlock(OptContext& opt, ModulePtr<Block> pointer) {
     auto block = opt.local[pointer];
 
     if(block->index == 0) return false;
-    if(block->instructions.isNotEmpty() || block->phis.isNotEmpty()) return false;
-    if(!block->terminator || opt.local[block->terminator]->kind != Value::Jmp) return false;
+    if(block->instructionCount() != 0 || block->phiCount() != 0) return false;
+    if(!block->terminator() || opt.local[block->terminator()]->kind != Value::Jmp) return false;
 
-    auto target = ((InstJmp&)*opt.local[block->terminator]).target;
+    auto target = ((InstJmp&)*opt.local[block->terminator()]).target;
 
     // A block that jumps to itself is an infinite loop rather than an empty one, and a target that
     // merges values cannot take an edge that arrives from somewhere else - see the file comment.
     if(target == pointer) return false;
-    if(opt.local[target]->phis.isNotEmpty()) return false;
+    if(opt.local[target]->phiCount() != 0) return false;
 
-    for(auto predecessor: block->incoming.contents(opt.local)) {
-        auto from = opt.local[predecessor];
-        if(!from->terminator) continue;
-
-        auto terminator = opt.local[from->terminator];
-
-        if(terminator->kind == Value::Jmp) {
-            ((InstJmp&)*terminator).target = target;
-        } else if(terminator->kind == Value::Je) {
-            auto& branch = (InstJe&)*terminator;
-            if(branch.thenBlock == pointer) branch.thenBlock = target;
-            if(branch.elseBlock == pointer) branch.elseBlock = target;
-        } else {
-            continue;
-        }
-
-        for(auto& outgoing: from->outgoing) {
-            if(outgoing == pointer) outgoing = target;
-        }
-
-        opt.local[target]->incoming.push(opt.program.arena, predecessor);
+    /*
+     * Every predecessor pointed at the target instead. Taken from the front rather than walked,
+     * because a redirect removes the entry it acted on - a predecessor whose two arms both led here
+     * is two entries and leaves as two - so the list this reads is the one it is emptying.
+     *
+     * Which means the loop terminates only if every round removes one, and that is a property of the
+     * *IR* rather than of this code: a predecessor ends, by construction, in the instruction that
+     * made the edge. So it is the redirect's own answer that is tested rather than anything read off
+     * the terminator here - a stale entry is a broken IR, and stopping on one leaves a consistent
+     * function (what has moved reaches `target` directly, what has not still arrives here) where
+     * trusting the invariant leaves a compiler that hangs with nothing to say.
+     */
+    while(block->predecessorCount()) {
+        auto from = opt.local[block->predecessorAt(opt.local, 0)];
+        if(!opt.ir().redirectSuccessor(*from, pointer, target)) return false;
     }
 
-    // The block's own edge into the target, and its predecessors, both of which are now nobody's.
-    removeEdge(opt, target, pointer);
-    while(block->incoming.size()) block->incoming.remove(opt.local, block->incoming.size() - 1);
+    // And the block's own way out, which is now nobody's.
+    opt.ir().clearTerminator(*block);
 
     opt.changed = true;
     return true;
@@ -172,72 +141,35 @@ bool mergeInto(OptContext& opt, Block& into, ModulePtr<Block> pointer) {
     auto intoPointer = (ModulePtr<Block>)(&into - opt.local);
 
     if(pointer == intoPointer || block->index == 0) return false;
-    if(block->phis.isNotEmpty() || !block->terminator) return false;
-    if(block->incoming.size() != 1 || block->incoming.get(opt.local, 0) != intoPointer) return false;
+    if(block->phiCount() != 0 || !block->terminator()) return false;
+    if(block->predecessorCount() != 1 || block->predecessorAt(opt.local, 0) != intoPointer) return false;
 
-    for(auto instructionPointer: block->instructions.contents(opt.local)) {
-        opt.local[instructionPointer]->block = intoPointer;
-        into.instructions.push(opt.program.arena, instructionPointer);
-    }
-
-    block->instructions.clear();
-
-    // The jump that was here simply stops being anything: a terminator has no operands and nothing
-    // reads one, so there is no use to drop and nobody to tell.
-    into.terminator = block->terminator;
-    opt.local[block->terminator]->block = intoPointer;
-
-    into.outgoing[0] = block->outgoing[0];
-    into.outgoing[1] = block->outgoing[1];
-    block->terminator = nullptr;
-    block->outgoing[0] = nullptr;
-    block->outgoing[1] = nullptr;
-
-    for(auto successor: into.outgoing) {
-        if(!successor) continue;
-
-        retargetEdge(opt, opt.local[successor], pointer, intoPointer);
-    }
-
-    while(block->incoming.size()) block->incoming.remove(opt.local, block->incoming.size() - 1);
-
-    opt.changed = true;
+    opt.ir().spliceInto(into, *block);
     return true;
 }
 
 bool foldBranch(OptContext& opt, Block& block) {
-    if(!block.terminator) return false;
+    if(!block.terminator()) return false;
 
-    auto terminator = opt.local[block.terminator];
+    auto terminator = opt.local[block.terminator()];
     if(terminator->kind != Value::Je) return false;
 
     auto& branch = (InstJe&)*terminator;
     auto condition = constantValueOf(opt, branch.cond);
     if(!condition) return false;
 
-    auto pointer = (ModulePtr<Block>)(&block - opt.local);
     auto taken = condition.unwrap() ? branch.thenBlock : branch.elseBlock;
-    auto untaken = condition.unwrap() ? branch.elseBlock : branch.thenBlock;
-
-    // Before the terminator is replaced, because this is the edge the old one owned. Both arms
-    // leading to one block is not a special case: there were two edges into it and now there is one.
-    removeEdge(opt, untaken, pointer);
-    dropUse(opt, branch.cond, block.terminator);
 
     /*
-     * Written into the block directly rather than through `Block::add`, which asserts that a block
-     * has no terminator yet and would record the edge into `taken` a second time. That edge is the
-     * one being kept, so its bookkeeping is already right and the only thing to change is which
-     * instruction ends the block.
+     * `setTerminator` is what makes this three lines: the edge into `taken` is in both the old
+     * successor set and the new one, so it is left exactly as it was - phi alternatives included -
+     * and only the edge into `untaken` goes. Both arms leading to one block is not a special case
+     * either: there were two edges into it and now there is one.
      */
     auto jump = createInst<InstJmp>(*opt.module, *opt.function, block, terminator->source, 0,
                                     opt.program.scalar.unit, taken);
 
-    block.terminator = (ModulePtr<Inst>)(jump - opt.local);
-    block.outgoing[0] = taken;
-    block.outgoing[1] = nullptr;
-
-    opt.changed = true;
+    opt.ir().setTerminator(block, jump);
     return true;
 }
 
@@ -259,65 +191,22 @@ bool removeUnreachableBlocks(OptContext& opt) {
 
     if(kept.size() == opt.function->blocks.size()) return false;
 
-    // While the old indices still mean something, since `reachable` is indexed by them.
-    for(auto pointer: kept) {
-        auto block = opt.local[pointer];
-
-        for(Size i = block->incoming.size(); i-- > 0;) {
-            auto from = block->incoming.get(opt.local, i);
-            if((*reachable)[opt.local[from]->index]) continue;
-
-            block->incoming.remove(opt.local, i);
-        }
-
-        for(auto phiPointer: block->phis.contents(opt.local)) {
-            auto phi = opt.local[phiPointer];
-
-            for(Size i = phi->inputs.size(); i-- > 0;) {
-                auto input = phi->inputs.get(opt.local, i);
-                if((*reachable)[opt.local[input.block]->index]) continue;
-
-                phi->inputs.remove(opt.local, i);
-            }
-        }
-    }
-
     /*
-     * And the slots the departing blocks filled.
+     * The departing blocks, discarded: every value in one stops being a reader of what it read,
+     * every slot one of them filled is emptied, and every edge one of them owned is removed from the
+     * surviving successor that recorded it - predecessor entry and phi alternative together.
      *
-     * `Local::value` is the other half of `Value::slot` - see Function::setLocalValue - so a block
-     * that goes takes the contents of every slot its instructions were the whole of. Leaving one
-     * behind is storage whose provenance later passes read and get a wrong answer from:
-     * `eachPlaceRootValue` attributes a place's use to it, `storageOf` hands it back as the root to
-     * project from, and `lowerProgram` asks it who reads the storage and is told "nobody".
-     *
-     * Cleared rather than repointed, because the instruction that produced the storage is gone: the
-     * slot has no contents rather than different ones. Anything still rooted in it is in a block
-     * that has gone too, which is what makes that safe.
+     * All three used to be split up here, and the third was left for `rebuildUses` afterwards
+     * because an instruction in a deleted block is still in the use list of everything it read. It
+     * no longer is: this is where a block stops existing, so this is where it stops counting.
      */
     for(auto pointer: opt.function->blocks.contents(opt.local)) {
         if((*reachable)[opt.local[pointer]->index]) continue;
 
-        for(auto instruction: opt.local[pointer]->instructions.contents(opt.local)) {
-            forgetLocalValue(opt, (ModulePtr<Value>)instruction);
-        }
-
-        // The phis too: a join that merges two arms' storage is the value a slot was filled from
-        // just as an allocation is, and a block that goes takes its phis with it.
-        for(auto phi: opt.local[pointer]->phis.contents(opt.local)) {
-            forgetLocalValue(opt, (ModulePtr<Value>)phi);
-        }
+        opt.ir().discardBlock(*opt.local[pointer]);
     }
 
-    // A block's index is its position in this list, which is what every walk in opt_flow.cpp
-    // assumes - so compacting the list means renumbering with it.
-    opt.function->blocks.clear();
-
-    U16 index = 0;
-    for(auto pointer: kept) {
-        opt.function->blocks.push(opt.program.arena, pointer);
-        opt.local[pointer]->index = index++;
-    }
+    opt.ir().setBlockOrder(Buffer<ModulePtr<Block>>(kept.pointer(), kept.size()));
 
     opt.changed = true;
     return true;
@@ -336,8 +225,8 @@ void collapseSinglePhis(OptContext& opt) {
         for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
             auto block = opt.local[blockPointer];
 
-            for(Size i = block->phis.size(); i-- > 0;) {
-                auto pointer = block->phis.get(opt.local, i);
+            for(Size i = block->phiCount(); i-- > 0;) {
+                auto pointer = block->phiAt(opt.local, i);
                 auto phi = opt.local[pointer];
                 if(phi->inputs.size() != 1) continue;
 
@@ -348,40 +237,20 @@ void collapseSinglePhis(OptContext& opt) {
                 // silent no-op rather than the assertion `replaceValue` is entitled to make.
                 if(only == (ModulePtr<Value>)pointer) continue;
 
-                replaceValue(opt, (ModulePtr<Value>)pointer, only);
-                dropUse(opt, only, (ModulePtr<Inst>)pointer);
+                opt.ir().replaceValue((ModulePtr<Value>)pointer, only);
 
-                // And the slots this phi filled, which `replaceValue` does not reach: a slot names
-                // the value its storage came from rather than reading it, so the storage follows the
-                // phi into whatever it became.
-                repointLocalValue(opt, (ModulePtr<Value>)pointer, only);
-                block->phis.remove(opt.local, i);
+                // The slots this phi filled, which `replaceValue` does not reach: a slot names the
+                // value its storage came from rather than reading it, so the storage follows the phi
+                // into whatever it became. Before the removal rather than after it, because
+                // `erasePhi` empties every slot the phi was the whole contents of.
+                opt.ir().repointLocalValue((ModulePtr<Value>)pointer, only);
+                opt.ir().erasePhi(pointer);
                 changed = true;
             }
         }
     }
 }
 
-}
-
-void retargetEdge(OptContext& opt, Block* target, ModulePtr<Block> from, ModulePtr<Block> to) {
-    for(Size i = 0; i < target->incoming.size(); i++) {
-        if(target->incoming.get(opt.local, i) != from) continue;
-
-        target->incoming.set(opt.local, i, to);
-    }
-
-    for(auto phiPointer: target->phis.contents(opt.local)) {
-        auto phi = opt.local[phiPointer];
-
-        for(Size i = 0; i < phi->inputs.size(); i++) {
-            auto input = phi->inputs.get(opt.local, i);
-            if(input.block != from) continue;
-
-            input.block = to;
-            phi->inputs.set(opt.local, i, input);
-        }
-    }
 }
 
 bool mergeBlocks(OptContext& opt) {
@@ -397,8 +266,8 @@ bool mergeBlocks(OptContext& opt) {
 
         // Repeatedly, because absorbing one block leaves this one ending in *that* block's jump -
         // which is how a chain of them collapses in one visit rather than one per round.
-        while(block->terminator && opt.local[block->terminator]->kind == Value::Jmp) {
-            if(!mergeInto(opt, *block, ((InstJmp&)*opt.local[block->terminator]).target)) break;
+        while(block->terminator() && opt.local[block->terminator()]->kind == Value::Jmp) {
+            if(!mergeInto(opt, *block, ((InstJmp&)*opt.local[block->terminator()]).target)) break;
 
             merged = true;
         }
@@ -409,10 +278,6 @@ bool mergeBlocks(OptContext& opt) {
     // What a merge leaves is a block with no terminator and no way in, which is exactly what the
     // reachability sweep already removes - and it renumbers, which the block list needs either way.
     removeUnreachableBlocks(opt);
-
-    // An instruction in a block that no longer exists is still in the use list of everything it
-    // read. Rebuilding is the repair, and it is the same one the driver performs once per function.
-    rebuildUses(opt);
     return true;
 }
 
@@ -441,9 +306,4 @@ void foldBranches(OptContext& opt) {
      * and the merge is what keeps a folded diamond from leaving four blocks where one would do.
      */
     mergeBlocks(opt);
-
-    // What the deletion left behind: an instruction in a block that no longer exists is still in the
-    // use list of everything it read. Rebuilding is the repair, and it is the same one the driver
-    // performs once per function for the drop pass's benefit.
-    rebuildUses(opt);
 }

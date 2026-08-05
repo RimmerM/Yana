@@ -36,7 +36,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/inst.h
     resolve/inst.cpp
     resolve/block.h
-    resolve/block.cpp
+    resolve/edit.h
+    resolve/edit.cpp
     resolve/module.h
     resolve/module.cpp
     resolve/name.h

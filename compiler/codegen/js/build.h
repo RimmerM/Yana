@@ -422,7 +422,7 @@ StmtList collect(Gen& g, F&& f) {
 template<class F>
 void eachInstruction(Gen& g, Function& function, F&& f) {
     for(auto blockPointer: function.blocks.contents(g.local)) {
-        for(auto instructionPointer: g.local[blockPointer]->instructions.contents(g.local)) {
+        for(auto instructionPointer: g.local[blockPointer]->instructions(g.local)) {
             f(*g.local[instructionPointer]);
         }
     }

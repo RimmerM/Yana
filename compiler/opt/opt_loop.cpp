@@ -112,7 +112,7 @@ struct Hoister {
         for(auto index: loop.blocks) {
             auto block = opt.local[dominance.blocks[index]];
 
-            for(auto pointer: block->instructions.contents(opt.local)) {
+            for(auto pointer: block->instructions(opt.local)) {
                 auto& instruction = *opt.local[pointer];
 
                 switch(instruction.kind) {
@@ -223,21 +223,7 @@ struct Hoister {
     // Taking one instruction out of its block and putting it at the end of the preheader's, which is
     // in front of that block's terminator because a terminator is not in the list.
     void moveToPreheader(Loop& loop, ModulePtr<Inst> pointer) {
-        auto value = opt.local[pointer];
-        auto source = opt.local[value->block];
-
-        for(Size i = 0; i < source->instructions.size(); i++) {
-            if(source->instructions.get(opt.local, i) != pointer) continue;
-
-            source->instructions.remove(opt.local, i);
-            break;
-        }
-
-        auto target = dominance.blocks[loop.preheader];
-        opt.local[target]->instructions.push(opt.program.arena, pointer);
-        value->block = target;
-
-        opt.changed = true;
+        opt.ir().moveInstruction(pointer, *opt.local[dominance.blocks[loop.preheader]]);
     }
 
     /*
@@ -266,8 +252,8 @@ struct Hoister {
         for(auto index: order) {
             auto block = opt.local[dominance.blocks[index]];
 
-            for(Size i = 0; i < block->instructions.size(); i++) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = 0; i < block->instructionCount(); i++) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto& instruction = *opt.local[pointer];
 
                 auto movable = isPureValue(instruction)
@@ -390,10 +376,10 @@ struct LoopKiller {
     }
 
     bool usedOutside(Loop& loop, ModulePtr<Value> value) {
-        auto& uses = opt.local[value]->uses;
+        auto reader = opt.local[value];
 
-        for(Size i = 0; i < uses.size(); i++) {
-            auto block = opt.local[uses.get(opt.local, i)]->block;
+        for(Size i = 0; i < reader->useCount(); i++) {
+            auto block = opt.local[reader->useAt(opt.local, i)]->block;
             if(!block || !inside(loop, opt.local[block]->index)) return true;
         }
 
@@ -423,9 +409,9 @@ struct LoopKiller {
         auto storage = opt.function->localAt(opt.local, place.local).value;
         if(!storage) return false;
 
-        auto& uses = opt.local[storage]->uses;
-        for(Size i = 0; i < uses.size(); i++) {
-            auto pointer = uses.get(opt.local, i);
+        auto owner = opt.local[storage];
+        for(Size i = 0; i < owner->useCount(); i++) {
+            auto pointer = owner->useAt(opt.local, i);
             auto user = opt.local[pointer];
 
             if(user->block && inside(loop, opt.local[user->block]->index)) continue;
@@ -479,9 +465,9 @@ struct LoopKiller {
 
     bool isRemovable(Loop& loop) {
         auto header = opt.local[dominance.blocks[loop.header]];
-        if(!header->terminator) return false;
+        if(!header->terminator()) return false;
 
-        auto terminator = opt.local[header->terminator];
+        auto terminator = opt.local[header->terminator()];
         if(terminator->kind != Value::Je) return false;
 
         // Condition 1. The test continues the loop when it holds, which is the arrangement the `<`
@@ -494,9 +480,9 @@ struct LoopKiller {
             if(index == loop.header) continue;
 
             auto block = opt.local[dominance.blocks[index]];
-            if(!block->terminator) return false;
-            if(opt.local[block->terminator]->kind != Value::Jmp) return false;
-            if(!inside(loop, opt.local[((InstJmp&)*opt.local[block->terminator]).target]->index)) return false;
+            if(!block->terminator()) return false;
+            if(opt.local[block->terminator()]->kind != Value::Jmp) return false;
+            if(!inside(loop, opt.local[((InstJmp&)*opt.local[block->terminator()]).target]->index)) return false;
         }
 
         /*
@@ -511,12 +497,12 @@ struct LoopKiller {
         for(auto index: loop.blocks) {
             auto block = opt.local[dominance.blocks[index]];
 
-            for(Size i = 0; i < block->phis.size(); i++) {
-                if(usedOutside(loop, (ModulePtr<Value>)block->phis.get(opt.local, i))) return false;
+            for(Size i = 0; i < block->phiCount(); i++) {
+                if(usedOutside(loop, (ModulePtr<Value>)block->phiAt(opt.local, i))) return false;
             }
 
-            for(Size i = 0; i < block->instructions.size(); i++) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = 0; i < block->instructionCount(); i++) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto& instruction = *opt.local[pointer];
 
                 if(usedOutside(loop, (ModulePtr<Value>)pointer)) return false;
@@ -539,14 +525,12 @@ struct LoopKiller {
         if(!isRemovable(loop)) return;
 
         auto header = opt.local[dominance.blocks[loop.header]];
-        auto terminator = header->terminator;
+        auto terminator = header->terminator();
         auto& branch = (InstJe&)*opt.local[terminator];
 
         auto never = makeConstant(opt, *opt.local[terminator], opt.program.scalar.bool_, 0);
 
-        dropUse(opt, branch.cond, terminator);
-        branch.cond = never;
-        opt.local[never]->uses.push(opt.program.arena, terminator);
+        opt.ir().replaceOperand(terminator, branch.cond, never);
 
         opt.changed = true;
     }

@@ -387,7 +387,7 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
         edgeStart.push(U32(edgeData.size()));
 
         for(auto blockPointer: opt.local[nodes[i]]->blocks.contents(opt.local)) {
-            for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+            for(auto instructionPointer: opt.local[blockPointer]->instructions(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
 
                 ModulePtr<Function> callee = nullptr;
@@ -613,7 +613,7 @@ struct Inliner {
         for(auto blockPointer: candidate.blocks) {
             auto block = opt.local[blockPointer];
 
-            for(auto pointer: block->instructions.contents(opt.local)) {
+            for(auto pointer: block->instructions(opt.local)) {
                 auto& instruction = *opt.local[pointer];
 
                 if(instruction.kind == Value::Move &&
@@ -641,8 +641,8 @@ struct Inliner {
         for(auto blockPointer: candidate.blocks) {
             auto block = opt.local[blockPointer];
 
-            for(auto pointer: block->instructions.contents(opt.local)) visit(*opt.local[pointer]);
-            if(block->terminator) visit(*opt.local[block->terminator]);
+            for(auto pointer: block->instructions(opt.local)) visit(*opt.local[pointer]);
+            if(block->terminator()) visit(*opt.local[block->terminator()]);
         }
 
         return found;
@@ -673,7 +673,7 @@ struct Inliner {
             auto block = opt.local[pointer];
 
             if(next[next.size() - 1] < 2) {
-                auto successor = block->outgoing[next[next.size() - 1]++];
+                auto successor = block->successor(next[next.size() - 1]++);
                 if(!successor) continue;
 
                 auto target = opt.local[successor]->index;
@@ -757,17 +757,17 @@ struct Inliner {
          * loop's test is always a block of its own.
          */
         auto entry = opt.local[candidate.blocks[0]];
-        if(entry->phis.isNotEmpty() || entry->incoming.isNotEmpty()) return Nothing();
+        if(entry->phiCount() != 0 || entry->predecessorCount() != 0) return Nothing();
 
         for(auto blockPointer: candidate.blocks) {
             auto block = opt.local[blockPointer];
-            if(!block->terminator) return Nothing();
+            if(!block->terminator()) return Nothing();
 
-            auto kind = opt.local[block->terminator]->kind;
+            auto kind = opt.local[block->terminator()]->kind;
             if(!clonableTerminator(kind)) return Nothing();
             if(kind == Value::Ret) candidate.returns.push(blockPointer);
 
-            for(auto instructionPointer: block->instructions.contents(opt.local)) {
+            for(auto instructionPointer: block->instructions(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
                 if(!clonableKind(instruction.kind)) return Nothing();
 
@@ -776,7 +776,7 @@ struct Inliner {
 
             // A phi is an instruction the caller pays for like any other, and on a managed target it
             // is a variable and an assignment on every edge into the join.
-            candidate.size += U32(block->phis.size());
+            candidate.size += U32(block->phiCount());
         }
 
         // A callee that never returns. The continuation would be unreachable and the call's result
@@ -903,11 +903,11 @@ struct Inliner {
             }
         }
 
-        auto& first = (InstRet&)*opt.local[opt.local[candidate.returns[0]]->terminator];
+        auto& first = (InstRet&)*opt.local[opt.local[candidate.returns[0]]->terminator()];
         auto returnsValue = first.value != nullptr;
 
         for(auto blockPointer: candidate.returns) {
-            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator];
+            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator()];
 
             // Some paths returning a value and others returning none is not a shape the phi below
             // has an answer for, and not one a well-typed body produces either.
@@ -1038,10 +1038,10 @@ struct Inliner {
 
         for(auto blockPointer: candidate.blocks) {
             auto block = opt.local[blockPointer];
-            if(!block->terminator) return false;
-            if(opt.local[block->terminator]->kind != Value::Je) continue;
+            if(!block->terminator()) return false;
+            if(opt.local[block->terminator()]->kind != Value::Je) continue;
 
-            if(!decidedAtCall(((InstJe&)*opt.local[block->terminator]).cond, decided)) return false;
+            if(!decidedAtCall(((InstJe&)*opt.local[block->terminator()]).cond, decided)) return false;
         }
 
         return true;
@@ -1512,59 +1512,6 @@ struct Inliner {
     }
 
     /*
-     * The caller's block, cut in two at the call.
-     *
-     * What was in front of the call stays where it is, because that is where the callee's body is
-     * about to go. Everything behind it - the remaining instructions, the terminator, and with the
-     * terminator every edge the block owned - moves to a fresh block that the callee's returns will
-     * jump to.
-     *
-     * The two halves of an edge have to move together. A successor records where an edge came from
-     * twice, once in its predecessor list and once per phi alternative, and both now name a block
-     * the edge no longer leaves from - so both are repointed here rather than left for the phi
-     * fill-in below, which would only reach the ones the callee happened to write.
-     */
-    Block* splitBlock(Block& block, Size index) {
-        auto& module = *opt.module;
-        auto pointer = (ModulePtr<Block>)(&block - opt.local);
-
-        auto continuation = opt.function->addBlock(module, block.name);
-        auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
-        continuation->source = block.source;
-
-        Array<ModulePtr<Inst>> moved;
-        for(Size i = index + 1; i < block.instructions.size(); i++) {
-            moved.push(block.instructions.get(opt.local, i));
-        }
-
-        for(Size i = block.instructions.size(); i-- > index + 1;) {
-            block.instructions.remove(opt.local, i);
-        }
-
-        for(auto instruction: moved) {
-            opt.local[instruction]->block = continuationPointer;
-            continuation->instructions.push(opt.program.arena, instruction);
-        }
-
-        continuation->terminator = block.terminator;
-        if(block.terminator) opt.local[block.terminator]->block = continuationPointer;
-
-        continuation->outgoing[0] = block.outgoing[0];
-        continuation->outgoing[1] = block.outgoing[1];
-        block.terminator = nullptr;
-        block.outgoing[0] = nullptr;
-        block.outgoing[1] = nullptr;
-
-        for(auto successor: continuation->outgoing) {
-            if(!successor) continue;
-
-            retargetEdge(opt, opt.local[successor], pointer, continuationPointer);
-        }
-
-        return continuation;
-    }
-
-    /*
      * What gives each new local its storage, before anything rooted in one is added to a block.
      *
      * From the callee's own slot rather than from the instruction kind, which is what makes this
@@ -1584,7 +1531,7 @@ struct Inliner {
             auto mapped = clone.values.getValue(U32(source));
             if(!mapped) continue;
 
-            opt.function->setLocalValue(opt.local, index, ModulePtr<Value>(mapped.unwrap()));
+            opt.ir().setLocalValue(index, ModulePtr<Value>(mapped.unwrap()));
         }
     }
 
@@ -1599,7 +1546,7 @@ struct Inliner {
                                                Size index) {
         auto body = opt.local[candidate.blocks[0]];
 
-        for(auto instructionPointer: body->instructions.contents(opt.local)) {
+        for(auto instructionPointer: body->instructions(opt.local)) {
             auto& instruction = *opt.local[instructionPointer];
             auto cloned = cloneInstruction(clone, candidate, block, instruction);
             if(!cloned) return Nothing();
@@ -1609,9 +1556,9 @@ struct Inliner {
         }
 
         bindLocals(clone, candidate);
-        insertInstructions(opt, block, index, clone.emitted);
+        opt.ir().insert(block, index, clone.emitted);
 
-        auto& ret = (InstRet&)*opt.local[body->terminator];
+        auto& ret = (InstRet&)*opt.local[body->terminator()];
         return Just(ret.value ? mapValue(clone, ret.value) : nullptr);
     }
 
@@ -1629,8 +1576,8 @@ struct Inliner {
      *  4. **the phi inputs**, once every value they could name exists;
      *  5. **the locals**, which have to hold their storage before an instruction rooted in one is
      *     added to a block, since that is when the use is recorded;
-     *  6. **the block contents**, added at last - `Block::add` is what records a use and an edge, so
-     *     nothing before this point is visible to a walk of the IR.
+     *  6. **the block contents**, added at last - `IrEditor::append` is what records a use and an
+     *     edge, so nothing before this point is visible to a walk of the IR.
      *
      * Answers the value the call becomes: the one `ret`'s value where there is one such block, and
      * otherwise a phi in the continuation over all of them.
@@ -1640,7 +1587,7 @@ struct Inliner {
         auto& module = *opt.module;
         auto& function = *opt.function;
 
-        auto continuation = splitBlock(block, index);
+        auto continuation = opt.ir().splitBlock(block, index);
         auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
 
         Array<ClonedBlock> cloned;
@@ -1659,7 +1606,7 @@ struct Inliner {
         }
 
         for(auto& target: cloned) {
-            for(auto phiPointer: opt.local[target.from]->phis.contents(opt.local)) {
+            for(auto phiPointer: opt.local[target.from]->phis(opt.local)) {
                 auto& phi = *opt.local[phiPointer];
                 auto copy = createInst<InstPhi>(module, function, *target.to, phi.source, phi.name,
                                                 phi.type);
@@ -1672,7 +1619,7 @@ struct Inliner {
         for(auto& target: cloned) {
             auto from = opt.local[target.from];
 
-            for(auto instructionPointer: from->instructions.contents(opt.local)) {
+            for(auto instructionPointer: from->instructions(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
                 auto copy = cloneInstruction(clone, candidate, *target.to, instruction);
 
@@ -1693,7 +1640,7 @@ struct Inliner {
             }
 
             target.terminator = cloneTerminator(clone, candidate, *target.to,
-                                                *opt.local[from->terminator], continuationPointer);
+                                                *opt.local[from->terminator()], continuationPointer);
             assertTrue(target.terminator != nullptr);
         }
 
@@ -1701,7 +1648,7 @@ struct Inliner {
             auto from = opt.local[target.from];
             Size i = 0;
 
-            for(auto phiPointer: from->phis.contents(opt.local)) {
+            for(auto phiPointer: from->phis(opt.local)) {
                 auto& phi = *opt.local[phiPointer];
                 auto copy = (InstPhi*)target.phis[i++];
 
@@ -1722,9 +1669,9 @@ struct Inliner {
         bindLocals(clone, candidate);
 
         for(auto& target: cloned) {
-            for(auto phi: target.phis) target.to->add(module, phi);
-            for(auto instruction: target.instructions) target.to->add(module, instruction);
-            target.to->add(module, target.terminator);
+            for(auto phi: target.phis) opt.ir().append(*target.to, phi);
+            for(auto instruction: target.instructions) opt.ir().append(*target.to, instruction);
+            opt.ir().append(*target.to, target.terminator);
         }
 
         /*
@@ -1737,7 +1684,7 @@ struct Inliner {
          */
         Array<PhiInput> results;
         for(auto blockPointer: candidate.returns) {
-            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator];
+            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator()];
             if(!ret.value) continue;
 
             results.push(PhiInput { mapBlock(clone, blockPointer),
@@ -1753,7 +1700,7 @@ struct Inliner {
                                        site.type);
         for(auto& input: results) phi->inputs.push(opt.program.arena, input);
 
-        continuation->add(module, phi);
+        opt.ir().append(*continuation, phi);
         return Just((ModulePtr<Value>)((Value*)phi - opt.local));
     }
 
@@ -1847,7 +1794,7 @@ struct Inliner {
         if(isUnit(opt.global, call.type)) {
             auto read = false;
 
-            for(auto user: call.uses.contents(opt.local)) {
+            for(auto user: call.uses(opt.local)) {
                 eachOperand(opt.local, *opt.local[user], [&](ModulePtr<Value> operand) {
                     if(operand == (ModulePtr<Value>)pointer) read = true;
                 });
@@ -1859,12 +1806,11 @@ struct Inliner {
         if(!worthInlining(candidate)) return false;
         if(!graft(candidate, block, index, pointer, grafted)) return false;
 
-        // By hand rather than through `eraseInstruction`, which asserts that nothing reads the
+        // `removeInstruction` rather than `eraseInstruction`, which asserts that nothing reads the
         // instruction - true of a call whose result the graft replaced and not of one returning
         // unit, whose place-root uses are recorded on the locals it named. The operand case is
         // declined above, which is what makes those the only ones left.
-        for(auto argument: call.args.contents(opt.local)) dropUse(opt, argument, pointer);
-        removeFromBlock(block, pointer);
+        opt.ir().removeInstruction(pointer);
 
         opt.changed = true;
         return true;
@@ -1923,32 +1869,13 @@ struct Inliner {
 
         if(!graft(candidate, block, index, pointer, grafted)) return false;
 
-        // The drop's own reads: the storage its place was rooted in, and any index in the path. Both
-        // are recorded on the values rather than in an operand slot, which is why this is
-        // `eachRootValue` and `eachOperand` rather than an argument list.
-        eachOperand(opt.local, dropped, [&](ModulePtr<Value> operand) {
-            dropUse(opt, operand, pointer);
-        });
-
-        eachRootValue(opt, dropped, [&](ModulePtr<Value> storage) {
-            dropUse(opt, storage, pointer);
-        });
-
-        removeFromBlock(block, pointer);
+        // The drop's own reads go with it: the storage its place was rooted in, and any index in the
+        // path. Both are recorded on the values rather than in an operand slot, which is why this
+        // has to be `removeInstruction` rather than a walk of an argument list.
+        opt.ir().removeInstruction(pointer);
 
         opt.changed = true;
         return true;
-    }
-
-    // One instruction dropped from its block's list, leaving its use bookkeeping to the caller -
-    // which is what the two sites above differ about.
-    void removeFromBlock(Block& block, ModulePtr<Inst> pointer) {
-        for(Size i = 0; i < block.instructions.size(); i++) {
-            if(block.instructions.get(opt.local, i) != pointer) continue;
-
-            block.instructions.remove(opt.local, i);
-            break;
-        }
     }
 
     /*
@@ -2031,8 +1958,8 @@ struct Inliner {
 
         auto result = spliced.unwrap();
 
-        if(result && opt.local[pointer]->uses.isNotEmpty()) {
-            replaceValue(opt, (ModulePtr<Value>)pointer, result);
+        if(result && opt.local[pointer]->useCount() != 0) {
+            opt.ir().replaceValue((ModulePtr<Value>)pointer, result);
         }
 
         // And the slots that named the site as their storage, which is not a use and so is not
@@ -2042,7 +1969,7 @@ struct Inliner {
         // findPlace and backingLocal answer with - names the same slot the scan above took, since
         // both used to read the first match and only one of the two directions can win.
         for(Size i = resultSlots.size(); i-- > 0;) {
-            opt.function->setLocalValue(opt.local, resultSlots[i], result);
+            opt.ir().setLocalValue(resultSlots[i], result);
         }
 
         return true;
@@ -2076,16 +2003,8 @@ struct Inliner {
         writeBlocks(order);
     }
 
-    // A block's index is its position in this list, which is what every walk in opt_flow.cpp
-    // assumes - so rewriting the list means renumbering with it.
     void writeBlocks(SmallArray<ModulePtr<Block>, 12>& order) {
-        opt.function->blocks.clear();
-
-        U16 index = 0;
-        for(auto pointer: order) {
-            opt.function->blocks.push(opt.program.arena, pointer);
-            opt.local[pointer]->index = index++;
-        }
+        opt.ir().setBlockOrder(Buffer<ModulePtr<Block>>(order.pointer(), order.size()));
     }
 
     /*
@@ -2110,7 +2029,7 @@ struct Inliner {
         for(auto module: opt.program.modules) {
             for(auto pointer: module->functionOrder.contents(opt.local)) {
                 for(auto blockPointer: opt.local[pointer]->blocks.contents(opt.local)) {
-                    for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+                    for(auto instructionPointer: opt.local[blockPointer]->instructions(opt.local)) {
                         auto& instruction = *opt.local[instructionPointer];
 
                         if(instruction.kind == Value::Call) {
@@ -2127,7 +2046,6 @@ struct Inliner {
 
     bool runFunction(Function& function) {
         opt.function = &function;
-        rebuildUses(opt);
 
         auto inlined = false;
         auto grafted = false;
@@ -2148,8 +2066,8 @@ struct Inliner {
              * advance on a successful inline. A callee that itself contains a call is therefore
              * considered on this pass too rather than on the next round.
              */
-            for(Size i = 0; i < block->instructions.size();) {
-                auto pointer = block->instructions.get(opt.local, i);
+            for(Size i = 0; i < block->instructionCount();) {
+                auto pointer = block->instructionAt(opt.local, i);
                 auto kind = opt.local[pointer]->kind;
 
                 if(kind != Value::Call && kind != Value::Drop) {
@@ -2215,8 +2133,6 @@ struct Inliner {
      */
     void settle(Function& function) {
         opt.function = &function;
-        rebuildUses(opt);
-
         optimizeRounds(opt);
     }
 };
