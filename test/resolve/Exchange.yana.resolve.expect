@@ -246,7 +246,7 @@ fn makeBuffer(%size: I64) -> Buffer {
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
-    init %local0@Buffer.bytes, %v7
+    aggregate %local0@Buffer.bytes = %v7
     %v9 = load %local0@Buffer.bytes : %U8
     setmemory %v9, 0, %size
     ret %buffer
@@ -305,9 +305,9 @@ fn globalExchange() -> I64 {
 fn sinkSwap() -> I64 {
   b0:
     %v0 = alloc : Handle
-    init %a@Handle.value, 1
+    aggregate %a@Handle.value = 1
     %v3 = alloc : Handle
-    init %b@Handle.value, 2
+    aggregate %b@Handle.value = 2
     assign sinkCalls, 0
     %v8 = load %a : Handle
     %v9 = load %b : Handle
@@ -329,11 +329,11 @@ fn sinkSwap() -> I64 {
 fn sinkExchange() -> I64 {
   b0:
     %v0 = alloc : Handle
-    init %slot@Handle.value, 1
+    aggregate %slot@Handle.value = 1
     assign sinkCalls, 0
     %v5 = load %slot : Handle
     %v6 = alloc : Handle
-    init %local1@Handle.value, 2
+    aggregate %local1@Handle.value = 2
     %v9 = borrow_mut %slot : &mut Handle
     %v10 = move %local1 via Sink(Handle).sink : Handle
     %old = exchange [%v9], %v10 via Sink(Handle).sink : Handle

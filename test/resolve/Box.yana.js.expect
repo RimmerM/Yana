@@ -20,32 +20,20 @@ function raise(d) {
 }
 
 function mutated() {
-  var v0 = { hot: 0, cold: { count: 0, level: 0 } };
-  var v2 = { count: 1, level: 20 };
-  v0.hot = 3;
-  v0.cold = { count: 0, level: 0 };
-  v0.cold = v2;
+  var v0 = { hot: 3, cold: { count: 1, level: 20 } };
   raise(v0.cold);
-  var v21 = v0.cold.level + 1 | 0;
-  v0.cold.level = v21;
-  return (Math.imul(v0.hot, 1000) + Math.imul(v0.cold.count, 100) | 0) + v21 | 0;
+  var v20 = v0.cold.level + 1 | 0;
+  v0.cold.level = v20;
+  return (Math.imul(v0.hot, 1000) + Math.imul(v0.cold.count, 100) | 0) + v20 | 0;
 }
 
 function pinnedValue() {
-  var p = { tag: 0, detail: { count: 0, level: 0 } };
-  var v2 = { count: 2, level: 3 };
-  p.tag = 5;
-  p.detail = { count: 0, level: 0 };
-  p.detail = v2;
+  var p = { tag: 5, detail: { count: 2, level: 3 } };
   return (Math.imul(p.detail.count, 10) + 500 | 0) + p.detail.level | 0;
 }
 
 function throughLens() {
-  var v0 = { hot: 0, cold: { count: 0, level: 0 } };
-  var v2 = { count: 6, level: 40 };
-  v0.hot = 3;
-  v0.cold = { count: 0, level: 0 };
-  v0.cold = v2;
+  var v0 = { hot: 3, cold: { count: 6, level: 40 } };
   return ResolveTest_continuation$0({ $v: v0 }, v0.cold.level);
 }
 

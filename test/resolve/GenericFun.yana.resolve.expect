@@ -20,8 +20,7 @@ fn identity(%value: a) -> a {
     %v1 = alloc : Pair(b, a)
     %v2 = load %value@Pair.second : b
     %v3 = load %value@Pair.first : a
-    init %local1@Pair.first, %v2
-    init %local1@Pair.second, %v3
+    aggregate %local1@Pair.first = %v2, %local1@Pair.second = %v3
     ret %v1
 }
 
@@ -114,8 +113,7 @@ fn wrap(%value: a) -> Maybe(a) {
 
   b0:
     %v1 = alloc : Maybe(a)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
@@ -167,8 +165,7 @@ fn swap(Bool, Int)(%value: Pair(Bool, Int)) -> Pair(Int, Bool) {
     %v1 = alloc : Pair(Int, Bool)
     %v2 = load %value@Pair.second : Int
     %v3 = load %value@Pair.first : Bool
-    init %local1@Pair.first, %v2
-    init %local1@Pair.second, %v3
+    aggregate %local1@Pair.first = %v2, %local1@Pair.second = %v3
     ret %v1
 }
 
@@ -210,8 +207,7 @@ fn middle(Int)(%x: Int, %y: Int, %z: Int) -> Int {
 fn wrap(Int)(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 

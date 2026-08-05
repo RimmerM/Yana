@@ -298,22 +298,21 @@ fn writeElement(%xs: Flat(Cell)) -> () {
     %v13 = add %v10, %v12 : %Cell
     %v14 = borrow_mut [%v13] : &mut Cell
     %v15 = alloc : Cell
-    init %local1@Cell.value, 7
-    init %local1@Cell.tag, 8
+    aggregate %local1@Cell.value = 7, %local1@Cell.tag = 8
     assign [%v14], %v15
-    %v21 = load %xs : Flat(Cell)
-    %v24 = borrow_mut %xs : &mut Flat(Cell)
-    %v25 = load [%v24]@Flat.length : I64
-    %v26 = cast 1 : U64
-    %v27 = cast %v25 : U64
-    %v28 = cmp_ge %v26, %v27 : Bool
-    call checkCondition, %v28
-    %v30 = load [%v24]@Flat.items : %Cell
-    %v31 = strideof Cell : Long
-    %v32 = mul 1, %v31 : Long
-    %v33 = add %v30, %v32 : %Cell
-    %v34 = borrow_mut [%v33] : &mut Cell
-    assign [%v34]@Cell.value, 9
+    %v20 = load %xs : Flat(Cell)
+    %v23 = borrow_mut %xs : &mut Flat(Cell)
+    %v24 = load [%v23]@Flat.length : I64
+    %v25 = cast 1 : U64
+    %v26 = cast %v24 : U64
+    %v27 = cmp_ge %v25, %v26 : Bool
+    call checkCondition, %v27
+    %v29 = load [%v23]@Flat.items : %Cell
+    %v30 = strideof Cell : Long
+    %v31 = mul 1, %v30 : Long
+    %v32 = add %v29, %v31 : %Cell
+    %v33 = borrow_mut [%v32] : &mut Cell
+    assign [%v33]@Cell.value, 9
     ret
 }
 
@@ -372,154 +371,121 @@ fn main() -> Int {
     init %xs@Array.run@Run.items, %v7
     init %xs@Array.run@Run.capacity, 3
     init %xs@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
-    init [%v16], 10
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
-    init [%v21], 20
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
-    init [%v26], 30
+    aggregate [%v7][0] = 10, [%v7][1] = 20, [%v7][2] = 30
     init %xs@Array.length, 3
-    %v29 = load %xs : Array(Int)
-    %v32 = borrow_mut %xs : &mut Array(Int)
-    %v33 = load [%v32]@Array.length : @bits(30) U32
-    %v34 = cast 2 : U64
-    %v35 = cast %v33 : U32
-    %v36 = cast %v35 : U64
-    %v37 = cmp_ge %v34, %v36 : Bool
-    call checkCondition, %v37
-    %v39 = load [%v32]@Array.run@Run.items : %Int
-    %v40 = strideof Int : Long
-    %v41 = mul 2, %v40 : Long
-    %v42 = add %v39, %v41 : %Int
-    %v43 = borrow_mut [%v42] : &mut Int
-    assign [%v43], 40
-    %v46 = alloc : Cell
-    init %local2@Cell.value, 1
-    init %local2@Cell.tag, 2
-    %v51 = alloc : Cell
-    init %local3@Cell.value, 3
-    init %local3@Cell.tag, 4
-    %v56 = alloc : Array(Cell)
-    %v59 = alloc *2 : Cell
-    %v60 = addressof %local5 : %Cell
-    init %cells@Array.run@Run.items, %v60
+    %v18 = load %xs : Array(Int)
+    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v22 = load [%v21]@Array.length : @bits(30) U32
+    %v23 = cast 2 : U64
+    %v24 = cast %v22 : U32
+    %v25 = cast %v24 : U64
+    %v26 = cmp_ge %v23, %v25 : Bool
+    call checkCondition, %v26
+    %v28 = load [%v21]@Array.run@Run.items : %Int
+    %v29 = strideof Int : Long
+    %v30 = mul 2, %v29 : Long
+    %v31 = add %v28, %v30 : %Int
+    %v32 = borrow_mut [%v31] : &mut Int
+    assign [%v32], 40
+    %v35 = alloc : Cell
+    aggregate %local2@Cell.value = 1, %local2@Cell.tag = 2
+    %v39 = alloc : Cell
+    aggregate %local3@Cell.value = 3, %local3@Cell.tag = 4
+    %v43 = alloc : Array(Cell)
+    %v46 = alloc *2 : Cell
+    %v47 = addressof %local5 : %Cell
+    init %cells@Array.run@Run.items, %v47
     init %cells@Array.run@Run.capacity, 2
     init %cells@Array.run@Run.ownsHeap, 0
-    %v66 = strideof Cell : Long
-    %v67 = mul 0, %v66 : Long
-    %v68 = add %v60, %v67 : %Cell
-    init [%v68], %v46
-    %v71 = strideof Cell : Long
-    %v72 = mul 1, %v71 : Long
-    %v73 = add %v60, %v72 : %Cell
-    init [%v73], %v51
+    aggregate [%v47][0] = %v35, [%v47][1] = %v39
     init %cells@Array.length, 2
-    %v76 = load %cells : Array(Cell)
-    %v77 = borrow_mut %cells : &mut Array(Cell)
-    %v78 = alloc : Flat(Cell)
-    %v79 = load [%v77]@Array.run@Run.items : %Cell
-    init %local6@Flat.items, %v79
-    %v81 = load [%v77]@Array.length : @bits(30) U32
-    %v82 = cast %v81 : U32
-    %v83 = cast %v82 : I64
-    init %local6@Flat.length, %v83
-    %v85 = borrow_mut %local6 : &mut Flat(Cell)
-    call writeElement, %v85
-    %v90 = alloc : Array(Int)
-    %v93 = alloc *3 : Int
-    %v94 = addressof %local8 : %Int
-    init %store@Array.run@Run.items, %v94
+    %v56 = load %cells : Array(Cell)
+    %v57 = borrow_mut %cells : &mut Array(Cell)
+    %v58 = alloc : Flat(Cell)
+    %v59 = load [%v57]@Array.run@Run.items : %Cell
+    init %local6@Flat.items, %v59
+    %v61 = load [%v57]@Array.length : @bits(30) U32
+    %v62 = cast %v61 : U32
+    %v63 = cast %v62 : I64
+    init %local6@Flat.length, %v63
+    %v65 = borrow_mut %local6 : &mut Flat(Cell)
+    call writeElement, %v65
+    %v70 = alloc : Array(Int)
+    %v73 = alloc *3 : Int
+    %v74 = addressof %local8 : %Int
+    init %store@Array.run@Run.items, %v74
     init %store@Array.run@Run.capacity, 3
     init %store@Array.run@Run.ownsHeap, 0
-    %v101 = strideof Int : Long
-    %v102 = mul 0, %v101 : Long
-    %v103 = add %v94, %v102 : %Int
-    init [%v103], 0
-    %v106 = strideof Int : Long
-    %v107 = mul 1, %v106 : Long
-    %v108 = add %v94, %v107 : %Int
-    init [%v108], 0
-    %v111 = strideof Int : Long
-    %v112 = mul 2, %v111 : Long
-    %v113 = add %v94, %v112 : %Int
-    init [%v113], 0
+    aggregate [%v74][0] = 0, [%v74][1] = 0, [%v74][2] = 0
     init %store@Array.length, 3
-    %v116 = load %xs : Array(Int)
-    %v117 = call fromOwner, %v116 : Int
-    %v118 = load %xs : Array(Int)
-    %v121 = borrow %xs : &Array(Int)
-    %v122 = load [%v121]@Array.length : @bits(30) U32
-    %v123 = cast 2 : U64
-    %v124 = cast %v122 : U32
-    %v125 = cast %v124 : U64
-    %v126 = cmp_ge %v123, %v125 : Bool
-    call checkCondition, %v126
-    %v128 = load [%v121]@Array.run@Run.items : %Int
-    %v129 = strideof Int : Long
-    %v130 = mul 2, %v129 : Long
-    %v131 = add %v128, %v130 : %Int
-    %v132 = borrow [%v131] : &Int
-    %v133 = load [%v132] : Int
-    %v134 = add %v117, %v133 : Int
-    %v135 = load %xs : Array(Int)
-    %v140 = call sumOfTwo(Array(Int), I64, Int), %v135, 0, 1 : Int
-    %v141 = add %v134, %v140 : Int
-    %v142 = load %cells : Array(Cell)
-    %v143 = borrow %cells : &Array(Cell)
-    %v144 = alloc : Flat(Cell)
-    %v145 = load [%v143]@Array.run@Run.items : %Cell
-    init %local9@Flat.items, %v145
-    %v147 = load [%v143]@Array.length : @bits(30) U32
-    %v148 = cast %v147 : U32
-    %v149 = cast %v148 : I64
-    init %local9@Flat.length, %v149
-    %v151 = call fieldOfElement, %v144 : Int
+    %v85 = load %xs : Array(Int)
+    %v86 = call fromOwner, %v85 : Int
+    %v87 = load %xs : Array(Int)
+    %v90 = borrow %xs : &Array(Int)
+    %v91 = load [%v90]@Array.length : @bits(30) U32
+    %v92 = cast 2 : U64
+    %v93 = cast %v91 : U32
+    %v94 = cast %v93 : U64
+    %v95 = cmp_ge %v92, %v94 : Bool
+    call checkCondition, %v95
+    %v97 = load [%v90]@Array.run@Run.items : %Int
+    %v98 = strideof Int : Long
+    %v99 = mul 2, %v98 : Long
+    %v100 = add %v97, %v99 : %Int
+    %v101 = borrow [%v100] : &Int
+    %v102 = load [%v101] : Int
+    %v103 = add %v86, %v102 : Int
+    %v104 = load %xs : Array(Int)
+    %v109 = call sumOfTwo(Array(Int), I64, Int), %v104, 0, 1 : Int
+    %v110 = add %v103, %v109 : Int
+    %v111 = load %cells : Array(Cell)
+    %v112 = borrow %cells : &Array(Cell)
+    %v113 = alloc : Flat(Cell)
+    %v114 = load [%v112]@Array.run@Run.items : %Cell
+    init %local9@Flat.items, %v114
+    %v116 = load [%v112]@Array.length : @bits(30) U32
+    %v117 = cast %v116 : U32
+    %v118 = cast %v117 : I64
+    init %local9@Flat.length, %v118
+    %v120 = call fieldOfElement, %v113 : Int
     drop %cells reclaim Reclaim(Array(a)).reclaim(Cell)
-    %v152 = add %v141, %v151 : Int
-    %v153 = load %store : Array(Int)
-    %v154 = borrow_mut %store : &mut Array(Int)
-    %v155 = alloc : Flat(Int)
-    %v156 = load [%v154]@Array.run@Run.items : %Int
-    init %local10@Flat.items, %v156
-    %v158 = load [%v154]@Array.length : @bits(30) U32
-    %v159 = cast %v158 : U32
-    %v160 = cast %v159 : I64
-    init %local10@Flat.length, %v160
-    %v162 = borrow_mut %local10 : &mut Flat(Int)
-    %v163 = call throughPointer, %v162 : Int
+    %v121 = add %v110, %v120 : Int
+    %v122 = load %store : Array(Int)
+    %v123 = borrow_mut %store : &mut Array(Int)
+    %v124 = alloc : Flat(Int)
+    %v125 = load [%v123]@Array.run@Run.items : %Int
+    init %local10@Flat.items, %v125
+    %v127 = load [%v123]@Array.length : @bits(30) U32
+    %v128 = cast %v127 : U32
+    %v129 = cast %v128 : I64
+    init %local10@Flat.length, %v129
+    %v131 = borrow_mut %local10 : &mut Flat(Int)
+    %v132 = call throughPointer, %v131 : Int
     drop %store reclaim Reclaim(Array(a)).reclaim(Int)
-    %v164 = add %v152, %v163 : Int
-    %v168 = alloc : [Int *3]
-    init %local11[0], 1
-    init %local11[1], 2
-    init %local11[2], 3
-    %v175 = borrow %local11 : &[Int *3]
-    %v176 = alloc : Flat(Int)
-    %v177 = addressof [%v175] : %Int
-    init %local12@Flat.items, %v177
-    %v180 = cast 3 : I64
-    init %local12@Flat.length, %v180
-    %v182 = call fromFixed, %v176 : Int
-    %v183 = add %v164, %v182 : Int
-    %v184 = load %xs : Array(Int)
-    %v185 = borrow %xs : &Array(Int)
-    %v186 = alloc : Flat(Int)
-    %v187 = load [%v185]@Array.run@Run.items : %Int
-    init %local13@Flat.items, %v187
-    %v189 = load [%v185]@Array.length : @bits(30) U32
-    %v190 = cast %v189 : U32
-    %v191 = cast %v190 : I64
-    init %local13@Flat.length, %v191
-    %v193 = call fromSlice, %v186 : Int
+    %v133 = add %v121, %v132 : Int
+    %v137 = alloc : [Int *3]
+    aggregate %local11[0] = 1, %local11[1] = 2, %local11[2] = 3
+    %v142 = borrow %local11 : &[Int *3]
+    %v143 = alloc : Flat(Int)
+    %v144 = addressof [%v142] : %Int
+    init %local12@Flat.items, %v144
+    %v147 = cast 3 : I64
+    init %local12@Flat.length, %v147
+    %v149 = call fromFixed, %v143 : Int
+    %v150 = add %v133, %v149 : Int
+    %v151 = load %xs : Array(Int)
+    %v152 = borrow %xs : &Array(Int)
+    %v153 = alloc : Flat(Int)
+    %v154 = load [%v152]@Array.run@Run.items : %Int
+    init %local13@Flat.items, %v154
+    %v156 = load [%v152]@Array.length : @bits(30) U32
+    %v157 = cast %v156 : U32
+    %v158 = cast %v157 : I64
+    init %local13@Flat.length, %v158
+    %v160 = call fromSlice, %v153 : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v194 = add %v183, %v193 : Int
-    ret %v194
+    %v161 = add %v150, %v160 : Int
+    ret %v161
 }
 
 fn sumOfTwo(Array(Int), I64, Int)(%xs: Array(Int), %a: I64, %b: I64) -> Int {

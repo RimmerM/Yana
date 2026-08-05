@@ -79,7 +79,7 @@ fn main() -> Int {
     %v21 = call measure, %v20 : Int
     %v22 = add %v17, %v21 : Int
     %v23 = alloc : Metres
-    init %local2@Metres.value, 5
+    aggregate %local2@Metres.value = 5
     %v26 = call isFive, %v23 : Bool
     je %v26, b1, b2
 
@@ -102,7 +102,7 @@ fn FromInt(Metres).fromInt(%value: Long) -> Metres {
   b0:
     %v1 = alloc : Metres
     %v2 = cast %value : Int
-    init %local0@Metres.value, %v2
+    aggregate %local0@Metres.value = %v2
     ret %v1
 }
 

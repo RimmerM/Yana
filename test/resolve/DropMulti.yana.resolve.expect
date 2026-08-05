@@ -242,7 +242,7 @@ fn makeBuffer(%size: I64) -> Buffer {
     call +=(I64), %v4, 1
     %v6 = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
-    init %local0@Buffer.bytes, %v7
+    aggregate %local0@Buffer.bytes = %v7
     ret %v6
 }
 
@@ -254,29 +254,26 @@ fn touch(%it: Slot) -> I64 {
 fn holdsTwo() -> I64 {
   b0:
     %s = alloc : Slot
-    init %local0.discriminant, 2
-    %v4 = call makeBuffer, 16 : Buffer
-    %v6 = call makeBuffer, 16 : Buffer
-    init %local0@Two.first, %v4
-    init %local0@Two.second, %v6
+    %v3 = call makeBuffer, 16 : Buffer
+    %v5 = call makeBuffer, 16 : Buffer
+    aggregate %local0.discriminant = 2, %local0@Two.first = %v3, %local0@Two.second = %v5
     %counted = load liveBuffers : I64
-    %v10 = call touch, %s : I64
+    %v8 = call touch, %s : I64
     drop_derived %local0 via drop$Slot
-    %v11 = add %counted, %v10 : I64
-    ret %v11
+    %v9 = add %counted, %v8 : I64
+    ret %v9
 }
 
 fn holdsOne() -> I64 {
   b0:
     %s = alloc : Slot
-    init %local0.discriminant, 1
-    %v4 = call makeBuffer, 16 : Buffer
-    init %local0@One.only, %v4
+    %v3 = call makeBuffer, 16 : Buffer
+    aggregate %local0.discriminant = 1, %local0@One.only = %v3
     %counted = load liveBuffers : I64
-    %v7 = call touch, %s : I64
+    %v6 = call touch, %s : I64
     drop_derived %local0 via drop$Slot
-    %v8 = add %counted, %v7 : I64
-    ret %v8
+    %v7 = add %counted, %v6 : I64
+    ret %v7
 }
 
 fn holdsNothing() -> I64 {

@@ -699,46 +699,44 @@ main<complex>(): Int {
     %v_15 = and %v_14, 18446744070488326143: Int
     %v_16 = add %v_7, 8: Ptr
     store %v_16, %v_15, 4
-    %v_17 = add %v_10, 0: Ptr
-    copy %v_17, %v_1, 8
-    %v_18 = add %v_10, 8: Ptr
-    copy %v_18, %v_3, 8
-    %v_19 = add %v_10, 16: Ptr
-    copy %v_19, %v_5, 8
-    %v_20 = add %v_7, 12: Ptr
-    store %v_20, 3, 4
-    %v_21 = alloca 16, 8: Ptr
+    copy %v_10, %v_1, 8
+    %v_17 = add %v_10, 8: Ptr
+    copy %v_17, %v_3, 8
+    %v_18 = add %v_10, 16: Ptr
+    copy %v_18, %v_5, 8
+    %v_19 = add %v_7, 12: Ptr
+    store %v_19, 3, 4
+    %v_20 = alloca 16, 8: Ptr
+    %v_21 = imm 4: Long
     %v_22 = imm 4: Long
-    %v_23 = imm 4: Long
-    %v_24 = alloca 16, 4: Ptr
-    store %v_21, %v_24, 8
-    %v_25 = add %v_21, 8: Ptr
-    %v_26 = load %v_25, 4: Int
-    %v_27 = and %v_26, 18446744072635809792: Int
-    %v_28 = or %v_27, 4: Int
-    %v_29 = and %v_28, 18446744070488326143: Int
-    %v_30 = add %v_21, 8: Ptr
-    store %v_30, %v_29, 4
-    %v_31 = add %v_24, 0: Ptr
-    store %v_31, 1, 4
-    %v_32 = add %v_24, 4: Ptr
-    store %v_32, 2, 4
-    %v_33 = add %v_24, 8: Ptr
-    store %v_33, 3, 4
-    %v_34 = add %v_24, 12: Ptr
-    store %v_34, 4, 4
-    %v_35 = add %v_21, 12: Ptr
-    store %v_35, 4, 4
-    %v_36 = imm 3: Long
-    %v_37 = call_complex direct, %v_10, %v_36: Int
-    %v_38 = call_complex oneLift, %v_10, %v_36: Int
-    %v_39 = add %v_37, %v_38: Int
-    %v_40 = call_complex twoLifts, %v_10, %v_36: Int
+    %v_23 = alloca 16, 4: Ptr
+    store %v_20, %v_23, 8
+    %v_24 = add %v_20, 8: Ptr
+    %v_25 = load %v_24, 4: Int
+    %v_26 = and %v_25, 18446744072635809792: Int
+    %v_27 = or %v_26, 4: Int
+    %v_28 = and %v_27, 18446744070488326143: Int
+    %v_29 = add %v_20, 8: Ptr
+    store %v_29, %v_28, 4
+    store %v_23, 1, 4
+    %v_30 = add %v_23, 4: Ptr
+    store %v_30, 2, 4
+    %v_31 = add %v_23, 8: Ptr
+    store %v_31, 3, 4
+    %v_32 = add %v_23, 12: Ptr
+    store %v_32, 4, 4
+    %v_33 = add %v_20, 12: Ptr
+    store %v_33, 4, 4
+    %v_34 = imm 3: Long
+    %v_35 = call_complex direct, %v_10, %v_34: Int
+    %v_36 = call_complex oneLift, %v_10, %v_34: Int
+    %v_37 = add %v_35, %v_36: Int
+    %v_38 = call_complex twoLifts, %v_10, %v_34: Int
     call_complex Reclaim(Array(a)).reclaim(Point), %v_7
+    %v_39 = add %v_37, %v_38: Int
+    %v_40 = call_complex scalar, %v_23, 4: Int
     %v_41 = add %v_39, %v_40: Int
-    %v_42 = call_complex scalar, %v_24, 4: Int
-    %v_43 = add %v_41, %v_42: Int
-    ret %v_43
+    ret %v_41
   }
 }
 

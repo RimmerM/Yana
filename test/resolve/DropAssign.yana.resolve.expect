@@ -242,7 +242,7 @@ fn makeBuffer(%size: I64) -> Buffer {
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
-    init %local0@Buffer.bytes, %v7
+    aggregate %local0@Buffer.bytes = %v7
     %v9 = load %local0@Buffer.bytes : %U8
     setmemory %v9, 0, %size
     ret %buffer
@@ -295,25 +295,24 @@ fn field() -> I64 {
   b0:
     %v0 = alloc : Holder
     %v2 = call makeBuffer, 16 : Buffer
-    init %h@Holder.slot, %v2
-    init %h@Holder.tag, 1
-    %v6 = load %h : Holder
-    %v7 = load %h@Holder.slot : Buffer
-    %first = call firstByte, %v7 : I64
-    %v10 = call makeBuffer, 32 : Buffer
+    aggregate %h@Holder.slot = %v2, %h@Holder.tag = 1
+    %v5 = load %h : Holder
+    %v6 = load %h@Holder.slot : Buffer
+    %first = call firstByte, %v6 : I64
+    %v9 = call makeBuffer, 32 : Buffer
     drop %h@Holder.slot via Drop(Buffer).drop
-    assign %h@Holder.slot, %v10
+    assign %h@Holder.slot, %v9
     %counted = load liveBuffers : I64
-    %v13 = add %counted, %first : I64
-    %v14 = load %h : Holder
-    %v15 = load %h@Holder.slot : Buffer
-    %v16 = call firstByte, %v15 : I64
-    %v17 = add %v13, %v16 : I64
-    %v18 = load %h : Holder
-    %v19 = load %h@Holder.tag : I64
+    %v12 = add %counted, %first : I64
+    %v13 = load %h : Holder
+    %v14 = load %h@Holder.slot : Buffer
+    %v15 = call firstByte, %v14 : I64
+    %v16 = add %v12, %v15 : I64
+    %v17 = load %h : Holder
+    %v18 = load %h@Holder.tag : I64
     drop_derived %h via drop$Holder
-    %v20 = add %v17, %v19 : I64
-    ret %v20
+    %v19 = add %v16, %v18 : I64
+    ret %v19
 }
 
 fn replace(%slot: Buffer, %with: Buffer) -> () {

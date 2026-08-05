@@ -418,8 +418,7 @@ fn emptyArray(Buffer)() -> Array(Buffer) {
   b0:
     %v0 = alloc : Array(Buffer)
     %v1 = call emptyRun(Buffer) : Run(Buffer)
-    init %local0@Array.run, %v1
-    init %local0@Array.length, 0
+    aggregate %local0@Array.run = %v1, %local0@Array.length = 0
     ret %v0
 }
 
@@ -599,8 +598,7 @@ fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> Maybe(Buffer) {
     %v70 = cast %v69 : @bits(30) U32
     assign %self@Array.length, %v70
     %v72 = alloc : Maybe(Buffer)
-    init %local4.discriminant, 1
-    init %local4@Just, %doomed
+    aggregate %local4.discriminant = 1, %local4@Just = %doomed
     ret %v72
 }
 
@@ -649,7 +647,7 @@ fn makeBuffer(%mark: I64) -> Buffer {
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v8 = call allocateHeap, 16 : %U8
-    init %local0@Buffer.bytes, %v8
+    aggregate %local0@Buffer.bytes = %v8
     %v10 = load %local0@Buffer.bytes : %U8
     setmemory %v10, 0, 16
     %v14 = load %local0@Buffer.bytes : %U8

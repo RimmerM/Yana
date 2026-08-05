@@ -147,6 +147,37 @@ static bool escapeRound(Analysis& analysis) {
                 break;
             }
 
+            /*
+             * Every element, written into one run - the same question the case above asks, asked
+             * once per element against one place.
+             *
+             * The run is what decides it: a literal whose buffer outlives the frame is exactly the
+             * `[7, 8, 9]` that `Array.escaping` returns, and each element written into it is owned
+             * by whatever the buffer is owned by. Missing this left the elements unmarked and the
+             * literal placed on the frame it leaves.
+             */
+            case Value::Aggregate: {
+                auto& aggregate = (InstAggregate&)instruction;
+                ScratchProvenance roots(analysis);
+                placeProvenance(analysis, aggregate.place, *roots);
+
+                auto escaping = roots->global || roots->unknown;
+                for(Size l = 0; l < analysis.localCount && !escaping; l++) {
+                    escaping = roots->locals[l] && analysis.outlives[l];
+                }
+
+                if(escaping) {
+                    eachAggregateComponent(analysis.local, aggregate,
+                                           [&](const AggregateComponent& component, Size) {
+                        ScratchProvenance written(analysis);
+                        transferredProvenance(analysis, component.value, *written);
+                        changed = markEscaped(analysis, *written, Escape::Owned) || changed;
+                    });
+                }
+
+                break;
+            }
+
             case Value::Call: {
                 auto& call = (InstCall&)instruction;
                 auto summary = summaryOf(analysis, call.callee);

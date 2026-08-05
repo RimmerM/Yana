@@ -14,6 +14,7 @@ Size instructionPlaces(const Value& instruction, Place* target) {
         case Value::LoadPlace: target[0] = ((const InstLoadPlace&)instruction).place; return 1;
         case Value::Init:
         case Value::Assign: target[0] = ((const InstInit&)instruction).place; return 1;
+        case Value::Aggregate: target[0] = ((const InstAggregate&)instruction).place; return 1;
         case Value::Borrow: target[0] = ((const InstBorrow&)instruction).place; return 1;
         case Value::Move: target[0] = ((const InstMove&)instruction).place; return 1;
         case Value::Copy: target[0] = ((const InstCopy&)instruction).place; return 1;
@@ -33,6 +34,7 @@ Size instructionPlaceSlots(Value& instruction, Place** target) {
         case Value::LoadPlace: target[0] = &((InstLoadPlace&)instruction).place; return 1;
         case Value::Init:
         case Value::Assign: target[0] = &((InstInit&)instruction).place; return 1;
+        case Value::Aggregate: target[0] = &((InstAggregate&)instruction).place; return 1;
         case Value::Borrow: target[0] = &((InstBorrow&)instruction).place; return 1;
         case Value::Move: target[0] = &((InstMove&)instruction).place; return 1;
         case Value::Copy: target[0] = &((InstCopy&)instruction).place; return 1;

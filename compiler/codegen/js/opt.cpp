@@ -580,14 +580,39 @@ void propagateList(Gen& g, StmtList& list, Size from, Copy& c) {
  * The rewrites.
  */
 
+// Whether one statement has anything at all to do with a name - defined below, beside the other
+// rules that walk statements a value is being moved across.
+bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name);
+
 /*
  * `var v = {a: 0, b: 0}; v.a = x;` -> `var v = {a: x, b: 0};`
  *
  * Folded in property order and no further: a write to a property the walk has already passed would
  * be moved in front of one it was behind, which is a reordering wherever either value does anything.
- * The properties in between are the type's zero values, so they are checked to be inert rather than
- * assumed to be - the same check, and it is what makes this rule about the tree rather than about
- * where the tree came from.
+ *
+ * What the value moves across is checked rather than assumed, which is what makes this rule about
+ * the tree rather than about where the tree came from - the properties are the type's zero values in
+ * every literal the emitter builds today, and that is a fact about the emitter.
+ *
+ * ## Why it walks past statements
+ *
+ * For the reason `foldArrayElements` does, and it is the same reason: what a write needs is routinely
+ * declared *between* the declaration and the write. `Wrapped(inner)` builds the payload in a binding
+ * of its own, so the tag write and the payload write have a `var` between them, and a rule that
+ * stopped at the first statement it did not recognize folded the tag and left the payload behind.
+ *
+ * Three things have to survive it, and they are the three `foldArrayElements` already checks for
+ * the indexed case - the machinery is deliberately the same:
+ *
+ *  - a statement that **mentions the name** stops the walk, since a read of the object would see a
+ *    property that no longer holds its zero;
+ *  - a value moved up must not cross what the crossed statements **do**. `prefix` is their effects
+ *    and `crosses` is the question: `var v = {a: 0}; var x = first(); v.a = second();` may not
+ *    become `{a: second()}` above `first()`. A statement with a *body* stops the walk outright,
+ *    because pricing what it does is a walk of its own;
+ *  - a value moved up must not cross the **declaration of a binding it reads**, which `declared` is:
+ *    `var v = {a: x}` above `var x` is hoisted but unassigned, so the object holds `undefined`
+ *    rather than the program failing.
  */
 bool foldInitializers(Gen& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
@@ -599,45 +624,98 @@ bool foldInitializers(Gen& g, StmtList& list, Size index) {
     auto& object = *(ObjectExpr*)g.base[decl.value];
     auto changed = false;
     Size filled = 0;
+    Size at = index + 1;
+    Effects prefix;
 
-    while(index + 1 < list.size()) {
-        auto next = g.base[list.get(g.base, index + 1)];
-        if(next->kind != Stmt::Expression) break;
+    SmallArray<Name, 8> declared;
+
+    while(at < list.size()) {
+        auto pointer = list.get(g.base, at);
+        auto next = g.base[pointer];
+
+        /*
+         * Whether this is a write into the object at all. Anything else is stepped over where it has
+         * nothing to do with the object and its effects are priced into `prefix`; a statement with a
+         * body, or one that mentions the name, ends the walk.
+         */
+        auto isWrite = false;
+
+        if(next->kind == Stmt::Expression) {
+            auto written = g.base[((ExprStmt*)next)->value];
+
+            if(written->kind == Expr::Assign) {
+                auto target = g.base[((AssignExpr*)written)->target];
+
+                if(target->kind == Expr::Field) {
+                    auto owner = g.base[((FieldExpr*)target)->object];
+                    isWrite = owner->kind == Expr::Var &&
+                              ((VarExpr*)owner)->name.text == decl.name.text;
+                }
+            }
+        }
+
+        if(!isWrite) {
+            if(next->kind != Stmt::Decl && next->kind != Stmt::Expression) break;
+            if(mentionsStmt(g, pointer, decl.name)) break;
+
+            if(next->kind == Stmt::Decl) declared.push(((DeclStmt*)next)->name);
+            if(auto header = headerOf(g, next)) addEffects(g, *header, prefix);
+
+            at++;
+            continue;
+        }
 
         auto written = g.base[((ExprStmt*)next)->value];
-        if(written->kind != Expr::Assign) break;
-
         auto target = g.base[((AssignExpr*)written)->target];
-        if(target->kind != Expr::Field) break;
-
-        auto owner = g.base[((FieldExpr*)target)->object];
-        if(owner->kind != Expr::Var || ((VarExpr*)owner)->name.text != decl.name.text) break;
 
         auto properties = itemsOf(g, object.properties);
         auto key = ((FieldExpr*)target)->field.text;
-        auto slot = object.properties.size();
+        auto size = object.properties.size();
+        auto slot = size;
 
-        for(Size i = filled; i < object.properties.size(); i++) {
+        // Searched from the watermark, so a property already folded is not found again: a second
+        // write to one has to stay a write, since folding it would land in front of the first.
+        for(Size i = filled; i < size; i++) {
             if(properties[i].key.text != key) continue;
             slot = i;
             break;
         }
 
-        if(slot == object.properties.size()) break;
-
-        // The properties this one jumps in front of stay where they are, so they have to be values
-        // that cannot tell.
-        Effects skipped;
-        for(Size i = filled; i < slot; i++) addEffects(g, properties[i].value, skipped);
-        if(!skipped.inert()) break;
+        if(slot == size) break;
 
         // A value read out of the object it is going into would be reading a property that no
         // longer holds its zero by the time it is evaluated.
         auto value = ((AssignExpr*)written)->value;
         if(mentions(g, value, decl.name)) break;
 
+        /*
+         * The two orderings the move has to preserve, which are the two sets `foldArrayElements`
+         * asks about for the indexed case.
+         *
+         * This used to check the properties between the watermark and the slot instead, and those
+         * are the one set that is safe by inspection: they stay exactly where they are, and the
+         * value neither crosses them nor replaces them. What it did *not* check is what the value
+         * lands in front of and what it deletes. Both are inert in every object literal the emitter
+         * builds - they are the type's zero values, which is why no fixture moved when this was
+         * corrected - so this is the argument being made to match the code rather than a bug being
+         * fixed. See foldArrayElements, where the same two checks are load-bearing.
+         */
+        // And the bindings the walk stepped over, which the value would be moved in front of.
+        auto reachesBack = false;
+        for(auto name: declared) reachesBack = reachesBack || mentions(g, value, name);
+        if(reachesBack) break;
+
+        auto effects = effectsOf(g, value);
+        if(!crosses(effects, prefix)) break;
+
+        Effects tail;
+        for(Size i = slot + 1; i < size; i++) addEffects(g, properties[i].value, tail);
+        if(!crosses(effects, tail)) break;
+
+        if(!effectsOf(g, properties[slot].value).inert()) break;
+
         properties[slot].value = value;
-        list.remove(g.base, index + 1);
+        list.remove(g.base, at);
         filled = slot + 1;
         changed = true;
     }
@@ -645,23 +723,68 @@ bool foldInitializers(Gen& g, StmtList& list, Size index) {
     return changed;
 }
 
+// Whether one statement has anything at all to do with a name - defined below, beside the other
+// rule that walks statements a value is being moved across.
+bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name);
+
+// `v[k] = x` for a literal index - the one statement the rule below consumes. The slot is left as
+// the number it was written with, because whether it is a slot at all is a question about the array
+// and this does not have one.
+struct ElementWrite {
+    JsPtr<Expr> value;
+    F64 slot = 0;
+    bool matched = false;
+};
+
+ElementWrite elementWrite(Gen& g, Stmt* stmt, Name name) {
+    if(stmt->kind != Stmt::Expression) return {};
+
+    auto written = g.base[((ExprStmt*)stmt)->value];
+    if(written->kind != Expr::Assign) return {};
+
+    auto target = g.base[((AssignExpr*)written)->target];
+    if(target->kind != Expr::Index) return {};
+
+    auto owner = g.base[((IndexExpr*)target)->array];
+    if(owner->kind != Expr::Var || ((VarExpr*)owner)->name.text != name.text) return {};
+
+    // Anything that is not a literal index is not this - `v[v.length] = x` is a push.
+    auto position = g.base[((IndexExpr*)target)->index];
+    if(position->kind != Expr::Number || !((NumberExpr*)position)->integral) return {};
+
+    return ElementWrite { ((AssignExpr*)written)->value, ((NumberExpr*)position)->value, true };
+}
+
 /*
- * `var v = []; v[0] = a; v[1] = b;` -> `var v = [a, b];`
+ * `var v = []; v[0] = a; v[1] = b;` -> `var v = [a, b];`, and
+ * `var v = [1, 2, 3, 4]; v[1] = x;` -> `var v = [1, x, 3, 4];`
  *
  * `foldInitializers` for the indexed case, and it earns itself for a reason the object one does not
- * have to argue: filling an empty array by index walks the element-kind transitions a literal skips,
- * so the two forms are not the same program to a host that specializes on them. An array literal is
+ * have to argue: filling an array by index walks the element-kind transitions a literal skips, so
+ * the two forms are not the same program to a host that specializes on them. An array literal is
  * also what the source wrote - `[7, 8, 9]` compiles through an `alloc` and three `init`s because
  * that is what the IR has, not because anything wanted the host to see it that way.
  *
- * Consecutive from zero and no further. A gap would leave a hole, which is a different kind of array
- * on every engine that has element kinds; an index that repeats one already folded is a *second*
- * write to the same slot and has to stay a write, since folding it would move it in front of a read
- * that came between. Anything that is not a literal index stops the walk - `v[v.length] = x` is a
- * push and is not this.
+ * ## Why it overwrites as well as appends
  *
- * The values do not move relative to each other and cross only the empty literal, so there is no
- * effect question to ask beyond the one the name itself raises.
+ * Because the write that follows a literal is usually a write *into* it. `eliminateOverwritten` in
+ * opt_place.cpp deliberately leaves an element in place where removing it would leave the array with
+ * a gap, so `let &xs = [1, 2, 3, 4]` followed by `xs[1] = 20` arrives here as a full literal and a
+ * separate store - and merging the two is what makes the store disappear rather than the element.
+ * That is also what makes the array *dead* where nothing reads it, since the store was its last
+ * mention and `removeDeadBinding` takes it from there.
+ *
+ * ## What bounds it
+ *
+ * A slot past the end would leave a hole, which is a different kind of array on every engine that
+ * has element kinds. A slot below the watermark is a second write to one already folded, and would
+ * land in front of the first. And three orderings have to survive, each a set the value is moved
+ * across: the statements between the declaration and the write, the elements it lands in front of,
+ * and the element it replaces - which is not moved but deleted, so it has to be one nothing misses.
+ *
+ * Statements in between are walked past rather than stopped at, because what a write needs is
+ * routinely declared between the two - `foldInitialValue` crosses them for the same reason. A
+ * statement with a body is where that stops: pricing what it does is a walk of its own.
  */
 bool foldArrayElements(Gen& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
@@ -671,34 +794,63 @@ bool foldArrayElements(Gen& g, StmtList& list, Size index) {
     if(!decl.value || g.base[decl.value]->kind != Expr::Array) return false;
 
     auto& array = *(ArrayExpr*)g.base[decl.value];
-    if(array.values.isNotEmpty()) return false;
-
     auto changed = false;
+    Size filled = 0;
+    Effects prefix;
 
-    while(index + 1 < list.size()) {
-        auto next = g.base[list.get(g.base, index + 1)];
-        if(next->kind != Stmt::Expression) break;
+    // The bindings the walk has passed. A value moving back into the literal moves above their
+    // declarations, so one that reads any of them would read a `var` that is hoisted but not yet
+    // assigned - `var v = [1, x, 3];` above `var x = ...` is a hole rather than a diagnostic, and
+    // the array is left holding `undefined`.
+    SmallArray<Name, 8> declared;
 
-        auto written = g.base[((ExprStmt*)next)->value];
-        if(written->kind != Expr::Assign) break;
+    for(Size at = index + 1; at < list.size();) {
+        auto pointer = list.get(g.base, at);
+        auto stmt = g.base[pointer];
+        auto write = elementWrite(g, stmt, decl.name);
 
-        auto target = g.base[((AssignExpr*)written)->target];
-        if(target->kind != Expr::Index) break;
+        if(!write.matched) {
+            if(stmt->kind != Stmt::Decl && stmt->kind != Stmt::Expression) break;
+            if(mentionsStmt(g, pointer, decl.name)) break;
 
-        auto owner = g.base[((IndexExpr*)target)->array];
-        if(owner->kind != Expr::Var || ((VarExpr*)owner)->name.text != decl.name.text) break;
+            if(stmt->kind == Stmt::Decl) declared.push(((DeclStmt*)stmt)->name);
+            if(auto header = headerOf(g, stmt)) addEffects(g, *header, prefix);
+            at++;
+            continue;
+        }
 
-        auto position = g.base[((IndexExpr*)target)->index];
-        if(position->kind != Expr::Number || !((NumberExpr*)position)->integral) break;
-        if(((NumberExpr*)position)->value != F64(array.values.size())) break;
+        auto size = array.values.size();
+        if(write.slot < 0 || write.slot > F64(size)) break;
 
-        // A value read out of the array it is going into would be reading a slot that does not
-        // exist yet once the write becomes an element.
-        auto value = ((AssignExpr*)written)->value;
-        if(mentions(g, value, decl.name)) break;
+        auto slot = Size(write.slot);
+        if(slot < filled) break;
 
-        array.values.push(g.file.arena, value);
-        list.remove(g.base, index + 1);
+        // A value read out of the array it is going into would be reading a slot that no longer
+        // holds what it held by the time the read is evaluated.
+        if(mentions(g, write.value, decl.name)) break;
+
+        auto reachesBack = false;
+        for(auto name: declared) reachesBack = reachesBack || mentions(g, write.value, name);
+        if(reachesBack) break;
+
+        auto effects = effectsOf(g, write.value);
+        if(!crosses(effects, prefix)) break;
+
+        auto values = itemsOf(g, array.values);
+
+        Effects tail;
+        for(Size i = slot + 1; i < size; i++) addEffects(g, values[i], tail);
+        if(!crosses(effects, tail)) break;
+
+        if(slot < size) {
+            if(!effectsOf(g, values[slot]).inert()) break;
+            values[slot] = write.value;
+        } else {
+            array.values.push(g.file.arena, write.value);
+        }
+
+        list.remove(g.base, at);
+        filled = slot + 1;
         changed = true;
     }
 
@@ -1421,9 +1573,30 @@ bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
 
 bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto changed = false;
-    eachOperand(g, g.base[slot], [&](JsPtr<Expr>& operand, bool) {
-        changed = foldExprs(g, operand, ranges) || changed;
-    });
+    auto expr = g.base[slot];
+
+    /*
+     * An assignment's target is walked one level in, because every rule here rewrites a node into
+     * the value it evaluates to and a target names storage instead.
+     *
+     * `[1, 2, 3][2]` is `3` as a value and is not `3` as a place, so `foldConstantIndex` reaching a
+     * target emitted `3 = 30` - not a program, and rejected by the parser rather than miscompiled,
+     * which is the only reason it was ever going to be found this way. What the target *contains* is
+     * ordinary values again: the array being indexed and the index itself both fold on the usual
+     * terms, and only the node in the assigned position is off limits.
+     */
+    if(expr->kind == Expr::Assign) {
+        auto& assign = *(AssignExpr*)expr;
+        eachOperand(g, g.base[assign.target], [&](JsPtr<Expr>& operand, bool) {
+            changed = foldExprs(g, operand, ranges) || changed;
+        });
+
+        changed = foldExprs(g, assign.value, ranges) || changed;
+    } else {
+        eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) {
+            changed = foldExprs(g, operand, ranges) || changed;
+        });
+    }
 
     // Both are shape rules over one node, so either may expose the other's shape - a folded ternary
     // can become the index of a subscript, and a folded subscript can become a compared operand.

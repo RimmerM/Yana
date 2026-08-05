@@ -227,7 +227,7 @@ fn mapMemory(%size: I64) -> %U8 {
 fn guarded(%id: Int) -> () -> Int {
   b0:
     %g = alloc : Guard
-    init %local0@Guard.id, %id
+    aggregate %local0@Guard.id = %id
     %v3 = alloc heap escaping : {g: Guard}
     %g = move %local0 : Guard
     init %local1.g, %g

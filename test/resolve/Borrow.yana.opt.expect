@@ -43,15 +43,14 @@ fn copyThroughBorrow(%target: Int, %amount: Int) -> () {
 fn main() -> Int {
   b0:
     %v28 = alloc : Point
-    init %here@Point.x, 10
-    init %here@Point.y, 20
-    %v69 = borrow_mut %here@Point.x : &mut Int
-    call +=(Int), %v69, 1
-    %v73 = borrow_mut %here@Point.y : &mut Int
-    call +=(Int), %v73, 2
-    %v48 = load %here@Point.x : Int
-    %v49 = add %v48, 33 : Int
-    %v51 = load %here@Point.y : Int
-    %v52 = add %v49, %v51 : Int
-    ret %v52
+    aggregate %here@Point.x = 10, %here@Point.y = 20
+    %v68 = borrow_mut %here@Point.x : &mut Int
+    call +=(Int), %v68, 1
+    %v72 = borrow_mut %here@Point.y : &mut Int
+    call +=(Int), %v72, 2
+    %v47 = load %here@Point.x : Int
+    %v48 = add %v47, 33 : Int
+    %v50 = load %here@Point.y : Int
+    %v51 = add %v48, %v50 : Int
+    ret %v51
 }

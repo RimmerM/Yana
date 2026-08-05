@@ -22,44 +22,25 @@ function Chunked_Array_a_a_chunks_Int(self, body$c, body$e) {
 }
 
 function Contiguous_Array_a_a_elements_Int(self) {
-  return slice_Int(self, self.length, 0, 0, self.length);
-}
-
-function slice_Int(self$items, self$length, self$offset, from, to) {
-  var start = from;
-  if (from < 0) {
-    start = 0;
+  var v2 = self.length;
+  var v5 = self.length;
+  var start = 0;
+  if (0 > v5) {
+    start = v5;
   }
-  if (start > self$length) {
-    start = self$length;
-  }
-  var end = to;
-  if (to < start) {
+  var end = v2;
+  if (v2 < start) {
     end = start;
   }
-  if (end > self$length) {
-    end = self$length;
+  if (end > v5) {
+    end = v5;
   }
-  var v39 = { items: null, length: 0, offset: 0 };
-  var v43 = end - start | 0;
-  var v46 = self$offset + start | 0;
-  v39.items = self$items;
-  v39.length = v43;
-  v39.offset = v46;
-  return v39;
+  return { items: self, length: end - start | 0, offset: start };
 }
 
 // ResolveTest
 function threeChunks(x) {
-  var v1 = { a: null, b: null, c: null, used: 0 };
-  var v6 = [x, x + 1 | 0];
-  var v19 = [x + 2 | 0, x + 3 | 0];
-  var v32 = [x + 4 | 0, x + 5 | 0];
-  v1.a = v6;
-  v1.b = v19;
-  v1.c = v32;
-  v1.used = 3;
-  return v1;
+  return { a: [x, x + 1 | 0], b: [x + 2 | 0, x + 3 | 0], c: [x + 4 | 0, x + 5 | 0], used: 3 };
 }
 
 function sumChunked(xs) {
@@ -102,18 +83,11 @@ function firstOfEachChunk(xs) {
 }
 
 function main() {
-  var v57 = { a: null, b: null, c: null, used: 0 };
-  var v61 = [1, 2];
-  var v72 = [3, 4];
-  var v83 = [5, 6];
-  v57.a = v61;
-  v57.b = v72;
-  v57.c = v83;
-  v57.used = 3;
-  var v7 = [10, 20, 30];
-  var v33 = (sumChunked(v57) + sumContiguous(v7) | 0) + sumArray([4, 5, 6]) | 0;
-  var v35 = Contiguous_Ring_Int_elements(v7);
-  return (((v33 + total(v35.items, v35.length, v35.offset) | 0) + Contiguous_Ring_Int_elements(v7).length | 0) + firstOver(v57, 3) | 0) + firstOfEachChunk(v57) | 0;
+  var v53 = { a: [1, 2], b: [3, 4], c: [5, 6], used: 3 };
+  var ring = [10, 20, 30];
+  var v29 = (sumChunked(v53) + sumContiguous(ring) | 0) + sumArray([4, 5, 6]) | 0;
+  var v31 = Contiguous_Ring_Int_elements(ring);
+  return (((v29 + total(v31.items, v31.length, v31.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0) + firstOver(v53, 3) | 0) + firstOfEachChunk(v53) | 0;
 }
 
 function Contiguous_Ring_Int_elements(self) {

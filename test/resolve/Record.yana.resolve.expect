@@ -2,9 +2,8 @@ fn held() -> Holder {
   b0:
     %v0 = alloc : Holder
     %v1 = alloc : Box(Int)
-    init %local1@Box.value, 5
-    init %local1@Box.tag, 7
-    init %local0@Holder.box, %v1
+    aggregate %local1@Box.value = 5, %local1@Box.tag = 7
+    aggregate %local0@Holder.box = %v1
     ret %v0
 }
 
@@ -135,13 +134,10 @@ fn makeRect() -> Rect {
   b0:
     %v0 = alloc : Rect
     %v1 = alloc : Vec2
-    init %local1@Vec2.x, 1
-    init %local1@Vec2.y, 2
-    %v6 = alloc : Vec2
-    init %local2@Vec2.x, 3
-    init %local2@Vec2.y, 4
-    init %local0@Rect.origin, %v1
-    init %local0@Rect.size, %v6
+    aggregate %local1@Vec2.x = 1, %local1@Vec2.y = 2
+    %v5 = alloc : Vec2
+    aggregate %local2@Vec2.x = 3, %local2@Vec2.y = 4
+    aggregate %local0@Rect.origin = %v1, %local0@Rect.size = %v5
     ret %v0
 }
 
@@ -240,7 +236,7 @@ fn wrapped() -> Wrapper {
   b0:
     %v0 = alloc : Wrapper
     %v1 = alloc : Inner
-    init %local1@Inner.value, 7
+    aggregate %local1@Inner.value = 7
     init %local0@Wrapper, %v1
     ret %v0
 }
@@ -311,132 +307,123 @@ fn main() -> Int {
   b0:
     %rect = alloc : Rect
     %v2 = alloc : Vec2
-    init %local1@Vec2.x, 1
-    init %local1@Vec2.y, 2
-    %v7 = alloc : Vec2
-    init %local2@Vec2.x, 3
-    init %local2@Vec2.y, 4
-    init %local0@Rect.origin, %v2
-    init %local0@Rect.size, %v7
-    %v14 = call readWrite : Flags
-    %v15 = copy %local3 : Flags
-    %v16 = call movedExec, %v15 : Flags
-    %v17 = call flagBits, %v16 : Int
-    %v18 = call makeRect : Rect
-    %v19 = alloc : Vec2
-    init %local7@Vec2.x, 8
-    init %local7@Vec2.y, 9
-    %v24 = copy %local6 : Rect
-    %v25 = call movedTo, %v24, %v19 : Rect
-    %v26 = load %local9@Rect.origin : Vec2
-    %v27 = load %local9@Rect.origin@Vec2.y : Int
-    %v28 = add %v17, %v27 : Int
-    %v29 = alloc : Vec2
-    init %local10@Vec2.x, 41
-    init %local10@Vec2.y, 0
-    %v34 = copy %local10 : Vec2
-    %v35 = call bumpX, %v34 : Vec2
-    %v36 = load %local12@Vec2.x : Int
-    %v37 = add %v28, %v36 : Int
-    %v38 = call makeRect : Rect
-    %v39 = copy %local13 : Rect
-    %v40 = call movedCorners, %v39 : Rect
-    %v41 = load %local15@Rect.origin : Vec2
-    %v42 = load %local15@Rect.origin@Vec2.x : Int
-    %v43 = add %v37, %v42 : Int
-    %v44 = call makeRect : Rect
-    %v45 = copy %local16 : Rect
-    %v46 = call movedCorners, %v45 : Rect
-    %v47 = load %local18@Rect.size : Vec2
-    %v48 = load %local18@Rect.size@Vec2.y : Int
-    %v49 = add %v43, %v48 : Int
-    %v50 = call movedTemporary : Rect
-    %v51 = load %local19@Rect.origin : Vec2
-    %v52 = load %local19@Rect.origin@Vec2.y : Int
-    %v53 = add %v49, %v52 : Int
-    %v54 = call movedTemporary : Rect
-    %v55 = load %local20@Rect.origin : Vec2
-    %v56 = load %local20@Rect.origin@Vec2.x : Int
-    %v57 = add %v53, %v56 : Int
-    %v58 = alloc : Vec2
-    init %local21@Vec2.x, 0
-    init %local21@Vec2.y, 0
-    %v64 = copy %local21 : Vec2
-    %v65 = call movedWithX, %v64, 6 : Vec2
-    %v66 = load %local23@Vec2.x : Int
-    %moved = add %v57, %v66 : Int
-    %v68 = call none : Flags
-    %v69 = call flagBits, %v68 : Int
-    %v70 = add %moved, %v69 : Int
-    %v71 = call readOnly : Flags
-    %v72 = call flagBits, %v71 : Int
-    %v73 = add %v70, %v72 : Int
-    %v74 = call readWrite : Flags
-    %v75 = call withExec, %v74 : Flags
-    %v76 = call flagBits, %v75 : Int
-    %v77 = add %v73, %v76 : Int
-    %v79 = call translateX, %rect, 5 : Rect
-    %v80 = load %local28@Rect.origin : Vec2
-    %v81 = load %local28@Rect.origin@Vec2.x : Int
-    %v82 = add %v77, %v81 : Int
-    %v83 = alloc : Vec2
-    init %local29@Vec2.x, 8
-    init %local29@Vec2.y, 9
-    %v88 = call moveTo, %rect, %v83 : Rect
-    %v89 = load %local30@Rect.origin : Vec2
-    %v90 = load %local30@Rect.origin@Vec2.y : Int
-    %v91 = add %v82, %v90 : Int
-    %v92 = alloc : {a: Int, b: Int}
-    init %local31.a, 1
-    init %local31.b, 2
-    %v97 = call tupleUpdate, %v92 : Int
-    %v98 = add %v91, %v97 : Int
-    %v99 = call corners, %rect : Rect
-    %v100 = load %local32@Rect.origin : Vec2
-    %v101 = load %local32@Rect.origin@Vec2.x : Int
+    aggregate %local1@Vec2.x = 1, %local1@Vec2.y = 2
+    %v6 = alloc : Vec2
+    aggregate %local2@Vec2.x = 3, %local2@Vec2.y = 4
+    aggregate %local0@Rect.origin = %v2, %local0@Rect.size = %v6
+    %v11 = call readWrite : Flags
+    %v12 = copy %local3 : Flags
+    %v13 = call movedExec, %v12 : Flags
+    %v14 = call flagBits, %v13 : Int
+    %v15 = call makeRect : Rect
+    %v16 = alloc : Vec2
+    aggregate %local7@Vec2.x = 8, %local7@Vec2.y = 9
+    %v20 = copy %local6 : Rect
+    %v21 = call movedTo, %v20, %v16 : Rect
+    %v22 = load %local9@Rect.origin : Vec2
+    %v23 = load %local9@Rect.origin@Vec2.y : Int
+    %v24 = add %v14, %v23 : Int
+    %v25 = alloc : Vec2
+    aggregate %local10@Vec2.x = 41, %local10@Vec2.y = 0
+    %v29 = copy %local10 : Vec2
+    %v30 = call bumpX, %v29 : Vec2
+    %v31 = load %local12@Vec2.x : Int
+    %v32 = add %v24, %v31 : Int
+    %v33 = call makeRect : Rect
+    %v34 = copy %local13 : Rect
+    %v35 = call movedCorners, %v34 : Rect
+    %v36 = load %local15@Rect.origin : Vec2
+    %v37 = load %local15@Rect.origin@Vec2.x : Int
+    %v38 = add %v32, %v37 : Int
+    %v39 = call makeRect : Rect
+    %v40 = copy %local16 : Rect
+    %v41 = call movedCorners, %v40 : Rect
+    %v42 = load %local18@Rect.size : Vec2
+    %v43 = load %local18@Rect.size@Vec2.y : Int
+    %v44 = add %v38, %v43 : Int
+    %v45 = call movedTemporary : Rect
+    %v46 = load %local19@Rect.origin : Vec2
+    %v47 = load %local19@Rect.origin@Vec2.y : Int
+    %v48 = add %v44, %v47 : Int
+    %v49 = call movedTemporary : Rect
+    %v50 = load %local20@Rect.origin : Vec2
+    %v51 = load %local20@Rect.origin@Vec2.x : Int
+    %v52 = add %v48, %v51 : Int
+    %v53 = alloc : Vec2
+    aggregate %local21@Vec2.x = 0, %local21@Vec2.y = 0
+    %v58 = copy %local21 : Vec2
+    %v59 = call movedWithX, %v58, 6 : Vec2
+    %v60 = load %local23@Vec2.x : Int
+    %moved = add %v52, %v60 : Int
+    %v62 = call none : Flags
+    %v63 = call flagBits, %v62 : Int
+    %v64 = add %moved, %v63 : Int
+    %v65 = call readOnly : Flags
+    %v66 = call flagBits, %v65 : Int
+    %v67 = add %v64, %v66 : Int
+    %v68 = call readWrite : Flags
+    %v69 = call withExec, %v68 : Flags
+    %v70 = call flagBits, %v69 : Int
+    %v71 = add %v67, %v70 : Int
+    %v73 = call translateX, %rect, 5 : Rect
+    %v74 = load %local28@Rect.origin : Vec2
+    %v75 = load %local28@Rect.origin@Vec2.x : Int
+    %v76 = add %v71, %v75 : Int
+    %v77 = alloc : Vec2
+    aggregate %local29@Vec2.x = 8, %local29@Vec2.y = 9
+    %v81 = call moveTo, %rect, %v77 : Rect
+    %v82 = load %local30@Rect.origin : Vec2
+    %v83 = load %local30@Rect.origin@Vec2.y : Int
+    %v84 = add %v76, %v83 : Int
+    %v85 = alloc : {a: Int, b: Int}
+    aggregate %local31.a = 1, %local31.b = 2
+    %v89 = call tupleUpdate, %v85 : Int
+    %v90 = add %v84, %v89 : Int
+    %v91 = call corners, %rect : Rect
+    %v92 = load %local32@Rect.origin : Vec2
+    %v93 = load %local32@Rect.origin@Vec2.x : Int
+    %v94 = add %v90, %v93 : Int
+    %v95 = call corners, %rect : Rect
+    %v96 = load %local33@Rect.origin : Vec2
+    %v97 = load %local33@Rect.origin@Vec2.y : Int
+    %v98 = add %v94, %v97 : Int
+    %v99 = call deeper : Rect
+    %v100 = load %local34@Rect.origin : Vec2
+    %v101 = load %local34@Rect.origin@Vec2.x : Int
     %v102 = add %v98, %v101 : Int
-    %v103 = call corners, %rect : Rect
-    %v104 = load %local33@Rect.origin : Vec2
-    %v105 = load %local33@Rect.origin@Vec2.y : Int
+    %v103 = call deeper : Rect
+    %v104 = load %local35@Rect.size : Vec2
+    %v105 = load %local35@Rect.size@Vec2.y : Int
     %v106 = add %v102, %v105 : Int
     %v107 = call deeper : Rect
-    %v108 = load %local34@Rect.origin : Vec2
-    %v109 = load %local34@Rect.origin@Vec2.x : Int
+    %v108 = load %local36@Rect.origin : Vec2
+    %v109 = load %local36@Rect.origin@Vec2.y : Int
     %v110 = add %v106, %v109 : Int
-    %v111 = call deeper : Rect
-    %v112 = load %local35@Rect.size : Vec2
-    %v113 = load %local35@Rect.size@Vec2.y : Int
-    %v114 = add %v110, %v113 : Int
-    %v115 = call deeper : Rect
-    %v116 = load %local36@Rect.origin : Vec2
-    %v117 = load %local36@Rect.origin@Vec2.y : Int
-    %v118 = add %v114, %v117 : Int
-    %v119 = alloc : Vec2
-    init %local37@Vec2.x, 0
-    init %local37@Vec2.y, 0
-    %v125 = call withX, %v119, 6 : Vec2
-    %v126 = load %local38@Vec2.x : Int
-    %v127 = add %v118, %v126 : Int
-    %v128 = call oCreat : OpenFlags
-    %v129 = call flagValue, %v128 : Int
-    %v130 = add %v127, %v129 : Int
-    %v131 = call wrapped : Wrapper
-    %v132 = call unwrapped, %v131 : Int
-    %v133 = add %v130, %v132 : Int
-    %v135 = call directionValue, South : Int
-    %v136 = add %v133, %v135 : Int
-    %v137 = call held : Holder
-    %v138 = call heldTag, %v137 : Int
-    %scalars = add %v136, %v138 : Int
-    %v140 = call nullHandle : Handle
-    %v141 = call handleAddress, %v140 : I64
-    %v142 = alloc : I64
+    %v111 = alloc : Vec2
+    aggregate %local37@Vec2.x = 0, %local37@Vec2.y = 0
+    %v116 = call withX, %v111, 6 : Vec2
+    %v117 = load %local38@Vec2.x : Int
+    %v118 = add %v110, %v117 : Int
+    %v119 = call oCreat : OpenFlags
+    %v120 = call flagValue, %v119 : Int
+    %v121 = add %v118, %v120 : Int
+    %v122 = call wrapped : Wrapper
+    %v123 = call unwrapped, %v122 : Int
+    %v124 = add %v121, %v123 : Int
+    %v126 = call directionValue, South : Int
+    %v127 = add %v124, %v126 : Int
+    %v128 = call held : Holder
+    %v129 = call heldTag, %v128 : Int
+    %scalars = add %v127, %v129 : Int
+    %v131 = call nullHandle : Handle
+    %v132 = call handleAddress, %v131 : I64
+    %v133 = alloc : I64
     init %local43, %slot
-    %v144 = addressof %local43 : %I64
-    %v145 = call boxed, %v144 : Boxed(I64)
-    %v146 = call boxedValue, %v145 : I64
-    %v147 = add %v141, %v146 : I64
-    %v148 = cast %v147 : Int
-    %v149 = add %scalars, %v148 : Int
-    ret %v149
+    %v135 = addressof %local43 : %I64
+    %v136 = call boxed, %v135 : Boxed(I64)
+    %v137 = call boxedValue, %v136 : I64
+    %v138 = add %v132, %v137 : I64
+    %v139 = cast %v138 : Int
+    %v140 = add %scalars, %v139 : Int
+    ret %v140
 }

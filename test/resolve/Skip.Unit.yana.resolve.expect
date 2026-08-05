@@ -31,9 +31,8 @@ fn Try(Maybe(a), a, ()).toOutcome(())(%value: Maybe(())) -> Outcome((), ()) {
   b2:
     alloc
     %v11 = alloc : Outcome((), ())
-    init %local2.discriminant, 0
     load %local1
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -61,17 +60,16 @@ fn findFirst(%n: Int, %body: (found: Int) -> a) -> Maybe(a) {
     %v18 = add %v15, 100 : Int
     assign log, %v18
     %v20 = alloc : Maybe(a)
-    init %local2.discriminant, 1
-    init %local2@Just, %carried
+    aggregate %local2.discriminant = 1, %local2@Just = %carried
     ret %v20
 
   b2:
     jmp b3
 
   b3:
-    %v26 = alloc : Maybe(a)
+    %v25 = alloc : Maybe(a)
     init %local3.discriminant, 0
-    ret %v26
+    ret %v25
 }
 
 fn loopingOut(%n: Int) -> Int {
@@ -257,17 +255,16 @@ fn findFirst(())(%n: Int, %body: (found: Int) -> ()) -> Maybe(()) {
     %v14 = add %v12, 100 : Int
     assign log, %v14
     %v16 = alloc : Maybe(())
-    init %local2.discriminant, 1
-    init %local2@Just, %carried
+    aggregate %local2.discriminant = 1, %local2@Just = %carried
     ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v22 = alloc : Maybe(())
+    %v21 = alloc : Maybe(())
     init %local3.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn ResolveTest.continuation$1(%env: %{seen: &mut Int}, %found: Int) -> () {

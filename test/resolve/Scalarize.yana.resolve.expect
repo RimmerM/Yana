@@ -1,42 +1,39 @@
 fn readOnly() -> Int {
   b0:
     %p = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
+    %v4 = load %local0@Point.x : Int
     %v5 = load %local0@Point.x : Int
-    %v6 = load %local0@Point.x : Int
-    %v7 = mul %v5, %v6 : Int
+    %v6 = mul %v4, %v5 : Int
+    %v7 = load %local0@Point.y : Int
     %v8 = load %local0@Point.y : Int
-    %v9 = load %local0@Point.y : Int
-    %v10 = mul %v8, %v9 : Int
-    %v11 = add %v7, %v10 : Int
-    ret %v11
+    %v9 = mul %v7, %v8 : Int
+    %v10 = add %v6, %v9 : Int
+    ret %v10
 }
 
 fn writable() -> Int {
   b0:
     %v0 = alloc : Point
-    init %p@Point.x, 3
-    init %p@Point.y, 4
-    %v5 = load %p : Point
-    %v6 = load %p@Point.x : Int
-    %v9 = add %v6, 1 : Int
-    assign %p@Point.x, %v9
-    %v11 = load %p : Point
-    %v12 = load %p@Point.x : Int
-    %v13 = load %p : Point
-    %v14 = load %p@Point.y : Int
-    %v15 = add %v12, %v14 : Int
-    ret %v15
+    aggregate %p@Point.x = 3, %p@Point.y = 4
+    %v4 = load %p : Point
+    %v5 = load %p@Point.x : Int
+    %v8 = add %v5, 1 : Int
+    assign %p@Point.x, %v8
+    %v10 = load %p : Point
+    %v11 = load %p@Point.x : Int
+    %v12 = load %p : Point
+    %v13 = load %p@Point.y : Int
+    %v14 = add %v11, %v13 : Int
+    ret %v14
 }
 
 fn passedWhole() -> Int {
   b0:
     %p = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
-    %v5 = call distance, %p : Int
-    ret %v5
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
+    %v4 = call distance, %p : Int
+    ret %v4
 }
 
 fn distance(%it: Point) -> Int {

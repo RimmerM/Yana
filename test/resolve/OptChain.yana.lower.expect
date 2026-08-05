@@ -229,12 +229,12 @@ maybeFn<complex>(%v_0: Ptr, %n: Int) {
 
   b_3 {
     %v_5 = alloca 24, 8: Ptr
-    store %v_5, 1, 4
     %v_6 = alloca 16, 8: Ptr
     store %v_6, funvalue$twice, 8
     %v_7 = bitcast 0: Ptr
     %v_8 = add %v_6, 8: Ptr
     store %v_8, %v_7, 8
+    store %v_5, 1, 4
     %v_9 = add %v_5, 8: Ptr
     copy %v_9, %v_6, 16
     copy %v_0, %v_5, 24
@@ -354,7 +354,6 @@ both<complex>(%v_0: Ptr, %n: Int) {
 parenthesized<complex>(%v_0: Ptr, %n: Int) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
     %v_3 = alloca 20, 4: Ptr
     call_complex node, %v_3, %n
     %v_4 = alloca 20, 4: Ptr
@@ -376,6 +375,7 @@ parenthesized<complex>(%v_0: Ptr, %n: Int) {
     %v_12 = add %v_4, 16: Ptr
     %v_13 = loads %v_12, 4: Int
     call_complex drop$Outcome(Node, ()), %v_4
+    store %v_2, 1, 4
     %v_14 = add %v_2, 4: Ptr
     store %v_14, %v_13, 4
     copy %v_0, %v_2, 8
@@ -410,7 +410,6 @@ node<complex>(%v_0: Ptr, %n: Int) {
 
   b_8 {
     %v_9 = alloca 20, 4: Ptr
-    store %v_9, 1, 4
     %v_10 = alloca 16, 4: Ptr
     %v_11 = alloca 4, 4: Ptr
     %v_12 = imul %n, 2: Int
@@ -422,6 +421,7 @@ node<complex>(%v_0: Ptr, %n: Int) {
     copy %v_10, %v_13, 8
     %v_15 = add %v_10, 12: Ptr
     store %v_15, %n, 4
+    store %v_9, 1, 4
     %v_16 = add %v_9, 4: Ptr
     copy %v_16, %v_10, 16
     copy %v_0, %v_9, 20
@@ -437,8 +437,8 @@ leafFor<complex>(%v_0: Ptr, %n: Int) {
 
   b_3 {
     %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 4
     %v_6 = imul %n, 3: Int
+    store %v_5, 1, 4
     %v_7 = add %v_5, 4: Ptr
     store %v_7, %v_6, 4
     copy %v_0, %v_5, 8
@@ -1100,7 +1100,6 @@ checked<complex>(%v_0: Ptr, %n: Int) {
 
   b_9 {
     %v_10 = alloca 20, 4: Ptr
-    store %v_10, 1, 4
     %v_11 = alloca 16, 4: Ptr
     %v_12 = alloca 4, 4: Ptr
     %v_13 = imul %n, 4: Int
@@ -1112,6 +1111,7 @@ checked<complex>(%v_0: Ptr, %n: Int) {
     copy %v_11, %v_14, 8
     %v_16 = add %v_11, 12: Ptr
     store %v_16, %n, 4
+    store %v_10, 1, 4
     %v_17 = add %v_10, 4: Ptr
     copy %v_17, %v_11, 16
     copy %v_0, %v_10, 20

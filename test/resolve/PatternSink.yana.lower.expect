@@ -6,9 +6,9 @@
 borrowed<complex>(): Long {
   b_0 {
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_2 = add %b, 8: Ptr
     store %v_2, %v_1, 8
     %v_3 = loads @live, 8: Long
@@ -26,9 +26,9 @@ touchBox<complex>(%it: Ptr): Long {
 derived<complex>(): Long {
   b_0 {
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_2 = add %b, 8: Ptr
     store %v_2, %v_1, 8
     %inside = loads @live, 8: Long
@@ -40,55 +40,16 @@ derived<complex>(): Long {
 taken<complex>(%v_0: Ptr) {
   b_1 {
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_2 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_3 = add %b, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = loads %b, 4: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = loads %b, 4: Int
-    %v_9 = cmp_eq %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_6 {
-    %v_12 = add %b, 8: Ptr
+    %v_4 = add %b, 8: Ptr
     %v = alloca 8, 8: Ptr
-    copy %v, %v_12, 8
-    jmp b_13
-  }
-
-  b_11 {
-    call_complex drop$Box, %b
-    call_complex +=(I64), @live, 1
-    %v_14 = alloca 8, 8: Ptr
-    %v_15 = call_complex allocateHeap, 16: Ptr
-    store %v_14, %v_15, 8
-    jmp b_13
-  }
-
-  b_16 {
-    call_complex +=(I64), @live, 1
-    %v_17 = alloca 8, 8: Ptr
-    %v_18 = call_complex allocateHeap, 16: Ptr
-    store %v_17, %v_18, 8
-    jmp b_13
-  }
-
-  b_13 {
-    %v_19 = phi [b_6, %v], [b_16, %v_17], [b_11, %v_14]: Ptr
-    copy %v_0, %v_19, 8
+    copy %v, %v_4, 8
+    copy %v_0, %v, 8
     ret 
-  }
-
-  b_10 {
-    call_complex drop$Box, %b
-    jmp b_16
   }
 }
 
@@ -317,53 +278,20 @@ makeBuffer<complex>(%v_0: Ptr) {
 discarded<complex>(): Long {
   b_0 {
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_2 = add %b, 8: Ptr
     store %v_2, %v_1, 8
     %before = loads @live, 8: Long
-    %v_3 = loads %b, 4: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = loads %b, 4: Int
-    %v_8 = cmp_eq %v_7, 0: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_5 {
-    %v_11 = add %b, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    call_complex freeHeap, %v_12
+    %v_3 = add %b, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    call_complex freeHeap, %v_4
     call_complex -=(I64), @live, 1
-    jmp b_13
-  }
-
-  b_10 {
-    call_complex drop$Box, %b
-    jmp b_13
-  }
-
-  b_14 {
-    jmp b_13
-  }
-
-  b_13 {
-    %arm = phi [b_5, 0], [b_14, 18446744073709551615], [b_10, 18446744073709551614]: Int
-    %v_15 = imul %before, 10: Long
-    %v_16 = loads @live, 8: Long
-    %v_17 = add %v_15, %v_16: Long
-    %v_18 = sext %arm: Long
-    %v_19 = add %v_17, %v_18: Long
-    ret %v_19
-  }
-
-  b_9 {
-    call_complex drop$Box, %b
-    jmp b_14
+    %v_5 = imul %before, 10: Long
+    %v_6 = loads @live, 8: Long
+    %v_7 = add %v_5, %v_6: Long
+    ret %v_7
   }
 }
 
@@ -379,19 +307,19 @@ discarded<complex>(): Long {
 main<complex>(): Long {
   b_0 {
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_2 = add %b, 8: Ptr
     store %v_2, %v_1, 8
     %inside = loads @live, 8: Long
     call_complex drop$Box, %b
     %b = alloca 24, 8: Ptr
-    store %b, 2, 4
     call_complex +=(I64), @live, 1
     %v_3 = call_complex allocateHeap, 16: Ptr
     call_complex +=(I64), @live, 1
     %v_4 = call_complex allocateHeap, 16: Ptr
+    store %b, 2, 4
     %v_5 = add %b, 8: Ptr
     store %v_5, %v_3, 8
     %v_6 = add %b, 16: Ptr
@@ -399,31 +327,49 @@ main<complex>(): Long {
     %inside = loads @live, 8: Long
     call_complex drop$Box, %b
     %b = alloca 24, 8: Ptr
-    store %b, 1, 4
     call_complex +=(I64), @live, 1
     %v_7 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
     %v_8 = add %b, 8: Ptr
     store %v_8, %v_7, 8
     %v_9 = loads @live, 8: Long
     call_complex drop$Box, %b
-    %d = call_complex discarded: Long
-    %taken_ = alloca 8, 8: Ptr
-    call_complex taken, %taken_
-    %v_10 = loads @live, 8: Long
-    %v_11 = load %taken_, 8: Ptr
-    call_complex freeHeap, %v_11
+    %b = alloca 24, 8: Ptr
+    call_complex +=(I64), @live, 1
+    %v_10 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
+    %v_11 = add %b, 8: Ptr
+    store %v_11, %v_10, 8
+    %before = loads @live, 8: Long
+    %v_12 = add %b, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    call_complex freeHeap, %v_13
     call_complex -=(I64), @live, 1
-    %v_12 = imul %inside, 100000: Long
-    %v_13 = imul %inside, 10000: Long
-    %v_14 = add %v_12, %v_13: Long
-    %v_15 = imul %v_9, 1000: Long
+    %v_14 = imul %before, 10: Long
+    %v_15 = loads @live, 8: Long
     %v_16 = add %v_14, %v_15: Long
-    %v_17 = imul %d, 10: Long
-    %v_18 = add %v_16, %v_17: Long
-    %v_19 = add %v_18, %v_10: Long
-    %v_20 = loads @live, 8: Long
-    %v_21 = add %v_19, %v_20: Long
-    ret %v_21
+    %b = alloca 24, 8: Ptr
+    call_complex +=(I64), @live, 1
+    %v_17 = call_complex allocateHeap, 16: Ptr
+    store %b, 1, 4
+    %v_18 = add %b, 8: Ptr
+    store %v_18, %v_17, 8
+    %v_19 = add %b, 8: Ptr
+    %v_20 = load %v_19, 8: Ptr
+    %v_21 = loads @live, 8: Long
+    call_complex freeHeap, %v_20
+    call_complex -=(I64), @live, 1
+    %v_22 = imul %inside, 100000: Long
+    %v_23 = imul %inside, 10000: Long
+    %v_24 = add %v_22, %v_23: Long
+    %v_25 = imul %v_9, 1000: Long
+    %v_26 = add %v_24, %v_25: Long
+    %v_27 = imul %v_16, 10: Long
+    %v_28 = add %v_26, %v_27: Long
+    %v_29 = add %v_28, %v_21: Long
+    %v_30 = loads @live, 8: Long
+    %v_31 = add %v_29, %v_30: Long
+    ret %v_31
   }
 }
 
@@ -439,11 +385,11 @@ main<complex>(): Long {
 derivedBraced<complex>(): Long {
   b_0 {
     %b = alloca 24, 8: Ptr
-    store %b, 2, 4
     call_complex +=(I64), @live, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
     call_complex +=(I64), @live, 1
     %v_2 = call_complex allocateHeap, 16: Ptr
+    store %b, 2, 4
     %v_3 = add %b, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = add %b, 16: Ptr

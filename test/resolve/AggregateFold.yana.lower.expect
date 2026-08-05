@@ -1,0 +1,195 @@
+@log = [0, 0, 0, 0]
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+opaque<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, %n: Int
+    store @log, %v_2, 4
+    %v_3 = cmp_igt %v_2, 1000: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 0
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    ret %n
+  }
+}
+
+later<complex>(%seed: Int): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imm 3: Long
+    %v_4 = alloca 12, 4: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = and %v_6, 18446744072635809792: Int
+    %v_8 = or %v_7, 3: Int
+    %v_9 = and %v_8, 18446744070488326143: Int
+    %v_10 = add %v_1, 8: Ptr
+    store %v_10, %v_9, 4
+    store %v_4, 1, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 2, 4
+    %v_12 = add %v_4, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_1, 12: Ptr
+    store %v_13, 3, 4
+    %v_14 = loads @log, 4: Int
+    %v_15 = add %v_14, %seed: Int
+    store @log, %v_15, 4
+    %v_16 = cmp_igt %v_15, 1000: Int
+    %v = select 0, %seed, %v_16: Int
+    %v_17 = add %v_4, 4: Ptr
+    store %v_17, %v, 4
+    %v_18 = add %v_4, 0: Ptr
+    %v_19 = loads %v_18, 4: Int
+    %v_20 = add %v_4, 4: Ptr
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = add %v_19, %v: Int
+    %v_23 = add %v_4, 8: Ptr
+    %v_24 = loads %v_23, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_25 = add %v_22, %v_24: Int
+    ret %v_25
+  }
+}
+
+readBetween<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imm 3: Long
+    %v_4 = alloca 12, 4: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = and %v_6, 18446744072635809792: Int
+    %v_8 = or %v_7, 3: Int
+    %v_9 = and %v_8, 18446744070488326143: Int
+    %v_10 = add %v_1, 8: Ptr
+    store %v_10, %v_9, 4
+    store %v_4, 1, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 20, 4
+    %v_12 = add %v_4, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_1, 12: Ptr
+    store %v_13, 3, 4
+    %v_14 = add %v_4, 4: Ptr
+    %a = loads %v_14, 4: Int
+    %v_15 = add %v_4, 4: Ptr
+    %v_16 = loads %v_15, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret 22
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
+  }
+}
+
+folds<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imm 3: Long
+    %v_4 = alloca 12, 4: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = and %v_6, 18446744072635809792: Int
+    %v_8 = or %v_7, 3: Int
+    %v_9 = and %v_8, 18446744070488326143: Int
+    %v_10 = add %v_1, 8: Ptr
+    store %v_10, %v_9, 4
+    store %v_4, 1, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 20, 4
+    %v_12 = add %v_4, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_1, 12: Ptr
+    store %v_13, 3, 4
+    %v_14 = add %v_4, 0: Ptr
+    %v_15 = loads %v_14, 4: Int
+    %v_16 = add %v_4, 4: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %v_4, 8: Ptr
+    %v_19 = loads %v_18, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret 24
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex later, 20: Int
+    %v_2 = call_complex readBetween: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex folds: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = loads @log, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    ret %v_7
+  }
+}
+

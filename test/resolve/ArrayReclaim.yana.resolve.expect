@@ -523,20 +523,57 @@ fn frameOnly() -> Int {
     init %local0@Array.run@Run.items, %v7
     init %local0@Array.run@Run.capacity, 3
     init %local0@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
-    init [%v16], 10
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
-    init [%v21], 20
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
-    init [%v26], 30
+    aggregate [%v7][0] = 10, [%v7][1] = 20, [%v7][2] = 30
     init %local0@Array.length, 3
-    %v31 = borrow %local0 : &Array(Int)
+    %v20 = borrow %local0 : &Array(Int)
+    %v21 = load [%v20]@Array.length : @bits(30) U32
+    %v22 = cast 0 : U64
+    %v23 = cast %v21 : U32
+    %v24 = cast %v23 : U64
+    %v25 = cmp_ge %v22, %v24 : Bool
+    call checkCondition, %v25
+    %v27 = load [%v20]@Array.run@Run.items : %Int
+    %v28 = strideof Int : Long
+    %v29 = mul 0, %v28 : Long
+    %v30 = add %v27, %v29 : %Int
+    %v31 = borrow [%v30] : &Int
+    %v32 = load [%v31] : Int
+    %v35 = borrow %local0 : &Array(Int)
+    %v36 = load [%v35]@Array.length : @bits(30) U32
+    %v37 = cast 2 : U64
+    %v38 = cast %v36 : U32
+    %v39 = cast %v38 : U64
+    %v40 = cmp_ge %v37, %v39 : Bool
+    call checkCondition, %v40
+    %v42 = load [%v35]@Array.run@Run.items : %Int
+    %v43 = strideof Int : Long
+    %v44 = mul 2, %v43 : Long
+    %v45 = add %v42, %v44 : %Int
+    %v46 = borrow [%v45] : &Int
+    %v47 = load [%v46] : Int
+    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    %v48 = add %v32, %v47 : Int
+    ret %v48
+}
+
+fn grown() -> Int {
+  b0:
+    %v3 = alloc : Array(Int)
+    %v6 = alloc *3 : Int
+    %v7 = addressof %local1 : %Int
+    init %xs@Array.run@Run.items, %v7
+    init %xs@Array.run@Run.capacity, 3
+    init %xs@Array.run@Run.ownsHeap, 0
+    aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
+    init %xs@Array.length, 3
+    %v18 = load %xs : Array(Int)
+    %v21 = borrow_mut %xs : &mut Array(Int)
+    call push(Int), %v21, 4
+    %v23 = load %xs : Array(Int)
+    %v26 = borrow_mut %xs : &mut Array(Int)
+    call push(Int), %v26, 5
+    %v28 = load %xs : Array(Int)
+    %v31 = borrow %xs : &Array(Int)
     %v32 = load [%v31]@Array.length : @bits(30) U32
     %v33 = cast 0 : U64
     %v34 = cast %v32 : U32
@@ -549,74 +586,15 @@ fn frameOnly() -> Int {
     %v41 = add %v38, %v40 : %Int
     %v42 = borrow [%v41] : &Int
     %v43 = load [%v42] : Int
-    %v46 = borrow %local0 : &Array(Int)
-    %v47 = load [%v46]@Array.length : @bits(30) U32
-    %v48 = cast 2 : U64
-    %v49 = cast %v47 : U32
-    %v50 = cast %v49 : U64
-    %v51 = cmp_ge %v48, %v50 : Bool
-    call checkCondition, %v51
-    %v53 = load [%v46]@Array.run@Run.items : %Int
-    %v54 = strideof Int : Long
-    %v55 = mul 2, %v54 : Long
-    %v56 = add %v53, %v55 : %Int
-    %v57 = borrow [%v56] : &Int
-    %v58 = load [%v57] : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v59 = add %v43, %v58 : Int
-    ret %v59
-}
-
-fn grown() -> Int {
-  b0:
-    %v3 = alloc : Array(Int)
-    %v6 = alloc *3 : Int
-    %v7 = addressof %local1 : %Int
-    init %xs@Array.run@Run.items, %v7
-    init %xs@Array.run@Run.capacity, 3
-    init %xs@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
-    init [%v16], 1
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
-    init [%v21], 2
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
-    init [%v26], 3
-    init %xs@Array.length, 3
-    %v29 = load %xs : Array(Int)
-    %v32 = borrow_mut %xs : &mut Array(Int)
-    call push(Int), %v32, 4
-    %v34 = load %xs : Array(Int)
-    %v37 = borrow_mut %xs : &mut Array(Int)
-    call push(Int), %v37, 5
-    %v39 = load %xs : Array(Int)
-    %v42 = borrow %xs : &Array(Int)
-    %v43 = load [%v42]@Array.length : @bits(30) U32
-    %v44 = cast 0 : U64
-    %v45 = cast %v43 : U32
-    %v46 = cast %v45 : U64
-    %v47 = cmp_ge %v44, %v46 : Bool
-    call checkCondition, %v47
-    %v49 = load [%v42]@Array.run@Run.items : %Int
-    %v50 = strideof Int : Long
-    %v51 = mul 0, %v50 : Long
-    %v52 = add %v49, %v51 : %Int
-    %v53 = borrow [%v52] : &Int
-    %v54 = load [%v53] : Int
-    %v55 = load %xs : Array(Int)
-    %v56 = load %xs@Array.length : @bits(30) U32
+    %v44 = load %xs : Array(Int)
+    %v45 = load %xs@Array.length : @bits(30) U32
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v57 = cast %v56 : U32
-    %v58 = cast %v57 : I64
-    %v59 = cast %v54 : I64
-    %v60 = add %v59, %v58 : I64
-    %v61 = cast %v60 : Int
-    ret %v61
+    %v46 = cast %v45 : U32
+    %v47 = cast %v46 : I64
+    %v48 = cast %v43 : I64
+    %v49 = add %v48, %v47 : I64
+    %v50 = cast %v49 : Int
+    ret %v50
 }
 
 fn boundMutable() -> Int {
@@ -627,35 +605,24 @@ fn boundMutable() -> Int {
     init %xs@Array.run@Run.items, %v7
     init %xs@Array.run@Run.capacity, 3
     init %xs@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
-    init [%v16], 4
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
-    init [%v21], 5
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
-    init [%v26], 6
+    aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 6
     init %xs@Array.length, 3
-    %v29 = load %xs : Array(Int)
-    %v32 = borrow %xs : &Array(Int)
-    %v33 = load [%v32]@Array.length : @bits(30) U32
-    %v34 = cast 1 : U64
-    %v35 = cast %v33 : U32
-    %v36 = cast %v35 : U64
-    %v37 = cmp_ge %v34, %v36 : Bool
-    call checkCondition, %v37
-    %v39 = load [%v32]@Array.run@Run.items : %Int
-    %v40 = strideof Int : Long
-    %v41 = mul 1, %v40 : Long
-    %v42 = add %v39, %v41 : %Int
-    %v43 = borrow [%v42] : &Int
-    %v44 = load [%v43] : Int
+    %v18 = load %xs : Array(Int)
+    %v21 = borrow %xs : &Array(Int)
+    %v22 = load [%v21]@Array.length : @bits(30) U32
+    %v23 = cast 1 : U64
+    %v24 = cast %v22 : U32
+    %v25 = cast %v24 : U64
+    %v26 = cmp_ge %v23, %v25 : Bool
+    call checkCondition, %v26
+    %v28 = load [%v21]@Array.run@Run.items : %Int
+    %v29 = strideof Int : Long
+    %v30 = mul 1, %v29 : Long
+    %v31 = add %v28, %v30 : %Int
+    %v32 = borrow [%v31] : &Int
+    %v33 = load [%v32] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    ret %v44
+    ret %v33
 }
 
 fn main() -> Int {

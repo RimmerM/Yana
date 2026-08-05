@@ -1284,6 +1284,65 @@ void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchang
  * first is a literal and the second names a global constructor, which is the one place a host
  * *name* reaches the emitted text, and it reaches it from the same `method` field.
  */
+// The plan, carried out. Nothing where the shape declines, and the caller then stores component by
+// component - which is also what the allocation did, since the two read one plan.
+bool buildWholeLocal(Gen& g, InstAggregate& aggregate) {
+    auto& place = aggregate.place;
+    if(place.root != PlaceRoot::Local) return false;
+    if(place.local >= g.builtWhole.size() || !g.builtWhole[place.local]) return false;
+
+    auto plan = wholeLocalPlan(g, aggregate);
+    if(!plan.eligible) return false;
+
+    emitExpr(g, assign(g, placeExpr(g, place), buildFromPlan(g, aggregate, plan)));
+    return true;
+}
+
+/*
+ * The elements of a literal - see InstAggregate.
+ *
+ * Two forms, and which one is emitted turns on a single question about the run's own value: an
+ * aggregate written through a `hostarray` **is** that array's contents, because the instruction that
+ * made it is right there and made it empty. So the whole thing is one literal, assigned to the name
+ * the `hostarray` was bound to - and `foldInitialValue` in opt.cpp then collapses `var v = [];
+ * v = [1, 2, 3];` into the declaration, on the same general rule that collapses a zeroed record.
+ *
+ * That is the shape §2.3 asks for and the one every engine specializes on. Writing the elements
+ * afterwards instead walks the element-kind transitions a literal skips, which is what the peephole
+ * over the emitted tree used to have to undo by matching a run of index writes.
+ *
+ * Anything else - a `[T *n]` whose storage already exists, an array reached through something other
+ * than its own construction - is filled element by element, which is what it means for storage to
+ * be there before the values are.
+ */
+void genAggregate(Gen& g, InstAggregate& aggregate) {
+    auto whole = aggregate.place.projections.isEmpty();
+
+    if(whole && aggregate.place.root == PlaceRoot::Pointer) {
+        auto base = g.local[aggregate.place.pointer];
+
+        if(base->kind == Value::Native && ((InstNative*)base)->op == NativeOp::HostArray) {
+            auto elements = make<ArrayExpr>(g);
+
+            eachAggregateComponent(g.local, aggregate,
+                                   [&](const AggregateComponent& component, Size) {
+                elements->values.push(g.file.arena, useValue(g, component.value));
+            });
+
+            emitExpr(g, assign(g, useValue(g, aggregate.place.pointer), asExpr(g, elements)));
+            return;
+        }
+    }
+
+    if(buildWholeLocal(g, aggregate)) return;
+
+    eachWrittenComponent(g.local, g.program.arena, aggregate,
+                         [&](Place place, ModulePtr<Value> value, Size) {
+        if(isUnit(g.global, g.local[value]->type)) return;
+        storeInto(g, place, g.local[value]->type, value);
+    });
+}
+
 void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& native) {
     auto args = native.args;
     auto member = [&]() -> Name {
@@ -1410,6 +1469,164 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
 
 } // namespace
 
+// Declared in build.h, which is where the reasoning lives: two callers read this and they must
+// not disagree. At js scope rather than in the anonymous namespace above because gen.cpp is the
+// other one.
+AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
+    AggregateBuildPlan plan;
+
+    auto& place = aggregate.place;
+    if(place.root != PlaceRoot::Local || place.projections.size() > 1) return plan;
+
+    auto type = g.function->localAt(g.local, place.local).type;
+    if(!type) return plan;
+
+    /*
+     * A `[T *n]`, which is a host array here - the same literal a growable one is built as, and the
+     * elements are every slot the type has by construction: the resolver rejects a literal whose
+     * length disagrees with the type's before this is reached.
+     */
+    if(g.global[type]->kind == Type::Array) {
+        if(place.projections.isNotEmpty()) return plan;
+        if(aggregate.components.size() != ((ArrayType*)g.global[type])->length) return plan;
+
+        auto stepped = true;
+        eachAggregateComponent(g.local, aggregate, [&](const AggregateComponent& component, Size) {
+            stepped = stepped && component.step.kind == ProjectionKind::Index;
+        });
+
+        if(!stepped) return plan;
+
+        plan.kind = AggregateBuildPlan::Array;
+        plan.eligible = true;
+        return plan;
+    }
+
+    if(!isJsObject(g, type)) return plan;
+
+    auto record = recordType(g, type);
+
+    // The tuple whose fields a `Field` step names: the constructor's payload where the aggregate
+    // steps through one, and otherwise whatever the place already arrives at.
+    auto content = aggregate.constructor != maxLimit<U16> && record &&
+                   aggregate.constructor < record->constructors.size()
+        ? record->constructors.get(g.global, aggregate.constructor).content
+        : placeType(g, place);
+
+    /*
+     * Which property each component fills, by name.
+     *
+     * Names rather than positions, because the two do not line up for a sum: the object carries
+     * *every* constructor's properties - one hidden class for the type, which is what §2.3 buys -
+     * and a construction supplies one constructor's. So the components are named here and the
+     * literal is assembled by walking the type's own properties.
+     */
+    auto declined = false;
+
+    eachAggregateComponent(g.local, aggregate, [&](const AggregateComponent& component, Size at) {
+        if(declined) return;
+
+        auto step = component.step;
+        auto named = [&](Name key) { plan.filled.push(AggregateBuildPlan::Filled { key, at }); };
+
+        if(step.kind == ProjectionKind::Discriminant) {
+            named(g.tagField);
+            return;
+        }
+
+        if(step.kind == ProjectionKind::Downcast) {
+            /*
+             * A payload written whole. It is one property only where `payloadIsOneProperty` says
+             * so - a flattened tuple payload is several, and one value cannot fill several without
+             * taking the record apart, which is a store per field and not this.
+             */
+            auto payload = record && step.index < record->constructors.size()
+                ? record->constructors.get(g.global, step.index).content
+                : nullptr;
+
+            if(!payload || isUnit(g.global, payload) || !payloadIsOneProperty(g, payload)) {
+                declined = true;
+                return;
+            }
+
+            named(g.payloadField);
+            return;
+        }
+
+        if(step.kind != ProjectionKind::Field || !content ||
+           g.global[content]->kind != Type::Tup) {
+            declined = true;
+            return;
+        }
+
+        auto property = fieldProperty(g, content, step.index);
+        if(!property.leader || property.fun) {
+            declined = true;
+            return;
+        }
+
+        named(property.name);
+    });
+
+    if(declined) return plan;
+
+    /*
+     * Every component has to name a property the type has. One that does not - a co-packed field is
+     * the shape - would be dropped from the literal, which is a wrong value rather than a slow one.
+     */
+    Size found = 0;
+    eachProperty(g, type, [&](Name key, TypePtr) {
+        for(auto& filled: plan.filled) {
+            if(filled.key.text == key.text) { found++; return; }
+        }
+    });
+
+    if(found != plan.filled.size()) return plan;
+
+    plan.kind = AggregateBuildPlan::Object;
+    plan.type = type;
+    plan.eligible = true;
+    return plan;
+}
+
+JsPtr<Expr> buildFromPlan(Gen& g, InstAggregate& aggregate, const AggregateBuildPlan& plan) {
+    auto value = [&](Size at) {
+        return useValue(g, aggregate.components.get(g.local, at).value);
+    };
+
+    if(plan.kind == AggregateBuildPlan::Array) {
+        auto elements = make<ArrayExpr>(g);
+        for(Size i = 0; i < aggregate.components.size(); i++) {
+            elements->values.push(g.file.arena, value(i));
+        }
+
+        return asExpr(g, elements);
+    }
+
+    /*
+     * The literal, in the type's own property order - which is the order every other value of the
+     * type is built in, and the whole point of building one here rather than assigning properties.
+     *
+     * A property no component fills is one this construction does not reach: the tag of a record
+     * that has none, and the payload of every constructor other than the one being built. Those are
+     * the zeros that stay, and they are why `zeroValue` is not gone - see build.h.
+     */
+    auto object = make<ObjectExpr>(g);
+
+    eachProperty(g, plan.type, [&](Name key, TypePtr member) {
+        for(auto& filled: plan.filled) {
+            if(filled.key.text != key.text) continue;
+
+            object->properties.push(g.file.arena, Property { key, value(filled.at) });
+            return;
+        }
+
+        object->properties.push(g.file.arena, Property { key, zeroValue(g, member) });
+    });
+
+    return asExpr(g, object);
+}
+
 JsPtr<Expr> functionValue(Gen& g, ModulePtr<Function> callee, LocationId where) {
     if(g.excluded.contains(U32(callee))) {
         g.context.diagnostics.error("%@ cannot be compiled for the JS target - it is `Native`, or it reaches something that is"_v,
@@ -1476,6 +1693,26 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 parts.env = variable(g, env);
 
                 g.funParts.add(U32(value), parts);
+                break;
+            }
+
+            /*
+             * Storage an `InstAggregate` builds whole, which is declared holding nothing.
+             *
+             * `var v;` rather than a manufactured value of the type, because the aggregate assigns a
+             * complete literal before anything reads the local and `foldInitialValue` in opt.cpp
+             * then collapses the two into the declaration. The binding is still declared, which is
+             * what keeps the assignment from being an implicit global under a strict-mode script;
+             * what it holds until then is `undefined`, over a stretch the IR says nothing reads.
+             *
+             * This is what `zeroValue` was for at an allocation, and why removing it matters is not
+             * the statement it saves: a fresh value has to be built out of the type's own shape, and
+             * a type reached across an abstraction boundary has none this side of it to build from -
+             * see InstAggregate. A boxed local still gets its box, since that is the storage rather
+             * than a value of the type, and its one property is written the same way.
+             */
+            if(allocation.local < g.builtWhole.size() && g.builtWhole[allocation.local]) {
+                define(g, value, boxed ? boxOf(g, nullValue(g)) : nullptr);
                 break;
             }
 
@@ -1562,6 +1799,17 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             storeInto(g, init.place, g.local[init.value]->type, init.value);
             break;
         }
+        /*
+         * The elements of a literal, one write each - see InstAggregate.
+         *
+         * Deliberately the same text the per-element `Init`s produced, because this step is a
+         * refactor and the fixtures are what says so: the literal this could be emitting instead is
+         * the next change, and one that alters no output is one whose ownership and folding
+         * behaviour can be compared against the build before it.
+         */
+        case Value::Aggregate:
+            genAggregate(g, (InstAggregate&)instruction);
+            break;
         case Value::Borrow:
             // Whether the reference names a slot or is the box that stands in for an address is
             // decided by which of the two a `&T` and a `%T` are - see refIsTriple. The borrow's

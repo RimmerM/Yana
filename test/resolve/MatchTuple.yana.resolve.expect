@@ -121,51 +121,49 @@ fn main() -> Int {
 
   b1:
     %v5 = alloc : Held
-    init %local1@Held.n, 3
+    aggregate %local1@Held.n = 3
     %a = alloc : Maybe(Held)
-    init %local2.discriminant, 1
-    init %local2@Just, %v5
-    %v12 = alloc : Held
-    init %local3@Held.n, 4
+    aggregate %local2.discriminant = 1, %local2@Just = %v5
+    %v11 = alloc : Held
+    aggregate %local3@Held.n = 4
     %b = alloc : Maybe(Held)
-    init %local4.discriminant, 1
-    init %local4@Just, %v12
-    %v19 = call sameMaybe, %a, %b : Bool
-    je %v19, b3, b4
+    aggregate %local4.discriminant = 1, %local4@Just = %v11
+    %v17 = call sameMaybe, %a, %b : Bool
+    je %v17, b3, b4
 
   b2:
     jmp b6
 
   b3:
-    %v21 = load %total : Int
-    %v24 = add %v21, 1000 : Int
-    assign %total, %v24
+    %v19 = load %total : Int
+    %v22 = add %v19, 1000 : Int
+    assign %total, %v22
     jmp b5
 
   b4:
     jmp b5
 
   b5:
-    %v28 = load %total : Int
-    %v30 = call ordered, %a, %b, 0 : Int
+    %v26 = load %total : Int
+    %v28 = call ordered, %a, %b, 0 : Int
     drop_derived %local2 via drop$Maybe(Held)
     drop_derived %local4 via drop$Maybe(Held)
-    %v31 = add %v28, %v30 : Int
-    assign %total, %v31
+    %v29 = add %v26, %v28 : Int
+    assign %total, %v29
     jmp b6
 
   b6:
-    %v35 = load %total : Int
-    %v36 = load drops : Int
-    %v39 = mul %v36, 10 : Int
-    %v40 = add %v35, %v39 : Int
-    assign %total, %v40
-    %v42 = load %total : Int
-    %v45 = call labelled, 2, 5 : Int
-    %v46 = add %v42, %v45 : Int
-    assign %total, %v46
-    %v48 = load %total : Int
-    ret %v48
+    %v33 = load %total : Int
+    %v34 = load drops : Int
+    %v37 = mul %v34, 10 : Int
+    %v38 = add %v33, %v37 : Int
+    assign %total, %v38
+    %v40 = load %total : Int
+    %v43 = call labelled, 2, 5 : Int
+    %v44 = add %v40, %v43 : Int
+    assign %total, %v44
+    %v46 = load %total : Int
+    ret %v46
 }
 
 fn Drop(Held).drop(%self: Held) -> () {

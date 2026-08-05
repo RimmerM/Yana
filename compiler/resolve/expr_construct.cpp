@@ -501,6 +501,126 @@ void ExprResolver::assign(Place place, ModulePtr<Value> value, LocationId source
 }
 
 /*
+ * Every element of a run, as one instruction - see InstAggregate.
+ *
+ * Built with `create`/`append` rather than `emit` because `convert` may emit instructions of its
+ * own, and those have to land in front of the thing that consumes them. That is the whole reason
+ * the two-phase form exists.
+ *
+ * Nothing is emitted for an empty literal or a unit element, which is the same silence `write`
+ * keeps for a unit place: there are no bytes, so there is no store and no hand-over.
+ */
+void ExprResolver::buildAggregate(Place place, TypePtr element, Buffer<ModulePtr<Value>> values,
+                                  TypePtr indexType, LocationId source) {
+    if(values.size() == 0 || isUnit(global, element)) return;
+
+    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, place);
+
+    for(Size i = 0; i < values.size(); i++) {
+        auto value = convert(values[i], element, source);
+        if(!value) continue;
+
+        aggregate->components.push(module.arena, AggregateComponent {
+            Projection { ProjectionKind::Index, 0, makeInt(source, indexType, i) }, value });
+    }
+
+    append(aggregate);
+}
+
+/*
+ * The same for a record or a tuple, whose components are fields rather than elements.
+ *
+ * Answers false where the construction is not one instruction after all, and the caller writes the
+ * fields one at a time instead. Two shapes decline:
+ *
+ *  - a **boxed** field, whose value lives on the far side of a pointer this construction has to
+ *    allocate. `write` creates that box, and doing it from here would be an allocation buried inside
+ *    an instruction that claims to be `n` stores.
+ *  - a **co-packed** field, which is a bit range of a word it shares with its neighbours rather than
+ *    storage of its own. Writing one is a read-modify-write that `expandPacking` turns into
+ *    arithmetic over the whole word, and it reaches those writes by recognizing an `Init` - a record
+ *    written as one instruction would keep its unit word out of that expansion and out of the zero
+ *    the expansion publishes for it, which is uninitialized bits rather than a missed optimization.
+ *    Nothing is lost by declining: a co-packed record's representation is a *number*, so a managed
+ *    target's fresh one is `0` rather than a manufactured instance of anything, which is the whole
+ *    reason this instruction exists.
+ *
+ * Nothing is converted here, for the same reason `initialize` converts nothing: the values arrive
+ * resolved against the field types, and a conversion that did emit instructions would have to land
+ * in front of an aggregate that is already holding the values it produced.
+ *
+ * A **unit** field has no storage, so it is left out and the fields after it keep their numbers -
+ * which is exactly why the steps are stored rather than counted off.
+ *
+ * `constructor` and `tag` are the sum form. The place is then the value itself rather than the
+ * payload, the fields are reached through that constructor, and the discriminant is a component like
+ * any other - so `Just(4)` is one instruction rather than a tag store and a payload store. `tag` is
+ * null where the record has one constructor and there is no discriminant to write.
+ */
+bool ExprResolver::buildFieldAggregate(Place place, TupType& tuple, Buffer<ModulePtr<Value>> values,
+                                       LocationId source, U16 constructor, ModulePtr<Value> tag) {
+    if(values.size() == 0 && !tag) return false;
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(tuple.fields.get(global, i).boxed) return false;
+        if(packCandidate(global, tuple, U16(i))) return false;
+    }
+
+    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, place);
+    aggregate->constructor = constructor;
+
+    // In front of the fields, which is the order the stores it replaces were in and the order a
+    // target that builds the value whole wants them: a discriminant is the first thing about a sum.
+    if(tag) {
+        aggregate->components.push(module.arena, AggregateComponent {
+            Projection { ProjectionKind::Discriminant, 0, nullptr }, tag });
+    }
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i] || isUnit(global, tuple.fields.get(global, i).type)) continue;
+
+        aggregate->components.push(module.arena, AggregateComponent {
+            Projection { ProjectionKind::Field, U16(i), nullptr }, values[i] });
+    }
+
+    if(aggregate->components.size() == 0) return true;
+
+    append(aggregate);
+    return true;
+}
+
+/*
+ * The same for a constructor carrying one value rather than a tuple of them - `Just(4)`.
+ *
+ * The payload's step is the `Downcast` itself, which is why `aggregateElement` takes a `Downcast`
+ * off the value directly instead of through the constructor: what is being written is the payload as
+ * a whole, and the constructor is how it is reached rather than something inside it.
+ *
+ * Declines a **boxed** constructor for the reason the field form declines a boxed field - the box is
+ * an allocation `write` performs, and burying one inside an instruction that claims to be `n` stores
+ * is not what it says on the tin.
+ */
+bool ExprResolver::buildSumAggregate(Place root, TypePtr recordType, U16 constructor,
+                                     ModulePtr<Value> tag, ModulePtr<Value> payload,
+                                     LocationId source) {
+    if(!payload || !tag) return false;
+
+    auto& record = *(RecordType*)global[recordType];
+    if(constructor >= record.constructors.size()) return false;
+    if(record.constructors.get(global, constructor).boxed) return false;
+
+    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, root);
+
+    aggregate->components.push(module.arena, AggregateComponent {
+        Projection { ProjectionKind::Discriminant, 0, nullptr }, tag });
+    aggregate->components.push(module.arena, AggregateComponent {
+        Projection { ProjectionKind::Downcast, constructor, nullptr }, payload });
+
+    append(aggregate);
+    return true;
+}
+
+/*
  * The allocation an indirect edge needs, and where it comes from.
  *
  * "Construction allocates": `Cons {head: x, tail: rest}` performs an allocation nothing in the
@@ -955,7 +1075,7 @@ ModulePtr<Value> ExprResolver::addressOf(Place place, LocationId source, StringI
 // declaration gave it, and is an error where there is none - `defaults` is empty for an anonymous
 // tuple, which has no declaration to have written one in.
 bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> astArgs,
-                             GlobalList<FieldDefault>* defaults, LocationId source) {
+                             GlobalList<FieldDefault>* defaults, LocationId source, SumOwner sum) {
     auto args = astArgs.contents(parse);
 
     ValueList values;
@@ -1001,23 +1121,45 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
     }
 
     for(Size i = 0; i < values.size(); i++) {
-        if(!values[i]) {
-            auto field = tuple.fields.get(global, i);
+        if(values[i]) continue;
 
-            if(auto def = fieldDefault(defaults, U16(i))) {
-                values[i] = constantBits(field.type, def.unwrap(), source);
-            } else if(field.name) {
-                context.diagnostics.error("no value provided for field %@"_v, source,
-                                          context.findName(field.name));
-                success = false;
-                continue;
-            } else {
-                context.diagnostics.error("no value provided for tuple field"_v, source);
-                success = false;
-                continue;
-            }
+        auto field = tuple.fields.get(global, i);
+
+        if(auto def = fieldDefault(defaults, U16(i))) {
+            values[i] = constantBits(field.type, def.unwrap(), source);
+        } else if(field.name) {
+            context.diagnostics.error("no value provided for field %@"_v, source,
+                                      context.findName(field.name));
+            success = false;
+        } else {
+            context.diagnostics.error("no value provided for tuple field"_v, source);
+            success = false;
+        }
+    }
+
+    /*
+     * The whole construction as one instruction where it can be - see buildFieldAggregate, which
+     * says which fields decline. Tried before the stores rather than instead of them, so a shape it
+     * will not take is written the way it always was.
+     *
+     * `owner` is the sum form: the aggregate is over the value rather than over the payload, so that
+     * the discriminant is one of its components. The stores below are unchanged either way, since
+     * `place` is the payload's place in both.
+     */
+    if(sum.tag) {
+        if(buildFieldAggregate(sum.owner, tuple, toBuffer(values), source, sum.constructor, sum.tag)) {
+            return success;
         }
 
+        // Declined, so the discriminant is a store again - and it lands here rather than in front of
+        // the arguments, which is where it was written before there was anything to try.
+        if(sum.tag) initialize(project(sum.owner, ProjectionKind::Discriminant, 0), sum.tag, source);
+    } else if(buildFieldAggregate(place, tuple, toBuffer(values), source)) {
+        return success;
+    }
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
         initialize(project(place, ProjectionKind::Field, U16(i)), values[i], source);
     }
 
@@ -1233,17 +1375,67 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     auto result = allocate(recordType, expr.source);
     auto root = placeFor(result, expr.source);
 
-    if(record->layout == RecordType::Multi) {
-        auto discriminant = makeInt(expr.source, module.scalar.int_, reference.index);
-        initialize(project(root, ProjectionKind::Discriminant, 0), discriminant, expr.source);
+    /*
+     * The discriminant, held back rather than written here.
+     *
+     * A sum is one construction - the tag and the payload are what `Just(4)` writes, and both go into
+     * one `InstAggregate` where the shape allows it. So the value is made now and the *store* belongs
+     * to whichever branch below handles the payload, since only that branch knows whether there is an
+     * aggregate for it to be a component of. `writeTag` is the store, for every branch that has no
+     * aggregate to offer.
+     */
+    ModulePtr<Value> tag = record->layout == RecordType::Multi
+        ? makeInt(expr.source, module.scalar.int_, reference.index)
+        : nullptr;
+
+    /*
+     * And whether the payload is reachable by one `Downcast` at all, which a **boxed** constructor is
+     * not: `project` appends the `Deref` that follows the box, and `aggregateElement` pushes the step
+     * itself. So a boxed constructor keeps the tag as its own store, and the payload is written into
+     * the place that already has the box followed - which is what `write` allocates it in.
+     */
+    /*
+     * And a record narrow enough that its tag may share a word with a payload, which is the sum's
+     * version of the co-packed field `buildFieldAggregate` declines.
+     *
+     * A bit tag is written the way a packed field is - the word is read, the tag's bits are replaced,
+     * and the payload sharing it comes back unchanged - and `expandPacking` reaches those writes by
+     * recognizing an `Init`. Asked as `isNarrowValue` because the resolver has no Repr to ask: which
+     * sums get a bit tag is a representation decision taken later, and this is the widest syntactic
+     * shape that can receive one. `ScalarRecord.yana` measured the difference as twenty-three lowered
+     * instructions, all of them constructions that stopped folding.
+     */
+    if(tag && isNarrowValue(global, recordType)) {
+        initialize(project(root, ProjectionKind::Discriminant, 0), tag, expr.source);
+        tag = nullptr;
     }
+
+    if(tag && constructor.boxed) {
+        initialize(project(root, ProjectionKind::Discriminant, 0), tag, expr.source);
+        tag = nullptr;
+    }
+
+    auto writeTag = [&]() {
+        if(tag) initialize(project(root, ProjectionKind::Discriminant, 0), tag, expr.source);
+    };
 
     auto content = constructor.content;
     auto contentPlace = project(root, ProjectionKind::Downcast, reference.index);
 
+    // A payload carried whole, which is one component beside the tag - see buildSumAggregate.
+    auto writePayload = [&](ModulePtr<Value> value) {
+        if(buildSumAggregate(root, recordType, reference.index, tag, value, expr.source)) return;
+
+        writeTag();
+        initialize(contentPlace, value, expr.source);
+    };
+
     if(!content) {
+        writeTag();
         if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
     } else if(isUnit(global, content)) {
+        writeTag();
+
         /*
          * A constructor whose payload is unit, which is `Just(x)` at `a = {}` rather than anything
          * anyone declares that way. There is nothing to write - the field occupies nothing - but the
@@ -1266,20 +1458,28 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     } else if(inferredValues.isNotEmpty()) {
         // The arguments were already resolved to infer the type; only the writes are left.
         if(global[content]->kind == Type::Tup && inferredValues.size() > 1) {
-            auto tuple = (TupType*)global[content];
+            auto& tuple = *(TupType*)global[content];
 
-            for(Size i = 0; i < inferredValues.size() && i < tuple->fields.size(); i++) {
-                auto expected = tuple->fields.get(global, i).type;
-                auto value = isMemoryType(global, expected) ? inferredValues[i]
-                                                            : convert(inferredValues[i], expected, expr.source);
+            ValueList values;
+            for(Size i = 0; i < inferredValues.size() && i < tuple.fields.size(); i++) {
+                auto expected = tuple.fields.get(global, i).type;
+                values.push(isMemoryType(global, expected)
+                    ? inferredValues[i]
+                    : convert(inferredValues[i], expected, expr.source));
+            }
 
-                initialize(project(contentPlace, ProjectionKind::Field, U16(i)), value, expr.source);
+            auto built = tag && buildFieldAggregate(root, tuple, toBuffer(values), expr.source,
+                                                    reference.index, tag);
+            if(!built) {
+                writeTag();
+
+                for(Size i = 0; i < values.size(); i++) {
+                    initialize(project(contentPlace, ProjectionKind::Field, U16(i)), values[i], expr.source);
+                }
             }
         } else {
-            auto value = isMemoryType(global, content) ? inferredValues[0]
-                                                       : convert(inferredValues[0], content, expr.source);
-
-            initialize(contentPlace, value, expr.source);
+            writePayload(isMemoryType(global, content) ? inferredValues[0]
+                                                       : convert(inferredValues[0], content, expr.source));
         }
     } else if(global[content]->kind == Type::Tup) {
         // Defaults are read from the declaration rather than from `record`, which may be an
@@ -1287,14 +1487,16 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         // an instantiation can be made before the declaration's defaults have been read.
         // `reference.record` is always the declaration - see findConstructor.
         auto declared = ((RecordType*)global[reference.record])->constructors.get(global, reference.index);
-        fillTuple(contentPlace, *(TupType*)global[content], construct.args, &declared.defaults, expr.source);
+        fillTuple(contentPlace, *(TupType*)global[content], construct.args, &declared.defaults,
+                  expr.source, tag ? SumOwner(root, reference.index, tag) : SumOwner());
     } else if(args.size() != 1 || args[0].name) {
+        writeTag();
         context.diagnostics.error("constructor requires one positional argument"_v, expr.source);
     } else {
         auto value = resolve(args[0].value, content);
         if(value && !isMemoryType(global, content)) value = convert(value, content, args[0].value.source);
 
-        initialize(contentPlace, value, expr.source);
+        writePayload(value);
     }
 
     return result;
@@ -1647,17 +1849,16 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
     auto storage = allocate(target, source, 0);
     auto place = placeFor(storage, source);
 
-    for(Size i = 0; i < values.size(); i++) {
-        auto value = convert(values[i], element, source);
-        if(!value) continue;
-
-        // The target's index width rather than a machine word - `Size`, which is what an index is.
-        // On JS the two are not the same type at all: a `Long` there is a `bigint`, and `arr[3n]` is
-        // a *property* named "3" rather than element three.
-        auto index = makeInt(source, module.scalar.size, i);
-        initialize(project(place, ProjectionKind::Index, 0, index), value, source);
-    }
-
+    /*
+     * The place is local-rooted here rather than pointer-rooted as a growable literal's is, which
+     * `deriveEffects` accounts for and nothing else has to: a run of elements is a run of elements
+     * whether the storage under it is a frame slot or a heap allocation.
+     *
+     * The index type is the target's index width rather than a machine word - `Size`, which is what
+     * an index is. On JS the two are not the same type at all: a `Long` there is a `bigint`, and
+     * `arr[3n]` is a *property* named "3" rather than element three.
+     */
+    buildAggregate(place, element, toBuffer(values), module.scalar.size, source);
     return storage;
 }
 
@@ -1748,10 +1949,10 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
      * assignment through a pointer root, so the hand-over of each element is the same hand-over the
      * ownership passes already read on the other target.
      *
-     * They are not built into the literal node, which would have been the better emitted text.
-     * Passing an owned value as an *operand* is a use rather than a move, so `[a, b, c]` with the
-     * elements inside it would leave this frame still owning three values the array now holds and
-     * release each of them at the end of the block. The writes are what transfer them.
+     * They are built into an `InstAggregate` rather than written one at a time. Passing an owned
+     * value as an *operand* is a use rather than a move, which is what made an earlier attempt at
+     * this leave the frame owning three values the array now held; that instruction is the one
+     * exception, and `deriveEffects` gives its elements the same hand-over the writes gave.
      */
     if(isJsMode(context.settings.mode)) {
         if(refined) {
@@ -1766,17 +1967,24 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         auto storage = allocate(arrayType, source, 0);
         auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
 
+        /*
+         * The elements before the field, which is the one ordering difference from the native
+         * branch and the whole of what lets the target emit a literal.
+         *
+         * A host array is a *value* rather than storage the field points into, so filling it after
+         * storing it means the field already holds an array the elements are added to afterwards -
+         * `xs.items = v; v[0] = 1;` - and the emitter cannot then write `[1, 2, 3]` without proving
+         * nothing read `xs.items` in between. Filling it first makes the array complete before
+         * anything can name it twice, and `genAggregate` writes the literal.
+         *
+         * Nothing about the native branch wants this: there the run is built *into* the field
+         * deliberately, because a run in a temporary is a whole-aggregate copy away from the array
+         * that owns it - see below.
+         */
         auto items = ref(emit<InstNative>(source, 0, itemsField, NativeOp::HostArray));
+        buildAggregate(Place::atPointer(items), element, toBuffer(values), module.scalar.size, source);
+
         initialize(project(place, ProjectionKind::Field, 0), items, source);
-
-        for(Size i = 0; i < values.size(); i++) {
-            auto value = convert(values[i], element, source);
-            if(!value) continue;
-
-            auto index = makeInt(source, module.scalar.size, i);
-            initialize(project(Place::atPointer(items), ProjectionKind::Index, 0, index), value, source);
-        }
-
         return storage;
     }
 
@@ -1818,21 +2026,15 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     }
 
     /*
-     * The elements, written through the run's own address rather than into a field of it.
+     * The elements, as one instruction over the run's own address rather than into a field of it.
      *
      * A run has no fields to project - it is `n` slots at a stride, and how wide a stride is belongs
-     * to the target - so each element is stored at a computed address, which is exactly what
-     * `store(items + i, x)` in Collections does and what `xs[i]` will compile to. `initialize`
-     * rather than `assign`, because the slot held nothing: there is no previous value here for an
-     * assignment to owe a drop for.
+     * to the target - so the elements are named by an `Index` projection of the run and lowering is
+     * what turns each into an address. That is the same `store(items + i, x)` Collections writes and
+     * what `xs[i]` compiles to; what it is *not* any more is `n` decisions. `InstAggregate` rather
+     * than `n` initializes, because the slots held nothing and there is one construction here.
      */
-    for(Size i = 0; i < values.size(); i++) {
-        auto value = convert(values[i], element, source);
-        if(!value) continue;
-
-        auto index = makeInt(source, module.scalar.long_, i);
-        initialize(Place::atPointer(offsetPointer(slots, element, index, source)), value, source);
-    }
+    buildAggregate(Place::atPointer(slots), element, toBuffer(values), module.scalar.long_, source);
 
     initialize(project(place, ProjectionKind::Field, 1), count, source);
     return storage;

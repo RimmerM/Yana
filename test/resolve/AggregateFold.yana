@@ -1,0 +1,49 @@
+{-
+   Writing an element of a literal, and the three things that stop it folding back into one.
+
+   `InstAggregate` makes a literal one instruction, so `xs[1] = 20` after it is a rewrite of that
+   instruction rather than a store to remove - `foldIntoAggregate` in opt/opt_place.cpp. The JS tree
+   peephole does the same thing one stage later for the shape the backend produces.
+
+   Each function below removes one of the conditions, and the two that must *not* fold are the point:
+
+   - `later` computes its value after the literal, so moving it in would read a binding that has not
+     been assigned yet. This is emitted JavaScript rather than IR, so getting it wrong is a `var`
+     that is hoisted but empty - `[1, v, 3]` above `var v = ...` - and the array holds `undefined`
+     rather than the program failing;
+   - `readBetween` reads the slot before overwriting it, so the literal's own value is observable and
+     the write has to stay where it is;
+   - `folds` has nothing in the way and is what the rule is for.
+
+   The answer is a number rather than a shape because both wrong answers still compile: the first
+   emits a program that runs and computes with `undefined`, and the second emits one that reads the
+   new value where the old one was written.
+-}
+let &log = 0 :: Int
+
+fn opaque(n: Int) -> Int:
+    log = log + n
+    if log > 1000:
+        return 0
+    return n
+
+-- The value is computed after the literal and is not a constant, so it cannot move into it.
+fn later(seed: Int) -> Int:
+    let &xs = [1, 2, 3]
+    let v = opaque(seed)
+    xs[1] = v
+    return xs[0] + xs[1] + xs[2]
+
+-- The slot is read between the literal and the write, so the old value is observable.
+fn readBetween() -> Int:
+    let &xs = [1, 2, 3]
+    let a = xs[1]
+    xs[1] = 20
+    return a + xs[1]
+
+fn folds() -> Int:
+    let &xs = [1, 2, 3]
+    xs[1] = 20
+    return xs[0] + xs[1] + xs[2]
+
+fn main() -> Int = later(20) + readBetween() + folds() + log

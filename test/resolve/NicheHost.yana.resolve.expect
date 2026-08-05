@@ -72,38 +72,34 @@ fn pairValue(%p: Both) -> Int {
 fn objectFold() -> Int {
   b0:
     %v0 = alloc : Maybe(Point)
-    init %local0.discriminant, 1
-    %v3 = alloc : Point
-    init %local1@Point.x, 3
-    init %local1@Point.y, 4
-    init %local0@Just, %v3
+    %v2 = alloc : Point
+    aggregate %local1@Point.x = 3, %local1@Point.y = 4
+    aggregate %local0.discriminant = 1, %local0@Just = %v2
     %some = call pointOr, %v0, 9 : Int
-    %v11 = alloc : Maybe(Point)
+    %v9 = alloc : Maybe(Point)
     init %local2.discriminant, 0
-    %none = call pointOr, %v11, 9 : Int
-    %v18 = mul %none, 1000 : Int
-    %v19 = add %some, %v18 : Int
-    ret %v19
+    %none = call pointOr, %v9, 9 : Int
+    %v16 = mul %none, 1000 : Int
+    %v17 = add %some, %v16 : Int
+    ret %v17
 }
 
 fn intFold() -> Int {
   b0:
     %v0 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 0
+    aggregate %local0.discriminant = 1, %local0@Just = 0
     %zero = call intOr, %v0, 7 : Int
-    %v7 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 5
-    %some = call intOr, %v7, 7 : Int
-    %v14 = alloc : Maybe(Int)
+    %v6 = alloc : Maybe(Int)
+    aggregate %local1.discriminant = 1, %local1@Just = 5
+    %some = call intOr, %v6, 7 : Int
+    %v12 = alloc : Maybe(Int)
     init %local2.discriminant, 0
-    %none = call intOr, %v14, 7 : Int
-    %v21 = mul %some, 10 : Int
-    %v22 = add %zero, %v21 : Int
-    %v25 = mul %none, 100 : Int
-    %v26 = add %v22, %v25 : Int
-    ret %v26
+    %none = call intOr, %v12, 7 : Int
+    %v19 = mul %some, 10 : Int
+    %v20 = add %zero, %v19 : Int
+    %v23 = mul %none, 100 : Int
+    %v24 = add %v20, %v23 : Int
+    ret %v24
 }
 
 fn nested() -> Int {
@@ -112,54 +108,45 @@ fn nested() -> Int {
     init %local0.discriminant, 0
     %outer = call depthOf, %v0 : Int
     %v4 = alloc : Maybe(Maybe(Point))
-    init %local1.discriminant, 1
-    %v7 = alloc : Maybe(Point)
+    %v6 = alloc : Maybe(Point)
     init %local2.discriminant, 0
-    init %local1@Just, %v7
+    aggregate %local1.discriminant = 1, %local1@Just = %v6
     %middle = call depthOf, %v4 : Int
-    %v12 = alloc : Maybe(Maybe(Point))
-    init %local3.discriminant, 1
-    %v15 = alloc : Maybe(Point)
-    init %local4.discriminant, 1
-    %v18 = alloc : Point
-    init %local5@Point.x, 1
-    init %local5@Point.y, 2
-    init %local4@Just, %v18
-    init %local3@Just, %v15
-    %inner = call depthOf, %v12 : Int
-    %v28 = mul %middle, 10 : Int
-    %v29 = add %outer, %v28 : Int
-    %v32 = mul %inner, 100 : Int
-    %v33 = add %v29, %v32 : Int
-    ret %v33
+    %v11 = alloc : Maybe(Maybe(Point))
+    %v13 = alloc : Maybe(Point)
+    %v15 = alloc : Point
+    aggregate %local5@Point.x = 1, %local5@Point.y = 2
+    aggregate %local4.discriminant = 1, %local4@Just = %v15
+    aggregate %local3.discriminant = 1, %local3@Just = %v13
+    %inner = call depthOf, %v11 : Int
+    %v24 = mul %middle, 10 : Int
+    %v25 = add %outer, %v24 : Int
+    %v28 = mul %inner, 100 : Int
+    %v29 = add %v25, %v28 : Int
+    ret %v29
 }
 
 fn paired() -> Int {
   b0:
     %v0 = alloc : Both
     %v1 = alloc : Maybe(Point)
-    init %local1.discriminant, 1
-    %v4 = alloc : Point
-    init %local2@Point.x, 2
-    init %local2@Point.y, 6
-    init %local1@Just, %v4
-    %v10 = alloc : Maybe(Int)
+    %v3 = alloc : Point
+    aggregate %local2@Point.x = 2, %local2@Point.y = 6
+    aggregate %local1.discriminant = 1, %local1@Just = %v3
+    %v8 = alloc : Maybe(Int)
     init %local3.discriminant, 0
-    init %local0@Both.left, %v1
-    init %local0@Both.right, %v10
-    %v15 = call pairValue, %v0 : Int
-    %v16 = alloc : Both
-    %v17 = alloc : Maybe(Point)
+    aggregate %local0@Both.left = %v1, %local0@Both.right = %v8
+    %v12 = call pairValue, %v0 : Int
+    %v13 = alloc : Both
+    %v14 = alloc : Maybe(Point)
     init %local5.discriminant, 0
-    %v20 = alloc : Maybe(Int)
-    init %local6.discriminant, 1
-    init %local6@Just, 3
-    init %local4@Both.left, %v17
-    init %local4@Both.right, %v20
-    %v27 = call pairValue, %v16 : Int
-    %v30 = mul %v27, 10000 : Int
-    %v31 = add %v15, %v30 : Int
-    ret %v31
+    %v17 = alloc : Maybe(Int)
+    aggregate %local6.discriminant = 1, %local6@Just = 3
+    aggregate %local4@Both.left = %v14, %local4@Both.right = %v17
+    %v22 = call pairValue, %v13 : Int
+    %v25 = mul %v22, 10000 : Int
+    %v26 = add %v12, %v25 : Int
+    ret %v26
 }
 
 fn main() -> Int {

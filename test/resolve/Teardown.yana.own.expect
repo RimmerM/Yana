@@ -37,7 +37,7 @@ fn mapMemory {
 fn makeBuffer {
   arg count readonly
   result escapes
-  %local0: Buffer droppable readonly live [4, 8)
+  %local0: Buffer droppable readonly live [4, 7)
 }
 
 fn useSession {
@@ -46,11 +46,11 @@ fn useSession {
 }
 
 fn main {
-  %local0: Session droppable readonly live [0, 7)
+  %local0: Session droppable readonly live [0, 6)
   %local1: Buffer droppable readonly live [1, 5)
-  %local2: Handle droppable readonly live [2, 6)
-  %local3: Session droppable readonly live [7, 10)
-  %local4: {left: Int, right: Int} readonly live [11, 13)
+  %local2: Handle droppable readonly live [2, 5)
+  %local3: Session droppable readonly live [6, 9)
+  %local4: {left: Int, right: Int} readonly live [10, 12)
 }
 
 fn Reclaim(Buffer).reclaim {
@@ -67,8 +67,8 @@ fn duplicate(Int) {
   arg x readonly
   %x: Int readonly live [0, 4)
   %x: Int readonly live [2, 6)
-  %x: Int readonly live [3, 7)
-  %local3: {left: Int, right: Int} readonly live [4, 8)
+  %x: Int readonly live [3, 6)
+  %local3: {left: Int, right: Int} readonly live [4, 7)
 }
 
 fn drop$Session {

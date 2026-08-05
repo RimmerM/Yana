@@ -30,22 +30,21 @@ fn larger(%a: Int, %b: Int) -> &mut Int {
 fn main() -> Int {
   b0:
     %here = alloc : Point
-    init %local0@Point.x, 10
-    init %local0@Point.y, 20
-    %v5 = borrow %local0 : &Point
-    %v6 = call xOf, %v5 : &Int
+    aggregate %local0@Point.x = 10, %local0@Point.y = 20
+    %v4 = borrow %local0 : &Point
+    %v5 = call xOf, %v4 : &Int
     %left = alloc : Int
     init %left, 1
     %right = alloc : Int
     init %right, 2
-    %v13 = load %left : Int
-    %v14 = load %right : Int
-    %v15 = borrow_mut %left : &mut Int
-    %v16 = borrow_mut %right : &mut Int
-    %v17 = call larger, %v15, %v16 : &mut Int
-    assign [%v17], 40
-    %v20 = load [%v6] : Int
-    %v21 = load [%v17] : Int
-    %v22 = add %v20, %v21 : Int
-    ret %v22
+    %v12 = load %left : Int
+    %v13 = load %right : Int
+    %v14 = borrow_mut %left : &mut Int
+    %v15 = borrow_mut %right : &mut Int
+    %v16 = call larger, %v14, %v15 : &mut Int
+    assign [%v16], 40
+    %v19 = load [%v5] : Int
+    %v20 = load [%v16] : Int
+    %v21 = add %v19, %v20 : Int
+    ret %v21
 }

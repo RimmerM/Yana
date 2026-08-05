@@ -1,10 +1,9 @@
 fn area1() -> Int {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
-    %v5 = call Area(Point).area, %v0 : Int
-    ret %v5
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
+    %v4 = call Area(Point).area, %v0 : Int
+    ret %v4
 }
 
 fn viaFunction() -> Int {
@@ -18,36 +17,32 @@ fn viaFunction() -> Int {
 fn area2() -> Int {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 2
-    init %local0@Point.y, 5
-    %v5 = call Area(Point).area, %v0 : Int
-    ret %v5
+    aggregate %local0@Point.x = 2, %local0@Point.y = 5
+    %v4 = call Area(Point).area, %v0 : Int
+    ret %v4
 }
 
 fn qualifiedConstructor() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 1
+    aggregate %local0@Point.x = 1, %local0@Point.y = 1
     ret %v0
 }
 
 fn twoAreas() -> Int {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 2
-    %v5 = alloc : Point
-    init %local1@Point.x, 3
-    init %local1@Point.y, 3
-    %v10 = call totalArea(Point), %v0, %v5 : Int
-    ret %v10
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    %v4 = alloc : Point
+    aggregate %local1@Point.x = 3, %local1@Point.y = 3
+    %v8 = call totalArea(Point), %v0, %v4 : Int
+    ret %v8
 }
 
 fn squareAreas() -> Int {
   b0:
     %v0 = alloc : Square
-    init %local0@Square.side, 2
+    aggregate %local0@Square.side = 2
     %v3 = call tripleArea(Square), %v0 : Int
     ret %v3
 }
@@ -55,15 +50,13 @@ fn squareAreas() -> Int {
 fn styles() -> Int {
   b0:
     %v0 = alloc : Style
-    init %local0@Style.filled, False
-    init %local0@Style.weight, 1
-    %v5 = call styleValue, %v0 : Int
-    %v6 = alloc : Style
-    init %local1@Style.filled, True
-    init %local1@Style.weight, 3
-    %v11 = call styleValue, %v6 : Int
-    %v12 = add %v5, %v11 : Int
-    ret %v12
+    aggregate %local0@Style.filled = False, %local0@Style.weight = 1
+    %v4 = call styleValue, %v0 : Int
+    %v5 = alloc : Style
+    aggregate %local1@Style.filled = True, %local1@Style.weight = 3
+    %v9 = call styleValue, %v5 : Int
+    %v10 = add %v4, %v9 : Int
+    ret %v10
 }
 
 fn labelValue() -> Int {
@@ -109,8 +102,7 @@ fn Area(Square).area(%value: Square) -> Int {
 fn origin() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 0
-    init %local0@Point.y, 0
+    aggregate %local0@Point.x = 0, %local0@Point.y = 0
     ret %v0
 }
 
@@ -121,8 +113,7 @@ fn scale(%value: Point, %by: Int) -> Point {
     %v4 = mul %v3, %by : Int
     %v5 = load %value@Point.y : Int
     %v6 = mul %v5, %by : Int
-    init %local1@Point.x, %v4
-    init %local1@Point.y, %v6
+    aggregate %local1@Point.x = %v4, %local1@Point.y = %v6
     ret %v2
 }
 

@@ -66,44 +66,43 @@ fn main() -> Int {
     init %local2.code, %v8
     %v11 = cast 0 : %()
     init %local2.env, %v11
-    init %h@Handlers.first, %v1
-    init %h@Handlers.second, %v7
-    %v15 = load %h : Handlers
-    %v16 = load %h@Handlers.first : (Int) -> Int
-    %v18 = calldyn %v16, 10 : Int
-    %v19 = load %h : Handlers
-    %v20 = load %h@Handlers.second : (Int) -> Int
-    %v22 = calldyn %v20, 10 : Int
-    %before = add %v18, %v22 : Int
-    %v24 = load %h : Handlers
-    %v25 = load %h@Handlers.first : (Int) -> Int
-    %v26 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
-    call retarget, %v26
-    %v28 = load %h : Handlers
-    %v29 = load %h@Handlers.first : (Int) -> Int
-    %v31 = calldyn %v29, 10 : Int
-    %v32 = load %h : Handlers
-    %v33 = load %h@Handlers.second : (Int) -> Int
-    %v35 = calldyn %v33, 10 : Int
-    %one = add %v31, %v35 : Int
-    %v37 = load %h : Handlers
-    %v38 = load %h@Handlers.first : (Int) -> Int
-    %v39 = load %h : Handlers
-    %v40 = load %h@Handlers.second : (Int) -> Int
-    %v41 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
-    %v42 = borrow_mut %h@Handlers.second : &mut (Int) -> Int
-    call retargetBoth, %v41, %v42
-    %v44 = load %h : Handlers
-    %v45 = load %h@Handlers.first : (Int) -> Int
-    %v47 = calldyn %v45, 10 : Int
-    %v48 = load %h : Handlers
-    %v49 = load %h@Handlers.second : (Int) -> Int
-    %v51 = calldyn %v49, 10 : Int
+    aggregate %h@Handlers.first = %v1, %h@Handlers.second = %v7
+    %v14 = load %h : Handlers
+    %v15 = load %h@Handlers.first : (Int) -> Int
+    %v17 = calldyn %v15, 10 : Int
+    %v18 = load %h : Handlers
+    %v19 = load %h@Handlers.second : (Int) -> Int
+    %v21 = calldyn %v19, 10 : Int
+    %before = add %v17, %v21 : Int
+    %v23 = load %h : Handlers
+    %v24 = load %h@Handlers.first : (Int) -> Int
+    %v25 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
+    call retarget, %v25
+    %v27 = load %h : Handlers
+    %v28 = load %h@Handlers.first : (Int) -> Int
+    %v30 = calldyn %v28, 10 : Int
+    %v31 = load %h : Handlers
+    %v32 = load %h@Handlers.second : (Int) -> Int
+    %v34 = calldyn %v32, 10 : Int
+    %one = add %v30, %v34 : Int
+    %v36 = load %h : Handlers
+    %v37 = load %h@Handlers.first : (Int) -> Int
+    %v38 = load %h : Handlers
+    %v39 = load %h@Handlers.second : (Int) -> Int
+    %v40 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
+    %v41 = borrow_mut %h@Handlers.second : &mut (Int) -> Int
+    call retargetBoth, %v40, %v41
+    %v43 = load %h : Handlers
+    %v44 = load %h@Handlers.first : (Int) -> Int
+    %v46 = calldyn %v44, 10 : Int
+    %v47 = load %h : Handlers
+    %v48 = load %h@Handlers.second : (Int) -> Int
+    %v50 = calldyn %v48, 10 : Int
     drop_derived %h via drop$Handlers reclaim reclaim$Handlers
-    %both = add %v47, %v51 : Int
-    %v53 = add %before, %one : Int
-    %v54 = add %v53, %both : Int
-    ret %v54
+    %both = add %v46, %v50 : Int
+    %v52 = add %before, %one : Int
+    %v53 = add %v52, %both : Int
+    ret %v53
 }
 
 fn funvalue$triple(%env: %(), %x: Int) -> Int {

@@ -329,20 +329,19 @@ fn unwrapOr(%m: Maybe(a), %fallback: a) -> &a {
 fn leftOf(%t: Tree) -> Int {
   b0:
     %absent = alloc : Tree
-    init %local1.discriminant, 0
-    init %local1@Leaf, 0
-    %v6 = load %t.discriminant : Int
-    %v8 = cmp_eq %v6, 0 : Bool
-    je %v8, b4, b1
+    aggregate %local1.discriminant = 0, %local1@Leaf = 0
+    %v5 = load %t.discriminant : Int
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b4, b1
 
   b1:
     %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: Int}
-    %v12 = load %t@Branch.left : Maybe(Tree)
-    %v13 = borrow %t@Branch.left : &Maybe(Tree)
-    %v14 = borrow %local1 : &Tree
-    %v15 = call unwrapOr(Tree), %v13, %v14 : &Tree
-    %v16 = load [%v15] : Tree
-    %v17 = call total, %v16 : Int
+    %v11 = load %t@Branch.left : Maybe(Tree)
+    %v12 = borrow %t@Branch.left : &Maybe(Tree)
+    %v13 = borrow %local1 : &Tree
+    %v14 = call unwrapOr(Tree), %v12, %v13 : &Tree
+    %v15 = load [%v14] : Tree
+    %v16 = call total, %v15 : Int
     drop_derived %local1 via drop$Tree reclaim reclaim$Tree
     jmp b3
 
@@ -351,8 +350,8 @@ fn leftOf(%t: Tree) -> Int {
     jmp b3
 
   b3:
-    %v20 = phi [b2, %v], [b1, %v17] : Int
-    ret %v20
+    %v19 = phi [b2, %v], [b1, %v16] : Int
+    ret %v19
 
   b4:
     drop_derived %local1 via drop$Tree reclaim reclaim$Tree
@@ -362,28 +361,28 @@ fn leftOf(%t: Tree) -> Int {
 fn buildList() -> Int {
   b0:
     %xs = alloc : List
-    init %local0.discriminant, 1
-    %v4 = alloc : List
-    init %local1.discriminant, 1
-    %v8 = alloc : List
-    init %local2.discriminant, 1
-    %v12 = alloc : List
+    %v3 = alloc : List
+    %v6 = alloc : List
+    %v9 = alloc : List
     init %local3.discriminant, 0
+    init %local2.discriminant, 1
     init %local2@Cons.head, 39
-    %v16 = alloc heap escaping : List
-    %v17 = addressof %local4 : %List
-    init %local2@Cons.tail, %v17
-    init %local2@Cons.tail.*, %v12
+    %v14 = alloc heap escaping : List
+    %v15 = addressof %local4 : %List
+    init %local2@Cons.tail, %v15
+    init %local2@Cons.tail.*, %v9
+    init %local1.discriminant, 1
     init %local1@Cons.head, 2
-    %v21 = alloc heap escaping : List
-    %v22 = addressof %local5 : %List
-    init %local1@Cons.tail, %v22
-    init %local1@Cons.tail.*, %v8
+    %v20 = alloc heap escaping : List
+    %v21 = addressof %local5 : %List
+    init %local1@Cons.tail, %v21
+    init %local1@Cons.tail.*, %v6
+    init %local0.discriminant, 1
     init %local0@Cons.head, 1
     %v26 = alloc heap escaping : List
     %v27 = addressof %local6 : %List
     init %local0@Cons.tail, %v27
-    init %local0@Cons.tail.*, %v4
+    init %local0@Cons.tail.*, %v3
     %v30 = call sum, %xs : Int
     drop_derived %local0 via drop$List reclaim reclaim$List
     ret %v30
@@ -392,46 +391,38 @@ fn buildList() -> Int {
 fn buildTree() -> Int {
   b0:
     %deep = alloc : Tree
-    init %local0.discriminant, 1
-    %v3 = alloc : Maybe(Tree)
+    %v2 = alloc : Maybe(Tree)
     init %local1.discriminant, 0
-    %v6 = alloc : Maybe(Tree)
+    %v5 = alloc : Maybe(Tree)
     init %local2.discriminant, 1
-    %v9 = alloc : Tree
-    init %local3.discriminant, 0
-    init %local3@Leaf, 20
-    %v14 = alloc heap escaping : Tree
-    %v15 = addressof %local4 : %Tree
-    init %local2@Just, %v15
-    init %local2@Just.*, %v9
-    init %local0@Branch.left, %v3
-    init %local0@Branch.right, %v6
-    init %local0@Branch.label, 5
+    %v8 = alloc : Tree
+    aggregate %local3.discriminant = 0, %local3@Leaf = 20
+    %v12 = alloc heap escaping : Tree
+    %v13 = addressof %local4 : %Tree
+    init %local2@Just, %v13
+    init %local2@Just.*, %v8
+    aggregate %local0.discriminant = 1, %local0@Branch.left = %v2, %local0@Branch.right = %v5, %local0@Branch.label = 5
     %t = alloc : Tree
-    init %local5.discriminant, 1
-    %v25 = alloc : Maybe(Tree)
+    %v20 = alloc : Maybe(Tree)
     init %local6.discriminant, 1
-    %v28 = alloc : Tree
-    init %local7.discriminant, 0
-    init %local7@Leaf, 10
-    %v33 = alloc heap escaping : Tree
-    %v34 = addressof %local8 : %Tree
-    init %local6@Just, %v34
-    init %local6@Just.*, %v28
-    %v37 = alloc : Maybe(Tree)
+    %v23 = alloc : Tree
+    aggregate %local7.discriminant = 0, %local7@Leaf = 10
+    %v27 = alloc heap escaping : Tree
+    %v28 = addressof %local8 : %Tree
+    init %local6@Just, %v28
+    init %local6@Just.*, %v23
+    %v31 = alloc : Maybe(Tree)
     init %local9.discriminant, 1
-    %v40 = alloc heap escaping : Tree
-    %v41 = addressof %local10 : %Tree
-    init %local9@Just, %v41
+    %v34 = alloc heap escaping : Tree
+    %v35 = addressof %local10 : %Tree
+    init %local9@Just, %v35
     init %local9@Just.*, %deep
-    init %local5@Branch.left, %v25
-    init %local5@Branch.right, %v37
-    init %local5@Branch.label, 7
-    %v48 = call total, %t : Int
-    %v49 = call leftOf, %t : Int
+    aggregate %local5.discriminant = 1, %local5@Branch.left = %v20, %local5@Branch.right = %v31, %local5@Branch.label = 7
+    %v40 = call total, %t : Int
+    %v41 = call leftOf, %t : Int
     drop_derived %local5 via drop$Tree reclaim reclaim$Tree
-    %v50 = add %v48, %v49 : Int
-    ret %v50
+    %v42 = add %v40, %v41 : Int
+    ret %v42
 }
 
 fn track(%id: Int) -> Tracked {
@@ -440,7 +431,7 @@ fn track(%id: Int) -> Tracked {
     %v4 = borrow_mut liveNodes : &mut Int
     call +=(Int), %v4, 1
     %v6 = alloc : Tracked
-    init %local0@Tracked.id, %id
+    aggregate %local0@Tracked.id = %id
     ret %v6
 }
 
@@ -470,23 +461,23 @@ fn idsOf(%c: Chain) -> Int {
 fn buildChain() -> Int {
   b0:
     %c = alloc : Chain
-    init %local0.discriminant, 1
-    %v4 = call track, 4 : Tracked
-    %v5 = alloc : Chain
-    init %local2.discriminant, 1
-    %v9 = call track, 5 : Tracked
-    %v10 = alloc : Chain
+    %v3 = call track, 4 : Tracked
+    %v4 = alloc : Chain
+    %v7 = call track, 5 : Tracked
+    %v8 = alloc : Chain
     init %local4.discriminant, 0
-    init %local2@Link.payload, %v9
-    %v14 = alloc heap escaping : Chain
-    %v15 = addressof %local5 : %Chain
-    init %local2@Link.rest, %v15
-    init %local2@Link.rest.*, %v10
-    init %local0@Link.payload, %v4
+    init %local2.discriminant, 1
+    init %local2@Link.payload, %v7
+    %v13 = alloc heap escaping : Chain
+    %v14 = addressof %local5 : %Chain
+    init %local2@Link.rest, %v14
+    init %local2@Link.rest.*, %v8
+    init %local0.discriminant, 1
+    init %local0@Link.payload, %v3
     %v19 = alloc heap escaping : Chain
     %v20 = addressof %local6 : %Chain
     init %local0@Link.rest, %v20
-    init %local0@Link.rest.*, %v5
+    init %local0@Link.rest.*, %v4
     %v23 = call idsOf, %c : Int
     drop_derived %local0 via drop$Chain reclaim reclaim$Chain
     ret %v23

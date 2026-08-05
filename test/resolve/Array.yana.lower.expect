@@ -506,14 +506,13 @@ make<complex>(%v_0: Ptr) {
     %v_11 = or %v_10, 1073741824: Int
     %v_12 = add %v_2, 8: Ptr
     store %v_12, %v_11, 4
-    %v_13 = add %v_5, 0: Ptr
-    store %v_13, 7, 4
-    %v_14 = add %v_5, 4: Ptr
-    store %v_14, 8, 4
-    %v_15 = add %v_5, 8: Ptr
-    store %v_15, 9, 4
-    %v_16 = add %v_2, 12: Ptr
-    store %v_16, 3, 4
+    store %v_5, 7, 4
+    %v_13 = add %v_5, 4: Ptr
+    store %v_13, 8, 4
+    %v_14 = add %v_5, 8: Ptr
+    store %v_14, 9, 4
+    %v_15 = add %v_2, 12: Ptr
+    store %v_15, 3, 4
     copy %v_0, %v_2, 16
     ret 
   }
@@ -533,43 +532,42 @@ main<complex>(): Int {
     %v_9 = and %v_8, 18446744070488326143: Int
     %v_10 = add %v_1, 8: Ptr
     store %v_10, %v_9, 4
-    %v_11 = add %v_4, 0: Ptr
-    store %v_11, 1, 4
-    %v_12 = add %v_4, 4: Ptr
-    store %v_12, 2, 4
-    %v_13 = add %v_4, 8: Ptr
+    store %v_4, 1, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 2, 4
+    %v_12 = add %v_4, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_1, 12: Ptr
     store %v_13, 3, 4
-    %v_14 = add %v_1, 12: Ptr
-    store %v_14, 3, 4
-    %v_15 = load %v_1, 8: Ptr
-    %v_16 = add %v_15, 0: Ptr
-    store %v_16, 10, 4
+    %v_14 = load %v_1, 8: Ptr
+    %v_15 = add %v_14, 0: Ptr
+    store %v_15, 10, 4
     call_complex push(Int), %v_1, 4
     call_complex push(Int), %v_1, 5
+    %v_16 = alloca 8, 4: Ptr
+    call_complex remove(Int), %v_16, %v_1, 1
     %v_17 = alloca 8, 4: Ptr
-    call_complex remove(Int), %v_17, %v_1, 1
+    call_complex remove(Int), %v_17, %v_1, 99
     %v_18 = alloca 8, 4: Ptr
-    call_complex remove(Int), %v_18, %v_1, 99
-    %v_19 = alloca 8, 4: Ptr
-    call_complex remove(Int), %v_19, %v_1, 18446744073709551615
-    %v_20 = load %v_1, 8: Ptr
-    %v_21 = add %v_1, 12: Ptr
-    %v_22 = load %v_21, 4: Int
-    %v_23 = cast %v_22: Int
-    %v_24 = cast %v_23: Long
-    %v_25 = call_complex sum, %v_20, %v_24: Int
-    %v_26 = add %v_1, 12: Ptr
-    %v_27 = load %v_26, 4: Int
+    call_complex remove(Int), %v_18, %v_1, 18446744073709551615
+    %v_19 = load %v_1, 8: Ptr
+    %v_20 = add %v_1, 12: Ptr
+    %v_21 = load %v_20, 4: Int
+    %v_22 = cast %v_21: Int
+    %v_23 = cast %v_22: Long
+    %v_24 = call_complex sum, %v_19, %v_23: Int
+    %v_25 = add %v_1, 12: Ptr
+    %v_26 = load %v_25, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_28 = cast %v_27: Int
-    %v_29 = cast %v_28: Long
-    %v_30 = sext %v_25: Long
-    %v_31 = add %v_30, %v_29: Long
-    %v_32 = call_complex escaping: Int
-    %v_33 = sext %v_32: Long
-    %v_34 = add %v_31, %v_33: Long
-    %v_35 = cast %v_34: Int
-    ret %v_35
+    %v_27 = cast %v_26: Int
+    %v_28 = cast %v_27: Long
+    %v_29 = sext %v_24: Long
+    %v_30 = add %v_29, %v_28: Long
+    %v_31 = call_complex escaping: Int
+    %v_32 = sext %v_31: Long
+    %v_33 = add %v_30, %v_32: Long
+    %v_34 = cast %v_33: Int
+    ret %v_34
   }
 }
 

@@ -1,0 +1,73 @@
+{-
+   What a value moved into a literal is moved *across*.
+
+   Both folds in codegen/js/opt.cpp - `foldInitializers` for an object and `foldArrayElements` for an
+   array - rewrite `var v = {a: 0}; v.a = x;` into `var v = {a: x};`, and both walk past statements in
+   between, because what a write needs is routinely declared there. The write moves **up**, so three
+   things it crossed have to be checked, and each function below removes one of them:
+
+   - `crossesEffect` puts an effectful statement between the literal and the write. Folding would run
+     the write's own effect first, so the two counters come back in the wrong order;
+   - `crossesBinding` puts a *declaration* the write's value reads between the two. Folding would put
+     the read above the `var`, which is hoisted but unassigned - so the field holds `undefined`
+     rather than the program failing;
+   - `folds` has nothing in the way and is what the rules are for.
+
+   Every one of these is invisible in the shape: a fold that reorders two effects still emits a
+   program that runs, and one that reads a hoisted `var` emits `undefined` and keeps going. So the
+   assertion is a number, and it is the *order* two calls ran in - see `log`, which is a decimal
+   place per call rather than a sum, so that swapping two of them changes the answer.
+
+   **Which of the three actually bites.** The binding guard does, and widely: disabling it fails
+   `Box`, `LazyUser` and `ClosureHeaderDead` as well as this fixture. The *effect* guard is not
+   reachable by any program in this corpus - the fold crosses a non-inert prefix thirty times, and
+   the value it moves is a name or a constant every one of them, because the emitter names every
+   instruction's result. That is a property of the emitter rather than a guarantee, which is exactly
+   what `foldArrayElements` records about the same three checks; the case is written out here so the
+   rule is stated somewhere a reader will find it, not because a fixture can fail on it.
+-}
+let &log = 0 :: Int
+
+data Pair {a: Int, b: Int}
+
+-- Appends `n` as the next decimal digit, so the answer records the order the calls ran in and not
+-- only which of them did.
+--
+-- Self-recursive, and that is what makes the fixture bite rather than a flourish: an inlined `note`
+-- is split into an effect statement and a constant, the constant has no effects to cross, and both
+-- guards below become vacuous. The recursion is unreachable - `log` never gets that large - so it
+-- costs the answer nothing and costs the inliner the call.
+fn note(n: Int) -> Int:
+    log = log * 10 + n
+    if log > 1000000000:
+        return note(0)
+    return n
+
+-- An effect between the literal and the write. `note(1)` has to stay in front of `note(2)`.
+fn crossesEffect() -> Int:
+    let &p = Pair {a: 0, b: 9}
+    let first = note(1)
+    p.a = note(2)
+    return p.a * 10 + p.b + first
+
+-- The write's value reads a binding declared after the literal, so it cannot move above it.
+fn crossesBinding() -> Int:
+    let &p = Pair {a: 0, b: 8}
+    let x = note(3)
+    p.a = x + 1
+    return p.a * 10 + p.b
+
+-- The same for an array literal, which is the other fold.
+fn elementCrossesEffect() -> Int:
+    let &xs = [0, 7]
+    let first = note(4)
+    xs[0] = note(5)
+    return xs[0] * 10 + xs[1] + first
+
+-- Nothing in the way, which is what both rules are for.
+fn folds() -> Int:
+    let &p = Pair {a: 0, b: 6}
+    p.a = 5
+    return p.a * 10 + p.b
+
+fn main() -> Int = crossesEffect() + crossesBinding() + elementCrossesEffect() + folds() + log

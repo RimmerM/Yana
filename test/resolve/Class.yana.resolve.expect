@@ -1,7 +1,7 @@
 fn metreSize() -> Int {
   b0:
     %v0 = alloc : Metres
-    init %local0@Metres.value, 7
+    aggregate %local0@Metres.value = 7
     %v3 = call Describe(Metres).size, %v0 : Int
     ret %v3
 }
@@ -9,7 +9,7 @@ fn metreSize() -> Int {
 fn feetSize() -> Int {
   b0:
     %v0 = alloc : Feet
-    init %local0@Feet.value, 5
+    aggregate %local0@Feet.value = 5
     %v3 = call Describe(Feet).size, %v0 : Int
     ret %v3
 }
@@ -17,7 +17,7 @@ fn feetSize() -> Int {
 fn doubledMetres() -> Int {
   b0:
     %v0 = alloc : Metres
-    init %local0@Metres.value, 3
+    aggregate %local0@Metres.value = 3
     %v3 = call Describe(Metres).doubled, %v0 : Metres
     %v4 = call Describe(Metres).size, %v3 : Int
     ret %v4
@@ -26,9 +26,9 @@ fn doubledMetres() -> Int {
 fn sameMetres(%a: Int, %b: Int) -> Int {
   b0:
     %v2 = alloc : Metres
-    init %local0@Metres.value, %a
+    aggregate %local0@Metres.value = %a
     %v4 = alloc : Metres
-    init %local1@Metres.value, %b
+    aggregate %local1@Metres.value = %b
     %v6 = call Eq(Metres).==, %v2, %v4 : Bool
     je %v6, b1, b2
 
@@ -68,7 +68,7 @@ fn Describe(Metres).doubled(%value: Metres) -> Metres {
     %v1 = alloc : Metres
     %v2 = load %value@Metres.value : Int
     %v5 = mul %v2, 2 : Int
-    init %local1@Metres.value, %v5
+    aggregate %local1@Metres.value = %v5
     ret %v1
 }
 
@@ -84,7 +84,7 @@ fn Describe(Feet).doubled(%value: Feet) -> Feet {
     %v2 = load %value@Feet.value : Int
     %v3 = load %value@Feet.value : Int
     %v4 = add %v2, %v3 : Int
-    init %local1@Feet.value, %v4
+    aggregate %local1@Feet.value = %v4
     ret %v1
 }
 

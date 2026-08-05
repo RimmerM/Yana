@@ -208,120 +208,105 @@ fn wrap(%value: Int) -> Maybe(Int) {
 
   b1:
     %v5 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, %value
+    aggregate %local0.discriminant = 1, %local0@Just = %value
     jmp b3
 
   b2:
-    %v9 = alloc : Maybe(Int)
+    %v8 = alloc : Maybe(Int)
     init %local1.discriminant, 0
     jmp b3
 
   b3:
-    %v14 = phi [b1, %v5], [b2, %v9] : Maybe(Int)
-    ret %v14
+    %v13 = phi [b1, %v5], [b2, %v8] : Maybe(Int)
+    ret %v13
 }
 
 fn main() -> Int {
   b0:
     %v0 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 1
-    %v5 = call orZero, %v0 : Int
-    %v6 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = 1
+    %v4 = call orZero, %v0 : Int
+    %v5 = alloc : Maybe(Int)
     init %local1.discriminant, 0
-    %v9 = call orZero, %v6 : Int
-    %v12 = mul %v9, 100 : Int
-    %v13 = add %v5, %v12 : Int
-    %v14 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, 2
-    %v19 = call either, %v14 : Int
-    %v20 = add %v13, %v19 : Int
-    %v21 = alloc : Maybe(Int)
+    %v8 = call orZero, %v5 : Int
+    %v11 = mul %v8, 100 : Int
+    %v12 = add %v4, %v11 : Int
+    %v13 = alloc : Maybe(Int)
+    aggregate %local2.discriminant = 1, %local2@Just = 2
+    %v17 = call either, %v13 : Int
+    %v18 = add %v12, %v17 : Int
+    %v19 = alloc : Maybe(Int)
     init %local3.discriminant, 0
-    %v24 = call either, %v21 : Int
-    %v27 = mul %v24, 100 : Int
-    %v28 = add %v20, %v27 : Int
-    %v29 = alloc : Maybe(Int)
-    init %local4.discriminant, 1
-    init %local4@Just, 0
-    %v34 = call isZero, %v29 : Int
-    %v37 = mul %v34, 8 : Int
-    %v38 = add %v28, %v37 : Int
-    %v39 = alloc : Maybe(Int)
-    init %local5.discriminant, 1
-    init %local5@Just, 1
-    %v44 = call isZero, %v39 : Int
-    %v47 = mul %v44, 100 : Int
-    %v48 = add %v38, %v47 : Int
-    %v49 = alloc : Maybe(Maybe(Int))
-    init %local6.discriminant, 1
-    %v52 = alloc : Maybe(Int)
-    init %local7.discriminant, 1
-    init %local7@Just, 16
-    init %local6@Just, %v52
-    %v58 = call deep, %v49 : Int
-    %v59 = add %v48, %v58 : Int
-    %v60 = alloc : Maybe(Maybe(Int))
-    init %local8.discriminant, 1
-    %v63 = alloc : Maybe(Int)
+    %v22 = call either, %v19 : Int
+    %v25 = mul %v22, 100 : Int
+    %v26 = add %v18, %v25 : Int
+    %v27 = alloc : Maybe(Int)
+    aggregate %local4.discriminant = 1, %local4@Just = 0
+    %v31 = call isZero, %v27 : Int
+    %v34 = mul %v31, 8 : Int
+    %v35 = add %v26, %v34 : Int
+    %v36 = alloc : Maybe(Int)
+    aggregate %local5.discriminant = 1, %local5@Just = 1
+    %v40 = call isZero, %v36 : Int
+    %v43 = mul %v40, 100 : Int
+    %v44 = add %v35, %v43 : Int
+    %v45 = alloc : Maybe(Maybe(Int))
+    %v47 = alloc : Maybe(Int)
+    aggregate %local7.discriminant = 1, %local7@Just = 16
+    aggregate %local6.discriminant = 1, %local6@Just = %v47
+    %v52 = call deep, %v45 : Int
+    %v53 = add %v44, %v52 : Int
+    %v54 = alloc : Maybe(Maybe(Int))
+    %v56 = alloc : Maybe(Int)
     init %local9.discriminant, 0
-    init %local8@Just, %v63
-    %v67 = call deep, %v60 : Int
-    %v70 = mul %v67, 100 : Int
-    %v71 = add %v59, %v70 : Int
-    %v72 = alloc : Maybe(Maybe(Int))
+    aggregate %local8.discriminant = 1, %local8@Just = %v56
+    %v60 = call deep, %v54 : Int
+    %v63 = mul %v60, 100 : Int
+    %v64 = add %v53, %v63 : Int
+    %v65 = alloc : Maybe(Maybe(Int))
     init %local10.discriminant, 0
-    %v75 = call deep, %v72 : Int
-    %v78 = mul %v75, 100 : Int
-    %v79 = add %v71, %v78 : Int
-    %v80 = alloc : Shape
-    init %local11.discriminant, 0
-    init %local11@Circle, 5
-    %v85 = call area, %v80 : Int
-    %v86 = add %v79, %v85 : Int
-    %v87 = alloc : Shape
-    init %local12.discriminant, 1
-    init %local12@Square.width, 3
-    init %local12@Square.height, 4
-    %v94 = call area, %v87 : Int
-    %v95 = add %v86, %v94 : Int
-    %v96 = alloc : Shape
-    init %local13.discriminant, 0
-    init %local13@Circle, 7
-    %v102 = call describe, %v96, True : Int
-    %v103 = add %v95, %v102 : Int
-    %v104 = alloc : Shape
-    init %local14.discriminant, 0
-    init %local14@Circle, 7
-    %v110 = call describe, %v104, False : Int
-    %v111 = add %v103, %v110 : Int
-    %v112 = alloc : Maybe(Int)
-    init %local15.discriminant, 1
-    init %local15@Just, 32
-    %v117 = call firstOf, %v112 : Int
-    %v118 = add %v111, %v117 : Int
-    %v119 = alloc : Maybe(Int)
+    %v68 = call deep, %v65 : Int
+    %v71 = mul %v68, 100 : Int
+    %v72 = add %v64, %v71 : Int
+    %v73 = alloc : Shape
+    aggregate %local11.discriminant = 0, %local11@Circle = 5
+    %v77 = call area, %v73 : Int
+    %v78 = add %v72, %v77 : Int
+    %v79 = alloc : Shape
+    aggregate %local12.discriminant = 1, %local12@Square.width = 3, %local12@Square.height = 4
+    %v84 = call area, %v79 : Int
+    %v85 = add %v78, %v84 : Int
+    %v86 = alloc : Shape
+    aggregate %local13.discriminant = 0, %local13@Circle = 7
+    %v91 = call describe, %v86, True : Int
+    %v92 = add %v85, %v91 : Int
+    %v93 = alloc : Shape
+    aggregate %local14.discriminant = 0, %local14@Circle = 7
+    %v98 = call describe, %v93, False : Int
+    %v99 = add %v92, %v98 : Int
+    %v100 = alloc : Maybe(Int)
+    aggregate %local15.discriminant = 1, %local15@Just = 32
+    %v104 = call firstOf, %v100 : Int
+    %v105 = add %v99, %v104 : Int
+    %v106 = alloc : Maybe(Int)
     init %local16.discriminant, 0
-    %v122 = call firstOf, %v119 : Int
-    %v125 = mul %v122, 100 : Int
-    %v126 = add %v118, %v125 : Int
-    %v127 = alloc : Maybe(Int)
-    init %local17.discriminant, 1
-    init %local17@Just, 1
-    %v132 = call present, %v127 : Int
-    %v135 = mul %v132, 64 : Int
-    %v136 = add %v126, %v135 : Int
-    %v137 = alloc : Maybe(Int)
+    %v109 = call firstOf, %v106 : Int
+    %v112 = mul %v109, 100 : Int
+    %v113 = add %v105, %v112 : Int
+    %v114 = alloc : Maybe(Int)
+    aggregate %local17.discriminant = 1, %local17@Just = 1
+    %v118 = call present, %v114 : Int
+    %v121 = mul %v118, 64 : Int
+    %v122 = add %v113, %v121 : Int
+    %v123 = alloc : Maybe(Int)
     init %local18.discriminant, 0
-    %v140 = call present, %v137 : Int
-    %v143 = mul %v140, 128 : Int
-    %v144 = add %v136, %v143 : Int
-    %v146 = call viaCall, 128 : Int
-    %v147 = add %v144, %v146 : Int
-    %v149 = call viaCall, 0 : Int
-    %v152 = mul %v149, 100 : Int
-    %v153 = add %v147, %v152 : Int
-    ret %v153
+    %v126 = call present, %v123 : Int
+    %v129 = mul %v126, 128 : Int
+    %v130 = add %v122, %v129 : Int
+    %v132 = call viaCall, 128 : Int
+    %v133 = add %v130, %v132 : Int
+    %v135 = call viaCall, 0 : Int
+    %v138 = mul %v135, 100 : Int
+    %v139 = add %v133, %v138 : Int
+    ret %v139
 }

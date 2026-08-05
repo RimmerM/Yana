@@ -117,9 +117,9 @@ fn Eq.!=(Box(Int))(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
 fn ordered() -> Int {
   b0:
     %a = alloc : Metres
-    init %local0@Metres.value, 1
+    aggregate %local0@Metres.value = 1
     %b = alloc : Metres
-    init %local1@Metres.value, 2
+    aggregate %local1@Metres.value = 2
     %score = alloc : Int
     init %score, 0
     %v10 = call Eq.!=(Metres), %a, %b : Bool
@@ -207,9 +207,9 @@ fn ordered() -> Int {
 fn overridden() -> Int {
   b0:
     %v0 = alloc : Feet
-    init %local0@Feet.value, 1
+    aggregate %local0@Feet.value = 1
     %v3 = alloc : Feet
-    init %local1@Feet.value, 2
+    aggregate %local1@Feet.value = 2
     %v6 = call Eq(Feet).!=, %v0, %v3 : Bool
     je %v6, b1, b2
 
@@ -226,11 +226,11 @@ fn overridden() -> Int {
 fn negated() -> Int {
   b0:
     %value = alloc : Cents
-    init %local0@Cents.value, 7
+    aggregate %local0@Cents.value = 7
     %negative = call Num.-(Cents), %value : Cents
     %v4 = alloc : Cents
     %v7 = neg 7 : Int
-    init %local2@Cents.value, %v7
+    aggregate %local2@Cents.value = %v7
     %v9 = call Eq(Cents).==, %negative, %v4 : Bool
     je %v9, b1, b2
 
@@ -322,7 +322,7 @@ fn flags() -> Int {
 fn described() -> Int {
   b0:
     %v0 = alloc : Metres
-    init %local0@Metres.value, 1024
+    aggregate %local0@Metres.value = 1024
     %v3 = call Describe.doubled(Metres), %v0 : Int
     ret %v3
 }
@@ -330,7 +330,7 @@ fn described() -> Int {
 fn boxOf(%value: Int) -> Box(Int) {
   b0:
     %v1 = alloc : Box(Int)
-    init %local0@Box.item, %value
+    aggregate %local0@Box.item = %value
     ret %v1
 }
 
@@ -403,7 +403,7 @@ fn FromInt(Cents).fromInt(%value: Long) -> Cents {
   b0:
     %v1 = alloc : Cents
     %v2 = cast %value : Int
-    init %local0@Cents.value, %v2
+    aggregate %local0@Cents.value = %v2
     ret %v1
 }
 
@@ -421,7 +421,7 @@ fn Num(Cents).+(%lhs: Cents, %rhs: Cents) -> Cents {
     %v3 = load %lhs@Cents.value : Int
     %v4 = load %rhs@Cents.value : Int
     %v5 = add %v3, %v4 : Int
-    init %local2@Cents.value, %v5
+    aggregate %local2@Cents.value = %v5
     ret %v2
 }
 
@@ -431,7 +431,7 @@ fn Num(Cents).-(%lhs: Cents, %rhs: Cents) -> Cents {
     %v3 = load %lhs@Cents.value : Int
     %v4 = load %rhs@Cents.value : Int
     %v5 = sub %v3, %v4 : Int
-    init %local2@Cents.value, %v5
+    aggregate %local2@Cents.value = %v5
     ret %v2
 }
 
@@ -441,7 +441,7 @@ fn Num(Cents).*(%lhs: Cents, %rhs: Cents) -> Cents {
     %v3 = load %lhs@Cents.value : Int
     %v4 = load %rhs@Cents.value : Int
     %v5 = mul %v3, %v4 : Int
-    init %local2@Cents.value, %v5
+    aggregate %local2@Cents.value = %v5
     ret %v2
 }
 
@@ -451,7 +451,7 @@ fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
     %v3 = load %lhs@Cents.value : Int
     %v4 = load %rhs@Cents.value : Int
     %v5 = div %v3, %v4 : Int
-    init %local2@Cents.value, %v5
+    aggregate %local2@Cents.value = %v5
     ret %v2
 }
 

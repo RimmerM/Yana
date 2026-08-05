@@ -27,27 +27,23 @@
 fn main() -> Int {
   b0:
     %v0 = alloc : Person
-    init %local0@Person.name, 5
-    init %local0@Person.age, 90
+    aggregate %local0@Person.name = 5, %local0@Person.age = 90
     %people = call nameOf(Person), %v0 : Int
-    %v6 = alloc : Item
-    init %local1@Item.name, 2
-    init %local1@Item.cost, 7
-    %items = call nameOf(Item), %v6 : Int
-    %v12 = alloc : Left
-    init %local2@Left.name, 1
-    init %local2@Left.tag, 3
-    %left = call labelled(Left), %v12 : Int
-    %v18 = alloc : Right
-    init %local3@Right.tag, 4
-    init %local3@Right.name, 6
-    %right = call labelled(Right), %v18 : Int
-    %v26 = mul %people, 1000 : Int
-    %v29 = mul %items, 100 : Int
-    %v30 = add %v26, %v29 : Int
-    %v31 = add %v30, %left : Int
-    %v32 = add %v31, %right : Int
-    ret %v32
+    %v5 = alloc : Item
+    aggregate %local1@Item.name = 2, %local1@Item.cost = 7
+    %items = call nameOf(Item), %v5 : Int
+    %v10 = alloc : Left
+    aggregate %local2@Left.name = 1, %local2@Left.tag = 3
+    %left = call labelled(Left), %v10 : Int
+    %v15 = alloc : Right
+    aggregate %local3@Right.tag = 4, %local3@Right.name = 6
+    %right = call labelled(Right), %v15 : Int
+    %v22 = mul %people, 1000 : Int
+    %v25 = mul %items, 100 : Int
+    %v26 = add %v22, %v25 : Int
+    %v27 = add %v26, %left : Int
+    %v28 = add %v27, %right : Int
+    ret %v28
 }
 
 fn nameOf(Person)(%p: Person) -> Int {

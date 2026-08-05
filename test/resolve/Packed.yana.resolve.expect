@@ -190,29 +190,28 @@ fn together() -> Int {
 fn unpacked() -> Int {
   b0:
     %v0 = alloc : Mixed
-    init %m@Mixed.only, 7
-    init %m@Mixed.wide, 5
-    %v5 = load %m : Mixed
-    %v6 = load %m@Mixed.only : @bits(5) U32
-    %v7 = alloc : U32
-    %v8 = load %m@Mixed.only : @bits(5) U32
-    %v9 = cast %v8 : U32
-    init %local1, %v9
-    %v11 = borrow_mut %local1 : &mut U32
-    call bump, %v11
-    %v13 = load %local1 : U32
-    %v15 = and %v13, 31 : U32
-    %v16 = cast %v15 : @bits(5) U32
-    assign %m@Mixed.only, %v16
-    %v18 = load %m : Mixed
-    %v19 = load %m@Mixed.only : @bits(5) U32
-    %v20 = cast %v19 : U32
-    %v21 = cast %v20 : Int
-    %v24 = mul %v21, 10 : Int
-    %v25 = load %m : Mixed
-    %v26 = load %m@Mixed.wide : Int
-    %v27 = add %v24, %v26 : Int
-    ret %v27
+    aggregate %m@Mixed.only = 7, %m@Mixed.wide = 5
+    %v4 = load %m : Mixed
+    %v5 = load %m@Mixed.only : @bits(5) U32
+    %v6 = alloc : U32
+    %v7 = load %m@Mixed.only : @bits(5) U32
+    %v8 = cast %v7 : U32
+    init %local1, %v8
+    %v10 = borrow_mut %local1 : &mut U32
+    call bump, %v10
+    %v12 = load %local1 : U32
+    %v14 = and %v12, 31 : U32
+    %v15 = cast %v14 : @bits(5) U32
+    assign %m@Mixed.only, %v15
+    %v17 = load %m : Mixed
+    %v18 = load %m@Mixed.only : @bits(5) U32
+    %v19 = cast %v18 : U32
+    %v20 = cast %v19 : Int
+    %v23 = mul %v20, 10 : Int
+    %v24 = load %m : Mixed
+    %v25 = load %m@Mixed.wide : Int
+    %v26 = add %v23, %v25 : Int
+    ret %v26
 }
 
 fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {

@@ -360,24 +360,19 @@ fn frameOnly() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %local0@Array.run@Run.items, %v7
-    %v99 = load %local0@Array.run@Run.capacity:unit32 : U32
-    %v104 = and %v99, 18446744072635809792 : U32
-    %v105 = or %v104, 3 : U32
-    %v114 = and %v105, 18446744070488326143 : U32
-    init %local0@Array.run@Run.capacity:unit32, %v114
-    %v16 = add %v7, 0 : %Int
-    init [%v16], 10
-    %v21 = add %v7, 4 : %Int
-    init [%v21], 20
-    %v26 = add %v7, 8 : %Int
-    init [%v26], 30
+    %v82 = load %local0@Array.run@Run.capacity:unit32 : U32
+    %v87 = and %v82, 18446744072635809792 : U32
+    %v88 = or %v87, 3 : U32
+    %v97 = and %v88, 18446744070488326143 : U32
+    init %local0@Array.run@Run.capacity:unit32, %v97
+    aggregate [%v7][0] = 10, [%v7][1] = 20, [%v7][2] = 30
     init %local0@Array.length, 3
-    %v41 = add %v7, 0 : %Int
-    %v43 = load [%v41] : Int
-    %v56 = add %v7, 8 : %Int
-    %v58 = load [%v56] : Int
-    %v63 = load %local0 : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v63
+    %v30 = add %v7, 0 : %Int
+    %v32 = load [%v30] : Int
+    %v45 = add %v7, 8 : %Int
+    %v47 = load [%v45] : Int
+    %v52 = load %local0 : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v52
     ret 40
 }
 
@@ -387,48 +382,43 @@ fn grown() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v7
-    %v82 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v87 = and %v82, 18446744072635809792 : U32
-    %v88 = or %v87, 3 : U32
-    %v97 = and %v88, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v97
-    %v16 = add %v7, 0 : %Int
-    init [%v16], 1
-    %v21 = add %v7, 4 : %Int
-    init [%v21], 2
-    %v26 = add %v7, 8 : %Int
-    init [%v26], 3
+    %v65 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v70 = and %v65, 18446744072635809792 : U32
+    %v71 = or %v70, 3 : U32
+    %v80 = and %v71, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v80
+    aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %xs@Array.length, 3
-    %v32 = borrow_mut %xs : &mut Array(Int)
-    call push(Int), %v32, 4
-    %v37 = borrow_mut %xs : &mut Array(Int)
-    call push(Int), %v37, 5
-    %v43 = load %xs@Array.length : @bits(30) U32
-    %v45 = cast %v43 : U32
-    %v46 = cast %v45 : U64
-    %v47 = cmp_ge 0, %v46 : Bool
-    je %v47, b2, b1
+    %v21 = borrow_mut %xs : &mut Array(Int)
+    call push(Int), %v21, 4
+    %v26 = borrow_mut %xs : &mut Array(Int)
+    call push(Int), %v26, 5
+    %v32 = load %xs@Array.length : @bits(30) U32
+    %v34 = cast %v32 : U32
+    %v35 = cast %v34 : U64
+    %v36 = cmp_ge 0, %v35 : Bool
+    je %v36, b2, b1
 
   b1:
     jmp b3
 
   b2:
-    %v68 = syscall 60, 134 : I64
+    %v57 = syscall 60, 134 : I64
     jmp b3
 
   b3:
-    %v49 = load %xs@Array.run@Run.items : %Int
-    %v52 = add %v49, 0 : %Int
-    %v54 = load [%v52] : Int
-    %v56 = load %xs@Array.length : @bits(30) U32
-    %v65 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v65
-    %v57 = cast %v56 : U32
-    %v58 = cast %v57 : I64
-    %v59 = cast %v54 : I64
-    %v60 = add %v59, %v58 : I64
-    %v61 = cast %v60 : Int
-    ret %v61
+    %v38 = load %xs@Array.run@Run.items : %Int
+    %v41 = add %v38, 0 : %Int
+    %v43 = load [%v41] : Int
+    %v45 = load %xs@Array.length : @bits(30) U32
+    %v54 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v54
+    %v46 = cast %v45 : U32
+    %v47 = cast %v46 : I64
+    %v48 = cast %v43 : I64
+    %v49 = add %v48, %v47 : I64
+    %v50 = cast %v49 : Int
+    ret %v50
 }
 
 fn boundMutable() -> Int {
@@ -437,22 +427,17 @@ fn boundMutable() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v7
-    %v69 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v74 = and %v69, 18446744072635809792 : U32
-    %v75 = or %v74, 3 : U32
-    %v84 = and %v75, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v84
-    %v16 = add %v7, 0 : %Int
-    init [%v16], 4
-    %v21 = add %v7, 4 : %Int
-    init [%v21], 5
-    %v26 = add %v7, 8 : %Int
-    init [%v26], 6
+    %v52 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v57 = and %v52, 18446744072635809792 : U32
+    %v58 = or %v57, 3 : U32
+    %v67 = and %v58, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v67
+    aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 6
     init %xs@Array.length, 3
-    %v42 = add %v7, 4 : %Int
-    %v44 = load [%v42] : Int
-    %v48 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v48
+    %v31 = add %v7, 4 : %Int
+    %v33 = load [%v31] : Int
+    %v37 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v37
     ret 5
 }
 

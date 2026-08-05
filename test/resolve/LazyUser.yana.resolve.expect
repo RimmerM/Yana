@@ -52,8 +52,7 @@ fn markPoint(%mark: Int) -> Point {
     %v2 = add %v1, %mark : Int
     assign effects, %v2
     %v4 = alloc : Point
-    init %local0@Point.x, 2
-    init %local0@Point.y, 3
+    aggregate %local0@Point.x = 2, %local0@Point.y = 3
     ret %v4
 }
 
@@ -299,249 +298,247 @@ fn main() -> Int {
 
   b9:
     %v69 = alloc : Maybe(Int)
-    init %local5.discriminant, 1
-    init %local5@Just, 1
-    %v73 = copy %local5 : Maybe(Int)
-    %v74 = alloc : () -> Int
-    %v75 = symbol ResolveTest.deferred$6 : %()
-    init %local7.code, %v75
-    %v78 = cast 0 : %()
-    init %local7.env, %v78
-    %v80 = call orDefault(Int), %v73, %v74 : Int
-    %v83 = cmp_eq %v80, 1 : Bool
-    je %v83, b10, b11
+    aggregate %local5.discriminant = 1, %local5@Just = 1
+    %v72 = copy %local5 : Maybe(Int)
+    %v73 = alloc : () -> Int
+    %v74 = symbol ResolveTest.deferred$6 : %()
+    init %local7.code, %v74
+    %v77 = cast 0 : %()
+    init %local7.env, %v77
+    %v79 = call orDefault(Int), %v72, %v73 : Int
+    %v82 = cmp_eq %v79, 1 : Bool
+    je %v82, b10, b11
 
   b10:
-    %v85 = load %score : Int
-    %v88 = add %v85, 8 : Int
-    assign %score, %v88
+    %v84 = load %score : Int
+    %v87 = add %v84, 8 : Int
+    assign %score, %v87
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v92 = call nothingInt : Maybe(Int)
-    %v93 = copy %local8 : Maybe(Int)
-    %v94 = alloc : () -> Int
-    %v95 = symbol ResolveTest.deferred$7 : %()
-    init %local10.code, %v95
-    %v98 = cast 0 : %()
-    init %local10.env, %v98
-    %v100 = call orDefault(Int), %v93, %v94 : Int
-    %v103 = cmp_eq %v100, 32768 : Bool
-    je %v103, b13, b14
+    %v91 = call nothingInt : Maybe(Int)
+    %v92 = copy %local8 : Maybe(Int)
+    %v93 = alloc : () -> Int
+    %v94 = symbol ResolveTest.deferred$7 : %()
+    init %local10.code, %v94
+    %v97 = cast 0 : %()
+    init %local10.env, %v97
+    %v99 = call orDefault(Int), %v92, %v93 : Int
+    %v102 = cmp_eq %v99, 32768 : Bool
+    je %v102, b13, b14
 
   b13:
-    %v105 = load %score : Int
-    %v108 = add %v105, 16 : Int
-    assign %score, %v108
+    %v104 = load %score : Int
+    %v107 = add %v104, 16 : Int
+    assign %score, %v107
     jmp b15
 
   b14:
     jmp b15
 
   b15:
-    %v113 = alloc : Maybe(Bool)
-    init %local11.discriminant, 1
-    init %local11@Just, False
-    %v117 = copy %local11 : Maybe(Bool)
-    %v118 = alloc : () -> Bool
-    %v119 = symbol ResolveTest.deferred$8 : %()
-    init %local13.code, %v119
-    %v122 = cast 0 : %()
-    init %local13.env, %v122
-    %v124 = call orDefault(Bool), %v117, %v118 : Bool
-    %v126 = cmp_eq %v124, False : Bool
-    je %v126, b16, b17
+    %v112 = alloc : Maybe(Bool)
+    aggregate %local11.discriminant = 1, %local11@Just = False
+    %v115 = copy %local11 : Maybe(Bool)
+    %v116 = alloc : () -> Bool
+    %v117 = symbol ResolveTest.deferred$8 : %()
+    init %local13.code, %v117
+    %v120 = cast 0 : %()
+    init %local13.env, %v120
+    %v122 = call orDefault(Bool), %v115, %v116 : Bool
+    %v124 = cmp_eq %v122, False : Bool
+    je %v124, b16, b17
 
   b16:
-    %v128 = load %score : Int
-    %v131 = add %v128, 32 : Int
-    assign %score, %v131
+    %v126 = load %score : Int
+    %v129 = add %v126, 32 : Int
+    assign %score, %v129
     jmp b18
 
   b17:
     jmp b18
 
   b18:
-    %v135 = call capturing : Int
-    %v138 = cmp_eq %v135, 37 : Bool
-    je %v138, b19, b20
+    %v133 = call capturing : Int
+    %v136 = cmp_eq %v133, 37 : Bool
+    je %v136, b19, b20
 
   b19:
-    %v140 = load %score : Int
-    %v143 = add %v140, 64 : Int
-    assign %score, %v143
+    %v138 = load %score : Int
+    %v141 = add %v138, 64 : Int
+    assign %score, %v141
     jmp b21
 
   b20:
     jmp b21
 
   b21:
-    %v147 = call mutableCapture : Int
-    %v150 = cmp_eq %v147, 82 : Bool
-    je %v150, b22, b23
+    %v145 = call mutableCapture : Int
+    %v148 = cmp_eq %v145, 82 : Bool
+    je %v148, b22, b23
 
   b22:
-    %v152 = load %score : Int
-    %v155 = add %v152, 128 : Int
-    assign %score, %v155
+    %v150 = load %score : Int
+    %v153 = add %v150, 128 : Int
+    assign %score, %v153
     jmp b24
 
   b23:
     jmp b24
 
   b24:
-    %v161 = alloc : () -> Int
-    %v162 = symbol ResolveTest.deferred$9 : %()
-    init %local14.code, %v162
-    %v165 = cast 0 : %()
-    init %local14.env, %v165
-    %v167 = call |?, 7, %v161 : Int
-    %v170 = cmp_eq %v167, 7 : Bool
-    je %v170, b25, b26
+    %v159 = alloc : () -> Int
+    %v160 = symbol ResolveTest.deferred$9 : %()
+    init %local14.code, %v160
+    %v163 = cast 0 : %()
+    init %local14.env, %v163
+    %v165 = call |?, 7, %v159 : Int
+    %v168 = cmp_eq %v165, 7 : Bool
+    je %v168, b25, b26
 
   b25:
-    %v172 = load %score : Int
-    %v175 = add %v172, 256 : Int
-    assign %score, %v175
+    %v170 = load %score : Int
+    %v173 = add %v170, 256 : Int
+    assign %score, %v173
     jmp b27
 
   b26:
     jmp b27
 
   b27:
-    %v181 = alloc : () -> Int
-    %v182 = symbol ResolveTest.deferred$10 : %()
-    init %local15.code, %v182
-    %v185 = cast 0 : %()
-    init %local15.env, %v185
-    %v187 = call |?, 0, %v181 : Int
-    %v190 = cmp_eq %v187, 640 : Bool
-    je %v190, b28, b29
+    %v179 = alloc : () -> Int
+    %v180 = symbol ResolveTest.deferred$10 : %()
+    init %local15.code, %v180
+    %v183 = cast 0 : %()
+    init %local15.env, %v183
+    %v185 = call |?, 0, %v179 : Int
+    %v188 = cmp_eq %v185, 640 : Bool
+    je %v188, b28, b29
 
   b28:
-    %v192 = load %score : Int
-    %v195 = add %v192, 512 : Int
-    assign %score, %v195
+    %v190 = load %score : Int
+    %v193 = add %v190, 512 : Int
+    assign %score, %v193
     jmp b30
 
   b29:
     jmp b30
 
   b30:
-    %v200 = alloc : () -> Point
-    %v201 = symbol ResolveTest.deferred$11 : %()
-    init %local16.code, %v201
-    %v204 = cast 0 : %()
-    init %local16.env, %v204
-    %v206 = call pointOr, False, %v200 : Int
-    %v209 = cmp_eq %v206, 0 : Bool
-    je %v209, b31, b32
+    %v198 = alloc : () -> Point
+    %v199 = symbol ResolveTest.deferred$11 : %()
+    init %local16.code, %v199
+    %v202 = cast 0 : %()
+    init %local16.env, %v202
+    %v204 = call pointOr, False, %v198 : Int
+    %v207 = cmp_eq %v204, 0 : Bool
+    je %v207, b31, b32
 
   b31:
-    %v211 = load %score : Int
-    %v214 = add %v211, 1024 : Int
-    assign %score, %v214
+    %v209 = load %score : Int
+    %v212 = add %v209, 1024 : Int
+    assign %score, %v212
     jmp b33
 
   b32:
     jmp b33
 
   b33:
-    %v219 = alloc : () -> Point
-    %v220 = symbol ResolveTest.deferred$12 : %()
-    init %local17.code, %v220
-    %v223 = cast 0 : %()
-    init %local17.env, %v223
-    %v225 = call pointOr, True, %v219 : Int
-    %v228 = cmp_eq %v225, 2 : Bool
-    je %v228, b34, b35
+    %v217 = alloc : () -> Point
+    %v218 = symbol ResolveTest.deferred$12 : %()
+    init %local17.code, %v218
+    %v221 = cast 0 : %()
+    init %local17.env, %v221
+    %v223 = call pointOr, True, %v217 : Int
+    %v226 = cmp_eq %v223, 2 : Bool
+    je %v226, b34, b35
 
   b34:
-    %v230 = load %score : Int
-    %v233 = add %v230, 2048 : Int
-    assign %score, %v233
+    %v228 = load %score : Int
+    %v231 = add %v228, 2048 : Int
+    assign %score, %v231
     jmp b36
 
   b35:
     jmp b36
 
   b36:
-    %v238 = alloc : () -> Int
-    %v239 = symbol ResolveTest.deferred$13 : %()
-    init %local18.code, %v239
-    %v242 = cast 0 : %()
-    init %local18.env, %v242
-    %v244 = call inner, False, %v238 : Int
-    %v247 = cmp_eq %v244, 0 : Bool
-    je %v247, b37, b38
+    %v236 = alloc : () -> Int
+    %v237 = symbol ResolveTest.deferred$13 : %()
+    init %local18.code, %v237
+    %v240 = cast 0 : %()
+    init %local18.env, %v240
+    %v242 = call inner, False, %v236 : Int
+    %v245 = cmp_eq %v242, 0 : Bool
+    je %v245, b37, b38
 
   b37:
-    %v249 = load %score : Int
-    %v252 = add %v249, 4096 : Int
-    assign %score, %v252
+    %v247 = load %score : Int
+    %v250 = add %v247, 4096 : Int
+    assign %score, %v250
     jmp b39
 
   b38:
     jmp b39
 
   b39:
-    %v257 = alloc : () -> Int
-    %v258 = symbol ResolveTest.deferred$14 : %()
-    init %local19.code, %v258
-    %v261 = cast 0 : %()
-    init %local19.env, %v261
-    %v263 = call inner, True, %v257 : Int
-    %v266 = cmp_eq %v263, 5 : Bool
-    je %v266, b40, b41
+    %v255 = alloc : () -> Int
+    %v256 = symbol ResolveTest.deferred$14 : %()
+    init %local19.code, %v256
+    %v259 = cast 0 : %()
+    init %local19.env, %v259
+    %v261 = call inner, True, %v255 : Int
+    %v264 = cmp_eq %v261, 5 : Bool
+    je %v264, b40, b41
 
   b40:
-    %v268 = load %score : Int
-    %v271 = add %v268, 8192 : Int
-    assign %score, %v271
+    %v266 = load %score : Int
+    %v269 = add %v266, 8192 : Int
+    assign %score, %v269
     jmp b42
 
   b41:
     jmp b42
 
   b42:
-    %v276 = alloc : () -> Int
-    %v277 = symbol ResolveTest.deferred$16 : %()
-    init %local20.code, %v277
-    %v280 = cast 0 : %()
-    init %local20.env, %v280
-    %v282 = call beforeLoop, 3, %v276 : Int
-    %v285 = cmp_eq %v282, 16387 : Bool
-    je %v285, b43, b44
+    %v274 = alloc : () -> Int
+    %v275 = symbol ResolveTest.deferred$16 : %()
+    init %local20.code, %v275
+    %v278 = cast 0 : %()
+    init %local20.env, %v278
+    %v280 = call beforeLoop, 3, %v274 : Int
+    %v283 = cmp_eq %v280, 16387 : Bool
+    je %v283, b43, b44
 
   b43:
-    %v287 = load %score : Int
-    %v290 = add %v287, 16384 : Int
-    assign %score, %v290
+    %v285 = load %score : Int
+    %v288 = add %v285, 16384 : Int
+    assign %score, %v288
     jmp b45
 
   b44:
     jmp b45
 
   b45:
-    %v294 = load effects : Int
-    %v297 = cmp_eq %v294, 51622 : Bool
-    je %v297, b46, b47
+    %v292 = load effects : Int
+    %v295 = cmp_eq %v292, 51622 : Bool
+    je %v295, b46, b47
 
   b46:
-    %v299 = load %score : Int
-    %v302 = add %v299, 32768 : Int
-    assign %score, %v302
+    %v297 = load %score : Int
+    %v300 = add %v297, 32768 : Int
+    assign %score, %v300
     jmp b48
 
   b47:
     jmp b48
 
   b48:
-    %v306 = load %score : Int
-    ret %v306
+    %v304 = load %score : Int
+    ret %v304
 }
 
 fn ResolveTest.deferred$0(%env: %{n: Int}) -> Int {
@@ -695,16 +692,15 @@ fn ResolveTest.deferred$13(%env: %{}) -> Int {
 fn ResolveTest.deferred$14(%env: %{}) -> Int {
   b0:
     %v3 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 5
-    %v7 = copy %local0 : Maybe(Int)
-    %v8 = alloc : () -> Int
-    %v9 = symbol ResolveTest.deferred$15 : %()
-    init %local2.code, %v9
-    %v12 = cast 0 : %()
-    init %local2.env, %v12
-    %v14 = call ??(Int), %v7, %v8 : Int
-    ret %v14
+    aggregate %local0.discriminant = 1, %local0@Just = 5
+    %v6 = copy %local0 : Maybe(Int)
+    %v7 = alloc : () -> Int
+    %v8 = symbol ResolveTest.deferred$15 : %()
+    init %local2.code, %v8
+    %v11 = cast 0 : %()
+    init %local2.env, %v11
+    %v13 = call ??(Int), %v6, %v7 : Int
+    ret %v13
 }
 
 fn ResolveTest.deferred$15(%env: %{}) -> Int {

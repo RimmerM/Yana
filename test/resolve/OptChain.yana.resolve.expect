@@ -19,8 +19,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Node)(%value: Maybe(Node)) -> Outcome(Node, ()
     %inner = alloc : Node
     init %local1, %v11
     %v14 = alloc : Outcome(Node, ())
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -35,8 +34,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Node)(%value: Maybe(Node)) -> Outcome(Node, ()
 fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int)(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
@@ -64,8 +62,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Leaf)(%value: Maybe(Leaf)) -> Outcome(Leaf, ()
     %inner = alloc : Leaf
     init %local1, %v11
     %v14 = alloc : Outcome(Leaf, ())
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -85,47 +82,42 @@ fn Try(Result(e, a), a, e).toOutcome(Int, Node)(%value: Result(Int, Node)) -> Ou
     %reason = alloc : Int
     init %local3, %v7
     %v10 = alloc : Outcome(Node, Int)
-    init %local4.discriminant, 1
     %reason = load %local3 : Int
-    init %local4@Exit, %reason
+    aggregate %local4.discriminant = 1, %local4@Exit = %reason
     jmp b3
 
   b2:
-    %v16 = load %value@Ok : Node
-    %v17 = move %value@Ok : Node
+    %v15 = load %value@Ok : Node
+    %v16 = move %value@Ok : Node
     %inner = alloc : Node
-    init %local1, %v17
-    %v20 = alloc : Outcome(Node, Int)
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    init %local1, %v16
+    %v19 = alloc : Outcome(Node, Int)
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v20], [b1, %v10] : Outcome(Node, Int)
+    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(Node, Int)
     ret %v1
 }
 
 fn Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int)(%value: Int) -> Result(Int, Int) {
   b0:
     %v1 = alloc : Result(Int, Int)
-    init %local1.discriminant, 1
-    init %local1@Ok, %value
+    aggregate %local1.discriminant = 1, %local1@Ok = %value
     ret %v1
 }
 
 fn Try(Result(e, a), a, e).fromExit(Int, Int)(%reason: Int) -> Result(Int, Int) {
   b0:
     %v1 = alloc : Result(Int, Int)
-    init %local1.discriminant, 0
-    init %local1@Err, %reason
+    aggregate %local1.discriminant = 0, %local1@Err = %reason
     ret %v1
 }
 
 fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int)(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
@@ -146,8 +138,7 @@ fn Try(Maybe(a), a, ()).toOutcome((Int) -> Int)(%value: Maybe((Int) -> Int)) -> 
     %inner = alloc : (Int) -> Int
     init %local1, %v11
     %v14 = alloc : Outcome((Int) -> Int, ())
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -162,8 +153,7 @@ fn Try(Maybe(a), a, ()).toOutcome((Int) -> Int)(%value: Maybe((Int) -> Int)) -> 
 fn Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int)(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
@@ -267,20 +257,19 @@ fn leafFor(%n: Int) -> Maybe(Leaf) {
 
   b1:
     %v5 = alloc : Maybe(Leaf)
-    init %local0.discriminant, 1
-    %v8 = alloc : Leaf
-    %v11 = mul %n, 3 : Int
-    init %local1@Leaf.value, %v11
-    init %local0@Just, %v8
+    %v7 = alloc : Leaf
+    %v10 = mul %n, 3 : Int
+    aggregate %local1@Leaf.value = %v10
+    aggregate %local0.discriminant = 1, %local0@Just = %v7
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v16 = alloc : Maybe(Leaf)
+    %v15 = alloc : Maybe(Leaf)
     init %local2.discriminant, 0
-    ret %v16
+    ret %v15
 }
 
 fn node(%n: Int) -> Maybe(Node) {
@@ -301,18 +290,15 @@ fn node(%n: Int) -> Maybe(Node) {
 
   b3:
     %v15 = alloc : Maybe(Node)
-    init %local1.discriminant, 1
-    %v18 = alloc : Node
-    %v19 = alloc : Inner
-    %v20 = alloc : Deep
-    %v23 = mul %n, 2 : Int
-    init %local4@Deep.value, %v23
-    init %local3@Inner.deep, %v20
-    %v26 = call leafFor, %n : Maybe(Leaf)
-    init %local2@Node.inner, %v19
-    init %local2@Node.leaf, %v26
-    init %local2@Node.id, %n
-    init %local1@Just, %v18
+    %v17 = alloc : Node
+    %v18 = alloc : Inner
+    %v19 = alloc : Deep
+    %v22 = mul %n, 2 : Int
+    aggregate %local4@Deep.value = %v22
+    aggregate %local3@Inner.deep = %v19
+    %v25 = call leafFor, %n : Maybe(Leaf)
+    aggregate %local2@Node.inner = %v18, %local2@Node.leaf = %v25, %local2@Node.id = %n
+    aggregate %local1.discriminant = 1, %local1@Just = %v17
     ret %v15
 }
 
@@ -326,28 +312,24 @@ fn checked(%n: Int) -> Result(Int, Node) {
 
   b1:
     %v10 = alloc : Result(Int, Node)
-    init %local0.discriminant, 0
-    init %local0@Err, %n
+    aggregate %local0.discriminant = 0, %local0@Err = %n
     ret %v10
 
   b2:
     jmp b3
 
   b3:
-    %v16 = alloc : Result(Int, Node)
-    init %local1.discriminant, 1
-    %v19 = alloc : Node
-    %v20 = alloc : Inner
-    %v21 = alloc : Deep
-    %v24 = mul %n, 4 : Int
-    init %local4@Deep.value, %v24
-    init %local3@Inner.deep, %v21
-    %v27 = call leafFor, %n : Maybe(Leaf)
-    init %local2@Node.inner, %v20
-    init %local2@Node.leaf, %v27
-    init %local2@Node.id, %n
-    init %local1@Ok, %v19
-    ret %v16
+    %v15 = alloc : Result(Int, Node)
+    %v17 = alloc : Node
+    %v18 = alloc : Inner
+    %v19 = alloc : Deep
+    %v22 = mul %n, 4 : Int
+    aggregate %local4@Deep.value = %v22
+    aggregate %local3@Inner.deep = %v19
+    %v25 = call leafFor, %n : Maybe(Leaf)
+    aggregate %local2@Node.inner = %v18, %local2@Node.leaf = %v25, %local2@Node.id = %n
+    aggregate %local1.discriminant = 1, %local1@Ok = %v17
+    ret %v15
 }
 
 fn tail(%n: Int) -> Maybe(Int) {
@@ -565,24 +547,23 @@ fn both(%n: Int) -> Maybe(Int) {
 fn parenthesized(%n: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    %v4 = call node, %n : Maybe(Node)
-    %v5 = move %local1 : Maybe(Node)
-    %v6 = call Try(Maybe(a), a, ()).toOutcome(Node), %v5 : Outcome(Node, ())
-    %v7 = load %local2.discriminant : Int
-    %v9 = cmp_eq %v7, 1 : Bool
-    je %v9, b3, b2
+    %v3 = call node, %n : Maybe(Node)
+    %v4 = move %local1 : Maybe(Node)
+    %v5 = call Try(Maybe(a), a, ()).toOutcome(Node), %v4 : Outcome(Node, ())
+    %v6 = load %local2.discriminant : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b3, b2
 
   b1:
     alloc
-    %v11 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
-    ret %v11
+    %v10 = call Try(Maybe(a), a, ()).fromExit(Int), %v11 : Maybe(Int)
+    ret %v10
 
   b2:
-    %v14 = load %local2@Proceed : Node
-    %v15 = load %local2@Proceed@Node.id : Int
+    %v13 = load %local2@Proceed : Node
+    %v14 = load %local2@Proceed@Node.id : Int
     drop_derived %local2 via drop$Outcome(Node, ())
-    init %local0@Just, %v15
+    aggregate %local0.discriminant = 1, %local0@Just = %v14
     ret %v1
 
   b3:
@@ -603,22 +584,21 @@ fn maybeFn(%n: Int) -> Maybe((Int) -> Int) {
 
   b1:
     %v5 = alloc : Maybe((Int) -> Int)
-    init %local0.discriminant, 1
-    %v8 = alloc : (Int) -> Int
-    %v9 = symbol funvalue$twice : %()
-    init %local1.code, %v9
-    %v12 = cast 0 : %()
-    init %local1.env, %v12
-    init %local0@Just, %v8
+    %v7 = alloc : (Int) -> Int
+    %v8 = symbol funvalue$twice : %()
+    init %local1.code, %v8
+    %v11 = cast 0 : %()
+    init %local1.env, %v11
+    aggregate %local0.discriminant = 1, %local0@Just = %v7
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v17 = alloc : Maybe((Int) -> Int)
+    %v16 = alloc : Maybe((Int) -> Int)
     init %local2.discriminant, 0
-    ret %v17
+    ret %v16
 }
 
 fn called(%n: Int) -> Maybe(Int) {

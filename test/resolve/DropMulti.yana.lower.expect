@@ -16,9 +16,9 @@ holdsNothing<complex>(): Long {
 holdsOne<complex>(): Long {
   b_0 {
     %s = alloca 24, 8: Ptr
-    store %s, 1, 4
     call_complex +=(I64), @liveBuffers, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
+    store %s, 1, 4
     %v_2 = add %s, 8: Ptr
     store %v_2, %v_1, 8
     %counted = loads @liveBuffers, 8: Long
@@ -63,11 +63,11 @@ freeHeap<complex>(%allocation: Ptr) {
 holdsTwo<complex>(): Long {
   b_0 {
     %s = alloca 24, 8: Ptr
-    store %s, 2, 4
     call_complex +=(I64), @liveBuffers, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
     call_complex +=(I64), @liveBuffers, 1
     %v_2 = call_complex allocateHeap, 16: Ptr
+    store %s, 2, 4
     %v_3 = add %s, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = add %s, 16: Ptr
@@ -279,11 +279,11 @@ drop$Slot<complex>(%value: Ptr) {
 main<complex>(): Int {
   b_0 {
     %s = alloca 24, 8: Ptr
-    store %s, 2, 4
     call_complex +=(I64), @liveBuffers, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
     call_complex +=(I64), @liveBuffers, 1
     %v_2 = call_complex allocateHeap, 16: Ptr
+    store %s, 2, 4
     %v_3 = add %s, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = add %s, 16: Ptr
@@ -291,9 +291,9 @@ main<complex>(): Int {
     %counted = loads @liveBuffers, 8: Long
     call_complex drop$Slot, %s
     %s = alloca 24, 8: Ptr
-    store %s, 1, 4
     call_complex +=(I64), @liveBuffers, 1
     %v_5 = call_complex allocateHeap, 16: Ptr
+    store %s, 1, 4
     %v_6 = add %s, 8: Ptr
     store %v_6, %v_5, 8
     %counted = loads @liveBuffers, 8: Long

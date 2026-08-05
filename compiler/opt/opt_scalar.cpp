@@ -232,6 +232,14 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
  * whole-value read a call argument is and the one an aggregate copy is. So the test is the use list
  * and one predicate about the type, and it needs no case for borrows, addresses, moves or drops -
  * each of those is a user and none of them is a write.
+ *
+ * An `InstAggregate` is a write here for the same reason the `Init`s it replaced were, and it has to
+ * be: a literal built into a local nothing reads used to disappear one element at a time, so making
+ * it one instruction would otherwise have made it *survive* - `sizeOf([Int *4])` grew by sixteen
+ * instructions when fixed arrays were first routed through it. That is also what an allocation needs
+ * before a managed target can stop giving it a manufactured initial value: the elision leaves the
+ * allocation's contents entirely to the aggregate, so an aggregate nothing reads has to take the
+ * allocation with it rather than keep it alive.
  */
 bool eliminateDeadLocal(OptContext& opt, U32 index) {
     auto slot = opt.function->localAt(opt.local, index);
@@ -251,6 +259,25 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
 
     for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
         auto& instruction = *opt.local[user];
+
+        if(instruction.kind == Value::Aggregate) {
+            auto& aggregate = (InstAggregate&)instruction;
+            if(aggregate.place.root != PlaceRoot::Local || aggregate.place.local != index) return false;
+
+            // The local as one of the *values* is the whole-value read the case below rejects, and
+            // reaches this instruction the same way: an aggregate of aggregates.
+            auto reads = false;
+            eachAggregateComponent(opt.local, aggregate,
+                                   [&](const AggregateComponent& component, Size) {
+                reads = reads || component.value == slot.value;
+            });
+
+            if(reads) return false;
+
+            writes.push(user);
+            continue;
+        }
+
         if(instruction.kind != Value::Init && instruction.kind != Value::Assign) return false;
 
         // The local appearing as the *value* of a write is a whole-aggregate read of it, which is
@@ -276,6 +303,50 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
     return true;
 }
 
+/*
+ * A construction one of whose components is itself a record, taken back apart into its stores.
+ *
+ * `Nested {inner: Inner {a, b}, extra}` builds the inner record in a temporary and hands the whole of
+ * it over as a component. That component is an aggregate *copy*, and copying is what this pass exists
+ * to remove: split into a store per field of the inner record, the temporary has no readers left and
+ * goes away with it. Kept as one instruction it is two allocations and two `copy`s of the same bytes -
+ * seventy lowered instructions across the corpus when records first became one instruction.
+ *
+ * The whole aggregate is expanded rather than the one component, because what replaces the component
+ * is `n` stores and the point of the instruction is that its components are written together. An
+ * aggregate missing a field is one no target can build whole anyway, so there is nothing left to keep.
+ *
+ * The stores it becomes are the ones it replaced, so `splitAggregateWrite` reaches each of them on a
+ * later iteration of the walk below and takes the nested one apart - which is the same recursion the
+ * comment there describes, entered one step higher up.
+ */
+bool splitAggregate(OptContext& opt, Block& block, Size index, InstAggregate& aggregate) {
+    auto splittable = false;
+    eachAggregateComponent(opt.local, aggregate, [&](const AggregateComponent& component, Size) {
+        auto type = opt.local[component.value]->type;
+        if(!type || needsTeardown(*opt.module, type)) return;
+
+        splittable = splittable ||
+            (allocatedLocal(opt, component.value) && fieldsOf(opt, type).exists());
+    });
+
+    if(!splittable) return false;
+
+    InstList replacement;
+    eachWrittenComponent(opt.local, opt.module->arena, aggregate,
+                         [&](Place place, ModulePtr<Value> value, Size) {
+        replacement.push(createInst<InstInit>(
+            *opt.module, *opt.function, block, aggregate.source, 0, opt.program.scalar.unit,
+            place, value, Value::Init));
+    });
+
+    insertInstructions(opt, block, index, replacement);
+    eraseInstruction(opt, (ModulePtr<Inst>)(&aggregate - opt.local));
+
+    opt.changed = true;
+    return true;
+}
+
 }
 
 void scalarizeLocals(OptContext& opt) {
@@ -288,6 +359,15 @@ void scalarizeLocals(OptContext& opt) {
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto pointer = block->instructions.get(opt.local, i);
             auto instruction = opt.local[pointer];
+
+            if(instruction->kind == Value::Aggregate) {
+                // Ahead of the store rule rather than beside it, and with the same `i--` for the same
+                // reason: what it leaves behind is the stores, and one of them is the nested write
+                // that rule takes apart.
+                if(splitAggregate(opt, *block, i, (InstAggregate&)*instruction)) i--;
+                continue;
+            }
+
             if(instruction->kind != Value::Init && instruction->kind != Value::Assign) continue;
 
             auto& write = (InstInit&)*instruction;

@@ -60,13 +60,13 @@ function node(n) {
   if (n <= 0) {
     return null;
   } else {
-    var v18 = { inner: 0, leaf: null, id: 0 };
-    var v19 = Math.imul(n, 2);
-    var v26 = leafFor(n);
-    v18.inner = v19;
-    v18.leaf = v26;
-    v18.id = n;
-    return v18;
+    var v17 = { inner: 0, leaf: null, id: 0 };
+    var v18 = Math.imul(n, 2);
+    var v25 = leafFor(n);
+    v17.inner = v18;
+    v17.leaf = v25;
+    v17.id = n;
+    return v17;
   }
 }
 
@@ -75,15 +75,13 @@ function checked(n) {
   if (n <= 0) {
     return { $tag: 0, $p: n };
   } else {
-    var v16 = { $tag: 1, $p: null };
-    var v19 = { inner: 0, leaf: null, id: 0 };
-    var v20 = Math.imul(n, 4);
-    var v27 = leafFor(n);
-    v19.inner = v20;
-    v19.leaf = v27;
-    v19.id = n;
-    v16.$p = v19;
-    return v16;
+    var v17 = { inner: 0, leaf: null, id: 0 };
+    var v18 = Math.imul(n, 4);
+    var v25 = leafFor(n);
+    v17.inner = v18;
+    v17.leaf = v25;
+    v17.id = n;
+    return { $tag: 1, $p: v17 };
   }
 }
 
@@ -184,14 +182,14 @@ function both(n) {
 
 function parenthesized(n) {
   var v1 = null;
-  var v6 = Try_Maybe_a_a_toOutcome_Node(node(n));
-  if (v6 === null) {
-    drop$Outcome_Node(v6);
+  var v5 = Try_Maybe_a_a_toOutcome_Node(node(n));
+  if (v5 === null) {
+    drop$Outcome_Node(v5);
     return null;
   } else {
-    var v15 = v6.id;
-    drop$Outcome_Node(v6);
-    v1 = v15;
+    var v14 = v5.id;
+    drop$Outcome_Node(v5);
+    v1 = v14;
     return v1;
   }
 }

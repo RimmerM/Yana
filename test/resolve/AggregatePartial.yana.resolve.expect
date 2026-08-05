@@ -1,0 +1,116 @@
+let &log: Int = 0
+
+fn opaque(%n: Int) -> Int {
+  b0:
+    %v1 = load log : Int
+    %v2 = add %v1, %n : Int
+    assign log, %v2
+    %v4 = load log : Int
+    %v7 = cmp_gt %v4, 1000 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
+fn computed(%seed: Int) -> Int {
+  b0:
+    %v1 = alloc : Pair
+    aggregate %p@Pair.a = 10, %p@Pair.b = 20
+    %v5 = call opaque, %seed : Int
+    assign %p@Pair.b, %v5
+    %v7 = load %p : Pair
+    %v8 = load %p@Pair.a : Int
+    %v11 = mul %v8, 100 : Int
+    %v12 = load %p : Pair
+    %v13 = load %p@Pair.b : Int
+    %v14 = add %v11, %v13 : Int
+    ret %v14
+}
+
+fn readBetween() -> Int {
+  b0:
+    %v0 = alloc : Pair
+    aggregate %p@Pair.a = 3, %p@Pair.b = 4
+    %v4 = load %p : Pair
+    %first = load %p@Pair.b : Int
+    assign %p@Pair.b, 9
+    %v8 = load %p : Pair
+    %v9 = load %p@Pair.a : Int
+    %v12 = mul %v9, 100 : Int
+    %v15 = mul %first, 10 : Int
+    %v16 = add %v12, %v15 : Int
+    %v17 = load %p : Pair
+    %v18 = load %p@Pair.b : Int
+    %v19 = add %v16, %v18 : Int
+    ret %v19
+}
+
+fn both(%seed: Int) -> Int {
+  b0:
+    %inner = alloc : Pair
+    aggregate %local0@Pair.a = 1, %local0@Pair.b = 2
+    %v5 = alloc : Held
+    aggregate %outer@Held.tag = 7, %outer@Held.held = %inner
+    %v8 = call opaque, %seed : Int
+    assign %outer@Held.tag, %v8
+    %v10 = load %outer : Held
+    %v11 = load %outer@Held.held : Pair
+    %v12 = load %outer@Held.held@Pair.a : Int
+    %v15 = mul %v12, 100 : Int
+    %v16 = load %outer : Held
+    %v17 = load %outer@Held.held : Pair
+    %v18 = load %outer@Held.held@Pair.b : Int
+    %v21 = mul %v18, 10 : Int
+    %v22 = add %v15, %v21 : Int
+    %v23 = load %outer : Held
+    %v24 = load %outer@Held.tag : Int
+    %v25 = add %v22, %v24 : Int
+    ret %v25
+}
+
+fn derived(%seed: Int) -> Int {
+  b0:
+    %v1 = alloc : Held
+    %v3 = alloc : Pair
+    aggregate %local1@Pair.a = 1, %local1@Pair.b = 2
+    aggregate %h@Held.tag = 7, %h@Held.held = %v3
+    %v8 = load %h : Held
+    %v9 = load %h@Held.tag : Int
+    %v10 = call opaque, %seed : Int
+    %v11 = add %v9, %v10 : Int
+    assign %h@Held.tag, %v11
+    %v13 = load %h : Held
+    %v14 = load %h@Held.held : Pair
+    %v15 = load %h@Held.held@Pair.a : Int
+    %v18 = mul %v15, 100 : Int
+    %v19 = load %h : Held
+    %v20 = load %h@Held.held : Pair
+    %v21 = load %h@Held.held@Pair.b : Int
+    %v24 = mul %v21, 10 : Int
+    %v25 = add %v18, %v24 : Int
+    %v26 = load %h : Held
+    %v27 = load %h@Held.tag : Int
+    %v28 = add %v25, %v27 : Int
+    ret %v28
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call computed, 5 : Int
+    %v2 = call readBetween : Int
+    %v3 = add %v1, %v2 : Int
+    %v5 = call both, 6 : Int
+    %v6 = add %v3, %v5 : Int
+    %v8 = call derived, 7 : Int
+    %v9 = add %v6, %v8 : Int
+    %v10 = load log : Int
+    %v11 = add %v9, %v10 : Int
+    ret %v11
+}

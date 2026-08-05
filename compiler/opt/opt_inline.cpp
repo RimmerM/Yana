@@ -554,6 +554,10 @@ struct Inliner {
     bool clonableKind(Value::Kind kind) {
         switch(kind) {
             case Value::Alloc: case Value::LoadPlace: case Value::Init: case Value::Assign:
+            // An array literal, which is one instruction rather than one per element - see
+            // InstAggregate. Leaving it out made every function holding a literal un-inlinable,
+            // which is how `Array.escaping` stopped folding to its constant.
+            case Value::Aggregate:
             case Value::Borrow: case Value::Copy: case Value::Move:
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Neg: case Value::Not:
@@ -1349,6 +1353,22 @@ struct Inliner {
                 return (Inst*)createInst<InstInit>(module, function, into, source, name, type,
                                                    place(write.place), value(write.value),
                                                    instruction.kind);
+            }
+            case Value::Aggregate: {
+                auto& aggregate = (InstAggregate&)instruction;
+                auto cloned = createInst<InstAggregate>(module, function, into, source, name, type,
+                                                        place(aggregate.place));
+                cloned->constructor = aggregate.constructor;
+
+                eachAggregateComponent(opt.local, aggregate,
+                                       [&](AggregateComponent component, Size) {
+                    if(component.step.value) component.step.value = value(component.step.value);
+
+                    cloned->components.push(module.arena, AggregateComponent {
+                        component.step, value(component.value) });
+                });
+
+                return (Inst*)cloned;
             }
             case Value::Borrow: {
                 auto& borrow = (InstBorrow&)instruction;

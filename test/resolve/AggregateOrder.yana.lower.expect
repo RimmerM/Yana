@@ -1,0 +1,108 @@
+@log = [0, 0, 0, 0]
+
+crossesEffect<complex>(): Int {
+  b_0 {
+    %first = call_complex note, 1: Int
+    %v_1 = call_complex note, 2: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, 9: Int
+    %v_4 = add %v_3, %first: Int
+    ret %v_4
+  }
+}
+
+note<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, %n: Int
+    store @log, %v_3, 4
+    %v_4 = cmp_igt %v_3, 1000000000: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = call_complex note, 0: Int
+    ret %v_7
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_8 {
+    ret %n
+  }
+}
+
+folds<complex>(): Int {
+  b_0 {
+    ret 56
+  }
+}
+
+elementCrossesEffect<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imm 2: Long
+    %v_4 = alloca 8, 4: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = and %v_6, 18446744072635809792: Int
+    %v_8 = or %v_7, 2: Int
+    %v_9 = and %v_8, 18446744070488326143: Int
+    %v_10 = add %v_1, 8: Ptr
+    store %v_10, %v_9, 4
+    store %v_4, 0, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 7, 4
+    %v_12 = add %v_1, 12: Ptr
+    store %v_12, 2, 4
+    %first = call_complex note, 4: Int
+    %v_13 = add %v_4, 0: Ptr
+    %v_14 = call_complex note, 5: Int
+    store %v_13, %v_14, 4
+    %v_15 = add %v_4, 0: Ptr
+    %v_16 = loads %v_15, 4: Int
+    %v_17 = imul %v_14, 10: Int
+    %v_18 = add %v_4, 4: Ptr
+    %v_19 = loads %v_18, 4: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = add %v_20, %first: Int
+    ret %v_21
+  }
+}
+
+crossesBinding<complex>(): Int {
+  b_0 {
+    %x = call_complex note, 3: Int
+    %v_1 = add %x, 1: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, 8: Int
+    ret %v_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %first = call_complex note, 1: Int
+    %v_1 = call_complex note, 2: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, 9: Int
+    %v_4 = add %v_3, %first: Int
+    %x = call_complex note, 3: Int
+    %v_5 = add %x, 1: Int
+    %v_6 = imul %v_5, 10: Int
+    %v_7 = add %v_6, 8: Int
+    %v_8 = add %v_4, %v_7: Int
+    %v_9 = call_complex elementCrossesEffect: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = add %v_10, 56: Int
+    %v_12 = loads @log, 4: Int
+    %v_13 = add %v_11, %v_12: Int
+    ret %v_13
+  }
+}
+

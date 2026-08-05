@@ -277,6 +277,7 @@ struct Value {
         LoadPlace,
         Init,
         Assign,
+        Aggregate,
         Borrow,
         Move,
         Swap,
@@ -531,6 +532,165 @@ struct InstInit: Inst {
     Place place;
     ModulePtr<Value> value;
 };
+
+/*
+ * Filling `n` components of one place from `n` values - one instruction for what an aggregate
+ * literal initializes, rather than one `Init` per component.
+ *
+ * A component is one step off the place, so this covers both shapes a literal has: the elements of a
+ * run or a `[T *n]`, reached by an `Index`, and the fields of a record or a tuple, reached by a
+ * `Field`. They are the same instruction because the reason for it is the same one in both cases -
+ * see below - and because a target that has to build the value whole gets one rule instead of two.
+ *
+ * ## Why the components are not `n` separate stores
+ *
+ * Because they are not `n` separate decisions. `[a, b, c]` names one construction with a known
+ * arity, and taking it apart before any pass sees it means every pass that wants it whole has to
+ * put it back together - which is what a target that has no uninitialized storage must do. JS has
+ * to build the elements *into* the literal, so the emitter was reconstructing the arity by
+ * pattern-matching a run of stores, and the generic optimizer had to be taught not to break the
+ * shape it was matching on (`leavesArrayHole` in opt/opt_place.cpp).
+ *
+ * The second cost is worse and is not about any one target. Storage that is allocated and then
+ * filled has to hold *something* in between, and on a target with no raw memory that something is
+ * a manufactured value of the element type - `zeroValue` walking the type to build an instance that
+ * may not satisfy the type's own invariants, safe only because nothing reads it. That is a value
+ * the compiler cannot always make: an abstract type across a library boundary and an existential
+ * both have shapes this side of the boundary cannot see. Initializing from the values themselves
+ * needs no zero at all.
+ *
+ * ## The components are a hand-over, which an operand normally is not
+ *
+ * Implementation-Containers.md §14.1 records the trap that made an earlier attempt at this wrong:
+ * the ownership passes read a hand-over out of an `InstMove` or an assignment into a place, so an
+ * owned value passed as an *operand* left the frame still owning it. This instruction is the
+ * exception, and it is one line in `deriveEffects` - `transferFrom` per component, which is exactly
+ * what the per-component `Init`s it replaces already did. Ownership-equivalent by construction: for
+ * a pointer-rooted place, `transferFrom` was the *only* effect those stores had.
+ *
+ * ## What it names
+ *
+ * `place` is the value being built, and each `AggregateComponent` is one value plus the step that
+ * says where it goes - so component `i` is at `place + components[i].step`, which is what
+ * `aggregateElement` expands. The place is stored as a place rather than as a base pointer so that
+ * the root travels through `instructionPlaceSlots` and `mapOperands` like every other one - a
+ * rewrite that renumbers values reaches it without a case of its own. Reported with *no* projection,
+ * which is the prefix of every component's place and therefore says "this writes the whole value" to
+ * alias analysis.
+ *
+ * The step is stored rather than derived from the component's position, and that is not redundancy
+ * in either form. An `Index` carries the constant as a *value*, and which integer type an index is
+ * written with is a target decision the resolver is the only one placed to make -
+ * `module.scalar.size` on a managed target, where a `Long` is a bigint and `arr[3n]` is a property
+ * named "3", against `scalar.long_` natively. A `Field` carries the field number, and a construction
+ * routinely skips one: a unit field has no storage, so it is left out and the fields after it keep
+ * their own numbers.
+ *
+ * ## A sum is one construction too
+ *
+ * `Just(4)` writes a discriminant *and* a payload, and those are two steps off different points: the
+ * tag hangs off the value itself and a payload field hangs off the constructor. `constructor` is what
+ * closes that gap - it is the `Downcast` every `Field` and `Index` step is taken through, so one
+ * instruction still says "these values, this one value" without the steps having to be paths.
+ *
+ * A `Discriminant` step is not taken through it, and neither is a `Downcast` - the first is the tag
+ * and the second is a payload carried whole, and both hang off the value directly. Which is the
+ * second reason the step is stored rather than implied by the position.
+ *
+ * Lowering expands it per target: an address per component on native, exactly what the stores it
+ * replaced computed, and one literal on a managed target.
+ */
+// One value and where it goes. Kept as one item rather than two parallel lists, because every
+// consumer wants them together and two lists can only ever be right by everyone remembering to push
+// to both - see `eachWrittenComponent`, which is how they are meant to be read.
+struct AggregateComponent {
+    Projection step;
+    ModulePtr<Value> value = nullptr;
+};
+
+struct InstAggregate: Inst {
+    InstAggregate(ModulePtr<Block> block, TypePtr unit, Place place):
+        Inst(Value::Aggregate, block, unit), place(place) {}
+
+    Place place;
+
+    // The constructor a `Field` or `Index` step is taken through, or `maxLimit` where the value has
+    // no constructor to step into - which is a tuple, a run, and a record with one constructor whose
+    // payload the resolver already stepped into itself.
+    U16 constructor = maxLimit<U16>;
+
+    ModuleList<AggregateComponent, false> components;
+};
+
+/*
+ * The place of one component - the aggregate's place, projected by that component's step.
+ *
+ * Rebuilt rather than appended to, because a `Place` holds its path as a list: pushing onto a copy
+ * of one would be two places sharing a path, and the second push would be visible through the first.
+ * `boxOf` in expr_construct.cpp rebuilds by prefix for the same reason.
+ *
+ * Both expansions go through this, which is the point - the component an ownership pass reasoned
+ * about and the component a backend stores into have to be the same place, and there is one function
+ * that says what it is.
+ */
+inline Place aggregateElement(ModuleBase base, Region<ModuleRegion>& arena,
+                              const InstAggregate& aggregate, Size at) {
+    Place result = aggregate.place;
+    result.projections = {};
+
+    for(auto projection: const_cast<InstAggregate&>(aggregate).place.projections.contents(base)) {
+        result.projections.push(arena, projection);
+    }
+
+    auto step = const_cast<InstAggregate&>(aggregate).components.get(base, at).step;
+
+    // The constructor a payload field is inside, where the value has one - see InstAggregate. A tag
+    // and a payload carried whole hang off the value itself, so neither takes this step.
+    if(aggregate.constructor != maxLimit<U16> &&
+       (step.kind == ProjectionKind::Field || step.kind == ProjectionKind::Index)) {
+        result.projections.push(arena, Projection { ProjectionKind::Downcast, aggregate.constructor });
+    }
+
+    result.projections.push(arena, step);
+    return result;
+}
+
+/*
+ * Every component, as it is stored: a step and a value.
+ *
+ * The cheap walk, for a consumer that wants the values or the raw steps and not the places they
+ * expand to - the ownership transfer, the effect summary, escape analysis, cloning. Building a place
+ * for each of those would be a projection path allocated per component per pass and thrown away.
+ */
+template<class F>
+inline void eachAggregateComponent(ModuleBase base, const InstAggregate& aggregate, F&& f) {
+    auto& components = const_cast<InstAggregate&>(aggregate).components;
+    for(Size at = 0; at < components.size(); at++) f(components.get(base, at), at);
+}
+
+/*
+ * Every component, as the place it writes and the value it puts there.
+ *
+ * **This is how an aggregate is meant to be interpreted as writes** - not the only way to enumerate
+ * its components, which is the walk above. A dozen passes want the same two things about each
+ * component, and each of them writing its own expansion is how one of them comes to disagree: the
+ * ownership check was written without a walk at all and did not visit the components, which let
+ * `Just(v)` alias a borrowed `v` and eventually drop it twice.
+ *
+ * Neither walk protects against forgetting the opcode entirely, and neither can - that is what
+ * instruction traits are for. What they remove is the second mistake: visiting the components and
+ * expanding them to the wrong places.
+ *
+ * `at` is passed as well, for the one consumer that needs to name a component again afterwards -
+ * `foldIntoAggregate` in opt_place.cpp rewrites the value in place.
+ */
+template<class F>
+inline void eachWrittenComponent(ModuleBase base, Region<ModuleRegion>& arena,
+                                 const InstAggregate& aggregate, F&& f) {
+    eachAggregateComponent(base, aggregate, [&](const AggregateComponent& component, Size at) {
+        f(aggregateElement(base, arena, aggregate, at), component.value, at);
+    });
+}
 
 /*
  * A borrow of a place - Implementation-IR.md part 3's InstBorrow.
@@ -1199,6 +1359,22 @@ inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
             for(auto input: ((InstPhi&)instruction).inputs.contents(base)) {
                 f(input.value, instruction.source);
             }
+            break;
+        /*
+         * Every component of a construction - see InstAggregate, whose whole exception to the
+         * ownership model is that its operands *are* hand-overs.
+         *
+         * Missing this let a construction alias droppable storage. `Just(v)` for a `v` this frame
+         * only borrows, and `Pair {a: p.x, b: p.y}` for owned fields of a value that still owns
+         * them, both stopped being reported - which is a double drop rather than a lost diagnostic.
+         * The instruction says it is a hand-over in three other walks and this is the one that
+         * checks it.
+         */
+        case Value::Aggregate:
+            eachAggregateComponent(base, (InstAggregate&)instruction,
+                                   [&](const AggregateComponent& component, Size) {
+                f(component.value, instruction.source);
+            });
             break;
         default:
             break;

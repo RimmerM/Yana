@@ -242,28 +242,28 @@ fn sum(%xs: List) -> Int {
 fn buildAndDrop() -> Int {
   b0:
     %xs = alloc : List
-    init %local0.discriminant, 1
-    %v4 = alloc : List
-    init %local1.discriminant, 1
-    %v8 = alloc : List
-    init %local2.discriminant, 1
-    %v12 = alloc : List
+    %v3 = alloc : List
+    %v6 = alloc : List
+    %v9 = alloc : List
     init %local3.discriminant, 0
+    init %local2.discriminant, 1
     init %local2@Cons.head, 39
-    %v16 = alloc heap escaping : List
-    %v17 = addressof %local4 : %List
-    init %local2@Cons.tail, %v17
-    init %local2@Cons.tail.*, %v12
+    %v14 = alloc heap escaping : List
+    %v15 = addressof %local4 : %List
+    init %local2@Cons.tail, %v15
+    init %local2@Cons.tail.*, %v9
+    init %local1.discriminant, 1
     init %local1@Cons.head, 2
-    %v21 = alloc heap escaping : List
-    %v22 = addressof %local5 : %List
-    init %local1@Cons.tail, %v22
-    init %local1@Cons.tail.*, %v8
+    %v20 = alloc heap escaping : List
+    %v21 = addressof %local5 : %List
+    init %local1@Cons.tail, %v21
+    init %local1@Cons.tail.*, %v6
+    init %local0.discriminant, 1
     init %local0@Cons.head, 1
     %v26 = alloc heap escaping : List
     %v27 = addressof %local6 : %List
     init %local0@Cons.tail, %v27
-    init %local0@Cons.tail.*, %v4
+    init %local0@Cons.tail.*, %v3
     %v30 = call sum, %xs : Int
     drop_derived %local0 via drop$List reclaim reclaim$List
     ret %v30

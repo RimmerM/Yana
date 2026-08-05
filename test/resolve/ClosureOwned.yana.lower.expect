@@ -338,53 +338,51 @@ main<complex>(): Int {
     %v_10 = or %v_9, 1073741824: Int
     %v_11 = add %v_1, 8: Ptr
     store %v_11, %v_10, 4
-    %v_12 = add %v_4, 0: Ptr
-    store %v_12, 1, 4
-    %v_13 = add %v_4, 4: Ptr
-    store %v_13, 2, 4
-    %v_14 = add %v_4, 8: Ptr
-    store %v_14, 3, 4
-    %v_15 = add %v_4, 12: Ptr
+    store %v_4, 1, 4
+    %v_12 = add %v_4, 4: Ptr
+    store %v_12, 2, 4
+    %v_13 = add %v_4, 8: Ptr
+    store %v_13, 3, 4
+    %v_14 = add %v_4, 12: Ptr
+    store %v_14, 4, 4
+    %v_15 = add %v_1, 12: Ptr
     store %v_15, 4, 4
-    %v_16 = add %v_1, 12: Ptr
-    store %v_16, 4, 4
     %first = alloca 16, 8: Ptr
     call_complex makeSummer, %first, %v_1
-    %v_17 = alloca 16, 8: Ptr
-    %v_18 = imm 4: Long
-    %v_19 = imm 2: Long
-    %v_20 = call_complex allocateHeap, 8: Ptr
-    store %v_17, %v_20, 8
-    %v_21 = add %v_17, 8: Ptr
-    %v_22 = load %v_21, 4: Int
-    %v_23 = and %v_22, 18446744072635809792: Int
-    %v_24 = or %v_23, 2: Int
-    %v_25 = and %v_24, 18446744070488326143: Int
-    %v_26 = or %v_25, 1073741824: Int
-    %v_27 = add %v_17, 8: Ptr
-    store %v_27, %v_26, 4
-    %v_28 = add %v_20, 0: Ptr
-    store %v_28, 10, 4
-    %v_29 = add %v_20, 4: Ptr
-    store %v_29, 20, 4
-    %v_30 = add %v_17, 12: Ptr
-    store %v_30, 2, 4
+    %v_16 = alloca 16, 8: Ptr
+    %v_17 = imm 4: Long
+    %v_18 = imm 2: Long
+    %v_19 = call_complex allocateHeap, 8: Ptr
+    store %v_16, %v_19, 8
+    %v_20 = add %v_16, 8: Ptr
+    %v_21 = load %v_20, 4: Int
+    %v_22 = and %v_21, 18446744072635809792: Int
+    %v_23 = or %v_22, 2: Int
+    %v_24 = and %v_23, 18446744070488326143: Int
+    %v_25 = or %v_24, 1073741824: Int
+    %v_26 = add %v_16, 8: Ptr
+    store %v_26, %v_25, 4
+    store %v_19, 10, 4
+    %v_27 = add %v_19, 4: Ptr
+    store %v_27, 20, 4
+    %v_28 = add %v_16, 12: Ptr
+    store %v_28, 2, 4
     %second = alloca 16, 8: Ptr
-    call_complex makeSummer, %second, %v_17
-    %v_31 = add %first, 8: Ptr
-    %v_32 = load %first, 8: Ptr
-    %v_33 = load %v_31, 8: Ptr
-    %v_34 = call_complex %v_32, %v_33: Int
+    call_complex makeSummer, %second, %v_16
+    %v_29 = add %first, 8: Ptr
+    %v_30 = load %first, 8: Ptr
+    %v_31 = load %v_29, 8: Ptr
+    %v_32 = call_complex %v_30, %v_31: Int
     call_complex drop$() -> Int, %first
     call_complex reclaim$() -> Int, %first
-    %v_35 = add %second, 8: Ptr
-    %v_36 = load %second, 8: Ptr
-    %v_37 = load %v_35, 8: Ptr
-    %v_38 = call_complex %v_36, %v_37: Int
+    %v_33 = add %second, 8: Ptr
+    %v_34 = load %second, 8: Ptr
+    %v_35 = load %v_33, 8: Ptr
+    %v_36 = call_complex %v_34, %v_35: Int
     call_complex drop$() -> Int, %second
     call_complex reclaim$() -> Int, %second
-    %v_39 = add %v_34, %v_38: Int
-    ret %v_39
+    %v_37 = add %v_32, %v_36: Int
+    ret %v_37
   }
 }
 

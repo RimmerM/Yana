@@ -74,53 +74,51 @@ fn main() -> Int {
     %v6 = borrow_mut %number : &mut Int
     gencall env genEnv$copyInto(Int) copyInto(Int), %v6, 7
     %pair = alloc : Point
-    init %local1@Point.x, 3
-    init %local1@Point.y, 4
-    %v13 = alloc : Point
-    init %target@Point.x, 0
-    init %target@Point.y, 0
-    %v18 = load %target : Point
-    %v19 = borrow_mut %target : &mut Point
-    gencall env genEnv$copyInto(Point) copyInto(Point), %v19, %pair
-    %v21 = load %local1@Point.x : Int
-    %v24 = cmp_ne %v21, 3 : Bool
-    je %v24, b1, b2
+    aggregate %local1@Point.x = 3, %local1@Point.y = 4
+    %v12 = alloc : Point
+    aggregate %target@Point.x = 0, %target@Point.y = 0
+    %v16 = load %target : Point
+    %v17 = borrow_mut %target : &mut Point
+    gencall env genEnv$copyInto(Point) copyInto(Point), %v17, %pair
+    %v19 = load %local1@Point.x : Int
+    %v22 = cmp_ne %v19, 3 : Bool
+    je %v22, b1, b2
 
   b1:
-    %v28 = neg 1 : Int
-    ret %v28
+    %v26 = neg 1 : Int
+    ret %v26
 
   b2:
     jmp b3
 
   b3:
-    %v31 = alloc : Tracked
-    init %local3@Tracked.value, 10
-    %tracked = call Copy(Tracked).copy, %v31 : Tracked
-    %v35 = load copyCalls : Int
-    %v38 = cmp_ne %v35, 1 : Bool
-    je %v38, b4, b5
+    %v29 = alloc : Tracked
+    aggregate %local3@Tracked.value = 10
+    %tracked = call Copy(Tracked).copy, %v29 : Tracked
+    %v33 = load copyCalls : Int
+    %v36 = cmp_ne %v33, 1 : Bool
+    je %v36, b4, b5
 
   b4:
-    %v42 = neg 2 : Int
-    ret %v42
+    %v40 = neg 2 : Int
+    ret %v40
 
   b5:
     jmp b6
 
   b6:
-    %v45 = load %number : Int
-    %v46 = load %target : Point
-    %v47 = load %target@Point.x : Int
-    %v48 = add %v45, %v47 : Int
-    %v49 = load %target : Point
-    %v50 = load %target@Point.y : Int
-    %v51 = add %v48, %v50 : Int
-    %v52 = load %local4@Tracked.value : Int
+    %v43 = load %number : Int
+    %v44 = load %target : Point
+    %v45 = load %target@Point.x : Int
+    %v46 = add %v43, %v45 : Int
+    %v47 = load %target : Point
+    %v48 = load %target@Point.y : Int
+    %v49 = add %v46, %v48 : Int
+    %v50 = load %local4@Tracked.value : Int
+    %v51 = add %v49, %v50 : Int
+    %v52 = load copyCalls : Int
     %v53 = add %v51, %v52 : Int
-    %v54 = load copyCalls : Int
-    %v55 = add %v53, %v54 : Int
-    ret %v55
+    ret %v53
 }
 
 fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
@@ -130,7 +128,7 @@ fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
     assign copyCalls, %v4
     %v6 = alloc : Tracked
     %v7 = load %from@Tracked.value : Int
-    init %local1@Tracked.value, %v7
+    aggregate %local1@Tracked.value = %v7
     ret %v6
 }
 

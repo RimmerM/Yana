@@ -557,9 +557,8 @@ fn remove(Int)(%self: Array(Int), %index: Int) -> Maybe(Int) {
     %v69 = cast %v68 : @bits(30) U32
     assign %self@Array.length, %v69
     %v71 = alloc : Maybe(Int)
-    init %local4.discriminant, 1
     %doomed = load %local3 : Int
-    init %local4@Just, %doomed
+    aggregate %local4.discriminant = 1, %local4@Just = %doomed
     ret %v71
 }
 
@@ -650,18 +649,7 @@ fn make() -> Array(Int) {
     init %local0@Array.run@Run.items, %v7
     init %local0@Array.run@Run.capacity, 3
     init %local0@Array.run@Run.ownsHeap, 1
-    %v13 = strideof Int : Long
-    %v14 = mul 0, %v13 : Long
-    %v15 = add %v7, %v14 : %Int
-    init [%v15], 7
-    %v18 = strideof Int : Long
-    %v19 = mul 1, %v18 : Long
-    %v20 = add %v7, %v19 : %Int
-    init [%v20], 8
-    %v23 = strideof Int : Long
-    %v24 = mul 2, %v23 : Long
-    %v25 = add %v7, %v24 : %Int
-    init [%v25], 9
+    aggregate [%v7][0] = 7, [%v7][1] = 8, [%v7][2] = 9
     init %local0@Array.length, 3
     ret %v3
 }
@@ -722,69 +710,58 @@ fn main() -> Int {
     init %small@Array.run@Run.items, %v7
     init %small@Array.run@Run.capacity, 3
     init %small@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
-    init [%v16], 1
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
-    init [%v21], 2
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
-    init [%v26], 3
+    aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %small@Array.length, 3
-    %v29 = load %small : Array(Int)
-    %v32 = borrow_mut %small : &mut Array(Int)
-    %v33 = load [%v32]@Array.length : @bits(30) U32
-    %v34 = cast 0 : U64
-    %v35 = cast %v33 : U32
-    %v36 = cast %v35 : U64
-    %v37 = cmp_ge %v34, %v36 : Bool
-    call checkCondition, %v37
-    %v39 = load [%v32]@Array.run@Run.items : %Int
-    %v40 = strideof Int : Long
-    %v41 = mul 0, %v40 : Long
-    %v42 = add %v39, %v41 : %Int
-    %v43 = borrow_mut [%v42] : &mut Int
-    assign [%v43], 10
-    %v46 = load %small : Array(Int)
-    %v49 = borrow_mut %small : &mut Array(Int)
-    call push(Int), %v49, 4
-    %v51 = load %small : Array(Int)
-    %v54 = borrow_mut %small : &mut Array(Int)
-    call push(Int), %v54, 5
-    %v56 = load %small : Array(Int)
-    %v59 = borrow_mut %small : &mut Array(Int)
-    %v60 = call remove(Int), %v59, 1 : Maybe(Int)
-    %v61 = load %small : Array(Int)
-    %v64 = borrow_mut %small : &mut Array(Int)
-    %v65 = call remove(Int), %v64, 99 : Maybe(Int)
-    %v66 = load %small : Array(Int)
-    %v71 = sub 0, 1 : Int
-    %v72 = borrow_mut %small : &mut Array(Int)
-    %v73 = call remove(Int), %v72, %v71 : Maybe(Int)
-    %v74 = load %small : Array(Int)
-    %v75 = borrow %small : &Array(Int)
-    %v76 = alloc : Flat(Int)
-    %v77 = load [%v75]@Array.run@Run.items : %Int
-    init %local5@Flat.items, %v77
-    %v79 = load [%v75]@Array.length : @bits(30) U32
-    %v80 = cast %v79 : U32
-    %v81 = cast %v80 : I64
-    init %local5@Flat.length, %v81
-    %v83 = call sum, %v76 : Int
-    %v84 = load %small : Array(Int)
-    %v85 = load %small@Array.length : @bits(30) U32
+    %v18 = load %small : Array(Int)
+    %v21 = borrow_mut %small : &mut Array(Int)
+    %v22 = load [%v21]@Array.length : @bits(30) U32
+    %v23 = cast 0 : U64
+    %v24 = cast %v22 : U32
+    %v25 = cast %v24 : U64
+    %v26 = cmp_ge %v23, %v25 : Bool
+    call checkCondition, %v26
+    %v28 = load [%v21]@Array.run@Run.items : %Int
+    %v29 = strideof Int : Long
+    %v30 = mul 0, %v29 : Long
+    %v31 = add %v28, %v30 : %Int
+    %v32 = borrow_mut [%v31] : &mut Int
+    assign [%v32], 10
+    %v35 = load %small : Array(Int)
+    %v38 = borrow_mut %small : &mut Array(Int)
+    call push(Int), %v38, 4
+    %v40 = load %small : Array(Int)
+    %v43 = borrow_mut %small : &mut Array(Int)
+    call push(Int), %v43, 5
+    %v45 = load %small : Array(Int)
+    %v48 = borrow_mut %small : &mut Array(Int)
+    %v49 = call remove(Int), %v48, 1 : Maybe(Int)
+    %v50 = load %small : Array(Int)
+    %v53 = borrow_mut %small : &mut Array(Int)
+    %v54 = call remove(Int), %v53, 99 : Maybe(Int)
+    %v55 = load %small : Array(Int)
+    %v60 = sub 0, 1 : Int
+    %v61 = borrow_mut %small : &mut Array(Int)
+    %v62 = call remove(Int), %v61, %v60 : Maybe(Int)
+    %v63 = load %small : Array(Int)
+    %v64 = borrow %small : &Array(Int)
+    %v65 = alloc : Flat(Int)
+    %v66 = load [%v64]@Array.run@Run.items : %Int
+    init %local5@Flat.items, %v66
+    %v68 = load [%v64]@Array.length : @bits(30) U32
+    %v69 = cast %v68 : U32
+    %v70 = cast %v69 : I64
+    init %local5@Flat.length, %v70
+    %v72 = call sum, %v65 : Int
+    %v73 = load %small : Array(Int)
+    %v74 = load %small@Array.length : @bits(30) U32
     drop %small reclaim Reclaim(Array(a)).reclaim(Int)
-    %v86 = cast %v85 : U32
-    %v87 = cast %v86 : I64
-    %v88 = cast %v83 : I64
-    %v89 = add %v88, %v87 : I64
-    %v90 = call escaping : Int
-    %v91 = cast %v90 : I64
-    %v92 = add %v89, %v91 : I64
-    %v93 = cast %v92 : Int
-    ret %v93
+    %v75 = cast %v74 : U32
+    %v76 = cast %v75 : I64
+    %v77 = cast %v72 : I64
+    %v78 = add %v77, %v76 : I64
+    %v79 = call escaping : Int
+    %v80 = cast %v79 : I64
+    %v81 = add %v78, %v80 : I64
+    %v82 = cast %v81 : Int
+    ret %v82
 }

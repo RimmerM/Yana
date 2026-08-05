@@ -435,8 +435,7 @@ fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
     %v45 = load %end : I64
     %v46 = load %start : I64
     %v47 = sub %v45, %v46 : I64
-    init %local3@Flat.items, %v44
-    init %local3@Flat.length, %v47
+    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
     ret %v39
 }
 
@@ -486,53 +485,29 @@ fn threeChunks(%x: Int) -> Chunks {
     init %local1@Array.run@Run.items, %v9
     init %local1@Array.run@Run.capacity, 2
     init %local1@Array.run@Run.ownsHeap, 1
-    %v15 = strideof Int : Long
-    %v16 = mul 0, %v15 : Long
-    %v17 = add %v9, %v16 : %Int
-    init [%v17], %x
-    %v20 = strideof Int : Long
-    %v21 = mul 1, %v20 : Long
-    %v22 = add %v9, %v21 : %Int
-    init [%v22], %v4
+    aggregate [%v9][0] = %x, [%v9][1] = %v4
     init %local1@Array.length, 2
-    %v27 = add %x, 2 : Int
-    %v30 = add %x, 3 : Int
-    %v31 = alloc : Array(Int)
-    %v34 = alloc *2 heap escaping : Int
-    %v35 = addressof %local4 : %Int
-    init %local3@Array.run@Run.items, %v35
+    %v20 = add %x, 2 : Int
+    %v23 = add %x, 3 : Int
+    %v24 = alloc : Array(Int)
+    %v27 = alloc *2 heap escaping : Int
+    %v28 = addressof %local4 : %Int
+    init %local3@Array.run@Run.items, %v28
     init %local3@Array.run@Run.capacity, 2
     init %local3@Array.run@Run.ownsHeap, 1
-    %v41 = strideof Int : Long
-    %v42 = mul 0, %v41 : Long
-    %v43 = add %v35, %v42 : %Int
-    init [%v43], %v27
-    %v46 = strideof Int : Long
-    %v47 = mul 1, %v46 : Long
-    %v48 = add %v35, %v47 : %Int
-    init [%v48], %v30
+    aggregate [%v28][0] = %v20, [%v28][1] = %v23
     init %local3@Array.length, 2
-    %v53 = add %x, 4 : Int
-    %v56 = add %x, 5 : Int
-    %v57 = alloc : Array(Int)
-    %v60 = alloc *2 heap escaping : Int
-    %v61 = addressof %local6 : %Int
-    init %local5@Array.run@Run.items, %v61
+    %v39 = add %x, 4 : Int
+    %v42 = add %x, 5 : Int
+    %v43 = alloc : Array(Int)
+    %v46 = alloc *2 heap escaping : Int
+    %v47 = addressof %local6 : %Int
+    init %local5@Array.run@Run.items, %v47
     init %local5@Array.run@Run.capacity, 2
     init %local5@Array.run@Run.ownsHeap, 1
-    %v67 = strideof Int : Long
-    %v68 = mul 0, %v67 : Long
-    %v69 = add %v61, %v68 : %Int
-    init [%v69], %v53
-    %v72 = strideof Int : Long
-    %v73 = mul 1, %v72 : Long
-    %v74 = add %v61, %v73 : %Int
-    init [%v74], %v56
+    aggregate [%v47][0] = %v39, [%v47][1] = %v42
     init %local5@Array.length, 2
-    init %local0@Chunks.a, %v5
-    init %local0@Chunks.b, %v31
-    init %local0@Chunks.c, %v57
-    init %local0@Chunks.used, 3
+    aggregate %local0@Chunks.a = %v5, %local0@Chunks.b = %v24, %local0@Chunks.c = %v43, %local0@Chunks.used = 3
     ret %v1
 }
 
@@ -712,60 +687,38 @@ fn main() -> Int {
     init %local2@Array.run@Run.items, %v10
     init %local2@Array.run@Run.capacity, 3
     init %local2@Array.run@Run.ownsHeap, 0
-    %v16 = strideof Int : Long
-    %v17 = mul 0, %v16 : Long
-    %v18 = add %v10, %v17 : %Int
-    init [%v18], 10
-    %v21 = strideof Int : Long
-    %v22 = mul 1, %v21 : Long
-    %v23 = add %v10, %v22 : %Int
-    init [%v23], 20
-    %v26 = strideof Int : Long
-    %v27 = mul 2, %v26 : Long
-    %v28 = add %v10, %v27 : %Int
-    init [%v28], 30
+    aggregate [%v10][0] = 10, [%v10][1] = 20, [%v10][2] = 30
     init %local2@Array.length, 3
-    init %local1@Ring.items, %v6
+    aggregate %local1@Ring.items = %v6
     %arr = alloc : Array(Int)
-    %v38 = alloc *3 : Int
-    %v39 = addressof %local5 : %Int
-    init %local4@Array.run@Run.items, %v39
+    %v27 = alloc *3 : Int
+    %v28 = addressof %local5 : %Int
+    init %local4@Array.run@Run.items, %v28
     init %local4@Array.run@Run.capacity, 3
     init %local4@Array.run@Run.ownsHeap, 0
-    %v46 = strideof Int : Long
-    %v47 = mul 0, %v46 : Long
-    %v48 = add %v39, %v47 : %Int
-    init [%v48], 4
-    %v51 = strideof Int : Long
-    %v52 = mul 1, %v51 : Long
-    %v53 = add %v39, %v52 : %Int
-    init [%v53], 5
-    %v56 = strideof Int : Long
-    %v57 = mul 2, %v56 : Long
-    %v58 = add %v39, %v57 : %Int
-    init [%v58], 6
+    aggregate [%v28][0] = 4, [%v28][1] = 5, [%v28][2] = 6
     init %local4@Array.length, 3
-    %v61 = call sumChunked, %cs : Int
-    %v62 = call sumContiguous, %ring : Int
-    %v63 = add %v61, %v62 : Int
-    %v64 = call sumArray, %arr : Int
+    %v39 = call sumChunked, %cs : Int
+    %v40 = call sumContiguous, %ring : Int
+    %v41 = add %v39, %v40 : Int
+    %v42 = call sumArray, %arr : Int
     drop %local4 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v65 = add %v63, %v64 : Int
-    %v66 = borrow %local1 : &Ring
-    %v67 = call Contiguous(Ring, Int).elements, %v66 : Flat(Int)
-    %v68 = call total, %v67 : Int
-    %v69 = add %v65, %v68 : Int
-    %v70 = borrow %local1 : &Ring
-    %v71 = call Contiguous(Ring, Int).elements, %v70 : Flat(Int)
-    %v72 = call count(Int), %v71 : Int
+    %v43 = add %v41, %v42 : Int
+    %v44 = borrow %local1 : &Ring
+    %v45 = call Contiguous(Ring, Int).elements, %v44 : Flat(Int)
+    %v46 = call total, %v45 : Int
+    %v47 = add %v43, %v46 : Int
+    %v48 = borrow %local1 : &Ring
+    %v49 = call Contiguous(Ring, Int).elements, %v48 : Flat(Int)
+    %v50 = call count(Int), %v49 : Int
     drop_derived %local1 reclaim reclaim$Ring
-    %v73 = add %v69, %v72 : Int
-    %v75 = call firstOver, %cs, 3 : Int
-    %v76 = add %v73, %v75 : Int
-    %v77 = call firstOfEachChunk, %cs : Int
+    %v51 = add %v47, %v50 : Int
+    %v53 = call firstOver, %cs, 3 : Int
+    %v54 = add %v51, %v53 : Int
+    %v55 = call firstOfEachChunk, %cs : Int
     drop_derived %local0 reclaim reclaim$Chunks
-    %v78 = add %v76, %v77 : Int
-    ret %v78
+    %v56 = add %v54, %v55 : Int
+    ret %v56
 }
 
 fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value: Flat(Int)) -> Outcome((), $r)) -> Outcome((), $r) {

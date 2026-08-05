@@ -264,6 +264,11 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
                     case Value::Assign:
                     case Value::LoadPlace:
                     case Value::Copy:
+                    // The writes a construction is, said once - see InstAggregate. Admitted for the
+                    // same reason the two stores are: it names a place rooted here and hands the
+                    // address to nothing. The `eachOperand` test below still catches this local
+                    // appearing as one of the *values*, which is the whole-aggregate read.
+                    case Value::Aggregate:
                         break;
                     default:
                         ok = false;

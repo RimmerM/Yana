@@ -242,7 +242,7 @@ fn makeBuffer() -> Buffer {
     call +=(I64), %v3, 1
     %v5 = alloc : Buffer
     %v7 = call allocateHeap, 16 : %U8
-    init %local0@Buffer.bytes, %v7
+    aggregate %local0@Buffer.bytes = %v7
     ret %v5
 }
 
@@ -259,9 +259,21 @@ fn touchBox(%it: Box) -> I64 {
 fn derived() -> I64 {
   b0:
     %b = alloc : Box
-    init %local0.discriminant, 1
+    %v2 = call makeBuffer : Buffer
+    aggregate %local0.discriminant = 1, %local0@Held = %v2
+    %inside = load live : I64
+    %v5 = call touchBox, %b : I64
+    drop_derived %local0 via drop$Box
+    %v6 = add %inside, %v5 : I64
+    ret %v6
+}
+
+fn derivedBraced() -> I64 {
+  b0:
+    %b = alloc : Box
+    %v2 = call makeBuffer : Buffer
     %v3 = call makeBuffer : Buffer
-    init %local0@Held, %v3
+    aggregate %local0.discriminant = 2, %local0@Pair.left = %v2, %local0@Pair.right = %v3
     %inside = load live : I64
     %v6 = call touchBox, %b : I64
     drop_derived %local0 via drop$Box
@@ -269,57 +281,41 @@ fn derived() -> I64 {
     ret %v7
 }
 
-fn derivedBraced() -> I64 {
-  b0:
-    %b = alloc : Box
-    init %local0.discriminant, 2
-    %v3 = call makeBuffer : Buffer
-    %v4 = call makeBuffer : Buffer
-    init %local0@Pair.left, %v3
-    init %local0@Pair.right, %v4
-    %inside = load live : I64
-    %v8 = call touchBox, %b : I64
-    drop_derived %local0 via drop$Box
-    %v9 = add %inside, %v8 : I64
-    ret %v9
-}
-
 fn borrowed() -> I64 {
   b0:
     %b = alloc : Box
-    init %local0.discriminant, 1
-    %v3 = call makeBuffer : Buffer
-    init %local0@Held, %v3
-    %v5 = load %local0.discriminant : Int
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b2, b1
+    %v2 = call makeBuffer : Buffer
+    aggregate %local0.discriminant = 1, %local0@Held = %v2
+    %v4 = load %local0.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b2, b1
 
   b1:
-    %v13 = load %local0.discriminant : Int
-    %v15 = cmp_eq %v13, 0 : Bool
-    je %v15, b6, b3
+    %v12 = load %local0.discriminant : Int
+    %v14 = cmp_eq %v12, 0 : Bool
+    je %v14, b6, b3
 
   b2:
     %v = load %local0@Held : Buffer
-    %v10 = load live : I64
-    %v11 = call touch, %v : I64
+    %v9 = load live : I64
+    %v10 = call touch, %v : I64
     drop_derived %local0 via drop$Box
-    %v12 = add %v10, %v11 : I64
+    %v11 = add %v9, %v10 : I64
     jmp b5
 
   b3:
     %p = load %local0@Pair : {left: Buffer, right: Buffer}
     drop_derived %local0 via drop$Box
-    %v27 = sub 0, 2 : I64
+    %v26 = sub 0, 2 : I64
     jmp b5
 
   b4:
-    %v21 = sub 0, 1 : I64
+    %v20 = sub 0, 1 : I64
     jmp b5
 
   b5:
-    %v31 = phi [b2, %v12], [b4, %v21], [b3, %v27] : I64
-    ret %v31
+    %v30 = phi [b2, %v11], [b4, %v20], [b3, %v26] : I64
+    ret %v30
 
   b6:
     drop_derived %local0 via drop$Box
@@ -329,38 +325,37 @@ fn borrowed() -> I64 {
 fn taken() -> Buffer {
   b0:
     %b = alloc : Box
-    init %local0.discriminant, 1
-    %v3 = call makeBuffer : Buffer
-    init %local0@Held, %v3
-    %v5 = load %local0.discriminant : Int
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b2, b1
+    %v2 = call makeBuffer : Buffer
+    aggregate %local0.discriminant = 1, %local0@Held = %v2
+    %v4 = load %local0.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b2, b1
 
   b1:
-    %v13 = load %local0.discriminant : Int
-    %v15 = cmp_eq %v13, 0 : Bool
-    je %v15, b6, b3
+    %v12 = load %local0.discriminant : Int
+    %v14 = cmp_eq %v12, 0 : Bool
+    je %v14, b6, b3
 
   b2:
-    %v9 = load %local0@Held : Buffer
-    %v10 = move %local0@Held : Buffer
+    %v8 = load %local0@Held : Buffer
+    %v9 = move %local0@Held : Buffer
     %v = alloc : Buffer
-    init %local2, %v10
+    init %local2, %v9
     jmp b5
 
   b3:
     %p = load %local0@Pair : {left: Buffer, right: Buffer}
     drop_derived %local0 via drop$Box
-    %v19 = call makeBuffer : Buffer
+    %v18 = call makeBuffer : Buffer
     jmp b5
 
   b4:
-    %v17 = call makeBuffer : Buffer
+    %v16 = call makeBuffer : Buffer
     jmp b5
 
   b5:
-    %v23 = phi [b2, %v], [b4, %v17], [b3, %v19] : Buffer
-    ret %v23
+    %v22 = phi [b2, %v], [b4, %v16], [b3, %v18] : Buffer
+    ret %v22
 
   b6:
     drop_derived %local0 via drop$Box
@@ -370,45 +365,44 @@ fn taken() -> Buffer {
 fn discarded() -> I64 {
   b0:
     %b = alloc : Box
-    init %local0.discriminant, 1
-    %v3 = call makeBuffer : Buffer
-    init %local0@Held, %v3
+    %v2 = call makeBuffer : Buffer
+    aggregate %local0.discriminant = 1, %local0@Held = %v2
     %before = load live : I64
-    %v6 = load %local0.discriminant : Int
-    %v8 = cmp_eq %v6, 1 : Bool
-    je %v8, b2, b1
+    %v5 = load %local0.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b2, b1
 
   b1:
-    %v15 = load %local0.discriminant : Int
-    %v17 = cmp_eq %v15, 0 : Bool
-    je %v17, b6, b3
+    %v14 = load %local0.discriminant : Int
+    %v16 = cmp_eq %v14, 0 : Bool
+    je %v16, b6, b3
 
   b2:
-    %v10 = load %local0@Held : Buffer
-    %v11 = move %local0@Held : Buffer
-    %v12 = alloc : Buffer
-    init %local2, %v11
+    %v9 = load %local0@Held : Buffer
+    %v10 = move %local0@Held : Buffer
+    %v11 = alloc : Buffer
+    init %local2, %v10
     drop %local2 via Drop(Buffer).drop
     jmp b5
 
   b3:
     %p = load %local0@Pair : {left: Buffer, right: Buffer}
     drop_derived %local0 via drop$Box
-    %v29 = sub 0, 2 : Int
+    %v28 = sub 0, 2 : Int
     jmp b5
 
   b4:
-    %v23 = sub 0, 1 : Int
+    %v22 = sub 0, 1 : Int
     jmp b5
 
   b5:
-    %arm = phi [b2, 0], [b4, %v23], [b3, %v29] : Int
-    %v37 = mul %before, 10 : I64
-    %v38 = load live : I64
-    %v39 = add %v37, %v38 : I64
-    %v40 = cast %arm : I64
-    %v41 = add %v39, %v40 : I64
-    ret %v41
+    %arm = phi [b2, 0], [b4, %v22], [b3, %v28] : Int
+    %v36 = mul %before, 10 : I64
+    %v37 = load live : I64
+    %v38 = add %v36, %v37 : I64
+    %v39 = cast %arm : I64
+    %v40 = add %v38, %v39 : I64
+    ret %v40
 
   b6:
     drop_derived %local0 via drop$Box

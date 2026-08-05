@@ -29,7 +29,7 @@ fn main() -> Int {
     init %local0@Flags.optionA, True
     init %local0@Flags.optionB, False
     %wrapped = alloc : Wrapped
-    init %local1@Wrapped.value, 7
+    aggregate %local1@Wrapped.value = 7
     %v8 = call useWrapped, %wrapped : @bits(53) U64
     %widened = cast %v8 : U64
     %v10 = call useFlags, %flags : Bool

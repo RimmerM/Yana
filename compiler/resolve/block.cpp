@@ -81,6 +81,15 @@ Inst* Block::add(Module& module, Inst* inst) {
             case Value::Native:
                 for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(module, arg, inst);
                 break;
+            case Value::Aggregate: {
+                auto aggregate = (InstAggregate*)inst;
+                eachAggregateComponent(base, *aggregate,
+                                       [&](const AggregateComponent& component, Size) {
+                    addUse(module, component.value, inst);
+                    addUse(module, component.step.value, inst);
+                });
+                break;
+            }
             case Value::Cast:
             case Value::Neg:
             case Value::Not:

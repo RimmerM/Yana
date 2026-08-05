@@ -49,37 +49,36 @@ fn main() -> Int {
     init %local1.code, %v3
     %v6 = cast 0 : %()
     init %local1.env, %v6
-    init %s@Step.weight, 1
-    init %s@Step.run, %v2
-    %v10 = load %s : Step
-    %v11 = load %s@Step.run : (Int) -> Int
-    %v13 = calldyn %v11, 10 : Int
-    %v14 = load %s : Step
-    %v15 = load %s@Step.weight : Int
-    %before = mul %v13, %v15 : Int
-    %v17 = load %s : Step
-    %v18 = load %s@Step.run : (Int) -> Int
-    %v19 = borrow_mut %s@Step.run : &mut (Int) -> Int
-    call retarget, %v19
-    %v21 = load %s : Step
-    %v22 = load %s@Step.run : (Int) -> Int
-    %v24 = calldyn %v22, 10 : Int
-    %v25 = load %s : Step
-    %v26 = load %s@Step.weight : Int
-    %after = mul %v24, %v26 : Int
-    %v28 = load %s : Step
-    %v30 = borrow_mut %s : &mut Step
-    call reweight, %v30, 4
-    %v32 = load %s : Step
-    %v33 = load %s@Step.run : (Int) -> Int
-    %v35 = calldyn %v33, 10 : Int
-    %v36 = load %s : Step
-    %v37 = load %s@Step.weight : Int
+    aggregate %s@Step.weight = 1, %s@Step.run = %v2
+    %v9 = load %s : Step
+    %v10 = load %s@Step.run : (Int) -> Int
+    %v12 = calldyn %v10, 10 : Int
+    %v13 = load %s : Step
+    %v14 = load %s@Step.weight : Int
+    %before = mul %v12, %v14 : Int
+    %v16 = load %s : Step
+    %v17 = load %s@Step.run : (Int) -> Int
+    %v18 = borrow_mut %s@Step.run : &mut (Int) -> Int
+    call retarget, %v18
+    %v20 = load %s : Step
+    %v21 = load %s@Step.run : (Int) -> Int
+    %v23 = calldyn %v21, 10 : Int
+    %v24 = load %s : Step
+    %v25 = load %s@Step.weight : Int
+    %after = mul %v23, %v25 : Int
+    %v27 = load %s : Step
+    %v29 = borrow_mut %s : &mut Step
+    call reweight, %v29, 4
+    %v31 = load %s : Step
+    %v32 = load %s@Step.run : (Int) -> Int
+    %v34 = calldyn %v32, 10 : Int
+    %v35 = load %s : Step
+    %v36 = load %s@Step.weight : Int
     drop_derived %s via drop$Step reclaim reclaim$Step
-    %last = mul %v35, %v37 : Int
-    %v39 = add %before, %after : Int
-    %v40 = add %v39, %last : Int
-    ret %v40
+    %last = mul %v34, %v36 : Int
+    %v38 = add %before, %after : Int
+    %v39 = add %v38, %last : Int
+    ret %v39
 }
 
 fn funvalue$triple(%env: %(), %x: Int) -> Int {

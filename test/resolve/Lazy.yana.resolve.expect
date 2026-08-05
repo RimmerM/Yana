@@ -188,14 +188,14 @@ fn bumpMask() -> Mask {
     %v3 = add %v0, 1 : Int
     assign effects, %v3
     %v5 = alloc : Mask
-    init %local0@Mask.bits, 3
+    aggregate %local0@Mask.bits = 3
     ret %v5
 }
 
 fn maskSkips() -> Int {
   b0:
     %v0 = alloc : Mask
-    init %local0@Mask.bits, 0
+    aggregate %local0@Mask.bits = 0
     %v3 = alloc : () -> Mask
     %v4 = symbol ResolveTest.deferred$1 : %()
     init %local1.code, %v4
@@ -209,7 +209,7 @@ fn maskSkips() -> Int {
 fn maskRuns() -> Int {
   b0:
     %v0 = alloc : Mask
-    init %local0@Mask.bits, 7
+    aggregate %local0@Mask.bits = 7
     %v3 = alloc : () -> Mask
     %v4 = symbol ResolveTest.deferred$2 : %()
     init %local1.code, %v4
@@ -308,142 +308,139 @@ fn main() -> Int {
 
   b15:
     %v53 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 3
-    %v58 = call bound, %v53 : Bool
-    je %v58, b16, b17
+    aggregate %local1.discriminant = 1, %local1@Just = 3
+    %v57 = call bound, %v53 : Bool
+    je %v57, b16, b17
 
   b16:
-    %v60 = load %score : Int
-    %v63 = add %v60, 32 : Int
-    assign %score, %v63
+    %v59 = load %score : Int
+    %v62 = add %v59, 32 : Int
+    assign %score, %v62
     jmp b18
 
   b17:
     jmp b18
 
   b18:
-    %v67 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, 4
-    %v72 = call bound, %v67 : Bool
-    %v74 = xor %v72, True : Bool
-    je %v74, b19, b20
+    %v66 = alloc : Maybe(Int)
+    aggregate %local2.discriminant = 1, %local2@Just = 4
+    %v70 = call bound, %v66 : Bool
+    %v72 = xor %v70, True : Bool
+    je %v72, b19, b20
 
   b19:
-    %v76 = load %score : Int
-    %v79 = add %v76, 64 : Int
-    assign %score, %v79
+    %v74 = load %score : Int
+    %v77 = add %v74, 64 : Int
+    assign %score, %v77
     jmp b21
 
   b20:
     jmp b21
 
   b21:
-    %v83 = alloc : Maybe(Int)
-    init %local3.discriminant, 1
-    init %local3@Just, 5
-    %v88 = call fallbackSkipped, %v83 : Int
-    %v91 = cmp_eq %v88, 5 : Bool
-    je %v91, b22, b23
+    %v81 = alloc : Maybe(Int)
+    aggregate %local3.discriminant = 1, %local3@Just = 5
+    %v85 = call fallbackSkipped, %v81 : Int
+    %v88 = cmp_eq %v85, 5 : Bool
+    je %v88, b22, b23
 
   b22:
-    %v93 = load %score : Int
-    %v96 = add %v93, 128 : Int
-    assign %score, %v96
+    %v90 = load %score : Int
+    %v93 = add %v90, 128 : Int
+    assign %score, %v93
     jmp b24
 
   b23:
     jmp b24
 
   b24:
-    %v100 = alloc : Maybe(Int)
+    %v97 = alloc : Maybe(Int)
     init %local4.discriminant, 0
-    %v103 = call fallbackSkipped, %v100 : Int
-    %v106 = cmp_eq %v103, 7 : Bool
-    je %v106, b25, b26
+    %v100 = call fallbackSkipped, %v97 : Int
+    %v103 = cmp_eq %v100, 7 : Bool
+    je %v103, b25, b26
 
   b25:
-    %v108 = load %score : Int
-    %v111 = add %v108, 256 : Int
-    assign %score, %v111
+    %v105 = load %score : Int
+    %v108 = add %v105, 256 : Int
+    assign %score, %v108
     jmp b27
 
   b26:
     jmp b27
 
   b27:
-    %v116 = alloc : () -> Int
-    %v117 = symbol ResolveTest.deferred$3 : %()
-    init %local5.code, %v117
-    %v120 = cast 0 : %()
-    init %local5.env, %v120
-    %v122 = call once, False, %v116 : Int
-    %v125 = cmp_eq %v122, 0 : Bool
-    je %v125, b28, b29
+    %v113 = alloc : () -> Int
+    %v114 = symbol ResolveTest.deferred$3 : %()
+    init %local5.code, %v114
+    %v117 = cast 0 : %()
+    init %local5.env, %v117
+    %v119 = call once, False, %v113 : Int
+    %v122 = cmp_eq %v119, 0 : Bool
+    je %v122, b28, b29
 
   b28:
-    %v127 = load %score : Int
-    %v130 = add %v127, 512 : Int
-    assign %score, %v130
+    %v124 = load %score : Int
+    %v127 = add %v124, 512 : Int
+    assign %score, %v127
     jmp b30
 
   b29:
     jmp b30
 
   b30:
-    %v135 = alloc : () -> Int
-    %v136 = symbol ResolveTest.deferred$4 : %()
-    init %local6.code, %v136
-    %v139 = cast 0 : %()
-    init %local6.env, %v139
-    %v141 = call once, True, %v135 : Int
-    %v144 = cmp_eq %v141, 8 : Bool
-    je %v144, b31, b32
+    %v132 = alloc : () -> Int
+    %v133 = symbol ResolveTest.deferred$4 : %()
+    init %local6.code, %v133
+    %v136 = cast 0 : %()
+    init %local6.env, %v136
+    %v138 = call once, True, %v132 : Int
+    %v141 = cmp_eq %v138, 8 : Bool
+    je %v141, b31, b32
 
   b31:
-    %v146 = load %score : Int
-    %v149 = add %v146, 1024 : Int
-    assign %score, %v149
+    %v143 = load %score : Int
+    %v146 = add %v143, 1024 : Int
+    assign %score, %v146
     jmp b33
 
   b32:
     jmp b33
 
   b33:
-    %v153 = call maskSkips : Int
-    %v156 = cmp_eq %v153, 0 : Bool
-    je %v156, b34, b35
+    %v150 = call maskSkips : Int
+    %v153 = cmp_eq %v150, 0 : Bool
+    je %v153, b34, b35
 
   b34:
-    %v158 = load %score : Int
-    %v161 = add %v158, 2048 : Int
-    assign %score, %v161
+    %v155 = load %score : Int
+    %v158 = add %v155, 2048 : Int
+    assign %score, %v158
     jmp b36
 
   b35:
     jmp b36
 
   b36:
-    %v165 = call maskRuns : Int
-    %v168 = cmp_eq %v165, 3 : Bool
-    je %v168, b37, b38
+    %v162 = call maskRuns : Int
+    %v165 = cmp_eq %v162, 3 : Bool
+    je %v165, b37, b38
 
   b37:
-    %v170 = load %score : Int
-    %v173 = add %v170, 4096 : Int
-    assign %score, %v173
+    %v167 = load %score : Int
+    %v170 = add %v167, 4096 : Int
+    assign %score, %v170
     jmp b39
 
   b38:
     jmp b39
 
   b39:
-    %v177 = load %score : Int
-    %v180 = mul %v177, 100 : Int
-    %v181 = load effects : Int
-    %v182 = add %v180, %v181 : Int
-    ret %v182
+    %v174 = load %score : Int
+    %v177 = mul %v174, 100 : Int
+    %v178 = load effects : Int
+    %v179 = add %v177, %v178 : Int
+    ret %v179
 }
 
 fn Logic(Mask).&&(%lhs: Mask, %rhs: () -> Mask) -> Mask {
@@ -471,7 +468,7 @@ fn Logic(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
     %v3 = load %lhs@Mask.bits : Int
     %v4 = load %rhs@Mask.bits : Int
     %v5 = and %v3, %v4 : Int
-    init %local2@Mask.bits, %v5
+    aggregate %local2@Mask.bits = %v5
     ret %v2
 }
 
@@ -481,7 +478,7 @@ fn Logic(Mask).or(%lhs: Mask, %rhs: Mask) -> Mask {
     %v3 = load %lhs@Mask.bits : Int
     %v4 = load %rhs@Mask.bits : Int
     %v5 = or %v3, %v4 : Int
-    init %local2@Mask.bits, %v5
+    aggregate %local2@Mask.bits = %v5
     ret %v2
 }
 
@@ -491,7 +488,7 @@ fn Logic(Mask).xor(%lhs: Mask, %rhs: Mask) -> Mask {
     %v3 = load %lhs@Mask.bits : Int
     %v4 = load %rhs@Mask.bits : Int
     %v5 = xor %v3, %v4 : Int
-    init %local2@Mask.bits, %v5
+    aggregate %local2@Mask.bits = %v5
     ret %v2
 }
 
@@ -500,7 +497,7 @@ fn Logic(Mask).not(%value: Mask) -> Mask {
     %v1 = alloc : Mask
     %v2 = load %value@Mask.bits : Int
     %v5 = xor %v2, 15 : Int
-    init %local1@Mask.bits, %v5
+    aggregate %local1@Mask.bits = %v5
     ret %v1
 }
 

@@ -68,46 +68,45 @@ grown<complex>(): Int {
     %v_9 = and %v_8, 18446744070488326143: Int
     %v_10 = add %v_1, 8: Ptr
     store %v_10, %v_9, 4
-    %v_11 = add %v_4, 0: Ptr
-    store %v_11, 1, 4
-    %v_12 = add %v_4, 4: Ptr
-    store %v_12, 2, 4
-    %v_13 = add %v_4, 8: Ptr
+    store %v_4, 1, 4
+    %v_11 = add %v_4, 4: Ptr
+    store %v_11, 2, 4
+    %v_12 = add %v_4, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_1, 12: Ptr
     store %v_13, 3, 4
-    %v_14 = add %v_1, 12: Ptr
-    store %v_14, 3, 4
     call_complex push(Int), %v_1, 4
     call_complex push(Int), %v_1, 5
-    %v_15 = add %v_1, 12: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cast %v_16: Int
-    %v_18 = cast %v_17: Long
-    %v_19 = cmp_ge 0, %v_18: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    jmp b_22
+    %v_14 = add %v_1, 12: Ptr
+    %v_15 = load %v_14, 4: Int
+    %v_16 = cast %v_15: Int
+    %v_17 = cast %v_16: Long
+    %v_18 = cmp_ge 0, %v_17: Int
+    je %v_18, b_19, b_20
   }
 
   b_20 {
-    %v_23 = syscall 60, 134: Long
-    jmp b_22
+    jmp b_21
   }
 
-  b_22 {
-    %v_24 = load %v_1, 8: Ptr
-    %v_25 = add %v_24, 0: Ptr
-    %v_26 = loads %v_25, 4: Int
-    %v_27 = add %v_1, 12: Ptr
-    %v_28 = load %v_27, 4: Int
+  b_19 {
+    %v_22 = syscall 60, 134: Long
+    jmp b_21
+  }
+
+  b_21 {
+    %v_23 = load %v_1, 8: Ptr
+    %v_24 = add %v_23, 0: Ptr
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = add %v_1, 12: Ptr
+    %v_27 = load %v_26, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_29 = cast %v_28: Int
-    %v_30 = cast %v_29: Long
-    %v_31 = sext %v_26: Long
-    %v_32 = add %v_31, %v_30: Long
-    %v_33 = cast %v_32: Int
-    ret %v_33
+    %v_28 = cast %v_27: Int
+    %v_29 = cast %v_28: Long
+    %v_30 = sext %v_25: Long
+    %v_31 = add %v_30, %v_29: Long
+    %v_32 = cast %v_31: Int
+    ret %v_32
   }
 }
 
@@ -350,18 +349,17 @@ frameOnly<complex>(): Int {
     %v_8 = and %v_7, 18446744070488326143: Int
     %v_9 = add %xs, 8: Ptr
     store %v_9, %v_8, 4
-    %v_10 = add %v_3, 0: Ptr
-    store %v_10, 10, 4
-    %v_11 = add %v_3, 4: Ptr
-    store %v_11, 20, 4
-    %v_12 = add %v_3, 8: Ptr
-    store %v_12, 30, 4
-    %v_13 = add %xs, 12: Ptr
-    store %v_13, 3, 4
-    %v_14 = add %v_3, 0: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = add %v_3, 8: Ptr
-    %v_17 = loads %v_16, 4: Int
+    store %v_3, 10, 4
+    %v_10 = add %v_3, 4: Ptr
+    store %v_10, 20, 4
+    %v_11 = add %v_3, 8: Ptr
+    store %v_11, 30, 4
+    %v_12 = add %xs, 12: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_3, 0: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = add %v_3, 8: Ptr
+    %v_16 = loads %v_15, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
     ret 40
   }
@@ -402,19 +400,18 @@ boundMutable<complex>(): Int {
     %v_9 = and %v_8, 18446744070488326143: Int
     %v_10 = add %v_1, 8: Ptr
     store %v_10, %v_9, 4
-    %v_11 = add %v_4, 0: Ptr
-    store %v_11, 4, 4
-    %v_12 = add %v_4, 4: Ptr
-    %v_13 = imm 5: Int
-    store %v_12, %v_13, 4
-    %v_14 = add %v_4, 8: Ptr
-    store %v_14, 6, 4
-    %v_15 = add %v_1, 12: Ptr
-    store %v_15, 3, 4
-    %v_16 = add %v_4, 4: Ptr
-    %v_17 = loads %v_16, 4: Int
+    store %v_4, 4, 4
+    %v_11 = add %v_4, 4: Ptr
+    %v_12 = imm 5: Int
+    store %v_11, %v_12, 4
+    %v_13 = add %v_4, 8: Ptr
+    store %v_13, 6, 4
+    %v_14 = add %v_1, 12: Ptr
+    store %v_14, 3, 4
+    %v_15 = add %v_4, 4: Ptr
+    %v_16 = loads %v_15, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_13
+    ret %v_12
   }
 }
 

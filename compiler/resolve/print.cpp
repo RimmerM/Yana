@@ -212,6 +212,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
         case Value::LoadPlace: return "load"_v;
         case Value::Init: return "init"_v;
         case Value::Assign: return "assign"_v;
+        case Value::Aggregate: return "aggregate"_v;
         case Value::Borrow: return ((InstBorrow&)value).mut ? "borrow_mut"_v : "borrow"_v;
         case Value::Move: return "move"_v;
         case Value::Swap: return "swap"_v;
@@ -328,6 +329,36 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printPlace(print, *function, init.place);
             print.writer.writeString(", "_v);
             printValue(print, *print.local[init.value]);
+            break;
+        }
+        /*
+         * One `place = value` per component, rather than the base place and a list of values.
+         *
+         * The values alone do not say what the instruction *is*: fields 0 and 2 print the same as
+         * fields 0 and 1, and a sum's tag and payload print the same as two tuple fields. So a
+         * golden fixture could not have caught a corrupted component mapping, which is most of what
+         * there is to get wrong here - `constructor` and the steps are the whole of the shape.
+         *
+         * Printed through `aggregateElement` for the same reason every other consumer goes through
+         * it: what a fixture shows has to be the place the passes reasoned about. That builds a
+         * path in the module arena, which is the one allocation this file makes - a dump is not on
+         * any hot path, and printing a *different* path than the passes walk is the failure this is
+         * here to prevent.
+         */
+        case Value::Aggregate: {
+            auto& aggregate = (InstAggregate&)inst;
+            auto first = true;
+
+            eachWrittenComponent(print.local, print.program.core->arena, aggregate,
+                                 [&](Place place, ModulePtr<Value> value, Size) {
+                print.writer.writeString(first ? " "_v : ", "_v);
+                first = false;
+
+                printPlace(print, *function, place);
+                print.writer.writeString(" = "_v);
+                printValue(print, *print.local[value]);
+            });
+
             break;
         }
         case Value::Borrow:

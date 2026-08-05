@@ -424,6 +424,17 @@ struct Known {
      */
     Place alias;
     bool aliased = false;
+
+    /*
+     * Which element of an `InstAggregate` this is, where it is one.
+     *
+     * `pending` holds the aggregate for these rather than a store, because that is the instruction a
+     * later write is folded *into* - see `foldIntoAggregate`. The two are told apart by this being
+     * set, and they share `pending` on purpose: what makes a store removable and what makes an
+     * element rewritable are the same fact, that nothing has read the slot since, and `markRead`
+     * clears it for both without knowing there are two.
+     */
+    U32 slot = maxLimit<U32>;
 };
 
 /*
@@ -639,9 +650,22 @@ struct Forwarder {
 
     bool forwardable(TypePtr type) { return holdsLoadableValue(opt, type); }
 
+    /*
+     * The same storage, however the two places spell it - `samePlace` widened by `sameElement`.
+     *
+     * Every question in this pass that asks "is this the place I have a fact about" goes through
+     * here, and the four are the same question: what a load may be answered with, which entry a
+     * store replaces, which store an overwrite kills, and which element a literal write folds into.
+     * The *aliasing* question is not one of them and is deliberately left alone - `placesMayAlias`
+     * stays conservative, so a read it cannot separate still clears the fact either way.
+     */
+    bool sameStorage(const Place& first, const Place& second) {
+        return samePlace(opt, first, second) || sameElement(first, second);
+    }
+
     ModulePtr<Value> knownValue(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
-            if(samePlace(opt, known[i].place, place)) return known[i].value;
+            if(sameStorage(known[i].place, place)) return known[i].value;
         }
 
         return nullptr;
@@ -649,12 +673,153 @@ struct Forwarder {
 
     // One entry per piece of storage, so that "what is known about this place" and "which store put
     // it there" are one answer rather than the most recent of several.
-    void remember(Place& place, ModulePtr<Value> value, ModulePtr<Inst> pending) {
+    void remember(Place& place, ModulePtr<Value> value, ModulePtr<Inst> pending,
+                  U32 slot = maxLimit<U32>) {
         for(Size i = known.size(); i-- > 0;) {
-            if(samePlace(opt, known[i].place, place)) known.remove(i);
+            if(sameStorage(known[i].place, place)) known.remove(i);
         }
 
-        known.push(Known { place, value, pending });
+        known.push(Known { place, value, pending, Place(), false, slot });
+    }
+
+    /*
+     * Whether a value is available at an instruction, which for this pass is a question about one
+     * block: a value defined in another one dominates every use here, or the IR would not verify.
+     * A constant belongs to no block at all and is materialized per function, so it is available
+     * everywhere and falls out of the same test.
+     */
+    bool definedBefore(ModulePtr<Inst> at, ModulePtr<Value> value) {
+        auto& definition = *opt.local[value];
+
+        // Available everywhere: a constant belongs to no block and is materialized per function,
+        // and a parameter arrives ahead of the first instruction.
+        if(definition.kind == Value::Arg || isConstant(definition)) return true;
+
+        /*
+         * Everything else has to be defined in this block, and that is stricter than domination on
+         * purpose. The usual rule - "a definition dominates every use, so a value from another
+         * block is available here" - is about uses that *exist*. This creates a new one, at a
+         * position above the old one, and a definition in a block this one dominates reaches
+         * neither. Getting that wrong emitted `var v5 = [1, v, 3]` above `var v = ...`, which is a
+         * hole in the array rather than a diagnostic.
+         *
+         * A value in a genuinely dominating block would be legal to use and is declined here: that
+         * needs `opt.dominance`, which this pass does not compute, for a case the literals in front
+         * of it do not reach.
+         */
+        auto block = opt.local[at]->block;
+        if(definition.block != block) return false;
+
+        // A phi is defined at the top of its block, so it precedes every instruction in it.
+        if(definition.kind == Value::Phi) return true;
+
+        for(auto pointer: opt.local[block]->instructions.contents(opt.local)) {
+            if(pointer == at) return false;
+            if((ModulePtr<Value>)pointer == value) return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * Whether two places name the same element, where one of them may be spelled as an `Index`
+     * projection and the other as arithmetic on the base.
+     *
+     * A sharper question than `samePlace`, asked here rather than there on purpose. The two
+     * spellings are both in the program and neither is going away: a literal names its elements by
+     * index, because that is the form a target with no addresses can also expand, while `xs[i]`
+     * goes through `get`/`getMut` in Collections and comes out as `store(items + i, x)`. Teaching
+     * the general equality test to see through both would widen a primitive every rewrite in this
+     * file rests on; teaching *one fold* to is a claim that can only make this fold fire.
+     *
+     * Sound on the same terms `sameAddress` is - one base and one displacement, with the index
+     * spent into the displacement at the pointee's own stride - plus the extents matching, since
+     * one address is two places when two different widths are read through it.
+     */
+    bool sameElement(const Place& first, const Place& second) {
+        if(first.root != PlaceRoot::Pointer || second.root != PlaceRoot::Pointer) return false;
+        if(accessExtent(opt, first.pointer) == 0) return false;
+        if(accessExtent(opt, first.pointer) != accessExtent(opt, second.pointer)) return false;
+
+        // Each side reduces to a base, a byte displacement, and whatever path is left over. Only an
+        // element is being matched here, so anything left over is a different place.
+        auto reduce = [&](const Place& place, AddressTerm& term) {
+            term = addressTerm(opt, place.pointer);
+
+            auto& projections = const_cast<Place&>(place).projections;
+            if(projections.isEmpty()) return true;
+            if(projections.size() != 1) return false;
+
+            auto step = projections.get(opt.local, 0);
+            if(step.kind != ProjectionKind::Index) return false;
+
+            auto index = constantValueOf(opt, step.value);
+            if(!index) return false;
+
+            // Stride rather than size: elements are spaced by what the next one starts at, and for
+            // a type whose size is not a multiple of its alignment those are different numbers.
+            auto element = pointeeType(opt.global, opt.local[place.pointer]->type);
+            if(!element) return false;
+
+            term.offset += I64(index.unwrap()) * I64(opt.repr.of(element).stride);
+            return true;
+        };
+
+        AddressTerm left;
+        AddressTerm right;
+        if(!reduce(first, left) || !reduce(second, right)) return false;
+
+        return left.base && left.base == right.base && left.offset == right.offset;
+    }
+
+    /*
+     * A write into an element of a literal, folded back into the literal.
+     *
+     * `let &xs = [1, 2, 3, 4]` followed by `xs[1] = 20` is one array built once, and this is what
+     * says so: the element becomes `20` and the store goes away. It replaces what
+     * `eliminateOverwritten` used to do to the same program by deleting the literal's *own* element
+     * instead - which removed no store at all, since the later write still ran, and on a managed
+     * target left the array to be built with a gap and patched. A guard there declined that; this
+     * is the rewrite it was standing in for, and deleting it is what retired the guard.
+     *
+     * Three conditions, and each is a way the fold would change what the program does:
+     *
+     *  - **nothing has read the slot since**, which is the entry still naming its aggregate.
+     *    `markRead` and every clobber clear it, so a load, a borrow, or a call in between all stop
+     *    this - and so does the `InstDrop` the drop pass emits in front of an assignment that
+     *    replaces an owned value, which is what keeps a teardown from being skipped;
+     *  - **the value is available where the literal is**, since the *store* moves earlier even
+     *    though nothing else does. A value this block computes after the literal cannot go into it;
+     *  - **the element owes no teardown**, which `forwardable` almost gives - it excludes memory
+     *    types - and `needsTeardown` finishes for a scalar with a `Drop` instance of its own.
+     */
+    bool foldIntoAggregate(Place& place, ModulePtr<Value> value) {
+        for(Size i = known.size(); i-- > 0;) {
+            auto& entry = known[i];
+            if(entry.slot == maxLimit<U32> || !entry.pending) continue;
+            if(!sameElement(entry.place, place)) continue;
+
+            auto instruction = opt.local[entry.pending];
+            if(instruction->kind != Value::Aggregate) return false;
+            if(!definedBefore(entry.pending, value)) return false;
+
+            auto& aggregate = (InstAggregate&)*instruction;
+            auto component = aggregate.components.get(opt.local, entry.slot);
+            auto previous = component.value;
+            if(previous == value) return false;
+            if(needsTeardown(*opt.module, opt.local[previous]->type)) return false;
+
+            component.value = value;
+            aggregate.components.set(opt.local, entry.slot, component);
+            dropUse(opt, previous, entry.pending);
+            opt.local[value]->uses.push(opt.program.arena, entry.pending);
+
+            entry.value = value;
+            opt.changed = true;
+            return true;
+        }
+
+        return false;
     }
 
     // Which element a write names, where that is a number this pass can put down - see
@@ -855,6 +1020,48 @@ struct Forwarder {
     }
 
     /*
+     * A write of a whole value, which is a *read* of the source as well as a write of the destination.
+     *
+     * The read half is not optional. A whole-value write reads every byte of what it copies, and
+     * nothing else records that - so a store into the source that nothing else read was removable by
+     * `eliminateOverwritten` even though this copy had just read it. Marking it here is what makes
+     * the entries `inheritCopy` sets up rest on stores that are still there.
+     *
+     * Shared with the aggregate case, which is where a construction's whole-value components arrive:
+     * `Boxed {tag: 7, held: someMaybe}` hands over a sum this frame just built, and without this the
+     * reader of `held` was no longer handed the source and the record it was built to be taken apart
+     * into stopped disappearing. Both callers reach it with one component's place and one value,
+     * which is all it ever needed.
+     */
+    void noteCopy(Place& destination, ModulePtr<Value> value) {
+        auto type = opt.local[value]->type;
+        if(!type || !isMemoryType(opt.global, type)) return;
+
+        auto source = storageOf(opt, value);
+        if(!source) return;
+
+        markRead(source.unwrap());
+
+        if(opt.local[value]->kind == Value::Move) return;
+        if(source.unwrap().root != PlaceRoot::Local) return;
+        if(source.unwrap().local >= unaddressed.size() || !unaddressed[source.unwrap().local]) return;
+
+        inheritCopy(destination, source.unwrap());
+
+        // And the whole of it, which `inheritCopy` deliberately skips: the fact is not what the
+        // storage contains but that two names now reach the same contents, which is what
+        // `sharedStorage` reads.
+        remember(destination, value, nullptr);
+
+        for(auto& stored: known) {
+            if(!samePlace(opt, stored.place, destination)) continue;
+
+            stored.alias = source.unwrap();
+            stored.aliased = true;
+        }
+    }
+
+    /*
      * The discriminant a payload write establishes, where the two are one piece of storage.
      *
      * `separateTagAndPayload` is the layout question and this is the same answer read from the other
@@ -1024,10 +1231,25 @@ struct Forwarder {
      * the entry survives only while nothing aliasing it was read and nothing this pass cannot see
      * ran, and the overwrite is total because `samePlace` compares the whole path - including a
      * unit projection's width, so half a word is never mistaken for all of it.
+     *
+     * A component of an aggregate is not one of these, and the entry for one says so by naming an
+     * instruction this declines to erase. It used to be - a literal was `n` stores and this removed
+     * the ones a later write killed, which on a managed target left the array to be built with a gap
+     * and patched, so a guard here declined it. `InstAggregate` retired that argument and replaced it
+     * with a simpler one: the instruction writes the *other* components too, so erasing it for the
+     * sake of one of them deletes stores that are still live. Folding the later write into the
+     * aggregate is `foldIntoAggregate` above, and where that declines there is nothing here to
+     * remove.
+     *
+     * The entry still carries the aggregate rather than a null, because `foldIntoAggregate` is how
+     * it finds the instruction to rewrite. `Settings {flags: ..., count: 0}` followed by
+     * `s.count = s.count + 1` is the shape: the fold declines - the sum is computed after the
+     * literal - and this then deleted the whole construction, taking the unrelated `flags` with it.
      */
     bool eliminateOverwritten(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
-            if(!samePlace(opt, known[i].place, place) || !known[i].pending) continue;
+            if(!sameStorage(known[i].place, place) || !known[i].pending) continue;
+            if(opt.local[known[i].pending]->kind == Value::Aggregate) continue;
 
             auto pending = known[i].pending;
             known[i].pending = nullptr;
@@ -1097,6 +1319,18 @@ struct Forwarder {
                         }
                     }
 
+                    /*
+                     * An element of a literal, written back into the literal - and the store is
+                     * this instruction rather than an earlier one, so what goes away is this.
+                     * Ahead of the dead-store rule because the two answer the same shape and only
+                     * one of them is right for it: there is no separate store to erase.
+                     */
+                    if(forwardable(type) && foldIntoAggregate(store.place, store.value)) {
+                        eraseInstruction(opt, pointer);
+                        i--;
+                        break;
+                    }
+
                     // The store it replaces came out of the block in front of this one, so the walk
                     // has to step back over the gap it left.
                     if(forwardable(type) && eliminateOverwritten(store.place)) i--;
@@ -1106,40 +1340,48 @@ struct Forwarder {
                     if(forwardable(type)) remember(store.place, store.value, pointer);
                     publishNiche(store.place, *instruction);
 
-                    /*
-                     * And the aggregate case, which is a *read* of the source as well as a write of
-                     * the destination.
-                     *
-                     * The read half is not optional. A whole-value write reads every byte of what it
-                     * copies, and nothing above records that - so a store into the source that
-                     * nothing else read was removable by `eliminateOverwritten` even though this
-                     * copy had just read it. Marking it here is what makes the entries inherited
-                     * below rest on stores that are still there.
-                     */
-                    if(type && isMemoryType(opt.global, type)) {
-                        if(auto source = storageOf(opt, store.value)) {
-                            markRead(source.unwrap());
+                    noteCopy(store.place, store.value);
+                    break;
+                }
+                /*
+                 * Every element of a literal, on the same terms as the stores it replaced.
+                 *
+                 * The three facts each element carried are all still true and all still wanted:
+                 * the write forgets what aliased that slot, it is what a host array's length counts
+                 * (`Array(a)` is the host array here, so `[1, 2, 3].length` is *three writes* rather
+                 * than a field), and the value is known at the slot afterwards so a constant
+                 * subscript folds. Without this an array literal became opaque - `ConstIndex`
+                 * stopped folding and every bounds check on a literal stopped discharging.
+                 *
+                 * The entry names this instruction as its pending store, which `eliminateOverwritten`
+                 * declines to erase for the reason stated there - a component is not separately
+                 * removable. It is carried anyway because `foldIntoAggregate` is the rewrite that
+                 * answers an overwritten component, and finding the instruction is what it needs.
+                 *
+                 * `noteCopy` is the fourth fact, and it belongs to the field form: a component that
+                 * is a whole value read out of a local makes the two names equal, exactly as the
+                 * `Init` it replaced did.
+                 */
+                case Value::Aggregate: {
+                    auto& aggregate = (InstAggregate&)*instruction;
 
-                            if(opt.local[store.value]->kind != Value::Move &&
-                               source.unwrap().root == PlaceRoot::Local &&
-                               source.unwrap().local < unaddressed.size() &&
-                               unaddressed[source.unwrap().local]) {
-                                inheritCopy(store.place, source.unwrap());
-
-                                // And the whole of it, which `inheritCopy` deliberately skips: the
-                                // fact is not what the storage contains but that two names now
-                                // reach the same contents, which is what `sharedStorage` reads.
-                                remember(store.place, store.value, nullptr);
-
-                                for(auto& stored: known) {
-                                    if(!samePlace(opt, stored.place, store.place)) continue;
-
-                                    stored.alias = source.unwrap();
-                                    stored.aliased = true;
-                                }
-                            }
+                    eachWrittenComponent(opt.local, opt.module->arena, aggregate,
+                                         [&](Place element, ModulePtr<Value> value, Size at) {
+                        forgetAliasing(element);
+                        noteHostWrite(element);
+                        if(forwardable(opt.local[value]->type)) {
+                            remember(element, value, pointer, U32(at));
                         }
-                    }
+
+                        noteCopy(element, value);
+
+                        // And the tag a niche-folded payload publishes, which only the sum form
+                        // reaches: a component's step is a `Downcast` exactly when the payload is
+                        // being written whole, and that write *is* how the discriminant comes to say
+                        // so. Without it a `Just(x)` built as one instruction lost the fact, and
+                        // every `?.` over one went back to testing the payload against null.
+                        publishNiche(element, *instruction);
+                    });
 
                     break;
                 }
@@ -1200,6 +1442,9 @@ static void computeUnaddressed(OptContext& opt, IndexSet& unaddressed) {
                 switch(opt.local[user]->kind) {
                     case Value::Init: case Value::Assign:
                     case Value::LoadPlace: case Value::Copy:
+                    // The stores a construction is, said once - see InstAggregate. It names a place
+                    // and hands out no address, which is the whole question here.
+                    case Value::Aggregate:
                         break;
                     default:
                         ok = false;

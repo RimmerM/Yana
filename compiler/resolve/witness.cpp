@@ -629,6 +629,30 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
 static bool lowerablePlaces(Module& module, Function& owner, const Value& inst) {
     auto ok = true;
     eachPlace(inst, [&](const Place& place) { ok = lowerablePlace(module, owner, place) && ok; });
+
+    /*
+     * And the places an aggregate's components are, which `eachPlace` does not report.
+     *
+     * It reports the value being built with *no* projection - the prefix every component shares,
+     * which is what alias analysis wants and is exactly the wrong thing here: an empty path is
+     * trivially lowerable, so a construction inside a generic body looked addressable while the
+     * fields it writes were not. `Just(value)` was the shape - the erased body was accepted, its
+     * payload store took the declaration's own offset of zero, and the discriminant written in
+     * front of it was overwritten by the payload.
+     *
+     * Which is also why this is a rule about the *path* rather than a new gap: the offsets those
+     * stores need are the composite descriptor's, and until `reprOps` exists such a body
+     * specializes, exactly as it did when the components were separate stores.
+     */
+    if(inst.kind == Value::Aggregate) {
+        auto& aggregate = (InstAggregate&)inst;
+
+        eachWrittenComponent(*module.arena, module.arena, aggregate,
+                             [&](Place place, ModulePtr<Value>, Size) {
+            ok = lowerablePlace(module, owner, place) && ok;
+        });
+    }
+
     return ok;
 }
 

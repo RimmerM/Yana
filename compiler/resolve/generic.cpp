@@ -785,6 +785,33 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
                                              value, inst.kind);
             break;
         }
+        /*
+         * The element list is cloned whole, and an element that vanished takes its index with it.
+         *
+         * A substitution at `{}` is where that happens: the elements carry nothing, so `cloneValue`
+         * answers null for each and what is left is an aggregate of no elements - which expands to
+         * no stores, exactly as the per-element `Init`s above would each have been skipped.
+         */
+        case Value::Aggregate: {
+            auto& source = (InstAggregate&)inst;
+            auto aggregate = resolver.create<InstAggregate>(inst.source, inst.name, type,
+                                                            clonePlace(clone, source.place));
+            aggregate->constructor = source.constructor;
+
+            eachAggregateComponent(clone.local, source, [&](AggregateComponent component, Size) {
+                auto value = cloneValue(clone, component.value);
+                if(!value) return;
+
+                if(component.step.value) component.step.value = cloneValue(clone, component.step.value);
+
+                aggregate->components.push(clone.module.arena,
+                                           AggregateComponent { component.step, value });
+            });
+
+            resolver.append(aggregate);
+            result = aggregate;
+            break;
+        }
         case Value::Move: {
             auto& source = (InstMove&)inst;
 

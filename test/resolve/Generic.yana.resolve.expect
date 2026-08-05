@@ -1,8 +1,7 @@
 fn justInt() -> Maybe(Int) {
   b0:
     %v0 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 3
+    aggregate %local0.discriminant = 1, %local0@Just = 3
     ret %v0
 }
 
@@ -62,16 +61,14 @@ fn unwrapBool(%value: Maybe(Bool)) -> Int {
 fn okResult() -> Result(Int, Int) {
   b0:
     %v0 = alloc : Result(Int, Int)
-    init %local0.discriminant, 1
-    init %local0@Ok, 11
+    aggregate %local0.discriminant = 1, %local0@Ok = 11
     ret %v0
 }
 
 fn errResult() -> Result(Int, Int) {
   b0:
     %v0 = alloc : Result(Int, Int)
-    init %local0.discriminant, 0
-    init %local0@Err, 4
+    aggregate %local0.discriminant = 0, %local0@Err = 4
     ret %v0
 }
 
@@ -108,10 +105,8 @@ fn labelled() -> Labelled(Int) {
   b0:
     %v0 = alloc : Labelled(Int)
     %v2 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 40
-    init %local0@Labelled.label, 2
-    init %local0@Labelled.contents, %v2
+    aggregate %local1.discriminant = 1, %local1@Just = 40
+    aggregate %local0@Labelled.label = 2, %local0@Labelled.contents = %v2
     ret %v0
 }
 
@@ -135,10 +130,9 @@ fn ascribedNothing() -> Int {
 fn ascribedJust() -> Int {
   b0:
     %j = alloc : Maybe(Bool)
-    init %local0.discriminant, 1
-    init %local0@Just, True
-    %v5 = call unwrapBool, %j : Int
-    ret %v5
+    aggregate %local0.discriminant = 1, %local0@Just = True
+    %v4 = call unwrapBool, %j : Int
+    ret %v4
 }
 
 fn main() -> Int {
@@ -153,26 +147,25 @@ fn main() -> Int {
     %v9 = call unwrap, %v7, 5 : Int
     %v10 = add %v6, %v9 : Int
     %v11 = alloc : Maybe(Bool)
-    init %local2.discriminant, 1
-    init %local2@Just, True
-    %v16 = call unwrapBool, %v11 : Int
-    %v17 = add %v10, %v16 : Int
-    %v18 = alloc : Maybe(Bool)
+    aggregate %local2.discriminant = 1, %local2@Just = True
+    %v15 = call unwrapBool, %v11 : Int
+    %v16 = add %v10, %v15 : Int
+    %v17 = alloc : Maybe(Bool)
     init %local3.discriminant, 0
-    %v21 = call unwrapBool, %v18 : Int
-    %v22 = add %v17, %v21 : Int
-    %v23 = call okResult : Result(Int, Int)
-    %v24 = call resultValue, %v23 : Int
-    %v25 = add %v22, %v24 : Int
-    %v26 = call errResult : Result(Int, Int)
-    %v27 = call resultValue, %v26 : Int
-    %v28 = add %v25, %v27 : Int
-    %v29 = alloc : Boxed(Int)
+    %v20 = call unwrapBool, %v17 : Int
+    %v21 = add %v16, %v20 : Int
+    %v22 = call okResult : Result(Int, Int)
+    %v23 = call resultValue, %v22 : Int
+    %v24 = add %v21, %v23 : Int
+    %v25 = call errResult : Result(Int, Int)
+    %v26 = call resultValue, %v25 : Int
+    %v27 = add %v24, %v26 : Int
+    %v28 = alloc : Boxed(Int)
     init %local6@Box, 6
-    %v32 = call unbox, %v29 : Int
-    %v33 = add %v28, %v32 : Int
-    %v34 = call labelled : Labelled(Int)
-    %v35 = call labelSum, %v34 : Int
-    %v36 = add %v33, %v35 : Int
-    ret %v36
+    %v31 = call unbox, %v28 : Int
+    %v32 = add %v27, %v31 : Int
+    %v33 = call labelled : Labelled(Int)
+    %v34 = call labelSum, %v33 : Int
+    %v35 = add %v32, %v34 : Int
+    ret %v35
 }

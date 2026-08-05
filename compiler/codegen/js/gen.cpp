@@ -496,12 +496,46 @@ void prepareFunLocals(Gen& g, Function& function) {
     });
 }
 
+/*
+ * The locals whose whole value one `InstAggregate` writes - see Gen::builtWhole.
+ *
+ * Two conditions. `wholeLocalPlan` must call the aggregate eligible, which is the whole of the
+ * shape question and is asked there so that the emitter and this cannot disagree; and it must be the
+ * local's **only** aggregate, because two of them are two complete values and only the first would
+ * be a declaration's initializer.
+ *
+ * Nothing else about the local is asked, and nothing else needs to be. A later store into a field is
+ * an ordinary write of a property the literal already created, and a read before the aggregate is
+ * not something the IR can contain - the instruction is what initializes the storage, so a body that
+ * read it first would be reading storage the ownership passes had not seen initialized.
+ */
+void prepareBuiltLocals(Gen& g, Function& function) {
+    g.builtWhole.reset(function.localCount());
+
+    IndexSet seen;
+    seen.reset(function.localCount());
+
+    eachInstruction(g, function, [&](Value& instruction) {
+        if(instruction.kind != Value::Aggregate) return;
+
+        auto& aggregate = (InstAggregate&)instruction;
+        auto& place = aggregate.place;
+        if(place.root != PlaceRoot::Local || place.local >= g.builtWhole.size()) return;
+
+        if(!wholeLocalPlan(g, aggregate).eligible) return;
+
+        g.builtWhole.set(place.local, !seen[place.local]);
+        seen.set(place.local, true);
+    });
+}
+
 // The body, once the parameters have been named and bound. Split out because a capturing lambda's
 // goes inside a function *expression* and every other function's goes inside a declaration, and
 // nothing else about building one differs.
 StmtList genBody(Gen& g, Function& function) {
     prepareLocals(g, function);
     prepareFunLocals(g, function);
+    prepareBuiltLocals(g, function);
     prepareCfg(g, function);
 
     return collect(g, [&] {

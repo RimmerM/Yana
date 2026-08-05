@@ -354,6 +354,29 @@ static bool flowRound(Analysis& analysis) {
             transferredProvenance(analysis, write.value, *part);
             storedReference(write.value, *part);
             storeInto(write.place, *part);
+        } else if(instruction.kind == Value::Aggregate) {
+            /*
+             * The same, per component - an aggregate is the writes it replaces and nothing else.
+             *
+             * Its own place is *not* stored into as a whole. Every component is a step off it and
+             * `placeProvenance` reaches a root through any path, so writing the components says what
+             * writing the value said; writing the whole place as well would additionally claim the
+             * aggregate refers to whatever any one component does, which is what the per-field
+             * `Init`s never claimed.
+             *
+             * Leaving this case out was a wrong answer rather than a lost one: `Chunked` puts a
+             * slice in a field, the descriptor's slot is what carries `Local::viewOf`, and without
+             * the edge the escape analysis placed a container's storage in a frame it outlived.
+             */
+            auto& aggregate = (InstAggregate&)instruction;
+
+            eachWrittenComponent(local, analysis.module.arena, aggregate,
+                                 [&](Place place, ModulePtr<Value> value, Size) {
+                ScratchProvenance stored(analysis);
+                transferredProvenance(analysis, value, *stored);
+                storedReference(value, *stored);
+                storeInto(place, *stored);
+            });
         } else if(instruction.kind == Value::Exchange) {
             auto& exchange = (InstExchange&)instruction;
             transferredProvenance(analysis, exchange.value, *part);

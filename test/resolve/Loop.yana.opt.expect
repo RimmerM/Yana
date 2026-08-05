@@ -1,16 +1,14 @@
 fn origin() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
     ret %v0
 }
 
 fn madePoint() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
     ret %v0
 }
 
@@ -145,16 +143,16 @@ fn written(%count: Int) -> Int {
     jmp b1
 
   b1:
-    %v37 = phi [b0, 3], [b3, %v15] : Int
+    %v36 = phi [b0, 3], [b3, %v15] : Int
     %v8 = load %i : Int
     %v9 = cmp_lt %v8, %count : Bool
     je %v9, b3, b2
 
   b2:
-    ret %v37
+    ret %v36
 
   b3:
-    %v15 = add %v37, 4 : Int
+    %v15 = add %v36, 4 : Int
     %v17 = load %i : Int
     %v20 = add %v17, 1 : Int
     assign %i, %v20
@@ -168,26 +166,26 @@ fn withCall(%seed: Int, %count: Int) -> Int {
     init %seen, 0
     %i = alloc : Int
     init %i, 0
-    %v24 = mul %seed, %v5 : Int
+    %v23 = mul %seed, %v5 : Int
     jmp b1
 
   b1:
-    %v15 = load %i : Int
-    %v16 = cmp_lt %v15, %count : Bool
-    je %v16, b3, b2
+    %v14 = load %i : Int
+    %v15 = cmp_lt %v14, %count : Bool
+    je %v15, b3, b2
 
   b2:
-    %v33 = load %seen : Int
-    ret %v33
+    %v32 = load %seen : Int
+    ret %v32
 
   b3:
-    %v18 = load %seen : Int
-    %v37 = add %v18, 1 : Int
-    %v25 = add %v37, %v24 : Int
-    assign %seen, %v25
-    %v27 = load %i : Int
-    %v30 = add %v27, 1 : Int
-    assign %i, %v30
+    %v17 = load %seen : Int
+    %v36 = add %v17, 1 : Int
+    %v24 = add %v36, %v23 : Int
+    assign %seen, %v24
+    %v26 = load %i : Int
+    %v29 = add %v26, 1 : Int
+    assign %i, %v29
     jmp b1
 }
 
@@ -232,7 +230,7 @@ fn escaping(%count: Int) -> Int {
     jmp b1
 
   b1:
-    %v49 = phi [b0, 3], [b3, %v41] : Int
+    %v48 = phi [b0, 3], [b3, %v40] : Int
     %v11 = load %i : Int
     %v12 = cmp_lt %v11, %count : Bool
     je %v12, b3, b2
@@ -242,9 +240,9 @@ fn escaping(%count: Int) -> Int {
     ret %v31
 
   b3:
-    %v41 = add %v49, 1 : Int
+    %v40 = add %v48, 1 : Int
     %v17 = load %total : Int
-    %v22 = mul %v41, 4 : Int
+    %v22 = mul %v40, 4 : Int
     %v23 = add %v17, %v22 : Int
     assign %total, %v23
     %v25 = load %i : Int

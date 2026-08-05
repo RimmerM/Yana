@@ -240,7 +240,7 @@ fn mapMemory(%size: I64) -> %U8 {
 fn direct() -> I64 {
   b0:
     %h = alloc : Handle
-    init %local0@Handle.value, 10
+    aggregate %local0@Handle.value = 10
     %h = move %local0 via Sink(Handle).sink : Handle
     %g = alloc : Handle
     init %local1, %h
@@ -252,17 +252,16 @@ fn derived() -> I64 {
   b0:
     %p = alloc : Pair
     %v1 = alloc : Handle
-    init %local1@Handle.value, 20
-    init %local0@Pair.left, %v1
-    init %local0@Pair.right, 3
+    aggregate %local1@Handle.value = 20
+    aggregate %local0@Pair.left = %v1, %local0@Pair.right = 3
     %p = move %local0 via moveInit$Pair : Pair
     %q = alloc : Pair
     init %local2, %p
-    %v10 = load %local2@Pair.left : Handle
-    %v11 = load %local2@Pair.left@Handle.value : I64
-    %v12 = load %local2@Pair.right : I64
-    %v13 = add %v11, %v12 : I64
-    ret %v13
+    %v9 = load %local2@Pair.left : Handle
+    %v10 = load %local2@Pair.left@Handle.value : I64
+    %v11 = load %local2@Pair.right : I64
+    %v12 = add %v10, %v11 : I64
+    ret %v12
 }
 
 fn nested() -> I64 {
@@ -270,23 +269,21 @@ fn nested() -> I64 {
     %n = alloc : Nest
     %v1 = alloc : Pair
     %v2 = alloc : Handle
-    init %local2@Handle.value, 40
-    init %local1@Pair.left, %v2
-    init %local1@Pair.right, 1
-    init %local0@Nest.inner, %v1
-    init %local0@Nest.tag, 4
+    aggregate %local2@Handle.value = 40
+    aggregate %local1@Pair.left = %v2, %local1@Pair.right = 1
+    aggregate %local0@Nest.inner = %v1, %local0@Nest.tag = 4
     %n = move %local0 via moveInit$Nest : Nest
     %m = alloc : Nest
     init %local3, %n
-    %v14 = load %local3@Nest.inner : Pair
-    %v15 = load %local3@Nest.inner@Pair.left : Handle
-    %v16 = load %local3@Nest.inner@Pair.left@Handle.value : I64
-    %v17 = load %local3@Nest.inner : Pair
-    %v18 = load %local3@Nest.inner@Pair.right : I64
-    %v19 = add %v16, %v18 : I64
-    %v20 = load %local3@Nest.tag : I64
-    %v21 = add %v19, %v20 : I64
-    ret %v21
+    %v12 = load %local3@Nest.inner : Pair
+    %v13 = load %local3@Nest.inner@Pair.left : Handle
+    %v14 = load %local3@Nest.inner@Pair.left@Handle.value : I64
+    %v15 = load %local3@Nest.inner : Pair
+    %v16 = load %local3@Nest.inner@Pair.right : I64
+    %v17 = add %v14, %v16 : I64
+    %v18 = load %local3@Nest.tag : I64
+    %v19 = add %v17, %v18 : I64
+    ret %v19
 }
 
 fn unwrap(%e: Either) -> I64 {
@@ -317,25 +314,23 @@ fn tagged(%flag: Bool) -> I64 {
 
   b1:
     %v2 = alloc : Either
-    init %local0.discriminant, 1
-    %v5 = alloc : Handle
-    init %local1@Handle.value, 7
-    init %local0@Held.h, %v5
+    %v4 = alloc : Handle
+    aggregate %local1@Handle.value = 7
+    aggregate %local0.discriminant = 1, %local0@Held.h = %v4
     jmp b3
 
   b2:
-    %v9 = alloc : Either
-    init %local2.discriminant, 0
-    init %local2@Plain.n, 100
+    %v8 = alloc : Either
+    aggregate %local2.discriminant = 0, %local2@Plain.n = 100
     jmp b3
 
   b3:
-    %e = phi [b1, %v2], [b2, %v9] : Either
+    %e = phi [b1, %v2], [b2, %v8] : Either
     %e = move %local3 via moveInit$Either : Either
     %f = alloc : Either
     init %local4, %e
-    %v20 = call unwrap, %f : I64
-    ret %v20
+    %v18 = call unwrap, %f : I64
+    ret %v18
 }
 
 fn consume(%it: Handle) -> I64 {
@@ -465,7 +460,7 @@ fn main() -> I64 {
 
   b15:
     %handed = alloc : Handle
-    init %local1@Handle.value, 5
+    aggregate %local1@Handle.value = 5
     %v78 = load %result : I64
     %handed = move %local1 via Sink(Handle).sink : Handle
     %v80 = call consume, %handed : I64
@@ -484,7 +479,7 @@ fn main() -> I64 {
 
   b18:
     %v93 = alloc : Handle
-    init %local2@Handle.value, 30
+    aggregate %local2@Handle.value = 30
     %v96 = move %local2 via Sink(Handle).sink : Handle
     %closed = call captured, %v96 : () -> I64
     %v98 = load sinkCalls : I64
@@ -506,80 +501,78 @@ fn main() -> I64 {
     call +=(I64), %v110, %v109
     %pair = alloc : Pair
     %v113 = alloc : Handle
-    init %local5@Handle.value, 60
-    init %local4@Pair.left, %v113
-    init %local4@Pair.right, 6
+    aggregate %local5@Handle.value = 60
+    aggregate %local4@Pair.left = %v113, %local4@Pair.right = 6
     %pair = move %local4 via moveInit$Pair : Pair
     %retagged = call retag, %pair : Pair
-    %v121 = load sinkCalls : I64
-    %v124 = cmp_ne %v121, 6 : Bool
-    je %v124, b22, b23
+    %v120 = load sinkCalls : I64
+    %v123 = cmp_ne %v120, 6 : Bool
+    je %v123, b22, b23
 
   b22:
-    %v128 = neg 8 : I64
-    ret %v128
+    %v127 = neg 8 : I64
+    ret %v127
 
   b23:
     jmp b24
 
   b24:
-    %v131 = load %result : I64
-    %v132 = load %local6@Pair.left : Handle
-    %v133 = load %local6@Pair.left@Handle.value : I64
-    %v134 = load %local6@Pair.right : I64
-    %v135 = add %v133, %v134 : I64
-    %v136 = borrow_mut %result : &mut I64
-    call +=(I64), %v136, %v135
-    %v138 = alloc : Handle
-    init %local7@Handle.value, 70
-    %v141 = move %local7 via Sink(Handle).sink : Handle
-    %relocated = call relocate(Handle), %v141 : Handle
-    %v143 = load sinkCalls : I64
-    %v146 = cmp_ne %v143, 7 : Bool
-    je %v146, b25, b26
+    %v130 = load %result : I64
+    %v131 = load %local6@Pair.left : Handle
+    %v132 = load %local6@Pair.left@Handle.value : I64
+    %v133 = load %local6@Pair.right : I64
+    %v134 = add %v132, %v133 : I64
+    %v135 = borrow_mut %result : &mut I64
+    call +=(I64), %v135, %v134
+    %v137 = alloc : Handle
+    aggregate %local7@Handle.value = 70
+    %v140 = move %local7 via Sink(Handle).sink : Handle
+    %relocated = call relocate(Handle), %v140 : Handle
+    %v142 = load sinkCalls : I64
+    %v145 = cmp_ne %v142, 7 : Bool
+    je %v145, b25, b26
 
   b25:
-    %v150 = neg 9 : I64
-    ret %v150
+    %v149 = neg 9 : I64
+    ret %v149
 
   b26:
     jmp b27
 
   b27:
-    %v153 = load %result : I64
-    %v154 = load %local8@Handle.value : I64
-    %v155 = borrow_mut %result : &mut I64
-    call +=(I64), %v155, %v154
-    %v157 = alloc : Pair
-    %v158 = alloc : Handle
-    init %local10@Handle.value, 80
-    init %local9@Pair.left, %v158
-    init %local9@Pair.right, 8
-    %v164 = move %local9 via moveInit$Pair : Pair
-    %relocatedPair = call relocate(Pair), %v164 : Pair
-    %v166 = load sinkCalls : I64
-    %v169 = cmp_ne %v166, 8 : Bool
-    je %v169, b28, b29
+    %v152 = load %result : I64
+    %v153 = load %local8@Handle.value : I64
+    %v154 = borrow_mut %result : &mut I64
+    call +=(I64), %v154, %v153
+    %v156 = alloc : Pair
+    %v157 = alloc : Handle
+    aggregate %local10@Handle.value = 80
+    aggregate %local9@Pair.left = %v157, %local9@Pair.right = 8
+    %v162 = move %local9 via moveInit$Pair : Pair
+    %relocatedPair = call relocate(Pair), %v162 : Pair
+    %v164 = load sinkCalls : I64
+    %v167 = cmp_ne %v164, 8 : Bool
+    je %v167, b28, b29
 
   b28:
-    %v173 = neg 10 : I64
-    ret %v173
+    %v171 = neg 10 : I64
+    ret %v171
 
   b29:
     jmp b30
 
   b30:
-    %v176 = load %result : I64
-    %v177 = load %local11@Pair.left : Handle
-    %v178 = load %local11@Pair.left@Handle.value : I64
-    %v179 = load %local11@Pair.right : I64
-    %v180 = add %v178, %v179 : I64
-    %v181 = borrow_mut %result : &mut I64
-    call +=(I64), %v181, %v180
-    %v183 = load %result : I64
-    %v184 = load sinkCalls : I64
-    %v185 = add %v183, %v184 : I64
-    ret %v185
+    %v174 = load %result : I64
+    %v175 = load %local11@Pair.left : Handle
+    %v176 = load %local11@Pair.left@Handle.value : I64
+    %v177 = load %local11@Pair.right : I64
+    %v178 = add %v176, %v177 : I64
+    %v179 = borrow_mut %result : &mut I64
+    call +=(I64), %v179, %v178
+    %v181 = load %result : I64
+    %v182 = load sinkCalls : I64
+    %v183 = add %v181, %v182 : I64
+    ret %v183
 
   b31:
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64

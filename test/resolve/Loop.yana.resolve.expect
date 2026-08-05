@@ -1,16 +1,14 @@
 fn origin() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
     ret %v0
 }
 
 fn madePoint() -> Point {
   b0:
     %v0 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
     ret %v0
 }
 
@@ -187,8 +185,7 @@ fn withCall(%seed: Int, %count: Int) -> Int {
   b0:
     %q = alloc : Point
     %v5 = add %seed, 1 : Int
-    init %local0@Point.x, %seed
-    init %local0@Point.y, %v5
+    aggregate %local0@Point.x = %seed, %local0@Point.y = %v5
     %seen = alloc : Int
     init %seen, 0
     %i = alloc : Int
@@ -196,27 +193,27 @@ fn withCall(%seed: Int, %count: Int) -> Int {
     jmp b1
 
   b1:
-    %v15 = load %i : Int
-    %v16 = cmp_lt %v15, %count : Bool
-    je %v16, b3, b2
+    %v14 = load %i : Int
+    %v15 = cmp_lt %v14, %count : Bool
+    je %v15, b3, b2
 
   b2:
-    %v33 = load %seen : Int
-    ret %v33
+    %v32 = load %seen : Int
+    ret %v32
 
   b3:
-    %v18 = load %seen : Int
-    %v19 = borrow_mut %seen : &mut Int
-    call bump, %v19
-    %v21 = load %seen : Int
-    %v22 = load %local0@Point.x : Int
-    %v23 = load %local0@Point.y : Int
-    %v24 = mul %v22, %v23 : Int
-    %v25 = add %v21, %v24 : Int
-    assign %seen, %v25
-    %v27 = load %i : Int
-    %v30 = add %v27, 1 : Int
-    assign %i, %v30
+    %v17 = load %seen : Int
+    %v18 = borrow_mut %seen : &mut Int
+    call bump, %v18
+    %v20 = load %seen : Int
+    %v21 = load %local0@Point.x : Int
+    %v22 = load %local0@Point.y : Int
+    %v23 = mul %v21, %v22 : Int
+    %v24 = add %v20, %v23 : Int
+    assign %seen, %v24
+    %v26 = load %i : Int
+    %v29 = add %v26, 1 : Int
+    assign %i, %v29
     jmp b1
 }
 

@@ -84,8 +84,8 @@ fn remove(Int) {
   %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 63)
   %local1: Maybe(Int) readonly live [6, 9)
   %local2: Int readonly live [17, 20)
-  %local3: Int readonly live [18, 66)
-  %local4: Maybe(Int) readonly live [63, 68)
+  %local3: Int readonly live [18, 65)
+  %local4: Maybe(Int) readonly live [63, 64) [65, 67)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
@@ -105,8 +105,8 @@ fn sum {
 
 fn make {
   result escapes
-  %local0: Array(Int) droppable readonly live [0, 20)
-  %local1: Int writable addressed escapes heap live [1, 17)
+  %local0: Array(Int) droppable readonly live [0, 9)
+  %local1: Int writable addressed escapes heap live [1, 7)
 }
 
 fn escaping {
@@ -114,10 +114,10 @@ fn escaping {
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 61)
-  %local1: Int writable addressed live [1, 17)
-  %local2: Maybe(Int) readonly live [41, 42)
-  %local3: Maybe(Int) readonly live [44, 45)
-  %local4: Maybe(Int) readonly live [48, 49)
-  %local5: Flat(Int) readonly live [51, 59)
+  %small: Array(Int) droppable writable addressed resizable live [0, 50)
+  %local1: Int writable addressed live [1, 7)
+  %local2: Maybe(Int) readonly live [30, 31)
+  %local3: Maybe(Int) readonly live [33, 34)
+  %local4: Maybe(Int) readonly live [37, 38)
+  %local5: Flat(Int) readonly live [40, 48)
 }

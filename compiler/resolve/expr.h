@@ -1076,6 +1076,13 @@ struct ExprResolver {
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
     ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);
+    void buildAggregate(Place place, TypePtr element, Buffer<ModulePtr<Value>> values,
+                        TypePtr indexType, LocationId source);
+    bool buildFieldAggregate(Place place, TupType& tuple, Buffer<ModulePtr<Value>> values,
+                             LocationId source, U16 constructor = maxLimit<U16>,
+                             ModulePtr<Value> tag = nullptr);
+    bool buildSumAggregate(Place root, TypePtr recordType, U16 constructor, ModulePtr<Value> tag,
+                           ModulePtr<Value> payload, LocationId source);
     void initialize(Place place, ModulePtr<Value> value, LocationId source);
     void assign(Place place, ModulePtr<Value> value, LocationId source);
     void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind);
@@ -1112,8 +1119,26 @@ struct ExprResolver {
     // whose dereferences need more than an address. False for anything else, including a raw
     // pointer, which is followed. See expr_construct.cpp.
     bool reportUnfollowedReference(TypePtr type, LocationId source);
+    /*
+     * The sum a tuple is the payload of, where it is one - see `fillTuple`, whose aggregate is over
+     * the *value* rather than over the payload so that the discriminant is one of its components.
+     *
+     * `owner` is the record's own place and `place` is the payload's, which is `owner` stepped
+     * through `constructor`. Both, rather than one derived from the other, because the caller
+     * projected the payload already and the step is what carries a box where the constructor has one.
+     */
+    struct SumOwner {
+        SumOwner() {}
+        SumOwner(Place owner, U16 constructor, ModulePtr<Value> tag):
+            owner(owner), constructor(constructor), tag(tag) {}
+
+        Place owner;
+        U16 constructor = maxLimit<U16>;
+        ModulePtr<Value> tag = nullptr;
+    };
+
     bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args,
-                   GlobalList<FieldDefault>* defaults, LocationId source);
+                   GlobalList<FieldDefault>* defaults, LocationId source, SumOwner sum = {});
 
     // The default declared for one field of a constructor, or nothing where it has none.
     Maybe<U64> fieldDefault(GlobalList<FieldDefault>* defaults, U16 field);

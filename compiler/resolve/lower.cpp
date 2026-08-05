@@ -609,11 +609,19 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
                  * constant part of the path is spent first, exactly as the Deref below spends it,
                  * and the scaled index is added to the address that produces.
                  *
-                 * A constant index folds all the way back to a constant offset in `compiler/opt`,
-                 * which is what makes an unrolled walk over a small array cost the same as a
-                 * record's fields.
+                 * A constant index is spent into `offset` like a field's, which is what makes an
+                 * unrolled walk over a small array cost the same as a record's fields. This used to
+                 * be left to `compiler/opt` and the comment here said so, which was wrong: the
+                 * multiply is built *here*, after that pass has run, so nothing folded it and every
+                 * `[T *n]` access at a literal index carried a `mul` and an `add` of two constants
+                 * into the backend. The literals in `FixedArray.yana.lower.expect` are what say so.
                  */
                 auto stride = lower.repr.of(step.type).stride;
+
+                if(auto index = lower.local[step.value]; index->kind == Value::ConstInt) {
+                    offset += U32(((ConstInt*)index)->value * stride);
+                    break;
+                }
 
                 auto from = addOffset(lower, block, address, offset);
                 auto index = mappedValue(lower, step.value);
@@ -1903,6 +1911,139 @@ static LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<Lowe
     return relocateWith(lower, block, target, source, type, sink, erased);
 }
 
+/*
+ * One write into one place - what an `Init`, an `Assign` and one element of an `InstAggregate` all
+ * are by the time lowering sees them.
+ *
+ * Extracted so the aggregate goes through *this* rather than through a second opinion about niche
+ * tags, packed fields, scalarized locals and property slots - eight paths, each of which an element
+ * of a literal can land in. Every path that performs the write itself answers null, exactly as the
+ * early returns did when this was inline; the one that produces a store returns it, because the
+ * caller records it as the instruction's result.
+ */
+static LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function,
+                             Place place, ModulePtr<Value> value) {
+
+        /*
+         * Writing a value that carries nothing writes nothing.
+         *
+         * The resolver skips this where it can see it - a field of unit type is never written -
+         * but it cannot see it through a type variable, and a specialization at `{}` is a clone
+         * of instructions decided before the substitution. `Empty {only: value}.only` is the
+         * shape: the constructor's content is `a`, and writing it is an Init the generic body
+         * had every reason to emit.
+         */
+        if(isUnit(lower.global, lower.local[value]->type)) return nullptr;
+
+        if(isScalarPlace(lower, place)) {
+            lower.scalars[place.local][scalarField(lower, place)] = mappedValue(lower, value);
+            return nullptr;
+        }
+
+        // The other half of the shared expansion: the merged word arrives already computed, so
+        // this is the store it was computed for. The unit's width rather than the value's, for
+        // the reason unitBits gives.
+        if(auto bits = unitBits(lower, place)) {
+            auto address = lowerPlace(lower, block, *function, place);
+            block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                address, mappedValue(lower, value), bits / 8));
+            return nullptr;
+        }
+
+        /*
+         * Writing a folded tag, which is a store of a pattern or nothing at all.
+         *
+         * The constructor is always a literal here: a record is constructed by naming one, and
+         * `place.discriminant = <computed>` is not something any front end can write. An
+         * assertion rather than a fallback, because a runtime encode would be dead code that
+         * nothing could ever exercise or test.
+         */
+        if(auto record = foldedTagRecord(lower, *function, place)) {
+            auto& written = *lower.local[value];
+            assertTrue(written.kind == Value::ConstInt);
+
+            auto payload = lowerPlace(lower, block, *function, place);
+            encodeNicheTag(lower, block, payload, record, ((ConstInt&)written).value);
+            return nullptr;
+        }
+
+        // A bit tag, written the way a co-packed field is: the word is read, the tag's bits are
+        // replaced, and the payload sharing it comes back unchanged. Literal for the same reason
+        // as above - nothing can write a computed constructor index.
+        if(auto record = bitTagRecord(lower, *function, place)) {
+            auto& written = *lower.local[value];
+            assertTrue(written.kind == Value::ConstInt);
+
+            auto word = lowerPlace(lower, block, *function, place);
+            encodeBitTag(lower, block, word, record, ((ConstInt&)written).value);
+            return nullptr;
+        }
+
+        /*
+         * Writing a constrained field, which is the mirror image: the replacement goes into
+         * storage of its own and the witness takes it from there.
+         *
+         * `set` consumes what it is handed, so this is a relocation into that storage rather
+         * than a borrow of wherever the value already was - the callee commits it and releases
+         * whatever the field held, and nothing here may release it a second time.
+         */
+        if(auto slot = propertySlotOf(lower, place); slot != maxLimit<U16>) {
+            auto count = place.projections.size();
+            auto owner = lowerPlace(lower, block, *function, place, count - 1);
+            auto written = lower.local[value]->type;
+            auto staging = erasedStorage(lower, block, written, 0);
+            auto staged = mappedValue(lower, value);
+
+            if(isMemoryType(lower.global, written)) {
+                relocate(lower, block, staging, value, staged, written);
+            } else {
+                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                    staging, staged, memoryWidth(lower, written)));
+            }
+
+            callPropertyOp(lower, block, propertyOp(lower, block, slot, PropertyWitnessFields::kSet),
+                           owner, staging);
+            return nullptr;
+        }
+
+        // Written into a bit range rather than into storage. A scalar aggregate arrives as the
+        // address of its own storage, so what goes into the word is a load of it - see
+        // scalarBitsOf - and the merge masks it to the field's width either way.
+        if(auto field = packedAccess(lower, *function, place); field.exists()) {
+            auto word = lowerPlace(lower, block, *function, place);
+            auto bits = scalarBitsOf(lower, block, lower.local[value]->type,
+                                     mappedValue(lower, value));
+
+            encodePackedField(lower, block, word, field, bits);
+            return nullptr;
+        }
+
+        if(auto access = narrowRefAccess(lower, *function, place); access.exists()) {
+            auto ref = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, place),
+                                       access);
+            auto bits = scalarBitsOf(lower, block, lower.local[value]->type,
+                                     mappedValue(lower, value));
+
+            encodeNarrowRef(lower, block, ref, bits);
+            return nullptr;
+        }
+
+        auto address = lowerPlace(lower, block, *function, place);
+        auto stored = mappedValue(lower, value);
+
+        if(isMemoryType(lower.global, lower.local[value]->type)) {
+            return relocate(lower, block, address, value, stored, lower.local[value]->type);
+        } else {
+            // As at the load: a tag is as wide as its record's Repr says, and the constructor
+            // index being written is an `Int` whichever record it belongs to.
+            auto tagWidth = discriminantWidth(lower, *function, place);
+            auto width = tagWidth ? tagWidth : memoryWidth(lower, lower.local[value]->type);
+
+            return block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, stored, width));
+        }
+
+}
+
 static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> pointer) {
     auto& instruction = *lower.local[pointer];
     auto instValue = (ModulePtr<Value>)pointer;
@@ -2131,125 +2272,33 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // assignment there is nothing left in it but the write.
             auto& init = (InstInit&)instruction;
 
-            /*
-             * Writing a value that carries nothing writes nothing.
-             *
-             * The resolver skips this where it can see it - a field of unit type is never written -
-             * but it cannot see it through a type variable, and a specialization at `{}` is a clone
-             * of instructions decided before the substitution. `Empty {only: value}.only` is the
-             * shape: the constructor's content is `a`, and writing it is an Init the generic body
-             * had every reason to emit.
-             */
-            if(isUnit(lower.global, lower.local[init.value]->type)) return;
-
-            if(isScalarPlace(lower, init.place)) {
-                lower.scalars[init.place.local][scalarField(lower, init.place)] = mappedValue(lower, init.value);
-                return;
-            }
-
-            // The other half of the shared expansion: the merged word arrives already computed, so
-            // this is the store it was computed for. The unit's width rather than the value's, for
-            // the reason unitBits gives.
-            if(auto bits = unitBits(lower, init.place)) {
-                auto address = lowerPlace(lower, block, *function, init.place);
-                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                    address, mappedValue(lower, init.value), bits / 8));
-                return;
-            }
-
-            /*
-             * Writing a folded tag, which is a store of a pattern or nothing at all.
-             *
-             * The constructor is always a literal here: a record is constructed by naming one, and
-             * `place.discriminant = <computed>` is not something any front end can write. An
-             * assertion rather than a fallback, because a runtime encode would be dead code that
-             * nothing could ever exercise or test.
-             */
-            if(auto record = foldedTagRecord(lower, *function, init.place)) {
-                auto& written = *lower.local[init.value];
-                assertTrue(written.kind == Value::ConstInt);
-
-                auto payload = lowerPlace(lower, block, *function, init.place);
-                encodeNicheTag(lower, block, payload, record, ((ConstInt&)written).value);
-                return;
-            }
-
-            // A bit tag, written the way a co-packed field is: the word is read, the tag's bits are
-            // replaced, and the payload sharing it comes back unchanged. Literal for the same reason
-            // as above - nothing can write a computed constructor index.
-            if(auto record = bitTagRecord(lower, *function, init.place)) {
-                auto& written = *lower.local[init.value];
-                assertTrue(written.kind == Value::ConstInt);
-
-                auto word = lowerPlace(lower, block, *function, init.place);
-                encodeBitTag(lower, block, word, record, ((ConstInt&)written).value);
-                return;
-            }
-
-            /*
-             * Writing a constrained field, which is the mirror image: the replacement goes into
-             * storage of its own and the witness takes it from there.
-             *
-             * `set` consumes what it is handed, so this is a relocation into that storage rather
-             * than a borrow of wherever the value already was - the callee commits it and releases
-             * whatever the field held, and nothing here may release it a second time.
-             */
-            if(auto slot = propertySlotOf(lower, init.place); slot != maxLimit<U16>) {
-                auto count = init.place.projections.size();
-                auto owner = lowerPlace(lower, block, *function, init.place, count - 1);
-                auto written = lower.local[init.value]->type;
-                auto staging = erasedStorage(lower, block, written, 0);
-                auto value = mappedValue(lower, init.value);
-
-                if(isMemoryType(lower.global, written)) {
-                    relocate(lower, block, staging, init.value, value, written);
-                } else {
-                    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                        staging, value, memoryWidth(lower, written)));
-                }
-
-                callPropertyOp(lower, block, propertyOp(lower, block, slot, PropertyWitnessFields::kSet),
-                               owner, staging);
-                return;
-            }
-
-            // Written into a bit range rather than into storage. A scalar aggregate arrives as the
-            // address of its own storage, so what goes into the word is a load of it - see
-            // scalarBitsOf - and the merge masks it to the field's width either way.
-            if(auto field = packedAccess(lower, *function, init.place); field.exists()) {
-                auto word = lowerPlace(lower, block, *function, init.place);
-                auto bits = scalarBitsOf(lower, block, lower.local[init.value]->type,
-                                         mappedValue(lower, init.value));
-
-                encodePackedField(lower, block, word, field, bits);
-                return;
-            }
-
-            if(auto access = narrowRefAccess(lower, *function, init.place); access.exists()) {
-                auto ref = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, init.place),
-                                           access);
-                auto bits = scalarBitsOf(lower, block, lower.local[init.value]->type,
-                                         mappedValue(lower, init.value));
-
-                encodeNarrowRef(lower, block, ref, bits);
-                return;
-            }
-
-            auto address = lowerPlace(lower, block, *function, init.place);
-            auto value = mappedValue(lower, init.value);
-
-            if(isMemoryType(lower.global, lower.local[init.value]->type)) {
-                result = relocate(lower, block, address, init.value, value, lower.local[init.value]->type);
-            } else {
-                // As at the load: a tag is as wide as its record's Repr says, and the constructor
-                // index being written is an `Int` whichever record it belongs to.
-                auto tagWidth = discriminantWidth(lower, *function, init.place);
-                auto width = tagWidth ? tagWidth : memoryWidth(lower, lower.local[init.value]->type);
-
-                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, width));
-            }
-
+            // Null where the write was performed by one of `lowerStore`'s own paths - a scalarized
+            // local, a packed field, a witness call. Those produced no instruction to map a result
+            // to, which is what the early returns here used to say.
+            result = lowerStore(lower, block, function, init.place, init.value);
+            if(!result) return;
             break;
+        }
+        /*
+         * The elements of a literal, expanded here into the stores the native target wanted all
+         * along - see InstAggregate for why they arrive as one instruction instead.
+         *
+         * Element `i` is the run's place with an `Index i` projection appended, which is the form
+         * `[T *n]` introduced and the one `lowerPlace` already turns into `base + i * stride`. The
+         * index is a constant, so the multiply folds and what reaches the backend is a store at a
+         * displacement - the same instruction the per-element writes produced.
+         */
+        case Value::Aggregate: {
+            auto& aggregate = (InstAggregate&)instruction;
+
+            eachWrittenComponent(lower.local, lower.from.arena, aggregate,
+                                 [&](Place place, ModulePtr<Value> value, Size) {
+                lowerStore(lower, block, function, place, value);
+            });
+
+            // Nothing to map: the instruction is a statement of unit type whose elements each
+            // produced their own store, so there is no single result any of them stands for.
+            return;
         }
         case Value::Borrow: {
             /*

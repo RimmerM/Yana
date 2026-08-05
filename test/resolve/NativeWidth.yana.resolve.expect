@@ -102,7 +102,7 @@ fn boxed(%value: U32) -> U32 {
     %b = alloc : Box
     %v3 = and %value, 15 : U32
     %value = cast %v3 : @bits(4) U32
-    init %local0@Box.small, %value
+    aggregate %local0@Box.small = %value
     %v6 = load %local0@Box.small : @bits(4) U32
     %v7 = cast %v6 : U32
     ret %v7
@@ -159,7 +159,7 @@ fn shrNegative() -> WideInt {
 fn foldedStore() -> U32 {
   b0:
     %b = alloc : Box
-    init %local0@Box.small, 4
+    aggregate %local0@Box.small = 4
     %v3 = load %local0@Box.small : @bits(4) U32
     %v4 = cast %v3 : U32
     ret %v4
@@ -171,7 +171,7 @@ fn signedField(%x: I32) -> I32 {
     %v3 = shl %x, 28 : I32
     %v5 = sar %v3, 28 : I32
     %x = cast %v5 : @bits(4) I32
-    init %local0@SignedBox.value, %x
+    aggregate %local0@SignedBox.value = %x
     %v8 = load %local0@SignedBox.value : @bits(4) I32
     %v9 = cast %v8 : I32
     ret %v9

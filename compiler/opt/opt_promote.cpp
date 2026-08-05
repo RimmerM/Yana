@@ -85,6 +85,31 @@ bool isRead(const Value& instruction) {
     return instruction.kind == Value::LoadPlace || instruction.kind == Value::Copy;
 }
 
+/*
+ * Every place an instruction writes, with the value it puts there.
+ *
+ * One for a store and one per component for an aggregate - see InstAggregate, whose components are
+ * the stores it replaced. It exists because `eachPlace` cannot answer this: an aggregate reports its
+ * place with *no* projection, which is the right prefix for a kill and the wrong place for a write,
+ * and there is no bound on how many components one has to report through a fixed array.
+ *
+ * Nothing for every other kind, which is what makes a read a question for `eachPlace` and a write a
+ * question for this one.
+ */
+template<class F>
+void eachWrittenPlace(OptContext& opt, Value& instruction, F&& f) {
+    if(isWrite(instruction)) {
+        auto& store = (InstInit&)instruction;
+        f(store.place, store.value);
+        return;
+    }
+
+    if(instruction.kind != Value::Aggregate) return;
+
+    eachWrittenComponent(opt.local, opt.module->arena, (InstAggregate&)instruction,
+                         [&](Place place, ModulePtr<Value> value, Size) { f(place, value); });
+}
+
 Size candidateOf(OptContext& opt, Array<Candidate>& candidates, const Place& place) {
     for(Size i = 0; i < candidates.size(); i++) {
         if(samePlace(opt, candidates[i].place, place)) return i;
@@ -161,9 +186,9 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
 
         for(auto pointer: block->instructions.contents(opt.local)) {
             auto instruction = opt.local[pointer];
-            auto written = isWrite(*instruction);
+            auto written = isWrite(*instruction) || instruction->kind == Value::Aggregate;
 
-            eachPlace(*instruction, [&](const Place& place) {
+            auto visit = [&](const Place& place, ModulePtr<Value> stored) {
                 if(place.root != PlaceRoot::Local) return;
                 if(place.local != candidate.place.local) return;
 
@@ -178,8 +203,7 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                         return;
                     }
 
-                    auto& store = (InstInit&)*instruction;
-                    if(opt.local[store.value]->type != candidate.type) usable = false;
+                    if(opt.local[stored]->type != candidate.type) usable = false;
 
                     candidate.stores.set(block->index, true);
                     return;
@@ -204,7 +228,21 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                 if(!holdsLoadableValue(opt, instruction->type) && instruction->uses.isNotEmpty()) {
                     usable = false;
                 }
-            });
+            };
+
+            /*
+             * The writes an aggregate is, in place of the whole-value place it reports.
+             *
+             * Its own place has an empty path, so leaving it to `eachPlace` would make every
+             * construction overlap every candidate inside it and disqualify the lot - which is what
+             * cost the native build eighty stores when records first became one instruction.
+             */
+            if(instruction->kind == Value::Aggregate) {
+                eachWrittenPlace(opt, *instruction, visit);
+            } else {
+                auto stored = isWrite(*instruction) ? ((InstInit*)instruction)->value : nullptr;
+                eachPlace(*instruction, [&](const Place& place) { visit(place, stored); });
+            }
 
             if(!usable) return false;
         }
@@ -285,12 +323,18 @@ bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reac
         for(auto pointer: block->instructions.contents(opt.local)) {
             auto instruction = opt.local[pointer];
 
-            eachPlace(*instruction, [&](const Place& place) {
-                if(!samePlace(opt, place, candidate.place)) return;
+            if(instruction->kind == Value::Aggregate) {
+                eachWrittenPlace(opt, *instruction, [&](const Place& place, ModulePtr<Value>) {
+                    if(samePlace(opt, place, candidate.place)) written = 1;
+                });
+            } else {
+                eachPlace(*instruction, [&](const Place& place) {
+                    if(!samePlace(opt, place, candidate.place)) return;
 
-                if(isWrite(*instruction)) written = 1;
-                else if(!written) written = 2;
-            });
+                    if(isWrite(*instruction)) written = 1;
+                    else if(!written) written = 2;
+                });
+            }
 
             if(written == 2) return false;
         }
@@ -325,10 +369,11 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
             replaceValue(opt, (ModulePtr<Value>)pointer, current[which]);
             eraseInstruction(opt, pointer);
             i--;
-        } else if(isWrite(*instruction)) {
-            auto& store = (InstInit&)*instruction;
-            auto which = candidateOf(opt, candidates, store.place);
-            if(which != maxLimit<Size>) current[which] = store.value;
+        } else {
+            eachWrittenPlace(opt, *instruction, [&](const Place& place, ModulePtr<Value> stored) {
+                auto which = candidateOf(opt, candidates, place);
+                if(which != maxLimit<Size>) current[which] = stored;
+            });
         }
     }
 

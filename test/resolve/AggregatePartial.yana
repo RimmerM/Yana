@@ -1,0 +1,59 @@
+{-
+   A construction one of whose components is overwritten afterwards, which is one instruction and not
+   `n` - and the whole of it has to survive.
+
+   `InstAggregate` makes a record's fields one instruction, so a later write to one of them is either
+   folded into it (`foldIntoAggregate` in opt/opt_place.cpp) or left where it is. Each function below
+   arranges for the fold to decline, and asserts that the construction survives it:
+
+   - `computed` writes a value the block produces *after* the construction, which cannot move into it;
+   - `readBetween` reads the field before overwriting it, so the constructed value is observable;
+   - `both` and `derived` do it to a record whose other component is a whole value rather than a
+     scalar, which is the shape that reaches `noteCopy` - what makes the reader of `held` be handed
+     the source rather than a copy.
+
+   The answer is a number rather than a shape because every failure here is silent: a construction
+   the optimizer deleted on behalf of one field still compiles, still runs, and answers with whatever
+   the frame held. **What catches that particular deletion is ScalarRecord.yana** - these four all
+   fold to constants, so the instruction is gone by the time the rule that would have erased it runs,
+   and the assertion they make is the narrower one that the fold conditions are read correctly.
+-}
+let &log = 0 :: Int
+
+data Pair {a: Int, b: Int}
+data Held {tag: Int, held: Pair}
+
+fn opaque(n: Int) -> Int:
+    log = log + n
+    if log > 1000:
+        return 0
+    return n
+
+-- The overwriting value is computed after the construction, so it cannot be folded into it.
+fn computed(seed: Int) -> Int:
+    let &p = Pair {a: 10, b: 20}
+    p.b = opaque(seed)
+    return p.a * 100 + p.b
+
+-- The field is read between the construction and the write, so the constructed value is observable.
+fn readBetween() -> Int:
+    let &p = Pair {a: 3, b: 4}
+    let first = p.b
+    p.b = 9
+    return p.a * 100 + first * 10 + p.b
+
+-- A component that is a whole value, with the other one overwritten afterwards.
+fn both(seed: Int) -> Int:
+    let inner = Pair {a: 1, b: 2}
+    let &outer = Held {tag: 7, held: inner}
+    outer.tag = opaque(seed)
+    return outer.held.a * 100 + outer.held.b * 10 + outer.tag
+
+-- The shape that reaches the dead-store rule: a scalar field overwritten by a value derived from
+-- itself, in a record whose other component is a whole value and therefore keeps the local whole.
+fn derived(seed: Int) -> Int:
+    let &h = Held {tag: 7, held: Pair {a: 1, b: 2}}
+    h.tag = h.tag + opaque(seed)
+    return h.held.a * 100 + h.held.b * 10 + h.tag
+
+fn main() -> Int = computed(5) + readBetween() + both(6) + derived(7) + log

@@ -4,7 +4,7 @@ fn and(%a: Permissions, %b: Permissions) -> Permissions {
     %v3 = load %a@Permissions.bits : Int
     %v4 = load %b@Permissions.bits : Int
     %v5 = and %v3, %v4 : Int
-    init %local2@Permissions.bits, %v5
+    aggregate %local2@Permissions.bits = %v5
     ret %v2
 }
 
@@ -17,9 +17,9 @@ fn mask(%a: Int, %b: Int) -> Int {
 fn combined(%a: Int, %b: Int) -> Int {
   b0:
     %v2 = alloc : Permissions
-    init %local0@Permissions.bits, %a
+    aggregate %local0@Permissions.bits = %a
     %v4 = alloc : Permissions
-    init %local1@Permissions.bits, %b
+    aggregate %local1@Permissions.bits = %b
     %v6 = call and, %v2, %v4 : Permissions
     %v7 = load %local2@Permissions.bits : Int
     ret %v7

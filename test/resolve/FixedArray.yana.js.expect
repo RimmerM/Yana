@@ -76,14 +76,8 @@ function padStride() {
 }
 
 function padRead() {
-  var v0 = { wide: 10n, narrow: 1 };
-  var v5 = { wide: 20n, narrow: 2 };
-  var v10 = { wide: 30n, narrow: 3 };
-  var v15 = [{ wide: 0n, narrow: 0 }, { wide: 0n, narrow: 0 }, { wide: 0n, narrow: 0 }];
-  v15[0] = v0;
-  v15[1] = v5;
-  v15[2] = v10;
-  return BigInt.asIntN(64, BigInt.asIntN(64, v15[0].wide + v15[1].wide) + v15[2].wide);
+  var v12 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
+  return BigInt.asIntN(64, BigInt.asIntN(64, v12[0].wide + v12[1].wide) + v12[2].wide);
 }
 
 function emptySize() {
@@ -91,11 +85,7 @@ function emptySize() {
 }
 
 function main() {
-  var v24 = [0, 0, 0, 0];
-  v24[0] = 1;
-  v24[1] = 2;
-  v24[2] = 3;
-  v24[3] = 4;
+  var v24 = [1, 2, 3, 4];
   if (total(v24, 4, 0) !== 10) {
     return -3;
   } else {

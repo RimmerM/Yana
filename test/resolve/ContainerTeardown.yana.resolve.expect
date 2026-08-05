@@ -566,8 +566,7 @@ fn emptyArray(Handle)() -> Array(Handle) {
   b0:
     %v0 = alloc : Array(Handle)
     %v1 = call emptyRun(Handle) : Run(Handle)
-    init %local0@Array.run, %v1
-    init %local0@Array.length, 0
+    aggregate %local0@Array.run = %v1, %local0@Array.length = 0
     ret %v0
 }
 
@@ -747,8 +746,7 @@ fn remove(Handle)(%self: Array(Handle), %index: Int) -> Maybe(Handle) {
     %v70 = cast %v69 : @bits(30) U32
     assign %self@Array.length, %v70
     %v72 = alloc : Maybe(Handle)
-    init %local4.discriminant, 1
-    init %local4@Just, %doomed
+    aggregate %local4.discriminant = 1, %local4@Just = %doomed
     ret %v72
 }
 
@@ -756,8 +754,7 @@ fn emptyArray(Int)() -> Array(Int) {
   b0:
     %v0 = alloc : Array(Int)
     %v1 = call emptyRun(Int) : Run(Int)
-    init %local0@Array.run, %v1
-    init %local0@Array.length, 0
+    aggregate %local0@Array.run = %v1, %local0@Array.length = 0
     ret %v0
 }
 
@@ -935,7 +932,7 @@ fn openHandle(%mark: I64) -> Handle {
     call +=(I64), %v4, 1
     %handle = alloc : Handle
     %v8 = call allocateHeap, 16 : %U8
-    init %local0@Handle.slot, %v8
+    aggregate %local0@Handle.slot = %v8
     %v10 = load %local0@Handle.slot : %U8
     %v11 = cast %v10 : %I64
     assign [%v11], %mark
@@ -960,46 +957,39 @@ fn buildLiteral() -> I64 {
     init %local2@Array.run@Run.items, %v8
     init %local2@Array.run@Run.capacity, 2
     init %local2@Array.run@Run.ownsHeap, 0
-    %v14 = strideof Handle : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v8, %v15 : %Handle
-    init [%v16], %v1
-    %v19 = strideof Handle : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v8, %v20 : %Handle
-    init [%v21], %v3
+    aggregate [%v8][0] = %v1, [%v8][1] = %v3
     init %local2@Array.length, 2
-    %v26 = borrow %local2 : &Array(Handle)
-    %v27 = load [%v26]@Array.length : @bits(30) U32
-    %v28 = cast 0 : U64
-    %v29 = cast %v27 : U32
-    %v30 = cast %v29 : U64
-    %v31 = cmp_ge %v28, %v30 : Bool
-    call checkCondition, %v31
-    %v33 = load [%v26]@Array.run@Run.items : %Handle
-    %v34 = strideof Handle : Long
-    %v35 = mul 0, %v34 : Long
-    %v36 = add %v33, %v35 : %Handle
-    %v37 = borrow [%v36] : &Handle
-    %v38 = load [%v37] : Handle
-    %v39 = call marker, %v38 : I64
-    %v42 = borrow %local2 : &Array(Handle)
-    %v43 = load [%v42]@Array.length : @bits(30) U32
-    %v44 = cast 1 : U64
-    %v45 = cast %v43 : U32
-    %v46 = cast %v45 : U64
-    %v47 = cmp_ge %v44, %v46 : Bool
-    call checkCondition, %v47
-    %v49 = load [%v42]@Array.run@Run.items : %Handle
-    %v50 = strideof Handle : Long
-    %v51 = mul 1, %v50 : Long
-    %v52 = add %v49, %v51 : %Handle
-    %v53 = borrow [%v52] : &Handle
-    %v54 = load [%v53] : Handle
-    %v55 = call marker, %v54 : I64
+    %v19 = borrow %local2 : &Array(Handle)
+    %v20 = load [%v19]@Array.length : @bits(30) U32
+    %v21 = cast 0 : U64
+    %v22 = cast %v20 : U32
+    %v23 = cast %v22 : U64
+    %v24 = cmp_ge %v21, %v23 : Bool
+    call checkCondition, %v24
+    %v26 = load [%v19]@Array.run@Run.items : %Handle
+    %v27 = strideof Handle : Long
+    %v28 = mul 0, %v27 : Long
+    %v29 = add %v26, %v28 : %Handle
+    %v30 = borrow [%v29] : &Handle
+    %v31 = load [%v30] : Handle
+    %v32 = call marker, %v31 : I64
+    %v35 = borrow %local2 : &Array(Handle)
+    %v36 = load [%v35]@Array.length : @bits(30) U32
+    %v37 = cast 1 : U64
+    %v38 = cast %v36 : U32
+    %v39 = cast %v38 : U64
+    %v40 = cmp_ge %v37, %v39 : Bool
+    call checkCondition, %v40
+    %v42 = load [%v35]@Array.run@Run.items : %Handle
+    %v43 = strideof Handle : Long
+    %v44 = mul 1, %v43 : Long
+    %v45 = add %v42, %v44 : %Handle
+    %v46 = borrow [%v45] : &Handle
+    %v47 = load [%v46] : Handle
+    %v48 = call marker, %v47 : I64
     drop %local2 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
-    %v56 = add %v39, %v55 : I64
-    ret %v56
+    %v49 = add %v32, %v48 : I64
+    ret %v49
 }
 
 fn buildPushed() -> I64 {

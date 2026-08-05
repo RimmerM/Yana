@@ -488,13 +488,12 @@ fn stringLiteral(%bytes: %U8, %length: Int) -> String {
     %v13 = cast %length : U32
     %v15 = and %v13, 1073741823 : U32
     %v16 = cast %v15 : @bits(30) U32
-    init %local1@Array.run, %v4
-    init %local1@Array.length, %v16
-    init %local0@StringData.bytes, %v3
-    %v20 = move %local0 : StringData
-    %v21 = alloc : String
-    init %local3, %v20
-    ret %v21
+    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
+    aggregate %local0@StringData.bytes = %v3
+    %v19 = move %local0 : StringData
+    %v20 = alloc : String
+    init %local3, %v19
+    ret %v20
 }
 
 fn stringUnit(%self: String, %index: I64) -> Int {
@@ -527,13 +526,12 @@ fn newStringOfCapacity(%capacity: I64) -> String {
     init %local2@Run.items, %v7
     init %local2@Run.capacity, %v12
     init %local2@Run.ownsHeap, 1
-    init %local1@Array.run, %v4
-    init %local1@Array.length, 0
-    init %local0@StringData.bytes, %v2
-    %v20 = move %local0 : StringData
-    %v21 = alloc : String
-    init %local4, %v20
-    ret %v21
+    aggregate %local1@Array.run = %v4, %local1@Array.length = 0
+    aggregate %local0@StringData.bytes = %v2
+    %v19 = move %local0 : StringData
+    %v20 = alloc : String
+    init %local4, %v19
+    ret %v20
 }
 
 fn reserveString(%self: String, %wanted: I64) -> () {
@@ -796,8 +794,7 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
 fn Show(Bool).showBound(%value: Bool) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 5
+    aggregate %local0.discriminant = 1, %local0@Just = 5
     ret %v1
 }
 
@@ -813,8 +810,7 @@ fn Show(Int).show(%value: Int, %to: String) -> () {
 fn Show(Int).showBound(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 11
+    aggregate %local0.discriminant = 1, %local0@Just = 11
     ret %v1
 }
 
@@ -829,10 +825,9 @@ fn Show(String).show(%value: String, %to: String) -> () {
 fn Show(String).showBound(%value: String) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    %v4 = call Length(String).length, %value : I64
-    %v5 = cast %v4 : Int
-    init %local1@Just, %v5
+    %v3 = call Length(String).length, %value : I64
+    %v4 = cast %v3 : Int
+    aggregate %local1.discriminant = 1, %local1@Just = %v4
     ret %v1
 }
 

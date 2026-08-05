@@ -176,13 +176,13 @@ buildChain<complex>(): Int {
 buildTree<complex>(): Int {
   b_0 {
     %deep = alloca 32, 8: Ptr
-    store %deep, 1, 4
     %v_1 = alloca 32, 8: Ptr
     store %v_1, 0, 4
     %v_2 = add %v_1, 8: Ptr
     store %v_2, 20, 4
     %v_3 = call_complex allocateHeap, 32: Ptr
     copy %v_3, %v_1, 32
+    store %deep, 1, 4
     %v_4 = add %deep, 8: Ptr
     store %v_4, 0, 8
     %v_5 = add %deep, 16: Ptr
@@ -190,7 +190,6 @@ buildTree<complex>(): Int {
     %v_6 = add %deep, 24: Ptr
     store %v_6, 5, 4
     %t = alloca 32, 8: Ptr
-    store %t, 1, 4
     %v_7 = alloca 32, 8: Ptr
     store %v_7, 0, 4
     %v_8 = add %v_7, 8: Ptr
@@ -199,6 +198,7 @@ buildTree<complex>(): Int {
     copy %v_9, %v_7, 32
     %v_10 = call_complex allocateHeap, 32: Ptr
     copy %v_10, %deep, 32
+    store %t, 1, 4
     %v_11 = add %t, 8: Ptr
     store %v_11, %v_9, 8
     %v_12 = add %t, 16: Ptr

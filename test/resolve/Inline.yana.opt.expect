@@ -8,8 +8,7 @@ fn scaled(%v: Int, %by: Int) -> Int {
 fn makePoint(%x: Int, %y: Int) -> Point {
   b0:
     %v2 = alloc : Point
-    init %local0@Point.x, %x
-    init %local0@Point.y, %y
+    aggregate %local0@Point.x = %x, %local0@Point.y = %y
     ret %v2
 }
 

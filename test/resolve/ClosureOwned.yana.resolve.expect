@@ -389,48 +389,26 @@ fn main() -> Int {
     init %local0@Array.run@Run.items, %v8
     init %local0@Array.run@Run.capacity, 4
     init %local0@Array.run@Run.ownsHeap, 1
-    %v14 = strideof Int : Long
-    %v15 = mul 0, %v14 : Long
-    %v16 = add %v8, %v15 : %Int
-    init [%v16], 1
-    %v19 = strideof Int : Long
-    %v20 = mul 1, %v19 : Long
-    %v21 = add %v8, %v20 : %Int
-    init [%v21], 2
-    %v24 = strideof Int : Long
-    %v25 = mul 2, %v24 : Long
-    %v26 = add %v8, %v25 : %Int
-    init [%v26], 3
-    %v29 = strideof Int : Long
-    %v30 = mul 3, %v29 : Long
-    %v31 = add %v8, %v30 : %Int
-    init [%v31], 4
+    aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %local0@Array.length, 4
-    %v34 = move %local0 : Array(Int)
-    %first = call makeSummer, %v34 : () -> Int
-    %v38 = alloc : Array(Int)
-    %v41 = alloc *2 heap escaping : Int
-    %v42 = addressof %local4 : %Int
-    init %local3@Array.run@Run.items, %v42
+    %v19 = move %local0 : Array(Int)
+    %first = call makeSummer, %v19 : () -> Int
+    %v23 = alloc : Array(Int)
+    %v26 = alloc *2 heap escaping : Int
+    %v27 = addressof %local4 : %Int
+    init %local3@Array.run@Run.items, %v27
     init %local3@Array.run@Run.capacity, 2
     init %local3@Array.run@Run.ownsHeap, 1
-    %v48 = strideof Int : Long
-    %v49 = mul 0, %v48 : Long
-    %v50 = add %v42, %v49 : %Int
-    init [%v50], 10
-    %v53 = strideof Int : Long
-    %v54 = mul 1, %v53 : Long
-    %v55 = add %v42, %v54 : %Int
-    init [%v55], 20
+    aggregate [%v27][0] = 10, [%v27][1] = 20
     init %local3@Array.length, 2
-    %v58 = move %local3 : Array(Int)
-    %second = call makeSummer, %v58 : () -> Int
-    %v60 = calldyn %first : Int
+    %v36 = move %local3 : Array(Int)
+    %second = call makeSummer, %v36 : () -> Int
+    %v38 = calldyn %first : Int
     drop_derived %local2 via drop$() -> Int reclaim reclaim$() -> Int
-    %v61 = calldyn %second : Int
+    %v39 = calldyn %second : Int
     drop_derived %local5 via drop$() -> Int reclaim reclaim$() -> Int
-    %v62 = add %v60, %v61 : Int
-    ret %v62
+    %v40 = add %v38, %v39 : Int
+    ret %v40
 }
 
 fn ResolveTest.lambda$0(%env: %{xs: Array(Int)}) -> Int {

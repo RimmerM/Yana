@@ -24,33 +24,31 @@ fn main() -> Int {
     %v8 = borrow %x : &Int
     %v9 = load %y : Int
     %v10 = borrow %y : &Int
-    init %local2@Pair.a, %v8
-    init %local2@Pair.b, %v10
-    %v13 = load %local2@Pair.a : &Int
-    %written = load [%v13] : Int
-    %v15 = load %local2@Pair.a : &Int
-    %v16 = load %local2@Pair.b : &Int
+    aggregate %local2@Pair.a = %v8, %local2@Pair.b = %v10
+    %v12 = load %local2@Pair.a : &Int
+    %written = load [%v12] : Int
+    %v14 = load %local2@Pair.a : &Int
+    %v15 = load %local2@Pair.b : &Int
+    %v16 = load [%v14] : Int
     %v17 = load [%v15] : Int
-    %v18 = load [%v16] : Int
-    %summed = add %v17, %v18 : Int
-    %v20 = load %local2@Pair.a : &Int
-    %kept = call borrows, %v20 : Int
-    %v22 = load %local2@Pair.a : &Int
-    %v23 = load [%v22] : Int
-    %read = call owns, %v23 : Int
-    %v25 = alloc : Held
-    init %h@Held.n, 3
+    %summed = add %v16, %v17 : Int
+    %v19 = load %local2@Pair.a : &Int
+    %kept = call borrows, %v19 : Int
+    %v21 = load %local2@Pair.a : &Int
+    %v22 = load [%v21] : Int
+    %read = call owns, %v22 : Int
+    %v24 = alloc : Held
+    aggregate %h@Held.n = 3
     %q = alloc : Pair
-    %v29 = load %x : Int
-    %v30 = borrow %x : &Int
-    %v31 = load %y : Int
-    %v32 = borrow %y : &Int
-    init %local4@Pair.a, %v30
-    init %local4@Pair.b, %v32
-    %v35 = load %h : Held
-    %v36 = load %h : Held
-    %v37 = call Eq(Held).==, %v35, %v36 : Bool
-    je %v37, b1, b2
+    %v28 = load %x : Int
+    %v29 = borrow %x : &Int
+    %v30 = load %y : Int
+    %v31 = borrow %y : &Int
+    aggregate %local4@Pair.a = %v29, %local4@Pair.b = %v31
+    %v33 = load %h : Held
+    %v34 = load %h : Held
+    %v35 = call Eq(Held).==, %v33, %v34 : Bool
+    je %v35, b1, b2
 
   b1:
     jmp b3
@@ -60,14 +58,14 @@ fn main() -> Int {
 
   b3:
     %same = phi [b1, 1000], [b2, 0] : Int
-    %v46 = add %written, %summed : Int
-    %v47 = add %v46, %kept : Int
-    %v48 = add %v47, %read : Int
-    %v49 = add %v48, %same : Int
-    %v50 = load %local4@Pair.a : &Int
-    %v51 = call takes, %v50 : Int
-    %v52 = add %v49, %v51 : Int
-    ret %v52
+    %v44 = add %written, %summed : Int
+    %v45 = add %v44, %kept : Int
+    %v46 = add %v45, %read : Int
+    %v47 = add %v46, %same : Int
+    %v48 = load %local4@Pair.a : &Int
+    %v49 = call takes, %v48 : Int
+    %v50 = add %v47, %v49 : Int
+    ret %v50
 }
 
 fn Eq(Held).==(%lhs: Held, %rhs: Held) -> Bool {

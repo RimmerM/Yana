@@ -140,6 +140,23 @@ void mapOperands(ModuleBase base, Value& instruction, F&& f) {
         case Value::Native:
             list(((InstNative&)instruction).args);
             break;
+        // The aggregate's own root travels through the place walk above; these are the components
+        // going into it, and each is a hand-over rather than a read - see deriveEffects. A step
+        // carries a value only in the indexed form, and `f` is asked nothing about a null one for
+        // the same reason the place walk skips those.
+        case Value::Aggregate: {
+            auto& aggregate = (InstAggregate&)instruction;
+
+            for(Size i = 0; i < aggregate.components.size(); i++) {
+                auto component = aggregate.components.get(base, i);
+
+                component.value = f(component.value);
+                if(component.step.value) component.step.value = f(component.step.value);
+
+                aggregate.components.set(base, i, component);
+            }
+            break;
+        }
         case Value::Cast:
         case Value::Neg:
         case Value::Not: {

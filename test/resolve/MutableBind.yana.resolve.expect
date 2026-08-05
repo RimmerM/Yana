@@ -1,7 +1,7 @@
 fn adopted() -> Int {
   b0:
     %v0 = alloc : Cell
-    init %c@Cell.v, 1
+    aggregate %c@Cell.v = 1
     assign %c@Cell.v, 41
     %v5 = load %c : Cell
     %v6 = load %c@Cell.v : Int
@@ -11,7 +11,7 @@ fn adopted() -> Int {
 fn copied() -> Int {
   b0:
     %a = alloc : Cell
-    init %local0@Cell.v, 1
+    aggregate %local0@Cell.v = 1
     %b = alloc : Cell
     init %b, %a
     assign %b@Cell.v, 99
@@ -25,7 +25,7 @@ fn copied() -> Int {
 fn field() -> Int {
   b0:
     %v0 = alloc : Cell
-    init %local0@Cell.v, 7
+    aggregate %local0@Cell.v = 7
     %v3 = load %local0@Cell.v : Int
     %inner = alloc : Int
     init %inner, %v3

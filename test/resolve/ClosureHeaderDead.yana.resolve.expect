@@ -25,7 +25,7 @@ fn consume(%f: (Int) -> Int) -> Int {
 fn inFrame(%id: Int) -> Int {
   b0:
     %g = alloc : Guard
-    init %local0@Guard.id, %id
+    aggregate %local0@Guard.id = %id
     %v3 = alloc : {g: Guard}
     %g = move %local0 : Guard
     init %local1.g, %g
@@ -42,7 +42,7 @@ fn inFrame(%id: Int) -> Int {
 fn handedOff(%id: Int) -> Int {
   b0:
     %g = alloc : Guard
-    init %local0@Guard.id, %id
+    aggregate %local0@Guard.id = %id
     %v3 = alloc : {g: Guard}
     %g = move %local0 : Guard
     init %local1.g, %g

@@ -43,61 +43,52 @@ fn taken() -> Int {
   b0:
     %b = alloc : Boxed
     %v2 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 35
-    init %local0@Boxed.tag, 7
-    init %local0@Boxed.held, %v2
-    %v9 = load %local0@Boxed.held : Maybe(Int)
-    %v11 = call unwrapOr, %v9, 0 : Int
-    ret %v11
+    aggregate %local1.discriminant = 1, %local1@Just = 35
+    aggregate %local0@Boxed.tag = 7, %local0@Boxed.held = %v2
+    %v7 = load %local0@Boxed.held : Maybe(Int)
+    %v9 = call unwrapOr, %v7, 0 : Int
+    ret %v9
 }
 
 fn replaced() -> Int {
   b0:
     %v0 = alloc : Boxed
     %v2 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 35
-    init %b@Boxed.tag, 7
-    init %b@Boxed.held, %v2
-    %v9 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, 36
-    assign %b@Boxed.held, %v9
-    %v15 = load %b : Boxed
-    %v16 = load %b@Boxed.held : Maybe(Int)
-    %v18 = call unwrapOr, %v16, 0 : Int
-    ret %v18
+    aggregate %local1.discriminant = 1, %local1@Just = 35
+    aggregate %b@Boxed.tag = 7, %b@Boxed.held = %v2
+    %v7 = alloc : Maybe(Int)
+    aggregate %local2.discriminant = 1, %local2@Just = 36
+    assign %b@Boxed.held, %v7
+    %v12 = load %b : Boxed
+    %v13 = load %b@Boxed.held : Maybe(Int)
+    %v15 = call unwrapOr, %v13, 0 : Int
+    ret %v15
 }
 
 fn sunk() -> Int {
   b0:
     %o = alloc : Owning
     %v2 = alloc : Counter
-    init %local1@Counter.value, 36
-    init %local0@Owning.tag, 1
-    init %local0@Owning.held, %v2
-    %v7 = load %local0@Owning.held : Counter
-    %v8 = call countOf, %v7 : Int
+    aggregate %local1@Counter.value = 36
+    aggregate %local0@Owning.tag = 1, %local0@Owning.held = %v2
+    %v6 = load %local0@Owning.held : Counter
+    %v7 = call countOf, %v6 : Int
     drop_derived %local0 via drop$Owning
-    ret %v8
+    ret %v7
 }
 
 fn guarded() -> Int {
   b0:
     %b = alloc : Boxed
     %v2 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, 35
-    init %local0@Boxed.tag, 7
-    init %local0@Boxed.held, %v2
-    %v9 = load %local0@Boxed.held : Maybe(Int)
-    %v10 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, 1
-    %v15 = call bump, %v10 : Int
-    %v16 = call unwrapOr, %v9, %v15 : Int
-    ret %v16
+    aggregate %local1.discriminant = 1, %local1@Just = 35
+    aggregate %local0@Boxed.tag = 7, %local0@Boxed.held = %v2
+    %v7 = load %local0@Boxed.held : Maybe(Int)
+    %v8 = alloc : Maybe(Int)
+    aggregate %local2.discriminant = 1, %local2@Just = 1
+    %v12 = call bump, %v8 : Int
+    %v13 = call unwrapOr, %v7, %v12 : Int
+    ret %v13
 }
 
 fn main() -> Int {

@@ -21,8 +21,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Array(Int))(%value: Maybe(Array(Int))) -> Outc
     %inner = alloc : Array(Int)
     init %local1, %v11
     %v14 = alloc : Outcome(Array(Int), ())
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -37,8 +36,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Array(Int))(%value: Maybe(Array(Int))) -> Outc
 fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int)(%value: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : Maybe(Int)
-    init %local1.discriminant, 1
-    init %local1@Just, %value
+    aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
@@ -376,38 +374,26 @@ fn maybeArr(%n: Int) -> Maybe(Array(Int)) {
 
   b1:
     %v5 = alloc : Maybe(Array(Int))
-    init %local0.discriminant, 1
-    %v10 = mul %n, 2 : Int
-    %v13 = mul %n, 3 : Int
-    %v14 = alloc : Array(Int)
-    %v17 = alloc *3 heap escaping : Int
-    %v18 = addressof %local2 : %Int
-    init %local1@Array.run@Run.items, %v18
+    %v9 = mul %n, 2 : Int
+    %v12 = mul %n, 3 : Int
+    %v13 = alloc : Array(Int)
+    %v16 = alloc *3 heap escaping : Int
+    %v17 = addressof %local2 : %Int
+    init %local1@Array.run@Run.items, %v17
     init %local1@Array.run@Run.capacity, 3
     init %local1@Array.run@Run.ownsHeap, 1
-    %v24 = strideof Int : Long
-    %v25 = mul 0, %v24 : Long
-    %v26 = add %v18, %v25 : %Int
-    init [%v26], %n
-    %v29 = strideof Int : Long
-    %v30 = mul 1, %v29 : Long
-    %v31 = add %v18, %v30 : %Int
-    init [%v31], %v10
-    %v34 = strideof Int : Long
-    %v35 = mul 2, %v34 : Long
-    %v36 = add %v18, %v35 : %Int
-    init [%v36], %v13
+    aggregate [%v17][0] = %n, [%v17][1] = %v9, [%v17][2] = %v12
     init %local1@Array.length, 3
-    init %local0@Just, %v14
+    aggregate %local0.discriminant = 1, %local0@Just = %v13
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v42 = alloc : Maybe(Array(Int))
+    %v30 = alloc : Maybe(Array(Int))
     init %local3.discriminant, 0
-    ret %v42
+    ret %v30
 }
 
 fn indexed(%n: Int) -> Maybe(Int) {

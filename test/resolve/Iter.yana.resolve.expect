@@ -142,29 +142,28 @@ fn corners(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), $r)) -> Outc
     je %v7, b3, b2
 
   b2:
-    %v29 = alloc : Outcome((), $r)
+    %v28 = alloc : Outcome((), $r)
     init %local4.discriminant, 0
-    ret %v29
+    ret %v28
 
   b3:
     %v9 = alloc : {x: Int, y: Int}
     %v10 = load %i : Int
     %v11 = load %i : Int
     %v14 = mul %v11, 2 : Int
-    init %local2.x, %v10
-    init %local2.y, %v14
-    %v17 = calldyn %body, %v9 : Outcome((), $r)
-    %v18 = load %local3.discriminant : Int
-    %v20 = cmp_eq %v18, 1 : Bool
-    je %v20, b4, b5
+    aggregate %local2.x = %v10, %local2.y = %v14
+    %v16 = calldyn %body, %v9 : Outcome((), $r)
+    %v17 = load %local3.discriminant : Int
+    %v19 = cmp_eq %v17, 1 : Bool
+    je %v19, b4, b5
 
   b4:
-    ret %v17
+    ret %v16
 
   b5:
-    %v23 = load %i : Int
-    %v26 = add %v23, 1 : Int
-    assign %i, %v26
+    %v22 = load %i : Int
+    %v25 = add %v22, 1 : Int
+    assign %i, %v25
     jmp b1
 }
 
@@ -418,8 +417,7 @@ fn firstPairOver(%n: Int, %bound: Int) -> Pair {
     %v16 = alloc : Pair
     %v19 = neg 1 : Int
     %v22 = neg 1 : Int
-    init %local3@Pair.a, %v19
-    init %local3@Pair.b, %v22
+    aggregate %local3@Pair.a = %v19, %local3@Pair.b = %v22
     ret %v16
 }
 
@@ -824,20 +822,19 @@ fn corners(())(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), ())) -> 
     %v14 = load %i : Int
     %v15 = load %i : Int
     %v17 = mul %v15, 2 : Int
-    init %local2.x, %v14
-    init %local2.y, %v17
-    %v20 = calldyn %body, %v13 : Outcome((), ())
-    %v21 = load %local3.discriminant : Int
-    %v23 = cmp_eq %v21, 1 : Bool
-    je %v23, b4, b5
+    aggregate %local2.x = %v14, %local2.y = %v17
+    %v19 = calldyn %body, %v13 : Outcome((), ())
+    %v20 = load %local3.discriminant : Int
+    %v22 = cmp_eq %v20, 1 : Bool
+    je %v22, b4, b5
 
   b4:
-    ret %v20
+    ret %v19
 
   b5:
-    %v26 = load %i : Int
-    %v28 = add %v26, 1 : Int
-    assign %i, %v28
+    %v25 = load %i : Int
+    %v27 = add %v25, 1 : Int
+    assign %i, %v27
     jmp b1
 }
 
@@ -967,20 +964,19 @@ fn ResolveTest.continuation$11(%env: %{bound: Int}, %value: Int) -> Outcome((), 
   b1:
     %v5 = alloc : Pair
     %v8 = mul %value, 2 : Int
-    init %local0@Pair.a, %value
-    init %local0@Pair.b, %v8
-    %v16 = alloc : Outcome((), Pair)
+    aggregate %local0@Pair.a = %value, %local0@Pair.b = %v8
+    %v15 = alloc : Outcome((), Pair)
     init %local2.discriminant, 1
     init %local2@Exit, %v5
-    ret %v16
+    ret %v15
 
   b2:
     jmp b3
 
   b3:
-    %v12 = alloc : Outcome((), Pair)
+    %v11 = alloc : Outcome((), Pair)
     init %local1.discriminant, 0
-    ret %v12
+    ret %v11
 }
 
 fn upTo(Pair)(%limit: Int, %body: (value: Int) -> Outcome((), Pair)) -> Outcome((), Pair) {

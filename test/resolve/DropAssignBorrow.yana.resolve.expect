@@ -242,7 +242,7 @@ fn makeBuffer(%size: I64) -> Buffer {
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
-    init %local0@Buffer.bytes, %v7
+    aggregate %local0@Buffer.bytes = %v7
     %v9 = load %local0@Buffer.bytes : %U8
     setmemory %v9, 0, %size
     ret %buffer
@@ -342,24 +342,23 @@ fn field() -> I64 {
   b0:
     %v0 = alloc : Holder
     %v2 = call makeBuffer, 16 : Buffer
-    init %owner@Holder.slot, %v2
-    init %owner@Holder.tag, 3
-    %v6 = load %owner : Holder
-    %v7 = borrow_mut %owner : &mut Holder
-    %v8 = call holderOf, %v7 : &mut Holder
-    %v10 = call makeBuffer, 32 : Buffer
-    drop [%v8]@Holder.slot via Drop(Buffer).drop
-    assign [%v8]@Holder.slot, %v10
+    aggregate %owner@Holder.slot = %v2, %owner@Holder.tag = 3
+    %v5 = load %owner : Holder
+    %v6 = borrow_mut %owner : &mut Holder
+    %v7 = call holderOf, %v6 : &mut Holder
+    %v9 = call makeBuffer, 32 : Buffer
+    drop [%v7]@Holder.slot via Drop(Buffer).drop
+    assign [%v7]@Holder.slot, %v9
     %counted = load liveBuffers : I64
-    %v13 = load %owner : Holder
-    %v14 = load %owner@Holder.slot : Buffer
-    %v15 = call firstByte, %v14 : I64
-    %v16 = add %counted, %v15 : I64
-    %v17 = load %owner : Holder
-    %v18 = load %owner@Holder.tag : I64
+    %v12 = load %owner : Holder
+    %v13 = load %owner@Holder.slot : Buffer
+    %v14 = call firstByte, %v13 : I64
+    %v15 = add %counted, %v14 : I64
+    %v16 = load %owner : Holder
+    %v17 = load %owner@Holder.tag : I64
     drop_derived %owner via drop$Holder
-    %v19 = add %v16, %v18 : I64
-    ret %v19
+    %v18 = add %v15, %v17 : I64
+    ret %v18
 }
 
 fn main() -> I64 {

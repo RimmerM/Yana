@@ -54,7 +54,7 @@ fn relocate(%x: a) -> a {
 fn main() -> I64 {
   b0:
     %h = alloc : Handle
-    init %local0@Handle.value, 10
+    aggregate %local0@Handle.value = 10
     %h = move %local0 via Sink(Handle).sink : Handle
     %moved = gencall env genEnv$relocate(Handle) relocate(Handle), %h : Handle
     %v5 = load sinkCalls : I64
@@ -71,32 +71,31 @@ fn main() -> I64 {
   b3:
     %p = alloc : Pair
     %v16 = alloc : Handle
-    init %local3@Handle.value, 20
-    init %local2@Pair.left, %v16
-    init %local2@Pair.right, 5
+    aggregate %local3@Handle.value = 20
+    aggregate %local2@Pair.left = %v16, %local2@Pair.right = 5
     %p = move %local2 via moveInit$Pair : Pair
     %movedPair = gencall env genEnv$relocate(Pair) relocate(Pair), %p : Pair
-    %v24 = load sinkCalls : I64
-    %v27 = cmp_ne %v24, 2 : Bool
-    je %v27, b4, b5
+    %v23 = load sinkCalls : I64
+    %v26 = cmp_ne %v23, 2 : Bool
+    je %v26, b4, b5
 
   b4:
-    %v31 = neg 2 : I64
-    ret %v31
+    %v30 = neg 2 : I64
+    ret %v30
 
   b5:
     jmp b6
 
   b6:
-    %v34 = load %local1@Handle.value : I64
-    %v35 = load %local4@Pair.left : Handle
-    %v36 = load %local4@Pair.left@Handle.value : I64
-    %v37 = add %v34, %v36 : I64
-    %v38 = load %local4@Pair.right : I64
-    %v39 = add %v37, %v38 : I64
-    %v40 = load sinkCalls : I64
-    %v41 = add %v39, %v40 : I64
-    ret %v41
+    %v33 = load %local1@Handle.value : I64
+    %v34 = load %local4@Pair.left : Handle
+    %v35 = load %local4@Pair.left@Handle.value : I64
+    %v36 = add %v33, %v35 : I64
+    %v37 = load %local4@Pair.right : I64
+    %v38 = add %v36, %v37 : I64
+    %v39 = load sinkCalls : I64
+    %v40 = add %v38, %v39 : I64
+    ret %v40
 }
 
 fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {

@@ -89,8 +89,7 @@ fn wrap(%x: a) -> Maybe(a) {
 
   b0:
     %v1 = alloc : Maybe(a)
-    init %local1.discriminant, 1
-    init %local1@Just, %x
+    aggregate %local1.discriminant = 1, %local1@Just = %x
     ret %v1
 }
 
@@ -366,7 +365,6 @@ fn matching(())(%m: Maybe(()), %fallback: ()) -> () {
 fn wrap(())(%x: ()) -> Maybe(()) {
   b0:
     %v1 = alloc : Maybe(())
-    init %local1.discriminant, 1
-    init %local1@Just, %x
+    aggregate %local1.discriminant = 1, %local1@Just = %x
     ret %v1
 }

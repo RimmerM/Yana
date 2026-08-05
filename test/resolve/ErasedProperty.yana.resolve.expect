@@ -177,37 +177,32 @@ fn teardown$none(%value: %()) -> () {
 fn main() -> Int {
   b0:
     %v0 = alloc : Person
-    init %local0@Person.name, 5
-    init %local0@Person.age, 90
+    aggregate %local0@Person.name = 5, %local0@Person.age = 90
     %people = gencall env genEnv$nameOf(Person) nameOf(Person), %v0 : Int
-    %v6 = alloc : Item
-    init %local1@Item.name, 2
-    init %local1@Item.cost, 7
-    %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v6 : Int
-    %v12 = alloc : Person
-    init %subject@Person.name, 1
-    init %subject@Person.age, 2
-    %v17 = load %subject : Person
-    %v20 = borrow_mut %subject : &mut Person
-    gencall env genEnv$rename(Person) rename(Person), %v20, 8
-    %v22 = alloc : Left
-    init %local3@Left.name, 1
-    init %local3@Left.tag, 3
-    %left = gencall env genEnv$labelled(Left) labelled(Left), %v22 : Int
-    %v28 = alloc : Right
-    init %local4@Right.tag, 4
-    init %local4@Right.name, 6
-    %right = gencall env genEnv$labelled(Right) labelled(Right), %v28 : Int
-    %v36 = mul %people, 1000 : Int
-    %v39 = mul %items, 100 : Int
-    %v40 = add %v36, %v39 : Int
-    %v41 = load %subject : Person
-    %v42 = gencall env genEnv$nameOf(Person) nameOf(Person), %v41 : Int
-    %v45 = mul %v42, 10 : Int
-    %v46 = add %v40, %v45 : Int
-    %v47 = add %v46, %left : Int
-    %v48 = add %v47, %right : Int
-    ret %v48
+    %v5 = alloc : Item
+    aggregate %local1@Item.name = 2, %local1@Item.cost = 7
+    %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v5 : Int
+    %v10 = alloc : Person
+    aggregate %subject@Person.name = 1, %subject@Person.age = 2
+    %v14 = load %subject : Person
+    %v17 = borrow_mut %subject : &mut Person
+    gencall env genEnv$rename(Person) rename(Person), %v17, 8
+    %v19 = alloc : Left
+    aggregate %local3@Left.name = 1, %local3@Left.tag = 3
+    %left = gencall env genEnv$labelled(Left) labelled(Left), %v19 : Int
+    %v24 = alloc : Right
+    aggregate %local4@Right.tag = 4, %local4@Right.name = 6
+    %right = gencall env genEnv$labelled(Right) labelled(Right), %v24 : Int
+    %v31 = mul %people, 1000 : Int
+    %v34 = mul %items, 100 : Int
+    %v35 = add %v31, %v34 : Int
+    %v36 = load %subject : Person
+    %v37 = gencall env genEnv$nameOf(Person) nameOf(Person), %v36 : Int
+    %v40 = mul %v37, 10 : Int
+    %v41 = add %v35, %v40 : Int
+    %v42 = add %v41, %left : Int
+    %v43 = add %v42, %right : Int
+    ret %v43
 }
 
 fn moveInit$Person(%to: %Person, %from: %Person) -> () {

@@ -211,47 +211,39 @@ fn main() -> Int {
     %v32 = call doubleIfPositive, %v31 : Int
     %v33 = add %v28, %v32 : Int
     %v34 = alloc : Shape
-    init %local0.discriminant, 0
-    init %local0@Circle, 20
-    %v39 = call area, %v34 : Int
-    %v40 = add %v33, %v39 : Int
-    %v41 = alloc : Shape
-    init %local1.discriminant, 0
-    init %local1@Circle, 3
-    %v46 = call area, %v41 : Int
-    %v47 = add %v40, %v46 : Int
-    %v48 = alloc : Shape
-    init %local2.discriminant, 1
-    init %local2@Square.width, 20
-    init %local2@Square.height, 2
-    %v55 = call area, %v48 : Int
-    %v56 = add %v47, %v55 : Int
-    %v57 = alloc : Shape
-    init %local3.discriminant, 1
-    init %local3@Square.width, 3
-    init %local3@Square.height, 9
-    %v64 = call area, %v57 : Int
-    %v65 = add %v56, %v64 : Int
+    aggregate %local0.discriminant = 0, %local0@Circle = 20
+    %v38 = call area, %v34 : Int
+    %v39 = add %v33, %v38 : Int
+    %v40 = alloc : Shape
+    aggregate %local1.discriminant = 0, %local1@Circle = 3
+    %v44 = call area, %v40 : Int
+    %v45 = add %v39, %v44 : Int
+    %v46 = alloc : Shape
+    aggregate %local2.discriminant = 1, %local2@Square.width = 20, %local2@Square.height = 2
+    %v51 = call area, %v46 : Int
+    %v52 = add %v45, %v51 : Int
+    %v53 = alloc : Shape
+    aggregate %local3.discriminant = 1, %local3@Square.width = 3, %local3@Square.height = 9
+    %v58 = call area, %v53 : Int
+    %v59 = add %v52, %v58 : Int
+    %v60 = alloc : {Int, Int}
+    aggregate %local4.0 = 6, %local4.1 = 6
+    %v64 = call firstIfEqual, %v60 : Int
+    %v65 = add %v59, %v64 : Int
     %v66 = alloc : {Int, Int}
-    init %local4.0, 6
-    init %local4.1, 6
-    %v71 = call firstIfEqual, %v66 : Int
-    %v72 = add %v65, %v71 : Int
-    %v73 = alloc : {Int, Int}
-    init %local5.0, 1
-    init %local5.1, 2
-    %v78 = call firstIfEqual, %v73 : Int
-    %v79 = add %v72, %v78 : Int
-    %v81 = call isNearTen, 11 : Int
-    %v82 = add %v79, %v81 : Int
-    %v84 = call isNearTen, 50 : Int
-    %v85 = add %v82, %v84 : Int
+    aggregate %local5.0 = 1, %local5.1 = 2
+    %v70 = call firstIfEqual, %v66 : Int
+    %v71 = add %v65, %v70 : Int
+    %v73 = call isNearTen, 11 : Int
+    %v74 = add %v71, %v73 : Int
+    %v76 = call isNearTen, 50 : Int
+    %v77 = add %v74, %v76 : Int
+    %v81 = neg 1 : Int
+    %v82 = call positiveOr, 9, %v81 : Int
+    %v83 = add %v77, %v82 : Int
+    %v86 = neg 9 : Int
     %v89 = neg 1 : Int
-    %v90 = call positiveOr, 9, %v89 : Int
-    %v91 = add %v85, %v90 : Int
-    %v94 = neg 9 : Int
-    %v97 = neg 1 : Int
-    %v98 = call positiveOr, %v94, %v97 : Int
-    %v99 = add %v91, %v98 : Int
-    ret %v99
+    %v90 = call positiveOr, %v86, %v89 : Int
+    %v91 = add %v83, %v90 : Int
+    ret %v91
 }

@@ -613,8 +613,7 @@ fn emptyArray() -> Array(a) {
   b0:
     %v0 = alloc : Array(a)
     %v1 = gencall emptyRun(a) : Run(a)
-    init %local0@Array.run, %v1
-    init %local0@Array.length, 0
+    aggregate %local0@Array.run = %v1, %local0@Array.length = 0
     ret %v0
 }
 
@@ -719,8 +718,7 @@ fn emptyArray(Int)() -> Array(Int) {
   b0:
     %v0 = alloc : Array(Int)
     %v1 = call emptyRun(Int) : Run(Int)
-    init %local0@Array.run, %v1
-    init %local0@Array.length, 0
+    aggregate %local0@Array.run = %v1, %local0@Array.length = 0
     ret %v0
 }
 
@@ -1058,7 +1056,7 @@ fn wrap(%xs: Flat(Int)) -> Cell {
   b0:
     %c = alloc : Cell
     %v2 = call collect, %xs : Array(Int)
-    init %local1@Cell.slots, %v2
+    aggregate %local1@Cell.slots = %v2
     ret %c
 }
 
@@ -1070,401 +1068,371 @@ fn main() -> Int {
     init %xs@Array.run@Run.items, %v8
     init %xs@Array.run@Run.capacity, 4
     init %xs@Array.run@Run.ownsHeap, 0
-    %v15 = strideof Int : Long
-    %v16 = mul 0, %v15 : Long
-    %v17 = add %v8, %v16 : %Int
-    init [%v17], 1
-    %v20 = strideof Int : Long
-    %v21 = mul 1, %v20 : Long
-    %v22 = add %v8, %v21 : %Int
-    init [%v22], 2
-    %v25 = strideof Int : Long
-    %v26 = mul 2, %v25 : Long
-    %v27 = add %v8, %v26 : %Int
-    init [%v27], 3
-    %v30 = strideof Int : Long
-    %v31 = mul 3, %v30 : Long
-    %v32 = add %v8, %v31 : %Int
-    init [%v32], 4
+    aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
-    %v35 = load %xs : Array(Int)
-    %v36 = borrow %xs : &Array(Int)
-    %v37 = alloc : Flat(Int)
-    %v38 = load [%v36]@Array.run@Run.items : %Int
-    init %local2@Flat.items, %v38
-    %v40 = load [%v36]@Array.length : @bits(30) U32
-    %v41 = cast %v40 : U32
-    %v42 = cast %v41 : I64
-    init %local2@Flat.length, %v42
-    %a = call collect, %v37 : Array(Int)
+    %v20 = load %xs : Array(Int)
+    %v21 = borrow %xs : &Array(Int)
+    %v22 = alloc : Flat(Int)
+    %v23 = load [%v21]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v23
+    %v25 = load [%v21]@Array.length : @bits(30) U32
+    %v26 = cast %v25 : U32
+    %v27 = cast %v26 : I64
+    init %local2@Flat.length, %v27
+    %a = call collect, %v22 : Array(Int)
+    %v32 = borrow %local3 : &Array(Int)
+    %v33 = load [%v32]@Array.length : @bits(30) U32
+    %v34 = cast 0 : U64
+    %v35 = cast %v33 : U32
+    %v36 = cast %v35 : U64
+    %v37 = cmp_ge %v34, %v36 : Bool
+    call checkCondition, %v37
+    %v39 = load [%v32]@Array.run@Run.items : %Int
+    %v40 = strideof Int : Long
+    %v41 = mul 0, %v40 : Long
+    %v42 = add %v39, %v41 : %Int
+    %v43 = borrow [%v42] : &Int
+    %v44 = load [%v43] : Int
     %v47 = borrow %local3 : &Array(Int)
     %v48 = load [%v47]@Array.length : @bits(30) U32
-    %v49 = cast 0 : U64
+    %v49 = cast 1 : U64
     %v50 = cast %v48 : U32
     %v51 = cast %v50 : U64
     %v52 = cmp_ge %v49, %v51 : Bool
     call checkCondition, %v52
     %v54 = load [%v47]@Array.run@Run.items : %Int
     %v55 = strideof Int : Long
-    %v56 = mul 0, %v55 : Long
+    %v56 = mul 1, %v55 : Long
     %v57 = add %v54, %v56 : %Int
     %v58 = borrow [%v57] : &Int
     %v59 = load [%v58] : Int
-    %v62 = borrow %local3 : &Array(Int)
-    %v63 = load [%v62]@Array.length : @bits(30) U32
-    %v64 = cast 1 : U64
-    %v65 = cast %v63 : U32
-    %v66 = cast %v65 : U64
-    %v67 = cmp_ge %v64, %v66 : Bool
-    call checkCondition, %v67
-    %v69 = load [%v62]@Array.run@Run.items : %Int
-    %v70 = strideof Int : Long
-    %v71 = mul 1, %v70 : Long
-    %v72 = add %v69, %v71 : %Int
-    %v73 = borrow [%v72] : &Int
-    %v74 = load [%v73] : Int
-    %v77 = mul %v74, 2 : Int
-    %v78 = add %v59, %v77 : Int
-    %v81 = borrow %local3 : &Array(Int)
-    %v82 = load [%v81]@Array.length : @bits(30) U32
-    %v83 = cast 2 : U64
-    %v84 = cast %v82 : U32
-    %v85 = cast %v84 : U64
-    %v86 = cmp_ge %v83, %v85 : Bool
-    call checkCondition, %v86
-    %v88 = load [%v81]@Array.run@Run.items : %Int
-    %v89 = strideof Int : Long
-    %v90 = mul 2, %v89 : Long
-    %v91 = add %v88, %v90 : %Int
-    %v92 = borrow [%v91] : &Int
-    %v93 = load [%v92] : Int
-    %v96 = mul %v93, 4 : Int
-    %v97 = add %v78, %v96 : Int
-    %v100 = borrow %local3 : &Array(Int)
-    %v101 = load [%v100]@Array.length : @bits(30) U32
-    %v102 = cast 3 : U64
-    %v103 = cast %v101 : U32
-    %v104 = cast %v103 : U64
-    %v105 = cmp_ge %v102, %v104 : Bool
-    call checkCondition, %v105
-    %v107 = load [%v100]@Array.run@Run.items : %Int
-    %v108 = strideof Int : Long
-    %v109 = mul 3, %v108 : Long
-    %v110 = add %v107, %v109 : %Int
-    %v111 = borrow [%v110] : &Int
-    %v112 = load [%v111] : Int
+    %v62 = mul %v59, 2 : Int
+    %v63 = add %v44, %v62 : Int
+    %v66 = borrow %local3 : &Array(Int)
+    %v67 = load [%v66]@Array.length : @bits(30) U32
+    %v68 = cast 2 : U64
+    %v69 = cast %v67 : U32
+    %v70 = cast %v69 : U64
+    %v71 = cmp_ge %v68, %v70 : Bool
+    call checkCondition, %v71
+    %v73 = load [%v66]@Array.run@Run.items : %Int
+    %v74 = strideof Int : Long
+    %v75 = mul 2, %v74 : Long
+    %v76 = add %v73, %v75 : %Int
+    %v77 = borrow [%v76] : &Int
+    %v78 = load [%v77] : Int
+    %v81 = mul %v78, 4 : Int
+    %v82 = add %v63, %v81 : Int
+    %v85 = borrow %local3 : &Array(Int)
+    %v86 = load [%v85]@Array.length : @bits(30) U32
+    %v87 = cast 3 : U64
+    %v88 = cast %v86 : U32
+    %v89 = cast %v88 : U64
+    %v90 = cmp_ge %v87, %v89 : Bool
+    call checkCondition, %v90
+    %v92 = load [%v85]@Array.run@Run.items : %Int
+    %v93 = strideof Int : Long
+    %v94 = mul 3, %v93 : Long
+    %v95 = add %v92, %v94 : %Int
+    %v96 = borrow [%v95] : &Int
+    %v97 = load [%v96] : Int
     drop %local3 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v115 = mul %v112, 8 : Int
-    %v116 = add %v97, %v115 : Int
+    %v100 = mul %v97, 8 : Int
+    %v101 = add %v82, %v100 : Int
     %total = alloc : Int
-    init %total, %v116
-    %v119 = load %xs : Array(Int)
-    %v120 = borrow %xs : &Array(Int)
-    %v121 = alloc : Flat(Int)
-    %v122 = load [%v120]@Array.run@Run.items : %Int
-    init %local5@Flat.items, %v122
-    %v124 = load [%v120]@Array.length : @bits(30) U32
-    %v125 = cast %v124 : U32
-    %v126 = cast %v125 : I64
-    init %local5@Flat.length, %v126
-    %b = call collectFor, %v121 : Array(Int)
-    %v129 = load %total : Int
-    %v132 = borrow %local6 : &Array(Int)
-    %v133 = load [%v132]@Array.length : @bits(30) U32
-    %v134 = cast 0 : U64
-    %v135 = cast %v133 : U32
-    %v136 = cast %v135 : U64
-    %v137 = cmp_ge %v134, %v136 : Bool
-    call checkCondition, %v137
-    %v139 = load [%v132]@Array.run@Run.items : %Int
-    %v140 = strideof Int : Long
-    %v141 = mul 0, %v140 : Long
-    %v142 = add %v139, %v141 : %Int
-    %v143 = borrow [%v142] : &Int
-    %v144 = load [%v143] : Int
-    %v145 = add %v129, %v144 : Int
-    %v148 = borrow %local6 : &Array(Int)
-    %v149 = load [%v148]@Array.length : @bits(30) U32
-    %v150 = cast 1 : U64
-    %v151 = cast %v149 : U32
-    %v152 = cast %v151 : U64
-    %v153 = cmp_ge %v150, %v152 : Bool
-    call checkCondition, %v153
-    %v155 = load [%v148]@Array.run@Run.items : %Int
-    %v156 = strideof Int : Long
-    %v157 = mul 1, %v156 : Long
-    %v158 = add %v155, %v157 : %Int
-    %v159 = borrow [%v158] : &Int
-    %v160 = load [%v159] : Int
-    %v163 = mul %v160, 2 : Int
-    %v164 = add %v145, %v163 : Int
-    %v167 = borrow %local6 : &Array(Int)
-    %v168 = load [%v167]@Array.length : @bits(30) U32
-    %v169 = cast 2 : U64
-    %v170 = cast %v168 : U32
-    %v171 = cast %v170 : U64
-    %v172 = cmp_ge %v169, %v171 : Bool
-    call checkCondition, %v172
-    %v174 = load [%v167]@Array.run@Run.items : %Int
-    %v175 = strideof Int : Long
-    %v176 = mul 2, %v175 : Long
-    %v177 = add %v174, %v176 : %Int
-    %v178 = borrow [%v177] : &Int
-    %v179 = load [%v178] : Int
-    %v182 = mul %v179, 4 : Int
-    %v183 = add %v164, %v182 : Int
-    %v186 = borrow %local6 : &Array(Int)
-    %v187 = load [%v186]@Array.length : @bits(30) U32
-    %v188 = cast 3 : U64
-    %v189 = cast %v187 : U32
-    %v190 = cast %v189 : U64
-    %v191 = cmp_ge %v188, %v190 : Bool
-    call checkCondition, %v191
-    %v193 = load [%v186]@Array.run@Run.items : %Int
-    %v194 = strideof Int : Long
-    %v195 = mul 3, %v194 : Long
-    %v196 = add %v193, %v195 : %Int
-    %v197 = borrow [%v196] : &Int
-    %v198 = load [%v197] : Int
+    init %total, %v101
+    %v104 = load %xs : Array(Int)
+    %v105 = borrow %xs : &Array(Int)
+    %v106 = alloc : Flat(Int)
+    %v107 = load [%v105]@Array.run@Run.items : %Int
+    init %local5@Flat.items, %v107
+    %v109 = load [%v105]@Array.length : @bits(30) U32
+    %v110 = cast %v109 : U32
+    %v111 = cast %v110 : I64
+    init %local5@Flat.length, %v111
+    %b = call collectFor, %v106 : Array(Int)
+    %v114 = load %total : Int
+    %v117 = borrow %local6 : &Array(Int)
+    %v118 = load [%v117]@Array.length : @bits(30) U32
+    %v119 = cast 0 : U64
+    %v120 = cast %v118 : U32
+    %v121 = cast %v120 : U64
+    %v122 = cmp_ge %v119, %v121 : Bool
+    call checkCondition, %v122
+    %v124 = load [%v117]@Array.run@Run.items : %Int
+    %v125 = strideof Int : Long
+    %v126 = mul 0, %v125 : Long
+    %v127 = add %v124, %v126 : %Int
+    %v128 = borrow [%v127] : &Int
+    %v129 = load [%v128] : Int
+    %v130 = add %v114, %v129 : Int
+    %v133 = borrow %local6 : &Array(Int)
+    %v134 = load [%v133]@Array.length : @bits(30) U32
+    %v135 = cast 1 : U64
+    %v136 = cast %v134 : U32
+    %v137 = cast %v136 : U64
+    %v138 = cmp_ge %v135, %v137 : Bool
+    call checkCondition, %v138
+    %v140 = load [%v133]@Array.run@Run.items : %Int
+    %v141 = strideof Int : Long
+    %v142 = mul 1, %v141 : Long
+    %v143 = add %v140, %v142 : %Int
+    %v144 = borrow [%v143] : &Int
+    %v145 = load [%v144] : Int
+    %v148 = mul %v145, 2 : Int
+    %v149 = add %v130, %v148 : Int
+    %v152 = borrow %local6 : &Array(Int)
+    %v153 = load [%v152]@Array.length : @bits(30) U32
+    %v154 = cast 2 : U64
+    %v155 = cast %v153 : U32
+    %v156 = cast %v155 : U64
+    %v157 = cmp_ge %v154, %v156 : Bool
+    call checkCondition, %v157
+    %v159 = load [%v152]@Array.run@Run.items : %Int
+    %v160 = strideof Int : Long
+    %v161 = mul 2, %v160 : Long
+    %v162 = add %v159, %v161 : %Int
+    %v163 = borrow [%v162] : &Int
+    %v164 = load [%v163] : Int
+    %v167 = mul %v164, 4 : Int
+    %v168 = add %v149, %v167 : Int
+    %v171 = borrow %local6 : &Array(Int)
+    %v172 = load [%v171]@Array.length : @bits(30) U32
+    %v173 = cast 3 : U64
+    %v174 = cast %v172 : U32
+    %v175 = cast %v174 : U64
+    %v176 = cmp_ge %v173, %v175 : Bool
+    call checkCondition, %v176
+    %v178 = load [%v171]@Array.run@Run.items : %Int
+    %v179 = strideof Int : Long
+    %v180 = mul 3, %v179 : Long
+    %v181 = add %v178, %v180 : %Int
+    %v182 = borrow [%v181] : &Int
+    %v183 = load [%v182] : Int
     drop %local6 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v201 = mul %v198, 8 : Int
-    %v202 = add %v183, %v201 : Int
-    assign %total, %v202
-    %v204 = load %xs : Array(Int)
-    %v205 = alloc : (v: Int) -> Int
-    %v206 = symbol funvalue$double : %()
-    init %local7.code, %v206
-    %v209 = cast 0 : %()
-    init %local7.env, %v209
-    %v211 = borrow %xs : &Array(Int)
-    %v212 = alloc : Flat(Int)
-    %v213 = load [%v211]@Array.run@Run.items : %Int
-    init %local8@Flat.items, %v213
-    %v215 = load [%v211]@Array.length : @bits(30) U32
-    %v216 = cast %v215 : U32
-    %v217 = cast %v216 : I64
-    init %local8@Flat.length, %v217
-    %c = call collectMapped(Int, Int), %v212, %v205 : Array(Int)
-    %v220 = load %total : Int
-    %v223 = borrow %local9 : &Array(Int)
-    %v224 = load [%v223]@Array.length : @bits(30) U32
-    %v225 = cast 0 : U64
-    %v226 = cast %v224 : U32
-    %v227 = cast %v226 : U64
-    %v228 = cmp_ge %v225, %v227 : Bool
-    call checkCondition, %v228
-    %v230 = load [%v223]@Array.run@Run.items : %Int
-    %v231 = strideof Int : Long
-    %v232 = mul 0, %v231 : Long
-    %v233 = add %v230, %v232 : %Int
-    %v234 = borrow [%v233] : &Int
-    %v235 = load [%v234] : Int
-    %v236 = add %v220, %v235 : Int
-    %v239 = borrow %local9 : &Array(Int)
-    %v240 = load [%v239]@Array.length : @bits(30) U32
-    %v241 = cast 1 : U64
-    %v242 = cast %v240 : U32
-    %v243 = cast %v242 : U64
-    %v244 = cmp_ge %v241, %v243 : Bool
-    call checkCondition, %v244
-    %v246 = load [%v239]@Array.run@Run.items : %Int
-    %v247 = strideof Int : Long
-    %v248 = mul 1, %v247 : Long
-    %v249 = add %v246, %v248 : %Int
-    %v250 = borrow [%v249] : &Int
-    %v251 = load [%v250] : Int
-    %v254 = mul %v251, 2 : Int
-    %v255 = add %v236, %v254 : Int
-    %v258 = borrow %local9 : &Array(Int)
-    %v259 = load [%v258]@Array.length : @bits(30) U32
-    %v260 = cast 2 : U64
-    %v261 = cast %v259 : U32
-    %v262 = cast %v261 : U64
-    %v263 = cmp_ge %v260, %v262 : Bool
-    call checkCondition, %v263
-    %v265 = load [%v258]@Array.run@Run.items : %Int
-    %v266 = strideof Int : Long
-    %v267 = mul 2, %v266 : Long
-    %v268 = add %v265, %v267 : %Int
-    %v269 = borrow [%v268] : &Int
-    %v270 = load [%v269] : Int
-    %v273 = mul %v270, 4 : Int
-    %v274 = add %v255, %v273 : Int
-    %v277 = borrow %local9 : &Array(Int)
-    %v278 = load [%v277]@Array.length : @bits(30) U32
-    %v279 = cast 3 : U64
-    %v280 = cast %v278 : U32
-    %v281 = cast %v280 : U64
-    %v282 = cmp_ge %v279, %v281 : Bool
-    call checkCondition, %v282
-    %v284 = load [%v277]@Array.run@Run.items : %Int
-    %v285 = strideof Int : Long
-    %v286 = mul 3, %v285 : Long
-    %v287 = add %v284, %v286 : %Int
-    %v288 = borrow [%v287] : &Int
-    %v289 = load [%v288] : Int
+    %v186 = mul %v183, 8 : Int
+    %v187 = add %v168, %v186 : Int
+    assign %total, %v187
+    %v189 = load %xs : Array(Int)
+    %v190 = alloc : (v: Int) -> Int
+    %v191 = symbol funvalue$double : %()
+    init %local7.code, %v191
+    %v194 = cast 0 : %()
+    init %local7.env, %v194
+    %v196 = borrow %xs : &Array(Int)
+    %v197 = alloc : Flat(Int)
+    %v198 = load [%v196]@Array.run@Run.items : %Int
+    init %local8@Flat.items, %v198
+    %v200 = load [%v196]@Array.length : @bits(30) U32
+    %v201 = cast %v200 : U32
+    %v202 = cast %v201 : I64
+    init %local8@Flat.length, %v202
+    %c = call collectMapped(Int, Int), %v197, %v190 : Array(Int)
+    %v205 = load %total : Int
+    %v208 = borrow %local9 : &Array(Int)
+    %v209 = load [%v208]@Array.length : @bits(30) U32
+    %v210 = cast 0 : U64
+    %v211 = cast %v209 : U32
+    %v212 = cast %v211 : U64
+    %v213 = cmp_ge %v210, %v212 : Bool
+    call checkCondition, %v213
+    %v215 = load [%v208]@Array.run@Run.items : %Int
+    %v216 = strideof Int : Long
+    %v217 = mul 0, %v216 : Long
+    %v218 = add %v215, %v217 : %Int
+    %v219 = borrow [%v218] : &Int
+    %v220 = load [%v219] : Int
+    %v221 = add %v205, %v220 : Int
+    %v224 = borrow %local9 : &Array(Int)
+    %v225 = load [%v224]@Array.length : @bits(30) U32
+    %v226 = cast 1 : U64
+    %v227 = cast %v225 : U32
+    %v228 = cast %v227 : U64
+    %v229 = cmp_ge %v226, %v228 : Bool
+    call checkCondition, %v229
+    %v231 = load [%v224]@Array.run@Run.items : %Int
+    %v232 = strideof Int : Long
+    %v233 = mul 1, %v232 : Long
+    %v234 = add %v231, %v233 : %Int
+    %v235 = borrow [%v234] : &Int
+    %v236 = load [%v235] : Int
+    %v239 = mul %v236, 2 : Int
+    %v240 = add %v221, %v239 : Int
+    %v243 = borrow %local9 : &Array(Int)
+    %v244 = load [%v243]@Array.length : @bits(30) U32
+    %v245 = cast 2 : U64
+    %v246 = cast %v244 : U32
+    %v247 = cast %v246 : U64
+    %v248 = cmp_ge %v245, %v247 : Bool
+    call checkCondition, %v248
+    %v250 = load [%v243]@Array.run@Run.items : %Int
+    %v251 = strideof Int : Long
+    %v252 = mul 2, %v251 : Long
+    %v253 = add %v250, %v252 : %Int
+    %v254 = borrow [%v253] : &Int
+    %v255 = load [%v254] : Int
+    %v258 = mul %v255, 4 : Int
+    %v259 = add %v240, %v258 : Int
+    %v262 = borrow %local9 : &Array(Int)
+    %v263 = load [%v262]@Array.length : @bits(30) U32
+    %v264 = cast 3 : U64
+    %v265 = cast %v263 : U32
+    %v266 = cast %v265 : U64
+    %v267 = cmp_ge %v264, %v266 : Bool
+    call checkCondition, %v267
+    %v269 = load [%v262]@Array.run@Run.items : %Int
+    %v270 = strideof Int : Long
+    %v271 = mul 3, %v270 : Long
+    %v272 = add %v269, %v271 : %Int
+    %v273 = borrow [%v272] : &Int
+    %v274 = load [%v273] : Int
     drop %local9 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v292 = mul %v289, 8 : Int
-    %v293 = add %v274, %v292 : Int
-    assign %total, %v293
-    %v299 = alloc : Array(Int)
-    %v302 = alloc *4 : Int
-    %v303 = addressof %local11 : %Int
-    init %handed@Array.run@Run.items, %v303
+    %v277 = mul %v274, 8 : Int
+    %v278 = add %v259, %v277 : Int
+    assign %total, %v278
+    %v284 = alloc : Array(Int)
+    %v287 = alloc *4 : Int
+    %v288 = addressof %local11 : %Int
+    init %handed@Array.run@Run.items, %v288
     init %handed@Array.run@Run.capacity, 4
     init %handed@Array.run@Run.ownsHeap, 0
-    %v310 = strideof Int : Long
-    %v311 = mul 0, %v310 : Long
-    %v312 = add %v303, %v311 : %Int
-    init [%v312], 5
-    %v315 = strideof Int : Long
-    %v316 = mul 1, %v315 : Long
-    %v317 = add %v303, %v316 : %Int
-    init [%v317], 6
-    %v320 = strideof Int : Long
-    %v321 = mul 2, %v320 : Long
-    %v322 = add %v303, %v321 : %Int
-    init [%v322], 7
-    %v325 = strideof Int : Long
-    %v326 = mul 3, %v325 : Long
-    %v327 = add %v303, %v326 : %Int
-    init [%v327], 8
+    aggregate [%v288][0] = 5, [%v288][1] = 6, [%v288][2] = 7, [%v288][3] = 8
     init %handed@Array.length, 4
-    %v330 = load %handed : Array(Int)
-    %v331 = move %handed : Array(Int)
-    %d = call roundTrip(Int), %v331 : Array(Int)
-    %v333 = load %total : Int
-    %v336 = borrow %local12 : &Array(Int)
-    %v337 = load [%v336]@Array.length : @bits(30) U32
-    %v338 = cast 0 : U64
-    %v339 = cast %v337 : U32
-    %v340 = cast %v339 : U64
-    %v341 = cmp_ge %v338, %v340 : Bool
-    call checkCondition, %v341
-    %v343 = load [%v336]@Array.run@Run.items : %Int
-    %v344 = strideof Int : Long
-    %v345 = mul 0, %v344 : Long
-    %v346 = add %v343, %v345 : %Int
-    %v347 = borrow [%v346] : &Int
-    %v348 = load [%v347] : Int
-    %v349 = add %v333, %v348 : Int
-    %v352 = borrow %local12 : &Array(Int)
-    %v353 = load [%v352]@Array.length : @bits(30) U32
-    %v354 = cast 1 : U64
-    %v355 = cast %v353 : U32
-    %v356 = cast %v355 : U64
-    %v357 = cmp_ge %v354, %v356 : Bool
-    call checkCondition, %v357
-    %v359 = load [%v352]@Array.run@Run.items : %Int
-    %v360 = strideof Int : Long
-    %v361 = mul 1, %v360 : Long
-    %v362 = add %v359, %v361 : %Int
-    %v363 = borrow [%v362] : &Int
-    %v364 = load [%v363] : Int
-    %v367 = mul %v364, 2 : Int
-    %v368 = add %v349, %v367 : Int
-    %v371 = borrow %local12 : &Array(Int)
-    %v372 = load [%v371]@Array.length : @bits(30) U32
-    %v373 = cast 2 : U64
-    %v374 = cast %v372 : U32
-    %v375 = cast %v374 : U64
-    %v376 = cmp_ge %v373, %v375 : Bool
-    call checkCondition, %v376
-    %v378 = load [%v371]@Array.run@Run.items : %Int
-    %v379 = strideof Int : Long
-    %v380 = mul 2, %v379 : Long
-    %v381 = add %v378, %v380 : %Int
-    %v382 = borrow [%v381] : &Int
-    %v383 = load [%v382] : Int
-    %v386 = mul %v383, 4 : Int
-    %v387 = add %v368, %v386 : Int
-    %v390 = borrow %local12 : &Array(Int)
-    %v391 = load [%v390]@Array.length : @bits(30) U32
-    %v392 = cast 3 : U64
-    %v393 = cast %v391 : U32
-    %v394 = cast %v393 : U64
-    %v395 = cmp_ge %v392, %v394 : Bool
-    call checkCondition, %v395
-    %v397 = load [%v390]@Array.run@Run.items : %Int
-    %v398 = strideof Int : Long
-    %v399 = mul 3, %v398 : Long
-    %v400 = add %v397, %v399 : %Int
-    %v401 = borrow [%v400] : &Int
-    %v402 = load [%v401] : Int
+    %v300 = load %handed : Array(Int)
+    %v301 = move %handed : Array(Int)
+    %d = call roundTrip(Int), %v301 : Array(Int)
+    %v303 = load %total : Int
+    %v306 = borrow %local12 : &Array(Int)
+    %v307 = load [%v306]@Array.length : @bits(30) U32
+    %v308 = cast 0 : U64
+    %v309 = cast %v307 : U32
+    %v310 = cast %v309 : U64
+    %v311 = cmp_ge %v308, %v310 : Bool
+    call checkCondition, %v311
+    %v313 = load [%v306]@Array.run@Run.items : %Int
+    %v314 = strideof Int : Long
+    %v315 = mul 0, %v314 : Long
+    %v316 = add %v313, %v315 : %Int
+    %v317 = borrow [%v316] : &Int
+    %v318 = load [%v317] : Int
+    %v319 = add %v303, %v318 : Int
+    %v322 = borrow %local12 : &Array(Int)
+    %v323 = load [%v322]@Array.length : @bits(30) U32
+    %v324 = cast 1 : U64
+    %v325 = cast %v323 : U32
+    %v326 = cast %v325 : U64
+    %v327 = cmp_ge %v324, %v326 : Bool
+    call checkCondition, %v327
+    %v329 = load [%v322]@Array.run@Run.items : %Int
+    %v330 = strideof Int : Long
+    %v331 = mul 1, %v330 : Long
+    %v332 = add %v329, %v331 : %Int
+    %v333 = borrow [%v332] : &Int
+    %v334 = load [%v333] : Int
+    %v337 = mul %v334, 2 : Int
+    %v338 = add %v319, %v337 : Int
+    %v341 = borrow %local12 : &Array(Int)
+    %v342 = load [%v341]@Array.length : @bits(30) U32
+    %v343 = cast 2 : U64
+    %v344 = cast %v342 : U32
+    %v345 = cast %v344 : U64
+    %v346 = cmp_ge %v343, %v345 : Bool
+    call checkCondition, %v346
+    %v348 = load [%v341]@Array.run@Run.items : %Int
+    %v349 = strideof Int : Long
+    %v350 = mul 2, %v349 : Long
+    %v351 = add %v348, %v350 : %Int
+    %v352 = borrow [%v351] : &Int
+    %v353 = load [%v352] : Int
+    %v356 = mul %v353, 4 : Int
+    %v357 = add %v338, %v356 : Int
+    %v360 = borrow %local12 : &Array(Int)
+    %v361 = load [%v360]@Array.length : @bits(30) U32
+    %v362 = cast 3 : U64
+    %v363 = cast %v361 : U32
+    %v364 = cast %v363 : U64
+    %v365 = cmp_ge %v362, %v364 : Bool
+    call checkCondition, %v365
+    %v367 = load [%v360]@Array.run@Run.items : %Int
+    %v368 = strideof Int : Long
+    %v369 = mul 3, %v368 : Long
+    %v370 = add %v367, %v369 : %Int
+    %v371 = borrow [%v370] : &Int
+    %v372 = load [%v371] : Int
     drop %local12 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v405 = mul %v402, 8 : Int
-    %v406 = add %v387, %v405 : Int
-    assign %total, %v406
-    %v408 = load reclaims : Int
-    %v411 = cmp_ne %v408, 0 : Bool
-    je %v411, b7, b2
+    %v375 = mul %v372, 8 : Int
+    %v376 = add %v357, %v375 : Int
+    assign %total, %v376
+    %v378 = load reclaims : Int
+    %v381 = cmp_ne %v378, 0 : Bool
+    je %v381, b7, b2
 
   b1:
-    %v417 = sub 0, 1 : Int
-    ret %v417
+    %v387 = sub 0, 1 : Int
+    ret %v387
 
   b2:
     jmp b3
 
   b3:
-    %v420 = load %xs : Array(Int)
-    %v421 = borrow %xs : &Array(Int)
-    %v422 = alloc : Flat(Int)
-    %v423 = load [%v421]@Array.run@Run.items : %Int
-    init %local13@Flat.items, %v423
-    %v425 = load [%v421]@Array.length : @bits(30) U32
-    %v426 = cast %v425 : U32
-    %v427 = cast %v426 : I64
-    init %local13@Flat.length, %v427
-    %held = call wrap, %v422 : Cell
+    %v390 = load %xs : Array(Int)
+    %v391 = borrow %xs : &Array(Int)
+    %v392 = alloc : Flat(Int)
+    %v393 = load [%v391]@Array.run@Run.items : %Int
+    init %local13@Flat.items, %v393
+    %v395 = load [%v391]@Array.length : @bits(30) U32
+    %v396 = cast %v395 : U32
+    %v397 = cast %v396 : I64
+    init %local13@Flat.length, %v397
+    %held = call wrap, %v392 : Cell
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v430 = load reclaims : Int
-    %v433 = cmp_ne %v430, 0 : Bool
-    je %v433, b8, b5
+    %v400 = load reclaims : Int
+    %v403 = cmp_ne %v400, 0 : Bool
+    je %v403, b8, b5
 
   b4:
-    %v439 = sub 0, 2 : Int
-    ret %v439
+    %v409 = sub 0, 2 : Int
+    ret %v409
 
   b5:
     jmp b6
 
   b6:
-    %v442 = load %total : Int
-    %v443 = load %local14@Cell.slots : Array(Int)
-    %v446 = borrow %local14@Cell.slots : &Array(Int)
-    %v447 = load [%v446]@Array.length : @bits(30) U32
-    %v448 = cast 0 : U64
-    %v449 = cast %v447 : U32
-    %v450 = cast %v449 : U64
-    %v451 = cmp_ge %v448, %v450 : Bool
-    call checkCondition, %v451
-    %v453 = load [%v446]@Array.run@Run.items : %Int
-    %v454 = strideof Int : Long
-    %v455 = mul 0, %v454 : Long
-    %v456 = add %v453, %v455 : %Int
-    %v457 = borrow [%v456] : &Int
-    %v458 = load [%v457] : Int
-    %v459 = add %v442, %v458 : Int
-    %v460 = load %local14@Cell.slots : Array(Int)
-    %v463 = borrow %local14@Cell.slots : &Array(Int)
-    %v464 = load [%v463]@Array.length : @bits(30) U32
-    %v465 = cast 3 : U64
-    %v466 = cast %v464 : U32
-    %v467 = cast %v466 : U64
-    %v468 = cmp_ge %v465, %v467 : Bool
-    call checkCondition, %v468
-    %v470 = load [%v463]@Array.run@Run.items : %Int
-    %v471 = strideof Int : Long
-    %v472 = mul 3, %v471 : Long
-    %v473 = add %v470, %v472 : %Int
-    %v474 = borrow [%v473] : &Int
-    %v475 = load [%v474] : Int
+    %v412 = load %total : Int
+    %v413 = load %local14@Cell.slots : Array(Int)
+    %v416 = borrow %local14@Cell.slots : &Array(Int)
+    %v417 = load [%v416]@Array.length : @bits(30) U32
+    %v418 = cast 0 : U64
+    %v419 = cast %v417 : U32
+    %v420 = cast %v419 : U64
+    %v421 = cmp_ge %v418, %v420 : Bool
+    call checkCondition, %v421
+    %v423 = load [%v416]@Array.run@Run.items : %Int
+    %v424 = strideof Int : Long
+    %v425 = mul 0, %v424 : Long
+    %v426 = add %v423, %v425 : %Int
+    %v427 = borrow [%v426] : &Int
+    %v428 = load [%v427] : Int
+    %v429 = add %v412, %v428 : Int
+    %v430 = load %local14@Cell.slots : Array(Int)
+    %v433 = borrow %local14@Cell.slots : &Array(Int)
+    %v434 = load [%v433]@Array.length : @bits(30) U32
+    %v435 = cast 3 : U64
+    %v436 = cast %v434 : U32
+    %v437 = cast %v436 : U64
+    %v438 = cmp_ge %v435, %v437 : Bool
+    call checkCondition, %v438
+    %v440 = load [%v433]@Array.run@Run.items : %Int
+    %v441 = strideof Int : Long
+    %v442 = mul 3, %v441 : Long
+    %v443 = add %v440, %v442 : %Int
+    %v444 = borrow [%v443] : &Int
+    %v445 = load [%v444] : Int
     drop %local14 via Drop(Cell).drop reclaim reclaim$Cell
-    %v476 = add %v459, %v475 : Int
-    assign %total, %v476
-    %v478 = load %total : Int
-    ret %v478
+    %v446 = add %v429, %v445 : Int
+    assign %total, %v446
+    %v448 = load %total : Int
+    ret %v448
 
   b7:
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)

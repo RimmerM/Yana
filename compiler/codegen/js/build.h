@@ -131,6 +131,52 @@ struct FunParts {
     bool valid() const { return code != nullptr; }
 };
 
+/*
+ * Whether an `InstAggregate` builds its local's whole value here, and which property each component
+ * fills - the answer to that question and nothing else.
+ *
+ * It has to be asked twice and answered the same both times: `prepareBuiltLocals` reads it to decide
+ * the allocation can be declared holding nothing, and `genAggregate` reads it to build. A
+ * disagreement is `var v; v[0] = 1` - an allocation with no value and an instruction that expected
+ * one to be there. So the eligibility question is *one* function, and it builds nothing while
+ * answering it: the first caller has no statement to emit uses into, and the version of this that
+ * decided by constructing a literal and throwing it away made JS nodes for every aggregate in the
+ * program.
+ *
+ * Computed twice rather than cached, and that is a deliberate trade rather than an oversight. It is
+ * a pure function of the instruction, so the two calls cannot disagree; caching it would put a plan
+ * in a `HashMap`, whose `reset` does not run destructors and whose slots are raw until something
+ * placement-news them - and this plan owns a `SmallArray`. A leak and a construction subtlety is a
+ * poor price for turning "the same answer twice" into "the answer once".
+ *
+ * The object literal `buildFromPlan` then produces is what Analysis-JS.md §2.3 asks for.
+ * `var v = {x: 0, y: 0}` followed by two writes is what it replaces, and the zero it removes is the
+ * point: a fresh value of a type has to be manufactured out of that type's own shape, and there are
+ * types this side of an abstraction boundary that have no shape to build one from. Here the values
+ * are what the object is made of, so nothing is manufactured and nothing is written twice.
+ *
+ * Nothing is built where the value is not an object here at all - a scalarized record, a newtype, a
+ * niche-folded one - since a fresh one of those is a number or a null and costs nothing to make. Nor
+ * where a field is **co-packed** (a bit range of a property rather than one; `packCandidate` already
+ * declines those in the resolver, and this is the same rule from the other end) or a **function
+ * value** (two properties from one component, which `storeInto` already knows how to write).
+ */
+struct AggregateBuildPlan {
+    enum Kind: U8 { Object, Array };
+
+    // Which component fills a property, by the name it fills. A property no component names is one
+    // the construction does not reach - see buildFromPlan, which is where the zeros come in.
+    struct Filled {
+        Name key;
+        Size at;
+    };
+
+    bool eligible = false;
+    Kind kind = Object;
+    TypePtr type = nullptr;
+    SmallArray<Filled, 16> filled;
+};
+
 struct Gen {
     Context& context;
     Program& program;
@@ -287,6 +333,17 @@ struct Gen {
 
     // Which locals are stored as a one-property box, by local index. See gen.cpp's file comment.
     IndexSet boxed;
+
+    /*
+     * Which locals an `InstAggregate` builds whole, by local index - see prepareBuiltLocals.
+     *
+     * The allocation of one is declared holding *nothing*, because the value it would otherwise hold
+     * is a manufactured instance of the local's type and the aggregate replaces it outright. That is
+     * the whole of what `zeroValue` was for at an allocation, and the reason it is worth removing is
+     * not the statement it saves: a fresh value has to be built out of the type's own shape, and a
+     * type this side of an abstraction boundary does not have one to build from.
+     */
+    IndexSet builtWhole;
 
     // The borrow and address values that are a second *name* for the storage they were taken of
     // rather than a box holding it - see prepareLocals. A place rooted in one of these reaches the
@@ -1114,6 +1171,9 @@ TypePtr transparentTupleOf(Gen& g, TypePtr type);
 // The value a freshly allocated slot of this type holds, with every property it will ever have
 // already present - see type.cpp.
 JsPtr<Expr> zeroValue(Gen& g, TypePtr type);
+
+AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate);
+JsPtr<Expr> buildFromPlan(Gen& g, InstAggregate& aggregate, const AggregateBuildPlan& plan);
 
 // What a fresh *allocation* of this type holds, which differs from its zero only for a niche-folded
 // record whose payload is an object - the one shape a construction has to be able to write into.

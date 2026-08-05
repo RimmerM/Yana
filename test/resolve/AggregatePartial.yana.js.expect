@@ -1,0 +1,33 @@
+"use strict";
+var log = 0;
+
+// ResolveTest
+function opaque(n) {
+  var v2 = log + n | 0;
+  log = v2;
+  if (v2 > 1000) {
+    return 0;
+  } else {
+    return n;
+  }
+}
+
+function computed(seed) {
+  return opaque(seed) + 1000 | 0;
+}
+
+function readBetween() {
+  return 349;
+}
+
+function both(seed) {
+  return opaque(seed) + 120 | 0;
+}
+
+function derived(seed) {
+  return opaque(seed) + 127 | 0;
+}
+
+function main() {
+  return (((opaque(5) + 1349 | 0) + (opaque(6) + 120 | 0) | 0) + (opaque(7) + 127 | 0) | 0) + log | 0;
+}

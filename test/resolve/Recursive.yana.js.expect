@@ -44,46 +44,37 @@ function totalOf(m) {
 }
 
 function leftOf(t) {
-  var v20;
+  var v19;
   var absent = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
   if (t.$tag === 0) {
     drop$Tree(absent);
-    v20 = t.$p;
+    v19 = t.$p;
   } else {
-    var v17 = total(unwrapOr_Tree({ $v: t.left }, absent));
+    var v16 = total(unwrapOr_Tree({ $v: t.left }, absent));
     drop$Tree(absent);
-    v20 = v17;
+    v19 = v16;
   }
-  return v20;
+  return v19;
 }
 
 function buildList() {
-  var xs = { head: 0, tail: null };
-  var v4 = { head: 0, tail: null };
-  var v8 = { head: 39, tail: { $v: { head: 0, tail: null } } };
-  v8.tail.$v = null;
-  v4.head = 2;
-  v4.tail = { $v: { head: 0, tail: null } };
-  v4.tail.$v = v8;
-  xs.head = 1;
-  xs.tail = { $v: { head: 0, tail: null } };
-  xs.tail.$v = v4;
+  var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
+  var v3 = { head: 2, tail: { $v: { head: 0, tail: null } } };
+  var v6 = { head: 39, tail: { $v: { head: 0, tail: null } } };
+  v6.tail.$v = null;
+  v3.tail.$v = v6;
+  xs.tail.$v = v3;
   var v30 = sum(xs);
   drop$List(xs);
   return v30;
 }
 
 function buildTree() {
-  var deep = { $tag: 1, left: null, right: null, label: 0, $p: 0 };
-  var v6 = { $tag: 0, left: null, right: null, label: 0, $p: 20 };
-  deep.left = null;
-  deep.right = v6;
-  deep.label = 5;
-  var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: deep, label: 7, $p: 0 };
-  var v48 = total(t);
-  var v49 = leftOf(t);
+  var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
+  var v40 = total(t);
+  var v41 = leftOf(t);
   drop$Tree(t);
-  return v48 + v49 | 0;
+  return v40 + v41 | 0;
 }
 
 function track(id) {
@@ -102,16 +93,12 @@ function idsOf(c) {
 }
 
 function buildChain() {
-  var c = { payload: 0, rest: null };
+  var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
   add_eq_Int(liveNodes, "$v", 1, 1);
-  var v5 = { payload: 0, rest: null };
+  var v4 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
   add_eq_Int(liveNodes, "$v", 1, 1);
-  v5.payload = 5;
-  v5.rest = { $v: { payload: 0, rest: null } };
-  v5.rest.$v = null;
-  c.payload = 4;
-  c.rest = { $v: { payload: 0, rest: null } };
-  c.rest.$v = v5;
+  v4.rest.$v = null;
+  c.rest.$v = v4;
   var v23 = idsOf(c);
   drop$Chain(c);
   return v23;

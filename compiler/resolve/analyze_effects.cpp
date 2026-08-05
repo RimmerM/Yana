@@ -290,6 +290,56 @@ static void deriveEffects(Analysis& analysis) {
                 break;
             }
 
+            /*
+             * Every element at once, and each of them a hand-over.
+             *
+             * Ownership-equivalent to the per-element `Init`s this replaces, and that is the whole
+             * claim: those wrote through a *pointer*-rooted place, so `rootLocal` answered nothing
+             * and the defs/inits half of the case above never ran. `transferFrom` was the only
+             * effect they had, and it is the only one here.
+             *
+             * The run's own root is not used here for the same reason it was not there - writing
+             * into storage a pointer names says nothing about a local.
+             */
+            case Value::Aggregate: {
+                auto& aggregate = (InstAggregate&)instruction;
+
+                /*
+                 * The run's own root, where it has one.
+                 *
+                 * Nothing for a pointer-rooted place, which is what an `Array(a)`'s buffer is on
+                 * either target - writing into storage a pointer names says nothing about a local.
+                 * A `[T *n]` literal is the case that does: its elements *are* the local's storage,
+                 * so this is the same use-and-init an element `Init` recorded, said once for all of
+                 * them. It is `uses` rather than `defs` because the path is not empty - an element
+                 * write leaves the rest of the slot alone, which is the rule the Init case states.
+                 */
+                auto root = rootLocal(analysis, aggregate.place);
+                if(root != maxLimit<U32>) {
+                    /*
+                     * The same split the `Init` case makes, and for the same reason. A path into the
+                     * slot leaves the rest of it alone, so it reads as a use; an *empty* path is the
+                     * whole value, which is a definition - a sum built as one instruction is the
+                     * shape that has one, and calling it a use made the analysis believe the slot
+                     * held something before the construction ran.
+                     */
+                    if(aggregate.place.projections.isEmpty()) {
+                        effects.defs.push(root);
+                    } else {
+                        effects.uses.push(root);
+                    }
+
+                    effects.inits.push(root);
+                }
+
+                eachAggregateComponent(analysis.local, aggregate,
+                                       [&](const AggregateComponent& component, Size) {
+                    transferFrom(analysis, effects, component.value);
+                });
+
+                break;
+            }
+
             case Value::Borrow:
                 useRoot(analysis, effects, ((InstBorrow&)instruction).place);
                 break;

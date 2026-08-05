@@ -9,8 +9,7 @@ fn sum(%pair: Pair) -> Int {
 fn makePair() -> Pair {
   b0:
     %v0 = alloc : Pair
-    init %local0@Pair.x, 2
-    init %local0@Pair.y, 3
+    aggregate %local0@Pair.x = 2, %local0@Pair.y = 3
     ret %v0
 }
 
@@ -73,8 +72,8 @@ fn forwardRecord() -> Int {
   b0:
     %v0 = alloc : Early
     %v1 = alloc : Later
-    init %local1@Later.value, 6
-    init %local0@Early.later, %v1
+    aggregate %local1@Later.value = 6
+    aggregate %local0@Early.later = %v1
     %v5 = load %local0@Early.later : Later
     %v6 = load %local0@Early.later@Later.value : Int
     ret %v6
@@ -122,20 +121,18 @@ fn selectedPair(%value: Bool) -> Pair {
     je %v3, b2, b1
 
   b1:
-    %v10 = alloc : Pair
-    init %local1@Pair.x, 0
-    init %local1@Pair.y, 0
+    %v9 = alloc : Pair
+    aggregate %local1@Pair.x = 0, %local1@Pair.y = 0
     jmp b3
 
   b2:
     %v5 = alloc : Pair
-    init %local0@Pair.x, 3
-    init %local0@Pair.y, 4
+    aggregate %local0@Pair.x = 3, %local0@Pair.y = 4
     jmp b3
 
   b3:
-    %v17 = phi [b2, %v5], [b1, %v10] : Pair
-    ret %v17
+    %v15 = phi [b2, %v5], [b1, %v9] : Pair
+    ret %v15
 }
 
 fn <+>(%lhs: Int, %rhs: Int) -> Int {
@@ -149,33 +146,29 @@ fn main() -> Int {
     %v0 = call makePair : Pair
     %v1 = call sum, %v0 : Int
     %v2 = alloc : Choice
-    init %local1.discriminant, 0
-    init %local1@Left, 4
-    %v7 = call choiceValue, %v2 : Int
-    %v8 = add %v1, %v7 : Int
-    %v9 = alloc : Choice
-    init %local2.discriminant, 1
-    init %local2@Right.value, 2
-    init %local2@Right.extra, 3
-    %v16 = call choiceValue, %v9 : Int
-    %v17 = add %v8, %v16 : Int
-    %v19 = call classify, 7 : Int
-    %v20 = add %v17, %v19 : Int
-    %v21 = alloc : {Int, Int}
-    init %local3.0, 4
-    init %local3.1, 5
-    %v26 = call tupleValue, %v21 : Int
-    %v27 = add %v20, %v26 : Int
-    %v28 = call forwardRecord : Int
-    %v29 = add %v27, %v28 : Int
-    %v31 = call boolValue, False : Int
-    %v32 = add %v29, %v31 : Int
-    %v34 = call directionValue, South : Int
-    %v35 = add %v32, %v34 : Int
-    %v37 = call selectedPair, True : Pair
-    %v38 = call sum, %v37 : Int
-    %v39 = add %v35, %v38 : Int
-    %v44 = call <+>, 1, 2 : Int
-    %v45 = add %v39, %v44 : Int
-    ret %v45
+    aggregate %local1.discriminant = 0, %local1@Left = 4
+    %v6 = call choiceValue, %v2 : Int
+    %v7 = add %v1, %v6 : Int
+    %v8 = alloc : Choice
+    aggregate %local2.discriminant = 1, %local2@Right.value = 2, %local2@Right.extra = 3
+    %v13 = call choiceValue, %v8 : Int
+    %v14 = add %v7, %v13 : Int
+    %v16 = call classify, 7 : Int
+    %v17 = add %v14, %v16 : Int
+    %v18 = alloc : {Int, Int}
+    aggregate %local3.0 = 4, %local3.1 = 5
+    %v22 = call tupleValue, %v18 : Int
+    %v23 = add %v17, %v22 : Int
+    %v24 = call forwardRecord : Int
+    %v25 = add %v23, %v24 : Int
+    %v27 = call boolValue, False : Int
+    %v28 = add %v25, %v27 : Int
+    %v30 = call directionValue, South : Int
+    %v31 = add %v28, %v30 : Int
+    %v33 = call selectedPair, True : Pair
+    %v34 = call sum, %v33 : Int
+    %v35 = add %v31, %v34 : Int
+    %v40 = call <+>, 1, 2 : Int
+    %v41 = add %v35, %v40 : Int
+    ret %v41
 }

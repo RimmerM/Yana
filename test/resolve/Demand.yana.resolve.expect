@@ -18,68 +18,63 @@ fn bump(%it: Point) -> () {
 fn onlyRead() -> Int {
   b0:
     %p = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 2
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    %v4 = call read, %p : Int
     %v5 = call read, %p : Int
-    %v6 = call read, %p : Int
-    %v7 = add %v5, %v6 : Int
-    ret %v7
+    %v6 = add %v4, %v5 : Int
+    ret %v6
 }
 
 fn mutableOnOneArm(%flag: Bool) -> Int {
   b0:
     %v1 = alloc : Point
-    init %p@Point.x, 1
-    init %p@Point.y, 2
+    aggregate %p@Point.x = 1, %p@Point.y = 2
     je %flag, b1, b2
 
   b1:
-    %v7 = load %p : Point
-    %v8 = borrow_mut %p : &mut Point
-    call bump, %v8
+    %v6 = load %p : Point
+    %v7 = borrow_mut %p : &mut Point
+    call bump, %v7
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v12 = load %p : Point
-    %v13 = call read, %v12 : Int
-    ret %v13
+    %v11 = load %p : Point
+    %v12 = call read, %v11 : Int
+    ret %v12
 }
 
 fn copyIsIndependent() -> Int {
   b0:
     %source = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 2
-    %v5 = alloc : Point
-    %v6 = load %local0@Point.x : Int
-    %v7 = load %local0@Point.y : Int
-    init %duplicate@Point.x, %v6
-    init %duplicate@Point.y, %v7
-    %v10 = load %duplicate : Point
-    %v11 = borrow_mut %duplicate : &mut Point
-    call bump, %v11
-    %v13 = call read, %source : Int
-    %v14 = load %duplicate : Point
-    %v15 = call read, %v14 : Int
-    %v16 = add %v13, %v15 : Int
-    ret %v16
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    %v4 = alloc : Point
+    %v5 = load %local0@Point.x : Int
+    %v6 = load %local0@Point.y : Int
+    aggregate %duplicate@Point.x = %v5, %duplicate@Point.y = %v6
+    %v8 = load %duplicate : Point
+    %v9 = borrow_mut %duplicate : &mut Point
+    call bump, %v9
+    %v11 = call read, %source : Int
+    %v12 = load %duplicate : Point
+    %v13 = call read, %v12 : Int
+    %v14 = add %v11, %v13 : Int
+    ret %v14
 }
 
 fn addressed() -> Int {
   b0:
     %p = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 2
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
     %at = addressof %local0 : %Point
-    %v6 = load [%at] : Point
-    %v7 = load [%at]@Point.x : Int
-    %v8 = load [%at] : Point
-    %v9 = load [%at]@Point.y : Int
-    %v10 = add %v7, %v9 : Int
-    ret %v10
+    %v5 = load [%at] : Point
+    %v6 = load [%at]@Point.x : Int
+    %v7 = load [%at] : Point
+    %v8 = load [%at]@Point.y : Int
+    %v9 = add %v6, %v8 : Int
+    ret %v9
 }
 
 fn main() -> Int {

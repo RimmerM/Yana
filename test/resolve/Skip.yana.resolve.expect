@@ -27,9 +27,8 @@ fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
     %inner = alloc : Int
     init %local1, %v11
     %v14 = alloc : Outcome(Int, ())
-    init %local2.discriminant, 0
     %inner = load %local1 : Int
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -59,8 +58,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))(%value: Maybe(Outcome((), In
     %inner = alloc : Outcome((), Int)
     init %local1, %v11
     %v14 = alloc : Outcome(Outcome((), Int), ())
-    init %local2.discriminant, 0
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
@@ -80,24 +78,22 @@ fn Try(Result(e, a), a, e).toOutcome(Int, Int)(%value: Result(Int, Int)) -> Outc
     %reason = alloc : Int
     init %local3, %v7
     %v10 = alloc : Outcome(Int, Int)
-    init %local4.discriminant, 1
     %reason = load %local3 : Int
-    init %local4@Exit, %reason
+    aggregate %local4.discriminant = 1, %local4@Exit = %reason
     jmp b3
 
   b2:
-    %v16 = load %value@Ok : Int
-    %v17 = move %value@Ok : Int
+    %v15 = load %value@Ok : Int
+    %v16 = move %value@Ok : Int
     %inner = alloc : Int
-    init %local1, %v17
-    %v20 = alloc : Outcome(Int, Int)
-    init %local2.discriminant, 0
+    init %local1, %v16
+    %v19 = alloc : Outcome(Int, Int)
     %inner = load %local1 : Int
-    init %local2@Proceed, %inner
+    aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v20], [b1, %v10] : Outcome(Int, Int)
+    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(Int, Int)
     ret %v1
 }
 
@@ -121,17 +117,16 @@ fn findFirst(%n: Int, %body: (found: Int) -> a) -> Maybe(a) {
     %v18 = add %v15, 100 : Int
     assign log, %v18
     %v20 = alloc : Maybe(a)
-    init %local2.discriminant, 1
-    init %local2@Just, %carried
+    aggregate %local2.discriminant = 1, %local2@Just = %carried
     ret %v20
 
   b2:
     jmp b3
 
   b3:
-    %v26 = alloc : Maybe(a)
+    %v25 = alloc : Maybe(a)
     init %local3.discriminant, 0
-    ret %v26
+    ret %v25
 }
 
 fn checked(%n: Int, %body: (value: Int) -> a) -> Result(Int, a) {
@@ -146,32 +141,29 @@ fn checked(%n: Int, %body: (value: Int) -> a) -> Result(Int, a) {
 
   b1:
     %v6 = alloc : Result(Int, a)
-    init %local1.discriminant, 0
-    init %local1@Err, 1
+    aggregate %local1.discriminant = 0, %local1@Err = 1
     ret %v6
 
   b2:
     jmp b3
 
   b3:
-    %v15 = cmp_lt %n, 0 : Bool
-    je %v15, b4, b5
+    %v14 = cmp_lt %n, 0 : Bool
+    je %v14, b4, b5
 
   b4:
-    %v17 = alloc : Result(Int, a)
-    init %local2.discriminant, 0
-    init %local2@Err, 2
-    ret %v17
+    %v16 = alloc : Result(Int, a)
+    aggregate %local2.discriminant = 0, %local2@Err = 2
+    ret %v16
 
   b5:
     jmp b6
 
   b6:
-    %v24 = alloc : Result(Int, a)
-    init %local3.discriminant, 1
-    %v27 = calldyn %body, %n : a
-    init %local3@Ok, %v27
-    ret %v24
+    %v22 = alloc : Result(Int, a)
+    %v24 = calldyn %body, %n : a
+    aggregate %local3.discriminant = 1, %local3@Ok = %v24
+    ret %v22
 }
 
 fn attempt(%open: Bool, %body: () -> a) -> Maybe(a) {
@@ -197,9 +189,8 @@ fn attempt(%open: Bool, %body: () -> a) -> Maybe(a) {
     %v13 = add %v10, 1000 : Int
     assign log, %v13
     %v15 = alloc : Maybe(a)
-    init %local2.discriminant, 1
-    %v18 = calldyn %body : a
-    init %local2@Just, %v18
+    %v17 = calldyn %body : a
+    aggregate %local2.discriminant = 1, %local2@Just = %v17
     ret %v15
 }
 
@@ -472,17 +463,16 @@ fn findFirst(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
     %v14 = add %v12, 100 : Int
     assign log, %v14
     %v16 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, %carried
+    aggregate %local2.discriminant = 1, %local2@Just = %carried
     ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v22 = alloc : Maybe(Int)
+    %v21 = alloc : Maybe(Int)
     init %local3.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn ResolveTest.continuation$1(%env: %{}, %found: Int) -> Int {
@@ -531,17 +521,16 @@ fn findFirst(Outcome((), Int))(%n: Int, %body: (found: Int) -> Outcome((), Int))
     %v14 = add %v12, 100 : Int
     assign log, %v14
     %v16 = alloc : Maybe(Outcome((), Int))
-    init %local2.discriminant, 1
-    init %local2@Just, %carried
+    aggregate %local2.discriminant = 1, %local2@Just = %carried
     ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v22 = alloc : Maybe(Outcome((), Int))
+    %v21 = alloc : Maybe(Outcome((), Int))
     init %local3.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn ResolveTest.continuation$3(%env: %{}, %value: Int) -> Int {
@@ -557,32 +546,29 @@ fn checked(Int)(%n: Int, %body: (found: Int) -> Int) -> Result(Int, Int) {
 
   b1:
     %v5 = alloc : Result(Int, Int)
-    init %local1.discriminant, 0
-    init %local1@Err, 1
+    aggregate %local1.discriminant = 0, %local1@Err = 1
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v13 = cmp_lt %n, 0 : Bool
-    je %v13, b4, b5
+    %v12 = cmp_lt %n, 0 : Bool
+    je %v12, b4, b5
 
   b4:
-    %v15 = alloc : Result(Int, Int)
-    init %local2.discriminant, 0
-    init %local2@Err, 2
-    ret %v15
+    %v14 = alloc : Result(Int, Int)
+    aggregate %local2.discriminant = 0, %local2@Err = 2
+    ret %v14
 
   b5:
     jmp b6
 
   b6:
-    %v22 = alloc : Result(Int, Int)
-    init %local3.discriminant, 1
-    %v25 = calldyn %body, %n : Int
-    init %local3@Ok, %v25
-    ret %v22
+    %v20 = alloc : Result(Int, Int)
+    %v21 = calldyn %body, %n : Int
+    aggregate %local3.discriminant = 1, %local3@Ok = %v21
+    ret %v20
 }
 
 fn ResolveTest.continuation$4(%env: %{}) -> Int {
@@ -608,9 +594,8 @@ fn attempt(Int)(%open: Bool, %body: () -> Int) -> Maybe(Int) {
     %v12 = add %v10, 1000 : Int
     assign log, %v12
     %v14 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    %v17 = calldyn %body : Int
-    init %local2@Just, %v17
+    %v15 = calldyn %body : Int
+    aggregate %local2.discriminant = 1, %local2@Just = %v15
     ret %v14
 }
 
