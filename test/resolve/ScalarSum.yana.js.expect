@@ -13,9 +13,9 @@ function payloadOf(s) {
 function colourOf(c) {
   var v27;
   if (c.$tag === 0) {
-    v27 = ((c.r | 0) + (Math.imul(c.g | 0, 10) | 0) | 0) + (Math.imul(c.b | 0, 100) | 0) | 0;
+    v27 = ((c.r | 0) + Math.imul(c.g | 0, 10) | 0) + Math.imul(c.b | 0, 100) | 0;
   } else {
-    v27 = Math.imul(c.$p | 0, 1000) | 0;
+    v27 = Math.imul(c.$p | 0, 1000);
   }
   return v27;
 }
@@ -26,15 +26,15 @@ function fiveOf(f) {
     v44 = f.$p | 0;
   } else {
     if (f.$tag === 1) {
-      v44 = Math.imul(f.$p | 0, 10) | 0;
+      v44 = Math.imul(f.$p | 0, 10);
     } else {
       if (f.$tag === 2) {
-        v44 = Math.imul(f.$p | 0, 100) | 0;
+        v44 = Math.imul(f.$p | 0, 100);
       } else {
         if (f.$tag === 3) {
-          v44 = Math.imul(f.$p | 0, 1000) | 0;
+          v44 = Math.imul(f.$p | 0, 1000);
         } else {
-          v44 = Math.imul(f.$p | 0, 10000) | 0;
+          v44 = Math.imul(f.$p | 0, 10000);
         }
       }
     }
@@ -43,7 +43,7 @@ function fiveOf(f) {
 }
 
 function flagsValue(f) {
-  return ((f & 1) >>> 0 !== 0 ? 1 : 0) + ((f >>> 1 >>> 0 & 1) >>> 0 !== 0 ? 2 : 0) | 0;
+  return ((f & 1) !== 0 ? 1 : 0) + ((f >>> 1 & 1) !== 0 ? 2 : 0);
 }
 
 function taggedOf(t) {
@@ -61,7 +61,7 @@ function widthOf(w) {
   if (w.$tag === 0) {
     v14 = w.$p | 0;
   } else {
-    v14 = Math.imul(w.$p | 0, 10) | 0;
+    v14 = Math.imul(w.$p | 0, 10);
   }
   return v14;
 }

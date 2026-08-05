@@ -1,0 +1,185 @@
+let &zero: Float = 0
+
+let &one: Float = 1065353216
+
+fn nan() -> Float {
+  b0:
+    %v0 = load zero : Float
+    %v1 = load zero : Float
+    %v2 = div %v0, %v1 : Float
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %n = call nan : Float
+    %v = load one : Float
+    %score = alloc : Int
+    init %score, 0
+    %v6 = cmp_lt %n, %v : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = load %score : Int
+    %v11 = add %v8, 1 : Int
+    assign %score, %v11
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = cmp_le %n, %v : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %score : Int
+    %v20 = add %v17, 2 : Int
+    assign %score, %v20
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v24 = cmp_gt %n, %v : Bool
+    je %v24, b7, b8
+
+  b7:
+    %v26 = load %score : Int
+    %v29 = add %v26, 4 : Int
+    assign %score, %v29
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v33 = cmp_ge %n, %v : Bool
+    je %v33, b10, b11
+
+  b10:
+    %v35 = load %score : Int
+    %v38 = add %v35, 8 : Int
+    assign %score, %v38
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v42 = cmp_eq %n, %v : Bool
+    je %v42, b13, b14
+
+  b13:
+    %v44 = load %score : Int
+    %v47 = add %v44, 16 : Int
+    assign %score, %v47
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = cmp_ne %n, %v : Bool
+    je %v51, b16, b17
+
+  b16:
+    %v53 = load %score : Int
+    %v56 = add %v53, 32 : Int
+    assign %score, %v56
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v60 = cmp_eq %n, %n : Bool
+    je %v60, b19, b20
+
+  b19:
+    %v62 = load %score : Int
+    %v65 = add %v62, 64 : Int
+    assign %score, %v65
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v69 = cmp_ne %n, %n : Bool
+    je %v69, b22, b23
+
+  b22:
+    %v71 = load %score : Int
+    %v74 = add %v71, 128 : Int
+    assign %score, %v74
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v78 = load one : Float
+    %v79 = load zero : Float
+    %v80 = cmp_gt %v78, %v79 : Bool
+    je %v80, b25, b26
+
+  b25:
+    %v82 = load %score : Int
+    %v85 = add %v82, 256 : Int
+    assign %score, %v85
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v89 = load zero : Float
+    %v90 = load one : Float
+    %v91 = cmp_lt %v89, %v90 : Bool
+    je %v91, b28, b29
+
+  b28:
+    %v93 = load %score : Int
+    %v96 = add %v93, 512 : Int
+    assign %score, %v96
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v100 = load one : Float
+    %v101 = load one : Float
+    %v102 = cmp_eq %v100, %v101 : Bool
+    je %v102, b31, b32
+
+  b31:
+    %v104 = load %score : Int
+    %v107 = add %v104, 1024 : Int
+    assign %score, %v107
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v111 = load one : Float
+    %v112 = load zero : Float
+    %v113 = cmp_ne %v111, %v112 : Bool
+    je %v113, b34, b35
+
+  b34:
+    %v115 = load %score : Int
+    %v118 = add %v115, 2048 : Int
+    assign %score, %v118
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v122 = load %score : Int
+    ret %v122
+}

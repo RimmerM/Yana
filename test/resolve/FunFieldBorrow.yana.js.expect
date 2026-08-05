@@ -1,11 +1,11 @@
 "use strict";
 // ResolveTest
 function double(x) {
-  return Math.imul(x, 2) | 0;
+  return Math.imul(x, 2);
 }
 
 function triple(x) {
-  return Math.imul(x, 3) | 0;
+  return Math.imul(x, 3);
 }
 
 function negate(x) {
@@ -27,17 +27,17 @@ function reweight(step, weight) {
 
 function main() {
   var v0 = { weight: 1, run$c: funvalue$double, run$e: null };
-  var before = Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0;
+  var before = Math.imul(v0.run$c(v0.run$e, 10), v0.weight);
   retarget(v0, "run$c", "run$e");
-  var after = Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0;
+  var after = Math.imul(v0.run$c(v0.run$e, 10), v0.weight);
   v0.weight = 4;
   v0.run$c = funvalue$negate;
   v0.run$e = null;
-  return (before + after | 0) + (Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0) | 0;
+  return (before + after | 0) + Math.imul(v0.run$c(v0.run$e, 10), v0.weight) | 0;
 }
 
 function funvalue$triple(env, x) {
-  return Math.imul(x, 3) | 0;
+  return Math.imul(x, 3);
 }
 
 function funvalue$negate(env, x) {
@@ -45,5 +45,5 @@ function funvalue$negate(env, x) {
 }
 
 function funvalue$double(env, x) {
-  return Math.imul(x, 2) | 0;
+  return Math.imul(x, 2);
 }

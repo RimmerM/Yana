@@ -92,6 +92,36 @@ bool addNativeEntry(Context& context, llvm::Module& module, StringView entryName
  * target machine is in order to ask for anything at all.
  */
 
+/*
+ * The architectures this build can actually generate code for.
+ *
+ * Stated here rather than left to the target registry to answer, because the registry answers about
+ * the triple in the module and the triple is written by targetDescriptionOf whether or not a code
+ * generator exists for it. `-arch arm64` produced a module carrying an aarch64 triple and then a
+ * target machine built for CPU "x86-64", which is not a combination that has a meaning; the
+ * registry lookup would fail eventually, but only after the whole program had been generated, and
+ * with a message about a triple the author never wrote.
+ *
+ * The list is CMakeLists.txt's `x86codegen` and nothing else. Adding a backend is adding its
+ * component there, its LLVMInitialize calls below, and its arch here - not just its triple.
+ */
+static bool hasCodeGenerator(TargetArch arch) {
+    return arch == TargetArch::X64;
+}
+
+// The CPU a target machine is built for. Taken from the architecture rather than written once, so
+// that a second backend cannot silently inherit AMD64's name for its own processors.
+static const char* cpuOf(TargetArch arch) {
+    switch(arch) {
+        case TargetArch::X64:   return "x86-64";
+        case TargetArch::X86:   return "i686";
+        case TargetArch::ARM64: return "generic";
+        case TargetArch::ARM:   return "generic";
+    }
+
+    return "generic";
+}
+
 // Registers the code generators this build was linked against. Only the AMD64 one, which is also
 // the only architecture the lowering produces IR for - see targetDescriptionOf.
 static void initializeTargets() {
@@ -138,21 +168,42 @@ static std::string featuresOf(const CompileSettings& settings) {
     return features;
 }
 
-// The machine the module says it is for, with the module's data layout reconciled against it. The
-// two are stated independently - the IR is generated without a code generator being linked at all
-// (see targetDescriptionOf) - and a disagreement between them is a compiler bug rather than
-// anything a program can cause, so it is reported and then resolved in the machine's favour.
-static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& module) {
+/*
+ * The machine the module says it is for, with the module's data layout reconciled against it. The
+ * two are stated independently - the IR is generated without a code generator being linked at all
+ * (see targetDescriptionOf) - and a disagreement between them is a compiler bug rather than
+ * anything a program can cause, so it is reported and then resolved in the machine's favour.
+ *
+ * `required` is whether the caller can proceed without one. Writing an object file cannot, and says
+ * so; the optimizer can, since a missing machine costs it target-specific cost models and nothing
+ * else - and emitting textual IR for an architecture this build has no backend for is a supported
+ * thing to ask for, so the optimizer must not report it as a failure.
+ */
+static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& module, bool required) {
     initializeTargets();
+
+    // Before the registry, so that an architecture this build has no backend for is named as the
+    // architecture the author asked for rather than as the triple that was derived from it.
+    if(!hasCodeGenerator(context.settings.arch)) {
+        if(required) {
+            context.diagnostics.error("llvm: this compiler has no code generator for %@ - it can write textual IR for that target, but not an object file or an executable"_v,
+                                      nullptr, archName(context.settings.arch));
+        }
+
+        return nullptr;
+    }
 
     std::string error;
     auto triple = module.getTargetTriple();
     auto target = llvm::TargetRegistry::lookupTarget(triple, error);
 
     if(!target) {
-        context.diagnostics.error("llvm: no code generator for %@: %@"_v, nullptr,
-                                  StringView { triple.data(), triple.size() },
-                                  StringView { error.data(), error.size() });
+        if(required) {
+            context.diagnostics.error("llvm: no code generator for %@: %@"_v, nullptr,
+                                      StringView { triple.data(), triple.size() },
+                                      StringView { error.data(), error.size() });
+        }
+
         return nullptr;
     }
 
@@ -172,7 +223,7 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
 
     llvm::TargetOptions options;
     Ptr<llvm::TargetMachine> machine {
-        target->createTargetMachine(triple, "x86-64", featuresOf(context.settings), options,
+        target->createTargetMachine(triple, cpuOf(context.settings.arch), featuresOf(context.settings), options,
                                     shared ? llvm::Reloc::PIC_ : llvm::Reloc::Static)
     };
 
@@ -198,8 +249,9 @@ void optimizeModule(Context& context, llvm::Module& module, U32 level) {
     if(level == 0) return;
 
     // Given to the pass builder so that inlining, unrolling and vectorization are decided against
-    // the machine the program is actually for rather than against generic costs.
-    auto machine = createMachine(context, module);
+    // the machine the program is actually for rather than against generic costs. Not required: a
+    // target with no backend here still optimizes, against those generic costs.
+    auto machine = createMachine(context, module, false);
 
     llvm::LoopAnalysisManager loops;
     llvm::FunctionAnalysisManager functions;
@@ -240,7 +292,7 @@ bool writeIrFile(Context& context, llvm::Module& module, const String& path) {
 }
 
 bool writeObjectFile(Context& context, llvm::Module& module, const String& path) {
-    auto machine = createMachine(context, module);
+    auto machine = createMachine(context, module, true);
     if(!machine) return false;
 
     std::error_code fileError;

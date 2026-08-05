@@ -5,7 +5,7 @@ function pointOr(m, fallback) {
   if (m === null) {
     v15 = fallback;
   } else {
-    v15 = (Math.imul(m.x, 10) | 0) + m.y | 0;
+    v15 = Math.imul(m.x, 10) + m.y | 0;
   }
   return v15;
 }
@@ -31,25 +31,25 @@ function depthOf(m) {
 }
 
 function pairValue(p) {
-  return (Math.imul(pointOr(p.left, 7), 100) | 0) + intOr(p.right, 7) | 0;
+  return Math.imul(pointOr(p.left, 7), 100) + intOr(p.right, 7) | 0;
 }
 
 function objectFold() {
-  return pointOr({ x: 3, y: 4 }, 9) + (Math.imul(pointOr(null, 9), 1000) | 0) | 0;
+  return pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0;
 }
 
 function intFold() {
-  return (intOr(0, 7) + (Math.imul(intOr(5, 7), 10) | 0) | 0) + (Math.imul(intOr(null, 7), 100) | 0) | 0;
+  return (intOr(0, 7) + Math.imul(intOr(5, 7), 10) | 0) + Math.imul(intOr(null, 7), 100) | 0;
 }
 
 function nested() {
-  return (depthOf({ $tag: 0, $p: null }) + (Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) | 0) + (Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0) | 0;
+  return (depthOf({ $tag: 0, $p: null }) + Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) + Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0;
 }
 
 function paired() {
-  return pairValue({ left: { x: 2, y: 6 }, right: null }) + (Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0) | 0;
+  return pairValue({ left: { x: 2, y: 6 }, right: null }) + Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0;
 }
 
 function main() {
-  return (((pointOr({ x: 3, y: 4 }, 9) + (Math.imul(pointOr(null, 9), 1000) | 0) | 0) + ((intOr(0, 7) + (Math.imul(intOr(5, 7), 10) | 0) | 0) + (Math.imul(intOr(null, 7), 100) | 0) | 0) | 0) + nested() | 0) + paired() | 0;
+  return (((pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0) + ((intOr(0, 7) + Math.imul(intOr(5, 7), 10) | 0) + Math.imul(intOr(null, 7), 100) | 0) | 0) + nested() | 0) + paired() | 0;
 }

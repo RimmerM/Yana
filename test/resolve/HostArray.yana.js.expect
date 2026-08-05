@@ -14,6 +14,13 @@ function sub_eq_Int(target$o, target$k, target$s, amount) {
 }
 
 // Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+  return;
+}
+
 function remove_Handle(self, index) {
   if (index >>> 0 >= self.length >>> 0) {
     return null;
@@ -47,9 +54,13 @@ function openHandle(id) {
 function idsOf(xs$items, xs$length, xs$offset) {
   var total = 0;
   var i = 0;
+  var v22 = xs$length >>> 0;
   L0: for (;;) {
     if (i < xs$length) {
-      total = (Math.imul(total, 10) | 0) + xs$items[xs$offset + i | 0] | 0;
+      var v15 = Math.imul(total, 10);
+      var v19 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v22);
+      total = v15 + xs$items[v19] | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -64,6 +75,7 @@ function container() {
   var v5 = [1, 2];
   add_eq_Int(live, "$v", 1, 1);
   v5[v5.length] = 3;
+  checkCondition(0 >= v5.length >>> 0);
   add_eq_Int(live, "$v", 1, 1);
   Drop_Handle_drop(v5[0]);
   v5[0] = 4;
@@ -76,35 +88,35 @@ function container() {
       return -2;
     } else {
       var score = 0;
-      var v53 = remove_Handle(v5, 1);
-      if (!(v53 === null)) {
-        Drop_Handle_drop(v53);
-        score = v53;
+      var v58 = remove_Handle(v5, 1);
+      if (!(v58 === null)) {
+        Drop_Handle_drop(v58);
+        score = v58;
         if (live.$v !== 2) {
           Reclaim_Array_a_reclaim_Handle(v5);
           return -4;
         } else {
           var whole = idsOf(v5, v5.length, 0);
-          var v94 = v5.length;
+          var v99 = v5.length;
           var start = 1;
-          if (1 > v94) {
-            start = v94;
+          if (1 > v99) {
+            start = v99;
           }
           var end = 2;
           if (2 < start) {
             end = start;
           }
-          if (end > v94) {
-            end = v94;
+          if (end > v99) {
+            end = v99;
           }
           var tail = idsOf(v5, end - start | 0, start);
           Reclaim_Array_a_reclaim_Handle(v5);
-          return ((Math.imul(score, 1000) | 0) + (Math.imul(whole, 10) | 0) | 0) + tail | 0;
+          return (Math.imul(score, 1000) + Math.imul(whole, 10) | 0) + tail | 0;
         }
       } else {
         Reclaim_Array_a_reclaim_Handle(v5);
-        if (!(v53 === null)) {
-          Drop_Handle_drop(v53);
+        if (!(v58 === null)) {
+          Drop_Handle_drop(v58);
         }
         return -3;
       }

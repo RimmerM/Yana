@@ -30,6 +30,21 @@ selectFloat<complex>(%c: Int, %a: Double, %b: Double): Double {
   }
 }
 
+compareEqual<complex>(%a: Double, %b: Double): Int {
+  b_0 {
+    %c = cmp_eq %a, %b: Int
+    je %c, then, else
+  }
+
+  then {
+    ret 1
+  }
+
+  else {
+    ret 0
+  }
+}
+
 selectOnCompare<complex>(%x: Float, %y: Float): Float {
   b_0 {
     %c = cmp_ge %x, %y: Int
@@ -66,6 +81,14 @@ negate<complex>(%a: Double, %b: Float): Double {
 compareValue<complex>(%a: Float, %b: Float): Int {
   b_0 {
     %c = cmp_lt %a, %b: Int
+    %d = add %c, %c: Int
+    ret %d
+  }
+}
+
+compareUnequal<complex>(%a: Float, %b: Float): Int {
+  b_0 {
+    %c = cmp_neq %a, %b: Int
     %d = add %c, %c: Int
     ret %d
   }
@@ -117,6 +140,19 @@ block #1:
   select uses=[xmm0, xmm1, rdi] creates=[xmm0]  => 85ff75030f28c1
   ret uses=[xmm0] creates=[]  => c3
 
+--- codegen: compareEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[rax]  => 660f2ec10f94c00fb6c07b0231c0
+  je uses=[rax] creates=[]  => 85c00f8503000000
+block else:
+  imm uses=[] creates=[rax]  => 31c0
+  ret uses=[rax] creates=[]  => c3
+block then:
+  imm uses=[] creates=[rax]  => b801000000
+  ret uses=[rax] creates=[]  => c3
+
 --- codegen: selectOnCompare ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -152,7 +188,15 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  cmp_lt uses=[xmm0, xmm1] creates=[rax]  => 0f2ec10f92c00fb6c0
+  cmp_gt uses=[xmm1, xmm0] creates=[rax]  => 0f2ec80f97c00fb6c0
+  add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 488bc801c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: compareUnequal ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm0, xmm1] creates=[rax]  => 0f2ec10f95c00fb6c07b05b801000000
   add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 488bc801c1
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 

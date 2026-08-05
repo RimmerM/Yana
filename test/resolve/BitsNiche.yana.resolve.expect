@@ -1,0 +1,196 @@
+fn tag(%m: Maybe(Wide)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %w = load %m@Just : Wide
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, 1], [b1, 0] : Int
+    ret %v10
+}
+
+fn setThrough(%x: @bits(13) U32, %v: U32) -> () {
+  b0:
+    %v3 = and %v, 8191 : U32
+    %v = cast %v3 : @bits(13) U32
+    assign %x, %v
+    ret
+}
+
+(TrivialCopy(a)) fn put(%slot: a, %from: a) -> () {
+  schema {
+    #0 type a
+    #1 class TrivialCopy(a)
+  }
+
+  b0:
+    assign %slot, %from
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %n = alloc : U32
+    init %n, 0
+    assign %n, 20000
+    %v5 = alloc : Maybe(Wide)
+    init %local1.discriminant, 1
+    %v8 = alloc : Wide
+    %v9 = load %n : U32
+    %v11 = and %v9, 8191 : U32
+    %v12 = cast %v11 : @bits(13) U32
+    init %local2@Wide.only, %v12
+    init %local1@Just, %v8
+    %viaCon = call tag, %v5 : Int
+    %v16 = alloc : Wide
+    init %w@Wide.only, 1
+    %v19 = load %n : U32
+    %v21 = and %v19, 8191 : U32
+    %v22 = cast %v21 : @bits(13) U32
+    assign %w@Wide.only, %v22
+    %v24 = alloc : Maybe(Wide)
+    init %local4.discriminant, 1
+    %v27 = load %w : Wide
+    init %local4@Just, %v27
+    %viaAssign = call tag, %v24 : Int
+    %v30 = alloc : Wide
+    init %c@Wide.only, 8000
+    %v33 = load %c : Wide
+    %v34 = load %c@Wide.only : @bits(13) U32
+    %v35 = load %n : U32
+    %v36 = cast %v34 : U32
+    %v37 = add %v36, %v35 : U32
+    %v39 = and %v37, 8191 : U32
+    %v40 = cast %v39 : @bits(13) U32
+    assign %c@Wide.only, %v40
+    %v42 = alloc : Maybe(Wide)
+    init %local6.discriminant, 1
+    %v45 = load %c : Wide
+    init %local6@Just, %v45
+    %viaCompound = call tag, %v42 : Int
+    %v48 = alloc : Wide
+    init %b@Wide.only, 1
+    %v51 = load %b : Wide
+    %v52 = load %b@Wide.only : @bits(13) U32
+    %v53 = load %n : U32
+    %v54 = borrow_mut %b@Wide.only : &mut @bits(13) U32
+    call setThrough, %v54, %v53
+    %v56 = alloc : Maybe(Wide)
+    init %local8.discriminant, 1
+    %v59 = load %b : Wide
+    init %local8@Just, %v59
+    %viaBorrow = call tag, %v56 : Int
+    %v62 = alloc : Pair
+    init %p@Pair.a, 1
+    init %p@Pair.b, 5
+    %v67 = load %n : U32
+    %v69 = and %v67, 8191 : U32
+    %v70 = cast %v69 : @bits(13) U32
+    assign %p@Pair.a, %v70
+    %v72 = load %p : Pair
+    %v73 = load %p@Pair.b : @bits(3) U32
+    %v75 = cast %v73 : U32
+    %v77 = cmp_eq %v75, 5 : Bool
+    je %v77, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %neighbour = phi [b1, 1], [b2, 0] : Int
+    %v86 = alloc : Wide
+    init %dst@Wide.only, 1
+    %v89 = load %dst : Wide
+    %v90 = alloc : Wide
+    %v91 = load %n : U32
+    %v93 = and %v91, 8191 : U32
+    %v94 = cast %v93 : @bits(13) U32
+    init %local11@Wide.only, %v94
+    %v96 = borrow_mut %dst : &mut Wide
+    call put(Wide), %v96, %v90
+    %v98 = alloc : Maybe(Wide)
+    init %local12.discriminant, 1
+    %v101 = load %dst : Wide
+    init %local12@Just, %v101
+    %viaErased = call tag, %v98 : Int
+    %v104 = alloc : Wide
+    %v105 = load %n : U32
+    %v107 = and %v105, 8191 : U32
+    %v108 = cast %v107 : @bits(13) U32
+    init %x@Wide.only, %v108
+    %v110 = alloc : Wide
+    init %y@Wide.only, 2
+    %v113 = load %x : Wide
+    %v114 = load %y : Wide
+    %v115 = borrow_mut %x : &mut Wide
+    %v116 = borrow_mut %y : &mut Wide
+    swap [%v115], [%v116]
+    %v118 = alloc : Maybe(Wide)
+    init %local15.discriminant, 1
+    %v121 = load %x : Wide
+    init %local15@Just, %v121
+    %v123 = call tag, %v118 : Int
+    %v124 = alloc : Maybe(Wide)
+    init %local16.discriminant, 1
+    %v127 = load %y : Wide
+    init %local16@Just, %v127
+    %v129 = call tag, %v124 : Int
+    %v130 = add %v123, %v129 : Int
+    %v133 = cmp_eq %v130, 2 : Bool
+    je %v133, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %viaSwap = phi [b4, 1], [b5, 0] : Int
+    %v142 = alloc : Wide
+    %v143 = load %n : U32
+    %v145 = and %v143, 8191 : U32
+    %v146 = cast %v145 : @bits(13) U32
+    init %z@Wide.only, %v146
+    %v148 = alloc : Wide
+    init %q@Wide.only, 0
+    %v151 = load %z : Wide
+    %v152 = load %z@Wide.only : @bits(13) U32
+    assign %q@Wide.only, %v152
+    %v154 = alloc : Maybe(Wide)
+    init %local19.discriminant, 1
+    %v157 = load %q : Wide
+    init %local19@Just, %v157
+    %viaField = call tag, %v154 : Int
+    %v162 = mul %viaAssign, 2 : Int
+    %v163 = add %viaCon, %v162 : Int
+    %v166 = mul %viaCompound, 4 : Int
+    %v167 = add %v163, %v166 : Int
+    %v170 = mul %viaBorrow, 8 : Int
+    %v171 = add %v167, %v170 : Int
+    %v174 = mul %neighbour, 16 : Int
+    %v175 = add %v171, %v174 : Int
+    %v178 = mul %viaErased, 32 : Int
+    %v179 = add %v175, %v178 : Int
+    %v182 = mul %viaSwap, 64 : Int
+    %v183 = add %v179, %v182 : Int
+    %v186 = mul %viaField, 128 : Int
+    %v187 = add %v183, %v186 : Int
+    ret %v187
+}
+
+fn put(Wide)(%slot: Wide, %from: Wide) -> () {
+  b0:
+    assign %slot, %from
+    ret
+}

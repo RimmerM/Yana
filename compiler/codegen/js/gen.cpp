@@ -814,7 +814,17 @@ void genGlobal(Gen& g, ModulePtr<Global> pointer) {
      */
     JsPtr<Expr> initial;
 
-    if(isDirectType(g.global, global_.type)) {
+    if(isFloat(g.global, global_.type)) {
+        /*
+         * `initial` is *storage* - see floatBits - and a `var` holds a number rather than storage.
+         *
+         * Native emission writes those bytes out and the value reappears when the load reads them
+         * back, so the two targets need different halves of the same fact and only this one has to
+         * say so. Read as an integer, `let &one = 1.0 :: Float` was `var one = 1065353216`.
+         */
+        ConstDouble constant(nullptr, global_.type, floatFromBits(g.global, global_.type, global_.initial));
+        initial = constantValue(g, constant);
+    } else if(isDirectType(g.global, global_.type)) {
         ConstInt constant(nullptr, global_.type, global_.initial);
         initial = constantValue(g, constant);
     } else {

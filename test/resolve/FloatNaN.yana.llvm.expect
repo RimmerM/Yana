@@ -1,0 +1,186 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+@zero = global [4 x i8] zeroinitializer, align 8
+@one = global [4 x i8] c"\00\00\80?", align 8
+
+define fastcc float @nan() {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load float, ptr @zero, align 1
+  %3 = fdiv float %2, %2
+  ret float %3
+}
+
+define fastcc i32 @main() {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load float, ptr @zero, align 1
+  %3 = fdiv float %2, %2
+  %v = load float, ptr @one, align 1
+  %4 = fcmp olt float %3, %v
+  %5 = zext i1 %4 to i32
+  br i1 %4, label %6, label %7
+
+6:                                                ; preds = %1
+  br label %8
+
+7:                                                ; preds = %1
+  br label %8
+
+8:                                                ; preds = %6, %7
+  %9 = phi i32 [ 1, %6 ], [ 0, %7 ]
+  %10 = fcmp ole float %3, %v
+  %11 = zext i1 %10 to i32
+  br i1 %10, label %12, label %14
+
+12:                                               ; preds = %8
+  %13 = add i32 %9, 2
+  br label %15
+
+14:                                               ; preds = %8
+  br label %15
+
+15:                                               ; preds = %12, %14
+  %16 = phi i32 [ %13, %12 ], [ %9, %14 ]
+  %17 = fcmp ogt float %3, %v
+  %18 = zext i1 %17 to i32
+  br i1 %17, label %19, label %21
+
+19:                                               ; preds = %15
+  %20 = add i32 %16, 4
+  br label %22
+
+21:                                               ; preds = %15
+  br label %22
+
+22:                                               ; preds = %19, %21
+  %23 = phi i32 [ %20, %19 ], [ %16, %21 ]
+  %24 = fcmp oge float %3, %v
+  %25 = zext i1 %24 to i32
+  br i1 %24, label %26, label %28
+
+26:                                               ; preds = %22
+  %27 = add i32 %23, 8
+  br label %29
+
+28:                                               ; preds = %22
+  br label %29
+
+29:                                               ; preds = %26, %28
+  %30 = phi i32 [ %27, %26 ], [ %23, %28 ]
+  %31 = fcmp oeq float %3, %v
+  %32 = zext i1 %31 to i32
+  br i1 %31, label %33, label %35
+
+33:                                               ; preds = %29
+  %34 = add i32 %30, 16
+  br label %36
+
+35:                                               ; preds = %29
+  br label %36
+
+36:                                               ; preds = %33, %35
+  %37 = phi i32 [ %34, %33 ], [ %30, %35 ]
+  %38 = fcmp une float %3, %v
+  %39 = zext i1 %38 to i32
+  br i1 %38, label %40, label %42
+
+40:                                               ; preds = %36
+  %41 = add i32 %37, 32
+  br label %43
+
+42:                                               ; preds = %36
+  br label %43
+
+43:                                               ; preds = %40, %42
+  %44 = phi i32 [ %41, %40 ], [ %37, %42 ]
+  %45 = fcmp oeq float %3, %3
+  %46 = zext i1 %45 to i32
+  br i1 %45, label %47, label %49
+
+47:                                               ; preds = %43
+  %48 = add i32 %44, 64
+  br label %50
+
+49:                                               ; preds = %43
+  br label %50
+
+50:                                               ; preds = %47, %49
+  %51 = phi i32 [ %48, %47 ], [ %44, %49 ]
+  %52 = fcmp une float %3, %3
+  %53 = zext i1 %52 to i32
+  br i1 %52, label %54, label %56
+
+54:                                               ; preds = %50
+  %55 = add i32 %51, 128
+  br label %57
+
+56:                                               ; preds = %50
+  br label %57
+
+57:                                               ; preds = %54, %56
+  %58 = phi i32 [ %55, %54 ], [ %51, %56 ]
+  %59 = load float, ptr @one, align 1
+  %60 = load float, ptr @zero, align 1
+  %61 = fcmp ogt float %59, %60
+  %62 = zext i1 %61 to i32
+  br i1 %61, label %63, label %65
+
+63:                                               ; preds = %57
+  %64 = add i32 %58, 256
+  br label %66
+
+65:                                               ; preds = %57
+  br label %66
+
+66:                                               ; preds = %63, %65
+  %67 = phi i32 [ %64, %63 ], [ %58, %65 ]
+  %68 = load float, ptr @zero, align 1
+  %69 = load float, ptr @one, align 1
+  %70 = fcmp olt float %68, %69
+  %71 = zext i1 %70 to i32
+  br i1 %70, label %72, label %74
+
+72:                                               ; preds = %66
+  %73 = add i32 %67, 512
+  br label %75
+
+74:                                               ; preds = %66
+  br label %75
+
+75:                                               ; preds = %72, %74
+  %76 = phi i32 [ %73, %72 ], [ %67, %74 ]
+  %77 = load float, ptr @one, align 1
+  %78 = fcmp oeq float %77, %77
+  %79 = zext i1 %78 to i32
+  br i1 %78, label %80, label %82
+
+80:                                               ; preds = %75
+  %81 = add i32 %76, 1024
+  br label %83
+
+82:                                               ; preds = %75
+  br label %83
+
+83:                                               ; preds = %80, %82
+  %84 = phi i32 [ %81, %80 ], [ %76, %82 ]
+  %85 = load float, ptr @one, align 1
+  %86 = load float, ptr @zero, align 1
+  %87 = fcmp une float %85, %86
+  %88 = zext i1 %87 to i32
+  br i1 %87, label %89, label %91
+
+89:                                               ; preds = %83
+  %90 = add i32 %84, 2048
+  br label %92
+
+91:                                               ; preds = %83
+  br label %92
+
+92:                                               ; preds = %89, %91
+  %93 = phi i32 [ %90, %89 ], [ %84, %91 ]
+  ret i32 %93
+}

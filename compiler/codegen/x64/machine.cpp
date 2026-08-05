@@ -839,13 +839,18 @@ MachineTarget::MachineTarget() {
      * opposites, which is what the branch and select forms rely on when they flip a condition to
      * fall through the other way.
      *
-     * The one thing that follows from that and is worth stating plainly: an operand that is NaN
-     * sets CF, ZF and PF together, so `gt`, `ge` and `neq` answer false and `lt`, `le` and `eq`
-     * answer true. That is the machine's own answer rather than IEEE's - IEEE makes every ordered
-     * comparison false and only `!=` true - and it is what the IR can express, since LowerCmp has
-     * no ordered/unordered distinction to carry one. Giving the ordered reading instead would take
-     * a parity test at every comparison and a pair of condition codes per branch, and it would take
-     * the IR saying which of the two it meant.
+     * An operand that is NaN sets CF, ZF and PF together, and that is the whole of what makes these
+     * forms not enough on their own. Two things arrange the rest, neither of them here:
+     *
+     *  - orderFloatCompare exchanges the operands of `lt` and `le` so that every ordering comparison
+     *    reaching selection is `gt` or `ge`. Those read CF, which a NaN sets, so they answer false -
+     *    which is what an ordered comparison of a NaN has to do.
+     *  - equality is not a condition code at all, since it needs ZF *and* PF. tryMergeCompare
+     *    therefore refuses to leave one in the flags, and genFloatFlagsToReg writes the answer into
+     *    the register with the parity correction attached.
+     *
+     * So all six agree with the LLVM backend and with the JavaScript one: every ordered comparison
+     * of a NaN is false, and `!=` alone is true.
      */
 
     auto floatCompare = [&](MachineFormId flagsId, MachineFormId setId, StringView flagsName,

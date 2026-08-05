@@ -45,6 +45,12 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -57,6 +63,33 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     %v7 = load %self@Run.items : %Int
     %v8 = cast %v7 : %U8
     call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
     jmp b3
 
   b2:
@@ -192,25 +225,30 @@ fn total(%xs: Flat(Int)) -> Int {
     je %v11, b3, b2
 
   b2:
-    %v31 = load %sum : Int
-    ret %v31
+    %v36 = load %sum : Int
+    ret %v36
 
   b3:
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : I64
     %v16 = borrow %xs : &Flat(Int)
-    %v17 = load [%v16]@Flat.items : %Int
-    %v18 = strideof Int : Long
-    %v19 = mul %v15, %v18 : Long
-    %v20 = add %v17, %v19 : %Int
-    %v21 = borrow [%v20] : &Int
-    %v22 = load [%v21] : Int
-    %v23 = add %v13, %v22 : Int
-    assign %sum, %v23
-    %v25 = load %i : Int
-    %v28 = add %v25, 1 : Int
-    assign %i, %v28
+    %v17 = load [%v16]@Flat.length : I64
+    %v18 = cast %v15 : U64
+    %v19 = cast %v17 : U64
+    %v20 = cmp_ge %v18, %v19 : Bool
+    call checkCondition, %v20
+    %v22 = load [%v16]@Flat.items : %Int
+    %v23 = strideof Int : Long
+    %v24 = mul %v15, %v23 : Long
+    %v25 = add %v22, %v24 : %Int
+    %v26 = borrow [%v25] : &Int
+    %v27 = load [%v26] : Int
+    %v28 = add %v13, %v27 : Int
+    assign %sum, %v28
+    %v30 = load %i : Int
+    %v33 = add %v30, 1 : Int
+    assign %i, %v33
     jmp b1
 }
 
@@ -236,26 +274,36 @@ fn double(%xs: Flat(Int)) -> () {
     %v12 = load %i : Int
     %v13 = cast %v12 : I64
     %v14 = borrow %xs : &Flat(Int)
-    %v15 = load [%v14]@Flat.items : %Int
-    %v16 = strideof Int : Long
-    %v17 = mul %v13, %v16 : Long
-    %v18 = add %v15, %v17 : %Int
-    %v19 = borrow [%v18] : &Int
-    %value = load [%v19] : Int
-    %v21 = load %xs : Flat(Int)
-    %v22 = load %i : Int
-    %v23 = cast %v22 : I64
-    %v24 = borrow_mut %xs : &mut Flat(Int)
-    %v25 = load [%v24]@Flat.items : %Int
-    %v26 = strideof Int : Long
-    %v27 = mul %v23, %v26 : Long
-    %v28 = add %v25, %v27 : %Int
-    %v29 = borrow_mut [%v28] : &mut Int
-    %v30 = add %value, %value : Int
-    assign [%v29], %v30
-    %v32 = load %i : Int
-    %v35 = add %v32, 1 : Int
-    assign %i, %v35
+    %v15 = load [%v14]@Flat.length : I64
+    %v16 = cast %v13 : U64
+    %v17 = cast %v15 : U64
+    %v18 = cmp_ge %v16, %v17 : Bool
+    call checkCondition, %v18
+    %v20 = load [%v14]@Flat.items : %Int
+    %v21 = strideof Int : Long
+    %v22 = mul %v13, %v21 : Long
+    %v23 = add %v20, %v22 : %Int
+    %v24 = borrow [%v23] : &Int
+    %value = load [%v24] : Int
+    %v26 = load %xs : Flat(Int)
+    %v27 = load %i : Int
+    %v28 = cast %v27 : I64
+    %v29 = borrow_mut %xs : &mut Flat(Int)
+    %v30 = load [%v29]@Flat.length : I64
+    %v31 = cast %v28 : U64
+    %v32 = cast %v30 : U64
+    %v33 = cmp_ge %v31, %v32 : Bool
+    call checkCondition, %v33
+    %v35 = load [%v29]@Flat.items : %Int
+    %v36 = strideof Int : Long
+    %v37 = mul %v28, %v36 : Long
+    %v38 = add %v35, %v37 : %Int
+    %v39 = borrow_mut [%v38] : &mut Int
+    %v40 = add %value, %value : Int
+    assign [%v39], %v40
+    %v42 = load %i : Int
+    %v45 = add %v42, 1 : Int
+    assign %i, %v45
     jmp b1
 }
 

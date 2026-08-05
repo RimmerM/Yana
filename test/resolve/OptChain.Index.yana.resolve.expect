@@ -260,6 +260,12 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -298,6 +304,33 @@ fn mapMemory(%size: I64) -> %U8 {
   b3:
     %v18 = cast %result : %U8
     ret %v18
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
@@ -388,25 +421,31 @@ fn indexed(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
+    %v25 = call Try(Maybe(a), a, ()).fromExit(Int), %v26 : Maybe(Int)
     jmp b3
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
     %v11 = borrow %local1@Proceed : &Array(Int)
-    %v12 = load [%v11]@Array.run@Run.items : %Int
-    %v13 = strideof Int : Long
-    %v14 = mul 1, %v13 : Long
-    %v15 = add %v12, %v14 : %Int
-    %v16 = borrow [%v15] : &Int
-    %v17 = load [%v16] : Int
+    %v12 = load [%v11]@Array.length : @bits(30) U32
+    %v13 = cast 1 : U64
+    %v14 = cast %v12 : U32
+    %v15 = cast %v14 : U64
+    %v16 = cmp_ge %v13, %v15 : Bool
+    call checkCondition, %v16
+    %v18 = load [%v11]@Array.run@Run.items : %Int
+    %v19 = strideof Int : Long
+    %v20 = mul 1, %v19 : Long
+    %v21 = add %v18, %v20 : %Int
+    %v22 = borrow [%v21] : &Int
+    %v23 = load [%v22] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
-    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v17 : Maybe(Int)
+    %v24 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v23 : Maybe(Int)
     jmp b3
 
   b3:
-    %v23 = phi [b2, %v18], [b1, %v19] : Maybe(Int)
-    ret %v23
+    %v29 = phi [b2, %v24], [b1, %v25] : Maybe(Int)
+    ret %v29
 
   b4:
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
@@ -424,25 +463,31 @@ fn sum(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
+    %v25 = call Try(Maybe(a), a, ()).fromExit(Int), %v26 : Maybe(Int)
     jmp b3
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
     %v11 = borrow %local1@Proceed : &Array(Int)
-    %v12 = load [%v11]@Array.run@Run.items : %Int
-    %v13 = strideof Int : Long
-    %v14 = mul 0, %v13 : Long
-    %v15 = add %v12, %v14 : %Int
-    %v16 = borrow [%v15] : &Int
-    %v17 = load [%v16] : Int
+    %v12 = load [%v11]@Array.length : @bits(30) U32
+    %v13 = cast 0 : U64
+    %v14 = cast %v12 : U32
+    %v15 = cast %v14 : U64
+    %v16 = cmp_ge %v13, %v15 : Bool
+    call checkCondition, %v16
+    %v18 = load [%v11]@Array.run@Run.items : %Int
+    %v19 = strideof Int : Long
+    %v20 = mul 0, %v19 : Long
+    %v21 = add %v18, %v20 : %Int
+    %v22 = borrow [%v21] : &Int
+    %v23 = load [%v22] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
-    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v17 : Maybe(Int)
+    %v24 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v23 : Maybe(Int)
     jmp b3
 
   b3:
-    %v23 = phi [b2, %v18], [b1, %v19] : Maybe(Int)
-    ret %v23
+    %v29 = phi [b2, %v24], [b1, %v25] : Maybe(Int)
+    ret %v29
 
   b4:
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())

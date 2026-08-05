@@ -1,0 +1,30 @@
+-- What a module-level `let` will not accept.
+--
+-- A global's initializer is a constant rather than an expression, so `:: T` is the only thing that
+-- says what the global is. That makes the ascription the one place a mistake can hide: the literal
+-- in front of it has to be a value the type could actually hold, or the declaration says one thing
+-- and the storage holds another.
+
+data Pair {a: Int, b: Int}
+data Handle {value: I64}
+
+-- The case this file exists for. `Pair` is a memory type, so its storage is what a value of it *is*
+-- - and a zero-filled record is not a constructed one. Accepting this declared static storage that
+-- every later assignment would tear down as though it held a Pair.
+let &slot = 0 :: Pair
+
+-- The same mistake where the record has a field to tear down, which is where it stops being
+-- theoretical.
+let &held = 0 :: Handle
+
+-- A number is not an array either, and an array's constant would have to say how long it is.
+let &buffer = 0 :: [Int]
+
+-- The type is right and the literal is not: a float constant cannot start an integer global,
+-- because there is no rounding a declaration is allowed to do silently.
+let approx = 2.5 :: I64
+
+-- Not a number at all, which is the check that was already there.
+let name = "yana" :: I64
+
+fn main() -> Int = 0

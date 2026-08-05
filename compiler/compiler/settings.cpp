@@ -40,6 +40,7 @@ struct Flag {
         printAst,
         printIr,
         noOptimize,
+        noChecks,
         explainAll,
         noProject,
     };
@@ -70,6 +71,7 @@ Flag flagTable[] = {
     { "print-ast"_v, 0, Flag::printAst },
     { "print-ir"_v, 0, Flag::printIr },
     { "no-opt"_v, 0, Flag::noOptimize },
+    { "no-checks"_v, 0, Flag::noChecks },
     { "explain-all"_v, 0, Flag::explainAll },
     { "no-project"_v, 0, Flag::noProject },
 };
@@ -115,6 +117,14 @@ StringView archTable[] = {
     "arm"_v,   // ARM
     "arm64"_v, // ARM64
 };
+
+// The name an architecture is written with on the command line, for a diagnostic that has to say
+// which one was asked for. One table serves both directions, so a message can never name an
+// architecture by a spelling the parser would reject.
+StringView archName(TargetArch arch) {
+    auto index = Size(arch);
+    return index < sizeof(archTable) / sizeof(StringView) ? archTable[index] : "unknown"_v;
+}
 
 StringView sseTable[] = {
     "sse"_v,
@@ -236,8 +246,14 @@ static void applyHostExtensions(CompileSettings& settings) {
 
 static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarget, bool hasFormat, bool hasExtensions) {
     // Set the arch to the current one if nothing was provided.
+    //
+    // AArch64 is tested for first and by its own macro rather than through the platform header's,
+    // because that header's `__X64__` states a *word width* and not an instruction set: an aarch64
+    // host defines both `__ARM__` and `__X64__`, so asking for x86-64 first answers x86-64 there.
     if(!hasArch) {
-#if __X64__
+#if defined(__aarch64__) || defined(_M_ARM64)
+        settings.arch = TargetArch::ARM64;
+#elif __X64__
         settings.arch = TargetArch::X64;
 #elif __X86__
         settings.arch = TargetArch::X86;
@@ -255,7 +271,7 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
 #elif __OSX__
         settings.target = TargetType::MacOS;
 #elif __WINDOWS__
-        setings.target = TargetType::Win32;
+        settings.target = TargetType::Win32;
 #else
 #error Cannot determine target type for current host, please add a #define here for the current platform.
 #endif
@@ -534,6 +550,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::noOptimize:
                 settings.optimizeIr = false;
+                return true;
+            case Flag::noChecks:
+                settings.checks = false;
                 return true;
             case Flag::explain:
                 settings.explainName = move(value);

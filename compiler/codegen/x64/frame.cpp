@@ -102,6 +102,29 @@ bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints
         > constraints.getConvention(fun.callType).stackAlignment;
 }
 
+/*
+ * The one frame this backend cannot build, reported where a program can still be stopped.
+ *
+ * A realigning prologue puts the locals below a mask and addresses them through rsp; a dynamic
+ * alloca moves rsp out from under them. Keeping both would take a third base register held for the
+ * whole function, which nothing here reserves - so the combination is refused.
+ *
+ * Refused *unconditionally*, which is the whole reason this exists as a function. It used to be an
+ * `assertTrue` inside computeFrameLayout, and assertTrue compiles away in a release build: the same
+ * program that stopped in a debug build emitted a frame whose locals move under it in a release one,
+ * which is the worst of the two possible answers. Both inputs are properties of the IR, so the
+ * question can be asked before any of the backend's decisions have been taken - and the answer given
+ * as a diagnostic naming the function rather than as a crash inside it.
+ */
+bool checkFrameSupported(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints) {
+    if(!hasDynamicAlloca(base, fun)) return true;
+    if(!functionRealignsStack(base, fun, constraints)) return true;
+
+    ctx.diagnostics.error("x64: %@ both allocates at run time and needs a stack alignment stronger than its calling convention promises, and this backend cannot build a frame that does both - the alignment moves the locals below the stack pointer and the allocation moves the stack pointer out from under them"_v,
+                          nullptr, ctx.findName(fun.name));
+    return false;
+}
+
 bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun) {
     // Neither of these is a preference. After a dynamic alloca there is no fixed relationship between
     // rsp and anything; after a realignment the distance from rsp back to the frame is only known at
@@ -206,10 +229,17 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     assertTrue(layout.realignsStack || alignment <= entryAlignment); // an alignment the pre-pass did not see
     assertTrue(!layout.realignsStack || layout.framePointer);        // realigning loses the distance to rsp
 
-    // Not supported together: a realigning frame keeps its locals below the mask and addresses them
-    // through rsp, and a run-time allocation moves rsp out from under them. Supporting both would take
-    // a third base register held for the whole function, which nothing reserves.
-    assertTrue(!layout.realignsStack || !frame.hasDynamicAlloca);
+    /*
+     * Not supported together: a realigning frame keeps its locals below the mask and addresses them
+     * through rsp, and a run-time allocation moves rsp out from under them. Supporting both would
+     * take a third base register held for the whole function, which nothing reserves.
+     *
+     * checkFrameSupported has already reported it, unconditionally, before any of this ran - so what
+     * is left here is only to build *a* frame rather than an inconsistent one, and the frame that is
+     * still internally consistent is the one that does not realign. It is under-aligned for whatever
+     * asked for the alignment, which is what the diagnostic says; nothing runs it.
+     */
+    if(layout.realignsStack && frame.hasDynamicAlloca) layout.realignsStack = false;
 
     // Locals and spill slots hang off rsp whenever there is no frame pointer, and also whenever the
     // prologue realigns - that is where the aligned region is. Otherwise they sit directly below the

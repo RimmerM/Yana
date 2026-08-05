@@ -16,7 +16,7 @@ function barrier(flag) {
   var held = acc;
   var v12 = next(held);
   acc = v12;
-  return (Math.imul(held, 100) | 0) + v12 | 0;
+  return Math.imul(held, 100) + v12 | 0;
 }
 
 function taken(flag) {
@@ -24,11 +24,11 @@ function taken(flag) {
   if (flag) {
     acc = next(acc);
   }
-  return ((Math.imul(acc, 100) | 0) + acc | 0) + acc | 0;
+  return (Math.imul(acc, 100) + acc | 0) + acc | 0;
 }
 
 function main() {
-  var v7 = barrier(1) + (Math.imul(barrier(0), 1000) | 0) | 0;
+  var v7 = barrier(1) + Math.imul(barrier(0), 1000) | 0;
   var v21 = next(seed());
-  return v7 + (Math.imul(((Math.imul(v21, 100) | 0) + v21 | 0) + v21 | 0, 1000000) | 0) | 0;
+  return v7 + Math.imul((Math.imul(v21, 100) + v21 | 0) + v21 | 0, 1000000) | 0;
 }

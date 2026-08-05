@@ -266,6 +266,12 @@ struct LowerInstCmp: LowerInstBinary {
     LowerCmp getCmp() const {
         return (LowerCmp)flags;
     }
+
+    // Rewrites the comparison in place, for a target that answers it the other way round: the x64
+    // backend turns `a < b` into `b > a` because only one of the two reads correctly for a NaN.
+    void setCmp(LowerCmp cmp) {
+        flags = (U8)cmp;
+    }
 };
 
 inline Maybe<LowerCmp> decodeOptionalCmp(U8 flags) {

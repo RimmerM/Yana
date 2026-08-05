@@ -1,0 +1,9 @@
+-- Half of an import cycle. Ring imports Loop, and Loop imports Ring back.
+--
+-- The declaration below the import is what makes the cycle worth rejecting rather than tolerating:
+-- whichever of the two modules is resolved first sees the other with nothing in it, so `ringSize`
+-- and `loopSize` cannot both be resolved against a module that has them.
+
+import Loop
+
+fn ringSize() -> Int = loopSize() + 1

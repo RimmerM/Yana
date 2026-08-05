@@ -1,0 +1,79 @@
+-- What keeps a `@bits(n)` niche true.
+--
+-- `ReprTable::intNiche` donates the patterns above an unsigned refinement's range to whatever
+-- encloses it, so `Maybe(Wide)` below is two bytes with no tag word: `Nothing` *is* a value of
+-- `only` that thirteen bits cannot reach. That folding is only sound while nothing can put such a
+-- value there, and what guarantees it is that every store masks - `convertRefinement` at the
+-- narrowing conversion, `encodePackedField` for a co-packed field, `encodeNarrowRef` for a write
+-- through a narrow borrow, and `encodeBits` on JavaScript.
+--
+-- doc/spec/repr.md used to say this was a hole and that a `@bits(13)` field could come to hold a
+-- twenty-bit value. It cannot, from checked code - but the failure it describes is real if a store
+-- ever stops masking, and it has no symptom short of a constructor changing underneath a `match`.
+-- So this fixture writes an out-of-range value through every path the language offers and asks the
+-- enclosing `Maybe` which constructor it is. A store that stopped masking answers `Nothing`.
+--
+-- `n` is a `let &` so that the value arrives at run time: an out-of-range *literal* is caught at
+-- compile time and would prove nothing about the store.
+
+data Wide {only: @bits(13) U32}
+data Pair {a: @bits(13) U32, b: @bits(3) U32}
+
+fn tag(m: Maybe(Wide)) -> Int = if m is Just(w) then 1 else 0
+
+-- A write through a narrow borrow, which is the one path that reaches `encodeNarrowRef`: the
+-- reference carries a shift rather than naming a word, so the mask is applied against a shift the
+-- callee did not know when it was compiled.
+fn setThrough(&x: @bits(13) U32, v: U32): x = v
+
+-- An erased write, where the body never sees the concrete shape and copies whole storage.
+fn (TrivialCopy(a)) put(&slot: a, from: a) -> {}: slot = from
+
+fn main() -> Int:
+    let &n = 0 :: U32
+    n = 20000
+
+    -- The constructor.
+    let viaCon = tag(Just(Wide {only: n}))
+
+    -- An assignment to the field.
+    let &w = Wide {only: 1}
+    w.only = n
+    let viaAssign = tag(Just(w))
+
+    -- Arithmetic, which happens at the natural width and narrows on the way back in.
+    let &c = Wide {only: 8000}
+    c.only = c.only + n
+    let viaCompound = tag(Just(c))
+
+    -- Through a mutable borrow of the packed field.
+    let &b = Wide {only: 1}
+    setThrough(b.only, n)
+    let viaBorrow = tag(Just(b))
+
+    -- A co-packed neighbour, which is the other thing a store that did not mask would break: `b`
+    -- sits above `a` in the same word, so an unmasked write to `a` lands on it.
+    let &p = Pair {a: 1, b: 5}
+    p.a = n
+    let neighbour = if p.b == 5 then 1 else 0
+
+    -- A whole-value write through a generic body, and a swap - neither narrows, so neither can
+    -- introduce a value that was not already in range.
+    let &dst = Wide {only: 1}
+    put(dst, Wide {only: n})
+    let viaErased = tag(Just(dst))
+
+    let &x = Wide {only: n}
+    let &y = Wide {only: 2}
+    swap(x, y)
+    let viaSwap = if tag(Just(x)) + tag(Just(y)) == 2 then 1 else 0
+
+    -- One refinement read out and stored into another, where both ends are narrow.
+    let &z = Wide {only: n}
+    let &q = Wide {only: 0}
+    q.only = z.only
+    let viaField = tag(Just(q))
+
+    -- A bit each, so the number says *which* path failed rather than that one did.
+    return viaCon + viaAssign * 2 + viaCompound * 4 + viaBorrow * 8 + neighbour * 16 +
+           viaErased * 32 + viaSwap * 64 + viaField * 128

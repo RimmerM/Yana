@@ -258,6 +258,21 @@ inline bool isPureValue(const Value& value) {
     }
 }
 
+/*
+ * Whether a call is one of the checks the compiler inserted - see Program::checkCondition.
+ *
+ * Recognized by the callee rather than by its name, for the reason the pointer is recorded on the
+ * program at all: nothing in any program writes this call, and the stages that emit one have to be
+ * able to point at the same function without agreeing on a spelling.
+ *
+ * Two passes ask, and they ask for opposite halves of the same fact - that the callee reads a flag
+ * and touches nothing else. `clobbers` uses it to keep the storage it is tracking across one, and
+ * `isDischargedCheck` uses it to remove the call outright once the flag has folded to `false`.
+ */
+inline bool isCheckCall(OptContext& opt, ModulePtr<Function> callee) {
+    return callee && callee == opt.program.checkCondition;
+}
+
 // Removing one entry from a value's use list. One rather than all: an instruction naming the same
 // value twice appears twice, and the list has to keep saying so.
 void dropUse(OptContext& opt, ModulePtr<Value> value, ModulePtr<Inst> user);

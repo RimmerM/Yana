@@ -34,6 +34,9 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn abortProcess {
+}
+
 fn emptyRun(Int) {
   %local0: Run(Int) droppable readonly live [0, 6)
 }
@@ -56,6 +59,17 @@ fn releaseRun(Int) {
 
 fn mapMemory {
   arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
 }
 
 fn emptyArray(Int) {
@@ -92,10 +106,10 @@ fn double {
 
 fn collect {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 11) [14, 30)
+  %xs: Flat(Int) borrowed readonly live [0, 11) [14, 35)
   %local1: Array(Int) droppable readonly live [0, 3)
-  %out: Array(Int) droppable writable addressed resizable live [1, 13) [14, 30)
-  %i: Int writable live [3, 11) [14, 30)
+  %out: Array(Int) droppable writable addressed resizable live [1, 13) [14, 35)
+  %i: Int writable live [3, 11) [14, 35)
 }
 
 fn collectFor {
@@ -116,21 +130,21 @@ fn wrap {
 }
 
 fn main {
-  %xs: Array(Int) droppable readonly live [0, 234) [236, 247)
+  %xs: Array(Int) droppable readonly live [0, 330) [332, 343)
   %local1: Int writable addressed live [1, 21)
   %local2: Flat(Int) readonly live [25, 33)
-  %local3: Array(Int) droppable readonly live [32, 65)
-  %total: Int writable live [67, 234) [236, 250) [252, 274)
-  %local5: Flat(Int) readonly live [71, 79)
-  %local6: Array(Int) droppable readonly live [78, 113)
-  %local7: (v: Int) -> Int droppable readonly live [117, 131)
-  %local8: Flat(Int) readonly live [123, 131)
-  %local9: Array(Int) droppable readonly live [130, 165)
-  %handed: Array(Int) droppable readonly live [168, 193)
-  %local11: Int writable addressed live [169, 189)
-  %local12: Array(Int) droppable readonly live [193, 228)
-  %local13: Flat(Int) readonly live [239, 247)
-  %local14: Cell droppable readonly live [246, 250) [252, 271)
+  %local3: Array(Int) droppable readonly live [32, 89)
+  %total: Int writable live [91, 330) [332, 346) [348, 382)
+  %local5: Flat(Int) readonly live [95, 103)
+  %local6: Array(Int) droppable readonly live [102, 161)
+  %local7: (v: Int) -> Int droppable readonly live [165, 179)
+  %local8: Flat(Int) readonly live [171, 179)
+  %local9: Array(Int) droppable readonly live [178, 237)
+  %handed: Array(Int) droppable readonly live [240, 265)
+  %local11: Int writable addressed live [241, 261)
+  %local12: Array(Int) droppable readonly live [265, 324)
+  %local13: Flat(Int) readonly live [335, 343)
+  %local14: Cell droppable readonly live [342, 346) [348, 379)
 }
 
 fn Drop(Cell).drop {
@@ -147,10 +161,10 @@ fn ResolveTest.continuation$1 {
 fn each(Int, ()) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 24) [25, 29)
-  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
-  %i: Int writable live [0, 8) [11, 24) [25, 29)
-  %local3: Outcome((), ()) readonly live [20, 25)
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
+  %i: Int writable live [0, 8) [11, 29) [30, 34)
+  %local3: Outcome((), ()) readonly live [25, 30)
   %local4: Outcome((), ()) readonly live [8, 11)
   %local5: Outcome((), ()) readonly live never
 }
@@ -210,10 +224,10 @@ fn ResolveTest.continuation$0(Int, Int, ()) {
 fn each(Int, Outcome((), ())) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 24) [25, 29)
-  %body: (value: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
-  %i: Int writable live [0, 8) [11, 24) [25, 29)
-  %local3: Outcome((), Outcome((), ())) readonly live [20, 25)
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %body: (value: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
+  %i: Int writable live [0, 8) [11, 29) [30, 34)
+  %local3: Outcome((), Outcome((), ())) readonly live [25, 30)
   %local4: Outcome((), Outcome((), ())) readonly live [8, 11)
   %local5: Outcome((), Outcome((), ())) readonly live never
 }

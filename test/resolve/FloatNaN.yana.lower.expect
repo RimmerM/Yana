@@ -1,0 +1,208 @@
+@zero = [0, 0, 0, 0]
+@one = [0, 0, 128, 63]
+
+nan<complex>(): Float {
+  b_0 {
+    %v_1 = load @zero, 4: Float
+    %v_2 = div %v_1, %v_1: Float
+    ret %v_2
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = load @zero, 4: Float
+    %v_2 = div %v_1, %v_1: Float
+    %v = load @one, 4: Float
+    %v_3 = imm 0: Int
+    %v_4 = cmp_lt %v_2, %v: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = add %v_3, 1: Int
+    jmp b_8
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_5, %v_7], [b_6, %v_3]: Int
+    %v_10 = cmp_le %v_2, %v: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_9, 2: Int
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_9]: Int
+    %v_16 = cmp_gt %v_2, %v: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = add %v_15, 4: Int
+    jmp b_20
+  }
+
+  b_18 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = phi [b_17, %v_19], [b_18, %v_15]: Int
+    %v_22 = cmp_ge %v_2, %v: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    %v_25 = add %v_21, 8: Int
+    jmp b_26
+  }
+
+  b_24 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = phi [b_23, %v_25], [b_24, %v_21]: Int
+    %v_28 = cmp_eq %v_2, %v: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = add %v_27, 16: Int
+    jmp b_32
+  }
+
+  b_30 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_29, %v_31], [b_30, %v_27]: Int
+    %v_34 = cmp_neq %v_2, %v: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    %v_37 = add %v_33, 32: Int
+    jmp b_38
+  }
+
+  b_36 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_35, %v_37], [b_36, %v_33]: Int
+    %v_40 = cmp_eq %v_2, %v_2: Int
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    %v_43 = add %v_39, 64: Int
+    jmp b_44
+  }
+
+  b_42 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = phi [b_41, %v_43], [b_42, %v_39]: Int
+    %v_46 = cmp_neq %v_2, %v_2: Int
+    je %v_46, b_47, b_48
+  }
+
+  b_47 {
+    %v_49 = add %v_45, 128: Int
+    jmp b_50
+  }
+
+  b_48 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = phi [b_47, %v_49], [b_48, %v_45]: Int
+    %v_52 = load @one, 4: Float
+    %v_53 = load @zero, 4: Float
+    %v_54 = cmp_gt %v_52, %v_53: Int
+    je %v_54, b_55, b_56
+  }
+
+  b_55 {
+    %v_57 = add %v_51, 256: Int
+    jmp b_58
+  }
+
+  b_56 {
+    jmp b_58
+  }
+
+  b_58 {
+    %v_59 = phi [b_55, %v_57], [b_56, %v_51]: Int
+    %v_60 = load @zero, 4: Float
+    %v_61 = load @one, 4: Float
+    %v_62 = cmp_lt %v_60, %v_61: Int
+    je %v_62, b_63, b_64
+  }
+
+  b_63 {
+    %v_65 = add %v_59, 512: Int
+    jmp b_66
+  }
+
+  b_64 {
+    jmp b_66
+  }
+
+  b_66 {
+    %v_67 = phi [b_63, %v_65], [b_64, %v_59]: Int
+    %v_68 = load @one, 4: Float
+    %v_69 = cmp_eq %v_68, %v_68: Int
+    je %v_69, b_70, b_71
+  }
+
+  b_70 {
+    %v_72 = add %v_67, 1024: Int
+    jmp b_73
+  }
+
+  b_71 {
+    jmp b_73
+  }
+
+  b_73 {
+    %v_74 = phi [b_70, %v_72], [b_71, %v_67]: Int
+    %v_75 = load @one, 4: Float
+    %v_76 = load @zero, 4: Float
+    %v_77 = cmp_neq %v_75, %v_76: Int
+    je %v_77, b_78, b_79
+  }
+
+  b_78 {
+    %v_80 = add %v_74, 2048: Int
+    jmp b_81
+  }
+
+  b_79 {
+    jmp b_81
+  }
+
+  b_81 {
+    %v_82 = phi [b_78, %v_80], [b_79, %v_74]: Int
+    ret %v_82
+  }
+}
+

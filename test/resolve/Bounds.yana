@@ -1,0 +1,61 @@
+-- Indexing at the edges - Implementation-Containers.md §15.
+--
+-- Every subscript now calls `checkCondition(index >= length)` before it reaches the element, with
+-- the index read as an unsigned number so that one comparison rejects a negative index as well as
+-- one past the end. What this fixture is for is the *other* half of that: the check has to let
+-- every valid index through, and the valid range ends at `length - 1`.
+--
+-- The number this returns is computed from elements the program is entitled to read, so a check
+-- that is one too tight - or one comparing signed where it should compare unsigned - traps here
+-- instead of answering. A check that is one too *loose* is not caught by the number, since nothing
+-- here reads past the end; what catches that is the comparison appearing in the goldens beside this
+-- file, where `cmp_ge` becoming `cmp_gt` is a diff.
+--
+-- The four container shapes reach four different generated bodies (see defineNativeIndexInstances
+-- and defineContainerInstances), and each keeps its length somewhere else - so each needs its own
+-- line rather than one standing for the rest.
+
+import Native
+
+-- The owner, whose bound is its own `length` field and not its run's capacity: an array with room
+-- for more slots than it holds must still refuse the slots it does not hold.
+fn ownerEdges() -> Int:
+    let &xs = [10, 20, 30]
+
+    -- Room past the length, and then the length back down again. `remove` leaves the capacity where
+    -- it was, so the run is longer than the array from here on.
+    push(xs, 40)
+    remove(xs, 3)
+
+    return xs[0] + xs[2]
+
+-- The slice, whose bound is the descriptor's own count - which is *shorter* than the array behind
+-- it, and is the case where checking the wrong one is invisible.
+fn sliceEdges() -> Int:
+    let xs = [1, 2, 3, 4, 5, 6]
+    let window = slice(xs, 2, 5)
+
+    return window[0] + window[2]
+
+-- Through the class, which is what a generic body reaches: the same instance, selected rather than
+-- expanded at a written type. The last index is computed rather than written, so nothing here could
+-- have been folded into a constant the check then saw through.
+fn (Index(c, k, v), Num(v)) atBoth(xs: c, a: k, b: k) -> v = xs[a] + xs[b]
+
+fn genericEdges() -> Int:
+    let xs = [7, 8, 9]
+    return atBoth(xs, 0, length(xs) - 1)
+
+-- A single-element array, where the first and the last index are the same one and the bound is the
+-- tightest it can be.
+fn oneElement() -> Int:
+    let xs = [42]
+    return xs[0]
+
+fn main() -> Int:
+    let owner = ownerEdges()     -- 10 + 30 = 40
+    let window = sliceEdges()    -- 3 + 5 = 8
+    let generic = genericEdges() -- 7 + 9 = 16
+    let single = oneElement()    -- 42
+
+    return owner * 1000 + window * 100 + generic * 10 + single

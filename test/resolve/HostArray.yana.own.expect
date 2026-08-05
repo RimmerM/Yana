@@ -46,6 +46,9 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn abortProcess {
+}
+
 fn resize(Handle) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -64,6 +67,17 @@ fn releaseRun(Handle) {
 
 fn mapMemory {
   arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
 }
 
 fn push(Handle) {
@@ -116,24 +130,24 @@ fn openHandle {
 
 fn idsOf {
   arg xs readonly
-  %xs: Flat(Handle) borrowed readonly live [0, 9) [11, 28)
-  %total: Int writable live [0, 10) [11, 28)
-  %i: I64 writable live [2, 9) [11, 28)
+  %xs: Flat(Handle) borrowed readonly live [0, 9) [11, 33)
+  %total: Int writable live [0, 10) [11, 33)
+  %i: I64 writable live [2, 9) [11, 33)
 }
 
 fn container {
   %local0: Handle droppable readonly live [0, 12)
   %local1: Handle droppable readonly live [1, 16)
-  %xs: Array(Handle) droppable writable addressed resizable live [2, 34) [36, 40) [42, 51) [53, 63) [65, 88)
+  %xs: Array(Handle) droppable writable addressed resizable live [2, 40) [42, 46) [48, 57) [59, 69) [71, 94)
   %local3: Handle droppable writable addressed live [3, 15)
   %local4: Handle droppable writable live [18, 21)
-  %local5: Handle droppable readonly live [29, 31)
-  %score: Int writable live [43, 51) [53, 63) [65, 89)
-  %local7: Maybe(Handle) droppable readonly live [47, 51) [53, 55)
-  %local8: Handle droppable readonly live [55, 58)
-  %local9: Flat(Handle) readonly live [68, 76)
-  %local10: Flat(Handle) readonly live [78, 88)
-  %local11: Flat(Handle) readonly live [86, 88)
+  %local5: Handle droppable readonly live [35, 37)
+  %score: Int writable live [49, 57) [59, 69) [71, 95)
+  %local7: Maybe(Handle) droppable readonly live [53, 57) [59, 61)
+  %local8: Handle droppable readonly live [61, 64)
+  %local9: Flat(Handle) readonly live [74, 82)
+  %local10: Flat(Handle) readonly live [84, 94)
+  %local11: Flat(Handle) readonly live [92, 94)
 }
 
 fn main {

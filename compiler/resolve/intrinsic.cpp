@@ -503,6 +503,38 @@ ModulePtr<Value> selfFieldValue(ExprResolver& resolver, ModulePtr<Value> self, S
     return place ? resolver.load(place.unwrap(), source) : nullptr;
 }
 
+/*
+ * `index` is inside `length` - Implementation-Containers.md §15.
+ *
+ * One comparison rather than two, and that is what the unsigned reading buys. `Size` is signed
+ * because it is the type an `Int` index widens into, so `xs[-1]` is a perfectly ordinary value of
+ * it; read as an unsigned number of the same width, a negative index is above every length there is
+ * and fails the same test the too-large case fails. It is the idiom `remove` in Collections already
+ * writes as `(index :: U32) >= self.length`, said once here for every subscript in the program.
+ *
+ * The cast is free on both targets - the two types have one width - and the length is widened into
+ * it rather than the other way round, since a stored count is narrower than a `Size`.
+ *
+ * Nothing is emitted at all when the checks are off, including the length load: a load whose result
+ * nothing reads is still a load until something removes it, and this runs before any optimizer.
+ */
+void checkIndexInBounds(ExprResolver& resolver, ModulePtr<Value> index, ModulePtr<Value> length,
+                        LocationId source) {
+    if(!index || !length || !resolver.checksEnabled()) return;
+
+    auto word = resolver.module.scalar.unsignedSize;
+    if(!word) return;
+
+    auto unsignedIndex = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, index));
+    auto unsignedLength = resolver.convert(length, word, source, false);
+    if(!unsignedLength) return;
+
+    auto failed = resolver.ref(resolver.emit<InstCmp>(source, 0, resolver.module.scalar.bool_,
+                                                      unsignedIndex, unsignedLength, CompareOp::Ge));
+
+    resolver.emitCheck(failed, source);
+}
+
 // `borrow(base + index)` - an element of a run, wherever the base pointer came from. The element
 // type is read off the pointer rather than off the instance's type arguments, for the reason
 // `elementType` in native.cpp is: it is the same answer and it needs no substitution to get it.
@@ -544,12 +576,28 @@ ModulePtr<Value> emitPointerAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> 
     return borrowElement(resolver, base, args[1], type, source, name, mode == Receiver::Mutable);
 }
 
-// `instance Index(Flat(a), Size, a)` natively - `borrow(self.items + index)`.
+// `instance Index(Flat(a), Size, a)` natively - `borrow(self.items + index)`, with the descriptor's
+// own count as the bound.
 template<Receiver mode>
 ModulePtr<Value> emitSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                              LocationId source, StringId name) {
-    return borrowElement(resolver, selfFieldValue<mode>(resolver, args[0], "items"_v, source), args[1],
-                         type, source, name, mode == Receiver::Mutable);
+    // The receiver is reached *once*, and both fields are projected off that one place. Asking for it
+    // twice is what a second `selfFieldValue` would do, and for `getMut` that is a second mutable
+    // borrow of storage the first one holds exclusively - which the borrow checker reports, correctly,
+    // as `xs[i] = v` conflicting with itself.
+    auto self = receiverPlace<mode>(resolver, args[0], source);
+    if(!self) return nullptr;
+
+    if(resolver.checksEnabled()) {
+        auto length = containerField(resolver, self.unwrap(), "length"_v, source);
+        if(length) checkIndexInBounds(resolver, args[1], resolver.load(length.unwrap(), source), source);
+    }
+
+    auto items = containerField(resolver, self.unwrap(), "items"_v, source);
+    if(!items) return nullptr;
+
+    return borrowElement(resolver, resolver.load(items.unwrap(), source), args[1], type, source, name,
+                         mode == Receiver::Mutable);
 }
 
 // `instance Index(Array(a), Size, a)` natively - `borrow(self.run.items + index)`. One address
@@ -558,7 +606,18 @@ ModulePtr<Value> emitSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> ar
 template<Receiver mode>
 ModulePtr<Value> emitArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                              LocationId source, StringId name) {
-    auto run = selfField<mode>(resolver, args[0], "run"_v, source);
+    // One receiver place, two projections off it - see emitSliceAt for why asking twice is wrong.
+    auto self = receiverPlace<mode>(resolver, args[0], source);
+    if(!self) return nullptr;
+
+    // The owner's *live* count and not the run's capacity: a slot past the length is storage that
+    // exists and holds nothing, which is exactly the read this check is for.
+    if(resolver.checksEnabled()) {
+        auto length = containerField(resolver, self.unwrap(), "length"_v, source);
+        if(length) checkIndexInBounds(resolver, args[1], resolver.load(length.unwrap(), source), source);
+    }
+
+    auto run = containerField(resolver, self.unwrap(), "run"_v, source);
     if(!run) return nullptr;
 
     auto items = containerField(resolver, run.unwrap(), "items"_v, source);
@@ -584,16 +643,30 @@ ModulePtr<Value> emitHostSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>
     auto index = resolver.ref(resolver.emit<InstBinary>(source, 0, resolver.valueType(start),
                                                         Value::Add, start, args[1]));
 
+    // Against the window's own length rather than the host array's: what a slice may read is
+    // `offset` up to `offset + length`, and the array behind it is usually longer.
+    if(resolver.checksEnabled()) {
+        auto length = containerField(resolver, self.unwrap(), "length"_v, source);
+        if(length) checkIndexInBounds(resolver, args[1], resolver.load(length.unwrap(), source), source);
+    }
+
     return borrowHostElement(resolver, resolver.load(items.unwrap(), source), index, type, source,
                              name, mode == Receiver::Mutable);
 }
 
-// `instance Index(Array(a), Size, a)` on JS - `hostAt(self.items, index)`.
+// `instance Index(Array(a), Size, a)` on JS - `hostAt(self.items, index)`. The host array *is* the
+// container here, so its own `length` is the bound and there is no stored count to read.
 template<Receiver mode>
 ModulePtr<Value> emitHostArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                  LocationId source, StringId name) {
-    return borrowHostElement(resolver, selfFieldValue<mode>(resolver, args[0], "items"_v, source),
-                             args[1], type, source, name, mode == Receiver::Mutable);
+    auto items = selfFieldValue<mode>(resolver, args[0], "items"_v, source);
+
+    if(resolver.checksEnabled() && items) {
+        auto length = emitHostLengthOf(resolver, items, resolver.module.scalar.size, source, 0);
+        checkIndexInBounds(resolver, args[1], length, source);
+    }
+
+    return borrowHostElement(resolver, items, args[1], type, source, name, mode == Receiver::Mutable);
 }
 
 // `instance Length(Flat(a))` - `self.length`, on both targets, and `instance Length(Array(a))`

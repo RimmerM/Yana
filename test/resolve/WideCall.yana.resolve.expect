@@ -1,0 +1,96 @@
+let &effects: Int = 0
+
+fn bump(%mark: Int) -> Int {
+  b0:
+    %v1 = load effects : Int
+    %v2 = add %v1, %mark : Int
+    assign effects, %v2
+    ret %mark
+}
+
+fn wide(%tag: a, %p1: Int, %p2: Int, %p3: Int, %p4: Int, %p5: Int, %p6: Int, %p7: Int, %p8: Int, %p9: Int, %p10: Int, %p11: Int, %p12: Int, %p13: Int, %p14: Int, %p15: Int, %p16: Int, %p17: Int, %p18: Int, %p19: Int, %p20: Int, %p21: Int, %p22: Int, %p23: Int, %p24: Int, %p25: Int, %p26: Int, %p27: Int, %p28: Int, %p29: Int, %p30: Int, %p31: Int, %extra: b, %late: () -> Int) -> Int {
+  schema {
+    #0 type a
+    #1 type b
+  }
+
+  b0:
+    %v36 = cmp_eq %p1, 0 : Bool
+    je %v36, b1, b2
+
+  b1:
+    %v38 = calldyn %late : Int
+    jmp b3
+
+  b2:
+    %v39 = add %p1, %p31 : Int
+    jmp b3
+
+  b3:
+    %v42 = phi [b1, %v38], [b2, %v39] : Int
+    ret %v42
+}
+
+fn call() -> Int {
+  b0:
+    alloc
+    %v64 = alloc : () -> Int
+    %v65 = symbol ResolveTest.deferred$0 : %()
+    init %local1.code, %v65
+    %v68 = cast 0 : %()
+    init %local1.env, %v68
+    %v70 = call wide(Bool, ()), True, 7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : Int
+    ret %v70
+}
+
+fn callForcing() -> Int {
+  b0:
+    alloc
+    %v64 = alloc : () -> Int
+    %v65 = symbol ResolveTest.deferred$1 : %()
+    init %local1.code, %v65
+    %v68 = cast 0 : %()
+    init %local1.env, %v68
+    %v70 = call wide(Bool, ()), True, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : Int
+    ret %v70
+}
+
+fn main() -> Int {
+  b0:
+    %skipped = call call : Int
+    %unskipped = call callForcing : Int
+    %v2 = add %skipped, %unskipped : Int
+    %v3 = load effects : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}
+
+fn wide(Bool, ())(%tag: Bool, %p1: Int, %p2: Int, %p3: Int, %p4: Int, %p5: Int, %p6: Int, %p7: Int, %p8: Int, %p9: Int, %p10: Int, %p11: Int, %p12: Int, %p13: Int, %p14: Int, %p15: Int, %p16: Int, %p17: Int, %p18: Int, %p19: Int, %p20: Int, %p21: Int, %p22: Int, %p23: Int, %p24: Int, %p25: Int, %p26: Int, %p27: Int, %p28: Int, %p29: Int, %p30: Int, %p31: Int, %extra: (), %late: () -> Int) -> Int {
+  b0:
+    %v36 = cmp_eq %p1, 0 : Bool
+    je %v36, b1, b2
+
+  b1:
+    %v38 = calldyn %late : Int
+    jmp b3
+
+  b2:
+    %v40 = add %p1, %p31 : Int
+    jmp b3
+
+  b3:
+    %v34 = phi [b1, %v38], [b2, %v40] : Int
+    ret %v34
+}
+
+fn ResolveTest.deferred$0(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 1 : Int
+    ret %v2
+}
+
+fn ResolveTest.deferred$1(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 4 : Int
+    ret %v2
+}

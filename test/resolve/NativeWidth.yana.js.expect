@@ -23,7 +23,7 @@ function addSmall(x) {
 
 function addSmallNarrow(x) {
   var x$1 = x >>> 0;
-  return (x$1 + x$1 >>> 0 & 15) >>> 0 & 15;
+  return x$1 + x$1 >>> 0 & 15;
 }
 
 function mulWide20(x) {
@@ -33,11 +33,11 @@ function mulWide20(x) {
 
 function shiftAfterMul(x) {
   var x$1 = x >>> 0;
-  return Math.imul(x$1, x$1) >>> 0 >>> 4 >>> 0;
+  return Math.imul(x$1, x$1) >>> 0 >>> 4;
 }
 
 function boxed(value) {
-  return ((value & 15) >>> 0 & 15) >>> 0;
+  return value & 15;
 }
 
 function mulForty(x) {
@@ -73,7 +73,7 @@ function foldedStore() {
 }
 
 function signedField(x) {
-  return ((x << 28 | 0) >> 28 | 0) << 28 >> 28 | 0;
+  return x << 28 >> 28;
 }
 
 function main() {
@@ -101,7 +101,7 @@ function addWide(x, y) {
 }
 
 function tickBits(x) {
-  return ((x >>> 0) + 1 >>> 0 & 7) >>> 0 & 7;
+  return (x >>> 0) + 1 >>> 0 & 7;
 }
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp

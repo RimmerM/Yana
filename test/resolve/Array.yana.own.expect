@@ -30,6 +30,9 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn abortProcess {
+}
+
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -48,6 +51,17 @@ fn releaseRun(Int) {
 
 fn mapMemory {
   arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
 }
 
 fn push(Int) {
@@ -84,9 +98,9 @@ fn Reclaim(Array(a)).reclaim(Int) {
 
 fn sum {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 28)
-  %total: Int writable live [0, 11) [12, 28)
-  %i: Int writable live [2, 10) [12, 28)
+  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 33)
+  %total: Int writable live [0, 11) [12, 33)
+  %i: Int writable live [2, 10) [12, 33)
 }
 
 fn make {
@@ -96,14 +110,14 @@ fn make {
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 23)
+  %local0: Array(Int) droppable readonly live [0, 41)
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 55)
+  %small: Array(Int) droppable writable addressed resizable live [0, 61)
   %local1: Int writable addressed live [1, 17)
-  %local2: Maybe(Int) readonly live [35, 36)
-  %local3: Maybe(Int) readonly live [38, 39)
-  %local4: Maybe(Int) readonly live [42, 43)
-  %local5: Flat(Int) readonly live [45, 53)
+  %local2: Maybe(Int) readonly live [41, 42)
+  %local3: Maybe(Int) readonly live [44, 45)
+  %local4: Maybe(Int) readonly live [48, 49)
+  %local5: Flat(Int) readonly live [51, 59)
 }

@@ -1,0 +1,50 @@
+"use strict";
+// ResolveTest
+function tag(m) {
+  return m <= 8191 ? 1 : 0;
+}
+
+function setThrough(x$o, x$k, x$s, v) {
+  x$o[x$k] = $b13u$set(x$o[x$k], x$s, v & 8191);
+  return;
+}
+
+function main() {
+  var v8 = 0;
+  v8 = v8 & 4294959104 | 3616;
+  var viaCon = tag(v8);
+  var v16 = 0;
+  v16 = v16 & 4294959104 | 3616;
+  var viaAssign = tag(v16);
+  var v30 = 0;
+  v30 = v30 & 4294959104 | 3424;
+  var viaCompound = tag(v30);
+  var v48 = { $v: 0 };
+  v48.$v = v48.$v & 4294959104 | 1;
+  setThrough(v48, "$v", 1, 20000);
+  var viaBorrow = tag(v48.$v);
+  var v90 = 0;
+  v90 = v90 & 4294959104 | 3616;
+  var viaErased = tag(v90);
+  var v104 = { $v: 0 };
+  v104.$v = v104.$v & 4294959104 | 3616;
+  var v110 = { $v: 0 };
+  v110.$v = v110.$v & 4294959104 | 2;
+  var swap117 = $b13u$get(v104.$v, 1);
+  v104.$v = $b13u$set(v104.$v, 1, $b13u$get(v110.$v, 1));
+  v110.$v = $b13u$set(v110.$v, 1, swap117);
+  var viaSwap = (tag(v104.$v) + tag(v110.$v) | 0) === 2 ? 1 : 0;
+  var v146 = 20000 & 8191;
+  var v148 = 0;
+  v148 = v148 & 4294959104 | v146;
+  return ((((((viaCon + Math.imul(viaAssign, 2) | 0) + Math.imul(viaCompound, 4) | 0) + Math.imul(viaBorrow, 8) | 0) + 16 | 0) + Math.imul(viaErased, 32) | 0) + Math.imul(viaSwap, 64) | 0) + Math.imul(tag(v148), 128) | 0;
+}
+
+// bit ranges of a word wider than the host's operators - see codegen/js/place.cpp
+function $b13u$set(w, s, v) {
+  return w + ((v & 8191) - (Math.floor(w / s) & 8191)) * s;
+}
+
+function $b13u$get(w, s) {
+  return Math.floor(w / s) & 8191;
+}

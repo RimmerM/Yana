@@ -494,6 +494,15 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
             f.newline();
             break;
         }
+        case Stmt::Throw: {
+            auto thrown = (ThrowStmt*)stmt;
+            f.startLine();
+            f.write("throw "_v);
+            writeExpr(f, thrown->value);
+            f.write(';');
+            f.newline();
+            break;
+        }
         case Stmt::Decl: {
             auto decl = (DeclStmt*)stmt;
             f.startLine();

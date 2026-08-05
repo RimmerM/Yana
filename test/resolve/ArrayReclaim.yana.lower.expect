@@ -78,18 +78,36 @@ grown<complex>(): Int {
     store %v_14, 3, 4
     call_complex push(Int), %v_1, 4
     call_complex push(Int), %v_1, 5
-    %v_15 = load %v_1, 8: Ptr
-    %v_16 = add %v_15, 0: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %v_1, 12: Ptr
-    %v_19 = load %v_18, 4: Int
+    %v_15 = add %v_1, 12: Ptr
+    %v_16 = load %v_15, 4: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = cast %v_17: Long
+    %v_19 = cmp_ge 0, %v_18: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_20 {
+    %v_23 = syscall 60, 134: Long
+    jmp b_22
+  }
+
+  b_22 {
+    %v_24 = load %v_1, 8: Ptr
+    %v_25 = add %v_24, 0: Ptr
+    %v_26 = loads %v_25, 4: Int
+    %v_27 = add %v_1, 12: Ptr
+    %v_28 = load %v_27, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_20 = cast %v_19: Int
-    %v_21 = cast %v_20: Long
-    %v_22 = sext %v_17: Long
-    %v_23 = add %v_22, %v_21: Long
-    %v_24 = cast %v_23: Int
-    ret %v_24
+    %v_29 = cast %v_28: Int
+    %v_30 = cast %v_29: Long
+    %v_31 = sext %v_26: Long
+    %v_32 = add %v_31, %v_30: Long
+    %v_33 = cast %v_32: Int
+    ret %v_33
   }
 }
 

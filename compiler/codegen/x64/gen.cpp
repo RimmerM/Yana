@@ -490,6 +490,51 @@ static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
 }
 
 /*
+ * The same, for a floating-point comparison, where two of the six need the parity flag as well.
+ *
+ * UCOMISS and UCOMISD set CF, ZF and PF together when either operand is a NaN, which is what makes
+ * `ja` and `jae` read as ordered comparisons with no help - see orderFloatCompare, which puts every
+ * ordering comparison into one of those two. Equality has no such code:
+ *
+ *   `a == b` is ZF and not PF - the setcc answered 1 for the NaN, and the correction zeroes it
+ *   `a != b` is not ZF or PF  - the setcc answered 0 for the NaN, and the correction sets it to 1
+ *
+ * Written as a short forward jump over the correction rather than as a second setcc and a combining
+ * `and`, because that needs a second register and this needs none: the register the result is
+ * already in is the only one touched. The jump is over a known instruction whose length is measured
+ * rather than predicted, exactly as emitFloatSelect does.
+ *
+ * The correction writes the flags, which is why this can only run where the comparison's flags are
+ * not carried anywhere - and that is guaranteed, because tryMergeCompare refuses to fold a float
+ * equality into a branch or a select at all.
+ */
+static void genFloatFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
+    genFlagsToReg(to, reg, cmp);
+    if(cmp != LowerCmp::eq && cmp != LowerCmp::neq) return;
+
+    // JNP rel8 (0x7b): the ordered case is the one the setcc above already answered, so it skips.
+    to.buffer.writeByte(0x7b);
+    to.buffer.writeByte(0);
+    auto afterJump = to.buffer.offset();
+
+    if(cmp == LowerCmp::eq) {
+        // XOR r32, r32 (0x31 /r), which is the shortest zero and needs no immediate.
+        genRegReg(to, false, reg, reg, 0x31);
+    } else {
+        // MOV r32, imm32 (0xb8+rd id). Not `xor` and an `inc`, which would be two instructions to
+        // save three bytes on a path a NaN takes.
+        if(needsRex(reg)) to.buffer.writeByte(makeRex(false, reg, 0, 0));
+        to.buffer.writeByte(0xb8 + (reg & 7));
+        to.buffer.writeInt<LittleEndian>(U32(1));
+    }
+
+    auto end = to.buffer.offset();
+    to.buffer.offset(afterJump - 1);
+    to.buffer.writeByte(U8(end - afterJump));
+    to.buffer.offset(end);
+}
+
+/*
  * Parallel copies.
  *
  * A copy is register-file work rather than instruction work: what it takes to move a value between
@@ -1404,9 +1449,16 @@ struct Emitter {
         }
 
         // A comparison whose result could not stay in the flags carries them into a register
-        // afterwards.
+        // afterwards. A floating-point one reads the parity flag as well for the two of its six that
+        // need it - see genFloatFlagsToReg.
         if(e.materializeFlags) {
-            genFlagsToReg(to, reg(regs.creates[0]), selected.condition.unwrap());
+            auto condition = selected.condition.unwrap();
+
+            if(machineTarget().form(selected.form).opcode == OpFCmp) {
+                genFloatFlagsToReg(to, reg(regs.creates[0]), condition);
+            } else {
+                genFlagsToReg(to, reg(regs.creates[0]), condition);
+            }
         }
     }
 };

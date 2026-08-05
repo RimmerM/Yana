@@ -198,6 +198,12 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
 fn emptyRun(Pad)() -> Run(Pad) {
   b0:
     %v0 = alloc : Run(Pad)
@@ -507,6 +513,33 @@ fn mapMemory(%size: I64) -> %U8 {
   b3:
     %v18 = cast %result : %U8
     ret %v18
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
 }
 
 fn emptyArray(Pad)() -> Array(Pad) {
@@ -851,178 +884,220 @@ fn main() -> I64 {
     call push(Pad), %v50, %v51
     %v53 = load %xs : Array(Pad)
     %v56 = borrow %xs : &Array(Pad)
-    %v57 = load [%v56]@Array.run@Run.items : %Pad
-    %v58 = strideof Pad : Long
-    %v59 = mul 0, %v58 : Long
-    %v60 = add %v57, %v59 : %Pad
-    %v61 = borrow [%v60] : &Pad
-    %v62 = load [%v61] : Pad
-    %v63 = load [%v61]@Pad.n : U32
-    %v66 = cmp_ne %v63, 10 : Bool
-    je %v66, b28, b8
+    %v57 = load [%v56]@Array.length : @bits(30) U32
+    %v58 = cast 0 : U64
+    %v59 = cast %v57 : U32
+    %v60 = cast %v59 : U64
+    %v61 = cmp_ge %v58, %v60 : Bool
+    call checkCondition, %v61
+    %v63 = load [%v56]@Array.run@Run.items : %Pad
+    %v64 = strideof Pad : Long
+    %v65 = mul 0, %v64 : Long
+    %v66 = add %v63, %v65 : %Pad
+    %v67 = borrow [%v66] : &Pad
+    %v68 = load [%v67] : Pad
+    %v69 = load [%v67]@Pad.n : U32
+    %v72 = cmp_ne %v69, 10 : Bool
+    je %v72, b28, b8
 
   b7:
-    %v70 = neg 3 : I64
-    ret %v70
+    %v76 = neg 3 : I64
+    ret %v76
 
   b8:
     jmp b9
 
   b9:
-    %v73 = load %xs : Array(Pad)
-    %v76 = borrow %xs : &Array(Pad)
-    %v77 = load [%v76]@Array.run@Run.items : %Pad
-    %v78 = strideof Pad : Long
-    %v79 = mul 1, %v78 : Long
-    %v80 = add %v77, %v79 : %Pad
-    %v81 = borrow [%v80] : &Pad
-    %v82 = load [%v81] : Pad
-    %v83 = load [%v81]@Pad.n : U32
-    %v86 = cmp_ne %v83, 20 : Bool
-    je %v86, b29, b11
+    %v79 = load %xs : Array(Pad)
+    %v82 = borrow %xs : &Array(Pad)
+    %v83 = load [%v82]@Array.length : @bits(30) U32
+    %v84 = cast 1 : U64
+    %v85 = cast %v83 : U32
+    %v86 = cast %v85 : U64
+    %v87 = cmp_ge %v84, %v86 : Bool
+    call checkCondition, %v87
+    %v89 = load [%v82]@Array.run@Run.items : %Pad
+    %v90 = strideof Pad : Long
+    %v91 = mul 1, %v90 : Long
+    %v92 = add %v89, %v91 : %Pad
+    %v93 = borrow [%v92] : &Pad
+    %v94 = load [%v93] : Pad
+    %v95 = load [%v93]@Pad.n : U32
+    %v98 = cmp_ne %v95, 20 : Bool
+    je %v98, b29, b11
 
   b10:
-    %v90 = neg 4 : I64
-    ret %v90
+    %v102 = neg 4 : I64
+    ret %v102
 
   b11:
     jmp b12
 
   b12:
-    %v93 = load %xs : Array(Pad)
-    %v96 = borrow %xs : &Array(Pad)
-    %v97 = load [%v96]@Array.run@Run.items : %Pad
-    %v98 = strideof Pad : Long
-    %v99 = mul 2, %v98 : Long
-    %v100 = add %v97, %v99 : %Pad
-    %v101 = borrow [%v100] : &Pad
-    %v102 = load [%v101] : Pad
-    %v103 = load [%v101]@Pad.n : U32
-    %v106 = cmp_ne %v103, 30 : Bool
-    je %v106, b30, b14
+    %v105 = load %xs : Array(Pad)
+    %v108 = borrow %xs : &Array(Pad)
+    %v109 = load [%v108]@Array.length : @bits(30) U32
+    %v110 = cast 2 : U64
+    %v111 = cast %v109 : U32
+    %v112 = cast %v111 : U64
+    %v113 = cmp_ge %v110, %v112 : Bool
+    call checkCondition, %v113
+    %v115 = load [%v108]@Array.run@Run.items : %Pad
+    %v116 = strideof Pad : Long
+    %v117 = mul 2, %v116 : Long
+    %v118 = add %v115, %v117 : %Pad
+    %v119 = borrow [%v118] : &Pad
+    %v120 = load [%v119] : Pad
+    %v121 = load [%v119]@Pad.n : U32
+    %v124 = cmp_ne %v121, 30 : Bool
+    je %v124, b30, b14
 
   b13:
-    %v110 = neg 5 : I64
-    ret %v110
+    %v128 = neg 5 : I64
+    ret %v128
 
   b14:
     jmp b15
 
   b15:
-    %v113 = call emptyArray(Outer) : Array(Outer)
+    %v131 = call emptyArray(Outer) : Array(Outer)
     %ys = alloc : Array(Outer)
-    init %ys, %v113
-    %v116 = load %ys : Array(Outer)
-    %v117 = alloc : Outer
-    %v119 = call pad, 5 : Pad
-    init %local13@Outer.inner, %v119
+    init %ys, %v131
+    %v134 = load %ys : Array(Outer)
+    %v135 = alloc : Outer
+    %v137 = call pad, 5 : Pad
+    init %local13@Outer.inner, %v137
     init %local13@Outer.tail, 6
-    %v123 = borrow_mut %ys : &mut Array(Outer)
-    %v124 = copy %local13 : Outer
-    call push(Outer), %v123, %v124
-    %v126 = load %ys : Array(Outer)
-    %v127 = alloc : Outer
-    %v129 = call pad, 7 : Pad
-    init %local16@Outer.inner, %v129
+    %v141 = borrow_mut %ys : &mut Array(Outer)
+    %v142 = copy %local13 : Outer
+    call push(Outer), %v141, %v142
+    %v144 = load %ys : Array(Outer)
+    %v145 = alloc : Outer
+    %v147 = call pad, 7 : Pad
+    init %local16@Outer.inner, %v147
     init %local16@Outer.tail, 8
-    %v133 = borrow_mut %ys : &mut Array(Outer)
-    %v134 = copy %local16 : Outer
-    call push(Outer), %v133, %v134
-    %v136 = load %ys : Array(Outer)
-    %v139 = borrow %ys : &Array(Outer)
-    %v140 = load [%v139]@Array.run@Run.items : %Outer
-    %v141 = strideof Outer : Long
-    %v142 = mul 0, %v141 : Long
-    %v143 = add %v140, %v142 : %Outer
-    %v144 = borrow [%v143] : &Outer
-    %v145 = load [%v144] : Outer
-    %v146 = load [%v144]@Outer.inner : Pad
-    %v147 = load [%v144]@Outer.inner@Pad.n : U32
-    %v150 = cmp_ne %v147, 5 : Bool
-    je %v150, b31, b17
+    %v151 = borrow_mut %ys : &mut Array(Outer)
+    %v152 = copy %local16 : Outer
+    call push(Outer), %v151, %v152
+    %v154 = load %ys : Array(Outer)
+    %v157 = borrow %ys : &Array(Outer)
+    %v158 = load [%v157]@Array.length : @bits(30) U32
+    %v159 = cast 0 : U64
+    %v160 = cast %v158 : U32
+    %v161 = cast %v160 : U64
+    %v162 = cmp_ge %v159, %v161 : Bool
+    call checkCondition, %v162
+    %v164 = load [%v157]@Array.run@Run.items : %Outer
+    %v165 = strideof Outer : Long
+    %v166 = mul 0, %v165 : Long
+    %v167 = add %v164, %v166 : %Outer
+    %v168 = borrow [%v167] : &Outer
+    %v169 = load [%v168] : Outer
+    %v170 = load [%v168]@Outer.inner : Pad
+    %v171 = load [%v168]@Outer.inner@Pad.n : U32
+    %v174 = cmp_ne %v171, 5 : Bool
+    je %v174, b31, b17
 
   b16:
-    %v154 = neg 6 : I64
-    ret %v154
+    %v178 = neg 6 : I64
+    ret %v178
 
   b17:
     jmp b18
 
   b18:
-    %v157 = load %ys : Array(Outer)
-    %v160 = borrow %ys : &Array(Outer)
-    %v161 = load [%v160]@Array.run@Run.items : %Outer
-    %v162 = strideof Outer : Long
-    %v163 = mul 0, %v162 : Long
-    %v164 = add %v161, %v163 : %Outer
-    %v165 = borrow [%v164] : &Outer
-    %v166 = load [%v165] : Outer
-    %v167 = load [%v165]@Outer.tail : U32
-    %v170 = cmp_ne %v167, 6 : Bool
-    je %v170, b32, b20
+    %v181 = load %ys : Array(Outer)
+    %v184 = borrow %ys : &Array(Outer)
+    %v185 = load [%v184]@Array.length : @bits(30) U32
+    %v186 = cast 0 : U64
+    %v187 = cast %v185 : U32
+    %v188 = cast %v187 : U64
+    %v189 = cmp_ge %v186, %v188 : Bool
+    call checkCondition, %v189
+    %v191 = load [%v184]@Array.run@Run.items : %Outer
+    %v192 = strideof Outer : Long
+    %v193 = mul 0, %v192 : Long
+    %v194 = add %v191, %v193 : %Outer
+    %v195 = borrow [%v194] : &Outer
+    %v196 = load [%v195] : Outer
+    %v197 = load [%v195]@Outer.tail : U32
+    %v200 = cmp_ne %v197, 6 : Bool
+    je %v200, b32, b20
 
   b19:
-    %v174 = neg 7 : I64
-    ret %v174
+    %v204 = neg 7 : I64
+    ret %v204
 
   b20:
     jmp b21
 
   b21:
-    %v177 = load %ys : Array(Outer)
-    %v180 = borrow %ys : &Array(Outer)
-    %v181 = load [%v180]@Array.run@Run.items : %Outer
-    %v182 = strideof Outer : Long
-    %v183 = mul 1, %v182 : Long
-    %v184 = add %v181, %v183 : %Outer
-    %v185 = borrow [%v184] : &Outer
-    %v186 = load [%v185] : Outer
-    %v187 = load [%v185]@Outer.inner : Pad
-    %v188 = load [%v185]@Outer.inner@Pad.n : U32
-    %v191 = cmp_ne %v188, 7 : Bool
-    je %v191, b33, b23
+    %v207 = load %ys : Array(Outer)
+    %v210 = borrow %ys : &Array(Outer)
+    %v211 = load [%v210]@Array.length : @bits(30) U32
+    %v212 = cast 1 : U64
+    %v213 = cast %v211 : U32
+    %v214 = cast %v213 : U64
+    %v215 = cmp_ge %v212, %v214 : Bool
+    call checkCondition, %v215
+    %v217 = load [%v210]@Array.run@Run.items : %Outer
+    %v218 = strideof Outer : Long
+    %v219 = mul 1, %v218 : Long
+    %v220 = add %v217, %v219 : %Outer
+    %v221 = borrow [%v220] : &Outer
+    %v222 = load [%v221] : Outer
+    %v223 = load [%v221]@Outer.inner : Pad
+    %v224 = load [%v221]@Outer.inner@Pad.n : U32
+    %v227 = cmp_ne %v224, 7 : Bool
+    je %v227, b33, b23
 
   b22:
-    %v195 = neg 8 : I64
-    ret %v195
+    %v231 = neg 8 : I64
+    ret %v231
 
   b23:
     jmp b24
 
   b24:
-    %v198 = load %ys : Array(Outer)
-    %v201 = borrow %ys : &Array(Outer)
-    %v202 = load [%v201]@Array.run@Run.items : %Outer
-    %v203 = strideof Outer : Long
-    %v204 = mul 1, %v203 : Long
-    %v205 = add %v202, %v204 : %Outer
-    %v206 = borrow [%v205] : &Outer
-    %v207 = load [%v206] : Outer
-    %v208 = load [%v206]@Outer.tail : U32
+    %v234 = load %ys : Array(Outer)
+    %v237 = borrow %ys : &Array(Outer)
+    %v238 = load [%v237]@Array.length : @bits(30) U32
+    %v239 = cast 1 : U64
+    %v240 = cast %v238 : U32
+    %v241 = cast %v240 : U64
+    %v242 = cmp_ge %v239, %v241 : Bool
+    call checkCondition, %v242
+    %v244 = load [%v237]@Array.run@Run.items : %Outer
+    %v245 = strideof Outer : Long
+    %v246 = mul 1, %v245 : Long
+    %v247 = add %v244, %v246 : %Outer
+    %v248 = borrow [%v247] : &Outer
+    %v249 = load [%v248] : Outer
+    %v250 = load [%v248]@Outer.tail : U32
     drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
-    %v211 = cmp_ne %v208, 8 : Bool
-    je %v211, b34, b26
+    %v253 = cmp_ne %v250, 8 : Bool
+    je %v253, b34, b26
 
   b25:
-    %v215 = neg 9 : I64
-    ret %v215
+    %v257 = neg 9 : I64
+    ret %v257
 
   b26:
     jmp b27
 
   b27:
-    %v218 = load %o : Outer
-    %v219 = sizeof Outer : I64
-    %v222 = mul %v219, 10000 : I64
-    %v224 = call pad, 0 : Pad
-    %v225 = sizeof Pad : I64
-    %v228 = mul %v225, 100 : I64
-    %v229 = add %v222, %v228 : I64
-    %v230 = load %xs : Array(Pad)
+    %v260 = load %o : Outer
+    %v261 = sizeof Outer : I64
+    %v264 = mul %v261, 10000 : I64
+    %v266 = call pad, 0 : Pad
+    %v267 = sizeof Pad : I64
+    %v270 = mul %v267, 100 : I64
+    %v271 = add %v264, %v270 : I64
+    %v272 = load %xs : Array(Pad)
     drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
-    %v231 = sizeof Array(Pad) : I64
-    %v232 = add %v229, %v231 : I64
-    ret %v232
+    %v273 = sizeof Array(Pad) : I64
+    %v274 = add %v271, %v273 : I64
+    ret %v274
 
   b28:
     drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)

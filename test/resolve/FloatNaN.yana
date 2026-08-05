@@ -1,0 +1,48 @@
+-- Comparing a NaN, on every backend.
+--
+-- IEEE says an ordered comparison of a NaN is false - `<`, `<=`, `>`, `>=` and `==` all of them -
+-- and that `!=` is true, because it is the negation of an equality that is false rather than a
+-- member of the ordered family. A NaN is therefore not equal to itself, which is the case worth
+-- writing down: `n == n` is false and `n != n` is true.
+--
+-- This is one number rather than eight tests because the three backends have to agree, and a single
+-- score says *which* comparison disagreed rather than that one of them did:
+--
+--   the local x64 backend answered `<`, `<=` and `==` true, because ucomiss sets the same flags for
+--   an unordered comparison that it sets for "below" and "equal", and nothing read the parity flag;
+--   the LLVM backend answered `!=` false, because it asked for `one` - ordered *and* not equal -
+--   where the JavaScript backend's `!==` had always been true.
+--
+-- `zero` and `one` are `let &` globals so that the NaN is divided at run time: a constant folder is
+-- entitled to fold `0.0 / 0.0`, and what this fixture is about is the comparison rather than the
+-- arithmetic.
+
+let &zero = 0.0 :: Float
+let &one = 1.0 :: Float
+
+fn nan() -> Float = zero / zero
+
+fn main() -> Int:
+    let n = nan()
+    let v = one
+    let &score = 0
+
+    if n < v then score = score + 1
+    if n <= v then score = score + 2
+    if n > v then score = score + 4
+    if n >= v then score = score + 8
+    if n == v then score = score + 16
+    if n != v then score = score + 32
+
+    -- A NaN against itself, where the answer is least intuitive and most decisive.
+    if n == n then score = score + 64
+    if n != n then score = score + 128
+
+    -- And two ordinary numbers, so that a backend that answered "false" to everything would not
+    -- pass this fixture by accident.
+    if one > zero then score = score + 256
+    if zero < one then score = score + 512
+    if one == one then score = score + 1024
+    if one != zero then score = score + 2048
+
+    return score

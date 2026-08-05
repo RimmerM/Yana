@@ -484,8 +484,14 @@ JsPtr<Expr> boxOf(Gen& g, JsPtr<Expr> value) {
  *
  * `Int` is a wrapping 32-bit integer on both targets, and JS has no 32-bit integer, so every
  * arithmetic result is coerced back into range. §2.1 recommends exactly this and notes that the
- * range analysis `@bits` already needs would elide most of them; none of that analysis exists yet,
- * so every one is emitted. That is the asm.js tax, stated where it is paid.
+ * range analysis `@bits` already needs would elide most of them. That is the asm.js tax, stated
+ * where it is paid.
+ *
+ * Every one is still *emitted* here, unconditionally, and `foldCoercion` in opt.cpp takes back the
+ * ones a range says are no-ops. The split is deliberate: what this function knows is one type, and
+ * whether a coercion does anything is a question about the expression the value came out of - a
+ * masked field read and a bounded counter are both `Int` and neither needs wrapping. Asking it here
+ * would mean answering it once per instruction with none of the surrounding tree in hand.
  */
 JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
     if(auto integer = intType(g, type)) {

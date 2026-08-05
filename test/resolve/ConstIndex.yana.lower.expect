@@ -211,12 +211,24 @@ aliased<complex>(%n: Int): Int {
     %v_16 = add %v_4, 0: Ptr
     %v_17 = loads %v_16, 4: Int
     %v_18 = sext %n: Long
-    %v_19 = imul %v_18, 4: Long
-    %v_20 = add %v_4, %v_19: Ptr
-    %v_21 = loads %v_20, 4: Int
+    %v_19 = cast %n: Long
+    %v_20 = cmp_ge %v_19, 3: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    %v_23 = syscall 60, 134: Long
+    jmp b_22
+  }
+
+  b_22 {
+    %v_24 = load %v_1, 8: Ptr
+    %v_25 = imul %v_18, 4: Long
+    %v_26 = add %v_24, %v_25: Ptr
+    %v_27 = loads %v_26, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_22 = add %v_21, %v_15: Int
-    ret %v_22
+    %v_28 = add %v_27, %v_15: Int
+    ret %v_28
   }
 }
 

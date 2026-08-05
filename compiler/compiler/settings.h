@@ -165,6 +165,22 @@ struct CompileSettings {
     /// since the whole stage is off otherwise.
     InlineLevel inlining = InlineLevel::Balanced;
 
+    /*
+     * The checks the compiler inserts into the program - a subscript's bounds test, and the range
+     * test on a store through a `@bits` refinement.
+     *
+     * On by default, which is the decision rather than the switch: an index nothing checked reads
+     * memory that belongs to something else, and a `@bits(13)` field holding a twenty-bit value
+     * falsifies the niche above its range, so a `Maybe` folded into that niche starts reading one
+     * constructor as another. Neither is a mistake a program can be trusted not to make, and neither
+     * has a symptom at the point it happens.
+     *
+     * `-no-checks` turns them off wholesale, for the build that has measured what they cost and
+     * decided. There is deliberately no per-check switch: what a reader needs to know about a binary
+     * is whether it is the checked one.
+     */
+    bool checks = true;
+
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.
@@ -201,3 +217,7 @@ Result<CompileSettings, Tritium::String> parseCommandLine(const char** argv, Siz
 /// Checks that everything a compile needs was named by something - the command line, or the project
 /// file applied on top of it. Separate from parseCommandLine for that reason and no other.
 Result<void, Tritium::String> checkSettings(const CompileSettings& settings);
+
+/// The name `-arch` uses for an architecture. Exposed so that a diagnostic about a target names it
+/// the way the author would have written it.
+StringView archName(TargetArch arch);

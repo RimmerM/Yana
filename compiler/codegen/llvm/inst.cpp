@@ -216,13 +216,21 @@ static llvm::CmpInst::Predicate intPredicate(LowerCmp cmp) {
     return llvm::CmpInst::ICMP_EQ;
 }
 
-// Ordered, so a comparison against a NaN is false whichever way it is written. The signed forms are
-// the same as the unsigned ones here: a float has one ordering, and the distinction the IR carries
-// is about integers.
+/*
+ * Ordered, so a comparison against a NaN is false - with the one exception every language makes.
+ *
+ * `!=` is the negation of `==` rather than a member of the ordered family, so it is `une` and not
+ * `one`: a NaN is not equal to anything including itself, and `a != b` has to be true wherever
+ * `a == b` is false. `one` made both of them false at once, and the JavaScript target's `!==` was
+ * already true there - so the two backends answered differently for the same program.
+ *
+ * The signed forms are the same as the unsigned ones here: a float has one ordering, and the
+ * distinction the IR carries is about integers.
+ */
 static llvm::CmpInst::Predicate floatPredicate(LowerCmp cmp) {
     switch(cmp) {
         case LowerCmp::eq:  return llvm::CmpInst::FCMP_OEQ;
-        case LowerCmp::neq: return llvm::CmpInst::FCMP_ONE;
+        case LowerCmp::neq: return llvm::CmpInst::FCMP_UNE;
         case LowerCmp::gt:
         case LowerCmp::igt: return llvm::CmpInst::FCMP_OGT;
         case LowerCmp::ge:

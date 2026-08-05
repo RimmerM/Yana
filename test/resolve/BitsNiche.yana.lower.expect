@@ -1,0 +1,124 @@
+
+tag<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = load %m, 2: Long
+    %v_2 = cmp_le %v_1, 8191: Int
+    %v_3 = select 1, 0, %v_2: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    %v_5 = select 1, 0, %v_4: Int
+    ret %v_5
+  }
+}
+
+setThrough<complex>(%x: Ptr, %v: Int) {
+  b_0 {
+    %v_1 = and %v, 8191: Int
+    %v = cast %v_1: Int
+    %v_2 = bitcast %x: Long
+    %v_3 = and %v_2, 281474976710655: Long
+    %v_4 = bitcast %v_3: Ptr
+    %v_5 = shr %v_2, 48: Long
+    %v_6 = load %v_4, 2: Long
+    %v_7 = cast %v: Long
+    %v_8 = imm 8191: Long
+    %v_9 = and %v_7, %v_8: Long
+    %v_10 = shl %v_9, %v_5: Long
+    %v_11 = shl %v_8, %v_5: Long
+    %v_12 = not %v_11: Long
+    %v_13 = and %v_6, %v_12: Long
+    %v_14 = or %v_13, %v_10: Long
+    store %v_4, %v_14, 2
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = imm 20000: Int
+    %v_2 = alloca 2, 2: Ptr
+    store %v_2, 3616, 2
+    %viaCon = call_complex tag, %v_2: Int
+    %v_3 = alloca 2, 2: Ptr
+    store %v_3, 3616, 2
+    %viaAssign = call_complex tag, %v_3: Int
+    %v_4 = alloca 2, 2: Ptr
+    store %v_4, 3424, 2
+    %viaCompound = call_complex tag, %v_4: Int
+    %v_5 = alloca 2, 2: Ptr
+    store %v_5, 1, 2
+    call_complex setThrough, %v_5, %v_1
+    %v_6 = alloca 2, 2: Ptr
+    copy %v_6, %v_5, 2
+    %viaBorrow = call_complex tag, %v_6: Int
+    %v_7 = alloca 2, 2: Ptr
+    store %v_7, 3616, 2
+    %viaErased = call_complex tag, %v_7: Int
+    %v_8 = alloca 2, 2: Ptr
+    store %v_8, 3616, 2
+    %v_9 = alloca 2, 2: Ptr
+    store %v_9, 2, 2
+    %v_10 = bitcast %v_8: Long
+    %v_11 = and %v_10, 281474976710655: Long
+    %v_12 = bitcast %v_11: Ptr
+    %v_13 = shr %v_10, 48: Long
+    %v_14 = bitcast %v_9: Long
+    %v_15 = and %v_14, 281474976710655: Long
+    %v_16 = bitcast %v_15: Ptr
+    %v_17 = shr %v_14, 48: Long
+    %v_18 = load %v_12, 2: Long
+    %v_19 = shr %v_18, %v_13: Long
+    %v_20 = and %v_19, 8191: Long
+    %v_21 = load %v_16, 2: Long
+    %v_22 = shr %v_21, %v_17: Long
+    %v_23 = and %v_22, 8191: Long
+    %v_24 = load %v_12, 2: Long
+    %v_25 = cast %v_23: Long
+    %v_26 = imm 8191: Long
+    %v_27 = and %v_25, %v_26: Long
+    %v_28 = shl %v_27, %v_13: Long
+    %v_29 = shl %v_26, %v_13: Long
+    %v_30 = not %v_29: Long
+    %v_31 = and %v_24, %v_30: Long
+    %v_32 = or %v_31, %v_28: Long
+    store %v_12, %v_32, 2
+    %v_33 = load %v_16, 2: Long
+    %v_34 = cast %v_20: Long
+    %v_35 = imm 8191: Long
+    %v_36 = and %v_34, %v_35: Long
+    %v_37 = shl %v_36, %v_17: Long
+    %v_38 = shl %v_35, %v_17: Long
+    %v_39 = not %v_38: Long
+    %v_40 = and %v_33, %v_39: Long
+    %v_41 = or %v_40, %v_37: Long
+    store %v_16, %v_41, 2
+    %v_42 = alloca 2, 2: Ptr
+    copy %v_42, %v_8, 2
+    %v_43 = call_complex tag, %v_42: Int
+    %v_44 = alloca 2, 2: Ptr
+    copy %v_44, %v_9, 2
+    %v_45 = call_complex tag, %v_44: Int
+    %v_46 = add %v_43, %v_45: Int
+    %v_47 = cmp_eq %v_46, 2: Int
+    %viaSwap = select 1, 0, %v_47: Int
+    %v_48 = and %v_1, 8191: Int
+    %v_49 = cast %v_48: Int
+    %v_50 = alloca 2, 2: Ptr
+    store %v_50, %v_49, 2
+    %viaField = call_complex tag, %v_50: Int
+    %v_51 = imul %viaAssign, 2: Int
+    %v_52 = add %viaCon, %v_51: Int
+    %v_53 = imul %viaCompound, 4: Int
+    %v_54 = add %v_52, %v_53: Int
+    %v_55 = imul %viaBorrow, 8: Int
+    %v_56 = add %v_54, %v_55: Int
+    %v_57 = add %v_56, 16: Int
+    %v_58 = imul %viaErased, 32: Int
+    %v_59 = add %v_57, %v_58: Int
+    %v_60 = imul %viaSwap, 64: Int
+    %v_61 = add %v_59, %v_60: Int
+    %v_62 = imul %viaField, 128: Int
+    %v_63 = add %v_61, %v_62: Int
+    ret %v_63
+  }
+}
+

@@ -895,6 +895,10 @@ struct ScalarTypes {
     // emit a `bigint` where the host wants a number.
     TypePtr size = nullptr;
 
+    // The same width, unsigned - what a bounds test compares at, so that a negative index arrives as
+    // a number above every length there is and one comparison rejects both ways of being wrong.
+    TypePtr unsignedSize = nullptr;
+
     // `String` itself, and the tuple its native Repr is computed from - see Type::String.
     TypePtr string_ = nullptr;
 

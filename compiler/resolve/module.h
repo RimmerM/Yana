@@ -657,6 +657,26 @@ struct Module {
     // The module the program was asked to compile. Its functions are emitted whether or not
     // anything calls them; every other module contributes only what is reached.
     bool root = false;
+
+    /*
+     * How far this module's declarations have got.
+     *
+     * A module is interned before its declarations are resolved, so an import that reaches one
+     * already on the stack finds a Module that exists and is empty - and the signatures resolved
+     * against it would see whichever of its declarations happened to come first. That is not a
+     * partial answer, it is an order-dependent one: the same two files compile to different
+     * programs depending on which was named to the compiler.
+     *
+     * So the state is recorded rather than inferred from whether the module is present, and
+     * resolveImports rejects an import of a module in Resolving.
+     */
+    enum class DeclState : U8 {
+        Unresolved, /// Interned, with nothing resolved into it yet.
+        Resolving,  /// Its declarations are being resolved further down the current import chain.
+        Resolved,   /// Every declaration exists, so its signatures can be depended on.
+    };
+
+    DeclState declState = DeclState::Unresolved;
 };
 
 // Supplies the parsed source of an imported module. The resolver asks for a module the first
@@ -867,6 +887,19 @@ struct Program {
     // one reason: it is storage release, so an authored `Reclaim` is allowed to call it, and the
     // shape check has to be able to recognize it without matching on a name.
     ModulePtr<Function> releaseRun = nullptr;
+
+    /*
+     * Collections' `checkCondition` - `if failed then checkFailed()`, as one call.
+     *
+     * Recorded for the reason `allocateHeap` is, and doubly so: nothing in any program writes the
+     * call, and the two things that emit one - a subscript's bounds test and a `@bits` narrowing -
+     * are in different stages and must reach the same function.
+     *
+     * The *condition* is computed by whoever emits the check and the branch is inside this function,
+     * which is what keeps a check from splitting the block it is emitted into - see
+     * ExprResolver::emitCheck. Null when the checks are off, which is what makes them cost nothing.
+     */
+    ModulePtr<Function> checkCondition = nullptr;
 
     /*
      * Native's `stringLiteral` - the two words that describe a constant's bytes.

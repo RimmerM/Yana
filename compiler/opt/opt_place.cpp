@@ -426,9 +426,36 @@ struct Known {
     bool aliased = false;
 };
 
+/*
+ * How many elements a host array is known to have.
+ *
+ * The managed target's counterpart to a run's `length` field, and it needs an entry of its own for
+ * the reason it is not one: `Array(a)` *is* the host array there, its length is a property of the
+ * object rather than storage the program wrote, and the read of it is a `NativeOp::HostField`
+ * instead of a load of a place. So `known` has nothing to key it on, while the fact itself is the
+ * ordinary one - a literal writes its elements and their count is how many it wrote.
+ *
+ * `length` is what the writes this walk has seen add up to, which is the whole of what JavaScript
+ * says: an array starts empty and `a[k] = v` leaves it exactly `k + 1` long where it was shorter,
+ * whatever was or was not written in between. Anything that could make it longer without this walk
+ * seeing the index ends the entry rather than adjusting it.
+ *
+ * What it buys is the bounds check on a literal. `[7, 8, 9][0]` compares `0` against a length no
+ * pass could answer, so the check stayed, and a call the place pass cannot see through - which the
+ * check was, before `clobbers` learned this one - is what stopped the elements folding behind it.
+ */
+struct HostArrayLength {
+    ModulePtr<Value> array;
+    U64 length;
+};
+
 struct Forwarder {
     OptContext& opt;
     SmallArray<Known, 16> known;
+
+    // The host arrays created in this block, and how long each is known to be - see
+    // HostArrayLength. Always empty on a native target, where nothing emits a `hostarray` at all.
+    SmallArray<HostArrayLength, 4> arrays;
 
     // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
     // local, and empty until one function has been walked.
@@ -438,7 +465,10 @@ struct Forwarder {
     // which is the only thing that reads it.
     IndexSet unaddressed;
 
-    void forget() { known.clear(); }
+    void forget() {
+        known.clear();
+        arrays.clear();
+    }
 
     // Everything an instruction this pass cannot see through may have written. Not everything: a
     // local whose address was never handed out is storage no callee has a way to name, and keeping
@@ -447,6 +477,11 @@ struct Forwarder {
         for(Size i = known.size(); i-- > 0;) {
             if(!staysInFrame(opt, contained, known[i].place)) known.remove(i);
         }
+
+        // And every length, with no such exemption: a host array is reached through a value rather
+        // than through a local, so `contained` has nothing to say about one and anything handed the
+        // value may have pushed onto it.
+        arrays.clear();
     }
 
     /*
@@ -556,6 +591,47 @@ struct Forwarder {
             case Value::Assign:
                 return false;
 
+            /*
+             * The check the compiler inserts at a subscript - see Program::checkCondition.
+             *
+             * Its one argument is a `Bool` passed by value, so there is no storage of the caller's
+             * it has a way to name: it reads the flag and either returns having done nothing or
+             * does not return at all. A pass that forgot the table here would be undoing the shape
+             * §15 asked for - the check is a *call* precisely so that the block it is emitted into
+             * stays one block, and forgetting at it costs exactly what splitting it would have.
+             *
+             * That is a statement about this callee and no other. Every other call does whatever
+             * its callee does, which this pass has never had a way to ask.
+             */
+            case Value::Call:
+                return !isCheckCall(opt, ((InstCall&)instruction).callee);
+
+            /*
+             * The two host operations that write nothing. Everything else a `Native` can be - a
+             * method call on a host value, an allocation, a copy between two addresses - is left to
+             * the default, which is that it may have written anything.
+             */
+            case Value::Native:
+                switch(((InstNative&)instruction).op) {
+                    /*
+                     * A host property read - `xs.length`, which is the whole of NativeOp::HostField
+                     * (see `HostMember`: both intrinsics that produce one read a length). It
+                     * computes no address and writes nothing.
+                     *
+                     * Not the same claim as `isPureValue`, which still declines it: what a property
+                     * answers changes when something writes the value it belongs to, exactly as a
+                     * load's answer does. So it may not be recomputed anywhere - only relied on not
+                     * to be a writer.
+                     */
+                    case NativeOp::HostField:
+                    // And an empty array, which is storage that has just come into existence with
+                    // nothing in it - the managed target's `Alloc`, and no more of a writer.
+                    case NativeOp::HostArray:
+                        return false;
+                    default:
+                        return true;
+                }
+
             default:
                 return !isPureValue(instruction);
         }
@@ -579,6 +655,83 @@ struct Forwarder {
         }
 
         known.push(Known { place, value, pending });
+    }
+
+    // Which element a write names, where that is a number this pass can put down - see
+    // `noteHostWrite`, which is the only thing that asks and the reason a non-constant index is an
+    // answer of its own rather than a zero.
+    Maybe<U64> writtenIndex(const Place& place) {
+        auto& projections = const_cast<Place&>(place).projections;
+        if(projections.isEmpty()) return Nothing();
+
+        auto first = projections.get(opt.local, 0);
+        if(first.kind != ProjectionKind::Index) return Nothing();
+
+        return constantValueOf(opt, first.value);
+    }
+
+    /*
+     * A write through a place, read for what it does to a host array's length.
+     *
+     * Only a write *into* an array can change one. A local holding the reference is not the array -
+     * assigning one somewhere else copies the reference and leaves the object exactly as long as it
+     * was - so the roots that matter are the two that name the array itself.
+     *
+     * Two ways to lose the fact, and they are the same statement about what this walk can see:
+     *
+     *  - an **index it cannot put a number on**, which may be past the end. That is how a JavaScript
+     *    array grows, and it is what `push` compiles to here - `xs[xs.length] = v`;
+     *  - a write it **cannot separate from the array**, which includes every write through a borrow.
+     *    Two names for one array are one array, and `basesSeparate` is the only thing entitled to
+     *    say two host arrays are not.
+     */
+    void noteHostWrite(const Place& place) {
+        if(arrays.isEmpty()) return;
+        if(place.root != PlaceRoot::Pointer && place.root != PlaceRoot::Borrow) return;
+
+        auto index = writtenIndex(place);
+
+        for(Size i = arrays.size(); i-- > 0;) {
+            if(basesSeparate(opt, place.pointer, arrays[i].array)) continue;
+
+            if(place.pointer != arrays[i].array || !index) {
+                arrays.remove(i);
+                continue;
+            }
+
+            auto reached = index.unwrap() + 1;
+            if(reached > arrays[i].length) arrays[i].length = reached;
+        }
+    }
+
+    /*
+     * The two host operations this pass has an opinion about, which are the two halves of one fact.
+     *
+     * A `hostarray` is an array that has just come into existence with nothing in it - the same
+     * statement `clobbers` makes about an `Alloc`, and the starting point every element write above
+     * counts up from. A `HostField` is `xs.length` and nothing else, so where the array is one this
+     * block built the read has an answer and stops being a read.
+     *
+     * The constant belongs to the block the read is in, which is what `makeConstant` places it in.
+     * What removes the `hostarray` afterwards is the ordinary path: nothing reads it, and the
+     * literal it was built from goes with it.
+     */
+    void noteHostOp(ModulePtr<Inst> pointer, InstNative& instruction) {
+        if(instruction.op == NativeOp::HostArray) {
+            arrays.push(HostArrayLength { (ModulePtr<Value>)pointer, 0 });
+            return;
+        }
+
+        if(instruction.op != NativeOp::HostField || instruction.args.size() != 1) return;
+
+        auto array = instruction.args.get(opt.local, 0);
+        for(auto& entry: arrays) {
+            if(entry.array != array) continue;
+
+            auto constant = makeConstant(opt, instruction, instruction.type, entry.length);
+            replaceValue(opt, (ModulePtr<Value>)pointer, constant);
+            return;
+        }
     }
 
     /*
@@ -949,6 +1102,7 @@ struct Forwarder {
                     if(forwardable(type) && eliminateOverwritten(store.place)) i--;
 
                     forgetAliasing(store.place);
+                    noteHostWrite(store.place);
                     if(forwardable(type)) remember(store.place, store.value, pointer);
                     publishNiche(store.place, *instruction);
 
@@ -990,6 +1144,13 @@ struct Forwarder {
                     break;
                 }
                 default:
+                    // Ahead of the clobber test rather than in a case of its own, because the two
+                    // are not alternatives: `hostarray` is a host operation *and* an instruction
+                    // the rules below still have to be applied to. See `noteHostOp`.
+                    if(instruction->kind == Value::Native) {
+                        noteHostOp(pointer, (InstNative&)*instruction);
+                    }
+
                     if(clobbers(*instruction)) {
                         forgetExposed();
 

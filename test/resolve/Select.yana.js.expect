@@ -59,7 +59,7 @@ function smallest(limit) {
   var i = 0;
   L0: for (;;) {
     if (i < limit) {
-      var candidate = 40 - (Math.imul(i, 3) | 0) | 0;
+      var candidate = 40 - Math.imul(i, 3) | 0;
       best = candidate < best ? candidate : best;
       i = i + 1 | 0;
       continue L0;
@@ -84,7 +84,7 @@ function ratio(value, divisor) {
 }
 
 function doubled(value) {
-  return Math.imul(value, 2) | 0;
+  return Math.imul(value, 2);
 }
 
 function guarded(value) {
@@ -99,16 +99,16 @@ function guarded(value) {
 
 function main() {
   var v208;
-  var v36 = ((Math.imul(either(0, 4), 16) | 0) + 14 | 0) + (Math.imul(either(0, 0), 32) | 0) | 0;
+  var v36 = (Math.imul(either(0, 4), 16) + 14 | 0) + Math.imul(either(0, 0), 32) | 0;
   calls = 1;
   var v47 = v36 + 1280 | 0;
   var v136 = lowered();
-  var v58 = (v47 + (Math.imul((v136 > 0 ? v136 : Math.fround(0 - v136)) > 2.5 ? 5 : 0, 256) | 0) | 0) + (Math.imul(smallest(5), 512) | 0) | 0;
+  var v58 = (v47 + Math.imul((v136 > 0 ? v136 : Math.fround(0 - v136)) > 2.5 ? 5 : 0, 256) | 0) + Math.imul(smallest(5), 512) | 0;
   var v60 = zero();
   if (v60 !== 0) {
     v208 = 10 / v60 | 0;
   } else {
     v208 = 0;
   }
-  return ((v58 + (Math.imul(v208, 1024) | 0) | 0) + 10240 | 0) + (Math.imul(doubled(3), 4096) | 0) | 0;
+  return ((v58 + Math.imul(v208, 1024) | 0) + 10240 | 0) + Math.imul(doubled(3), 4096) | 0;
 }

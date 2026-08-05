@@ -135,23 +135,61 @@ double<complex>(%xs: Ptr) {
     %v_6 = loads %v_5, 8: Long
     %v_7 = sext %v_2: Long
     %v_8 = cmp_ilt %v_7, %v_6: Int
-    je %v_8, b_3, b_9
+    je %v_8, b_9, b_10
   }
 
-  b_9 {
+  b_10 {
     ret 
   }
 
+  b_9 {
+    %v_11 = sext %v_2: Long
+    %v_12 = add %xs, 8: Ptr
+    %v_13 = loads %v_12, 8: Long
+    %v_14 = cast %v_2: Long
+    %v_15 = cast %v_13: Long
+    %v_16 = cmp_ge %v_14, %v_15: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    jmp b_19
+  }
+
+  b_17 {
+    %v_20 = syscall 60, 134: Long
+    jmp b_19
+  }
+
+  b_19 {
+    %v_21 = load %xs, 8: Ptr
+    %v_22 = imul %v_11, 4: Long
+    %v_23 = add %v_21, %v_22: Ptr
+    %value = loads %v_23, 4: Int
+    %v_24 = sext %v_2: Long
+    %v_25 = add %xs, 8: Ptr
+    %v_26 = loads %v_25, 8: Long
+    %v_27 = cast %v_2: Long
+    %v_28 = cast %v_26: Long
+    %v_29 = cmp_ge %v_27, %v_28: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_31 {
+    jmp b_3
+  }
+
+  b_30 {
+    %v_32 = syscall 60, 134: Long
+    jmp b_3
+  }
+
   b_3 {
-    %v_10 = sext %v_2: Long
-    %v_11 = load %xs, 8: Ptr
-    %v_12 = imul %v_10, 4: Long
-    %v_13 = add %v_11, %v_12: Ptr
-    %value = loads %v_13, 4: Int
-    %v_14 = imul %v_10, 4: Long
-    %v_15 = add %v_11, %v_14: Ptr
-    %v_16 = add %value, %value: Int
-    store %v_15, %v_16, 4
+    %v_33 = load %xs, 8: Ptr
+    %v_34 = imul %v_24, 4: Long
+    %v_35 = add %v_33, %v_34: Ptr
+    %v_36 = add %value, %value: Int
+    store %v_35, %v_36, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
@@ -262,28 +300,44 @@ freeHeap<complex>(%allocation: Ptr) {
 
 sumFrom<complex>(%xs$items: Ptr, %xs$length: Long, %from: Int): Int {
   b_0 {
-    jmp b_1
+    %v_1 = cast %xs$length: Long
+    jmp b_2
   }
 
-  b_1 {
-    %v_2 = phi [b_0, %from], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = sext %v_2: Long
-    %v_8 = cmp_ilt %v_7, %xs$length: Int
-    je %v_8, b_3, b_9
+  b_2 {
+    %v_3 = phi [b_0, %from], [b_4, %v_5]: Int
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = sext %v_3: Long
+    %v_9 = cmp_ilt %v_8, %xs$length: Int
+    je %v_9, b_10, b_11
   }
 
-  b_9 {
-    ret %v_5
+  b_11 {
+    ret %v_6
   }
 
-  b_3 {
-    %v_10 = imul %v_7, 4: Long
-    %v_11 = add %xs$items, %v_10: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_6 = add %v_5, %v_12: Int
-    %v_4 = add %v_2, 1: Int
-    jmp b_1
+  b_10 {
+    %v_12 = cast %v_3: Long
+    %v_13 = cmp_ge %v_12, %v_1: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    jmp b_4
+  }
+
+  b_14 {
+    %v_16 = syscall 60, 134: Long
+    jmp b_4
+  }
+
+  b_4 {
+    %v_17 = imul %v_8, 4: Long
+    %v_18 = add %xs$items, %v_17: Ptr
+    %v_19 = loads %v_18, 4: Int
+    %v_7 = add %v_6, %v_19: Int
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 
@@ -449,38 +503,70 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 atCursor<complex>(%c$items$items: Ptr, %c$items$length: Long, %c$at: Int): Int {
   b_0 {
     %v_1 = sext %c$at: Long
-    %v_2 = imul %v_1, 4: Long
-    %v_3 = add %c$items$items, %v_2: Ptr
-    %v_4 = loads %v_3, 4: Int
-    ret %v_4
+    %v_2 = cast %c$at: Long
+    %v_3 = cast %c$items$length: Long
+    %v_4 = cmp_ge %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_5 {
+    %v_8 = syscall 60, 134: Long
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = imul %v_1, 4: Long
+    %v_10 = add %c$items$items, %v_9: Ptr
+    %v_11 = loads %v_10, 4: Int
+    ret %v_11
   }
 }
 
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    jmp b_1
+    %v_1 = cast %xs$length: Long
+    jmp b_2
   }
 
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = sext %v_5: Long
-    %v_8 = cmp_ilt %v_7, %xs$length: Int
-    je %v_8, b_3, b_9
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = sext %v_6: Long
+    %v_9 = cmp_ilt %v_8, %xs$length: Int
+    je %v_9, b_10, b_11
   }
 
-  b_9 {
-    ret %v_2
+  b_11 {
+    ret %v_3
   }
 
-  b_3 {
-    %v_10 = sext %v_5: Long
-    %v_11 = imul %v_10, 4: Long
-    %v_12 = add %xs$items, %v_11: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_4 = add %v_2, %v_13: Int
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
+  b_10 {
+    %v_12 = sext %v_6: Long
+    %v_13 = cast %v_6: Long
+    %v_14 = cmp_ge %v_13, %v_1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_4
+  }
+
+  b_15 {
+    %v_17 = syscall 60, 134: Long
+    jmp b_4
+  }
+
+  b_4 {
+    %v_18 = imul %v_12, 4: Long
+    %v_19 = add %xs$items, %v_18: Ptr
+    %v_20 = loads %v_19, 4: Int
+    %v_5 = add %v_3, %v_20: Int
+    %v_7 = add %v_6, 1: Int
+    jmp b_2
   }
 }
 
@@ -569,45 +655,61 @@ main<complex>(): Int {
     %v_56 = load %v_55, 4: Int
     %v_57 = cast %v_56: Int
     %v_58 = cast %v_57: Long
-    jmp b_59
+    %v_59 = cast %v_57: Long
+    jmp b_60
   }
 
-  b_59 {
-    %v_60 = phi [b_53, 1], [b_61, %v_62]: Int
-    %v_63 = phi [b_53, 0], [b_61, %v_64]: Int
-    %v_65 = sext %v_60: Long
-    %v_66 = cmp_ilt %v_65, %v_58: Int
-    je %v_66, b_61, b_67
-  }
-
-  b_67 {
-    %v_68 = cmp_neq %v_63, 23: Int
-    je %v_68, b_69, b_70
-  }
-
-  b_70 {
-    %v_71 = load %v_1, 8: Ptr
-    %v_72 = add %v_1, 12: Ptr
-    %v_73 = load %v_72, 4: Int
-    %v_74 = cast %v_73: Int
-    %v_75 = cast %v_74: Long
-    %v_76 = call_complex total, %v_71, %v_75: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_76
+  b_60 {
+    %v_61 = phi [b_53, 1], [b_62, %v_63]: Int
+    %v_64 = phi [b_53, 0], [b_62, %v_65]: Int
+    %v_66 = sext %v_61: Long
+    %v_67 = cmp_ilt %v_66, %v_58: Int
+    je %v_67, b_68, b_69
   }
 
   b_69 {
+    %v_70 = cmp_neq %v_64, 23: Int
+    je %v_70, b_71, b_72
+  }
+
+  b_72 {
+    %v_73 = load %v_1, 8: Ptr
+    %v_74 = add %v_1, 12: Ptr
+    %v_75 = load %v_74, 4: Int
+    %v_76 = cast %v_75: Int
+    %v_77 = cast %v_76: Long
+    %v_78 = call_complex total, %v_73, %v_77: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret %v_78
+  }
+
+  b_71 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551611
   }
 
-  b_61 {
-    %v_77 = imul %v_65, 4: Long
-    %v_78 = add %v_54, %v_77: Ptr
-    %v_79 = loads %v_78, 4: Int
-    %v_64 = add %v_63, %v_79: Int
-    %v_62 = add %v_60, 1: Int
-    jmp b_59
+  b_68 {
+    %v_79 = cast %v_61: Long
+    %v_80 = cmp_ge %v_79, %v_59: Int
+    je %v_80, b_81, b_82
+  }
+
+  b_82 {
+    jmp b_62
+  }
+
+  b_81 {
+    %v_83 = syscall 60, 134: Long
+    jmp b_62
+  }
+
+  b_62 {
+    %v_84 = imul %v_66, 4: Long
+    %v_85 = add %v_54, %v_84: Ptr
+    %v_86 = loads %v_85, 4: Int
+    %v_65 = add %v_64, %v_86: Int
+    %v_63 = add %v_61, 1: Int
+    jmp b_60
   }
 
   b_52 {

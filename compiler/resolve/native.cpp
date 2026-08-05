@@ -514,6 +514,18 @@ instance Reclaim(Run(a)):
 -}
 fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
 
+{-
+   Stopping, for the same reason `writeStandardOutput` is here: `exitProcess` is `Native.Linux`'s and
+   nothing above `Native` can name it, so this is the one line that lets a check inserted anywhere in
+   the program end it.
+
+   134 is what a process killed by SIGABRT reports, which is the status a failed assertion has on
+   this platform and therefore the one a shell and a test runner already know how to read.
+-}
+fn abortProcess() -> {}:
+    exitProcess(134)
+    return
+
 )NATIVE";
 
 /*

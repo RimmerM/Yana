@@ -130,6 +130,32 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
     return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
 }
 
+/*
+ * A check whose condition folded to `false`.
+ *
+ * The one call this pass is entitled to remove, and only in this one state: the argument is what the
+ * check would have to look at, so a condition that is already known not to hold makes the call a
+ * jump to a `return` and back. Everything the callee could otherwise do - the branch, the message,
+ * the process ending - is behind that flag.
+ *
+ * A condition that folded the other way is deliberately left alone. `checkCondition(true)` is a
+ * program that stops here, and removing it would remove the stop rather than the check.
+ *
+ * This is where a discharged bounds test goes away on a target that keeps the check a call. Natively
+ * the inliner has usually got there first and the same fact is a branch on a constant, which
+ * opt_branch.cpp removes along with the arm behind it; the two are the same elimination arriving
+ * through whichever shape the check is in.
+ */
+static bool isDischargedCheck(OptContext& opt, Value& instruction) {
+    if(instruction.kind != Value::Call) return false;
+
+    auto& call = (InstCall&)instruction;
+    if(!isCheckCall(opt, call.callee) || call.args.size() != 1) return false;
+
+    auto condition = constantValueOf(opt, call.args.get(opt.local, 0));
+    return condition && condition.unwrap() == 0;
+}
+
 void eliminateDeadValues(OptContext& opt) {
     /*
      * To a fixed point within this pass rather than across the driver's rounds, because the shape it
@@ -151,7 +177,10 @@ void eliminateDeadValues(OptContext& opt) {
                 auto instruction = opt.local[pointer];
 
                 if(instruction->uses.isNotEmpty()) continue;
-                if(!isPureValue(*instruction) && !isDeadRead(opt, *instruction)) continue;
+                if(!isPureValue(*instruction) && !isDeadRead(opt, *instruction) &&
+                   !isDischargedCheck(opt, *instruction)) {
+                    continue;
+                }
 
                 eraseInstruction(opt, pointer);
                 changed = true;

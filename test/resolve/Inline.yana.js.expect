@@ -1,7 +1,7 @@
 "use strict";
 // ResolveTest
 function scaled(v, by) {
-  return (Math.imul(v, by) | 0) + 1 | 0;
+  return Math.imul(v, by) + 1 | 0;
 }
 
 function makePoint(x, y) {
@@ -9,12 +9,12 @@ function makePoint(x, y) {
 }
 
 function twice(n$o, n$k, n$s) {
-  n$o[n$k] = Math.imul(n$o[n$k], 2) | 0;
+  n$o[n$k] = Math.imul(n$o[n$k], 2);
   return;
 }
 
 function onlyCaller(a, b, c) {
-  return ((((Math.imul(a, c) | 0) + (Math.imul(b, b) | 0) | 0) + a | 0) + b | 0) + c | 0;
+  return (((Math.imul(a, c) + Math.imul(b, b) | 0) + a | 0) + b | 0) + c | 0;
 }
 
 function clamped(v) {
@@ -45,7 +45,7 @@ function stepsTo(limit) {
 
 function onceBranching(a) {
   if (a > 3) {
-    return Math.imul(a, 2) | 0;
+    return Math.imul(a, 2);
   } else {
     return a + 1 | 0;
   }
@@ -80,7 +80,7 @@ function constants() {
 }
 
 function unknowns(a, b) {
-  var v6 = Math.imul(a, b) | 0;
+  var v6 = Math.imul(a, b);
   return (v6 + 1 | 0) + (v6 + 1 | 0) | 0;
 }
 
@@ -89,7 +89,7 @@ function constructed(a) {
 }
 
 function mutated(seed) {
-  return Math.imul(seed, 4) | 0;
+  return Math.imul(seed, 4);
 }
 
 function measured(v) {
@@ -97,11 +97,11 @@ function measured(v) {
 }
 
 function worthIt(a, b) {
-  return ((Math.imul((((Math.imul(a + b | 0, 2) | 0) + (Math.imul(a - b | 0, 3) | 0) | 0) + (Math.imul(a, 5) | 0) | 0) + (Math.imul(b, 7) | 0) | 0, 2) | 0) + a | 0) - b | 0;
+  return (Math.imul(((Math.imul(a + b | 0, 2) + Math.imul(a - b | 0, 3) | 0) + Math.imul(a, 5) | 0) + Math.imul(b, 7) | 0, 2) + a | 0) - b | 0;
 }
 
 function branching(a) {
-  return clamped(a) + clamped(Math.imul(a, 3) | 0) | 0;
+  return clamped(a) + clamped(Math.imul(a, 3)) | 0;
 }
 
 function grading() {
@@ -135,7 +135,7 @@ function pinned() {
 }
 
 function requested(a) {
-  return (((Math.imul((((Math.imul(a + 2 | 0, 2) | 0) + (Math.imul(a - 2 | 0, 3) | 0) | 0) + (Math.imul(a, 5) | 0) | 0) + 14 | 0, 2) | 0) + a | 0) - 2 | 0) + (((Math.imul((((Math.imul(a + 3 | 0, 2) | 0) + (Math.imul(3 - a | 0, 3) | 0) | 0) + 15 | 0) + (Math.imul(a, 7) | 0) | 0, 2) | 0) + 3 | 0) - a | 0) | 0;
+  return ((Math.imul(((Math.imul(a + 2 | 0, 2) + Math.imul(a - 2 | 0, 3) | 0) + Math.imul(a, 5) | 0) + 14 | 0, 2) + a | 0) - 2 | 0) + ((Math.imul(((Math.imul(a + 3 | 0, 2) + Math.imul(3 - a | 0, 3) | 0) + 15 | 0) + Math.imul(a, 7) | 0, 2) + 3 | 0) - a | 0) | 0;
 }
 
 function recursive() {

@@ -137,6 +137,8 @@ JsPtr<Expr>* headerOf(Gen& g, Stmt* stmt) {
             return &((IfStmt*)stmt)->cond;
         case Stmt::Return:
             return ((ReturnStmt*)stmt)->value ? &((ReturnStmt*)stmt)->value : nullptr;
+        case Stmt::Throw:
+            return &((ThrowStmt*)stmt)->value;
         case Stmt::Decl:
             return ((DeclStmt*)stmt)->value ? &((DeclStmt*)stmt)->value : nullptr;
         default:
@@ -1075,16 +1077,364 @@ bool foldConstantIndex(Gen& g, JsPtr<Expr>& slot) {
     return true;
 }
 
-bool foldExprs(Gen& g, JsPtr<Expr>& slot) {
+/*
+ * Ranges, and the coercions an operand has already performed on itself.
+ *
+ * `Int` is a wrapping 32-bit integer and JS has no 32-bit integer, so `coerce` in type.cpp puts one
+ * of `| 0`, `>>> 0`, `& mask` or `<< n >> n` on the result of every arithmetic operation in the
+ * program. Analysis-JS.md §2.1 calls that the asm.js tax and says in the same breath that it is
+ * "almost entirely elidable by the *same* range analysis `@bits` already requires" - which is what
+ * this is, at the one place that can see the whole expression rather than one instruction of it.
+ *
+ * It is a range rather than a type because the redundancy is arithmetic, not declarative. `x & 8191`
+ * has type `Int` and values in `[0, 8191]`, and it is the second fact that says the `>>> 0` the
+ * emitter put on it does nothing. A masked field read, a shifted tag, a bounded loop counter and a
+ * literal are all the same shape to this and are what most of the emitted coercions sit on.
+ *
+ * **A known range asserts three things at once**: the expression evaluates to a JS `number`, that
+ * number is a mathematical integer, and it lies in `[low, high]`. All three are load-bearing. A
+ * coercion off a boolean would change the *type* of what the surrounding code sees - `true | 0` is
+ * `1`, and `x === true` is not `x === 1` - so a comparison and a `!` have no range here even though
+ * their values are 0 and 1. A coercion off a fraction is a truncation. And negative zero is excluded
+ * by every producer below rather than tracked, since a coercion is exactly what collapses `-0` into
+ * `0` and nothing else in the emitted program does.
+ *
+ * Stale entries are safe for the reason the use counts above are: every rewrite in this file
+ * preserves the value of what it rewrites, so a range recorded against an earlier round's tree still
+ * bounds the same number.
+ */
+
+// 2^53. Past it a double stops counting by ones, so a bound there bounds no integer.
+constexpr F64 kExactLimit = 9007199254740992.0;
+constexpr F64 kInt32Min = -2147483648.0;
+constexpr F64 kInt32Max = 2147483647.0;
+constexpr F64 kUint32Max = 4294967295.0;
+
+struct Range {
+    F64 low = 0;
+    F64 high = 0;
+    bool known = false;
+
+    bool within(F64 min, F64 max) const { return known && low >= min && high <= max; }
+    bool constant() const { return known && low == high; }
+};
+
+Range unknownRange() { return Range(); }
+
+/*
+ * A bound *at* the limit may be a rounded one - a sum whose true value is 2^53 + 1 arrives here as
+ * 2^53 and is accepted. That is not a hole, because every fold below asks whether a range fits in 32
+ * bits and a bound anywhere near this one fails that by twenty-one orders of magnitude. What the
+ * limit is actually for is stopping a range from being carried further and *becoming* a 32-bit one.
+ */
+Range integerRange(F64 low, F64 high) {
+    if(low > high || low < -kExactLimit || high > kExactLimit) return unknownRange();
+    return Range { low, high, true };
+}
+
+/*
+ * The ranges of the bindings one function reads.
+ *
+ * A name is in here only if it is declared with a value and assigned nowhere, which is what makes
+ * its range the range of its initializer at every reader. A phi is written by each predecessor and
+ * so is never in here; neither is a parameter, which is declared by nothing.
+ */
+struct Ranges {
+    explicit Ranges(Gen& g): imul(literalName(g, "imul"_v)) {}
+
+    HashMap<U32, Range> bindings;
+    Name imul;
+
+    void reset() { bindings.reset(); }
+
+    Range of(Name name) {
+        auto found = bindings.get(name.text);
+        return found ? found.unwrap() : unknownRange();
+    }
+};
+
+// floor(x / 2^n), which is what both right shifts do once their operand is in range - arithmetic on
+// a signed one and logical on an unsigned one, and `>>` on an I64 is both.
+F64 shiftedDown(F64 value, U32 by) {
+    return F64(I64(value) >> by);
+}
+
+// The smallest `2^k - 1` that is at least `value`, for a value below 2^31 - the bound on an `|` or
+// a `^` of two operands, neither of which can set a bit above the top one either of them has.
+F64 fillBelow(F64 value) {
+    auto bits = U64(value);
+    bits |= bits >> 1;
+    bits |= bits >> 2;
+    bits |= bits >> 4;
+    bits |= bits >> 8;
+    bits |= bits >> 16;
+    return F64(bits);
+}
+
+Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges);
+
+Range rangeOfBinary(Gen& g, BinaryExpr& expr, Ranges& ranges) {
+    auto lhs = rangeOf(g, expr.lhs, ranges);
+    auto rhs = rangeOf(g, expr.rhs, ranges);
+
+    switch(expr.op) {
+        case BinaryOp::Add:
+            if(!lhs.known || !rhs.known) return unknownRange();
+            return integerRange(lhs.low + rhs.low, lhs.high + rhs.high);
+        case BinaryOp::Sub:
+            if(!lhs.known || !rhs.known) return unknownRange();
+            return integerRange(lhs.low - rhs.high, lhs.high - rhs.low);
+        case BinaryOp::Mul: {
+            // Both non-negative, because `-1 * 0` is `-0` and a range that merely contains zero
+            // cannot tell that case from the one that produces `+0`.
+            if(!lhs.within(0, kExactLimit) || !rhs.within(0, kExactLimit)) return unknownRange();
+            return integerRange(lhs.low * rhs.low, lhs.high * rhs.high);
+        }
+        case BinaryOp::And:
+            /*
+             * A mask decides the result on its own: `x & m` for `0 <= m <= 2^31 - 1` clears every
+             * bit above m's top one whatever x is, so the result is non-negative and no larger.
+             * This is the rule that pays for itself - a narrow field read, a tag decode and a
+             * `coerce` of a sub-32-bit unsigned type all end in one.
+             */
+            if(rhs.constant() && rhs.low >= 0 && rhs.low <= kInt32Max) return integerRange(0, rhs.low);
+            if(lhs.constant() && lhs.low >= 0 && lhs.low <= kInt32Max) return integerRange(0, lhs.low);
+
+            // Failing that, two non-negative operands cannot produce a bit neither of them has.
+            if(lhs.within(0, kInt32Max) && rhs.within(0, kInt32Max)) {
+                return integerRange(0, lhs.high < rhs.high ? lhs.high : rhs.high);
+            }
+
+            return integerRange(kInt32Min, kInt32Max);
+        case BinaryOp::Or:
+        case BinaryOp::Xor:
+            if(lhs.within(0, kInt32Max) && rhs.within(0, kInt32Max)) {
+                return integerRange(0, fillBelow(lhs.high > rhs.high ? lhs.high : rhs.high));
+            }
+
+            return integerRange(kInt32Min, kInt32Max);
+        case BinaryOp::Shl:
+            return integerRange(kInt32Min, kInt32Max);
+        case BinaryOp::Shr: {
+            // JS masks a shift count to five bits, so only a literal below 32 says what the shift
+            // is. Everything else is still ToUint32 of something, which is the range on its own.
+            if(!rhs.constant() || rhs.low < 0 || rhs.low >= 32) return integerRange(0, kUint32Max);
+
+            auto by = U32(rhs.low);
+            if(lhs.within(0, kUint32Max)) {
+                return integerRange(shiftedDown(lhs.low, by), shiftedDown(lhs.high, by));
+            }
+
+            return integerRange(0, F64((U64(1) << (32 - by)) - 1));
+        }
+        case BinaryOp::Sar: {
+            if(!rhs.constant() || rhs.low < 0 || rhs.low >= 32) return integerRange(kInt32Min, kInt32Max);
+
+            auto by = U32(rhs.low);
+            if(lhs.within(kInt32Min, kInt32Max)) {
+                return integerRange(shiftedDown(lhs.low, by), shiftedDown(lhs.high, by));
+            }
+
+            auto bound = F64(U64(1) << (31 - by));
+            return integerRange(-bound, bound - 1);
+        }
+        default:
+            // `/` is a float divide, `%` keeps its dividend's sign, and everything left produces a
+            // boolean or one of its operands.
+            return unknownRange();
+    }
+}
+
+/*
+ * `Math.imul` is the target's 32-bit multiply and the only host intrinsic whose result has a width.
+ * `Number` produces a number of no known range, `Math.fround` produces a fraction, `BigInt.asIntN`
+ * produces a bigint, and the 33-to-53-bit helpers belong to a tower this does not reach into.
+ */
+Range rangeOfCall(Gen& g, CallExpr& expr, Ranges& ranges) {
+    if(!expr.pure || expr.wideBits != 0) return unknownRange();
+
+    auto callee = g.base[expr.callee];
+    if(callee->kind != Expr::Field) return unknownRange();
+    if(((FieldExpr*)callee)->field.text != ranges.imul.text) return unknownRange();
+
+    return integerRange(kInt32Min, kInt32Max);
+}
+
+Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
+    auto expr = g.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Number: {
+            auto value = ((NumberExpr*)expr)->value;
+            if(value < -kExactLimit || value > kExactLimit) return unknownRange();
+            if(F64(I64(value)) != value) return unknownRange();
+
+            // `-0` is an integer with two spellings and a coercion is what picks one, so it is not
+            // an integer this may claim to know.
+            if(value == 0 && 1.0 / value < 0) return unknownRange();
+
+            return integerRange(value, value);
+        }
+        case Expr::Var:
+            return ranges.of(((VarExpr*)expr)->name);
+        case Expr::Unary: {
+            auto& unary = *(UnaryExpr*)expr;
+            auto value = rangeOf(g, unary.value, ranges);
+
+            switch(unary.op) {
+                case UnaryOp::Neg:
+                    // Away from zero in both directions, since `-0` is what negating `0` produces.
+                    if(!value.known || (value.low <= 0 && value.high >= 0)) return unknownRange();
+                    return integerRange(-value.high, -value.low);
+                case UnaryOp::BitNot:
+                    // ToInt32 first, and `~x` is `-1 - x` of what that produced.
+                    if(value.within(kInt32Min, kInt32Max)) {
+                        return integerRange(-1 - value.high, -1 - value.low);
+                    }
+
+                    return integerRange(kInt32Min, kInt32Max);
+                default:
+                    return unknownRange();
+            }
+        }
+        case Expr::Binary:
+            return rangeOfBinary(g, *(BinaryExpr*)expr, ranges);
+        case Expr::Ternary: {
+            auto& choice = *(TernaryExpr*)expr;
+            auto then = rangeOf(g, choice.then, ranges);
+            auto otherwise = rangeOf(g, choice.otherwise, ranges);
+            if(!then.known || !otherwise.known) return unknownRange();
+
+            return integerRange(then.low < otherwise.low ? then.low : otherwise.low,
+                                then.high > otherwise.high ? then.high : otherwise.high);
+        }
+        case Expr::Assign:
+            return rangeOf(g, ((AssignExpr*)expr)->value, ranges);
+        case Expr::Call:
+            return rangeOfCall(g, *(CallExpr*)expr, ranges);
+        default:
+            return unknownRange();
+    }
+}
+
+void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges);
+
+void collectStmt(Gen& g, JsPtr<Stmt> pointer, Names& names, Ranges& ranges) {
+    auto stmt = g.base[pointer];
+
+    if(stmt->kind == Stmt::Decl) {
+        auto& declaration = *(DeclStmt*)stmt;
+        if(declaration.value && !names.assigned.contains(declaration.name.text)) {
+            auto range = rangeOf(g, declaration.value, ranges);
+            if(range.known) ranges.bindings.add(declaration.name.text, range);
+        }
+    }
+
+    eachBody(g, stmt, [&](StmtList& body) { collectRanges(g, body, names, ranges); });
+}
+
+// In the order the statements are written, which is the order the bindings are defined in: a resolve
+// value is used where its definition dominates, so a declaration is always reached before its
+// readers are. A lookup that misses is unknown, so getting this wrong would cost precision only.
+void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+    for(auto stmt: list.contents(g.base)) collectStmt(g, stmt, names, ranges);
+}
+
+/*
+ * `x | 0`, `x >>> 0` and `x & mask` where x is already inside what they would put it in.
+ *
+ * The mask has to be a run of low bits. `x & 10` on an `x` in `[0, 10]` is not `x` - 6 is in range
+ * and `6 & 10` is 2 - so "no larger than the mask" is only the same question as "no bits outside
+ * the mask" when the mask has no holes. Every mask `coerce` builds is `2^bits - 1`, so this costs
+ * nothing and is the check that makes the rule true rather than usually true.
+ */
+bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Binary) return false;
+
+    auto& binary = *(BinaryExpr*)expr;
+    auto amount = rangeOf(g, binary.rhs, ranges);
+    if(!amount.constant()) return false;
+
+    auto by = amount.low;
+    F64 low = 0;
+    F64 high = 0;
+
+    switch(binary.op) {
+        case BinaryOp::Or:
+        case BinaryOp::Xor:
+            // `x | 0` and `x ^ 0` are both ToInt32 and nothing else.
+            if(by != 0) return false;
+            low = kInt32Min;
+            high = kInt32Max;
+            break;
+        case BinaryOp::Shr:
+            if(by != 0) return false;
+            low = 0;
+            high = kUint32Max;
+            break;
+        case BinaryOp::And:
+            if(by < 0 || by > kInt32Max || (U64(by) & (U64(by) + 1)) != 0) return false;
+            low = 0;
+            high = by;
+            break;
+        default:
+            return false;
+    }
+
+    if(!rangeOf(g, binary.lhs, ranges).within(low, high)) return false;
+
+    slot = binary.lhs;
+    return true;
+}
+
+/*
+ * `x << n >> n` - the sign extension a signed type narrower than 32 bits is coerced with, on a value
+ * that already fits through it.
+ *
+ * Written as one rule rather than as two applications of the one above because neither half is
+ * removable alone: `x << n` on a narrow x is not x, and the `>> n` is what puts it back.
+ */
+bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Binary) return false;
+
+    auto& outer = *(BinaryExpr*)expr;
+    if(outer.op != BinaryOp::Sar) return false;
+
+    auto inner = g.base[outer.lhs];
+    if(inner->kind != Expr::Binary || ((BinaryExpr*)inner)->op != BinaryOp::Shl) return false;
+
+    auto& shift = *(BinaryExpr*)inner;
+    auto up = rangeOf(g, shift.rhs, ranges);
+    auto down = rangeOf(g, outer.rhs, ranges);
+    if(!up.constant() || !down.constant() || up.low != down.low) return false;
+    if(up.low <= 0 || up.low >= 32) return false;
+
+    // What survives a shift up by n and back is the low `32 - n` bits read as signed.
+    auto bound = F64(U64(1) << (31 - U32(up.low)));
+    if(!rangeOf(g, shift.lhs, ranges).within(-bound, bound - 1)) return false;
+
+    slot = shift.lhs;
+    return true;
+}
+
+bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto changed = false;
     eachOperand(g, g.base[slot], [&](JsPtr<Expr>& operand, bool) {
-        changed = foldExprs(g, operand) || changed;
+        changed = foldExprs(g, operand, ranges) || changed;
     });
 
     // Both are shape rules over one node, so either may expose the other's shape - a folded ternary
     // can become the index of a subscript, and a folded subscript can become a compared operand.
     auto folded = foldConstantIndex(g, slot);
-    return foldTernaryCompare(g, slot) || folded || changed;
+    folded = foldTernaryCompare(g, slot) || folded;
+
+    // Last, and repeatedly: removing one coercion is what puts the next one against an operand
+    // whose range it can see, and `(x & 7) >>> 0 | 0` is three of them in a row.
+    while(foldSignExtend(g, slot, ranges) || foldCoercion(g, slot, ranges)) folded = true;
+
+    return folded || changed;
 }
 
 /*
@@ -1122,15 +1472,17 @@ bool fuseList(Gen& g, StmtList& list) {
     return changed;
 }
 
-bool optimizeList(Gen& g, StmtList& list, Names& names) {
+bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
     auto changed = false;
     Size index = 0;
 
     while(index < list.size()) {
         auto stmt = g.base[list.get(g.base, index)];
-        eachBody(g, stmt, [&](StmtList& body) { changed = optimizeList(g, body, names) || changed; });
+        eachBody(g, stmt, [&](StmtList& body) {
+            changed = optimizeList(g, body, names, ranges) || changed;
+        });
 
-        if(auto header = headerOf(g, stmt)) changed = foldExprs(g, *header) || changed;
+        if(auto header = headerOf(g, stmt)) changed = foldExprs(g, *header, ranges) || changed;
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
         // next one - which is what collapses a chain of one-use bindings in a single walk.
@@ -1190,13 +1542,19 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
  */
 void optimizeFunction(Gen& g, FunStmt& function) {
     Names names;
+    Ranges ranges(g);
 
     for(;;) {
         for(;;) {
             names.reset();
             countList(g, function.body, names);
 
-            if(!optimizeList(g, function.body, names)) break;
+            // After the counts, since what a binding may be assumed to hold is decided by whether
+            // anything assigns it.
+            ranges.reset();
+            collectRanges(g, function.body, names, ranges);
+
+            if(!optimizeList(g, function.body, names, ranges)) break;
         }
 
         if(!fuseList(g, function.body)) return;

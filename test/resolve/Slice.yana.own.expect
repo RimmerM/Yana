@@ -30,6 +30,9 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn abortProcess {
+}
+
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -48,6 +51,17 @@ fn releaseRun(Int) {
 
 fn mapMemory {
   arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
 }
 
 fn slice(Int) {
@@ -85,15 +99,15 @@ fn Reclaim(Array(a)).reclaim(Int) {
 
 fn total {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 28)
-  %sum: Int writable live [0, 11) [12, 28)
-  %i: Int writable live [2, 10) [12, 28)
+  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 33)
+  %sum: Int writable live [0, 11) [12, 33)
+  %i: Int writable live [2, 10) [12, 33)
 }
 
 fn double {
   arg xs writable
-  %xs: Flat(Int) borrowed writable live [0, 9) [10, 35)
-  %i: Int writable live [0, 9) [10, 35)
+  %xs: Flat(Int) borrowed writable live [0, 9) [10, 45)
+  %i: Int writable live [0, 9) [10, 45)
 }
 
 fn middle {
@@ -104,7 +118,7 @@ fn middle {
 
 fn atCursor {
   arg c readonly
-  %c: Cursor borrowed readonly live [0, 10)
+  %c: Cursor borrowed readonly live [0, 15)
 }
 
 fn sumFrom {

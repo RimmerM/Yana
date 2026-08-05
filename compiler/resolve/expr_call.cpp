@@ -180,35 +180,51 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
  * Two candidates that disagree are therefore a declaration error rather than a call-site one, but
  * it is only detectable where the two are visible together, which is here.
  */
-static U32 lazyMaskOf(ModuleBase local, Function& function) {
-    U32 mask = 0;
-    Size index = 0;
+static void lazyStatesOf(ModuleBase local, Function& function, ArgResultList& out) {
+    out.clear();
 
     for(auto argPointer: function.args.contents(local)) {
-        if(local[argPointer]->isLazy() && index < 32) mask |= U32(1) << index;
-        index++;
+        out.push(local[argPointer]->isLazy() ? ArgResult::Deferred : ArgResult::Value);
     }
-
-    return mask;
 }
 
-U32 ExprResolver::lazyArguments(StringId name, Size arity, LocationId source) {
-    // The negative answer, which is every call in a program but a handful - see Program::lazyNames.
-    if(!module.program.lazyNames.contains(name)) return 0;
+static bool sameStates(const ArgResultList& a, const ArgResultList& b) {
+    if(a.size() != b.size()) return false;
+    for(Size i = 0; i < a.size(); i++) {
+        if(a[i] != b[i]) return false;
+    }
 
-    U32 mask = 0;
+    return true;
+}
+
+// Every position `Value`, which is what a name with no `@lazy` parameter anywhere behind it means.
+static void allStrict(Size arity, ArgResultList& out) {
+    out.clear();
+    for(Size i = 0; i < arity; i++) out.push(ArgResult::Value);
+}
+
+bool ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, ArgResultList& out) {
+    // The negative answer, which is every call in a program but a handful - see Program::lazyNames.
+    if(!module.program.lazyNames.contains(name)) {
+        allStrict(arity, out);
+        return false;
+    }
+
+    ArgResultList candidateStates;
     auto seen = false;
     auto conflict = false;
 
-    auto consider = [&](U32 candidate) {
-        if(seen && candidate != mask) conflict = true;
-        else mask = candidate;
+    auto consider = [&](Function& function) {
+        lazyStatesOf(local, function, candidateStates);
+
+        if(seen && !sameStates(candidateStates, out)) conflict = true;
+        else replaceContents(out, candidateStates);
 
         seen = true;
     };
 
     if(auto direct = findFunction(module, name, source)) {
-        if(local[direct]->args.size() == arity) consider(lazyMaskOf(local, *local[direct]));
+        if(local[direct]->args.size() == arity) consider(*local[direct]);
     }
 
     ClassFunList candidates;
@@ -218,16 +234,30 @@ U32 ExprResolver::lazyArguments(StringId name, Size arity, LocationId source) {
         auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
         if(entry.arity != arity || !entry.fun) continue;
 
-        consider(lazyMaskOf(local, *local[entry.fun]));
+        consider(*local[entry.fun]);
     }
 
     if(conflict) {
         context.diagnostics.error("the declarations of %@ disagree about which arguments are `@lazy`, so a call to it cannot tell what to evaluate - strictness is part of the signature and every overload of one name and arity has to declare the same one"_v,
                                   source, context.findName(name));
-        return 0;
+        allStrict(arity, out);
+        return false;
     }
 
-    return mask;
+    // A name that reached no candidate of this arity, or one whose candidates declare nothing lazy.
+    // Either way the call is strict, and the list has to be the length the call site indexes.
+    auto any = false;
+    for(auto state: out) any = any || state == ArgResult::Deferred;
+
+    if(!seen || !any) {
+        allStrict(arity, out);
+        return false;
+    }
+
+    // The list came from a candidate's parameters, which is the call's arity by construction - but
+    // it is indexed by position at the call site, so it is made that length rather than trusted.
+    while(out.size() < arity) out.push(ArgResult::Value);
+    return true;
 }
 
 // The instance of `typeClass` that serves `args`, and what selecting it bound its own type
@@ -580,9 +610,10 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
          * to find it. Nothing declares one, and Design.md's uses are all second-position, so it is
          * reported rather than supported.
          */
-        auto lazy = lazyArguments(op, 2, opSource);
+        ArgResultList states;
+        auto lazy = lazyArguments(op, 2, opSource, states);
 
-        if(lazy & 1) {
+        if(states[0] == ArgResult::Deferred) {
             context.diagnostics.error("the left operand of %@ is declared `@lazy`, which an infix operator cannot be - it is evaluated before the operator is read"_v,
                                       lhsExpr->source, context.findName(op));
             return nullptr;
@@ -592,7 +623,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
         Deferred deferred[2];
         ModulePtr<Value> rhs = nullptr;
 
-        if(lazy & 2) {
+        if(states[1] == ArgResult::Deferred) {
             chain.operands = &operands;
             chain.operators = &operators;
             chain.operatorSources = &operatorSources;
@@ -611,7 +642,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
 
         ModulePtr<Value> args[] = { lhs, rhs };
         lhs = emitCall(op, { args, 2 }, lhsExpr->source, target, 0,
-                       lazy ? Buffer<Deferred>{ deferred, 2 } : Buffer<Deferred>{}, 0, opSource);
+                       lazy ? Buffer<Deferred>{ deferred, 2 } : Buffer<Deferred>{}, {}, opSource);
     }
 
     return lhs;
@@ -669,12 +700,13 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
-    auto lazy = lazyArguments(prefix.op.var, 1, prefix.op.source);
+    ArgResultList states;
+    auto lazy = lazyArguments(prefix.op.var, 1, prefix.op.source, states);
 
     Deferred deferred[1];
     ModulePtr<Value> value = nullptr;
 
-    if(lazy & 1) {
+    if(states[0] == ArgResult::Deferred) {
         deferred[0].expr = &prefix.on;
     } else {
         // The operand is resolved with no expected type of its own. What a prefix operator's
@@ -688,7 +720,7 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
 
     ModulePtr<Value> args[] = { value };
     auto result = emitCall(prefix.op.var, { args, 1 }, expr.source, target, 0,
-                           lazy ? Buffer<Deferred>{ deferred, 1 } : Buffer<Deferred>{}, 0, prefix.op.source);
+                           lazy ? Buffer<Deferred>{ deferred, 1 } : Buffer<Deferred>{}, {}, prefix.op.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -837,7 +869,15 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         return nullptr;
     }
 
-    auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source);
+    /*
+     * What each position is, one entry per argument.
+     *
+     * Filled here with `Deferred` for the `@lazy` positions and `Value` for the rest, and then
+     * overwritten below as each strict argument is resolved: what a null value at that position
+     * means is decided at the moment it is produced and nowhere else. See ArgResult.
+     */
+    ArgResultList states;
+    auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source, states);
 
     ValueList values;
 
@@ -845,17 +885,12 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * Parallel to `values`, and built only where there is a `@lazy` parameter to fill.
      *
      * Both halves of that matter. Inline, because a call has as many of these as it has arguments
-     * and that is two or three; and skipped entirely when `lazy` is zero, because `pending` below
+     * and that is two or three; and skipped entirely when nothing is lazy, because `pending` below
      * is empty in that case - so what this used to be was a list built for every call in the
      * program and then not passed on. `@lazy` is rare enough that the ordinary call is the one
      * worth being right about.
      */
     SmallArray<Deferred, 8> deferred;
-
-    // The positions that resolved to a value carrying nothing, rather than to no value - see the
-    // guard in emitCall. A bitmask on the same terms as `lazy`, and cut off at the same 32: an
-    // argument past that is left to the older reading, which is what it had before.
-    U32 nothing = 0;
 
     auto written = callArgs.contents(parse);
 
@@ -873,7 +908,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
         // force happens and therefore the only place that can convert it.
-        if(index < 32 && (lazy & (U32(1) << index))) {
+        if(states[index] == ArgResult::Deferred) {
             deferred[index].expr = &arg->value;
             values.push(nullptr);
             continue;
@@ -895,8 +930,9 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         auto errors = context.diagnostics.errorCount();
         auto value = resolve(arg->value, expected);
 
-        if(!value && index < 32 && errors == context.diagnostics.errorCount()) {
-            nothing |= U32(1) << index;
+        if(!value) {
+            states[index] = errors == context.diagnostics.errorCount() ? ArgResult::Unit
+                                                                       : ArgResult::Failed;
         }
 
         values.push(value);
@@ -911,8 +947,8 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     }
 
     auto result = declared ? emitDirectCall(direct, toBuffer(values), expr.source, target, 0, pending)
-                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending, nothing,
-                                      calleeExpr.source);
+                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending,
+                                      toBuffer(states), calleeExpr.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -1112,7 +1148,7 @@ void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMat
     recordReference(resolver.context, source, symbol, type, instance);
 }
 
-ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, U32 nothing, LocationId nameSource) {
+ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, Buffer<ArgResult> results, LocationId nameSource) {
     /*
      * Three things are spelled as a null argument, and only one of them is a reason to stop.
      *
@@ -1125,12 +1161,12 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
      *
      * The third used to be caught here as the first, which made `f({})` resolve to nothing at all
      * for any generic `f` - silently, since the whole point of this guard is that the diagnostic was
-     * already written. Which positions are that third kind is the call site's knowledge, not this
-     * one's, so it arrives in `nothing`.
+     * already written. Which positions are which is the call site's knowledge, not this one's, so it
+     * arrives in `results`.
      */
     for(Size i = 0; i < args.length; i++) {
         if(args[i] || isDeferred(deferred, i)) continue;
-        if(i < 32 && (nothing & (U32(1) << i))) continue;
+        if(argResultAt(results, i, args[i]) != ArgResult::Failed) continue;
 
         return nullptr;
     }

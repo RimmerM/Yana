@@ -254,6 +254,7 @@ struct Stmt {
         Decl,
         Fun,
         Comment,
+        Throw,
     };
 
     explicit Stmt(Kind kind): kind(kind) {}
@@ -316,6 +317,22 @@ struct LabelledStmt: Stmt {
 
 struct ReturnStmt: Stmt {
     explicit ReturnStmt(JsPtr<Expr> value): Stmt(Return), value(value) {}
+    JsPtr<Expr> value;
+};
+
+/*
+ * `throw <value>;` - how a program stops on this target.
+ *
+ * There is no `abort` in JavaScript, and what "stop" means belongs to the host rather than to the
+ * language: an exception nobody catches is the one thing every host ends the program on, and reports
+ * with the value it carried. So a check that fails throws its message - see NativeOp::HostThrow.
+ *
+ * A terminator wherever it appears, in the sense that nothing after it in its block runs. Nothing
+ * here needs to know that: the resolve block a failed check leaves through has no successor, so the
+ * structuring produced no code after it either.
+ */
+struct ThrowStmt: Stmt {
+    explicit ThrowStmt(JsPtr<Expr> value): Stmt(Throw), value(value) {}
     JsPtr<Expr> value;
 };
 

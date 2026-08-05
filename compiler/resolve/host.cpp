@@ -126,6 +126,18 @@ import Native
 -- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global
 -- rather than on a value, like `String.fromCharCode` above.
 @platform(js) fn hostLog(text: String) -> {}
+
+{-
+   `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".
+
+   There is no `abort` in JavaScript and no exit status a script can set; an exception nobody catches
+   ends the program and reports what it carried, which is exactly what a failed check needs to do.
+
+   No argument, and the message is the emitter's. A string literal written here would need `Text`,
+   which is built after this module and imports it - so the one thing this declaration could not
+   carry is the sentence it exists to print.
+-}
+@platform(js) fn hostFail() -> {}
 )HOST";
 
 namespace {
@@ -155,6 +167,10 @@ enum class HostMember: U8 {
     // NativeOp::HostGlobalCall.
     FromCharCode,
     Log,
+
+    // The one that is a statement rather than a call or an operator - see NativeOp::HostThrow. Its
+    // "member name" is never printed; the emitter writes `throw` itself.
+    Fail,
 };
 
 StringView hostMemberName(HostMember member) {
@@ -167,6 +183,7 @@ StringView hostMemberName(HostMember member) {
         case HostMember::Less: return "<"_v;
         case HostMember::FromCharCode: return "String.fromCharCode"_v;
         case HostMember::Log: return "console.log"_v;
+        case HostMember::Fail: return "throw"_v;
     }
 
     return "length"_v;
@@ -290,6 +307,7 @@ void defineHost(Program& program) {
     attachIntrinsic(*module, "hostStringLt"_v, emitHostMember<NativeOp::HostBinary, HostMember::Less>);
     attachIntrinsic(*module, "hostFromCharCode"_v, emitHostMember<NativeOp::HostGlobalCall, HostMember::FromCharCode>);
     attachIntrinsic(*module, "hostLog"_v, emitHostMember<NativeOp::HostGlobalCall, HostMember::Log>);
+    attachIntrinsic(*module, "hostFail"_v, emitHostMember<NativeOp::HostThrow, HostMember::Fail>);
 
     /*
      * `hostAtMut` answers a *mutable* borrow, and the grammar has one spelling for a borrow type -

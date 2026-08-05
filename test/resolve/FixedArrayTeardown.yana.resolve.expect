@@ -218,6 +218,12 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
 fn mapMemory(%size: I64) -> %U8 {
   b0:
     %v7 = neg 1 : I64
@@ -235,6 +241,33 @@ fn mapMemory(%size: I64) -> %U8 {
   b3:
     %v18 = cast %result : %U8
     ret %v18
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
 }
 
 fn openHandle(%mark: I64) -> Handle {
@@ -273,30 +306,40 @@ fn small() -> I64 {
     %v15 = cast 2 : I64
     init %hs@Flat.length, %v15
     %v18 = borrow %hs : &Flat(Handle)
-    %v19 = load [%v18]@Flat.items : %Handle
-    %v20 = strideof Handle : Long
-    %v21 = mul 0, %v20 : Long
-    %v22 = add %v19, %v21 : %Handle
-    %v23 = borrow [%v22] : &Handle
-    %v24 = load [%v23] : Handle
-    %v25 = call marker, %v24 : I64
-    %v27 = borrow %local2 : &[Handle *2]
+    %v19 = load [%v18]@Flat.length : I64
+    %v20 = cast 0 : U64
+    %v21 = cast %v19 : U64
+    %v22 = cmp_ge %v20, %v21 : Bool
+    call checkCondition, %v22
+    %v24 = load [%v18]@Flat.items : %Handle
+    %v25 = strideof Handle : Long
+    %v26 = mul 0, %v25 : Long
+    %v27 = add %v24, %v26 : %Handle
+    %v28 = borrow [%v27] : &Handle
+    %v29 = load [%v28] : Handle
+    %v30 = call marker, %v29 : I64
+    %v32 = borrow %local2 : &[Handle *2]
     %hs = alloc : Flat(Handle)
-    %v29 = addressof [%v27] : %Handle
-    init %hs@Flat.items, %v29
-    %v32 = cast 2 : I64
-    init %hs@Flat.length, %v32
-    %v35 = borrow %hs : &Flat(Handle)
-    %v36 = load [%v35]@Flat.items : %Handle
-    %v37 = strideof Handle : Long
-    %v38 = mul 1, %v37 : Long
-    %v39 = add %v36, %v38 : %Handle
-    %v40 = borrow [%v39] : &Handle
-    %v41 = load [%v40] : Handle
-    %v42 = call marker, %v41 : I64
+    %v34 = addressof [%v32] : %Handle
+    init %hs@Flat.items, %v34
+    %v37 = cast 2 : I64
+    init %hs@Flat.length, %v37
+    %v40 = borrow %hs : &Flat(Handle)
+    %v41 = load [%v40]@Flat.length : I64
+    %v42 = cast 1 : U64
+    %v43 = cast %v41 : U64
+    %v44 = cmp_ge %v42, %v43 : Bool
+    call checkCondition, %v44
+    %v46 = load [%v40]@Flat.items : %Handle
+    %v47 = strideof Handle : Long
+    %v48 = mul 1, %v47 : Long
+    %v49 = add %v46, %v48 : %Handle
+    %v50 = borrow [%v49] : &Handle
+    %v51 = load [%v50] : Handle
+    %v52 = call marker, %v51 : I64
     drop_derived %local2 via drop$[Handle *2]
-    %v43 = add %v25, %v42 : I64
-    ret %v43
+    %v53 = add %v30, %v52 : I64
+    ret %v53
 }
 
 fn large() -> I64 {
@@ -321,30 +364,40 @@ fn large() -> I64 {
     %v31 = cast 6 : I64
     init %hs@Flat.length, %v31
     %v34 = borrow %hs : &Flat(Handle)
-    %v35 = load [%v34]@Flat.items : %Handle
-    %v36 = strideof Handle : Long
-    %v37 = mul 0, %v36 : Long
-    %v38 = add %v35, %v37 : %Handle
-    %v39 = borrow [%v38] : &Handle
-    %v40 = load [%v39] : Handle
-    %v41 = call marker, %v40 : I64
-    %v43 = borrow %local6 : &[Handle *6]
+    %v35 = load [%v34]@Flat.length : I64
+    %v36 = cast 0 : U64
+    %v37 = cast %v35 : U64
+    %v38 = cmp_ge %v36, %v37 : Bool
+    call checkCondition, %v38
+    %v40 = load [%v34]@Flat.items : %Handle
+    %v41 = strideof Handle : Long
+    %v42 = mul 0, %v41 : Long
+    %v43 = add %v40, %v42 : %Handle
+    %v44 = borrow [%v43] : &Handle
+    %v45 = load [%v44] : Handle
+    %v46 = call marker, %v45 : I64
+    %v48 = borrow %local6 : &[Handle *6]
     %hs = alloc : Flat(Handle)
-    %v45 = addressof [%v43] : %Handle
-    init %hs@Flat.items, %v45
-    %v48 = cast 6 : I64
-    init %hs@Flat.length, %v48
-    %v51 = borrow %hs : &Flat(Handle)
-    %v52 = load [%v51]@Flat.items : %Handle
-    %v53 = strideof Handle : Long
-    %v54 = mul 5, %v53 : Long
-    %v55 = add %v52, %v54 : %Handle
-    %v56 = borrow [%v55] : &Handle
-    %v57 = load [%v56] : Handle
-    %v58 = call marker, %v57 : I64
+    %v50 = addressof [%v48] : %Handle
+    init %hs@Flat.items, %v50
+    %v53 = cast 6 : I64
+    init %hs@Flat.length, %v53
+    %v56 = borrow %hs : &Flat(Handle)
+    %v57 = load [%v56]@Flat.length : I64
+    %v58 = cast 5 : U64
+    %v59 = cast %v57 : U64
+    %v60 = cmp_ge %v58, %v59 : Bool
+    call checkCondition, %v60
+    %v62 = load [%v56]@Flat.items : %Handle
+    %v63 = strideof Handle : Long
+    %v64 = mul 5, %v63 : Long
+    %v65 = add %v62, %v64 : %Handle
+    %v66 = borrow [%v65] : &Handle
+    %v67 = load [%v66] : Handle
+    %v68 = call marker, %v67 : I64
     drop_derived %local6 via drop$[Handle *6]
-    %v59 = add %v41, %v58 : I64
-    ret %v59
+    %v69 = add %v46, %v68 : I64
+    ret %v69
 }
 
 fn nested() -> I64 {
@@ -366,16 +419,21 @@ fn nested() -> I64 {
     %v21 = cast 2 : I64
     init %local4@Flat.length, %v21
     %v24 = borrow %local4 : &Flat(Handle)
-    %v25 = load [%v24]@Flat.items : %Handle
-    %v26 = strideof Handle : Long
-    %v27 = mul 1, %v26 : Long
-    %v28 = add %v25, %v27 : %Handle
-    %v29 = borrow [%v28] : &Handle
-    %v30 = load [%v29] : Handle
-    %v31 = call marker, %v30 : I64
+    %v25 = load [%v24]@Flat.length : I64
+    %v26 = cast 1 : U64
+    %v27 = cast %v25 : U64
+    %v28 = cmp_ge %v26, %v27 : Bool
+    call checkCondition, %v28
+    %v30 = load [%v24]@Flat.items : %Handle
+    %v31 = strideof Handle : Long
+    %v32 = mul 1, %v31 : Long
+    %v33 = add %v30, %v32 : %Handle
+    %v34 = borrow [%v33] : &Handle
+    %v35 = load [%v34] : Handle
+    %v36 = call marker, %v35 : I64
     drop_derived %local0 via drop$Pair
-    %v32 = add %v13, %v31 : I64
-    ret %v32
+    %v37 = add %v13, %v36 : I64
+    ret %v37
 }
 
 fn main() -> I64 {

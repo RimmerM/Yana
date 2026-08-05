@@ -8,7 +8,7 @@ function colorValue(c) {
 function shapeValue(s) {
   var v15;
   if (s.$tag === 1) {
-    v15 = Math.imul(s.width, s.height) | 0;
+    v15 = Math.imul(s.width, s.height);
   } else {
     v15 = s.$p + 1 | 0;
   }
@@ -32,12 +32,12 @@ function area(s) {
       B2: {
         if (s.$tag === 1) {
           if (s.width >= 11) {
-            v36 = Math.imul(s.height, 10) | 0;
+            v36 = Math.imul(s.height, 10);
             break B0;
           }
         }
       }
-      v36 = Math.imul(s.width, s.height) | 0;
+      v36 = Math.imul(s.width, s.height);
     }
   }
   return v36;
@@ -79,23 +79,23 @@ function pairValue(p) {
   var v42;
   B0: {
     B1: {
-      if (((p & 3) >>> 0 | 0) === 0) {
-        if ((p >>> 2 >>> 0 & 1) >>> 0 !== 0) {
+      if ((p & 3) === 0) {
+        if ((p >>> 2 & 1) !== 0) {
           v42 = 1;
           break B0;
         }
       }
     }
     B2: {
-      if (((p & 3) >>> 0 | 0) === 0) {
-        if (!((p >>> 2 >>> 0 & 1) >>> 0 !== 0)) {
+      if ((p & 3) === 0) {
+        if (!((p >>> 2 & 1) !== 0)) {
           v42 = 2;
           break B0;
         }
       }
     }
-    if (((p & 3) >>> 0 | 0) === 1) {
-      v42 = (p >>> 2 >>> 0 & 1) >>> 0 !== 0 ? 3 : 4;
+    if ((p & 3) === 1) {
+      v42 = (p >>> 2 & 1) !== 0 ? 3 : 4;
     } else {
       v42 = 5;
     }

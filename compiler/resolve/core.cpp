@@ -748,6 +748,13 @@ void defineCore(Program& program) {
     module->namedTypes.add(context.addQualifiedName("Size", 4, 1), sizeType);
     program.scalar.size = sizeType;
 
+    // `Size` read the other way, which is not a second index type: it is what a bounds test compares
+    // at, so that one comparison rejects a negative index as well as one past the end. See the note
+    // above on why the index itself is signed, and Implementation-Containers.md §10.2 for the
+    // unsigned counts this meets.
+    program.scalar.unsignedSize = isJsMode(context.settings.mode) ? coreType(*module, "U32"_v)
+                                                                  : coreType(*module, "U64"_v);
+
     resolveModuleDecls(*module, *ast, nullptr);
 
     attachIntrinsic(*module, "swap"_v, emitSwap);
@@ -868,6 +875,41 @@ void defineCore(Program& program) {
 static const char* kCollectionsSource = R"COLLECTIONS(
 import Native
 import Host
+
+{-
+   Where a check the compiler inserted goes when it does not hold - Implementation-Containers.md §15.
+
+   Here rather than in `Native` or in `Host` because it is the one thing that has to exist on *both*
+   targets, and neither of those does: a native build resolves no declaration of `Host` at all, and a
+   JS build excludes every function of `Native` from emission. Collections imports both and is
+   implicitly visible everywhere, which makes it the lowest module a check can be emitted into from
+   anywhere in the program.
+
+   No message, and that is a real limitation rather than an oversight: printing one needs `Text`,
+   which imports this module. What each target does say is the most its own conventions allow -
+   status 134 natively, which is what a process killed by SIGABRT reports, and a thrown string on JS,
+   where the emitter supplies the sentence (see NativeOp::HostThrow).
+
+   The compiler calls this rather than a program doing so; `Program::checkFailed` is how it is found.
+-}
+@platform(native) fn checkFailed() -> {} = abortProcess()
+@platform(js) fn checkFailed() -> {} = hostFail()
+
+{-
+   One check, with its branch inside it.
+
+   The compiler emits a *call* to this rather than the `if` itself, and that is the whole reason it
+   exists: a subscript is expanded inside whatever expression contains it, so a branch emitted there
+   splits a block underneath a construct that had already decided which blocks it owns. Here the
+   branch is in a function of its own, where nothing is looking. Ordinary inlining removes the call
+   in an optimized build; an unoptimized one pays for it, which is the right way round for a check.
+
+   Written as the *mistake* rather than as the invariant - the caller passes `index >= length` - so
+   that the branch this contains is predicted the way it will actually go.
+-}
+fn checkCondition(failed: Bool) -> {}:
+    if failed then checkFailed()
+    return
 
 {-
    A growable array.
@@ -1305,6 +1347,18 @@ void defineCollections(Program& program) {
     // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
     program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
     program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
+
+    /*
+     * Recorded for the reason `allocateHeap` is: the compiler emits the call, so there is no name in
+     * any program for resolution to start from.
+     *
+     * Before defineContainerInstances, because that is what makes a subscript check reachable: the
+     * generated `get` bodies below are resolved against whatever this holds at the time.
+     */
+    if(context.settings.checks) {
+        auto found = module->functions.get(context.addUnqualifiedName("checkCondition", 14));
+        program.checkCondition = found ? found.unwrap() : nullptr;
+    }
 
     // After `arrayType` above, and before this module's own bodies below - several of which
     // subscript, and would reach an instance that does not exist yet.

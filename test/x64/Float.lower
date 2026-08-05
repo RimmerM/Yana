@@ -65,9 +65,43 @@ compare(%a: Double, %b: Double): Int {
 }
 
 # And one that could not stay in the flags, so it is materialized with setcc.
+#
+# Written as `<`, which is the comparison this machine has no ordered condition code for: `jb` and
+# `jbe` are both true when an operand is a NaN, and an ordered comparison of a NaN is false. The
+# operands are therefore exchanged and the comparison rewritten, so what is emitted here is
+# `ucomiss xmm1, xmm0; seta` - the same answer for every pair of numbers, and the right one for a
+# NaN. Nothing downstream knows it happened.
 compareValue(%a: Float, %b: Float): Int {
     {
         %c = cmp_lt %a, %b: Int
+        %d = add %c, %c: Int
+        ret %d
+    }
+}
+
+# Equality is the one that cannot be a condition code at all. ucomisd answers "equal" in ZF and
+# "unordered" in PF, and a NaN sets both - so ordered equality is `ZF and not PF`, which is a setcc
+# and then a correction the parity flag skips. That is why this is materialized into a register even
+# though its only use is a branch: the flags cannot carry the answer, so the branch tests the
+# register instead.
+compareEqual(%a: Double, %b: Double): Int {
+    {
+        %c = cmp_eq %a, %b: Int
+        je %c, then, else
+    }
+  then {
+        ret 1
+    }
+  else {
+        ret 0
+    }
+}
+
+# And its opposite, where the correction goes the other way: `a != b` is true for a NaN, since it is
+# the negation of an equality that is false. The setcc answered 0 there, so the correction writes 1.
+compareUnequal(%a: Float, %b: Float): Int {
+    {
+        %c = cmp_neq %a, %b: Int
         %d = add %c, %c: Int
         ret %d
     }

@@ -115,6 +115,39 @@ static bool trySwapOperands(LowerBase base, LowerInst* inst) {
     return true;
 }
 
+/*
+ * The two floating-point comparisons AMD64 can only answer the other way round.
+ *
+ * UCOMISS/UCOMISD leave their answer in the flags an *unsigned* integer comparison uses, and set CF,
+ * ZF and PF together when either operand is a NaN. That makes `ja` and `jae` - the codes `gt` and
+ * `ge` take - read correctly without anything further: an unordered comparison has CF set, so both
+ * are false, which is what an ordered comparison of a NaN has to be.
+ *
+ * `jb` and `jbe` are the same codes read the other way, so both are *true* for a NaN, and there is
+ * no condition code that is ordered-below. What there is instead is the identity: `a < b` is `b > a`
+ * for every pair the comparison is defined on, and false for every pair it is not. So the operands
+ * are exchanged and the comparison rewritten, here, once - rather than in the encoder, where the
+ * folding that carries a comparison into a branch or a select would each have to know about it.
+ *
+ * Equality is not fixable this way and is handled where the flags are read - see tryMergeCompare and
+ * genFloatFlagsToReg.
+ */
+static bool orderFloatCompare(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cmp) return false;
+
+    auto cmp = (LowerInstCmp*)inst;
+    if(!isFloat(base[cmp->lhs]->type)) return false;
+
+    switch(cmp->getCmp()) {
+        case LowerCmp::lt: cmp->setCmp(LowerCmp::gt); break;
+        case LowerCmp::le: cmp->setCmp(LowerCmp::ge); break;
+        default: return false;
+    }
+
+    ::swap(cmp->lhs, cmp->rhs);
+    return true;
+}
+
 static bool hasFlagsInterference(LowerBase base, LowerInstCmp* cmp, LowerInst* use, Size startIndex) {
     // Currently, we simply check if there is any interfering instruction below the creation, until we get to the use.
     // TODO: Follow paths between blocks from the definition to the use.
@@ -139,6 +172,23 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
     if(uses.size() == 0) {
         cmp->result.flags |= LowerValue::Implicit;
         return true;
+    }
+
+    /*
+     * A floating-point equality is not a condition code, so it cannot be carried in the flags.
+     *
+     * UCOMISS answers "equal" in ZF and "unordered" in PF, and both are set at once by a NaN - so
+     * ordered equality is `ZF and not PF` and inequality is `not ZF or PF`. Neither is a `setcc` or
+     * a `jcc`; each is two of them and a combining step, which is what genFloatFlagsToReg emits into
+     * a register. Refusing the fold here is what guarantees it gets the chance: a branch then tests
+     * that register rather than reading flags that cannot say what it needs.
+     *
+     * The ordering comparisons are not affected - canonicalizeOperands has already put them all in
+     * the `gt`/`ge` form, where CF alone is the answer and a NaN makes it false.
+     */
+    if(isFloat(base[cmp->lhs]->type)) {
+        auto kind = cmp->getCmp();
+        if(kind == LowerCmp::eq || kind == LowerCmp::neq) return false;
     }
 
     auto result = &cmp->result - base;
@@ -1134,15 +1184,18 @@ static void forEachInst(LowerBase base, LowerFunction& fun, F&& onInst) {
  * The passes.
  */
 
-// Moves operands into the canonical position for the passes below - today, an immediate onto the
-// right-hand side of a commutative operation, so that nothing downstream has to look at both sides.
+// Moves operands into the canonical position for the passes below: an immediate onto the right-hand
+// side of a commutative operation, so that nothing downstream has to look at both sides, and a
+// floating-point `lt`/`le` exchanged into the `gt`/`ge` this machine can answer for a NaN.
 // Representation-neutral: no target register or encoding decision is made here.
 //
-// Expects: the lowering's output, unmodified.  Establishes: commutative immediates on the right.
-// Mutates: operand order within an instruction. Invalidates: nothing.
+// Expects: the lowering's output, unmodified.  Establishes: commutative immediates on the right, and
+// no float comparison below. Mutates: operand order and the comparison an instruction carries.
+// Invalidates: nothing.
 static void canonicalizeOperands(LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         trySwapOperands(base, inst);
+        orderFloatCompare(base, inst);
     });
 }
 
@@ -1448,6 +1501,13 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
 }
 
 void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+    // Asked here because this is the first thing the backend does to a function and the question is
+    // about the IR as it arrives - so a frame this backend cannot build is a diagnostic against the
+    // program rather than something the frame builder discovers with the code half emitted. See
+    // checkFrameSupported; the pipeline still runs, since a reported error stops emission anyway and
+    // a half-transformed function is worse to reason about than a whole one.
+    checkFrameSupported(ctx, base, fun, targetConstraints());
+
     U32 established = 0;
 
     for(auto& pass: kTransformPipeline) {

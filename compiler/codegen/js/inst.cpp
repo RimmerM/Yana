@@ -1362,6 +1362,18 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
             define(g, value, callWith(g, variable(g, literalName(g, text)), arguments));
             break;
         }
+        case NativeOp::HostThrow: {
+            // A statement rather than an expression, which is the whole reason this is an operation
+            // of its own - see NativeOp::HostThrow. It produces no value and nothing after it in
+            // this block runs, which is already true of the resolve block it came from.
+            //
+            // The message is written here because the declaration that produces this cannot carry
+            // one: a string literal in `Host` would need `Text`, which is built after it.
+            auto message = make<StringExpr>(g, g.context.addUnqualifiedName("yana: a runtime check failed", 28));
+            emit(g, make<ThrowStmt>(g, asExpr(g, message)));
+            break;
+        }
+
         default:
             break;
     }

@@ -204,6 +204,42 @@ inline bool isDeferred(Buffer<Deferred> deferred, Size index) {
     return index < deferred.length && deferred[index].isSet();
 }
 
+/*
+ * What one argument position of a call is, at the point a callee has to be chosen for it.
+ *
+ * The distinction exists because this resolver spells four different things as a null value, and
+ * three of them are not the fourth: a position that failed is the only one a call must stop on. A
+ * `{}` argument, or one whose call returns `{}`, is a perfectly good value that carries nothing; a
+ * `@lazy` position is not a value *yet*, on purpose.
+ *
+ * Stated per position rather than as a bitmask, which is what it used to be. Two `U32` masks meant
+ * the answer simply ran out after argument 32: a `@lazy` position past that was evaluated eagerly,
+ * and a unit argument past it aborted the whole call as though its expression had been reported on.
+ * Neither had a symptom short of the wrong program, and neither is a limit anything about a call
+ * justifies - so the list is as long as the call is.
+ */
+enum class ArgResult: U8 {
+    Value,    /// The position produced a value, which is its entry in the argument list.
+    Unit,     /// It produced a value carrying nothing, which is spelled as no value at all.
+    Deferred, /// A `@lazy` position, left unevaluated - its entry in the `deferred` list holds it.
+    Failed,   /// It was reported on, so nothing further should be said about this call.
+};
+
+using ArgResultList = SmallArray<ArgResult, 8>;
+
+/*
+ * The state of position `index`, for a list that may be shorter than the argument list or absent.
+ *
+ * Absent is every synthesized call - a pattern's `==`, an array literal's `slice` - whose arguments
+ * are values this resolver has just produced. For one of those a null argument means the value it
+ * was made from failed, which is why that is the answer here rather than `Unit`: a caller that knows
+ * better says so, and one that does not gets the reading a synthesized call has always had.
+ */
+inline ArgResult argResultAt(Buffer<ArgResult> results, Size index, ModulePtr<Value> arg) {
+    if(index < results.length) return results[index];
+    return arg ? ArgResult::Value : ArgResult::Failed;
+}
+
 // One `yield` in a `lens fn` body: where it landed, and where it was written. The block is what the
 // exactly-once check is stated over and the source is what its diagnostics point at.
 struct LensYield {
@@ -372,6 +408,34 @@ struct ExprResolver {
 
     void terminate(Inst* inst);
     ModulePtr<Block> addBlock() { return function.addBlock(module) - local; }
+
+    /*
+     * A check the compiler inserted, as a call to `Collections.checkCondition`.
+     *
+     * `failed` is the condition under which the program is wrong, so it reads as the *mistake*
+     * rather than as the invariant - `index >= length`, not `index < length`.
+     *
+     * A call and not a branch, which is the one design decision here. Emitting `if failed then
+     * checkFailed()` inline would be shorter and is what this was first: a subscript is expanded
+     * *inside* whatever expression contains it, so splitting the current block splits it underneath
+     * a construct that had already recorded which blocks it owns. A generic `iter fn` whose body
+     * subscripts is the case that finds it - the lifted body's blocks stop being in the reverse
+     * postorder lowering walks them in, and a value is then used before its definition is lowered.
+     * A call is one instruction in the block that is already current, and the branch lives inside
+     * `checkCondition` where nothing is looking. Implementation-Containers.md §15 asks for this
+     * shape for its own reason: a library container calls the same function.
+     *
+     * Emits nothing at all when the checks are off, which is what makes `-no-checks` free rather
+     * than cheap - see CompileSettings::checks and Program::checkCondition.
+     */
+    void emitCheck(ModulePtr<Value> failed, LocationId source);
+
+    // Whether a check would be emitted at all, for a caller that has to decide whether to compute
+    // the condition. Answered before the operands are built rather than after, since a length load
+    // that nothing reads is still a load until an optimizer removes it.
+    bool checksEnabled() const {
+        return context.settings.checks && module.program.checkCondition != nullptr;
+    }
 
     /*
      * Values and conversions (expr.cpp).
@@ -618,12 +682,13 @@ struct ExprResolver {
      * Deferred arguments (Design.md's Deferred arguments).
      */
 
-    // Which parameters of the overload set this name reaches are `@lazy`, as a mask over argument
-    // positions. Asked of the name rather than of the callee because it has to be answered before
-    // any argument is evaluated, which is before selection has run - so every candidate of one
-    // (name, arity) has to agree, and one that does not is reported here rather than silently
-    // deciding by which overload happened to win.
-    U32 lazyArguments(StringId name, Size arity, LocationId source);
+    // Which parameters of the overload set this name reaches are `@lazy`. Fills `out` with one entry
+    // per position - `ArgResult::Deferred` for a `@lazy` one and `ArgResult::Value` for the rest -
+    // and answers whether there was any. Asked of the name rather than of the callee because it has
+    // to be answered before any argument is evaluated, which is before selection has run - so every
+    // candidate of one (name, arity) has to agree, and one that does not is reported here rather
+    // than silently deciding by which overload happened to win.
+    bool lazyArguments(StringId name, Size arity, LocationId source, ArgResultList& out);
 
     // Runs a deferred argument, here, in the block that is current now. This is the whole of what
     // `@lazy` means; everything else is about getting the argument to the point that calls this.
@@ -645,9 +710,9 @@ struct ExprResolver {
     // `deferred` is parallel to `args` and holds the `@lazy` arguments, whose `args` entry is null.
     // Empty for the calls that have none, which is all of them but a handful.
     //
-    // `nothing` is a bitmask of the positions whose null `args` entry is a value that carries
-    // nothing rather than one that failed to resolve - see the note on the guard in emitCall. Zero
-    // for every synthesized call, whose arguments are values this resolver just produced.
+    // `results` is parallel to `args` too, and says what each null entry in it means - see ArgResult
+    // and the guard in emitCall. Empty for every synthesized call, whose arguments are values this
+    // resolver just produced.
     /*
      * `nameSource` is where the callee's *name* was written, which is not `source`: `source` is the
      * whole call, and an editor asking about the name under the cursor needs the name.
@@ -656,7 +721,7 @@ struct ExprResolver {
      * what keeps those out of the index: nothing in the source spelled them, so there is no
      * occurrence to record. See resolve/index.h.
      */
-    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, U32 nothing = 0, LocationId nameSource = kNullLocation);
+    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, Buffer<ArgResult> results = {}, LocationId nameSource = kNullLocation);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
 
     // A call to a generic function: infers its type arguments from the call, then either

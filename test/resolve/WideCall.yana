@@ -1,0 +1,55 @@
+-- A call whose arguments run past position 32.
+--
+-- Two facts about a call used to be carried in `U32` bitmasks, one bit per argument, and both simply
+-- ran out at the thirty-second: which positions are `@lazy`, and which positions resolved to a value
+-- that carries nothing rather than to no value at all. Neither limit is anything about a call - the
+-- masks were an implementation that fitted the calls anyone had written so far.
+--
+-- What each one cost is different, and both are asserted here:
+--
+--  - a `@lazy` parameter past 32 was evaluated at the call site, which is the one thing `@lazy`
+--    promises will not happen. It has no symptom in the types and none in the emitted shape; it just
+--    runs, so it is caught here by a bit set that says *which* arguments ran.
+--  - a unit argument past 32 was read as an argument that had failed, and a failed argument stops
+--    the whole call. Silently, since the point of that guard is that something else has already
+--    reported - so this fixture would not have compiled at all.
+--
+-- 34 parameters, which is the smallest number that puts one of each past the boundary.
+
+let &effects = 0 :: Int
+
+fn bump(mark: Int) -> Int:
+    effects = effects + mark
+    return mark
+
+-- Generic, and deliberately so: a plain function whose signature covers the whole overload set is
+-- called through a path that never asks what a null argument meant, so the unit half of this only
+-- happens where selection does. `tag` and `extra` are the two variables; `extra` is the position the
+-- call fills with `{}`.
+fn wide(tag: a, p1: Int, p2: Int, p3: Int, p4: Int, p5: Int, p6: Int, p7: Int, p8: Int,
+        p9: Int, p10: Int, p11: Int, p12: Int, p13: Int, p14: Int, p15: Int, p16: Int,
+        p17: Int, p18: Int, p19: Int, p20: Int, p21: Int, p22: Int, p23: Int, p24: Int,
+        p25: Int, p26: Int, p27: Int, p28: Int, p29: Int, p30: Int, p31: Int,
+        extra: b, @lazy late: Int) -> Int =
+    if p1 == 0 then late else p1 + p31
+
+-- `extra` is argument 32 and `late` is argument 33, counting from zero. `p1` is 7, so the `if` takes
+-- the other arm and `late` is never forced: `effects` has to still be 0 afterwards, and it is 1 if
+-- the argument was evaluated where it was written.
+fn call() -> Int =
+    wide(True, 7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+         {}, bump(1))
+
+-- The same call with the deferred argument's arm taken, which is what proves the position is
+-- deferred rather than merely dropped: `late` runs exactly once, here and not above.
+fn callForcing() -> Int =
+    wide(True, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+         {}, bump(4))
+
+fn main() -> Int:
+    let skipped = call()          -- 7 + 31 = 38, and effects still 0
+    let unskipped = callForcing() -- 4, and effects now 4
+
+    return skipped + unskipped + effects

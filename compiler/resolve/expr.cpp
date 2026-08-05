@@ -9,6 +9,13 @@ void ExprResolver::terminate(Inst* inst) {
     current = nullptr;
 }
 
+void ExprResolver::emitCheck(ModulePtr<Value> failed, LocationId source) {
+    if(!failed || !checksEnabled()) return;
+
+    ModulePtr<Value> condition[] = { failed };
+    emitDirectCall(module.program.checkCondition, { condition, 1 }, source);
+}
+
 Binding* ExprResolver::findBinding(StringId name, LocationId source) {
     Binding* found = nullptr;
 

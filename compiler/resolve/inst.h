@@ -824,13 +824,27 @@ enum class NativeOp: U8 {
      * where Analysis-JS.md §2.4 asks for it, rather than in the backend.
      */
     HostGlobalCall,
+
+    /*
+     * `throw args[0]` - how a program stops on this target.
+     *
+     * A statement rather than an expression, which is what makes it its own operation instead of a
+     * `HostGlobalCall` on some function that happens to throw. JavaScript has no `abort`: the host
+     * decides what stopping means, and the one thing every host agrees on is that an exception
+     * nobody catches ends the program with the value it carried reported.
+     *
+     * The operand is a `String`, and it is thrown as it stands rather than wrapped in an `Error`.
+     * What the message needs to do is say which check failed, and a string says that with nothing
+     * around it that this backend would have to be able to construct.
+     */
+    HostThrow,
 };
 
 // Whether an operation's meaning belongs to the host rather than to the machine. The JS emitter
 // asks it to pick its arm; `expressibleInJs` asks it to let one through at all.
 inline bool isHostOp(NativeOp op) {
     return op == NativeOp::HostCall || op == NativeOp::HostField || op == NativeOp::HostArray ||
-           op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall;
+           op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall || op == NativeOp::HostThrow;
 }
 
 struct InstNative: Inst {

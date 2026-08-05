@@ -345,6 +345,42 @@ static void resolveConstraintClasses(Module& module, GenEnv& env) {
  * that the type is already known here - it is the field's - so a literal is checked against it
  * rather than deciding it, and there is no `:: Type` form to write.
  */
+/*
+ * A written literal, reduced to the bits a value of `type` holds - or nothing, if that type does not
+ * hold a literal of that kind at all.
+ *
+ * The one place the question is answered, because it used to be answered twice and the two answers
+ * differed: declareGlobal took the ascribed type from `:: T` and then never asked whether the number
+ * in front of it was a thing a `T` could be, so `let &slot = 0 :: Pair` declared a record's storage,
+ * zero-filled, that every later assignment would pre-drop as though it held a constructed value.
+ * Reporting is left to the caller, since a field default and a global's initializer are written
+ * differently enough to deserve their own words.
+ */
+static bool literalBitsAt(Module& module, const ast::Expr& expr, ast::Literal::Kind literal, TypePtr type,
+                          U64& bits) {
+    auto global = *module.types;
+
+    // A pointer's constant is an address written as an integer, which is how a null pointer is
+    // spelled in both positions.
+    if(literal == ast::Literal::Int && (isInteger(global, type) || isPointer(global, type))) {
+        bits = expr.lit.i();
+        return true;
+    }
+
+    if(isFloat(global, type) &&
+       (literal == ast::Literal::Int || literal == ast::Literal::Float || literal == ast::Literal::Double)) {
+        auto number = literal == ast::Literal::Int   ? F64(expr.lit.i())
+                    : literal == ast::Literal::Float ? F64(expr.lit.f)
+                                                     : expr.lit.d();
+
+        // Written as the bits the storage will occupy, so that nothing has to convert again later.
+        bits = floatBits(global, type, number);
+        return true;
+    }
+
+    return false;
+}
+
 static bool fieldDefaultBits(Module& module, const ast::Expr& expr, TypePtr type, U64& bits) {
     auto global = *module.types;
     auto& diagnostics = module.context.diagnostics;
@@ -373,24 +409,7 @@ static bool fieldDefaultBits(Module& module, const ast::Expr& expr, TypePtr type
     }
 
     auto literal = ast::Literal::Kind(expr.kind - ast::Expr::Lit);
-
-    // A pointer field's default is an address written as an integer, which is the same spelling a
-    // null pointer global takes.
-    if(literal == ast::Literal::Int && (isInteger(global, type) || isPointer(global, type))) {
-        bits = expr.lit.i();
-        return true;
-    }
-
-    if(isFloat(global, type) &&
-       (literal == ast::Literal::Int || literal == ast::Literal::Float || literal == ast::Literal::Double)) {
-        auto number = literal == ast::Literal::Int  ? F64(expr.lit.i())
-                    : literal == ast::Literal::Float ? F64(expr.lit.f)
-                                                     : expr.lit.d();
-
-        // Written as the bits the field will occupy, so that nothing has to convert again later.
-        bits = floatBits(global, type, number);
-        return true;
-    }
+    if(literalBitsAt(module, expr, literal, type, bits)) return true;
 
     diagnostics.error("a field of type %@ cannot have this default"_v, expr.source,
                       describeType(module.context, global, type));
@@ -795,30 +814,49 @@ static void declareGlobal(Module& module, ast::Decl& decl) {
         }
 
         auto literal = ast::Literal::Kind(value->kind - ast::Expr::Lit);
-        U64 initial = 0;
 
         switch(literal) {
             case ast::Literal::Int:
                 if(!type) type = module.scalar.int_;
-                initial = value->lit.i();
                 break;
             case ast::Literal::Double:
-            case ast::Literal::Float: {
+            case ast::Literal::Float:
                 if(!type) type = module.scalar.float_;
-
-                // A float's initial value is its storage, so it is written as the bits it will
-                // occupy rather than as a number the emitter would have to convert again.
-                auto number = literal == ast::Literal::Float ? F64(value->lit.f) : value->lit.d();
-                initial = floatBits(*module.types, type, number);
                 break;
-            }
             default:
                 context.diagnostics.error("a global's initializer must be a number"_v, value->source);
                 continue;
         }
 
-        if(!isDirectType(*module.types, type) && !isMemoryType(*module.types, type)) {
-            context.diagnostics.error("a global cannot have this type"_v, declaration.pat.source);
+        // The written type failed to resolve, which has already been reported.
+        if(!type) continue;
+
+        /*
+         * And the number has to be one a value of that type could be.
+         *
+         * This is the whole of what `:: T` may do. Without it the type was taken on the ascription's
+         * word and the literal in front of it was never consulted, so `let &slot = 0 :: Pair`
+         * declared a record's worth of zeroed static storage - and a zero-filled record is not a
+         * constructed one, so the first assignment to it would tear down whatever the zeroes
+         * decoded as. There is no spelling for a constant of a memory type, so the honest answer is
+         * that a global cannot have one yet rather than that it starts empty.
+         */
+        U64 initial = 0;
+
+        if(!literalBitsAt(module, *value, literal, type, initial)) {
+            auto types = *module.types;
+
+            // Two different mistakes, and telling them apart is the whole use of the message: a type
+            // with no constant form at all, against a number that is not one of the constants the
+            // type does have.
+            if(isNumeric(types, type) || isPointer(types, type)) {
+                context.diagnostics.error("this literal is not a constant of type %@ - a global takes the value it is written as, since there is no conversion a declaration could run"_v,
+                                          value->source, describeType(context, types, type));
+            } else {
+                context.diagnostics.error("a global of type %@ has no constant to start from - only an integer, pointer or floating-point global can be declared at module level"_v,
+                                          value->source, describeType(context, types, type));
+            }
+
             continue;
         }
 
@@ -1930,6 +1968,11 @@ static void checkSuperclasses(Module& module, ClassInstance& instance) {
 
 void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved) {
     auto parse = module.parse;
+
+    // Set before the imports rather than after them, because an import resolves the module it names
+    // and that module's own imports can lead back here - which is the whole of what this records.
+    module.declState = Module::DeclState::Resolving;
+
     if(!importsResolved) resolveImports(module, ast, provider);
 
     for(auto fixity: ast.ops.contents(parse)) {
@@ -2065,6 +2108,8 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     if(&module != module.program.core) checkModuleClasses(module, ast);
 
     completePendingInstances(module);
+
+    module.declState = Module::DeclState::Resolved;
 }
 
 void checkModuleClasses(Module& module, ast::Module& ast) {
@@ -2128,6 +2173,25 @@ void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) 
 
             target = module.program.addModule(imported.from, *source->region);
             resolveModuleDecls(*target, *source, provider);
+        }
+
+        /*
+         * The indirect form of the self-import above, and the one that had no diagnostic at all.
+         *
+         * A module reached this way exists - it was interned before its declarations were resolved -
+         * so nothing downstream can tell it apart from a finished one. What it holds is whichever of
+         * its declarations came before the import that led back here, which makes every signature
+         * resolved against it depend on the order the files were named in. Rejected rather than
+         * accepted partially, because there is no reading of a cycle that is the same program twice.
+         *
+         * The import is dropped as well as reported, so that the rest of this module resolves
+         * against a target that is absent rather than against one that is half there.
+         */
+        if(target->declState == Module::DeclState::Resolving) {
+            module.context.diagnostics.error("%@ and %@ import each other, directly or through another module - a cycle has no order for their declarations to be resolved in, so the two would see different halves of one another depending on which was compiled first"_v,
+                                             imported.source, module.context.findName(module.name),
+                                             module.context.findName(imported.from));
+            continue;
         }
 
         auto duplicate = false;
