@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "solve.h"
 #include "complete.h"
 #include "witness.h"
 #include "generic.h"
@@ -55,117 +56,6 @@ static String describeQualified(Context& context, GlobalBase global, StringId na
     }
 
     return text.string();
-}
-
-// Binds the class type variables that one position of a signature constrains. Widening applies at
-// the top level only: unifying the positions bound to one class variable to their common Widen
-// supertype is how `1 + 2.5` reaches Num(Float) without the class machinery having to know
-// anything about numbers below the outermost type.
-bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen) {
-    if(!pattern || !actual) return false;
-
-    // An owned container fits a `[T]` parameter, which is the conversion convertSlice performs -
-    // so matching is against the slice it becomes, and a `Flat(a)` pattern binds `a` to the array's
-    // element instead of failing outright. Argument direction only, for the reason the widening
-    // rule below is: what a call *produces* has not decided anything by needing a conversion.
-    if(widen && sliceElement(module, pattern)) {
-        if(ownedElement(module, actual)) {
-            actual = sliceOf(module, actual);
-        } else if(auto element = contiguousElement(module, actual)) {
-            /*
-             * A container of the program's own, viewed as the slice its `Contiguous` instance
-             * promises - Implementation-Containers.md §5. The conversion is a call to `elements` and
-             * convert() emits it; what has to happen here is that `fn sum(xs: [a])` binds `a` at all,
-             * since a generic parameter never reaches convert() without first having been matched.
-             */
-            actual = instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
-        }
-    }
-
-    if(global[pattern]->kind == Type::Gen) {
-        auto index = ((GenType*)global[pattern])->index;
-        if(index >= bindings.size()) return false;
-
-        if(!bindings[index]) {
-            bindings[index] = actual;
-            return true;
-        }
-
-        if(bindings[index] == actual) return true;
-
-        /*
-         * A `@bits` refinement and the type it refines are one type here.
-         *
-         * [repr.md](doc/spec/repr.md#bit-width-refinements) says it outright - *"`@bits(n)` is
-         * Repr-only: it never participates in typeclass dispatch"*, and *"everything that dispatches
-         * (instance selection, literal defaulting, overload resolution) canonicalizes first"* - and
-         * `matchType` is the half that was built: an instance head canonicalizes both sides, so
-         * `instance Num(U64)` answers `Num(@bits(53) U64)` and nobody writes an instance per width.
-         *
-         * This is the other half, and without it the rule held only while every position of a call
-         * agreed on the *same* refinement. `x == y` on a `@bits(2) U32` and a `U32` bound `a` twice
-         * to two types, found no common `Widen` between them - there is no instance for a refinement,
-         * since widening one is structural rather than a conversion anyone declared - and reported
-         * "no class function == accepts (@bits(2) U32, U32)" for an operator the spec says is the
-         * plain `U32` one. Two refinements of one type failed the same way.
-         *
-         * The variable takes the *canonical* type, which is what makes the arguments converge:
-         * widening a refinement to its base is free (see convertRefinement), and it is what a load of
-         * a packed field already produces - repr.md's "load always widens". So the operation happens
-         * at the natural width, as it does everywhere else, and only a store narrows again.
-         */
-        if(auto canonical = canonicalType(global, bindings[index]);
-           canonical == canonicalType(global, actual)) {
-            bindings[index] = canonical;
-            return true;
-        }
-
-        // A literal has no type yet, so meeting one is not a conflict. It takes whatever the
-        // other position decided if its class allows; two literals become one variable carrying
-        // both their classes, which is what leaves `1 + 2.5` a single question to answer.
-        if(isLiteral(global, actual)) {
-            if(!isLiteral(global, bindings[index])) return literalFits(actual, bindings[index]);
-
-            bindings[index] = mergeLiterals(bindings[index], actual);
-            return true;
-        }
-
-        if(isLiteral(global, bindings[index])) {
-            if(!literalFits(bindings[index], actual)) return false;
-
-            bindings[index] = actual;
-            return true;
-        }
-
-        if(!widen) return false;
-
-        auto common = commonWiden(bindings[index], actual);
-        if(!common) return false;
-
-        bindings[index] = common;
-        return true;
-    }
-
-    // A literal against a written type takes that type outright, since there is nothing below the
-    // outermost type of a literal for matchType to walk into.
-    if(isLiteral(global, actual)) return !isGeneric(global, pattern) && literalFits(actual, pattern);
-
-    /*
-     * A concrete position in an otherwise generic signature is judged the way a non-generic
-     * function's is: there is no variable here to bind, so what matters is whether the argument
-     * converts. Without this, `fn push(&self: Array(a), index: Int)` would reject the `Short` that
-     * the identical non-generic signature accepts, and a signature would mean different things
-     * depending on whether some *other* parameter mentioned a type variable.
-     *
-     * Only in the argument direction. The result position asks what the call produces, and a
-     * result that would need converting has not decided the type arguments by itself.
-     */
-    if(widen && !isGeneric(global, pattern) && !sameType(pattern, actual)) {
-        TypePtr pair[] = { actual, pattern };
-        return findInstance(module, module.coreClasses.widen, { pair, 2 }) != nullptr;
-    }
-
-    return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() });
 }
 
 /*
@@ -382,72 +272,6 @@ ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeC
     return match.instance;
 }
 
-/*
- * Settling a call's type arguments, with the constraints' dependencies given the last word.
- *
- * Three steps rather than one, and the middle one is the whole reason this is a function. A
- * binding a *literal* made is not an answer, it is a default waiting to be overridden:
- * `fn (Index(c, k, v)) at(xs: c, i: k) -> v` called as `at(xs, 0)` binds `k` from the `0`, and
- * settling that gives `Int` - so by the time the dependency is asked, `k` looks decided and the
- * instance is never consulted. Which is backwards. `c` decides `k`, and a container whose key is
- * `Size` should take the literal at `Size` rather than have no instance at `Int`.
- *
- * So the dependency is asked with those positions cleared, and what it answers wins. A position no
- * instance decides keeps the default the settle already gave it, which is why the answer is merged
- * back rather than assigned: a class that determines nothing is unaffected, and so is every call
- * whose arguments were not literals.
- *
- * The settle still comes first for the *deciding* positions, and only what is already decided can
- * be settled - the dependency is answered by looking an instance up, and `sum([1, 2, 3])` binds the
- * container to a literal type until something defaults it. A deciding position is never one of the
- * cleared ones: `Array(<literal>)` is a record and not itself a literal, which is what keeps the
- * lookup answerable.
- */
-void ExprResolver::settleWithDependencies(GenEnv& env, TypeList& bindings, LocationId source) {
-    /*
-     * Which variables a dependency could answer, and which one has to be decided before it can.
-     *
-     * A variable in a *determined* position is one the instance answers; a variable in a *deciding*
-     * position is one the lookup needs in hand. A variable in both - which a constraint like
-     * `Elem(c, Wrap(c))` would produce - is treated as deciding, because a lookup that cannot
-     * happen answers nothing at all.
-     */
-    U64 answerable = 0;
-    U64 decides = 0;
-
-    for(auto constraint: env.classes.contents(global)) {
-        auto typeClass = constraint.typeClass;
-        if(!typeClass || !global[typeClass]->determines()) continue;
-
-        Size index = 0;
-        for(auto arg: constraint.args.contents(global)) {
-            genVariablesIn(global, arg, index < global[typeClass]->determined ? decides : answerable);
-            index++;
-        }
-    }
-
-    SmallArray<bool, 8> defaulted;
-    for(Size i = 0; i < bindings.size(); i++) {
-        auto overridable = i < 64 && (answerable & (U64(1) << i)) && !(decides & (U64(1) << i));
-        defaulted.push(overridable && bindings[i] && isLiteral(global, bindings[i]));
-    }
-
-    for(Size i = 0; i < bindings.size(); i++) {
-        if(bindings[i]) bindings[i] = settleType(bindings[i]);
-    }
-
-    TypeList asked = bindings;
-    for(Size i = 0; i < asked.size(); i++) {
-        if(defaulted[i]) asked[i] = nullptr;
-    }
-
-    fillDetermined(module, env, asked, source);
-
-    for(Size i = 0; i < bindings.size(); i++) {
-        if(asked[i]) bindings[i] = asked[i];
-    }
-}
-
 // See the declarations in expr.h for what each of these is for; both exist because the rule they
 // state was written out at four call sites, and three of them stated it differently.
 ResolvedArg ExprResolver::convertArgument(const ResolvedArg& arg, TypePtr declared, LocationId source) {
@@ -572,109 +396,23 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
 // instance for these types", which are very different diagnostics.
 bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target,
                                  ClassMatch& resolved) {
-    auto typeClass = global[reference.typeClass];
-    auto signature = local[typeClass->functions.get(global, reference.index).fun];
-    if(!signature || signature->args.size() != args.length) return false;
+    auto signature = global[reference.typeClass]->functions.get(global, reference.index).fun;
+    if(!signature || local[signature]->args.size() != args.length) return false;
 
-    auto env = global[typeClass->gen];
-    TypeList bindings;
-    for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+    Solution solution;
+    solveClassFun(*this, reference.typeClass, signature, args, target, solution);
 
-    for(Size i = 0; i < args.length; i++) {
-        if(args[i].isDeferred()) continue;
-
-        // A position nothing could be worked out for decides nothing about this signature either.
-        // Only that one: a `{}` argument is an ordinary value of an ordinary type, which is what
-        // `valueType` answers for it and what this binds - it used to be rejected here for looking
-        // exactly like a failure.
-        if(args[i].isFailed()) return false;
-
-        auto declared = local[signature->args.get(local, i)]->declaredType();
-        if(!bindPosition(declared, valueType(args[i].value), bindings, true)) return false;
-    }
-
-    // The expected result only fills in what the arguments left open, so an ascription can pick
-    // an instance but cannot re-pick one the arguments already determined. A literal argument
-    // determines nothing, so a binding it made is still open in this sense.
-    if(target) {
-        TypeList withTarget = bindings;
-
-        if(bindPosition(signature->returnType, target, withTarget, false)) {
-            for(Size i = 0; i < bindings.size(); i++) {
-                if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
-            }
-        }
-    }
-
-    /*
-     * A class's type argument has to be a real type before an instance can be looked for, so a
-     * literal variable that no position decided takes its class's default here. The end of the
-     * statement is the outer boundary for that; a call that needs an instance is the inner one,
-     * and it is the one that comes first.
-     *
-     * The determining positions of a functional dependency settle *before* the rest, because the
-     * instance they select is what decides the rest. Settling everything first would ask the table
-     * for a literal's type rather than its default and find nothing; filling first would leave the
-     * determined positions holding whatever a literal determiner happened to point at.
-     */
-    auto determined = typeClass->determines() ? Size(typeClass->determined) : bindings.size();
-
-    for(Size i = 0; i < determined; i++) {
-        bindings[i] = settleType(bindings[i]);
-        if(!bindings[i]) return false;
-    }
-
-    // `c` decides `a`, so a call that bound only `c` reads `a` off the instance rather than failing
-    // to infer it. The selected instance is kept: looking it up again below with the now-complete
-    // arguments would find the same one, and this way the search happens once.
-    ModulePtr<ClassInstance> fromDependency = nullptr;
-    auto open = false;
-
-    for(Size i = determined; i < bindings.size(); i++) {
-        if(!bindings[i]) open = true;
-    }
-
-    if(open) {
-        if(auto match = resolveDetermined(module, reference.typeClass, bindings)) {
-            fromDependency = match.instance;
-            replaceContents(resolved.instanceArgs, match.args);
-        } else if(auto env = functionGen(global, function)) {
-            /*
-             * Inside a generic body there is no instance to read the determined positions off:
-             * `c` is this function's own type variable and which container it will be is the
-             * caller's business. What answers instead is the requirement the signature declared,
-             * which already gave the determined position a name - the `a` of `fn (Contiguous(c,
-             * a)) first(self: c)`.
-             *
-             * Undeclared is deliberately not inferred. Recording `Contiguous(c, ?)` would mean
-             * inventing a variable for the body, which is one more thing every caller has to
-             * satisfy without the author having written it; the constraint has to be declared, and
-             * the diagnostic below says so.
-             */
-            TypeList declared;
-
-            if(findClassRequirement(module, *env, reference.typeClass, toBuffer(bindings), declared)) {
-                for(Size i = determined; i < bindings.size() && i < declared.size(); i++) {
-                    if(!bindings[i]) bindings[i] = declared[i];
-                }
-            } else if(typeClass->determines()) {
-                resolved.undeclaredDependency = true;
-            }
-        }
-    }
-
-    for(Size i = determined; i < bindings.size(); i++) {
-        bindings[i] = settleType(bindings[i]);
-        if(!bindings[i]) return false;
-    }
+    // Kept whatever the solve answered: a dependency nothing declares is a diagnostic about the
+    // constraint the author has to write, and the match it belongs to is a failed one.
+    resolved.undeclaredDependency = solution.undeclaredDependency;
+    if(!solution) return false;
 
     resolved.typeClass = reference.typeClass;
     resolved.index = reference.index;
-    resolved.instance = fromDependency
-        ? fromDependency
-        : selectInstance(reference.typeClass, toBuffer(bindings), resolved.instanceArgs);
+    resolved.instance = solution.instance;
 
-    replaceContents(resolved.args, bindings);
+    replaceContents(resolved.args, solution.types);
+    replaceContents(resolved.instanceArgs, solution.instanceArgs);
 
     return true;
 }
@@ -683,44 +421,20 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedAr
 // admits at most one plain function, so this is arity plus "do the arguments fit", and the answer
 // has to be reached without reporting anything - see ExprResolver::convertible.
 bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
-                                LocationId source, Size declaredArgs) {
+                                LocationId source, Size declaredArgs, TypeList& typeArgs) {
     auto callable = local[callee];
+    typeArgs.clear();
+
     if(declaredArgs != args.length) return false;
 
     // A generic function fits when its type arguments can all be inferred here, by the same
-    // one-directional rule the classes use.
-    if(auto env = functionGen(global, *callable)) {
-        TypeList bindings;
-        for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+    // one-directional rule the classes use - which is one solve, performed for real by
+    // emitGenericCall once something has committed to this callee.
+    if(functionGen(global, *callable)) {
+        Solution solution;
+        solveSignature(*this, callee, args, target, source, Unresolved::Rejects, solution);
 
-        for(Size i = 0; i < args.length; i++) {
-            if(args[i].isDeferred()) continue;
-            if(args[i].isFailed()) return false;
-
-            auto declared = local[callable->args.get(local, i)]->declaredType();
-            if(!bindPosition(declared, valueType(args[i].value), bindings, true)) return false;
-        }
-
-        if(target) {
-            TypeList withTarget = bindings;
-
-            if(bindPosition(callable->returnType, target, withTarget, false)) {
-                for(Size i = 0; i < bindings.size(); i++) {
-                    if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
-                }
-            }
-        }
-
-        /*
-         * A variable this signature's constraints determine is inferred from them rather than from
-         * the call, so `fn (Contiguous(c, a)) sum(xs: c) -> a` fits a call that mentions only `c`.
-         *
-         * The settle has to come first, and only what is already decided can be settled: the
-         * dependency is answered by looking an instance up, and `sum([1, 2, 3])` binds the
-         * container to a *literal* type until something defaults it. There is no instance for one
-         * of those, so asking before settling finds nothing and infers nothing.
-         */
-        settleWithDependencies(*env, bindings, source);
+        if(!solution.fits()) return false;
 
         /*
          * Every type argument decided - but only when this call fills the whole signature.
@@ -732,11 +446,11 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg>
          * See continuationSignature, which is where those variables are settled instead.
          */
         if(declaredArgs < callable->args.size()) return true;
+        if(!solution) return false;
 
-        for(Size i = 0; i < bindings.size(); i++) {
-            if(!settleType(bindings[i])) return false;
-        }
-
+        // The answer, for a caller that is about to commit to this callee. A solve that did not
+        // settle every variable hands back nothing at all rather than a list with holes in it.
+        replaceContents(typeArgs, solution.types);
         return true;
     }
 
@@ -1328,8 +1042,9 @@ void ExprResolver::prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedA
  * the same fork and none of them has anything to add to it.
  */
 ModulePtr<Value> ExprResolver::emitKnownFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
-                                                 LocationId source, TypePtr target, StringId resultName) {
-    return local[callee]->gen ? emitGenericCall(callee, args, source, target, resultName)
+                                                 LocationId source, TypePtr target, StringId resultName,
+                                                 Buffer<TypePtr> solved) {
+    return local[callee]->gen ? emitGenericCall(callee, args, source, target, resultName, solved)
                               : emitDirectCall(callee, args, source, target, resultName);
 }
 
@@ -1515,7 +1230,11 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
     for(auto& arg: args) borrowed = borrowed || (arg.isValue() && isBorrow(global, valueType(arg.value)));
 
     if(borrowed) {
-        auto accepted = direct && matchFunction(direct, args, target, source, set.arity);
+        // Its own list rather than the one selection keeps: this match is against the arguments as
+        // written, and the loop below may then replace them - so what it solved is not what the
+        // selected callee would be emitted for. See the R5 test, which is the match that counts.
+        TypeList probed;
+        auto accepted = direct && matchFunction(direct, args, target, source, set.arity, probed);
 
         /*
          * Matching is not enough: it is what fails *after* it that this is for.
@@ -1557,11 +1276,16 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
     // Committing to the plain function, once it is the candidate the call is being served by. Its
     // arity is not checked here: `direct` is the plain function *at this arity* or nothing at all,
     // which is what makes it a candidate rather than a thing to test again. See OverloadSet.
+    TypeList plainTypes;
+
     auto selectPlain = [&]() {
         recordReference(context, nameSource, functionSymbol(module, direct));
 
         out.kind = ResolvedCallee::Kind::Plain;
         out.function = direct;
+
+        // What the R5 test below solved, where it ran at all - see ResolvedCallee::typeArgs.
+        replaceContents(out.typeArgs, plainTypes);
     };
 
     /*
@@ -1654,7 +1378,7 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
      * a loop: the last parameter of a loop's callee is the continuation the loop supplies, so what
      * is tested is the leading prefix the call site actually wrote. See CallShape::supplied.
      */
-    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source, set.arity))) {
+    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source, set.arity, plainTypes))) {
         selectPlain();
         return;
     }
@@ -1850,7 +1574,8 @@ ModulePtr<Value> ExprResolver::emitCall(const OverloadSet& set, Buffer<ResolvedA
             return nullptr;
 
         case ResolvedCallee::Kind::Plain:
-            return emitKnownFunction(callee.function, selected, source, target, resultName);
+            return emitKnownFunction(callee.function, selected, source, target, resultName,
+                                     toBuffer(callee.typeArgs));
 
         case ResolvedCallee::Kind::Instance:
             return emitInstanceCall(module, callee.match.instance, toBuffer(callee.match.instanceArgs),
@@ -2041,7 +1766,8 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
 }
 
 ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
-                                               LocationId source, TypePtr target, StringId resultName) {
+                                               LocationId source, TypePtr target, StringId resultName,
+                                               Buffer<TypePtr> solved) {
     auto generic = local[callee];
     auto calleeEnv = functionGen(global, *generic);
 
@@ -2049,90 +1775,89 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         return emitDirectCall(callee, args, source, target, resultName);
     }
 
-    TypeList bindings;
-    for(Size i = 0; i < calleeEnv->types.size(); i++) bindings.push(nullptr);
+    /*
+     * The same solve matchFunction ran to decide that this callee fits, performed rather than
+     * asked. The two used to be written out separately: this one reports and that one may not, and
+     * everything else about them - the one-directional rule, the expected result filling only what
+     * the arguments left open, the dependencies, the settle - was the same code twice.
+     *
+     * The failure states are what is read back here. A solve says which position it stopped at and
+     * about what, and the messages below are this call site's account of that - the general one,
+     * and the two that name a capability rather than a type.
+     */
+    Solution solution;
 
-    // The same one-directional rule the classes use: the arguments decide, and the expected
-    // result only fills in what they left open.
-    for(Size i = 0; i < args.length; i++) {
-        if(args[i].isDeferred()) continue;
+    if(solved.length == calleeEnv->types.size() && solved.length) {
+        /*
+         * Selection already decided these types, against this very argument list and this very
+         * expected result, and handed them over rather than throwing them away - see
+         * ResolvedCallee::typeArgs. Solving again would ask the same question of the same inputs.
+         *
+         * A length that does not match is not one of these: an empty list is a selection that never
+         * matched this callee at all (R1 admits one plain function per name and arity, so a set with
+         * no class candidates commits to it without a match), and every other caller of this
+         * function reaches a callee it has not solved.
+         */
+        for(auto type: solved) solution.types.push(type);
+    } else {
+        solveSignature(*this, callee, args, target, source, Unresolved::Binds, solution);
+    }
 
-        auto declared = local[generic->args.get(local, i)]->declaredType();
+    if(solution.state == Solution::State::Argument) {
+        auto given = valueType(args[solution.position].value);
+        auto declared = local[generic->args.get(local, solution.position)]->declaredType();
 
-        if(!bindPosition(declared, valueType(args[i].value), bindings, true)) {
-            /*
-             * A fixed array where a growable one was asked for - Implementation-Containers.md §6's
-             * "it is never a growable argument. The diagnostic says so directly: a fixed array
-             * cannot be pushed to."
-             *
-             * Said here rather than left to the general message because the general message is
-             * true and useless: `[Int *4]` does not fit `Array(a)` for a reason that is the whole
-             * design - growth is nominal, so the operations that grow name the growable type - and
-             * a reader who has just watched `[Int *4]` pass to five other `[Int]` functions needs
-             * to be told which capability this one wanted instead of which types failed to unify.
-             */
-            if(fixedElement(module, valueType(args[i].value)) && isGrowableArray(module, declared)) {
-                context.diagnostics.error("%@ cannot be passed to %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
-                                          source, describeType(context, global, valueType(args[i].value)),
-                                          context.findName(generic->name));
-                return nullptr;
-            }
-
-            /*
-             * A `Chunked` container where a `[T]` was asked for - Implementation-Containers.md §5.
-             *
-             * Said here as well as in convert(), because the two positions fail in different places:
-             * a concrete `[Int]` parameter reaches the conversion and reports there, while a `[a]`
-             * one fails at the binding above and never has a slice type to convert to. The message
-             * is the same one because the mistake is, and what fixes it is the parameter.
-             */
-            if(sliceElement(module, declared) && chunkedElement(module, valueType(args[i].value))) {
-                context.diagnostics.error("%@ is `Chunked` and not `Contiguous`, so it cannot be passed to %@, which asks for a slice - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies"_v,
-                                          source, describeType(context, global, valueType(args[i].value)),
-                                          context.findName(generic->name));
-                return nullptr;
-            }
-
-            context.diagnostics.error("argument %@ of %@ is %@, which does not fit %@"_v, source, U32(i + 1),
-                                      context.findName(generic->name),
-                                      describeType(context, global, valueType(args[i].value)),
-                                      describeType(context, global, declared));
+        /*
+         * A fixed array where a growable one was asked for - Implementation-Containers.md §6's
+         * "it is never a growable argument. The diagnostic says so directly: a fixed array
+         * cannot be pushed to."
+         *
+         * Said here rather than left to the general message because the general message is
+         * true and useless: `[Int *4]` does not fit `Array(a)` for a reason that is the whole
+         * design - growth is nominal, so the operations that grow name the growable type - and
+         * a reader who has just watched `[Int *4]` pass to five other `[Int]` functions needs
+         * to be told which capability this one wanted instead of which types failed to unify.
+         */
+        if(fixedElement(module, given) && isGrowableArray(module, declared)) {
+            context.diagnostics.error("%@ cannot be passed to %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
+                                      source, describeType(context, global, given),
+                                      context.findName(generic->name));
             return nullptr;
         }
-    }
 
-    if(target) {
-        TypeList withTarget = bindings;
-
-        if(bindPosition(generic->returnType, target, withTarget, false)) {
-            for(Size i = 0; i < bindings.size(); i++) {
-                if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
-            }
+        /*
+         * A `Chunked` container where a `[T]` was asked for - Implementation-Containers.md §5.
+         *
+         * Said here as well as in convert(), because the two positions fail in different places:
+         * a concrete `[Int]` parameter reaches the conversion and reports there, while a `[a]`
+         * one fails at the binding above and never has a slice type to convert to. The message
+         * is the same one because the mistake is, and what fixes it is the parameter.
+         */
+        if(sliceElement(module, declared) && chunkedElement(module, given)) {
+            context.diagnostics.error("%@ is `Chunked` and not `Contiguous`, so it cannot be passed to %@, which asks for a slice - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies"_v,
+                                      source, describeType(context, global, given),
+                                      context.findName(generic->name));
+            return nullptr;
         }
+
+        context.diagnostics.error("argument %@ of %@ is %@, which does not fit %@"_v, source,
+                                  U32(solution.position + 1), context.findName(generic->name),
+                                  describeType(context, global, given),
+                                  describeType(context, global, declared));
+        return nullptr;
     }
 
-    /*
-     * After the target, because a functional dependency is a promise about the instances and the
-     * expected type is a wish about this one call. Where the two disagree, the instance wins and
-     * the conversion the target wanted is reported where it fails, rather than silently selecting
-     * an instance the dependency says does not serve these types.
-     *
-     * And after the settle of what is already decided, for the reason matchFunction gives: an
-     * instance is looked up by these types, and a literal has none until it takes its default.
-     */
-    settleWithDependencies(*calleeEnv, bindings, source);
-
-    for(Size i = 0; i < bindings.size(); i++) {
-        // A specialization is made for concrete types, so a literal variable the call left open
-        // settles to its default before it becomes one of them.
-        bindings[i] = settleType(bindings[i]);
-        if(bindings[i]) continue;
-
+    // A specialization is made for concrete types, so a literal variable the call left open settles
+    // to its default before it becomes one of them - and a variable nothing decided at all is one
+    // this call site has to say out loud.
+    if(solution.state == Solution::State::Undecided) {
         context.diagnostics.error("cannot infer type argument %@ of %@ here - give the expected type"_v, source,
-                                  context.findName(global[calleeEnv->types.get(global, i)]->name),
+                                  context.findName(global[calleeEnv->types.get(global, solution.position)]->name),
                                   context.findName(generic->name));
         return nullptr;
     }
+
+    auto& bindings = solution.types;
 
     ArgList converted;
     substituteArguments(callee, args, toBuffer(bindings), source, converted);

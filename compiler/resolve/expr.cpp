@@ -959,14 +959,17 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     return value;
 }
 
+bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationId source) {
+    return value && convertibleType(valueType(value), target);
+}
+
 // The same question convert() answers, asked without answering it. Overload selection has to know
 // whether a candidate accepts an argument before it commits to that candidate, and convert()
 // cannot be used for that: reporting the mismatch is its job, and a candidate that does not fit is
 // not an error while another member of the overload set may still serve the call.
-bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationId source) {
-    if(!value || !target) return false;
+bool ExprResolver::convertibleType(TypePtr from, TypePtr target) {
+    if(!from || !target) return false;
 
-    auto from = valueType(value);
     if(isLiteral(global, from)) return literalFits(from, target);
     if(sameType(from, target)) return true;
 

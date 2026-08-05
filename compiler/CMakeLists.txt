@@ -82,6 +82,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/explain.h
     resolve/explain.cpp
     resolve/builder.h
+    resolve/solve.h
+    resolve/solve.cpp
     resolve/expr.cpp
     resolve/expr.h
     resolve/expr_call.cpp

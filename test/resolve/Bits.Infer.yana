@@ -1,0 +1,30 @@
+-- One type variable, bound from two positions written at two different refinements of one type.
+--
+-- [repr.md](doc/spec/repr.md#bit-width-refinements) makes `@bits(n)` invisible to everything that
+-- decides a type: a refinement and what it refines are one type to dispatch, to overload resolution
+-- and to inference. What a variable bound twice takes is therefore the *canonical* type - the
+-- natural width, which is what a load already produces and what an operation on two refinements
+-- already happens at. Only a store narrows again.
+--
+-- Written as a record because a record's type argument is inferred by the same solve a call's type
+-- arguments are, and used to be the one place that answered differently: the variable took whichever
+-- position was written first, so the two constructions below produced two different types. One of
+-- them then held a `U64` in a field declared to hold 53 bits, and the other did not - and neither
+-- the order nor the difference is anything the author wrote.
+alias Id = @bits(53) U64
+
+data Same(a) {left: a, right: a}
+
+-- Nothing here says what `Same`'s type argument is: the expected type of a construction short-cuts
+-- the inference, so both of these have to reach it on the arguments alone.
+fn sum(both: Same(U64)) -> U64 = both.left + both.right
+
+fn narrowFirst(narrow: Id, plain: U64) -> U64:
+    let both = Same {left: narrow, right: plain}
+    return sum(both)
+
+fn plainFirst(plain: U64, narrow: Id) -> U64:
+    let both = Same {left: plain, right: narrow}
+    return sum(both)
+
+fn main() -> Int = (narrowFirst(21, 4000) :: Int) + (plainFirst(300, 5) :: Int)

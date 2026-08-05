@@ -506,6 +506,20 @@ struct ResolvedCallee {
      * so what comes out here is the list the selected callee was chosen for.
      */
     ArgList args;
+
+    /*
+     * The type arguments a *generic* plain callee was selected at, so that emitting does not solve
+     * the same signature against the same arguments a second time. Empty when nothing decided them
+     * here, which is not the same as "there are none": R1 admits one plain function per (name,
+     * arity), so a set with no class candidates selects it without matching it at all, and the
+     * emission solves for itself. A generic signature has at least one variable, so an empty list is
+     * unambiguously the absence of an answer.
+     *
+     * The substitution rather than the whole `Solution`, because that is the part emission needs -
+     * what else the solve knew, selection has already turned into `kind` and into the diagnostics it
+     * reported. The class half carries a ClassMatch for the same reason and no more.
+     */
+    TypeList typeArgs;
 };
 
 // One `yield` in a `lens fn` body: where it landed, and where it was written. The block is what the
@@ -806,6 +820,18 @@ struct ExprResolver {
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
 
+    /*
+     * The same question about two types rather than a value and a type.
+     *
+     * It is what "fits" means at a position that has no variable to bind, and both halves of
+     * selection ask it: `convertible` for a non-generic candidate, and `Solver::bind` for a concrete
+     * position of a generic signature. Those were two approximations of one rule until this existed,
+     * and the generic one was the shorter - it knew about slices and `Widen` and not about borrows,
+     * `@bits` or an error type, so `fn f(x: a, n: U64)` rejected an `@bits(53) U64` that the
+     * identical non-generic signature accepted. See Generic.Concrete.yana.
+     */
+    bool convertibleType(TypePtr from, TypePtr target);
+
     // One step of `typeClass`'s conversion, or null when no instance relates these two types.
     // Never a chain: `A -> B -> C` is not searched for, which is what keeps conversion as
     // predictable as the no-backtracking rule the rest of resolution follows.
@@ -832,11 +858,6 @@ struct ExprResolver {
     // `type` with a literal variable replaced by its default. Applied wherever an inferred type
     // is about to be committed to - a class's type argument, a specialization's, a branch join.
     TypePtr settleType(TypePtr type);
-
-    // Settling a call's type arguments, with the constraints' dependencies given the last word over
-    // a binding a literal argument made. Every generic call goes through this rather than through
-    // fillDetermined directly - see the definition for why the order matters.
-    void settleWithDependencies(GenEnv& env, TypeList& bindings, LocationId source);
 
     // `value` built at the type its literal variable defaults to. Everything else passes through.
     ModulePtr<Value> settle(ModulePtr<Value> value, LocationId source);
@@ -1074,14 +1095,18 @@ struct ExprResolver {
 
     // A call to a function the call site has already settled on, generic or not. The one place that
     // fork is stated - see expr_call.cpp.
+    // `solved` is the substitution a selection already decided, or empty - see
+    // ResolvedCallee::typeArgs. Every other caller reaches a callee without having solved it.
     ModulePtr<Value> emitKnownFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
-                                       LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+                                       LocationId source, TypePtr target = nullptr, StringId resultName = 0,
+                                       Buffer<TypePtr> solved = {});
 
-    // A call to a generic function: infers its type arguments from the call, then either
-    // instantiates it or - when this body is itself generic and the arguments are not concrete
-    // yet - defers the whole decision to the instantiation that will make them concrete.
+    // A call to a generic function: infers its type arguments from the call - or takes the ones
+    // `solved` already decided - and then either instantiates it or, when this body is itself
+    // generic and the arguments are not concrete yet, defers the whole decision to the
+    // instantiation that will make them concrete.
     ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source,
-                                     TypePtr target, StringId resultName);
+                                     TypePtr target, StringId resultName, Buffer<TypePtr> solved = {});
 
     // A call that passes its callee a runtime environment instead of being specialized for these
     // types. Null when the environment cannot be built yet, which leaves the call site for the
@@ -1099,13 +1124,13 @@ struct ExprResolver {
     ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ResolvedArg> args, LocationId source,
                                          StringId resultName);
 
-    bool bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen);
-
-    // A deferred position has no type to match with: the argument has not been resolved, and
-    // resolving it to find out would evaluate it. It is therefore skipped, and the parameter type
-    // the other positions decided is what it is later resolved *against* - which is the same
-    // one-directional rule the rest of selection follows, applied to an argument that binds
-    // nothing rather than to one that binds a literal.
+    /*
+     * Whether one class function can serve this call, and if so which instance it selects.
+     *
+     * The solve is solve.h's - what is here is the arity rule and what a fitting signature with no
+     * instance means, which is a different diagnostic from "wrong function" and is why the answer
+     * is a bool beside a ClassMatch rather than the match alone.
+     */
     bool matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target, ClassMatch& resolved);
 
     /*
@@ -1117,9 +1142,13 @@ struct ExprResolver {
      * supplies rather than the call site, so its written arity is one short and the R5 test over it
      * has to be about the leading positions. Passed rather than defaulted so that the one case that
      * differs says so, and the two ordinary sites read as what they are.
+     *
+     * `typeArgs` is what the solve decided, for the caller that goes on to commit to this callee -
+     * see ResolvedCallee::typeArgs. Left empty for a non-generic callee and for a solve that did not
+     * settle every variable, so what comes back is an answer or nothing.
      */
     bool matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
-                       LocationId source, Size declaredArgs);
+                       LocationId source, Size declaredArgs, TypeList& typeArgs);
 
     // Calls one implementation of a selected instance. A concrete instance's is an ordinary
     // function; a parametric one's is generic over the instance's own variables, so it is expanded

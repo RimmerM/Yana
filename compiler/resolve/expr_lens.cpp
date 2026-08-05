@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "solve.h"
 #include "analyze.h"
 #include "generic.h"
 #include "name.h"
@@ -135,39 +136,73 @@ static bool tryFunction(Module& module, StringView name, U16& out) {
     return classFunction(module, module.coreClasses.try_, name, out);
 }
 
-static bool selectTry(Module& module, TypePtr carrier, LocationId source, TrySelection& out) {
+/*
+ * What a carrier's `Try` says: the two positions nothing constrains, asked for as holes and answered
+ * off whatever the dependency `class Try(m -> a, e)` declares says answers them.
+ *
+ * This used to be written out by hand and was the compiler's one typeclass resolver that dispatched
+ * differently from every other. The rule is now the class's own, which means it is also checked
+ * where instances are declared - two `Try` instances for one carrier that disagree about what it
+ * proceeds with are rejected, where before they were both accepted and selection answered with
+ * whichever came first.
+ *
+ * Two answers, and the split is the one every class call makes - see fillDependency. A carrier that
+ * names a type - `Result(Int, a)`, and `Maybe(a)` over the enclosing function's own variable - is
+ * answered by the instance table. A carrier that *is* a variable is answered by the requirement the
+ * signature declared, because a body's meaning is fixed by its own signature: reading a blanket
+ * instance for `m` would commit `fn (Try(m, a, e)) f() -> m` to that instance and ignore the one the
+ * caller's type actually has.
+ *
+ * `bindGeneric`, because the same question is asked at a lens's declaration, where `m` is `Maybe(a)`
+ * over the lens's own variable and what is being checked is that the instance's `a` *is* the
+ * continuation's result. It does not lift the rule about a bare variable; fillDependency states that
+ * one itself.
+ */
+static bool tryShape(Module& module, Function& function, TypePtr carrier, TypeList& out,
+                     InstanceMatch& instance) {
     auto typeClass = module.coreClasses.try_;
-    if(!typeClass) return false;
+    if(!typeClass || !carrier) return false;
 
-    /*
-     * The dependency `class Try(m -> a, e)` declares does this: the two positions nothing here
-     * constrains are asked for as holes and answered off the instance `m` selects.
-     *
-     * This used to be written out by hand here, and was the compiler's one typeclass resolver that
-     * dispatched differently from every other. The rule is now the class's own, which means it is
-     * also checked where instances are declared - two `Try` instances for one carrier that disagree
-     * about what it proceeds with are rejected, where before they were both accepted and selection
-     * answered with whichever came first.
-     */
     TypeList asked;
     asked.push(carrier);
     asked.push(nullptr);
     asked.push(nullptr);
 
-    // `bindGeneric`, because this is asked twice and the first time is at the declaration, where
-    // `m` is `Maybe(a)` over the lens's own variable and what is being checked is that the
-    // instance's `a` *is* the continuation's result.
-    auto match = resolveDetermined(module, typeClass, asked, true);
-    if(!match) return false;
+    fillDependency(module, function, typeClass, asked, instance, true);
+    if(!asked[1] || !asked[2]) return false;
 
-    out.instance = match.instance;
-    replaceContents(out.instanceArgs, match.args);
+    replaceContents(out, asked);
+    return true;
+}
 
-    out.proceeds = asked[1];
-    out.reason = asked[2];
+// The same query for a caller with no use for the instance - which is every caller that only needs
+// to know what the carrier proceeds and exits with.
+static bool tryShape(Module& module, Function& function, TypePtr carrier, TypeList& out) {
+    InstanceMatch instance;
+    return tryShape(module, function, carrier, out, instance);
+}
 
-    if(!tryFunction(module, "toOutcome"_v, out.toOutcome)) return false;
-    return out.proceeds && out.reason;
+/*
+ * The instance as well, for the two call sites that have to *call* one of `Try`'s functions.
+ *
+ * A shape the enclosing signature's requirement answered has no instance to call: which one serves
+ * this carrier is the caller's to decide, and a body constrained by `Try(m, a, e)` reaches it
+ * through a dispatch rather than through here. So this is the shape plus the one thing the
+ * requirement half cannot supply.
+ */
+static bool selectTry(Module& module, Function& function, TypePtr carrier, TrySelection& out) {
+    TypeList shape;
+    InstanceMatch instance;
+
+    if(!tryShape(module, function, carrier, shape, instance) || !instance) return false;
+
+    out.instance = instance.instance;
+    replaceContents(out.instanceArgs, instance.args);
+
+    out.proceeds = shape[1];
+    out.reason = shape[2];
+
+    return tryFunction(module, "toOutcome"_v, out.toOutcome);
 }
 
 FunType* lensContinuationType(GlobalBase global, Function& function, ModuleBase local) {
@@ -281,7 +316,7 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
             // which is the erased path §10 still lists as open.
             context.diagnostics.error("a skipping lens whose result is the type variable %@ is not available yet - the `Try` instance would have to travel with the call as a witness rather than be selected from the signature, which is the erased callback ABI"_v,
                                       source, describeType(context, global, function.returnType));
-        } else if(!selectTry(module, function.returnType, source, selection)) {
+        } else if(!selectTry(module, function, function.returnType, selection)) {
             context.diagnostics.error("this lens returns %@ rather than its continuation's %@, so it may skip the continuation - which needs an instance of `Try` for %@ saying which of its cases means the continuation ran"_v,
                                       source, describeType(context, global, function.returnType),
                                       describeType(context, global, callback->result),
@@ -765,22 +800,23 @@ static bool continuationSignature(ExprResolver& resolver, Module& module, Module
     auto callback = lensContinuationType(global, *target, local);
     if(!callback) return false;
 
-    TypeList bindings;
-    if(auto env = functionGen(global, *target)) {
-        for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
-    }
+    auto env = functionGen(global, *target);
+
+    /*
+     * The ordinary argument solve, over the positions the call site writes: `Skips`, because this
+     * one is inferring a shape from whatever fit rather than judging a candidate. A position with
+     * nothing worked out for it binds nothing - its payload is null, which `valueType` reads as
+     * `{}`, and inferring what the callee hands over from that would answer a question about a call
+     * the caller has already stopped - and a position that does not fit is the call's own
+     * diagnostic to report, not this step's.
+     */
+    Solution solution;
+    Solver solver(resolver, solution, env ? env->types.size() : 0);
 
     auto declaredArgs = target->args.size() - 1;
-    for(Size i = 0; i < args.length && i < declaredArgs; i++) {
-        // A position with nothing worked out for it binds nothing. Its payload is null, which
-        // `valueType` reads as `{}`, and inferring the continuation's shape from that would answer
-        // a question about a call the caller has already stopped - see anyArgumentFailed, which is
-        // what keeps one from reaching here.
-        if(args[i].isFailed()) continue;
+    solver.bindArguments(callee, { args.ptr, min(args.length, declaredArgs) }, Unresolved::Skips);
 
-        auto declared = local[target->args.get(local, i)];
-        resolver.bindPosition(declared->declaredType(), resolver.valueType(args[i].value), bindings, true);
-    }
+    auto& bindings = solution.types;
 
     /*
      * Which of the callee's variables this call left open, and then the slots filled with the
@@ -797,17 +833,7 @@ static bool continuationSignature(ExprResolver& resolver, Module& module, Module
      * "generic" as "undecided" rejected every adaptor for the one property that makes it an
      * adaptor.
      */
-    auto env = functionGen(global, *target);
-    U64 open = 0;
-
-    for(Size i = 0; i < bindings.size(); i++) {
-        if(bindings[i]) {
-            bindings[i] = resolver.settleType(bindings[i]);
-        } else {
-            if(i < 64) open |= U64(1) << i;
-            bindings[i] = (Type*)global[env->types.get(global, i)] - global;
-        }
-    }
+    auto open = env ? solver.settleOpen(*env) : 0;
 
     for(auto declared: callback->args.contents(global)) {
         auto type = declared.type;
@@ -1324,7 +1350,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
      * enclosing function when it did.
      */
     TrySelection selection;
-    if(!selectTry(module, valueType(call_), source, selection)) {
+    if(!selectTry(module, function, valueType(call_), selection)) {
         context.diagnostics.error("%@ returns %@ here, which has no `Try` instance to say whether its continuation ran"_v,
                                   source, context.findName(target->name),
                                   describeType(context, global, valueType(call_)));
@@ -1631,50 +1657,6 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
  * That is what makes `?` inside a lens continuation need no rule of its own: it departs exactly
  * where a written `return` there departs.
  */
-
-/*
- * What a carrier's `Try` says, in a body where the carrier may still be a type variable.
- *
- * Two answers, and the split is the one every class call makes. A carrier that names a type -
- * `Result(Int, a)`, and `Maybe(a)` over the enclosing function's own variable - is answered by the
- * instance table with the class's dependency filling the two positions nothing constrains. A
- * carrier that *is* a variable is answered by the requirement the signature declared, because a
- * body's meaning is fixed by its own signature: reading a blanket instance for `m` would commit
- * `fn (Try(m, a, e)) f() -> m` to that instance and ignore the one the caller's type actually has.
- */
-static bool tryShape(Module& module, Function& function, TypePtr carrier, TypeList& out) {
-    auto typeClass = module.coreClasses.try_;
-    if(!typeClass || !carrier) return false;
-
-    auto global = *module.types;
-
-    TypeList asked;
-    asked.push(carrier);
-    asked.push(nullptr);
-    asked.push(nullptr);
-
-    if(global[carrier]->kind != Type::Gen) {
-        // `bindGeneric`, for the same reason a lens declaration asks that way: what is wanted is
-        // the *shape* of the instance, and `Try(Maybe(a), a, {})` is that shape whether or not `a`
-        // is decided here. The restriction it lifts is about a bare variable, which the branch
-        // above has already excluded.
-        if(!resolveDetermined(module, typeClass, asked, true)) return false;
-
-        replaceContents(out, asked);
-        return asked[1] && asked[2];
-    }
-
-    if(auto env = functionGen(global, function)) {
-        TypeList declared;
-
-        if(findClassRequirement(module, *env, typeClass, toBuffer(asked), declared) && declared.size() == 3) {
-            replaceContents(out, declared);
-            return declared[1] && declared[2];
-        }
-    }
-
-    return false;
-}
 
 /*
  * One of `Try`'s functions, called for a shape tryShape worked out.

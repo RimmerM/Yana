@@ -1,0 +1,53 @@
+{-
+   A concrete position in an otherwise generic signature.
+
+   There is no type variable at such a position, so what decides whether an argument fits is whether
+   it *converts* - and that has to be the same question a non-generic signature asks, or a signature
+   means two different things depending on whether some other parameter mentions a variable. The
+   pairs below are that property written out: each generic function has a non-generic twin taking the
+   same concrete parameter, and every call is made against both.
+
+   The rule was stated twice until the two were made one operation (`convertibleType`), and the
+   generic half was the shorter: it asked only for a `Widen` instance, so everything that converts
+   without one was rejected here and accepted there. `genericWidth` is the case a well-formed program
+   reaches - there is no `Widen(Id, U64)` instance and there is not meant to be one, because widening
+   a refinement is structural rather than a conversion anybody declared - and it fails against the
+   reverted rule with "argument 2 of genericWidth is @bits(53) U64, which does not fit U64", from a
+   signature whose non-generic twin one line below accepts it.
+
+   The other two are the halves of the rule that already held, kept so this asserts the whole of it
+   rather than the part that moved: a `&` parameter, whose argument is the caller's storage in both
+   signatures, and a declared widening, which is what the old rule could see.
+-}
+alias Id = @bits(53) U64
+
+-- A refinement and what it refines are one type to everything that decides a type, so an `Id`
+-- reaching a `U64` parameter is free in both signatures. There is no `Widen(Id, U64)` instance and
+-- there is not meant to be one: widening a refinement is structural.
+fn genericWidth(value: a, width: U64) -> U64 = width
+
+fn plainWidth(value: Int, width: U64) -> U64 = width
+
+-- A `&` parameter of a concrete type. The argument is the caller's storage either way, and both
+-- signatures have to reach that conclusion before either commits to the callee.
+fn genericBump(value: a, &counter: Int) -> {}:
+    counter = counter + 1
+
+fn plainBump(value: Int, &counter: Int) -> {}:
+    counter = counter + 1
+
+-- A narrower argument at a concrete position, which *is* a declared conversion - the one shape the
+-- old rule could see.
+fn genericWiden(value: a, total: Long) -> Long = total
+
+fn main() -> Int:
+    let narrow = 21 :: Id
+    let &counter = 0 :: Int
+    let small = 7 :: Int
+
+    genericBump(1, counter)
+    plainBump(1, counter)
+
+    let widths = (genericWidth(1, narrow) :: Int) + (plainWidth(1, narrow) :: Int)
+
+    return widths + counter + (genericWiden(1, small) :: Int)

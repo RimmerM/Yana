@@ -1,0 +1,86 @@
+fn genericWidth(%value: a, %width: U64) -> U64 {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %width
+}
+
+fn plainWidth(%value: Int, %width: U64) -> U64 {
+  b0:
+    ret %width
+}
+
+fn genericBump(%value: a, %counter: Int) -> () {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = load %counter : Int
+    %v5 = add %v2, 1 : Int
+    assign %counter, %v5
+    ret
+}
+
+fn plainBump(%value: Int, %counter: Int) -> () {
+  b0:
+    %v2 = load %counter : Int
+    %v5 = add %v2, 1 : Int
+    assign %counter, %v5
+    ret
+}
+
+fn genericWiden(%value: a, %total: Long) -> Long {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %total
+}
+
+fn main() -> Int {
+  b0:
+    %counter = alloc : Int
+    init %counter, 0
+    %v6 = load %counter : Int
+    %v8 = borrow_mut %counter : &mut Int
+    call genericBump(Int), 1, %v8
+    %v11 = load %counter : Int
+    %v12 = borrow_mut %counter : &mut Int
+    call plainBump, 1, %v12
+    %narrow = cast %narrow : U64
+    %v17 = call genericWidth(Int), 1, %narrow : U64
+    %v18 = cast %v17 : Int
+    %narrow = cast %narrow : U64
+    %v21 = call plainWidth, 1, %narrow : U64
+    %v22 = cast %v21 : Int
+    %widths = add %v18, %v22 : Int
+    %v24 = load %counter : Int
+    %v25 = add %widths, %v24 : Int
+    %v28 = cast %small : Long
+    %v29 = call genericWiden(Int), 1, %v28 : Long
+    %v30 = cast %v29 : Int
+    %v31 = add %v25, %v30 : Int
+    ret %v31
+}
+
+fn genericBump(Int)(%value: Int, %counter: Int) -> () {
+  b0:
+    %v2 = load %counter : Int
+    %v4 = add %v2, 1 : Int
+    assign %counter, %v4
+    ret
+}
+
+fn genericWidth(Int)(%value: Int, %width: U64) -> U64 {
+  b0:
+    ret %width
+}
+
+fn genericWiden(Int)(%value: Int, %total: Long) -> Long {
+  b0:
+    ret %total
+}

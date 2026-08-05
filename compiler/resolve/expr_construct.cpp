@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "solve.h"
 #include "complete.h"
 #include "generic.h"
 #include "name.h"
@@ -1277,8 +1278,14 @@ TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<a
         return target;
     }
 
-    TypeList bindings;
-    for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+    /*
+     * The record's type arguments, decided by what the constructor is handed. The same solve every
+     * call runs, over a constructor's content rather than a parameter list - a variable is bound by
+     * the position that mentions it and by nothing after it.
+     */
+    Solution solution;
+    Solver solver(*this, solution, env->types.size());
+    auto& bindings = solution.types;
 
     auto content = declaration->constructors.get(global, reference.index).content;
     auto contents = args.contents(parse);
@@ -1304,13 +1311,22 @@ TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<a
                 continue;
             }
 
-            matchType(global, pattern, valueType(value), { bindings.pointer(), bindings.size() });
+            // Result direction: a content that would need converting has not decided the record's
+            // type arguments by needing to, exactly as a call's result has not.
+            solver.bind(pattern, valueType(value), false);
         }
     }
 
-    for(auto binding: bindings) {
-        if(binding) continue;
-
+    /*
+     * Every variable decided, which is the solve's own answer rather than a scan of what it left -
+     * and a settle as well as a test, for the one thing a construction can be handed that a call
+     * cannot. The arguments above are settled individually, so a literal has taken its default long
+     * before it binds anything; what has not is a literal whose classes agree on no default at all,
+     * which reaches here as a binding that is not a type. `Undecided` is both cases, and naming the
+     * variable is deliberately left to the message the record already had - a constructor's type
+     * arguments are written as a list or not at all.
+     */
+    if(!solver.settle()) {
         context.diagnostics.error("cannot infer the type arguments of %@ here - give the expected type"_v, source,
                                   context.findName(declaration->name));
         return module.scalar.error;
