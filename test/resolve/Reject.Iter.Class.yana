@@ -1,0 +1,23 @@
+-- Which class a missing-instance diagnostic names, when two of them declare one iterator name.
+--
+-- `Alpha`'s second position is a `Bool` and this call passes an `Int`, so its signature does not fit
+-- at all; `Beta`'s does fit, and there is no instance of it for `Bag`. The message has to name the
+-- one that *matched* - naming the first candidate reports a missing instance of a class the call was
+-- never about, which is what it did while the `for` loop kept its own copy of the matching loop
+-- instead of running selectCallee's. See ClassSelection.
+
+data Bag {w: Int}
+
+class Alpha(c):
+  iter fn walk(self: c, flag: Bool) -> Int
+
+class Beta(c):
+  iter fn walk(self: c, n: Int) -> Int
+
+fn main() -> Int:
+    let &t = 0 :: Int
+
+    for x in walk(Bag {w: 1}, 2):
+        t = t + x
+
+    return t

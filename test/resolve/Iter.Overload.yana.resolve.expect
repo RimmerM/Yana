@@ -1,0 +1,350 @@
+let &heapFree: %%U8 = 0
+
+table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Int
+    %v8 = cast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = borrow %self : &Array(Int)
+    %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
+    %v4 = calldyn %body, %v3 : Outcome((), ())
+    %v5 = load %local3.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret %v4
+
+  b2:
+    %v10 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v10
+}
+
+fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : U32
+    %v3 = cast %v2 : I64
+    %v4 = borrow %self : &Array(Int)
+    %self = alloc : Flat(Int)
+    %v6 = load [%v4]@Array.run@Run.items : %Int
+    init %self@Flat.items, %v6
+    %v8 = load [%v4]@Array.length : @bits(30) U32
+    %v9 = cast %v8 : U32
+    %v10 = cast %v9 : I64
+    init %self@Flat.length, %v10
+    %v13 = call slice(Int), %self, 0, %v3 : Flat(Int)
+    ret %v13
+}
+
+fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
+  b0:
+    %start = alloc : I64
+    init %start, %from
+    %v5 = load %start : I64
+    %v7 = cmp_lt %v5, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    assign %start, 0
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = load %start : I64
+    %v14 = load %self@Flat.length : I64
+    %v15 = cmp_gt %v13, %v14 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %self@Flat.length : I64
+    assign %start, %v17
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %end = alloc : I64
+    init %end, %to
+    %v23 = load %end : I64
+    %v24 = load %start : I64
+    %v25 = cmp_lt %v23, %v24 : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v27 = load %start : I64
+    assign %end, %v27
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v31 = load %end : I64
+    %v32 = load %self@Flat.length : I64
+    %v33 = cmp_gt %v31, %v32 : Bool
+    je %v33, b10, b11
+
+  b10:
+    %v35 = load %self@Flat.length : I64
+    assign %end, %v35
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v39 = alloc : Flat(Int)
+    %v40 = load %self@Flat.items : %Int
+    %v41 = load %start : I64
+    %v42 = strideof Int : I64
+    %v43 = mul %v41, %v42 : I64
+    %v44 = add %v40, %v43 : %Int
+    %v45 = load %end : I64
+    %v46 = load %start : I64
+    %v47 = sub %v45, %v46 : I64
+    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
+    ret %v39
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %v2 = cast %v1 : U32
+    %count = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v11 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v11
+    ret
+
+  b3:
+    %v14 = load %value@Array.run : Run(Int)
+    %v15 = load %value@Array.run@Run.items : %Int
+    %v16 = load %i : Int
+    %v17 = cast %v16 : I64
+    %v18 = strideof Int : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v15, %v19 : %Int
+    %v21 = load [%v20] : Int
+    %doomed = alloc : Int
+    init %local3, %v21
+    %v24 = load %i : Int
+    %v26 = add %v24, 1 : Int
+    assign %i, %v26
+    jmp b1
+}
+
+fn chunks(%b: Box, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %v2 = load %b@Box.n : Int
+    %v3 = calldyn %body, %v2 : Outcome((), $r)
+    %v4 = load %local2.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret %v3
+
+  b2:
+    %v9 = load %b@Box.n : Int
+    %v12 = add %v9, 1 : Int
+    %v13 = calldyn %body, %v12 : Outcome((), $r)
+    %v14 = load %local3.discriminant : Int
+    %v16 = cmp_eq %v14, 1 : Bool
+    je %v16, b3, b4
+
+  b3:
+    ret %v13
+
+  b4:
+    %v19 = alloc : Outcome((), $r)
+    init %local4.discriminant, 0
+    ret %v19
+}
+
+fn main() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v3 = alloc : Box
+    aggregate %local1@Box.n = 7
+    %v6 = alloc : {total: &mut Int}
+    %v7 = borrow_mut %total : &mut Int
+    init %local2.total, %v7
+    %v9 = addressof %local2 : %()
+    %v10 = alloc : (value: Int) -> Outcome((), ())
+    %v11 = symbol ResolveTest.continuation$0 : %()
+    init %local3.code, %v11
+    init %local3.env, %v9
+    %v14 = call chunks(()), %v3, %v10 : Outcome((), ())
+    %xs = alloc : Array(Int)
+    %v21 = alloc *3 : Int
+    %v22 = addressof %local6 : %Int
+    init %local5@Array.run@Run.items, %v22
+    init %local5@Array.run@Run.capacity, 3
+    init %local5@Array.run@Run.ownsHeap, 0
+    aggregate [%v22][0] = 10, [%v22][1] = 20, [%v22][2] = 30
+    init %local5@Array.length, 3
+    %v33 = alloc : {total: &mut Int}
+    %v34 = borrow_mut %total : &mut Int
+    init %local7.total, %v34
+    %v36 = addressof %local7 : %()
+    %v37 = alloc : (value: Flat(Int)) -> Outcome((), ())
+    %v38 = symbol ResolveTest.continuation$1 : %()
+    init %local8.code, %v38
+    init %local8.env, %v36
+    %v41 = call Chunked(Array(a), a).chunks(Int, ()), %xs, %v37 : Outcome((), ())
+    drop %local5 reclaim Reclaim(Array(a)).reclaim(Int)
+    %v42 = load %total : Int
+    ret %v42
+}
+
+fn ResolveTest.continuation$0(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn chunks(())(%b: Box, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = load %b@Box.n : Int
+    %v3 = calldyn %body, %v2 : Outcome((), ())
+    %v4 = load %local2.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret %v3
+
+  b2:
+    %v9 = load %b@Box.n : Int
+    %v11 = add %v9, 1 : Int
+    %v12 = calldyn %body, %v11 : Outcome((), ())
+    %v13 = load %local3.discriminant : Int
+    %v15 = cmp_eq %v13, 1 : Bool
+    je %v15, b3, b4
+
+  b3:
+    ret %v12
+
+  b4:
+    %v18 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v18
+}
+
+fn ResolveTest.continuation$1(%env: %{total: &mut Int}, %value: Flat(Int)) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = load %value@Flat.length : I64
+    %v6 = cast %v5 : Int
+    %v7 = add %v4, %v6 : Int
+    assign [%v2], %v7
+    %v9 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v9
+}

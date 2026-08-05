@@ -3,6 +3,8 @@
 27:0: error: a skipping lens whose result is the type variable m is not available yet - the `Try` instance would have to travel with the call as a witness rather than be selected from the signature, which is the erased callback ABI
 31:28: error: a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name
 34:25: error: a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call
+150:17: error: a `lens fn` cannot declare a `@lazy` parameter - the call site resolves the arguments before it lifts the rest of the block into the continuation, so the argument would run whether or not the lens forced it. Take a function and call it, which is what the thunk would have been
+152:17: error: an `iter fn` cannot declare a `@lazy` parameter - a `for` loop resolves the arguments before it lifts its body into the continuation, so the argument would run whether or not the iterator forced it. Take a function and call it, which is what the thunk would have been
 42:0: error: a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run
 50:4: error: this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped
 55:4: error: a `lens fn` may contain only one `yield` in this version - the cleanup after it already runs on every path, so a second one would need the two results joined

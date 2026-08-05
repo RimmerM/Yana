@@ -1,0 +1,41 @@
+-- Strictness is what the candidates of one (name, arity) agree on, and the comparison is over the
+-- positions the *call site* writes.
+--
+-- The two halves of a `for` loop's set do not declare the same number of parameters: the plain one
+-- is a desugared `iter fn` and carries the continuation the loop supplies, while a class `iter fn`
+-- is not desugared and declares only what the loop writes. Comparing the whole of each made them
+-- disagree about a position neither has an opinion on, and reported these declarations as
+-- inconsistent about `@lazy`.
+--
+-- `Fallback.walk` is what makes the bug reachable at all: `Program::lazyNames` is a name set, so any
+-- `@lazy` declaration of the name - of any arity, of any kind, and never a candidate here - turns
+-- the comparison on. Without it the fast path answers "all strict" and nothing is compared.
+
+data Box {v: Int}
+data Bag {w: Int}
+
+class Streamed(c):
+  iter fn walk(self: c) -> Int
+
+instance Streamed(Bag):
+  iter fn walk(self: Bag) -> Int:
+      yield self.w
+
+iter fn walk(b: Box) -> Int:
+    yield b.v
+
+class Fallback(c):
+  fn walk(self: c, @lazy fallback: Int) -> Int
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    -- Served by the plain iterator: 7.
+    for x in walk(Box {v: 7}):
+        total = total + x
+
+    -- Served by the instance, at the same name and arity: 30.
+    for y in walk(Bag {w: 30}):
+        total = total + y
+
+    return total

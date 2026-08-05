@@ -169,23 +169,40 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
 }
 
 /*
- * Which arguments of a call are deferred, decided from the name alone.
+ * Which arguments of a call are deferred, decided from the overload set.
  *
- * The order this has to happen in is what makes it a question about a name. A `@lazy` argument must
- * not be evaluated, and selection needs the argument *types* to pick an overload, so the decision
- * comes before there is a callee to read it off - which leaves only what every candidate of one
- * (name, arity) has in common. Design.md's rule that strictness is fixed by the class signature
- * rather than by the instance is exactly this, stated from the other side.
+ * The order this has to happen in is what makes it a question about the set rather than about a
+ * callee. A `@lazy` argument must not be evaluated, and selection needs the argument *types* to pick
+ * an overload, so the decision comes before there is a callee to read it off - which leaves only
+ * what every candidate of one (name, arity) has in common. Design.md's rule that strictness is fixed
+ * by the class signature rather than by the instance is exactly this, stated from the other side.
  *
  * Two candidates that disagree are therefore a declaration error rather than a call-site one, but
  * it is only detectable where the two are visible together, which is here.
  */
-static void lazyStatesOf(ModuleBase local, Function& function, ArgList& out) {
+/*
+ * The `@lazy` states of one candidate, over the positions the *call site* writes.
+ *
+ * `arity` rather than the candidate's own, and every list is made exactly that long, because the
+ * lists are compared with each other and the candidates do not all have the same number of
+ * parameters. A `for` loop is where they differ: its plain half is a desugared `iter fn`, so it
+ * carries the continuation the loop supplies, while a class `iter fn` is not desugared and declares
+ * only what the loop writes. Comparing the whole of each made those two disagree about a position
+ * neither of them has an opinion on, and reported the declarations of a perfectly good name as
+ * inconsistent - which the `lazyNames` fast path hid until some *other* declaration of the name,
+ * of any arity or kind, put it in the set.
+ */
+static void lazyStatesOf(ModuleBase local, Function& function, Size arity, ArgList& out) {
     out.clear();
 
     for(auto argPointer: function.args.contents(local)) {
+        if(out.size() == arity) break;
         out.push(local[argPointer]->isLazy() ? ResolvedArg::deferred() : ResolvedArg());
     }
+
+    // A candidate that declares fewer parameters than the call writes has nothing to say about the
+    // positions past its end, and pads rather than shortening the list it is compared against.
+    while(out.size() < arity) out.push(ResolvedArg());
 }
 
 static bool sameStates(const ArgList& a, const ArgList& b) {
@@ -204,10 +221,18 @@ static void allStrict(Size arity, ArgList& out) {
     for(Size i = 0; i < arity; i++) out.push(ResolvedArg());
 }
 
-void ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, ArgList& out) {
+// Fills `set.strictness` from the candidates already in `set`. No lookup of its own: what it asks
+// is a question about the set, so the set is what it is handed.
+static void computeStrictness(ExprResolver& resolver, OverloadSet& set, LocationId source) {
+    auto& module = resolver.module;
+    auto& context = resolver.context;
+    auto local = resolver.local;
+    auto global = resolver.global;
+    auto& out = set.strictness;
+
     // The negative answer, which is every call in a program but a handful - see Program::lazyNames.
-    if(!module.program.lazyNames.contains(name)) {
-        allStrict(arity, out);
+    if(!module.program.lazyNames.contains(set.name)) {
+        allStrict(set.arity, out);
         return;
     }
 
@@ -216,7 +241,7 @@ void ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, A
     auto conflict = false;
 
     auto consider = [&](Function& function) {
-        lazyStatesOf(local, function, candidateStates);
+        lazyStatesOf(local, function, set.arity, candidateStates);
 
         if(seen && !sameStates(candidateStates, out)) conflict = true;
         else replaceContents(out, candidateStates);
@@ -224,24 +249,29 @@ void ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, A
         seen = true;
     };
 
-    if(auto direct = findFunction(module, name, source)) {
-        if(local[direct]->args.size() == arity) consider(*local[direct]);
-    }
+    /*
+     * `direct` already serves this call - see gatherOverloads - though it may declare more
+     * parameters than the call writes, which is what `lazyStatesOf` reads only the front of. The
+     * class half is not filtered by arity there, so it is filtered here: strictness is what the
+     * candidates of one (name, arity) agree on, and a candidate of a different arity is not one.
+     *
+     * `wrongKind` is deliberately not asked. A candidate of the other kind is never the callee - it
+     * exists to be named in a diagnostic - so what it declares about evaluation is not this call's
+     * business, and letting it disagree would reject a call it could not have served.
+     */
+    if(set.direct) consider(*local[set.direct]);
 
-    ClassFunList candidates;
-    findClassFunctions(module, name, source, candidates);
-
-    for(auto& candidate: candidates) {
+    for(auto& candidate: set.candidates) {
         auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
-        if(entry.arity != arity || !entry.fun) continue;
+        if(entry.arity != set.arity || !entry.fun) continue;
 
         consider(*local[entry.fun]);
     }
 
     if(conflict) {
         context.diagnostics.error("the declarations of %@ disagree about which arguments are `@lazy`, so a call to it cannot tell what to evaluate - strictness is part of the signature and every overload of one name and arity has to declare the same one"_v,
-                                  source, context.findName(name));
-        allStrict(arity, out);
+                                  source, context.findName(set.name));
+        allStrict(set.arity, out);
         return;
     }
 
@@ -251,13 +281,96 @@ void ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, A
     for(auto& state: out) any = any || state.isDeferred();
 
     if(!seen || !any) {
-        allStrict(arity, out);
+        allStrict(set.arity, out);
         return;
     }
 
-    // The list came from a candidate's parameters, which is the call's arity by construction - but
-    // it is indexed by position at the call site, so it is made that length rather than trusted.
-    while(out.size() < arity) out.push(ResolvedArg());
+    // Already exactly `set.arity` long, whichever candidate it came from - lazyStatesOf makes every
+    // list that length so that comparing two of them is a question about the positions and not
+    // about how many parameters each candidate happens to declare.
+}
+
+void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source, LocationId nameSource,
+                                   OverloadSet& out, CallShape shape) {
+    out.name = name;
+    out.arity = arity;
+    out.nameSource = nameSource;
+    out.shape = shape;
+
+    /*
+     * Both halves, looked up at the same location - and the occurrence recorded at a different one.
+     *
+     * `source` is where the set is looked up from, which decides what is visible and is where an
+     * ambiguity between two imports is reported. `nameSource` is the name the author wrote, which is
+     * where the index should hold the answer: recording it against the whole call would make
+     * find-references report the call and the name as two hits on the same name. A synthesized call
+     * has no such name, so it records nothing at all - which is what `kNullLocation` means here, and
+     * why the two have to be passed separately rather than one standing in for the other. See
+     * findFunction and resolve/index.h.
+     */
+    auto plain = findFunction(module, name, source, nameSource);
+
+    /*
+     * A plain function is a candidate when it is of this call's kind and takes what the call site
+     * writes - arity being half of R1's key, and the kind being what separates a call from a loop.
+     * A loop's callee declares one parameter more than the loop writes, which is `shape.supplied`.
+     * Anything else of the name is kept where the diagnostic can reach it and nothing else can.
+     */
+    if(plain && (!shape.requiresKind || local[plain]->funKind == shape.kind) &&
+       local[plain]->args.size() == arity + shape.supplied) {
+        out.direct = plain;
+    } else {
+        out.mismatched = plain;
+    }
+
+    ClassFunList found;
+    findClassFunctions(module, name, source, found);
+
+    for(auto& candidate: found) {
+        auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
+        auto signature = entry.fun ? local[entry.fun] : nullptr;
+        if(!signature) continue;
+
+        // Not narrowed by arity - `matchClassFun` states that rule, and the candidates that fail it
+        // are what "no class function %@ accepts (%@)" lists. Narrowed by kind, because a candidate
+        // of the other kind is a different answer entirely. See OverloadSet::wrongKind.
+        (signature->funKind == shape.kind ? out.candidates : out.wrongKind).push(candidate);
+    }
+
+    computeStrictness(*this, out, source);
+}
+
+/*
+ * The signature this call's arguments are pushed down against, which is the sole candidate's or
+ * nobody's.
+ *
+ * A candidate's parameter types are the expected type of each argument only when there is nothing
+ * else the call could be: pushing one candidate's types in decides the call before selection runs.
+ * That is what lets `f(Nothing)` know which `Maybe` it is building, and it is also what a set of
+ * two candidates cannot have.
+ *
+ * Both call sites ask this, and it is the rule the loop's own version got wrong twice - once by
+ * pushing the first class signature down whenever there was one, and once by pushing the first of
+ * several. Two class candidates are the same case as a mixed set: they agree about the *conventions*
+ * (they would have to, to be callable by one syntax at all) but nothing makes them agree about a
+ * concrete position, and it is the concrete positions that get pushed down.
+ *
+ * Counted at this call's arity, since a candidate that cannot serve the call is not one of the
+ * things it could be.
+ */
+ModulePtr<Function> ExprResolver::pushdownSignature(const OverloadSet& set) {
+    auto sole = set.direct;
+    Size count = set.direct ? 1 : 0;
+
+    for(auto& candidate: set.candidates) {
+        auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
+        if(!entry.fun || entry.arity != set.arity) continue;
+
+        sole = entry.fun;
+        count++;
+    }
+
+    return count == 1 ? sole : nullptr;
 }
 
 // The instance of `typeClass` that serves `args`, and what selecting it bound its own type
@@ -364,6 +477,53 @@ ModulePtr<Value> ExprResolver::positionalUnit(ModulePtr<Value> value, TypePtr de
     return allocate(declared, source);
 }
 
+/*
+ * An argument list restated in a callee's signature, read at the types this call decided.
+ *
+ * The step between selecting a callee and emitting a call to it, and it is not the same thing as
+ * handing the arguments over: what comes out is still an ArgList, because it is passed on to
+ * whichever *form* the call turns out to take - an intrinsic expanded here, an erased call, or a
+ * specialization called directly - and each of those applies the conventions itself. A generic call
+ * and a parametric instance's implementation are the two that need it, and the types they read the
+ * signature at are the only difference between them.
+ *
+ * Two things it does not convert, and they are the same rule twice. A deferred argument is not a
+ * value yet, so what it converts to is decided where it is forced. And a `&` parameter's argument is
+ * left exactly as written: what it is handed is a *borrow* of the caller's storage, and creating
+ * that is borrowArgument's job in whichever form this becomes. Converting first would build a
+ * read-only temporary and then ask for a mutable borrow of it, which is how `sort(&xs)` on an owned
+ * array reported that a `let &` binding was not mutable.
+ */
+void ExprResolver::substituteArguments(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                       Buffer<TypePtr> typeArgs, LocationId source, ArgList& out) {
+    auto function_ = local[callee];
+
+    out.clear();
+
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = i < function_->args.size() ? local[function_->args.get(local, i)] : nullptr;
+
+        if(!declared || args[i].isDeferred() || declared->isMutableBorrow()) {
+            out.push(args[i]);
+            continue;
+        }
+
+        /*
+         * The positional rule, kept here as well as at the call itself.
+         *
+         * The erased form needs it for a second reason on top of the shift: lowering reads the
+         * *concrete* type off this argument to size the storage it hands over, so an argument that
+         * is not here has no type to read. A position declared as a type variable exists whatever it
+         * was substituted with - `{}` included - which is exactly the case that arrives with nothing
+         * to put in it. See positionalUnit.
+         */
+        auto wanted = substituted(declared->declaredType(), typeArgs, source);
+        auto value = convertArgument(args[i], wanted, source);
+
+        out.push(positionalUnit(value.value, wanted, source));
+    }
+}
+
 ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance,
                                                 Buffer<TypePtr> instanceArgs, U16 index,
                                                 Buffer<ResolvedArg> args, LocationId source,
@@ -394,17 +554,7 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
     // what makes it a function about something. An intrinsic has no body to specialize and is
     // generated here for those types, exactly as a generic intrinsic is at an ordinary call site.
     ArgList converted;
-    for(Size i = 0; i < args.length; i++) {
-        // A deferred argument has no conversion to apply yet - it is not a value. What it converts
-        // to is decided where it is forced, against the parameter type the callee declares.
-        if(args[i].isDeferred()) {
-            converted.push(args[i]);
-            continue;
-        }
-
-        auto declared = local[local[implementation]->args.get(local, i)]->declaredType();
-        converted.push(convertArgument(args[i], substituteType(module, declared, instanceArgs, source), source));
-    }
+    substituteArguments(implementation, args, instanceArgs, source, converted);
 
     if(local[implementation]->intrinsic || local[implementation]->deferredIntrinsic) {
         return expandIntrinsic(implementation, instanceArgs, toBuffer(converted), source, resultName);
@@ -533,9 +683,9 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedAr
 // admits at most one plain function, so this is arity plus "do the arguments fit", and the answer
 // has to be reached without reporting anything - see ExprResolver::convertible.
 bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
-                                LocationId source) {
+                                LocationId source, Size declaredArgs) {
     auto callable = local[callee];
-    if(callable->args.size() != args.length) return false;
+    if(declaredArgs != args.length) return false;
 
     // A generic function fits when its type arguments can all be inferred here, by the same
     // one-directional rule the classes use.
@@ -571,6 +721,17 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg>
          * of those, so asking before settling finds nothing and infers nothing.
          */
         settleWithDependencies(*env, bindings, source);
+
+        /*
+         * Every type argument decided - but only when this call fills the whole signature.
+         *
+         * A call that does not leaves the variables the missing positions mention open, and that is
+         * not a failure to fit: a `for` loop's iterator declares a continuation the *loop* supplies,
+         * and its result variable is precisely what the block below is about to decide. Requiring it
+         * here answered "no" for every generic iterator, including the one the loop was written for.
+         * See continuationSignature, which is where those variables are settled instead.
+         */
+        if(declaredArgs < callable->args.size()) return true;
 
         for(Size i = 0; i < bindings.size(); i++) {
             if(!settleType(bindings[i])) return false;
@@ -656,8 +817,11 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
          * to find it. Nothing declares one, and Design.md's uses are all second-position, so it is
          * reported rather than supported.
          */
+        OverloadSet set;
+        gatherOverloads(op, 2, opSource, opSource, set);
+
         ArgList args;
-        lazyArguments(op, 2, opSource, args);
+        replaceContents(args, set.strictness);
 
         if(args[0].isDeferred()) {
             context.diagnostics.error("the left operand of %@ is declared `@lazy`, which an infix operator cannot be - it is evaluated before the operator is read"_v,
@@ -687,7 +851,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
         if(!lhs) return nullptr;
 
         args[0] = lhs;
-        lhs = emitCall(op, toBuffer(args), lhsExpr->source, target, 0, opSource);
+        lhs = emitCall(set, toBuffer(args), lhsExpr->source, target, 0);
     }
 
     return lhs;
@@ -745,8 +909,11 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
+    OverloadSet set;
+    gatherOverloads(prefix.op.var, 1, prefix.op.source, prefix.op.source, set);
+
     ArgList args;
-    lazyArguments(prefix.op.var, 1, prefix.op.source, args);
+    replaceContents(args, set.strictness);
 
     if(args[0].isDeferred()) {
         args[0].promise.expr = &prefix.on;
@@ -762,7 +929,7 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         args[0] = value;
     }
 
-    auto result = emitCall(prefix.op.var, toBuffer(args), expr.source, target, 0, prefix.op.source);
+    auto result = emitCall(set, toBuffer(args), expr.source, target, 0);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -882,6 +1049,24 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
 
     if(!named) return resolveIndirectCall(expr, call, convertResult ? target : nullptr);
 
+    /*
+     * The overload set, gathered once, at the *callee's* location rather than the call's.
+     *
+     * It is where the name is written, so it is both the better place for an ambiguity diagnostic
+     * to point and the only location the index should hold this answer against - see
+     * resolve/index.h. Recording it against the whole call would make find-references report the
+     * call and the name as two hits on the same name.
+     *
+     * Everything below reads this: which positions are `@lazy`, whether a plain function is the
+     * whole of it, whether the callee is a lens or an iterator, and - through emitCall - which
+     * candidate serves the call.
+     */
+    auto callArgs = call.args;
+    OverloadSet set;
+    gatherOverloads(calleeExpr.var, callArgs.size(), calleeExpr.source, calleeExpr.source, set);
+
+    auto direct = set.direct;
+
     // A plain function's parameter types are known before its arguments are resolved, so they
     // are pushed down as the expected type of each one. That is what lets `f(Nothing)` know
     // which `Maybe` it is building - neither a class function nor a generic function can do the
@@ -891,23 +1076,12 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // Only when the plain function is the whole overload set, though: R5 lets the class half serve
     // a call the plain function does not fit, and pushing its parameter types into the arguments
     // would report the mismatch before selection ever got the chance to look elsewhere.
-    /*
-     * Looked up at the *callee's* location rather than the call's.
-     *
-     * It is where the name is written, so it is both the better place for an ambiguity diagnostic
-     * to point and the only location the index should hold this answer against - see
-     * resolve/index.h. Recording it against the whole call would make find-references report the
-     * call and the name as two hits on the same name.
-     */
-    auto direct = findFunction(module, calleeExpr.var, calleeExpr.source);
-    auto callArgs = call.args;
-    auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
-
-    if(declared) {
-        ClassFunList overloads;
-        findClassFunctions(module, calleeExpr.var, calleeExpr.source, overloads);
-        declared = overloads.isEmpty();
-    }
+    //
+    // `pushdownSignature` is that question, asked the same way a `for` loop asks it: the sole
+    // candidate's types may be pushed down and nobody else's. The extra clause is this site's alone
+    // - a generic function's parameter types are exactly what the arguments are being resolved to
+    // decide, so there is nothing there to push even when it is the only candidate.
+    auto declared = direct && !local[direct]->gen && pushdownSignature(set) == direct;
 
     /*
      * A lens or iterator call that reaches here left its continuation out and is in a position that
@@ -918,9 +1092,13 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * a `for` - so the arity is genuinely one short, and saying that is more use than "takes 3
      * arguments but was given 2".
      */
-    if(direct && local[direct]->funKind != ast::FunKind::Plain &&
-       local[direct]->args.size() == callArgs.size() + 1) {
-        context.diagnostics.error(local[direct]->funKind == ast::FunKind::Iter
+    // Read off `mismatched` rather than `direct`, and necessarily so: the callee takes one argument
+    // more than was written, so it is by construction the plain function this arity does not reach.
+    auto continuationShort = set.mismatched;
+
+    if(continuationShort && local[continuationShort]->funKind != ast::FunKind::Plain &&
+       local[continuationShort]->args.size() == callArgs.size() + 1) {
+        context.diagnostics.error(local[continuationShort]->funKind == ast::FunKind::Iter
             ? "%@ is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one"_v
             : "%@ is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument"_v,
             expr.source, context.findName(calleeExpr.var));
@@ -930,13 +1108,13 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     /*
      * The call's arguments, one entry per position.
      *
-     * Started here with a `Deferred` entry for each `@lazy` position and an empty one for the rest,
-     * and each empty one replaced below by what resolving that argument produced: what a position
-     * holding no value means is decided at the moment it is produced and nowhere else. See
-     * ResolvedArg.
+     * Started from the set's strictness - a `Deferred` entry for each `@lazy` position and an empty
+     * one for the rest - and each empty one replaced below by what resolving that argument produced:
+     * what a position holding no value means is decided at the moment it is produced and nowhere
+     * else. See ResolvedArg.
      */
     ArgList args;
-    lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source, args);
+    replaceContents(args, set.strictness);
 
     auto written = callArgs.contents(parse);
 
@@ -969,104 +1147,129 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         args[index] = resolveArgument(arg->value, expected);
     }
 
-    // Nothing further is said about a call one of whose arguments has already been reported on.
-    // Here rather than only in emitCall, because the plain-function path below skips emitCall
-    // entirely - and a failed argument there is not a diagnostic that was avoided but a call emitted
-    // with a hole where the argument should be. See anyArgumentFailed.
-    if(anyArgumentFailed(toBuffer(args))) return nullptr;
-
-    if(declared) {
-        // The whole overload set was one plain function, so the decision was made above rather than
-        // in emitCall - and §1.2 says to record where the decision is.
-        recordReference(context, calleeExpr.source, functionSymbol(module, direct));
-    }
-
-    auto result = declared ? emitDirectCall(direct, toBuffer(args), expr.source, target, 0)
-                           : emitCall(calleeExpr.var, toBuffer(args), expr.source, target, 0,
-                                      calleeExpr.source);
+    /*
+     * One route out, whatever `declared` decided.
+     *
+     * `declared` is a question about *pushdown* and nothing else: knowing the sole candidate early
+     * is what lets its parameter types be the expected type of each argument. It used to be a second
+     * route as well - recording the reference itself and calling emitDirectCall - which meant the
+     * plain-function case skipped selection, and with it the failed-argument guard, the reference
+     * recording and the choice of call form, each of which it then had to repeat or do without.
+     *
+     * Going through emitCall reaches the same callee by the rule that was already there: `declared`
+     * implies the set is one plain function of this arity, which is exactly selectCallee's first
+     * case. See ResolvedCallee.
+     */
+    auto result = emitCall(set, toBuffer(args), expr.source, target, 0);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
 
-// Emits a call to a known function, converting each argument to its declared type. An intrinsic
-// produces its result directly instead: the primitives are real functions with real bodies, but
-// an ordinary call to one expands to the instruction it contains rather than to a call the
-// backend would have to inline again later.
-ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
-                                              LocationId source, TypePtr, StringId resultName) {
+/*
+ * The `@lazy` positions of one call, completed in the callee's own terms.
+ *
+ * This is the point every `@lazy` argument has been travelling towards: the callee is known, so the
+ * parameter type it was declared at is known, and the choice between emitting the argument where it
+ * is used and wrapping it in a closure can finally be made. An intrinsic that declares one takes the
+ * whole list unresolved and decides for itself where each one runs, which is what makes `a && b` a
+ * branch; anything else gets the thunk, which prepareArguments below makes.
+ *
+ * `typeArgs` is what the callee's signature is read at - empty where it is already in the caller's
+ * terms, and the call's type arguments where the callee is generic, a class signature or an erased
+ * one. The answer is whether the callee declares a `@lazy` parameter at all, which is what decides
+ * whether a deferred intrinsic is offered the unresolved list.
+ */
+bool ExprResolver::fillDeferred(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                Buffer<TypePtr> typeArgs, LocationId source, ArgList& out) {
     auto function_ = local[callee];
-
-    // An `=` callee whose result type its body decides has to have decided it before this call can
-    // be given a type. Ordinarily it already has - resolveModuleBodies() settles them up front -
-    // but one inferring function calling another declared after it arrives here first.
-    requireReturnType(module, *function_, source);
-
-    /*
-     * The deferred arguments, in the callee's own terms.
-     *
-     * This is the point every `@lazy` argument has been travelling towards: the callee is known, so
-     * the parameter type it was declared at is known, and the choice between emitting the argument
-     * where it is used and wrapping it in a closure can finally be made. An intrinsic that declares
-     * one takes the whole list unresolved and decides for itself where each one runs, which is what
-     * makes `a && b` a branch; anything else gets the thunk.
-     */
-    ArgList pending;
     auto anyDeferred = false;
 
-    for(Size i = 0; i < args.length; i++) {
-        auto declared = local[function_->args.get(local, i)];
+    out.clear();
 
-        if(!declared->isLazy()) {
-            pending.push(args[i]);
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = i < function_->args.size() ? local[function_->args.get(local, i)] : nullptr;
+
+        if(!declared || !declared->isLazy()) {
+            out.push(args[i]);
             continue;
         }
 
+        auto type = substituted(declared->lazyType, typeArgs, source);
         auto entry = args[i].promise;
 
         // Not deferred by the call site: the argument was resolved before anything knew this
         // position was lazy, which is what a forwarded value and a synthesized call look like.
-        if(!entry.isSet()) entry = deferredValue(args[i].value, declared->lazyType);
+        if(!entry.isSet()) entry = deferredValue(args[i].value, type);
 
-        entry.type = declared->lazyType;
-        pending.push(ResolvedArg::deferred(entry));
+        entry.type = type;
+        out.push(ResolvedArg::deferred(entry));
         anyDeferred = true;
     }
 
-    /*
-     * Where this call's own packed-field write-backs start.
-     *
-     * By mark rather than wholesale, because the arguments were resolved before this was reached
-     * and a nested call among them has already committed its own: `f(&h.a, g(&h.b))` commits `b`
-     * after `g` and `a` after `f`, rather than committing `a` twice or `b` too late.
-     */
-    auto packed = packedMark();
+    return anyDeferred;
+}
 
-    if(anyDeferred && function_->deferredIntrinsic) {
-        auto expanded = function_->deferredIntrinsic(*this, toBuffer(pending), function_->returnType,
-                                                     source, resultName);
-        flushPackedBorrows(packed);
-        return expanded;
-    }
+/*
+ * Every argument's convention, applied once.
+ *
+ * This is the one place a call knows both what the callee asked for and what the caller produced, so
+ * it is the one place the five things a parameter can be are decided: a `@lazy` one is handed the
+ * closure that runs it, a `&` one a mutable borrow of the argument's storage, a `->` one the value
+ * moved out of it, a `return` one a loan that outlives the call, and everything else the ordinary
+ * converted value. What comes out is positional - see positionalUnit - and as long as `args`.
+ *
+ * There used to be two of these - the direct call's and the erased call's - and they had drifted.
+ * The erased one loaned a `return` argument whether or not the callee received it by reference,
+ * which is precisely the case the long comment below says must not be loaned; the fix reached it by
+ * the two becoming one rather than by anyone noticing, which is the argument for this existing.
+ *
+ * The generic dispatch is deliberately not a third. Its callee is not a function the call site
+ * reaches, so the conventions are not the caller's to apply - see emitGenericDispatch, which says
+ * what happens instead and what it cost to find out.
+ *
+ * `positional` says the list becomes the arguments of a call *instruction*, which is what makes a
+ * unit position storage rather than a hole - see positionalUnit. An intrinsic expansion is the one
+ * caller that says no: it is handed values to build an instruction out of rather than a list paired
+ * with parameters by index, and `unitValue()` for a position it ignores is an allocation the program
+ * then carries. `Wrap(()).wrap` is the case, and it is why this is a parameter rather than a rule.
+ *
+ * What is *not* here is what to do with a position that came out null - a conversion that failed.
+ * The direct call leaves it out and lets lowering pair what is left, the erased one declines the
+ * call, and that stays where it is: it is a policy about the call and not about the argument.
+ */
+void ExprResolver::prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                    Buffer<TypePtr> typeArgs, LocationId source, bool positional,
+                                    ValueList& out) {
+    auto function_ = local[callee];
 
-    // Every argument's convention is applied here, which is the one place a call knows both what
-    // the callee asked for and what the caller produced. A `&` becomes a mutable borrow of the
-    // argument's storage; everything else is the ordinary value path.
-    ValueList converted;
+    out.clear();
+
     for(Size i = 0; i < args.length; i++) {
-        auto declared = local[function_->args.get(local, i)];
+        auto declared = i < function_->args.size() ? local[function_->args.get(local, i)] : nullptr;
 
-        // The callee cannot see the argument, so what it is handed is the closure that runs it.
-        if(declared->isLazy()) {
-            converted.push(makeThunk(pending[i].promise, declared->lazyType, source));
+        // A position the callee does not declare. There is no convention to apply, and the arity
+        // mismatch is reported by whoever committed to this callee - see selectCallee's selectPlain.
+        if(!declared) {
+            out.push(args[i].value);
             continue;
         }
+
+        // The callee cannot see the argument, so what it is handed is the closure that runs it. The
+        // promise was completed by fillDeferred, whose output this is.
+        if(declared->isLazy()) {
+            auto type = substituted(declared->lazyType, typeArgs, source);
+            out.push(makeThunk(args[i].promise, type, source));
+            continue;
+        }
+
+        auto expected = substituted(declared->type, typeArgs, source);
 
         if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i].value, declared->type, source, declared->returnRoot));
+            out.push(borrowArgument(args[i].value, expected, source, declared->returnRoot));
             continue;
         }
 
-        auto value = convertArgument(args[i], declared->type, source).value;
+        auto value = convertArgument(args[i], expected, source).value;
 
         // A `->` parameter consumes what it is given, so the argument is moved out of its storage
         // - or copied, for a TrivialCopy type. The conversion comes first deliberately: a
@@ -1095,15 +1298,78 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
          * a copy is what the return-root check calls invalid - so no loan is the right answer as
          * well as the working one.
          */
-        if(declared->returnRoot && value && isMemoryType(global, declared->type)) {
+        if(declared->returnRoot && value && isMemoryType(global, expected)) {
             if(auto place = findPlace(value)) {
-                value = borrowPlace(place.unwrap(), resolveBorrowType(module, declared->type, false),
+                value = borrowPlace(place.unwrap(), resolveBorrowType(module, expected, false),
                                     source, true);
             }
         }
 
-        converted.push(value);
+        /*
+         * The list stays positional, whatever any one argument turned out to be.
+         *
+         * Lowering pairs it with the callee's parameters by index and decides there which positions
+         * survive - a declared unit is left out, a declared *variable* that is unit here is not,
+         * since the erased body it was compiled from still reads a position for it. Both of those
+         * need the entry to be here to be counted, so a hole punched at argument `i` does not drop
+         * argument `i`: it drops argument `i + 1`, and every one after it.
+         */
+        out.push(positional ? positionalUnit(value, expected, source) : value);
     }
+}
+
+/*
+ * A call to a function this call site has already settled on.
+ *
+ * Which of the two forms it takes is a property of the *callee* rather than of the selection that
+ * found it: a generic one has its type arguments inferred from this call and is then specialized,
+ * erased or expanded, and everything else is called directly. Every site that has a callee in hand
+ * asks this - the ordinary call, a lens call site and a `for` loop - because each of them reaches
+ * the same fork and none of them has anything to add to it.
+ */
+ModulePtr<Value> ExprResolver::emitKnownFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                                 LocationId source, TypePtr target, StringId resultName) {
+    return local[callee]->gen ? emitGenericCall(callee, args, source, target, resultName)
+                              : emitDirectCall(callee, args, source, target, resultName);
+}
+
+// Emits a call to a known function, converting each argument to its declared type. An intrinsic
+// produces its result directly instead: the primitives are real functions with real bodies, but
+// an ordinary call to one expands to the instruction it contains rather than to a call the
+// backend would have to inline again later.
+ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                              LocationId source, TypePtr, StringId resultName) {
+    auto function_ = local[callee];
+
+    // An `=` callee whose result type its body decides has to have decided it before this call can
+    // be given a type. Ordinarily it already has - resolveModuleBodies() settles them up front -
+    // but one inferring function calling another declared after it arrives here first.
+    requireReturnType(module, *function_, source);
+
+    // The callee's signature is already in the caller's terms, so nothing is substituted through it.
+    ArgList pending;
+    auto anyDeferred = fillDeferred(callee, args, {}, source, pending);
+
+    /*
+     * Where this call's own packed-field write-backs start.
+     *
+     * By mark rather than wholesale, because the arguments were resolved before this was reached
+     * and a nested call among them has already committed its own: `f(&h.a, g(&h.b))` commits `b`
+     * after `g` and `a` after `f`, rather than committing `a` twice or `b` too late.
+     */
+    auto packed = packedMark();
+
+    if(anyDeferred && function_->deferredIntrinsic) {
+        auto expanded = function_->deferredIntrinsic(*this, toBuffer(pending), function_->returnType,
+                                                     source, resultName);
+        flushPackedBorrows(packed);
+        return expanded;
+    }
+
+    // Positional only where the list becomes a call instruction. An intrinsic builds an instruction
+    // out of the values it is handed, so a unit position there is an allocation nothing reads.
+    ValueList converted;
+    prepareArguments(callee, toBuffer(pending), {}, source, !function_->intrinsic, converted);
 
     if(function_->intrinsic) {
         auto expanded = function_->intrinsic(*this, toBuffer(converted), function_->returnType, source, resultName);
@@ -1114,22 +1380,10 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     function_->used = true;
     auto call = create<InstCall>(source, resultName, function_->returnType, callee);
 
-    /*
-     * The argument list stays positional, whatever any one argument turned out to be.
-     *
-     * Lowering pairs this list with the callee's parameters by index and decides there which
-     * positions survive - a declared unit is left out, a declared *variable* that is unit here is
-     * not, since the erased body it was compiled from still reads a position for it. Both of those
-     * need the entry to be here to be counted, so a hole punched at argument `i` does not drop
-     * argument `i`: it drops argument `i + 1`, and every one after it. See positionalUnit.
-     */
-    for(Size i = 0; i < converted.size(); i++) {
-        auto declared = i < function_->args.size()
-            ? local[function_->args.get(local, i)]->declaredType() : TypePtr(nullptr);
-
-        if(auto value = positionalUnit(converted[i], declared, source)) {
-            call->args.push(module.arena, value);
-        }
+    // A position whose conversion failed is left out rather than declining the call: something has
+    // reported on it, and lowering pairs what is left with the parameters that are still there.
+    for(auto value: converted) {
+        if(value) call->args.push(module.arena, value);
     }
 
     append(call);
@@ -1175,34 +1429,64 @@ void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMat
     recordReference(resolver.context, source, symbol, type, instance);
 }
 
-ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> args, LocationId source, TypePtr target, StringId resultName, LocationId nameSource) {
-    /*
-     * Three things are spelled as a position holding no value, and only one of them is a reason to
-     * stop.
-     *
-     * A failed argument is: something has reported on it already, and matching an overload set
-     * against a type nobody worked out would report a second, worse diagnostic about a call the
-     * author may not have got wrong. A deferred position holds no value on purpose - it is not one
-     * yet. And a value of unit type holds none because that is how this resolver spells a value that
-     * carries nothing, which `valueType` already answers `{}` for and which every overload rule
-     * below therefore handles without knowing it was absent.
-     *
-     * The third used to be caught here as the first, which made `f({})` resolve to nothing at all
-     * for any generic `f` - silently, since the whole point of this guard is that the diagnostic was
-     * already written. Which position is which is the call site's knowledge, not this one's, and it
-     * arrives in the argument itself.
-     */
-    if(anyArgumentFailed(args)) return nullptr;
+// The synthesized form: nothing here knew a set, so one is gathered for the name. The lookup uses
+// the enclosing expression, which is the only location a call nobody wrote has.
+ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> args, LocationId source,
+                                        TypePtr target, StringId resultName, LocationId nameSource) {
+    OverloadSet set;
+    gatherOverloads(callName, args.length, nameSource != kNullLocation ? nameSource : source,
+                    nameSource, set);
 
-    // The name's own location where the call site knew one, so that what the index records lands
-    // on the name - see resolveCall. A synthesized call has none, and then the enclosing
-    // expression is the only location there is.
-    auto lookupSource = nameSource != kNullLocation ? nameSource : source;
+    return emitCall(set, args, source, target, resultName);
+}
 
-    ClassFunList candidates;
-    findClassFunctions(module, callName, lookupSource, candidates);
+/*
+ * Every class candidate matched against these arguments, and nothing decided.
+ *
+ * The facts only - see ClassSelection. Both selections run this and then differ in what they make of
+ * it, which is what they genuinely differ in: an ordinary call defers an undecided match to a
+ * generic dispatch, and a `for` loop has no dispatch to defer to.
+ */
+void ExprResolver::matchClassCandidates(const ClassFunList& candidates, Buffer<ResolvedArg> args,
+                                        TypePtr target, ClassSelection& out) {
+    for(auto& candidate: candidates) {
+        ClassMatch match;
 
-    auto direct = findFunction(module, callName, lookupSource);
+        if(!matchClassFun(candidate, args, target, match)) {
+            if(match.undeclaredDependency && !out.undeclared) out.undeclared = candidate.typeClass;
+            continue;
+        }
+
+        auto isUndecided = match.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
+
+        if(isUndecided) {
+            out.applicable.push(match.typeClass);
+            out.undecided.push(::move(match));
+        } else if(match.instance) {
+            out.applicable.push(match.typeClass);
+            if(!out.selectedCount) adopt(out.selected, match);
+            out.selectedCount++;
+        } else {
+            if(!out.withoutInstanceCount) adopt(out.withoutInstance, match);
+            out.withoutInstanceCount++;
+        }
+    }
+}
+
+/*
+ * Which candidate of the set serves this call.
+ *
+ * Everything judged about a call happens here and nothing is emitted: the answer is one
+ * ResolvedCallee, and a failure is a reported one. Selection is the only thing that knows what the
+ * alternatives were, so it is the only thing that can say what was wrong with the call - which is
+ * why every diagnostic about *choosing* a callee is in this function and none is outside it.
+ */
+void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args, TypePtr target,
+                                LocationId source, ResolvedCallee& out) {
+    auto callName = set.name;
+    auto nameSource = set.nameSource;
+    auto& candidates = set.candidates;
+    auto direct = set.direct;
 
     /*
      * A borrow is transparent for reading, and this is where that has to be said.
@@ -1231,25 +1515,26 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
     for(auto& arg: args) borrowed = borrowed || (arg.isValue() && isBorrow(global, valueType(arg.value)));
 
     if(borrowed) {
-        auto accepted = direct && matchFunction(direct, args, target, source);
+        auto accepted = direct && matchFunction(direct, args, target, source, set.arity);
 
         /*
          * Matching is not enough: it is what fails *after* it that this is for.
          *
          * `Num`'s signature fits `+` with its variable bound to `&Int` - a class function is
          * declared over a variable, and a variable accepts anything - and the call dies at instance
-         * selection, because nobody writes `instance Num(&Int)`. So the test has to be the one the
-         * loop below makes: an instance was found, or the types are still this body's own variables
-         * and the instance is decided later.
+         * selection, because nobody writes `instance Num(&Int)`. So the test is the one selection
+         * itself makes: a candidate that selected an instance, or one still about this body's own
+         * type variables, whose instance is decided later.
+         *
+         * Asked through `matchClassCandidates` rather than by classifying the matches again here,
+         * which is what it used to do - the same two clauses, written a second time and free to
+         * drift from the definition of "serves this call" that selection actually applies.
          */
-        for(auto& candidate: candidates) {
-            if(accepted) break;
+        if(!accepted) {
+            ClassSelection attempt;
+            matchClassCandidates(candidates, args, target, attempt);
 
-            ClassMatch attempt;
-            if(!matchClassFun(candidate, args, target, attempt)) continue;
-
-            accepted = attempt.instance ||
-                       attempt.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
+            accepted = attempt.selectedCount || attempt.undecided.isNotEmpty();
         }
 
         if(!accepted) {
@@ -1265,78 +1550,140 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
         }
     }
 
+    // Whichever list the candidates were matched against is the one the selected callee was chosen
+    // for, so it travels with the answer rather than being rebuilt from the written arguments.
+    for(auto& arg: args) out.args.push(arg);
+
     // Committing to the plain function, once it is the candidate the call is being served by. Its
-    // arity is checked here rather than in matchFunction because a mismatch has to be reported as
-    // itself: "takes two arguments" says more than the list of types the class half accepts.
-    auto emitPlain = [&]() -> ModulePtr<Value> {
+    // arity is not checked here: `direct` is the plain function *at this arity* or nothing at all,
+    // which is what makes it a candidate rather than a thing to test again. See OverloadSet.
+    auto selectPlain = [&]() {
         recordReference(context, nameSource, functionSymbol(module, direct));
 
-        if(local[direct]->args.size() != args.length) {
-            context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source, context.findName(callName),
-                                      U32(local[direct]->args.size()), U32(args.length));
-            return nullptr;
-        }
-
-        return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName)
-                                  : emitDirectCall(direct, args, source, target, resultName);
+        out.kind = ResolvedCallee::Kind::Plain;
+        out.function = direct;
     };
 
-    // R5: a plain function is an ordinary member of the overload set, not a shadow over it. It wins
-    // when it fits, which keeps "my definition beats the imported one" for the case that really
-    // overlaps; when it doesn't fit, the class candidates are still reachable. Shadowing outright
-    // meant that a module-level `fn and(a: Permissions, b: Permissions)` silently disabled
-    // `Integral.and` for every Int in the module, reported as an argument-type error on a call the
-    // author never touched.
-    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source))) {
-        return emitPlain();
+    /*
+     * The plain function of this name that takes a different number of arguments.
+     *
+     * Reached only where nothing else serves the call, and then it is the whole diagnostic: a name
+     * that is declared and called with the wrong count is far more often a miscount than a call
+     * meant for some class, so "takes two arguments but was given three" beats both "unknown
+     * function" and the list of types no class function accepted. The reference is recorded for the
+     * same reason an editor wants it - the author meant this function, and got the call wrong.
+     */
+    auto reportMismatched = [&]() {
+        recordReference(context, nameSource, functionSymbol(module, set.mismatched));
+
+        auto declared = local[set.mismatched];
+
+        // The wrong *kind* first, where the kind is required at all, because its arity is then
+        // beside the point: a loop that names a plain function has nothing to be the body of
+        // whatever that function's arity is. An ordinary call has no such case - a lens or an
+        // iterator with its continuation written out is one - so it always falls through to arity.
+        if(set.shape.requiresKind && declared->funKind != set.shape.kind) {
+            context.diagnostics.error("%@ is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly"_v,
+                                      source, context.findName(declared->name));
+            return;
+        }
+
+        context.diagnostics.error(set.shape.isLoop()
+            ? "%@ takes %@ arguments before the loop body, but this call was given %@"_v
+            : "%@ takes %@ arguments but was given %@"_v,
+            source, context.findName(callName),
+            U32(declared->args.size() - set.shape.supplied), U32(args.length));
+    };
+
+    /*
+     * A class function of the name declared as the *other* kind, which fits this call exactly.
+     *
+     * The answer to `chunks(xs)` written as an ordinary call: `Chunked.chunks` is an `iter fn`, so
+     * it is not a candidate here at all - but it is what the author meant, and saying so beats "no
+     * class function chunks accepts (Array(Int))". Asked only where nothing of the right kind serves
+     * the call, and answered only where one of these would have: a candidate of the wrong kind that
+     * does not even fit is not evidence of anything. See OverloadSet::wrongKind.
+     */
+    auto reportWrongKind = [&]() {
+        if(set.wrongKind.isEmpty()) return false;
+
+        ClassSelection other;
+        matchClassCandidates(set.wrongKind, args, target, other);
+        if(!other.selectedCount) return false;
+
+        auto entry = global[other.selected.typeClass]->functions.get(global, other.selected.index);
+        auto declared = local[entry.fun];
+        auto className = context.findName(global[other.selected.typeClass]->name);
+
+        if(declared->funKind == ast::FunKind::Iter) {
+            context.diagnostics.error("%@ is an `iter fn` of class %@, so it is run by a `for` loop rather than called - write `for x in %@(...)`"_v,
+                                      source, context.findName(callName), className, context.findName(callName));
+        } else if(declared->funKind == ast::FunKind::Lens) {
+            context.diagnostics.error("%@ is a `lens fn` of class %@, and a class member declared as one has no call site yet - a lens call reaches its implementation by name, which a class function is not"_v,
+                                      source, context.findName(callName), className);
+        } else {
+            context.diagnostics.error("%@ is an ordinary class function of %@ rather than an `iter fn`, so a `for` loop has nothing to be the body of"_v,
+                                      source, context.findName(callName), className);
+        }
+
+        return true;
+    };
+
+    // Nothing of this call's kind serves it, and the class half has nothing to say either. What is
+    // left is a plain function of the name that cannot serve it, or one of the other kind that would
+    // have - and failing both, the name means nothing here.
+    auto reportUnserved = [&]() {
+        if(set.mismatched) {
+            reportMismatched();
+            return;
+        }
+
+        if(reportWrongKind()) return;
+
+        context.diagnostics.error(set.shape.isLoop()
+            ? "unknown iterator %@ - a `for` loop names an `iter fn`, or a class function declared as one"_v
+            : "unknown function %@"_v, source, context.findName(callName));
+    };
+
+    /*
+     * R5: a plain function is an ordinary member of the overload set, not a shadow over it. It wins
+     * when it fits, which keeps "my definition beats the imported one" for the case that really
+     * overlaps; when it doesn't fit, the class candidates are still reachable.
+     *
+     * `set.arity` rather than the callee's own, which is the same number for a call and one less for
+     * a loop: the last parameter of a loop's callee is the continuation the loop supplies, so what
+     * is tested is the leading prefix the call site actually wrote. See CallShape::supplied.
+     */
+    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source, set.arity))) {
+        selectPlain();
+        return;
     }
 
     if(candidates.isEmpty()) {
-        context.diagnostics.error("unknown function %@"_v, source, context.findName(callName));
-        return nullptr;
+        reportUnserved();
+        return;
     }
 
-    ClassMatch selected;
-    ClassMatch withoutInstance;
-    auto selectedCount = 0;
-    auto withoutInstanceCount = 0;
+    ClassSelection matched;
+    matchClassCandidates(candidates, args, target, matched);
 
-    // Matches on this function's own type variables. Which class a call is, and with which type
-    // arguments, is still decided here and once; only the instance has to wait until the types
-    // become concrete.
-    SmallArray<ClassMatch, 4> undecided;
+    auto& selected = matched.selected;
+    auto& withoutInstance = matched.withoutInstance;
+    auto& undecided = matched.undecided;
+    auto& applicable = matched.applicable;
+    auto selectedCount = matched.selectedCount;
+    auto withoutInstanceCount = matched.withoutInstanceCount;
+    auto undeclared = matched.undeclared;
 
-    // Every class that turned out to apply, kept only so an ambiguity can name them all.
-    SmallArray<GlobalPtr<TypeClass>, 4> applicable;
-
-    // A candidate the signature fit and a functional dependency did not, kept so the failure can be
-    // reported as the missing constraint it is rather than as a call nothing accepts.
-    GlobalPtr<TypeClass> undeclared = nullptr;
-
-    for(auto& candidate: candidates) {
-        ClassMatch match;
-
-        if(!matchClassFun(candidate, args, target, match)) {
-            if(match.undeclaredDependency && !undeclared) undeclared = candidate.typeClass;
-            continue;
-        }
-
-        auto isUndecided = match.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
-
-        if(isUndecided) {
-            applicable.push(match.typeClass);
-            undecided.push(::move(match));
-        } else if(match.instance) {
-            applicable.push(match.typeClass);
-            if(!selectedCount) adopt(selected, match);
-            selectedCount++;
-        } else {
-            if(!withoutInstanceCount) adopt(withoutInstance, match);
-            withoutInstanceCount++;
-        }
-    }
-
-    if(!selectedCount && undecided.isNotEmpty()) {
+    /*
+     * A match on this body's own type variables, left to the instantiation that will make them
+     * concrete - but only where the call site has a dispatch to leave it to.
+     *
+     * A `for` loop does not: it needs the instance's implementation in hand, because the loop body
+     * is desugared against it. So for one, an undecided match falls through to the diagnostics
+     * below, where it is what it is - a class with no instance for these types, here.
+     */
+    if(set.shape.dispatches && !selectedCount && undecided.isNotEmpty()) {
         // A requirement the signature already declared wins over one that would have to be
         // inferred, so writing the constraint out is also how an overloaded name is settled.
         auto env = functionGen(global, function);
@@ -1355,7 +1702,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
                 "ambiguous call to %@ - more than one class applies, and the types that would decide are not known here. Name one class here (%@), or declare which one this function requires"_v,
                 source, context.findName(callName),
                 describeQualified(context, global, callName, toBuffer(applicable)));
-            return nullptr;
+            return;
         }
 
         // Selected, but not yet decided *which instance* - the types are still this body's own
@@ -1363,21 +1710,35 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
         // which is what §1.3 means by recording the generic answer.
         recordClassFunReference(*this, nameSource, undecided[chosen], nullptr);
 
-        return emitGenericDispatch(undecided[chosen], args, source, resultName);
+        out.kind = ResolvedCallee::Kind::Dispatch;
+        adopt(out.match, undecided[chosen]);
+        return;
     }
 
     if(selectedCount > 1) {
-        context.diagnostics.error("ambiguous call to %@ - more than one class instance applies. Name one class here (%@)"_v,
+        context.diagnostics.error(set.shape.isLoop()
+            ? "ambiguous iterator %@ - more than one class instance applies. Name one class here (%@)"_v
+            : "ambiguous call to %@ - more than one class instance applies. Name one class here (%@)"_v,
                                   source, context.findName(callName),
                                   describeQualified(context, global, callName, toBuffer(applicable)));
-        return nullptr;
+        return;
     }
 
     if(!selectedCount) {
         // Nothing in the class half of the overload set fits. A plain function of this name is then
         // the only candidate left, and its own diagnostic - which argument did not fit, and what it
         // was declared as - says more than the list of types the classes would not take.
-        if(direct) return emitPlain();
+        if(direct) {
+            selectPlain();
+            return;
+        }
+
+        if(set.mismatched) {
+            reportMismatched();
+            return;
+        }
+
+        if(reportWrongKind()) return;
 
         StringBuilder types;
 
@@ -1390,14 +1751,30 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
                                       context.findName(global[undeclared]->name),
                                       context.findName(global[undeclared]->name),
                                       context.findName(function.name));
-            return nullptr;
+            return;
         }
 
-        if(withoutInstanceCount) {
-            describeTypes(context, global, toBuffer(withoutInstance.args), types);
+        /*
+         * A candidate whose signature fit and whose types have no instance.
+         *
+         * An undecided match is one of these for a call site that cannot dispatch: its types are
+         * this body's own variables, and with no dispatch to defer to, what it amounts to here is a
+         * class with no instance for these types. It is the *matching* candidate that is named
+         * either way - the `for` loop's own copy of this blamed whichever class came first, which
+         * with two of them sharing a name reported a missing instance of a class the call was never
+         * about.
+         */
+        auto unserved = withoutInstanceCount    ? &withoutInstance
+                      : undecided.isNotEmpty()  ? &undecided[0]
+                                                : nullptr;
 
-            context.diagnostics.error("no instance of %@ for (%@), required by %@"_v, source,
-                                      context.findName(global[withoutInstance.typeClass]->name),
+        if(unserved) {
+            describeTypes(context, global, toBuffer(unserved->args), types);
+
+            context.diagnostics.error(set.shape.isLoop()
+                ? "no instance of %@ for (%@), required by the `for` loop's %@"_v
+                : "no instance of %@ for (%@), required by %@"_v, source,
+                                      context.findName(global[unserved->typeClass]->name),
                                       types.view(), context.findName(callName));
         } else {
             TypeList given;
@@ -1411,7 +1788,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
             // An argument that is already an error has had its diagnostic. Reporting that no
             // instance accepts it names the failure a second time, in terms of a type the author
             // never wrote - see the `<error>` in "no class function * accepts (Int, <error>)".
-            if(broken) return nullptr;
+            if(broken) return;
 
             describeTypes(context, global, toBuffer(given), types);
 
@@ -1419,44 +1796,71 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
                                       types.view());
         }
 
-        return nullptr;
+        return;
     }
 
     if(!local[selected.instance]->functions.get(local, selected.index)) {
         context.diagnostics.error("instance of %@ does not implement %@"_v, source,
                                   context.findName(global[selected.typeClass]->name), context.findName(callName));
-        return nullptr;
-    }
-
-    /*
-     * A class member declared `iter fn` or `lens fn` is run rather than called.
-     *
-     * The signature is not desugared (see resolveSignature), so it fits an argument list with no
-     * continuation in it and would otherwise reach an implementation that has one - which is an
-     * arity mismatch reported against a parameter the author never wrote. What runs one is a `for`
-     * loop for an iterator and a call site with a block under it for a lens, and both reach the
-     * instance by their own route.
-     */
-    auto signature = local[global[selected.typeClass]->functions.get(global, selected.index).fun];
-
-    if(signature && signature->funKind == ast::FunKind::Iter) {
-        context.diagnostics.error("%@ is an `iter fn` of class %@, so it is run by a `for` loop rather than called - write `for x in %@(...)`"_v,
-                                  source, context.findName(callName),
-                                  context.findName(global[selected.typeClass]->name), context.findName(callName));
-        return nullptr;
-    }
-
-    if(signature && signature->funKind == ast::FunKind::Lens) {
-        context.diagnostics.error("%@ is a `lens fn` of class %@, and a class member declared as one has no call site yet - a lens call reaches its implementation by name, which a class function is not"_v,
-                                  source, context.findName(callName),
-                                  context.findName(global[selected.typeClass]->name));
-        return nullptr;
+        return;
     }
 
     recordClassFunReference(*this, nameSource, selected, selected.instance);
 
-    return emitInstanceCall(module, selected.instance, toBuffer(selected.instanceArgs), selected.index,
-                            args, source, target, resultName);
+    out.kind = ResolvedCallee::Kind::Instance;
+    adopt(out.match, selected);
+}
+
+ModulePtr<Value> ExprResolver::emitCall(const OverloadSet& set, Buffer<ResolvedArg> args,
+                                        LocationId source, TypePtr target, StringId resultName) {
+    /*
+     * Three things are spelled as a position holding no value, and only one of them is a reason to
+     * stop.
+     *
+     * A failed argument is: something has reported on it already, and matching an overload set
+     * against a type nobody worked out would report a second, worse diagnostic about a call the
+     * author may not have got wrong. A deferred position holds no value on purpose - it is not one
+     * yet. And a value of unit type holds none because that is how this resolver spells a value that
+     * carries nothing, which `valueType` already answers `{}` for and which every overload rule
+     * handles without knowing it was absent.
+     *
+     * The third used to be caught here as the first, which made `f({})` resolve to nothing at all
+     * for any generic `f` - silently, since the whole point of this guard is that the diagnostic was
+     * already written. Which position is which is the call site's knowledge, not this one's, and it
+     * arrives in the argument itself.
+     */
+    if(anyArgumentFailed(args)) return nullptr;
+
+    ResolvedCallee callee;
+    selectCallee(set, args, target, source, callee);
+
+    /*
+     * Emission, with nothing left to decide.
+     *
+     * Four call forms and one switch over which was selected. What used to be here instead was the
+     * selection itself, with each form reached from the middle of the rule that found it - so
+     * "which callee serves this call" and "how is a call to it built" were one function that could
+     * only be read top to bottom, and a form was reachable only by re-deriving the path that got
+     * there. See ResolvedCallee.
+     */
+    auto selected = toBuffer(callee.args);
+
+    switch(callee.kind) {
+        case ResolvedCallee::Kind::Failed:
+            return nullptr;
+
+        case ResolvedCallee::Kind::Plain:
+            return emitKnownFunction(callee.function, selected, source, target, resultName);
+
+        case ResolvedCallee::Kind::Instance:
+            return emitInstanceCall(module, callee.match.instance, toBuffer(callee.match.instanceArgs),
+                                    callee.match.index, selected, source, target, resultName);
+
+        case ResolvedCallee::Kind::Dispatch:
+            return emitGenericDispatch(callee.match, selected, source, resultName);
+    }
+
+    return nullptr;
 }
 
 /*
@@ -1483,30 +1887,49 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Res
     auto signature = local[entry.fun];
     auto resultType = substituteType(module, signature->returnType, toBuffer(match.args), source);
 
+    // The instance is not known here, so there is nothing that can see through a deferred argument:
+    // it becomes the thunk whichever implementation is selected will call.
+    ArgList pending;
+    fillDeferred(entry.fun, args, toBuffer(match.args), source, pending);
+
     auto call = create<InstGenCall>(source, resultName, resultType, entry.fun, match.typeClass, match.index);
     for(auto argument: match.args) call->typeArgs.push(module.arena, argument);
 
-    for(Size i = 0; i < args.length; i++) {
-        auto parameter = local[signature->args.get(local, i)];
+    /*
+     * The arguments restated in the class signature, and deliberately no conventions applied.
+     *
+     * `substituteArguments` is the shared half - read the parameter at the types this call bound,
+     * convert, and keep the list positional - and it is the same step a generic call and a
+     * parametric instance's implementation take. What this form does *not* take is
+     * prepareArguments, and that is the whole of the difference.
+     *
+     * A parameter's convention is not the caller's to apply here, because the callee is not a
+     * function this call site reaches: lowering loads the implementation out of a witness and adapts
+     * each argument to the erased ABI itself, materializing a scalar into storage where the
+     * parameter is declared as a type variable - see lower.cpp's GenCall case. Handing it a borrow
+     * instead of the value puts a second indirection in front of that adaptation, which is what
+     * `fn (Index(c, k, v)) get(return self: c, ...)` turned into: a `&c` where the boundary expected
+     * a `c`, and an assertion in the width it went on to load. The convention is applied where the
+     * dispatch becomes a concrete call, which is emitInstanceCall's route into emitDirectCall.
+     *
+     * A `&` parameter is the one position where sharing this step is a decision rather than an
+     * identity: `substituteArguments` leaves it as written, which is the rule lowering states from
+     * the other side - *"a `&` parameter is an address in both worlds, so there is nothing to
+     * adapt"*. Dispatch.Borrow.yana is the fixture that reaches one, and the IR is unchanged by it.
+     *
+     * The thunk stays here, because it is a convention: a deferred position becomes the closure
+     * whichever implementation is selected will call, and there is no later form to make it.
+     */
+    ArgList converted;
+    substituteArguments(entry.fun, toBuffer(pending), toBuffer(match.args), source, converted);
 
-        // The instance is not known here, so there is nothing that can see through the argument:
-        // a deferred one becomes the thunk whichever implementation is selected will call.
-        if(parameter->isLazy()) {
-            auto type = substituteType(module, parameter->lazyType, toBuffer(match.args), source);
-            auto entry = args[i].promise;
-            if(!entry.isSet()) entry = deferredValue(args[i].value, type);
-
-            call->args.push(module.arena, makeThunk(entry, type, source));
+    for(Size i = 0; i < converted.size(); i++) {
+        if(local[signature->args.get(local, i)]->isLazy()) {
+            call->args.push(module.arena, makeThunk(pending[i].promise, pending[i].promise.type, source));
             continue;
         }
 
-        // The parameter is declared at a *variable* of the class's context, which the erased body
-        // reads a position for whatever that variable turned out to be here - so a unit argument
-        // gets storage rather than a hole, exactly as emitDirectCall gives one. See positionalUnit.
-        auto expected = substituteType(module, parameter->type, toBuffer(match.args), source);
-        auto value = positionalUnit(convertArgument(args[i], expected, source).value, expected, source);
-
-        if(value) call->args.push(module.arena, value);
+        if(converted[i].value) call->args.push(module.arena, converted[i].value);
     }
 
     append(call);
@@ -1548,36 +1971,12 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
      */
     auto packed = packedMark();
 
+    // Read at the types this call decided, since the signature is written in the callee's variables.
+    ArgList pending;
+    fillDeferred(callee, args, typeArgs, source, pending);
+
     ValueList converted;
-    for(Size i = 0; i < args.length; i++) {
-        auto declared = local[generic->args.get(local, i)];
-        auto expected = substituteType(module, declared->type, typeArgs, source);
-
-        if(declared->isLazy()) {
-            auto lazyType = substituteType(module, declared->lazyType, typeArgs, source);
-            auto entry = args[i].promise;
-            if(!entry.isSet()) entry = deferredValue(args[i].value, lazyType);
-
-            converted.push(makeThunk(entry, lazyType, source));
-            continue;
-        }
-
-        if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i].value, expected, source, declared->returnRoot));
-            continue;
-        }
-
-        auto value = convertArgument(args[i], expected, source).value;
-        if(declared->convention == ast::BindType::Sink) value = sinkValue(value, source);
-
-        if(declared->returnRoot && value) {
-            if(auto place = findPlace(value)) {
-                value = borrowPlace(place.unwrap(), resolveBorrowType(module, expected, false), source, true);
-            }
-        }
-
-        converted.push(positionalUnit(value, expected, source));
-    }
+    prepareArguments(callee, toBuffer(pending), typeArgs, source, true, converted);
 
     for(auto value: converted) {
         if(!value) return nullptr;
@@ -1625,22 +2024,7 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
         // The declared type of each deferred parameter, at the types this call decided. It is what
         // the argument is resolved and converted against when the expansion runs it.
         ArgList pending;
-
-        for(Size i = 0; i < args.length; i++) {
-            auto declared = local[generic->args.get(local, i)];
-
-            if(!declared->isLazy()) {
-                pending.push(args[i]);
-                continue;
-            }
-
-            auto entry = args[i].promise;
-            auto lazyType = substituteType(module, declared->lazyType, typeArgs, source);
-
-            if(!entry.isSet()) entry = deferredValue(args[i].value, lazyType);
-            entry.type = lazyType;
-            pending.push(ResolvedArg::deferred(entry));
-        }
+        fillDeferred(callee, args, typeArgs, source, pending);
 
         result = generic->deferredIntrinsic(*this, toBuffer(pending), resultType, source, resultName);
     } else {
@@ -1751,34 +2135,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     }
 
     ArgList converted;
-    for(Size i = 0; i < args.length; i++) {
-        if(args[i].isDeferred()) {
-            converted.push(args[i]);
-            continue;
-        }
-
-        auto argument = local[generic->args.get(local, i)];
-        auto wanted = substituteType(module, argument->declaredType(), toBuffer(bindings), source);
-
-        /*
-         * A `&` parameter's argument is left exactly as it was written.
-         *
-         * What it is handed is a *borrow* of the caller's storage, and creating that is
-         * borrowArgument's - which happens once, in whichever call form this turns into. Converting
-         * first would build a read-only temporary and then ask for a mutable borrow of it, which is
-         * how `sort(&xs)` on an owned array reported that a `let &` binding was not mutable.
-         */
-        auto value = argument->isMutableBorrow() ? args[i] : convertArgument(args[i], wanted, source);
-
-        /*
-         * The same positional rule emitDirectCall keeps, and the erased form needs it for a second
-         * reason on top of the shift: lowering reads the *concrete* type off this argument to size
-         * the storage it hands over, so an argument that is not here has no type to read. A
-         * position declared as a type variable exists whatever it was substituted with - `{}`
-         * included - which is exactly the case that arrives with nothing to put in it.
-         */
-        converted.push(positionalUnit(value.value, wanted, source));
-    }
+    substituteArguments(callee, args, toBuffer(bindings), source, converted);
 
     auto undecided = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });
 

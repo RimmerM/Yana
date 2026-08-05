@@ -12,15 +12,15 @@ fn wrap(%a: Int, %b: Int) -> Int {
 fn main() -> Int {
   b0:
     alloc
-    %literal = call Wrap(()).wrap, %v1 : Int
+    %literal = call Wrap(()).wrap, %v0 : Int
     call nothing
     %produced = call Wrap(()).wrap, %v2 : Int
     %ordinary = call Wrap(Int).wrap, 3 : Int
     %plain = call wrap, 10, 20 : Int
-    %v12 = add %literal, %produced : Int
-    %v13 = add %v12, %ordinary : Int
-    %v14 = add %v13, %plain : Int
-    ret %v14
+    %v10 = add %literal, %produced : Int
+    %v11 = add %v10, %ordinary : Int
+    %v12 = add %v11, %plain : Int
+    ret %v12
 }
 
 fn Wrap(()).wrap(%value: ()) -> Int {

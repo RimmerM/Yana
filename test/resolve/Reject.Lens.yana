@@ -141,3 +141,13 @@ fn asValue() -> Int:
 fn lambdaInGeneric(value: a) -> Int:
     let f = () -> 1
     return f()
+
+-- A `@lazy` parameter of a lens or an iterator. Accepting it was silently wrong rather than
+-- unsupported: both call sites resolve their written arguments before lifting the continuation, so
+-- the thunk was built out of a value that had already been computed - the argument ran whether or
+-- not the callee forced it, which is the one thing `@lazy` promises. Everything else about these
+-- two is well formed, so the only diagnostic each draws is the one about the parameter.
+lens fn lazyLens(@lazy x: Int, body: (Int) -> a) -> a = body(x)
+
+iter fn lazyIter(@lazy x: Int) -> Int:
+    yield x

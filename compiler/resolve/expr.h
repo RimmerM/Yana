@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builder.h"
+#include "name.h"
 #include "place.h"
 #include "../parse/ast.h"
 
@@ -112,6 +113,42 @@ struct ClassMatch {
      * constraint rather than a different call.
      */
     bool undeclaredDependency = false;
+};
+
+/*
+ * What matching every class candidate of one call against its arguments found.
+ *
+ * The facts, with no policy attached to them: which candidates fit and selected an instance, which
+ * fit and found none, which fit but are still about this body's own type variables, and which fit
+ * except for a dependency nothing declares. What to *do* with each is the caller's - an ordinary
+ * call defers an undecided match to a generic dispatch, and a `for` loop has no dispatch to defer to
+ * - and that is the whole of what the two selections differ in.
+ *
+ * Stated as one type because it drifted while it was two. The `for` loop's copy discarded a match
+ * that had no instance instead of keeping it, so with two classes declaring one iterator name, the
+ * "no instance of %@" diagnostic named whichever class came first rather than the one that matched.
+ */
+struct ClassSelection {
+    // The candidate that fit with an instance, and how many did. More than one is an ambiguity.
+    ClassMatch selected;
+    Size selectedCount = 0;
+
+    // The first candidate whose signature fit and whose types have no instance. It is what separates
+    // "wrong function" from "no instance for these types", which are very different diagnostics.
+    ClassMatch withoutInstance;
+    Size withoutInstanceCount = 0;
+
+    // Matches on this function's own type variables. Which class a call is, and with which type
+    // arguments, is decided here and once; only the instance has to wait until the types become
+    // concrete.
+    SmallArray<ClassMatch, 4> undecided;
+
+    // Every class that turned out to apply, kept only so an ambiguity can name them all.
+    SmallArray<GlobalPtr<TypeClass>, 4> applicable;
+
+    // A candidate the signature fit and a functional dependency did not, kept so the failure can be
+    // reported as the missing constraint it is rather than as a call nothing accepts.
+    GlobalPtr<TypeClass> undeclared = nullptr;
 };
 
 // Gives `into` everything `from` matched. Not assignment: the two lists are TypeLists, whose
@@ -242,8 +279,8 @@ struct ResolvedArg {
     static ResolvedArg failed() { return ResolvedArg(nullptr, ArgResult::Failed); }
 
     // A `@lazy` position. The promise is empty where the call site only knows *that* the position is
-    // deferred - lazyArguments answers that from the name, before any argument is resolved - and is
-    // filled in by whoever has the argument to put in it.
+    // deferred - the overload set answers that before any argument is resolved, see
+    // OverloadSet::strictness - and is filled in by whoever has the argument to put in it.
     static ResolvedArg deferred(Deferred promise = Deferred()) {
         auto arg = ResolvedArg(nullptr, ArgResult::Deferred);
         arg.promise = promise;
@@ -294,6 +331,182 @@ inline bool anyArgumentFailed(Buffer<ResolvedArg> args) {
 
     return false;
 }
+
+/*
+ * What sort of call site is selecting from a set, and the whole of what that changes.
+ *
+ * There were two implementations of Design.md's R5 - one for calls and one for `for` loops - and
+ * three of the four defects a review of the first pass found lived in the gap between them: the
+ * loop's copy shadowed the class half, pushed the wrong signature into its arguments, and blamed
+ * the wrong class for a missing instance. Each was a rule the ordinary selection already kept.
+ *
+ * These three fields are what stopped them being one function, written down so that they are the
+ * argument for the parameter rather than a reason to copy the code again.
+ */
+struct CallShape {
+    /*
+     * The kind of function that may serve this call, and it is exclusive in both directions: an
+     * ordinary call that names an `iter fn` is told to write the loop, and a loop that names a plain
+     * function is told it is not an iterator. Which is why the candidates of the *other* kind are
+     * kept rather than dropped - see OverloadSet::wrongKind.
+     */
+    ast::FunKind kind = ast::FunKind::Plain;
+
+    /*
+     * Whether the *plain* half must be declared as `kind`, which only a loop requires.
+     *
+     * The asymmetry is real and is what the sugar rests on: a `lens fn` or an `iter fn` whose
+     * continuation is written out is an ordinary call and stays one - `plusOne(4, (n: Int) -> n * 3)`
+     * is that form, and it is always legal. What a loop needs instead is a callee with a
+     * continuation parameter left over for the loop to fill, which only an `iter fn` has.
+     *
+     * The *class* half is split by kind whatever this says, because a class member is not desugared
+     * (see resolveSignature): its signature has no continuation parameter to write out, so an
+     * ordinary call to a class `iter fn` is the wrong syntax rather than a longer spelling of the
+     * right one. See OverloadSet::wrongKind.
+     */
+    bool requiresKind = false;
+
+    /*
+     * How many trailing parameters the call site does not write.
+     *
+     * One for a loop, which supplies the continuation itself - so the plain half declares one more
+     * parameter than the call has arguments, and is matched over a leading prefix of its signature.
+     * The plain half only: a class member is not desugared (see resolveSignature), so it declares
+     * exactly what the call site writes and needs no adjustment at all.
+     */
+    Size supplied = 0;
+
+    // Whether an undecided match may be left to a generic dispatch. A loop has none - it needs an
+    // implementation to desugar its body against - so for one an undecided match is a class that
+    // cannot serve the call here rather than one that will serve it later.
+    bool dispatches = true;
+
+    bool isLoop() const { return kind == ast::FunKind::Iter; }
+};
+
+/*
+ * The overload set one call is selected from, gathered once.
+ *
+ * Design.md's R1 keys the set by (name, arity) and admits at most one plain function beside any
+ * number of class functions, so this is that key and the two halves it names. Everything a call does
+ * before it has a callee - deciding which positions are `@lazy`, resolving the arguments, matching
+ * each candidate - is asked of this rather than of the name, and it is looked up once.
+ *
+ * **The two halves treat the arity half of the key differently, and that is a decision.** `direct`
+ * is exact: R1 admits one plain function per (name, arity), so a wrong-arity one is not a candidate
+ * and is held apart in `mismatched`, where the only thing that reads it is the diagnostic it is
+ * good for. The class half is every candidate of the *name*, because rejecting on arity there is
+ * what produces "no class function `==` accepts (Int, Int, Int)" - the list of types is the
+ * diagnostic, and it needs the candidates that did not fit to say it. `matchClassFun` is the one
+ * place that states the rule, and it states it as part of matching rather than beside it.
+ *
+ * It used to be looked up three times per written call, and the three disagreed about what they
+ * were for: the strictness pass gathered the set to read strictness off it and threw it away,
+ * `resolveCall` gathered it again to find out whether the plain function was the whole of it, and
+ * `emitCall` gathered it a third time to select from. Each walk is `findClassFunctions`, which scans
+ * every visible module's class-function table - so an infix chain of five operators did fifteen of
+ * them for five calls.
+ *
+ * **Strictness is part of the set rather than a separate answer beside it.** Which positions are
+ * deferred has to be decided before any argument is evaluated, which is before selection has run -
+ * so it is what every candidate of one (name, arity) has in common, and a set is exactly the thing
+ * that can say that. Design.md's rule that strictness is fixed by the signature rather than by the
+ * instance is this, stated from the other side: two candidates that disagree are a declaration error
+ * rather than a call-site one, and this is the only place the two are visible together.
+ */
+struct OverloadSet {
+    // R1's at-most-one plain function, of this call's kind and at this arity. Null where the name
+    // declares one that cannot serve the call - that is `mismatched`, and it is not a candidate.
+    ModulePtr<Function> direct = nullptr;
+
+    /*
+     * The plain function of this name that this call cannot use, and which is therefore the whole
+     * diagnostic when nothing else serves it: it takes a different number of arguments, or it is an
+     * `iter fn` where a call was written, or a plain function where a loop was. "takes two arguments
+     * but was given three" says more than "unknown function", which is what a set that simply
+     * dropped it would leave selection with. Nothing selects it.
+     */
+    ModulePtr<Function> mismatched = nullptr;
+
+    // The class half of this call's kind, at every arity - see the note above on why this one is not
+    // narrowed by arity.
+    ClassFunList candidates;
+
+    /*
+     * The class functions of the name declared as the *other* kind, which is what makes "chunks is
+     * an `iter fn` of class Chunked, so it is run by a `for` loop rather than called" possible.
+     *
+     * Held apart rather than dropped, and apart rather than mixed in, because the two answers are
+     * different: a candidate of the right kind that does not fit is "no class function accepts
+     * these types", and one of the wrong kind that fits perfectly is "you wrote the wrong syntax".
+     * Only reached when nothing else serves the call.
+     */
+    ClassFunList wrongKind;
+
+    // What sort of call this set was gathered for - see CallShape.
+    CallShape shape;
+
+    /*
+     * One entry per position: a `Deferred` one carrying nothing yet where the set declares `@lazy`,
+     * and an empty one for the rest. It is the list a call is built in - the caller replaces each
+     * strict entry with what resolving that argument produced, and a deferred one keeps the
+     * unevaluated argument instead. Whether any position is deferred is then a property of the list.
+     */
+    ArgList strictness;
+
+    StringId name = 0;
+    Size arity = 0;
+
+    // Where the name was written, which is not where the call was: an editor asking about the name
+    // under the cursor needs the name. `kNullLocation` for a synthesized call - a pattern's `==`, an
+    // array literal's `slice` - which is what keeps those out of the index. See resolve/index.h.
+    LocationId nameSource = kNullLocation;
+
+    bool isEmpty() const { return !direct && candidates.isEmpty(); }
+};
+
+/*
+ * The one callee a call was selected onto, and the arguments selection settled on.
+ *
+ * What separates it from the emission that follows is that everything *judged* about the call has
+ * happened by the time this exists: which half of the overload set serves it, which class and which
+ * instance, whether it was ambiguous, whether an argument had to be read through a borrow to be
+ * accepted at all. Emitting is then a switch over four cases with nothing left to decide, which is
+ * what the seven steps of "normalize calls once" ask for - selection ends in one value, and the call
+ * forms are reached from that value rather than from the middle of the selection that found them.
+ *
+ * `Failed` is a reported failure and not an absence: selection says everything there is to say about
+ * a call it cannot serve, because it is the only thing that knows what the alternatives were.
+ */
+struct ResolvedCallee {
+    enum class Kind: U8 {
+        Failed,   /// Selection reported; nothing further is to be said about this call.
+        Plain,    /// The overload set's plain function - R1's at-most-one - serves it.
+        Instance, /// One class function, and the instance selected for these types.
+        Dispatch, /// One class function whose instance this body's type variables cannot decide.
+    };
+
+    Kind kind = Kind::Failed;
+
+    // Set for `Plain`. Generic or not: which of the two call forms it takes is a property of the
+    // callee rather than of the selection, and is read off it where the call is emitted.
+    ModulePtr<Function> function = nullptr;
+
+    // Set for `Instance` and `Dispatch`. The instance is null for the second, which is what makes it
+    // the second - see emitGenericDispatch.
+    ClassMatch match;
+
+    /*
+     * The arguments as selection settled them, which is not always the list it was handed.
+     *
+     * A borrow is transparent for reading, so where nothing in the set accepts the arguments as they
+     * stand they are each read through and the whole set matched again. That rewrite is part of
+     * deciding the call rather than of emitting it - it is what a candidate was matched against -
+     * so what comes out here is the list the selected callee was chosen for.
+     */
+    ArgList args;
+};
 
 // One `yield` in a `lens fn` body: where it landed, and where it was written. The block is what the
 // exactly-once check is stated over and the source is what its diagnostics point at.
@@ -743,17 +956,20 @@ struct ExprResolver {
      * Deferred arguments (Design.md's Deferred arguments).
      */
 
-    // Which parameters of the overload set this name reaches are `@lazy`. Fills `out` with the
-    // call's argument list, one entry per position: a `Deferred` one with nothing in it yet for a
-    // `@lazy` parameter, and an empty entry for the rest, which the caller replaces with what
-    // resolving that argument produced. Whether any position is deferred is then a property of the
-    // list rather than a second answer beside it.
-    //
-    // Asked of the name rather than of the callee because it has to be answered before any argument
-    // is evaluated, which is before selection has run - so every candidate of one (name, arity) has
-    // to agree, and one that does not is reported here rather than silently deciding by which
-    // overload happened to win.
-    void lazyArguments(StringId name, Size arity, LocationId source, ArgList& out);
+    /*
+     * The overload set this name reaches at this arity, and the strictness its candidates agree on.
+     *
+     * The first step of every written call, and the only lookup any of them does. `source` is where
+     * the set is looked up from, which decides what is visible; `nameSource` is where the name was
+     * written, and is `kNullLocation` for a synthesized call - see OverloadSet::nameSource.
+     */
+    void gatherOverloads(StringId name, Size arity, LocationId source, LocationId nameSource,
+                         OverloadSet& out, CallShape shape = CallShape());
+
+    // The signature this call's arguments are pushed down against: the sole candidate's, or none
+    // where the set holds more than one and pushing either in would decide the call before selection
+    // runs. Both call sites ask it - see expr_call.cpp.
+    ModulePtr<Function> pushdownSignature(const OverloadSet& set);
 
     // Runs a deferred argument, here, in the block that is current now. This is the whole of what
     // `@lazy` means; everything else is about getting the argument to the point that calls this.
@@ -812,8 +1028,54 @@ struct ExprResolver {
      */
     ModulePtr<Value> positionalUnit(ModulePtr<Value> value, TypePtr declared, LocationId source);
 
+    // A callee's declared type, in the caller's terms. `typeArgs` is empty where the signature
+    // already is - a plain function, or one this call site specialized - and holds the call's type
+    // arguments where it is a generic, class or erased signature read at the types this call
+    // decided. One spelling, so that the two cases are one line rather than two code paths.
+    TypePtr substituted(TypePtr declared, Buffer<TypePtr> typeArgs, LocationId source) {
+        return typeArgs.length ? substituteType(module, declared, typeArgs, source) : declared;
+    }
+
+    // Restates an argument list in a callee's signature, read at the types this call decided. The
+    // step between selecting a callee and emitting one of the forms a call to it can take.
+    void substituteArguments(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                             Buffer<TypePtr> typeArgs, LocationId source, ArgList& out);
+
+    // Completes every `@lazy` position of `args` against the callee that takes it, and answers
+    // whether the callee declares one at all. See the definition in expr_call.cpp.
+    bool fillDeferred(ModulePtr<Function> callee, Buffer<ResolvedArg> args, Buffer<TypePtr> typeArgs,
+                      LocationId source, ArgList& out);
+
+    // Applies the callee's parameter conventions to an argument list - the one place a call knows
+    // both what the callee asked for and what the caller produced. Takes fillDeferred's output.
+    void prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedArg> args, Buffer<TypePtr> typeArgs,
+                          LocationId source, bool positional, ValueList& out);
+
+    // Matches every class candidate against these arguments and reports what fit, deciding nothing.
+    // Shared by the ordinary selection and a `for` loop's - see ClassSelection.
+    void matchClassCandidates(const ClassFunList& candidates, Buffer<ResolvedArg> args, TypePtr target,
+                              ClassSelection& out);
+
+    // Which candidate of the set serves this call, and the arguments it was chosen for. Reports
+    // everything there is to say about a call it cannot serve - see ResolvedCallee.
+    void selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args, TypePtr target,
+                      LocationId source, ResolvedCallee& out);
+
+    // Selects one callee out of an already-gathered set and emits the call to it. The written form:
+    // `resolveCall` and the operators reach it with the set they resolved their arguments against.
+    ModulePtr<Value> emitCall(const OverloadSet& set, Buffer<ResolvedArg> args, LocationId source,
+                              TypePtr target = nullptr, StringId resultName = 0);
+
+    // The synthesized form, which gathers the set itself. Everything this resolver builds on the
+    // author's behalf - a pattern's `==`, an array literal's `slice`, a `for` loop's arithmetic -
+    // has a name and a list of values it just produced, and nothing else to say about the callee.
     ModulePtr<Value> emitCall(StringId name, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, LocationId nameSource = kNullLocation);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+
+    // A call to a function the call site has already settled on, generic or not. The one place that
+    // fork is stated - see expr_call.cpp.
+    ModulePtr<Value> emitKnownFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                       LocationId source, TypePtr target = nullptr, StringId resultName = 0);
 
     // A call to a generic function: infers its type arguments from the call, then either
     // instantiates it or - when this body is itself generic and the arguments are not concrete
@@ -846,9 +1108,18 @@ struct ExprResolver {
     // nothing rather than to one that binds a literal.
     bool matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target, ClassMatch& resolved);
 
-    // Whether a plain function can serve this call - the same question matchClassFun asks of a
-    // class function, so that both halves of an overload set are judged by one rule.
-    bool matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target, LocationId source);
+    /*
+     * Whether a plain function can serve this call - the same question matchClassFun asks of a
+     * class function, so that both halves of an overload set are judged by one rule.
+     *
+     * `declaredArgs` is how many of the callee's parameters this call is expected to fill, which is
+     * all of them everywhere but one place: a `for` loop's iterator declares a continuation the loop
+     * supplies rather than the call site, so its written arity is one short and the R5 test over it
+     * has to be about the leading positions. Passed rather than defaulted so that the one case that
+     * differs says so, and the two ordinary sites read as what they are.
+     */
+    bool matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
+                       LocationId source, Size declaredArgs);
 
     // Calls one implementation of a selected instance. A concrete instance's is an ordinary
     // function; a parametric one's is generic over the instance's own variables, so it is expanded
@@ -922,11 +1193,13 @@ struct ExprResolver {
     // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
     // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
     ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ArgList& values);
-    ModulePtr<Function> findClassLoopIterator(ast::AppExpr& application, StringId name, LocationId source,
-                                              ArgList& values, bool& attempted);
 
     // The arguments written before the continuation, resolved and settled. Shared by both call
     // sites, which differ in what they do with the rest of the block and in nothing before it.
+    //
+    // A null `callee` pushes no expected type into any of them, which is what a set with more than
+    // one candidate needs: pushing either candidate's parameter types down would decide the call
+    // before it was selected. See pushdownSignature.
     void resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
                                 ArgList& values);
 

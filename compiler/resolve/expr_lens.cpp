@@ -1187,7 +1187,7 @@ void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source)
  */
 void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
                                           ArgList& values) {
-    auto target = local[callee];
+    auto target = callee ? local[callee] : nullptr;
     Size position = 0;
 
     for(auto arg: arguments.contents(parse)) {
@@ -1195,8 +1195,12 @@ void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::Parse
             context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
         }
 
-        auto expected = local[target->args.get(local, position)]->declaredType();
-        auto erased = isGeneric(global, expected);
+        // No signature to push down from is the same case as a generic position: what the argument
+        // should be is what selecting a callee from it is about to decide.
+        auto expected = target && position < target->args.size()
+            ? local[target->args.get(local, position)]->declaredType() : TypePtr(nullptr);
+
+        auto erased = !expected || isGeneric(global, expected);
         auto value = resolveArgument(arg.value, erased ? nullptr : expected);
 
         if(erased && value.isValue()) value = settle(value.value, arg.value.source);
@@ -1246,7 +1250,10 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     // erased callback ABI Implementation-Generics.md still lists as open.
     if(calleeExpr.kind != ast::Expr::Var || findBinding(calleeExpr.var)) return false;
 
-    auto callee = findFunction(module, calleeExpr.var, call.source);
+    // Looked up at the call and recorded against the *name*, which is the same split every ordinary
+    // call keeps - see findFunction. Recording it against the whole application puts the callee on a
+    // span the arguments are inside, so a cursor in one of them walks outwards and finds it.
+    auto callee = findFunction(module, calleeExpr.var, call.source, calleeExpr.source);
     if(!callee || local[callee]->funKind != ast::FunKind::Lens) return false;
 
     auto target = local[callee];
@@ -1298,8 +1305,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     values.push(continuation);
 
-    auto call_ = target->gen ? emitGenericCall(callee, toBuffer(values), source, nullptr, 0)
-                             : emitDirectCall(callee, toBuffer(values), source, nullptr, 0);
+    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, 0);
 
     if(!call_ || !current) return true;
 
@@ -1416,95 +1422,6 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
  * rejections are the evidence base a phase 2 strategy gets chosen from, so a message that does not
  * say which shape was reached is a message that teaches nothing.
  */
-/*
- * The class half of it - Implementation-Containers.md §5.
- *
- * `for x in chunks(xs)` names a class function rather than a function, and what the loop needs is
- * the implementation the instance supplies: an `iter fn` like any other, desugared where it was
- * written, so everything below this point is unchanged. Only the arguments have to be resolved
- * first, because they are what selects the instance - which is why this returns them rather than
- * leaving the caller to resolve them a second time.
- *
- * Nothing is reported when no class function of the name fits; the plain-function diagnostic is the
- * better one and the caller falls back to it.
- */
-ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& application, StringId name,
-                                                        LocationId source, ArgList& values, bool& attempted) {
-    ClassFunList candidates;
-    findClassFunctions(module, name, source, candidates);
-
-    // The written arity, since a class member is *not* desugared - it declares what an instance
-    // takes and what it hands over, and the continuation belongs to the implementation.
-    SmallArray<ClassFunRef, 4> iterators;
-
-    for(auto& candidate: candidates) {
-        auto signature = local[global[candidate.typeClass]->functions.get(global, candidate.index).fun];
-        if(!signature || signature->funKind != ast::FunKind::Iter) continue;
-        if(signature->args.size() != application.args.size()) continue;
-
-        iterators.push(candidate);
-    }
-
-    if(iterators.isEmpty()) return nullptr;
-    attempted = true;
-
-    /*
-     * Resolved against the first candidate's signature, and the conventions are what that decides.
-     * Two classes declaring one iterator name at one arity would have to agree about those to be
-     * callable by one syntax at all, so taking them from the first is the same answer any of them
-     * gives; which class it *is* is decided below, from the types these produce.
-     */
-    auto shape = local[global[iterators[0].typeClass]->functions.get(global, iterators[0].index).fun];
-    resolveHandedArguments(shape - local, application.args, values);
-
-    // `attempted` is already set, so the caller says nothing further either: what is wrong with this
-    // loop is what was reported about the argument, and not that no instance takes it.
-    if(anyArgumentFailed(toBuffer(values))) return nullptr;
-
-    ClassMatch selected;
-    auto selectedCount = 0;
-
-    for(auto& candidate: iterators) {
-        ClassMatch match;
-        if(!matchClassFun(candidate, toBuffer(values), nullptr, match)) continue;
-        if(!match.instance) continue;
-
-        if(!selectedCount) adopt(selected, match);
-        selectedCount++;
-    }
-
-    if(!selectedCount) {
-        // The name is a class iterator and these arguments have no instance of it. Said here because
-        // the plain-function fallback has nothing to say - there is no plain `chunks` to complain
-        // about the arguments of.
-        StringBuilder types;
-        TypeList given;
-        for(auto& value: values) given.push(valueType(value.value));
-        describeTypes(context, global, toBuffer(given), types);
-
-        context.diagnostics.error("no instance of %@ for (%@), required by the `for` loop's %@"_v, source,
-                                  context.findName(global[iterators[0].typeClass]->name), types.view(),
-                                  context.findName(name));
-        return nullptr;
-    }
-
-    if(selectedCount > 1) {
-        context.diagnostics.error("ambiguous iterator %@ - more than one class instance applies"_v, source,
-                                  context.findName(name));
-        return nullptr;
-    }
-
-    auto implementation = local[selected.instance]->functions.get(local, selected.index);
-    if(!implementation) {
-        context.diagnostics.error("instance of %@ does not implement %@"_v, source,
-                                  context.findName(global[selected.typeClass]->name), context.findName(name));
-        return nullptr;
-    }
-
-    recordClassFunReference(*this, source, selected, selected.instance);
-    return implementation;
-}
-
 ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call,
                                                    ArgList& values) {
     auto& source = unwrapNested(loop.from);
@@ -1530,50 +1447,61 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
         return nullptr;
     }
 
-    auto callee = findFunction(module, calleeExpr.var, source.source);
+    /*
+     * The overload set, and one selection over it - Design.md's R5, run by the same function an
+     * ordinary call runs.
+     *
+     * A `for` loop used to have its own: its own gather, its own R5, its own ambiguity report and
+     * its own missing-instance tracking. Three separate defects lived in the gap - the class half
+     * was shadowed outright, the wrong signature was pushed into the arguments, and the wrong class
+     * was blamed for a missing instance - and every one of them was a rule the ordinary selection
+     * already kept. What genuinely differs is three facts about the *call site*, and they are what
+     * CallShape carries: the callee is declared `iter fn`, the loop supplies the last argument
+     * itself, and there is no generic dispatch to defer an undecided match to.
+     */
+    CallShape shape;
+    shape.kind = ast::FunKind::Iter;
+    shape.requiresKind = true;
+    shape.supplied = 1;
+    shape.dispatches = false;
 
-    // A class function of the name answers when no plain function does, and when the one that does
-    // is not an iterator - the two halves of an overload set are one set here exactly as they are at
-    // an ordinary call.
-    if(!callee || local[callee]->funKind != ast::FunKind::Iter) {
-        auto attempted = false;
-        auto fromClass = findClassLoopIterator(application, calleeExpr.var, source.source, values, attempted);
+    OverloadSet set;
+    gatherOverloads(calleeExpr.var, application.args.size(), source.source, calleeExpr.source, set, shape);
 
-        if(fromClass) {
-            call = &application;
-            return fromClass;
-        }
-
-        // It was a class iterator and it did not work out, which has been said. Falling through to
-        // the plain-function diagnostics would say it again about a different candidate.
-        if(attempted) return nullptr;
-    }
-
-    if(!callee) {
-        context.diagnostics.error("unknown iterator %@ - a `for` loop names an `iter fn`, or a class function declared as one"_v,
-                                  loop.from.source, context.findName(calleeExpr.var));
-        return nullptr;
-    }
-
-    auto target = local[callee];
-    if(target->funKind != ast::FunKind::Iter) {
-        context.diagnostics.error("%@ is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly"_v,
-                                  loop.from.source, context.findName(target->name));
-        return nullptr;
-    }
-
-    if(application.args.size() != target->args.size() - 1) {
-        context.diagnostics.error("%@ takes %@ arguments before the loop body, but this call was given %@"_v,
-                                  loop.from.source, context.findName(target->name),
-                                  U32(target->args.size() - 1), U32(application.args.size()));
-        return nullptr;
-    }
-
-    resolveHandedArguments(callee, application.args, values);
+    // Resolved once, whichever half serves the loop - resolving is emission, so there is no
+    // resolving a second time and no discarding the first.
+    resolveHandedArguments(pushdownSignature(set), application.args, values);
     if(anyArgumentFailed(toBuffer(values))) return nullptr;
 
-    call = &application;
-    return callee;
+    ResolvedCallee selected;
+    selectCallee(set, toBuffer(values), nullptr, source.source, selected);
+
+    // Whatever selection settled on, including a borrow it read through - see ResolvedCallee::args.
+    replaceContents(values, selected.args);
+
+    switch(selected.kind) {
+        case ResolvedCallee::Kind::Failed:
+            return nullptr;
+
+        case ResolvedCallee::Kind::Plain:
+            call = &application;
+            return selected.function;
+
+        case ResolvedCallee::Kind::Instance: {
+            // The implementation the instance supplies is an `iter fn` like any other, desugared
+            // where it was written - so everything the loop does below this point is unchanged.
+            call = &application;
+            return local[selected.match.instance]->functions.get(local, selected.match.index);
+        }
+
+        case ResolvedCallee::Kind::Dispatch:
+            // `shape.dispatches` is false, so selection never answers this.
+            context.diagnostics.error("internal: a `for` loop was given a deferred class dispatch"_v,
+                                      loop.from.source);
+            return nullptr;
+    }
+
+    return nullptr;
 }
 
 /*
@@ -1624,8 +1552,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
 
     values.push(continuation);
 
-    auto call_ = target->gen ? emitGenericCall(callee, toBuffer(values), source, nullptr, 0)
-                             : emitDirectCall(callee, toBuffer(values), source, nullptr, 0);
+    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, 0);
 
     if(!call_ || !current) return;
 

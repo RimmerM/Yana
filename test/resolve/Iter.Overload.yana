@@ -1,0 +1,30 @@
+-- R5 for a `for` loop's iterator - Design.md's Overloading, applied to the one call syntax that
+-- used to have its own rule.
+--
+-- A plain `iter fn` is a *member* of the overload set, not a shadow over it. The class half used to
+-- be consulted only when no plain function of the name existed or the one that did was not an
+-- iterator, so declaring `chunks` for one type of your own silently disabled `Chunked.chunks` for
+-- every container in the module - reported as an argument-type error on a loop the author never
+-- touched, which is the failure R5 was written about.
+--
+-- Both loops below name `chunks`. The first is served by the plain declaration and the second by
+-- the `Chunked` instance for an array, and neither is reachable if the other wins by name alone.
+
+data Box {n: Int}
+
+iter fn chunks(b: Box) -> Int:
+    yield b.n
+    yield b.n + 1
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    for v in chunks(Box {n: 7}):
+        total = total + v
+
+    let xs = [10, 20, 30]
+
+    for part in chunks(xs):
+        total = total + (length(part) :: Int)
+
+    return total

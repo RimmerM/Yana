@@ -101,7 +101,7 @@ ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
     return found ? *found : nullptr;
 }
 
-ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source) {
+ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence) {
     auto found = search<ModulePtr<Function>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Function> {
         if(reference.segments() != 1) return nullptr;
 
@@ -114,8 +114,20 @@ ModulePtr<Function> findFunction(Module& module, StringId name, LocationId sourc
      * "record at the point of decision" cuts the other way for the *candidate*, not for the answer.
      * What makes it honest is that the selection records the reference it decided on at the same
      * location, and a later answer replaces an earlier one: see SemanticIndex::addReference.
+     *
+     * At `occurrence` rather than at `source`, because the two are not the same question. `source`
+     * is where the lookup happens - what is visible, and where an ambiguity between two imports is
+     * reported - and every lookup has one. An *occurrence* is a name someone wrote, and a
+     * synthesized call has none: a pattern's `==` and a range subscript's `slice` are looked up at
+     * the enclosing expression, which is a span the author wrote something else in.
+     *
+     * What that cost is a name in the index that is in no source file. `referenceAt` walks outwards
+     * from the innermost node until something answers, so a cursor on the `1` of `xs[1..3]` - which
+     * has no answer of its own - reached the subscript expression and was told `fn slice(self:
+     * Flat(a), from: I64, to: I64)`, a signature the author never wrote and cannot go to. See
+     * `sliced`/`inRange` in test/lsp/semantic, which asserts both halves.
      */
-    if(found) recordReference(module.context, source, functionSymbol(module, *found));
+    if(found) recordReference(module.context, occurrence, functionSymbol(module, *found));
     return found ? *found : nullptr;
 }
 

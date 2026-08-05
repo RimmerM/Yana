@@ -1056,6 +1056,31 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
         auto type = bindingType(module, *module.parse[arg.type], arg.bind, env);
         auto lazy = arg.lazy && checkLazyArgument(module, arg.bind, arg.returnRoot, arg.source);
 
+        /*
+         * A `@lazy` parameter of a lens or an iterator, which this version does not build.
+         *
+         * Reported rather than accepted, because accepting it was silently wrong: a lens or
+         * iterator call resolves its written arguments *before* it lifts the continuation - see
+         * resolveHandedArguments - and the thunk was then made out of the value that resolving
+         * already produced. So the argument ran whether or not the callee forced it, which is the
+         * one thing `@lazy` promises it does not do, and nothing anywhere said so.
+         *
+         * Not a small omission to close, which is why it is a rule for now rather than a gap.
+         * `continuationSignature` infers the continuation's own parameter types by binding the
+         * callee's type variables against the argument *values*, and a position that is deferred has
+         * no value to bind - so deferring one here means teaching the continuation's shape to be
+         * inferred from a promise. Design.md's uses of `@lazy` are all short-circuiting operators,
+         * none of which is a lens or an iterator.
+         */
+        if(lazy && function->funKind != ast::FunKind::Plain) {
+            module.context.diagnostics.error(function->funKind == ast::FunKind::Iter
+                ? "an `iter fn` cannot declare a `@lazy` parameter - a `for` loop resolves the arguments before it lifts its body into the continuation, so the argument would run whether or not the iterator forced it. Take a function and call it, which is what the thunk would have been"_v
+                : "a `lens fn` cannot declare a `@lazy` parameter - the call site resolves the arguments before it lifts the rest of the block into the continuation, so the argument would run whether or not the lens forced it. Take a function and call it, which is what the thunk would have been"_v,
+                arg.source);
+
+            lazy = false;
+        }
+
         // A `@lazy` parameter arrives as the thunk rather than as the value, so that is the type
         // the parameter has; what the signature promised is kept beside it - see Arg::lazyType.
         auto declared = function->addArg(module, arg.name, lazy ? resolveThunkType(module, type) : type,

@@ -1,0 +1,38 @@
+-- Which signature a `for` loop's arguments are pushed down against, when the set has more than one
+-- candidate - the same rule an ordinary call keeps at resolveCall's `declared`.
+--
+-- A candidate's parameter types are the expected type of each argument only when there is nothing
+-- else the call could be. `iteratorShape` used to answer the first *class* candidate whenever there
+-- was one, which quietly let that candidate decide a set it was only a member of: the `2` below was
+-- resolved as a `Size` from `Streamed`'s signature, before anything had decided which half served
+-- the loop, and the plain iterator then failed to match its own call because an `I64` does not
+-- narrow to an `Int` implicitly. R5 says the plain one wins here, and it could not even be tried.
+--
+-- The class position that matters is `times: Size`: a *concrete* one. Iter.Overload.yana does not
+-- reach this because `Chunked.chunks` declares only a generic position, which pushes nothing down.
+
+data Box {v: Int}
+data Bag {w: Int}
+
+class Streamed(c):
+  iter fn stream(self: c, times: Size) -> Int
+
+instance Streamed(Bag):
+  iter fn stream(self: Bag, times: Size) -> Int:
+      yield self.w
+
+iter fn stream(b: Box, times: Int) -> Int:
+    yield b.v + times
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    -- Served by the plain iterator: 1 + 2.
+    for x in stream(Box {v: 1}, 2):
+        total = total + x
+
+    -- Served by the instance, at the same name and arity: 40.
+    for y in stream(Bag {w: 40}, 5):
+        total = total + y
+
+    return total

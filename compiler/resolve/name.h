@@ -160,7 +160,19 @@ void forEachVisible(Context& context, Module& module, Visit&& visit) {
 TypePtr findType(Module& module, StringId name, LocationId source);
 Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source);
 Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId source);
-ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source);
+/*
+ * `occurrence` is where the name was *written*, which is not always where it is looked up.
+ *
+ * The lookup location decides what is visible and is where an ambiguity between two imports is
+ * reported, so every lookup has one. An occurrence is a name in the source, and a synthesized call
+ * has none - it is `kNullLocation` there, which records nothing. The three-argument form is the
+ * ordinary case, where the name is written at the place it is resolved from.
+ */
+ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence);
+
+inline ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source) {
+    return findFunction(module, name, source, source);
+}
 ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source);
 GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source);
 Maybe<U8> findPrecedence(Module& module, StringId name);

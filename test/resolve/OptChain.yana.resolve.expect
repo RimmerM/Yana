@@ -343,7 +343,7 @@ fn tail(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v14 : Maybe(Int)
+    %v14 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
     jmp b3
 
   b2:
@@ -356,7 +356,7 @@ fn tail(%n: Int) -> Maybe(Int) {
     jmp b3
 
   b3:
-    %v17 = phi [b2, %v12], [b1, %v13] : Maybe(Int)
+    %v17 = phi [b2, %v12], [b1, %v14] : Maybe(Int)
     ret %v17
 
   b4:
@@ -375,7 +375,7 @@ fn twoChecks(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
+    %v20 = call Try(Maybe(a), a, ()).fromExit(Int), %v19 : Maybe(Int)
     jmp b5
 
   b2:
@@ -390,7 +390,7 @@ fn twoChecks(%n: Int) -> Maybe(Int) {
 
   b3:
     alloc
-    %v21 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v22 = call Try(Maybe(a), a, ()).fromExit(Int), %v21 : Maybe(Int)
     jmp b5
 
   b4:
@@ -400,7 +400,7 @@ fn twoChecks(%n: Int) -> Maybe(Int) {
     jmp b5
 
   b5:
-    %v26 = phi [b4, %v18], [b1, %v19], [b3, %v21] : Maybe(Int)
+    %v26 = phi [b4, %v18], [b1, %v20], [b3, %v22] : Maybe(Int)
     ret %v26
 
   b6:
@@ -455,7 +455,7 @@ fn inArgument(%a: Int, %b: Int) -> Int {
 
   b1:
     alloc
-    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
     jmp b3
 
   b2:
@@ -466,7 +466,7 @@ fn inArgument(%a: Int, %b: Int) -> Int {
     jmp b3
 
   b3:
-    %v16 = phi [b2, %v11], [b1, %v12] : Maybe(Int)
+    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(Int)
     %v17 = call node, %b : Maybe(Node)
     %v18 = move %local6 : Maybe(Node)
     %v19 = call Try(Maybe(a), a, ()).toOutcome(Node), %v18 : Outcome(Node, ())
@@ -476,7 +476,7 @@ fn inArgument(%a: Int, %b: Int) -> Int {
 
   b4:
     alloc
-    %v27 = call Try(Maybe(a), a, ()).fromExit(Int), %v28 : Maybe(Int)
+    %v28 = call Try(Maybe(a), a, ()).fromExit(Int), %v27 : Maybe(Int)
     jmp b6
 
   b5:
@@ -487,7 +487,7 @@ fn inArgument(%a: Int, %b: Int) -> Int {
     jmp b6
 
   b6:
-    %v31 = phi [b5, %v26], [b4, %v27] : Maybe(Int)
+    %v31 = phi [b5, %v26], [b4, %v28] : Maybe(Int)
     %v32 = call pick, %v16, %v31 : Int
     ret %v32
 
@@ -511,8 +511,8 @@ fn both(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v8 = call Try(Maybe(a), a, ()).fromExit(Int), %v9 : Maybe(Int)
-    ret %v8
+    %v9 = call Try(Maybe(a), a, ()).fromExit(Int), %v8 : Maybe(Int)
+    ret %v9
 
   b2:
     %found = load %local1@Proceed : Node
@@ -526,7 +526,7 @@ fn both(%n: Int) -> Maybe(Int) {
 
   b3:
     alloc
-    %v22 = call Try(Maybe(a), a, ()).fromExit(Int), %v23 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
     jmp b5
 
   b4:
@@ -536,7 +536,7 @@ fn both(%n: Int) -> Maybe(Int) {
     jmp b5
 
   b5:
-    %v26 = phi [b4, %v21], [b3, %v22] : Maybe(Int)
+    %v26 = phi [b4, %v21], [b3, %v23] : Maybe(Int)
     ret %v26
 
   b6:
@@ -556,8 +556,8 @@ fn parenthesized(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v10 = call Try(Maybe(a), a, ()).fromExit(Int), %v11 : Maybe(Int)
-    ret %v10
+    %v11 = call Try(Maybe(a), a, ()).fromExit(Int), %v10 : Maybe(Int)
+    ret %v11
 
   b2:
     %v13 = load %local2@Proceed : Node
@@ -612,7 +612,7 @@ fn called(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
     jmp b3
 
   b2:
@@ -623,7 +623,7 @@ fn called(%n: Int) -> Maybe(Int) {
     jmp b3
 
   b3:
-    %v16 = phi [b2, %v11], [b1, %v12] : Maybe(Int)
+    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(Int)
     ret %v16
 
   b4:
