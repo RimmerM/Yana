@@ -1,0 +1,34 @@
+-- An argument that carries nothing, where selection has to tell it from one that failed.
+--
+-- This resolver spells a value carrying nothing as no value at all, which is the same shape it uses
+-- for an argument whose expression was already reported on. Overload selection used to read that
+-- shape off the pointer, so every candidate of a class was rejected for a `{}` argument - "no class
+-- function wrap accepts (())" for a call that has an instance sitting right above it - and the plain
+-- half of the same overload set answered no for the same reason. What each position holds is now the
+-- position's own tag, so a `{}` binds a type variable and converts like the ordinary value it is.
+--
+-- The literal is not the point: `nothing()` produces the same argument with nothing at the call site
+-- to recognize, and it goes the same way.
+
+class Wrap(a):
+    fn wrap(value: a) -> Int
+
+instance Wrap({}):
+    fn wrap(value: {}) -> Int = 7
+
+instance Wrap(Int):
+    fn wrap(value: Int) -> Int = value + 1
+
+fn nothing() -> {} = {}
+
+-- A plain function of a name the class also declares - Design.md's R5. It takes two arguments, so
+-- this call does not fit it and the class half has to be reached with a `{}` in hand.
+fn wrap(a: Int, b: Int) -> Int = a + b
+
+fn main() -> Int:
+    let literal = wrap({})         -- 7
+    let produced = wrap(nothing()) -- 7
+    let ordinary = wrap(3)         -- 4
+    let plain = wrap(10, 20)       -- 30
+
+    return literal + produced + ordinary + plain

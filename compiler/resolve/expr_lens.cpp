@@ -666,7 +666,7 @@ ModulePtr<Value> ExprResolver::outcomeIsExit(ModulePtr<Value> value, LocationId 
         discriminant = load(project(placeFor(value, source), ProjectionKind::Discriminant, 0), source);
     }
 
-    ModulePtr<Value> compared[] = {
+    ResolvedArg compared[] = {
         discriminant,
         makeInt(source, module.scalar.int_, module.program.outcomeExit),
     };
@@ -757,7 +757,7 @@ void finishContinuationExits(Module& module, ExprResolver& body, TypePtr result,
  * with the continuation in place.
  */
 static bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Function> callee,
-                                  Buffer<ModulePtr<Value>> args, LocationId source, Array<FunArg>& out) {
+                                  Buffer<ResolvedArg> args, LocationId source, Array<FunArg>& out) {
     auto global = resolver.global;
     auto local = resolver.local;
     auto target = local[callee];
@@ -772,8 +772,14 @@ static bool continuationSignature(ExprResolver& resolver, Module& module, Module
 
     auto declaredArgs = target->args.size() - 1;
     for(Size i = 0; i < args.length && i < declaredArgs; i++) {
+        // A position with nothing worked out for it binds nothing. Its payload is null, which
+        // `valueType` reads as `{}`, and inferring the continuation's shape from that would answer
+        // a question about a call the caller has already stopped - see anyArgumentFailed, which is
+        // what keeps one from reaching here.
+        if(args[i].isFailed()) continue;
+
         auto declared = local[target->args.get(local, i)];
-        resolver.bindPosition(declared->declaredType(), resolver.valueType(args[i]), bindings, true);
+        resolver.bindPosition(declared->declaredType(), resolver.valueType(args[i].value), bindings, true);
     }
 
     /*
@@ -1180,7 +1186,7 @@ void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source)
  * statement boundary for its arguments in the same way `let` is for its initializer.
  */
 void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
-                                          ValueList& values) {
+                                          ArgList& values) {
     auto target = local[callee];
     Size position = 0;
 
@@ -1190,9 +1196,12 @@ void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::Parse
         }
 
         auto expected = local[target->args.get(local, position)]->declaredType();
-        auto value = resolve(arg.value, isGeneric(global, expected) ? nullptr : expected);
+        auto erased = isGeneric(global, expected);
+        auto value = resolveArgument(arg.value, erased ? nullptr : expected);
 
-        values.push(isGeneric(global, expected) ? settle(value, arg.value.source) : value);
+        if(erased && value.isValue()) value = settle(value.value, arg.value.source);
+
+        values.push(value);
         position++;
     }
 }
@@ -1272,8 +1281,13 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         return true;
     }
 
-    ValueList values;
+    ArgList values;
     resolveHandedArguments(callee, arguments, values);
+
+    // The call is this statement, and the rest of the block is its continuation - so stopping here
+    // means the block below is resolved as itself rather than lifted, which is the same thing every
+    // other diagnostic in this function does. See anyArgumentFailed.
+    if(anyArgumentFailed(toBuffer(values))) return true;
 
     Array<FunArg> params;
     if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return true;
@@ -1311,7 +1325,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         return true;
     }
 
-    ModulePtr<Value> carried[] = { call_ };
+    ResolvedArg carried[] = { call_ };
     auto outcome = emitInstanceCall(module, selection.instance, toBuffer(selection.instanceArgs),
                                     selection.toOutcome, { carried, 1 }, source, nullptr, 0);
 
@@ -1415,7 +1429,7 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
  * better one and the caller falls back to it.
  */
 ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& application, StringId name,
-                                                        LocationId source, ValueList& values, bool& attempted) {
+                                                        LocationId source, ArgList& values, bool& attempted) {
     ClassFunList candidates;
     findClassFunctions(module, name, source, candidates);
 
@@ -1443,6 +1457,10 @@ ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& applicatio
     auto shape = local[global[iterators[0].typeClass]->functions.get(global, iterators[0].index).fun];
     resolveHandedArguments(shape - local, application.args, values);
 
+    // `attempted` is already set, so the caller says nothing further either: what is wrong with this
+    // loop is what was reported about the argument, and not that no instance takes it.
+    if(anyArgumentFailed(toBuffer(values))) return nullptr;
+
     ClassMatch selected;
     auto selectedCount = 0;
 
@@ -1461,7 +1479,7 @@ ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& applicatio
         // about the arguments of.
         StringBuilder types;
         TypeList given;
-        for(auto value: values) given.push(valueType(value));
+        for(auto& value: values) given.push(valueType(value.value));
         describeTypes(context, global, toBuffer(given), types);
 
         context.diagnostics.error("no instance of %@ for (%@), required by the `for` loop's %@"_v, source,
@@ -1488,7 +1506,7 @@ ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& applicatio
 }
 
 ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call,
-                                                   ValueList& values) {
+                                                   ArgList& values) {
     auto& source = unwrapNested(loop.from);
 
     if(source.kind != ast::Expr::App) {
@@ -1552,6 +1570,7 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     }
 
     resolveHandedArguments(callee, application.args, values);
+    if(anyArgumentFailed(toBuffer(values))) return nullptr;
 
     call = &application;
     return callee;
@@ -1588,7 +1607,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
 
     // Filled by the lookup, because a class iterator is selected *from* its arguments and resolving
     // them a second time would run whatever they do a second time too.
-    ValueList values;
+    ArgList values;
 
     auto callee = findLoopIterator(loop, application, values);
     if(!callee) return;
@@ -1738,7 +1757,7 @@ static bool tryShape(Module& module, Function& function, TypePtr carrier, TypeLi
  * and `fromExit`'s decides what the exit payload has to be converted to first.
  */
 static ModulePtr<Value> emitTry(ExprResolver& resolver, Module& module, Buffer<TypePtr> shape, U16 index,
-                                Buffer<ModulePtr<Value>> args, LocationId source,
+                                Buffer<ResolvedArg> args, LocationId source,
                                 GlobalPtr<TypeClass> typeClass = nullptr) {
     auto global = resolver.global;
 
@@ -1899,7 +1918,7 @@ ModulePtr<Value> ExprResolver::resolveTry(const ast::Expr& expr, TypePtr target,
         }
     }
 
-    ModulePtr<Value> operand[] = { value };
+    ResolvedArg operand[] = { value };
     auto outcome = emitTry(*this, module, toBuffer(carried), toOutcome, { operand, 1 }, source);
     if(!outcome || !current) return nullptr;
 
@@ -1924,7 +1943,7 @@ ModulePtr<Value> ExprResolver::resolveTry(const ast::Expr& expr, TypePtr target,
     current = exitBlock;
 
     auto reason = convert(outcomePayload(outcome, false, source), exitTo, source);
-    ModulePtr<Value> rebuiltArgs[] = { reason };
+    ResolvedArg rebuiltArgs[] = { reason };
     auto carrierValue = emitTry(*this, module, toBuffer(rebuilt), fromExit, { rebuiltArgs, 1 }, source);
 
     if(current) emitFunctionReturn(convert(carrierValue, result, source), source);
@@ -2036,7 +2055,7 @@ ModulePtr<Value> ExprResolver::resolveUnwrap(const ast::Expr& expr) {
     // reasons have to meet, which the join does with the ordinary Widen step.
     if(!optionalChain->carrier) optionalChain->carrier = carrier;
 
-    ModulePtr<Value> operand[] = { value };
+    ResolvedArg operand[] = { value };
     auto outcome = emitTry(*this, module, toBuffer(carried), toOutcome, { operand, 1 }, source);
     if(!outcome || !current) return nullptr;
 
@@ -2158,7 +2177,7 @@ ModulePtr<Value> ExprResolver::resolveOptionalChain(const ast::Expr& expr, TypeP
     BranchArmList arms;
 
     if(current) {
-        ModulePtr<Value> wrapped[] = { produced };
+        ResolvedArg wrapped[] = { produced };
         auto value = emitTry(*this, module, toBuffer(rewrapShape), rewrapIndex, { wrapped, 1 }, source,
                              rewrapClass);
 
@@ -2186,7 +2205,7 @@ ModulePtr<Value> ExprResolver::resolveOptionalChain(const ast::Expr& expr, TypeP
         }
 
         auto reason = convert(skip.reason, exitTo, skip.source);
-        ModulePtr<Value> args[] = { reason };
+        ResolvedArg args[] = { reason };
         auto empty = emitTry(*this, module, toBuffer(rebuilt), fromExit, { args, 1 }, skip.source);
 
         if(current) arms.push(BranchArm { current, empty, skip.source });

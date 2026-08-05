@@ -70,11 +70,12 @@ ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>>
  * here: `p != nil && p.load() > 0` dereferences only where the test held, and no closure, no call
  * and no allocation appear anywhere in the result.
  */
-static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                                         Buffer<Deferred> deferred, TypePtr type, LocationId source,
-                                         bool runWhenTrue) {
-    auto lhs = args[0];
-    if(!lhs || deferred.length < 2) return nullptr;
+static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                                         LocationId source, bool runWhenTrue) {
+    if(args.length < 2 || !args[1].isDeferred()) return nullptr;
+
+    auto lhs = args[0].value;
+    if(!lhs) return nullptr;
 
     auto unit = resolver.module.scalar.unit;
     auto rest = resolver.addBlock();
@@ -87,7 +88,7 @@ static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ModulePt
     BranchArmList arms;
 
     resolver.current = rest;
-    auto value = resolver.force(deferred[1], type, source);
+    auto value = resolver.force(args[1].promise, type, source);
 
     // The right operand may itself have branched, and may not complete at all - it is the caller's
     // code, spliced in here, with whatever control flow the caller put in it.
@@ -98,14 +99,14 @@ static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ModulePt
     return resolver.finishBranches(arms, source, true);
 }
 
-ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                                Buffer<Deferred> deferred, TypePtr type, LocationId source, StringId) {
-    return emitShortCircuit(resolver, args, deferred, type, source, true);
+ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                                LocationId source, StringId) {
+    return emitShortCircuit(resolver, args, type, source, true);
 }
 
-ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                               Buffer<Deferred> deferred, TypePtr type, LocationId source, StringId) {
-    return emitShortCircuit(resolver, args, deferred, type, source, false);
+ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                               LocationId source, StringId) {
+    return emitShortCircuit(resolver, args, type, source, false);
 }
 
 /*
@@ -178,23 +179,23 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
         // The body a call that cannot see through this function reaches. Its `@lazy` parameter is
         // the thunk the caller built, so it forces by calling it - the one form of the expansion
         // that costs an indirect call, and the reason a real body exists at all.
-        SmallArray<Deferred, 4> pending;
+        ArgList pending;
 
         for(Size i = 0; i < values.size(); i++) {
             auto declared = local[function->args.get(local, i)];
-            Deferred entry;
 
-            if(declared->isLazy()) {
-                entry.thunk = values[i];
-                entry.type = declared->lazyType;
-                values[i] = nullptr;
+            if(!declared->isLazy()) {
+                pending.push(values[i]);
+                continue;
             }
 
-            pending.push(entry);
+            Deferred entry;
+            entry.thunk = values[i];
+            entry.type = declared->lazyType;
+            pending.push(ResolvedArg::deferred(entry));
         }
 
-        result = method.deferred(resolver, toBuffer(values), toBuffer(pending), function->returnType,
-                                 kNullLocation, 0);
+        result = method.deferred(resolver, toBuffer(pending), function->returnType, kNullLocation, 0);
         function->deferredIntrinsic = method.deferred;
     } else {
         result = method.emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);

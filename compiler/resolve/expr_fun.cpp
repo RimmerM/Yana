@@ -382,7 +382,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
     function->addArg(module, module.context.addUnqualifiedName("env", 3),
                      funValueFieldType(module, FunValueLayout::kEnv), source);
 
-    ValueList args;
+    ArgList args;
     for(auto argPointer: target->args.contents(*module.arena)) {
         auto declared = (*module.arena)[argPointer];
         auto forwarded = function->addArg(module, declared->name, declared->type, source);

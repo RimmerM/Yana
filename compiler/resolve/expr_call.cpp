@@ -180,37 +180,38 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
  * Two candidates that disagree are therefore a declaration error rather than a call-site one, but
  * it is only detectable where the two are visible together, which is here.
  */
-static void lazyStatesOf(ModuleBase local, Function& function, ArgResultList& out) {
+static void lazyStatesOf(ModuleBase local, Function& function, ArgList& out) {
     out.clear();
 
     for(auto argPointer: function.args.contents(local)) {
-        out.push(local[argPointer]->isLazy() ? ArgResult::Deferred : ArgResult::Value);
+        out.push(local[argPointer]->isLazy() ? ResolvedArg::deferred() : ResolvedArg());
     }
 }
 
-static bool sameStates(const ArgResultList& a, const ArgResultList& b) {
+static bool sameStates(const ArgList& a, const ArgList& b) {
     if(a.size() != b.size()) return false;
     for(Size i = 0; i < a.size(); i++) {
-        if(a[i] != b[i]) return false;
+        if(a[i].isDeferred() != b[i].isDeferred()) return false;
     }
 
     return true;
 }
 
-// Every position `Value`, which is what a name with no `@lazy` parameter anywhere behind it means.
-static void allStrict(Size arity, ArgResultList& out) {
+// Every position strict, which is what a name with no `@lazy` parameter anywhere behind it means.
+// The entries themselves are empty: what each one is is decided when the argument is resolved.
+static void allStrict(Size arity, ArgList& out) {
     out.clear();
-    for(Size i = 0; i < arity; i++) out.push(ArgResult::Value);
+    for(Size i = 0; i < arity; i++) out.push(ResolvedArg());
 }
 
-bool ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, ArgResultList& out) {
+void ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, ArgList& out) {
     // The negative answer, which is every call in a program but a handful - see Program::lazyNames.
     if(!module.program.lazyNames.contains(name)) {
         allStrict(arity, out);
-        return false;
+        return;
     }
 
-    ArgResultList candidateStates;
+    ArgList candidateStates;
     auto seen = false;
     auto conflict = false;
 
@@ -241,23 +242,22 @@ bool ExprResolver::lazyArguments(StringId name, Size arity, LocationId source, A
         context.diagnostics.error("the declarations of %@ disagree about which arguments are `@lazy`, so a call to it cannot tell what to evaluate - strictness is part of the signature and every overload of one name and arity has to declare the same one"_v,
                                   source, context.findName(name));
         allStrict(arity, out);
-        return false;
+        return;
     }
 
     // A name that reached no candidate of this arity, or one whose candidates declare nothing lazy.
     // Either way the call is strict, and the list has to be the length the call site indexes.
     auto any = false;
-    for(auto state: out) any = any || state == ArgResult::Deferred;
+    for(auto& state: out) any = any || state.isDeferred();
 
     if(!seen || !any) {
         allStrict(arity, out);
-        return false;
+        return;
     }
 
     // The list came from a candidate's parameters, which is the call's arity by construction - but
     // it is indexed by position at the call site, so it is made that length rather than trusted.
-    while(out.size() < arity) out.push(ArgResult::Value);
-    return true;
+    while(out.size() < arity) out.push(ResolvedArg());
 }
 
 // The instance of `typeClass` that serves `args`, and what selecting it bound its own type
@@ -335,11 +335,39 @@ void ExprResolver::settleWithDependencies(GenEnv& env, TypeList& bindings, Locat
     }
 }
 
+// See the declarations in expr.h for what each of these is for; both exist because the rule they
+// state was written out at four call sites, and three of them stated it differently.
+ResolvedArg ExprResolver::convertArgument(const ResolvedArg& arg, TypePtr declared, LocationId source) {
+    if(arg.isValue()) return convert(arg.value, declared, source);
+    if(arg.state != ArgResult::Unit) return arg;
+
+    /*
+     * A `{}` where the position wanted something.
+     *
+     * Reported here because this is the first place that knows both halves: selection has settled on
+     * a callee, so the parameter type is known, and the argument still says it carries nothing. A
+     * position that is still a type variable is not this - the erased path substitutes nothing for
+     * it - and an error type has had its diagnostic already.
+     */
+    if(!declared || isUnit(global, declared) || isGeneric(global, declared) ||
+       global[declared]->kind == Type::Error) {
+        return arg;
+    }
+
+    context.diagnostics.error("this argument carries nothing, and the parameter it fills is declared %@ - `{}` is a value of the empty type and converts to nothing else"_v,
+                              source, describeType(context, global, declared));
+    return ResolvedArg::failed();
+}
+
+ModulePtr<Value> ExprResolver::positionalUnit(ModulePtr<Value> value, TypePtr declared, LocationId source) {
+    if(value || !isUnit(global, declared)) return value;
+    return allocate(declared, source);
+}
+
 ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance,
                                                 Buffer<TypePtr> instanceArgs, U16 index,
-                                                Buffer<ModulePtr<Value>> args, LocationId source,
-                                                TypePtr target, StringId resultName,
-                                                Buffer<Deferred> deferred) {
+                                                Buffer<ResolvedArg> args, LocationId source,
+                                                TypePtr target, StringId resultName) {
     auto implementation = local[instance]->functions.get(local, index);
     if(!implementation) return nullptr;
 
@@ -356,44 +384,44 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
         auto specialized = instantiateFunction(site, implementation, toBuffer(classArgs), source);
         if(!specialized) return nullptr;
 
-        return emitDirectCall(specialized, args, source, target, resultName, deferred);
+        return emitDirectCall(specialized, args, source, target, resultName);
     }
 
     // A concrete instance's implementation is a function like any other.
-    if(!local[instance]->gen) return emitDirectCall(implementation, args, source, target, resultName, deferred);
+    if(!local[instance]->gen) return emitDirectCall(implementation, args, source, target, resultName);
 
     // A parametric one's is written against the head's variables, so the types the head bound are
     // what makes it a function about something. An intrinsic has no body to specialize and is
     // generated here for those types, exactly as a generic intrinsic is at an ordinary call site.
-    ValueList converted;
+    ArgList converted;
     for(Size i = 0; i < args.length; i++) {
         // A deferred argument has no conversion to apply yet - it is not a value. What it converts
         // to is decided where it is forced, against the parameter type the callee declares.
-        if(isDeferred(deferred, i)) {
-            converted.push(nullptr);
+        if(args[i].isDeferred()) {
+            converted.push(args[i]);
             continue;
         }
 
         auto declared = local[local[implementation]->args.get(local, i)]->declaredType();
-        converted.push(convert(args[i], substituteType(module, declared, instanceArgs, source), source));
+        converted.push(convertArgument(args[i], substituteType(module, declared, instanceArgs, source), source));
     }
 
     if(local[implementation]->intrinsic || local[implementation]->deferredIntrinsic) {
-        return expandIntrinsic(implementation, instanceArgs, toBuffer(converted), source, resultName, deferred);
+        return expandIntrinsic(implementation, instanceArgs, toBuffer(converted), source, resultName);
     }
 
     auto specialized = instantiateFunction(site, implementation, instanceArgs, source);
     if(!specialized) return nullptr;
 
-    return emitDirectCall(specialized, toBuffer(converted), source, target, resultName, deferred);
+    return emitDirectCall(specialized, toBuffer(converted), source, target, resultName);
 }
 
 // Works out whether one class function can serve this call, and if so which instance it selects.
 // Returns false when the call does not fit the signature at all; a fitting signature with no
 // instance is reported through `resolved` so the caller can tell "wrong function" from "no
 // instance for these types", which are very different diagnostics.
-bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target,
-                                 ClassMatch& resolved, Buffer<Deferred> deferred) {
+bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target,
+                                 ClassMatch& resolved) {
     auto typeClass = global[reference.typeClass];
     auto signature = local[typeClass->functions.get(global, reference.index).fun];
     if(!signature || signature->args.size() != args.length) return false;
@@ -403,11 +431,16 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
 
     for(Size i = 0; i < args.length; i++) {
-        if(isDeferred(deferred, i)) continue;
-        if(!args[i]) return false;
+        if(args[i].isDeferred()) continue;
+
+        // A position nothing could be worked out for decides nothing about this signature either.
+        // Only that one: a `{}` argument is an ordinary value of an ordinary type, which is what
+        // `valueType` answers for it and what this binds - it used to be rejected here for looking
+        // exactly like a failure.
+        if(args[i].isFailed()) return false;
 
         auto declared = local[signature->args.get(local, i)]->declaredType();
-        if(!bindPosition(declared, valueType(args[i]), bindings, true)) return false;
+        if(!bindPosition(declared, valueType(args[i].value), bindings, true)) return false;
     }
 
     // The expected result only fills in what the arguments left open, so an ascription can pick
@@ -499,8 +532,8 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
 // The plain-function half of an overload set. Design.md's R1 keys the set by (name, arity) and
 // admits at most one plain function, so this is arity plus "do the arguments fit", and the answer
 // has to be reached without reporting anything - see ExprResolver::convertible.
-bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target,
-                                LocationId source, Buffer<Deferred> deferred) {
+bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
+                                LocationId source) {
     auto callable = local[callee];
     if(callable->args.size() != args.length) return false;
 
@@ -511,10 +544,11 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
         for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
 
         for(Size i = 0; i < args.length; i++) {
-            if(isDeferred(deferred, i)) continue;
+            if(args[i].isDeferred()) continue;
+            if(args[i].isFailed()) return false;
 
             auto declared = local[callable->args.get(local, i)]->declaredType();
-            if(!bindPosition(declared, valueType(args[i]), bindings, true)) return false;
+            if(!bindPosition(declared, valueType(args[i].value), bindings, true)) return false;
         }
 
         if(target) {
@@ -546,8 +580,20 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
     }
 
     for(Size i = 0; i < args.length; i++) {
-        if(isDeferred(deferred, i)) continue;
-        if(!convertible(args[i], local[callable->args.get(local, i)]->declaredType(), source)) return false;
+        if(args[i].isDeferred()) continue;
+
+        auto declared = local[callable->args.get(local, i)]->declaredType();
+
+        // A value carrying nothing fits a parameter declared to carry nothing, and nothing else.
+        // Said here rather than inside convertible(), which is asked about values and answers "no"
+        // for the absence of one - which is the right answer for a failure and the wrong one for a
+        // `{}` that this list can now tell apart from it.
+        if(args[i].state == ArgResult::Unit) {
+            if(!isUnit(global, declared)) return false;
+            continue;
+        }
+
+        if(!convertible(args[i].value, declared, source)) return false;
     }
 
     return true;
@@ -610,39 +656,38 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
          * to find it. Nothing declares one, and Design.md's uses are all second-position, so it is
          * reported rather than supported.
          */
-        ArgResultList states;
-        auto lazy = lazyArguments(op, 2, opSource, states);
+        ArgList args;
+        lazyArguments(op, 2, opSource, args);
 
-        if(states[0] == ArgResult::Deferred) {
+        if(args[0].isDeferred()) {
             context.diagnostics.error("the left operand of %@ is declared `@lazy`, which an infix operator cannot be - it is evaluated before the operator is read"_v,
                                       lhsExpr->source, context.findName(op));
             return nullptr;
         }
 
         DeferredChain chain;
-        Deferred deferred[2];
-        ModulePtr<Value> rhs = nullptr;
 
-        if(states[1] == ArgResult::Deferred) {
+        if(args[1].isDeferred()) {
             chain.operands = &operands;
             chain.operators = &operators;
             chain.operatorSources = &operatorSources;
             chain.operandIndex = operandIndex;
             chain.operatorIndex = operatorIndex;
             chain.minimumPrecedence = U8(precedence + 1);
-            deferred[1].chain = &chain;
+            args[1].promise.chain = &chain;
 
             skipPrecedence(module, operators, operandIndex, operatorIndex, U8(precedence + 1));
         } else {
-            rhs = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, precedence + 1);
+            auto rhs = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, precedence + 1);
             if(!rhs) return nullptr;
+
+            args[1] = rhs;
         }
 
         if(!lhs) return nullptr;
 
-        ModulePtr<Value> args[] = { lhs, rhs };
-        lhs = emitCall(op, { args, 2 }, lhsExpr->source, target, 0,
-                       lazy ? Buffer<Deferred>{ deferred, 2 } : Buffer<Deferred>{}, {}, opSource);
+        args[0] = lhs;
+        lhs = emitCall(op, toBuffer(args), lhsExpr->source, target, 0, opSource);
     }
 
     return lhs;
@@ -700,27 +745,24 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
-    ArgResultList states;
-    auto lazy = lazyArguments(prefix.op.var, 1, prefix.op.source, states);
+    ArgList args;
+    lazyArguments(prefix.op.var, 1, prefix.op.source, args);
 
-    Deferred deferred[1];
-    ModulePtr<Value> value = nullptr;
-
-    if(states[0] == ArgResult::Deferred) {
-        deferred[0].expr = &prefix.on;
+    if(args[0].isDeferred()) {
+        args[0].promise.expr = &prefix.on;
     } else {
         // The operand is resolved with no expected type of its own. What a prefix operator's
         // argument should be is its selected overload's parameter type, which is not known until
         // the operand has one - and pushing the *result* type down is only right when the two
         // coincide, as they do for `-` and not for a dereference, whose operand is a pointer to
         // its result.
-        value = resolve(prefix.on);
+        auto value = resolve(prefix.on);
         if(!value) return nullptr;
+
+        args[0] = value;
     }
 
-    ModulePtr<Value> args[] = { value };
-    auto result = emitCall(prefix.op.var, { args, 1 }, expr.source, target, 0,
-                           lazy ? Buffer<Deferred>{ deferred, 1 } : Buffer<Deferred>{}, {}, prefix.op.source);
+    auto result = emitCall(prefix.op.var, toBuffer(args), expr.source, target, 0, prefix.op.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -802,6 +844,22 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
     return target ? convert(result, target, expr.source) : result;
 }
 
+/*
+ * An argument that resolved to nothing did so for one of two reasons, and the difference is only
+ * visible here: either the resolver reported on it, or the expression genuinely produces no value -
+ * `{}`, or a call whose result type is `{}`. The same before-and-after count `resolvePattern`'s
+ * callers and `witness.cpp` use to ask exactly this question.
+ *
+ * It is the one judgment of its kind left in a call, and it is here because `resolve` answers with a
+ * value and a value is not what a `{}` has. Everything downstream reads the tag instead.
+ */
+ResolvedArg ExprResolver::resolveArgument(const ast::Expr& expr, TypePtr expected) {
+    auto errors = context.diagnostics.errorCount();
+
+    if(auto value = resolve(expr, expected)) return value;
+    return errors == context.diagnostics.errorCount() ? ResolvedArg::unit() : ResolvedArg::failed();
+}
+
 ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult) {
     // A binding of function type shadows a declaration of the same name, and an arbitrary callee
     // expression was never a name at all. Both are the indirect path.
@@ -870,27 +928,15 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     }
 
     /*
-     * What each position is, one entry per argument.
+     * The call's arguments, one entry per position.
      *
-     * Filled here with `Deferred` for the `@lazy` positions and `Value` for the rest, and then
-     * overwritten below as each strict argument is resolved: what a null value at that position
-     * means is decided at the moment it is produced and nowhere else. See ArgResult.
+     * Started here with a `Deferred` entry for each `@lazy` position and an empty one for the rest,
+     * and each empty one replaced below by what resolving that argument produced: what a position
+     * holding no value means is decided at the moment it is produced and nowhere else. See
+     * ResolvedArg.
      */
-    ArgResultList states;
-    auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source, states);
-
-    ValueList values;
-
-    /*
-     * Parallel to `values`, and built only where there is a `@lazy` parameter to fill.
-     *
-     * Both halves of that matter. Inline, because a call has as many of these as it has arguments
-     * and that is two or three; and skipped entirely when nothing is lazy, because `pending` below
-     * is empty in that case - so what this used to be was a list built for every call in the
-     * program and then not passed on. `@lazy` is rare enough that the ordinary call is the one
-     * worth being right about.
-     */
-    SmallArray<Deferred, 8> deferred;
+    ArgList args;
+    lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source, args);
 
     auto written = callArgs.contents(parse);
 
@@ -903,14 +949,11 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
             context.diagnostics.error("named call arguments are not available yet"_v, arg->value.source);
         }
 
-        if(lazy) deferred.push(Deferred());
-
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
         // force happens and therefore the only place that can convert it.
-        if(states[index] == ArgResult::Deferred) {
-            deferred[index].expr = &arg->value;
-            values.push(nullptr);
+        if(args[index].isDeferred()) {
+            args[index].promise.expr = &arg->value;
             continue;
         }
 
@@ -923,22 +966,14 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         auto expected = parameter && !parameter->isMutableBorrow() ? parameter->declaredType()
                                                                    : TypePtr(nullptr);
 
-        // An argument that resolved to nothing did so for one of two reasons, and the difference is
-        // only visible from here: either the resolver reported on it, or the expression genuinely
-        // produces no value - `{}`, or a call whose result type is `{}`. The same before-and-after
-        // count `resolvePattern`'s callers and `witness.cpp` use to ask exactly this question.
-        auto errors = context.diagnostics.errorCount();
-        auto value = resolve(arg->value, expected);
-
-        if(!value) {
-            states[index] = errors == context.diagnostics.errorCount() ? ArgResult::Unit
-                                                                       : ArgResult::Failed;
-        }
-
-        values.push(value);
+        args[index] = resolveArgument(arg->value, expected);
     }
 
-    auto pending = lazy ? toBuffer(deferred) : Buffer<Deferred>{};
+    // Nothing further is said about a call one of whose arguments has already been reported on.
+    // Here rather than only in emitCall, because the plain-function path below skips emitCall
+    // entirely - and a failed argument there is not a diagnostic that was avoided but a call emitted
+    // with a hole where the argument should be. See anyArgumentFailed.
+    if(anyArgumentFailed(toBuffer(args))) return nullptr;
 
     if(declared) {
         // The whole overload set was one plain function, so the decision was made above rather than
@@ -946,9 +981,9 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         recordReference(context, calleeExpr.source, functionSymbol(module, direct));
     }
 
-    auto result = declared ? emitDirectCall(direct, toBuffer(values), expr.source, target, 0, pending)
-                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending,
-                                      toBuffer(states), calleeExpr.source);
+    auto result = declared ? emitDirectCall(direct, toBuffer(args), expr.source, target, 0)
+                           : emitCall(calleeExpr.var, toBuffer(args), expr.source, target, 0,
+                                      calleeExpr.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -957,9 +992,8 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
 // produces its result directly instead: the primitives are real functions with real bodies, but
 // an ordinary call to one expands to the instruction it contains rather than to a call the
 // backend would have to inline again later.
-ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args,
-                                              LocationId source, TypePtr, StringId resultName,
-                                              Buffer<Deferred> deferred) {
+ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                              LocationId source, TypePtr, StringId resultName) {
     auto function_ = local[callee];
 
     // An `=` callee whose result type its body decides has to have decided it before this call can
@@ -976,24 +1010,25 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
      * one takes the whole list unresolved and decides for itself where each one runs, which is what
      * makes `a && b` a branch; anything else gets the thunk.
      */
-    SmallArray<Deferred, 4> pending;
+    ArgList pending;
     auto anyDeferred = false;
 
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[function_->args.get(local, i)];
-        Deferred entry = i < deferred.length ? deferred[i] : Deferred();
 
         if(!declared->isLazy()) {
-            pending.push(Deferred());
+            pending.push(args[i]);
             continue;
         }
 
+        auto entry = args[i].promise;
+
         // Not deferred by the call site: the argument was resolved before anything knew this
         // position was lazy, which is what a forwarded value and a synthesized call look like.
-        if(!entry.isSet()) entry = deferredValue(args[i], declared->lazyType);
+        if(!entry.isSet()) entry = deferredValue(args[i].value, declared->lazyType);
 
         entry.type = declared->lazyType;
-        pending.push(entry);
+        pending.push(ResolvedArg::deferred(entry));
         anyDeferred = true;
     }
 
@@ -1007,7 +1042,7 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     auto packed = packedMark();
 
     if(anyDeferred && function_->deferredIntrinsic) {
-        auto expanded = function_->deferredIntrinsic(*this, args, toBuffer(pending), function_->returnType,
+        auto expanded = function_->deferredIntrinsic(*this, toBuffer(pending), function_->returnType,
                                                      source, resultName);
         flushPackedBorrows(packed);
         return expanded;
@@ -1022,16 +1057,16 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
 
         // The callee cannot see the argument, so what it is handed is the closure that runs it.
         if(declared->isLazy()) {
-            converted.push(makeThunk(pending[i], declared->lazyType, source));
+            converted.push(makeThunk(pending[i].promise, declared->lazyType, source));
             continue;
         }
 
         if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i], declared->type, source, declared->returnRoot));
+            converted.push(borrowArgument(args[i].value, declared->type, source, declared->returnRoot));
             continue;
         }
 
-        auto value = convert(args[i], declared->type, source);
+        auto value = convertArgument(args[i], declared->type, source).value;
 
         // A `->` parameter consumes what it is given, so the argument is moved out of its storage
         // - or copied, for a TrivialCopy type. The conversion comes first deliberately: a
@@ -1086,23 +1121,15 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
      * positions survive - a declared unit is left out, a declared *variable* that is unit here is
      * not, since the erased body it was compiled from still reads a position for it. Both of those
      * need the entry to be here to be counted, so a hole punched at argument `i` does not drop
-     * argument `i`: it drops argument `i + 1`, and every one after it.
-     *
-     * A value carrying nothing is spelled as no value at all, so `f(2, {}, 3)` is exactly that hole.
-     * It gets storage instead - which is what lowering makes for the erased case anyway, of the zero
-     * bytes the type occupies - so that the position exists and carries its type. `unitValue()` in
-     * the same argument reaches here as an ordinary value and always did, which is why only the
-     * literal ever shifted a list.
+     * argument `i`: it drops argument `i + 1`, and every one after it. See positionalUnit.
      */
     for(Size i = 0; i < converted.size(); i++) {
-        auto value = converted[i];
+        auto declared = i < function_->args.size()
+            ? local[function_->args.get(local, i)]->declaredType() : TypePtr(nullptr);
 
-        if(!value && i < function_->args.size() &&
-           isUnit(global, local[function_->args.get(local, i)]->declaredType())) {
-            value = allocate(module.scalar.unit, source);
+        if(auto value = positionalUnit(converted[i], declared, source)) {
+            call->args.push(module.arena, value);
         }
-
-        if(value) call->args.push(module.arena, value);
     }
 
     append(call);
@@ -1148,28 +1175,24 @@ void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMat
     recordReference(resolver.context, source, symbol, type, instance);
 }
 
-ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, Buffer<ArgResult> results, LocationId nameSource) {
+ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> args, LocationId source, TypePtr target, StringId resultName, LocationId nameSource) {
     /*
-     * Three things are spelled as a null argument, and only one of them is a reason to stop.
+     * Three things are spelled as a position holding no value, and only one of them is a reason to
+     * stop.
      *
      * A failed argument is: something has reported on it already, and matching an overload set
      * against a type nobody worked out would report a second, worse diagnostic about a call the
-     * author may not have got wrong. A deferred position is null on purpose - it is not a value yet.
-     * And a value of unit type is null because that is how this resolver spells a value that carries
-     * nothing, which `valueType` already answers `{}` for and which every overload rule below
-     * therefore handles without knowing it was null.
+     * author may not have got wrong. A deferred position holds no value on purpose - it is not one
+     * yet. And a value of unit type holds none because that is how this resolver spells a value that
+     * carries nothing, which `valueType` already answers `{}` for and which every overload rule
+     * below therefore handles without knowing it was absent.
      *
      * The third used to be caught here as the first, which made `f({})` resolve to nothing at all
      * for any generic `f` - silently, since the whole point of this guard is that the diagnostic was
-     * already written. Which positions are which is the call site's knowledge, not this one's, so it
-     * arrives in `results`.
+     * already written. Which position is which is the call site's knowledge, not this one's, and it
+     * arrives in the argument itself.
      */
-    for(Size i = 0; i < args.length; i++) {
-        if(args[i] || isDeferred(deferred, i)) continue;
-        if(argResultAt(results, i, args[i]) != ArgResult::Failed) continue;
-
-        return nullptr;
-    }
+    if(anyArgumentFailed(args)) return nullptr;
 
     // The name's own location where the call site knew one, so that what the index records lands
     // on the name - see resolveCall. A synthesized call has none, and then the enclosing
@@ -1202,13 +1225,13 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
      * *stored* is not decided here - checkTransfer answers that, and answers it the same way for a
      * borrow reached like this as for one written out.
      */
-    SmallArray<ModulePtr<Value>, 8> readThrough;
+    ArgList readThrough;
 
     auto borrowed = false;
-    for(auto arg: args) borrowed = borrowed || (arg && isBorrow(global, valueType(arg)));
+    for(auto& arg: args) borrowed = borrowed || (arg.isValue() && isBorrow(global, valueType(arg.value)));
 
     if(borrowed) {
-        auto accepted = direct && matchFunction(direct, args, target, source, deferred);
+        auto accepted = direct && matchFunction(direct, args, target, source);
 
         /*
          * Matching is not enough: it is what fails *after* it that this is for.
@@ -1223,19 +1246,18 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
             if(accepted) break;
 
             ClassMatch attempt;
-            if(!matchClassFun(candidate, args, target, attempt, deferred)) continue;
+            if(!matchClassFun(candidate, args, target, attempt)) continue;
 
             accepted = attempt.instance ||
                        attempt.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
         }
 
         if(!accepted) {
-            for(Size i = 0; i < args.length; i++) {
-                auto arg = args[i];
-                auto type = arg ? valueType(arg) : nullptr;
+            for(auto& arg: args) {
+                auto type = arg.isValue() ? valueType(arg.value) : nullptr;
 
                 readThrough.push(type && isBorrow(global, type)
-                    ? convert(arg, ((BorrowType*)global[type])->to, source)
+                    ? ResolvedArg(convert(arg.value, ((BorrowType*)global[type])->to, source))
                     : arg);
             }
 
@@ -1255,8 +1277,8 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
             return nullptr;
         }
 
-        return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName, deferred)
-                                  : emitDirectCall(direct, args, source, target, resultName, deferred);
+        return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName)
+                                  : emitDirectCall(direct, args, source, target, resultName);
     };
 
     // R5: a plain function is an ordinary member of the overload set, not a shadow over it. It wins
@@ -1265,7 +1287,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     // meant that a module-level `fn and(a: Permissions, b: Permissions)` silently disabled
     // `Integral.and` for every Int in the module, reported as an argument-type error on a call the
     // author never touched.
-    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source, deferred))) {
+    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source))) {
         return emitPlain();
     }
 
@@ -1294,7 +1316,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     for(auto& candidate: candidates) {
         ClassMatch match;
 
-        if(!matchClassFun(candidate, args, target, match, deferred)) {
+        if(!matchClassFun(candidate, args, target, match)) {
             if(match.undeclaredDependency && !undeclared) undeclared = candidate.typeClass;
             continue;
         }
@@ -1341,7 +1363,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         // which is what §1.3 means by recording the generic answer.
         recordClassFunReference(*this, nameSource, undecided[chosen], nullptr);
 
-        return emitGenericDispatch(undecided[chosen], args, source, resultName, deferred);
+        return emitGenericDispatch(undecided[chosen], args, source, resultName);
     }
 
     if(selectedCount > 1) {
@@ -1380,8 +1402,8 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         } else {
             TypeList given;
             auto broken = false;
-            for(auto arg: args) {
-                auto type = valueType(arg);
+            for(auto& arg: args) {
+                auto type = valueType(arg.value);
                 if(global[type]->kind == Type::Error) broken = true;
                 given.push(type);
             }
@@ -1434,16 +1456,15 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     recordClassFunReference(*this, nameSource, selected, selected.instance);
 
     return emitInstanceCall(module, selected.instance, toBuffer(selected.instanceArgs), selected.index,
-                            args, source, target, resultName, deferred);
+                            args, source, target, resultName);
 }
 
 /*
  * Generic calls.
  */
 
-ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args,
-                                                   LocationId source, StringId resultName,
-                                                   Buffer<Deferred> deferred) {
+ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<ResolvedArg> args,
+                                                   LocationId source, StringId resultName) {
     auto env = functionGen(global, function);
     if(!env) {
         // Nothing outside a generic body has a type variable to be undecided about.
@@ -1472,29 +1493,18 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
         // a deferred one becomes the thunk whichever implementation is selected will call.
         if(parameter->isLazy()) {
             auto type = substituteType(module, parameter->lazyType, toBuffer(match.args), source);
-            Deferred entry = i < deferred.length ? deferred[i] : Deferred();
-            if(!entry.isSet()) entry = deferredValue(args[i], type);
+            auto entry = args[i].promise;
+            if(!entry.isSet()) entry = deferredValue(args[i].value, type);
 
             call->args.push(module.arena, makeThunk(entry, type, source));
             continue;
         }
 
+        // The parameter is declared at a *variable* of the class's context, which the erased body
+        // reads a position for whatever that variable turned out to be here - so a unit argument
+        // gets storage rather than a hole, exactly as emitDirectCall gives one. See positionalUnit.
         auto expected = substituteType(module, parameter->type, toBuffer(match.args), source);
-        auto value = convert(args[i], expected, source);
-
-        /*
-         * A value carrying nothing is spelled as no value at all, and this list is positional - so
-         * it gets storage rather than a hole, exactly as emitDirectCall gives one. The parameter is
-         * declared at a *variable* of the class's context, which the erased body reads a position
-         * for whatever that variable turned out to be here, so leaving the entry out would shift
-         * every argument after it and hand the callee the wrong ones.
-         *
-         * Reached by `Try.fromExit` on a carrier whose skip carries nothing - `Maybe`'s `e` is `{}`
-         * - which is the first call in the language to pass a unit through a class function's
-         * generic position. The crash it caused was in the ownership walk, which reads every
-         * argument's type and had no null to read.
-         */
-        if(!value && expected && isUnit(global, expected)) value = allocate(expected, source);
+        auto value = positionalUnit(convertArgument(args[i], expected, source).value, expected, source);
 
         if(value) call->args.push(module.arena, value);
     }
@@ -1519,8 +1529,8 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
  * concrete argument list and is what keeps this a staged optimization rather than a cliff.
  */
 ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                              Buffer<ModulePtr<Value>> args, LocationId source,
-                                              StringId resultName, Buffer<Deferred> deferred) {
+                                              Buffer<ResolvedArg> args, LocationId source,
+                                              StringId resultName) {
     auto generic = local[callee];
     auto resultType = substituteType(module, generic->returnType, typeArgs, source);
 
@@ -1545,19 +1555,19 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
 
         if(declared->isLazy()) {
             auto lazyType = substituteType(module, declared->lazyType, typeArgs, source);
-            Deferred entry = i < deferred.length ? deferred[i] : Deferred();
-            if(!entry.isSet()) entry = deferredValue(args[i], lazyType);
+            auto entry = args[i].promise;
+            if(!entry.isSet()) entry = deferredValue(args[i].value, lazyType);
 
             converted.push(makeThunk(entry, lazyType, source));
             continue;
         }
 
         if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i], expected, source, declared->returnRoot));
+            converted.push(borrowArgument(args[i].value, expected, source, declared->returnRoot));
             continue;
         }
 
-        auto value = convert(args[i], expected, source);
+        auto value = convertArgument(args[i], expected, source).value;
         if(declared->convention == ast::BindType::Sink) value = sinkValue(value, source);
 
         if(declared->returnRoot && value) {
@@ -1566,7 +1576,7 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
             }
         }
 
-        converted.push(value);
+        converted.push(positionalUnit(value, expected, source));
     }
 
     for(auto value: converted) {
@@ -1600,8 +1610,8 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
  * type, which is all any of them needs.
  */
 ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                               Buffer<ModulePtr<Value>> args, LocationId source,
-                                               StringId resultName, Buffer<Deferred> deferred) {
+                                               Buffer<ResolvedArg> args, LocationId source,
+                                               StringId resultName) {
     auto generic = local[callee];
     auto resultType = substituteType(module, generic->returnType, typeArgs, source);
 
@@ -1614,40 +1624,45 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
     if(generic->deferredIntrinsic) {
         // The declared type of each deferred parameter, at the types this call decided. It is what
         // the argument is resolved and converted against when the expansion runs it.
-        SmallArray<Deferred, 4> pending;
+        ArgList pending;
 
         for(Size i = 0; i < args.length; i++) {
             auto declared = local[generic->args.get(local, i)];
-            Deferred entry = i < deferred.length ? deferred[i] : Deferred();
 
             if(!declared->isLazy()) {
-                pending.push(Deferred());
+                pending.push(args[i]);
                 continue;
             }
 
+            auto entry = args[i].promise;
             auto lazyType = substituteType(module, declared->lazyType, typeArgs, source);
-            if(!entry.isSet()) entry = deferredValue(args[i], lazyType);
+
+            if(!entry.isSet()) entry = deferredValue(args[i].value, lazyType);
             entry.type = lazyType;
-            pending.push(entry);
+            pending.push(ResolvedArg::deferred(entry));
         }
 
-        result = generic->deferredIntrinsic(*this, args, toBuffer(pending), resultType, source, resultName);
+        result = generic->deferredIntrinsic(*this, toBuffer(pending), resultType, source, resultName);
     } else {
-        result = generic->intrinsic(*this, args, resultType, source, resultName);
+        // An ordinary intrinsic is handed values: every position of this call has one by now, since
+        // a `@lazy` parameter is what the branch above exists for.
+        ValueList values;
+        for(auto& arg: args) values.push(arg.value);
+
+        result = generic->intrinsic(*this, toBuffer(values), resultType, source, resultName);
     }
 
     flushPackedBorrows(mark);
     return result;
 }
 
-ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args,
-                                               LocationId source, TypePtr target, StringId resultName,
-                                               Buffer<Deferred> deferred) {
+ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
+                                               LocationId source, TypePtr target, StringId resultName) {
     auto generic = local[callee];
     auto calleeEnv = functionGen(global, *generic);
 
     if(!calleeEnv || generic->args.size() != args.length) {
-        return emitDirectCall(callee, args, source, target, resultName, deferred);
+        return emitDirectCall(callee, args, source, target, resultName);
     }
 
     TypeList bindings;
@@ -1656,11 +1671,11 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     // The same one-directional rule the classes use: the arguments decide, and the expected
     // result only fills in what they left open.
     for(Size i = 0; i < args.length; i++) {
-        if(isDeferred(deferred, i)) continue;
+        if(args[i].isDeferred()) continue;
 
         auto declared = local[generic->args.get(local, i)]->declaredType();
 
-        if(!bindPosition(declared, valueType(args[i]), bindings, true)) {
+        if(!bindPosition(declared, valueType(args[i].value), bindings, true)) {
             /*
              * A fixed array where a growable one was asked for - Implementation-Containers.md §6's
              * "it is never a growable argument. The diagnostic says so directly: a fixed array
@@ -1672,9 +1687,9 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
              * a reader who has just watched `[Int *4]` pass to five other `[Int]` functions needs
              * to be told which capability this one wanted instead of which types failed to unify.
              */
-            if(fixedElement(module, valueType(args[i])) && isGrowableArray(module, declared)) {
+            if(fixedElement(module, valueType(args[i].value)) && isGrowableArray(module, declared)) {
                 context.diagnostics.error("%@ cannot be passed to %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
-                                          source, describeType(context, global, valueType(args[i])),
+                                          source, describeType(context, global, valueType(args[i].value)),
                                           context.findName(generic->name));
                 return nullptr;
             }
@@ -1687,16 +1702,16 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
              * one fails at the binding above and never has a slice type to convert to. The message
              * is the same one because the mistake is, and what fixes it is the parameter.
              */
-            if(sliceElement(module, declared) && chunkedElement(module, valueType(args[i]))) {
+            if(sliceElement(module, declared) && chunkedElement(module, valueType(args[i].value))) {
                 context.diagnostics.error("%@ is `Chunked` and not `Contiguous`, so it cannot be passed to %@, which asks for a slice - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies"_v,
-                                          source, describeType(context, global, valueType(args[i])),
+                                          source, describeType(context, global, valueType(args[i].value)),
                                           context.findName(generic->name));
                 return nullptr;
             }
 
             context.diagnostics.error("argument %@ of %@ is %@, which does not fit %@"_v, source, U32(i + 1),
                                       context.findName(generic->name),
-                                      describeType(context, global, valueType(args[i])),
+                                      describeType(context, global, valueType(args[i].value)),
                                       describeType(context, global, declared));
             return nullptr;
         }
@@ -1735,10 +1750,10 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         return nullptr;
     }
 
-    ValueList converted;
+    ArgList converted;
     for(Size i = 0; i < args.length; i++) {
-        if(isDeferred(deferred, i)) {
-            converted.push(nullptr);
+        if(args[i].isDeferred()) {
+            converted.push(args[i]);
             continue;
         }
 
@@ -1753,7 +1768,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
          * first would build a read-only temporary and then ask for a mutable borrow of it, which is
          * how `sort(&xs)` on an owned array reported that a `let &` binding was not mutable.
          */
-        auto value = argument->isMutableBorrow() ? args[i] : convert(args[i], wanted, source);
+        auto value = argument->isMutableBorrow() ? args[i] : convertArgument(args[i], wanted, source);
 
         /*
          * The same positional rule emitDirectCall keeps, and the erased form needs it for a second
@@ -1762,9 +1777,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
          * position declared as a type variable exists whatever it was substituted with - `{}`
          * included - which is exactly the case that arrives with nothing to put in it.
          */
-        if(!value && isUnit(global, wanted)) value = allocate(module.scalar.unit, source);
-
-        converted.push(value);
+        converted.push(positionalUnit(value.value, wanted, source));
     }
 
     auto undecided = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });
@@ -1774,8 +1787,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         // types the call decided, so there is no body to clone and no function to call. This is
         // what keeps a pointer dereference one load rather than a call per element access.
         if(generic->intrinsic || generic->deferredIntrinsic) {
-            return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName,
-                                   deferred);
+            return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName);
         }
 
         // Both forms are first-class outputs, and which one a concrete call site takes is a choice
@@ -1785,8 +1797,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         if(module.program.specialization == Program::Specialization::Generic &&
            resolveFunctionBody(*generic->module, *generic) &&
            genericBodyLowerable(module, callee)) {
-            if(auto call = emitErasedCall(callee, toBuffer(bindings), toBuffer(converted), source, resultName,
-                                          deferred)) {
+            if(auto call = emitErasedCall(callee, toBuffer(bindings), toBuffer(converted), source, resultName)) {
                 return call;
             }
         }
@@ -1794,7 +1805,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         auto specialized = instantiateFunction(module, callee, toBuffer(bindings), source);
         if(!specialized) return nullptr;
 
-        return emitDirectCall(specialized, toBuffer(converted), source, target, resultName, deferred);
+        return emitDirectCall(specialized, toBuffer(converted), source, target, resultName);
     }
 
     auto env = functionGen(global, function);
@@ -1824,7 +1835,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     auto call = create<InstGenCall>(source, resultName, resultType, callee, nullptr, 0);
 
     for(auto binding: bindings) call->typeArgs.push(module.arena, binding);
-    for(auto value: converted) call->args.push(module.arena, value);
+    for(auto& argument: converted) call->args.push(module.arena, argument.value);
 
     append(call);
     auto result = ref(call);

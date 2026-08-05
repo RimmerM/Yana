@@ -1,0 +1,51 @@
+-- What an argument position will not accept, and what it declines to say twice.
+--
+-- Every call resolves its arguments before it has a callee, so each position ends up holding one of
+-- four things: a value, a value carrying nothing, a `@lazy` argument that is not one yet, or a
+-- failure something already reported. The first two used to be indistinguishable from the last -
+-- all three are spelled as no value at all - and each of the calls below is a place where reading
+-- them apart is the difference between a diagnostic and a wrong program.
+
+lens fn handing(value: a) -> a:
+    yield value
+
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+fn takesInt(x: Int) -> Int = x + 1
+fn takesTwo(x: Int, y: Int) -> Int = x + y
+
+-- A value carrying nothing, at a position that wanted something.
+--
+-- `{}` has a type and converts like anything else, and there is nothing it converts *to* but itself.
+-- Reported here rather than at the declaration because it is the pairing that is wrong: the call
+-- used to reach the conversion, get no value back, and emit `takesInt()` - a call with no argument
+-- in it at all, whose parameter then read whatever the calling convention left in place.
+fn passesUnit() -> Int = takesInt({})
+
+-- A failed argument, at the one call shape that does not go through overload selection: a plain
+-- function that is the whole overload set is committed to before anything is matched. What has to
+-- happen is nothing - the name has been reported, and a second message about the call would be
+-- about a mistake the author did not make.
+fn passesFailure() -> Int = takesTwo(missing, 2)
+
+-- The same argument to a lens call. The rest of this block is the lens's continuation, and the
+-- shape of that continuation is inferred from these arguments - so a position holding nothing used
+-- to infer `{}` and report the *next* statement in terms of a type nobody wrote: "no class function
+-- + accepts ((), ...)".
+fn passesFailureToLens() -> Int:
+    let v = handing(missing)
+    return v + 1
+
+-- And to an iterator, where the same inference decides what the loop's pattern binds.
+fn passesFailureToIterator() -> Int:
+    let &total = 0 :: Int
+
+    for i in upTo(missing):
+        total = total + i
+
+    return total

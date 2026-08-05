@@ -1,0 +1,35 @@
+fn nothing() -> () {
+  b0:
+    ret
+}
+
+fn wrap(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = add %a, %b : Int
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    alloc
+    %literal = call Wrap(()).wrap, %v1 : Int
+    call nothing
+    %produced = call Wrap(()).wrap, %v2 : Int
+    %ordinary = call Wrap(Int).wrap, 3 : Int
+    %plain = call wrap, 10, 20 : Int
+    %v12 = add %literal, %produced : Int
+    %v13 = add %v12, %ordinary : Int
+    %v14 = add %v13, %plain : Int
+    ret %v14
+}
+
+fn Wrap(()).wrap(%value: ()) -> Int {
+  b0:
+    ret 7
+}
+
+fn Wrap(Int).wrap(%value: Int) -> Int {
+  b0:
+    %v3 = add %value, 1 : Int
+    ret %v3
+}

@@ -596,7 +596,7 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
     TypeList typeArgs;
     for(auto arg: call.typeArgs.contents(clone.local)) typeArgs.push(cloneType(clone, arg));
 
-    ValueList args;
+    ArgList args;
     for(auto arg: call.args.contents(clone.local)) args.push(cloneValue(clone, arg));
 
     ModulePtr<Function> callee = nullptr;
@@ -999,7 +999,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         }
         case Value::Call: {
             auto& call = (InstCall&)inst;
-            ValueList args;
+            ArgList args;
             for(auto arg: call.args.contents(clone.local)) args.push(cloneValue(clone, arg));
 
             auto value = resolver.emitDirectCall(call.callee, toBuffer(args), inst.source, nullptr, inst.name);

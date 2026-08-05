@@ -198,12 +198,6 @@ struct Deferred {
     bool isSet() const { return expr || chain || thunk || value; }
 };
 
-// Whether position `index` of a call is a deferred argument. The list is parallel to the argument
-// list and may be shorter or empty, which is every call that has no `@lazy` parameter to fill.
-inline bool isDeferred(Buffer<Deferred> deferred, Size index) {
-    return index < deferred.length && deferred[index].isSet();
-}
-
 /*
  * What one argument position of a call is, at the point a callee has to be chosen for it.
  *
@@ -219,25 +213,86 @@ inline bool isDeferred(Buffer<Deferred> deferred, Size index) {
  * justifies - so the list is as long as the call is.
  */
 enum class ArgResult: U8 {
-    Value,    /// The position produced a value, which is its entry in the argument list.
+    Value,    /// The position produced a value, which is what `ResolvedArg::value` holds.
     Unit,     /// It produced a value carrying nothing, which is spelled as no value at all.
-    Deferred, /// A `@lazy` position, left unevaluated - its entry in the `deferred` list holds it.
+    Deferred, /// A `@lazy` position, left unevaluated - `ResolvedArg::promise` holds it.
     Failed,   /// It was reported on, so nothing further should be said about this call.
 };
 
-using ArgResultList = SmallArray<ArgResult, 8>;
+/*
+ * One argument of a call, between the expression that produced it and the callee that takes it.
+ *
+ * The four states above and their payloads travel together because they are one fact about one
+ * position. They used to be three parallel lists - the values, the `Deferred` entries, and the
+ * states saying which null was which - each of which a caller could pass short, absent or out of
+ * step with the others, and each of which every step of selection had to index by hand. What is
+ * left is a list of these: as long as the call is, filled in once at the point the position is
+ * decided, and read the same way by every candidate the call is matched against.
+ *
+ * A plain `ModulePtr<Value>` converts to one, which is the reading a synthesized call - a pattern's
+ * `==`, an array literal's `slice` - has always had: its arguments are values this resolver just
+ * produced, so nothing there means the value it was made from failed. A call site that knows better
+ * says so with `unit()` or `failed()`.
+ */
+struct ResolvedArg {
+    ResolvedArg(ModulePtr<Value> value = nullptr):
+        value(value), state(value ? ArgResult::Value : ArgResult::Failed) {}
+
+    static ResolvedArg unit() { return ResolvedArg(nullptr, ArgResult::Unit); }
+    static ResolvedArg failed() { return ResolvedArg(nullptr, ArgResult::Failed); }
+
+    // A `@lazy` position. The promise is empty where the call site only knows *that* the position is
+    // deferred - lazyArguments answers that from the name, before any argument is resolved - and is
+    // filled in by whoever has the argument to put in it.
+    static ResolvedArg deferred(Deferred promise = Deferred()) {
+        auto arg = ResolvedArg(nullptr, ArgResult::Deferred);
+        arg.promise = promise;
+        return arg;
+    }
+
+    bool isValue() const { return state == ArgResult::Value; }
+    bool isDeferred() const { return state == ArgResult::Deferred; }
+    bool isFailed() const { return state == ArgResult::Failed; }
+
+    // The value this position holds, which is null for every state but `Value`. `valueType` answers
+    // `{}` for it, which is what makes the unit case an ordinary argument to everything below.
+    ModulePtr<Value> value = nullptr;
+
+    // Set exactly for `Deferred`, and only fully once the callee is known: the parameter type it was
+    // declared at is what decides where the argument runs and what it converts to.
+    Deferred promise;
+
+    ArgResult state = ArgResult::Failed;
+
+private:
+    ResolvedArg(ModulePtr<Value> value, ArgResult state): value(value), state(state) {}
+};
+
+// The arguments of one call. Eight inline for the same reason ValueList holds eight - see
+// util/container.h - and it is the list every call is built in, matched from and emitted through.
+using ArgList = SmallArray<ResolvedArg, 8>;
 
 /*
- * The state of position `index`, for a list that may be shorter than the argument list or absent.
+ * Whether any position of this call has already been reported on.
  *
- * Absent is every synthesized call - a pattern's `==`, an array literal's `slice` - whose arguments
- * are values this resolver has just produced. For one of those a null argument means the value it
- * was made from failed, which is why that is the answer here rather than `Unit`: a caller that knows
- * better says so, and one that does not gets the reading a synthesized call has always had.
+ * `Failed` is the one state that stops a call, and this is where that is decided. Selecting an
+ * overload against a type nobody worked out reports a second, worse diagnostic about a call the
+ * author may not have got wrong, and emitting one builds a call with a hole where an argument should
+ * be - so a written call asks this once, at the point it commits to a callee, and every route out of
+ * that point is covered: the plain function `resolveCall` decided on by itself, the overload set
+ * `emitCall` selects from, and the two lens ones in expr_lens.cpp.
+ *
+ * Deliberately not inside `emitDirectCall` and the rest. Those are also reached with arguments this
+ * resolver has just built - a specialization's cloned operands, a witness entry's own parameters -
+ * where a position holding no value is the ordinary unit case rather than a report, and where
+ * declining to emit would lose a call nobody said anything about.
  */
-inline ArgResult argResultAt(Buffer<ArgResult> results, Size index, ModulePtr<Value> arg) {
-    if(index < results.length) return results[index];
-    return arg ? ArgResult::Value : ArgResult::Failed;
+inline bool anyArgumentFailed(Buffer<ResolvedArg> args) {
+    for(auto& arg: args) {
+        if(arg.isFailed()) return true;
+    }
+
+    return false;
 }
 
 // One `yield` in a `lens fn` body: where it landed, and where it was written. The block is what the
@@ -678,17 +733,27 @@ struct ExprResolver {
     ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, SmallArray<LocationId, 8>& operatorSources, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
+    // One written argument, and what its absence means if it produces nothing. The two are one
+    // question - see ResolvedArg - and the only thing that can separate a `{}` from a failure is
+    // whether resolving it reported, which is why every call site that resolves an argument asks it
+    // here rather than each keeping its own before-and-after count.
+    ResolvedArg resolveArgument(const ast::Expr& expr, TypePtr expected);
+
     /*
      * Deferred arguments (Design.md's Deferred arguments).
      */
 
-    // Which parameters of the overload set this name reaches are `@lazy`. Fills `out` with one entry
-    // per position - `ArgResult::Deferred` for a `@lazy` one and `ArgResult::Value` for the rest -
-    // and answers whether there was any. Asked of the name rather than of the callee because it has
-    // to be answered before any argument is evaluated, which is before selection has run - so every
-    // candidate of one (name, arity) has to agree, and one that does not is reported here rather
-    // than silently deciding by which overload happened to win.
-    bool lazyArguments(StringId name, Size arity, LocationId source, ArgResultList& out);
+    // Which parameters of the overload set this name reaches are `@lazy`. Fills `out` with the
+    // call's argument list, one entry per position: a `Deferred` one with nothing in it yet for a
+    // `@lazy` parameter, and an empty entry for the rest, which the caller replaces with what
+    // resolving that argument produced. Whether any position is deferred is then a property of the
+    // list rather than a second answer beside it.
+    //
+    // Asked of the name rather than of the callee because it has to be answered before any argument
+    // is evaluated, which is before selection has run - so every candidate of one (name, arity) has
+    // to agree, and one that does not is reported here rather than silently deciding by which
+    // overload happened to win.
+    void lazyArguments(StringId name, Size arity, LocationId source, ArgList& out);
 
     // Runs a deferred argument, here, in the block that is current now. This is the whole of what
     // `@lazy` means; everything else is about getting the argument to the point that calls this.
@@ -707,12 +772,6 @@ struct ExprResolver {
     // A call whose callee is a value rather than a name - a binding of function type, or any
     // expression at all in callee position. Null when the call is not one of those.
     ModulePtr<Value> resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
-    // `deferred` is parallel to `args` and holds the `@lazy` arguments, whose `args` entry is null.
-    // Empty for the calls that have none, which is all of them but a handful.
-    //
-    // `results` is parallel to `args` too, and says what each null entry in it means - see ArgResult
-    // and the guard in emitCall. Empty for every synthesized call, whose arguments are values this
-    // resolver just produced.
     /*
      * `nameSource` is where the callee's *name* was written, which is not `source`: `source` is the
      * whole call, and an editor asking about the name under the cursor needs the name.
@@ -721,32 +780,62 @@ struct ExprResolver {
      * what keeps those out of the index: nothing in the source spelled them, so there is no
      * occurrence to record. See resolve/index.h.
      */
-    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, Buffer<ArgResult> results = {}, LocationId nameSource = kNullLocation);
-    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
+    /*
+     * `convert`, applied to an argument without forgetting what the position is.
+     *
+     * Three of the four states have no value to convert, and each is left as it stands: a deferred
+     * position is not a value yet, and what it converts to is decided where it is forced; a failure
+     * has been reported; and a `{}` carries nothing, so there is nothing to convert. Handing the
+     * payload to `convert` directly instead - `push(convert(arg.value, ...))` - reads all three back
+     * as a failure, because a null value is what a failure is spelled as.
+     *
+     * The one case that is a diagnostic rather than a passthrough is a `{}` at a position that
+     * wanted something: `convert` answers a null value for it and says nothing, which is how
+     * `f({})` for `fn f(x: Int)` became a call with no argument in it at all.
+     */
+    ResolvedArg convertArgument(const ResolvedArg& arg, TypePtr declared, LocationId source);
+
+    /*
+     * The value a *positional* argument list holds at one position.
+     *
+     * A value carrying nothing is spelled as no value at all, and these lists are paired with the
+     * callee's parameters by index - so `f(2, {}, 3)` would otherwise punch a hole that drops
+     * argument 3 rather than argument 2. The position gets storage instead, of the zero bytes the
+     * type occupies, which is what lowering makes for the erased case anyway: the entry exists and
+     * carries its type. `unitValue()` in the same argument arrives as an ordinary value and always
+     * did, which is why only the literal ever shifted a list.
+     *
+     * Every list that pairs by index goes through this - the direct call, the generic call, the
+     * erased call and the generic dispatch - because each of them is the same rule and three of them
+     * learned it separately, after a crash in the ownership walk that read every argument's type and
+     * found a position with none.
+     */
+    ModulePtr<Value> positionalUnit(ModulePtr<Value> value, TypePtr declared, LocationId source);
+
+    ModulePtr<Value> emitCall(StringId name, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, LocationId nameSource = kNullLocation);
+    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
 
     // A call to a generic function: infers its type arguments from the call, then either
     // instantiates it or - when this body is itself generic and the arguments are not concrete
     // yet - defers the whole decision to the instantiation that will make them concrete.
-    ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source,
-                                     TypePtr target, StringId resultName, Buffer<Deferred> deferred = {});
+    ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source,
+                                     TypePtr target, StringId resultName);
 
     // A call that passes its callee a runtime environment instead of being specialized for these
     // types. Null when the environment cannot be built yet, which leaves the call site for the
     // specializing path.
     ModulePtr<Value> emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                    Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName,
-                                    Buffer<Deferred> deferred = {});
+                                    Buffer<ResolvedArg> args, LocationId source, StringId resultName);
 
     // A generic intrinsic, generated for the types this call decided. Shared with generic.cpp,
     // which reaches the same intrinsics through an InstGenCall a specialization made concrete.
     ModulePtr<Value> expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                     Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName,
-                                     Buffer<Deferred> deferred = {});
+                                     Buffer<ResolvedArg> args, LocationId source, StringId resultName);
 
     // A class function whose instance cannot be chosen here, because the types it would be chosen
     // by are this function's own type variables. Records the requirement and emits InstGenCall.
-    ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args, LocationId source,
-                                         StringId resultName, Buffer<Deferred> deferred = {});
+    ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ResolvedArg> args, LocationId source,
+                                         StringId resultName);
 
     bool bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen);
 
@@ -755,20 +844,19 @@ struct ExprResolver {
     // the other positions decided is what it is later resolved *against* - which is the same
     // one-directional rule the rest of selection follows, applied to an argument that binds
     // nothing rather than to one that binds a literal.
-    bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved, Buffer<Deferred> deferred = {});
+    bool matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target, ClassMatch& resolved);
 
     // Whether a plain function can serve this call - the same question matchClassFun asks of a
     // class function, so that both halves of an overload set are judged by one rule.
-    bool matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target, LocationId source, Buffer<Deferred> deferred = {});
+    bool matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target, LocationId source);
 
     // Calls one implementation of a selected instance. A concrete instance's is an ordinary
     // function; a parametric one's is generic over the instance's own variables, so it is expanded
     // where it is an intrinsic and specialized where it is not. `site` is the module the call was
     // written in, which is what decides the instances its own requirements are proved against.
     ModulePtr<Value> emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance, Buffer<TypePtr> instanceArgs,
-                                      U16 index, Buffer<ModulePtr<Value>> args, LocationId source,
-                                      TypePtr target = nullptr, StringId resultName = 0,
-                                      Buffer<Deferred> deferred = {});
+                                      U16 index, Buffer<ResolvedArg> args, LocationId source,
+                                      TypePtr target = nullptr, StringId resultName = 0);
 
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                             TypeList& instanceArgs);
@@ -833,14 +921,14 @@ struct ExprResolver {
 
     // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
     // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
-    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ValueList& values);
+    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ArgList& values);
     ModulePtr<Function> findClassLoopIterator(ast::AppExpr& application, StringId name, LocationId source,
-                                              ValueList& values, bool& attempted);
+                                              ArgList& values, bool& attempted);
 
     // The arguments written before the continuation, resolved and settled. Shared by both call
     // sites, which differ in what they do with the rest of the block and in nothing before it.
     void resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
-                                ValueList& values);
+                                ArgList& values);
 
     /*
      * `x?` - Implementation-Semantics.md part 5's early exit.

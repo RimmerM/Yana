@@ -2105,7 +2105,7 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
         auto to = resolve(range.to, module.scalar.int_);
         if(!from || !to) return nullptr;
 
-        ModulePtr<Value> bounds[] = { target, from, to };
+        ResolvedArg bounds[] = { target, from, to };
         return emitCall(context.addUnqualifiedName("slice", 5), { bounds, 3 }, source);
     }
 
@@ -2159,7 +2159,7 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
         }
     }
 
-    ModulePtr<Value> values[] = { container, index };
+    ResolvedArg values[] = { container, index };
     auto name = context.addUnqualifiedName(mutable_ ? "getMut" : "get", mutable_ ? 6 : 3);
 
     return emitCall(name, { values, 2 }, source);

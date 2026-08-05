@@ -84,12 +84,10 @@ ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>>
 // "short-circuiting is a property of the signature" stops costing anything - the signature declares
 // `@lazy`, and the instance that implements it for the one type conditions are written at can see
 // the argument and emit it under the test.
-ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                                Buffer<Deferred> deferred, TypePtr type, LocationId source,
-                                StringId resultName);
-ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                               Buffer<Deferred> deferred, TypePtr type, LocationId source,
-                               StringId resultName);
+ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                                LocationId source, StringId resultName);
+ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                               LocationId source, StringId resultName);
 
 /*
  * Building instances and declarations.

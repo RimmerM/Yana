@@ -12,7 +12,7 @@ void ExprResolver::terminate(Inst* inst) {
 void ExprResolver::emitCheck(ModulePtr<Value> failed, LocationId source) {
     if(!failed || !checksEnabled()) return;
 
-    ModulePtr<Value> condition[] = { failed };
+    ResolvedArg condition[] = { failed };
     emitDirectCall(module.program.checkCondition, { condition, 1 }, source);
 }
 
@@ -342,7 +342,7 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
 
     // The class function takes the literal at its widest precision, so a `Long`/`Double` constant
     // is what an instance is handed and what its type has to be able to represent.
-    ModulePtr<Value> args[] = {
+    ResolvedArg args[] = {
         integral ? makeInt(source, module.scalar.long_, ((ConstInt*)local[value])->value)
                  : makeFloat(source, module.scalar.double_, ((ConstDouble*)local[value])->value),
     };
@@ -397,7 +397,7 @@ ModulePtr<Value> ExprResolver::truthy(ModulePtr<Value> value, LocationId source)
     // condition written in it.
     ClassFunRef reference { typeClass, global[typeClass]->functions.get(global, 0).name, 0 };
     ClassMatch match;
-    ModulePtr<Value> args[] = { value };
+    ResolvedArg args[] = { value };
 
     if(matchClassFun(reference, { args, 1 }, module.scalar.bool_, match)) {
         if(match.instance) {
@@ -449,7 +449,7 @@ ModulePtr<Value> ExprResolver::emitConversion(GlobalPtr<TypeClass> typeClass, St
     for(auto& candidate: candidates) {
         if(candidate.typeClass != typeClass) continue;
 
-        ModulePtr<Value> args[] = { value };
+        ResolvedArg args[] = { value };
 
         ClassMatch match;
         if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
@@ -1296,18 +1296,18 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
      */
     auto initial = fromValue;
     if(!ascending) {
-        ModulePtr<Value> above[] = { fromValue, toValue };
+        ResolvedArg above[] = { fromValue, toValue };
         auto isAbove = emitCall(Context::nameHash(">", 1), { above, 2 }, source, module.scalar.bool_);
         if(!isAbove) return;
 
         pending.push(PendingBranch { current, convert(isAbove, module.scalar.bool_, source), ordered });
 
         current = ordered;
-        ModulePtr<Value> span[] = { fromValue, toValue };
+        ResolvedArg span[] = { fromValue, toValue };
         auto distance = emitCall(Context::nameHash("-", 1), { span, 2 }, source, counterType);
         if(!distance) return;
 
-        ModulePtr<Value> fits[] = { distance, stepValue };
+        ResolvedArg fits[] = { distance, stepValue };
         auto hasStep = emitCall(Context::nameHash(">=", 2), { fits, 2 }, source, module.scalar.bool_);
         if(!hasStep) return;
 
@@ -1315,7 +1315,7 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
 
         current = reachable;
 
-        ModulePtr<Value> back[] = { fromValue, stepValue };
+        ResolvedArg back[] = { fromValue, stepValue };
         initial = emitCall(Context::nameHash("-", 1), { back, 2 }, source, counterType);
         if(!initial) return;
     }
@@ -1338,7 +1338,7 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
                  : loop.inclusive ? Context::nameHash("<=", 2)
                  : Context::nameHash("<", 1);
 
-    ModulePtr<Value> bound[] = { value, toValue };
+    ResolvedArg bound[] = { value, toValue };
     auto more = emitCall(compare, { bound, 2 }, source, module.scalar.bool_);
     if(!more) return;
 
@@ -1376,14 +1376,14 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
     current = advanceBlock;
     auto atStep = load(placeFor(counter, source), source);
 
-    ModulePtr<Value> remaining[] = { ascending ? toValue : atStep, ascending ? atStep : toValue };
+    ResolvedArg remaining[] = { ascending ? toValue : atStep, ascending ? atStep : toValue };
     auto distance = emitCall(Context::nameHash("-", 1), { remaining, 2 }, source, counterType);
     if(!distance) return;
 
     auto exhausted = (ascending && !loop.inclusive) ? Context::nameHash("<=", 2)
                                                     : Context::nameHash("<", 1);
 
-    ModulePtr<Value> left[] = { distance, stepValue };
+    ResolvedArg left[] = { distance, stepValue };
     auto done = emitCall(exhausted, { left, 2 }, source, module.scalar.bool_);
     if(!done) return;
 
@@ -1391,7 +1391,7 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
                            exitBlock, stepBlock));
 
     current = stepBlock;
-    ModulePtr<Value> moved[] = { atStep, stepValue };
+    ResolvedArg moved[] = { atStep, stepValue };
     auto next = emitCall(ascending ? Context::nameHash("+", 1) : Context::nameHash("-", 1),
                          { moved, 2 }, source, counterType);
     if(!next) return;

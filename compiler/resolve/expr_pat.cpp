@@ -650,7 +650,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             auto value = patternBound(bound, valueType(pivot));
             if(!value) return PatternResult::Never;
 
-            ModulePtr<Value> args[] = { pivot, value };
+            ResolvedArg args[] = { pivot, value };
             auto condition = emitCall(pattern.section.op, { args, 2 }, pattern.source, module.scalar.bool_);
             if(!condition) return PatternResult::Never;
 
@@ -753,7 +753,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                     discriminant = load(project(placeFor(pivot, pattern.source), ProjectionKind::Discriminant, 0), pattern.source);
                 }
 
-                ModulePtr<Value> args[] = {
+                ResolvedArg args[] = {
                     discriminant,
                     makeInt(pattern.source, module.scalar.int_, reference.index),
                 };
@@ -787,7 +787,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             ModulePtr<Value> condition = nullptr;
 
             if(from) {
-                ModulePtr<Value> args[] = { pivot, from };
+                ResolvedArg args[] = { pivot, from };
                 condition = emitCall(Context::nameHash(">=", 2), { args, 2 }, pattern.source, module.scalar.bool_);
             }
 
@@ -798,11 +798,11 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 auto upperOp = pattern.range.inclusive ? Context::nameHash("<=", 2)
                                                        : Context::nameHash("<", 1);
 
-                ModulePtr<Value> args[] = { pivot, to };
+                ResolvedArg args[] = { pivot, to };
                 auto upper = emitCall(upperOp, { args, 2 }, pattern.source, module.scalar.bool_);
 
                 if(condition) {
-                    ModulePtr<Value> both[] = { condition, upper };
+                    ResolvedArg both[] = { condition, upper };
                     condition = emitCall(Context::nameHash("and", 3), { both, 2 }, pattern.source, module.scalar.bool_);
                 } else {
                     condition = upper;
@@ -822,7 +822,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
     if(pattern.kind >= ast::Pat::Lit) {
         if(!tested) return PatternResult::Always;
 
-        ModulePtr<Value> args[] = { pivot, patternBound(pattern, valueType(pivot)) };
+        ResolvedArg args[] = { pivot, patternBound(pattern, valueType(pivot)) };
         return branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);
     }
 

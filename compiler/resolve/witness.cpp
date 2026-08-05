@@ -741,7 +741,7 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
     }
 
     ExprResolver resolver(context, module, *function);
-    ValueList args;
+    ArgList args;
 
     for(Size i = 0; i < parameters.size(); i++) {
         auto value = (ModulePtr<Value>)(parameters[i] - local);

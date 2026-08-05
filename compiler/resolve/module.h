@@ -12,6 +12,7 @@ struct Expr;
 struct Program;
 struct ExprResolver;
 struct Deferred;
+struct ResolvedArg;
 struct OwnershipResults;
 struct AnalysisScratch;
 struct LensYield;
@@ -183,16 +184,15 @@ using Intrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ModulePtr<
  *
  * The difference is the whole of what short-circuiting is: an ordinary intrinsic is handed values
  * that have already been computed, and this one is handed the argument itself and decides where -
- * and whether - to run it. `args` is null at each deferred position and `deferred` is set there,
+ * and whether - to run it. Each deferred position of `args` carries the promise instead of a value,
  * and the expansion forces one by calling ExprResolver::force in whichever block it built for it.
  *
  * A function with one of these still has a real body, generated the ordinary way, which is what a
  * call that cannot see through it reaches. That body forces its parameter by calling the thunk;
  * this one emits a branch. The two have to agree, so they are written next to each other.
  */
-using DeferredIntrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
-                                               Buffer<Deferred> deferred, TypePtr type, LocationId source,
-                                               StringId name);
+using DeferredIntrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ResolvedArg> args,
+                                               TypePtr type, LocationId source, StringId name);
 
 struct Function {
     Function(Module* module, StringId name): module(module), name(name) {}
