@@ -17,10 +17,16 @@
 #include "../compiler/codegen/llvm/gen.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
+#include "shard.h"
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <spawn.h>
+#include <csignal>
+
+extern char** environ;
 #endif
 
 using namespace Tritium;
@@ -379,41 +385,202 @@ static bool nodeAvailable() {
     return cached != 0;
 }
 
-static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
-    auto scriptPath = path + String(".run.js");
-    auto outputPath = path + String(".run.out");
+#if defined(__unix__) || defined(__APPLE__)
 
-    writeText(scriptPath, [&](Net::Writer& writer) {
-        writer.writeString(StringView { (const char*)emitted.ptr, emitted.length });
-        // `String()` rather than the value itself, because an `I64` is a BigInt here and would
-        // otherwise print as `37n`.
-        writer.writeString("\nconsole.log(String(main()));\n"_v);
-    });
+/*
+ * One Node process for the whole run, spoken to over a pair of pipes.
+ *
+ * A process per script was what this replaced, and it was the whole cost of the JavaScript half:
+ * Node starts in about eleven milliseconds and the suite started it a hundred and seventy times -
+ * once per fixture with a `.js.expect`, and once more for the unoptimized build it is compared
+ * against. Neither the shell that `system()` used nor the two files the script and its output went
+ * through were worth removing on their own; both were measured and both were free. Node's startup
+ * is not, and it is the only way to get at it.
+ *
+ * What the fixtures need isolated is the *program*, not the process - a program that answers
+ * correctly only because of what the previous one left behind is exactly what this suite exists to
+ * catch. `node-harness.js` evaluates each script with `vm.runInNewContext`, which is a fresh global
+ * and fresh intrinsics per script; the emitted code refers to nothing outside itself but
+ * `console.log`, so there is nothing else for one fixture to leave for the next.
+ *
+ * A crash takes the harness with it, so the child is restarted on the next fixture rather than
+ * making every fixture after the first failure fail too.
+ */
+struct NodeHarness {
+    int toChild = -1;
+    int fromChild = -1;
+    pid_t child = -1;
 
-    // Assembled into a null-terminated buffer rather than through String, whose text() is a length-
-    // counted pointer with no terminator: handing that to a shell appends whatever follows it in
-    // memory, which truncated the redirection into `2>&` and made a third of the fixtures report a
-    // JavaScript failure with a different third failing on each run.
-    char command[512];
-    snprintf(command, sizeof(command), "node '%.*s' > '%.*s' 2>&1",
-             int(scriptPath.size()), scriptPath.text(), int(outputPath.size()), outputPath.text());
+    bool start() {
+        int in[2];
+        int out[2];
+        if(pipe(in) != 0) return false;
+        if(pipe(out) != 0) {
+            close(in[0]);
+            close(in[1]);
+            return false;
+        }
 
-    auto status = system(command);
+        posix_spawn_file_actions_t actions;
+        posix_spawn_file_actions_init(&actions);
+        posix_spawn_file_actions_adddup2(&actions, in[0], STDIN_FILENO);
+        posix_spawn_file_actions_adddup2(&actions, out[1], STDOUT_FILENO);
+        posix_spawn_file_actions_addclose(&actions, in[1]);
+        posix_spawn_file_actions_addclose(&actions, out[0]);
 
-    char buffer[512] = {};
-    Size read = 0;
+        // `posix_spawnp` rather than an absolute path, so which `node` runs is still the one PATH
+        // names. stderr is left alone: the harness reports a script's failure in its answer, and
+        // anything Node says on its own account is a problem worth seeing.
+        const char* argv[] = { "node", "node-harness.js", nullptr };
+        auto spawned = posix_spawnp(&child, "node", &actions, nullptr, (char* const*)argv, environ);
+        posix_spawn_file_actions_destroy(&actions);
 
-    if(auto opened = File::openFile(outputPath, readAccess()); opened.isOk()) {
-        auto file = opened.moveUnwrapOk();
-        read = file.size() < sizeof(buffer) - 1 ? Size(file.size()) : sizeof(buffer) - 1;
-        file.read({ (Byte*)buffer, read });
-        buffer[read] = 0;
+        close(in[0]);
+        close(out[1]);
+
+        if(spawned != 0) {
+            close(in[1]);
+            close(out[0]);
+            child = -1;
+            return false;
+        }
+
+        toChild = in[1];
+        fromChild = out[0];
+        return true;
     }
 
-    File::remove(scriptPath);
-    File::remove(outputPath);
+    void stop() {
+        if(child < 0) return;
 
-    if(status != 0) {
+        close(toChild);
+        close(fromChild);
+
+        int status = 0;
+        while(waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+
+        toChild = fromChild = -1;
+        child = -1;
+    }
+
+    bool writeAll(const char* data, Size length) {
+        while(length) {
+            auto wrote = ::write(toChild, data, length);
+            if(wrote <= 0) return false;
+
+            data += wrote;
+            length -= Size(wrote);
+        }
+
+        return true;
+    }
+
+    /// A byte at a time, because the count on this line says where the payload begins and reading
+    /// past it would eat the payload's first bytes. Headers are a handful of bytes.
+    bool readHeader(char* line, Size capacity) {
+        Size at = 0;
+        while(at < capacity - 1) {
+            char c;
+            auto got = ::read(fromChild, &c, 1);
+            if(got <= 0) return false;
+            if(c == '\n') break;
+
+            line[at++] = c;
+        }
+
+        line[at] = 0;
+        return true;
+    }
+
+    bool readAll(char* buffer, Size length) {
+        Size at = 0;
+        while(at < length) {
+            auto got = ::read(fromChild, buffer + at, length - at);
+            if(got <= 0) return false;
+
+            at += Size(got);
+        }
+
+        return true;
+    }
+
+    /*
+     * Runs one script. `threw` distinguishes a script that reported a failure from a harness that
+     * stopped answering: the first is this fixture's problem and the second is everyone's.
+     */
+    bool run(ByteBuffer emitted, char* buffer, Size capacity, Size& read, bool& threw) {
+        read = 0;
+        buffer[0] = 0;
+        threw = false;
+
+        if(child < 0 && !start()) return false;
+
+        // `String()` rather than the value itself, because an `I64` is a BigInt here and would
+        // otherwise print as `37n`.
+        auto tail = "\nconsole.log(String(main()));\n"_v;
+
+        char header[64];
+        auto length = snprintf(header, sizeof(header), "%zu\n", Size(emitted.length) + tail.length);
+
+        if(!writeAll(header, Size(length)) || !writeAll((const char*)emitted.ptr, emitted.length)
+           || !writeAll(tail.ptr, tail.length)) {
+            stop();
+            return false;
+        }
+
+        char answer[64];
+        if(!readHeader(answer, sizeof(answer))) {
+            stop();
+            return false;
+        }
+
+        char* rest = nullptr;
+        threw = answer[0] == 'E';
+        auto payload = Size(strtoll(answer + (threw ? 4 : 3), &rest, 10));
+
+        // Read the whole payload even where it does not fit, so that the next answer starts where
+        // the harness says it does rather than in the middle of this one's overflow.
+        Size kept = 0;
+        while(kept < payload) {
+            char scratch[512];
+            auto want = min(payload - kept, sizeof(scratch));
+            if(!readAll(scratch, want)) {
+                stop();
+                return false;
+            }
+
+            for(Size i = 0; i < want && read < capacity - 1; i++) buffer[read++] = scratch[i];
+            kept += want;
+        }
+
+        buffer[read] = 0;
+        return !threw;
+    }
+};
+
+static NodeHarness& nodeHarness() {
+    static NodeHarness harness;
+    return harness;
+}
+
+#endif
+
+static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
+    char buffer[512] = {};
+    Size read = 0;
+    auto ok = false;
+
+#if defined(__unix__) || defined(__APPLE__)
+    // A test driver has no use for the default: a harness that has died turns every later write into
+    // a signal that kills the driver rather than a failure it can report.
+    static auto ignored = signal(SIGPIPE, SIG_IGN);
+    (void)ignored;
+
+    auto threw = false;
+    ok = nodeHarness().run(emitted, buffer, sizeof(buffer), read, threw);
+#endif
+
+    if(!ok) {
         println("Fail (%@): running the emitted JavaScript failed: %@", path,
                 StringView(buffer, U32(read)));
         return Nothing();
@@ -875,18 +1042,34 @@ static bool runTest(const String& path, StringView source, bool generate) {
 }
 
 int main(int argc, const char** argv) {
-    auto generate = argc > 1 && String(argv[1]) == "generate";
+    auto generate = false;
+    U32 shard = 0;
+    U32 shards = 1;
 
     /*
-     * An argument that is not `generate` names the one fixture to run, by prefix.
+     * An argument that is neither `generate` nor a shard spec names the one fixture to run, by
+     * prefix.
      *
      * For when the suite cannot get far enough to reach the fixture in question: an assertion or a
      * crash in an earlier one takes the whole run down, and "does *this* fixture pass" is then
      * unanswerable without it. Matched as a prefix of the file name so that
      * `YanaResolveTest Subscript` runs the whole family.
+     *
+     * Held as a `String` rather than a `StringView` of one: the view used to be taken of a temporary
+     * built in the condition that tested it, and outlived the buffer it pointed into.
      */
-    StringView only;
-    if(argc > 1 && !generate) only = stringView(String(argv[1]));
+    String only;
+
+    for(int i = 1; i < argc; i++) {
+        auto arg = String(argv[i]);
+        if(arg == "generate") {
+            generate = true;
+            continue;
+        }
+
+        if(parseShard(arg, shard, shards)) continue;
+        only = arg;
+    }
 
     Array<String> tests;
 
@@ -894,7 +1077,7 @@ int main(int argc, const char** argv) {
         if(directory) return;
         if(auto dot = findLastChar(stringView(name), '.')) {
             if(String(dot + 1, name.text() + name.size() - dot - 1) == "yana") {
-                if(only.length && !stringView(name).startsWith(only)) return;
+                if(only.size() && !stringView(name).startsWith(stringView(only))) return;
                 tests.push(String("resolve/") + name);
             }
         }
@@ -903,6 +1086,17 @@ int main(int argc, const char** argv) {
     if(tests.isEmpty()) {
         println("no resolve tests found");
         return 1;
+    }
+
+    // See shard.h. Applied after the listing rather than inside it so that which fixture lands in
+    // which shard depends only on the corpus, not on what else was filtered out first.
+    if(shards > 1) {
+        Array<String> mine;
+        for(U32 i = 0; i < tests.size(); i++) {
+            if(i % shards == shard) mine.push(tests[i]);
+        }
+
+        tests = ::move(mine);
     }
 
     auto pass = true;
@@ -920,6 +1114,12 @@ int main(int argc, const char** argv) {
         file.read({ (Byte*)source.get(), size });
         pass = runTest(test, { source.get(), size }, generate) && pass;
     }
+
+#if defined(__unix__) || defined(__APPLE__)
+    // Closing the pipe is what ends the harness' read loop. Waited for rather than left to the
+    // process exit, so that a driver run does not outlive its own child.
+    nodeHarness().stop();
+#endif
 
     return pass ? 0 : 1;
 }

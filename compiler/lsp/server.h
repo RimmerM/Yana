@@ -63,6 +63,28 @@ struct Server {
 
     bool stopping = false;
 
+    /// True while the worker has nothing left to do - no message in hand, none queued, and no
+    /// compile owed. Guarded by `queueLock` because the reader reads it; see `quiesced()`.
+    bool quiet = false;
+
+    /*
+     * Whether the server has gone quiet: everything the reader has delivered so far has been
+     * handled, and no compile is pending.
+     *
+     * A *condition* rather than a signal, because `idle` is auto-reset and the worker sets it after
+     * every unit of work: a waiter that trusts one set cannot tell a set that predates the messages
+     * it is waiting for from the one it wanted. Anything waiting on this re-checks after each set.
+     */
+    bool quiesced() {
+        MutexLock lock(queueLock);
+        return quiet && queue.isEmpty();
+    }
+
+    /// How long the typing has to stop before a compile starts - §5.3. A field rather than a
+    /// constant so that a test, whose messages arrive as fast as they can be written rather than as
+    /// fast as they can be typed, can wait a keystroke's worth instead of a human pause's.
+    Int debounceMs = 200;
+
     /*
      * The worker thread's half. Nothing here is touched by the reader.
      */
@@ -150,9 +172,10 @@ struct Server {
     void onDidClose(const JsonValue& params);
     void onDidSave(const JsonValue& params);
 
-    /// Set every time a compile finishes and its diagnostics have been published. Nothing in the
-    /// server waits on it; the protocol test does, so that it can assert on a result rather than on
-    /// a sleep.
+    /// Set every time the worker finishes a unit of work - a handled message, or a compile whose
+    /// diagnostics have been published. Nothing in the server waits on it; the protocol test does,
+    /// so that it can assert on a result rather than on a sleep. It is a wake-up rather than an
+    /// answer: what it means the waiter has to ask `quiesced()`.
     Signal idle { false, true };
 
     /// Recompiles and publishes. The one thing the worker does that no message asked for directly.

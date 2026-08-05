@@ -2,10 +2,6 @@
 
 namespace lsp {
 
-// How long the typing has to stop before a compile starts. §5.3: the whole program is re-resolved
-// per edit, so the debounce is what keeps that off the keystroke path.
-static const Int kDebounceMs = 200;
-
 /*
  * Writing.
  */
@@ -122,6 +118,7 @@ void Worker::run() {
             if(server.queue.size()) {
                 message = server.queue[0];
                 server.queue.remove(0);
+                server.quiet = false;
             } else if(server.stopping) {
                 break;
             }
@@ -130,6 +127,11 @@ void Worker::run() {
         if(message) {
             server.handle(*message);
             delete message;
+
+            // A handled message is a unit of work finished, whether or not it compiled anything.
+            // Announcing only compiles left the one state a waiter most wants to observe - a server
+            // that has answered everything it was sent - with no event to observe it by.
+            server.idle.set();
             continue;
         }
 
@@ -137,11 +139,20 @@ void Worker::run() {
             // A keystroke arriving inside the window sets the signal, so the wait returns early and
             // the window starts again. The compile happens only once the typing has stopped, which
             // is the whole of the debounce.
-            if(!server.queued.wait(kDebounceMs)) {
+            if(!server.queued.wait(server.debounceMs)) {
                 server.refresh();
                 server.dirty = false;
             }
         } else {
+            // Nothing queued and no compile owed: this is the one point at which the server is known
+            // to have finished everything it was given, so it is the one point that may say so.
+            {
+                MutexLock lock(server.queueLock);
+                if(server.queue.size() || server.stopping) continue;
+                server.quiet = true;
+            }
+
+            server.idle.set();
             server.queued.wait(Int(Signal::WaitForever));
         }
     }

@@ -18,15 +18,25 @@
 using namespace Tritium;
 using namespace lsp;
 
+// How long a barrier is prepared to wait before calling it a failure. Only ever reached by a bug,
+// so it can be generous without costing anything: a barrier that is working returns as soon as the
+// worker says so, and one that is not is not going to start.
+static const Int kBarrierTimeoutMs = 10000;
+
 /*
  * A transport over two buffers.
  *
  * Two threads write to the output - the worker answers requests while the reader answers
  * `shutdown` - so a scenario that sends everything at once records them in whichever order the
- * scheduler produced. `barrier()` is what makes that deterministic: the input stops there until
- * the server has finished a compile, which is the only point at which it is known to be idle.
- * Waiting on the server rather than on a sleep is what keeps this from being slow and flaky at
- * once.
+ * scheduler produced. `barrier()` is what makes that deterministic: the input stops there until the
+ * server has gone quiet, which is the point at which everything delivered so far has been answered.
+ * Waiting on the server rather than on a sleep is what keeps this from being slow and flaky at once.
+ *
+ * `Server::quiesced()` rather than one `idle.wait()`, because a signal alone cannot answer this. It
+ * is auto-reset and the worker sets it per unit of work, so a lone wait either consumes a set that
+ * predates the messages it was meant to let finish, or - where the messages ask for no compile at
+ * all - waits for a set that is never coming. The second is what three of these scenarios did:
+ * a barrier after `initialize` with no document open cost the full timeout, every run, silently.
  */
 struct MemoryTransport: Transport {
     Array<Byte> input;
@@ -36,11 +46,33 @@ struct MemoryTransport: Transport {
     Server* server = nullptr;
     Array<Size> barriers;
 
+    /// Set when a barrier gave up. A scenario that reaches one is not asserting the ordering it was
+    /// written to assert, so it fails rather than passing slowly.
+    bool barrierTimedOut = false;
+
+    /*
+     * Waits until everything delivered so far has been answered.
+     *
+     * The condition is re-checked after every wake-up, and the wake-up is only there to avoid
+     * spinning: `idle` says "the worker did something", and `quiesced()` says whether that something
+     * was the last thing it owed.
+     */
+    void waitForQuiet() {
+        while(!server->quiesced()) {
+            if(server->idle.wait(kBarrierTimeoutMs)) continue;
+            if(server->quiesced()) return;
+
+            println("\nFail: a barrier timed out - the server never went quiet.");
+            barrierTimedOut = true;
+            return;
+        }
+    }
+
     Size read(Byte* buffer, Size length) override {
         for(U32 i = 0; i < barriers.size(); i++) {
             if(barriers[i] == cursor) {
                 barriers.remove(i);
-                server->idle.wait(5000);
+                waitForQuiet();
                 break;
             }
         }
@@ -118,6 +150,10 @@ static void writeNormalized(Net::Writer& writer, const Array<Byte>& output) {
     }
 }
 
+// False once any scenario's barrier has given up. Collected here rather than threaded back through
+// every `runScenario` call, since there is nothing a caller would do with it but pass it on.
+static bool barriersHeld = true;
+
 // One scenario: a fresh server, a list of messages, and whatever came back.
 template<class Fill>
 static void runScenario(Net::Writer& writer, StringView name, Fill&& fill) {
@@ -127,7 +163,14 @@ static void runScenario(Net::Writer& writer, StringView name, Fill&& fill) {
     Server server(transport);
     transport.server = &server;
 
+    // A test's messages arrive as fast as they can be written rather than as fast as they can be
+    // typed, so the human-scale pause the debounce exists for is dead time here - a compile per
+    // scenario, each waiting out a fifth of a second that no keystroke is going to arrive in. Short
+    // enough to cost nothing, long enough that the messages of one scenario still coalesce.
+    server.debounceMs = 5;
+
     auto code = server.run();
+    if(transport.barrierTimedOut) barriersHeld = false;
 
     writer.writeString("== "_v);
     writer.writeString(name);
@@ -368,6 +411,12 @@ int main(int argc, const char** argv) {
 
     auto produced = writer.getBuffered();
     if(size == produced.length && compareMem(buffer.get(), produced.ptr, size) == 0) {
+        // A barrier that gave up has already said so. The text can still match - the ordering a
+        // barrier pins is only *sometimes* the one the scheduler would have produced anyway - and a
+        // scenario that got the right answer without the synchronisation it asked for is not
+        // asserting what it was written to assert.
+        if(!barriersHeld) return 1;
+
         println("Pass.");
         return 0;
     }

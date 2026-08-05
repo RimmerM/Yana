@@ -10,7 +10,21 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /D_DEBUG /DDEBUG /Od /MDd /Ob0")
 else()
     set(CMAKE_CXX_FLAGS "-std=c++1z -msse4.2 -mfpmath=sse -fno-rtti")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -DDEBUG")
+
+    # Appended rather than assigned, so that a `-DCMAKE_CXX_FLAGS_DEBUG=...` on the configure line
+    # survives.
+    #
+    # An assignment here declares a *normal* variable, and a normal variable shadows the cache entry
+    # that `-D` on the command line creates - so the flags asked for were read into the cache,
+    # overwritten for the whole configure, and silently discarded. `build-assert` was configured with
+    # `-O2 -g -D_DEBUG -DDEBUG` and compiled at -O0 for as long as it has existed: its `flags.make`
+    # was byte-identical to `build`'s, and the two trees' test binaries timed within 0.2% of each
+    # other. What is left here is only what CMake's own default for this build type does not already
+    # supply, which for Debug is `-g`.
+    #
+    # The MSVC branch above assigns for the same reason and has the same shape; it is left alone
+    # because nothing here can test it.
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
     # -O3 rather than -Ofast, because -Ofast is not free and buys nothing here.
     #
     # -Ofast is -O3 plus -ffast-math plus a handful of relaxations. For this compiler the

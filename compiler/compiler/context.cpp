@@ -77,10 +77,13 @@ void LinearArena::reset(Size maxSize) {
 
         auto result = allocMem(maxSize);
         if(!result) {
-            logError("Cannot allocate %@ bytes for arena", maxSize);
-            base = nullptr;
-            p = nullptr;
-            max = nullptr;
+            // Fatal for the same reason `alloc` is: a null base is not a state anything downstream
+            // can notice. `Region::operator*` would hand out a `RegionBase` of `nullptr - 16` and
+            // every handle resolved through it would address low memory, so the failure would be
+            // reported as a segfault in whatever happened to dereference first - which is a shrug,
+            // several stages away from the thing that actually went wrong. See
+            // Implementation-Tooling.md §4.2 and the note in `alloc`.
+            fatalError("Cannot allocate %@ bytes for an arena.", maxSize);
         } else {
             base = (Byte*)result.unwrapOk();
 

@@ -8,6 +8,7 @@
 #include <File.h>
 #include "../compiler/parse/parser.h"
 #include "../compiler/parse/ast_print.h"
+#include "shard.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 
@@ -182,7 +183,20 @@ static void truncationTest(const String& path, StringView content) {
     println(" %@ parsed.", content.length + 1);
 }
 
-void testParser(bool generate) {
+/*
+ * `shard:i/n` - run the fixtures whose index is `i` modulo `n`, and no others.
+ *
+ * The truncation test parses every prefix of every fixture, which is most of this driver's time and
+ * is quadratic in how long the fixtures are rather than how many there are. Nothing about it is
+ * shared between fixtures, so the way to stop paying for it in wall time is to run the fixtures at
+ * once rather than to check fewer cut points: the properties it asserts - that the lexer always
+ * advances, that no parser loop spins - are about *every* cut, and one that is not tried is one
+ * where the parser can still hang.
+ *
+ * Round-robin rather than contiguous blocks, because a directory listing is alphabetical and the
+ * long fixtures do not distribute themselves evenly through one.
+ */
+void testParser(bool generate, U32 shard, U32 shards) {
     Array<String> tests;
 
     listDirectory("parser", [&](const String& name, bool isDirectory) {
@@ -198,6 +212,15 @@ void testParser(bool generate) {
 
     if(tests.size() == 0) {
         println("no tests found");
+    }
+
+    if(shards > 1) {
+        Array<String> mine;
+        for(U32 i = 0; i < tests.size(); i++) {
+            if(i % shards == shard) mine.push(tests[i]);
+        }
+
+        tests = ::move(mine);
     }
 
     for(auto& test: tests) {
@@ -267,11 +290,14 @@ static void truncationSweep() {
 int main(int argc, const char** argv) {
     bool generateExpects = false;
     bool sweep = false;
+    U32 shard = 0;
+    U32 shards = 1;
 
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
         if(arg == "sweep") sweep = true;
+        parseShard(arg, shard, shards);
     }
 
     if(sweep) {
@@ -279,5 +305,5 @@ int main(int argc, const char** argv) {
         return 0;
     }
 
-    testParser(generateExpects);
+    testParser(generateExpects, shard, shards);
 }

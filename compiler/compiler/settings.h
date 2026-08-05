@@ -137,12 +137,26 @@ struct CompileSettings {
     Tritium::String projectFile;
     bool noProject = false;
 
-    // Defaulted rather than left indeterminate: `@platform` reads it on every declaration, so a
-    // driver that never set it would select declarations by whatever was on the stack.
+    /*
+     * Defaulted rather than left indeterminate: `@platform` reads `mode` on every declaration, so a
+     * driver that never set it would select declarations by whatever was on the stack.
+     *
+     * `target` and `arch` were left indeterminate on the same argument that did not apply to them,
+     * and it cost: `applyDefaults` fills them from the host, but only on the path that parses a
+     * command line, and a `Context` built directly - which is every test driver - got whatever the
+     * allocation happened to hold. It read as X64 for years because a fresh heap tends to read as
+     * zero; running the fixture corpus in several processes at once perturbed that, and one fixture
+     * with a `.llvm.expect` started reporting "the 32-bit architectures are not supported yet" in
+     * one shard and passing in every other arrangement of the same fixtures.
+     *
+     * The values here are the ones that go together and the ones every driver that does not say
+     * otherwise means: a 64-bit ELF executable. `applyDefaults` still replaces them with the host's
+     * when a real compilation is being configured.
+     */
     CompileMode mode = CompileMode::NativeExecutable;
     ExecutableFormat format = ExecutableFormat::ELF;
-    TargetType target;
-    TargetArch arch;
+    TargetType target = TargetType::Linux;
+    TargetArch arch = TargetArch::X64;
     TargetExtensions extensions;
 
     FramePointerMode framePointer = FramePointerMode::Needed;
