@@ -2703,6 +2703,8 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 case NativeOp::HostCall:
                 case NativeOp::HostField:
                 case NativeOp::HostArray:
+                case NativeOp::HostBinary:
+                case NativeOp::HostGlobalCall:
                 case NativeOp::HostThrow:
                     /*
                      * Unreachable by construction - Implementation-Containers.md §14.1.

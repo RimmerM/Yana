@@ -45,6 +45,38 @@
 
 namespace {
 
+// Whether the block at this index is one the loop contains. Out of range is outside: `contains` is
+// sized when the loop is found, and a block appended afterwards is one no loop knows about.
+static bool insideLoop(Loop& loop, U32 index) {
+    return index < loop.contains.size() && loop.contains[index];
+}
+
+/*
+ * Whether a value is computed inside the loop.
+ *
+ * A constant is not, whatever block it names. One belongs to no block's instruction list - see
+ * `eachFunctionValue` in opt.cpp - and `makeConstant` gives it the block of whatever it was built
+ * for, so a folded constant inside a loop would otherwise look like a definition there and pin
+ * everything that reads it. Asked through `isConstant` rather than by listing the four kinds, which
+ * is the same list inst.def already holds.
+ *
+ * An argument is not either, for the same reason with a different cause: its block is the entry,
+ * which no loop contains.
+ *
+ * Both passes in this file ask it, and of the same value graph - the hoister to decide what may
+ * move out and the killer to decide what a dead loop still owes. Two spellings of it is one of them
+ * learning about a new kind of definition and the other not.
+ */
+static bool definedInLoop(OptContext& opt, Loop& loop, ModulePtr<Value> value) {
+    if(!value) return false;
+
+    auto& definition = *opt.local[value];
+    if(isConstant(definition) || definition.kind == Value::Arg) return false;
+    if(!definition.block) return false;
+
+    return insideLoop(loop, opt.local[definition.block]->index);
+}
+
 struct Hoister {
     OptContext& opt;
     Dominance& dominance;
@@ -55,34 +87,7 @@ struct Hoister {
     bool anyClobber = false;
     Array<Place> written;
 
-    /*
-     * Whether a value is computed inside the loop.
-     *
-     * A constant is not, whatever block it names. One belongs to no block's instruction list - see
-     * `eachFunctionValue` in opt.cpp - and `makeConstant` gives it the block of whatever it was
-     * built for, so a folded constant inside a loop would otherwise look like a definition there and
-     * pin everything that reads it.
-     *
-     * An argument is not either, for the same reason with a different cause: its block is the entry,
-     * which no loop contains.
-     */
-    bool definedIn(Loop& loop, ModulePtr<Value> value) {
-        if(!value) return false;
-
-        auto& definition = *opt.local[value];
-        switch(definition.kind) {
-            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::ConstString: case Value::Arg:
-                return false;
-            default:
-                break;
-        }
-
-        if(!definition.block) return false;
-
-        auto index = opt.local[definition.block]->index;
-        return index < loop.contains.size() && loop.contains[index];
-    }
+    bool definedIn(Loop& loop, ModulePtr<Value> value) { return definedInLoop(opt, loop, value); }
 
     bool operandsOutside(Loop& loop, Value& instruction) {
         auto outside = true;
@@ -353,27 +358,9 @@ struct LoopKiller {
     OptContext& opt;
     Dominance& dominance;
 
-    bool inside(Loop& loop, U32 index) {
-        return index < loop.contains.size() && loop.contains[index];
-    }
+    bool inside(Loop& loop, U32 index) { return insideLoop(loop, index); }
 
-    // Where a value is computed, on the same terms `Hoister::definedIn` reads it: a constant belongs
-    // to no block whatever block it names, and an argument's block is the entry.
-    bool definedInside(Loop& loop, ModulePtr<Value> value) {
-        if(!value) return false;
-
-        auto& definition = *opt.local[value];
-        switch(definition.kind) {
-            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::ConstString: case Value::Arg:
-                return false;
-            default:
-                break;
-        }
-
-        if(!definition.block) return false;
-        return inside(loop, opt.local[definition.block]->index);
-    }
+    bool definedInside(Loop& loop, ModulePtr<Value> value) { return definedInLoop(opt, loop, value); }
 
     bool usedOutside(Loop& loop, ModulePtr<Value> value) {
         auto reader = opt.local[value];

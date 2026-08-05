@@ -206,18 +206,17 @@ static void printValue(ResolvePrint& print, Value& value) {
     }
 }
 
+/*
+ * What one instruction is called in the dump.
+ *
+ * The name of a *kind* is inst.def's, which is what this used to spell out one `return` per opcode.
+ * What is left is the five that refine it from their own fields, and each of them refines it for the
+ * same reason: the distinction is one a reader of the dump is meant to be able to make, and the
+ * fields it comes out of are not printed anywhere else.
+ */
 static StringView instructionName(Value& value, GlobalBase global) {
     switch(value.kind) {
-        case Value::Alloc: return "alloc"_v;
-        case Value::LoadPlace: return "load"_v;
-        case Value::Init: return "init"_v;
-        case Value::Assign: return "assign"_v;
-        case Value::Aggregate: return "aggregate"_v;
         case Value::Borrow: return ((InstBorrow&)value).mut ? "borrow_mut"_v : "borrow"_v;
-        case Value::Move: return "move"_v;
-        case Value::Swap: return "swap"_v;
-        case Value::Exchange: return "exchange"_v;
-        case Value::Copy: return "copy"_v;
         case Value::Drop:
             // Named after what it actually runs. A teardown with an authored half on either side is
             // opaque to region placement, so telling the two apart in the dump is telling apart the
@@ -228,15 +227,13 @@ static StringView instructionName(Value& value, GlobalBase global) {
             }
 
             return "drop_derived"_v;
-        case Value::Address: return "addressof"_v;
         case Value::TypeMetric:
             switch(((InstTypeMetric&)value).metric) {
                 case TypeMetricKind::Size: return "sizeof"_v;
                 case TypeMetricKind::Align: return "alignof"_v;
                 case TypeMetricKind::Stride: return "strideof"_v;
             }
-
-            return "sizeof"_v;
+            break;
         case Value::Native:
             switch(((InstNative&)value).op) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
@@ -245,23 +242,12 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::HostCall: return "hostcall"_v;
                 case NativeOp::HostField: return "hostfield"_v;
                 case NativeOp::HostArray: return "hostarray"_v;
+                case NativeOp::HostBinary: return "hostbinary"_v;
+                case NativeOp::HostGlobalCall: return "hostglobalcall"_v;
+                case NativeOp::HostThrow: return "hostthrow"_v;
             }
             break;
-        case Value::Cast: return "cast"_v;
-        case Value::Neg: return "neg"_v;
-        case Value::Not: return "not"_v;
-        case Value::Add: return "add"_v;
-        case Value::Sub: return "sub"_v;
-        case Value::Mul: return "mul"_v;
-        case Value::Div: return "div"_v;
-        case Value::Rem: return "rem"_v;
-        case Value::Shl: return "shl"_v;
-        case Value::Shr: return "shr"_v;
-        case Value::Sar: return "sar"_v;
-        case Value::And: return "and"_v;
-        case Value::Or: return "or"_v;
-        case Value::Xor: return "xor"_v;
-        case Value::Cmp: {
+        case Value::Cmp:
             switch(((InstCmp&)value).cmp) {
                 case CompareOp::Eq: return "cmp_eq"_v;
                 case CompareOp::Ne: return "cmp_ne"_v;
@@ -271,19 +257,11 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case CompareOp::Le: return "cmp_le"_v;
             }
             break;
-        }
-        case Value::Select: return "select"_v;
-        case Value::Symbol: return "symbol"_v;
-        case Value::Call: return "call"_v;
-        case Value::CallDyn: return "calldyn"_v;
-        case Value::GenCall: return "gencall"_v;
-        case Value::Je: return "je"_v;
-        case Value::Jmp: return "jmp"_v;
-        case Value::Ret: return "ret"_v;
-        case Value::Phi: return "phi"_v;
-        default: break;
+        default:
+            break;
     }
-    return "<invalid>"_v;
+
+    return instructionMnemonic(value.kind);
 }
 
 static void printBlockRef(ResolvePrint& print, Block& block) {
@@ -294,7 +272,10 @@ static void printBlockRef(ResolvePrint& print, Block& block) {
 static void printInstruction(ResolvePrint& print, Inst& inst) {
     print.writer.writeString("    "_v);
 
-    auto produces = !isTerminator(inst) && !isUnit(print.global, inst.type);
+    // Whether there is a name to print on the left. The kind decides whether there is a result at
+    // all - a store, a drop and the three terminators define nothing - and the type decides whether
+    // one that exists is worth naming, since a call may still answer unit.
+    auto produces = producesValue(inst) && !isUnit(print.global, inst.type);
     if(produces) {
         printValue(print, inst);
         print.writer.writeString(" = "_v);

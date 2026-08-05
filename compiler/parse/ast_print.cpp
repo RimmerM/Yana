@@ -1049,6 +1049,10 @@ private:
         }
 
         switch(pat.kind) {
+            // Handled above: a literal pattern's kind is `Lit` plus the literal's own, so every one
+            // of them is greater than or equal to this and none reaches here.
+            case Pat::Lit:
+                break;
             case Pat::Error:
                 stream.writeString("<parse error>"_v);
                 break;

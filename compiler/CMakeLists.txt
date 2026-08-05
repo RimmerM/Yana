@@ -33,6 +33,7 @@ add_library(YanaParse ${PARSE_SOURCE_FILES})
 target_link_libraries(YanaParse PUBLIC YanaCore)
 
 set(RESOLVE_SOURCE_FILES
+    resolve/inst.def
     resolve/inst.h
     resolve/inst.cpp
     resolve/block.h

@@ -1,0 +1,84 @@
+/*
+ * The roster of resolve-IR instructions - one row per `Value::Kind`, and the only place a kind is
+ * written down.
+ *
+ * `Value::Kind` itself is generated from this file, which is what makes the rows and the enumerators
+ * one list rather than two that agree: a kind cannot be added without a row, and a row cannot be
+ * added without the four things below being decided for it. Everything that used to be a switch over
+ * every opcode to say one thing about each - the mnemonic, whether it ends a block, whether it may be
+ * recomputed - is a column here instead.
+ *
+ * What is *not* here is anything an instruction says with its own fields. The places it names, the
+ * operands it reads, the ownership it hands over and the blocks it jumps to are declared beside those
+ * fields, as the trait members `Value` gives defaults for (see inst.h) - because a column listing
+ * field names would be a second spelling of the struct, and the one thing worth guaranteeing is that
+ * an instruction's answer lives next to what it is an answer about.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `Value::Kind` enumerator, and the order of these rows is the order of that enum.
+ *  - `Struct` is the concrete type a `Value` of that kind may be cast to. Several kinds share one -
+ *    `Init` and `Assign` are one instruction with two meanings, and the twelve arithmetic kinds are
+ *    one `InstBinary` - which is why the column exists at all: `visitInstruction` is what turns a
+ *    kind into that type, and it is generated from here.
+ *  - `mnemonic` is what the IR dump prints. Five kinds refine it from their own fields (a mutable
+ *    borrow, a derived drop, the metric, the native operation, the comparison); the refinement is in
+ *    print.cpp, and what is here is the base name.
+ *  - `flags` is the four-bit answer to the questions a pass asks about a kind rather than about an
+ *    instruction:
+ *      - `kInstResult` - defines a value another instruction may name. Its absence is checkable, and
+ *        `verifyFunction` checks it: nothing may read a store, a drop or a terminator.
+ *      - `kInstConstant` - a value that belongs to no block, materialized per function on demand.
+ *      - `kInstPure` - may be computed again, or not computed at all. Left off everything whose
+ *        absence is a decision an earlier pass took, everything that reads storage someone else may
+ *        be writing, and every call.
+ *      - `kInstTerminator` - ends its block. The edges it makes are declared as successor slots.
+ */
+
+//        kind          struct           mnemonic         flags
+YANA_INST(Arg,          Arg,             "arg"_v,         kInstResult)
+YANA_INST(ConstInt,     ConstInt,        "int"_v,         kInstResult | kInstConstant | kInstPure)
+YANA_INST(ConstFloat,   ConstFloat,      "float"_v,       kInstResult | kInstConstant | kInstPure)
+YANA_INST(ConstDouble,  ConstDouble,     "double"_v,      kInstResult | kInstConstant | kInstPure)
+YANA_INST(ConstString,  ConstString,     "string"_v,      kInstResult | kInstConstant | kInstPure)
+YANA_INST(Alloc,        InstAlloc,       "alloc"_v,       kInstResult)
+YANA_INST(LoadPlace,    InstLoadPlace,   "load"_v,        kInstResult)
+YANA_INST(Init,         InstInit,        "init"_v,        0)
+YANA_INST(Assign,       InstInit,        "assign"_v,      0)
+YANA_INST(Aggregate,    InstAggregate,   "aggregate"_v,   0)
+YANA_INST(Borrow,       InstBorrow,      "borrow"_v,      kInstResult)
+YANA_INST(Move,         InstMove,        "move"_v,        kInstResult)
+YANA_INST(Swap,         InstSwap,        "swap"_v,        0)
+YANA_INST(Exchange,     InstExchange,    "exchange"_v,    kInstResult)
+YANA_INST(Copy,         InstCopy,        "copy"_v,        kInstResult)
+YANA_INST(Drop,         InstDrop,        "drop"_v,        0)
+YANA_INST(Address,      InstAddress,     "addressof"_v,   kInstResult)
+YANA_INST(TypeMetric,   InstTypeMetric,  "sizeof"_v,      kInstResult | kInstPure)
+YANA_INST(Native,       InstNative,      "native"_v,      kInstResult)
+YANA_INST(Cast,         InstUnary,       "cast"_v,        kInstResult | kInstPure)
+YANA_INST(Neg,          InstUnary,       "neg"_v,         kInstResult | kInstPure)
+YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPure)
+YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
+YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
+YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)
+YANA_INST(Div,          InstBinary,      "div"_v,         kInstResult | kInstPure)
+YANA_INST(Rem,          InstBinary,      "rem"_v,         kInstResult | kInstPure)
+YANA_INST(Shl,          InstBinary,      "shl"_v,         kInstResult | kInstPure)
+YANA_INST(Shr,          InstBinary,      "shr"_v,         kInstResult | kInstPure)
+YANA_INST(Sar,          InstBinary,      "sar"_v,         kInstResult | kInstPure)
+YANA_INST(And,          InstBinary,      "and"_v,         kInstResult | kInstPure)
+YANA_INST(Or,           InstBinary,      "or"_v,          kInstResult | kInstPure)
+YANA_INST(Xor,          InstBinary,      "xor"_v,         kInstResult | kInstPure)
+YANA_INST(Cmp,          InstCmp,         "cmp"_v,         kInstResult | kInstPure)
+// Pure because both of its arms are: a select is only ever built out of values that may be computed
+// unconditionally, so there is nothing in one that recomputing could repeat and nothing that not
+// computing it could skip. See convertSelects, which is where that holds.
+YANA_INST(Select,       InstSelect,      "select"_v,      kInstResult | kInstPure)
+YANA_INST(Symbol,       InstSymbol,      "symbol"_v,      kInstResult | kInstPure)
+YANA_INST(Call,         InstCall,        "call"_v,        kInstResult)
+YANA_INST(CallDyn,      InstCallDyn,     "calldyn"_v,     kInstResult)
+YANA_INST(GenCall,      InstGenCall,     "gencall"_v,     kInstResult)
+YANA_INST(Je,           InstJe,          "je"_v,          kInstTerminator)
+YANA_INST(Jmp,          InstJmp,         "jmp"_v,         kInstTerminator)
+YANA_INST(Ret,          InstRet,         "ret"_v,         kInstTerminator)
+YANA_INST(Phi,          InstPhi,         "phi"_v,         kInstResult)

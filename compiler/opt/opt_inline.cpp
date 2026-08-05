@@ -942,17 +942,10 @@ struct Inliner {
     }
 
     // A value the caller handed over as a literal, which is what every rule below means by a
-    // constant argument. Deliberately not `constantValueOf`: this asks whether the folder will have
-    // something to work with, not what the number is.
-    static bool isLiteral(const Value& value) {
-        switch(value.kind) {
-            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::ConstString:
-                return true;
-            default:
-                return false;
-        }
-    }
+    // constant argument. `isConstant` is the same question the IR already answers - see inst.def -
+    // and it is deliberately not `constantValueOf`: this asks whether the folder will have something
+    // to work with, not what the number is.
+    static bool isLiteral(const Value& value) { return isConstant(value); }
 
     /*
      * Whether one value in the callee is already settled by this call site: a literal, an argument
@@ -974,13 +967,12 @@ struct Inliner {
         *decided.add(U32(value)).value = 0;
 
         auto& instruction = *opt.local[value];
-        auto answer = false;
 
-        switch(instruction.kind) {
-            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::ConstString:
-                answer = true;
-                break;
+        // A literal is settled with nothing to walk. Asked here rather than as arms of the switch
+        // below, so that what counts as one stays the single answer `isLiteral` gives.
+        auto answer = isLiteral(instruction);
+
+        if(!answer) switch(instruction.kind) {
             case Value::Cast: case Value::Neg: case Value::Not:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:

@@ -86,34 +86,6 @@ inline void eachRootValue(OptContext& opt, Value& instruction, F&& f) {
 }
 
 /*
- * Whether this value is one the optimizer may compute again, or not compute at all.
- *
- * The list is short on purpose, and every kind left out of it is left out for a reason rather than
- * from caution: the ownership instructions are the decisions the analyses already took, the calls
- * do whatever their callee does, and `LoadPlace` reads storage that something else may be writing -
- * which is a question about aliasing rather than about the instruction, and is what the place
- * forwarding pass exists to answer.
- */
-inline bool isPureValue(const Value& value) {
-    switch(value.kind) {
-        case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-        case Value::ConstString:
-        case Value::Cast: case Value::Neg: case Value::Not:
-        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
-        case Value::Shl: case Value::Shr: case Value::Sar:
-        case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
-        // Pure because both of its operands are: a select is only ever built out of values that may
-        // be computed unconditionally, so there is nothing in one that recomputing could repeat and
-        // nothing that not computing it could skip. See convertSelects, which is where that holds.
-        case Value::Select:
-        case Value::Symbol: case Value::TypeMetric:
-            return true;
-        default:
-            return false;
-    }
-}
-
-/*
  * Whether a call is one of the checks the compiler inserted - see Program::checkCondition.
  *
  * Recognized by the callee rather than by its name, for the reason the pointer is recorded on the

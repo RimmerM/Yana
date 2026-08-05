@@ -286,24 +286,26 @@ void Verifier::verifyControlFlow() {
 
         auto terminator = local[block->terminator()];
 
-        // What the terminator says, against what the block's own edge list says. They are written
-        // together by `IrEditor::append` and repointed separately by everything else.
-        if(terminator->kind == Value::Je) {
-            auto& branch = (InstJe&)*terminator;
+        /*
+         * What the terminator says, against what the block's own edge list says. They are written
+         * together by `IrEditor::append` and repointed separately by everything else.
+         *
+         * Per slot rather than per kind: the arms are the terminator's own (see
+         * instructionSuccessorSlots) and a block's outgoing slots are the same list by ordinal, so
+         * this checks a terminator added to the IR without being told anything about it. The slots
+         * an instruction does not use are null on both sides, which is what makes "returns and has
+         * successors" the same comparison as the other two rather than a case of its own.
+         */
+        ModulePtr<Block>* arms[kMaxSuccessors];
+        auto armCount = instructionSuccessorSlots(*terminator, arms);
 
-            if(block->successor(0) != branch.thenBlock || block->successor(1) != branch.elseBlock) {
-                fail(terminator->source, "block %@ branches somewhere its successor list does not name"_v,
-                     U32(b));
-            }
-        } else if(terminator->kind == Value::Jmp) {
-            auto& jump = (InstJmp&)*terminator;
+        for(Size arm = 0; arm < kMaxSuccessors; arm++) {
+            auto named = arm < armCount ? *arms[arm] : nullptr;
+            if(block->successor(arm) == named) continue;
 
-            if(block->successor(0) != jump.target || block->successor(1)) {
-                fail(terminator->source, "block %@ jumps somewhere its successor list does not name"_v,
-                     U32(b));
-            }
-        } else if(block->successor(0) || block->successor(1)) {
-            fail(terminator->source, "block %@ returns and has successors"_v, U32(b));
+            fail(terminator->source, "block %@'s %@ leaves somewhere its successor list does not name"_v,
+                 U32(b), instructionMnemonic(terminator->kind));
+            break;
         }
 
         for(auto outgoing: block->successors()) {
@@ -401,6 +403,21 @@ void Verifier::verifyOperands() {
         // whatever the bucket held.
         auto entry = operandCounts.add(U32(operand));
         *entry.value = entry.existed ? *entry.value + 1 : 1;
+
+        /*
+         * The kind's own claim about itself, checked - see `producesValue`, and inst.def where each
+         * kind makes it.
+         *
+         * A store, an aggregate, a drop, a swap and the three terminators define nothing, so an
+         * operand naming one is a read of something that was never a value. It is worth a check of
+         * its own rather than being left to the dominance rules below, which every one of them would
+         * pass: they are ordinary instructions in ordinary blocks, and what is wrong is that the
+         * reader believes they hand something back.
+         */
+        if(!producesValue(*local[operand])) {
+            fail(user.source, "%%@ names %%@, which produces no value"_v, user.id, idOf(operand));
+            return;
+        }
 
         if(isConstant(*local[operand])) return;
 

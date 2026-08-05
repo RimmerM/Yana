@@ -266,55 +266,78 @@ struct Place {
     ModuleList<Projection, false> projections;
 };
 
+/*
+ * What a pass may ask about a *kind* rather than about an instruction - see inst.def, where the
+ * answer for each kind is a column.
+ *
+ * Each of these used to be a switch of its own somewhere, and the cost of that is not the lines: a
+ * kind added to the IR is silently absent from every one it does not reach, and "absent" reads as
+ * `false` in all four - not a terminator, not a constant, not pure, no result. Three of those are
+ * the safe answer and one is not.
+ */
+static constexpr U8 kInstResult = 1 << 0;
+static constexpr U8 kInstConstant = 1 << 1;
+static constexpr U8 kInstPure = 1 << 2;
+static constexpr U8 kInstTerminator = 1 << 3;
+
+struct InstructionTraits {
+    StringView mnemonic;
+    U8 flags;
+};
+
+// Indexed by `Value::Kind`, in the order inst.def lists them - which is the order the enum is
+// generated in, so the two cannot come apart.
+extern const InstructionTraits kInstructionTraits[];
+
 struct Value {
     enum Kind: U8 {
-        Arg,
-        ConstInt,
-        ConstFloat,
-        ConstDouble,
-        ConstString,
-        Alloc,
-        LoadPlace,
-        Init,
-        Assign,
-        Aggregate,
-        Borrow,
-        Move,
-        Swap,
-        Exchange,
-        Copy,
-        Drop,
-        Address,
-        TypeMetric,
-        Native,
-        Cast,
-        Neg,
-        Not,
-        Add,
-        Sub,
-        Mul,
-        Div,
-        Rem,
-        Shl,
-        Shr,
-        Sar,
-        And,
-        Or,
-        Xor,
-        Cmp,
-        Select,
-        Symbol,
-        Call,
-        CallDyn,
-        GenCall,
-        Je,
-        Jmp,
-        Ret,
-        Phi,
+#define YANA_INST(kind, Struct, mnemonic, flags) kind,
+#include "inst.def"
+#undef YANA_INST
     };
+
+    // The number of kinds, which is what the traits table is checked against - see inst.cpp.
+    static constexpr Size kKindCount =
+#define YANA_INST(kind, Struct, mnemonic, flags) + 1
+#include "inst.def"
+#undef YANA_INST
+    ;
 
     Value(Kind kind, ModulePtr<Block> block, TypePtr type):
         block(block), type(type), kind(kind) {}
+
+    /*
+     * ## The instruction traits, as the answers an instruction that has none inherits
+     *
+     * Four questions every walk over the IR asks, and the four things a kind added to the IR has to
+     * say about itself. They are declared here so that "this instruction names no places" and "this
+     * instruction reads no operands" are what a struct means by saying nothing, and overridden - by
+     * plain hiding, since none of this is virtual - beside the fields each one is about.
+     *
+     * The point is that a *consumer* never writes a switch over kinds to ask any of them.
+     * `visitInstruction` turns a kind into its concrete type once, from inst.def, and everything
+     * below is one loop over whatever that type declares. Adding an instruction that names a place
+     * therefore reaches every pass that walks places, rather than the ones whose switch was updated.
+     *
+     *  - `kPlaceCount` / `placeAt` are the storage this instruction names. The slot is handed out
+     *    rather than a copy, so that the reader and the rewriter are one declaration - see
+     *    `instructionPlaces`, which is `instructionPlaceSlots` dereferenced.
+     *  - `mapOperandFields` is the values it reads, in the order `IrEditor::append` records uses in,
+     *    each replaced by what `f` answers. The places are walked for the caller, so this is only
+     *    what is left.
+     *  - `eachTransferField` is the operands it hands ownership *out* through, which is a strict
+     *    subset of the above and is spelled separately for that reason - see `eachTransferOperand`.
+     *  - `kSuccessorCount` / `successorAt` are the edges a terminator makes, as slots for the same
+     *    reason the places are.
+     */
+    static constexpr Size kPlaceCount = 0;
+    static constexpr Size kSuccessorCount = 0;
+
+    Place* placeAt(Size) { return nullptr; }
+    ModulePtr<Block>* successorAt(Size) { return nullptr; }
+
+    template<class F> void mapOperandFields(ModuleBase, F&&) {}
+    template<class F> void eachTransferField(ModuleBase, F&&) {}
 
     /*
      * Everything that reads this value, one entry per naming - an instruction that reads it twice is
@@ -358,6 +381,13 @@ private:
 
     ModuleList<ModulePtr<Inst>, false> useList;
 };
+
+// A flat operand list, mapped in place - the argument list of the three calls and of a native
+// operation. Written once here because a list is the one operand shape more than one instruction has.
+template<class F>
+inline void mapValueList(ModuleBase base, ModuleList<ModulePtr<Value>, false>& values, F&& f) {
+    for(Size i = 0; i < values.size(); i++) values.set(base, i, f(values.get(base, i)));
+}
 
 /*
  * One function parameter.
@@ -520,6 +550,29 @@ struct InstAlloc: Inst {
     // decision is spent in. The frame that makes the decision is not the one that acts on it, so it
     // is written where the *closure's* teardown will find it - see ClosureHeaderLayout.
     ModulePtr<Function> closure = nullptr;
+
+    /*
+     * How many slots a run holds - `extent`, which every walk here had been blind to.
+     *
+     * It is an operand in every sense that matters: `IrEditor::append` records it as a use, and a
+     * rewrite that renumbers values has to renumber it. Leaving it out meant the dead-value pass saw
+     * the instruction computing it with no users and deleted it, and the allocation was then left
+     * naming a value no block defined - which lowering reports as "resolve value was used before it
+     * was lowered".
+     *
+     * The reason nothing caught it is that every run until now got its extent from an array literal,
+     * where the count is a `ConstInt`. A constant belongs to no block and is materialized per
+     * function on demand, so it cannot be deleted and needs no remapping - the hole was real from the
+     * day `extent` was added and unreachable until something passed a *computed* count.
+     * `newStringOfCapacity` is the first thing that does.
+     *
+     * `storageFlag` is deliberately not here for exactly that reason: it is always the constant the
+     * escape analysis patched, so it is never in a block and never at risk. Adding it would be
+     * describing a use that does not exist.
+     */
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        if(extent) extent = f(extent);
+    }
 };
 
 struct InstLoadPlace: Inst {
@@ -527,6 +580,9 @@ struct InstLoadPlace: Inst {
         Inst(Value::LoadPlace, block, type), place(place) {}
 
     Place place;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 /*
@@ -548,6 +604,12 @@ struct InstInit: Inst {
 
     Place place;
     ModulePtr<Value> value;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { value = f(value); }
+    template<class F> void eachTransferField(ModuleBase, F&& f) { f(value, source); }
 };
 
 /*
@@ -637,6 +699,39 @@ struct InstAggregate: Inst {
     U16 constructor = maxLimit<U16>;
 
     ModuleList<AggregateComponent, false> components;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
+
+    /*
+     * The components going into the aggregate. The root travels through the place walk above; these
+     * are the values, and each is a hand-over rather than a read - see deriveEffects. A step carries
+     * a value only in the indexed form, and `f` is asked nothing about a null one for the same reason
+     * the place walk skips those.
+     */
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) {
+        for(Size i = 0; i < components.size(); i++) {
+            auto component = components.get(base, i);
+
+            component.value = f(component.value);
+            if(component.step.value) component.step.value = f(component.step.value);
+
+            components.set(base, i, component);
+        }
+    }
+
+    /*
+     * Every component, which is this instruction's whole exception to the ownership model - see the
+     * header above.
+     *
+     * Missing this let a construction alias droppable storage. `Just(v)` for a `v` this frame only
+     * borrows, and `Pair {a: p.x, b: p.y}` for owned fields of a value that still owns them, both
+     * stopped being reported - which is a double drop rather than a lost diagnostic. The instruction
+     * says it is a hand-over in three other walks and this is the one that checks it.
+     */
+    template<class F> void eachTransferField(ModuleBase base, F&& f) {
+        for(Size i = 0; i < components.size(); i++) f(components.get(base, i).value, source);
+    }
 };
 
 /*
@@ -694,9 +789,9 @@ inline void eachAggregateComponent(ModuleBase base, const InstAggregate& aggrega
  * ownership check was written without a walk at all and did not visit the components, which let
  * `Just(v)` alias a borrowed `v` and eventually drop it twice.
  *
- * Neither walk protects against forgetting the opcode entirely, and neither can - that is what
- * instruction traits are for. What they remove is the second mistake: visiting the components and
- * expanding them to the wrong places.
+ * Neither walk protects against forgetting the opcode entirely, and neither can - that is what the
+ * traits below the struct are for, and inst.def behind them. What they remove is the second mistake:
+ * visiting the components and expanding them to the wrong places.
  *
  * `at` is passed as well, for the one consumer that needs to name a component again afterwards -
  * `foldIntoAggregate` in opt_place.cpp rewrites the value in place.
@@ -729,6 +824,9 @@ struct InstBorrow: Inst {
 
     // Exclusive while live. An immutable borrow coexists with any number of others.
     bool mut;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 /*
@@ -753,6 +851,9 @@ struct InstMove: Inst {
     // type has one, and the generated member-wise glue where a member has one. Null for a
     // TrivialSink type, whose relocation is its bytes - see sinkFor.
     ModulePtr<Function> sink = nullptr;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 /*
@@ -789,6 +890,10 @@ struct InstSwap: Inst {
     // relocation, and the authored or generated `Sink` otherwise. One field for what lowering
     // performs three times.
     ModulePtr<Function> sink = nullptr;
+
+    // The only instruction in the IR that names two places, which is what fixes `kMaxPlaces` at two.
+    static constexpr Size kPlaceCount = 2;
+    Place* placeAt(Size index) { return index == 0 ? &a : &b; }
 };
 
 /*
@@ -817,6 +922,12 @@ struct InstExchange: Inst {
     // its own, and for a memory type that root has to be somewhere. maxLimit for a scalar, which
     // comes out in a register.
     U32 local = maxLimit<U32>;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { value = f(value); }
+    template<class F> void eachTransferField(ModuleBase, F&& f) { f(value, source); }
 };
 
 /*
@@ -836,6 +947,9 @@ struct InstCopy: Inst {
     // gets. The local is the storage the duplicate lands in, as a call result's is.
     ModulePtr<Function> copy = nullptr;
     U32 local = maxLimit<U32>;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 /*
@@ -883,6 +997,9 @@ struct InstDrop: Inst {
     bool releaseStorage = false;
 
     bool isEmpty() const { return !drop && !reclaim && !releaseStorage; }
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 // The address of a place, as a raw pointer. This is what `addressOf` compiles to, and it is the
@@ -894,6 +1011,9 @@ struct InstAddress: Inst {
         Inst(Value::Address, block, type), place(place) {}
 
     Place place;
+
+    static constexpr Size kPlaceCount = 1;
+    Place* placeAt(Size) { return &place; }
 };
 
 /*
@@ -1035,6 +1155,8 @@ struct InstNative: Inst {
     StringId method;
 
     NativeOp op;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
 };
 
 struct InstUnary: Inst {
@@ -1042,6 +1164,8 @@ struct InstUnary: Inst {
         Inst(kind, block, type), from(from) {}
 
     ModulePtr<Value> from;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
 };
 
 struct InstBinary: Inst {
@@ -1050,6 +1174,11 @@ struct InstBinary: Inst {
 
     ModulePtr<Value> lhs;
     ModulePtr<Value> rhs;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        lhs = f(lhs);
+        rhs = f(rhs);
+    }
 };
 
 enum class CompareOp: U8 {
@@ -1098,6 +1227,12 @@ struct InstSelect: Inst {
     ModulePtr<Value> cond;
     ModulePtr<Value> whenTrue;
     ModulePtr<Value> whenFalse;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        cond = f(cond);
+        whenTrue = f(whenTrue);
+        whenFalse = f(whenFalse);
+    }
 };
 
 /*
@@ -1126,6 +1261,8 @@ struct InstCall: Inst {
     ModulePtr<Function> callee;
     ModuleList<ModulePtr<Value>, false> args;
     U32 local = maxLimit<U32>;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
 };
 
 /*
@@ -1187,6 +1324,12 @@ struct InstCallDyn: Inst {
      * argument has no slot for the provenance to be attributed to.
      */
     bool handover = false;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) {
+        callable = f(callable);
+        address = f(address);
+        mapValueList(base, args, f);
+    }
 };
 
 /*
@@ -1260,6 +1403,8 @@ struct InstGenCall: Inst {
     // has been collected, since adding one renumbers the context.
     U16 classSlot = maxLimit<U16>;
     ModuleList<U32, false> classPath;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
 };
 
 struct InstJe: Inst {
@@ -1270,6 +1415,19 @@ struct InstJe: Inst {
     ModulePtr<Value> cond;
     ModulePtr<Block> thenBlock;
     ModulePtr<Block> elseBlock;
+
+    /*
+     * Two arms, in the order everything that indexes an edge by ordinal means - `Block`'s outgoing
+     * slots, `splitEdge`, the drop pass's loop over the arms that lead to one successor.
+     *
+     * The ordinal is the whole reason these are slots rather than an answer of "the successors":
+     * `je %c, X, X` is legal, so "the edge to X" names two edges, and an operation that resolved the
+     * first arm and both records of it has given two answers to one question.
+     */
+    static constexpr Size kSuccessorCount = 2;
+    ModulePtr<Block>* successorAt(Size index) { return index == 0 ? &thenBlock : &elseBlock; }
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { cond = f(cond); }
 };
 
 struct InstJmp: Inst {
@@ -1277,6 +1435,9 @@ struct InstJmp: Inst {
         Inst(Value::Jmp, block, unit), target(target) {}
 
     ModulePtr<Block> target;
+
+    static constexpr Size kSuccessorCount = 1;
+    ModulePtr<Block>* successorAt(Size) { return &target; }
 };
 
 struct InstRet: Inst {
@@ -1284,6 +1445,9 @@ struct InstRet: Inst {
         Inst(Value::Ret, block, unit), value(value) {}
 
     ModulePtr<Value> value;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { value = f(value); }
+    template<class F> void eachTransferField(ModuleBase, F&& f) { f(value, source); }
 };
 
 struct PhiInput {
@@ -1295,13 +1459,94 @@ struct InstPhi: Inst {
     InstPhi(ModulePtr<Block> block, TypePtr type): Inst(Value::Phi, block, type) {}
 
     ModuleList<PhiInput, false> inputs;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) {
+        for(Size i = 0; i < inputs.size(); i++) {
+            auto input = inputs.get(base, i);
+            input.value = f(input.value);
+            inputs.set(base, i, input);
+        }
+    }
+
+    // Blamed on the phi, because the operand is a value with no instruction of its own to name.
+    template<class F> void eachTransferField(ModuleBase base, F&& f) {
+        for(Size i = 0; i < inputs.size(); i++) f(inputs.get(base, i).value, source);
+    }
 };
 
-bool isTerminator(const Value& value);
-bool isConstant(const Value& value);
+/*
+ * One instruction as the concrete type its kind names - the dispatch every walk below is built on,
+ * and the only place a `Value::Kind` is turned into a struct.
+ *
+ * `f` is called with a reference of that type, so what it does with the traits is resolved
+ * statically: a loop over `kPlaceCount` is a loop over a constant, and an instruction that declares
+ * nothing compiles to nothing at all. Which is what makes this a replacement for the switches rather
+ * than an indirection in front of them - the generated code is the same jump table, and the arms are
+ * whatever `f` is.
+ *
+ * Generated from inst.def, so the case list and the enum are one statement. The trailing call is
+ * unreachable and exists to give the switch a value on every path; a `Value` answers every trait
+ * with the default, which is the harmless answer to a question about a kind that does not exist.
+ */
+template<class F>
+inline decltype(auto) visitInstruction(Value& instruction, F&& f) {
+    switch(instruction.kind) {
+#define YANA_INST(kind, Struct, mnemonic, flags) case Value::kind: return f((Struct&)instruction);
+#include "inst.def"
+#undef YANA_INST
+    }
+
+    return f(instruction);
+}
+
+// What this kind is, as inst.def states it.
+inline const InstructionTraits& instructionTraits(Value::Kind kind) {
+    return kInstructionTraits[kind];
+}
+
+inline StringView instructionMnemonic(Value::Kind kind) {
+    return instructionTraits(kind).mnemonic;
+}
+
+// Ends its block, and makes whatever edges its successor slots name.
+inline bool isTerminator(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstTerminator) != 0;
+}
+
+// Belongs to no block: materialized per function on demand, so it is never deleted and never needs
+// remapping.
+inline bool isConstant(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstConstant) != 0;
+}
 
 /*
- * The places one instruction names.
+ * Whether this value is one the optimizer may compute again, or not compute at all.
+ *
+ * The column is set on few kinds on purpose, and every kind left out is left out for a reason rather
+ * than from caution: the ownership instructions are the decisions the analyses already took, the
+ * calls do whatever their callee does, and `LoadPlace` reads storage that something else may be
+ * writing - which is a question about aliasing rather than about the instruction, and is what the
+ * place forwarding pass exists to answer.
+ */
+inline bool isPureValue(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstPure) != 0;
+}
+
+/*
+ * Whether this instruction defines a value another one may name.
+ *
+ * False for the stores, the drop, the swap and the three terminators, and that is a checkable claim
+ * rather than a description: `verifyFunction` asks it of every operand every instruction names. The
+ * `Aggregate` is the one worth stating - it fills a place and produces nothing, and what looks like
+ * a use of it is a use of the local it writes into, which is attributed to whatever value fills that
+ * slot rather than to this.
+ */
+inline bool producesValue(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstResult) != 0;
+}
+
+/*
+ * The places one instruction names, as storage a transform may write back into.
  *
  * Every pass that walks storage asks this same question - which slots does this instruction touch -
  * and each of them used to answer it with a switch of its own: recording uses when a block is built,
@@ -1310,21 +1555,49 @@ bool isConstant(const Value& value);
  * list, and an instruction added to the IR has to reach all five or the ones it does not reach are
  * silently wrong about it.
  *
- * Writes them into `target` and returns how many. Every instruction here names one place except the
- * swap, which is the only one in the IR that names two - so `target` needs room for kMaxPlaces.
+ * There is one copy now, and it is the instruction's own `placeAt`. A slot rather than a copy
+ * because a rewrite needs the projection the instruction actually holds - a pass replacing the value
+ * an `Index` indexes by cannot use a copy of it - and because the reader below is this dereferenced,
+ * which is what keeps a reader and a rewriter from disagreeing about which places exist.
+ *
+ * Writes them into `target` and returns how many. Every instruction names one place except the swap,
+ * which is the only one in the IR that names two - so `target` needs room for kMaxPlaces.
  */
 static constexpr Size kMaxPlaces = 2;
-Size instructionPlaces(const Value& instruction, Place* target);
+
+inline Size instructionPlaceSlots(Value& instruction, Place** target) {
+    return visitInstruction(instruction, [&](auto& inst) -> Size {
+        for(Size i = 0; i < inst.kPlaceCount; i++) target[i] = inst.placeAt(i);
+        return inst.kPlaceCount;
+    });
+}
+
+// The same list, by value, for the readers - which is most of them.
+inline Size instructionPlaces(const Value& instruction, Place* target) {
+    Place* slots[kMaxPlaces];
+    auto count = instructionPlaceSlots(const_cast<Value&>(instruction), slots);
+
+    for(Size i = 0; i < count; i++) target[i] = *slots[i];
+    return count;
+}
 
 /*
- * The same list, as storage a transform may write back into.
+ * The blocks one terminator jumps to, as slots.
  *
- * `instructionPlaces` answers with copies, which is what every *reader* wants and what a rewrite
- * cannot use - a pass replacing the value a projection indexes by has to reach the projection the
- * instruction actually holds. Kept beside the reader rather than in the pass that needed it first,
- * so that an instruction added to the IR gains both answers in one place or neither.
+ * The three places that write an edge - recording one when a terminator is appended, redirecting
+ * one, and splitting one - each named `InstJe::thenBlock`, `InstJe::elseBlock` and `InstJmp::target`
+ * by hand, which is the same list stated three times and one arm of `je %c, X, X` away from
+ * disagreeing. The ordinal is the contract: slot `i` here is `Block`'s outgoing slot `i`, and a
+ * doubled arm is two slots that happen to hold one block rather than one edge seen twice.
  */
-Size instructionPlaceSlots(Value& instruction, Place** target);
+static constexpr Size kMaxSuccessors = 2;
+
+inline Size instructionSuccessorSlots(Value& instruction, ModulePtr<Block>** target) {
+    return visitInstruction(instruction, [&](auto& inst) -> Size {
+        for(Size i = 0; i < inst.kSuccessorCount; i++) target[i] = inst.successorAt(i);
+        return inst.kSuccessorCount;
+    });
+}
 
 // The same, for a caller that would only have written the loop.
 template<class F>
@@ -1361,41 +1634,7 @@ inline bool firstPlace(const Value& instruction, Place& target) {
  */
 template<class F>
 inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
-    switch(instruction.kind) {
-        case Value::Init:
-        case Value::Assign:
-            f(((InstInit&)instruction).value, instruction.source);
-            break;
-        case Value::Exchange:
-            f(((InstExchange&)instruction).value, instruction.source);
-            break;
-        case Value::Ret:
-            f(((InstRet&)instruction).value, instruction.source);
-            break;
-        case Value::Phi:
-            for(auto input: ((InstPhi&)instruction).inputs.contents(base)) {
-                f(input.value, instruction.source);
-            }
-            break;
-        /*
-         * Every component of a construction - see InstAggregate, whose whole exception to the
-         * ownership model is that its operands *are* hand-overs.
-         *
-         * Missing this let a construction alias droppable storage. `Just(v)` for a `v` this frame
-         * only borrows, and `Pair {a: p.x, b: p.y}` for owned fields of a value that still owns
-         * them, both stopped being reported - which is a double drop rather than a lost diagnostic.
-         * The instruction says it is a hand-over in three other walks and this is the one that
-         * checks it.
-         */
-        case Value::Aggregate:
-            eachAggregateComponent(base, (InstAggregate&)instruction,
-                                   [&](const AggregateComponent& component, Size) {
-                f(component.value, instruction.source);
-            });
-            break;
-        default:
-            break;
-    }
+    visitInstruction(instruction, [&](auto& inst) { inst.eachTransferField(base, f); });
 }
 
 /*
@@ -1417,6 +1656,9 @@ inline void eachTransferOperand(ModuleBase base, Value& instruction, F&& f) {
  */
 template<class F>
 void mapOperands(ModuleBase base, Value& instruction, F&& f) {
+    // The storage half, which is the same for every instruction that names a place: what the place
+    // is rooted in, and the value an `Index` indexes by. What is left below is the operand fields,
+    // which are the instruction's own.
     auto place = [&](Place& p) {
         if(p.root == PlaceRoot::Pointer || p.root == PlaceRoot::Borrow) p.pointer = f(p.pointer);
 
@@ -1429,127 +1671,10 @@ void mapOperands(ModuleBase base, Value& instruction, F&& f) {
         }
     };
 
-    auto list = [&](ModuleList<ModulePtr<Value>, false>& values) {
-        for(Size i = 0; i < values.size(); i++) values.set(base, i, f(values.get(base, i)));
-    };
-
-    Place* places[kMaxPlaces];
-    auto placeCount = instructionPlaceSlots(instruction, places);
-    for(Size i = 0; i < placeCount; i++) place(*places[i]);
-
-    switch(instruction.kind) {
-        /*
-         * How many slots a run holds - InstAlloc::extent, which every pass here had been blind to.
-         *
-         * It is an operand in every sense that matters: `IrEditor::append` records it as a use, and a
-         * rewrite that renumbers values has to renumber it. Leaving it out of this walk meant the
-         * dead-value pass saw the instruction computing it with no users and deleted it, and the
-         * allocation was then left naming a value no block defined - which lowering reports as
-         * "resolve value was used before it was lowered".
-         *
-         * The reason nothing caught it is that every run until now got its extent from an array
-         * literal, where the count is a `ConstInt`. A constant belongs to no block and is
-         * materialized per function on demand, so it cannot be deleted and needs no remapping - the
-         * hole was real from the day `extent` was added and unreachable until something passed a
-         * *computed* count. `newStringOfCapacity` is the first thing that does.
-         *
-         * `storageFlag` is deliberately not here for exactly that reason: it is always the constant
-         * the escape analysis patched, so it is never in a block and never at risk. Adding it would
-         * be describing a use that does not exist.
-         */
-        case Value::Alloc: {
-            auto& allocation = (InstAlloc&)instruction;
-            if(allocation.extent) allocation.extent = f(allocation.extent);
-            break;
-        }
-        case Value::Init:
-        case Value::Assign: {
-            auto& init = (InstInit&)instruction;
-            init.value = f(init.value);
-            break;
-        }
-        case Value::Exchange: {
-            auto& exchange = (InstExchange&)instruction;
-            exchange.value = f(exchange.value);
-            break;
-        }
-        case Value::Native:
-            list(((InstNative&)instruction).args);
-            break;
-        // The aggregate's own root travels through the place walk above; these are the components
-        // going into it, and each is a hand-over rather than a read - see deriveEffects. A step
-        // carries a value only in the indexed form, and `f` is asked nothing about a null one for
-        // the same reason the place walk skips those.
-        case Value::Aggregate: {
-            auto& aggregate = (InstAggregate&)instruction;
-
-            for(Size i = 0; i < aggregate.components.size(); i++) {
-                auto component = aggregate.components.get(base, i);
-
-                component.value = f(component.value);
-                if(component.step.value) component.step.value = f(component.step.value);
-
-                aggregate.components.set(base, i, component);
-            }
-            break;
-        }
-        case Value::Cast:
-        case Value::Neg:
-        case Value::Not: {
-            auto& unary = (InstUnary&)instruction;
-            unary.from = f(unary.from);
-            break;
-        }
-        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
-        case Value::Shl: case Value::Shr: case Value::Sar:
-        case Value::And: case Value::Or: case Value::Xor: case Value::Cmp: {
-            auto& binary = (InstBinary&)instruction;
-            binary.lhs = f(binary.lhs);
-            binary.rhs = f(binary.rhs);
-            break;
-        }
-        case Value::Select: {
-            auto& select = (InstSelect&)instruction;
-            select.cond = f(select.cond);
-            select.whenTrue = f(select.whenTrue);
-            select.whenFalse = f(select.whenFalse);
-            break;
-        }
-        case Value::Call:
-            list(((InstCall&)instruction).args);
-            break;
-        case Value::CallDyn: {
-            auto& call = (InstCallDyn&)instruction;
-            call.callable = f(call.callable);
-            call.address = f(call.address);
-            list(call.args);
-            break;
-        }
-        case Value::GenCall:
-            list(((InstGenCall&)instruction).args);
-            break;
-        case Value::Je: {
-            auto& branch = (InstJe&)instruction;
-            branch.cond = f(branch.cond);
-            break;
-        }
-        case Value::Ret: {
-            auto& ret = (InstRet&)instruction;
-            ret.value = f(ret.value);
-            break;
-        }
-        case Value::Phi: {
-            auto& phi = (InstPhi&)instruction;
-            for(Size i = 0; i < phi.inputs.size(); i++) {
-                auto input = phi.inputs.get(base, i);
-                input.value = f(input.value);
-                phi.inputs.set(base, i, input);
-            }
-            break;
-        }
-        default:
-            break;
-    }
+    visitInstruction(instruction, [&](auto& inst) {
+        for(Size i = 0; i < inst.kPlaceCount; i++) place(*inst.placeAt(i));
+        inst.mapOperandFields(base, f);
+    });
 }
 
 template<class F>

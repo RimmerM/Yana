@@ -204,31 +204,23 @@ void IrEditor::repointLocalValue(ModulePtr<Value> from, ModulePtr<Value> to) {
     }
 }
 
+// The arms this terminator names, by ordinal - see instructionSuccessorSlots, which is where the
+// list they come from is declared. Every slot is filled, so a caller may copy the whole array into
+// `outgoingBlocks` without asking how many there were.
 Size IrEditor::successorsOf(const Value& terminator, ModulePtr<Block>* target) {
-    target[0] = nullptr;
-    target[1] = nullptr;
+    ModulePtr<Block>* slots[kMaxSuccessors];
+    auto count = instructionSuccessorSlots(const_cast<Value&>(terminator), slots);
 
-    if(terminator.kind == Value::Je) {
-        target[0] = ((const InstJe&)terminator).thenBlock;
-        target[1] = ((const InstJe&)terminator).elseBlock;
-        return 2;
-    }
-
-    if(terminator.kind == Value::Jmp) {
-        target[0] = ((const InstJmp&)terminator).target;
-        return 1;
-    }
-
-    return 0;
+    for(Size i = 0; i < kMaxSuccessors; i++) target[i] = i < count ? *slots[i] : nullptr;
+    return count;
 }
 
 void IrEditor::recordEdges(Inst* terminator, ModulePtr<Block> from) {
-    ModulePtr<Block> successors[2];
+    ModulePtr<Block> successors[kMaxSuccessors];
     auto count = successorsOf(*terminator, successors);
     auto block = base[from];
 
-    block->outgoingBlocks[0] = successors[0];
-    block->outgoingBlocks[1] = successors[1];
+    for(Size i = 0; i < kMaxSuccessors; i++) block->outgoingBlocks[i] = successors[i];
 
     for(Size i = 0; i < count; i++) {
         if(successors[i]) base[successors[i]]->incomingList.push(module.arena, from);
@@ -481,12 +473,12 @@ void IrEditor::transferTerminator(Block& from, Block& to) {
     to.terminatorInst = from.terminatorInst;
     if(from.terminatorInst) base[from.terminatorInst]->block = toPointer;
 
-    to.outgoingBlocks[0] = from.outgoingBlocks[0];
-    to.outgoingBlocks[1] = from.outgoingBlocks[1];
+    for(Size i = 0; i < kMaxSuccessors; i++) {
+        to.outgoingBlocks[i] = from.outgoingBlocks[i];
+        from.outgoingBlocks[i] = nullptr;
+    }
 
     from.terminatorInst = nullptr;
-    from.outgoingBlocks[0] = nullptr;
-    from.outgoingBlocks[1] = nullptr;
 
     // Every match rather than one per arm, which is right here and wrong in `splitEdge`: what has
     // changed is the block the edges leave from, so both of a doubled arm's records move together.
@@ -502,8 +494,10 @@ void IrEditor::setTerminator(Block& block, Inst* inst) {
 
     auto blockPointer = (ModulePtr<Block>)(&block - base);
 
-    ModulePtr<Block> before[2] = { block.outgoingBlocks[0], block.outgoingBlocks[1] };
-    ModulePtr<Block> after[2];
+    ModulePtr<Block> before[kMaxSuccessors];
+    ModulePtr<Block> after[kMaxSuccessors];
+
+    for(Size i = 0; i < kMaxSuccessors; i++) before[i] = block.outgoingBlocks[i];
     successorsOf(*inst, after);
 
     if(block.terminatorInst) dropUses(block.terminatorInst);
@@ -513,13 +507,14 @@ void IrEditor::setTerminator(Block& block, Inst* inst) {
      * was recorded about it, which is what makes a fold of `je %c, then, else` to `jmp then` leave
      * `then`'s phi alternatives alone.
      */
-    bool kept[2] = { false, false };
-    bool fresh[2] = { true, true };
+    bool kept[kMaxSuccessors] = {};
+    bool fresh[kMaxSuccessors];
+    for(Size i = 0; i < kMaxSuccessors; i++) fresh[i] = true;
 
-    for(Size i = 0; i < 2; i++) {
+    for(Size i = 0; i < kMaxSuccessors; i++) {
         if(!before[i]) continue;
 
-        for(Size j = 0; j < 2; j++) {
+        for(Size j = 0; j < kMaxSuccessors; j++) {
             if(!after[j] || !fresh[j] || after[j] != before[i]) continue;
 
             kept[i] = true;
@@ -528,16 +523,15 @@ void IrEditor::setTerminator(Block& block, Inst* inst) {
         }
     }
 
-    for(Size i = 0; i < 2; i++) {
+    for(Size i = 0; i < kMaxSuccessors; i++) {
         if(before[i] && !kept[i]) removeEdge(before[i], blockPointer);
     }
 
     block.terminatorInst = (ModulePtr<Inst>)(inst - base);
-    block.outgoingBlocks[0] = after[0];
-    block.outgoingBlocks[1] = after[1];
+    for(Size i = 0; i < kMaxSuccessors; i++) block.outgoingBlocks[i] = after[i];
     inst->block = blockPointer;
 
-    for(Size j = 0; j < 2; j++) {
+    for(Size j = 0; j < kMaxSuccessors; j++) {
         if(after[j] && fresh[j]) base[after[j]]->incomingList.push(module.arena, blockPointer);
     }
 
@@ -550,13 +544,12 @@ void IrEditor::clearTerminator(Block& block) {
 
     if(block.terminatorInst) dropUses(block.terminatorInst);
 
-    for(Size i = 0; i < 2; i++) {
+    for(Size i = 0; i < kMaxSuccessors; i++) {
         if(block.outgoingBlocks[i]) removeEdge(block.outgoingBlocks[i], blockPointer);
+        block.outgoingBlocks[i] = nullptr;
     }
 
     block.terminatorInst = nullptr;
-    block.outgoingBlocks[0] = nullptr;
-    block.outgoingBlocks[1] = nullptr;
 }
 
 Size IrEditor::redirectSuccessor(Block& from, ModulePtr<Block> oldTarget, ModulePtr<Block> newTarget) {
@@ -566,22 +559,19 @@ Size IrEditor::redirectSuccessor(Block& from, ModulePtr<Block> oldTarget, Module
     auto terminator = base[from.terminatorInst];
     Size redirected = 0;
 
-    if(terminator->kind == Value::Jmp) {
-        auto& jump = (InstJmp&)*terminator;
-        if(jump.target != oldTarget) return 0;
+    // Per arm rather than per distinct successor: with `je %c, X, X` both arms lead to `X` and both
+    // are edges, so both move and the count says two.
+    ModulePtr<Block>* slots[kMaxSuccessors];
+    auto count = instructionSuccessorSlots(*terminator, slots);
 
-        jump.target = newTarget;
-        redirected = 1;
-    } else if(terminator->kind == Value::Je) {
-        auto& branch = (InstJe&)*terminator;
+    for(Size i = 0; i < count; i++) {
+        if(*slots[i] != oldTarget) continue;
 
-        if(branch.thenBlock == oldTarget) { branch.thenBlock = newTarget; redirected++; }
-        if(branch.elseBlock == oldTarget) { branch.elseBlock = newTarget; redirected++; }
-
-        if(!redirected) return 0;
-    } else {
-        return 0;
+        *slots[i] = newTarget;
+        redirected++;
     }
+
+    if(!redirected) return 0;
 
     for(auto& outgoing: from.outgoingBlocks) {
         if(outgoing == oldTarget) outgoing = newTarget;
@@ -628,10 +618,10 @@ Block* IrEditor::splitBlock(Block& block, Size index) {
 }
 
 Block* IrEditor::splitEdge(Block& from, Size successor) {
-    // Before the indexing rather than after it. A block has exactly two successor slots, so an
+    // Before the indexing rather than after it. A block has exactly kMaxSuccessors slots, so an
     // ordinal from anywhere else reads past them - and an out-of-bounds read of an arena is a
     // plausible-looking block pointer rather than a crash.
-    assertTrue(successor < 2);
+    assertTrue(successor < kMaxSuccessors);
 
     auto fromPointer = (ModulePtr<Block>)(&from - base);
     auto to = from.outgoingBlocks[successor];
@@ -643,14 +633,10 @@ Block* IrEditor::splitEdge(Block& from, Size successor) {
     split->source = from.terminatorInst ? base[from.terminatorInst]->source : from.source;
 
     // The arm named, and only that one: with `je %c, X, X` the other still leads to `X` and has a
-    // record of its own to keep.
+    // record of its own to keep. Which is what the ordinal buys - the slot is the arm.
     if(auto terminator = from.terminatorInst ? base[from.terminatorInst] : nullptr) {
-        if(terminator->kind == Value::Je) {
-            auto& branch = (InstJe&)*terminator;
-            (successor == 0 ? branch.thenBlock : branch.elseBlock) = splitPointer;
-        } else if(terminator->kind == Value::Jmp) {
-            ((InstJmp&)*terminator).target = splitPointer;
-        }
+        ModulePtr<Block>* slots[kMaxSuccessors];
+        if(successor < instructionSuccessorSlots(*terminator, slots)) *slots[successor] = splitPointer;
     }
 
     from.outgoingBlocks[successor] = splitPointer;
@@ -664,9 +650,11 @@ Block* IrEditor::splitEdge(Block& from, Size successor) {
     retargetEdgeOnce(*base[to], fromPointer, splitPointer);
     split->incomingList.push(module.arena, fromPointer);
 
+    // The edge out of the split, from the jump itself rather than written into slot zero by hand -
+    // `to`'s incoming record was moved above rather than added, which is why this is not `append`.
     auto jump = createInst<InstJmp>(module, function, *split, split->source, 0, module.scalar.unit, to);
     split->terminatorInst = (ModulePtr<Inst>)((Inst*)jump - base);
-    split->outgoingBlocks[0] = to;
+    successorsOf(*jump, split->outgoingBlocks);
 
     return split;
 }

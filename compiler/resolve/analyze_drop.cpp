@@ -496,7 +496,7 @@ static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArr
 
     IrEditor editor(analysis.module, analysis.function);
 
-    for(Size successor = 0; successor < 2; successor++) {
+    for(Size successor = 0; successor < kMaxSuccessors; successor++) {
         if(from->successor(successor) != toPointer) continue;
 
         auto split = editor.splitEdge(*from, successor);

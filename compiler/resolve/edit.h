@@ -386,6 +386,8 @@ private:
     void addUse(ModulePtr<Value> value, Inst* user);
     void addPlaceUse(const Place& place, Inst* user);
     void recordEdges(Inst* terminator, ModulePtr<Block> from);
+    // `target` needs room for kMaxSuccessors, and every slot is written - the arms this terminator
+    // has, and null for the rest, which is exactly what a block's own outgoing slots hold.
     static Size successorsOf(const Value& terminator, ModulePtr<Block>* target);
 
     void markChanged() { if(changed) *changed = true; }

@@ -1,53 +1,26 @@
 #include "module.h"
 
-bool isTerminator(const Value& value) {
-    return value.kind == Value::Je || value.kind == Value::Jmp || value.kind == Value::Ret;
-}
+/*
+ * The instruction table - inst.def, read as data.
+ *
+ * The two static assertions below are the whole of what keeps a row honest, and they are the reason
+ * the buffers everything else passes around can be fixed-size arrays: a kind that named three places
+ * would overrun `kMaxPlaces` at every one of the dozen call sites rather than fail here.
+ */
+const InstructionTraits kInstructionTraits[] = {
+#define YANA_INST(kind, Struct, mnemonic, flags) InstructionTraits { mnemonic, flags },
+#include "inst.def"
+#undef YANA_INST
+};
 
-bool isConstant(const Value& value) {
-    return value.kind == Value::ConstInt || value.kind == Value::ConstFloat ||
-           value.kind == Value::ConstDouble || value.kind == Value::ConstString;
-}
+static_assert(sizeof(kInstructionTraits) / sizeof(InstructionTraits) == Value::kKindCount,
+              "every Value::Kind has exactly one row in inst.def");
 
-Size instructionPlaces(const Value& instruction, Place* target) {
-    switch(instruction.kind) {
-        case Value::LoadPlace: target[0] = ((const InstLoadPlace&)instruction).place; return 1;
-        case Value::Init:
-        case Value::Assign: target[0] = ((const InstInit&)instruction).place; return 1;
-        case Value::Aggregate: target[0] = ((const InstAggregate&)instruction).place; return 1;
-        case Value::Borrow: target[0] = ((const InstBorrow&)instruction).place; return 1;
-        case Value::Move: target[0] = ((const InstMove&)instruction).place; return 1;
-        case Value::Copy: target[0] = ((const InstCopy&)instruction).place; return 1;
-        case Value::Drop: target[0] = ((const InstDrop&)instruction).place; return 1;
-        case Value::Address: target[0] = ((const InstAddress&)instruction).place; return 1;
-        case Value::Exchange: target[0] = ((const InstExchange&)instruction).place; return 1;
-        case Value::Swap:
-            target[0] = ((const InstSwap&)instruction).a;
-            target[1] = ((const InstSwap&)instruction).b;
-            return 2;
-        default: return 0;
-    }
-}
-
-Size instructionPlaceSlots(Value& instruction, Place** target) {
-    switch(instruction.kind) {
-        case Value::LoadPlace: target[0] = &((InstLoadPlace&)instruction).place; return 1;
-        case Value::Init:
-        case Value::Assign: target[0] = &((InstInit&)instruction).place; return 1;
-        case Value::Aggregate: target[0] = &((InstAggregate&)instruction).place; return 1;
-        case Value::Borrow: target[0] = &((InstBorrow&)instruction).place; return 1;
-        case Value::Move: target[0] = &((InstMove&)instruction).place; return 1;
-        case Value::Copy: target[0] = &((InstCopy&)instruction).place; return 1;
-        case Value::Drop: target[0] = &((InstDrop&)instruction).place; return 1;
-        case Value::Address: target[0] = &((InstAddress&)instruction).place; return 1;
-        case Value::Exchange: target[0] = &((InstExchange&)instruction).place; return 1;
-        case Value::Swap:
-            target[0] = &((InstSwap&)instruction).a;
-            target[1] = &((InstSwap&)instruction).b;
-            return 2;
-        default: return 0;
-    }
-}
+#define YANA_INST(kind, Struct, mnemonic, flags) \
+    static_assert(Struct::kPlaceCount <= kMaxPlaces, "an instruction names at most kMaxPlaces places"); \
+    static_assert(Struct::kSuccessorCount <= kMaxSuccessors, "a terminator has at most kMaxSuccessors arms");
+#include "inst.def"
+#undef YANA_INST
 
 StringView conventionName(ast::BindType convention) {
     switch(convention) {

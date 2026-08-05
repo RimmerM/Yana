@@ -32,13 +32,42 @@ struct Block {
     Size predecessorCount() { return incomingList.size(); }
     ModulePtr<Block> predecessorAt(ModuleBase base, Size index) { return incomingList.get(base, index); }
 
-    // The two ways out, in the order a `je` names them: `successor(0)` is the `then` arm of a branch
-    // and the target of a jump, `successor(1)` is the `else` arm and null for everything else. The
-    // pair is always two entries long, so a walk of it skips the nulls rather than stopping at one.
+    /*
+     * The ways out, one slot per arm of the terminator and in the terminator's own order:
+     * `successor(0)` is the `then` arm of a branch and the target of a jump, `successor(1)` is the
+     * `else` arm and null for everything else.
+     *
+     * There are always `kMaxSuccessors` of them rather than as many as this block uses, so a walk
+     * skips the nulls rather than stopping at one - and the width is the *instruction's* number
+     * (resolve/inst.h), because a slot here is an arm there. That is the one thing tying the two
+     * together: `IrEditor` copies one array into the other, and a terminator with more arms than
+     * this block has slots would be a set of edges half of which no block records.
+     */
     ModulePtr<Block> successor(Size index) const { return outgoingBlocks[index]; }
     Buffer<const ModulePtr<Block>> successors() const {
-        return Buffer<const ModulePtr<Block>>(outgoingBlocks, 2);
+        return Buffer<const ModulePtr<Block>>(outgoingBlocks, kMaxSuccessors);
     }
+
+    /*
+     * The one block this leaves to, or null where it leaves to none or to more than one.
+     *
+     * The question a pass asks when it wants to know that control goes exactly one way from here -
+     * a loop's preheader, a merge candidate - and it is a method so that asking it is not "arm 0 is
+     * X and arm 1 is empty", which stops being the same question the moment there is an arm 2.
+     */
+    ModulePtr<Block> soleSuccessor() const {
+        ModulePtr<Block> only = nullptr;
+
+        for(auto outgoing: successors()) {
+            if(!outgoing) continue;
+            if(only) return nullptr;
+
+            only = outgoing;
+        }
+
+        return only;
+    }
+
     ModulePtr<Inst> terminator() const { return terminatorInst; }
 
     ModulePtr<Function> function;
@@ -57,5 +86,6 @@ private:
     ModuleList<ModulePtr<InstPhi>> phiList;
     ModuleList<ModulePtr<Inst>, false> instructionList;
     ModuleList<ModulePtr<Block>> incomingList;
-    ModulePtr<Block> outgoingBlocks[2] = { nullptr, nullptr };
+    // One slot per arm a terminator may have - see `successors()` for why it is that number.
+    ModulePtr<Block> outgoingBlocks[kMaxSuccessors] = {};
 };

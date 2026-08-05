@@ -209,7 +209,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
             }
 
             auto block = opt.local[predecessor];
-            auto single = block->successor(0) == dominance.blocks[loop.header] && !block->successor(1);
+            auto single = block->soleSuccessor() == dominance.blocks[loop.header];
             loop.preheader = single ? from : Loop::kNone;
 
             if(loop.preheader == Loop::kNone) break;
