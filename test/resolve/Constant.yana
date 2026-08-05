@@ -1,0 +1,84 @@
+-- Every form a declaration may start something at, in both positions and on both targets.
+--
+-- A module-level `let` and a field default are the two places with no program point at which code
+-- could run, so what they accept is a constant rather than an expression - and the two used to
+-- accept different sets of them: a nullary constructor was a constant of `Bool` in a field default
+-- and a syntax error two lines further up, for no reason either position could state. They are one
+-- evaluator now (compiler/resolve/const.cpp), so this file writes each form in both.
+--
+-- One number rather than eight tests, for the reason FloatNaN.yana gives: the score says which form
+-- disagreed, not that one of them did.
+
+import Native
+
+data Direction = North | South | East | West
+
+-- A generic enumeration. Its constructors carry nothing, so a value of one is still a discriminant -
+-- but which *instance* it belongs to is not something the constructor says, so a constant of one is
+-- exactly the case that needs the ascription to name it.
+data State(a) = Off | On
+
+-- A default per form: an enumeration, a boolean (which is one), a number that is not zero, a
+-- floating-point value, a null pointer, and a negative number. The last is its own form because the
+-- lexer produces only the positive magnitude, so `-3` is a prefix operator over a literal until the
+-- evaluator folds it - which is what the parser already does for a pattern, and what nothing did
+-- here: a negative constant could not be written in either position at all.
+data Config {heading: Direction = East, ready: Bool = True, limit: I64 = 12, ratio: Float = 0.5, link: %U8 = 0, offset: Int = -3, state: State(Int) = On, fell: Float = -1}
+
+-- The same six as globals. `let &heading = South` is what centralizing the evaluator added: the
+-- constructor form was a field default's alone, so an enumeration global could not be written.
+let &heading = South
+let &ready = False
+let &limit = 12 :: I64
+let &ratio = 0.5 :: Float
+let &link = 0 :: %U8
+let &offset = -1 :: I64
+let &state = On :: State(Int)
+
+-- The three numbers whose sign or width the evaluator has to keep separate from their magnitude
+-- until the type is known. `-1 :: Float` is `-1.0` and not the `F64` of a 64-bit two's complement
+-- pattern; `I64`'s own minimum is a magnitude of 2^63 rather than a negation that overflows; and
+-- `18446744073709551615` is a `U64` and is not an `I64` at all, which is a distinction that does not
+-- survive folding the sign in first.
+let &fell = -1 :: Float
+let &minimum = -9223372036854775808 :: I64
+let &mask = 18446744073709551615 :: U64
+
+fn directionValue(d: Direction) -> Int = match d:
+    North -> 1
+    South -> 2
+    East -> 4
+    West -> 8
+
+fn stateValue(s: State(Int)) -> Int = match s:
+    Off -> 0
+    On -> 1
+
+fn main() -> Int:
+    let c = Config {}
+    let &score = directionValue(heading) + directionValue(c.heading) * 16
+
+    -- A boolean is an enumeration like any other, which is the point of writing both values: a
+    -- global that started at whatever a missing constant left behind would read as either.
+    if ready then score = score + 1024
+    if c.ready then score = score + 2048
+
+    if c.limit == limit then score = score + 4096
+    if c.ratio == ratio then score = score + 8192
+    if c.offset == -3 then score = score + 16384
+    if offset == -1 then score = score + 32768
+    if fell == -1.0 then score = score + 65536
+    if c.fell == fell then score = score + 1048576
+    if stateValue(state) == stateValue(c.state) then score = score + 131072
+
+    -- The two widest constants are asserted as their sign and their presence; what they are exactly
+    -- is asserted by this fixture's emitted text on both targets, since writing either of them out
+    -- again here would be a literal that overflows the type it is compared against.
+    if minimum < 0 then score = score + 262144
+    if mask != 0 then score = score + 524288
+
+    -- The two pointer constants are asserted by the emitted text of this fixture rather than by the
+    -- score: every way of reading one - `isNull` included - is a pointer-to-integer cast, which is
+    -- not expressible on the JavaScript target, and a `main` that reached one would be dropped from
+    -- that build rather than run against this number.
+    return score

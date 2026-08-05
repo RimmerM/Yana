@@ -4,9 +4,14 @@
 -- says what the global is. That makes the ascription the one place a mistake can hide: the literal
 -- in front of it has to be a value the type could actually hold, or the declaration says one thing
 -- and the storage holds another.
+--
+-- Constant.yana is the other half of this - the forms that are accepted, in both positions.
 
 data Pair {a: Int, b: Int}
 data Handle {value: I64}
+data Direction = North | South
+data Shape = Circle(Int) | Square(Int)
+data State(a) = Off | On
 
 -- The case this file exists for. `Pair` is a memory type, so its storage is what a value of it *is*
 -- - and a zero-filled record is not a constructed one. Accepting this declared static storage that
@@ -26,5 +31,47 @@ let approx = 2.5 :: I64
 
 -- Not a number at all, which is the check that was already there.
 let name = "yana" :: I64
+
+-- A number the type cannot hold. The bits above the type's width used to be dropped where the
+-- constant was written into the global's storage, so this declared a `U8` holding 44 and said
+-- nothing; the same rule reads `-1 :: U8` as the negative it was written as rather than as 255.
+let &tooBig = 300 :: U8
+let &negative = -1 :: U8
+
+-- The same question at the width where the sign is the whole of the answer. `18446744073709551615`
+-- is a `U64` and not an `I64`, and folding the sign into the bits before the type was known made it
+-- indistinguishable from `-1` - which this used to accept as one.
+let &wideUnsigned = 18446744073709551615 :: I64
+
+-- An address counts up from zero, so a negative one is a number that means nothing rather than a
+-- large one. How wide it would be is the target's answer and is not what is wrong here.
+let &behind = -1 :: %U8
+
+-- More digits than a number has. The lexer reports it, because by the time a literal is a token it
+-- is 64 bits and the number that was written no longer exists anywhere; the token then carries
+-- 2^64-1 rather than the low bits of it, which is why the constant refuses it as well instead of
+-- being handed a zero and accepting it.
+let &vast = 18446744073709551616 :: U8
+
+-- An enumeration constant is one - see Constant.yana - but it is a constant of its own type, and
+-- the ascription is checked against it rather than believed.
+let &misTyped = North :: Int
+
+-- Only a constructor that carries nothing is a constant, since a constructed value is storage.
+let &shape = Circle(1)
+
+-- And a name that is no constructor at all is reported as that rather than as "not a literal",
+-- which is the diagnostic a global used to give every one of these.
+let &missing = West
+
+-- A generic enumeration's constructor says which constructor it is and not which instance it
+-- belongs to, so a constant of one needs the ascription that names it - `On :: State(Int)`, which
+-- Constant.yana writes. The words are the ones an ordinary construction uses for the same gap.
+let &state = On
+
+-- A type that does not resolve is reported once, by whatever failed to resolve it. The constant is
+-- not then asked whether the error type has a constant form, which would be a second diagnostic
+-- about this file's own recovery.
+let &unknown = 0 :: Nope
 
 fn main() -> Int = 0

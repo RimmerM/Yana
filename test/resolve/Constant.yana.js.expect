@@ -1,0 +1,55 @@
+"use strict";
+var heading = 1;
+var ready = 0;
+var limit = 12n;
+var ratio = 0.5;
+var link = null;
+var offset = -1n;
+var state = 1;
+var fell = -1;
+var minimum = -9223372036854775808n;
+var mask = 18446744073709551615n;
+
+// ResolveTest
+function directionValue(d) {
+  var v1 = d | 0;
+  return v1 === 0 ? 1 : v1 === 1 ? 2 : v1 === 2 ? 4 : 8;
+}
+
+function stateValue(s) {
+  return (s | 0) === 0 ? 0 : 1;
+}
+
+function main() {
+  var score = directionValue(heading) + Math.imul(directionValue(2), 16) | 0;
+  if (ready) {
+    score = score + 1024 | 0;
+  }
+  score = score + 2048 | 0;
+  if (12n === limit) {
+    score = score + 4096 | 0;
+  }
+  if (0.5 === ratio) {
+    score = score + 8192 | 0;
+  }
+  score = score + 16384 | 0;
+  if (offset === -1n) {
+    score = score + 32768 | 0;
+  }
+  if (fell === -1) {
+    score = score + 65536 | 0;
+  }
+  if (-1 === fell) {
+    score = score + 1048576 | 0;
+  }
+  if (stateValue(state) === stateValue(1)) {
+    score = score + 131072 | 0;
+  }
+  if (minimum < 0n) {
+    score = score + 262144 | 0;
+  }
+  if (mask !== 0n) {
+    score = score + 524288 | 0;
+  }
+  return score;
+}

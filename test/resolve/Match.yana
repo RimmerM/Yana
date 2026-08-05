@@ -55,6 +55,25 @@ fn classify(value: Int) -> Int = match value:
     1..=10 -> 1
     else -> 2
 
+-- A written negative number, which is a pattern the parser cannot finish on its own.
+--
+-- The lexer produces only the magnitude and the `-` is a separate token, so a negative pattern is a
+-- sign and a magnitude until something knows what type they are of - which is the pivot's, and is
+-- known here rather than in the parser. Folding the two together at parse time made
+-- `-9223372036854775808` a signed overflow, and made `-1` and `18446744073709551615` one pattern.
+--
+-- The globals are how the values get here: writing `-9223372036854775808` as an *expression* is a
+-- literal that does not fit `I64` followed by a negation, which is a truncation warning about the
+-- half of the expression that was never the point.
+let &least = -9223372036854775808 :: I64
+let &minusOne = -1 :: I64
+
+fn signed(value: I64) -> Int = match value:
+    -9223372036854775808 -> 1
+    -1 -> 2
+    0 -> 3
+    else -> 4
+
 -- Every alternative of every match above is taken at least once, because an alternative that
 -- was emitted without a test is only shown to be right by the values that reach it.
 fn main() -> Int =
@@ -68,4 +87,5 @@ fn main() -> Int =
     pairValue({Blue, True}) + pairValue({Blue, False}) +
     firstOrRest(Just(Red)) + firstOrRest(Just(Green)) +
     firstOrRest(Just(Blue)) + firstOrRest(Nothing) +
-    classify(0) + classify(7) + classify(50)
+    classify(0) + classify(7) + classify(50) +
+    signed(least) * 1000 + signed(minusOne) * 100 + signed(0) * 10 + signed(7)

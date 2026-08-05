@@ -1,3 +1,5 @@
+@minusOne = [255, 255, 255, 255, 255, 255, 255, 255]
+@least = [0, 0, 0, 0, 0, 0, 0, 128]
 
 area<complex>(%s: Ptr): Int {
   b_0 {
@@ -61,18 +63,6 @@ area<complex>(%s: Ptr): Int {
   b_13 {
     %v_28 = phi [b_12, 100], [b_7, %r], [b_25, %v_27], [b_17, %v_21]: Int
     ret %v_28
-  }
-}
-
-classify<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %value, 0: Int
-    %v_2 = cmp_ige %value, 1: Int
-    %v_3 = cmp_ile %value, 10: Int
-    %v_4 = and %v_2, %v_3: Int
-    %v_5 = select 1, 2, %v_4: Int
-    %v_6 = select 0, %v_5, %v_1: Int
-    ret %v_6
   }
 }
 
@@ -199,6 +189,18 @@ firstOrRest<complex>(%m: Ptr): Int {
   }
 }
 
+signed<complex>(%value: Long): Int {
+  b_0 {
+    %v_1 = cmp_eq %value, 9223372036854775808: Int
+    %v_2 = cmp_eq %value, 18446744073709551615: Int
+    %v_3 = cmp_eq %value, 0: Int
+    %v_4 = select 3, 4, %v_3: Int
+    %v_5 = select 2, %v_4, %v_2: Int
+    %v_6 = select 1, %v_5, %v_1: Int
+    ret %v_6
+  }
+}
+
 shapeValue<complex>(%s: Ptr): Int {
   b_0 {
     %v_1 = loads %s, 4: Int
@@ -293,6 +295,18 @@ nested<complex>(%m: Ptr): Int {
   b_17 {
     %v_32 = phi [b_16, 1], [b_27, 2], [b_31, 3], [b_23, 0]: Int
     ret %v_32
+  }
+}
+
+classify<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %value, 0: Int
+    %v_2 = cmp_ige %value, 1: Int
+    %v_3 = cmp_ile %value, 10: Int
+    %v_4 = and %v_2, %v_3: Int
+    %v_5 = select 1, 2, %v_4: Int
+    %v_6 = select 0, %v_5, %v_1: Int
+    ret %v_6
   }
 }
 
@@ -403,7 +417,16 @@ main<complex>(): Int {
     %v_68 = call_complex firstOrRest, %v_67: Int
     %v_69 = add %v_66, %v_68: Int
     %v_70 = add %v_69, 3: Int
-    ret %v_70
+    %v_71 = loads @least, 8: Long
+    %v_72 = call_complex signed, %v_71: Int
+    %v_73 = imul %v_72, 1000: Int
+    %v_74 = add %v_70, %v_73: Int
+    %v_75 = loads @minusOne, 8: Long
+    %v_76 = call_complex signed, %v_75: Int
+    %v_77 = imul %v_76, 100: Int
+    %v_78 = add %v_74, %v_77: Int
+    %v_79 = add %v_78, 34: Int
+    ret %v_79
   }
 }
 

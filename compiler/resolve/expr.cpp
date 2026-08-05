@@ -105,21 +105,6 @@ ModulePtr<Value> ExprResolver::find(StringId name) {
     return binding ? binding->value : nullptr;
 }
 
-// A value in the normal form of its type: the type's own bits, sign-extended if it is signed. The
-// same form `convertRefinement` puts a runtime value in, and `truncateToWidth` an arithmetic result.
-static U64 reduceToWidth(const IntType& integer, U64 value) {
-    if(integer.bits >= 64) return value;
-
-    auto mask = (U64(1) << integer.bits) - 1;
-    value &= mask;
-
-    // A signed type's high bit is its sign, so a value that has it set is the negative number it
-    // stands for and not the small positive one the mask left behind.
-    if(integer.isSigned && (value & (U64(1) << (integer.bits - 1)))) value |= ~mask;
-
-    return value;
-}
-
 /*
  * An integer constant, reduced to its type's normal form on the way in.
  *
@@ -153,24 +138,24 @@ ModulePtr<Value> ExprResolver::makeInt(LocationId source, TypePtr type, U64 valu
  * Written literals are never negative: `-1` is `0 - 1`, two literals and an operator, so the range
  * that matters is one-sided and a signed type's is half an unsigned one's.
  */
-void ExprResolver::checkLiteralRange(LocationId source, TypePtr type, U64 written) {
+void ExprResolver::checkLiteralRange(LocationId source, TypePtr type, U64 written, bool negative) {
     if(!type || global[type]->kind != Type::Int) return;
 
     auto& integer = *(IntType*)global[type];
-    auto bits = U32(integer.bits) - (integer.isSigned ? 1 : 0);
-    if(bits >= 64 || written <= (U64(1) << bits) - 1) return;
+    if(integerHolds(integer, written, negative)) return;
 
-    auto reduced = reduceToWidth(integer, written);
+    auto reduced = reduceToWidth(integer, negative ? U64(0) - written : written);
     auto described = describeType(context, global, type);
+    auto sign = negative ? "-"_v : ""_v;
 
     // Printed the way the type reads it, since the point of the message is what the program will do
     // and a signed truncation that comes out negative is exactly the surprising case.
     if(integer.isSigned) {
-        context.diagnostics.warning("the literal %@ does not fit in %@ and is truncated to %@"_v,
-                                    source, written, described, I64(reduced));
+        context.diagnostics.warning("the literal %@%@ does not fit in %@ and is truncated to %@"_v,
+                                    source, sign, written, described, I64(reduced));
     } else {
-        context.diagnostics.warning("the literal %@ does not fit in %@ and is truncated to %@"_v,
-                                    source, written, described, reduced);
+        context.diagnostics.warning("the literal %@%@ does not fit in %@ and is truncated to %@"_v,
+                                    source, sign, written, described, reduced);
     }
 }
 

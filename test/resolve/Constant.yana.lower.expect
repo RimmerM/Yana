@@ -1,0 +1,160 @@
+@minimum = [0, 0, 0, 0, 0, 0, 0, 128]
+@ready = [0]
+@heading = [1]
+@ratio = [0, 0, 0, 63]
+@fell = [0, 0, 128, 191]
+@state = [1]
+@offset = [255, 255, 255, 255, 255, 255, 255, 255]
+@mask = [255, 255, 255, 255, 255, 255, 255, 255]
+@link = [0, 0, 0, 0, 0, 0, 0, 0]
+@limit = [12, 0, 0, 0, 0, 0, 0, 0]
+
+stateValue<complex>(%s: Int): Int {
+  b_0 {
+    %v_1 = cast %s: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    %v_3 = select 0, 1, %v_2: Int
+    ret %v_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = load @heading, 1: Int
+    %v_2 = cast %v_1: Int
+    %v_3 = cmp_eq %v_2, 0: Int
+    %v_4 = cmp_eq %v_2, 1: Int
+    %v_5 = cmp_eq %v_2, 2: Int
+    %v_6 = select 4, 8, %v_5: Int
+    %v_7 = select 2, %v_6, %v_4: Int
+    %v_8 = select 1, %v_7, %v_3: Int
+    %v_9 = add %v_8, 64: Int
+    %v_10 = load @ready, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_9, 1024: Int
+    jmp b_12
+  }
+
+  b_12 {
+    %v_14 = phi [b_0, %v_9], [b_11, %v_13]: Int
+    %v_15 = add %v_14, 2048: Int
+    %v_16 = loads @limit, 8: Long
+    %v_17 = cmp_eq 12, %v_16: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    %v_20 = add %v_15, 4096: Int
+    jmp b_19
+  }
+
+  b_19 {
+    %v_21 = phi [b_12, %v_15], [b_18, %v_20]: Int
+    %v_22 = load @ratio, 4: Float
+    %v_23 = cmp_eq 0.5, %v_22: Int
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    %v_26 = add %v_21, 8192: Int
+    jmp b_25
+  }
+
+  b_25 {
+    %v_27 = phi [b_19, %v_21], [b_24, %v_26]: Int
+    %v_28 = add %v_27, 16384: Int
+    %v_29 = loads @offset, 8: Long
+    %v_30 = cmp_eq %v_29, 18446744073709551615: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    %v_33 = add %v_28, 32768: Int
+    jmp b_32
+  }
+
+  b_32 {
+    %v_34 = phi [b_25, %v_28], [b_31, %v_33]: Int
+    %v_35 = load @fell, 4: Float
+    %v_36 = cmp_eq %v_35, -1: Int
+    je %v_36, b_37, b_38
+  }
+
+  b_37 {
+    %v_39 = add %v_34, 65536: Int
+    jmp b_38
+  }
+
+  b_38 {
+    %v_40 = phi [b_32, %v_34], [b_37, %v_39]: Int
+    %v_41 = load @fell, 4: Float
+    %v_42 = cmp_eq -1, %v_41: Int
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    %v_45 = add %v_40, 1048576: Int
+    jmp b_44
+  }
+
+  b_44 {
+    %v_46 = phi [b_38, %v_40], [b_43, %v_45]: Int
+    %v_47 = load @state, 1: Int
+    %v_48 = cast %v_47: Int
+    %v_49 = cmp_eq %v_48, 0: Int
+    %v_50 = select 0, 1, %v_49: Int
+    %v_51 = cmp_eq %v_50, 1: Int
+    je %v_51, b_52, b_53
+  }
+
+  b_52 {
+    %v_54 = add %v_46, 131072: Int
+    jmp b_53
+  }
+
+  b_53 {
+    %v_55 = phi [b_44, %v_46], [b_52, %v_54]: Int
+    %v_56 = loads @minimum, 8: Long
+    %v_57 = cmp_ilt %v_56, 0: Int
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    %v_60 = add %v_55, 262144: Int
+    jmp b_59
+  }
+
+  b_59 {
+    %v_61 = phi [b_53, %v_55], [b_58, %v_60]: Int
+    %v_62 = load @mask, 8: Long
+    %v_63 = cmp_neq %v_62, 0: Int
+    je %v_63, b_64, b_65
+  }
+
+  b_64 {
+    %v_66 = add %v_61, 524288: Int
+    jmp b_65
+  }
+
+  b_65 {
+    %v_67 = phi [b_59, %v_61], [b_64, %v_66]: Int
+    ret %v_67
+  }
+}
+
+directionValue<complex>(%d: Int): Int {
+  b_0 {
+    %v_1 = cast %d: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    %v_3 = cmp_eq %v_1, 1: Int
+    %v_4 = cmp_eq %v_1, 2: Int
+    %v_5 = select 4, 8, %v_4: Int
+    %v_6 = select 2, %v_5, %v_3: Int
+    %v_7 = select 1, %v_6, %v_2: Int
+    ret %v_7
+  }
+}
+

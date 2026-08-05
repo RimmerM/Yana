@@ -1,0 +1,31 @@
+-- What a written number in a pattern comes to.
+--
+-- The lexer produces only a magnitude, so a negative pattern is a sign and a magnitude until the
+-- pivot's type says what they mean - see `patternBound`, and resolve/const.cpp for the same rule in
+-- the position that has no pivot. Folded at parse time, as this used to be, none of the three cases
+-- below could be told apart from a number that was in range: the sign was already gone.
+--
+-- The first two are warnings rather than errors, on the same terms `checkLiteralRange` states for a
+-- literal written anywhere else: the program has a defined meaning either way, and a full-width mask
+-- written at a signed type is an idiom rather than a mistake.
+
+data Color = Red | Green | Blue
+
+-- An unsigned pivot holds no negative at all, so this alternative matches 255 - which is a value the
+-- author did not write and, here, one the wildcard would have caught anyway.
+fn unsignedNegative(n: U8) -> Int = match n:
+    -1 -> 1
+    else -> 0
+
+-- The positive half of the same rule, which nothing asserted either until this file.
+fn unsignedTooBig(n: U8) -> Int = match n:
+    300 -> 1
+    else -> 0
+
+-- A pivot that a number is not a value of at all, which is a mistake rather than a truncation: there
+-- is no bit pattern to narrow to and nothing to warn about.
+fn notANumber(c: Color) -> Int = match c:
+    -1 -> 1
+    else -> 0
+
+fn main() -> Int = unsignedNegative(255) + unsignedTooBig(44) + notANumber(Red)

@@ -1746,15 +1746,13 @@ ast::Pat Parser::parseLeftPattern() {
             toLiteral({ .integer = 0 }, Token::Integer, location);
         });
 
-        // The lexer only ever produces the positive magnitude; apply the sign here.
-        if(lit.kind == (ast::Expr::Lit + ast::Literal::Int)) {
-            lit.lit.i((U64)(-(I64)lit.lit.i()));
-        } else if(lit.kind == (ast::Expr::Lit + ast::Literal::Double)) {
-            lit.lit.d(-lit.lit.d());
-        }
-
+        // The lexer only ever produces the positive magnitude, and the sign is recorded rather than
+        // applied to it - see Pat::negative, and resolve/const.cpp for why the two have to stay
+        // apart until something knows what type the number is of. `patternBound` applies it, at the
+        // pivot's type.
         return ast::Pat {
             .lit = lit.lit,
+            .negative = true,
             .source = lit.source,
             .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
         };

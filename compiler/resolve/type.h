@@ -251,6 +251,48 @@ struct IntType: Type {
     bool isSigned;
 };
 
+// A value in the normal form of its type: the type's own bits, sign-extended if it is signed. The
+// same form `convertRefinement` puts a runtime value in, and `truncateToWidth` an arithmetic result.
+inline U64 reduceToWidth(const IntType& integer, U64 value) {
+    if(integer.bits >= 64) return value;
+
+    auto mask = (U64(1) << integer.bits) - 1;
+    value &= mask;
+
+    // A signed type's high bit is its sign, so a value that has it set is the negative number it
+    // stands for and not the small positive one the mask left behind.
+    if(integer.isSigned && (value & (U64(1) << (integer.bits - 1)))) value |= ~mask;
+
+    return value;
+}
+
+/*
+ * Whether a written number is a value of this integer type.
+ *
+ * The magnitude and the sign are separate because that is how a number is *written*: the lexer
+ * produces only the magnitude and a `-` in front of it is a different token. Deciding
+ * representability from the magnitude is what makes the two ranges say what they mean - `I8` holds
+ * -128 and not 128, so a negative literal reaches exactly one further than a positive one, and an
+ * unsigned type does not accept a negative at all. It is also the only way to ask the question about
+ * a 64-bit type: folding the sign in first leaves `18446744073709551615` and `-1` the same bits, and
+ * one of them is an `I64` and the other is not.
+ *
+ * Shared by the two positions that ask it, which disagree about what to do with the answer rather
+ * than about the answer: `checkLiteralRange` warns and truncates, because a full-width mask written
+ * at a signed type is an idiom, and a declaration's constant is an error, because there is no
+ * conversion a declaration could run.
+ */
+inline bool integerHolds(const IntType& integer, U64 magnitude, bool negative) {
+    if(integer.bits == 0) return magnitude == 0;
+    if(negative && !integer.isSigned) return magnitude == 0;
+
+    auto width = U32(integer.bits) - (integer.isSigned ? 1 : 0);
+    if(width >= 64) return true;
+
+    auto limit = (U64(1) << width) - 1;
+    return magnitude <= (negative ? limit + 1 : limit);
+}
+
 /*
  * `String`, and the type whose bytes it occupies on this target.
  *

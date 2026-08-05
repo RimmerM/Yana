@@ -874,9 +874,18 @@ struct ExprResolver {
     // still one constant and the IR is what it always was.
     ModulePtr<Value> materializeLiteral(ModulePtr<Value> value, TypePtr target, LocationId source);
 
-    // Warns where a written literal does not fit the integer type it is being built at. Called only
-    // from the two positions a literal reaches, never from makeInt itself - see its comment.
-    void checkLiteralRange(LocationId source, TypePtr type, U64 written);
+    /*
+     * Warns where a written literal does not fit the integer type it is being built at. Called only
+     * from the three positions a *written* literal reaches, never from makeInt itself - see its
+     * comment.
+     *
+     * `written` is the magnitude and `negative` the sign, which is how the source has it and the
+     * only way the question has an answer at 64 bits: folded together, `-1` and
+     * `18446744073709551615` are one number and exactly one of them is an `I64`. An expression's
+     * literal is never negative - `-1` is two literals and an operator there - so the third
+     * position, a pattern, is the one that passes the flag.
+     */
+    void checkLiteralRange(LocationId source, TypePtr type, U64 written, bool negative = false);
 
     /*
      * `implicit` says who owns the conversion to `target`.

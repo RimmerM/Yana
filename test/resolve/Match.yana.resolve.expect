@@ -1,3 +1,7 @@
+let &least: I64 = 9223372036854775808
+
+let &minusOne: I64 = 18446744073709551615
+
 fn colorValue(%c: Color) -> Int {
   b0:
     %v1 = cast %c : Int
@@ -267,6 +271,36 @@ fn classify(%value: Int) -> Int {
     ret %v16
 }
 
+fn signed(%value: I64) -> Int {
+  b0:
+    %v2 = cmp_eq %value, -9223372036854775808 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v6 = cmp_eq %value, -1 : Bool
+    je %v6, b4, b3
+
+  b2:
+    jmp b7
+
+  b3:
+    %v10 = cmp_eq %value, 0 : Bool
+    je %v10, b6, b5
+
+  b4:
+    jmp b7
+
+  b5:
+    jmp b7
+
+  b6:
+    jmp b7
+
+  b7:
+    %v18 = phi [b2, 1], [b4, 2], [b6, 3], [b5, 4] : Int
+    ret %v18
+}
+
 fn main() -> Int {
   b0:
     %v1 = call colorValue, Red : Int
@@ -366,5 +400,18 @@ fn main() -> Int {
     %v140 = add %v137, %v139 : Int
     %v142 = call classify, 50 : Int
     %v143 = add %v140, %v142 : Int
-    ret %v143
+    %v144 = load least : I64
+    %v145 = call signed, %v144 : Int
+    %v148 = mul %v145, 1000 : Int
+    %v149 = add %v143, %v148 : Int
+    %v150 = load minusOne : I64
+    %v151 = call signed, %v150 : Int
+    %v154 = mul %v151, 100 : Int
+    %v155 = add %v149, %v154 : Int
+    %v157 = call signed, 0 : Int
+    %v160 = mul %v157, 10 : Int
+    %v161 = add %v155, %v160 : Int
+    %v163 = call signed, 7 : Int
+    %v164 = add %v161, %v163 : Int
+    ret %v164
 }

@@ -191,7 +191,14 @@ private:
         }
 
         if(pattern.kind == ast::Pat::Kind(ast::Pat::Lit + ast::Literal::Int)) {
-            return PatternHead { 0, pattern.lit.i(), nullptr, PatternHead::Int };
+            // Two's complement here, where the number is an identity key rather than a value: two
+            // patterns are the same head when they are the same number, and which number it is is
+            // the magnitude *and* the sign. In unsigned arithmetic, so `I64`'s own minimum is a key
+            // like any other.
+            auto magnitude = pattern.lit.i();
+            return PatternHead {
+                0, pattern.negative ? U64(0) - magnitude : magnitude, nullptr, PatternHead::Int
+            };
         }
 
         return opaque();
@@ -544,11 +551,55 @@ ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr tar
     }
 
     if(pattern.kind >= ast::Pat::Lit) {
+        auto kind = ast::Literal::Kind(pattern.kind - ast::Pat::Lit);
+
         ast::Expr literal {
             .lit = pattern.lit,
             .source = pattern.source,
-            .kind = ast::Expr::Kind(ast::Expr::Lit + (pattern.kind - ast::Pat::Lit)),
+            .kind = ast::Expr::Kind(ast::Expr::Lit + kind),
         };
+
+        if(!pattern.negative) return resolve(literal, target);
+
+        /*
+         * A negative literal, whose sign the parser recorded rather than folded in.
+         *
+         * This is where it is applied, because this is the first point at which the number's type is
+         * known - it is the pivot's - and every question about the number needs it. The two answers
+         * come from the same two functions the expression path and resolve/const.cpp use, which is
+         * what makes the three positions agree: `checkLiteralRange` decides whether the type holds
+         * the number, from the magnitude and the sign rather than from bits that have already lost
+         * the difference, and `makeInt` puts it in the type's normal form.
+         */
+        if(kind == ast::Literal::Int && isInteger(global, target)) {
+            auto magnitude = pattern.lit.i();
+            checkLiteralRange(pattern.source, target, magnitude, true);
+            return makeInt(pattern.source, target, U64(0) - magnitude);
+        }
+
+        if(isFloat(global, target)) {
+            auto number = kind == ast::Literal::Int   ? F64(pattern.lit.i())
+                        : kind == ast::Literal::Float ? F64(pattern.lit.f)
+                                                      : pattern.lit.d();
+
+            // On the number, which is what the sign was written on - so it is exact at every
+            // magnitude, and `-0.0` is a pattern that can be written.
+            return makeFloat(pattern.source, target, -number);
+        }
+
+        /*
+         * A pivot whose type is not one a sign means anything at - a literal that has not settled,
+         * or a type this literal is about to be reported as impossible at. The sign is folded in so
+         * that the position says what it always said, in unsigned arithmetic so that it says it for
+         * every magnitude.
+         */
+        if(kind == ast::Literal::Int) {
+            literal.lit.i(U64(0) - pattern.lit.i());
+        } else if(kind == ast::Literal::Double) {
+            literal.lit.d(-pattern.lit.d());
+        } else if(kind == ast::Literal::Float) {
+            literal.lit.f = -pattern.lit.f;
+        }
 
         return resolve(literal, target);
     }

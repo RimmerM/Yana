@@ -602,9 +602,24 @@ void Lexer::next(Token& token) {
 
     // Check for integral literals.
     else if(isDigit(*p)) {
+        auto start = position();
         auto lit = parseNumericLiteral(p, m);
 
         if(lit.isInteger) {
+            /*
+             * More digits than a number has.
+             *
+             * Reported here because this is the only place that has them: by the time a literal is a
+             * token it is 64 bits, and every check further on - the one a declaration's constant is
+             * held to, the warning a written literal gets at its type - is a question about a value
+             * that no longer exists. The token carries 2^64-1 rather than the low bits of what was
+             * written, so those checks refuse it as well rather than being told it is zero.
+             */
+            if(lit.overflowed) {
+                auto location = locationFrom(start);
+                diag.error("integer literal is too large - the largest is 18446744073709551615"_v, &location);
+            }
+
             token.type = Token::Integer;
             token.data.integer = lit.i;
         } else {

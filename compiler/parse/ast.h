@@ -228,6 +228,17 @@ struct Pat {
      */
     BindType bind = BindType::Borrow;
 
+    /*
+     * Set on a literal pattern written with a leading `-`.
+     *
+     * The sign is carried rather than folded into the magnitude, for the reason
+     * `resolve/const.cpp`'s `WrittenNumber` gives at length: the lexer produces only the magnitude,
+     * and what the number *is* is a question about the type it will be matched against. Folded here,
+     * `-1` and `18446744073709551615` are one pattern, so a `U64` pivot cannot tell a mask it holds
+     * from a negative it does not; and folding `I64`'s own minimum is signed overflow besides.
+     */
+    bool negative = false;
+
     LocationId source: 27;
     Kind kind: 5;
 };

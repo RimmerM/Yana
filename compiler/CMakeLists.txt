@@ -41,6 +41,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/edit.cpp
     resolve/module.h
     resolve/module.cpp
+    resolve/const.h
+    resolve/const.cpp
     resolve/name.h
     resolve/name.cpp
     resolve/index.h

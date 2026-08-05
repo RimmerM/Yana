@@ -55,19 +55,35 @@ U32 parseIntSequence(const char*& p, const char* m, ParseAtom parseAtom, U32 num
  * @param p A pointer to the first numeric character.
  * @param parseAtom Parses a single character to the corresponding numeric value.
  * This pointer is increased to the first character after the number.
- * @return The parsed number.
+ * @param overflowed Set when the digits name a number above 2^64-1. Never cleared, so one flag can
+ * be handed to a sequence of these.
+ * @return The parsed number, or 2^64-1 where it did not fit in one.
+ *
+ * The overflow is detected rather than wrapped, and the result saturates rather than keeping the low
+ * bits, because both are what every reader downstream is entitled to assume: the digits *are* the
+ * value a literal has, so `18446744073709551616` wrapping to zero made a range check at any type
+ * pass - the number it was asked about was no longer the one that was written. Saturating leaves a
+ * number no type holds, so a reader that reports nothing itself still refuses it.
  */
 template<U32 Base, class ParseAtom>
-U64 parseIntLiteral(const char*& p, const char* m, ParseAtom parseAtom) {
+U64 parseIntLiteral(const char*& p, const char* m, ParseAtom parseAtom, bool& overflowed) {
     U64 res = 0;
     auto num = parseAtom(*p);
     while(num >= 0 && p < m) {
-        res *= Base;
-        res += num;
+        // In the unsigned arithmetic the answer is in, and before the multiplication rather than
+        // after it: `res * Base` is the operation that loses the bits, so testing its result would
+        // be testing what the wrap left behind.
+        if(res > (~U64(0) - U64(num)) / Base) {
+            overflowed = true;
+        } else {
+            res = res * Base + U64(num);
+        }
+
         p++;
         num = parseAtom(*p);
     }
-    return res;
+
+    return overflowed ? ~U64(0) : res;
 }
 
 /**
@@ -89,6 +105,11 @@ struct NumericLiteral {
     };
 
     bool isInteger;
+
+    // Set where an integer literal's digits named a number above 2^64-1, in which case `i` is that
+    // maximum. The lexer reports it, since that is where the digits are; a reader that does not
+    // still gets a number no type can hold rather than the low bits of one.
+    bool overflowed = false;
 };
 
 NumericLiteral parseNumericLiteral(const char*& p, const char* m);

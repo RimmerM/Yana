@@ -1,0 +1,45 @@
+-- What a field default will not accept.
+--
+-- A default is the same kind of thing a global's initializer is - a constant the declaration
+-- reduces to, because there is no program point at which a declaration's code would run - and since
+-- compiler/resolve/const.cpp it is the same evaluator, so the two positions accept and refuse the
+-- same forms. This file is the refusals; Constant.yana is what they both accept.
+--
+-- The type is not in question here the way it is for a global: a field has one already, so a
+-- default is checked against it rather than deciding it.
+
+data Pair {a: Int, b: Int}
+data Direction = North | South
+data Shape = Circle(Int) | Square(Int)
+
+-- A number that is not one of the type's, in both directions: a decimal for an integer field, and
+-- an integer wider than the field can hold.
+data Rounded {value: Int = 2.5}
+data TooBig {value: U8 = 300}
+
+-- A memory type has no constant form at all, which is the same answer a global of one gets.
+data Nested {inner: Pair = 0}
+
+-- An ascription is accepted here as well, and has to agree with the field it is on rather than
+-- silently replacing it.
+data Ascribed {value: Int = 1 :: I64}
+
+-- An enumeration constant of the wrong enumeration, which is a constructor that is a perfectly good
+-- constant of a type this field does not have.
+data Mixed {flag: Bool = North}
+
+-- A constructor that carries a value is storage rather than a number, whatever it is written in
+-- front of.
+data Held {shape: Shape = Circle(1)}
+
+-- A name that is no constructor at all.
+data Unknown {heading: Direction = West}
+
+-- And an expression, which is the form neither position has: there is nothing to evaluate it at.
+data Computed {value: Int = 1 + 1}
+
+-- A field whose own type did not resolve is reported once, by the type resolution that failed. A
+-- default is not then evaluated against the error type it recovered with.
+data Broken {value: Nope = 0}
+
+fn main() -> Int = 0

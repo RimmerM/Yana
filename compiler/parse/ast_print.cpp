@@ -1044,6 +1044,11 @@ private:
 
         if(pat.kind >= Pat::Lit) {
             stream.writeString("LitPat "_v);
+
+            // The sign is the pattern's and the magnitude is the literal's - see Pat::negative - so
+            // printing the literal alone would print `-1` as `1`. A dump says what was written.
+            if(pat.negative) stream.writeByte('-');
+
             printLiteral(pat.lit, (Literal::Kind)(pat.kind - Pat::Lit));
             return;
         }

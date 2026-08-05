@@ -1,5 +1,6 @@
 #include "module.h"
 #include "analyze.h"
+#include "const.h"
 #include "core.h"
 #include "expr.h"
 #include "generic.h"
@@ -339,85 +340,6 @@ static void resolveConstraintClasses(Module& module, GenEnv& env) {
  */
 
 /*
- * A field default, reduced to the bits its field holds.
- *
- * The same literal shapes a global's initializer takes, plus a nullary constructor - which is what
- * `True` and `False` are, and so what a flags type is made of. The difference from declareGlobal is
- * that the type is already known here - it is the field's - so a literal is checked against it
- * rather than deciding it, and there is no `:: Type` form to write.
- */
-/*
- * A written literal, reduced to the bits a value of `type` holds - or nothing, if that type does not
- * hold a literal of that kind at all.
- *
- * The one place the question is answered, because it used to be answered twice and the two answers
- * differed: declareGlobal took the ascribed type from `:: T` and then never asked whether the number
- * in front of it was a thing a `T` could be, so `let &slot = 0 :: Pair` declared a record's storage,
- * zero-filled, that every later assignment would pre-drop as though it held a constructed value.
- * Reporting is left to the caller, since a field default and a global's initializer are written
- * differently enough to deserve their own words.
- */
-static bool literalBitsAt(Module& module, const ast::Expr& expr, ast::Literal::Kind literal, TypePtr type,
-                          U64& bits) {
-    auto global = *module.types;
-
-    // A pointer's constant is an address written as an integer, which is how a null pointer is
-    // spelled in both positions.
-    if(literal == ast::Literal::Int && (isInteger(global, type) || isPointer(global, type))) {
-        bits = expr.lit.i();
-        return true;
-    }
-
-    if(isFloat(global, type) &&
-       (literal == ast::Literal::Int || literal == ast::Literal::Float || literal == ast::Literal::Double)) {
-        auto number = literal == ast::Literal::Int   ? F64(expr.lit.i())
-                    : literal == ast::Literal::Float ? F64(expr.lit.f)
-                                                     : expr.lit.d();
-
-        // Written as the bits the storage will occupy, so that nothing has to convert again later.
-        bits = floatBits(global, type, number);
-        return true;
-    }
-
-    return false;
-}
-
-static bool fieldDefaultBits(Module& module, const ast::Expr& expr, TypePtr type, U64& bits) {
-    auto global = *module.types;
-    auto& diagnostics = module.context.diagnostics;
-
-    // A record whose constructors all carry nothing is its discriminant, so a nullary constructor
-    // of one is as much a constant as a number is - and it is what `Bool` is made of, which makes
-    // `read: Bool = False` the case this whole feature exists for.
-    if(expr.kind == ast::Expr::Con) {
-        auto& construct = *module.parse[expr.con];
-        auto args = construct.args;
-
-        if(construct.type.kind == ast::Type::Con && args.isEmpty()) {
-            auto found = findConstructor(module, construct.type.name, expr.source);
-            auto record = found ? (RecordType*)global[found.unwrap().record] : nullptr;
-
-            if(record && record->layout == RecordType::Enum && (Type*)record - global == type) {
-                bits = found.unwrap().index;
-                return true;
-            }
-        }
-    }
-
-    if(!ast::isLiteral(expr)) {
-        diagnostics.error("a field default must be a literal or a nullary constructor"_v, expr.source);
-        return false;
-    }
-
-    auto literal = ast::Literal::Kind(expr.kind - ast::Expr::Lit);
-    if(literalBitsAt(module, expr, literal, type, bits)) return true;
-
-    diagnostics.error("a field of type %@ cannot have this default"_v, expr.source,
-                      describeType(module.context, global, type));
-    return false;
-}
-
-/*
  * Records the defaults written in a record's constructors.
  *
  * A pass of its own, after every record has been defined, because a default may name a nullary
@@ -453,11 +375,21 @@ static void declareRecordDefaults(Module& module, ast::Decl& decl) {
 
         for(auto astField: astFields.contents(module.parse)) {
             if(astField.def && field < tuple->fields.size()) {
-                U64 bits = 0;
                 auto type = tuple->fields.get(global, field).type;
 
-                if(fieldDefaultBits(module, *module.parse[astField.def], type, bits)) {
-                    constructor.defaults.push(module.types, FieldDefault { field, bits });
+                // A field whose own type did not resolve has had that reported already - as the
+                // error type, which is what `resolveType` returns once it has said so. Evaluating a
+                // default against it would report the recovery rather than the mistake, and against
+                // *nothing* would silently answer with the literal's own default type.
+                if(!type || global[type]->kind == Type::Error) {
+                    field++;
+                    continue;
+                }
+
+                auto constant = evaluateConstant(module, *module.parse[astField.def], type, "a field default"_v);
+
+                if(constant) {
+                    constructor.defaults.push(module.types, FieldDefault { field, constant.bits });
                     added = true;
                 }
             }
@@ -796,75 +728,23 @@ static void declareGlobal(Module& module, ast::Decl& decl) {
             continue;
         }
 
-        // `0 :: %U8` names the type as well as the value, which is the only way a global says
-        // what it is: a `let` pattern carries no type annotation.
-        auto& content = *parse[declaration.content];
-        auto value = &content;
-        TypePtr type = nullptr;
-
-        if(content.kind == ast::Expr::Coerce) {
-            auto& coerce = *parse[content.coerce];
-            type = resolveType(module, coerce.type);
-            value = &coerce.target;
-        }
-
-        if(!ast::isLiteral(*value)) {
-            context.diagnostics.error("a global's initializer must be a literal, optionally written `literal :: Type`"_v,
-                                      value->source);
-            continue;
-        }
-
-        auto literal = ast::Literal::Kind(value->kind - ast::Expr::Lit);
-
-        switch(literal) {
-            case ast::Literal::Int:
-                if(!type) type = module.scalar.int_;
-                break;
-            case ast::Literal::Double:
-            case ast::Literal::Float:
-                if(!type) type = module.scalar.float_;
-                break;
-            default:
-                context.diagnostics.error("a global's initializer must be a number"_v, value->source);
-                continue;
-        }
-
-        // The written type failed to resolve, which has already been reported.
-        if(!type) continue;
-
         /*
-         * And the number has to be one a value of that type could be.
+         * The value, and with it the type.
          *
-         * This is the whole of what `:: T` may do. Without it the type was taken on the ascription's
-         * word and the literal in front of it was never consulted, so `let &slot = 0 :: Pair`
-         * declared a record's worth of zeroed static storage - and a zero-filled record is not a
-         * constructed one, so the first assignment to it would tear down whatever the zeroes
-         * decoded as. There is no spelling for a constant of a memory type, so the honest answer is
-         * that a global cannot have one yet rather than that it starts empty.
+         * A global has no other way to say what it is - a `let` pattern carries no type annotation -
+         * so the `:: T` of `let &heapNext = 0 :: %U8` is read by the evaluator as the position's
+         * type rather than checked afterwards, and a global written without one takes the literal's
+         * own default. Everything else about what may be written here is const.cpp's, including the
+         * fact that a global of a memory type has no constant to start from.
          */
-        U64 initial = 0;
-
-        if(!literalBitsAt(module, *value, literal, type, initial)) {
-            auto types = *module.types;
-
-            // Two different mistakes, and telling them apart is the whole use of the message: a type
-            // with no constant form at all, against a number that is not one of the constants the
-            // type does have.
-            if(isNumeric(types, type) || isPointer(types, type)) {
-                context.diagnostics.error("this literal is not a constant of type %@ - a global takes the value it is written as, since there is no conversion a declaration could run"_v,
-                                          value->source, describeType(context, types, type));
-            } else {
-                context.diagnostics.error("a global of type %@ has no constant to start from - only an integer, pointer or floating-point global can be declared at module level"_v,
-                                          value->source, describeType(context, types, type));
-            }
-
-            continue;
-        }
+        auto constant = evaluateConstant(module, *parse[declaration.content], nullptr,
+                                         "a global's initializer"_v);
+        if(!constant) continue;
 
         auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
         recordDefinition(module.context, globalSymbol(module, global_ - *module.arena));
-        global_->type = type;
-        global_->initial = initial;
+        global_->type = constant.type;
+        global_->initial = constant.bits;
         global_->mut = declaration.bind == ast::BindType::Ref;
     }
 }

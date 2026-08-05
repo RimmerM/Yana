@@ -1,0 +1,255 @@
+let &heading: Direction = 1
+
+let &ready: Bool = 0
+
+let &limit: I64 = 12
+
+let &ratio: Float = 1056964608
+
+let &link: %U8 = 0
+
+let &offset: I64 = 18446744073709551615
+
+let &state: State(Int) = 1
+
+let &fell: Float = 3212836864
+
+let &minimum: I64 = 9223372036854775808
+
+let &mask: U64 = 18446744073709551615
+
+fn directionValue(%d: Direction) -> Int {
+  b0:
+    %v1 = cast %d : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v6 = cast %d : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b4, b3
+
+  b2:
+    jmp b7
+
+  b3:
+    %v11 = cast %d : Int
+    %v13 = cmp_eq %v11, 2 : Bool
+    je %v13, b6, b5
+
+  b4:
+    jmp b7
+
+  b5:
+    jmp b7
+
+  b6:
+    jmp b7
+
+  b7:
+    %v21 = phi [b2, 1], [b4, 2], [b6, 4], [b5, 8] : Int
+    ret %v21
+}
+
+fn stateValue(%s: State(Int)) -> Int {
+  b0:
+    %v1 = cast %s : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, 0], [b1, 1] : Int
+    ret %v9
+}
+
+fn main() -> Int {
+  b0:
+    %c = alloc : Config
+    %v6 = cast 0 : %U8
+    init %local0@Config.heading, East
+    init %local0@Config.ready, True
+    init %local0@Config.limit, 12
+    init %local0@Config.ratio, 0.5
+    init %local0@Config.link, %v6
+    init %local0@Config.offset, -3
+    init %local0@Config.state, On
+    init %local0@Config.fell, -1
+    %v18 = load heading : Direction
+    %v19 = call directionValue, %v18 : Int
+    %v20 = load %local0@Config.heading : Direction
+    %v21 = call directionValue, %v20 : Int
+    %v24 = mul %v21, 16 : Int
+    %v25 = add %v19, %v24 : Int
+    %score = alloc : Int
+    init %score, %v25
+    %v28 = load ready : Bool
+    je %v28, b1, b2
+
+  b1:
+    %v30 = load %score : Int
+    %v33 = add %v30, 1024 : Int
+    assign %score, %v33
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v37 = load %local0@Config.ready : Bool
+    je %v37, b4, b5
+
+  b4:
+    %v39 = load %score : Int
+    %v42 = add %v39, 2048 : Int
+    assign %score, %v42
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v46 = load %local0@Config.limit : I64
+    %v47 = load limit : I64
+    %v48 = cmp_eq %v46, %v47 : Bool
+    je %v48, b7, b8
+
+  b7:
+    %v50 = load %score : Int
+    %v53 = add %v50, 4096 : Int
+    assign %score, %v53
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v57 = load %local0@Config.ratio : Float
+    %v58 = load ratio : Float
+    %v59 = cmp_eq %v57, %v58 : Bool
+    je %v59, b10, b11
+
+  b10:
+    %v61 = load %score : Int
+    %v64 = add %v61, 8192 : Int
+    assign %score, %v64
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v68 = load %local0@Config.offset : Int
+    %v71 = neg 3 : Int
+    %v72 = cmp_eq %v68, %v71 : Bool
+    je %v72, b13, b14
+
+  b13:
+    %v74 = load %score : Int
+    %v77 = add %v74, 16384 : Int
+    assign %score, %v77
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v81 = load offset : I64
+    %v84 = neg 1 : Int
+    %v85 = cast %v84 : I64
+    %v86 = cmp_eq %v81, %v85 : Bool
+    je %v86, b16, b17
+
+  b16:
+    %v88 = load %score : Int
+    %v91 = add %v88, 32768 : Int
+    assign %score, %v91
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v95 = load fell : Float
+    %v98 = neg 1 : Float
+    %v99 = cmp_eq %v95, %v98 : Bool
+    je %v99, b19, b20
+
+  b19:
+    %v101 = load %score : Int
+    %v104 = add %v101, 65536 : Int
+    assign %score, %v104
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v108 = load %local0@Config.fell : Float
+    %v109 = load fell : Float
+    %v110 = cmp_eq %v108, %v109 : Bool
+    je %v110, b22, b23
+
+  b22:
+    %v112 = load %score : Int
+    %v115 = add %v112, 1048576 : Int
+    assign %score, %v115
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v119 = load state : State(Int)
+    %v120 = call stateValue, %v119 : Int
+    %v121 = load %local0@Config.state : State(Int)
+    %v122 = call stateValue, %v121 : Int
+    %v123 = cmp_eq %v120, %v122 : Bool
+    je %v123, b25, b26
+
+  b25:
+    %v125 = load %score : Int
+    %v128 = add %v125, 131072 : Int
+    assign %score, %v128
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v132 = load minimum : I64
+    %v135 = cmp_lt %v132, 0 : Bool
+    je %v135, b28, b29
+
+  b28:
+    %v137 = load %score : Int
+    %v140 = add %v137, 262144 : Int
+    assign %score, %v140
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v144 = load mask : U64
+    %v147 = cmp_ne %v144, 0 : Bool
+    je %v147, b31, b32
+
+  b31:
+    %v149 = load %score : Int
+    %v152 = add %v149, 524288 : Int
+    assign %score, %v152
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v156 = load %score : Int
+    ret %v156
+}

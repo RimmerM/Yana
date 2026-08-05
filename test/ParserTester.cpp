@@ -77,7 +77,10 @@ static void writeModule(Net::Writer& writer, Context& context, TestDiagnostics& 
     printModule(writer, context, *ast.region, ast);
 }
 
-void parserTest(const String& path, StringView content) {
+// Whether the fixture's dump is the one beside it. The answer is returned rather than only printed
+// because it is this driver's exit status: a failing fixture that leaves the process green is a
+// suite that cannot report anything, which is what this one did until a golden actually changed.
+bool parserTest(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
 
     TestProvider provider;
@@ -98,7 +101,7 @@ void parserTest(const String& path, StringView content) {
     auto expectPath = path + String(".expect");
     auto file = tryResultOr(File::openFile(expectPath, readAccess()), {
         logError("cannot open file %@: error %@", expectPath, it.unwrapErr());
-        return;
+        return false;
     });
 
     auto size = file.size();
@@ -109,13 +112,15 @@ void parserTest(const String& path, StringView content) {
     auto equal = size == string.length && compareMem(buffer.get(), string.ptr, size) == 0;
     if(equal) {
         println("Pass.");
-    } else {
-        println("Fail. Got:");
-        print(StringView { (char*)string.ptr, string.length });
-        println("\n\n\nExpected:");
-        print(StringView { buffer.get(), size });
-        print("\n\n\n");
+        return true;
     }
+
+    println("Fail. Got:");
+    print(StringView { (char*)string.ptr, string.length });
+    println("\n\n\nExpected:");
+    print(StringView { buffer.get(), size });
+    print("\n\n\n");
+    return false;
 }
 
 void generateParserTest(const String& path, StringView content) {
@@ -196,7 +201,8 @@ static void truncationTest(const String& path, StringView content) {
  * Round-robin rather than contiguous blocks, because a directory listing is alphabetical and the
  * long fixtures do not distribute themselves evenly through one.
  */
-void testParser(bool generate, U32 shard, U32 shards) {
+bool testParser(bool generate, U32 shard, U32 shards) {
+    auto passed = true;
     Array<String> tests;
 
     listDirectory("parser", [&](const String& name, bool isDirectory) {
@@ -239,10 +245,12 @@ void testParser(bool generate, U32 shard, U32 shards) {
         if(generate) {
             generateParserTest(test, { buffer.get(), size });
         } else {
-            parserTest(test, { buffer.get(), size });
+            if(!parserTest(test, { buffer.get(), size })) passed = false;
             truncationTest(test, { buffer.get(), size });
         }
     }
+
+    return passed;
 }
 
 /*
@@ -305,5 +313,5 @@ int main(int argc, const char** argv) {
         return 0;
     }
 
-    testParser(generateExpects, shard, shards);
+    return testParser(generateExpects, shard, shards) ? 0 : 1;
 }

@@ -62,32 +62,32 @@ double parseFloatLiteral(const char*& p, const char* m) {
 }
 
 NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
-    NumericLiteral lit { .i = 0, .isInteger = true };
+    NumericLiteral lit { .i = 0, .isInteger = true, .overflowed = false };
 
     // Parse the type of this literal.
     if(m - p >= 3 && (p[1] == 'b' || p[1] == 'B')) {
         if(isBit(p[2])) {
             // This is a binary literal.
             p += 2;
-            lit.i = parseIntLiteral<2>(p, m, parseBit);
+            lit.i = parseIntLiteral<2>(p, m, parseBit, lit.overflowed);
         } else {
-            lit.i = parseIntLiteral<10>(p, m, parseDigit);
+            lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
         }
     } else if(m - p >= 3 && (p[1] == 'o' || p[1] == 'O')) {
         if(isOctit(p[2])) {
             // This is an octal literal.
             p += 2;
-            lit.i = parseIntLiteral<8>(p, m, parseOctit);
+            lit.i = parseIntLiteral<8>(p, m, parseOctit, lit.overflowed);
         } else {
-            lit.i = parseIntLiteral<10>(p, m, parseDigit);
+            lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
         }
     } else if(m - p >= 3 && (p[1] == 'x' || p[1] == 'X')) {
         if(isHexit(p[2])) {
             // This is a hexadecimal literal.
             p += 2;
-            lit.i = parseIntLiteral<16>(p, m, parseHexit);
+            lit.i = parseIntLiteral<16>(p, m, parseHexit, lit.overflowed);
         } else {
-            lit.i = parseIntLiteral<10>(p, m, parseDigit);
+            lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
         }
     } else {
         // Check for a dot or exponent to determine if this is a float.
@@ -104,12 +104,12 @@ NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
                     break;
                 } else {
                     // This wasn't a valid float.
-                    lit.i = parseIntLiteral<10>(p, m, parseDigit);
+                    lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
                     return lit;
                 }
             } else if(!isDigit(*d)) {
                 // This wasn't a valid float.
-                lit.i = parseIntLiteral<10>(p, m, parseDigit);
+                lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
                 return lit;
             }
 
