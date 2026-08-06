@@ -921,6 +921,46 @@ void boxedGlobals(Gen& g) {
 }
 
 /*
+ * Which globals some function writes - see Gen::mutableGlobals.
+ *
+ * Whole-program for `boxedGlobals`' reason and then some: the point of the question is what a *call*
+ * can do to the storage this function is reading, and the answer is in the callee. So it is read off
+ * every emitted function's places, and a global no function names for anything but a load denotes
+ * one value for the whole program however it was declared.
+ *
+ * `let &` is not the test, and asking it instead is what made `FloatNaN.yana`'s `zero` and `one`
+ * storage: they are declared mutable so that the division is not constant-folded, and nothing in the
+ * program ever assigns them. What decides is the program, and this is the program.
+ *
+ * A load is the one instruction excluded, which makes everything else - a store, an init, a drop, an
+ * exchange - a write for this purpose. Over-approximating there is free: an instruction that names a
+ * global's place and does not write it is rare, and the cost of counting one is a local.
+ */
+void mutableGlobals(Gen& g) {
+    for(auto module: g.program.modules) {
+        for(auto pointer: module->functionOrder.contents(g.local)) {
+            if(!hasBody(g, module, pointer) || g.excluded.contains(U32(pointer))) continue;
+
+            eachInstruction(g, *g.local[pointer], [&](Value& instruction) {
+                if(instruction.kind == Value::LoadPlace) return;
+
+                eachPlace(instruction, [&](const Place& place) {
+                    if(place.root != PlaceRoot::Global) return;
+
+                    // A table is a `const` and a boxed one's variable holds the box, which nothing
+                    // reassigns - see Gen::mutableGlobals.
+                    if(g.local[place.global]->isTable || g.boxedGlobals.contains(U32(place.global))) return;
+
+                    if(auto name = g.globalNames.get(U32(place.global))) {
+                        g.mutableGlobals.add(name.unwrap().text);
+                    }
+                });
+            });
+        }
+    }
+}
+
+/*
  * Which one-field tuples keep their wrapper - see Gen::opaqueTuples.
  *
  * Transparency is what removes the object, and `genBorrow` has exactly one shape it cannot name
@@ -1334,6 +1374,10 @@ Ptr<File> genProgram(Context& context, Program& program) {
 
     boxedGlobals(g);
     nameProgram(g);
+
+    // After the naming, because what it records is the *name* the optimizer will see - see
+    // Gen::mutableGlobals.
+    mutableGlobals(g);
 
     g.body = &file->statements;
 

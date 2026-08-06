@@ -1,0 +1,400 @@
+table closure$ResolveTest.deferred$0 before ResolveTest.deferred$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$3 before ResolveTest.continuation$3 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn subtract(%from: Int, %take: Int) -> Int {
+  b0:
+    %v2 = sub %from, %take : Int
+    ret %v2
+}
+
+fn scaled(%value: Int, %by: Int, %plus: Int) -> Int {
+  b0:
+    %v3 = mul %value, %by : Int
+    %v4 = add %v3, %plus : Int
+    ret %v4
+}
+
+fn tagged(%value: Int, %tag: Int, %weight: Int) -> Int {
+  b0:
+    %v3 = mul %tag, %weight : Int
+    %v4 = add %value, %v3 : Int
+    ret %v4
+}
+
+fn step(%counter: Int, %digit: Int) -> Int {
+  b0:
+    %v2 = load %counter : Int
+    %v5 = mul %v2, 10 : Int
+    %v6 = add %v5, %digit : Int
+    assign %counter, %v6
+    ret %digit
+}
+
+fn order() -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v3 = load %seen : Int
+    %v5 = borrow_mut %seen : &mut Int
+    %v6 = call step, %v5, 1 : Int
+    %v7 = load %seen : Int
+    %v9 = borrow_mut %seen : &mut Int
+    %v10 = call step, %v9, 2 : Int
+    %difference = call subtract, %v10, %v6 : Int
+    %v12 = load %seen : Int
+    %v13 = add %v12, %difference : Int
+    ret %v13
+}
+
+fn borrowNamed() -> Int {
+  b0:
+    %slot = alloc : Int
+    init %slot, 0
+    %v4 = load %slot : Int
+    %v5 = borrow_mut %slot : &mut Int
+    %digit = call step, %v5, 7 : Int
+    %v7 = load %slot : Int
+    %v8 = add %v7, %digit : Int
+    ret %v8
+}
+
+fn counted(%counter: Int) -> Int {
+  b0:
+    %v1 = load %counter : Int
+    %v4 = add %v1, 1 : Int
+    assign %counter, %v4
+    ret 5
+}
+
+fn choose(%take: Bool, %other: () -> Int) -> Int {
+  b0:
+    je %take, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    %v4 = calldyn %other : Int
+    jmp b3
+
+  b3:
+    %v7 = phi [b1, 1], [b2, %v4] : Int
+    ret %v7
+}
+
+fn lazyNamed() -> Int {
+  b0:
+    %ran = alloc : Int
+    init %ran, 0
+    %v4 = alloc : {ran: &mut Int}
+    %v5 = borrow_mut %ran : &mut Int
+    init %local1.ran, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : () -> Int
+    %v9 = symbol ResolveTest.deferred$0 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %picked = call choose, True, %v8 : Int
+    %v15 = mul %picked, 10 : Int
+    %v16 = load %ran : Int
+    %v17 = add %v15, %v16 : Int
+    ret %v17
+}
+
+(Measure(a)) fn pick(%it: a, %scale: Int) -> Int {
+  schema {
+    #0 type a
+    #1 class Measure(a)
+  }
+
+  b0:
+    %v2 = gencall Measure(a).measure, %it, %scale : Int
+    ret %v2
+}
+
+fn withOffset(%base: Int, %offset: Int, %body: (value: Int) -> $r) -> $r {
+  schema {
+    #0 type $r
+  }
+
+  b0:
+    %v3 = add %base, %offset : Int
+    %v4 = calldyn %body, %v3 : $r
+    ret %v4
+}
+
+fn lensed() -> Int {
+  b0:
+    %v2 = alloc : (value: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$1 : %()
+    init %local0.code, %v3
+    %v6 = cast 0 : %()
+    init %local0.env, %v6
+    %v8 = call withOffset(Int), 100, 3, %v2 : Int
+    ret %v8
+}
+
+fn lensNamed() -> Int {
+  b0:
+    %v2 = alloc : (value: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$2 : %()
+    init %local0.code, %v3
+    %v6 = cast 0 : %()
+    init %local0.env, %v6
+    %v8 = call withOffset(Int), 200, 1, %v2 : Int
+    ret %v8
+}
+
+fn upTo(%limit: Int, %from: Int, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %i = alloc : Int
+    init %i, %from
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v22 = alloc : Outcome((), $r)
+    init %local3.discriminant, 0
+    ret %v22
+
+  b3:
+    %v9 = load %i : Int
+    %v10 = calldyn %body, %v9 : Outcome((), $r)
+    %v11 = load %local2.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b4, b5
+
+  b4:
+    ret %v10
+
+  b5:
+    %v16 = load %i : Int
+    %v19 = add %v16, 1 : Int
+    assign %i, %v19
+    jmp b1
+}
+
+fn loops() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v5 = alloc : {total: &mut Int}
+    %v6 = borrow_mut %total : &mut Int
+    init %local1.total, %v6
+    %v8 = addressof %local1 : %()
+    %v9 = alloc : (value: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$3 : %()
+    init %local2.code, %v10
+    init %local2.env, %v8
+    %v13 = call upTo(()), 4, 0, %v9 : Outcome((), ())
+    %v16 = alloc : {total: &mut Int}
+    %v17 = borrow_mut %total : &mut Int
+    init %local4.total, %v17
+    %v19 = addressof %local4 : %()
+    %v20 = alloc : (value: Int) -> Outcome((), ())
+    %v21 = symbol ResolveTest.continuation$4 : %()
+    init %local5.code, %v21
+    init %local5.env, %v19
+    %v24 = call upTo(()), 13, 10, %v20 : Outcome((), ())
+    %v25 = load %total : Int
+    ret %v25
+}
+
+fn throughValue() -> Int {
+  b0:
+    %f = alloc : (from: Int, take: Int) -> Int
+    %v1 = symbol ResolveTest.lambda$5 : %()
+    init %local0.code, %v1
+    %v4 = cast 0 : %()
+    init %local0.env, %v4
+    %v8 = calldyn %f, 30, 4 : Int
+    ret %v8
+}
+
+fn main() -> Int {
+  b0:
+    %plain = call subtract, 9, 4 : Int
+    %named = call subtract, 9, 4 : Int
+    %mixed = call subtract, 9, 4 : Int
+    %allDefaults = call scaled, 2, 10, 1 : Int
+    %oneDefault = call scaled, 2, 3, 1 : Int
+    %noDefaults = call scaled, 2, 3, 4 : Int
+    %skipped = call scaled, 2, 10, 5 : Int
+    %leftOut = call tagged, 1, 7, 100 : Int
+    %overridden = call tagged, 1, 7, 10 : Int
+    %classDefault = call Measure(Int).measure, 6, 2 : Int
+    %classNamed = call Measure(Int).measure, 6, 4 : Int
+    %classBool = call Measure(Bool).measure, True, 2 : Int
+    %generic = call pick(Int), 3, 5 : Int
+    %genericNamed = call pick(Int), 3, 1 : Int
+    %v54 = add %plain, %named : Int
+    %v55 = add %v54, %mixed : Int
+    %v56 = add %v55, %allDefaults : Int
+    %v57 = add %v56, %oneDefault : Int
+    %v58 = add %v57, %noDefaults : Int
+    %v59 = add %v58, %skipped : Int
+    %v60 = add %v59, %leftOut : Int
+    %v61 = add %v60, %overridden : Int
+    %v62 = add %v61, %classDefault : Int
+    %v63 = add %v62, %classNamed : Int
+    %v64 = add %v63, %classBool : Int
+    %v65 = add %v64, %generic : Int
+    %v66 = add %v65, %genericNamed : Int
+    %v67 = call lensed : Int
+    %v68 = add %v66, %v67 : Int
+    %v69 = call lensNamed : Int
+    %v70 = add %v68, %v69 : Int
+    %v71 = call loops : Int
+    %v72 = add %v70, %v71 : Int
+    %v73 = call order : Int
+    %v74 = add %v72, %v73 : Int
+    %v75 = call throughValue : Int
+    %v76 = add %v74, %v75 : Int
+    %v77 = call borrowNamed : Int
+    %v78 = add %v76, %v77 : Int
+    %v79 = call lazyNamed : Int
+    %v80 = add %v78, %v79 : Int
+    ret %v80
+}
+
+fn Measure(Int).measure(%it: Int, %scale: Int) -> Int {
+  b0:
+    %v2 = mul %it, %scale : Int
+    ret %v2
+}
+
+fn Measure(Bool).measure(%it: Bool, %scale: Int) -> Int {
+  b0:
+    je %it, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %scale], [b2, 0] : Int
+    ret %v6
+}
+
+fn ResolveTest.deferred$0(%env: %{ran: &mut Int}) -> Int {
+  b0:
+    %v1 = load [%env].ran : &mut Int
+    %v2 = load [%v1] : Int
+    %v3 = borrow_mut [%v1] : &mut Int
+    %v4 = call counted, %v3 : Int
+    ret %v4
+}
+
+fn ResolveTest.continuation$1(%env: %{}, %value: Int) -> Int {
+  b0:
+    ret %value
+}
+
+fn withOffset(Int)(%base: Int, %offset: Int, %body: (value: Int) -> Int) -> Int {
+  b0:
+    %v3 = add %base, %offset : Int
+    %v4 = calldyn %body, %v3 : Int
+    ret %v4
+}
+
+fn ResolveTest.continuation$2(%env: %{}, %value: Int) -> Int {
+  b0:
+    ret %value
+}
+
+fn ResolveTest.continuation$3(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn upTo(())(%limit: Int, %from: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %i = alloc : Int
+    init %i, %from
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), ())
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), ())
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$4(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn ResolveTest.lambda$5(%env: %{}, %from: Int, %take: Int) -> Int {
+  b0:
+    %v3 = sub %from, %take : Int
+    ret %v3
+}
+
+fn pick(Int)(%it: Int, %scale: Int) -> Int {
+  b0:
+    %v2 = call Measure(Int).measure, %it, %scale : Int
+    ret %v2
+}

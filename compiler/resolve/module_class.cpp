@@ -396,6 +396,15 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                 }
             }
 
+            // A default is decided by the class signature for the same reason strictness is: what a
+            // call site may leave out is read off the class before it knows which instance it
+            // reached, so one written here would be a constant nothing ever passes.
+            if(declared.def) {
+                module.context.diagnostics.error("argument %@ cannot have a default value in an instance - which arguments a call site may leave out is fixed by class %@, because it is read off the class signature before the instance is selected"_v,
+                                                 declared.source, module.context.findName(declared.name),
+                                                 module.context.findName(className));
+            }
+
             // Strictness is as much of the contract as the convention is, and for a sharper reason:
             // the call site decides what to evaluate from the *class* signature, before it knows
             // which instance it reached. An implementation that dropped the marker would be handed

@@ -29,5 +29,10 @@ fn shapeAt(at: {x: Int, y: Int}) -> Int = at.x + at.y
 -- brackets leaves it out - the same distinction a call makes between an argument and no argument.
 data Label {text: Int, weight: Int = 1}
 
+-- The call-site half of the same thing: a trailing parameter with a default is not a position the
+-- author has to write, so the snippet stops before it - and the default is shown in the detail,
+-- since deciding whether to write the argument at all is what a reader needs it for.
+fn shifted(s: Shape, by: Int = 1) -> Int = area(s) + by
+
 -- A record of records, so that an update path has more than one segment to walk.
 data Line {from: Point, to: Point}

@@ -78,6 +78,48 @@ TypePtr requireReturnType(Module& module, Function& function, LocationId source)
 }
 
 /*
+ * `= expr` on a parameter: the constant a call site that leaves the position out passes instead.
+ *
+ * A constant and not an expression, which is the rule a field default is already under and is
+ * stated once for both - see const.h. So what is recorded is the same thing: the bits the
+ * parameter's storage holds at its own width, which the call site turns back into a value with
+ * `constantBits`. Nothing runs at the call site, and nothing has to run at the declaration.
+ *
+ * Three positions cannot have one, and each is a rule about the *caller* rather than about the
+ * constant. A `return` parameter roots borrows in the result, and an omitted one has no caller
+ * storage for a result borrow to stay live in - doc/spec/functions.md says so directly. A `&`
+ * parameter is written through, and a temporary built from a constant is somewhere the caller never
+ * looks again. And a parameter declared as a type variable has no type for the constant to *be* of:
+ * which type it would be is exactly what each call site decides separately.
+ */
+static void resolveArgumentDefault(Module& module, Arg& declared, const ast::Expr& expr, LocationId source) {
+    auto global = *module.types;
+
+    if(declared.returnRoot) {
+        module.context.diagnostics.error("a `return` parameter cannot have a default value - the marker says a borrow in the result may be rooted in this argument, and a call site that leaves it out has no storage of its own for the result to stay live in"_v,
+                                         source);
+        return;
+    }
+
+    if(declared.isMutableBorrow()) {
+        module.context.diagnostics.error("a `&` parameter cannot have a default value - the callee writes through it, and a call site that left it out would be handed a temporary built from the constant, which nothing reads afterwards"_v,
+                                         source);
+        return;
+    }
+
+    if(isGeneric(global, declared.type)) {
+        module.context.diagnostics.error("a parameter declared as a type variable cannot have a default value - a default is a constant of the parameter's type, and which type this one has is what each call site decides"_v,
+                                         source);
+        return;
+    }
+
+    if(global[declared.type]->kind == Type::Error) return;
+
+    auto constant = evaluateConstant(module, expr, declared.type, "a default argument"_v);
+    if(constant) declared.defaultBits = Just(constant.bits);
+}
+
+/*
  * Resolves one function signature against a generic context, producing a body-less Function.
  *
  * `classSignature` says this is a class member rather than something callable, and the whole of what
@@ -176,6 +218,8 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
         if(lazy && arg.def) {
             module.context.diagnostics.error("a `@lazy` parameter cannot have a default value - the default would be one more expression the call site did not write and the callee may not run"_v,
                                              arg.source);
+        } else if(arg.def) {
+            resolveArgumentDefault(module, *declared, *module.parse[arg.def], arg.source);
         }
 
         // What may carry the marker is one rule shared with a written function type - see

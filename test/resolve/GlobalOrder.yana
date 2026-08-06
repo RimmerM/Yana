@@ -1,0 +1,36 @@
+-- A mutable global read either side of a call that writes it.
+--
+-- Every rewrite the JavaScript emitter's optimizer makes rests on one premise: a local `var` is
+-- invisible to every callee, so nothing but a function's own text can change one. A module-level
+-- global is the identifier that premise is false of - `bump()` assigns `seen` from another function
+-- entirely - and reading one therefore has to be ordered against the calls around it exactly as a
+-- property read is.
+--
+-- It was not, and the symptom was invisible on the other two targets. `let a = bump(); return seen +
+-- a` became `return seen + bump()`, which reads the global *before* the call that writes it, since
+-- `+` evaluates left to right in JavaScript. The number below is what says so: both halves change if
+-- a read moves across the call, and the fixture runner holds the optimized and unoptimized builds to
+-- the same answer as well as to this one.
+
+let &seen = 0 :: Int
+
+fn bump() -> Int:
+    seen = seen + 5
+    return 1
+
+-- The read is after the call. Inlining the call into the sum moves it past the read.
+fn readAfterCall() -> Int:
+    seen = 0
+    let a = bump()
+    return seen + a                            -- 5 + 1
+
+-- And the other direction: a name holding what the global said *before* the call, which must not be
+-- replaced by a second read of the global afterwards. Two readers, which is the shape copy
+-- propagation takes rather than the shape inlining does.
+fn readBeforeCall() -> Int:
+    seen = 3
+    let before = seen
+    let a = bump()
+    return before * 100 + before * 10 + seen + a  -- 300 + 30 + 8 + 1
+
+fn main() -> Int = readAfterCall() * 1000 + readBeforeCall()

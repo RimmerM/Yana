@@ -103,86 +103,6 @@ struct Capture {
     LocationId definition = kNullLocation;
 };
 
-// One class function that fits a call, together with what its class's type variables had to be
-// and the instance that supplies them. `instance` is null when the signature fits but nothing
-// implements it for these types, which is a different diagnostic from "wrong function".
-//
-// `instanceArgs` is what selecting that instance bound *its* own variables to, which is empty for
-// the concrete head that is the usual case and one type per variable for a parametric one.
-struct ClassMatch {
-    GlobalPtr<TypeClass> typeClass = nullptr;
-    ModulePtr<ClassInstance> instance = nullptr;
-    TypeList args;
-    TypeList instanceArgs;
-    U16 index = 0;
-
-    /*
-     * Set on a *failed* match whose only problem was a functional dependency nothing answered:
-     * the signature fits, the deciding positions are this body's own type variables, and no
-     * requirement of the enclosing function says what they determine.
-     *
-     * Kept apart from the match itself because it is a diagnostic and not a result - "no class
-     * function head accepts (c)" is true and useless, since what the author has to write is the
-     * constraint rather than a different call.
-     */
-    bool undeclaredDependency = false;
-};
-
-/*
- * What matching every class candidate of one call against its arguments found.
- *
- * The facts, with no policy attached to them: which candidates fit and selected an instance, which
- * fit and found none, which fit but are still about this body's own type variables, and which fit
- * except for a dependency nothing declares. What to *do* with each is the caller's - an ordinary
- * call defers an undecided match to a generic dispatch, and a `for` loop has no dispatch to defer to
- * - and that is the whole of what the two selections differ in.
- *
- * Stated as one type because it drifted while it was two. The `for` loop's copy discarded a match
- * that had no instance instead of keeping it, so with two classes declaring one iterator name, the
- * "no instance of %@" diagnostic named whichever class came first rather than the one that matched.
- */
-struct ClassSelection {
-    // The candidate that fit with an instance, and how many did. More than one is an ambiguity.
-    ClassMatch selected;
-    Size selectedCount = 0;
-
-    // The first candidate whose signature fit and whose types have no instance. It is what separates
-    // "wrong function" from "no instance for these types", which are very different diagnostics.
-    ClassMatch withoutInstance;
-    Size withoutInstanceCount = 0;
-
-    // Matches on this function's own type variables. Which class a call is, and with which type
-    // arguments, is decided here and once; only the instance has to wait until the types become
-    // concrete.
-    SmallArray<ClassMatch, 4> undecided;
-
-    // Every class that turned out to apply, kept only so an ambiguity can name them all.
-    SmallArray<GlobalPtr<TypeClass>, 4> applicable;
-
-    // A candidate the signature fit and a functional dependency did not, kept so the failure can be
-    // reported as the missing constraint it is rather than as a call nothing accepts.
-    GlobalPtr<TypeClass> undeclared = nullptr;
-};
-
-// Gives `into` everything `from` matched. Not assignment: the two lists are TypeLists, whose
-// assignment is deleted precisely so that this reads as the replacement it is - see SmallArray.
-inline void adopt(ClassMatch& into, const ClassMatch& from) {
-    into.typeClass = from.typeClass;
-    into.instance = from.instance;
-    into.index = from.index;
-
-    replaceContents(into.args, from.args);
-    replaceContents(into.instanceArgs, from.instanceArgs);
-}
-
-struct ExprResolver;
-
-// What an editor shows for a class function's name, recorded at the point the call decided which
-// class and which instance answered it. Shared with the `for` loop's own selection, which reaches a
-// class iterator without going through resolveCall.
-void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
-                             ModulePtr<ClassInstance> instance);
-
 /*
  * Where `break` and `continue` go.
  *
@@ -266,6 +186,7 @@ enum class ArgResult: U8 {
     Value,    /// The position produced a value, which is what `ResolvedArg::value` holds.
     Unit,     /// It produced a value carrying nothing, which is spelled as no value at all.
     Deferred, /// A `@lazy` position, left unevaluated - `ResolvedArg::promise` holds it.
+    Default,  /// A position the call site left out, which the callee's `= expr` fills.
     Failed,   /// It was reported on, so nothing further should be said about this call.
 };
 
@@ -291,6 +212,17 @@ struct ResolvedArg {
     static ResolvedArg unit() { return ResolvedArg(nullptr, ArgResult::Unit); }
     static ResolvedArg failed() { return ResolvedArg(nullptr, ArgResult::Failed); }
 
+    /*
+     * A position the call site did not write and the callee declares a default for.
+     *
+     * It carries no value on purpose, and only as far as selection: matching skips it, because a
+     * default is a constant *of the declared type* and therefore fits the position it was written
+     * on by construction and binds no type variable that was not already bound. The constant is
+     * built once, for the callee the call was settled on - see ExprResolver::materializeDefaults -
+     * so nothing downstream of selection ever sees this state.
+     */
+    static ResolvedArg defaulted() { return ResolvedArg(nullptr, ArgResult::Default); }
+
     // A `@lazy` position. The promise is empty where the call site only knows *that* the position is
     // deferred - the overload set answers that before any argument is resolved, see
     // OverloadSet::strictness - and is filled in by whoever has the argument to put in it.
@@ -302,6 +234,7 @@ struct ResolvedArg {
 
     bool isValue() const { return state == ArgResult::Value; }
     bool isDeferred() const { return state == ArgResult::Deferred; }
+    bool isDefault() const { return state == ArgResult::Default; }
     bool isFailed() const { return state == ArgResult::Failed; }
 
     // The value this position holds, which is null for every state but `Value`. `valueType` answers
@@ -321,6 +254,40 @@ private:
 // The arguments of one call. Eight inline for the same reason ValueList holds eight - see
 // util/container.h - and it is the list every call is built in, matched from and emitted through.
 using ArgList = SmallArray<ResolvedArg, 8>;
+
+/*
+ * The name each written argument gave, or 0 where it gave none - one entry per position the call
+ * site wrote, in the order it wrote them.
+ *
+ * A call site's own half of the normalization, and the only half that exists before a callee does:
+ * which parameter `count: 3` fills is a question about the *candidate*, and there are usually
+ * several. So the names travel with the overload set and are turned into a mapping once per
+ * candidate - see ArgMapping.
+ */
+using ArgNames = SmallArray<StringId, 8>;
+
+/*
+ * Which written argument fills each parameter of one candidate - the normalized call.
+ *
+ * Positional and named arguments and omitted defaults are three spellings of the same thing, and
+ * this is where they become one: a parameter is filled by an argument the call site wrote, or by
+ * the default its declaration carries, and everything downstream reads a list in *parameter* order
+ * with no idea which spelling produced it.
+ *
+ * Both directions, because both are asked. `sources` is what builds the normalized argument list;
+ * `parameters` is what a call site pushing an expected type into an argument it is about to resolve
+ * needs, since it walks the arguments as written. They are two readings of one pass.
+ */
+struct ArgMapping {
+    static constexpr U16 kDefaulted = 0xFFFF;
+
+    // Parameter -> the written argument that fills it, or `kDefaulted`. As long as the candidate
+    // has parameters this call site fills - which is all of them but a loop's continuation.
+    SmallArray<U16, 8> sources;
+
+    // Written argument -> the parameter it fills. As long as the call site wrote.
+    SmallArray<U16, 8> parameters;
+};
 
 /*
  * Whether any position of this call has already been reported on.
@@ -344,6 +311,93 @@ inline bool anyArgumentFailed(Buffer<ResolvedArg> args) {
 
     return false;
 }
+
+// One class function that fits a call, together with what its class's type variables had to be
+// and the instance that supplies them. `instance` is null when the signature fits but nothing
+// implements it for these types, which is a different diagnostic from "wrong function".
+//
+// `instanceArgs` is what selecting that instance bound *its* own variables to, which is empty for
+// the concrete head that is the usual case and one type per variable for a parametric one.
+struct ClassMatch {
+    GlobalPtr<TypeClass> typeClass = nullptr;
+    ModulePtr<ClassInstance> instance = nullptr;
+    TypeList args;
+    TypeList instanceArgs;
+    U16 index = 0;
+
+    // The call's arguments in this signature's parameter order, which is not the order the call
+    // site wrote them in: a named argument fills the parameter of its name, and a position left out
+    // is the default the signature declared. Kept on the match because the list a candidate was
+    // matched against is the list it has to be emitted with - see ArgMapping.
+    ArgList normalized;
+
+    /*
+     * Set on a *failed* match whose only problem was a functional dependency nothing answered:
+     * the signature fits, the deciding positions are this body's own type variables, and no
+     * requirement of the enclosing function says what they determine.
+     *
+     * Kept apart from the match itself because it is a diagnostic and not a result - "no class
+     * function head accepts (c)" is true and useless, since what the author has to write is the
+     * constraint rather than a different call.
+     */
+    bool undeclaredDependency = false;
+};
+
+/*
+ * What matching every class candidate of one call against its arguments found.
+ *
+ * The facts, with no policy attached to them: which candidates fit and selected an instance, which
+ * fit and found none, which fit but are still about this body's own type variables, and which fit
+ * except for a dependency nothing declares. What to *do* with each is the caller's - an ordinary
+ * call defers an undecided match to a generic dispatch, and a `for` loop has no dispatch to defer to
+ * - and that is the whole of what the two selections differ in.
+ *
+ * Stated as one type because it drifted while it was two. The `for` loop's copy discarded a match
+ * that had no instance instead of keeping it, so with two classes declaring one iterator name, the
+ * "no instance of %@" diagnostic named whichever class came first rather than the one that matched.
+ */
+struct ClassSelection {
+    // The candidate that fit with an instance, and how many did. More than one is an ambiguity.
+    ClassMatch selected;
+    Size selectedCount = 0;
+
+    // The first candidate whose signature fit and whose types have no instance. It is what separates
+    // "wrong function" from "no instance for these types", which are very different diagnostics.
+    ClassMatch withoutInstance;
+    Size withoutInstanceCount = 0;
+
+    // Matches on this function's own type variables. Which class a call is, and with which type
+    // arguments, is decided here and once; only the instance has to wait until the types become
+    // concrete.
+    SmallArray<ClassMatch, 4> undecided;
+
+    // Every class that turned out to apply, kept only so an ambiguity can name them all.
+    SmallArray<GlobalPtr<TypeClass>, 4> applicable;
+
+    // A candidate the signature fit and a functional dependency did not, kept so the failure can be
+    // reported as the missing constraint it is rather than as a call nothing accepts.
+    GlobalPtr<TypeClass> undeclared = nullptr;
+};
+
+// Gives `into` everything `from` matched. Not assignment: the two lists are TypeLists, whose
+// assignment is deleted precisely so that this reads as the replacement it is - see SmallArray.
+inline void adopt(ClassMatch& into, const ClassMatch& from) {
+    into.typeClass = from.typeClass;
+    into.instance = from.instance;
+    into.index = from.index;
+
+    replaceContents(into.args, from.args);
+    replaceContents(into.instanceArgs, from.instanceArgs);
+    replaceContents(into.normalized, from.normalized);
+}
+
+struct ExprResolver;
+
+// What an editor shows for a class function's name, recorded at the point the call decided which
+// class and which instance answered it. Shared with the `for` loop's own selection, which reaches a
+// class iterator without going through resolveCall.
+void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
+                             ModulePtr<ClassInstance> instance);
 
 /*
  * What sort of call site is selecting from a set, and the whole of what that changes.
@@ -468,7 +522,22 @@ struct OverloadSet {
      */
     ArgList strictness;
 
+    /*
+     * The name each written argument gave, or empty where every one of them was positional.
+     *
+     * Part of the set rather than of the call site for the same reason strictness is: which
+     * parameter a named argument fills is decided per candidate, and every step that judges a
+     * candidate - admitting the plain function, comparing strictness, matching, selecting - has to
+     * ask the same question of the same names. Empty is the ordinary case and means "all
+     * positional", which is what every synthesized call is.
+     */
+    ArgNames names;
+
     StringId name = 0;
+
+    // How many arguments the call site *wrote*, which is what R1's key is about. It is no longer
+    // how many parameters a candidate has: a candidate may declare more and fill the rest from its
+    // defaults, which is the whole of what a default argument is.
     Size arity = 0;
 
     // Where the name was written, which is not where the call was: an editor asking about the name
@@ -1007,7 +1076,41 @@ struct ExprResolver {
      * written, and is `kNullLocation` for a synthesized call - see OverloadSet::nameSource.
      */
     void gatherOverloads(StringId name, Size arity, LocationId source, LocationId nameSource,
-                         OverloadSet& out, CallShape shape = CallShape());
+                         OverloadSet& out, CallShape shape = CallShape(), Buffer<const StringId> names = {});
+
+    /*
+     * The one normalized-call builder: which parameter of `signature` each written argument fills,
+     * and which parameters are left to their defaults.
+     *
+     * Every judgment a call makes goes through this - whether the plain function is a candidate at
+     * all, what each candidate is matched against, which parameter's type is pushed into an argument
+     * about to be resolved, and what the selected callee is finally emitted with. Positional
+     * arguments fill parameters in order, a named one fills the parameter of its name wherever that
+     * is, and a parameter no argument reached has to carry a default.
+     *
+     * `supplied` is how many trailing parameters the call site does not write - one for a `for`
+     * loop, which fills the continuation itself. `report` says whether an argument list that cannot
+     * be normalized is a diagnostic here or simply a candidate that does not serve the call; only
+     * selection, which knows what the alternatives were, ever says yes.
+     */
+    bool mapArguments(ModulePtr<Function> signature, Buffer<const StringId> names, Size written, Size supplied,
+                      StringId callName, LocationId source, bool report, ArgMapping& out);
+
+    // The same question asked of a function *value*, whose type carries parameter names but no
+    // defaults - see resolveIndirectCall. Split from the above because a FunType is not a Function
+    // and the mapping rule is about neither.
+    bool mapValueArguments(FunType* signature, Buffer<const StringId> names, Size written,
+                           LocationId source, bool report, ArgMapping& out);
+
+    // The written arguments restated in parameter order, with `ResolvedArg::defaulted()` in every
+    // position the call site left out. What a candidate is matched against and what the selected
+    // one is emitted with are both this - see ArgMapping.
+    void normalizeArguments(const ArgMapping& mapping, Buffer<ResolvedArg> args, ArgList& out);
+
+    // Replaces each defaulted position with the constant its parameter declared. Runs once, for the
+    // callee selection settled on, which is why no state below selection has to know that a
+    // position was ever absent - see ResolvedArg::defaulted.
+    void materializeDefaults(ModulePtr<Function> signature, LocationId source, ArgList& args);
 
     // The signature this call's arguments are pushed down against: the sole candidate's, or none
     // where the set holds more than one and pushing either in would decide the call before selection
@@ -1096,8 +1199,8 @@ struct ExprResolver {
 
     // Matches every class candidate against these arguments and reports what fit, deciding nothing.
     // Shared by the ordinary selection and a `for` loop's - see ClassSelection.
-    void matchClassCandidates(const ClassFunList& candidates, Buffer<ResolvedArg> args, TypePtr target,
-                              ClassSelection& out);
+    void matchClassCandidates(const ClassFunList& candidates, Buffer<ResolvedArg> args,
+                              Buffer<const StringId> names, TypePtr target, ClassSelection& out);
 
     // Which candidate of the set serves this call, and the arguments it was chosen for. Reports
     // everything there is to say about a call it cannot serve - see ResolvedCallee.
@@ -1153,24 +1256,26 @@ struct ExprResolver {
      * instance means, which is a different diagnostic from "wrong function" and is why the answer
      * is a bool beside a ClassMatch rather than the match alone.
      */
-    bool matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target, ClassMatch& resolved);
+    bool matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, Buffer<const StringId> names,
+                       TypePtr target, ClassMatch& resolved);
 
     /*
      * Whether a plain function can serve this call - the same question matchClassFun asks of a
      * class function, so that both halves of an overload set are judged by one rule.
      *
-     * `declaredArgs` is how many of the callee's parameters this call is expected to fill, which is
-     * all of them everywhere but one place: a `for` loop's iterator declares a continuation the loop
-     * supplies rather than the call site, so its written arity is one short and the R5 test over it
-     * has to be about the leading positions. Passed rather than defaulted so that the one case that
-     * differs says so, and the two ordinary sites read as what they are.
+     * The set is what says how the written arguments reach the callee's parameters: its names, and
+     * how many trailing parameters the call site does not write. A `for` loop's iterator declares a
+     * continuation the loop supplies rather than the call site, so its written arity is one short
+     * and the R5 test over it is about the leading positions - see CallShape::supplied.
      *
-     * `typeArgs` is what the solve decided, for the caller that goes on to commit to this callee -
-     * see ResolvedCallee::typeArgs. Left empty for a non-generic callee and for a solve that did not
+     * `normalized` is the list this candidate was matched against, in its own parameter order, for
+     * the caller that goes on to commit to it - see ArgMapping. `typeArgs` is what the solve
+     * decided, for the same caller: left empty for a non-generic callee and for a solve that did not
      * settle every variable, so what comes back is an answer or nothing.
      */
     bool matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
-                       LocationId source, Size declaredArgs, TypeList& typeArgs);
+                       LocationId source, const OverloadSet& set, TypeList& typeArgs,
+                       ArgList& normalized);
 
     // Calls one implementation of a selected instance. A concrete instance's is an ordinary
     // function; a parametric one's is generic over the instance's own variables, so it is expanded
@@ -1251,8 +1356,19 @@ struct ExprResolver {
     // A null `callee` pushes no expected type into any of them, which is what a set with more than
     // one candidate needs: pushing either candidate's parameter types down would decide the call
     // before it was selected. See pushdownSignature.
-    void resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
-                                ArgList& values);
+    //
+    // `mapping` is how the written arguments reach that callee's parameters, and is read only where
+    // `callee` is - a named argument's expected type is the type of the parameter it names.
+    void resolveHandedArguments(ModulePtr<Function> callee, const ArgMapping* mapping,
+                                ast::ParseList<ast::TupArg> arguments, ArgList& values);
+
+    // The name each written argument gave, or 0 - see ArgNames. One per position, in written order.
+    void collectArgNames(ast::ParseList<ast::TupArg> arguments, ArgNames& out);
+
+    // An editor's cursor at one of a call's arguments - see expr_call.cpp. True when it captured,
+    // which ends the call: the sentinel names nothing for the resolving loop to resolve.
+    bool captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
+                              const ArgMapping* pushdown, ModulePtr<Function> signature);
 
     /*
      * `x?` - Implementation-Semantics.md part 5's early exit.

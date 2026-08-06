@@ -102,24 +102,37 @@ struct Collector {
     // this correct: whichever the *program* would mean is the one that reaches here first.
     Array<StringId> seen;
 
-    bool take(StringId name) {
+    /*
+     * And the same for the *name* half of a `name: value` pair, kept apart from it.
+     *
+     * A parameter called `count` and a local called `count` are two different things to write at an
+     * argument position - `count: ` names the parameter and `count` passes the value - so one is not
+     * a shadow of the other and offering only the first would hide whichever the author meant. Two
+     * lists rather than one key, because the shadowing rule within each is unchanged.
+     */
+    Array<StringId> seenNaming;
+
+    bool take(StringId name, bool naming) {
         if(!name) return false;
 
-        for(auto existing: seen) {
+        auto& into = naming ? seenNaming : seen;
+
+        for(auto existing: into) {
             if(existing == name) return false;
         }
 
-        seen.push(name);
+        into.push(name);
         return true;
     }
 
-    void add(const Symbol& symbol, TypePtr type, StringId qualifier, U8 rank) {
-        if(!take(symbol.name)) return;
+    void add(const Symbol& symbol, TypePtr type, StringId qualifier, U8 rank, bool naming = false) {
+        if(!take(symbol.name, naming)) return;
 
         CompletionItem item;
         item.symbol = symbol;
         item.type = type;
         item.qualifier = qualifier;
+        item.naming = naming;
         item.rank = fitsExpected(global, type, request.expected) ? U8(RankExpected) : rank;
 
         request.items.push(item);
@@ -353,6 +366,76 @@ void captureConstructionCompletion(ExprResolver& resolver, TypePtr owner, TypePt
 
     collectFields(collector, resolver.module, owner ? owner : content, content, ownerSource, RankExpected);
 
+    if(!namesOnly) {
+        collectBindings(collector);
+        collectVisible(collector, resolver.module);
+    }
+
+    sortItems(context, request->items);
+    resolver.sawParseError = true;
+}
+
+/*
+ * The parameters of one signature, as the `name:` half a call site may write.
+ *
+ * `Symbol::Kind::Arg` against the *callee*, which is what makes hovering the item and jumping from
+ * it work without a second kind: it is the same symbol the parameter's own declaration records, so
+ * an editor showing `argument mode: Mode` beside the item is showing what the item is.
+ */
+static void collectParameters(Collector& into, Module& module, ModulePtr<Function> signature) {
+    if(!signature) return;
+
+    auto local = *module.arena;
+    auto declaration = local[signature];
+
+    for(Size i = 0; i < declaration->args.size(); i++) {
+        auto pointer = declaration->args.get(local, i);
+        auto argument = local[pointer];
+        if(!argument->name) continue;
+
+        Symbol symbol;
+        symbol.kind = Symbol::Kind::Arg;
+        symbol.module = &module;
+        symbol.function = signature;
+        symbol.name = argument->name;
+        symbol.definition = argument->source;
+        symbol.payload = argument->index;
+
+        into.add(symbol, argument->declaredType(), 0, RankExpected, true);
+    }
+}
+
+void captureArgumentCompletion(ExprResolver& resolver, const OverloadSet& set, TypePtr expected,
+                               bool namesOnly) {
+    auto& context = resolver.context;
+    auto request = context.completion;
+    if(!request || request->captured) return;
+
+    request->captured = true;
+    request->module = &resolver.module;
+    request->function = &resolver.function - resolver.local;
+    request->expected = expected;
+
+    Collector collector { resolver, *request, resolver.global };
+
+    /*
+     * Both halves of the overload set, and neither narrowed by whether it fits: which candidate
+     * serves the call is decided by arguments that are, by definition, not written yet. A name that
+     * only one of them declares is still a name this call might be about, and the Collector's
+     * de-duplication is what keeps two candidates agreeing about one from offering it twice.
+     */
+    collectParameters(collector, resolver.module, set.direct);
+    collectParameters(collector, resolver.module, set.mismatched);
+
+    for(auto& candidate: set.candidates) {
+        if(!candidate.typeClass) continue;
+
+        auto entry = resolver.global[candidate.typeClass]->functions.get(resolver.global, candidate.index);
+        collectParameters(collector, resolver.module, entry.fun);
+    }
+
+    // And everything a name in expression position would offer, because an argument that is not in
+    // a name position may still be written positionally.
     if(!namesOnly) {
         collectBindings(collector);
         collectVisible(collector, resolver.module);

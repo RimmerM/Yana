@@ -94,6 +94,8 @@ tupleField at 115:26
   filtered: false
   x [kind 5, sort 0x] inserts x:  -- field x: Int
   y [kind 5, sort 0y] inserts y:  -- field y: Int
+  argumentNaming [kind 3, sort 2argumentNaming] inserts snippet argumentNaming(${1:s}) -- fn argumentNaming(s: Shape) -> Int
+  arguments [kind 3, sort 2arguments] inserts snippet arguments(${1:s}) -- fn arguments(s: Shape) -> Int
   corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
   main [kind 3, sort 2main] inserts main() -- fn main() -> Int
   matching [kind 3, sort 2matching] inserts snippet matching(${1:s}) -- fn matching(s: Shape) -> Int
@@ -102,8 +104,6 @@ tupleField at 115:26
   naming [kind 3, sort 2naming] inserts naming() -- fn naming() -> Point
   nested [kind 3, sort 2nested] inserts snippet nested(${1:l}) -- fn nested(l: Line) -> Line
   origin [kind 3, sort 2origin] inserts origin() -- fn origin() -> Point
-  pickInt [kind 3, sort 2pickInt] inserts snippet pickInt(${1:a}, ${2:b}) -- fn pickInt(a: Int, b: Int) -> Int
-  shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   ... more items follow
 
 recordName at 125:25
@@ -114,20 +114,47 @@ defaulted at 130:26
   filtered: true
   Label [kind 20, sort 0Label] inserts snippet Label {text: ${1}} -- Label.Label({text: Int, weight: Int})
 
-pattern at 138:7
+defaultedCall at 135:36
+  filtered: true
+  shift [kind 3, sort 0shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
+  shifted [kind 3, sort 0shifted] inserts snippet shifted(${1:s}) -- fn shifted(s: Shape, by: Int = 1) -> Int
+  shifting [kind 3, sort 0shifting] inserts snippet shifting(${1:s}) -- fn shifting(s: Shape) -> Int
+
+argumentName at 142:40
+  filtered: false
+  Circle [kind 20, sort 0Circle] inserts snippet Circle {radius: ${1}} -- Shape.Circle({radius: Int})
+  Square [kind 20, sort 0Square] inserts snippet Square {side: ${1}} -- Shape.Square({side: Int})
+  by [kind 6, sort 0by] inserts by:  -- argument by: Int
+  s [kind 6, sort 0s] inserts s:  -- argument s: Shape
+  s [kind 6, sort 0s] -- argument s: Shape
+  writingField [kind 3, sort 0writingField] inserts writingField() -- fn writingField() -> Shape
+  writingNamed [kind 3, sort 0writingNamed] inserts writingNamed() -- fn writingNamed() -> Shape
+  argumentNaming [kind 3, sort 2argumentNaming] inserts snippet argumentNaming(${1:s}) -- fn argumentNaming(s: Shape) -> Int
+  arguments [kind 3, sort 2arguments] inserts snippet arguments(${1:s}) -- fn arguments(s: Shape) -> Int
+  corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
+  main [kind 3, sort 2main] inserts main() -- fn main() -> Int
+  matching [kind 3, sort 2matching] inserts snippet matching(${1:s}) -- fn matching(s: Shape) -> Int
+  ... more items follow
+
+namePosition at 146:45
+  filtered: false
+  by [kind 6, sort 0by] -- argument by: Int
+  s [kind 6, sort 0s] -- argument s: Shape
+
+pattern at 154:7
   filtered: true
   Square [kind 20, sort 0Square] inserts snippet Square {side: ${1}} -- Shape.Square({side: Int})
 
-update at 145:37
+update at 161:37
   filtered: true
   from [kind 5, sort 1from] -- field from: Point
 
-updateEmpty at 148:33
+updateEmpty at 164:33
   filtered: false
   from [kind 5, sort 1from] inserts from:  -- field from: Point
   to [kind 5, sort 1to] inserts to:  -- field to: Point
 
-updatePath at 151:40
+updatePath at 167:40
   filtered: false
   x [kind 5, sort 1x] inserts x:  -- field x: Int
   y [kind 5, sort 1y] inserts y:  -- field y: Int

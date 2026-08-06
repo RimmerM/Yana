@@ -65,12 +65,32 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     shape.supplied = 1;
     shape.dispatches = false;
 
+    ArgNames names;
+    collectArgNames(application.args, names);
+
     OverloadSet set;
-    gatherOverloads(calleeExpr.var, application.args.size(), source.source, calleeExpr.source, set, shape);
+    gatherOverloads(calleeExpr.var, application.args.size(), source.source, calleeExpr.source, set, shape,
+                    toBuffer(names));
+
+    /*
+     * Which parameter of the sole candidate each written argument fills, where there is a sole
+     * candidate at all. The two halves count their parameters differently and the mapping is what
+     * has to know it: the plain half is a desugared `iter fn` carrying the continuation the loop
+     * supplies, and a class member is not desugared - see CallShape::supplied.
+     */
+    auto pushdown = pushdownSignature(set);
+    ArgMapping mapping;
+    const ArgMapping* pushdownMapping = nullptr;
+
+    if(pushdown && mapArguments(pushdown, toBuffer(names), application.args.size(),
+                                pushdown == set.direct ? shape.supplied : 0, set.name, source.source,
+                                false, mapping)) {
+        pushdownMapping = &mapping;
+    }
 
     // Resolved once, whichever half serves the loop - resolving is emission, so there is no
     // resolving a second time and no discarding the first.
-    resolveHandedArguments(pushdownSignature(set), application.args, values);
+    resolveHandedArguments(pushdown, pushdownMapping, application.args, values);
     if(anyArgumentFailed(toBuffer(values))) return nullptr;
 
     ResolvedCallee selected;

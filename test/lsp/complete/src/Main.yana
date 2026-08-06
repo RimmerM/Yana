@@ -130,6 +130,22 @@ fn naming() -> Point = Poin
 fn tagging() -> Label = Labe
 --                        ^defaulted
 
+-- The same distinction at a call: `by` has a default, so the snippet stops at `s` and the detail
+-- says what the position would be filled with.
+fn shifting(s: Shape) -> Int = shifte
+--                                  ^defaultedCall
+
+-- An argument offers the *parameter names* of the call it is in as well as the names in scope: it
+-- may be written either way, and which parameter a value fills is what an author who cannot
+-- remember the order is reaching for. A parameter called `s` and a local called `s` are both here,
+-- because one is not a shadow of the other - `s: ` names a position and `s` passes a value.
+fn arguments(s: Shape) -> Int = shifted(s)
+--                                      ^argumentName
+
+-- A cursor in the *name* half of a pair can be nothing but a parameter, so nothing else comes.
+fn argumentNaming(s: Shape) -> Int = shifted(s: s)
+--                                           ^namePosition
+
 -- A constructor in a pattern - §8.1's fifth kind. What ranks first is the constructors of the
 -- *pivot*, which is what makes the answer about the value being matched rather than about every
 -- record in the program; the rest follow. A lowercase name in the same position is a binding the

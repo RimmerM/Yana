@@ -179,6 +179,11 @@ StringView symbolKindName(Symbol::Kind kind);
 struct SignatureParameter {
     U32 start = 0;
     U32 end = 0;
+
+    // What a call site names this position by, or zero where it has no name to be named by - a
+    // positional field of a constructor. It is what makes signature help follow a named argument to
+    // the parameter it fills rather than to the one in its place.
+    StringId name = 0;
 };
 
 /// The signature line an editor shows for a symbol - `fn map(f: (a) -> b, xs: [a]) -> [b]`, or the

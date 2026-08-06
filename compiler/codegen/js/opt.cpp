@@ -215,11 +215,36 @@ void eachEffectOperand(Gen& g, Expr* expr, F&& f) {
     eachOperand(g, expr, forward<F>(f));
 }
 
+/*
+ * A bare identifier that names module-level storage - see Gen::mutableGlobals.
+ *
+ * The one `Var` whose read is a read: every other identifier in an emitted function is a parameter
+ * or a local, which no callee can reach and therefore no call can change. A global is reachable from
+ * every function in the file, so reading one has to be ordered against the calls around it exactly
+ * as a property read is.
+ */
+bool isMutableGlobal(Gen& g, Expr* expr) {
+    return expr->kind == Expr::Var && g.mutableGlobals.contains(((VarExpr*)expr)->name.text);
+}
+
+/*
+ * What one node does, not counting its operands.
+ *
+ * Stated once because it is asked twice, by two walks going in opposite directions: `addEffects`
+ * summarizes what an expression does, and `substitute` accumulates what the position it is landing
+ * in evaluates *before* it. The two used to say it separately, and the copy in `substitute` was the
+ * one that did not learn about globals - so the summary said "this reads storage" and the prefix
+ * said the value in front of it was inert, which is one half of a comparison answering about a
+ * different program from the other half.
+ */
+void addNodeEffects(Gen& g, Expr* expr, Effects& out) {
+    if(expr->kind == Expr::Field || expr->kind == Expr::Index || isMutableGlobal(g, expr)) out.reads = true;
+    if(isEffectful(expr)) out.writes = true;
+}
+
 void addEffects(Gen& g, JsPtr<Expr> pointer, Effects& out) {
     auto expr = g.base[pointer];
-
-    if(expr->kind == Expr::Field || expr->kind == Expr::Index) out.reads = true;
-    if(isEffectful(expr)) out.writes = true;
+    addNodeEffects(g, expr, out);
 
     eachEffectOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { addEffects(g, operand, out); });
 }
@@ -318,13 +343,17 @@ bool mentions(Gen& g, JsPtr<Expr> pointer, Name name) {
  * These are the ones whose single use is substituted however far away it is. Anything else moves
  * only as far as the next statement, because moving a computation into a loop body would be a
  * pessimization dressed as an inline, and moving it into a branch would change how often it runs.
+ *
+ * `names.assigned` is what this function's own text does, which is the whole answer for a local and
+ * only half of it for a global - see isMutableGlobal. A global read is a read of storage, so it
+ * moves under the ordering rule below rather than freely.
  */
 bool isAtom(Gen& g, JsPtr<Expr> pointer, Names& names) {
     auto expr = g.base[pointer];
 
     switch(expr->kind) {
         case Expr::Var:
-            return !names.assigned.contains(((VarExpr*)expr)->name.text);
+            return !names.assigned.contains(((VarExpr*)expr)->name.text) && !isMutableGlobal(g, expr);
         case Expr::Number:
         case Expr::BigInt:
         case Expr::String:
@@ -388,10 +417,9 @@ void substitute(Gen& g, JsPtr<Expr>& slot, Substitution& s, bool conditional) {
     });
 
     // The node's own effect happens after its operands, so it joins the prefix only once the walk
-    // has left it without finding the use.
+    // has left it without finding the use. The same rule the summary uses - see addNodeEffects.
     if(s.done || s.blocked) return;
-    if(expr->kind == Expr::Field || expr->kind == Expr::Index) s.prefix.reads = true;
-    if(isEffectful(expr)) s.prefix.writes = true;
+    addNodeEffects(g, expr, s.prefix);
 }
 
 bool substituteAnywhere(Gen& g, JsPtr<Expr>& slot, Name name, JsPtr<Expr> value) {
@@ -1076,6 +1104,17 @@ bool propagateCopy(Gen& g, StmtList& list, Size index, Names& names) {
 
     auto source = ((VarExpr*)g.base[decl.value])->name;
     if(source.text == decl.name.text) return false;
+
+    /*
+     * A global source is declined outright, because the barrier this pass stops at is an assignment
+     * it can see.
+     *
+     * The premise above is that nothing but this function's own text can change `source`, and a
+     * module-level `var` is the one identifier that is false of - any call in between could have
+     * assigned it, and none of them is an `Assign` node here to stop at. `var a = seen` with two
+     * readers keeps its local, which costs one name and is what the value being read twice means.
+     */
+    if(isMutableGlobal(g, g.base[decl.value])) return false;
 
     auto uses = names.useCount(decl.name);
     if(!uses) return false;

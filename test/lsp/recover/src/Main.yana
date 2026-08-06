@@ -40,6 +40,20 @@ fn typing(s: Shape) -> Int:
     return twice(
 --               ^sigTyping
 
+-- A named argument, which is where the overlay's own answer stops being the comma count: `by` is the
+-- second parameter of `scale`, so the highlight follows the name to it rather than staying on the
+-- first. The name is read out of the text for the same reason the bracket is - there is no argument
+-- node here to have a name.
+fn naming(s: Shape) -> Int:
+    return Shapes.scale(by:
+--                         ^sigNamed
+
+-- And the name written second, filling the parameter declared first: the highlight goes back to it
+-- rather than forward with the comma.
+fn namingBack(s: Shape) -> Int:
+    return Shapes.scale(2, s:
+--                           ^sigNamedBack
+
 fn main() -> Int:
     let c = Shapes.Circle {radius: 4}
 --                 ^con

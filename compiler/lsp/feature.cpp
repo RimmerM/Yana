@@ -740,6 +740,11 @@ struct InsertSite {
     bool constructing = false;
     bool bracketsWritten = false;
     bool colonWritten = false;
+
+    // Set per *item* rather than per request: an argument position offers the call's parameter names
+    // and the names in scope together, and only the first half is the name of a pair. See
+    // CompletionItem::naming.
+    bool naming = false;
 };
 
 static bool writeInsertText(Context& context, const Symbol& symbol, const String& label,
@@ -763,6 +768,13 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
      */
     if(symbol.kind == Symbol::Kind::Field) {
         if(site.constructing && !site.colonWritten) into << ": ";
+        return false;
+    }
+
+    // A parameter name at an argument position, which is the same half of the same shape - `f(mode:
+    // ` - reached through the item rather than through the request. See InsertSite::naming.
+    if(site.naming) {
+        if(!site.colonWritten) into << ": ";
         return false;
     }
 
@@ -796,10 +808,22 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
             function = local[entry.fun];
         }
 
-        // A call with no arguments is finished by the empty brackets, so it needs no snippet - and
-        // a client without snippet support gets the same text, which is why this is ahead of the
+        /*
+         * The positions the call site has to write, which is not every parameter.
+         *
+         * A trailing parameter with a default is not one, for the reason the constructor case below
+         * gives about a field with one: a placeholder for something the author did not have to
+         * mention is one they have to delete. *Trailing* only - a defaulted position in the middle
+         * cannot be dropped from a positional call, since what follows it would move up a place, and
+         * skipping one is what a named argument is for rather than what a snippet should assume.
+         */
+        auto written = function->args.size();
+        while(written && local[function->args.get(local, written - 1)]->hasDefault()) written--;
+
+        // A call with nothing to write is finished by the empty brackets, so it needs no snippet -
+        // and a client without snippet support gets the same text, which is why this is ahead of the
         // check below rather than inside it.
-        if(function->args.size() == 0) {
+        if(written == 0) {
             into << "()";
             return false;
         }
@@ -807,9 +831,9 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
         if(!snippets) return false;
 
         into << "(";
-        for(auto pointer: function->args.contents(local)) {
+        for(Size i = 0; i < written; i++) {
             if(index) into << ", ";
-            placeholder(local[pointer]->name);
+            placeholder(local[function->args.get(local, i)]->name);
         }
 
         into << ")";
@@ -1054,9 +1078,14 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
         json.field("kind"_v).value(completionItemKind(item.symbol.kind));
         if(detail.size()) json.field("detail"_v).value(detail.view());
 
+        // The site is the document's answer plus this item's own: whether choosing it writes the
+        // name of a pair is a property of the item, since an argument position offers both kinds.
+        auto itemSite = site;
+        itemSite.naming = item.naming;
+
         StringBuilder insert;
         auto isSnippet = !alreadyCalled &&
-                         writeInsertText(context, item.symbol, label.view(), site, insert);
+                         writeInsertText(context, item.symbol, label.view(), itemSite, insert);
 
         // Only when it differs from the label. An item whose insert text is its own name says
         // nothing by carrying one, and a client is entitled to show the two apart.
@@ -1120,6 +1149,11 @@ struct EnclosingCall {
     U32 open = 0;
     char bracket = 0;
     U32 argument = 0;
+
+    // Where the argument the caret is in begins - just past the bracket, or just past the separator
+    // before it. What a named argument's name is read out of; see writtenArgumentName.
+    U32 argumentStart = 0;
+
     bool found = false;
 };
 
@@ -1185,11 +1219,13 @@ static void findOpenBrackets(StringView text, U32 offset, Array<EnclosingCall>& 
         }
 
         if(c == '(' || c == '[' || c == '{') {
-            stack.push(EnclosingCall { i, c, 0, true });
+            stack.push(EnclosingCall { i, c, 0, i + 1, true });
         } else if(c == ')' || c == ']' || c == '}') {
             if(stack.size()) stack.pop();
         } else if(c == ',' && stack.size()) {
-            stack[stack.size() - 1].argument++;
+            auto& entry = stack[stack.size() - 1];
+            entry.argument++;
+            entry.argumentStart = i + 1;
         }
     }
 }
@@ -1281,6 +1317,53 @@ static Size parameterCount(Context& context, const Symbol& symbol) {
     return parameters.size();
 }
 
+// Which parameter of a candidate a name reaches, or the count where none does - which is what makes
+// "no such parameter" sort a candidate after the ones that have it.
+static Size parameterNamed(Context& context, const Symbol& symbol, StringId name) {
+    StringBuilder label;
+    Array<SignatureParameter> parameters;
+    describeSymbol(context, symbol, nullptr, label, &parameters);
+
+    for(Size i = 0; i < parameters.size(); i++) {
+        if(parameters[i].name == name) return i;
+    }
+
+    return parameters.size();
+}
+
+/*
+ * The name the argument the caret is in was written with - the `mode` of `open(path, mode: |)`.
+ *
+ * Read out of the text rather than out of a node, for the reason the whole of this feature is: the
+ * document an editor asks about is usually not a program, and `f(mode: ` has no argument to have a
+ * name. So it is the same shape the scan already answers with - whitespace, an identifier,
+ * whitespace, and a `:` that is not the `::` of an ascription - applied once, to the one argument
+ * the caret turned out to be in.
+ *
+ * Zero where the argument is positional, which is every argument of every call that does not use
+ * names and is therefore the answer this must be cheap about.
+ */
+static bool isBlank(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
+
+static StringId writtenArgumentName(Context& context, StringView text, U32 from, U32 to) {
+    auto i = from;
+    while(i < to && isBlank(text.ptr[i])) i++;
+
+    auto start = i;
+    while(i < to && isIdentifier(text.ptr[i])) i++;
+    if(i == start) return 0;
+
+    auto end = i;
+    while(i < to && isBlank(text.ptr[i])) i++;
+
+    // `::` is an ascription and `:` opens a block, so the one that names an argument is a single
+    // colon with something after it that is not another one.
+    if(i >= to || text.ptr[i] != ':') return 0;
+    if(i + 1 < text.length && text.ptr[i + 1] == ':') return 0;
+
+    return context.addUnqualifiedName(text.ptr + start, end - start);
+}
+
 void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
                         StringView text) {
     auto program = session.program.get();
@@ -1353,11 +1436,37 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
         return;
     }
 
-    // The first candidate the written call could still fit. Arity is all there is to go on while the
-    // arguments are being typed - their types are exactly what is not there yet.
+    /*
+     * The first candidate the written call could still fit.
+     *
+     * A *name* is what to go on where the author wrote one, and it is a far better answer than the
+     * count: `open(mode: |)` is about whichever candidate declares a `mode`, whatever its arity and
+     * whichever position it is in. Arity is the fallback, and the only thing there is to go on while
+     * a positional call is being typed - the argument types are exactly what is not there yet.
+     */
+    auto written = writtenArgumentName(context, text, call.argumentStart, offset);
     U32 active = 0;
+
     for(U32 i = 0; i < candidates.size(); i++) {
-        if(parameterCount(context, candidates[i]) > call.argument) { active = i; break; }
+        auto count = parameterCount(context, candidates[i]);
+        auto fits = written ? parameterNamed(context, candidates[i], written) < count
+                            : count > call.argument;
+
+        if(fits) { active = i; break; }
+    }
+
+    /*
+     * And the parameter that name reaches, rather than the one in its place - which is the whole of
+     * what a named argument means at a call site. `subtract(take: |)` highlights `take`, wherever
+     * `take` is declared, and falls back to the count where the name reaches nothing: a name being
+     * typed is a prefix of one for as long as it takes to write, and jumping the highlight back to
+     * the first parameter for every keystroke of it would be worse than leaving it where it was.
+     */
+    auto parameter = call.argument;
+
+    if(written) {
+        auto named = parameterNamed(context, candidates[active], written);
+        if(named < parameterCount(context, candidates[active])) parameter = U32(named);
     }
 
     json.startObject();
@@ -1366,7 +1475,7 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
     json.endArray();
 
     json.field("activeSignature"_v).value(active);
-    json.field("activeParameter"_v).value(call.argument);
+    json.field("activeParameter"_v).value(parameter);
     json.endObject();
 }
 

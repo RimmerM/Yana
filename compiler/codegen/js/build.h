@@ -220,6 +220,29 @@ struct Gen {
     HashSet<U32> boxedGlobals;
 
     /*
+     * The module-level `var`s a call can write, by name - the one kind of bare identifier whose read
+     * is a read of *storage*.
+     *
+     * The optimizer's rewrites all rest on one premise, which `propagateCopy` states outright: a
+     * local `var` is invisible to every callee, so nothing but this function's own text can change
+     * one. A module-level global is exactly the thing that premise is false of - `bump()` assigns
+     * `seen` from another function entirely - and without this, reading one looks as inert as
+     * reading a parameter. `let a = bump(); return seen + a` then became `return seen + bump()`,
+     * which reads the global *before* the call that writes it.
+     *
+     * **Which globals, is a question about the program rather than about the declaration.** `let &`
+     * says a global *may* be assigned, and `FloatNaN.yana`'s `zero` and `one` are declared that way
+     * only so that the division is not constant-folded - nothing ever assigns them, and treating
+     * them as storage puts a local in front of every comparison in that fixture. So the set is read
+     * off the places every emitted function names; see mutableGlobals(), which fills it.
+     *
+     * Two more are excluded there. A table is a `const` and is never assigned. And a boxed one's
+     * variable holds the box, which nothing reassigns either - a write goes to `.$box`, and a
+     * property read already counts as a read.
+     */
+    HashSet<StringId> mutableGlobals;
+
+    /*
      * The one-field tuples that keep their wrapper - see isTransparentTuple, whose answer this
      * overrides, and opaqueTuples() which fills it.
      *

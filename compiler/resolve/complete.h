@@ -2,6 +2,10 @@
 
 #include "index.h"
 
+// The overload set one call is selected from - see expr.h, which every implementation here includes.
+// Named rather than included, because expr.h includes this one.
+struct OverloadSet;
+
 /*
  * Completion - Implementation-Tooling.md §8.
  *
@@ -43,6 +47,19 @@ struct CompletionItem {
      * will immediately re-order. See the `Rank` enum in complete.cpp.
      */
     U8 rank = 0;
+
+    /*
+     * Whether choosing this item is choosing to write the *name* half of a `name: value` pair - a
+     * parameter of the call the cursor is inside the brackets of.
+     *
+     * Per item rather than per request, which the construction position's own flag is not, and the
+     * difference is what an argument position is: a field inside `Square {` can be nothing but a
+     * field name, while `f(x|` offers the parameter names *and* everything in scope, and one of
+     * those two takes a colon after it. `Symbol::Kind::Arg` cannot stand in for it either - a
+     * parameter of the enclosing body is one of the ordinary bindings, and completing to it writes
+     * a value rather than a name.
+     */
+    bool naming = false;
 };
 
 /*
@@ -120,6 +137,26 @@ void captureCompletion(ExprResolver& resolver, TypePtr expected, TypePtr receive
  * constructor takes a value there - so the names in scope come too, ranked below the fields.
  */
 void captureConstructionCompletion(ExprResolver& resolver, TypePtr owner, TypePtr content, bool namesOnly);
+
+/*
+ * An argument of a call - `f(x|` and `f(1, |)`.
+ *
+ * The parameter *names* of every candidate the call could still reach, ranked first, and then
+ * everything a name in expression position would offer. Both, because the position has not said
+ * which of the two it is: an argument may be written positionally, and the name that would make it
+ * a named one is exactly what an author who cannot remember the order is reaching for.
+ *
+ * The names come from the overload set rather than from one candidate, and are de-duplicated by the
+ * Collector's ordinary rule - two candidates that agree about a parameter name offer it once, and
+ * two that disagree offer both, which is what a set with more than one member means anywhere else
+ * here too.
+ *
+ * `namesOnly` is the difference between the two positions a cursor can be in, and it is the same
+ * difference the construction form has: a cursor in a *name* (`f(mo|: 1)`) can be nothing but a
+ * parameter, while one in a bare argument has not said which of the two it is.
+ */
+void captureArgumentCompletion(ExprResolver& resolver, const OverloadSet& set, TypePtr expected,
+                               bool namesOnly);
 
 /*
  * A field of an update path - `{v | ori|gin: p}`.

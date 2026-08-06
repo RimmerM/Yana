@@ -283,7 +283,40 @@ StringView symbolKindName(Symbol::Kind kind) {
     return "symbol"_v;
 }
 
-// `fn name(a: T, b: U) -> V`, from the resolved signature rather than from the source text. What
+/*
+ * A parameter's default, written the way its declaration wrote it - see Arg::defaultBits.
+ *
+ * The bits are what the storage holds, so a payload-free record's constant is a constructor index
+ * and printing it back as the constructor's name is what keeps `= False` readable as `False`. The
+ * signed case is the same one `printValue` states: constants are stored sign-extended, so a
+ * negative default is a very large unsigned number in the payload.
+ *
+ * Only the forms `evaluateConstant` accepts arrive here, which is what keeps this three cases rather
+ * than a formatter.
+ */
+static void describeDefault(Context& context, GlobalBase global, TypePtr type, U64 bits,
+                            StringBuilder& into) {
+    auto declared = global[type];
+
+    if(declared->kind == Type::Record && bits < ((RecordType*)declared)->constructors.size()) {
+        into << context.findName(((RecordType*)declared)->constructors.get(global, Size(bits)).name);
+        return;
+    }
+
+    if(isFloat(global, type)) {
+        show(floatFromBits(global, type, bits), into);
+        return;
+    }
+
+    if(declared->kind == Type::Int && ((IntType*)declared)->isSigned) {
+        show(I64(bits), into);
+        return;
+    }
+
+    show(bits, into);
+}
+
+// `fn name(a: T, b: U = 1) -> V`, from the resolved signature rather than from the source text. What
 // the compiler decided is the point: a parameter whose type was inferred prints as what it became.
 //
 // `parameters` collects where each one landed, for signature help. Recorded here rather than
@@ -315,7 +348,14 @@ static void describeFunction(Context& context, Module& module, Function& functio
 
         describeType(context, global, arg->declaredType(), into);
 
-        if(parameters) parameters->push(SignatureParameter { start, U32(into.size()) });
+        // Inside the parameter's own range, because it is part of what that parameter is: a reader
+        // deciding whether to write the argument at all needs to see that it may be left out.
+        if(arg->hasDefault()) {
+            into << " = ";
+            describeDefault(context, global, arg->declaredType(), arg->defaultBits.unwrap(), into);
+        }
+
+        if(parameters) parameters->push(SignatureParameter { start, U32(into.size()), arg->name });
     }
 
     into << ") -> ";
@@ -414,7 +454,7 @@ void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, String
                         if(field.boxed) into << "@box ";
                         describeType(context, global, field.type, into);
 
-                        parameters->push(SignatureParameter { start, U32(into.size()) });
+                        parameters->push(SignatureParameter { start, U32(into.size()), field.name });
                     }
 
                     into << "}";

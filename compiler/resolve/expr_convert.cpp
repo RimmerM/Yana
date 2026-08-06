@@ -152,7 +152,7 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
     ClassFunRef reference { typeClass, global[typeClass]->functions.get(global, 0).name, 0 };
     ClassMatch match;
 
-    if(matchClassFun(reference, { args, 1 }, target, match)) {
+    if(matchClassFun(reference, { args, 1 }, {}, target, match)) {
         if(match.instance) {
             if(local[match.instance]->functions.get(local, match.index)) {
                 return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), match.index,
@@ -197,7 +197,7 @@ ModulePtr<Value> ExprResolver::truthy(ModulePtr<Value> value, LocationId source)
     ClassMatch match;
     ResolvedArg args[] = { value };
 
-    if(matchClassFun(reference, { args, 1 }, module.scalar.bool_, match)) {
+    if(matchClassFun(reference, { args, 1 }, {}, module.scalar.bool_, match)) {
         if(match.instance) {
             // Through emitInstanceCall rather than straight to the implementation, because what
             // stands in the slot may be a parametric head's generic body or the class's own
@@ -250,7 +250,7 @@ ModulePtr<Value> ExprResolver::emitConversion(GlobalPtr<TypeClass> typeClass, St
         ResolvedArg args[] = { value };
 
         ClassMatch match;
-        if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
+        if(!matchClassFun(candidate, { args, 1 }, {}, target, match) || !match.instance) continue;
 
         if(!local[match.instance]->functions.get(local, match.index)) continue;
 

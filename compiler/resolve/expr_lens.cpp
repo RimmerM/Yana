@@ -547,20 +547,21 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
  * what it is would have that body written against a type that then changed - making the call a
  * statement boundary for its arguments in the same way `let` is for its initializer.
  */
-void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
-                                          ArgList& values) {
+void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, const ArgMapping* mapping,
+                                          ast::ParseList<ast::TupArg> arguments, ArgList& values) {
     auto target = callee ? local[callee] : nullptr;
     Size position = 0;
 
     for(auto arg: arguments.contents(parse)) {
-        if(arg.name) {
-            context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
-        }
+        // Through the mapping, since a named argument's expected type is the type of the parameter
+        // it names rather than of the one in its place - see ArgMapping.
+        auto filled = mapping && position < mapping->parameters.size() ? mapping->parameters[position]
+                                                                       : U16(position);
 
         // No signature to push down from is the same case as a generic position: what the argument
         // should be is what selecting a callee from it is about to decide.
-        auto expected = target && position < target->args.size()
-            ? local[target->args.get(local, position)]->declaredType() : TypePtr(nullptr);
+        auto expected = target && filled < target->args.size()
+            ? local[target->args.get(local, filled)]->declaredType() : TypePtr(nullptr);
 
         auto erased = !expected || isGeneric(global, expected);
         auto value = resolveArgument(arg.value, erased ? nullptr : expected);
@@ -621,11 +622,21 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     auto target = local[callee];
     auto source = call.source;
     auto arguments = application.args;
-    auto declaredArgs = target->args.size() - 1;
 
-    // The continuation written out is an ordinary call, and stays one. That form is always legal
-    // and is what a call site reaches for when the rest of the block is not what it wants to run.
-    if(arguments.size() != declaredArgs) return false;
+    /*
+     * The written arguments have to reach every parameter but the continuation - which is the same
+     * normalization every other call performs, and is asked here for a different purpose: a call
+     * that fills the continuation too is an *ordinary* call, and stays one. That form is always
+     * legal and is what a call site reaches for when the rest of the block is not what it wants to
+     * run, so a list this cannot normalize is handed back rather than reported on.
+     */
+    ArgNames names;
+    collectArgNames(arguments, names);
+
+    ArgMapping mapping;
+    if(!mapArguments(callee, toBuffer(names), arguments.size(), 1, calleeExpr.var, source, false, mapping)) {
+        return false;
+    }
 
     result = nullptr;
 
@@ -650,13 +661,19 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         return true;
     }
 
-    ArgList values;
-    resolveHandedArguments(callee, arguments, values);
+    ArgList handed;
+    resolveHandedArguments(callee, &mapping, arguments, handed);
 
     // The call is this statement, and the rest of the block is its continuation - so stopping here
     // means the block below is resolved as itself rather than lifted, which is the same thing every
     // other diagnostic in this function does. See anyArgumentFailed.
-    if(anyArgumentFailed(toBuffer(values))) return true;
+    if(anyArgumentFailed(toBuffer(handed))) return true;
+
+    // In the callee's parameter order with its defaults filled in, which is what the continuation's
+    // own shape is inferred from below - see ArgMapping.
+    ArgList values;
+    normalizeArguments(mapping, toBuffer(handed), values);
+    materializeDefaults(callee, source, values);
 
     Array<FunArg> params;
     if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return true;

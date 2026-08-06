@@ -1,0 +1,136 @@
+-- Named arguments and default arguments, which are one feature: the normalized call.
+--
+-- A call site writes its arguments positionally, by name, or not at all, and a callee sees one list
+-- in its own parameter order with nothing missing from it. Everything below asserts that the three
+-- spellings really do meet in one place - `mapArguments` - rather than each being understood
+-- separately by whatever happened to need it: the plain half of an overload set, the class half, a
+-- generic function, a lens, an iterator and a function value each reach the same builder.
+--
+-- The number this returns is the assertion; each line's comment is what that call contributes.
+
+-- The plain case: a name reaches the parameter of that name wherever it is, so the order the
+-- arguments are written in is not the order they are passed in.
+fn subtract(from: Int, take: Int) -> Int = from - take
+
+-- A default is a constant, so a position left out costs the call site nothing at all.
+fn scaled(value: Int, by: Int = 10, plus: Int = 1) -> Int = value * by + plus
+
+-- The two together, which is the point of having both: a middle position is skipped by naming the
+-- one after it.
+fn tagged(value: Int, tag: Int = 7, weight: Int = 100) -> Int = value + tag * weight
+
+-- Evaluation order is the order the arguments are *written* and not the order the parameters are
+-- declared in - doc/spec/expressions.md's Evaluation order says so, and a call whose names reverse
+-- its parameters is the only thing that can tell the difference. `step` records when it ran, so the
+-- digits of the counter are the sequence.
+fn step(&counter: Int, digit: Int) -> Int:
+    counter = counter * 10 + digit
+    return digit
+
+fn order() -> Int:
+    let &seen = 0 :: Int
+
+    -- The names are the parameters in reverse, so `seen` reads 12 - the order these were written -
+    -- and would read 21 if a named argument were evaluated where its parameter is.
+    let difference = subtract(take: step(seen, 1), from: step(seen, 2))
+    return seen + difference       -- 12 + (2 - 1)
+
+-- A `&` parameter reached by name. The convention is still never written at the call site, and the
+-- expected type is still not pushed into the argument - what has to be produced is storage to
+-- borrow, and which parameter says so is now a question the mapping answers.
+fn borrowNamed() -> Int:
+    let &slot = 0 :: Int
+    let digit = step(digit: 7, counter: slot)
+    return slot + digit            -- 7 + 7
+
+-- A `@lazy` parameter reached by name. Which position is deferred is decided from the overload set
+-- before any argument is resolved, so it is decided *through* the mapping too: the argument that is
+-- not evaluated is the one filling the `@lazy` parameter, wherever it was written.
+fn counted(&counter: Int) -> Int:
+    counter = counter + 1
+    return 5
+
+fn choose(take: Bool, @lazy other: Int) -> Int = if take then 1 else other
+
+fn lazyNamed() -> Int:
+    let &ran = 0 :: Int
+    let picked = choose(other: counted(ran), take: True)
+    return picked * 10 + ran       -- 10, since `other` was never forced
+
+-- A class function's defaults are the class signature's, since a call site reads what it may leave
+-- out before it knows which instance it reached - which is also why an instance may not write one.
+class Measure(a):
+    fn measure(it: a, scale: Int = 2) -> Int
+
+instance Measure(Int):
+    fn measure(it: Int, scale: Int) -> Int = it * scale
+
+instance Measure(Bool):
+    fn measure(it: Bool, scale: Int) -> Int = if it then scale else 0
+
+-- A generic function, where the named position is a type variable and the defaulted one is
+-- concrete: a default binds no type variable, which is what lets the two live in one signature.
+fn (Measure(a)) pick(it: a, scale: Int = 5) -> Int = measure(it, scale)
+
+-- A lens call site leaves its continuation out, and may leave a default out beside it.
+lens fn withOffset(base: Int, offset: Int = 3) -> Int:
+    yield base + offset
+
+fn lensed() -> Int:
+    let value = withOffset(100)
+    return value
+
+fn lensNamed() -> Int:
+    let value = withOffset(offset: 1, base: 200)
+    return value
+
+-- An iterator the same way: the loop supplies the last parameter, and the call site fills the rest
+-- however it likes.
+iter fn upTo(limit: Int, from: Int = 0) -> Int:
+    let &i = from :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+fn loops() -> Int:
+    let &total = 0 :: Int
+
+    for i in upTo(4):                    -- 0 + 1 + 2 + 3
+        total = total + i
+
+    for i in upTo(from: 10, limit: 13):  -- 10 + 11 + 12
+        total = total + i
+
+    return total
+
+-- A function *value* carries its parameters' names but no defaults: a name is part of the type, and
+-- a default belongs to one declaration rather than to every function that shares its type.
+fn throughValue() -> Int:
+    let f = (from: Int, take: Int) -> from - take
+    return f(take: 4, from: 30)          -- 26
+
+fn main() -> Int:
+    let plain = subtract(9, 4)               -- 5
+    let named = subtract(take: 4, from: 9)   -- 5
+    let mixed = subtract(9, take: 4)         -- 5
+
+    let allDefaults = scaled(2)              -- 21
+    let oneDefault = scaled(2, 3)            -- 7
+    let noDefaults = scaled(2, 3, 4)         -- 10
+    let skipped = scaled(2, plus: 5)         -- 25
+
+    let leftOut = tagged(1)                  -- 701
+    let overridden = tagged(1, weight: 10)   -- 71
+
+    let classDefault = measure(6)             -- 12
+    let classNamed = measure(scale: 4, it: 6) -- 24
+    let classBool = measure(True)             -- 2
+
+    let generic = pick(3)                    -- 15
+    let genericNamed = pick(scale: 1, it: 3) -- 3
+
+    return plain + named + mixed + allDefaults + oneDefault + noDefaults + skipped
+         + leftOut + overridden + classDefault + classNamed + classBool
+         + generic + genericNamed + lensed() + lensNamed() + loops() + order() + throughValue()
+         + borrowNamed() + lazyNamed()

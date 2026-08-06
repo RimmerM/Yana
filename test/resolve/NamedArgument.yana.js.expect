@@ -1,0 +1,120 @@
+"use strict";
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function subtract(from, take) {
+  return from - take | 0;
+}
+
+function scaled(value, by, plus) {
+  return Math.imul(value, by) + plus | 0;
+}
+
+function tagged(value, tag, weight) {
+  return value + Math.imul(tag, weight) | 0;
+}
+
+function step(counter$o, counter$k, counter$s, digit) {
+  counter$o[counter$k] = Math.imul(counter$o[counter$k], 10) + digit | 0;
+  return digit;
+}
+
+function order() {
+  return 13;
+}
+
+function borrowNamed() {
+  return 14;
+}
+
+function counted(counter$o, counter$k, counter$s) {
+  counter$o[counter$k] = counter$o[counter$k] + 1 | 0;
+  return 5;
+}
+
+function choose(take, other$c, other$e) {
+  var v7;
+  if (take) {
+    v7 = 1;
+  } else {
+    v7 = other$c(other$e);
+  }
+  return v7;
+}
+
+function lazyNamed() {
+  return { $v: 0 }.$v + 10 | 0;
+}
+
+function lensed() {
+  return ResolveTest_continuation$1(null, 103);
+}
+
+function lensNamed() {
+  return ResolveTest_continuation$2(null, 201);
+}
+
+function loops() {
+  var total = { $v: 0 };
+  var v13 = upTo(4, 0, ResolveTest_continuation$3, { $v: { $o: total, $k: "$v", $s: 1 } });
+  var v24 = upTo(13, 10, ResolveTest_continuation$4, { $v: { $o: total, $k: "$v", $s: 1 } });
+  return total.$v;
+}
+
+function throughValue() {
+  return ResolveTest_lambda$5(null, 30, 4);
+}
+
+function main() {
+  return ((((((ResolveTest_continuation$1(null, 103) + 906 | 0) + ResolveTest_continuation$2(null, 201) | 0) + loops() | 0) + 13 | 0) + ResolveTest_lambda$5(null, 30, 4) | 0) + 14 | 0) + lazyNamed() | 0;
+}
+
+function ResolveTest_deferred$0(env) {
+  var v1 = env.$v;
+  return counted(v1.$o, v1.$k, v1.$s);
+}
+
+function ResolveTest_continuation$1(env, value) {
+  return value;
+}
+
+function ResolveTest_continuation$2(env, value) {
+  return value;
+}
+
+function ResolveTest_continuation$3(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
+}
+
+function upTo(limit, from, body$c, body$e) {
+  var i = from;
+  L0: for (;;) {
+    if (i < limit) {
+      var v14 = body$c(body$e, i);
+      if (v14 === 1) {
+        return v14;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return 0;
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$4(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return 0;
+}
+
+function ResolveTest_lambda$5(env, from, take) {
+  return from - take | 0;
+}

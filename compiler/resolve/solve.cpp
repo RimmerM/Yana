@@ -151,6 +151,14 @@ void Solver::bindArguments(ModulePtr<Function> signature, Buffer<ResolvedArg> ar
          */
         if(args[i].isDeferred()) continue;
 
+        /*
+         * A defaulted position binds nothing, for a reason of its own: what fills it is a constant
+         * of the parameter's *declared* type, so matching it against that type is an identity - and
+         * a parameter declared as a type variable cannot have a default at all, which is the rule
+         * `resolveArgumentDefault` states from the declaration's side.
+         */
+        if(args[i].isDefault()) continue;
+
         if(args[i].isFailed() && unresolved != Unresolved::Binds) {
             if(unresolved == Unresolved::Skips) continue;
 

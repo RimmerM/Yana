@@ -1,0 +1,41 @@
+let &seen: Int = 0
+
+fn bump() -> Int {
+  b0:
+    %v0 = load seen : Int
+    %v3 = add %v0, 5 : Int
+    assign seen, %v3
+    ret 1
+}
+
+fn readAfterCall() -> Int {
+  b0:
+    assign seen, 0
+    %a = call bump : Int
+    %v3 = load seen : Int
+    %v4 = add %v3, %a : Int
+    ret %v4
+}
+
+fn readBeforeCall() -> Int {
+  b0:
+    assign seen, 3
+    %before = load seen : Int
+    %a = call bump : Int
+    %v6 = mul %before, 100 : Int
+    %v9 = mul %before, 10 : Int
+    %v10 = add %v6, %v9 : Int
+    %v11 = load seen : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = add %v12, %a : Int
+    ret %v13
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call readAfterCall : Int
+    %v3 = mul %v0, 1000 : Int
+    %v4 = call readBeforeCall : Int
+    %v5 = add %v3, %v4 : Int
+    ret %v5
+}

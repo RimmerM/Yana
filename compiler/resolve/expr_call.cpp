@@ -59,6 +59,304 @@ static String describeQualified(Context& context, GlobalBase global, StringId na
 }
 
 /*
+ * The one normalized-call builder.
+ *
+ * Positional arguments, named arguments and omitted defaults are three spellings of the same thing -
+ * "this parameter is filled by that" - and this is the only place any of them is read. Everything a
+ * call site does downstream works in *parameter* order and cannot tell which spelling produced the
+ * list it was given: matching, selection, the conventions, the intrinsics and the four emission
+ * forms all index a parameter and find its argument there.
+ *
+ * The rule, in the order it is applied:
+ *
+ *  - A positional argument fills the next parameter, counting from the first.
+ *  - A named one fills the parameter of its name, wherever that is.
+ *  - **A positional argument may not follow a named one.** Nothing forces this - a name is an
+ *    absolute answer and "the next parameter" could go on counting past it - but what it would count
+ *    past is a question every reader of the call would have to ask, and the rule that makes the
+ *    answer unnecessary costs a call site one reordering. doc/spec/expressions.md states it.
+ *  - A parameter no argument reached is filled by its default, and is an error where it has none.
+ *
+ * `report` is what separates asking from deciding. A candidate that cannot be normalized is simply
+ * not one - selection has others to try, and reporting here would name the first candidate rather
+ * than the call - so only the point that has run out of candidates says anything, which is the same
+ * place every other diagnostic about *choosing* a callee lives.
+ */
+bool ExprResolver::mapArguments(ModulePtr<Function> signature, Buffer<const StringId> names, Size written,
+                                Size supplied, StringId callName, LocationId source, bool report,
+                                ArgMapping& out) {
+    auto declaration = local[signature];
+    auto fillable = declaration->args.size() >= supplied ? declaration->args.size() - supplied : 0;
+
+    out.sources.clear();
+    out.parameters.clear();
+
+    for(Size i = 0; i < fillable; i++) out.sources.push(ArgMapping::kDefaulted);
+
+    auto anyNamed = false;
+    for(Size i = 0; i < written && i < names.length; i++) anyNamed = anyNamed || names[i] != 0;
+
+    Size required = 0;
+    for(Size i = 0; i < fillable; i++) {
+        if(!local[declaration->args.get(local, i)]->hasDefault()) required++;
+    }
+
+    /*
+     * The count diagnostic, which is two messages because a signature with defaults takes a *range*
+     * of argument counts and one with none takes a number. Saying "takes 2 arguments" of `fn
+     * open(path: String, mode: Mode = Mode.Read)` would be a fact about a call nobody could write.
+     *
+     * Said only where the count really is what is wrong - too many, or fewer than the signature
+     * requires, in a call that wrote no names. A call whose count is inside the range and whose
+     * *order* went wrong is told which parameter it left out, and so is one that used names: for
+     * either of those the count is the least useful thing anyone could be told.
+     */
+    auto reportCount = [&]() {
+        if(required == fillable) {
+            context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source,
+                                      context.findName(callName), U32(fillable), U32(written));
+        } else {
+            context.diagnostics.error("%@ takes between %@ and %@ arguments but was given %@"_v, source,
+                                      context.findName(callName), U32(required), U32(fillable),
+                                      U32(written));
+        }
+    };
+
+    if(written > fillable) {
+        if(report) reportCount();
+        return false;
+    }
+
+    Size position = 0;
+    auto named = false;
+
+    for(Size i = 0; i < written; i++) {
+        auto name = i < names.length ? names[i] : StringId(0);
+
+        if(!name) {
+            if(named) {
+                if(report) {
+                    context.diagnostics.error("a positional argument cannot follow a named one - which parameter it fills would depend on which ones the names before it took. Write this one as `name: value` too, or move it in front of them"_v,
+                                              source);
+                }
+
+                return false;
+            }
+
+            out.parameters.push(U16(position));
+            out.sources[position] = U16(i);
+            position++;
+            continue;
+        }
+
+        named = true;
+
+        auto found = fillable;
+        for(Size p = 0; p < fillable; p++) {
+            if(local[declaration->args.get(local, p)]->name != name) continue;
+
+            found = p;
+            break;
+        }
+
+        if(found == fillable) {
+            if(report) {
+                context.diagnostics.error("%@ has no parameter named %@"_v, source,
+                                          context.findName(callName), context.findName(name));
+            }
+
+            return false;
+        }
+
+        if(out.sources[found] != ArgMapping::kDefaulted) {
+            if(report) {
+                context.diagnostics.error("%@ is given twice in this call"_v, source, context.findName(name));
+            }
+
+            return false;
+        }
+
+        out.parameters.push(U16(found));
+        out.sources[found] = U16(i);
+    }
+
+    // A position nothing reached and nothing declared. Named one at a time, because a call that left
+    // two out has two things to fix and naming only the first would hide the second.
+    auto complete = true;
+
+    for(Size i = 0; i < fillable; i++) {
+        auto parameter = local[declaration->args.get(local, i)];
+        if(out.sources[i] != ArgMapping::kDefaulted || parameter->hasDefault()) continue;
+
+        complete = false;
+        if(!report) return false;
+
+        // Fewer arguments than the signature requires, written positionally: a miscount, and the
+        // count is the whole of it.
+        if(!anyNamed && written < required) {
+            reportCount();
+            return false;
+        }
+
+        /*
+         * A position the count reached and the order did not.
+         *
+         * `fn mid(a: Int = 1, b: Int)` called as `mid(4)` is the case: one argument is a legal
+         * number of them, and it filled `a` because that is what a positional argument does. What
+         * fixes it is the name, so the name is what the message hands over - saying "takes between 1
+         * and 2 arguments but was given 1" would be a count that is both true and satisfied.
+         */
+        auto reachable = false;
+        for(Size p = 0; p < i; p++) reachable = reachable || local[declaration->args.get(local, p)]->hasDefault();
+
+        if(reachable && !anyNamed) {
+            context.diagnostics.error("argument %@ of %@ was not given - a parameter before it has a default, so a positional argument fills that one instead. Write it as `%@: value`"_v,
+                                      source, context.findName(parameter->name),
+                                      context.findName(callName), context.findName(parameter->name));
+            continue;
+        }
+
+        context.diagnostics.error("argument %@ of %@ was not given, and it has no default"_v, source,
+                                  context.findName(parameter->name), context.findName(callName));
+    }
+
+    return complete;
+}
+
+/*
+ * The same question asked of a function value.
+ *
+ * A function *type* carries parameter names - `(count: Int) -> Bool` names its parameter as much as
+ * a declaration does - so a named argument reaches one exactly as it reaches a declared function.
+ * What a type cannot carry is a default: a default is a constant belonging to one declaration, and
+ * two functions of the same type do not agree about it. So a call through a value fills every
+ * position, which is what makes this a shorter rule rather than a different one.
+ */
+bool ExprResolver::mapValueArguments(FunType* signature, Buffer<const StringId> names, Size written,
+                                     LocationId source, bool report, ArgMapping& out) {
+    auto fillable = signature->args.size();
+
+    out.sources.clear();
+    out.parameters.clear();
+
+    for(Size i = 0; i < fillable; i++) out.sources.push(ArgMapping::kDefaulted);
+
+    if(written != fillable) {
+        if(report) {
+            context.diagnostics.error("this function takes %@ arguments but was given %@"_v, source,
+                                      U32(fillable), U32(written));
+        }
+
+        return false;
+    }
+
+    Size position = 0;
+    auto named = false;
+
+    for(Size i = 0; i < written; i++) {
+        auto name = i < names.length ? names[i] : StringId(0);
+
+        if(!name) {
+            if(named) {
+                if(report) {
+                    context.diagnostics.error("a positional argument cannot follow a named one - which parameter it fills would depend on which ones the names before it took. Write this one as `name: value` too, or move it in front of them"_v,
+                                              source);
+                }
+
+                return false;
+            }
+
+            out.parameters.push(U16(position));
+            out.sources[position] = U16(i);
+            position++;
+            continue;
+        }
+
+        named = true;
+
+        auto found = fillable;
+        for(Size p = 0; p < fillable; p++) {
+            if(signature->args.get(global, p).name != name) continue;
+
+            found = p;
+            break;
+        }
+
+        if(found == fillable) {
+            if(report) {
+                context.diagnostics.error("this function has no parameter named %@"_v, source,
+                                          context.findName(name));
+            }
+
+            return false;
+        }
+
+        if(out.sources[found] != ArgMapping::kDefaulted) {
+            if(report) {
+                context.diagnostics.error("%@ is given twice in this call"_v, source, context.findName(name));
+            }
+
+            return false;
+        }
+
+        out.parameters.push(U16(found));
+        out.sources[found] = U16(i);
+    }
+
+    for(Size i = 0; i < fillable; i++) {
+        if(out.sources[i] != ArgMapping::kDefaulted) continue;
+
+        if(report) {
+            context.diagnostics.error("argument %@ of this function was not given, and a function value carries no defaults"_v,
+                                      source, context.findName(signature->args.get(global, i).name));
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+void ExprResolver::normalizeArguments(const ArgMapping& mapping, Buffer<ResolvedArg> args, ArgList& out) {
+    out.clear();
+
+    for(auto source: mapping.sources) {
+        out.push(source == ArgMapping::kDefaulted || source >= args.length
+            ? ResolvedArg::defaulted() : args[source]);
+    }
+}
+
+void ExprResolver::materializeDefaults(ModulePtr<Function> signature, LocationId source, ArgList& args) {
+    auto declaration = local[signature];
+
+    for(Size i = 0; i < args.size() && i < declaration->args.size(); i++) {
+        if(!args[i].isDefault()) continue;
+
+        auto parameter = local[declaration->args.get(local, i)];
+
+        /*
+         * A position selection marked as defaulted whose parameter declares none.
+         *
+         * Unreachable through the mapping, which is what refuses such a call in the first place, and
+         * kept as a failure rather than an assertion because the one thing it must not become is a
+         * call with a hole in it: `positionalUnit` would then take the absence for a unit argument
+         * and hand the callee whatever the calling convention left in place.
+         */
+        if(!parameter->hasDefault()) {
+            args[i] = ResolvedArg::failed();
+            continue;
+        }
+
+        args[i] = constantBits(parameter->declaredType(), parameter->defaultBits.unwrap(), source);
+    }
+}
+
+void ExprResolver::collectArgNames(ast::ParseList<ast::TupArg> arguments, ArgNames& out) {
+    out.clear();
+    for(auto arg: arguments.contents(parse)) out.push(arg.name);
+}
+
+/*
  * Which arguments of a call are deferred, decided from the overload set.
  *
  * The order this has to happen in is what makes it a question about the set rather than about a
@@ -73,26 +371,44 @@ static String describeQualified(Context& context, GlobalBase global, StringId na
 /*
  * The `@lazy` states of one candidate, over the positions the *call site* writes.
  *
- * `arity` rather than the candidate's own, and every list is made exactly that long, because the
- * lists are compared with each other and the candidates do not all have the same number of
- * parameters. A `for` loop is where they differ: its plain half is a desugared `iter fn`, so it
- * carries the continuation the loop supplies, while a class `iter fn` is not desugared and declares
- * only what the loop writes. Comparing the whole of each made those two disagree about a position
- * neither of them has an opinion on, and reported the declarations of a perfectly good name as
- * inconsistent - which the `lazyNames` fast path hid until some *other* declaration of the name,
- * of any arity or kind, put it in the set.
+ * Written positions and not parameters, which is the difference a named argument makes: `f(b: x)`
+ * defers its one written argument exactly when `b` is the `@lazy` parameter, wherever `b` is
+ * declared. So the states are read *through* the mapping, which is also what makes the answer
+ * comparable between two candidates that declare their parameters in different orders.
+ *
+ * Every list is exactly `arity` long, because the lists are compared with each other and the
+ * candidates do not all have the same number of parameters. A `for` loop is where they differ: its
+ * plain half is a desugared `iter fn`, so it carries the continuation the loop supplies, while a
+ * class `iter fn` is not desugared and declares only what the loop writes. Comparing the whole of
+ * each made those two disagree about a position neither of them has an opinion on, and reported the
+ * declarations of a perfectly good name as inconsistent - which the `lazyNames` fast path hid until
+ * some *other* declaration of the name, of any arity or kind, put it in the set.
+ *
+ * False for a candidate this call site cannot reach at all, which has nothing to say about what the
+ * call evaluates.
  */
-static void lazyStatesOf(ModuleBase local, Function& function, Size arity, ArgList& out) {
-    out.clear();
-
-    for(auto argPointer: function.args.contents(local)) {
-        if(out.size() == arity) break;
-        out.push(local[argPointer]->isLazy() ? ResolvedArg::deferred() : ResolvedArg());
+static bool lazyStatesOf(ExprResolver& resolver, ModulePtr<Function> signature, const OverloadSet& set,
+                         Size supplied, ArgList& out) {
+    ArgMapping mapping;
+    if(!resolver.mapArguments(signature, toBuffer(set.names), set.arity, supplied, set.name,
+                              kNullLocation, false, mapping)) {
+        return false;
     }
 
-    // A candidate that declares fewer parameters than the call writes has nothing to say about the
-    // positions past its end, and pads rather than shortening the list it is compared against.
-    while(out.size() < arity) out.push(ResolvedArg());
+    auto local = resolver.local;
+    auto declaration = resolver.local[signature];
+
+    out.clear();
+
+    for(Size i = 0; i < set.arity; i++) {
+        auto parameter = i < mapping.parameters.size() ? mapping.parameters[i] : ArgMapping::kDefaulted;
+
+        out.push(parameter < declaration->args.size() &&
+                 local[declaration->args.get(local, parameter)]->isLazy()
+            ? ResolvedArg::deferred() : ResolvedArg());
+    }
+
+    return true;
 }
 
 static bool sameStates(const ArgList& a, const ArgList& b) {
@@ -130,8 +446,8 @@ static void computeStrictness(ExprResolver& resolver, OverloadSet& set, Location
     auto seen = false;
     auto conflict = false;
 
-    auto consider = [&](Function& function) {
-        lazyStatesOf(local, function, set.arity, candidateStates);
+    auto consider = [&](ModulePtr<Function> signature, Size supplied) {
+        if(!lazyStatesOf(resolver, signature, set, supplied, candidateStates)) return;
 
         if(seen && !sameStates(candidateStates, out)) conflict = true;
         else replaceContents(out, candidateStates);
@@ -140,22 +456,25 @@ static void computeStrictness(ExprResolver& resolver, OverloadSet& set, Location
     };
 
     /*
-     * `direct` already serves this call - see gatherOverloads - though it may declare more
-     * parameters than the call writes, which is what `lazyStatesOf` reads only the front of. The
-     * class half is not filtered by arity there, so it is filtered here: strictness is what the
-     * candidates of one (name, arity) agree on, and a candidate of a different arity is not one.
+     * `direct` already serves this call - see gatherOverloads - and its continuation, where it has
+     * one, is the loop's rather than the call site's. The class half is not filtered by arity there,
+     * so it is filtered here, and by the same rule everything else filters by: strictness is what
+     * the candidates this call site can actually reach agree on, and one whose parameters its
+     * arguments cannot fill is not one of them. `lazyStatesOf` answers no for those.
      *
      * `wrongKind` is deliberately not asked. A candidate of the other kind is never the callee - it
      * exists to be named in a diagnostic - so what it declares about evaluation is not this call's
      * business, and letting it disagree would reject a call it could not have served.
      */
-    if(set.direct) consider(*local[set.direct]);
+    if(set.direct) consider(set.direct, set.shape.supplied);
 
     for(auto& candidate: set.candidates) {
         auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
-        if(entry.arity != set.arity || !entry.fun) continue;
+        if(!entry.fun) continue;
 
-        consider(*local[entry.fun]);
+        // A class member is not desugared, so it declares exactly what the call site writes - see
+        // CallShape::supplied, which is the plain half's business alone.
+        consider(entry.fun, 0);
     }
 
     if(conflict) {
@@ -181,11 +500,13 @@ static void computeStrictness(ExprResolver& resolver, OverloadSet& set, Location
 }
 
 void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source, LocationId nameSource,
-                                   OverloadSet& out, CallShape shape) {
+                                   OverloadSet& out, CallShape shape, Buffer<const StringId> names) {
     out.name = name;
     out.arity = arity;
     out.nameSource = nameSource;
     out.shape = shape;
+
+    replaceContents(out.names, names);
 
     /*
      * Both halves, looked up at the same location - and the occurrence recorded at a different one.
@@ -201,13 +522,21 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
     auto plain = findFunction(module, name, source, nameSource);
 
     /*
-     * A plain function is a candidate when it is of this call's kind and takes what the call site
-     * writes - arity being half of R1's key, and the kind being what separates a call from a loop.
-     * A loop's callee declares one parameter more than the loop writes, which is `shape.supplied`.
-     * Anything else of the name is kept where the diagnostic can reach it and nothing else can.
+     * A plain function is a candidate when it is of this call's kind and the call site's arguments
+     * reach its parameters - the kind being what separates a call from a loop, and the arguments
+     * being where arity, the names and the defaults are all one question. A loop's callee declares
+     * one parameter more than the loop writes, which is `shape.supplied`.
+     *
+     * "Takes what the call site writes" used to be a count, and a default is exactly what makes it
+     * not one: `fn open(path: String, mode: Mode = Mode.Read)` is the candidate for a call with one
+     * argument and for a call with two. Anything else of the name is kept where the diagnostic can
+     * reach it and nothing else can - see reportMismatched, which asks the same question again with
+     * its answers turned on.
      */
+    ArgMapping mapping;
+
     if(plain && (!shape.requiresKind || local[plain]->funKind == shape.kind) &&
-       local[plain]->args.size() == arity + shape.supplied) {
+       mapArguments(plain, names, arity, shape.supplied, name, source, false, mapping)) {
         out.direct = plain;
     } else {
         out.mismatched = plain;
@@ -245,16 +574,27 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
  * (they would have to, to be callable by one syntax at all) but nothing makes them agree about a
  * concrete position, and it is the concrete positions that get pushed down.
  *
- * Counted at this call's arity, since a candidate that cannot serve the call is not one of the
- * things it could be.
+ * Counted over the candidates this call site can reach, since one whose parameters its arguments
+ * cannot fill is not one of the things the call could be.
  */
 ModulePtr<Function> ExprResolver::pushdownSignature(const OverloadSet& set) {
     auto sole = set.direct;
     Size count = set.direct ? 1 : 0;
 
+    ArgMapping mapping;
+
     for(auto& candidate: set.candidates) {
+        if(!candidate.typeClass) continue;
+
         auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
-        if(!entry.fun || entry.arity != set.arity) continue;
+        if(!entry.fun) continue;
+
+        // A class member is not desugared, so it fills every parameter it declares - see
+        // CallShape::supplied.
+        if(!mapArguments(entry.fun, toBuffer(set.names), set.arity, 0, set.name, kNullLocation,
+                         false, mapping)) {
+            continue;
+        }
 
         sole = entry.fun;
         count++;
@@ -394,10 +734,27 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
 // Returns false when the call does not fit the signature at all; a fitting signature with no
 // instance is reported through `resolved` so the caller can tell "wrong function" from "no
 // instance for these types", which are very different diagnostics.
-bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args, TypePtr target,
-                                 ClassMatch& resolved) {
-    auto signature = global[reference.typeClass]->functions.get(global, reference.index).fun;
-    if(!signature || local[signature]->args.size() != args.length) return false;
+bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedArg> args,
+                                 Buffer<const StringId> names, TypePtr target, ClassMatch& resolved) {
+    auto entry = global[reference.typeClass]->functions.get(global, reference.index);
+    auto signature = entry.fun;
+    if(!signature) return false;
+
+    /*
+     * The arity rule, which is now the normalization: the arguments this call site wrote have to
+     * reach this signature's parameters, and what is left over has to have defaults. It is asked
+     * silently - a candidate that cannot serve the call is one of several here, and selection is
+     * what says why nothing served it.
+     */
+    ArgMapping mapping;
+    if(!mapArguments(signature, names, args.length, 0, entry.name, kNullLocation, false, mapping)) {
+        return false;
+    }
+
+    // Everything below this line is about the call in *parameter* order, which is what makes a
+    // named argument invisible to the solve and to every diagnostic the solve produces.
+    normalizeArguments(mapping, args, resolved.normalized);
+    args = toBuffer(resolved.normalized);
 
     Solution solution;
     solveClassFun(*this, reference.typeClass, signature, args, target, solution);
@@ -421,11 +778,24 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ResolvedAr
 // admits at most one plain function, so this is arity plus "do the arguments fit", and the answer
 // has to be reached without reporting anything - see ExprResolver::convertible.
 bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args, TypePtr target,
-                                LocationId source, Size declaredArgs, TypeList& typeArgs) {
+                                LocationId source, const OverloadSet& set, TypeList& typeArgs,
+                                ArgList& normalized) {
     auto callable = local[callee];
     typeArgs.clear();
 
-    if(declaredArgs != args.length) return false;
+    // The arity rule and the names and the defaults, all as one question - see mapArguments. Asked
+    // silently: R5 lets the class half serve a call the plain function does not fit, so a plain
+    // function that cannot be reached is an answer here rather than a diagnostic.
+    ArgMapping mapping;
+    if(!mapArguments(callee, toBuffer(set.names), args.length, set.shape.supplied, set.name,
+                     kNullLocation, false, mapping)) {
+        return false;
+    }
+
+    normalizeArguments(mapping, args, normalized);
+    args = toBuffer(normalized);
+
+    auto declaredArgs = args.length;
 
     // A generic function fits when its type arguments can all be inferred here, by the same
     // one-directional rule the classes use - which is one solve, performed for real by
@@ -455,7 +825,9 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg>
     }
 
     for(Size i = 0; i < args.length; i++) {
-        if(args[i].isDeferred()) continue;
+        // A defaulted position fits by construction: what fills it is a constant of the parameter's
+        // own type, decided at the declaration rather than here. See ResolvedArg::defaulted.
+        if(args[i].isDeferred() || args[i].isDefault()) continue;
 
         auto declared = local[callable->args.get(local, i)]->declaredType();
 
@@ -701,28 +1073,105 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
     }
 
     auto signature = (FunType*)global[valueType(callable)];
-    ValueList values;
-    Size index = 0;
+    auto callArgs = call.args;
+
+    /*
+     * The same normalization a call by name performs, over the one thing a function *type* knows
+     * about its parameters: their names. A default belongs to a declaration rather than to a type -
+     * two functions of one type do not agree about it - so every position is filled here, and
+     * `mapValueArguments` is the shorter rule that says so.
+     *
+     * Reported here rather than left to a candidate, because there is only ever one candidate: the
+     * value being called is the callee, so anything wrong with the argument list is wrong with the
+     * call.
+     */
+    ArgNames names;
+    collectArgNames(callArgs, names);
+
+    ArgMapping mapping;
+    if(!mapValueArguments(signature, toBuffer(names), callArgs.size(), expr.source, true, mapping)) {
+        return nullptr;
+    }
 
     // A function value's parameter types are known before its arguments are resolved, exactly as a
     // plain function's are, so they are pushed down the same way - which is what lets `f(Nothing)`
     // through a `(Maybe(Int)) -> Bool` know which `Maybe` it is building.
-    auto callArgs = call.args;
+    ArgList written;
+    Size index = 0;
 
     for(auto arg: callArgs.contents(parse)) {
-        if(arg.name) {
-            context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
-        }
+        auto parameter = index < mapping.parameters.size() ? mapping.parameters[index]
+                                                           : ArgMapping::kDefaulted;
+        auto expected = parameter < signature->args.size()
+            ? signature->args.get(global, parameter).type : TypePtr(nullptr);
 
-        auto expected = index < signature->args.size()
-            ? signature->args.get(global, index).type : TypePtr(nullptr);
-
-        values.push(resolve(arg.value, expected));
+        written.push(resolve(arg.value, expected));
         index++;
     }
 
+    // In the order the callee takes them, which is not the order they were written in where a name
+    // was used - and evaluated above in the order they *were* written, which is what
+    // doc/spec/expressions.md's evaluation order says about a named argument.
+    ArgList normalized;
+    normalizeArguments(mapping, toBuffer(written), normalized);
+
+    ValueList values;
+    for(auto& value: normalized) values.push(value.value);
+
     auto result = emitDynamicCall(callable, toBuffer(values), expr.source, 0);
     return target ? convert(result, target, expr.source) : result;
+}
+
+/*
+ * The cursor sentinel in an argument of a written call - `f(x|` and `f(mo|: 1)`.
+ *
+ * A position of its own rather than an ordinary name that happens to be inside brackets: what may be
+ * written at an argument is a value, *or* the name of a parameter the call has not filled yet.
+ * Caught ahead of the loop that resolves the arguments, because by the time `resolve` reaches the
+ * sentinel the set is out of reach - the ordinary capture sees a name and an expected type, and
+ * which call it is an argument of is exactly what it cannot ask.
+ *
+ * The two positions are the two the construction form has, and for the same reason: a cursor in a
+ * *name* (`f(mo|: 1)`) can be nothing but a parameter, while one in a bare argument has not said yet
+ * which of the two it is. See captureConstructionFields, whose shape this is.
+ *
+ * True when it captured, which ends the call: the sentinel names nothing, so there is no call left
+ * to resolve underneath it.
+ */
+bool ExprResolver::captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
+                                        const ArgMapping* pushdown, ModulePtr<Function> signature) {
+    if(!wantsCompletion(context)) return false;
+
+    auto written = arguments.contents(parse);
+
+    for(Size index = 0; index < written.size(); index++) {
+        auto arg = written.pointerAt(index);
+
+        if(arg->name && isCursorSentinel(context, arg->name)) {
+            captureArgumentCompletion(*this, set, nullptr, true);
+            return true;
+        }
+
+        auto& value = unwrapNested(arg->value);
+        if(arg->name || value.kind != ast::Expr::Var || !isCursorSentinel(context, value.var)) continue;
+
+        // The type this position was asked for, where one candidate is the whole of the set - the
+        // same pushdown the arguments are resolved against, read through the same mapping.
+        TypePtr expected = nullptr;
+
+        if(signature && pushdown && index < pushdown->parameters.size()) {
+            auto filled = pushdown->parameters[index];
+
+            if(filled < local[signature]->args.size()) {
+                expected = local[local[signature]->args.get(local, filled)]->declaredType();
+            }
+        }
+
+        captureArgumentCompletion(*this, set, expected, false);
+        return true;
+    }
+
+    return false;
 }
 
 /*
@@ -776,8 +1225,16 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * candidate serves the call.
      */
     auto callArgs = call.args;
+
+    // The names the call site wrote, which the set is gathered *with*: which parameter each argument
+    // fills is part of "does this candidate serve the call", so it cannot be asked afterwards. See
+    // OverloadSet::names.
+    ArgNames names;
+    collectArgNames(callArgs, names);
+
     OverloadSet set;
-    gatherOverloads(calleeExpr.var, callArgs.size(), calleeExpr.source, calleeExpr.source, set);
+    gatherOverloads(calleeExpr.var, callArgs.size(), calleeExpr.source, calleeExpr.source, set,
+                    CallShape(), toBuffer(names));
 
     auto direct = set.direct;
 
@@ -797,6 +1254,26 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // decide, so there is nothing there to push even when it is the only candidate.
     auto declared = direct && !local[direct]->gen && pushdownSignature(set) == direct;
 
+    // Which parameter of that sole candidate each written argument fills, which is the identity for
+    // a call with no names in it and is what pushdown reads through where there are - `f(b: x)`
+    // expects `b`'s type of its one argument. Only built where there is a signature to push down
+    // from; `gatherOverloads` already established that it maps.
+    ArgMapping pushdown;
+    if(declared) {
+        mapArguments(direct, toBuffer(names), callArgs.size(), 0, set.name, expr.source, false, pushdown);
+    }
+
+    /*
+     * An editor asking what may be written at one of the arguments.
+     *
+     * Ahead of the diagnostics below as well as of the loop that resolves the arguments: each of
+     * them ends the call, and a call the author is still typing is exactly the one an editor asks
+     * about. See captureCallArguments.
+     */
+    if(captureCallArguments(callArgs, set, declared ? &pushdown : nullptr, declared ? direct : nullptr)) {
+        return nullptr;
+    }
+
     /*
      * A lens or iterator call that reaches here left its continuation out and is in a position that
      * does not supply one.
@@ -807,11 +1284,15 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * arguments but was given 2".
      */
     // Read off `mismatched` rather than `direct`, and necessarily so: the callee takes one argument
-    // more than was written, so it is by construction the plain function this arity does not reach.
+    // more than the call site filled, so it is by construction the plain function this call does not
+    // reach. "One more" is asked through the mapping rather than as a count, so a lens whose call
+    // also left a default out is still recognized as the lens it is.
     auto continuationShort = set.mismatched;
+    ArgMapping handed;
 
     if(continuationShort && local[continuationShort]->funKind != ast::FunKind::Plain &&
-       local[continuationShort]->args.size() == callArgs.size() + 1) {
+       mapArguments(continuationShort, toBuffer(names), callArgs.size(), 1, set.name, expr.source,
+                    false, handed)) {
         context.diagnostics.error(local[continuationShort]->funKind == ast::FunKind::Iter
             ? "%@ is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one"_v
             : "%@ is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument"_v,
@@ -837,10 +1318,6 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         // this loop has ended, so what is remembered has to be the node in the parse arena.
         auto arg = written.pointerAt(index);
 
-        if(arg->name) {
-            context.diagnostics.error("named call arguments are not available yet"_v, arg->value.source);
-        }
-
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
         // force happens and therefore the only place that can convert it.
@@ -849,7 +1326,10 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
             continue;
         }
 
-        auto parameter = declared ? local[local[direct]->args.get(local, index)] : nullptr;
+        auto filled = declared && index < pushdown.parameters.size() ? pushdown.parameters[index]
+                                                                     : ArgMapping::kDefaulted;
+        auto parameter = declared && filled < local[direct]->args.size()
+            ? local[local[direct]->args.get(local, filled)] : nullptr;
 
         // A `&` parameter's type is deliberately not pushed down. What the argument has to produce
         // is storage to borrow, not a value of the parameter's type - so converting here would build
@@ -1163,11 +1643,11 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> a
  * generic dispatch, and a `for` loop has no dispatch to defer to.
  */
 void ExprResolver::matchClassCandidates(const ClassFunList& candidates, Buffer<ResolvedArg> args,
-                                        TypePtr target, ClassSelection& out) {
+                                        Buffer<const StringId> names, TypePtr target, ClassSelection& out) {
     for(auto& candidate: candidates) {
         ClassMatch match;
 
-        if(!matchClassFun(candidate, args, target, match)) {
+        if(!matchClassFun(candidate, args, names, target, match)) {
             if(match.undeclaredDependency && !out.undeclared) out.undeclared = candidate.typeClass;
             continue;
         }
@@ -1234,7 +1714,8 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         // written, and the loop below may then replace them - so what it solved is not what the
         // selected callee would be emitted for. See the R5 test, which is the match that counts.
         TypeList probed;
-        auto accepted = direct && matchFunction(direct, args, target, source, set.arity, probed);
+        ArgList probedArgs;
+        auto accepted = direct && matchFunction(direct, args, target, source, set, probed, probedArgs);
 
         /*
          * Matching is not enough: it is what fails *after* it that this is for.
@@ -1251,7 +1732,7 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
          */
         if(!accepted) {
             ClassSelection attempt;
-            matchClassCandidates(candidates, args, target, attempt);
+            matchClassCandidates(candidates, args, toBuffer(set.names), target, attempt);
 
             accepted = attempt.selectedCount || attempt.undecided.isNotEmpty();
         }
@@ -1269,17 +1750,78 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         }
     }
 
-    // Whichever list the candidates were matched against is the one the selected callee was chosen
-    // for, so it travels with the answer rather than being rebuilt from the written arguments.
-    for(auto& arg: args) out.args.push(arg);
+    /*
+     * The arguments the selected callee is emitted with, which is neither the list the call site
+     * wrote nor a rebuild of it.
+     *
+     * Two things happened to it by the time a callee is chosen, and both belong to the *decision*
+     * rather than to the emission. Whichever list the candidates were matched against is what the
+     * one that won was chosen for - the read-through rewrite above is that - and the list is in the
+     * winner's parameter order with its defaults filled in, since which parameter each argument
+     * reaches is a question about the candidate. This is where a defaulted position stops being an
+     * absence and becomes the constant it was declared as; nothing below selection knows there was
+     * ever a position missing. See ArgMapping and ResolvedArg::defaulted.
+     */
+    auto commit = [&](ModulePtr<Function> signature, const ArgList& normalized) {
+        replaceContents(out.args, normalized);
+        materializeDefaults(signature, source, out.args);
+    };
 
-    // Committing to the plain function, once it is the candidate the call is being served by. Its
-    // arity is not checked here: `direct` is the plain function *at this arity* or nothing at all,
-    // which is what makes it a candidate rather than a thing to test again. See OverloadSet.
+    auto anyNamed = false;
+    for(auto name: set.names) anyNamed = anyNamed || name != 0;
+
+    /*
+     * A name no candidate could take, where there is one candidate to be specific about.
+     *
+     * The messages below are about *types* - which argument did not fit, which instance is missing -
+     * and a name that no parameter has has nothing to do with types: "no class function scale
+     * accepts (Int, Int)" is true, and says nothing at all about the `times:` that was wrong. So
+     * where the call site wrote names and exactly one class function of this name exists, the reason
+     * it could not be reached is asked out loud.
+     *
+     * One candidate only. With two, which one the author meant is exactly what is not known, and a
+     * message about one of their parameter lists would be a guess.
+     */
+    auto reportNames = [&]() {
+        if(!anyNamed) return false;
+
+        ModulePtr<Function> sole = nullptr;
+        Size count = 0;
+
+        for(auto& candidate: candidates) {
+            if(!candidate.typeClass) continue;
+
+            auto entry = global[candidate.typeClass]->functions.get(global, candidate.index);
+            if(!entry.fun) continue;
+
+            sole = entry.fun;
+            count++;
+        }
+
+        if(count != 1) return false;
+
+        ArgMapping mapping;
+        return !mapArguments(sole, toBuffer(set.names), args.length, 0, callName, source, true, mapping);
+    };
+
+    // Committing to the plain function, once it is the candidate the call is being served by. The
+    // normalization is asked again here rather than carried from the R5 test, because the two paths
+    // into this reach it having run that test and having skipped it - and it reports, because this
+    // is the point the call has committed and there is no other candidate to fall back to.
     TypeList plainTypes;
 
     auto selectPlain = [&]() {
+        ArgMapping mapping;
+        if(!mapArguments(direct, toBuffer(set.names), args.length, set.shape.supplied, callName,
+                         source, true, mapping)) {
+            return;
+        }
+
         recordReference(context, nameSource, functionSymbol(module, direct));
+
+        ArgList normalized;
+        normalizeArguments(mapping, args, normalized);
+        commit(direct, normalized);
 
         out.kind = ResolvedCallee::Kind::Plain;
         out.function = direct;
@@ -1289,13 +1831,18 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
     };
 
     /*
-     * The plain function of this name that takes a different number of arguments.
+     * The plain function of this name that this call cannot reach.
      *
      * Reached only where nothing else serves the call, and then it is the whole diagnostic: a name
-     * that is declared and called with the wrong count is far more often a miscount than a call
-     * meant for some class, so "takes two arguments but was given three" beats both "unknown
+     * that is declared and called wrongly is far more often a mistake about that function than a
+     * call meant for some class, so "takes two arguments but was given three" beats both "unknown
      * function" and the list of types no class function accepted. The reference is recorded for the
      * same reason an editor wants it - the author meant this function, and got the call wrong.
+     *
+     * *Why* it cannot be reached is the same question `gatherOverloads` asked to hold it here, asked
+     * a second time with its answers turned on: a miscount, a name no parameter has, a name given
+     * twice, or a position left out that has no default. One rule, and one place that states it -
+     * see mapArguments.
      */
     auto reportMismatched = [&]() {
         recordReference(context, nameSource, functionSymbol(module, set.mismatched));
@@ -1312,11 +1859,29 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
             return;
         }
 
-        context.diagnostics.error(set.shape.isLoop()
-            ? "%@ takes %@ arguments before the loop body, but this call was given %@"_v
-            : "%@ takes %@ arguments but was given %@"_v,
-            source, context.findName(callName),
-            U32(declared->args.size() - set.shape.supplied), U32(args.length));
+        /*
+         * A loop's count message names the arguments written *before the body*, which the general
+         * one has no way to know about - so it is stated here, and only for a loop whose call site
+         * wrote no names at all. With a name in it the count is the least useful thing anyone could
+         * be told: what went wrong is the name, and mapArguments is what says so.
+         */
+        if(set.shape.isLoop() && !anyNamed) {
+            context.diagnostics.error("%@ takes %@ arguments before the loop body, but this call was given %@"_v,
+                                      source, context.findName(callName),
+                                      U32(declared->args.size() - set.shape.supplied), U32(args.length));
+            return;
+        }
+
+        ArgMapping mapping;
+        if(!mapArguments(set.mismatched, toBuffer(set.names), args.length, set.shape.supplied, callName,
+                         source, true, mapping)) {
+            return;
+        }
+
+        // Nothing about the arguments held it back, so what did is the kind - which is asked only
+        // where a loop asks it, and answered above. Kept as a message rather than as nothing, since
+        // a call that selects no callee and reports nothing is a call that silently disappears.
+        context.diagnostics.error("%@ cannot be called here"_v, source, context.findName(callName));
     };
 
     /*
@@ -1332,7 +1897,7 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         if(set.wrongKind.isEmpty()) return false;
 
         ClassSelection other;
-        matchClassCandidates(set.wrongKind, args, target, other);
+        matchClassCandidates(set.wrongKind, args, toBuffer(set.names), target, other);
         if(!other.selectedCount) return false;
 
         auto entry = global[other.selected.typeClass]->functions.get(global, other.selected.index);
@@ -1363,6 +1928,7 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         }
 
         if(reportWrongKind()) return;
+        if(reportNames()) return;
 
         context.diagnostics.error(set.shape.isLoop()
             ? "unknown iterator %@ - a `for` loop names an `iter fn`, or a class function declared as one"_v
@@ -1374,11 +1940,15 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
      * when it fits, which keeps "my definition beats the imported one" for the case that really
      * overlaps; when it doesn't fit, the class candidates are still reachable.
      *
-     * `set.arity` rather than the callee's own, which is the same number for a call and one less for
-     * a loop: the last parameter of a loop's callee is the continuation the loop supplies, so what
-     * is tested is the leading prefix the call site actually wrote. See CallShape::supplied.
+     * The set is what says how the arguments reach the callee - its names, and how many trailing
+     * parameters the call site does not write. A loop's callee declares the continuation the loop
+     * supplies, so what is tested is the leading prefix the call site actually wrote. See
+     * CallShape::supplied.
      */
-    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source, set.arity, plainTypes))) {
+    ArgList plainArgs;
+
+    if(direct && (candidates.isEmpty() ||
+                  matchFunction(direct, args, target, source, set, plainTypes, plainArgs))) {
         selectPlain();
         return;
     }
@@ -1389,7 +1959,7 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
     }
 
     ClassSelection matched;
-    matchClassCandidates(candidates, args, target, matched);
+    matchClassCandidates(candidates, args, toBuffer(set.names), target, matched);
 
     auto& selected = matched.selected;
     auto& withoutInstance = matched.withoutInstance;
@@ -1436,6 +2006,12 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
 
         out.kind = ResolvedCallee::Kind::Dispatch;
         adopt(out.match, undecided[chosen]);
+
+        // Against the *class* signature, which is where a default a dispatched call fills came from:
+        // the instance is not known here, and an instance does not get to declare one - see
+        // resolveInstance, which reports one written in an instance body.
+        commit(global[out.match.typeClass]->functions.get(global, out.match.index).fun,
+               out.match.normalized);
         return;
     }
 
@@ -1463,6 +2039,9 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         }
 
         if(reportWrongKind()) return;
+
+        // Ahead of everything below, because everything below is about types - see reportNames.
+        if(reportNames()) return;
 
         StringBuilder types;
 
@@ -1533,6 +2112,10 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
 
     out.kind = ResolvedCallee::Kind::Instance;
     adopt(out.match, selected);
+
+    // The class signature and not the instance's implementation, for the reason the dispatch case
+    // gives: what a call site may leave out is fixed before an instance is selected.
+    commit(global[out.match.typeClass]->functions.get(global, out.match.index).fun, out.match.normalized);
 }
 
 ModulePtr<Value> ExprResolver::emitCall(const OverloadSet& set, Buffer<ResolvedArg> args,

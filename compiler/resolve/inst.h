@@ -410,6 +410,12 @@ inline void mapValueList(ModuleBase base, ModuleList<ModulePtr<Value>, false>& v
  * function value it is; `lazyType` is the `T` the signature declared, which is what selection,
  * conversion and diagnostics read. Reading the parameter in the body calls the thunk - see
  * ExprResolver::force.
+ *
+ * `defaultBits` is the `= expr` marker, held in exactly the form a field default is - the bits the
+ * parameter's storage holds at its own width, since a default is a *constant* and not an expression
+ * evaluated per call (doc/spec/functions.md's Default arguments). What it means at a call site is
+ * that the position may be left out, and what is passed there is `constantBits` of these - see
+ * ExprResolver::materializeDefaults.
  */
 struct Arg: Value {
     Arg(ModulePtr<Block> block, TypePtr type, U16 index):
@@ -417,12 +423,14 @@ struct Arg: Value {
 
     bool isMutableBorrow() const { return convention == ast::BindType::Ref; }
     bool isLazy() const { return lazyType != nullptr; }
+    bool hasDefault() const { return defaultBits.isJust(); }
 
     // The type this parameter has in the signature, which is `type` for all but a `@lazy` one.
     TypePtr declaredType() const { return lazyType ? lazyType : type; }
 
     U16 index;
     TypePtr lazyType = nullptr;
+    Maybe<U64> defaultBits;
     ast::BindType convention = ast::BindType::Borrow;
     bool returnRoot = false;
 };

@@ -1,0 +1,109 @@
+-- What a normalized call will not accept, at the call site and at the declaration.
+--
+-- Two halves. The call-site half is everything `mapArguments` refuses - a name no parameter has, a
+-- parameter filled twice, a positional argument after a named one, a position left out with no
+-- default - and the point of each is that it is *one* diagnostic naming the thing that is wrong,
+-- rather than the arity message a call whose count is perfectly fine would get.
+--
+-- The declaration half is the three positions a default cannot be written on, and each of those is a
+-- rule about the caller rather than about the constant: a `return` parameter has no caller storage
+-- when it is left out, a `&` one is written through, and one declared as a type variable has no type
+-- for the constant to be of.
+
+fn open(path: Int, mode: Int = 1, buffered: Int = 2) -> Int = path + mode + buffered
+
+-- A name nothing declares. The count is right, so the arity message would be true and useless.
+fn unknownName() -> Int = open(1, format: 2)
+
+-- The same parameter reached twice - once by position and once by name.
+fn twice() -> Int = open(1, 2, mode: 3)
+
+-- A positional argument after a named one. Which parameter it fills would depend on which ones the
+-- names before it took, so the rule is that it may not be written rather than that it is guessed.
+fn positionalAfterNamed() -> Int = open(mode: 2, 5)
+
+fn required(a: Int, b: Int, c: Int = 3) -> Int = a + b + c
+
+-- A position left out that has no default, named by the parameter it is - because a call that used
+-- names at all is not one whose problem is a count.
+fn missingNamed() -> Int = required(b: 2, c: 4)
+
+-- The same mistake in a call that wrote no names, which *is* a count - and the count is a range,
+-- since one of the three positions has a default.
+fn missingPositional() -> Int = required(1)
+
+-- More arguments than there are parameters, with the range said the same way.
+fn tooMany() -> Int = required(1, 2, 3, 4)
+
+-- A position the count reached and the order did not: one argument is a legal number of them, and
+-- it filled the defaulted parameter because that is what a positional argument does. The count is
+-- both true and satisfied here, so what the message hands over is the name that fixes it.
+fn middleDefault(a: Int = 1, b: Int) -> Int = a * 10 + b
+fn orderNotCount() -> Int = middleDefault(4)
+
+-- A call through a function *value*, which knows its parameters' names and has no defaults to fill
+-- a position with - so the same two mistakes are the same two messages, said about the type.
+fn throughValueName() -> Int:
+    let f = (from: Int, take: Int) -> from - take
+    return f(from: 1, count: 2)
+
+fn throughValueShort() -> Int:
+    let f = (from: Int, take: Int) -> from - take
+    return f(from: 1)
+
+-- A default that is not a constant. The rule is the field default's, stated once for both.
+fn computed(x: Int, y: Int = required(1, 2)) -> Int = x + y
+
+-- A default whose constant is not a value of the parameter's type.
+fn wrongType(x: Int, flag: Bool = 3) -> Int = x
+
+-- The three positions that cannot carry one at all.
+data Box {value: Int}
+
+fn returnDefault(return self: Box = 1) -> Int = self.value
+fn mutableDefault(&slot: Int = 1) -> Int = slot
+fn (Num(a)) genericDefault(x: a = 1) -> Int = 0
+
+-- A `@lazy` parameter cannot either, for a fourth reason: the default would be one more expression
+-- the call site did not write and the callee may not run.
+fn lazyDefault(x: Int, @lazy y: Int = 2) -> Int = x
+
+-- A loop's iterator, where the count message is about the arguments written before the body - and
+-- is therefore the wrong thing to say about a name. The two cases are what tells them apart.
+iter fn steps(limit: Int, from: Int = 0) -> Int:
+    let &i = from :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+fn loopBadName() -> Int:
+    let &total = 0 :: Int
+
+    for i in steps(upto: 3):
+        total = total + i
+
+    return total
+
+fn loopTooMany() -> Int:
+    let &total = 0 :: Int
+
+    for i in steps(1, 2, 3):
+        total = total + i
+
+    return total
+
+class Scale(a):
+    fn scale(it: a, by: Int = 2) -> Int
+
+-- An instance may not declare a default: what a call site leaves out is read off the class signature
+-- before the instance is selected, so one written here is a constant nothing ever passes.
+instance Scale(Int):
+    fn scale(it: Int, by: Int = 5) -> Int = it * by
+
+-- A name on a class function. The class half is matched per candidate, so a name nothing declares
+-- makes every candidate fail - and "no class function scale accepts (Int, Int)" would be true and
+-- say nothing about the `times:` that is wrong.
+fn classBadName() -> Int = scale(2, times: 3)
+
+fn main() -> Int = open(1)
