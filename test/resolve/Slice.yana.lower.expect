@@ -768,12 +768,9 @@ resize(Int)<complex>(%self: Ptr, %wanted: Int): Int {
     store %v_52, %v_57, 4
     %v_58 = add %self, 8: Ptr
     %v_59 = load %v_58, 4: Long
-    %v_60 = cast 1: Long
-    %v_61 = and %v_60, 3: Long
-    %v_62 = shl %v_61, 30: Long
-    %v_63 = and %v_59, 18446744070488326143: Long
-    %v_64 = or %v_63, %v_62: Long
-    store %v_58, %v_64, 4
+    %v_60 = and %v_59, 18446744070488326143: Long
+    %v_61 = or %v_60, 1073741824: Long
+    store %v_58, %v_61, 4
     ret 1
   }
 }

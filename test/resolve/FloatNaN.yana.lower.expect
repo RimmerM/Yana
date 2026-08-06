@@ -6,195 +6,193 @@ main<complex>(): Int {
     %v_1 = load @zero, 4: Float
     %v_2 = div %v_1, %v_1: Float
     %v = load @one, 4: Float
-    %v_3 = imm 0: Int
-    %v_4 = cmp_lt %v_2, %v: Int
-    je %v_4, b_5, b_6
+    %v_3 = cmp_lt %v_2, %v: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
   }
 
   b_5 {
-    %v_7 = add %v_3, 1: Int
-    jmp b_8
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_8 = cmp_le %v_2, %v: Int
+    je %v_8, b_9, b_10
   }
 
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_6, %v_3]: Int
-    %v_10 = cmp_le %v_2, %v: Int
-    je %v_10, b_11, b_12
+  b_9 {
+    %v_11 = add %v_7, 2: Int
+    jmp b_12
   }
 
-  b_11 {
-    %v_13 = add %v_9, 2: Int
-    jmp b_14
+  b_10 {
+    jmp b_12
   }
 
   b_12 {
-    jmp b_14
+    %v_13 = phi [b_9, %v_11], [b_10, %v_7]: Int
+    %v_14 = cmp_gt %v_2, %v: Int
+    je %v_14, b_15, b_16
   }
 
-  b_14 {
-    %v_15 = phi [b_11, %v_13], [b_12, %v_9]: Int
-    %v_16 = cmp_gt %v_2, %v: Int
-    je %v_16, b_17, b_18
+  b_15 {
+    %v_17 = add %v_13, 4: Int
+    jmp b_18
   }
 
-  b_17 {
-    %v_19 = add %v_15, 4: Int
-    jmp b_20
+  b_16 {
+    jmp b_18
   }
 
   b_18 {
-    jmp b_20
+    %v_19 = phi [b_15, %v_17], [b_16, %v_13]: Int
+    %v_20 = cmp_ge %v_2, %v: Int
+    je %v_20, b_21, b_22
   }
 
-  b_20 {
-    %v_21 = phi [b_17, %v_19], [b_18, %v_15]: Int
-    %v_22 = cmp_ge %v_2, %v: Int
-    je %v_22, b_23, b_24
+  b_21 {
+    %v_23 = add %v_19, 8: Int
+    jmp b_24
   }
 
-  b_23 {
-    %v_25 = add %v_21, 8: Int
-    jmp b_26
+  b_22 {
+    jmp b_24
   }
 
   b_24 {
-    jmp b_26
+    %v_25 = phi [b_21, %v_23], [b_22, %v_19]: Int
+    %v_26 = cmp_eq %v_2, %v: Int
+    je %v_26, b_27, b_28
   }
 
-  b_26 {
-    %v_27 = phi [b_23, %v_25], [b_24, %v_21]: Int
-    %v_28 = cmp_eq %v_2, %v: Int
-    je %v_28, b_29, b_30
+  b_27 {
+    %v_29 = add %v_25, 16: Int
+    jmp b_30
   }
 
-  b_29 {
-    %v_31 = add %v_27, 16: Int
-    jmp b_32
+  b_28 {
+    jmp b_30
   }
 
   b_30 {
-    jmp b_32
+    %v_31 = phi [b_27, %v_29], [b_28, %v_25]: Int
+    %v_32 = cmp_neq %v_2, %v: Int
+    je %v_32, b_33, b_34
   }
 
-  b_32 {
-    %v_33 = phi [b_29, %v_31], [b_30, %v_27]: Int
-    %v_34 = cmp_neq %v_2, %v: Int
-    je %v_34, b_35, b_36
+  b_33 {
+    %v_35 = add %v_31, 32: Int
+    jmp b_36
   }
 
-  b_35 {
-    %v_37 = add %v_33, 32: Int
-    jmp b_38
+  b_34 {
+    jmp b_36
   }
 
   b_36 {
-    jmp b_38
+    %v_37 = phi [b_33, %v_35], [b_34, %v_31]: Int
+    %v_38 = cmp_eq %v_2, %v_2: Int
+    je %v_38, b_39, b_40
   }
 
-  b_38 {
-    %v_39 = phi [b_35, %v_37], [b_36, %v_33]: Int
-    %v_40 = cmp_eq %v_2, %v_2: Int
-    je %v_40, b_41, b_42
+  b_39 {
+    %v_41 = add %v_37, 64: Int
+    jmp b_42
   }
 
-  b_41 {
-    %v_43 = add %v_39, 64: Int
-    jmp b_44
+  b_40 {
+    jmp b_42
   }
 
   b_42 {
-    jmp b_44
+    %v_43 = phi [b_39, %v_41], [b_40, %v_37]: Int
+    %v_44 = cmp_neq %v_2, %v_2: Int
+    je %v_44, b_45, b_46
   }
 
-  b_44 {
-    %v_45 = phi [b_41, %v_43], [b_42, %v_39]: Int
-    %v_46 = cmp_neq %v_2, %v_2: Int
-    je %v_46, b_47, b_48
+  b_45 {
+    %v_47 = add %v_43, 128: Int
+    jmp b_48
   }
 
-  b_47 {
-    %v_49 = add %v_45, 128: Int
-    jmp b_50
+  b_46 {
+    jmp b_48
   }
 
   b_48 {
-    jmp b_50
+    %v_49 = phi [b_45, %v_47], [b_46, %v_43]: Int
+    %v_50 = load @one, 4: Float
+    %v_51 = load @zero, 4: Float
+    %v_52 = cmp_gt %v_50, %v_51: Int
+    je %v_52, b_53, b_54
   }
 
-  b_50 {
-    %v_51 = phi [b_47, %v_49], [b_48, %v_45]: Int
-    %v_52 = load @one, 4: Float
-    %v_53 = load @zero, 4: Float
-    %v_54 = cmp_gt %v_52, %v_53: Int
-    je %v_54, b_55, b_56
+  b_53 {
+    %v_55 = add %v_49, 256: Int
+    jmp b_56
   }
 
-  b_55 {
-    %v_57 = add %v_51, 256: Int
-    jmp b_58
+  b_54 {
+    jmp b_56
   }
 
   b_56 {
-    jmp b_58
+    %v_57 = phi [b_53, %v_55], [b_54, %v_49]: Int
+    %v_58 = load @zero, 4: Float
+    %v_59 = load @one, 4: Float
+    %v_60 = cmp_lt %v_58, %v_59: Int
+    je %v_60, b_61, b_62
   }
 
-  b_58 {
-    %v_59 = phi [b_55, %v_57], [b_56, %v_51]: Int
-    %v_60 = load @zero, 4: Float
-    %v_61 = load @one, 4: Float
-    %v_62 = cmp_lt %v_60, %v_61: Int
-    je %v_62, b_63, b_64
+  b_61 {
+    %v_63 = add %v_57, 512: Int
+    jmp b_64
   }
 
-  b_63 {
-    %v_65 = add %v_59, 512: Int
-    jmp b_66
+  b_62 {
+    jmp b_64
   }
 
   b_64 {
-    jmp b_66
+    %v_65 = phi [b_61, %v_63], [b_62, %v_57]: Int
+    %v_66 = load @one, 4: Float
+    %v_67 = cmp_eq %v_66, %v_66: Int
+    je %v_67, b_68, b_69
   }
 
-  b_66 {
-    %v_67 = phi [b_63, %v_65], [b_64, %v_59]: Int
-    %v_68 = load @one, 4: Float
-    %v_69 = cmp_eq %v_68, %v_68: Int
-    je %v_69, b_70, b_71
+  b_68 {
+    %v_70 = add %v_65, 1024: Int
+    jmp b_71
   }
 
-  b_70 {
-    %v_72 = add %v_67, 1024: Int
-    jmp b_73
+  b_69 {
+    jmp b_71
   }
 
   b_71 {
-    jmp b_73
+    %v_72 = phi [b_68, %v_70], [b_69, %v_65]: Int
+    %v_73 = load @one, 4: Float
+    %v_74 = load @zero, 4: Float
+    %v_75 = cmp_neq %v_73, %v_74: Int
+    je %v_75, b_76, b_77
   }
 
-  b_73 {
-    %v_74 = phi [b_70, %v_72], [b_71, %v_67]: Int
-    %v_75 = load @one, 4: Float
-    %v_76 = load @zero, 4: Float
-    %v_77 = cmp_neq %v_75, %v_76: Int
-    je %v_77, b_78, b_79
+  b_76 {
+    %v_78 = add %v_72, 2048: Int
+    jmp b_79
   }
 
-  b_78 {
-    %v_80 = add %v_74, 2048: Int
-    jmp b_81
+  b_77 {
+    jmp b_79
   }
 
   b_79 {
-    jmp b_81
-  }
-
-  b_81 {
-    %v_82 = phi [b_78, %v_80], [b_79, %v_74]: Int
-    ret %v_82
+    %v_80 = phi [b_76, %v_78], [b_77, %v_72]: Int
+    ret %v_80
   }
 }
 

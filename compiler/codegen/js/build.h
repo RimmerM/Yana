@@ -509,11 +509,209 @@ inline JsPtr<Expr> index(Gen& g, JsPtr<Expr> array, U32 slot) {
     return elementAt(g, array, number(g, F64(slot)));
 }
 
+/*
+ * Evaluating the host's operators, and the one rule about when an answer may be written down.
+ *
+ * Every bit range this target reaches is built out of `&`, `|`, `<<` and `~` against numbers the
+ * emitter worked out - a field's mask, its offset, the hole its neighbours must keep - and where the
+ * value being written is a literal too, the whole read-modify-write is arithmetic over constants.
+ * `Boxed {k: 7, a: 1, b: 4095}` emitted `~(4095 << 20)` and `(4095 & 4095) << 20`, and opt.cpp could
+ * not take it back: that pass reasons about *ranges*, so it can drop a mask that provably does
+ * nothing but cannot evaluate one that does something.
+ *
+ * These are stated here rather than at either use site because there are three of them - the emitter
+ * below, the peephole's `foldConstantOp`, and the helper evaluator that reads a `$p20u$set` body and
+ * works out what the call comes to. Three implementations of what `>>>` means is three chances to
+ * disagree with the host about one of them.
+ *
+ * ## Two rules keep this exact
+ *
+ * **An operand is a *finite* number literal that is not negative zero**, tested on the bit pattern
+ * rather than by comparison - see `constantNumber`. `-0` compares equal to `0`, so `x * -0` is the
+ * one product whose sign cannot be recovered from its value, and the cheapest answer is for the sign
+ * never to enter.
+ *
+ * **An answer is only ever written down as an exact integer** - see `numberLiteral`. The arithmetic
+ * itself runs in `double`, because `Math.floor(w * 2**-32)` is what a bit range above the operators
+ * is *made of* and there is no integer form of it; but a fraction is never emitted, so nothing here
+ * depends on the printer round-tripping one, and a `-0` result is not representable in what comes
+ * out. Intermediates stay in `F64` where they belong.
+ *
+ * The compiler is built at -O3 rather than -Ofast for exactly this reason - see the note in the root
+ * CMakeLists.txt. Each operation below is one correctly-rounded IEEE 754 binary64 operation on both
+ * sides, which is what makes evaluating it here the same as evaluating it there.
+ */
+
+// 2^53: past it a double stops counting by ones, so an integer answer beyond this is one the host
+// would not have been able to state either.
+constexpr F64 kExactIntegerLimit = 9007199254740992.0;
+
+inline bool isNegativeZero(F64 value) {
+    union { F64 f; U64 bits; } punned = { value };
+    return punned.bits == (U64(1) << 63);
+}
+
+inline bool isFiniteNumber(F64 value) {
+    union { F64 f; U64 bits; } punned = { value };
+    return (punned.bits & (U64(0x7ff) << 52)) != (U64(0x7ff) << 52);
+}
+
+// Whether a value is an integer the host counts by ones at, which is the only shape an answer may
+// be written back as.
+inline bool isExactInteger(F64 value) {
+    return value >= -kExactIntegerLimit && value <= kExactIntegerLimit && F64(I64(value)) == value;
+}
+
+inline bool constantNumber(Gen& g, JsPtr<Expr> pointer, F64& into) {
+    auto expr = g.base[pointer];
+    if(expr->kind != Expr::Number) return false;
+
+    auto value = ((NumberExpr*)expr)->value;
+    if(!isFiniteNumber(value) || isNegativeZero(value)) return false;
+
+    into = value;
+    return true;
+}
+
+// The host's ToInt32 - truncate towards zero, then keep the low thirty-two bits. Only defined here
+// for a value inside the exactly-representable range, which every operand the emitter writes is;
+// the operators below decline anything else rather than guessing at the modulo.
+inline I32 toInt32(F64 value) {
+    return I32(U32(U64(I64(value))));
+}
+
+inline bool fitsInt32Conversion(F64 value) {
+    return value >= -kExactIntegerLimit && value <= kExactIntegerLimit;
+}
+
+// `Math.floor`, without libm: the truncation is exact inside the range above, and a negative value
+// that lost a fraction on the way rounds one further down.
+inline F64 floorOf(F64 value) {
+    auto truncated = F64(I64(value));
+    return (value < 0 && truncated != value) ? truncated - 1 : truncated;
+}
+
+/*
+ * One host binary operator over two known values. False where the answer is not one this may state -
+ * a `%` or `/` by zero, a bitwise operand too large to say what ToInt32 makes of it.
+ *
+ * The comparisons are not here: they answer a boolean rather than a number, and only the helper
+ * evaluator has anywhere to put one.
+ */
+inline bool applyJsBinary(BinaryOp op, F64 a, F64 b, F64& into) {
+    switch(op) {
+        case BinaryOp::Add: into = a + b; break;
+        case BinaryOp::Sub: into = a - b; break;
+        case BinaryOp::Mul: into = a * b; break;
+
+        case BinaryOp::Div:
+            if(b == 0) return false;
+            into = a / b;
+            break;
+
+        // The host's `%` is a remainder with the dividend's sign, which for two exact integers is
+        // the integer remainder. Restricted to that case rather than reaching for `fmod`, since the
+        // helpers that use it - `$w40u$wrap` and its family - reduce an integer by a power of two.
+        case BinaryOp::Rem:
+            if(b == 0 || !isExactInteger(a) || !isExactInteger(b)) return false;
+            into = F64(I64(a) % I64(b));
+            break;
+
+        default: {
+            if(!fitsInt32Conversion(a) || !fitsInt32Conversion(b)) return false;
+
+            auto x = toInt32(a);
+            auto y = toInt32(b);
+
+            // A shift count is masked to five bits by the host, so this masks it too rather than
+            // declining: `1 << 32` is `1` there, and any other answer would be a difference between
+            // the compiled and the emitted form rather than a missed opportunity.
+            auto by = U32(y) & 31;
+
+            switch(op) {
+                case BinaryOp::And: into = F64(x & y); break;
+                case BinaryOp::Or:  into = F64(x | y); break;
+                case BinaryOp::Xor: into = F64(x ^ y); break;
+                case BinaryOp::Shl: into = F64(I32(U32(x) << by)); break;
+                case BinaryOp::Sar: into = F64(x >> by); break;
+                case BinaryOp::Shr: into = F64(U32(x) >> by); break;
+                default: return false;
+            }
+        }
+    }
+
+    return isFiniteNumber(into);
+}
+
+inline bool applyJsUnary(UnaryOp op, F64 value, F64& into) {
+    switch(op) {
+        case UnaryOp::Neg:
+            into = -value;
+            break;
+        case UnaryOp::BitNot:
+            if(!fitsInt32Conversion(value)) return false;
+            into = F64(~toInt32(value));
+            break;
+        default:
+            return false;
+    }
+
+    return isFiniteNumber(into);
+}
+
+// An answer as a literal, or null where it is not one this may write down - see the rule above.
+inline JsPtr<Expr> numberLiteral(Gen& g, F64 value) {
+    if(!isExactInteger(value) || isNegativeZero(value)) return nullptr;
+    return number(g, value);
+}
+
+inline JsPtr<Expr> foldBinaryOp(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    F64 left, right, result;
+    if(!constantNumber(g, lhs, left) || !constantNumber(g, rhs, right)) return nullptr;
+    if(!applyJsBinary(op, left, right, result)) return nullptr;
+
+    return numberLiteral(g, result);
+}
+
+inline JsPtr<Expr> foldUnaryOp(Gen& g, UnaryOp op, JsPtr<Expr> value) {
+    F64 operand, result;
+    if(!constantNumber(g, value, operand)) return nullptr;
+    if(!applyJsUnary(op, operand, result)) return nullptr;
+
+    return numberLiteral(g, result);
+}
+
+/*
+ * The comparisons, which answer a boolean and so are not `applyJsBinary`'s.
+ *
+ * `===` and `!==` on two numbers are value equality, so they fold like the ordering ones. The loose
+ * pair is deliberately absent: this tree only builds one against a *reference* (see BinaryOp), where
+ * what it tests is whether a property was ever attached, and neither side is a number.
+ */
+inline JsPtr<Expr> foldComparison(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    F64 a, b;
+    if(!constantNumber(g, lhs, a) || !constantNumber(g, rhs, b)) return nullptr;
+
+    switch(op) {
+        case BinaryOp::Lt: return boolean(g, a <  b);
+        case BinaryOp::Le: return boolean(g, a <= b);
+        case BinaryOp::Gt: return boolean(g, a >  b);
+        case BinaryOp::Ge: return boolean(g, a >= b);
+        case BinaryOp::Eq: return boolean(g, a == b);
+        case BinaryOp::Ne: return boolean(g, a != b);
+        default: return nullptr;
+    }
+}
+
 inline JsPtr<Expr> binary(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    if(auto folded = foldBinaryOp(g, op, lhs, rhs)) return folded;
+    if(auto folded = foldComparison(g, op, lhs, rhs)) return folded;
+
     return asExpr(g, make<BinaryExpr>(g, op, lhs, rhs));
 }
 
 inline JsPtr<Expr> unary(Gen& g, UnaryOp op, JsPtr<Expr> value) {
+    if(auto folded = foldUnaryOp(g, op, value)) return folded;
     return asExpr(g, make<UnaryExpr>(g, op, value));
 }
 

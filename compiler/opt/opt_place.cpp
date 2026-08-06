@@ -1344,6 +1344,45 @@ struct Forwarder {
                     break;
                 }
                 /*
+                 * A duplicate, whose destination is storage of its own.
+                 *
+                 * `clobbers` already says what this is - "reads its place and writes storage of its
+                 * own that nothing else names yet" - and this is the consequence of the second half.
+                 * The bytes at the copy's own local are the bytes at the source, so everything known
+                 * about a place inside the source is, immediately afterwards, equally true of the
+                 * same path inside the destination. Exactly `noteCopy`'s rule with the destination
+                 * arrived at differently: there a whole value is *written into* a place, and here
+                 * the instruction's own result is where it lands.
+                 *
+                 * It is the shape a `->` argument reaches an inlined callee in. `matching(Just(u), u)`
+                 * in Unit.yana is `init %m.discriminant, 1`, a copy of `%m` for the argument, and -
+                 * once the body is inlined - the match's tag test reading the *copy*. Without this
+                 * the constant stops at the copy, so `foldFunction` never sees `cmp_eq 1, 1` and
+                 * `foldBranches` never sees a branch it can take: both backends emitted a diamond
+                 * whose two arms are the same and whose condition is a tautology.
+                 *
+                 * **A bitwise duplicate only.** An authored `Copy` runs a user function to build the
+                 * result, and what that function put there is not what the source holds - see
+                 * InstCopy::copy, which is null for exactly the case this may claim.
+                 */
+                case Value::Copy: {
+                    auto& duplicate = (InstCopy&)*instruction;
+                    markRead(duplicate.place);
+
+                    if(duplicate.copy || duplicate.local == maxLimit<U32>) break;
+
+                    // The same two guards `noteCopy` applies to a source, for the same reasons: the
+                    // paths have to be relative to something, and nothing may hold another way in.
+                    if(duplicate.place.root != PlaceRoot::Local) break;
+                    if(duplicate.place.local >= unaddressed.size()) break;
+                    if(!unaddressed[duplicate.place.local]) break;
+
+                    auto destination = Place::inLocal(duplicate.local);
+                    forgetAliasing(destination);
+                    inheritCopy(destination, duplicate.place);
+                    break;
+                }
+                /*
                  * Every element of a literal, on the same terms as the stores it replaced.
                  *
                  * The three facts each element carried are all still true and all still wanted:

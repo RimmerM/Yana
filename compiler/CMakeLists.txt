@@ -189,6 +189,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_resolve.h
     lower/lower_analyze.cpp
     lower/lower_builder.h
+    lower/lower_fold.h
+    lower/lower_fold.cpp
     lower/lower_promote.h
     lower/lower_promote.cpp
 )

@@ -36,5 +36,10 @@
  * can prove safe). What this catches is the slot that is loaded and stored as one value and nothing
  * else: a scalar record, an integer local, a pointer, and the temporary `materializeScalar` allocates
  * to hand a scalar record's bits to something that wanted an address.
+ *
+ * It leaves its own litter behind - the byte count of an allocation that is gone, the mask a load
+ * turned out not to need - and does not clean it up. `removeDeadConstants` in lower_fold.h does, for
+ * this pass and for folding alike, and the caller runs it afterwards: this one returns early where
+ * there is nothing to promote, and the constants folding orphans are there either way.
  */
 void promoteStackSlots(LowerBase base, LowerFunction& fun);

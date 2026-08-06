@@ -675,55 +675,51 @@ main<complex>(): Int {
     %v_6 = add %v_5, 4: Ptr
     store %v_6, 5, 4
     %v_7 = alloca 16, 8: Ptr
-    %v_8 = imm 8: Long
-    %v_9 = imm 3: Long
-    %v_10 = alloca 24, 4: Ptr
-    store %v_7, %v_10, 8
-    %v_11 = add %v_7, 8: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = and %v_12, 18446744072635809792: Int
-    %v_14 = or %v_13, 3: Int
-    %v_15 = and %v_14, 18446744070488326143: Int
-    %v_16 = add %v_7, 8: Ptr
-    store %v_16, %v_15, 4
-    copy %v_10, %v_1, 8
-    %v_17 = add %v_10, 8: Ptr
-    copy %v_17, %v_3, 8
-    %v_18 = add %v_10, 16: Ptr
-    copy %v_18, %v_5, 8
-    %v_19 = add %v_7, 12: Ptr
-    store %v_19, 3, 4
-    %v_20 = alloca 16, 8: Ptr
-    %v_21 = imm 4: Long
-    %v_22 = imm 4: Long
-    %v_23 = alloca 16, 4: Ptr
-    store %v_20, %v_23, 8
-    %v_24 = add %v_20, 8: Ptr
-    %v_25 = load %v_24, 4: Int
-    %v_26 = and %v_25, 18446744072635809792: Int
-    %v_27 = or %v_26, 4: Int
-    %v_28 = and %v_27, 18446744070488326143: Int
-    %v_29 = add %v_20, 8: Ptr
-    store %v_29, %v_28, 4
-    store %v_23, 1, 4
-    %v_30 = add %v_23, 4: Ptr
-    store %v_30, 2, 4
-    %v_31 = add %v_23, 8: Ptr
-    store %v_31, 3, 4
-    %v_32 = add %v_23, 12: Ptr
-    store %v_32, 4, 4
-    %v_33 = add %v_20, 12: Ptr
-    store %v_33, 4, 4
-    %v_34 = imm 3: Long
-    %v_35 = call_complex direct, %v_10, %v_34: Int
-    %v_36 = call_complex oneLift, %v_10, %v_34: Int
-    %v_37 = add %v_35, %v_36: Int
-    %v_38 = call_complex twoLifts, %v_10, %v_34: Int
+    %v_8 = alloca 24, 4: Ptr
+    store %v_7, %v_8, 8
+    %v_9 = add %v_7, 8: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = and %v_10, 18446744072635809792: Int
+    %v_12 = or %v_11, 3: Int
+    %v_13 = and %v_12, 18446744070488326143: Int
+    %v_14 = add %v_7, 8: Ptr
+    store %v_14, %v_13, 4
+    copy %v_8, %v_1, 8
+    %v_15 = add %v_8, 8: Ptr
+    copy %v_15, %v_3, 8
+    %v_16 = add %v_8, 16: Ptr
+    copy %v_16, %v_5, 8
+    %v_17 = add %v_7, 12: Ptr
+    store %v_17, 3, 4
+    %v_18 = alloca 16, 8: Ptr
+    %v_19 = alloca 16, 4: Ptr
+    store %v_18, %v_19, 8
+    %v_20 = add %v_18, 8: Ptr
+    %v_21 = load %v_20, 4: Int
+    %v_22 = and %v_21, 18446744072635809792: Int
+    %v_23 = or %v_22, 4: Int
+    %v_24 = and %v_23, 18446744070488326143: Int
+    %v_25 = add %v_18, 8: Ptr
+    store %v_25, %v_24, 4
+    store %v_19, 1, 4
+    %v_26 = add %v_19, 4: Ptr
+    store %v_26, 2, 4
+    %v_27 = add %v_19, 8: Ptr
+    store %v_27, 3, 4
+    %v_28 = add %v_19, 12: Ptr
+    store %v_28, 4, 4
+    %v_29 = add %v_18, 12: Ptr
+    store %v_29, 4, 4
+    %v_30 = imm 3: Long
+    %v_31 = call_complex direct, %v_8, %v_30: Int
+    %v_32 = call_complex oneLift, %v_8, %v_30: Int
+    %v_33 = add %v_31, %v_32: Int
+    %v_34 = call_complex twoLifts, %v_8, %v_30: Int
     call_complex Reclaim(Array(a)).reclaim(Point), %v_7
-    %v_39 = add %v_37, %v_38: Int
-    %v_40 = call_complex scalar, %v_23, 4: Int
-    %v_41 = add %v_39, %v_40: Int
-    ret %v_41
+    %v_35 = add %v_33, %v_34: Int
+    %v_36 = call_complex scalar, %v_19, 4: Int
+    %v_37 = add %v_35, %v_36: Int
+    ret %v_37
   }
 }
 

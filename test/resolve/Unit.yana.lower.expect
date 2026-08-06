@@ -44,31 +44,16 @@ main<complex>(): Int {
     %v_14 = call_complex %v_12, %v_13: Int
     call_complex unitValue
     %k = call_complex capturing, 8: Int
-    call_complex unitValue
-    %v_15 = imm 24: Int
-    %v_16 = shl 1, %v_15: Int
-    %v_17 = sar %v_16, %v_15: Int
-    %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_20
-  }
-
-  b_20 {
-    jmp b_21
-  }
-
-  b_19 {
+    %v_15 = alloca 1, 1: Ptr
+    store %v_15, 1, 1
     %inner = alloca 1, 1: Ptr
-    jmp b_21
-  }
-
-  b_21 {
-    %v_22 = alloca 1, 1: Ptr
-    %v_23 = alloca 1, 1: Ptr
-    %v_24 = add %v_7, 34: Int
-    %v_25 = add %v_24, %v_14: Int
-    %v_26 = add %v_25, %k: Int
-    %v_27 = add %v_26, 28: Int
-    ret %v_27
+    %v_16 = alloca 1, 1: Ptr
+    %v_17 = alloca 1, 1: Ptr
+    %v_18 = add %v_7, 34: Int
+    %v_19 = add %v_18, %v_14: Int
+    %v_20 = add %v_19, %k: Int
+    %v_21 = add %v_20, 28: Int
+    ret %v_21
   }
 }
 

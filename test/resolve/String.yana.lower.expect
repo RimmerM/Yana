@@ -143,97 +143,94 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
     %v_4 = cast %capacity: Int
     %v_5 = alloca 12, 8: Ptr
     %v_6 = sext %v_4: Long
-    %v_7 = mul 1, %v_6: Long
-    %v_8 = call_complex allocateHeap, %v_7: Ptr
-    %v_9 = cast %capacity: Int
-    %v_10 = and %v_9, 1073741823: Int
-    %v_11 = cast %v_10: Int
-    store %v_5, %v_8, 8
-    %v_12 = add %v_5, 8: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = cast %v_11: Int
-    %v_15 = and %v_14, 1073741823: Int
-    %v_16 = and %v_13, 18446744072635809792: Int
-    %v_17 = or %v_16, %v_15: Int
-    %v_18 = and %v_17, 18446744070488326143: Int
-    %v_19 = or %v_18, 1073741824: Int
-    %v_20 = add %v_5, 8: Ptr
-    store %v_20, %v_19, 4
+    %v_7 = call_complex allocateHeap, %v_6: Ptr
+    %v_8 = cast %capacity: Int
+    %v_9 = and %v_8, 1073741823: Int
+    %v_10 = cast %v_9: Int
+    store %v_5, %v_7, 8
+    %v_11 = add %v_5, 8: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_10: Int
+    %v_14 = and %v_13, 1073741823: Int
+    %v_15 = and %v_12, 18446744072635809792: Int
+    %v_16 = or %v_15, %v_14: Int
+    %v_17 = and %v_16, 18446744070488326143: Int
+    %v_18 = or %v_17, 1073741824: Int
+    %v_19 = add %v_5, 8: Ptr
+    store %v_19, %v_18, 4
     copy %v_3, %v_5, 12
-    %v_21 = add %v_3, 12: Ptr
-    store %v_21, 0, 4
+    %v_20 = add %v_3, 12: Ptr
+    store %v_20, 0, 4
     copy %v_2, %v_3, 16
-    %v_22 = alloca 16, 8: Ptr
-    copy %v_22, %v_2, 16
-    copy %v_0, %v_22, 16
+    %v_21 = alloca 16, 8: Ptr
+    copy %v_21, %v_2, 16
+    copy %v_0, %v_21, 16
     ret 
   }
 }
 
 orderingHolds<complex>(): Int {
   b_0 {
-    %v_1 = imm 0: Int
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @string$13, 3
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$13, 3
-    %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @string$14, 3
-    %v_4 = call_complex Ord(String).compare, %v_2, %v_3: Int
-    %v_5 = cmp_eq %v_4, 0: Int
-    je %v_5, b_6, b_7
+    call_complex stringLiteral, %v_2, @string$14, 3
+    %v_3 = call_complex Ord(String).compare, %v_1, %v_2: Int
+    %v_4 = cmp_eq %v_3, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    jmp b_7
   }
 
   b_6 {
-    %v_8 = add %v_1, 1: Int
-    jmp b_9
+    jmp b_7
   }
 
   b_7 {
-    jmp b_9
+    %v_8 = phi [b_5, 1], [b_6, 0]: Int
+    %v_9 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_9, @string$15, 2
+    %v_10 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_10, @string$16, 3
+    %v_11 = call_complex Ord(String).compare, %v_9, %v_10: Int
+    %v_12 = cmp_eq %v_11, 0: Int
+    je %v_12, b_13, b_14
   }
 
-  b_9 {
-    %v_10 = phi [b_6, %v_8], [b_7, %v_1]: Int
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$15, 2
-    %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @string$16, 3
-    %v_13 = call_complex Ord(String).compare, %v_11, %v_12: Int
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_16
+  b_13 {
+    %v_15 = add %v_8, 1: Int
+    jmp b_16
   }
 
-  b_15 {
-    %v_17 = add %v_10, 1: Int
-    jmp b_18
+  b_14 {
+    jmp b_16
   }
 
   b_16 {
-    jmp b_18
+    %v_17 = phi [b_13, %v_15], [b_14, %v_8]: Int
+    %v_18 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_18, @string$17, 1
+    %v_19 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_19, @string$18, 1
+    %v_20 = call_complex Ord(String).compare, %v_18, %v_19: Int
+    %v_21 = cmp_eq %v_20, 0: Int
+    je %v_21, b_22, b_23
   }
 
-  b_18 {
-    %v_19 = phi [b_15, %v_17], [b_16, %v_10]: Int
-    %v_20 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_20, @string$17, 1
-    %v_21 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_21, @string$18, 1
-    %v_22 = call_complex Ord(String).compare, %v_20, %v_21: Int
-    %v_23 = cmp_eq %v_22, 0: Int
-    je %v_23, b_24, b_25
+  b_22 {
+    %v_24 = add %v_17, 100: Int
+    jmp b_25
   }
 
-  b_24 {
-    %v_26 = add %v_19, 100: Int
-    jmp b_27
+  b_23 {
+    jmp b_25
   }
 
   b_25 {
-    jmp b_27
-  }
-
-  b_27 {
-    %v_28 = phi [b_24, %v_26], [b_25, %v_19]: Int
-    ret %v_28
+    %v_26 = phi [b_22, %v_24], [b_23, %v_17]: Int
+    ret %v_26
   }
 }
 
@@ -500,12 +497,9 @@ resize(U8)<complex>(%self: Ptr, %wanted: Int): Int {
     store %v_49, %v_54, 4
     %v_55 = add %self, 8: Ptr
     %v_56 = load %v_55, 4: Long
-    %v_57 = cast 1: Long
-    %v_58 = and %v_57, 3: Long
-    %v_59 = shl %v_58, 30: Long
-    %v_60 = and %v_56, 18446744070488326143: Long
-    %v_61 = or %v_60, %v_59: Long
-    store %v_55, %v_61, 4
+    %v_57 = and %v_56, 18446744070488326143: Long
+    %v_58 = or %v_57, 1073741824: Long
+    store %v_55, %v_58, 4
     ret 1
   }
 }
@@ -681,65 +675,63 @@ allocateHeap<complex>(%size: Long): Ptr {
 
 equalityHolds<complex>(): Int {
   b_0 {
-    %v_1 = imm 0: Int
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @string$7, 3
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$7, 3
-    %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @string$8, 3
-    %v_4 = call_complex Eq(String).==, %v_2, %v_3: Int
-    je %v_4, b_5, b_6
+    call_complex stringLiteral, %v_2, @string$8, 3
+    %v_3 = call_complex Eq(String).==, %v_1, %v_2: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
   }
 
   b_5 {
-    %v_7 = add %v_1, 1: Int
-    jmp b_8
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_8 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_8, @string$9, 3
+    %v_9 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_9, @string$10, 3
+    %v_10 = call_complex Eq(String).==, %v_8, %v_9: Int
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_6, %v_1]: Int
-    %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$9, 3
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$10, 3
-    %v_12 = call_complex Eq(String).==, %v_10, %v_11: Int
-    je %v_12, b_13, b_14
+  b_11 {
+    %v_13 = add %v_7, 100: Int
+    jmp b_14
   }
 
-  b_13 {
-    %v_15 = add %v_9, 100: Int
-    jmp b_16
+  b_12 {
+    jmp b_14
   }
 
   b_14 {
-    jmp b_16
+    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: Int
+    %v_16 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_16, @string$11, 2
+    %v_17 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_17, @string$12, 3
+    %v_18 = call_complex Eq(String).==, %v_16, %v_17: Int
+    je %v_18, b_19, b_20
   }
 
-  b_16 {
-    %v_17 = phi [b_13, %v_15], [b_14, %v_9]: Int
-    %v_18 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_18, @string$11, 2
-    %v_19 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_19, @string$12, 3
-    %v_20 = call_complex Eq(String).==, %v_18, %v_19: Int
-    je %v_20, b_21, b_22
+  b_19 {
+    %v_21 = add %v_15, 100: Int
+    jmp b_22
   }
 
-  b_21 {
-    %v_23 = add %v_17, 100: Int
-    jmp b_24
+  b_20 {
+    jmp b_22
   }
 
   b_22 {
-    jmp b_24
-  }
-
-  b_24 {
-    %v_25 = phi [b_21, %v_23], [b_22, %v_17]: Int
-    ret %v_25
+    %v_23 = phi [b_19, %v_21], [b_20, %v_15]: Int
+    ret %v_23
   }
 }
 

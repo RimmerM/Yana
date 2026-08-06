@@ -326,63 +326,59 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = imm 4: Long
-    %v_3 = imm 4: Long
-    %v_4 = call_complex allocateHeap, 16: Ptr
-    store %v_1, %v_4, 8
-    %v_5 = add %v_1, 8: Ptr
-    %v_6 = load %v_5, 4: Int
-    %v_7 = and %v_6, 18446744072635809792: Int
-    %v_8 = or %v_7, 4: Int
-    %v_9 = and %v_8, 18446744070488326143: Int
-    %v_10 = or %v_9, 1073741824: Int
-    %v_11 = add %v_1, 8: Ptr
-    store %v_11, %v_10, 4
-    store %v_4, 1, 4
-    %v_12 = add %v_4, 4: Ptr
-    store %v_12, 2, 4
-    %v_13 = add %v_4, 8: Ptr
-    store %v_13, 3, 4
-    %v_14 = add %v_4, 12: Ptr
-    store %v_14, 4, 4
-    %v_15 = add %v_1, 12: Ptr
-    store %v_15, 4, 4
+    %v_2 = call_complex allocateHeap, 16: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = and %v_4, 18446744072635809792: Int
+    %v_6 = or %v_5, 4: Int
+    %v_7 = and %v_6, 18446744070488326143: Int
+    %v_8 = or %v_7, 1073741824: Int
+    %v_9 = add %v_1, 8: Ptr
+    store %v_9, %v_8, 4
+    store %v_2, 1, 4
+    %v_10 = add %v_2, 4: Ptr
+    store %v_10, 2, 4
+    %v_11 = add %v_2, 8: Ptr
+    store %v_11, 3, 4
+    %v_12 = add %v_2, 12: Ptr
+    store %v_12, 4, 4
+    %v_13 = add %v_1, 12: Ptr
+    store %v_13, 4, 4
     %first = alloca 16, 8: Ptr
     call_complex makeSummer, %first, %v_1
-    %v_16 = alloca 16, 8: Ptr
-    %v_17 = imm 4: Long
-    %v_18 = imm 2: Long
-    %v_19 = call_complex allocateHeap, 8: Ptr
-    store %v_16, %v_19, 8
-    %v_20 = add %v_16, 8: Ptr
-    %v_21 = load %v_20, 4: Int
-    %v_22 = and %v_21, 18446744072635809792: Int
-    %v_23 = or %v_22, 2: Int
-    %v_24 = and %v_23, 18446744070488326143: Int
-    %v_25 = or %v_24, 1073741824: Int
-    %v_26 = add %v_16, 8: Ptr
-    store %v_26, %v_25, 4
-    store %v_19, 10, 4
-    %v_27 = add %v_19, 4: Ptr
-    store %v_27, 20, 4
-    %v_28 = add %v_16, 12: Ptr
-    store %v_28, 2, 4
+    %v_14 = alloca 16, 8: Ptr
+    %v_15 = call_complex allocateHeap, 8: Ptr
+    store %v_14, %v_15, 8
+    %v_16 = add %v_14, 8: Ptr
+    %v_17 = load %v_16, 4: Int
+    %v_18 = and %v_17, 18446744072635809792: Int
+    %v_19 = or %v_18, 2: Int
+    %v_20 = and %v_19, 18446744070488326143: Int
+    %v_21 = or %v_20, 1073741824: Int
+    %v_22 = add %v_14, 8: Ptr
+    store %v_22, %v_21, 4
+    store %v_15, 10, 4
+    %v_23 = add %v_15, 4: Ptr
+    store %v_23, 20, 4
+    %v_24 = add %v_14, 12: Ptr
+    store %v_24, 2, 4
     %second = alloca 16, 8: Ptr
-    call_complex makeSummer, %second, %v_16
-    %v_29 = add %first, 8: Ptr
-    %v_30 = load %first, 8: Ptr
-    %v_31 = load %v_29, 8: Ptr
-    %v_32 = call_complex %v_30, %v_31: Int
+    call_complex makeSummer, %second, %v_14
+    %v_25 = add %first, 8: Ptr
+    %v_26 = load %first, 8: Ptr
+    %v_27 = load %v_25, 8: Ptr
+    %v_28 = call_complex %v_26, %v_27: Int
     call_complex drop$() -> Int, %first
     call_complex reclaim$() -> Int, %first
-    %v_33 = add %second, 8: Ptr
-    %v_34 = load %second, 8: Ptr
-    %v_35 = load %v_33, 8: Ptr
-    %v_36 = call_complex %v_34, %v_35: Int
+    %v_29 = add %second, 8: Ptr
+    %v_30 = load %second, 8: Ptr
+    %v_31 = load %v_29, 8: Ptr
+    %v_32 = call_complex %v_30, %v_31: Int
     call_complex drop$() -> Int, %second
     call_complex reclaim$() -> Int, %second
-    %v_37 = add %v_32, %v_36: Int
-    ret %v_37
+    %v_33 = add %v_28, %v_32: Int
+    ret %v_33
   }
 }
 

@@ -211,12 +211,9 @@ resize(U8)<complex>(%self: Ptr, %wanted: Int): Int {
     store %v_49, %v_54, 4
     %v_55 = add %self, 8: Ptr
     %v_56 = load %v_55, 4: Long
-    %v_57 = cast 1: Long
-    %v_58 = and %v_57, 3: Long
-    %v_59 = shl %v_58, 30: Long
-    %v_60 = and %v_56, 18446744070488326143: Long
-    %v_61 = or %v_60, %v_59: Long
-    store %v_55, %v_61, 4
+    %v_57 = and %v_56, 18446744070488326143: Long
+    %v_58 = or %v_57, 1073741824: Long
+    store %v_55, %v_58, 4
     ret 1
   }
 }
@@ -272,29 +269,28 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
     %v_4 = cast %capacity: Int
     %v_5 = alloca 12, 8: Ptr
     %v_6 = sext %v_4: Long
-    %v_7 = mul 1, %v_6: Long
-    %v_8 = call_complex allocateHeap, %v_7: Ptr
-    %v_9 = cast %capacity: Int
-    %v_10 = and %v_9, 1073741823: Int
-    %v_11 = cast %v_10: Int
-    store %v_5, %v_8, 8
-    %v_12 = add %v_5, 8: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = cast %v_11: Int
-    %v_15 = and %v_14, 1073741823: Int
-    %v_16 = and %v_13, 18446744072635809792: Int
-    %v_17 = or %v_16, %v_15: Int
-    %v_18 = and %v_17, 18446744070488326143: Int
-    %v_19 = or %v_18, 1073741824: Int
-    %v_20 = add %v_5, 8: Ptr
-    store %v_20, %v_19, 4
+    %v_7 = call_complex allocateHeap, %v_6: Ptr
+    %v_8 = cast %capacity: Int
+    %v_9 = and %v_8, 1073741823: Int
+    %v_10 = cast %v_9: Int
+    store %v_5, %v_7, 8
+    %v_11 = add %v_5, 8: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_10: Int
+    %v_14 = and %v_13, 1073741823: Int
+    %v_15 = and %v_12, 18446744072635809792: Int
+    %v_16 = or %v_15, %v_14: Int
+    %v_17 = and %v_16, 18446744070488326143: Int
+    %v_18 = or %v_17, 1073741824: Int
+    %v_19 = add %v_5, 8: Ptr
+    store %v_19, %v_18, 4
     copy %v_3, %v_5, 12
-    %v_21 = add %v_3, 12: Ptr
-    store %v_21, 0, 4
+    %v_20 = add %v_3, 12: Ptr
+    store %v_20, 0, 4
     copy %v_2, %v_3, 16
-    %v_22 = alloca 16, 8: Ptr
-    copy %v_22, %v_2, 16
-    copy %v_0, %v_22, 16
+    %v_21 = alloca 16, 8: Ptr
+    copy %v_21, %v_2, 16
+    copy %v_0, %v_21, 16
     ret 
   }
 }

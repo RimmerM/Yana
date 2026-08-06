@@ -1,70 +1,37 @@
 
 writeHigh<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 1000: Long
-    %v_3 = and %v_2, 1048575: Long
-    %v_4 = and 0, 18446744073708503040: Long
-    %v_5 = or %v_4, %v_3: Long
-    %v_6 = cast 1048575: Long
-    %v_7 = and %v_6, 1048575: Long
-    %v_8 = shl %v_7, 32: Long
-    %v_9 = and %v_5, 18442240478377148415: Long
-    %v_10 = or %v_9, %v_8: Long
-    store %v_0, %v_10, 8
+    store %v_0, 4503595332404200, 8
     ret 
   }
 }
 
 writeLow<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 999999: Long
-    %v_3 = and %v_2, 1048575: Long
-    %v_4 = shl %v_3, 32: Long
-    %v_5 = and 0, 18442240478377148415: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = cast 1048575: Long
-    %v_8 = and %v_7, 1048575: Long
-    %v_9 = and %v_6, 18446744073708503040: Long
-    %v_10 = or %v_9, %v_8: Long
-    store %v_0, %v_10, 8
+    store %v_0, 4294963002081279, 8
     ret 
   }
 }
 
 stored<complex>(%v_0: Ptr, %x: Long) {
   b_1 {
-    %v_2 = cast 1: Long
-    %v_3 = and %v_2, 15: Long
-    %v_4 = shl %v_3, 40: Long
-    %v_5 = and 0, 18446727581035134975: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = shl %x, 13: Long
-    %v_8 = imm 11: Long
-    %v_9 = shl %v_7, %v_8: Long
-    %v_10 = sar %v_9, %v_8: Long
-    %v_11 = sar %v_10, 13: Long
-    %x = cast %v_11: Long
-    %v_12 = cast %x: Long
-    %v_13 = and %v_12, 1099511627775: Long
-    %v_14 = and %v_6, 18446742974197923840: Long
-    %v_15 = or %v_14, %v_13: Long
-    store %v_0, %v_15, 8
+    %v_2 = shl %x, 13: Long
+    %v_3 = imm 11: Long
+    %v_4 = shl %v_2, %v_3: Long
+    %v_5 = sar %v_4, %v_3: Long
+    %v_6 = sar %v_5, 13: Long
+    %x = cast %v_6: Long
+    %v_7 = cast %x: Long
+    %v_8 = and %v_7, 1099511627775: Long
+    %v_9 = or 1099511627776, %v_8: Long
+    store %v_0, %v_9, 8
     ret 
   }
 }
 
 marked<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 5: Long
-    %v_3 = and %v_2, 1048575: Long
-    %v_4 = and 0, 18446744073708503040: Long
-    %v_5 = or %v_4, %v_3: Long
-    %v_6 = cast 18446744073709551613: Long
-    %v_7 = and %v_6, 1048575: Long
-    %v_8 = shl %v_7, 32: Long
-    %v_9 = and %v_5, 18442240478377148415: Long
-    %v_10 = or %v_9, %v_8: Long
-    store %v_0, %v_10, 8
+    store %v_0, 4503586742468613, 8
     ret 
   }
 }
@@ -74,20 +41,15 @@ bumpedHigh<complex>(%v_0: Ptr) {
     %v_2 = alloca 8, 8: Ptr
     store %v_2, 0, 8
     %v_3 = load %v_2, 8: Long
-    %v_4 = cast 1000: Long
-    %v_5 = and %v_4, 1048575: Long
-    %v_6 = and %v_3, 18446744073708503040: Long
-    %v_7 = or %v_6, %v_5: Long
-    store %v_2, %v_7, 8
-    %v_8 = load %v_2, 8: Long
-    %v_9 = cast 999999: Long
-    %v_10 = and %v_9, 1048575: Long
-    %v_11 = shl %v_10, 32: Long
-    %v_12 = and %v_8, 18442240478377148415: Long
-    %v_13 = or %v_12, %v_11: Long
-    store %v_2, %v_13, 8
-    %v_14 = add %v_2, 4: Ptr
-    call_complex nudge, %v_14
+    %v_4 = and %v_3, 18446744073708503040: Long
+    %v_5 = or %v_4, 1000: Long
+    store %v_2, %v_5, 8
+    %v_6 = load %v_2, 8: Long
+    %v_7 = and %v_6, 18442240478377148415: Long
+    %v_8 = or %v_7, 4294963001032704: Long
+    store %v_2, %v_8, 8
+    %v_9 = add %v_2, 4: Ptr
+    call_complex nudge, %v_9
     copy %v_0, %v_2, 8
     ret 
   }
@@ -304,16 +266,7 @@ main<complex>(): Int {
 
 retagged<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 9: Long
-    %v_3 = and %v_2, 15: Long
-    %v_4 = shl %v_3, 40: Long
-    %v_5 = and 0, 18446727581035134975: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = cast 18446744073709551614: Long
-    %v_8 = and %v_7, 1099511627775: Long
-    %v_9 = and %v_6, 18446742974197923840: Long
-    %v_10 = or %v_9, %v_8: Long
-    store %v_0, %v_10, 8
+    store %v_0, 10995116277758, 8
     ret 
   }
 }

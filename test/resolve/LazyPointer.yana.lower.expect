@@ -76,79 +76,77 @@ defaulted<complex>(%p: Ptr): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = imm 0: Int
-    %v_2 = bitcast 0: Ptr
-    %v_3 = call_complex guarded, %v_2: Int
-    %v_4 = cmp_eq %v_3, 0: Int
-    je %v_4, b_5, b_6
+    %v_1 = bitcast 0: Ptr
+    %v_2 = call_complex guarded, %v_1: Int
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
   }
 
   b_5 {
-    %v_7 = add %v_1, 1: Int
-    jmp b_8
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_8 = bitcast 0: Ptr
+    %v_9 = call_complex defaulted, %v_8: Int
+    %v_10 = cmp_eq %v_9, 18446744073709551615: Int
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_6, %v_1]: Int
-    %v_10 = bitcast 0: Ptr
-    %v_11 = call_complex defaulted, %v_10: Int
-    %v_12 = cmp_eq %v_11, 18446744073709551615: Int
-    je %v_12, b_13, b_14
+  b_11 {
+    %v_13 = add %v_7, 2: Int
+    jmp b_14
   }
 
-  b_13 {
-    %v_15 = add %v_9, 2: Int
-    jmp b_16
+  b_12 {
+    jmp b_14
   }
 
   b_14 {
-    jmp b_16
+    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: Int
+    %v_16 = alloca 4, 4: Ptr
+    store %v_16, 41, 4
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %v_17, 1: Int
+    store %v_16, %v_18, 4
+    %v_19 = call_complex guarded, %v_16: Int
+    %v_20 = cmp_eq %v_19, 42: Int
+    je %v_20, b_21, b_22
   }
 
-  b_16 {
-    %v_17 = phi [b_13, %v_15], [b_14, %v_9]: Int
-    %v_18 = alloca 4, 4: Ptr
-    store %v_18, 41, 4
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = add %v_19, 1: Int
-    store %v_18, %v_20, 4
-    %v_21 = call_complex guarded, %v_18: Int
-    %v_22 = cmp_eq %v_21, 42: Int
-    je %v_22, b_23, b_24
+  b_21 {
+    %v_23 = add %v_15, 4: Int
+    jmp b_24
   }
 
-  b_23 {
-    %v_25 = add %v_17, 4: Int
-    jmp b_26
+  b_22 {
+    jmp b_24
   }
 
   b_24 {
-    jmp b_26
+    %v_25 = phi [b_21, %v_23], [b_22, %v_15]: Int
+    %v_26 = call_complex defaulted, %v_16: Int
+    %v_27 = cmp_eq %v_26, 42: Int
+    je %v_27, b_28, b_29
   }
 
-  b_26 {
-    %v_27 = phi [b_23, %v_25], [b_24, %v_17]: Int
-    %v_28 = call_complex defaulted, %v_18: Int
-    %v_29 = cmp_eq %v_28, 42: Int
-    je %v_29, b_30, b_31
+  b_28 {
+    %v_30 = add %v_25, 8: Int
+    jmp b_31
   }
 
-  b_30 {
-    %v_32 = add %v_27, 8: Int
-    jmp b_33
+  b_29 {
+    jmp b_31
   }
 
   b_31 {
-    jmp b_33
-  }
-
-  b_33 {
-    %v_34 = phi [b_30, %v_32], [b_31, %v_27]: Int
-    ret %v_34
+    %v_32 = phi [b_28, %v_30], [b_29, %v_25]: Int
+    ret %v_32
   }
 }
 

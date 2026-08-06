@@ -122,47 +122,45 @@ compareAddresses<complex>(): Long {
     store %node, 0, 8
     %v_2 = add %node, 8: Ptr
     store %v_2, %v_1, 8
-    %v_3 = imm 0: Long
-    %v_4 = add %node, 16: Ptr
-    %v_5 = cmp_lt %node, %v_4: Int
-    je %v_5, b_6, b_7
+    %v_3 = add %node, 16: Ptr
+    %v_4 = cmp_lt %node, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    jmp b_6
   }
 
   b_6 {
-    %v_8 = add %v_3, 1: Long
-    jmp b_7
+    %v_7 = phi [b_0, 0], [b_5, 1]: Long
+    %v_8 = add %v_7, 2: Long
+    %v_9 = bitcast 0: Ptr
+    %v_10 = bitcast %v_9: Long
+    %v_11 = cmp_eq %v_10, 0: Int
+    je %v_11, b_12, b_13
   }
 
-  b_7 {
-    %v_9 = phi [b_0, %v_3], [b_6, %v_8]: Long
-    %v_10 = add %v_9, 2: Long
-    %v_11 = bitcast 0: Ptr
-    %v_12 = bitcast %v_11: Long
-    %v_13 = cmp_eq %v_12, 0: Int
-    je %v_13, b_14, b_15
+  b_12 {
+    %v_14 = add %v_8, 4: Long
+    jmp b_13
   }
 
-  b_14 {
-    %v_16 = add %v_10, 4: Long
-    jmp b_15
+  b_13 {
+    %v_15 = phi [b_6, %v_8], [b_12, %v_14]: Long
+    %v_16 = bitcast %node: Long
+    %v_17 = cmp_eq %v_16, 0: Int
+    %v_18 = xor %v_17, 1: Int
+    je %v_18, b_19, b_20
   }
 
-  b_15 {
-    %v_17 = phi [b_7, %v_10], [b_14, %v_16]: Long
-    %v_18 = bitcast %node: Long
-    %v_19 = cmp_eq %v_18, 0: Int
-    %v_20 = xor %v_19, 1: Int
-    je %v_20, b_21, b_22
+  b_19 {
+    %v_21 = add %v_15, 8: Long
+    jmp b_20
   }
 
-  b_21 {
-    %v_23 = add %v_17, 8: Long
-    jmp b_22
-  }
-
-  b_22 {
-    %v_24 = phi [b_15, %v_17], [b_21, %v_23]: Long
-    ret %v_24
+  b_20 {
+    %v_22 = phi [b_13, %v_15], [b_19, %v_21]: Long
+    ret %v_22
   }
 }
 
@@ -226,8 +224,7 @@ maybePointer<complex>(): Long {
 
 roundTrip<complex>(): Long {
   b_0 {
-    %v_1 = add 7, 1: Long
-    ret %v_1
+    ret 8
   }
 }
 

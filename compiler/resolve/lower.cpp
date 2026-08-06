@@ -578,6 +578,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // the finished IR rather than about the source, so it is asked now - see lower_promote.h, and
         // isDirectType in resolve/type.h for why it is not asked any earlier.
         promoteStackSlots(lower.lower, *target);
+
+        // What promotion turned into arithmetic over literals - a local's whole initial value is
+        // assembled out of a load of the storage it is about to stop being - and then the immediates
+        // that and promotion left with no readers. See lower_fold.h.
+        foldFunctionConstants(lower.lower, lower.to, *target);
+        removeDeadConstants(lower.lower, lower.to.arena, *target);
     }
 
     return result;

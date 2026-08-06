@@ -108,29 +108,28 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
     %v_4 = cast %capacity: Int
     %v_5 = alloca 12, 8: Ptr
     %v_6 = sext %v_4: Long
-    %v_7 = mul 1, %v_6: Long
-    %v_8 = call_complex allocateHeap, %v_7: Ptr
-    %v_9 = cast %capacity: Int
-    %v_10 = and %v_9, 1073741823: Int
-    %v_11 = cast %v_10: Int
-    store %v_5, %v_8, 8
-    %v_12 = add %v_5, 8: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = cast %v_11: Int
-    %v_15 = and %v_14, 1073741823: Int
-    %v_16 = and %v_13, 18446744072635809792: Int
-    %v_17 = or %v_16, %v_15: Int
-    %v_18 = and %v_17, 18446744070488326143: Int
-    %v_19 = or %v_18, 1073741824: Int
-    %v_20 = add %v_5, 8: Ptr
-    store %v_20, %v_19, 4
+    %v_7 = call_complex allocateHeap, %v_6: Ptr
+    %v_8 = cast %capacity: Int
+    %v_9 = and %v_8, 1073741823: Int
+    %v_10 = cast %v_9: Int
+    store %v_5, %v_7, 8
+    %v_11 = add %v_5, 8: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_10: Int
+    %v_14 = and %v_13, 1073741823: Int
+    %v_15 = and %v_12, 18446744072635809792: Int
+    %v_16 = or %v_15, %v_14: Int
+    %v_17 = and %v_16, 18446744070488326143: Int
+    %v_18 = or %v_17, 1073741824: Int
+    %v_19 = add %v_5, 8: Ptr
+    store %v_19, %v_18, 4
     copy %v_3, %v_5, 12
-    %v_21 = add %v_3, 12: Ptr
-    store %v_21, 0, 4
+    %v_20 = add %v_3, 12: Ptr
+    store %v_20, 0, 4
     copy %v_2, %v_3, 16
-    %v_22 = alloca 16, 8: Ptr
-    copy %v_22, %v_2, 16
-    copy %v_0, %v_22, 16
+    %v_21 = alloca 16, 8: Ptr
+    copy %v_21, %v_2, 16
+    copy %v_0, %v_21, 16
     ret 
   }
 }
@@ -236,64 +235,62 @@ showSigned<complex>(%value: Long, %to: Ptr) {
 
 stringText<complex>(): Int {
   b_0 {
-    %v_1 = imm 0: Int
-    %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$0, 5
-    %v_3 = call_complex shownString, %v_2: Int
-    %v_4 = cmp_eq %v_3, 5: Int
-    je %v_4, b_5, b_6
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @string$0, 5
+    %v_2 = call_complex shownString, %v_1: Int
+    %v_3 = cmp_eq %v_2, 5: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
   }
 
   b_5 {
-    %v_7 = add %v_1, 1: Int
-    jmp b_8
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_8 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_8, @string$1, 5
+    %v_9 = call_complex Length(String).length, %v_8: Long
+    %v_10 = cast %v_9: Int
+    %v_11 = cmp_eq %v_10, 5: Int
+    je %v_11, b_12, b_13
   }
 
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_6, %v_1]: Int
-    %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$1, 5
-    %v_11 = call_complex Length(String).length, %v_10: Long
-    %v_12 = cast %v_11: Int
-    %v_13 = cmp_eq %v_12, 5: Int
-    je %v_13, b_14, b_15
+  b_12 {
+    %v_14 = add %v_7, 1: Int
+    jmp b_15
   }
 
-  b_14 {
-    %v_16 = add %v_9, 1: Int
-    jmp b_17
+  b_13 {
+    jmp b_15
   }
 
   b_15 {
-    jmp b_17
+    %v_16 = phi [b_12, %v_14], [b_13, %v_7]: Int
+    %v_17 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_17, @string$2, 0
+    %v_18 = call_complex Length(String).length, %v_17: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = cmp_eq %v_19, 0: Int
+    je %v_20, b_21, b_22
   }
 
-  b_17 {
-    %v_18 = phi [b_14, %v_16], [b_15, %v_9]: Int
-    %v_19 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_19, @string$2, 0
-    %v_20 = call_complex Length(String).length, %v_19: Long
-    %v_21 = cast %v_20: Int
-    %v_22 = cmp_eq %v_21, 0: Int
-    je %v_22, b_23, b_24
+  b_21 {
+    %v_23 = add %v_16, 1: Int
+    jmp b_24
   }
 
-  b_23 {
-    %v_25 = add %v_18, 1: Int
-    jmp b_26
+  b_22 {
+    jmp b_24
   }
 
   b_24 {
-    jmp b_26
-  }
-
-  b_26 {
-    %v_27 = phi [b_23, %v_25], [b_24, %v_18]: Int
-    ret %v_27
+    %v_25 = phi [b_21, %v_23], [b_22, %v_16]: Int
+    ret %v_25
   }
 }
 
@@ -307,10 +304,9 @@ firstShownUnit<complex>(%value: Int): Int {
     call_complex showSigned, %v_2, %sink
     %v_3 = bitcast %sink: Ptr
     %v_4 = load %v_3, 8: Ptr
-    %v_5 = add %v_4, 0: Ptr
-    %v_6 = load %v_5, 1: Int
-    %v_7 = cast %v_6: Int
-    ret %v_7
+    %v_5 = load %v_4, 1: Int
+    %v_6 = cast %v_5: Int
+    ret %v_6
   }
 }
 
@@ -502,12 +498,9 @@ resize(U8)<complex>(%self: Ptr, %wanted: Int): Int {
     store %v_49, %v_54, 4
     %v_55 = add %self, 8: Ptr
     %v_56 = load %v_55, 4: Long
-    %v_57 = cast 1: Long
-    %v_58 = and %v_57, 3: Long
-    %v_59 = shl %v_58, 30: Long
-    %v_60 = and %v_56, 18446744070488326143: Long
-    %v_61 = or %v_60, %v_59: Long
-    store %v_55, %v_61, 4
+    %v_57 = and %v_56, 18446744070488326143: Long
+    %v_58 = or %v_57, 1073741824: Long
+    store %v_55, %v_58, 4
     ret 1
   }
 }
@@ -775,119 +768,224 @@ pushString<complex>(%self: Ptr, %other: Ptr) {
 
 boolText<complex>(): Int {
   b_0 {
-    %v_1 = imm 0: Int
-    %v_2 = call_complex shownBool, 1: Int
-    %v_3 = cmp_eq %v_2, 4: Int
-    je %v_3, b_4, b_5
+    %v_1 = call_complex shownBool, 1: Int
+    %v_2 = cmp_eq %v_1, 4: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
   }
 
   b_4 {
-    %v_6 = add %v_1, 1: Int
-    jmp b_7
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 1], [b_4, 0]: Int
+    %v_7 = call_complex shownBool, 0: Int
+    %v_8 = cmp_eq %v_7, 5: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = add %v_6, 1: Int
+    jmp b_12
+  }
+
+  b_10 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_9, %v_11], [b_10, %v_6]: Int
+    %v_14 = call_complex firstShownUnit, 0: Int
+    %v_15 = cmp_eq %v_14, 48: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = add %v_13, 1: Int
+    jmp b_19
+  }
+
+  b_17 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_20 = phi [b_16, %v_18], [b_17, %v_13]: Int
+    ret %v_20
+  }
+}
+
+integerText<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_1, 64
+    %sink = alloca 16, 8: Ptr
+    copy %sink, %v_1, 16
+    call_complex showSigned, 0, %sink
+    %v_2 = call_complex Length(String).length, %sink: Long
+    %v_3 = cast %v_2: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
   }
 
   b_5 {
     jmp b_7
   }
 
+  b_6 {
+    jmp b_7
+  }
+
   b_7 {
-    %v_8 = phi [b_4, %v_6], [b_5, %v_1]: Int
-    %v_9 = call_complex shownBool, 0: Int
-    %v_10 = cmp_eq %v_9, 5: Int
-    je %v_10, b_11, b_12
+    %v_8 = phi [b_5, 1], [b_6, 0]: Int
+    %v_9 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_9, 64
+    %sink = alloca 16, 8: Ptr
+    copy %sink, %v_9, 16
+    call_complex showSigned, 18446744073709551611, %sink
+    %v_10 = call_complex Length(String).length, %sink: Long
+    %v_11 = cast %v_10: Int
+    %v_12 = cmp_eq %v_11, 2: Int
+    je %v_12, b_13, b_14
   }
 
-  b_11 {
-    %v_13 = add %v_8, 1: Int
-    jmp b_14
-  }
-
-  b_12 {
-    jmp b_14
+  b_13 {
+    %v_15 = add %v_8, 1: Int
+    jmp b_16
   }
 
   b_14 {
-    %v_15 = phi [b_11, %v_13], [b_12, %v_8]: Int
-    %v_16 = call_complex firstShownUnit, 0: Int
-    %v_17 = cmp_eq %v_16, 48: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
-    %v_20 = add %v_15, 1: Int
-    jmp b_21
-  }
-
-  b_19 {
-    jmp b_21
-  }
-
-  b_21 {
-    %v_22 = phi [b_18, %v_20], [b_19, %v_15]: Int
-    ret %v_22
-  }
-}
-
-integerText<complex>(): Int {
-  b_0 {
-    %v_1 = imm 0: Int
-    %v_2 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_2, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_2, 16
-    call_complex showSigned, 0, %sink
-    %v_3 = call_complex Length(String).length, %sink: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_8 = add %v_1, 1: Int
-    jmp b_9
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_6, %v_8], [b_7, %v_1]: Int
-    %v_11 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_11, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_11, 16
-    call_complex showSigned, 18446744073709551611, %sink
-    %v_12 = call_complex Length(String).length, %sink: Long
-    %v_13 = cast %v_12: Int
-    %v_14 = cmp_eq %v_13, 2: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    %v_17 = add %v_10, 1: Int
-    jmp b_18
+    jmp b_16
   }
 
   b_16 {
-    jmp b_18
+    %v_17 = phi [b_13, %v_15], [b_14, %v_8]: Int
+    %v_18 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_18, 64
+    %sink = alloca 16, 8: Ptr
+    copy %sink, %v_18, 16
+    call_complex showSigned, 1234, %sink
+    %v_19 = call_complex Length(String).length, %sink: Long
+    %v_20 = cast %v_19: Int
+    %v_21 = cmp_eq %v_20, 4: Int
+    je %v_21, b_22, b_23
   }
 
-  b_18 {
-    %v_19 = phi [b_15, %v_17], [b_16, %v_10]: Int
-    %v_20 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_20, 64
+  b_22 {
+    %v_24 = add %v_17, 1: Int
+    jmp b_25
+  }
+
+  b_23 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = phi [b_22, %v_24], [b_23, %v_17]: Int
+    %v_27 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_27, 64
     %sink = alloca 16, 8: Ptr
-    copy %sink, %v_20, 16
-    call_complex showSigned, 1234, %sink
-    %v_21 = call_complex Length(String).length, %sink: Long
+    copy %sink, %v_27, 16
+    call_complex showSigned, 18446744071562067968, %sink
+    %v_28 = call_complex Length(String).length, %sink: Long
+    %v_29 = cast %v_28: Int
+    %v_30 = cmp_eq %v_29, 11: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    %v_33 = add %v_26, 1: Int
+    jmp b_34
+  }
+
+  b_32 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = phi [b_31, %v_33], [b_32, %v_26]: Int
+    %v_36 = call_complex firstShownUnit, 18446744073709551611: Int
+    %v_37 = cmp_eq %v_36, 45: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_38 {
+    %v_40 = add %v_35, 1: Int
+    jmp b_41
+  }
+
+  b_39 {
+    jmp b_41
+  }
+
+  b_41 {
+    %v_42 = phi [b_38, %v_40], [b_39, %v_35]: Int
+    ret %v_42
+  }
+}
+
+contractHolds<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_1, 64
+    %sink = alloca 16, 8: Ptr
+    copy %sink, %v_1, 16
+    call_complex showSigned, 0, %sink
+    %v_2 = call_complex Length(String).length, %sink: Long
+    %v_3 = cast %v_2: Int
+    %v_4 = cmp_ile %v_3, 11: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    jmp b_7
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_5, 1], [b_6, 0]: Int
+    %v_9 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_9, 64
+    %sink = alloca 16, 8: Ptr
+    copy %sink, %v_9, 16
+    call_complex showSigned, 18446744071562067968, %sink
+    %v_10 = call_complex Length(String).length, %sink: Long
+    %v_11 = cast %v_10: Int
+    %v_12 = cmp_ile %v_11, 11: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    %v_15 = add %v_8, 1: Int
+    jmp b_16
+  }
+
+  b_14 {
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = phi [b_13, %v_15], [b_14, %v_8]: Int
+    %v_18 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_18, @string$3, 5
+    %v_19 = call_complex shownString, %v_18: Int
+    %v_20 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_20, @string$4, 5
+    %v_21 = call_complex Length(String).length, %v_20: Long
     %v_22 = cast %v_21: Int
-    %v_23 = cmp_eq %v_22, 4: Int
+    %v_23 = cmp_ile %v_19, %v_22: Int
     je %v_23, b_24, b_25
   }
 
   b_24 {
-    %v_26 = add %v_19, 1: Int
+    %v_26 = add %v_17, 1: Int
     jmp b_27
   }
 
@@ -896,119 +994,8 @@ integerText<complex>(): Int {
   }
 
   b_27 {
-    %v_28 = phi [b_24, %v_26], [b_25, %v_19]: Int
-    %v_29 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_29, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_29, 16
-    call_complex showSigned, 18446744071562067968, %sink
-    %v_30 = call_complex Length(String).length, %sink: Long
-    %v_31 = cast %v_30: Int
-    %v_32 = cmp_eq %v_31, 11: Int
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
-    %v_35 = add %v_28, 1: Int
-    jmp b_36
-  }
-
-  b_34 {
-    jmp b_36
-  }
-
-  b_36 {
-    %v_37 = phi [b_33, %v_35], [b_34, %v_28]: Int
-    %v_38 = call_complex firstShownUnit, 18446744073709551611: Int
-    %v_39 = cmp_eq %v_38, 45: Int
-    je %v_39, b_40, b_41
-  }
-
-  b_40 {
-    %v_42 = add %v_37, 1: Int
-    jmp b_43
-  }
-
-  b_41 {
-    jmp b_43
-  }
-
-  b_43 {
-    %v_44 = phi [b_40, %v_42], [b_41, %v_37]: Int
-    ret %v_44
-  }
-}
-
-contractHolds<complex>(): Int {
-  b_0 {
-    %v_1 = imm 0: Int
-    %v_2 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_2, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_2, 16
-    call_complex showSigned, 0, %sink
-    %v_3 = call_complex Length(String).length, %sink: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = cmp_ile %v_4, 11: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_8 = add %v_1, 1: Int
-    jmp b_9
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_6, %v_8], [b_7, %v_1]: Int
-    %v_11 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_11, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_11, 16
-    call_complex showSigned, 18446744071562067968, %sink
-    %v_12 = call_complex Length(String).length, %sink: Long
-    %v_13 = cast %v_12: Int
-    %v_14 = cmp_ile %v_13, 11: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    %v_17 = add %v_10, 1: Int
-    jmp b_18
-  }
-
-  b_16 {
-    jmp b_18
-  }
-
-  b_18 {
-    %v_19 = phi [b_15, %v_17], [b_16, %v_10]: Int
-    %v_20 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_20, @string$3, 5
-    %v_21 = call_complex shownString, %v_20: Int
-    %v_22 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_22, @string$4, 5
-    %v_23 = call_complex Length(String).length, %v_22: Long
-    %v_24 = cast %v_23: Int
-    %v_25 = cmp_ile %v_21, %v_24: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_26 {
-    %v_28 = add %v_19, 1: Int
-    jmp b_29
-  }
-
-  b_27 {
-    jmp b_29
-  }
-
-  b_29 {
-    %v_30 = phi [b_26, %v_28], [b_27, %v_19]: Int
-    ret %v_30
+    %v_28 = phi [b_24, %v_26], [b_25, %v_17]: Int
+    ret %v_28
   }
 }
 

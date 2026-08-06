@@ -5,17 +5,11 @@ function check(actual, expected, weight) {
 }
 
 function writeHigh() {
-  var v0 = 0;
-  v0 = v0 + (1000 - (v0 & 1048575));
-  v0 = $p20u$set(v0, 2.3283064365386963E-10, 4294967296, 1048575);
-  return v0;
+  return 4503595332404200;
 }
 
 function writeLow() {
-  var v0 = 0;
-  v0 = $p20u$set(v0, 2.3283064365386963E-10, 4294967296, 999999);
-  v0 = v0 + (1048575 - (v0 & 1048575));
-  return v0;
+  return 4294963002081279;
 }
 
 function nudge(x$o, x$k, x$s) {
@@ -32,24 +26,15 @@ function bumpedHigh() {
 }
 
 function marked() {
-  var v0 = 0;
-  v0 = v0 + (5 - (v0 & 1048575));
-  v0 = $p20u$set(v0, 2.3283064365386963E-10, 4294967296, -3);
-  return v0;
+  return 4503586742468613;
 }
 
 function retagged() {
-  var v0 = 0;
-  v0 = $p4u$set(v0, 9.094947017729282E-13, 1099511627776, 9);
-  v0 = v0 + ($w40u$wrap(-2) - $w40u$wrap(v0));
-  return v0;
+  return 10995116277758;
 }
 
 function stored(x) {
-  var v1 = 0;
-  v1 = $p4u$set(v1, 9.094947017729282E-13, 1099511627776, 1);
-  v1 = v1 + ($w40u$wrap($w40i$wrap($w53i$sar($w53i$shl(x, 13), 13))) - $w40u$wrap(v1));
-  return v1;
+  return 1099511627776 + $w40u$wrap($w40i$wrap($w53i$sar($w53i$shl(x, 13), 13)));
 }
 
 function nudge12(x$o, x$k, x$s) {
@@ -85,10 +70,6 @@ function $b20u$get(w, s) {
 
 function $b20u$set(w, s, v) {
   return w + ((v & 1048575) - (Math.floor(w / s) & 1048575)) * s;
-}
-
-function $p4u$set(w, i, s, v) {
-  return w + ((v & 15) - (Math.floor(w * i) & 15)) * s;
 }
 
 function $b12u$get(w, s) {

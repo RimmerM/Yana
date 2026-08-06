@@ -45,51 +45,6 @@ struct Slot {
     Array<LowerPtr<LowerValue>> exit;    // what it holds on the way out, or null
 };
 
-// Removing one reference from a value's use list. One rather than all: an instruction that uses the
-// same value twice appears twice, and the list has to keep saying so.
-void dropUse(LowerBase base, LowerPtr<LowerValue> value, LowerPtr<LowerInst> user) {
-    auto& uses = base[value]->uses;
-    for(Size i = 0; i < uses.size(); i++) {
-        if(uses.get(base, i) == user) {
-            uses.remove(base, i);
-            return;
-        }
-    }
-}
-
-// Taking an instruction out of circulation: it stops counting as a user of everything it read. The
-// instruction itself is then dropped from its block by whoever is rebuilding the list.
-void detach(LowerBase base, LowerInst* inst) {
-    auto used = inst->used();
-    for(Size i = 0; i < used.length; i++) dropUse(base, used.ptr[i], inst - base);
-}
-
-// Pointing every reader of one value at another. The use lists move with the operands, since the
-// validator checks both directions and a stale entry is as much a bug as a missing one.
-void replaceUses(LowerBase base, Region<LowerRegion>& arena, LowerPtr<LowerValue> from,
-                 LowerPtr<LowerValue> to) {
-    // Null would mean the slot held nothing where something read it, which surveySlot exists to have
-    // already rejected. Asserted rather than tolerated because the failure is otherwise a use of
-    // whatever sits at offset zero of the arena.
-    assertTrue(to != nullptr);
-    if(from == to) return;
-
-    auto& uses = base[from]->uses;
-    while(uses.size()) {
-        auto userPtr = uses.get(base, uses.size() - 1);
-        uses.remove(base, uses.size() - 1);
-
-        // Every matching operand at once, and one use entry per visit: an instruction reading the
-        // value twice is in the list twice, so the counts stay equal either way round.
-        auto operands = base[userPtr]->used();
-        for(Size i = 0; i < operands.length; i++) {
-            if(operands.ptr[i] == from) operands.ptr[i] = to;
-        }
-
-        base[to]->uses.push(arena, userPtr);
-    }
-}
-
 /*
  * Whether a value is the address of a slot, and which one - by identity of the alloca's result, so a
  * copy of the address or an offset from it is not one of these and disqualifies the slot below.
@@ -489,43 +444,6 @@ void removeTrivialPhis(LowerBase base, Region<LowerRegion>& arena, Array<LowerPt
     }
 }
 
-// The constants the rewrite left behind - the byte count of an allocation that is gone, and any mask
-// whose load turned out not to need one. Only immediates, so that this pass cleans up after itself
-// and does not quietly become a dead-code eliminator with an opinion about anything else.
-void removeDeadImmediates(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
-    auto changed = true;
-
-    while(changed) {
-        changed = false;
-
-        for(auto blockPtr: fun.blocks.contents(base)) {
-            auto block = base[blockPtr];
-
-            // Inline: one of these per block per round of a loop that runs until nothing changes,
-            // holding the instructions of one block.
-            SmallArray<LowerPtr<LowerInst>, 32> kept;
-            auto dropped = false;
-
-            for(auto instPtr: block->instructions.contents(base)) {
-                auto inst = base[instPtr];
-
-                if(inst->kind == LowerInst::Imm && inst->created().ptr->uses.isEmpty()) {
-                    dropped = true;
-                    continue;
-                }
-
-                kept.push(instPtr);
-            }
-
-            if(!dropped) continue;
-
-            block->instructions.clear();
-            for(auto instPtr: kept) block->instructions.push(arena, instPtr);
-            changed = true;
-        }
-    }
-}
-
 } // namespace
 
 void promoteStackSlots(LowerBase base, LowerFunction& fun) {
@@ -608,5 +526,4 @@ void promoteStackSlots(LowerBase base, LowerFunction& fun) {
     }
 
     removeTrivialPhis(base, module.arena, phis);
-    removeDeadImmediates(base, module.arena, fun);
 }

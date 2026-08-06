@@ -1,23 +1,85 @@
 #include "lower_inst.h"
+#include "lower_fold.h"
+
+/*
+ * Editing what is already built.
+ *
+ * Three operations, and they are here rather than beside the pass that first needed them because a
+ * use list is two-way: the validator checks that an operand names a value *and* that the value names
+ * its user, so a rewrite that updates one direction and not the other is as broken as one that
+ * updates neither. Anything that moves an operand goes through these.
+ */
+
+// Removing one reference from a value's use list. One rather than all: an instruction that uses the
+// same value twice appears twice, and the list has to keep saying so.
+inline void dropUse(LowerBase base, LowerPtr<LowerValue> value, LowerPtr<LowerInst> user) {
+    auto& uses = base[value]->uses;
+    for(Size i = 0; i < uses.size(); i++) {
+        if(uses.get(base, i) == user) {
+            uses.remove(base, i);
+            return;
+        }
+    }
+}
+
+// Taking an instruction out of circulation: it stops counting as a user of everything it read. The
+// instruction itself is then dropped from its block by whoever is rebuilding the list.
+inline void detach(LowerBase base, LowerInst* inst) {
+    auto used = inst->used();
+    for(Size i = 0; i < used.length; i++) dropUse(base, used.ptr[i], inst - base);
+}
+
+// Pointing every reader of one value at another.
+inline void replaceUses(LowerBase base, Region<LowerRegion>& arena, LowerPtr<LowerValue> from,
+                        LowerPtr<LowerValue> to) {
+    // Null would mean replacing a value with nothing where something reads it. Asserted rather than
+    // tolerated because the failure is otherwise a use of whatever sits at offset zero of the arena.
+    assertTrue(to != nullptr);
+    if(from == to) return;
+
+    auto& uses = base[from]->uses;
+    while(uses.size()) {
+        auto userPtr = uses.get(base, uses.size() - 1);
+        uses.remove(base, uses.size() - 1);
+
+        // Every matching operand at once, and one use entry per visit: an instruction reading the
+        // value twice is in the list twice, so the counts stay equal either way round.
+        auto operands = base[userPtr]->used();
+        for(Size i = 0; i < operands.length; i++) {
+            if(operands.ptr[i] == from) operands.ptr[i] = to;
+        }
+
+        base[to]->uses.push(arena, userPtr);
+    }
+}
 
 inline LowerInst* nop(LowerBase base, LowerModule& module, LowerBlock& block) {
     return block.addInst(base, new (module.arena) LowerInst(LowerInst::Nop));
 }
 
+// The three builders that can produce a value already known ask lower_fold.h first. It is asked here
+// rather than at the sites that build bit arithmetic because every producer of lower IR comes through
+// these, and because an operand is always built before its consumer - so a chain of operations over
+// literals collapses from the bottom up without anything having to walk it afterwards.
 template<LowerInst::Kind kind>
 inline LowerInst* unary(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* arg, LowerType type, StringId name) {
     static_assert(kind >= LowerInst::FirstUnary && kind <= LowerInst::LastUnary);
+
+    if(auto folded = foldUnaryArith(base, module, block, kind, arg, type, name)) return folded;
     return block.addInst(base, new (module.arena) LowerInstUnary(kind, name, type, arg - base));
 }
 
 template<bool signedSource, bool signedResult>
 inline LowerInst* cast(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* arg, LowerType type, StringId name) {
+    if(auto folded = foldCast(base, module, block, arg, type, signedSource, name)) return folded;
     return block.addInst(base, new (module.arena) LowerInstCast(name, type, arg - base, signedSource, signedResult));
 }
 
 template<LowerInst::Kind kind>
 inline LowerInst* binary(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* lhs, LowerValue* rhs, LowerType type, StringId name) {
     static_assert(kind >= LowerInst::FirstBinary && kind <= LowerInst::LastBinary);
+
+    if(auto folded = foldBinary(base, module, block, kind, lhs, rhs, type, name)) return folded;
     return block.addInst(base, new (module.arena) LowerInstBinary(name, type, lhs - base, rhs - base, kind));
 }
 

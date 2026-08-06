@@ -28,6 +28,20 @@
  * are checked before anything moves - that a name is read once and assigned never, that the source
  * of a copy still holds what it held, and that the expressions the move crosses cannot see each
  * other - and where any of them is unknown, nothing happens.
+ *
+ * ## And what a value *is*, which is a second family
+ *
+ * Beside the use-count rewrites are the ones about arithmetic: a coercion whose operand is already
+ * in range removed (`foldCoercion`), an operation over literals evaluated (`foldConstantOp`), a call
+ * to one of this compiler's own helpers worked out from its body (`foldCall`), and what a local
+ * holds carried forward to its readers (`propagateConstants`).
+ *
+ * Those four are one rewrite in four parts, and separating them would stall each on the others: a
+ * packed word is built by initializing storage and writing fields into it, so the operands are only
+ * literals once the storage has been propagated, the mask is only removable once the operand has a
+ * range, and the arithmetic only ends in a number once the helper has been evaluated. Together they
+ * take `writeHigh` in WidePack.yana from three statements to `return 4503595332404200`, which is the
+ * same number `compiler/lower` folds it to - see lower/lower_fold.h, which is that half.
  */
 
 namespace js {
@@ -1544,7 +1558,21 @@ bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     if(expr->kind != Expr::Binary) return false;
 
     auto& binary = *(BinaryExpr*)expr;
+    auto value = binary.lhs;
     auto amount = rangeOf(g, binary.rhs, ranges);
+
+    /*
+     * `&`, `|` and `^` are commutative, so the constant may be on either side and the coercion is
+     * the same one - `0 | x` is what `x | 0` is. That is not a spelling the emitter writes: it is
+     * what a read-modify-write becomes once the word it reads has been propagated as a literal zero,
+     * and the shifts below are excluded because they are not commutative.
+     */
+    if(!amount.constant() && (binary.op == BinaryOp::And || binary.op == BinaryOp::Or ||
+                              binary.op == BinaryOp::Xor)) {
+        amount = rangeOf(g, binary.lhs, ranges);
+        value = binary.rhs;
+    }
+
     if(!amount.constant()) return false;
 
     auto by = amount.low;
@@ -1573,9 +1601,9 @@ bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
             return false;
     }
 
-    if(!rangeOf(g, binary.lhs, ranges).within(low, high)) return false;
+    if(!rangeOf(g, value, ranges).within(low, high)) return false;
 
-    slot = binary.lhs;
+    slot = value;
     return true;
 }
 
@@ -1608,6 +1636,387 @@ bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
 
     slot = shift.lhs;
     return true;
+}
+
+/*
+ * Working out what a call to one of this compiler's own helpers comes to.
+ *
+ * A bit range wider than the host's operators is reached by arithmetic rather than by masking, and
+ * because that arithmetic is long it is emitted once as `$p20u$set` and called - so a construction
+ * whose every operand is a literal ends at a *call* rather than at an expression, and constant
+ * folding stops there. `writeHigh` in WidePack.yana is the shape: two literal fields packed into one
+ * 52-bit word, which native answers with a single `store` of the finished number and this answered
+ * with two calls.
+ *
+ * **The helper's own body is what is evaluated**, rather than a table of what each one means. That
+ * is the whole design: the helpers exist so that there is one statement of how a 40-bit field is
+ * wrapped, and a second statement of it here - in C++, checked by nothing - is precisely the bug the
+ * helpers were introduced to make impossible. So this reads the `FunStmt` the emitter already built,
+ * binds its parameters to the call's arguments, and interprets it. A helper that changes shape is
+ * followed automatically; one this interpreter cannot handle simply stops folding.
+ *
+ * Their bodies are `var` bindings followed by one `return`, which is what `emitBitHelpers` and
+ * `emitWideHelpers` produce and all this understands. Everything else - a loop, a branch, a call to
+ * something that is not a helper - answers nothing and the call stays.
+ */
+
+// One value in flight. Booleans are here because a helper's `return` is routinely a ternary over a
+// comparison - `v < 0 ? v + 2**40 : v` is what wrapping to an unsigned range is.
+struct Known {
+    F64 number = 0;
+    bool boolean = false;
+    bool isBoolean = false;
+
+    static Known ofNumber(F64 v) { return Known { v, false, false }; }
+    static Known ofBoolean(bool v) { return Known { 0, v, true }; }
+
+    // Host truthiness, which a ternary condition is read through. Only asked of the two kinds this
+    // produces, and `-0` never reaches here - see constantNumber.
+    bool truthy() const { return isBoolean ? boolean : number != 0; }
+};
+
+// What one name is bound to while a body is being interpreted: the parameters, then whatever its
+// `var`s worked out to.
+struct Bindings {
+    HashMap<U32, Known> values;
+};
+
+// Deep enough for a bit-range helper reaching a wrap reaching `$wi$hi`, and bounded so that a
+// helper that somehow called itself would stop rather than run out of stack.
+constexpr U32 kMaxEvalDepth = 8;
+
+bool evalExpr(Gen& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into);
+
+// A helper's declaration, by the name a call names. Null for a call to anything else, which is what
+// keeps this from interpreting the *program* - a user function may do anything, and what it answers
+// is not a question this pass asks.
+FunStmt* helperBody(Gen& g, Name name) {
+    auto generated = false;
+    for(auto& helper: g.wideHelperOrder) if(helper.name.text == name.text) generated = true;
+    for(auto& helper: g.bitHelperOrder) if(helper.name.text == name.text) generated = true;
+    if(!generated) return nullptr;
+
+    for(auto pointer: g.file.statements.contents(g.base)) {
+        auto stmt = g.base[pointer];
+        if(stmt->kind != Stmt::Fun) continue;
+
+        auto fun = (FunStmt*)stmt;
+        if(fun->name.text == name.text) return fun;
+    }
+
+    return nullptr;
+}
+
+// `Math.floor(x)`, `Math.imul(a, b)` and `Math.pow(2, n)` - the three host intrinsics a helper body
+// or an emitted expression can contain. `Math.pow` only at base two, since that is the only case
+// this can answer exactly without reaching for libm.
+//
+// The member is compared as an interned name rather than as text, because that is how the emitter
+// wrote it: `hostCall` goes through `literalName`, so the same spelling is the same id.
+bool evalHostCall(Gen& g, CallExpr& call, Name member, Bindings& bindings, U32 depth, Known& into) {
+    Known first, second;
+    auto args = call.args.size();
+
+    if(args >= 1 && !evalExpr(g, call.args.get(g.base, 0), bindings, depth, first)) return false;
+    if(args >= 2 && !evalExpr(g, call.args.get(g.base, 1), bindings, depth, second)) return false;
+    if(first.isBoolean || second.isBoolean) return false;
+
+    if(args == 1 && member.text == literalName(g, "floor"_v).text) {
+        if(!fitsInt32Conversion(first.number)) return false;
+        into = Known::ofNumber(floorOf(first.number));
+        return true;
+    }
+
+    if(args == 2 && member.text == literalName(g, "imul"_v).text) {
+        if(!fitsInt32Conversion(first.number) || !fitsInt32Conversion(second.number)) return false;
+        into = Known::ofNumber(F64(I32(U32(toInt32(first.number)) * U32(toInt32(second.number)))));
+        return true;
+    }
+
+    if(args == 2 && member.text == literalName(g, "pow"_v).text && first.number == 2) {
+        if(second.number < 0 || second.number > 1023 || !isExactInteger(second.number)) return false;
+        into = Known::ofNumber(powerOfTwo(U32(second.number)));
+        return true;
+    }
+
+    return false;
+}
+
+// A call to a helper: its parameters bound to the evaluated arguments, and its body interpreted in
+// a scope of its own.
+bool evalHelperCall(Gen& g, FunStmt& helper, CallExpr& call, Bindings& outer, U32 depth,
+                    Known& into) {
+    if(helper.args.size() != call.args.size()) return false;
+
+    Bindings inner;
+    for(Size i = 0; i < helper.args.size(); i++) {
+        Known argument;
+        if(!evalExpr(g, call.args.get(g.base, i), outer, depth, argument)) return false;
+
+        inner.values.add(helper.args.get(g.base, i).text, argument);
+    }
+
+    for(auto pointer: helper.body.contents(g.base)) {
+        auto stmt = g.base[pointer];
+
+        if(stmt->kind == Stmt::Decl) {
+            auto& declaration = *(DeclStmt*)stmt;
+            Known value;
+            if(!declaration.value) return false;
+            if(!evalExpr(g, declaration.value, inner, depth + 1, value)) return false;
+
+            inner.values.add(declaration.name.text, value);
+            continue;
+        }
+
+        if(stmt->kind == Stmt::Return) {
+            auto value = ((ReturnStmt*)stmt)->value;
+            return value && evalExpr(g, value, inner, depth + 1, into);
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+bool evalExpr(Gen& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into) {
+    if(depth >= kMaxEvalDepth) return false;
+
+    auto expr = g.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Number: {
+            F64 value;
+            if(!constantNumber(g, pointer, value)) return false;
+
+            into = Known::ofNumber(value);
+            return true;
+        }
+
+        case Expr::Bool:
+            into = Known::ofBoolean(((BoolExpr*)expr)->value);
+            return true;
+
+        case Expr::Var: {
+            auto found = bindings.values.getValue(((VarExpr*)expr)->name.text);
+            if(!found) return false;
+
+            into = found.unwrap();
+            return true;
+        }
+
+        case Expr::Unary: {
+            auto& node = *(UnaryExpr*)expr;
+            Known operand;
+            if(!evalExpr(g, node.value, bindings, depth, operand)) return false;
+
+            if(node.op == UnaryOp::Not) {
+                into = Known::ofBoolean(!operand.truthy());
+                return true;
+            }
+
+            F64 result;
+            if(operand.isBoolean || !applyJsUnary(node.op, operand.number, result)) return false;
+
+            into = Known::ofNumber(result);
+            return true;
+        }
+
+        case Expr::Binary: {
+            auto& node = *(BinaryExpr*)expr;
+            Known lhs, rhs;
+            if(!evalExpr(g, node.lhs, bindings, depth, lhs)) return false;
+            if(!evalExpr(g, node.rhs, bindings, depth, rhs)) return false;
+            if(lhs.isBoolean || rhs.isBoolean) return false;
+
+            // The comparisons, which nothing but a helper's own ternary asks for. `===` and `!==` on
+            // two numbers are the same test as `==` and `!=`, and the loose pair this tree also has
+            // is only ever built against a reference - so neither reaches here with numbers.
+            switch(node.op) {
+                case BinaryOp::Lt: into = Known::ofBoolean(lhs.number <  rhs.number); return true;
+                case BinaryOp::Le: into = Known::ofBoolean(lhs.number <= rhs.number); return true;
+                case BinaryOp::Gt: into = Known::ofBoolean(lhs.number >  rhs.number); return true;
+                case BinaryOp::Ge: into = Known::ofBoolean(lhs.number >= rhs.number); return true;
+                case BinaryOp::Eq: into = Known::ofBoolean(lhs.number == rhs.number); return true;
+                case BinaryOp::Ne: into = Known::ofBoolean(lhs.number != rhs.number); return true;
+                default: break;
+            }
+
+            F64 result;
+            if(!applyJsBinary(node.op, lhs.number, rhs.number, result)) return false;
+
+            into = Known::ofNumber(result);
+            return true;
+        }
+
+        case Expr::Ternary: {
+            auto& node = *(TernaryExpr*)expr;
+            Known condition;
+            if(!evalExpr(g, node.cond, bindings, depth, condition)) return false;
+
+            return evalExpr(g, condition.truthy() ? node.then : node.otherwise, bindings, depth, into);
+        }
+
+        case Expr::Call: {
+            auto& node = *(CallExpr*)expr;
+            auto callee = g.base[node.callee];
+
+            if(callee->kind == Expr::Field) {
+                auto& member = *(FieldExpr*)callee;
+                auto object = g.base[member.object];
+
+                // `Math.x(...)` and nothing else - a method on anything the program built is a call
+                // this may not make.
+                if(object->kind != Expr::Var) return false;
+                if(((VarExpr*)object)->name.text != literalName(g, "Math"_v).text) return false;
+
+                return evalHostCall(g, node, member.field, bindings, depth, into);
+            }
+
+            if(callee->kind != Expr::Var) return false;
+
+            auto helper = helperBody(g, ((VarExpr*)callee)->name);
+            return helper && evalHelperCall(g, *helper, node, bindings, depth + 1, into);
+        }
+
+        default:
+            return false;
+    }
+}
+
+// A call whose arguments are all known, as the number it answers - or null where any part of it is
+// something this cannot evaluate, which is the ordinary case.
+JsPtr<Expr> foldCall(Gen& g, CallExpr& call) {
+    Bindings empty;
+    Known result;
+
+    if(!evalExpr(g, (Expr*)&call - g.base, empty, 0, result)) return nullptr;
+    if(result.isBoolean) return nullptr;
+
+    return numberLiteral(g, result.number);
+}
+
+/*
+ * Whether an expression certainly evaluates to a `number`.
+ *
+ * Asked by the one identity below, and the reason it has to be asked at all is that JavaScript's
+ * arithmetic coerces: `"5" - 0` is `5` where `"5"` is not, so `x - 0` is only the identity for an
+ * `x` that is already a number. Nothing here guesses - an unrecognized shape answers no.
+ */
+bool isNumericExpr(Gen& g, JsPtr<Expr> pointer) {
+    auto expr = g.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Number:
+            return true;
+
+        case Expr::Unary: {
+            auto op = ((UnaryExpr*)expr)->op;
+            return op == UnaryOp::Neg || op == UnaryOp::BitNot;
+        }
+
+        case Expr::Binary: {
+            // Every arithmetic and bitwise operator but `+` answers a number whatever it was given.
+            // `+` concatenates two strings, so it is a number only where both sides already are.
+            auto& node = *(BinaryExpr*)expr;
+
+            switch(node.op) {
+                case BinaryOp::Sub: case BinaryOp::Mul: case BinaryOp::Div: case BinaryOp::Rem:
+                case BinaryOp::Shl: case BinaryOp::Shr: case BinaryOp::Sar:
+                case BinaryOp::And: case BinaryOp::Or:  case BinaryOp::Xor:
+                    return true;
+                case BinaryOp::Add:
+                    return isNumericExpr(g, node.lhs) && isNumericExpr(g, node.rhs);
+                default:
+                    return false;
+            }
+        }
+
+        case Expr::Call: {
+            // One of this compiler's own helpers, or a `Math` intrinsic. `BigInt(x)` is `pure` too
+            // and answers a `bigint`, which `-` refuses to mix with a number at all - so the test is
+            // which call it is rather than whether it has effects.
+            auto& node = *(CallExpr*)expr;
+            auto callee = g.base[node.callee];
+
+            if(callee->kind == Expr::Var) return helperBody(g, ((VarExpr*)callee)->name) != nullptr;
+            if(callee->kind != Expr::Field) return false;
+
+            auto object = g.base[((FieldExpr*)callee)->object];
+            return object->kind == Expr::Var &&
+                   ((VarExpr*)object)->name.text == literalName(g, "Math"_v).text;
+        }
+
+        default:
+            return false;
+    }
+}
+
+/*
+ * `x - 0`, which is what a read-modify-write becomes once the word it read has been propagated as a
+ * literal zero - `$w40u$wrap(v) - $w40u$wrap(0)` in `stored`, where only the second half folded.
+ *
+ * The subtraction alone. `x + 0` and `0 + x` both answer `+0` for an `x` of `-0`, so neither is the
+ * identity there; `x - 0` is, because subtracting zero preserves the sign of a zero.
+ */
+bool foldNumericIdentity(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Binary) return false;
+
+    auto& node = *(BinaryExpr*)expr;
+    if(node.op != BinaryOp::Sub) return false;
+
+    F64 amount;
+    if(!constantNumber(g, node.rhs, amount) || amount != 0) return false;
+    if(!isNumericExpr(g, node.lhs)) return false;
+
+    slot = node.lhs;
+    return true;
+}
+
+/*
+ * An integer operation whose operands have both become literals, evaluated.
+ *
+ * The emitter already folds what it can see - see `binary` in build.h - and this is the same rules
+ * over what only *becomes* constant here. A coercion is what stands between them: `(2 & 3) << 2` is
+ * a mask over a literal, and the mask is removed by the rule below rather than by the emitter, which
+ * has no ranges to decide it with. So the two run in one loop.
+ */
+bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Binary) {
+        auto& node = *(BinaryExpr*)expr;
+        auto folded = foldBinaryOp(g, node.op, node.lhs, node.rhs);
+        if(!folded) folded = foldComparison(g, node.op, node.lhs, node.rhs);
+
+        if(folded) {
+            slot = folded;
+            return true;
+        }
+
+        return false;
+    }
+
+    if(expr->kind == Expr::Unary) {
+        auto& node = *(UnaryExpr*)expr;
+        if(auto folded = foldUnaryOp(g, node.op, node.value)) {
+            slot = folded;
+            return true;
+        }
+
+        return false;
+    }
+
+    if(expr->kind == Expr::Call) {
+        if(auto folded = foldCall(g, *(CallExpr*)expr)) {
+            slot = folded;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
@@ -1643,8 +2052,13 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     folded = foldTernaryCompare(g, slot) || folded;
 
     // Last, and repeatedly: removing one coercion is what puts the next one against an operand
-    // whose range it can see, and `(x & 7) >>> 0 | 0` is three of them in a row.
-    while(foldSignExtend(g, slot, ranges) || foldCoercion(g, slot, ranges)) folded = true;
+    // whose range it can see, and `(x & 7) >>> 0 | 0` is three of them in a row. Evaluation joins
+    // them because each feeds the other - a removed mask leaves a literal to evaluate, and an
+    // evaluated operand is a range the next coercion can see.
+    while(foldSignExtend(g, slot, ranges) || foldCoercion(g, slot, ranges) ||
+          foldConstantOp(g, slot) || foldNumericIdentity(g, slot)) {
+        folded = true;
+    }
 
     return folded || changed;
 }
@@ -1684,8 +2098,181 @@ bool fuseList(Gen& g, StmtList& list) {
     return changed;
 }
 
-bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+/*
+ * What a local holds *at a point*, carried forward through a name that is written more than once.
+ *
+ * `Ranges` above answers the same question for a binding nothing assigns, and that is where it has
+ * to stop: it is one answer per name for the whole function, so a name written twice has none. The
+ * shape this exists for is written twice on purpose. A packed word is built by initializing storage
+ * and then writing each field into it -
+ *
+ *     var v0 = 0;
+ *     v0 = v0 + (1000 - (v0 & 1048575));
+ *     v0 = $p20u$set(v0, 2.3283064365386963E-10, 4294967296, 1048575);
+ *
+ * - so every operand of the arithmetic *is* a constant, and nothing could say so. Native reaches the
+ * same program through `promoteStackSlots` and folds it to one store of one number; this is what
+ * lets the two targets agree about that rather than only about the answer.
+ *
+ * ## What makes it sound
+ *
+ * **Only a name this list declares.** A local `var` is invisible to every callee - the premise
+ * `propagateCopy` states outright - so nothing between two statements here can write one. A
+ * module-level global is exactly the thing that is false of, and it is excluded by construction
+ * rather than by a test: a name enters the table only at its `DeclStmt`.
+ *
+ * **A statement with a body of its own erases what it writes.** A loop is the case that matters -
+ * what a name holds at the top of the second iteration is not what it held at the first - and an
+ * `if` would need the two arms merged. Neither is worth the machinery: the walk continues past such
+ * a statement having forgotten every name it assigns, and the bodies are walked in their own right
+ * by `optimizeList`'s recursion, each starting from what it can see for itself.
+ *
+ * **Nothing is carried that cannot be written back.** The table holds the exact integers
+ * `numberLiteral` would emit and nothing else, so a substitution is always a literal in place of a
+ * read and never a fraction, an infinity or a `-0`.
+ */
+struct Constants {
+    struct Entry {
+        Name name;
+        F64 value;
+    };
+
+    // Inline, and one of these per list per round: an emitted body has a handful of numeric locals.
+    SmallArray<Entry, 8> entries;
+
+    F64* find(Name name) {
+        for(auto& entry: entries) if(entry.name.text == name.text) return &entry.value;
+        return nullptr;
+    }
+
+    void set(Name name, F64 value) {
+        if(auto existing = find(name)) *existing = value;
+        else entries.push(Entry { name, value });
+    }
+
+    void erase(Name name) {
+        for(Size i = 0; i < entries.size(); i++) {
+            if(entries[i].name.text == name.text) {
+                entries.remove(i);
+                return;
+            }
+        }
+    }
+};
+
+// A value the table may hold - the same rule `numberLiteral` writes one back under.
+bool carriedValue(Gen& g, JsPtr<Expr> pointer, F64& into) {
+    return constantNumber(g, pointer, into) && isExactInteger(into);
+}
+
+/*
+ * Every *read* of a tracked name replaced by what it holds.
+ *
+ * The assigned position of an assignment is walked one level in and its own name left alone, for the
+ * reason foldExprs gives about its own rules: a target names storage, and `1000 = x` is not a
+ * program. What that target *contains* is reads again - `o[i]` reads both `o` and `i`.
+ */
+bool substituteConstants(Gen& g, JsPtr<Expr>& slot, Constants& known) {
+    auto expr = g.base[slot];
     auto changed = false;
+
+    if(expr->kind == Expr::Var) {
+        auto held = known.find(((VarExpr*)expr)->name);
+        if(!held) return false;
+
+        auto literal = numberLiteral(g, *held);
+        if(!literal) return false;
+
+        slot = literal;
+        return true;
+    }
+
+    if(expr->kind == Expr::Assign) {
+        auto& assign = *(AssignExpr*)expr;
+        auto target = g.base[assign.target];
+
+        if(target->kind != Expr::Var) {
+            eachOperand(g, target, [&](JsPtr<Expr>& operand, bool) {
+                changed = substituteConstants(g, operand, known) || changed;
+            });
+        }
+
+        return substituteConstants(g, assign.value, known) || changed;
+    }
+
+    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) {
+        changed = substituteConstants(g, operand, known) || changed;
+    });
+
+    return changed;
+}
+
+bool propagateConstants(Gen& g, StmtList& list) {
+    Constants known;
+
+    // The names this list introduced, which is what makes a write to one a write to a *local*. A
+    // name assigned here without being declared here may be a module-level global, and this pass's
+    // whole premise - that nothing between two statements can change it - is false of one.
+    HashSet<U32> declared;
+    auto changed = false;
+
+    for(auto pointer: list.contents(g.base)) {
+        auto stmt = g.base[pointer];
+
+        // The reads first, whatever the statement is: an `if` condition and a `return` value are
+        // reads exactly as an assignment's right-hand side is.
+        if(auto header = headerOf(g, stmt)) {
+            changed = substituteConstants(g, *header, known) || changed;
+        }
+
+        /*
+         * Then everything this statement writes stops being known - the name of a plain assignment,
+         * whatever a loop or a branch assigns inside itself, and an assignment buried in a larger
+         * expression alike. Asked of the whole statement rather than of the shapes below, because
+         * `var a = (b = 5)` writes two names and only one of them is the one being declared.
+         */
+        Size at = 0;
+        while(at < known.entries.size()) {
+            if(assignsName(g, pointer, known.entries[at].name)) known.entries.remove(at);
+            else at++;
+        }
+
+        // And last, what this statement makes known. A `var` introduces the only names tracked at
+        // all; an assignment may only update one that is already here, since a name this list did
+        // not declare could be a global that any call in between had written.
+        F64 value;
+
+        if(stmt->kind == Stmt::Decl) {
+            auto& declaration = *(DeclStmt*)stmt;
+            declared.add(declaration.name.text);
+
+            if(declaration.value && carriedValue(g, declaration.value, value)) {
+                known.set(declaration.name, value);
+            } else {
+                known.erase(declaration.name);
+            }
+        } else if(stmt->kind == Stmt::Expression) {
+            auto written = g.base[((ExprStmt*)stmt)->value];
+            if(written->kind != Expr::Assign) continue;
+
+            auto& assign = *(AssignExpr*)written;
+            auto target = g.base[assign.target];
+            if(target->kind != Expr::Var) continue;
+
+            auto name = ((VarExpr*)target)->name;
+            if(declared.contains(name.text) && carriedValue(g, assign.value, value)) {
+                known.set(name, value);
+            }
+        }
+    }
+
+    return changed;
+}
+
+bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+    // First, because it is what turns an operand into a literal for every rule below to work on -
+    // and it reads the list rather than editing it, so nothing it sees can have moved.
+    auto changed = propagateConstants(g, list);
     Size index = 0;
 
     while(index < list.size()) {
