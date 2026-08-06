@@ -447,6 +447,12 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
          * Storage whose class the program itself reads is a handover too, whatever the analysis
          * found: `storageFlag` exists so that another value's `Drop` can free this storage, and that
          * `Drop` is the one release it gets.
+         *
+         * A conditional move changes none of this, which is worth saying because it looks as though
+         * it should. What a `->` argument hands over is what the slot *contained* - the storage
+         * itself is this frame's on both paths, and stays this frame's - so a root the lattice
+         * reached `Maybe` on is released here like any other. What the flag guards is the teardown;
+         * the release runs either way. See analyze_drop.cpp's header.
          */
         allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag &&
                                   !allocation.ownedElsewhere;

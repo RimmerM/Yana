@@ -968,10 +968,11 @@ struct InstCopy: Inst {
  * the storage it does it in is still there. `releaseStorage` is the last step and is the reclaim
  * half of *this* allocation rather than of its members - see selectStorage.
  *
- * `flag` is set only where control flow made the teardown conditional - a value moved out of on one
- * arm of a branch and not the other. It names an I8 local holding 1 while the place still owns
- * something, which is the standard drop-elaboration answer to a question no amount of static
- * analysis can settle.
+ * A *conditional* teardown - a value moved out of on one arm of a branch and not the other - has no
+ * spelling here, deliberately. This instruction used to carry the flag's local and leave each
+ * backend to build the test around it; what the drop pass emits instead is an ordinary branch on an
+ * ordinary `Bool` local with an ordinary unconditional drop inside it, which every pass after that
+ * one already understands and the optimizer can fold. See analyze_drop.cpp's header.
  */
 struct InstDrop: Inst {
     InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, TeardownKind dropKind,
@@ -984,9 +985,6 @@ struct InstDrop: Inst {
     // Null where that half is empty, which the pass elides rather than emits.
     ModulePtr<Function> drop = nullptr;
     ModulePtr<Function> reclaim = nullptr;
-
-    // The drop flag's local, or maxLimit when the teardown is unconditional.
-    U32 flag = maxLimit<U32>;
 
     TeardownKind dropKind;
     TeardownKind reclaimKind;

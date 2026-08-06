@@ -1,0 +1,145 @@
+-- Conditional teardown: a value moved out of on only some paths reaching a point that owes its
+-- drop. No amount of static analysis settles that question - the answer is different on different
+-- executions of the same code - so the frame carries a bit saying whether the slot still owns
+-- something, and the teardown is a branch on it.
+--
+-- The flag is the ownership lattice made into a value: it is written wherever the lattice changes
+-- state, so it holds 1 exactly where the lattice says `Owned`. Every number below is decided by
+-- that correspondence holding, and by nothing else in the program.
+--
+-- Asserted by counting rather than by reading the IR, for the reason every ownership fixture gives:
+-- a drop that never ran and a drop that ran twice are both invisible in the emitted bytes. Two
+-- counters, because one of them alone would let a mistake through. `drops` only ever climbs, so what
+-- each function answers is how many teardowns its own body ran - which is the number the placement
+-- decides. `live` is the balance, checked back to zero after every call: a drop that ran twice takes
+-- it negative and one that never ran leaves it positive, and neither shows up in `drops`.
+
+let &live = 0 :: Int
+let &drops = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        live = live - 1
+        drops = drops + 1
+
+fn guard(id: Int) -> Guard:
+    live = live + 1
+    return Guard {id: id}
+
+-- A `->` parameter this frame owns, so the value dies here and a call is one guard gone.
+fn consume(->g: Guard) -> Int = g.id
+
+-- The overwrite. The slot is written again whatever happened above it, and what that write owes is
+-- a drop of what the slot held - which is a guard on one path and nothing at all on the other.
+fn replaced(c: Bool) -> Int:
+    let start = drops
+    let &g = guard(1)
+    if c: let n = consume(g)
+    g = guard(2)
+
+    return drops - start
+
+-- The branch, where nothing follows and the drop belongs on the edge out of it. `if d` leaves the
+-- join owning a guard on three of the four paths through here, and the fourth is the one that must
+-- not release what something else took.
+fn maybeReplaced(c: Bool, d: Bool) -> Int:
+    let start = drops
+    let &g = guard(1)
+    if c: let n = consume(g)
+    if d: g = guard(2)
+
+    return drops - start
+
+-- The same question asked past two joins rather than one, since a flag written per branch rather
+-- than per state change would agree with the lattice at the first and not at the second.
+fn nested(c: Bool, d: Bool) -> Int:
+    let start = drops
+    let &g = guard(1)
+    if c:
+        if d: let n = consume(g)
+
+    g = guard(2)
+    return drops - start
+
+-- Two flags in one body, so that anything keying a flag on the local rather than the other way
+-- round answers one of these with the other's bit.
+fn pair(c: Bool) -> Int:
+    let start = drops
+    let &x = guard(1)
+    let &y = guard(2)
+
+    if c:
+        let a = consume(x)
+        let b = consume(y)
+
+    x = guard(3)
+    y = guard(4)
+    return drops - start
+
+-- And the same shape over storage this frame allocated on the heap, where the guarded drop hands
+-- the allocation back as well. What the flag decides here is a `freeHeap` rather than only a
+-- teardown, so a body that ran it on the path where the value left would be releasing storage twice.
+fn heaped(c: Bool, d: Bool) -> Int:
+    let start = drops
+    let @heap &g = guard(1)
+    if c: let n = consume(g)
+    if d: g = guard(2)
+
+    return drops - start
+
+fn main() -> Int:
+    let &result = 0 :: Int
+
+    -- Two either way: the conditional move decides *which* value the overwrite releases, not how
+    -- many teardowns the body runs.
+    result += replaced(True)
+    if live != 0 then return -1
+
+    result += replaced(False)
+    if live != 0 then return -2
+
+    -- 1, 2, 1, 2. The third is the only body here that reaches its end owning nothing, and it is
+    -- the one an unconditional drop would take to 2 - by releasing storage `consume` already did.
+    result += maybeReplaced(False, False)
+    if live != 0 then return -3
+
+    result += maybeReplaced(False, True)
+    if live != 0 then return -4
+
+    result += maybeReplaced(True, False)
+    if live != 0 then return -5
+
+    result += maybeReplaced(True, True)
+    if live != 0 then return -6
+
+    result += nested(True, True)
+    if live != 0 then return -7
+
+    result += nested(True, False)
+    if live != 0 then return -8
+
+    result += nested(False, True)
+    if live != 0 then return -9
+
+    result += pair(True)
+    if live != 0 then return -10
+
+    result += pair(False)
+    if live != 0 then return -11
+
+    result += heaped(False, False)
+    if live != 0 then return -12
+
+    result += heaped(True, False)
+    if live != 0 then return -13
+
+    result += heaped(True, True)
+    if live != 0 then return -14
+
+    -- The same total read the other way: one teardown per guard this program made.
+    if drops != result then return -15
+
+    -- 2 + 2 + 1 + 2 + 1 + 2 + 2 + 2 + 2 + 4 + 4 + 1 + 1 + 2
+    return result

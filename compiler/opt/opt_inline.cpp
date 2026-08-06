@@ -1821,7 +1821,7 @@ struct Inliner {
      * the storage being torn down, and the teardown's `->` parameter *is* that storage. So it binds
      * as `Binding::Memory` with the drop's own place, and everything else is the ordinary copy.
      *
-     * Four things are declined and each is a case with no single answer here:
+     * Three things are declined and each is a case with no single answer here:
      *
      *  - **both halves present.** A `Drop` runs its `drop` and then its `reclaim`, in that order,
      *    and splicing two bodies into one position is two grafts whose second has to land after the
@@ -1829,15 +1829,13 @@ struct Inliner {
      *    instructions in that half, which `clonableKind` refuses anyway;
      *  - **`releaseStorage`.** The instruction has a job of its own beyond the callee's, so it
      *    cannot simply go;
-     *  - **a conditional drop.** `flag` is a drop flag the analyses computed, and honouring it means
-     *    building the branch it stands for rather than copying a body;
      *  - **an erased teardown**, which `describe` already refuses along with every other generic
      *    body: what runs is whatever the caller's descriptor holds, and there is no callee to copy.
      */
     bool inlineTeardown(Block& block, Size index, ModulePtr<Inst> pointer, bool& grafted) {
         auto& dropped = (InstDrop&)*opt.local[pointer];
 
-        if(dropped.releaseStorage || dropped.flag != maxLimit<U32>) return false;
+        if(dropped.releaseStorage) return false;
         if(dropped.drop && dropped.reclaim) return false;
 
         auto callee = dropped.drop ? dropped.drop : dropped.reclaim;

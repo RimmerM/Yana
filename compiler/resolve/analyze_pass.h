@@ -176,11 +176,40 @@ struct PendingDrop {
     // Set for a drop that releases what a write is about to replace, in which case the place comes
     // from the write rather than from the local - see makeOverwriteDrop.
     ModulePtr<Inst> overwrite = nullptr;
+
+    // Set where the lattice said `Maybe` here, so whether this teardown runs is a run-time question
+    // - see elaborateFlaggedDrops, which is what turns one of these into a branch.
+    bool conditional = false;
 };
 
 // The drops each block needs, one row per block. Four inline: a block that drops more than that is
 // not one this bound decides anything about.
 using DropList = ArrayList<PendingDrop, 4>;
+
+/*
+ * One write of a drop flag, in the same shape and the same numbering as a pending drop.
+ *
+ * The flag is the ownership lattice made into a value, so a write of one goes exactly where
+ * transferState changes the state it stands for: an allocation empties the slot, an init fills it,
+ * and a move empties it again. `before` is the position immediately after the instruction whose
+ * effect this records, which is why it is a position rather than an instruction.
+ */
+struct PendingFlag {
+    U32 flag = 0;
+    U32 before = 0;
+    bool value = false;
+
+    /*
+     * The flag's own allocation, on the one entry per flag that declares it.
+     *
+     * That entry produces two instructions rather than one - the storage and the write that fills
+     * it - and it is in the entry block, so a flag is allocated once however many times a loop
+     * around it runs. Every later write of the same flag is an `Assign` with nothing here.
+     */
+    ModulePtr<Inst> allocation = nullptr;
+};
+
+using FlagList = ArrayList<PendingFlag, 4>;
 
 struct AnalysisScratch {
     ~AnalysisScratch() {
@@ -237,6 +266,11 @@ struct AnalysisScratch {
     // the shape ArrayList exists for; here rather than in the pass because a list built per function
     // is a list allocated per function.
     DropList blockDrops;
+
+    // And the flag writes, in the same shape and for the same reason. A separate list rather than a
+    // second kind of entry in the one above, because the two are placed by different rules and only
+    // meet where both are spliced into a block.
+    FlagList blockFlags;
 
 
     /*
@@ -466,8 +500,8 @@ void checkClosureEnvironments(Analysis& analysis);
  * Drop placement and the rewrite (analyze_drop.cpp).
  */
 
-// Decides where the drops go and inserts them, splitting an edge where one belongs on an edge.
-// Reports rather than emitting for the two shapes that would need a drop flag.
+// Decides where the drops go and inserts them, splitting an edge where one belongs on an edge and
+// building the flag and the branch where the lattice could not settle whether one runs.
 void insertDrops(Analysis& analysis);
 
 /*

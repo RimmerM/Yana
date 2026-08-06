@@ -793,11 +793,6 @@ void Verifier::verifyInstruction(Value& instruction) {
                 fail(instruction.source, "%%@ drops before ownership has run"_v, instruction.id);
             }
 
-            if(drop.flag != maxLimit<U32> && drop.flag >= function.localCount()) {
-                fail(instruction.source, "%%@ reads drop flag %@, which does not exist"_v,
-                     instruction.id, drop.flag);
-            }
-
             // The pass elides an empty teardown rather than emitting one, so reaching this is a
             // decision that was taken and then not acted on.
             if(drop.isEmpty()) {

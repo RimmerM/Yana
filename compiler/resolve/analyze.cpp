@@ -440,15 +440,14 @@ bool runProgramOwnership(Program& program) {
  * than it had to, or gives a value more storage than it needed. Nothing here can make it accept a
  * program it should reject, which is the property worth preserving while the rest is filled in.
  *
- * **Drop flags.** A value moved out of on only some paths reaching its last use needs a runtime bit
- * saying whether the slot still owns anything. The bit, the block split around the conditional
- * drop, and InstDrop::flag are all designed for; what is here reports instead of emitting them.
- * This is the largest single item and the one an ordinary program hits first - `if c: consume(x)`
- * is enough.
- *
  * **Partial moves.** Moving one field out of an aggregate leaves the slot half-owned. checkMoves()
- * rejects it, because representing it means a drop flag per field and a drop that runs over a
- * subset of members - the same machinery drop flags need, one level further in.
+ * rejects it, because representing it means a drop flag per *field* and a drop that runs over a
+ * subset of members - which is the whole-slot machinery analyze_drop.cpp now has, one level further
+ * in, over a lattice that is still per local. This is the largest single item left here.
+ *
+ * Whole-value drop flags are done: a value moved out of on only some paths carries a `Bool` the
+ * teardown branches on, and `if c: consume(x); x = e` is emitted rather than reported. See
+ * analyze_drop.cpp's header for what the flag is and where it is written.
  *
  * **Two-phase borrows.** `f(&x, g(x))` evaluates `g(x)` while the borrow of `x` for the first
  * argument is already live, which is rejected here and accepted by Rust through a reservation

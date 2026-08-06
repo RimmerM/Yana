@@ -80,16 +80,6 @@ struct Discharge {
         if(drop.isEmpty()) return false;
 
         /*
-         * A conditional teardown is the one shape with no discharged form yet.
-         *
-         * The flag stands for a block split and a test around the calls below, which is real CFG
-         * work and is the thing drop flags need in general - see analyze.cpp's closing list. Nothing
-         * emits one today (they are reported instead), so this is the guard that keeps it that way
-         * rather than a path anything takes.
-         */
-        if(drop.flag != maxLimit<U32>) return false;
-
-        /*
          * A function value whose code word this frame can see is discharged into the teardown its
          * header names, rather than into the search that finds it - see opt_closure.cpp. First
          * because it is the same expansion with a constant already folded in, so what it declines is

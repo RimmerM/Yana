@@ -1,0 +1,215 @@
+"use strict";
+var live = 0;
+var drops = 0;
+
+// ResolveTest
+function consume(g) {
+  Drop_Guard_drop(g);
+  return g;
+}
+
+function replaced(c) {
+  var start = drops;
+  live = live + 1 | 0;
+  var g = 1;
+  var v18 = 1;
+  if (c) {
+    v18 = 0;
+    var n = consume(g);
+  }
+  live = live + 1 | 0;
+  if (v18) {
+    Drop_Guard_drop(g);
+  }
+  g = 2;
+  v18 = 1;
+  Drop_Guard_drop(2);
+  return drops - start | 0;
+}
+
+function maybeReplaced(c, d) {
+  var start = drops;
+  live = live + 1 | 0;
+  var g = 1;
+  var v22 = 1;
+  if (c) {
+    v22 = 0;
+    var n = consume(g);
+  }
+  if (d) {
+    live = live + 1 | 0;
+    if (v22) {
+      Drop_Guard_drop(g);
+    }
+    g = 2;
+    v22 = 1;
+    Drop_Guard_drop(g);
+  } else {
+    if (v22) {
+      Drop_Guard_drop(g);
+    }
+  }
+  return drops - start | 0;
+}
+
+function nested(c, d) {
+  var start = drops;
+  live = live + 1 | 0;
+  var g = 1;
+  var v22 = 1;
+  if (c) {
+    if (d) {
+      v22 = 0;
+      var n = consume(g);
+    }
+  }
+  live = live + 1 | 0;
+  if (v22) {
+    Drop_Guard_drop(g);
+  }
+  g = 2;
+  v22 = 1;
+  Drop_Guard_drop(2);
+  return drops - start | 0;
+}
+
+function pair(c) {
+  var start = drops;
+  var v68 = live;
+  var x = 1;
+  var v28 = 1;
+  live = v68 + 2 | 0;
+  var y = 2;
+  var v29 = 1;
+  if (c) {
+    v28 = 0;
+    var a = consume(x);
+    v29 = 0;
+    var b = consume(y);
+  }
+  live = live + 1 | 0;
+  if (v28) {
+    Drop_Guard_drop(x);
+  }
+  x = 3;
+  v28 = 1;
+  Drop_Guard_drop(3);
+  live = live + 1 | 0;
+  if (v29) {
+    Drop_Guard_drop(y);
+  }
+  y = 4;
+  v29 = 1;
+  Drop_Guard_drop(4);
+  return drops - start | 0;
+}
+
+function heaped(c, d) {
+  var start = drops;
+  live = live + 1 | 0;
+  var g = 1;
+  var v22 = 1;
+  if (c) {
+    v22 = 0;
+    var n = consume(g);
+  }
+  if (d) {
+    live = live + 1 | 0;
+    if (v22) {
+      Drop_Guard_drop(g);
+    }
+    g = 2;
+    v22 = 1;
+    Drop_Guard_drop(g);
+  } else {
+    if (v22) {
+      Drop_Guard_drop(g);
+    }
+  }
+  return drops - start | 0;
+}
+
+function main() {
+  var result = replaced(1);
+  if (live !== 0) {
+    return -1;
+  } else {
+    result = result + replaced(0) | 0;
+    if (live !== 0) {
+      return -2;
+    } else {
+      result = result + maybeReplaced(0, 0) | 0;
+      if (live !== 0) {
+        return -3;
+      } else {
+        result = result + maybeReplaced(0, 1) | 0;
+        if (live !== 0) {
+          return -4;
+        } else {
+          result = result + maybeReplaced(1, 0) | 0;
+          if (live !== 0) {
+            return -5;
+          } else {
+            result = result + maybeReplaced(1, 1) | 0;
+            if (live !== 0) {
+              return -6;
+            } else {
+              result = result + nested(1, 1) | 0;
+              if (live !== 0) {
+                return -7;
+              } else {
+                result = result + nested(1, 0) | 0;
+                if (live !== 0) {
+                  return -8;
+                } else {
+                  result = result + nested(0, 1) | 0;
+                  if (live !== 0) {
+                    return -9;
+                  } else {
+                    result = result + pair(1) | 0;
+                    if (live !== 0) {
+                      return -10;
+                    } else {
+                      result = result + pair(0) | 0;
+                      if (live !== 0) {
+                        return -11;
+                      } else {
+                        result = result + heaped(0, 0) | 0;
+                        if (live !== 0) {
+                          return -12;
+                        } else {
+                          result = result + heaped(1, 0) | 0;
+                          if (live !== 0) {
+                            return -13;
+                          } else {
+                            result = result + heaped(1, 1) | 0;
+                            if (live !== 0) {
+                              return -14;
+                            } else {
+                              if (drops !== result) {
+                                return -15;
+                              } else {
+                                return result;
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function Drop_Guard_drop(self) {
+  live = live - 1 | 0;
+  drops = drops + 1 | 0;
+  return;
+}
+main();

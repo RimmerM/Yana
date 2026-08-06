@@ -1,0 +1,68 @@
+import Native
+import Native.Linux
+
+-- What a *conditional* drop does about storage this frame allocated on the heap.
+--
+-- A drop of a heap-placed local does three things and only two of them are about the value:
+-- `drop` runs the effect, `reclaim` releases what the value's members hold, and `releaseStorage`
+-- hands back the allocation. A move takes the contents out of that allocation; it does not take the
+-- allocation, which is this frame's on every path. So the flag guards the first two and the release
+-- runs whichever way the branch went - and a build that guards all three leaks exactly one block per
+-- call on the path the value left by.
+--
+-- Which is why this is a fixture of its own rather than a case in DropFlag.yana: a leak is invisible
+-- to a teardown counter, and it is invisible in the emitted bytes too. What sees it is the allocator.
+-- `heapNext` is Native's bump pointer, and it only ever moves when the free list had nothing to hand
+-- back - so a hundred calls that each free what they allocated move it once, and a hundred that do
+-- not move it a hundred times.
+
+let &live = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        live = live - 1
+
+fn guard(id: Int) -> Guard:
+    live = live + 1
+    return Guard {id: id}
+
+fn consume(->g: Guard) -> Int = g.id
+
+-- The value leaves on `c` and is replaced on `d`, so the drop at the end is the one the flag
+-- decides. `@heap` is what makes the slot an allocation rather than a piece of the frame.
+fn heaped(c: Bool, d: Bool) -> Int:
+    let @heap &g = guard(1)
+    if c: let n = consume(g)
+    if d: g = guard(2)
+
+    return live
+
+fn main() -> Int:
+    -- One call ahead of the mark, so that what is measured is a steady state rather than the first
+    -- block the allocator ever handed out.
+    let first = heaped(True, False)
+    if live != 0 then return -1
+
+    let mark = asInt(heapNext)
+
+    let &i = 0 :: Int
+    while i < 100:
+        let each = heaped(True, False)
+        i = i + 1
+
+    if live != 0 then return -2
+
+    -- The whole assertion: the bump pointer did not move, so every one of those hundred allocations
+    -- came back to the free list. It moves by one block per call if the release is inside the guard.
+    if asInt(heapNext) != mark then return -3
+
+    -- And the other three paths, each of which allocates and releases once for its own reasons.
+    let a = heaped(False, False)
+    let b = heaped(False, True)
+    let c = heaped(True, True)
+    if live != 0 then return -4
+    if asInt(heapNext) != mark then return -5
+
+    return 1

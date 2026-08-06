@@ -736,7 +736,6 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
              */
             auto& dropped = (InstDrop&)instruction;
             assertTrue(!dropped.isEmpty());
-            assertTrue(dropped.flag == maxLimit<U32>);
 
             auto address = lowerPlace(lower, block, *function, dropped.place);
 

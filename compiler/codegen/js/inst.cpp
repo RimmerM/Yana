@@ -528,12 +528,6 @@ void genDrop(Gen& g, InstDrop& instruction) {
      */
     if(!instruction.drop) return;
 
-    if(instruction.flag != maxLimit<U32>) {
-        g.context.diagnostics.error("the JS target does not implement conditional teardown yet"_v,
-                                    instruction.source);
-        return;
-    }
-
     auto type = placeType(g, instruction.place);
 
     if(g.genEnv && isGeneric(g.global, type)) {

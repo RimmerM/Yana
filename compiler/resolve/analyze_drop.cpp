@@ -10,6 +10,45 @@
  * Nothing here decides a *fact*. Both rules read liveness and the ownership lattice and neither
  * computes anything, which is what makes a misplaced drop localizable: it is either this file's
  * reading of those facts or the facts themselves.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * Drop flags.
+ *
+ * Both rules meet `OwnState::Maybe`, and it is the one answer neither of them can act on: the slot
+ * owns something on some paths here and nothing on others, so whether the teardown runs is a
+ * question about *this execution* rather than about the program. The standard answer is a run-time
+ * bit, and this is it.
+ *
+ * **The flag is the lattice made into a value.** One `Bool` local per root that needs one, written
+ * at exactly the points `transferState` changes the state it stands for - an allocation empties the
+ * slot, an init fills it, a move empties it again - so at every program point the flag holds `1`
+ * exactly when the lattice says `Owned`. That equivalence is the whole correctness argument, and it
+ * is why the writes are placed by mirroring that function rather than by a rule of their own.
+ *
+ * **The conditional drop is a branch, not a field.** `InstDrop` could have carried the flag and left
+ * each backend to build the test around it, and it used to be designed that way. What it becomes
+ * instead is `je %flag, guarded, tail` around an ordinary unconditional drop - which is the same
+ * machinery `insertEdgeDrops` already needed, and which every pass after this one already
+ * understands. The optimizer is the reason it is worth the blocks: a flag whose writes all agree is
+ * forwarded to a constant by opt_promote, the branch folds, and the drop either becomes
+ * unconditional or disappears - none of which a pass that has to treat a flag as opaque can do.
+ *
+ * **Handing the storage back is not part of the question.** A drop of a heap-placed local does three
+ * things, and only two of them are about the value: `drop` runs the effect and `reclaim` releases
+ * what the value's members hold, both of which belong to whoever owns the value now - but
+ * `releaseStorage` hands back the allocation *this frame* made, and a move takes the contents out of
+ * that allocation rather than taking the allocation. So a flagged drop that releases storage is
+ * split in two: the guarded half runs the teardown, and the release lands after the join and runs
+ * whichever way the branch went. Leaving it inside the guard is a leak on exactly the path the flag
+ * exists to describe, and it is not one any counter in a fixture can see.
+ *
+ * **Nothing resets the flag after a drop**, and it does not have to. A drop is placed where the
+ * value's liveness ends, so for the flag to be read again on the same path something must reach it
+ * afterwards: another last-use drop needs the local live there, which contradicts the first one's
+ * placement; an overwrite drop needs an `Assign` to the slot, which records an *overwrite* and so
+ * keeps the local live back through the first drop's position, contradicting it again; and any
+ * other route runs through an init or a move, both of which write the flag. What is left is a flag
+ * left holding `1` past a value nothing can name, which nothing reads.
  */
 
 // One drop that belongs on a CFG edge rather than inside a block - the branch case, where a value
@@ -18,6 +57,9 @@ struct EdgeDrop {
     U32 local = 0;
     Size fromBlock = 0;
     Size toBlock = 0;
+
+    // Whether the teardown is the flag's question rather than this pass's - see PendingDrop.
+    bool conditional = false;
 };
 
 // The drops each block needs, and the ones that belong on an edge rather than in a block. Both are
@@ -92,12 +134,7 @@ static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& e
                 auto maybeAfter = !defines && !moves && before == OwnState::Maybe;
 
                 if((liveBefore || defines) && !liveAfter && (ownedAfter || maybeAfter)) {
-                    if(maybeAfter) {
-                        report(analysis, "this value was moved out of on only some paths reaching its last use - conditional drops need drop flags, which are not implemented yet"_v,
-                               analysis.local[analysis.order[i]]->source);
-                    } else {
-                        blockDrops[b].push(PendingDrop { U32(l), U32(i + 1) });
-                    }
+                    blockDrops[b].push(PendingDrop { U32(l), U32(i + 1), nullptr, maybeAfter });
                 }
 
                 liveBefore = liveAfter;
@@ -121,11 +158,8 @@ static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& e
 
                 // The terminator itself never changes ownership, so the state before it is the
                 // state on the edge.
-                if(state == OwnState::Maybe) {
-                    report(analysis, "this value is owned on only some paths reaching this branch - conditional drops need drop flags, which are not implemented yet"_v,
-                           analysis.local[block->terminator()]->source);
-                } else if(state == OwnState::Owned) {
-                    edgeDrops.push(EdgeDrop { U32(l), b, successorIndex });
+                if(state == OwnState::Owned || state == OwnState::Maybe) {
+                    edgeDrops.push(EdgeDrop { U32(l), b, successorIndex, state == OwnState::Maybe });
                 }
             }
         }
@@ -222,14 +256,147 @@ static void placeOverwriteDrops(Analysis& analysis, DropList& blockDrops) {
                     blockDrops[b].push(PendingDrop { root, U32(i), pointer });
                     break;
                 case OwnState::Maybe:
-                    report(analysis, "this assignment overwrites a value that was moved out of on only some paths - conditional drops need drop flags, which are not implemented yet"_v,
-                           instruction.source);
+                    // The slot held something on some of the paths here, so what this write owes is
+                    // the same drop under the flag that says which - see elaborateFlaggedDrops. The
+                    // place is still the write's own, which is what keeps `v.f = x` releasing `v.f`.
+                    blockDrops[b].push(PendingDrop { root, U32(i), pointer, true });
                     break;
                 default:
                     // Uninitialized or moved out of: there is nothing there to release, and filling
                     // the slot again is what this write is.
                     break;
             }
+        }
+    }
+}
+
+/*
+ * The flags, and where they are written.
+ */
+
+/*
+ * Which flag guards which local's teardown.
+ *
+ * An association list rather than one entry per local, which is the one place this pass departs from
+ * how everything around it is keyed. The measurement is the argument: 93% of the functions in the
+ * corpus have four locals or fewer and the widest has 45, so a per-local row is small either way -
+ * but the number of locals that carry a *flag* is at most a handful and is zero in every body but
+ * the few that conditionally move something. So the dense form is a table that is almost always
+ * entirely `maxLimit`, and the sparse one is four entries that never reach the heap.
+ *
+ * It is also why this is a local of insertDrops rather than a row in AnalysisScratch. A per-local
+ * table there would be sized to the widest function in the program and allocate once for it -
+ * which is exactly what `order`, `tracked` and `demand` are and why those are plain arrays - and
+ * inline storage cannot help something whose whole point is to grow to the widest case. Four
+ * entries inline can, because four is the answer for every function rather than a guess about one.
+ */
+struct FlagFor {
+    U32 local = 0;
+    U32 flag = 0;
+};
+
+using FlagMap = SmallArray<FlagFor, 4>;
+
+// The flag guarding this local, or maxLimit where it has none. Linear because the list is four
+// entries: a body with more conditional drops than that is not one this shape decides anything
+// about, and a body with none does not reach here at all.
+static U32 flagFor(const FlagMap& flags, U32 local) {
+    for(auto& entry: flags) {
+        if(entry.local == local) return entry.flag;
+    }
+
+    return maxLimit<U32>;
+}
+
+/*
+ * One flag: a `Bool` slot of this frame's, and the allocation that makes it one.
+ *
+ * The allocation is created rather than appended, because it has to end up at the *top* of the entry
+ * block and everything else this pass adds is spliced into position by insertBlockDrops. So it
+ * travels as far as that splice on the write that declares it - see PendingFlag::allocation.
+ */
+static U32 makeFlag(Analysis& analysis, ModulePtr<Inst>& allocation) {
+    auto& module = analysis.module;
+    auto& function = analysis.function;
+    auto entry = analysis.blockAt(0);
+    auto type = module.scalar.bool_;
+
+    auto created = createInst<InstAlloc>(module, function, *entry, entry->source, 0, type,
+                                         maxLimit<U32>);
+
+    auto value = (ModulePtr<Value>)((Value*)created - analysis.local);
+    created->local = function.addLocal(module, type, 0, value, ast::BindType::Ref);
+
+    allocation = (ModulePtr<Inst>)((Inst*)created - analysis.local);
+    return created->local;
+}
+
+/*
+ * A flag for every local a conditional drop names, and a write of it wherever its state changes.
+ *
+ * The writes mirror transferState exactly, in the same order: a move empties the slot, an
+ * allocation empties it again for the next time round a loop, and an init fills it. Where one
+ * instruction does two of those the last one written wins, which is the same "moves before inits"
+ * the lattice states - `x = consume(x)` empties the slot and fills it again, and what survives is
+ * the second.
+ *
+ * The declaring write is in the entry block and holds whether the slot arrives owned, which is a
+ * question with exactly one answer: a `->` parameter's storage comes filled and everything else
+ * starts empty. It is also what makes every read of a flag reachable-from-a-write, which is the
+ * condition opt_promote forwards under.
+ */
+static void assignFlags(Analysis& analysis, DropList& blockDrops, EdgeDropList& edgeDrops,
+                        FlagMap& flags, FlagList& blockFlags) {
+    auto count = analysis.localCount;
+    flags.clear();
+
+    auto require = [&](U32 local) {
+        if(local >= count || flagFor(flags, local) != maxLimit<U32>) return;
+
+        ModulePtr<Inst> allocation = nullptr;
+        auto flag = makeFlag(analysis, allocation);
+        flags.push(FlagFor { local, flag });
+
+        blockFlags[0].push(PendingFlag {
+            flag, U32(analysis.blockRanges[0].first), isParameterSlot(analysis, local), allocation
+        });
+    };
+
+    for(Size b = 0; b < analysis.blockCount(); b++) {
+        for(auto& pending: blockDrops[b]) {
+            if(pending.conditional) require(pending.local);
+        }
+    }
+
+    for(auto& edge: edgeDrops) {
+        if(edge.conditional) require(edge.local);
+    }
+
+    // Nothing below has anything to write about, which is every body but the few that conditionally
+    // move something - so the walk over every instruction of every function is skipped here rather
+    // than being entered and finding nothing.
+    if(flags.isEmpty()) return;
+
+    for(Size b = 0; b < analysis.blockCount(); b++) {
+        auto range = analysis.blockRanges[b];
+
+        for(Size i = range.first; i < range.end; i++) {
+            auto& effects = analysis.effects[i];
+            auto& instruction = *analysis.local[analysis.order[i]];
+
+            auto write = [&](U32 local, bool value) {
+                auto flag = flagFor(flags, local);
+                if(flag == maxLimit<U32>) return;
+
+                blockFlags[b].push(PendingFlag { flag, U32(i + 1), value });
+            };
+
+            for(auto moved: effects.moves) write(moved, false);
+            if(instruction.kind == Value::Alloc) {
+                for(auto def: effects.defs) write(def, false);
+            }
+
+            for(auto init: effects.inits) write(init, true);
         }
     }
 }
@@ -428,9 +595,42 @@ static InstDrop* makeOverwriteDrop(Analysis& analysis, Block& block, ModulePtr<I
     return drop;
 }
 
-static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
+/*
+ * One flag write, as the two instructions it is: the storage where this is the declaring one, and
+ * the write itself.
+ */
+static void makeFlagWrite(Analysis& analysis, Block& block, const PendingFlag& pending,
+                          LocationId source, SmallArray<ModulePtr<Inst>, 4>& into) {
+    auto& module = analysis.module;
+    auto& function = analysis.function;
+
+    if(pending.allocation) into.push(pending.allocation);
+
+    auto value = addConstant<ConstInt>(module, function, block, source, module.scalar.bool_,
+                                       pending.value ? 1 : 0);
+
+    auto write = createInst<InstInit>(module, function, block, source, 0, module.scalar.unit,
+                                      Place::inLocal(pending.flag),
+                                      (ModulePtr<Value>)((Value*)value - analysis.local),
+                                      pending.allocation ? Value::Init : Value::Assign);
+
+    into.push((ModulePtr<Inst>)((Inst*)write - analysis.local));
+}
+
+// One conditional drop as it stands in the body once it has been spliced in, and the flag that
+// decides whether it runs. Collected here because the block it sits in is about to be cut in two
+// around it, which is a rewrite of a different shape - see elaborateFlaggedDrops.
+struct FlaggedDrop {
+    ModulePtr<Inst> drop = nullptr;
+    U32 flag = 0;
+};
+
+using FlaggedDropList = SmallArray<FlaggedDrop, 8>;
+
+static void insertBlockDrops(Analysis& analysis, DropList& blockDrops, FlagList& blockFlags,
+                             FlagMap& flags, FlaggedDropList& flagged) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
-        if(blockDrops[b].isEmpty()) continue;
+        if(blockDrops[b].isEmpty() && blockFlags[b].isEmpty()) continue;
 
         IrEditor editor(analysis.module, analysis.function);
 
@@ -439,13 +639,31 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
         for(auto instruction: block->instructions(analysis.local)) existing.push(instruction);
 
         // Positions are computed against the original numbering, so they are resolved before
-        // anything is inserted and applied in one pass afterwards.
+        // anything is inserted and applied in one pass afterwards. The phase is the tie-break at one
+        // position: a flag write records what the instruction above it did, so it belongs in front
+        // of a drop that the same instruction's post-state asked for.
         SmallArray<Size, 8> positions;
+        SmallArray<U8, 8> phases;
         SmallArray<ModulePtr<Inst>, 8> instructions;
+
+        auto sourceAt = [&](U32 before) {
+            return analysis.local[analysis.order[min(Size(before), analysis.instructionCount - 1)]]->source;
+        };
+
+        for(auto& pending: blockFlags[b]) {
+            SmallArray<ModulePtr<Inst>, 4> built;
+            makeFlagWrite(analysis, *block, pending, sourceAt(pending.before), built);
+
+            for(auto instruction: built) {
+                positions.push(positionInBlock(analysis, b, pending.before));
+                phases.push(0);
+                instructions.push((ModulePtr<Inst>)(editor.append(*block, analysis.local[instruction]) - analysis.local));
+            }
+        }
 
         for(auto& pending: blockDrops[b]) {
             auto position = positionInBlock(analysis, b, pending.before);
-            auto source = analysis.local[analysis.order[min(Size(pending.before), analysis.instructionCount - 1)]]->source;
+            auto source = sourceAt(pending.before);
 
             auto drop = pending.overwrite
                 ? makeOverwriteDrop(analysis, *block, pending.overwrite, source)
@@ -454,18 +672,28 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
             if(!drop) continue;
 
             positions.push(position);
+            phases.push(1);
 
             // Appended rather than spliced, because appending is what records the uses a drop owes -
             // a drop that named a local and was in no use list is what made a whole-function use
             // rebuild necessary in compiler/opt. The list is put into the order the positions ask
             // for below, which is a permutation and so costs nothing.
-            instructions.push((ModulePtr<Inst>)(editor.append(*block, drop) - analysis.local));
+            auto inserted = (ModulePtr<Inst>)(editor.append(*block, drop) - analysis.local);
+            instructions.push(inserted);
+
+            // Read through `flags` rather than trusted from `conditional`, so that a root with no
+            // row in the state table - a write through a borrow or into a global, neither of which
+            // has one - stays the unconditional drop it was placed as.
+            auto flag = flagFor(flags, pending.local);
+            if(pending.conditional && flag != maxLimit<U32>) flagged.push(FlaggedDrop { inserted, flag });
         }
 
         SmallArray<ModulePtr<Inst>, 16> ordered;
         for(Size i = 0; i <= existing.size(); i++) {
-            for(Size d = 0; d < positions.size(); d++) {
-                if(positions[d] == i) ordered.push(instructions[d]);
+            for(U8 phase = 0; phase < 2; phase++) {
+                for(Size d = 0; d < positions.size(); d++) {
+                    if(positions[d] == i && phases[d] == phase) ordered.push(instructions[d]);
+                }
             }
 
             if(i < existing.size()) ordered.push(existing[i]);
@@ -489,7 +717,8 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
  * make `liveOut` the union of one thing with itself. Writing it as "the edge to X" would be one
  * unstated assumption standing between that argument and a wrong answer.
  */
-static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArray<U32, 8>& locals) {
+static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, EdgeDropList& drops,
+                      FlagMap& flags, FlaggedDropList& flagged) {
     auto base = analysis.local;
     auto from = analysis.blockAt(fromIndex);
     auto toPointer = analysis.function.blocks.get(base, toIndex);
@@ -501,28 +730,32 @@ static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArr
 
         auto split = editor.splitEdge(*from, successor);
 
-        for(auto localIndex: locals) {
-            auto drop = makeDrop(analysis, *split, localIndex, split->source);
+        for(auto& edge: drops) {
+            auto drop = makeDrop(analysis, *split, edge.local, split->source);
             if(!drop) continue;
 
-            editor.append(*split, drop);
+            auto inserted = (ModulePtr<Inst>)(editor.append(*split, drop) - analysis.local);
+            auto flag = flagFor(flags, edge.local);
+
+            if(edge.conditional && flag != maxLimit<U32>) flagged.push(FlaggedDrop { inserted, flag });
         }
     }
 }
 
-static void insertEdgeDrops(Analysis& analysis, EdgeDropList& edgeDrops) {
+static void insertEdgeDrops(Analysis& analysis, EdgeDropList& edgeDrops, FlagMap& flags,
+                            FlaggedDropList& flagged) {
     // Grouped per edge, so one split block carries every drop that edge owes rather than one per.
     while(edgeDrops.size()) {
         auto first = edgeDrops[0];
-        SmallArray<U32, 8> locals;
+        EdgeDropList here;
         EdgeDropList remaining;
 
         for(auto& drop: edgeDrops) {
-            if(drop.fromBlock == first.fromBlock && drop.toBlock == first.toBlock) locals.push(drop.local);
+            if(drop.fromBlock == first.fromBlock && drop.toBlock == first.toBlock) here.push(drop);
             else remaining.push(drop);
         }
 
-        splitEdge(analysis, first.fromBlock, first.toBlock, locals);
+        splitEdge(analysis, first.fromBlock, first.toBlock, here, flags, flagged);
 
         // Replaced rather than assigned - see SmallArray. Assigning one of these appends, and a
         // worklist that never shrinks is a loop that never ends.
@@ -531,23 +764,153 @@ static void insertEdgeDrops(Analysis& analysis, EdgeDropList& edgeDrops) {
 }
 
 /*
+ * The branch a flagged drop stands for.
+ *
+ * Three blocks out of one: what was in front of the drop, the drop on its own, and everything that
+ * followed. The flag is read where the split happened and the test is `je`, so the guarded block is
+ * reached exactly when the slot still owns something.
+ *
+ * **The block list is repaired here rather than re-derived.** `Function::blocks` has to stay in
+ * reverse postorder - resolve/lower.cpp walks it in list order and asserts every operand it meets
+ * has already been lowered - and both `addBlock` and `splitBlock` put the new block at the end,
+ * which for the tail half of a cut block is exactly wrong. Splicing the two new blocks in behind the
+ * one they came from is that order restored *and* nothing else moved: a body whose blocks were in
+ * RPO before is in RPO after, with three where there was one. Recomputing the order globally would
+ * reach the same conclusion and reorder blocks this pass never touched.
+ *
+ * The list is written once at the end, because a drop in the tail half of one cut is elaborated
+ * against the block it is in now - which is the tail, and which is already in the order.
+ */
+static void elaborateFlaggedDrops(Analysis& analysis, FlaggedDropList& flagged) {
+    if(flagged.isEmpty()) return;
+
+    auto& module = analysis.module;
+    auto& function = analysis.function;
+    auto base = analysis.local;
+
+    Array<ModulePtr<Block>> order;
+    for(auto pointer: function.blocks.contents(base)) order.push(pointer);
+
+    for(auto& entry: flagged) {
+        IrEditor editor(module, function);
+
+        auto pointer = entry.drop;
+        auto& dropped = (InstDrop&)*base[pointer];
+        auto block = base[base[pointer]->block];
+        auto blockPointer = (ModulePtr<Block>)((Block*)block - base);
+        auto source = base[pointer]->source;
+
+        // A drop whose only job is handing the allocation back has nothing conditional about it -
+        // see the header. Left where it is rather than wrapped in a branch that always runs.
+        if(!dropped.drop && !dropped.reclaim) continue;
+
+        Size index = 0;
+        for(Size i = 0; i < block->instructionCount(); i++) {
+            if(block->instructionAt(base, i) == pointer) index = i;
+        }
+
+        // The cut leaves `block` without a terminator, which is what lets the test below be appended
+        // as an ordinary instruction rather than replacing one.
+        auto tail = editor.splitBlock(*block, index);
+        auto tailPointer = (ModulePtr<Block>)((Block*)tail - base);
+
+        auto guarded = function.addBlock(module);
+        auto guardedPointer = (ModulePtr<Block>)((Block*)guarded - base);
+        guarded->source = source;
+
+        editor.moveInstruction(pointer, *guarded);
+        editor.append(*guarded, createInst<InstJmp>(module, function, *guarded, source, 0,
+                                                    module.scalar.unit, tailPointer));
+
+        auto read = createInst<InstLoadPlace>(module, function, *block, source, 0,
+                                              module.scalar.bool_, Place::inLocal(entry.flag));
+        editor.append(*block, read);
+
+        editor.append(*block, createInst<InstJe>(module, function, *block, source, 0,
+                                                 module.scalar.unit,
+                                                 (ModulePtr<Value>)((Value*)read - base),
+                                                 guardedPointer, tailPointer));
+
+        /*
+         * The release, taken out of the guard and put after the join.
+         *
+         * `releaseStorage` is this frame's allocation rather than the value's, so a move that took
+         * the contents out of it left the allocation exactly where it was - and skipping the free
+         * because the teardown was skipped is a leak on that path. The tail is where both arms meet,
+         * which is the first position that runs whichever way the flag went.
+         */
+        if(dropped.releaseStorage) {
+            dropped.releaseStorage = false;
+
+            auto release = createInst<InstDrop>(module, function, *tail, source, 0,
+                                                module.scalar.unit, dropped.place,
+                                                dropped.dropKind, dropped.reclaimKind);
+
+            release->releaseStorage = true;
+            editor.append(*tail, release);
+
+            // At the top of the tail rather than at the end of it, which is where appending put it.
+            // The list is otherwise untouched, so this is a permutation - see IrEditor::reorder.
+            SmallArray<ModulePtr<Inst>, 16> ordered;
+            ordered.push((ModulePtr<Inst>)((Inst*)release - base));
+
+            for(auto instruction: tail->instructions(base)) {
+                if(instruction != (ModulePtr<Inst>)((Inst*)release - base)) ordered.push(instruction);
+            }
+
+            editor.reorder(*tail, Buffer<ModulePtr<Inst>>(ordered.pointer(), ordered.size()));
+        }
+
+        // Behind the block the cut came out of, in place. Both new blocks were appended by the
+        // editor, so what this does is take them off the end and put them where reverse postorder
+        // wants them - which is immediately after their predecessor, since that is where the one
+        // block they replaced was.
+        for(Size i = order.size(); i-- > 0;) {
+            if(order[i] == guardedPointer || order[i] == tailPointer) order.remove(i);
+        }
+
+        for(Size i = 0; i < order.size(); i++) {
+            if(order[i] != blockPointer) continue;
+
+            order.insert(i + 1, guardedPointer);
+            order.insert(i + 2, tailPointer);
+            break;
+        }
+    }
+
+    IrEditor(module, function).setBlockOrder(Buffer<ModulePtr<Block>>(order.pointer(), order.size()));
+}
+
+/*
  * Both rules and the rewrite, which is the only order they are ever wanted in.
  *
- * Nothing is inserted once something has been reported: the two shapes that would need a drop flag
- * report instead of emitting, and a body that got one of those diagnostics is a body whose drops
- * would be derived from a lifetime the pass could not settle.
+ * Nothing is inserted once something has been reported: a body that failed a check is one whose
+ * drops would be derived from a lifetime the pass could not settle.
+ *
+ * The four steps after the rules are one sequence rather than four passes, and the order is what
+ * each needs from the one before it. The flags have to exist before anything is spliced in, because
+ * a flag write is spliced in with the drops and by the same positions; the drops have to be in their
+ * blocks before those blocks are cut, because the cut is stated over the instruction; and the cut
+ * comes last because it is the only step that invalidates the numbering everything above indexes by.
  */
 void insertDrops(Analysis& analysis) {
     // One row per block, each holding the few drops that block ends up needing. The scratch's, so
     // a body analysed after another writes into the rows that one grew - see AnalysisScratch.
     auto& blockDrops = analysis.scratch.blockDrops;
+    auto& blockFlags = analysis.scratch.blockFlags;
     blockDrops.reset(analysis.blockCount());
+    blockFlags.reset(analysis.blockCount());
 
     EdgeDropList edgeDrops;
     placeDrops(analysis, blockDrops, edgeDrops);
     placeOverwriteDrops(analysis, blockDrops);
     if(!analysis.ok) return;
 
-    insertBlockDrops(analysis, blockDrops);
-    insertEdgeDrops(analysis, edgeDrops);
+    FlagMap flags;
+    FlaggedDropList flagged;
+
+    assignFlags(analysis, blockDrops, edgeDrops, flags, blockFlags);
+    insertBlockDrops(analysis, blockDrops, blockFlags, flags, flagged);
+    insertEdgeDrops(analysis, edgeDrops, flags, flagged);
+    elaborateFlaggedDrops(analysis, flagged);
 }

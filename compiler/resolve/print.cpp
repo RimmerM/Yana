@@ -424,13 +424,6 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             // no teardown at all.
             if(dropped.releaseStorage) print.writer.writeString(" release"_v);
 
-            // `if %flag2` - the drop is conditional, which is a fact about the control flow that
-            // reached here rather than about the type, so it is worth seeing at the drop.
-            if(dropped.flag != maxLimit<U32>) {
-                print.writer.writeString(" if "_v);
-                printPlace(print, *function, Place::inLocal(dropped.flag));
-            }
-
             break;
         }
         case Value::Address:
