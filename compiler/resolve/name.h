@@ -31,6 +31,38 @@
  * by import order.
  */
 
+/*
+ * Whether one symbol is exported from the module that declared it - the `pub` half of visibility.
+ *
+ * One overload per thing search() can find, because `pub` is a property of the *declaration* and
+ * each kind of declaration produced a different structure. They are here rather than inside each
+ * typed wrapper for the reason the file comment gives: which modules a name is searched in, what an
+ * import hides and what a declaration is willing to be named from elsewhere are the traversal's
+ * business, and the wrappers below contribute only what is specific to their kind of symbol.
+ *
+ * `in` is the module the symbol was found in, which is what makes the arena and the type region
+ * available - a ModulePtr is an offset and means nothing without one.
+ *
+ * Two things have no overload because they are never `pub` and are never hidden. An instance is
+ * global, and doc/spec/modules.md says so; a fixity applies wherever its operator is in scope, so
+ * OperatorFixity's is the one that answers true unconditionally.
+ */
+inline bool exportedSymbol(Module& in, TypePtr type) { return (*in.types)[type]->exported; }
+inline bool exportedSymbol(Module& in, TypeAlias* alias) { return alias->exported; }
+inline bool exportedSymbol(Module& in, GlobalPtr<TypeClass> typeClass) { return (*in.types)[typeClass]->exported; }
+inline bool exportedSymbol(Module& in, ModulePtr<Function> function) { return (*in.arena)[function]->exported; }
+inline bool exportedSymbol(Module& in, ModulePtr<Global> global_) { return (*in.arena)[global_]->exported; }
+inline bool exportedSymbol(Module& in, OperatorFixity) { return true; }
+
+// A constructor is exported with its record and never on its own: there is no way to export a type
+// without its constructors, which doc/spec/modules.md records as an open question. `Maybe.Just` and
+// a bare `Just` are therefore the same answer, which is what stops a qualified spelling being a way
+// around the rule.
+inline bool exportedSymbol(Module& in, ConstructorRef constructor) {
+    auto global = *in.types;
+    return constructor.record && ((Type*)global[constructor.record])->exported;
+}
+
 // One candidate found by the traversal, before ambiguity is decided.
 template<class T>
 struct Found {
@@ -106,6 +138,18 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
         // hiding a single constructor of a visible type is not something an import list can say.
         if(!Module::visible(import, reference.single())) continue;
 
+        /*
+         * And the other half of visibility, which is the declaring module's rather than the
+         * importing one's: an unmarked declaration is private and this is not a hit at all.
+         *
+         * Not a report. A private name is *not visible*, so a lookup that reaches one goes on to
+         * the next import and ends up saying the name is not in scope - which is the same answer,
+         * and the same diagnostic, as for a name nothing declares anywhere. Reporting "this exists
+         * but you may not have it" would be an interface a private declaration does not have, and
+         * it would make adding one to a module a breaking change for its importers.
+         */
+        if(!exportedSymbol(*import.module, value)) continue;
+
         if(result.found && result.module != import.module) {
             context.diagnostics.error("ambiguous name %@ - it is visible through more than one import"_v,
                                       source, context.findName(name));
@@ -175,7 +219,8 @@ inline ModulePtr<Function> findFunction(Module& module, StringId name, LocationI
 }
 ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source);
 GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source);
-Maybe<U8> findPrecedence(Module& module, StringId name);
+// The fixity an operator has here, falsy when nothing in scope declares one.
+OperatorFixity findFixity(Module& module, StringId name);
 
 // Every class function reachable under this name, across every visible module. A name may
 // belong to more than one class, so selection has to see all of them and decide by type.

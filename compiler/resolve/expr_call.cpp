@@ -35,14 +35,6 @@
  * plain function is one member of the set rather than a shadow over it.
  */
 
-// The declared precedence of an operator that has one. Only reached for operators resolveBinary
-// has already established a fixity for, so the fallback is unreachable rather than meaningful -
-// precedence 0 is a real precedence, which is where an assignment operator belongs.
-static U8 operatorPrecedence(Module& module, StringId op) {
-    auto found = findPrecedence(module, op);
-    return found ? found.unwrap() : 0;
-}
-
 // R4 resolves ambiguity by qualification and never by a tiebreak, so an ambiguity diagnostic has to
 // say which qualified names there are to choose between - `Integral.and or Logic.and`. Leaving the
 // author to go and find the classes themselves is the difference between a rule and a puzzle.
@@ -871,29 +863,44 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ResolvedArg>
  * is bidirectional checking, which this resolver deliberately does not do (it binds one-way and
  * positionally), and it is the same wall the property-constraint inference hit.
  */
+/*
+ * What the rung below a given operator starts at.
+ *
+ * This one number is the whole of associativity. A left-associative operator hands its right
+ * operand a rung *above* its own, so an operator of equal precedence to its right is left for the
+ * loop that is already running and becomes the left operand of the next call - `a - b - c` is
+ * `(a - b) - c`. A right-associative one hands over its own rung, so the equal operator is consumed
+ * by the recursion instead and becomes part of the right operand: `a ^ b ^ c` is `a ^ (b ^ c)`.
+ *
+ * Both halves of the climb ask this - the resolving one and the skipping one below - because a
+ * deferred operand must span exactly what resolving it would have consumed.
+ */
+static U8 rightRung(OperatorFixity fixity) {
+    return fixity.right ? fixity.precedence : U8(fixity.precedence + 1);
+}
+
 // Advances past exactly the sub-chain resolvePrecedence would have consumed, without resolving any
 // of it. What a deferred right operand needs: the chain still has to be walked to find where this
 // operator's argument ends and the next one begins, but the expression itself belongs in whatever
 // block the callee decides to run it in.
-static void skipPrecedence(Module& module, SmallArray<StringId, 8>& operators, Size& operandIndex,
-                           Size& operatorIndex, U8 minimumPrecedence) {
+static void skipPrecedence(InfixChain& chain, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence) {
     operandIndex++;
 
-    while(operatorIndex < operators.size() &&
-          operatorPrecedence(module, operators[operatorIndex]) >= minimumPrecedence) {
-        auto precedence = operatorPrecedence(module, operators[operatorIndex++]);
-        skipPrecedence(module, operators, operandIndex, operatorIndex, precedence + 1);
+    while(operatorIndex < chain.operators.size() &&
+          chain.fixities[operatorIndex].precedence >= minimumPrecedence) {
+        auto fixity = chain.fixities[operatorIndex++];
+        skipPrecedence(chain, operandIndex, operatorIndex, rightRung(fixity));
     }
 }
 
-ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, SmallArray<LocationId, 8>& operatorSources, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
-    auto lhsExpr = operands[operandIndex++];
+ModulePtr<Value> ExprResolver::resolvePrecedence(InfixChain& chain, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
+    auto lhsExpr = chain.operands[operandIndex++];
     auto lhs = resolve(*lhsExpr);
 
-    while(operatorIndex < operators.size() && operatorPrecedence(module, operators[operatorIndex]) >= minimumPrecedence) {
-        auto opSource = operatorSources[operatorIndex];
-        auto op = operators[operatorIndex++];
-        auto precedence = operatorPrecedence(module, op);
+    while(operatorIndex < chain.operators.size() && chain.fixities[operatorIndex].precedence >= minimumPrecedence) {
+        auto opSource = chain.operatorSources[operatorIndex];
+        auto op = chain.operators[operatorIndex];
+        auto fixity = chain.fixities[operatorIndex++];
 
         /*
          * The right operand of a short-circuiting operator is not resolved here.
@@ -915,20 +922,18 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
             return nullptr;
         }
 
-        DeferredChain chain;
+        DeferredChain deferred;
 
         if(args[1].isDeferred()) {
-            chain.operands = &operands;
-            chain.operators = &operators;
-            chain.operatorSources = &operatorSources;
-            chain.operandIndex = operandIndex;
-            chain.operatorIndex = operatorIndex;
-            chain.minimumPrecedence = U8(precedence + 1);
-            args[1].promise.chain = &chain;
+            deferred.chain = &chain;
+            deferred.operandIndex = operandIndex;
+            deferred.operatorIndex = operatorIndex;
+            deferred.minimumPrecedence = rightRung(fixity);
+            args[1].promise.chain = &deferred;
 
-            skipPrecedence(module, operators, operandIndex, operatorIndex, U8(precedence + 1));
+            skipPrecedence(chain, operandIndex, operatorIndex, rightRung(fixity));
         } else {
-            auto rhs = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, precedence + 1);
+            auto rhs = resolvePrecedence(chain, operandIndex, operatorIndex, rightRung(fixity));
             if(!rhs) return nullptr;
 
             args[1] = rhs;
@@ -943,10 +948,43 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
     return lhs;
 }
 
+/*
+ * Two operators of one precedence that disagree about which way they group.
+ *
+ * `a <> b <+> c` for an `infixl 5 <>` and an `infixr 5 <+>` has two readings and no reason to
+ * prefer either, so it is reported rather than decided. Taking the leftmost operator's word for it
+ * would make the grouping of a chain depend on an operator somewhere else in it, which is the one
+ * thing fixity exists to stop a reader having to work out.
+ *
+ * Two operators meet at the same rung exactly when everything strictly between them binds tighter:
+ * an operator of lower or equal precedence in between is where the chain divides, and neither side
+ * of that division can see the other. So the scan runs forward from each operator and stops at the
+ * first one that is not tighter, which is the only one it can be in conflict with. `a <+> b * c <>
+ * d` is caught - the `*` between them binds tighter and the two rung-5 operators do meet - while
+ * `a * b <> c * d` is not, since the two `*`s are on opposite sides of the `<>`.
+ */
+static bool checkMixedFixity(Context& context, InfixChain& chain) {
+    for(Size i = 0; i + 1 < chain.fixities.size(); i++) {
+        auto fixity = chain.fixities[i];
+
+        for(Size j = i + 1; j < chain.fixities.size(); j++) {
+            auto other = chain.fixities[j];
+            if(other.precedence > fixity.precedence) continue;
+            if(other.precedence < fixity.precedence || other.right == fixity.right) break;
+
+            context.diagnostics.error("%@ is `infix%@ %@` and %@ is `infix%@ %@`, so this expression has no grouping - parenthesize one of them"_v,
+                                      chain.operatorSources[j],
+                                      context.findName(chain.operators[i]), fixity.right ? "r"_v : "l"_v, fixity.precedence,
+                                      context.findName(chain.operators[j]), other.right ? "r"_v : "l"_v, other.precedence);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult) {
-    SmallArray<const ast::Expr*, 8> operands;
-    SmallArray<StringId, 8> operators;
-    SmallArray<LocationId, 8> operatorSources;
+    InfixChain chain;
     auto node = &binary;
 
     // The parser nests infix expressions to the right without regard for precedence, so the
@@ -957,22 +995,27 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
             return nullptr;
         }
 
-        if(!findPrecedence(module, node->op.var)) {
+        auto fixity = findFixity(module, node->op.var);
+
+        if(!fixity) {
             context.diagnostics.error("operator has no declared fixity %@"_v, node->op.source, context.findName(node->op.var));
             return nullptr;
         }
 
-        operands.push(&node->lhs);
-        operators.push(node->op.var);
-        operatorSources.push(node->op.source);
+        chain.operands.push(&node->lhs);
+        chain.operators.push(node->op.var);
+        chain.operatorSources.push(node->op.source);
+        chain.fixities.push(fixity);
 
         if(node->rhs.kind != ast::Expr::Infix) {
-            operands.push(&node->rhs);
+            chain.operands.push(&node->rhs);
             break;
         }
 
         node = parse[node->rhs.infix];
     }
+
+    if(!checkMixedFixity(context, chain)) return nullptr;
 
     Size operandIndex = 0;
     Size operatorIndex = 0;
@@ -983,7 +1026,7 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
     // The target goes into the chain as well as being applied to its result. Where the operators
     // could honour it the conversion afterwards is then the identity; where they could not - a
     // concrete operand decided the instance - it is the conversion that was always emitted.
-    auto result = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, 0, target);
+    auto result = resolvePrecedence(chain, operandIndex, operatorIndex, 0, target);
     if(result && target) result = convert(result, target, expr.source, convertResult);
     return result;
 }

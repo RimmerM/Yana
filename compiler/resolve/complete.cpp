@@ -185,7 +185,17 @@ static void collectVisible(Collector& into, Module& module) {
         auto owner = visible.module;
         auto rank = visible.import ? U8(RankImported) : U8(RankModule);
 
-        auto offer = [&](const Symbol& symbol) {
+        /*
+         * `exported` is the declaring module's half of visibility and `Module::visible` the
+         * importing one's, exactly as in search() - and both are asked here for the same reason §1
+         * gives for the semantic index: a name completion offers and a name the resolver refuses is
+         * a suggestion that does not compile, which is worse than no suggestion at all.
+         *
+         * Passed in rather than read off the Symbol, because a Symbol is what an editor is shown -
+         * a kind, a name and a span - and does not carry the declaration it came from.
+         */
+        auto offer = [&](const Symbol& symbol, bool exported) {
+            if(visible.import && !exported) return;
             if(visible.import && !Module::visible(*visible.import, symbol.name)) return;
             into.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);
         };
@@ -197,11 +207,11 @@ static void collectVisible(Collector& into, Module& module) {
             auto function = (*owner->arena)[entry.value];
             if(function->signature || function->instanceOf) continue;
 
-            offer(functionSymbol(*owner, entry.value));
+            offer(functionSymbol(*owner, entry.value), function->exported);
         }
 
         for(auto entry: owner->globals.entries()) {
-            offer(globalSymbol(*owner, entry.value));
+            offer(globalSymbol(*owner, entry.value), exportedSymbol(*owner, entry.value));
         }
 
         /*
@@ -218,23 +228,25 @@ static void collectVisible(Collector& into, Module& module) {
          */
         for(auto entry: owner->constructors.entries()) {
             if(!entry.value.record) continue;
-            offer(constructorSymbol(*owner, entry.value));
+            offer(constructorSymbol(*owner, entry.value), exportedSymbol(*owner, entry.value));
         }
 
         for(auto entry: owner->namedTypes.entries()) {
-            offer(typeSymbol(*owner, entry.value, entry.key));
+            offer(typeSymbol(*owner, entry.value, entry.key), exportedSymbol(*owner, entry.value));
         }
 
         for(auto entry: owner->aliases.entries()) {
-            offer(aliasSymbol(*owner, entry.value));
+            offer(aliasSymbol(*owner, entry.value), entry.value.exported);
         }
 
         for(auto entry: owner->classes.entries()) {
-            offer(classSymbol(*owner, entry.value));
+            offer(classSymbol(*owner, entry.value), exportedSymbol(*owner, entry.value));
         }
 
+        // A member is exported with its class, which is the same rule findClassFunctions applies.
         for(auto& reference: owner->classFunctions) {
-            offer(classFunSymbol(*owner, reference.typeClass, reference.index));
+            offer(classFunSymbol(*owner, reference.typeClass, reference.index),
+                  exportedSymbol(*owner, reference.typeClass));
         }
     });
 }
@@ -487,6 +499,7 @@ void capturePatternCompletion(ExprResolver& resolver, TypePtr pivot) {
             if(!entry.value.record) continue;
 
             auto symbol = constructorSymbol(*owner, entry.value);
+            if(visible.import && !exportedSymbol(*owner, entry.value)) continue;
             if(visible.import && !Module::visible(*visible.import, symbol.name)) continue;
 
             collector.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);

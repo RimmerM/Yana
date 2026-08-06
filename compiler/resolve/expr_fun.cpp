@@ -730,12 +730,11 @@ ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected,
     if(deferred.expr) return resolve(*deferred.expr, expected);
 
     if(deferred.chain) {
-        auto& chain = *deferred.chain;
-        auto operandIndex = chain.operandIndex;
-        auto operatorIndex = chain.operatorIndex;
+        auto& resume = *deferred.chain;
+        auto operandIndex = resume.operandIndex;
+        auto operatorIndex = resume.operatorIndex;
 
-        return resolvePrecedence(*chain.operands, *chain.operators, *chain.operatorSources,
-                                 operandIndex, operatorIndex, chain.minimumPrecedence, expected);
+        return resolvePrecedence(*resume.chain, operandIndex, operatorIndex, resume.minimumPrecedence, expected);
     }
 
     // The closure a callee that could not see the argument was handed. Calling it is the force, and

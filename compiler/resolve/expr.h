@@ -121,18 +121,36 @@ struct LoopTarget {
 };
 
 /*
+ * An infix chain, flattened.
+ *
+ * The parser nests infix expressions to the right without regard for precedence, because fixity is
+ * a module-level property that is not known when an expression is parsed. `resolveBinary` therefore
+ * flattens the whole chain first and `resolvePrecedence` builds the tree from it, so everything
+ * here is one operand longer than it is operators - `a + b * c` is three operands and two
+ * operators.
+ *
+ * The four lists are one struct rather than four parameters because they are indexed in lockstep
+ * and there is no such thing as one of them: `operators[i]` was written at `operatorSources[i]` and
+ * groups by `fixities[i]`. The fixity is looked up once, here, rather than at each rung the climb
+ * visits it from, since it is a full module-order search and the answer cannot change.
+ */
+struct InfixChain {
+    SmallArray<const ast::Expr*, 8> operands;
+    SmallArray<StringId, 8> operators;
+    SmallArray<LocationId, 8> operatorSources;
+    SmallArray<OperatorFixity, 8> fixities;
+};
+
+/*
  * Where a deferred right operand resumes from.
  *
- * `resolveBinary` flattens an infix chain into operands and operators before re-associating it, so
- * the right operand of an operator is a *span* of those two lists rather than an AST node anyone
- * could point at - `a && b + c` has no node for `b + c` at all. What is remembered is therefore the
- * position precedence climbing would have continued from, which resolving it again from replays
- * exactly the same sub-chain into whichever block the force happens in.
+ * The right operand of an operator is a *span* of the flattened chain rather than an AST node
+ * anyone could point at - `a && b + c` has no node for `b + c` at all. What is remembered is
+ * therefore the position precedence climbing would have continued from, which resolving it again
+ * from replays exactly the same sub-chain into whichever block the force happens in.
  */
 struct DeferredChain {
-    SmallArray<const ast::Expr*, 8>* operands = nullptr;
-    SmallArray<StringId, 8>* operators = nullptr;
-    SmallArray<LocationId, 8>* operatorSources = nullptr;
+    InfixChain* chain = nullptr;
     Size operandIndex = 0;
     Size operatorIndex = 0;
     U8 minimumPrecedence = 0;
@@ -1085,9 +1103,7 @@ struct ExprResolver {
 
     ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
-    // `operatorSources` runs parallel to `operators`: an operator is a name the program wrote, so
-    // the index has to be able to point at it - see emitCall's `nameSource`.
-    ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, SmallArray<LocationId, 8>& operatorSources, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
+    ModulePtr<Value> resolvePrecedence(InfixChain& chain, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
     // One written argument, and what its absence means if it produces nothing. The two are one

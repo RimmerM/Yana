@@ -1,0 +1,68 @@
+-- What `pub` refuses, from both sides of it.
+--
+-- Import.yana is the accepting half: everything it reaches in `Shapes` is marked, and `visibleArea`
+-- there calls a private helper from inside the module that declared it, which is what makes
+-- "private" mean private rather than unusable.
+--
+-- Two rules are being asserted here, and they fail in different ways on purpose. Naming a private
+-- symbol is *not in scope* and reads exactly as a name nothing declares - reporting "this exists but
+-- you may not have it" would be an interface a private declaration does not have, and would make
+-- adding one to a module a breaking change for its importers. Exporting a leaky interface is a
+-- report against the declaration that leaks.
+
+import Shapes
+
+data Secret {code: Int}
+
+class Hidden(a):
+  fn conceal(value: a) -> Int
+
+-- Shapes declares each of these without `pub`. Note that the ones above are this module's own
+-- declarations of the same names, which is what proves the failures below are about visibility
+-- rather than about the names being unknown to the program: `Shapes.Secret` is a type that exists.
+fn callsPrivate() -> Int = secretArea(Point {x: 1, y: 2})
+
+fn namesPrivateType(value: Shapes.Secret) -> Int = 0
+
+fn buildsPrivateConstructor() -> Int = match Shapes.Secret {code: 1}:
+    _ -> 0
+
+fn callsPrivateClassFunction() -> Int = Shapes.Hidden.conceal(1)
+
+-- An instance is global and a class default belongs to its class, so neither has a visibility for
+-- the marker to widen. Accepting and ignoring one would leave a word in the source that says
+-- something untrue, which is the state `pub` was in before any of this.
+pub instance Hidden(Secret):
+  fn conceal(value: Secret) = value.code
+
+pub default Hidden = Secret
+
+-- A `pub` interface that hands out a private type. Each of the four positions an exported
+-- declaration has one: the result, an argument, a field, and a global's type. What makes each of
+-- them worth reporting is the same thing - an importer would hold a value of a type it cannot name,
+-- destructure, or write a signature for.
+pub fn makesSecret() -> Secret = Secret {code: 1}
+
+pub fn takesSecret(value: Secret) -> Int = value.code
+
+pub data Holder {inside: Secret}
+
+pub let theSecret = Secret {code: 2}
+
+-- Structurally, too, since a private type reached through a public one is reached all the same.
+-- `Maybe` is Core's and public; the argument it is applied to is not.
+pub fn wrapped() -> Maybe(Secret) = Nothing
+
+pub fn inATuple() -> {left: Int, right: Secret} = {left: 1, right: Secret {code: 3}}
+
+-- A `pub class` exports its member signatures, which are the interface it declares.
+pub class Leaky(a):
+  fn leak(value: a) -> Secret
+
+-- And the shapes that are fine, so the check is not merely "reports something". A private
+-- declaration may name a private type freely, and a public one may name a public type.
+fn privateToPrivate(value: Secret) -> Secret = value
+
+pub fn publicToPublic(value: Int) -> Int = value
+
+fn main() -> Int = callsPrivate()

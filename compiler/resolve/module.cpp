@@ -255,7 +255,9 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     if(!importsResolved) resolveImports(module, ast, provider);
 
     for(auto fixity: ast.ops.contents(parse)) {
-        *module.operatorPrecedence.add(fixity.op).value = U8(fixity.precedence);
+        *module.operatorFixity.add(fixity.op).value = OperatorFixity {
+            U8(fixity.precedence), fixity.kind == ast::Fixity::Right, true,
+        };
     }
 
     auto decls = ast.decls;
@@ -363,6 +365,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
 
         auto function = resolveSignature(module, decl, (*module.types)[env], decl.fun.name, false);
         function->ast = pointer;
+        function->exported = decl.exported;
         readInlineAttribute(module, decl, *function);
 
         auto& context = *(*module.types)[env];
@@ -391,6 +394,11 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     if(&module != module.program.core) checkModuleClasses(module, ast);
 
     completePendingInstances(module);
+
+    // Last, because what it checks is what the signatures above resolved to rather than what was
+    // written: an alias has been substituted through by now, and a generic head has become the
+    // declaration its instantiations point back at.
+    checkModuleExports(module, ast);
 
     module.declState = Module::DeclState::Resolved;
 }

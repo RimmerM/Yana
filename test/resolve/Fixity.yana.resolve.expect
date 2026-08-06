@@ -1,0 +1,291 @@
+let &counter: Int = 0
+
+fn +=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn >-<(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = sub %a, %b : Int
+    ret %v2
+}
+
+fn <->(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = sub %a, %b : Int
+    ret %v2
+}
+
+fn left() -> Int {
+  b0:
+    %v4 = call >-<, 10, 3 : Int
+    %v7 = call >-<, %v4, 2 : Int
+    ret %v7
+}
+
+fn right() -> Int {
+  b0:
+    %v5 = call <->, 3, 2 : Int
+    %v7 = call <->, 10, %v5 : Int
+    ret %v7
+}
+
+fn leftLong() -> Int {
+  b0:
+    %v4 = call >-<, 20, 8 : Int
+    %v7 = call >-<, %v4, 3 : Int
+    %v10 = call >-<, %v7, 1 : Int
+    ret %v10
+}
+
+fn rightLong() -> Int {
+  b0:
+    %v6 = call <->, 3, 1 : Int
+    %v8 = call <->, 8, %v6 : Int
+    %v10 = call <->, 20, %v8 : Int
+    ret %v10
+}
+
+fn leftTighter() -> Int {
+  b0:
+    %v5 = mul 3, 4 : Int
+    %v7 = call >-<, 100, %v5 : Int
+    %v10 = call >-<, %v7, 5 : Int
+    ret %v10
+}
+
+fn rightTighter() -> Int {
+  b0:
+    %v5 = mul 3, 4 : Int
+    %v8 = call <->, %v5, 5 : Int
+    %v10 = call <->, 100, %v8 : Int
+    ret %v10
+}
+
+fn rightInside() -> Bool {
+  b0:
+    %v6 = call <->, 3, 2 : Int
+    %v8 = call <->, 10, %v6 : Int
+    %v10 = add 1, %v8 : Int
+    %v13 = cmp_eq %v10, 10 : Bool
+    ret %v13
+}
+
+fn ?:(%value: Maybe(Int), %fallback: () -> Int) -> Int {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v7 = calldyn %fallback : Int
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %inner], [b1, %v7] : Int
+    ret %v10
+}
+
+fn some(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = %value
+    ret %v1
+}
+
+fn none() -> Maybe(Int) {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn firstWins() -> Int {
+  b0:
+    %v1 = call some, 7 : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$0 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn lastWins() -> Int {
+  b0:
+    %v0 = call none : Maybe(Int)
+    %v1 = copy %local0 : Maybe(Int)
+    %v2 = alloc : () -> Int
+    %v3 = symbol ResolveTest.deferred$2 : %()
+    init %local2.code, %v3
+    %v6 = cast 0 : %()
+    init %local2.env, %v6
+    %v8 = call ?:, %v1, %v2 : Int
+    ret %v8
+}
+
+fn bumpNone() -> Maybe(Int) {
+  b0:
+    %v0 = load counter : Int
+    %v3 = borrow_mut counter : &mut Int
+    call +=(Int), %v3, 1
+    %v5 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v5
+}
+
+fn bumpValue(%value: Int) -> Int {
+  b0:
+    %v1 = load counter : Int
+    %v4 = borrow_mut counter : &mut Int
+    call +=(Int), %v4, 1
+    ret %value
+}
+
+fn noneEvaluated() -> Int {
+  b0:
+    %v1 = call some, 1 : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$4 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn allEvaluated() -> Int {
+  b0:
+    %v0 = call none : Maybe(Int)
+    %v1 = copy %local0 : Maybe(Int)
+    %v2 = alloc : () -> Int
+    %v3 = symbol ResolveTest.deferred$6 : %()
+    init %local2.code, %v3
+    %v6 = cast 0 : %()
+    init %local2.env, %v6
+    %v8 = call ?:, %v1, %v2 : Int
+    ret %v8
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call left : Int
+    %v1 = call right : Int
+    %simple = add %v0, %v1 : Int
+    %v3 = call leftLong : Int
+    %v4 = call rightLong : Int
+    %long = add %v3, %v4 : Int
+    %v6 = call leftTighter : Int
+    %v7 = call rightTighter : Int
+    %tighter = add %v6, %v7 : Int
+    %v9 = call firstWins : Int
+    %v10 = call lastWins : Int
+    %lazy = add %v9, %v10 : Int
+    %v12 = call noneEvaluated : Int
+    %v13 = call allEvaluated : Int
+    %v14 = add %v12, %v13 : Int
+    %v15 = load counter : Int
+    %effects = add %v14, %v15 : Int
+    %v17 = call rightInside : Bool
+    je %v17, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %inside = phi [b1, 1], [b2, 0] : Int
+    %v26 = add %simple, %long : Int
+    %v27 = add %v26, %tighter : Int
+    %v28 = add %v27, %lazy : Int
+    %v29 = add %v28, %effects : Int
+    %v30 = add %v29, %inside : Int
+    ret %v30
+}
+
+fn ResolveTest.deferred$0(%env: %{}) -> Int {
+  b0:
+    %v1 = call none : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$1 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn ResolveTest.deferred$1(%env: %{}) -> Int {
+  b0:
+    ret 3
+}
+
+fn ResolveTest.deferred$2(%env: %{}) -> Int {
+  b0:
+    %v1 = call none : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$3 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn ResolveTest.deferred$3(%env: %{}) -> Int {
+  b0:
+    ret 3
+}
+
+fn ResolveTest.deferred$4(%env: %{}) -> Int {
+  b0:
+    %v1 = call bumpNone : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$5 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn ResolveTest.deferred$5(%env: %{}) -> Int {
+  b0:
+    %v2 = call bumpValue, 20 : Int
+    ret %v2
+}
+
+fn ResolveTest.deferred$6(%env: %{}) -> Int {
+  b0:
+    %v1 = call bumpNone : Maybe(Int)
+    %v2 = copy %local0 : Maybe(Int)
+    %v3 = alloc : () -> Int
+    %v4 = symbol ResolveTest.deferred$7 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : Int
+    ret %v9
+}
+
+fn ResolveTest.deferred$7(%env: %{}) -> Int {
+  b0:
+    %v2 = call bumpValue, 20 : Int
+    ret %v2
+}

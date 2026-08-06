@@ -21,6 +21,8 @@
  *  - module_import.cpp  - the import graph.
  *  - module_reach.cpp   - reachability, which is the only one of these that runs over a finished
  *                         program rather than over syntax.
+ *  - module_export.cpp  - `pub`, from the declaring side: where the marker means nothing, and what
+ *                         an exported declaration may not name.
  *
  * Only what has a caller in another one of those files is declared here. The declaration order the
  * sweeps in module.cpp impose is the reason so much of it is: the passes are separate, and which
@@ -73,3 +75,10 @@ void checkSuperclasses(Module& module, ClassInstance& instance);
 ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, ast::Decl& member,
                                         ast::ParsePtr<ast::Decl> pointer, Function& signature);
 void checkDefaultRanks(Module& module, TypeClass& typeClass);
+
+// -- module_export.cpp -------------------------------------------------------------------------
+
+// The `pub` rules a lookup cannot state: a marker on a declaration that has no visibility to widen,
+// and an exported declaration whose interface names a private type. Runs once the module's
+// signatures exist, since what it checks is what they resolved to.
+void checkModuleExports(Module& module, ast::Module& ast);

@@ -367,6 +367,16 @@ struct Function {
     bool resolving = false;
     bool used = false;
 
+    /*
+     * Whether the declaration wrote `pub`.
+     *
+     * True for a function nothing declared - a lambda, a lifted continuation, an instance member,
+     * a synthesized entry. None of those is reachable by name from another module in the first
+     * place, so the marker on one would be a claim nothing reads: `Module::functions` is what an
+     * import searches, and only a written top-level `fn` is entered in it.
+     */
+    bool exported = false;
+
     // Set when something calls this generic function through the erased ABI rather than through a
     // specialization. Only then does its body reach the backend: a function every call site
     // specialized has no machine code of its own, and emitting one nothing calls would be code with
@@ -660,6 +670,11 @@ struct Global {
      */
     bool isWritten() const { return mut || dynamic; }
 
+    // Whether the declaration wrote `pub`. False for every compiler-built global - a witness, a
+    // descriptor, a string literal's bytes - which is right for the same reason it is on Function:
+    // nothing in any source names one.
+    bool exported = false;
+
     bool used = false;
 };
 
@@ -684,6 +699,26 @@ struct Global {
 struct TopLevelStmt {
     ast::ParsePtr<ast::Decl> decl = nullptr;
     ModuleList<ModulePtr<Global>, false> globals;
+};
+
+/*
+ * An operator's declared fixity.
+ *
+ * Precedence and associativity are one fact and not two. They are declared in one line, they are
+ * looked up together, and precedence climbing needs both at each rung - so a lookup that answers
+ * only half of it is a lookup whose caller has to guess the rest, which is exactly how `infixr`
+ * came to be parsed, recorded and then silently dropped between the parser and the resolver.
+ *
+ * `declared` is what makes the whole thing falsy for an operator that has no fixity, which is what
+ * search() reads to mean "not in this module". Precedence 0 is a real precedence - it is where Core
+ * puts the compound assignments - so the absence cannot be spelled as a value.
+ */
+struct OperatorFixity {
+    U8 precedence = 0;
+    bool right = false;
+    bool declared = false;
+
+    explicit operator bool() const { return declared; }
 };
 
 // One module made visible in another. `include`/`exclude` are the parsed symbol lists; an empty
@@ -733,7 +768,7 @@ struct Module {
 
     HashMap<StringId, ModulePtr<Global>> globals;
     HashMap<StringId, GlobalPtr<TypeClass>> classes;
-    HashMap<StringId, U8> operatorPrecedence;
+    HashMap<StringId, OperatorFixity> operatorFixity;
 
     // Class functions and instances are scanned rather than hashed: a name may belong to several
     // classes, and an instance is found by class and argument types rather than by name. Both

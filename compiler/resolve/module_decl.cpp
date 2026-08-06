@@ -196,7 +196,7 @@ void declareRecordDefaults(Module& module, ast::Decl& decl) {
 // by `data` and by the newtype an `alias qualified` declares, which differ only in what they then
 // put in it.
 static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast::ConstraintList constraints,
-                                     bool qualified, LocationId source) {
+                                     bool qualified, bool exported, LocationId source) {
     auto found = module.namedTypes.add(type.name);
     if(found.existed) {
         module.context.diagnostics.error("duplicate type %@"_v, source, module.context.findName(type.name));
@@ -210,6 +210,7 @@ static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast:
     auto record = new (module.types) RecordType(type.name);
     record->source = source;
     record->qualified = qualified;
+    record->exported = exported;
     *found.value = (Type*)record - *module.types;
 
     auto variables = type.kind;
@@ -242,7 +243,7 @@ static void declareConstructor(Module& module, RecordType& record, StringId name
 }
 
 void declareRecord(Module& module, ast::Decl& decl) {
-    auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.source);
+    auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.exported, decl.source);
     if(!record) return;
 
     recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
@@ -264,7 +265,7 @@ void declareRecord(Module& module, ast::Decl& decl) {
  * a pattern, and every class instance over `Id` work with nothing further to teach them.
  */
 void declareNewtype(Module& module, ast::Decl& decl) {
-    auto record = declareRecordType(module, decl.alias.type, {}, false, decl.source);
+    auto record = declareRecordType(module, decl.alias.type, {}, false, decl.exported, decl.source);
     if(!record) return;
 
     declareConstructor(module, *record, decl.alias.type.name, 0, false, decl.source);
@@ -478,6 +479,7 @@ void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
     alias.module = &module;
     alias.ast = pointer;
     alias.source = decl.source;
+    alias.exported = decl.exported;
 
     auto variables = decl.alias.type.kind;
     if(variables.isNotEmpty()) alias.gen = prepareGenEnv(module, GenEnv::Alias, variables, {});
@@ -643,6 +645,7 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
         global_->initial = constant;
         global_->mut = declaration.bind == ast::BindType::Ref;
         global_->dynamic = notConstant;
+        global_->exported = decl.exported;
         declared(global_ - *module.arena);
     }
 

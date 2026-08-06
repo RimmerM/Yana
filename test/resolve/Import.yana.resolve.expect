@@ -70,6 +70,14 @@ fn labelValue() -> Int {
     ret %v
 }
 
+fn throughPrivate() -> Int {
+  b0:
+    %v0 = alloc : Point
+    aggregate %local0@Point.x = 2, %local0@Point.y = 3
+    %v4 = call visibleArea, %v0 : Int
+    ret %v4
+}
+
 fn main() -> Int {
   b0:
     %v0 = call area1 : Int
@@ -88,7 +96,9 @@ fn main() -> Int {
     %v13 = add %v11, %v12 : Int
     %v14 = call labelValue : Int
     %v15 = add %v13, %v14 : Int
-    ret %v15
+    %v16 = call throughPrivate : Int
+    %v17 = add %v15, %v16 : Int
+    ret %v17
 }
 
 fn Area(Square).area(%value: Square) -> Int {
@@ -133,6 +143,21 @@ fn styleValue(%it: Style) -> Int {
     %v10 = load %it@Style.weight : Int
     %v11 = add %v9, %v10 : Int
     ret %v11
+}
+
+fn secretArea(%value: Point) -> Int {
+  b0:
+    %v1 = load %value@Point.x : Int
+    %v2 = load %value@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn visibleArea(%value: Point) -> Int {
+  b0:
+    %v1 = call secretArea, %value : Int
+    %v4 = add %v1, 1 : Int
+    ret %v4
 }
 
 fn Area(Point).area(%value: Point) -> Int {

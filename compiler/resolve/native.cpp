@@ -36,7 +36,7 @@
  */
 static const char* kNativeSource = R"NATIVE(
 -- The generic spelling of the pointer sigil, for ordinary generic and constraint positions.
-alias Ptr(a) = %a
+pub alias Ptr(a) = %a
 
 {-
    Raw pointers.
@@ -48,26 +48,26 @@ alias Ptr(a) = %a
 -}
 
 -- Reads what a pointer points at. Written `*p`.
-fn *(it: %a) -> a
+pub fn *(it: %a) -> a
 
 -- Writes through a pointer. There is no assignment form for this because `*p = v` is already one:
 -- a dereference in assignment position names storage rather than producing a value.
-fn store(to: %a, value: a) -> {}
+pub fn store(to: %a, value: a) -> {}
 
 -- The address of a value. A value this is applied to cannot stay in a register, so it is what
 -- forces storage to exist for something that would otherwise have had none.
-fn addressOf(it: a) -> %a
+pub fn addressOf(it: a) -> %a
 
 -- Reinterprets what a pointer points at, and the two conversions between a pointer and the
 -- integer holding the same address. None of the three moves any bits.
-fn cast(it: %a) -> %b
-fn asInt(it: %a) -> I64
-fn asPtr(it: I64) -> %a
+pub fn cast(it: %a) -> %b
+pub fn asInt(it: %a) -> I64
+pub fn asPtr(it: I64) -> %a
 
 -- The null pointer, and the test for it. `null` needs its type from context - an assignment, a
 -- return, or an ascription - which is why the test exists separately: `isNull(p)` needs nothing.
-fn null() -> %a
-fn isNull(it: %a) -> Bool
+pub fn null() -> %a
+pub fn isNull(it: %a) -> Bool
 
 {-
    A borrow of what a pointer names.
@@ -78,18 +78,18 @@ fn isNull(it: %a) -> Bool
    collection written over raw storage needs it, and having written it, owes its callers a signature
    whose `return` marker says what the result is rooted in.
 -}
-fn borrow(return it: %a) -> &a
-fn borrowMut(return it: %a) -> &a
+pub fn borrow(return it: %a) -> &a
+pub fn borrowMut(return it: %a) -> &a
 
 -- The size and alignment of a value's type, in bytes.
-fn sizeOf(it: a) -> I64
-fn alignOf(it: a) -> I64
+pub fn sizeOf(it: a) -> I64
+pub fn alignOf(it: a) -> I64
 
 -- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
 -- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.
-fn +(it: %a, count: I64) -> %a
-fn -(it: %a, count: I64) -> %a
-fn difference(from: %a, to: %a) -> I64
+pub fn +(it: %a, count: I64) -> %a
+pub fn -(it: %a, count: I64) -> %a
+pub fn difference(from: %a, to: %a) -> I64
 
 {-
    Memory and the operating system.
@@ -97,19 +97,19 @@ fn difference(from: %a, to: %a) -> I64
 
 -- The two block operations. Neither checks that the regions are distinct or that either is large
 -- enough; `copyMemory` is the non-overlapping form.
-fn copyMemory(to: %U8, from: %U8, count: I64) -> {}
-fn setMemory(to: %U8, value: U8, count: I64) -> {}
+pub fn copyMemory(to: %U8, from: %U8, count: I64) -> {}
+pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
 
 -- The system call intrinsic, at each arity a call needs. Design.md's "Interfacing the OS" builds
 -- the OS interface as a thin template over exactly this; the arguments and the result are plain
 -- integers because that is what the kernel ABI passes, and a pointer reaches one through asInt.
-fn syscall0(number: I64) -> I64
-fn syscall1(number: I64, a: I64) -> I64
-fn syscall2(number: I64, a: I64, b: I64) -> I64
-fn syscall3(number: I64, a: I64, b: I64, c: I64) -> I64
-fn syscall4(number: I64, a: I64, b: I64, c: I64, d: I64) -> I64
-fn syscall5(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64) -> I64
-fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> I64
+pub fn syscall0(number: I64) -> I64
+pub fn syscall1(number: I64, a: I64) -> I64
+pub fn syscall2(number: I64, a: I64, b: I64) -> I64
+pub fn syscall3(number: I64, a: I64, b: I64, c: I64) -> I64
+pub fn syscall4(number: I64, a: I64, b: I64, c: I64, d: I64) -> I64
+pub fn syscall5(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64) -> I64
+pub fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> I64
 
 {-
    The heap.
@@ -127,16 +127,25 @@ fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> I64
    the bytes come from.
 -}
 
--- 4 MiB of address space, and 32 size classes from 16 bytes up. The table is 256 bytes, so the
--- bump area starts there. An immutable `let` is a name for a constant and occupies nothing, so
--- these two are the numbers themselves wherever they are read; the three `let &` below are the
--- static storage the policy actually needs.
-let heapRegionSize = 4194304 :: I64
-let heapClassCount = 32 :: I64
+{-
+   4 MiB of address space, and 32 size classes from 16 bytes up. The table is 256 bytes, so the bump
+   area starts there. An immutable `let` is a name for a constant and occupies nothing, so the first
+   two are the numbers themselves wherever they are read; the three `let &` are the static storage
+   the policy actually needs.
 
-let &heapNext = 0 :: %U8
-let &heapLimit = 0 :: %U8
-let &heapFree = 0 :: Ptr(Ptr(U8))
+   All five are `pub` and everything below them until `allocateHeap` is not, which is the line this
+   module draws between its *state* and its *mechanism*. A program that wrote `import Native` may
+   read where the bump pointer is - observing the allocator is a large part of what the unsafe module
+   is for, and `Recursive.Reclaim.yana` is a test that does exactly that - while calling
+   `setFreeListHead` by hand does not observe anything, it corrupts the free list. The first is a
+   fact about the program and the second is an invariant nobody outside these forty lines can hold.
+-}
+pub let heapRegionSize = 4194304 :: I64
+pub let heapClassCount = 32 :: I64
+
+pub let &heapNext = 0 :: %U8
+pub let &heapLimit = 0 :: %U8
+pub let &heapFree = 0 :: Ptr(Ptr(U8))
 
 fn initHeap() -> {}:
     let region = mapMemory(heapRegionSize)
@@ -167,7 +176,7 @@ fn setFreeListHead(sizeClass: I64, block: %U8) -> {} = store(heapFree + sizeClas
 
 -- Allocates `size` bytes, 8-byte aligned, or null when the region is exhausted or the request is
 -- larger than the largest size class.
-fn allocateHeap(size: I64) -> %U8:
+pub fn allocateHeap(size: I64) -> %U8:
     if isNull(heapFree):
         initHeap()
         if isNull(heapFree) then return null()
@@ -192,7 +201,7 @@ fn allocateHeap(size: I64) -> %U8:
 
 -- Returns an allocation to the free list of its own size class. The pointer must be one
 -- allocateHeap returned and must not be freed twice; nothing here checks either.
-fn freeHeap(allocation: %U8) -> {}:
+pub fn freeHeap(allocation: %U8) -> {}:
     if isNull(allocation) then return
 
     let sizeClass = *(cast(allocation - 8) :: Ptr(I64))
@@ -239,7 +248,7 @@ fn freeHeap(allocation: %U8) -> {}:
    *stored* slice; both are named in Implementation-Containers.md §4.4.
 -}
 
-alias Count = @bits(30) U32
+pub alias Count = @bits(30) U32
 
 {-
    What releasing and growing this run mean, as the two questions that are actually asked.
@@ -261,12 +270,12 @@ alias Count = @bits(30) U32
    The escape analysis still decides between four; it writes the answer to these questions rather
    than the decision itself.
 -}
-alias HeapFlag = @bits(2) U32
+pub alias HeapFlag = @bits(2) U32
 
 -- The largest count either field can hold, as the number a caller is checked against rather than as
 -- a mask applied behind its back. `@bits` stores truncate silently, which is tolerable for an
 -- integer and corrupts a container for a length - Implementation-Containers.md §7.1.
-let maxCount = 1073741823 :: Int
+pub let maxCount = 1073741823 :: Int
 
 {-
    How many bytes `count` elements occupy.
@@ -277,7 +286,7 @@ let maxCount = 1073741823 :: Int
    sides of this function have: an index is a number of elements the program wrote, and a size is
    what the allocator and the block operations take.
 -}
-fn byteSpan(from: %a, count: Int) -> I64 =
+pub fn byteSpan(from: %a, count: Int) -> I64 =
     difference(cast(from) :: %U8, cast(from + count) :: %U8)
 
 {-
@@ -301,19 +310,19 @@ fn byteSpan(from: %a, count: Int) -> I64 =
    stride of one, and every run would have to be over-aligned to make room. See
    Implementation-Containers.md §10.3.
 -}
-data Run(a) {items: %a, capacity: Count, ownsHeap: HeapFlag}
+pub data Run(a) {items: %a, capacity: Count, ownsHeap: HeapFlag}
 
 -- The three answers, for the reason `HeapFlag` gives. `runBorrowed` covers frame and region storage
 -- together: each is handed back by something that is not this run - the frame returning, the region
 -- closing - and telling those two apart would be a distinction nothing acts on. `runFixed` is the
 -- one that is not about release at all: the slots are an owner's own bytes, so nothing hands them
 -- back *and* nothing may move them.
-let runBorrowed = 0 :: HeapFlag
-let runFromHeap = 1 :: HeapFlag
-let runFixed = 2 :: HeapFlag
+pub let runBorrowed = 0 :: HeapFlag
+pub let runFromHeap = 1 :: HeapFlag
+pub let runFixed = 2 :: HeapFlag
 
 -- A run with room for nothing, which allocates nothing. Every container's empty value starts here.
-fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
+pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
 
 {-
    A run of `capacity` slots, placed by the compiler.
@@ -323,13 +332,13 @@ fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed
    slots live is decided by the same escape analysis that places every other allocation and the bit
    it writes into `ownsHeap` is that decision reduced to what a run acts on.
 -}
-fn newRun(capacity: Int) -> Run(a)
+pub fn newRun(capacity: Int) -> Run(a)
 
-fn capacity(self: Run(a)) -> Int = self.capacity :: Int
+pub fn capacity(self: Run(a)) -> Int = self.capacity :: Int
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
 -- anything, because a run does not know.
-fn slots(self: Run(a)) -> %a = self.items
+pub fn slots(self: Run(a)) -> %a = self.items
 
 {-
    Room for `wanted` slots, relocating if there is not.
@@ -348,7 +357,7 @@ fn slots(self: Run(a)) -> %a = self.items
    capacity field disagreed with the storage behind it, and every later `resize` would read the
    masked number back and believe it.
 -}
-fn resize(&self: Run(a), wanted: Int) -> Bool:
+pub fn resize(&self: Run(a), wanted: Int) -> Bool:
     let room = self.capacity :: Int
     if wanted <= room then return True
 
@@ -409,7 +418,7 @@ fn resize(&self: Run(a), wanted: Int) -> Bool:
    frame-placed array's teardown is no instructions at all. What still tests at run time is an array
    something wrote through a borrow, and a grown one - where the question is real.
 -}
-fn releaseRun(self: Run(a)) -> {}:
+pub fn releaseRun(self: Run(a)) -> {}:
     if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)
 
 instance Reclaim(Run(a)):
@@ -447,14 +456,14 @@ instance Reclaim(Run(a)):
    `length` keep the positions the compiler reads them at, so the descriptor builder and
    `sliceLengthType` are unchanged and only the field that exists on one target is conditional.
 -}
-@platform(native) data Flat(a) {items: %a, length: Size}
-@platform(js) data Flat(a) {items: %a, length: Size, offset: Size}
+@platform(native) pub data Flat(a) {items: %a, length: Size}
+@platform(js) pub data Flat(a) {items: %a, length: Size, offset: Size}
 
 -- The element address a `Flat` is defined by. Absent on `Bits` when that lands, deliberately: a
 -- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
 -- off the fractional-stride path. Absent on JS for a stronger reason: `items` there is the whole
 -- host array rather than the window, so a caller given it would read past both ends.
-@platform(native) fn values(self: Flat(a)) -> %a = self.items
+@platform(native) pub fn values(self: Flat(a)) -> %a = self.items
 
 {-
    Subscripting a slice and a raw pointer - Core's `Index`, and where `xs[i]` on an array ends up.
@@ -508,11 +517,12 @@ instance Reclaim(Run(a)):
    know - Implementation-Storage.md part 9.
 
    `writeFile` is `Native.Linux`'s, and that module is imported into this one by hand rather than
-   re-exported, so nothing above `Native` can name it. This is the one line that lets `print` be
+   re-exported, so nothing above `Native` can name it - a fact about the import graph rather than
+   about `pub`, and one that holds however the declaration over there is marked. This is the one line that lets `print` be
    written where the rest of the string API is, and it is here rather than there for the same reason
    `mapMemory` is reached this way: which platform supplies the call is a fact about this module.
 -}
-fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
+pub fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
 
 {-
    Stopping, for the same reason `writeStandardOutput` is here: `exitProcess` is `Native.Linux`'s and
@@ -522,7 +532,7 @@ fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
    134 is what a process killed by SIGABRT reports, which is the status a failed assertion has on
    this platform and therefore the one a shell and a test runner already know how to read.
 -}
-fn abortProcess() -> {}:
+pub fn abortProcess() -> {}:
     exitProcess(134)
     return
 
@@ -551,17 +561,17 @@ let mapPrivateAnonymous = 34 :: I64
 -- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
 -- refused. mmap reports failure as a small negative value rather than as an error flag, which is
 -- why the result is checked as a number before it becomes a pointer.
-fn mapMemory(size: I64) -> %U8:
+pub fn mapMemory(size: I64) -> %U8:
     let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
     if result < 0 then return null()
 
     return asPtr(result)
 
-fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, asInt(from), size)
+pub fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, asInt(from), size)
 
-fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, asInt(from), count)
+pub fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, asInt(from), count)
 
-fn exitProcess(status: I64) -> {}:
+pub fn exitProcess(status: I64) -> {}:
     syscall1(sysExit, status)
     return
 )LINUX";
@@ -963,7 +973,7 @@ import Native
    Reached only through `stringData` below. A program cannot forge one: this module is not implicitly
    imported, so naming `stringFromData` takes an import that already means "this is unsafe".
 -}
-@platform(native) data StringData {bytes: Array(U8)}
+@platform(native) pub data StringData {bytes: Array(U8)}
 
 {-
    The two words of a string, as the record that describes them - Implementation-String.md part 2.
@@ -979,8 +989,8 @@ import Native
    `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
    written in terms of this one is native-only and its JS sibling is written against `Host` instead.
 -}
-@platform(native) fn stringData(return self: String) -> &StringData
-@platform(native) fn stringDataMut(return &self: String) -> &StringData
+@platform(native) pub fn stringData(return self: String) -> &StringData
+@platform(native) pub fn stringDataMut(return &self: String) -> &StringData
 
 {-
    The other direction, and the only one that makes a string out of nothing.
@@ -992,7 +1002,7 @@ import Native
    No `Sink` runs and nothing is copied. The bytes are already in the right shape and the right
    place; what changes is which type the compiler calls them, exactly as in the other direction.
 -}
-@platform(native) fn stringFromData(->value: StringData) -> String
+@platform(native) pub fn stringFromData(->value: StringData) -> String
 
 {-
    What a string literal lowers to - Implementation-String.md part 9.
@@ -1012,7 +1022,7 @@ import Native
    `capacity` is the byte length rather than zero, because the bytes really are there to be read -
    this is what lets a literal be indexed and compared without the run ever being touched.
 -}
-@platform(native) fn stringLiteral(bytes: %U8, length: Int) -> String =
+@platform(native) pub fn stringLiteral(bytes: %U8, length: Int) -> String =
     stringFromData(StringData {bytes: Array {
         run: Run {items: bytes, capacity: length :: Count, ownsHeap: runBorrowed},
         length: length :: Count

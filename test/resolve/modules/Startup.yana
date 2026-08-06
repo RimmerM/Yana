@@ -4,12 +4,12 @@
 -- says so from the other side. Its constant `let` is fine and is what a library module's top level
 -- has always been able to hold - see Reject.TopLevel.yana, which imports this.
 
-let libraryLimit = 8
+pub let libraryLimit = 8
 
 -- Not a constant, and there is no sequence in this module for it to be initialized by.
-let &libraryCache = compute()
+pub let &libraryCache = compute()
 
 -- And not a declaration at all.
 compute()
 
-fn compute() -> Int = libraryLimit * 2
+pub fn compute() -> Int = libraryLimit * 2

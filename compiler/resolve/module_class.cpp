@@ -37,6 +37,7 @@ void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
     typeClass->module = &module;
     typeClass->ast = pointer;
     typeClass->source = decl.source;
+    typeClass->exported = decl.exported;
     *found.value = typeClass - *module.types;
 
     recordDefinition(module.context, classSymbol(module, typeClass - *module.types));

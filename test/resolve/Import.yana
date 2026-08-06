@@ -35,7 +35,12 @@ fn styles() -> Int = styleValue(Style {}) + styleValue(Style {filled: True, weig
 fn labelValue() -> Int = match Label(5):
     Label(v) -> v
 
+-- A `pub` function whose body calls a *private* one of its own module. What `pub` restricts is who
+-- may write the name, and nothing else: `secretArea` is unreachable from here and is called
+-- perfectly well from where it was declared. Reject.Export.yana is the half that tries to name it.
+fn throughPrivate() -> Int = visibleArea(Point {x: 2, y: 3})
+
 -- Core is implicitly imported, so its operators work here without being named.
 fn main() -> Int =
     area1() + area2() + viaFunction() + area(qualifiedConstructor()) + twoAreas() + squareAreas() +
-    styles() + labelValue()
+    styles() + labelValue() + throughPrivate()

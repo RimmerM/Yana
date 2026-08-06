@@ -1,0 +1,103 @@
+-- Associativity, and what a declared fixity actually groups.
+--
+-- Every operator in Core is `infixl`, so nothing there moves either way and a fixture for this has
+-- to declare its own. The two below are the *same function* under two fixities, which is the whole
+-- of the assertion: subtraction is not associative, so a chain of three tells the two groupings
+-- apart by the number it produces and by nothing else.
+--
+-- Both are declared at 7, which is where Core puts `+` and `-`. That is deliberate rather than
+-- convenient: it puts `<->` on the same rung as an operator that groups the other way, so every
+-- chain below that mixes them has to say which it means with parentheses. Reject.Fixity.yana is the
+-- one that does not.
+
+infixl 7 >-<
+infixr 7 <->
+
+fn >-<(a: Int, b: Int) -> Int = a - b
+fn <->(a: Int, b: Int) -> Int = a - b
+
+-- (10 - 3) - 2 = 5 against 10 - (3 - 2) = 9. This is the pair that was one number before `infixr`
+-- was read, since precedence climbing handed every operator a rung above its own.
+fn left() -> Int = 10 >-< 3 >-< 2
+fn right() -> Int = 10 <-> 3 <-> 2
+
+-- Four operands, so the fold nests twice rather than once: ((20-8)-3)-1 = 8 against
+-- 20-(8-(3-1)) = 14.
+fn leftLong() -> Int = 20 >-< 8 >-< 3 >-< 1
+fn rightLong() -> Int = 20 <-> 8 <-> 3 <-> 1
+
+-- Precedence still decides first, and associativity only among the operators one rung has. `*` is
+-- `infixl 8`, so both chains multiply before they subtract: (100-12)-5 = 83 on the left and
+-- 100-(12-5) = 93 on the right. Note that the tighter operator sits *between* the two, which is
+-- exactly the shape that makes them meet at the same rung.
+fn leftTighter() -> Int = 100 >-< 3 * 4 >-< 5
+fn rightTighter() -> Int = 100 <-> 3 * 4 <-> 5
+
+-- A right-associative chain as an operand of a looser one. `==` is `infixl 3`, so the parenthesized
+-- 9 is added and then compared: 1 + 9 == 10.
+fn rightInside() -> Bool = 1 + (10 <-> 3 <-> 2) == 10
+
+{-
+   A right-associative operator whose right operand is `@lazy`.
+
+   This is the path `skipPrecedence` walks. The operand is not resolved where it is written, so the
+   chain has to be walked to find where it ends - and that walk has to consume exactly what
+   resolving it would have. A right-associative operator's right operand does not end where a
+   left-associative one's does, so a skip that did not learn the rule would hand the callee half a
+   chain and leave the rest to be applied to it.
+
+   `a ?: b ?: c` is `a ?: (b ?: c)`, so the two left operands are Maybes and the last operand is the
+   value fallen back to.
+-}
+infixr 4 ?:
+
+fn ?:(->value: Maybe(Int), @lazy fallback: Int) -> Int = match value:
+    Just(->inner) -> inner
+    Nothing -> fallback
+
+fn some(value: Int) -> Maybe(Int) = Just(value)
+fn none() -> Maybe(Int) = Nothing
+
+-- The second `?:` is inside the first's deferred operand, so nothing past the head is evaluated: 7.
+fn firstWins() -> Int = some(7) ?: none() ?: 3
+
+-- And where it does fall through, it falls through the whole nest rather than one step of it.
+fn lastWins() -> Int = none() ?: none() ?: 3
+
+-- What makes the laziness observable rather than merely claimed. Each of these bumps `counter` when
+-- it runs, so a chain that answers at its head leaves the counter where it found it.
+let &counter = 0
+
+fn bumpNone() -> Maybe(Int):
+    counter += 1
+    return Nothing
+
+fn bumpValue(value: Int) -> Int:
+    counter += 1
+    return value
+
+fn noneEvaluated() -> Int = some(1) ?: bumpNone() ?: bumpValue(20)
+
+fn allEvaluated() -> Int = none() ?: bumpNone() ?: bumpValue(20)
+
+fn main() -> Int:
+    -- 5 + 9 = 14
+    let simple = left() + right()
+
+    -- 8 + 14 = 22
+    let long = leftLong() + rightLong()
+
+    -- 83 + 93 = 176
+    let tighter = leftTighter() + rightTighter()
+
+    -- 7 + 3 = 10
+    let lazy = firstWins() + lastWins()
+
+    -- 1 + 20 = 21, and `counter` is 2 rather than 0 or 4: the first chain evaluated neither of its
+    -- fallbacks, and the second evaluated both steps of the one it took.
+    let effects = noneEvaluated() + allEvaluated() + counter
+
+    let inside = if rightInside() then 1 else 0
+
+    -- 14 + 22 + 176 + 10 + 23 + 1 = 246
+    return simple + long + tighter + lazy + effects + inside

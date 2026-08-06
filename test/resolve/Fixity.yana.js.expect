@@ -1,0 +1,60 @@
+"use strict";
+var counter = { $v: 0 };
+
+// Core
+function add_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount | 0;
+  return;
+}
+
+// ResolveTest
+function q(value, fallback$c, fallback$e) {
+  var v10;
+  if (!(value === null)) {
+    v10 = value;
+  } else {
+    v10 = fallback$c(fallback$e);
+  }
+  return v10;
+}
+
+function main() {
+  return (((q(7, ResolveTest_deferred$0, null) + q(null, ResolveTest_deferred$2, null) | 0) + 212 | 0) + ((q(1, ResolveTest_deferred$4, null) + q(null, ResolveTest_deferred$6, null) | 0) + counter.$v | 0) | 0) + 1 | 0;
+}
+
+function ResolveTest_deferred$0(env) {
+  return q(null, ResolveTest_deferred$1, null);
+}
+
+function ResolveTest_deferred$1(env) {
+  return 3;
+}
+
+function ResolveTest_deferred$2(env) {
+  return q(null, ResolveTest_deferred$3, null);
+}
+
+function ResolveTest_deferred$3(env) {
+  return 3;
+}
+
+function ResolveTest_deferred$4(env) {
+  add_eq_Int(counter, "$v", 1, 1);
+  return q(null, ResolveTest_deferred$5, null);
+}
+
+function ResolveTest_deferred$5(env) {
+  add_eq_Int(counter, "$v", 1, 1);
+  return 20;
+}
+
+function ResolveTest_deferred$6(env) {
+  add_eq_Int(counter, "$v", 1, 1);
+  return q(null, ResolveTest_deferred$7, null);
+}
+
+function ResolveTest_deferred$7(env) {
+  add_eq_Int(counter, "$v", 1, 1);
+  return 20;
+}
+main();

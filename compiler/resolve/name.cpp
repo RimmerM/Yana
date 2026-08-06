@@ -143,21 +143,22 @@ GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source)
     return found ? *found : nullptr;
 }
 
-Maybe<U8> findPrecedence(Module& module, StringId name) {
+OperatorFixity findFixity(Module& module, StringId name) {
     // Fixity is not a definition, so a missing one is not an error and two equal declarations do
-    // not conflict; the traversal is used only to get the same module order as everything else.
+    // not conflict; the traversal is used only to get the same module order as everything else. It
+    // is also never `pub`, for the reason doc/spec/modules.md gives: an operator's grouping applies
+    // wherever the operator is in scope, so `visible` is the only thing an import hides it with.
     //
-    // The precedence is carried one above what was declared, because search() reads a falsy result
-    // as "not in this module" and 0 is a precedence a declaration may legitimately have - it is
-    // where Core puts the compound assignments, below every other operator.
-    auto found = search<U16>(module.context, module, name, kNullLocation, [](Module& in, NameRef reference) -> U16 {
-        if(reference.segments() != 1) return 0;
+    // `declared` is what carries "not in this module" here, rather than a sentinel precedence -
+    // see OperatorFixity.
+    auto found = search<OperatorFixity>(module.context, module, name, kNullLocation, [](Module& in, NameRef reference) -> OperatorFixity {
+        if(reference.segments() != 1) return {};
 
-        auto precedence = in.operatorPrecedence.get(reference.single());
-        return precedence ? U16(precedence.unwrap()) + 1 : 0;
+        auto fixity = in.operatorFixity.get(reference.single());
+        return fixity ? fixity.unwrap() : OperatorFixity {};
     });
 
-    return found && *found ? Just(U8(*found - 1)) : Nothing();
+    return found ? *found : OperatorFixity {};
 }
 
 // Unlike the lookups above, a class function name is deliberately allowed to be found more than
@@ -167,7 +168,7 @@ Maybe<U8> findPrecedence(Module& module, StringId name) {
 void findClassFunctions(Module& module, StringId name, LocationId source, ClassFunList& target) {
     auto global = *module.types;
 
-    auto collect = [&](Module& in, NameRef reference) {
+    auto collect = [&](Module& in, NameRef reference, bool foreign) {
         for(auto& candidate: in.classFunctions) {
             if(reference.segments() == 1) {
                 if(candidate.name != reference.single()) continue;
@@ -178,6 +179,12 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
             } else {
                 continue;
             }
+
+            // A member is exported with its class and never on its own - the signatures are the
+            // interface the class declares, and a class nobody may name has none to offer. Asked
+            // per candidate rather than per module, because this list is the one place a single
+            // lookup legitimately spans several declarations.
+            if(foreign && !exportedSymbol(in, candidate.typeClass)) continue;
 
             auto duplicate = false;
             for(auto& existing: target) {
@@ -191,7 +198,7 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
         }
     };
 
-    collect(module, NameRef { &module.context.find(name), 0 });
+    collect(module, NameRef { &module.context.find(name), 0 }, false);
 
     for(auto& import: module.imports) {
         NameRef reference { &module.context.find(name), 0 };
@@ -214,7 +221,7 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
         }
 
         if(!Module::visible(import, reference.single())) continue;
-        collect(*import.module, reference);
+        collect(*import.module, reference, true);
     }
 }
 

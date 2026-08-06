@@ -52,11 +52,11 @@ infixl 8 /
 infixl 8 `rem`
 infixl 8 %
 
-data Bool = False | True
-data Ordering = LT | EQ | GT
+pub data Bool = False | True
+pub data Ordering = LT | EQ | GT
 
-data Maybe(a) = Nothing | Just(a)
-data Result(e, a) = Err(e) | Ok(a)
+pub data Maybe(a) = Nothing | Just(a)
+pub data Result(e, a) = Err(e) | Ok(a)
 
 -- What a continuation reports back to the lens that called it - Analysis-Lens.md §5.1's exit
 -- signal. `Proceed` is "the rest of the block finished normally, and here is its value"; `Exit`
@@ -66,7 +66,7 @@ data Result(e, a) = Err(e) | Ok(a)
 -- One type rather than three: `Step(r) = Next | Done(r)` is `Outcome({}, r)`, so the loop signal,
 -- the exit signal and a skipping lens's own result are all this. Only the exit signal uses it so
 -- far; the constructors are not named `Continue`/`Break` for that reason.
-data Outcome(a, e) = Proceed(a) | Exit(e)
+pub data Outcome(a, e) = Proceed(a) | Exit(e)
 
 {-
    What a carrier type says about its two paths - Implementation-Semantics.md part 5.
@@ -87,7 +87,7 @@ data Outcome(a, e) = Proceed(a) | Exit(e)
    consuming it costs nothing and is what keeps the class usable for a carrier whose payload is
    owned - the alternative would borrow a wrapper in order to hand out what is inside it.
 -}
-class Try(m -> a, e):
+pub class Try(m -> a, e):
   fn toOutcome(->value: m) -> Outcome(a, e)
   fn fromExit(->reason: e) -> m
 
@@ -131,7 +131,7 @@ instance Try(Outcome(a, e), a, e):
    from source for that reason: what selects them is the shape the compiler already worked out, not
    an argument list.
 -}
-class Rewrap(m, b -> n):
+pub class Rewrap(m, b -> n):
   fn rewrap(->value: b) -> n
 
 instance Rewrap(Maybe(a), b, Maybe(b)):
@@ -171,14 +171,14 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
    computed values without claiming they have a location, and until there are two containers that
    want it, the right members of such a parent are guesswork. See Implementation-Containers.md §17.
 -}
-class Index(c -> k, v):
+pub class Index(c -> k, v):
   fn get(return self: c, index: k) -> &v
   fn getMut(return &self: c, index: k) -> &v
 
-class FromInt(a):
+pub class FromInt(a):
   fn fromInt(value: Long) -> a
 
-class FromDecimal(a):
+pub class FromDecimal(a):
   fn fromDecimal(value: Double) -> a
 
 default FromInt = Int
@@ -193,14 +193,14 @@ default FromDecimal = Float
 --
 -- Every primitive instance below still supplies all of these itself, so a Bool's `!=` is the one
 -- comparison instruction it always was rather than a specialization of `!(lhs == rhs)`.
-class Eq(a):
+pub class Eq(a):
   fn ==(lhs: a, rhs: a) -> Bool
   fn !=(lhs: a, rhs: a) -> Bool = !(lhs == rhs)
 
 -- The four comparisons are `compare` read four ways, and `compare` is the fold a derived instance
 -- would have to produce. Lexicographic order over a record is therefore one function rather than
 -- five, which is what makes Ord worth deriving at all.
-class (Eq(a)) Ord(a):
+pub class (Eq(a)) Ord(a):
   fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
   fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
   fn >(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == GT
@@ -215,7 +215,7 @@ class (Eq(a)) Ord(a):
 -- Negation is the one place the superclass earns its keep as a default: `0` is `FromInt(a)` and
 -- the subtraction is this class's own, so unary `-` needs nothing an instance has not already
 -- promised. An instance for which that is not the negation it wants overrides it.
-class (FromInt(a)) Num(a):
+pub class (FromInt(a)) Num(a):
   fn +(lhs: a, rhs: a) -> a
   fn -(lhs: a, rhs: a) -> a
   fn *(lhs: a, rhs: a) -> a
@@ -239,7 +239,7 @@ class (FromInt(a)) Num(a):
    can join two values need not have an empty one and requiring it would rule out the non-empty
    containers that are the obvious second instance.
 -}
-class Append(a):
+pub class Append(a):
   fn +(lhs: a, rhs: a) -> a
 
 {-
@@ -267,7 +267,7 @@ class Append(a):
    both the measure and the write, so nothing can change it in between. A `showBound` with side
    effects is still a bad instance; it cannot make the buffer wrong.
 -}
-class Show(a):
+pub class Show(a):
   fn show(value: a, &to: String) -> {}
   fn showBound(value: a) -> Maybe(Int) = Nothing
 
@@ -282,22 +282,21 @@ class Show(a):
 -- field access draws between `set` and `modify`, inherited here for free.
 --
 -- Precedence 0 is below every other operator, which is what makes `x += a + b` group as it reads.
--- It is declared `infixl` because the resolver's precedence climbing is left-associative for every
--- operator - `infixr` parses and is not yet read - and `a += b += c` is nonsense under either
--- reading anyway, since the result is unit.
-fn (Num(a)) +=(&target: a, amount: a) -> {}:
+-- It is declared `infixl` rather than `infixr` because `a += b += c` is nonsense under either
+-- reading, the result being unit, and the left one at least reports it at the outer operator.
+pub fn (Num(a)) +=(&target: a, amount: a) -> {}:
     target = target + amount
 
-fn (Num(a)) -=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) -=(&target: a, amount: a) -> {}:
     target = target - amount
 
-fn (Num(a)) *=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) *=(&target: a, amount: a) -> {}:
     target = target * amount
 
-fn (Num(a)) /=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
     target = target / amount
 
-class (Num(a)) Integral(a):
+pub class (Num(a)) Integral(a):
   fn rem(lhs: a, rhs: a) -> a
   fn %(lhs: a, rhs: a) -> a
   fn shl(lhs: a, rhs: a) -> a
@@ -326,7 +325,7 @@ class (Num(a)) Integral(a):
 -- What neither of them gives yet is a flow-sensitive binding: `if p is Just(v) && v > 0` does not
 -- see `v`, because `is` outside condition position discards what it bound before `&&` is even
 -- selected. Making that work is a change to the condition path rather than to `@lazy`.
-class Logic(a):
+pub class Logic(a):
   fn &&(lhs: a, @lazy rhs: a) -> a = and(lhs, rhs)
   fn ||(lhs: a, @lazy rhs: a) -> a = or(lhs, rhs)
   fn and(lhs: a, rhs: a) -> a
@@ -347,7 +346,7 @@ class Logic(a):
 --
 -- `value` is the default convention, which is already an immutable borrow: nothing about
 -- truthiness needs to consume or write what it is asked about.
-class Truth(a):
+pub class Truth(a):
   fn truthy(value: a) -> Bool
 
 -- The other operator `@lazy` exists for: a fallback that is only computed when there is nothing to
@@ -362,7 +361,7 @@ class Truth(a):
 -- was inside, so a borrowed operand would be handing out something it does not own. For a
 -- `Maybe(Int)` the sink is a copy and nothing changes at any call site; for a `Maybe(Buffer)` it is
 -- the difference between working and freeing the buffer twice.
-fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
+pub fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
     Just(->inner) -> inner
     Nothing -> fallback
 
@@ -377,14 +376,14 @@ fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
 -- A type that writes none of them still gets all of the behaviours - a bitwise copy, a bitwise
 -- move, and the derived teardown that recurses into each member and then releases this owner's own
 -- storage.
-class Copy(a):
+pub class Copy(a):
   fn copy(from: a) -> a
 
 -- `to` arrives uninitialized and must be fully initialized before returning. That obligation is
 -- Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
 -- uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
 -- attribute lands this signature gains it and nothing else about the class changes.
-class Sink(a):
+pub class Sink(a):
   fn sink(&to: a, ->from: a) -> {}
 
 {-
@@ -404,12 +403,12 @@ class Sink(a):
    members are effect-free" - whether a container's teardown has effects is computed from whether
    its element types have a `Drop`.
 -}
-class Reclaim(a):
+pub class Reclaim(a):
   fn reclaim(->value: a) -> {}
 
 -- Run once when a live instance dies, at its last use rather than at the end of its scope. Never
 -- run on a location a value has been moved out of, which is what the drop flags exist to know.
-class Drop(a):
+pub class Drop(a):
   fn drop(->value: a) -> {}
 
 {-
@@ -425,16 +424,16 @@ class Drop(a):
    discovering the fact at one concrete call site may never upgrade a borrow to a copy. The
    constraint is the only thing that can.
 -}
-class TrivialCopy(a)
-class TrivialSink(a)
+pub class TrivialCopy(a)
+pub class TrivialSink(a)
 
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
 -- whole of the rule for whether a conversion happens on its own or has to be written.
-class Widen(a, b):
+pub class Widen(a, b):
   fn widen(from: a) -> b
 
-class Narrow(a, b):
+pub class Narrow(a, b):
   fn narrow(from: a) -> b
 
 {-
@@ -456,8 +455,8 @@ class Narrow(a, b):
    rather than a place, so it relocates twice and needs no temporary. A caller with a replacement in
    hand should not pay for the one that has none.
 -}
-fn swap(&left: a, &right: a) -> {}
-fn exchange(&slot: a, ->value: a) -> a
+pub fn swap(&left: a, &right: a) -> {}
+pub fn exchange(&slot: a, ->value: a) -> a
 )CORE";
 
 /*
@@ -551,6 +550,10 @@ static TypePtr addPrimitive(Program& program, Module& module, StringView name, T
     // An integer type is printed by name, so it has to know the one it was declared under.
     if(value->kind == Type::Int) ((IntType*)value)->name = id;
 
+    // The compiler supplies these rather than Core's source, so nothing wrote `pub` on one. They are
+    // as public as anything else in Core: `Int` has to be nameable from every module there is.
+    value->exported = true;
+
     module.namedTypes.add(id, pointer);
     return pointer;
 }
@@ -584,6 +587,7 @@ static TypePtr coreType(Module& module, StringView name) {
 static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned) {
     auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
     auto type = new (module.types) IntType(bits, IntType::widthFor(bits), isSigned, id);
+    type->exported = true;
 
     auto pointer = (Type*)type - *module.types;
     module.namedTypes.add(id, pointer);
@@ -891,6 +895,9 @@ import Host
    where the emitter supplies the sentence (see NativeOp::HostThrow).
 
    The compiler calls this rather than a program doing so; `Program::checkFailed` is how it is found.
+   Not `pub`, and that is the difference between it and `checkCondition` below: what a check *is* is
+   this module's to decide, and a program that reached in and called it would be aborting for a
+   reason no check found.
 -}
 @platform(native) fn checkFailed() -> {} = abortProcess()
 @platform(js) fn checkFailed() -> {} = hostFail()
@@ -907,7 +914,7 @@ import Host
    Written as the *mistake* rather than as the invariant - the caller passes `index >= length` - so
    that the branch this contains is predicted the way it will actually go.
 -}
-fn checkCondition(failed: Bool) -> {}:
+pub fn checkCondition(failed: Bool) -> {}:
     if failed then checkFailed()
     return
 
@@ -932,7 +939,7 @@ fn checkCondition(failed: Bool) -> {}:
    language's literals and its arithmetic are signed and a container is not the place to start
    arguing with that.
 -}
-@platform(native) data Array(a) {run: Run(a), length: Count}
+@platform(native) pub data Array(a) {run: Run(a), length: Count}
 
 {-
    And the same array on JS - Implementation-Containers.md §14.
@@ -948,17 +955,17 @@ fn checkCondition(failed: Bool) -> {}:
    over the live elements, because whether an element has a teardown is a question about the element
    rather than about where the container keeps it.
 -}
-@platform(js) data Array(a) {items: %a}
+@platform(js) pub data Array(a) {items: %a}
 
 -- An array with room for nothing. The first push allocates natively; on JS `[]` is the allocation
 -- and there is nothing left to defer.
-@platform(native) fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
-@platform(js) fn emptyArray() -> Array(a) = Array {items: hostArray()}
+@platform(native) pub fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
+@platform(js) pub fn emptyArray() -> Array(a) = Array {items: hostArray()}
 
 -- What the container can hold before it has to grow. A host array has no such number to report and
 -- answers what it holds, which is the honest answer for a container that never has to grow.
-@platform(native) fn capacity(self: Array(a)) -> Int = self.run.capacity :: Int
-@platform(js) fn capacity(self: Array(a)) -> Int = hostLength(self.items) :: Int
+@platform(native) pub fn capacity(self: Array(a)) -> Int = self.run.capacity :: Int
+@platform(js) pub fn capacity(self: Array(a)) -> Int = hostLength(self.items) :: Int
 
 {-
    Room for `wanted` elements.
@@ -968,7 +975,7 @@ fn checkCondition(failed: Bool) -> {}:
    borrow of the run conflicts with any live borrow into it, so a caller holding an element borrow
    across a push is rejected by the ordinary check rather than by anything written here.
 -}
-@platform(native) fn reserve(&self: Array(a), wanted: Int) -> {}:
+@platform(native) pub fn reserve(&self: Array(a), wanted: Int) -> {}:
     let room = self.run.capacity :: Int
     if wanted <= room then return
 
@@ -981,7 +988,7 @@ fn checkCondition(failed: Bool) -> {}:
 -- Nothing, and it is not a stub: a host array grows on its own and the engine's own policy is the
 -- one that applies, so reserving space in front of it would be asking for a second policy on top of
 -- one that is not this module's to see.
-@platform(js) fn reserve(&self: Array(a), wanted: Int) -> {}: return
+@platform(js) pub fn reserve(&self: Array(a), wanted: Int) -> {}: return
 
 {-
    Appends an element.
@@ -997,7 +1004,7 @@ fn checkCondition(failed: Bool) -> {}:
    handed back. There is no way to report the failure yet; `Result` is the eventual answer and needs
    the array first.
 -}
-@platform(native) fn push(&self: Array(a), ->item: a) -> {}:
+@platform(native) pub fn push(&self: Array(a), ->item: a) -> {}:
     let count = self.length :: Int
     reserve(self, count + 1)
     if count >= (self.run.capacity :: Int) then return
@@ -1015,7 +1022,7 @@ fn checkCondition(failed: Bool) -> {}:
    passes the element as an *operand*, which is a use - so the frame went on owning a value the array
    was holding and released it. Host's own note says the same thing from the other side.
 -}
-@platform(js) fn push(&self: Array(a), ->item: a) -> {} =
+@platform(js) pub fn push(&self: Array(a), ->item: a) -> {} =
     hostWrite(self.items, hostLength(self.items), item)
 
 {-
@@ -1064,7 +1071,7 @@ fn checkCondition(failed: Bool) -> {}:
    its own. `String`'s instances below are ordinary functions and stay in source, because neither of
    those arguments is about them.
 -}
-class Length(c):
+pub class Length(c):
   fn length(self: c) -> Size
 
 {-
@@ -1097,10 +1104,10 @@ class Length(c):
    that is `Chunked` and not `Contiguous` is rejected where `[a]` is expected with a diagnostic that
    names `Chunked` as what to ask for instead.
 -}
-class Chunked(c -> a):
+pub class Chunked(c -> a):
   iter fn chunks(self: c) -> Flat(a)
 
-class (Chunked(c, a)) Contiguous(c -> a):
+pub class (Chunked(c, a)) Contiguous(c -> a):
   fn elements(return self: c) -> Flat(a)
 
 {-
@@ -1180,7 +1187,7 @@ instance Chunked(Flat(a), a):
    is a borrow whose representation is a record, and the marker is what makes the checker treat it as
    one - without it this function is rejected for handing back a view of its own argument.
 -}
-@platform(native) fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+@platform(native) pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length
@@ -1194,7 +1201,7 @@ instance Chunked(Flat(a), a):
 -- The same clamping, and the window moves rather than the base. `items` is the whole host array in
 -- every slice of it, which is why `values` has no JS body: what a caller may read is `offset` up to
 -- `offset + length` and nothing outside it.
-@platform(js) fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+@platform(js) pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length
@@ -1227,7 +1234,7 @@ instance Chunked(Flat(a), a):
    a live value at that address to take. Design-Memory's checked world cannot state that, which is
    why the collection is the thing written against Native rather than the caller.
 -}
-@platform(native) fn remove(&self: Array(a), index: Int) -> Maybe(a):
+@platform(native) pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
     -- One comparison and not two. `index` reaches this type unsigned, so a negative one arrives as a
     -- number above every length there is and fails the same test the too-large case fails - which is
     -- the whole reason `Count` is unsigned, and the shape `checkBounds` (§15) will have.
@@ -1255,7 +1262,7 @@ instance Chunked(Flat(a), a):
    `Maybe(a)` on both targets because §13.3 is about who gets the element rather than about how the
    container is stored.
 -}
-@platform(js) fn remove(&self: Array(a), index: Int) -> Maybe(a):
+@platform(js) pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
     if (index :: U32) >= (hostLength(self.items) :: U32) then return Nothing
 
     let ->doomed = hostRead(self.items, index :: Size)
@@ -1445,10 +1452,10 @@ import Host
    which is the same tier `get` on an array is on and goes the same way when `checkBounds`
    (Implementation-Containers.md §15) lands.
 -}
-@platform(native) fn stringUnit(self: String, index: Size) -> Int =
+@platform(native) pub fn stringUnit(self: String, index: Size) -> Int =
     (*(stringData(self).bytes.run.items + index)) :: Int
 
-@platform(js) fn stringUnit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
+@platform(js) pub fn stringUnit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
 
 {-
    Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
@@ -1587,10 +1594,10 @@ import Host
 
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
-@platform(native) fn newStringOfCapacity(capacity: Size) -> String =
+@platform(native) pub fn newStringOfCapacity(capacity: Size) -> String =
     stringFromData(StringData {bytes: Array {run: newRun(capacity :: Int), length: (0 :: Count)}})
 
-@platform(js) fn newStringOfCapacity(capacity: Size) -> String = ""
+@platform(js) pub fn newStringOfCapacity(capacity: Size) -> String = ""
 
 {-
    Room for `wanted` more units, growing if there is not - the check-and-grow that
@@ -1600,14 +1607,14 @@ import Host
    rather than reallocating per unit. `resize` is what relocates, and a *borrowed* run - a literal
    being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
 -}
-@platform(native) fn reserveString(&self: String, wanted: Size) -> {}:
+@platform(native) pub fn reserveString(&self: String, wanted: Size) -> {}:
     -- The container's own growth, which is what this used to be a second copy of. `reserve` takes
     -- the capacity to reach and this takes the amount to add, which is the only difference between
     -- the two and the only thing left here.
     let target = stringDataMut(self)
     reserve(target.bytes, (target.bytes.length :: Int) + (wanted :: Int))
 
-@platform(js) fn reserveString(&self: String, wanted: Size) -> {} = {}
+@platform(js) pub fn reserveString(&self: String, wanted: Size) -> {} = {}
 
 {-
    One unit appended - what every `Show` instance ultimately writes through.
@@ -1617,24 +1624,24 @@ import Host
    most `showBound` units, the buffer was sized from the bounds, so the appends are provably in range
    and the reserve above them is the only check.
 -}
-@platform(native) fn pushUnit(&self: String, unit: Int) -> {}:
+@platform(native) pub fn pushUnit(&self: String, unit: Int) -> {}:
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(U8)`.
     push(stringDataMut(self).bytes, unit :: U8)
 
-@platform(js) fn pushUnit(&self: String, unit: Int) -> {}:
+@platform(js) pub fn pushUnit(&self: String, unit: Int) -> {}:
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
-@platform(native) fn pushString(&self: String, other: String) -> {}:
+@platform(native) pub fn pushString(&self: String, other: String) -> {}:
     appendUnits(self, stringData(other).bytes.run.items, length(other))
 
-@platform(js) fn pushString(&self: String, other: String) -> {}:
+@platform(js) pub fn pushString(&self: String, other: String) -> {}:
     self = hostConcat(self, other)
 
 -- The block copy both of the above are written in terms of. Private to this section: it takes a raw
 -- address, so it is exactly as unsafe as `copyMemory` and exactly as unreachable from a program.
-@platform(native) fn appendUnits(&self: String, from: %U8, count: Size) -> {}:
+@platform(native) pub fn appendUnits(&self: String, from: %U8, count: Size) -> {}:
     if count <= 0 then return {}
     reserveString(self, count)
 
@@ -1678,6 +1685,9 @@ instance Show(Bool):
    obvious thing to remove later: the digits are produced least-significant first and the sink can
    only be appended to. Writing them into a `[U8 *20]` instead would need no allocation at all, and
    is left until fixed arrays are reachable from a body this generic.
+
+   Not `pub`: it is how the `Show` instances below are written and not something to call directly,
+   since what a program wants of an integer is `show` and the instance decides the rest.
 -}
 fn showSigned(value: Long, &to: String) -> {}:
     if value == 0:
@@ -1760,11 +1770,11 @@ fn formatBound(bound: Maybe(Int)) -> Int = match bound:
    adds its own - which is a real behavioural difference between the targets and is the reason this
    is `print` rather than `write`.
 -}
-@platform(native) fn print(text: String) -> {}:
+@platform(native) pub fn print(text: String) -> {}:
     let bytes = stringData(text)
     let _ = writeStandardOutput(bytes.bytes.run.items, length(text))
 
-@platform(js) fn print(text: String) -> {} = hostLog(text)
+@platform(js) pub fn print(text: String) -> {} = hostLog(text)
 
 {-
    `Maybe(a)` is **not** an instance here, and the reason is a compiler limitation rather than a

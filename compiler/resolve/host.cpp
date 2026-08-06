@@ -43,7 +43,7 @@ import Native
 
 -- An empty host array - `[]`. The array literal builds its own with the elements in it, since a
 -- literal is one node rather than a call plus n pushes; this is what `emptyArray` is.
-@platform(js) fn hostArray() -> %a
+@platform(js) pub fn hostArray() -> %a
 
 {-
    There is deliberately no `hostPush`, and the reason is ownership rather than taste.
@@ -62,11 +62,11 @@ import Native
 
 -- `self.length`. A `Size`, which on this target is `Int` - and a host array's length is a `uint32`
 -- by specification, so there is nothing wider to describe (§4.4).
-@platform(js) fn hostLength(self: %a) -> Size
+@platform(js) pub fn hostLength(self: %a) -> Size
 
 -- `self.splice(index, count)` - removing a range and closing the gap, which is what the host does
 -- instead of the `copyMemory` the native side writes.
-@platform(js) fn hostSplice(self: %a, index: Size, count: Size) -> {}
+@platform(js) pub fn hostSplice(self: %a, index: Size, count: Size) -> {}
 
 {-
    The element - `self[index]`, in the four positions an element is reached from.
@@ -78,10 +78,10 @@ import Native
    `hostAt` and `hostAtMut` answer a borrow, and carry the `return` marker for the reason `borrow`
    does: the result names storage this function was handed rather than storage of its own.
 -}
-@platform(js) fn hostRead(self: %a, index: Size) -> a
-@platform(js) fn hostWrite(self: %a, index: Size, value: a) -> {}
-@platform(js) fn hostAt(return self: %a, index: Size) -> &a
-@platform(js) fn hostAtMut(return self: %a, index: Size) -> &a
+@platform(js) pub fn hostRead(self: %a, index: Size) -> a
+@platform(js) pub fn hostWrite(self: %a, index: Size, value: a) -> {}
+@platform(js) pub fn hostAt(return self: %a, index: Size) -> &a
+@platform(js) pub fn hostAtMut(return self: %a, index: Size) -> &a
 
 {-
    The host string - Implementation-String.md part 2's JS column.
@@ -100,11 +100,11 @@ import Native
 -- `self.length`, in UTF-16 code units, which part 3 is explicit is *not* the same number the native
 -- build answers for the same content. Both are O(1), and that is the property required to be
 -- uniform rather than the value.
-@platform(js) fn hostStringLength(self: String) -> Size
+@platform(js) pub fn hostStringLength(self: String) -> Size
 
 -- `self.charCodeAt(index)` - one raw UTF-16 unit, with no decode and no validation that it is a
 -- whole code point. The exact counterpart of the native build's byte read.
-@platform(js) fn hostCharCodeAt(self: String, index: Size) -> Int
+@platform(js) pub fn hostCharCodeAt(self: String, index: Size) -> Int
 
 {-
    Concatenation and comparison, as the host's own operators - see NativeOp::HostBinary.
@@ -114,18 +114,18 @@ import Native
    supplementary-plane characters, and part 3 says so and points anyone who needs otherwise at an
    explicit `compareByCodePoint`. Getting that for free is the argument for the operator node.
 -}
-@platform(js) fn hostConcat(self: String, other: String) -> String
-@platform(js) fn hostStringEq(self: String, other: String) -> Bool
-@platform(js) fn hostStringLt(self: String, other: String) -> Bool
+@platform(js) pub fn hostConcat(self: String, other: String) -> String
+@platform(js) pub fn hostStringEq(self: String, other: String) -> Bool
+@platform(js) pub fn hostStringLt(self: String, other: String) -> Bool
 
 -- `String.fromCharCode(unit)` - one UTF-16 unit as a one-unit string, which is what appending a unit
 -- to a host string has to go through. A call on the host's global rather than on a value, which is
 -- why it is the one `HostGlobalCall` here.
-@platform(js) fn hostFromCharCode(unit: Int) -> String
+@platform(js) pub fn hostFromCharCode(unit: Int) -> String
 
 -- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global
 -- rather than on a value, like `String.fromCharCode` above.
-@platform(js) fn hostLog(text: String) -> {}
+@platform(js) pub fn hostLog(text: String) -> {}
 
 {-
    `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".
@@ -137,7 +137,7 @@ import Native
    which is built after this module and imports it - so the one thing this declaration could not
    carry is the sentence it exists to print.
 -}
-@platform(js) fn hostFail() -> {}
+@platform(js) pub fn hostFail() -> {}
 )HOST";
 
 namespace {

@@ -171,7 +171,7 @@ struct Type {
         String,
     };
 
-    explicit Type(Kind kind): kind(kind) {}
+    explicit Type(Kind kind): kind(kind), generic(false), exported(false) {}
 
     GlobalPtr<Byte> descriptor = nullptr;
     U16 descriptorLength = 0;
@@ -179,7 +179,25 @@ struct Type {
 
     // Set when a type variable is reachable inside this type. A generic type has no Repr and
     // never reaches the IR; it exists to be substituted.
-    bool generic = false;
+    bool generic: 1;
+
+    /*
+     * Whether the declaration that named this type wrote `pub`.
+     *
+     * On the Type rather than beside the name, because the *value* of `Module::namedTypes` is what
+     * a lookup has in its hand and the name is what it started from - see exportedSymbol(). A type
+     * nothing names, which is every borrow, tuple, pointer and function type there is, has no
+     * declaration to have marked and nothing ever asks this of one.
+     *
+     * A record's constructors are covered by it too: there is no way to export a type without them,
+     * which doc/spec/modules.md records as an open question rather than a decision.
+     *
+     * A bit rather than a byte, sharing `generic`'s, because a Type's *size* is observable output: a
+     * type descriptor's first slot is the type's own offset in the global region, so a `Type` one
+     * byte wider moves every descriptor in every emitted program and rewrites six golden files that
+     * have nothing to do with visibility.
+     */
+    bool exported: 1;
 
     // Cached by ownershipOf(). Ownership classification is a whole-program property - one type has
     // one answer - so it is cached on the type the way Repr is, rather than recomputed per module
@@ -936,6 +954,11 @@ struct TypeAlias {
     TypePtr resolved = nullptr;
     LocationId source = kNullLocation;
     bool resolving = false;
+
+    // Whether the declaration wrote `pub`. An alias is transparent, so this restricts the *name*
+    // and says nothing about the type behind it: a private alias for a `pub` record hides one
+    // spelling of a type an importer can still name.
+    bool exported = false;
 };
 
 struct ScalarTypes {

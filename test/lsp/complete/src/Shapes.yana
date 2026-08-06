@@ -2,11 +2,11 @@
 -- Main.yana are of this one, which is what makes an include list and a `qualified` alias
 -- observable: the same declaration has to appear under three different rules.
 
-data Shape = Circle {radius: Int} | Square {side: Int}
+pub data Shape = Circle {radius: Int} | Square {side: Int}
 
-data Point {x: Int, y: Int}
+pub data Point {x: Int, y: Int}
 
-class Area(a):
+pub class Area(a):
     fn area(s: a) -> Int
 
 instance Area(Shape):
@@ -14,25 +14,35 @@ instance Area(Shape):
         Circle(c) -> c.radius * c.radius * 3
         Square(q) -> q.side * q.side
 
-fn scale(s: Shape, by: Int) -> Int = area(s) * by
+pub fn scale(s: Shape, by: Int) -> Int = area(s) * by
 
-fn scaleTwice(s: Shape) -> Int = scale(s, 2)
+pub fn scaleTwice(s: Shape) -> Int = scale(s, 2)
 
-fn shapeOrigin() -> Point = Point {x: 0, y: 0}
+pub fn shapeOrigin() -> Point = Point {x: 0, y: 0}
 
 -- A parameter whose type is a bare tuple, so that a literal written for it has field names to
 -- complete against - which is the only way a tuple has any, since nothing else says what its
 -- fields are called.
-fn shapeAt(at: {x: Int, y: Int}) -> Int = at.x + at.y
+pub fn shapeAt(at: {x: Int, y: Int}) -> Int = at.x + at.y
 
 -- A field with a declared default is not one the author has to write, so an item that inserts the
 -- brackets leaves it out - the same distinction a call makes between an argument and no argument.
-data Label {text: Int, weight: Int = 1}
+pub data Label {text: Int, weight: Int = 1}
 
 -- The call-site half of the same thing: a trailing parameter with a default is not a position the
 -- author has to write, so the snippet stops before it - and the default is shown in the detail,
 -- since deciding whether to write the argument at all is what a reader needs it for.
-fn shifted(s: Shape, by: Int = 1) -> Int = area(s) + by
+pub fn shifted(s: Shape, by: Int = 1) -> Int = area(s) + by
 
 -- A record of records, so that an update path has more than one segment to walk.
-data Line {from: Point, to: Point}
+pub data Line {from: Point, to: Point}
+
+-- Unmarked, so it is private to this module and completion must not offer it. The counterpart of
+-- `hiddenTwin` in Hidden.yana, from the other side of the boundary: that one is a `pub` declaration
+-- an import list excludes, and this one is a declaration that is not offered to any import at all.
+fn shapeInternal() -> Int = 41
+
+data Internal {only: Int}
+
+class Private(a):
+    fn hidden(s: a) -> Int

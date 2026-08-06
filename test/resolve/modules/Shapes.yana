@@ -2,32 +2,44 @@
 -- and everything it declares - a type, a class, an instance and a plain function - has to be
 -- reachable from the importing module through that one path.
 
-data Point {x: Int, y: Int}
+pub data Point {x: Int, y: Int}
 
-class Area(a):
+pub class Area(a):
   fn area(value: a) -> Int
 
 instance Area(Point):
   fn area(value: Point) = value.x * value.y
 
-fn origin() -> Point = Point {x: 0, y: 0}
+pub fn origin() -> Point = Point {x: 0, y: 0}
 
-fn scale(value: Point, by: Int) -> Point = Point {x: value.x * by, y: value.y * by}
+pub fn scale(value: Point, by: Int) -> Point = Point {x: value.x * by, y: value.y * by}
 
 -- A generic function in an imported module. It is resolved here, once, and the specialization a
 -- caller in another module asks for belongs here too - so two importers share one copy. Its
 -- requirement is proved where the call is written, which is how it reaches an instance declared
 -- in a module this one has never heard of.
-fn (Area(a)) totalArea(one: a, other: a) -> Int = area(one) + area(other)
+pub fn (Area(a)) totalArea(one: a, other: a) -> Int = area(one) + area(other)
 
 -- Nested, to check that the inner call is proved on the original caller's behalf rather than
 -- against what this module happens to see.
-fn (Area(a)) tripleArea(value: a) -> Int = totalArea(value, value) + area(value)
+pub fn (Area(a)) tripleArea(value: a) -> Int = totalArea(value, value) + area(value)
 
 -- A record whose fields have defaults, and a newtype, both declared here and constructed from the
 -- importing module. A default is recorded as the bits its field holds rather than as the
 -- expression it was written as, which is exactly what makes it reachable from over there.
-data Style {filled: Bool = False, weight: Int = 1}
-alias qualified Label = Int
+pub data Style {filled: Bool = False, weight: Int = 1}
+pub alias qualified Label = Int
 
-fn styleValue(it: Style) -> Int = (if it.filled then 10 else 0) + it.weight
+pub fn styleValue(it: Style) -> Int = (if it.filled then 10 else 0) + it.weight
+
+-- Not `pub`, so nothing outside this module may name it. Reject.Export.yana is the fixture that
+-- tries; what makes this one an assertion too is that `visibleArea` calls it perfectly well from
+-- in here, which is what "private" has to mean and not "unusable".
+fn secretArea(value: Point) -> Int = value.x + value.y
+
+data Secret {code: Int}
+
+class Hidden(a):
+    fn conceal(value: a) -> Int
+
+pub fn visibleArea(value: Point) -> Int = secretArea(value) + 1

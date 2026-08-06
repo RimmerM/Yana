@@ -1,0 +1,43 @@
+-- What a fixity declaration will not let a chain say.
+--
+-- Fixity.yana is the accepting half. Everything here is a chain with two readings and no reason to
+-- prefer either, which is reported rather than decided: taking the leftmost operator's word for it
+-- would make the grouping of an expression depend on an operator somewhere else in it, and working
+-- that out is exactly what a reader should not have to do.
+
+infixl 6 <<>>
+infixr 6 <><>
+infixl 9 <#>
+
+fn <<>>(a: Int, b: Int) -> Int = a - b
+fn <><>(a: Int, b: Int) -> Int = a - b
+fn <#>(a: Int, b: Int) -> Int = a - b
+
+-- The two rungs meet directly. Both orders, because neither operator is privileged by being first.
+fn direct() -> Int = 1 <<>> 2 <><> 3
+fn reversed() -> Int = 1 <><> 2 <<>> 3
+
+-- With a tighter operator between them. `<#>` binds at 9 and groups on its own, so the two rung-6
+-- operators still meet - which is why the check cannot stop at the next operator in the chain.
+fn separated() -> Int = 1 <<>> 2 <#> 3 <><> 4
+
+-- Against a Core operator, which is the way a program is actually likely to hit this: `-` is
+-- `infixl 7`, and an `infixr 7` of one's own is on the same rung as every arithmetic operator.
+infixr 7 <-|
+
+fn <-|(a: Int, b: Int) -> Int = a - b
+
+fn coreLeft() -> Int = 10 - 3 <-| 2
+fn coreRight() -> Int = 10 <-| 3 - 2
+
+-- Not an error: a looser operator between them divides the chain, so the two `<<>>` never meet the
+-- `<><>` and nothing is ambiguous. `==` is `infixl 3`.
+fn divided() -> Bool = 1 <<>> 2 == 3 <><> 4
+
+-- Still the only other thing a chain can get wrong here - an operator with no fixity at all. There
+-- is no default precedence, so this is not a grouping question but a missing declaration.
+fn <@>(a: Int, b: Int) -> Int = a + b
+
+fn undeclared() -> Int = 1 <@> 2
+
+fn main() -> Int = direct() + reversed() + separated() + coreLeft() + coreRight() + undeclared()

@@ -52,6 +52,10 @@ struct TypeClass {
     LocationId source = kNullLocation;
     bool ready = false;
 
+    // Whether the declaration wrote `pub`. A class's member functions are covered by it: they are
+    // the interface it declares, and a class nobody may name has no interface to offer.
+    bool exported = false;
+
     // What `default Class = Type` declared, if anything. It is the type a value of this class
     // takes when nothing in the program picked one, which today is what settles a literal whose
     // type nothing decided. Declared in the class's own module so that a default is as coherent

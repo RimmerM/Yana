@@ -48,6 +48,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/module_default.cpp
     resolve/module_import.cpp
     resolve/module_reach.cpp
+    resolve/module_export.cpp
     resolve/const.h
     resolve/const.cpp
     resolve/name.h
