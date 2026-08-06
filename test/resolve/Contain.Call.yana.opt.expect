@@ -1,0 +1,76 @@
+fn score(%f: Flags) -> Int {
+  b0:
+    %v11 = load %f@Flags.read:unit8 : U32
+    %v13 = and %v11, 1 : U32
+    %v14 = cast %v13 : Bool
+    %v9 = select %v14 ? 10 : 20 : Int
+    ret %v9
+}
+
+fn straight() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.read:unit8, 1
+    %handed = call score, %f : Int
+    %again = call score, %f : Int
+    %v25 = add %handed, 1 : Int
+    %v26 = add %v25, %again : Int
+    %v27 = add %v26, 8 : Int
+    ret %v27
+}
+
+fn branching() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.read:unit8, 2
+    %ignored = call score, %f : Int
+    %v10 = add %ignored, 100 : Int
+    ret %v10
+}
+
+fn mutate(%f: &Flags) -> Int {
+  b0:
+    assign [%f]@Flags.read, True
+    ret 0
+}
+
+fn borrowed() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %f@Flags.read:unit8, 0
+    %v6 = borrow %f : &Flags
+    %zero = call mutate, %v6 : Int
+    %v40 = load %f@Flags.read:unit8 : U32
+    %v42 = and %v40, 1 : U32
+    %v43 = cast %v42 : Bool
+    %v20 = select %v43 ? 1000 : 2000 : Int
+    %v18 = add %v20, %zero : Int
+    ret %v18
+}
+
+fn main() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.read:unit8, 1
+    %handed = call score, %f : Int
+    %again = call score, %f : Int
+    %v23 = add %handed, 1 : Int
+    %v24 = add %v23, %again : Int
+    %v25 = add %v24, 8 : Int
+    %f = alloc : Flags
+    init %local1@Flags.read:unit8, 2
+    %ignored = call score, %f : Int
+    %v42 = add %ignored, 100 : Int
+    %v2 = add %v25, %v42 : Int
+    %v46 = alloc : Flags
+    init %f@Flags.read:unit8, 0
+    %v52 = borrow %f : &Flags
+    %zero = call mutate, %v52 : Int
+    %v152 = load %f@Flags.read:unit8 : U32
+    %v154 = and %v152, 1 : U32
+    %v155 = cast %v154 : Bool
+    %v96 = select %v155 ? 1000 : 2000 : Int
+    %v59 = add %v96, %zero : Int
+    %v4 = add %v2, %v59 : Int
+    ret %v4
+}

@@ -1,0 +1,110 @@
+fn score(%f: Flags) -> Int {
+  b0:
+    %v1 = load %f@Flags.read : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = phi [b1, 10], [b2, 20] : Int
+    ret %v7
+}
+
+fn straight() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.read, True
+    init %local0@Flags.write, False
+    %handed = call score, %f : Int
+    %v6 = load %local0@Flags.read : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %before = phi [b1, 1], [b2, 2] : Int
+    %again = call score, %f : Int
+    %v16 = load %local0@Flags.write : Bool
+    je %v16, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %after = phi [b4, 4], [b5, 8] : Int
+    %v25 = add %handed, %before : Int
+    %v26 = add %v25, %again : Int
+    %v27 = add %v26, %after : Int
+    ret %v27
+}
+
+fn branching() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.read, False
+    init %local0@Flags.write, True
+    %ignored = call score, %f : Int
+    %v6 = load %local0@Flags.write : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = add %ignored, 100 : Int
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %ignored
+}
+
+fn mutate(%f: &Flags) -> Int {
+  b0:
+    assign [%f]@Flags.read, True
+    ret 0
+}
+
+fn borrowed() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %f@Flags.read, False
+    init %f@Flags.write, False
+    %v5 = load %f : Flags
+    %v6 = borrow %f : &Flags
+    %zero = call mutate, %v6 : Int
+    %v8 = load %f : Flags
+    %v9 = load %f@Flags.read : Bool
+    je %v9, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = phi [b1, 1000], [b2, 2000] : Int
+    %v18 = add %v17, %zero : Int
+    ret %v18
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call straight : Int
+    %v1 = call branching : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call borrowed : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}

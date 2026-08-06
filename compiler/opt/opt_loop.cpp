@@ -141,6 +141,14 @@ struct Hoister {
 
                 anyClobber = true;
                 eachPlace(instruction, [&](const Place& place) { written.push(place); });
+
+                // And the storage a call is handed, for the reason opt_place.cpp forgets it at the
+                // same instruction: `computeContainment` admits an unretained argument, so
+                // `anyClobber` no longer saves a candidate from the one call that actually received
+                // it. A hoisted read would then answer the first iteration's bytes forever.
+                eachHandedLocal(opt, instruction, [&](U32 local) {
+                    written.push(Place::inLocal(local));
+                });
             }
         }
     }

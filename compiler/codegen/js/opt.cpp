@@ -1639,6 +1639,131 @@ bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
 }
 
 /*
+ * A condition, replaced by anything with the same *truthiness*.
+ *
+ * This is a rule about a position rather than about a node, and that is the whole of why it is worth
+ * separating: `x !== 0` and `x` are the same condition and different values, so nothing may apply
+ * either of these except where only `Boolean(...)` of the result is read. `conditionSlots` below
+ * names those places and is the only caller.
+ *
+ * **`x !== 0` where `x` is a known integer.** That comparison is what truth *is* for a number on this
+ * target, and JS already agrees: for anything a range admits, `Boolean(x)` and `x !== 0` are the same
+ * answer. Each of the three things a known range asserts is load-bearing for that - a `number` rather
+ * than a string, where `"" !== 0` is true and `""` is falsy; an integer, which rules out `NaN`, the
+ * one number that is falsy and unequal to zero; and no `-0`, though that one happens to agree either
+ * way. A `Bool` reaching arithmetic is where the comparison comes from, and `Bits.yana`'s
+ * `(v57 >>> 1 & 1) !== 0 ? 2 : 0` is the everyday shape.
+ *
+ * **`x ? A : B` for two number literals** - a boolean widened to a number and then tested again,
+ * which is what a `Bool` produced by one instruction and consumed as a condition by another comes
+ * out as. Which of the two arms is zero decides the answer, so the condition is `x` where the first
+ * is the truthy one and `!x` where it is the second. Declined where both or neither are truthy,
+ * since the answer no longer depends on `x` and `x` may still have an effect - the same case
+ * `foldTernaryCompare` declines for the same reason.
+ *
+ * Literals rather than anything a range happens to pin down, both here and in the zero above. That is
+ * the guard rather than the convenience it looks like: `rangeOf` sees through an assignment and a
+ * `Math.imul`, so an arm it calls constant may still be something the program *runs* - and an arm is
+ * exactly what this deletes.
+ */
+bool simplifyCondition(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Binary) {
+        auto& test = *(BinaryExpr*)expr;
+        if(test.op != BinaryOp::Ne) return false;
+
+        // `x !== 0` is what the emitter writes and `0 !== x` is what propagating a literal into the
+        // other side leaves, and they are one test - `!==` is symmetric where `&` and `|` are
+        // commutative.
+        auto value = test.lhs;
+        F64 against;
+
+        if(!constantNumber(g, test.rhs, against) || against != 0) {
+            value = test.rhs;
+            if(!constantNumber(g, test.lhs, against) || against != 0) return false;
+        }
+
+        if(!rangeOf(g, value, ranges).known) return false;
+
+        slot = value;
+        return true;
+    }
+
+    if(expr->kind == Expr::Ternary) {
+        auto& choice = *(TernaryExpr*)expr;
+
+        F64 then;
+        F64 otherwise;
+        if(!constantNumber(g, choice.then, then)) return false;
+        if(!constantNumber(g, choice.otherwise, otherwise)) return false;
+        if((then != 0) == (otherwise != 0)) return false;
+
+        slot = then != 0 ? choice.cond
+                         : asExpr(g, make<UnaryExpr>(g, UnaryOp::Not, choice.cond));
+        return true;
+    }
+
+    return false;
+}
+
+/*
+ * The condition slots of one expression - the two places inside an expression where only truthiness
+ * is read. `Stmt::If`'s condition is the third and is reached from `optimizeList`, which is where a
+ * statement is walked.
+ *
+ * `&&` and `||` are deliberately not here even though both operands are tested. Their *result* is one
+ * of the operands rather than a boolean, so rewriting one changes the value the surrounding
+ * expression sees - and the emitter writes short-circuiting as a ternary anyway, whose condition this
+ * does reach.
+ */
+bool foldConditions(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Ternary) {
+        return simplifyCondition(g, ((TernaryExpr*)expr)->cond, ranges);
+    }
+
+    if(expr->kind == Expr::Unary && ((UnaryExpr*)expr)->op == UnaryOp::Not) {
+        return simplifyCondition(g, ((UnaryExpr*)expr)->value, ranges);
+    }
+
+    return false;
+}
+
+/*
+ * `x ? 1 : 0` on an `x` that is already 0 or 1.
+ *
+ * The value half of the same redundancy, and `foldTernaryCompare` read the other way round: there a
+ * number was written as a condition, here a condition is written as a number. Neither end can see it.
+ * `x !== 0` is what a `Bool` *is* on this target - one bit of a packed word is a number, and truth is
+ * the number not being zero - and `? 1 : 0` is what widening one back to an integer is, emitted by a
+ * different file against a different instruction. Both are right on their own and every packed `Bool`
+ * read into arithmetic composes them.
+ *
+ * The condition is matched bare rather than as `x !== 0`, because `simplifyCondition` above has
+ * already taken the comparison off it: the two rules are in one loop and this one is stated over what
+ * that one leaves. What is left is arithmetic - `x ∈ {0, 1}` makes `x ? 1 : 0` equal to `x`, and no
+ * weaker range will do, since `2 ? 1 : 0` is 1.
+ */
+bool foldBooleanWidening(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Ternary) return false;
+
+    auto& choice = *(TernaryExpr*)expr;
+
+    F64 then;
+    F64 otherwise;
+    if(!constantNumber(g, choice.then, then) || then != 1) return false;
+    if(!constantNumber(g, choice.otherwise, otherwise) || otherwise != 0) return false;
+
+    if(!rangeOf(g, choice.cond, ranges).within(0, 1)) return false;
+
+    slot = choice.cond;
+    return true;
+}
+
+/*
  * Working out what a call to one of this compiler's own helpers comes to.
  *
  * A bit range wider than the host's operators is reached by arithmetic rather than by masking, and
@@ -2056,7 +2181,8 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     // them because each feeds the other - a removed mask leaves a literal to evaluate, and an
     // evaluated operand is a range the next coercion can see.
     while(foldSignExtend(g, slot, ranges) || foldCoercion(g, slot, ranges) ||
-          foldConstantOp(g, slot) || foldNumericIdentity(g, slot)) {
+          foldConstantOp(g, slot) || foldNumericIdentity(g, slot) ||
+          foldConditions(g, slot, ranges) || foldBooleanWidening(g, slot, ranges)) {
         folded = true;
     }
 
@@ -2282,6 +2408,13 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
         });
 
         if(auto header = headerOf(g, stmt)) changed = foldExprs(g, *header, ranges) || changed;
+
+        // An `if`'s header *is* a condition, which `foldExprs` has no way to know: it is handed a
+        // slot and every rule in it preserves a value. This is the third condition slot in the tree
+        // and the only one outside an expression - see `foldConditions` for the other two.
+        if(stmt->kind == Stmt::If) {
+            while(simplifyCondition(g, ((IfStmt*)stmt)->cond, ranges)) changed = true;
+        }
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
         // next one - which is what collapses a chain of one-use bindings in a single walk.

@@ -224,25 +224,96 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
 }
 
 /*
- * Which locals a callee could not reach.
+ * Whether a call that is handed this storage keeps a way to it after returning.
  *
- * The use list answers this exactly, for the reason opt_scalar.cpp gives at greater length: every
- * instruction naming a place rooted in a local is recorded as a user of that local's `Alloc`, so a
- * local whose users are all reads and writes *of its own place* has had its address handed to
- * nothing. It was not borrowed, it was not pointed at, it was not passed and it was not captured,
- * because each of those is an instruction and each would be in the list.
+ * The question `retained` was computed to answer, asked from the call site - see ArgSummary, and
+ * analyze_escape.cpp, which asks the same thing of the same flag one stage earlier. A parameter is
+ * retained when something derived from it outlives the call: stored into a global, captured by a
+ * closure, written into another argument. An unretained one is reachable *while the callee runs* and
+ * by nothing afterwards, because a call is synchronous and the borrow check has already refused a
+ * body that would keep the address.
  *
- * Four kinds are admitted and everything else declines. `Borrow` and `Address` hand out the address
- * that is the whole question; `Drop` runs a teardown that receives one; `Move`, `Swap` and
- * `Exchange` are ownership transfers the analyses already decided and not something to reason about
- * the storage of here.
+ * `returnRoot` has to be tested beside it, because the two divide one fact between them. A body that
+ * hands a borrow of its argument back is deliberately *not* marked retained - deriveSummary says why
+ * at length, and would otherwise put every value anyone borrows from on the heap - so the return-root
+ * marker is where that case is recorded. Read from the declaration rather than from `actualRoots`,
+ * which is the conservative direction: the check is that the actual group is a subset of the
+ * declared one.
+ *
+ * Everything else answers yes. A `CallDyn` has no callee to have a summary at all, which is the same
+ * blanket assumption analyze.cpp states for it; a callee that is opaque or has not been summarized
+ * yet is one nothing is known about; and a position past the end of the summary is a signature the
+ * two disagree about, which is not a disagreement to resolve in favour of the optimizer.
+ */
+static bool callKeepsStorage(OptContext& opt, Value& instruction, ModulePtr<Value> storage) {
+    ModuleList<ModulePtr<Value>, false>* args;
+    ModulePtr<Function> callee;
+
+    switch(instruction.kind) {
+        case Value::Call:
+            args = &((InstCall&)instruction).args;
+            callee = ((InstCall&)instruction).callee;
+            break;
+        case Value::GenCall:
+            args = &((InstGenCall&)instruction).args;
+            callee = ((InstGenCall&)instruction).callee;
+            break;
+        default:
+            return true;
+    }
+
+    if(!callee) return true;
+
+    auto& summary = opt.local[callee]->summary;
+    if(!summary.ready || summary.opaque) return true;
+
+    U16 index = 0;
+    auto keeps = false;
+
+    for(auto arg: args->contents(opt.local)) {
+        if(arg == storage) {
+            if(index >= summary.args.size()) return true;
+
+            auto entry = summary.args.get(opt.local, index);
+            if(entry.retained || entry.returnRoot) keeps = true;
+        }
+
+        index++;
+    }
+
+    return keeps;
+}
+
+/*
+ * Which locals a callee could not reach *for longer than one instruction*.
+ *
+ * The use list answers this almost exactly, for the reason opt_scalar.cpp gives at greater length:
+ * every instruction naming a place rooted in a local is recorded as a user of that local's `Alloc`,
+ * so a local whose users are all reads and writes *of its own place* has had its address handed to
+ * nothing. It was not borrowed, it was not pointed at and it was not captured, because each of those
+ * is an instruction and each would be in the list.
+ *
+ * Everything not admitted below declines. `Borrow` and `Address` hand out the address that is the
+ * whole question; `Drop` runs a teardown that receives one; `Move`, `Swap` and `Exchange` are
+ * ownership transfers the analyses already decided and not something to reason about the storage of
+ * here.
  *
  * The alloc appearing as an *operand* rather than as a place root is the whole-aggregate read a call
- * argument is - `call g, %v2` hands the record itself on - and is the one way a local on the list
- * above still escapes. opt_arg.cpp found the same case from the other side.
+ * argument is - `call g, %v2` hands the record itself on. opt_arg.cpp found the same case from the
+ * other side, and it used to be the one way a local on the list above still escaped.
  *
- * Flow-insensitive on purpose: a local borrowed anywhere is treated as reachable everywhere, which
- * costs the forwarding before the borrow and needs no reasoning about where a loan ends.
+ * **A call argument is exposure with an end to it**, which is the one thing this is not
+ * flow-insensitive about. A borrow escapes for the rest of the frame because the address is a value
+ * the function now holds; an unretained argument is reachable only while the callee runs, so it is
+ * admitted here and the *call* forgets what it may have written instead - see `forgetExposed`'s
+ * caller in opt_place.cpp and `scanEffects` in opt_loop.cpp, which are the two readers and both have
+ * to do it. Without that split a record handed to `==` once was un-forwardable everywhere in the
+ * function, including at instructions in front of the call: Default.yana built `Flags {read: True,
+ * write: True}` and then branched on a load of the field it had just written.
+ *
+ * Otherwise flow-insensitive on purpose: a local borrowed anywhere is treated as reachable
+ * everywhere, which costs the forwarding before the borrow and needs no reasoning about where a loan
+ * ends.
  */
 void computeContainment(OptContext& opt, IndexSet& contained) {
     contained.reset(opt.function->localCount());
@@ -258,6 +329,7 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
         if(ok) {
             for(auto user: opt.local[slot.value]->uses(opt.local)) {
                 auto& instruction = *opt.local[user];
+                auto handedOver = false;
 
                 switch(instruction.kind) {
                     case Value::Init:
@@ -270,11 +342,21 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
                     // appearing as one of the *values*, which is the whole-aggregate read.
                     case Value::Aggregate:
                         break;
+
+                    // The storage passed on as an argument, which is exposure for the length of the
+                    // call and no longer - when the callee's summary says so.
+                    case Value::Call:
+                    case Value::GenCall:
+                        handedOver = true;
+                        ok = !callKeepsStorage(opt, instruction, slot.value);
+                        break;
+
                     default:
                         ok = false;
                 }
 
                 if(!ok) break;
+                if(handedOver) continue;
 
                 eachOperand(opt.local, instruction, [&](ModulePtr<Value> operand) {
                     if(operand == slot.value) ok = false;

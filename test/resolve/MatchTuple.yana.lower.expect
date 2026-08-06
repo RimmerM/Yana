@@ -11,37 +11,13 @@ main<complex>(): Int {
     %v_2 = add %b, 4: Ptr
     store %v_2, 4, 4
     %v_3 = call_complex ordered, %a, %b, 0: Int
-    %v_4 = loads %a, 4: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_8 = loads @drops, 4: Int
-    %v_9 = add %v_8, 1: Int
-    store @drops, %v_9, 4
-    jmp b_7
-  }
-
-  b_7 {
-    %v_10 = loads %b, 4: Int
-    %v_11 = cmp_eq %v_10, 1: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    %v_14 = loads @drops, 4: Int
-    %v_15 = add %v_14, 1: Int
-    store @drops, %v_15, 4
-    jmp b_13
-  }
-
-  b_13 {
-    %v_16 = loads @drops, 4: Int
-    %v_17 = imul %v_16, 10: Int
-    %v_18 = add %v_3, %v_17: Int
-    %v_19 = add %v_18, 7: Int
-    ret %v_19
+    %v_4 = loads @drops, 4: Int
+    %v_5 = add %v_4, 2: Int
+    store @drops, %v_5, 4
+    %v_6 = imul %v_5, 10: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = add %v_7, 7: Int
+    ret %v_8
   }
 }
 

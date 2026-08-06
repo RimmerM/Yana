@@ -86,6 +86,28 @@ inline void eachRootValue(OptContext& opt, Value& instruction, F&& f) {
 }
 
 /*
+ * The locals whose storage an instruction is *handed*, as opposed to the ones it names a place in.
+ *
+ * `eachPlace` is the other half and neither covers the other: a call has no places at all, and the
+ * whole-aggregate operand is how a record reaches one. Every caller of this is also a caller of
+ * that, for the reason `computeContainment` admits the argument case at all - the exposure ends with
+ * the call, so whoever is tracking storage across it has to forget exactly here instead.
+ *
+ * Answered off the `Alloc` rather than off the type, because that is what a local's storage *is* as a
+ * value: opt_arg.cpp says the same when it substitutes one for a retired parameter.
+ */
+template<class F>
+inline void eachHandedLocal(OptContext& opt, Value& instruction, F&& f) {
+    eachOperand(opt.local, instruction, [&](ModulePtr<Value> operand) {
+        auto& value = *opt.local[operand];
+        if(value.kind != Value::Alloc) return;
+
+        auto local = ((InstAlloc&)value).local;
+        if(local != maxLimit<U32>) f(local);
+    });
+}
+
+/*
  * Whether a call is one of the checks the compiler inserted - see Program::checkCondition.
  *
  * Recognized by the callee rather than by its name, for the reason the pointer is recorded on the

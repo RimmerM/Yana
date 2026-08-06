@@ -1,0 +1,62 @@
+-- Storage handed to a callee is exposed *for the call*, not for the frame.
+--
+-- `computeContainment` used to answer one boolean per local for the whole function, so a record
+-- that appeared once as a call argument became un-forwardable everywhere - including at the
+-- instructions in front of the call. A construction followed by a read of what it just wrote then
+-- survived all the way to both backends, which each recovered the constant below the fork and
+-- neither could delete the branch it was the condition of. Default.yana was where it showed.
+--
+-- An unretained argument is reachable only while the callee runs, so the exposure ends at the call
+-- and the call is where the facts are forgotten instead. `retained` is the flag that says so, and
+-- it already existed: escape analysis computes it for the borrow checker's benefit, and this asks
+-- the same question from the call site.
+--
+-- Two things have to hold for this fixture to be about anything at all, and both are arranged
+-- rather than assumed. The callee has to stay a *call*, since an inlined one was never handed
+-- anything - hence `@noinline`. And the record has to be passed *whole*, since opt_arg.cpp takes a
+-- flattenable one apart into scalars and then there is no storage at the call either - hence a
+-- packed record, which `argumentCanFlatten` declines for having no fields to pass in place of it.
+
+data Flags {read: Bool, write: Bool}
+
+@noinline
+fn score(f: Flags) -> Int = if f.read then 10 else 20
+
+-- The reads on both sides of the call fold, because nothing between the construction and either of
+-- them could have reached `f`. Two calls rather than one, to show the fact survives more than the
+-- first.
+fn straight() -> Int:
+    let f = Flags {read: True, write: False}
+
+    let handed = score(f)
+    let before = if f.read then 1 else 2
+    let again = score(f)
+    let after = if f.write then 4 else 8
+
+    return handed + before + again + after
+
+-- The same as a branch, which is the shape that was actually costing something: the condition is a
+-- load of a field written two instructions above it, and without the split it reached both backends
+-- as a diamond whose two arms are the same and whose condition is a tautology.
+fn branching() -> Int:
+    let f = Flags {read: False, write: True}
+    let ignored = score(f)
+
+    if f.write then return ignored + 100
+    return ignored
+
+-- A borrow is exposure that does *not* end, and has to keep behaving that way: `mutate` is handed
+-- the address rather than the storage, so the read below it cannot answer what was written above.
+@noinline
+fn mutate(f: &Flags) -> Int:
+    f.read = True
+    return 0
+
+fn borrowed() -> Int:
+    let &f = Flags {read: False, write: False}
+    let zero = mutate(f)
+
+    return (if f.read then 1000 else 2000) + zero
+
+fn main() -> Int:
+    return straight() + branching() + borrowed()

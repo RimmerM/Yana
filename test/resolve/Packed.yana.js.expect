@@ -19,7 +19,7 @@ function together() {
   flip(v0, "$v", 1);
   flip(v0, "$v", 2);
   var v57 = v0.$v;
-  return ((v57 & 1) !== 0 ? 1 : 0) + ((v57 >>> 1 & 1) !== 0 ? 2 : 0);
+  return (v57 & 1) + (v57 >>> 1 & 1 ? 2 : 0);
 }
 
 function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -37,7 +37,7 @@ function loaned() {
   var v12 = pick(1, v0, "$v", 1, v0, "$v", 2);
   v12.$o[v12.$k] = $b1u$set(v12.$o[v12.$k], v12.$s, 0);
   var v59 = v0.$v;
-  return ((v59 & 1) !== 0 ? 1 : 0) + ((v59 >>> 1 & 1) !== 0 ? 2 : 0);
+  return (v59 & 1) + (v59 >>> 1 & 1 ? 2 : 0);
 }
 
 function swapBools(a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -51,7 +51,7 @@ function interleaved() {
   var v0 = { $v: 1 };
   swapBools(v0, "$v", 1, v0, "$v", 2);
   var v56 = v0.$v;
-  return ((v56 & 1) !== 0 ? 1 : 0) + ((v56 >>> 1 & 1) !== 0 ? 2 : 0);
+  return (v56 & 1) + (v56 >>> 1 & 1 ? 2 : 0);
 }
 
 function nudgeTwice(x$o, x$k, x$s) {
@@ -76,7 +76,7 @@ function wide() {
   var v0 = { $v: 0 };
   nine({ $o: v0, $k: "$v", $s: 1 }, { $o: v0, $k: "$v", $s: 2 }, { $o: v0, $k: "$v", $s: 4 }, { $o: v0, $k: "$v", $s: 8 }, { $o: v0, $k: "$v", $s: 16 }, { $o: v0, $k: "$v", $s: 32 }, { $o: v0, $k: "$v", $s: 64 }, { $o: v0, $k: "$v", $s: 128 }, { $o: v0, $k: "$v", $s: 256 });
   var v174 = v0.$v;
-  return ((v174 & 1) !== 0 ? 1 : 0) + ((v174 >>> 4 & 1) !== 0 ? 20 : 0) + ((v174 >>> 8 & 1) !== 0 ? 300 : 0);
+  return (v174 & 1) + (v174 >>> 4 & 1 ? 20 : 0) + (v174 >>> 8 & 1 ? 300 : 0);
 }
 
 function tally() {
@@ -86,7 +86,7 @@ function tally() {
   var v19 = v0.count + 1 | 0;
   v0.count = v19;
   var v66 = v0.$p4;
-  return (((v66 >>> 3 & 1) !== 0 ? 1 : 0) + Math.imul(v66 & 7, 10) | 0) + Math.imul(v19, 100) | 0;
+  return ((v66 >>> 3 & 1) + Math.imul(v66 & 7, 10) | 0) + Math.imul(v19, 100) | 0;
 }
 
 function dispatch() {

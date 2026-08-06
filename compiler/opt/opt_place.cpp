@@ -1446,6 +1446,22 @@ struct Forwarder {
                         eachPlace(*instruction, [&](const Place& place) {
                             forgetAliasing(const_cast<Place&>(place));
                         });
+
+                        /*
+                         * And the storage it was *handed*, which `forgetExposed` is now deliberately
+                         * the wrong rule for either.
+                         *
+                         * `computeContainment` admits an unretained call argument, so a record
+                         * passed to `==` stays contained and its facts survive every other call in
+                         * the function - which is the whole point. What it does not survive is this
+                         * call, because the callee holds the storage for as long as it runs and may
+                         * write it. Forgetting here is what pays for admitting it there: exposure
+                         * that ends is exposure the pass has to end somewhere.
+                         */
+                        eachHandedLocal(opt, *instruction, [&](U32 local) {
+                            auto place = Place::inLocal(local);
+                            forgetAliasing(place);
+                        });
                     } else {
                         markRead(*instruction);
                     }

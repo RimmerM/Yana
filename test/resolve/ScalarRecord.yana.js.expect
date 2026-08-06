@@ -31,7 +31,7 @@ function setBoth(f$o, f$k, f$s) {
 }
 
 function valueOf(f) {
-  return ((f & 1) !== 0 ? 1 : 0) + ((f >>> 1 & 1) !== 0 ? 2 : 0);
+  return (f & 1) + (f >>> 1 & 1 ? 2 : 0);
 }
 
 function coPacked() {
@@ -82,7 +82,7 @@ function heldValue(h) {
   var v37;
   if (h.$tag === 0) {
     var v43 = h.$p;
-    v37 = ((v43 & 1) !== 0 ? 1 : 0) + ((v43 >>> 1 & 1) !== 0 ? 2 : 0);
+    v37 = (v43 & 1) + (v43 >>> 1 & 1 ? 2 : 0);
   } else {
     if (h.$tag === 1) {
       v37 = Math.imul(h.$p, 10);
@@ -99,7 +99,7 @@ function reordered() {
   var v33 = BigInt.asUintN(64, v0.b + 1n);
   v0.b = v33;
   var v116 = v0.$p14;
-  return ((((((v116 >>> 8 & 1) !== 0 ? 1 : 0) + Math.imul(Number(v33) | 0, 10) | 0) + Math.imul(v0.c | 0, 100) | 0) + Math.imul((v116 & 15 ^ 8) - 8 >>> 0 | 0, 1000) | 0) + Math.imul(v0.e | 0, 10000) | 0) + Math.imul((v116 >>> 4 & 15 ^ 8) - 8 >>> 0 | 0, 1000000) | 0;
+  return (((((v116 >>> 8 & 1) + Math.imul(Number(v33) | 0, 10) | 0) + Math.imul(v0.c | 0, 100) | 0) + Math.imul((v116 & 15 ^ 8) - 8 >>> 0 | 0, 1000) | 0) + Math.imul(v0.e | 0, 10000) | 0) + Math.imul((v116 >>> 4 & 15 ^ 8) - 8 >>> 0 | 0, 1000000) | 0;
 }
 
 function pinned() {
@@ -131,7 +131,7 @@ function main() {
 }
 
 function Drop_Owned_drop(value) {
-  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt((value & 1) !== 0 ? 1 : 2)));
+  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(value & 1 ? 1 : 2)));
   return;
 }
 
