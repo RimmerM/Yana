@@ -34,48 +34,6 @@ whole<complex>(): Long {
   }
 }
 
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-firstByte<complex>(%it: Ptr): Long {
-  b_0 {
-    %v_1 = load %it, 8: Ptr
-    %v_2 = load %v_1, 1: Int
-    %v_3 = cast %v_2: Long
-    ret %v_3
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -245,16 +203,6 @@ field<complex>(): Long {
   }
 }
 
-makeBuffer<complex>(%v_0: Ptr, %size: Long) {
-  b_1 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_2, %size, 0
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
 other<complex>(): Long {
   b_0 {
     call_complex +=(I64), @liveBuffers, 1
@@ -283,12 +231,6 @@ other<complex>(): Long {
     call_complex -=(I64), @liveBuffers, 1
     %v_12 = add %v_9, %v_11: Long
     ret %v_12
-  }
-}
-
-holderOf<complex>(%self: Ptr): Ptr {
-  b_0 {
-    ret %self
   }
 }
 
@@ -363,22 +305,36 @@ main<complex>(): Long {
   }
 }
 
-pick<complex>(%a: Ptr, %b: Ptr, %first: Int): Ptr {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    je %first, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
   }
 
   b_3 {
-    %v_4 = phi [b_1, %a], [b_2, %b]: Ptr
-    ret %v_4
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
   }
 }
 

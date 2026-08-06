@@ -58,5 +58,13 @@ struct Constant {
  *
  * `what` names the position - "a global's initializer", "a field default" - and is the only thing
  * the diagnostics differ by.
+ *
+ * `notConstant`, where given, turns the "this is not a constant *form*" outcomes from reports into
+ * an answer: the flag is set, nothing is written, and the caller decides what a non-constant means
+ * there. That is what a root-module `let` needs - its initializer may be an ordinary expression, run
+ * by the program's entry sequence - and it is deliberately not the whole failure set. A literal out
+ * of range for its type is the right form with the wrong contents, so it stays an error wherever it
+ * is written; falling back to a runtime initializer for one would silently accept `300 :: U8`.
  */
-Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what);
+Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what,
+                          bool* notConstant = nullptr);

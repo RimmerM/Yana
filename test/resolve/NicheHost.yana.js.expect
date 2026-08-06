@@ -34,22 +34,7 @@ function pairValue(p) {
   return Math.imul(pointOr(p.left, 7), 100) + intOr(p.right, 7) | 0;
 }
 
-function objectFold() {
-  return pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0;
-}
-
-function intFold() {
-  return (intOr(0, 7) + Math.imul(intOr(5, 7), 10) | 0) + Math.imul(intOr(null, 7), 100) | 0;
-}
-
-function nested() {
-  return (depthOf({ $tag: 0, $p: null }) + Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) + Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0;
-}
-
-function paired() {
-  return pairValue({ left: { x: 2, y: 6 }, right: null }) + Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0;
-}
-
 function main() {
   return (((pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0) + ((intOr(0, 7) + Math.imul(intOr(5, 7), 10) | 0) + Math.imul(intOr(null, 7), 100) | 0) | 0) + ((depthOf({ $tag: 0, $p: null }) + Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) + Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0) | 0) + (pairValue({ left: { x: 2, y: 6 }, right: null }) + Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0) | 0;
 }
+main();

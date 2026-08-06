@@ -13,117 +13,6 @@ exchangeScalar<complex>(): Long {
   }
 }
 
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-sinkExchange<complex>(): Long {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 1, 8
-    store @sinkCalls, 0, 8
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 2, 8
-    %old = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %old, %v_1
-    call_complex Sink(Handle).sink, %v_1, %v_2
-    %v_3 = loads @sinkCalls, 8: Long
-    %v_4 = imul %v_3, 100: Long
-    %v_5 = loads %old, 8: Long
-    %v_6 = imul %v_5, 10: Long
-    %v_7 = add %v_4, %v_6: Long
-    %v_8 = loads %v_1, 8: Long
-    %v_9 = add %v_7, %v_8: Long
-    ret %v_9
-  }
-}
-
-swapDroppable<complex>(): Long {
-  b_0 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = imm 16: Long
-    %v_2 = call_complex allocateHeap, %v_1: Ptr
-    setpattern %v_2, %v_1, 0
-    call_complex +=(I64), @liveBuffers, 1
-    %v_3 = imm 32: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    setpattern %v_4, %v_3, 0
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = load %v_5, 8: Ptr
-    %v_7 = loads @liveBuffers, 8: Long
-    %v_8 = load %v_4, 1: Int
-    %v_9 = cast %v_8: Long
-    call_complex freeHeap, %v_4
-    call_complex -=(I64), @liveBuffers, 1
-    %v_10 = add %v_7, %v_9: Long
-    %v_11 = load %v_6, 1: Int
-    %v_12 = cast %v_11: Long
-    call_complex freeHeap, %v_6
-    call_complex -=(I64), @liveBuffers, 1
-    %v_13 = add %v_10, %v_12: Long
-    ret %v_13
-  }
-}
-
-globalExchange<complex>(): Long {
-  b_0 {
-    %counter = global @counter: Ptr
-    %old = loads %counter, 8: Long
-    store %counter, 7, 8
-    %v_1 = imul %old, 10: Long
-    %v_2 = loads @counter, 8: Long
-    %v_3 = add %v_1, %v_2: Long
-    ret %v_3
-  }
-}
-
-scalars<complex>(): Long {
-  b_0 {
-    %v_1 = imul 2, 10: Long
-    %v_2 = add %v_1, 1: Long
-    ret %v_2
-  }
-}
-
--=(I64)<complex>(%target: Ptr, %amount: Long) {
-  b_0 {
-    %v_1 = loads %target, 8: Long
-    %v_2 = sub %v_1, %amount: Long
-    store %target, %v_2, 8
-    ret 
-  }
-}
-
 sinkSwap<complex>(): Long {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
@@ -171,12 +60,64 @@ exchangeDroppable<complex>(): Long {
   }
 }
 
-firstByte<complex>(%it: Ptr): Long {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = load %it, 8: Ptr
-    %v_2 = load %v_1, 1: Int
-    %v_3 = cast %v_2: Long
-    ret %v_3
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
+  }
+}
+
+swapDroppable<complex>(): Long {
+  b_0 {
+    call_complex +=(I64), @liveBuffers, 1
+    %v_1 = imm 16: Long
+    %v_2 = call_complex allocateHeap, %v_1: Ptr
+    setpattern %v_2, %v_1, 0
+    call_complex +=(I64), @liveBuffers, 1
+    %v_3 = imm 32: Long
+    %v_4 = call_complex allocateHeap, %v_3: Ptr
+    setpattern %v_4, %v_3, 0
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_2, 8
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = loads @liveBuffers, 8: Long
+    %v_8 = load %v_4, 1: Int
+    %v_9 = cast %v_8: Long
+    call_complex freeHeap, %v_4
+    call_complex -=(I64), @liveBuffers, 1
+    %v_10 = add %v_7, %v_9: Long
+    %v_11 = load %v_6, 1: Int
+    %v_12 = cast %v_11: Long
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveBuffers, 1
+    %v_13 = add %v_10, %v_12: Long
+    ret %v_13
   }
 }
 
@@ -318,31 +259,40 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-makeBuffer<complex>(%v_0: Ptr, %size: Long) {
-  b_1 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_2, %size, 0
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
-swapThrough<complex>(%p: Ptr, %q: Ptr) {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, %p, 8
-    copy %p, %q, 8
-    copy %q, %v_1, 8
-    ret 
-  }
-}
-
 Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
     call_complex +=(I64), @sinkCalls, 1
     %v_1 = loads %from, 8: Long
     store %to, %v_1, 8
+    ret 
+  }
+}
+
+globalExchange<complex>(): Long {
+  b_0 {
+    %counter = global @counter: Ptr
+    %old = loads %counter, 8: Long
+    store %counter, 7, 8
+    %v_1 = imul %old, 10: Long
+    %v_2 = loads @counter, 8: Long
+    %v_3 = add %v_1, %v_2: Long
+    ret %v_3
+  }
+}
+
+scalars<complex>(): Long {
+  b_0 {
+    %v_1 = imul 2, 10: Long
+    %v_2 = add %v_1, 1: Long
+    ret %v_2
+  }
+}
+
+-=(I64)<complex>(%target: Ptr, %amount: Long) {
+  b_0 {
+    %v_1 = loads %target, 8: Long
+    %v_2 = sub %v_1, %amount: Long
+    store %target, %v_2, 8
     ret 
   }
 }

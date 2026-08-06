@@ -48,7 +48,7 @@ void defineRecord(Module& module, ast::Decl& decl);
 void defineNewtype(Module& module, ast::Decl& decl);
 RecordType* declaredRecord(Module& module, StringId name);
 void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
-void declareGlobal(Module& module, ast::Decl& decl);
+void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
 // -- module_sig.cpp ----------------------------------------------------------------------------

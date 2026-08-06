@@ -195,6 +195,20 @@ static TypePtr literalDefaultType(Module& module, ast::Literal::Kind literal) {
 }
 
 /*
+ * The failure a caller asked to be told about rather than to have reported - see the `notConstant`
+ * parameter of `evaluateConstant`.
+ *
+ * Only the outcomes that mean "this is not a constant *form*" go through here. The rest - a literal
+ * out of range for its type, an ascription that disagrees with the position, a constructor of the
+ * wrong record - are the right form with the wrong contents, and there is no other reading of them
+ * for a caller to prefer.
+ */
+static Constant unreportedNonConstant(bool* notConstant) {
+    *notConstant = true;
+    return {};
+}
+
+/*
  * A constructor written where a constant is wanted.
  *
  * Only a nullary constructor of an enumeration is one, and each of the other four outcomes is
@@ -203,7 +217,8 @@ static TypePtr literalDefaultType(Module& module, ast::Literal::Kind literal) {
  * the wrong type. That is most of what centralizing this bought - a global rejected every one of
  * them with a message about literals, because it had never heard of the form.
  */
-static Constant constructorConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what) {
+static Constant constructorConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what,
+                                    bool* notConstant) {
     auto& context = module.context;
     auto& diagnostics = context.diagnostics;
     auto global = *module.types;
@@ -212,6 +227,7 @@ static Constant constructorConstant(Module& module, const ast::Expr& expr, TypeP
     // `Con` and `Record.Con` are both an `ast::Type::Con`; anything else in this position is an
     // applied or structural type, which names no constructor.
     if(construct.type.kind != ast::Type::Con) {
+        if(notConstant) return unreportedNonConstant(notConstant);
         diagnostics.error("%@ must be a literal or a nullary constructor"_v, expr.source, what);
         return {};
     }
@@ -232,6 +248,7 @@ static Constant constructorConstant(Module& module, const ast::Expr& expr, TypeP
     TypePtr declared = (Type*)declaration - global;
 
     if(declaration->layout != RecordType::Enum) {
+        if(notConstant) return unreportedNonConstant(notConstant);
         diagnostics.error("%@ cannot be %@ - a value of %@ is storage rather than a number, and only a record whose constructors all carry nothing has a constant form"_v,
                           expr.source, what, name, describeType(context, global, declared));
         return {};
@@ -281,7 +298,8 @@ static Constant constructorConstant(Module& module, const ast::Expr& expr, TypeP
     return Constant { type, reference.index };
 }
 
-Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what) {
+Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what,
+                          bool* notConstant) {
     auto& context = module.context;
     auto& diagnostics = context.diagnostics;
     auto global = *module.types;
@@ -316,12 +334,13 @@ Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expecte
         value = &coerce.target;
     }
 
-    if(value->kind == ast::Expr::Con) return constructorConstant(module, *value, expected, what);
+    if(value->kind == ast::Expr::Con) return constructorConstant(module, *value, expected, what, notConstant);
 
     // A number as written, which is the literal and whether a `-` was in front of it.
     auto number = writtenNumber(module, *value);
 
     if(!number) {
+        if(notConstant) return unreportedNonConstant(notConstant);
         diagnostics.error("%@ must be a literal or a nullary constructor, optionally written `constant :: Type` - there is no program point at which a declaration's own code would run"_v,
                           value->source, what);
         return {};
@@ -344,6 +363,7 @@ Constant evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expecte
      * one, so the honest answer is that it cannot have one yet rather than that it starts empty.
      */
     if(!hasConstantForm(global, type)) {
+        if(notConstant) return unreportedNonConstant(notConstant);
         diagnostics.error("%@ has type %@, which has no constant form - only an integer, pointer, floating-point or enumeration type has one"_v,
                           written.source, what, describeType(context, global, type));
         return {};

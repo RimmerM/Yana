@@ -266,6 +266,247 @@ bool resolveFunctionBody(Module& module, Function& function) {
     return errors == context.diagnostics.errorCount();
 }
 
+/*
+ * One dynamically initialized global, and the whole of what makes it one.
+ *
+ * The initializer decides the type - a global has no other way to say what it is, since a `let`
+ * pattern carries no annotation and the `:: T` form is part of the expression - so this is where a
+ * dynamic global stops being typeless. Everything downstream depends on that having happened before
+ * any other body is resolved, which is what orders `resolveProgramEntry` ahead of them.
+ *
+ * The write is an `Init` and not an `Assign`, and that is load-bearing rather than tidy: the storage
+ * holds the zero it was emitted with, and an `Assign` would release that zero as though it were a
+ * live value - the drop-of-zeroed-storage defect that a global with no initializer had, reintroduced
+ * by the feature that fixes it.
+ */
+static void initializeGlobal(ExprResolver& resolver, ModulePtr<Global> pointer,
+                             const ast::VarDecl& declaration) {
+    auto& module = resolver.module;
+    auto& context = module.context;
+    auto global = *module.types;
+    auto source = declaration.pat.source;
+    auto definition = resolver.local[pointer];
+
+    auto value = resolver.settle(resolver.resolve(*module.parse[declaration.content]), source);
+
+    // Out of the pending list once its own initializer has been resolved and not before, so that
+    // `let x = x + 1` is the use-before-init it reads as rather than a read of the zeroes. The
+    // sequence declares them in order, so the one being initialized is the first one left.
+    auto& pending = *resolver.uninitialized;
+    for(Size i = 0; i < pending.size(); i++) {
+        if(pending[i] != pointer) continue;
+
+        pending.remove(i);
+        break;
+    }
+
+    // A type is owed either way. A global whose initializer did not resolve is still a name the rest
+    // of the module can write, and leaving it typeless would turn one report into a crash.
+    if(!value) {
+        definition->type = module.scalar.error;
+        return;
+    }
+
+    auto type = resolver.valueType(value);
+
+    /*
+     * A global cannot hold a borrow, and the reason is the one `analyze_borrow` already gives from
+     * the other side: its storage outlives every frame, so there is no extent a reference into one
+     * could be checked against. What would be stored is a pointer into the entry function's own
+     * frame, which stops existing the moment the program starts.
+     */
+    if(isBorrow(global, type)) {
+        context.diagnostics.error("a global cannot hold a borrow - its storage outlives every frame, so there is nothing for the reference to refer to"_v,
+                                  source);
+        definition->type = module.scalar.error;
+        return;
+    }
+
+    /*
+     * A global lives for the whole program and is never torn down - Analysis-Initialization.md
+     * §4.1's ruling, and the reason it is one: drop points are last-use-based and a global has no
+     * last use. Reclamation of its memory is the operating system's at exit and the host
+     * collector's on JavaScript, which is the same observable behaviour on both targets; an
+     * authored `Drop` is the half that was promised to *run*, so a global holding one silently
+     * skips an effect the program wrote down.
+     *
+     * A warning rather than a rejection: the global is legal and its meaning is defined, and a
+     * program-lifetime resource is a real thing to want. Authored rather than the whole member
+     * graph, deliberately - `Type::Fun` is classified `Derived` because a closure's captures are
+     * not visible in its type, so testing `drop != None` would warn about every global holding a
+     * function value and say something untrue about most of them.
+     */
+    if(ownershipOf(module, type).drop == TeardownKind::Authored) {
+        context.diagnostics.warning("%@ has type %@, whose `Drop` will not run - a global lives for the whole program and is never torn down. Hold the value in `main` instead if the teardown has to happen"_v,
+                                    source, context.findName(definition->name),
+                                    describeType(context, global, type));
+    }
+
+    definition->type = type;
+    resolver.initialize(Place::inGlobal(pointer), value, source);
+}
+
+/*
+ * The root module's top level, as the body of one function - Analysis-Initialization.md stage B.
+ *
+ * Root-only is the whole of what makes this cheap: there is exactly one module with executable
+ * top-level code, so there is no cross-module order to define, no import side effects and no
+ * reference analysis to write. What runs here is what was written here, in the order it was
+ * written, and `main` - where the module declares one - is called at the end of it.
+ */
+static void resolveEntryBody(Module& module, Function& function, ModulePtr<Function> main) {
+    auto& context = module.context;
+    auto parse = module.parse;
+    auto local = *module.arena;
+    auto source = function.source;
+
+    ExprResolver resolver(context, module, function);
+
+    PendingGlobals uninitialized;
+    for(auto statement: module.topLevel.contents(local)) {
+        for(auto global_: statement.globals.contents(local)) {
+            if(global_ && local[global_]->dynamic) uninitialized.push(global_);
+        }
+    }
+
+    resolver.uninitialized = &uninitialized;
+
+    for(auto statement: module.topLevel.contents(local)) {
+        if(!resolver.current) break;
+
+        auto& decl = *parse[statement.decl];
+
+        if(decl.stmt.kind != ast::Expr::Decl) {
+            // An ordinary statement, resolved for its effect. Nothing consumes its value - a top
+            // level has nothing to hand one to - which is the same thing a block's non-final
+            // statement is.
+            resolver.settle(resolver.resolve(decl.stmt, nullptr, false), decl.source);
+            continue;
+        }
+
+        // The declarations and what each of them declared, walked together. `declareGlobal` pushes
+        // one entry per written name including the rejected ones, which is what keeps the two in
+        // step - see TopLevelStmt.
+        Size index = 0;
+
+        for(auto declaration: decl.stmt.decl.contents(parse)) {
+            auto global_ = index < statement.globals.size() ? statement.globals.get(local, index)
+                                                            : ModulePtr<Global>(nullptr);
+            index++;
+
+            // A constant needs no code at all: it folds at every read and occupies nothing, which is
+            // exactly what it did before there was an entry sequence to leave it out of.
+            if(!global_ || !local[global_]->dynamic || !declaration.content) continue;
+            if(!resolver.current) break;
+
+            initializeGlobal(resolver, global_, declaration);
+        }
+    }
+
+    /*
+     * `main`, last, and its result is the program's status.
+     *
+     * The call is emitted here rather than left to the native wrapper because it is a fact about the
+     * *program* - a program whose top level ran and then called `main` did those two things in that
+     * order on every target - and because it is the only thing that gives the JavaScript output a
+     * program start at all.
+     */
+    /*
+     * Every dynamic global has a type by now, or is given the error type here.
+     *
+     * The sweep rather than trusting the loop above, because what the loop guarantees is that each
+     * initializer was *reached* - and a statement that leaves no reachable code after it stops the
+     * sequence where it is. A global left typeless would be read by whichever body names it next,
+     * which is a crash rather than the report that already happened.
+     */
+    for(auto statement: module.topLevel.contents(local)) {
+        for(auto global_: statement.globals.contents(local)) {
+            if(!global_ || local[global_]->type) continue;
+            local[global_]->type = module.scalar.error;
+        }
+    }
+
+    ModulePtr<Value> status = nullptr;
+
+    if(main && resolver.current) {
+        auto& declaration = *local[main];
+
+        if(declaration.args.isNotEmpty()) {
+            context.diagnostics.error("`main` is the program's entry point and cannot take arguments yet - there is no argument or environment model to fill them from"_v,
+                                      declaration.source);
+        } else if(declaration.gen) {
+            context.diagnostics.error("`main` is the program's entry point and cannot be generic - nothing calls it, so there is no call site for its type arguments to come from"_v,
+                                      declaration.source);
+        } else {
+            status = resolver.emitDirectCall(main, {}, declaration.source);
+        }
+    }
+
+    if(!resolver.current) return;
+
+    /*
+     * What the entry answers is what `main` answered, where that is something a process can report.
+     * A result held in storage is not: the status leaves through a register on the way to C's
+     * `main`, and there is nothing at the other end to receive an aggregate. Such a result is
+     * discarded here and released like any other value the frame owns.
+     */
+    if(status && !isMemoryType(*module.types, resolver.valueType(status))) {
+        function.returnType = resolver.valueType(status);
+    } else {
+        status = nullptr;
+        function.returnType = module.scalar.unit;
+    }
+
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, status));
+}
+
+/*
+ * Whether the root module's top level has anything to run.
+ *
+ * A module whose every top-level `let` is a constant is the program every existing fixture is: there
+ * is nothing to execute before `main`, so nothing is synthesized and `main` is the entry itself.
+ * That is what makes this rule cost nothing where it is not used - the degenerate case is not a
+ * special case, it is the general one with an empty statement list.
+ */
+static bool runsAtStartup(Module& module) {
+    auto local = *module.arena;
+
+    for(auto statement: module.topLevel.contents(local)) {
+        if(module.parse[statement.decl]->stmt.kind != ast::Expr::Decl) return true;
+
+        for(auto global_: statement.globals.contents(local)) {
+            if(global_ && local[global_]->dynamic) return true;
+        }
+    }
+
+    return false;
+}
+
+void resolveProgramEntry(Program& program) {
+    auto module = program.root;
+    if(!module) return;
+
+    auto& context = program.context;
+    auto found = module->functions.get(context.addUnqualifiedName("main", 4));
+    ModulePtr<Function> main = found ? found.unwrap() : nullptr;
+
+    if(!runsAtStartup(*module)) {
+        program.entry = main;
+        return;
+    }
+
+    // Anonymous, because nothing in the source can name it: it is reached from `Program::entry` and
+    // from the reachability walk that reads it, which is what `anonymous` means everywhere else.
+    auto first = module->topLevel.get(*module->arena, 0).decl;
+    auto source = first ? module->parse[first]->source : kNullLocation;
+    auto function = addAnonymousFunction(*module, context.addUnqualifiedName("main$", 5), source);
+
+    function->returnType = module->scalar.unit;
+    program.entry = function - *module->arena;
+
+    resolveEntryBody(*module, *function, main);
+}
+
 bool resolveModuleBodies(Module& module) {
     auto success = true;
     auto local = *module.arena;

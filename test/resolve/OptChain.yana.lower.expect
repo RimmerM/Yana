@@ -167,29 +167,6 @@ twoChecks<complex>(%v_0: Ptr, %n: Int) {
   }
 }
 
-okOr<complex>(%r: Ptr, %fallback: Int): Int {
-  b_0 {
-    %v_1 = loads %r, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %r, 4: Ptr
-    %v = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %v], [b_4, %fallback]: Int
-    ret %v_7
-  }
-}
-
 Try(Maybe(a), a, ()).toOutcome((Int) -> Int)<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
     %v_2 = loads %value, 4: Int
@@ -512,13 +489,6 @@ Try(Maybe(a), a, ()).toOutcome(Node)<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
-twice<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 2: Int
-    ret %v_1
-  }
-}
-
 inArgument<complex>(%a: Int, %b: Int): Int {
   b_0 {
     %v_1 = alloca 20, 4: Ptr
@@ -618,29 +588,6 @@ inArgument<complex>(%a: Int, %b: Int): Int {
     %v_43 = imul %v_42, 100: Int
     %v_44 = add %v_35, %v_43: Int
     ret %v_44
-  }
-}
-
-unwrapOr<complex>(%m: Ptr, %fallback: Int): Int {
-  b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %m, 4: Ptr
-    %v = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %v], [b_4, %fallback]: Int
-    ret %v_7
   }
 }
 
@@ -1031,48 +978,6 @@ main<complex>(): Int {
     %v_130 = imul %v_129, 100000: Int
     %v_131 = add %v_128, %v_130: Int
     ret %v_131
-  }
-}
-
-pick<complex>(%a: Ptr, %b: Ptr): Int {
-  b_0 {
-    %v_1 = loads %a, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %a, 4: Ptr
-    %v = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %v], [b_4, 0]: Int
-    %v_8 = loads %b, 4: Int
-    %v_9 = cmp_eq %v_8, 1: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    jmp b_12
-  }
-
-  b_10 {
-    %v_13 = add %b, 4: Ptr
-    %v = loads %v_13, 4: Int
-    jmp b_12
-  }
-
-  b_12 {
-    %v_14 = phi [b_10, %v], [b_11, 0]: Int
-    %v_15 = imul %v_14, 100: Int
-    %v_16 = add %v_7, %v_15: Int
-    ret %v_16
   }
 }
 

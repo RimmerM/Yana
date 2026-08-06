@@ -142,21 +142,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-makeBuffer<complex>(%v_0: Ptr, %count: Int) {
-  b_1 {
-    %v_2 = imul %count, 8: Int
-    %v_3 = sext %v_2: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    %cells = bitcast %v_4: Ptr
-    %v_5 = alloca 12, 8: Ptr
-    store %v_5, %cells, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %count, 4
-    copy %v_0, %v_5, 12
-    ret 
-  }
-}
-
 useSession<complex>(%s: Ptr): Int {
   b_0 {
     %v_1 = add %s, 12: Ptr

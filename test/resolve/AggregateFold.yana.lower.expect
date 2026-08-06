@@ -22,28 +22,6 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
   }
 }
 
-opaque<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, %n: Int
-    store @log, %v_2, 4
-    %v_3 = cmp_igt %v_2, 1000: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    ret 0
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    ret %n
-  }
-}
-
 later<complex>(%seed: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr

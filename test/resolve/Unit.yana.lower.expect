@@ -1,4 +1,10 @@
 
+unitValue<complex>() {
+  b_0 {
+    ret 
+  }
+}
+
 capturing<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
@@ -11,69 +17,6 @@ capturing<complex>(%n: Int): Int {
     %v_5 = load %v_3, 8: Ptr
     %v_6 = call_complex %v_4, %v_5, %n: Int
     ret %v_6
-  }
-}
-
-takesUnit<complex>(): Int {
-  b_0 {
-    ret 1
-  }
-}
-
-ResolveTest.lambda$0<complex>(%env: Ptr, %extra: Int): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = add %extra, 1: Int
-    ret %v_2
-  }
-}
-
-ResolveTest.lambda$2<complex>(%env: Ptr): Int {
-  b_0 {
-    ret 7
-  }
-}
-
-unitValue<complex>() {
-  b_0 {
-    ret 
-  }
-}
-
-identity(())<complex>() {
-  b_0 {
-    ret 
-  }
-}
-
-applyTo<complex>(%f: Ptr): Int {
-  b_0 {
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = call_complex %v_2, %v_3: Int
-    ret %v_4
-  }
-}
-
-branching<complex>(%c: Int): Int {
-  b_0 {
-    je %c, b_1, b_2
-  }
-
-  b_1 {
-    call_complex unitValue
-    jmp b_3
-  }
-
-  b_2 {
-    call_complex unitValue
-    call_complex identity(())
-    jmp b_3
-  }
-
-  b_3 {
-    ret 1
   }
 }
 
@@ -129,9 +72,23 @@ main<complex>(): Int {
   }
 }
 
+ResolveTest.lambda$0<complex>(%env: Ptr, %extra: Int): Int {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = add %extra, 1: Int
+    ret %v_2
+  }
+}
+
 ResolveTest.lambda$1<complex>(%env: Ptr): Int {
   b_0 {
     ret 6
+  }
+}
+
+ResolveTest.lambda$2<complex>(%env: Ptr): Int {
+  b_0 {
+    ret 7
   }
 }
 

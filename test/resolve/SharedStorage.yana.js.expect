@@ -18,33 +18,9 @@ function unwrapOr(value, fallback) {
   return v9;
 }
 
-function bump(value) {
-  return unwrapOr(value, 0) + 1 | 0;
-}
-
-function countOf(value) {
-  return value;
-}
-
-function taken() {
-  return unwrapOr(35, 0);
-}
-
-function replaced() {
-  return unwrapOr(36, 0);
-}
-
-function sunk() {
-  add_eq_Int(released, "$v", 1, 1);
-  return 36;
-}
-
-function guarded() {
-  return unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0);
-}
-
 function main() {
   var v2 = unwrapOr(35, 0) + unwrapOr(36, 0) | 0;
   add_eq_Int(released, "$v", 1, 1);
   return ((v2 + 36 | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released.$v | 0;
 }
+main();

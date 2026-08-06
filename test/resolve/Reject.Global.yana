@@ -1,9 +1,17 @@
 -- What a module-level `let` will not accept.
 --
--- A global's initializer is a constant rather than an expression, so `:: T` is the only thing that
--- says what the global is. That makes the ascription the one place a mistake can hide: the literal
--- in front of it has to be a value the type could actually hold, or the declaration says one thing
--- and the storage holds another.
+-- Every one of these is the *right form with the wrong contents*, and that is what makes them
+-- rejections rather than runtime initializers. A root module's `let` may be initialized by an
+-- ordinary expression now (TopLevel.yana), so a declaration that is simply not a constant is a
+-- program that runs rather than a mistake - `let &shape = Circle(1)` is a global built at startup.
+-- What is left here is the set that no reading rescues: a literal the ascribed type cannot hold, a
+-- constructor of the wrong record, a name that is no constructor at all. Each is refused whichever
+-- module it is written in.
+--
+-- The three at the top are the ones that changed sides in the same change: `0 :: Pair` is not a
+-- constant, so it is now resolved as the expression it is - and refused as one, because there is no
+-- `FromInt` instance that would make a number into a record. It is the same rejection with the
+-- reason stated where the reason is.
 --
 -- Constant.yana is the other half of this - the forms that are accepted, in both positions.
 
@@ -22,7 +30,8 @@ let &slot = 0 :: Pair
 -- theoretical.
 let &held = 0 :: Handle
 
--- A number is not an array either, and an array's constant would have to say how long it is.
+-- A number is not an array either. Written as an expression this is the ordinary "no instance"
+-- report, which says what would have to exist for it to mean anything.
 let &buffer = 0 :: [Int]
 
 -- The type is right and the literal is not: a float constant cannot start an integer global,
@@ -57,10 +66,7 @@ let &vast = 18446744073709551616 :: U8
 -- the ascription is checked against it rather than believed.
 let &misTyped = North :: Int
 
--- Only a constructor that carries nothing is a constant, since a constructed value is storage.
-let &shape = Circle(1)
-
--- And a name that is no constructor at all is reported as that rather than as "not a literal",
+-- A name that is no constructor at all is reported as that rather than as "not a literal",
 -- which is the diagnostic a global used to give every one of these.
 let &missing = West
 

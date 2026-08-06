@@ -486,35 +486,71 @@ void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
 }
 
 /*
- * A module-level `let`.
+ * A statement at module level: a `let` that declares a global, or - in the root module - anything
+ * else, which is a statement the program runs on the way in.
  *
- * There is no program point at which module-level code would run, so a global's initializer is a
- * constant rather than an expression: a literal, or a literal coerced to the type the global is
- * meant to have. `let &heapNext = 0 :: %U8` is therefore both the declaration and the whole of
- * what it starts as, which is what a runtime's static state actually needs and no more.
+ * The two halves of that sentence are Analysis-Initialization.md stage B. A library module still has
+ * no program point at which its own code would run, so its `let` is a *constant* and nothing else is
+ * admitted at all; the root module *is* the program, so its top level is an ordinary statement
+ * sequence and its `let` may be initialized by one. Which of the two a `let` turns out to be is not
+ * a syntactic distinction: a constant initializer keeps every property it had - it folds at each
+ * read, occupies nothing and needs no code - and only an initializer that is not one gets storage
+ * and a place in the entry sequence.
+ *
+ * `evaluateConstant` is asked rather than a shape being matched here, and the `notConstant` flag is
+ * what makes that safe: `let &x = 300 :: U8` is the right form with the wrong contents, so it stays
+ * the error it was instead of quietly becoming a runtime initializer that truncates.
  */
-void declareGlobal(Module& module, ast::Decl& decl) {
+void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
     auto parse = module.parse;
     auto& context = module.context;
 
     if(decl.stmt.kind != ast::Expr::Decl) {
-        context.diagnostics.error("only a `let` declaration can appear at module level"_v, decl.source);
+        if(!module.root) {
+            context.diagnostics.error("only a `let` declaration can appear at module level - a statement has to run at some point in a program's startup, and only the module being compiled has one"_v,
+                                      decl.source);
+            return;
+        }
+
+        module.topLevel.push(module.arena, TopLevelStmt { pointer });
         return;
     }
+
+    TopLevelStmt statement { pointer };
+
+    /*
+     * One entry per written name, including the ones rejected below, because the entry sequence
+     * walks this list beside the same declarations - see resolveEntryBody. A hole would silently
+     * pair a name with the initializer of the one after it.
+     */
+    auto declared = [&](ModulePtr<Global> global_) { statement.globals.push(module.arena, global_); };
 
     for(auto declaration: decl.stmt.decl.contents(parse)) {
         if(declaration.pat.kind != ast::Pat::Var) {
             context.diagnostics.error("a global must be declared as a single name"_v, declaration.pat.source);
+            declared(nullptr);
             continue;
         }
 
         if(declaration.bind != ast::BindType::Borrow && declaration.bind != ast::BindType::Ref) {
             context.diagnostics.error("a global is either plain or `&` mutable"_v, declaration.pat.source);
+            declared(nullptr);
             continue;
         }
 
         if(!declaration.content) {
-            context.diagnostics.error("a global requires a constant initializer"_v, declaration.pat.source);
+            context.diagnostics.error("a global requires an initializer"_v, declaration.pat.source);
+            declared(nullptr);
+            continue;
+        }
+
+        // `let x = e in body` names something for the length of `body`, and a module level has no
+        // body: what follows the declaration is the rest of the file, which is what the global's own
+        // scope already is. Reported rather than ignored, since ignoring it drops written code.
+        if(declaration.in) {
+            context.diagnostics.error("a module-level `let` has no `in` - the name it declares is in scope for the whole module"_v,
+                                      decl.source);
+            declared(nullptr);
             continue;
         }
 
@@ -524,17 +560,31 @@ void declareGlobal(Module& module, ast::Decl& decl) {
          * A global has no other way to say what it is - a `let` pattern carries no type annotation -
          * so the `:: T` of `let &heapNext = 0 :: %U8` is read by the evaluator as the position's
          * type rather than checked afterwards, and a global written without one takes the literal's
-         * own default. Everything else about what may be written here is const.cpp's, including the
-         * fact that a global of a memory type has no constant to start from.
+         * own default. Everything else about what may be written here is const.cpp's.
+         *
+         * A dynamic global has no type yet: what it holds is whatever its initializer produces, and
+         * that is resolved by the entry sequence. Nothing may read one before then, which is why the
+         * entry body is the first body resolved - see resolveProgram.
          */
+        auto notConstant = false;
         auto constant = evaluateConstant(module, *parse[declaration.content], nullptr,
-                                         "a global's initializer"_v);
-        if(!constant) continue;
+                                         "a global's initializer"_v, module.root ? &notConstant : nullptr);
+
+        if(!constant && !notConstant) {
+            declared(nullptr);
+            continue;
+        }
 
         auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
         recordDefinition(module.context, globalSymbol(module, global_ - *module.arena));
         global_->type = constant.type;
         global_->initial = constant.bits;
         global_->mut = declaration.bind == ast::BindType::Ref;
+        global_->dynamic = notConstant;
+        declared(global_ - *module.arena);
     }
+
+    // By value, not by move: what the list holds is a region pointer and two counts, so the copy is
+    // the same eight bytes either way and the elements it names do not move.
+    if(module.root) module.topLevel.push(module.arena, statement);
 }

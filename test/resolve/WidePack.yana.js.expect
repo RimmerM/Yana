@@ -4,18 +4,6 @@ function check(actual, expected, weight) {
   return actual === expected ? weight : 0;
 }
 
-function checkI(actual, expected, weight) {
-  return actual === expected ? weight : 0;
-}
-
-function checkW(actual, expected, weight) {
-  return actual === expected ? weight : 0;
-}
-
-function readB(p) {
-  return $p20u$get(p, 2.3283064365386963E-10);
-}
-
 function writeHigh() {
   var v0 = 0;
   v0 = v0 + (1000 - (v0 & 1048575));
@@ -47,13 +35,6 @@ function marked() {
   var v0 = 0;
   v0 = v0 + (5 - (v0 & 1048575));
   v0 = $p20u$set(v0, 2.3283064365386963E-10, 4294967296, -3);
-  return v0;
-}
-
-function tagged() {
-  var v0 = 0;
-  v0 = v0 + ($w40u$wrap(549755813887) - $w40u$wrap(v0));
-  v0 = $p4u$set(v0, 9.094947017729282E-13, 1099511627776, 9);
   return v0;
 }
 
@@ -94,10 +75,6 @@ function main() {
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp
-function $p20u$get(w, i) {
-  return Math.floor(w * i) & 1048575;
-}
-
 function $p20u$set(w, i, s, v) {
   return w + ((v & 1048575) - (Math.floor(w * i) & 1048575)) * s;
 }
@@ -120,6 +97,10 @@ function $b12u$get(w, s) {
 
 function $b12u$set(w, s, v) {
   return w + ((v & 4095) - (Math.floor(w / s) & 4095)) * s;
+}
+
+function $p20u$get(w, i) {
+  return Math.floor(w * i) & 1048575;
 }
 
 function $p20i$get(w, i) {
@@ -154,3 +135,4 @@ function $w40i$wrap(a) {
 function $wi$hi(a) {
   return Math.floor(a * 2.3283064365386963E-10);
 }
+main();

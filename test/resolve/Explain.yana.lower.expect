@@ -140,13 +140,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-replace<complex>(%slot: Ptr, %with: Ptr) {
-  b_0 {
-    copy %slot, %with, 16
-    ret 
-  }
-}
-
 placed<complex>(): Long {
   b_0 {
     %v_1 = call_complex allocateHeap, 16: Ptr
@@ -219,15 +212,6 @@ freeHeap<complex>(%allocation: Ptr) {
 borrowed<complex>(%p: Ptr): Ptr {
   b_0 {
     ret %p
-  }
-}
-
-bump<complex>(%counter: Ptr) {
-  b_0 {
-    %v_1 = loads %counter, 8: Long
-    %v_2 = add %v_1, 1: Long
-    store %counter, %v_2, 8
-    ret 
   }
 }
 

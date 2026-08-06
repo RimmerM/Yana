@@ -3,81 +3,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-holdsNothing<complex>(): Long {
-  b_0 {
-    %s = alloca 24, 8: Ptr
-    store %s, 0, 4
-    %counted = loads @liveBuffers, 8: Long
-    call_complex drop$Slot, %s
-    ret %counted
-  }
-}
-
-holdsOne<complex>(): Long {
-  b_0 {
-    %s = alloca 24, 8: Ptr
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %s, 1, 4
-    %v_2 = add %s, 8: Ptr
-    store %v_2, %v_1, 8
-    %counted = loads @liveBuffers, 8: Long
-    call_complex drop$Slot, %s
-    ret %counted
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-holdsTwo<complex>(): Long {
-  b_0 {
-    %s = alloca 24, 8: Ptr
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    store %s, 2, 4
-    %v_3 = add %s, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = add %s, 16: Ptr
-    store %v_4, %v_2, 8
-    %counted = loads @liveBuffers, 8: Long
-    call_complex drop$Slot, %s
-    ret %counted
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -216,15 +141,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-makeBuffer<complex>(%v_0: Ptr, %size: Long) {
-  b_1 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, %size: Ptr
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
 drop$Slot<complex>(%value: Ptr) {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -322,9 +238,36 @@ main<complex>(): Int {
   }
 }
 
-touch<complex>(%it: Ptr): Long {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    ret 0
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
   }
 }
 

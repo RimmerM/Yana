@@ -5,31 +5,13 @@ function tick(x$o, x$k, x$s) {
   return;
 }
 
-function bump(x$o, x$k, x$s) {
-  x$o[x$k] = x$o[x$k] + 1 >>> 0;
-  return;
-}
-
 function flip(b$o, b$k, b$s) {
   b$o[b$k] = $b1u$set(b$o[b$k], b$s, $b1u$get(b$o[b$k], b$s) ^ 1);
   return;
 }
 
-function scale(x$o, x$k, x$s, by) {
-  x$o[x$k] = Math.imul(x$o[x$k], by) >>> 0;
-  return;
-}
-
 function direct() {
   return 924000;
-}
-
-function borrowed() {
-  return 204;
-}
-
-function neighbours() {
-  return 2300;
 }
 
 function together() {
@@ -38,10 +20,6 @@ function together() {
   flip(v0, "$v", 2);
   var v57 = v0.$v;
   return ((v57 & 1) !== 0 ? 1 : 0) + ((v57 >>> 1 & 1) !== 0 ? 2 : 0);
-}
-
-function unpacked() {
-  return 85;
 }
 
 function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -62,14 +40,6 @@ function loaned() {
   return ((v59 & 1) !== 0 ? 1 : 0) + ((v59 >>> 1 & 1) !== 0 ? 2 : 0);
 }
 
-function optionOf(f$o, f$k, f$s) {
-  return { $o: f$o, $k: f$k, $s: f$s };
-}
-
-function returned() {
-  return 3;
-}
-
 function swapBools(a$o, a$k, a$s, b$o, b$k, b$s) {
   var t = $b1u$get(a$o[a$k], a$s);
   a$o[a$k] = $b1u$set(a$o[a$k], a$s, $b1u$get(b$o[b$k], b$s));
@@ -84,21 +54,9 @@ function interleaved() {
   return ((v56 & 1) !== 0 ? 1 : 0) + ((v56 >>> 1 & 1) !== 0 ? 2 : 0);
 }
 
-function nudge(x$o, x$k, x$s) {
-  x$o[x$k] = $b13u$set(x$o[x$k], x$s, ($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191);
-  return;
-}
-
 function nudgeTwice(x$o, x$k, x$s) {
   x$o[x$k] = $b13u$set(x$o[x$k], x$s, (($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) + 1 & 8191);
   return;
-}
-
-function threaded() {
-  var v0 = { $v: 2162788 };
-  nudgeTwice(v0, "$v", 1);
-  var v52 = v0.$v;
-  return Math.imul(v52 & 8191, 10) + (v52 >>> 16 & 15) | 0;
 }
 
 function nine(a, b, c, d, e, f, g, h, i) {
@@ -129,14 +87,6 @@ function tally() {
   v0.count = v19;
   var v66 = v0.$p4;
   return (((v66 >>> 3 & 1) !== 0 ? 1 : 0) + Math.imul(v66 & 7, 10) | 0) + Math.imul(v19, 100) | 0;
-}
-
-function liveOf(e) {
-  return { $o: e, $k: "$p4", $s: 8 };
-}
-
-function kept() {
-  return 211;
 }
 
 function dispatch() {
@@ -175,3 +125,4 @@ function $b13u$get(w, s) {
 function $b13u$set(w, s, v) {
   return w + ((v & 8191) - (Math.floor(w / s) & 8191)) * s;
 }
+main();

@@ -203,8 +203,12 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     for(auto globalPointer: module.globals) assembly.addGlobal(base, base[globalPointer]);
     assembly.resolveRelocations();
 
-    auto mainName = Context::nameHash("main", 4);
-    auto foundMain = module.functions.get(mainName);
+    // The program's start rather than `main` by name: where the fixture has top-level statements,
+    // `main` is what the synthesized entry calls last, and running `main` on its own would run the
+    // fixture with its own initialization skipped - see Program::entry.
+    if(!module.entry) return Nothing();
+
+    auto foundMain = module.functions.get(module.entry);
     if(!foundMain) return Nothing();
     auto mainFunction = base[foundMain.unwrap()];
     auto offset = assembly.functionOffsets.getValue(mainFunction);
@@ -232,17 +236,28 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
         return Nothing();
     }
 
-    auto resolvedMain = resolved.root->functions.get(mainName);
-    if(!resolvedMain) {
+    // How wide the result is, read off the entry's own signature rather than `main`'s - the two
+    // agree by construction, since the entry answers what `main` answered, and asking the entry is
+    // what keeps that a fact about one function instead of two.
+    if(!resolved.entry) {
         munmap(memory, allocationSize);
         return Nothing();
     }
-    auto returnType = (*resolved.types)[(*resolved.arena)[resolvedMain.unwrap()]->returnType];
+
+    auto returnType = (*resolved.types)[(*resolved.arena)[resolved.entry]->returnType];
 
     I64 result;
     auto address = (Byte*)memory + offset.unwrap();
-    if(returnType->kind == Type::Int &&
-       ((IntType*)returnType)->width == IntType::Long) {
+
+    if(isUnit(*resolved.types, (*resolved.arena)[resolved.entry]->returnType)) {
+        // A program that answers nothing exits zero, which is what the native wrapper says about the
+        // same function (see addNativeEntry) and what C says about falling off the end of `main`.
+        // Reading a register the callee never wrote would make a program with no `main` answer
+        // whatever happened to be in it.
+        ((void (*)())address)();
+        result = 0;
+    } else if(returnType->kind == Type::Int &&
+              ((IntType*)returnType)->width == IntType::Long) {
         result = ((I64 (*)())address)();
     } else {
         result = ((I32 (*)())address)();
@@ -515,15 +530,14 @@ struct NodeHarness {
 
         if(child < 0 && !start()) return false;
 
-        // `String()` rather than the value itself, because an `I64` is a BigInt here and would
-        // otherwise print as `37n`.
-        auto tail = "\nconsole.log(String(main()));\n"_v;
-
+        // The script as it was emitted, and nothing appended to it. An emitted file calls the
+        // program's entry itself now, so the status is the script's completion value and the harness
+        // prints it - see Analysis-Initialization.md stage B. Appending a call of our own would run
+        // a program with top-level statements twice.
         char header[64];
-        auto length = snprintf(header, sizeof(header), "%zu\n", Size(emitted.length) + tail.length);
+        auto length = snprintf(header, sizeof(header), "%zu\n", Size(emitted.length));
 
-        if(!writeAll(header, Size(length)) || !writeAll((const char*)emitted.ptr, emitted.length)
-           || !writeAll(tail.ptr, tail.length)) {
+        if(!writeAll(header, Size(length)) || !writeAll((const char*)emitted.ptr, emitted.length)) {
             stop();
             return false;
         }
@@ -589,10 +603,11 @@ static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
     /*
      * The *last* line, because a fixture is allowed to print.
      *
-     * `main`'s value is the final line by construction - the driver appends the `console.log` that
-     * writes it - so anything before it is the program's own output. Parsing from the front instead
-     * made a fixture that called `print` report a JavaScript failure with no failure in it, which is
-     * the one thing `print` cannot be tested without doing.
+     * The status is the final line by construction - the harness writes the script's completion
+     * value there, which is what the entry call the file ends with produced - so anything before it
+     * is the program's own output. Parsing from the front instead made a fixture that called `print`
+     * report a JavaScript failure with no failure in it, which is the one thing `print` cannot be
+     * tested without doing.
      */
     auto start = buffer;
     for(Size i = read; i > 0; i--) {

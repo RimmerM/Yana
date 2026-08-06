@@ -27,26 +27,6 @@ choiceValue<complex>(%choice: Ptr): Int {
   }
 }
 
-forwardRecord<complex>(): Int {
-  b_0 {
-    ret 6
-  }
-}
-
-sum<complex>(%pair$x: Int, %pair$y: Int): Int {
-  b_0 {
-    %v_1 = add %pair$x, %pair$y: Int
-    ret %v_1
-  }
-}
-
-tupleValue<complex>(%pair$0: Int, %pair$1: Int): Int {
-  b_0 {
-    %v_1 = add %pair$0, %pair$1: Int
-    ret %v_1
-  }
-}
-
 selectedPair<complex>(%v_0: Ptr, %value: Int) {
   b_1 {
     %v_2 = cast %value: Int
@@ -73,55 +53,6 @@ selectedPair<complex>(%v_0: Ptr, %value: Int) {
   b_8 {
     %v_11 = phi [b_4, %v_9], [b_5, %v_6]: Ptr
     copy %v_0, %v_11, 8
-    ret 
-  }
-}
-
-directionValue<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = cast %value: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    %v_3 = select 1, 2, %v_2: Int
-    ret %v_3
-  }
-}
-
-<+><complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = add %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
-classify<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %value, 0: Int
-    %v_2 = cmp_ige %value, 1: Int
-    %v_3 = cmp_ile %value, 10: Int
-    %v_4 = and %v_2, %v_3: Int
-    %v_5 = select 1, 2, %v_4: Int
-    %v_6 = select 0, %v_5, %v_1: Int
-    ret %v_6
-  }
-}
-
-boolValue<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = xor %value, 1: Int
-    %v_2 = cast %v_1: Int
-    %v_3 = cmp_eq %v_2, 1: Int
-    %v_4 = select 1, 0, %v_3: Int
-    ret %v_4
-  }
-}
-
-makePair<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 2, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 3, 4
-    copy %v_0, %v_2, 8
     ret 
   }
 }

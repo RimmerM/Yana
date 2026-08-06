@@ -83,15 +83,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-firstByte<complex>(%it: Ptr): Long {
-  b_0 {
-    %v_1 = load %it, 8: Ptr
-    %v_2 = load %v_1, 1: Int
-    %v_3 = cast %v_2: Long
-    ret %v_3
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -261,26 +252,6 @@ field<complex>(): Long {
     call_complex -=(I64), @liveBuffers, 1
     %v_16 = add %v_15, %v_5: Long
     ret %v_16
-  }
-}
-
-replace<complex>(%slot: Ptr, %with: Ptr) {
-  b_0 {
-    %v_1 = load %slot, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveBuffers, 1
-    copy %slot, %with, 8
-    ret 
-  }
-}
-
-makeBuffer<complex>(%v_0: Ptr, %size: Long) {
-  b_1 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_2, %size, 0
-    store %v_0, %v_2, 8
-    ret 
   }
 }
 

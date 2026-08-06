@@ -891,6 +891,32 @@ void genForwardCells(Gen& g) {
 }
 
 /*
+ * The program's start, as the file's last statement - Analysis-Initialization.md stage B.
+ *
+ * This one line is the whole difference between the output being a program and being a library of
+ * declarations: nothing else an emitted file contains runs anything, which is why a `.js` build had
+ * no program start at all before there was a name for what one is.
+ *
+ * Last, after the helpers, so that the call's result is the script's completion value - which is how
+ * a host that evaluates the file reads the status the program answered, and is what the fixture
+ * runner uses in place of appending a call of its own.
+ *
+ * Only in executable mode. A library is emitted to be imported, and a file that ran its own `main`
+ * on import would be the import side effect this design says an import does not have.
+ */
+void genEntryCall(Gen& g) {
+    if(g.context.settings.mode != CompileMode::JsExecutable) return;
+
+    auto entry = g.program.entry;
+    if(!entry || g.excluded.contains(U32(entry))) return;
+
+    auto found = g.functionNames.get(U32(entry));
+    if(!found) return;
+
+    emitExpr(g, call(g, variable(g, found.unwrap())));
+}
+
+/*
  * Which globals are stored boxed - see Gen::boxedGlobals.
  *
  * A global that is referred to at all and is not a host object needs the box, on exactly the terms
@@ -1412,6 +1438,8 @@ Ptr<File> genProgram(Context& context, Program& program) {
     // a list that is allowed to grow underneath it while the reverse is not true.
     emitBitHelpers(g);
     emitWideHelpers(g);
+
+    genEntryCall(g);
 
     optimizeFile(g);
     return file;

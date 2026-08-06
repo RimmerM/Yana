@@ -399,13 +399,6 @@ funvalue$double<complex>(%env: Ptr, %v: Int): Int {
   }
 }
 
-double<complex>(%v: Int): Int {
-  b_0 {
-    %v_1 = imul %v, 2: Int
-    ret %v_1
-  }
-}
-
 reserve(Int)<complex>(%self: Ptr, %wanted: Int) {
   b_0 {
     %v_1 = add %self, 8: Ptr
@@ -605,17 +598,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_24 {
     %v_62 = bitcast 0: Ptr
     ret %v_62
-  }
-}
-
-wrap<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
-  b_1 {
-    %c = alloca 16, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    call_complex collect, %v_2, %xs$items, %xs$length
-    copy %c, %v_2, 16
-    copy %v_0, %c, 16
-    ret 
   }
 }
 

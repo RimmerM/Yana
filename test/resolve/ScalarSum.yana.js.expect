@@ -71,30 +71,10 @@ function bump(x$o, x$k, x$s) {
   return;
 }
 
-function roundTrip() {
-  return payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0;
-}
-
-function coloured() {
-  return colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0;
-}
-
-function counted() {
-  return fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0;
-}
-
-function packedPayload() {
-  return taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0;
-}
-
 function mutated() {
   var v0 = { $tag: 0, $p: 41 };
   bump(v0, "$p", 1);
   return payloadOf(v0);
-}
-
-function copied() {
-  return taggedOf({ $tag: 1, $p: 1 });
 }
 
 function maybeOf(m) {
@@ -107,14 +87,7 @@ function maybeOf(m) {
   return v10;
 }
 
-function folded() {
-  return (maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0;
-}
-
-function wide() {
-  return widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0;
-}
-
 function main() {
   return (((((((payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0) + (colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0) | 0) + (fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0) | 0) + (taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0) | 0) + mutated() | 0) + taggedOf({ $tag: 1, $p: 1 }) | 0) + ((maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0) | 0) + (widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0) | 0;
 }
+main();

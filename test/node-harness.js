@@ -90,7 +90,17 @@ for(;;) {
     };
 
     try {
-        vm.runInNewContext(script.toString('utf8'), sandbox, { filename: 'fixture.js' });
+        // The completion value is the status the program answered: an emitted file ends with a call
+        // of its own entry, so the last thing the script evaluates is that call. Written as the
+        // final line, which is where the driver reads it from - anything before it is what the
+        // fixture itself printed.
+        //
+        // `String()` rather than the value, because an `I64` is a BigInt here and would otherwise
+        // print as `37n`. A program whose entry answers nothing completes as `undefined` and is
+        // reported as zero, which is what the native wrapper says about the same program.
+        const status = vm.runInNewContext(script.toString('utf8'), sandbox, { filename: 'fixture.js' });
+        output += String(status === undefined ? 0 : status) + '\n';
+
         respond('OK', output);
     } catch(e) {
         respond('ERR', output + (e && e.stack ? e.stack : String(e)) + '\n');

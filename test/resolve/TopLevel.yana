@@ -1,0 +1,66 @@
+-- The root module's top level, and what it runs - Analysis-Initialization.md stage B.
+--
+-- A module-level `let` used to be a constant and nothing else, because there was no program point
+-- at which module-level code would run. There is one now: the root module's top-level statements
+-- are the body of one synthesized function, `main` is called at the end of it, and its result is the
+-- program's status. Everything below is written at the top level for that reason rather than for
+-- brevity - each line is a claim about what runs, and in which order.
+--
+-- One number rather than a test per claim, for the reason FloatNaN.yana gives: the score says which
+-- claim failed, not that one of them did. Each contributes its own decimal digit or digits.
+
+data Shape = Circle(Int) | Square(Int)
+
+-- A constant, which is what every module-level `let` was. It folds at each read and occupies
+-- nothing, and nothing about it is in the entry sequence at all - which is the property the whole
+-- rule is gated on, and why `Native`'s call numbers did not become loads when this landed.
+let bonus = 3
+
+-- Mutable, and constant. Storage, because a `let &` cannot fold - but its initial value is written
+-- into that storage rather than assigned into it at startup.
+let &counter = 0 :: Int
+
+-- The case the feature exists for: an initializer that is not a constant. A constructed value has no
+-- constant form at all, so this could not be written at module level before - only inside a
+-- function, where it would then not be a module-level name.
+let &shape = Circle(7)
+
+-- And one that calls a function. The callee is declared further down the file, which is fine: every
+-- signature in the module exists before any body is resolved, and the entry sequence is a body.
+let &seed = seedFrom(4)
+
+-- An ordinary statement, which is the other half of the rule. It runs where it is written, so it
+-- sees `seed` as the line above left it and `counter` as its own declaration left it.
+counter = counter + seed
+
+-- A statement between two declarations, to say that the order is source order rather than
+-- "declarations first". `shape` is already a Circle(7) here, so this reads 49.
+counter = counter + area(shape)
+
+-- A `let` declared after statements have already run. Its initializer reads a global the statements
+-- above wrote, which is the whole point of an ordered sequence.
+let &recorded = counter
+
+-- And one whose initializer reads the global declared immediately above it, which is the ordinary
+-- shape of a startup sequence and the case the use-before-init rule is the other side of.
+let &first = counter + 1
+let &second = first + 1
+
+fn seedFrom(n: Int) -> Int = n * 5
+
+fn area(s: Shape) -> Int:
+    match s:
+        Circle(r) -> return r * r
+        Square(n) -> return n * n
+
+-- `main` is called last, so everything above has already run by the time this reads any of it.
+--
+--   bonus       3     a constant global still folds
+--   counter    69     20 from the seed, 49 from the area
+--   recorded   69     read at the point the statements had got to
+--   first      70
+--   second     71
+--
+-- 3 + 69 + 6900 + 700000 + 71000000 = 71706972.
+fn main() -> Int:
+    return bonus + counter + recorded * 100 + first * 10000 + second * 1000000

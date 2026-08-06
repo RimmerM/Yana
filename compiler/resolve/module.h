@@ -621,8 +621,45 @@ struct Global {
      */
     ModulePtr<Function> prefixOf = nullptr;
 
+    /*
+     * Set where this global's value is produced by code rather than written as a constant - a
+     * root-module `let` whose initializer is an ordinary expression, run by the program's entry
+     * sequence (Analysis-Initialization.md stage B).
+     *
+     * Three things read it. `initial` says nothing about one of these, so its storage starts at the
+     * zero of its type on *both* targets rather than at whatever the target's uninitialized memory
+     * happens to be - which is what makes a premature read read the same thing everywhere.
+     * `globalValue` will not fold one, because there is no constant to fold to. And the entry
+     * sequence is where its declaring `Init` is emitted, which is what keeps the drop pass from
+     * pre-dropping the zeroes it replaces.
+     */
+    bool dynamic = false;
+
     bool mut = false;
     bool used = false;
+};
+
+/*
+ * One statement of a module's top level, in the order it was written.
+ *
+ * Collected by the declaration pass and run by the synthesized entry function - see
+ * `resolveEntryBody`. Only the root module has any: a library module's top-level code would have to
+ * run at some point in a program's startup, and defining that point is the cross-module half this
+ * deliberately does not do (Analysis-Initialization.md stage C).
+ *
+ * `globals` is the `let` case - one entry per name the statement declares, in the order written, so
+ * the entry sequence does not have to look a name back up to find what it declared. A null entry is
+ * one the declaration pass rejected. An entry that is *not* `dynamic` is a constant, and there is
+ * nothing to run for it at all.
+ *
+ * Both lists are in the module's arena rather than on the heap, on the same terms as `functionOrder`
+ * beside them: this is per-module data that lives exactly as long as the module does, so it belongs
+ * in the region that is released with it and not in an allocation with its own lifetime. It also
+ * makes the struct trivially copyable, which is what lets it be an element of a list in turn.
+ */
+struct TopLevelStmt {
+    ast::ParsePtr<ast::Decl> decl = nullptr;
+    ModuleList<ModulePtr<Global>, false> globals;
 };
 
 // One module made visible in another. `include`/`exclude` are the parsed symbol lists; an empty
@@ -686,6 +723,10 @@ struct Module {
     // The module the program was asked to compile. Its functions are emitted whether or not
     // anything calls them; every other module contributes only what is reached.
     bool root = false;
+
+    // The statements this module's top level runs, in source order. Non-empty only for the root
+    // module - see TopLevelStmt.
+    ModuleList<TopLevelStmt, false> topLevel;
 
     /*
      * How far this module's declarations have got.
@@ -1004,6 +1045,20 @@ struct Program {
 
     Module* root = nullptr;
 
+    /*
+     * Where a finished program starts - Analysis-Initialization.md stage B.
+     *
+     * The root module's top-level statements are the body of one synthesized function, and `main`,
+     * where it is declared, is called at the end of it; the result of that function is the program's
+     * status. A root module with no top-level statements has nothing to synthesize, so this is
+     * `main` itself and every existing program is unchanged by the rule.
+     *
+     * Null where the root module declares neither, which is a library rather than a program: the JS
+     * file then ends with no call and the native path reports that there is no entry point, which is
+     * the same answer both gave before there was a name for the question.
+     */
+    ModulePtr<Function> entry = nullptr;
+
     // Core and Native are parsed from source embedded in the compiler, so the program owns those
     // ASTs for as long as anything can still resolve against them.
     Array<ast::Module*> embeddedAsts;
@@ -1035,6 +1090,16 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 // generates class instances, and the classes are Core's.
 void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved = false);
 bool resolveModuleBodies(Module& module);
+
+/*
+ * Builds the program's entry point out of the root module's top level, and records it on the
+ * program - see Program::entry.
+ *
+ * Before any other body, and that is a dependency rather than a preference: a dynamically
+ * initialized global has no type until its initializer has been resolved, and every other body in
+ * the program may name one.
+ */
+void resolveProgramEntry(Program& program);
 
 // The returned-borrow rule, applied once the result type is known - immediately for a written
 // result, a pass later for an inferred one.

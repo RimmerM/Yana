@@ -1,27 +1,5 @@
 "use strict";
 // ResolveTest
-function widen(p) {
-  p.x = p.x + 1 | 0;
-  return;
-}
-
-function branched(a) {
-  var v4 = a + 1 | 0;
-  if (a > 0) {
-    return a + v4 | 0;
-  } else {
-    return v4;
-  }
-}
-
-function partial(a) {
-  return (a > 0 ? 30 : 2) + 1;
-}
-
-function merged(a) {
-  return (a > 5 ? 20 : a > 0 ? 10 : 0) + 7;
-}
-
 function invariant(count) {
   var total = 0;
   var i = 0;
@@ -51,19 +29,7 @@ function carried(count) {
   return v27;
 }
 
-function nested(a) {
-  var v5 = a + 1 | 0;
-  if (a > 0) {
-    return (a + v5 | 0) + 5 | 0;
-  } else {
-    return 5;
-  }
-}
-
-function escaped(a) {
-  return (a > 0 ? a + 1 | 0 : a) + 1 | 0;
-}
-
 function main() {
   return ((invariant(3) + 53 | 0) + carried(4) | 0) + 17 | 0;
 }
+main();

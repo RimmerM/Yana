@@ -3,89 +3,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-borrowed<complex>(): Long {
-  b_0 {
-    %b = alloca 24, 8: Ptr
-    call_complex +=(I64), @live, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %b, 1, 4
-    %v_2 = add %b, 8: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = loads @live, 8: Long
-    call_complex drop$Box, %b
-    ret %v_3
-  }
-}
-
-touchBox<complex>(%it: Ptr): Long {
-  b_0 {
-    ret 0
-  }
-}
-
-derived<complex>(): Long {
-  b_0 {
-    %b = alloca 24, 8: Ptr
-    call_complex +=(I64), @live, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %b, 1, 4
-    %v_2 = add %b, 8: Ptr
-    store %v_2, %v_1, 8
-    %inside = loads @live, 8: Long
-    call_complex drop$Box, %b
-    ret %inside
-  }
-}
-
-taken<complex>(%v_0: Ptr) {
-  b_1 {
-    %b = alloca 24, 8: Ptr
-    call_complex +=(I64), @live, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    store %b, 1, 4
-    %v_3 = add %b, 8: Ptr
-    store %v_3, %v_2, 8
-    %v_4 = add %b, 8: Ptr
-    %v = alloca 8, 8: Ptr
-    copy %v, %v_4, 8
-    copy %v_0, %v, 8
-    ret 
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -266,35 +183,6 @@ drop$Box<complex>(%value: Ptr) {
   }
 }
 
-makeBuffer<complex>(%v_0: Ptr) {
-  b_1 {
-    call_complex +=(I64), @live, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
-discarded<complex>(): Long {
-  b_0 {
-    %b = alloca 24, 8: Ptr
-    call_complex +=(I64), @live, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %b, 1, 4
-    %v_2 = add %b, 8: Ptr
-    store %v_2, %v_1, 8
-    %before = loads @live, 8: Long
-    %v_3 = add %b, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    call_complex freeHeap, %v_4
-    call_complex -=(I64), @live, 1
-    %v_5 = imul %before, 10: Long
-    %v_6 = loads @live, 8: Long
-    %v_7 = add %v_5, %v_6: Long
-    ret %v_7
-  }
-}
-
 -=(I64)<complex>(%target: Ptr, %amount: Long) {
   b_0 {
     %v_1 = loads %target, 8: Long
@@ -382,27 +270,36 @@ main<complex>(): Long {
   }
 }
 
-derivedBraced<complex>(): Long {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %b = alloca 24, 8: Ptr
-    call_complex +=(I64), @live, 1
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    call_complex +=(I64), @live, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    store %b, 2, 4
-    %v_3 = add %b, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = add %b, 16: Ptr
-    store %v_4, %v_2, 8
-    %inside = loads @live, 8: Long
-    call_complex drop$Box, %b
-    ret %inside
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
   }
-}
 
-touch<complex>(%it: Ptr): Long {
-  b_0 {
-    ret 0
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
   }
 }
 

@@ -244,18 +244,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-plain<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$1, 8
-    %v_3 = bitcast 0: Ptr
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, %v_3, 8
-    copy %v_0, %v_2, 16
-    ret 
-  }
-}
-
 drop${g: Guard}<complex>(%value: Ptr) {
   b_0 {
     %v_1 = loads @dropCalls, 4: Int

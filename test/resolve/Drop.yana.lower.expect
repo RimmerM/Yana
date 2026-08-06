@@ -125,31 +125,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-firstByte<complex>(%it: Ptr): Long {
-  b_0 {
-    %v_1 = load %it, 8: Ptr
-    %v_2 = load %v_1, 1: Int
-    %v_3 = cast %v_2: Long
-    ret %v_3
-  }
-}
-
-rebound<complex>(): Long {
-  b_0 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = imm 64: Long
-    %v_2 = call_complex allocateHeap, %v_1: Ptr
-    setpattern %v_2, %v_1, 0
-    %counted = loads @liveBuffers, 8: Long
-    %v_3 = load %v_2, 1: Int
-    %v_4 = cast %v_3: Long
-    call_complex freeHeap, %v_2
-    call_complex -=(I64), @liveBuffers, 1
-    %v_5 = add %counted, %v_4: Long
-    ret %v_5
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -285,16 +260,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_24 {
     %v_62 = bitcast 0: Ptr
     ret %v_62
-  }
-}
-
-makeBuffer<complex>(%v_0: Ptr, %size: Long) {
-  b_1 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_2 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_2, %size, 0
-    store %v_0, %v_2, 8
-    ret 
   }
 }
 

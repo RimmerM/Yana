@@ -1,56 +1,5 @@
 "use strict";
 // ResolveTest
-function scaled(v, by) {
-  return Math.imul(v, by) + 1 | 0;
-}
-
-function makePoint(x, y) {
-  return { x: x, y: y };
-}
-
-function twice(n$o, n$k, n$s) {
-  n$o[n$k] = Math.imul(n$o[n$k], 2);
-  return;
-}
-
-function onlyCaller(a, b, c) {
-  return (((Math.imul(a, c) + Math.imul(b, b) | 0) + a | 0) + b | 0) + c | 0;
-}
-
-function clamped(v) {
-  if (v > 100) {
-    return 100;
-  } else {
-    return v;
-  }
-}
-
-function graded(score) {
-  return score < 10 ? 1 : score < 100 ? 2 : 3;
-}
-
-function stepsTo(limit) {
-  var value = 1;
-  var steps = 0;
-  L0: for (;;) {
-    if (value < limit) {
-      value = value + value | 0;
-      steps = steps + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return steps;
-}
-
-function onceBranching(a) {
-  if (a > 3) {
-    return Math.imul(a, 2);
-  } else {
-    return a + 1 | 0;
-  }
-}
-
 function countDown(n) {
   if (n <= 0) {
     return 0;
@@ -75,37 +24,8 @@ function oddLength(n) {
   }
 }
 
-function constants() {
-  return 44;
-}
-
-function unknowns(a, b) {
-  var v6 = Math.imul(a, b);
-  return (v6 + 1 | 0) + (v6 + 1 | 0) | 0;
-}
-
-function constructed(a) {
-  return a + (a + 1 | 0) | 0;
-}
-
-function mutated(seed) {
-  return Math.imul(seed, 4);
-}
-
 function measured(v) {
   return v + 1 | 0;
-}
-
-function worthIt(a, b) {
-  return (Math.imul(((Math.imul(a + b | 0, 2) + Math.imul(a - b | 0, 3) | 0) + Math.imul(a, 5) | 0) + Math.imul(b, 7) | 0, 2) + a | 0) - b | 0;
-}
-
-function branching(a) {
-  return clamped(a) + clamped(Math.imul(a, 3)) | 0;
-}
-
-function grading() {
-  return 6;
 }
 
 function stepped() {
@@ -122,26 +42,7 @@ function stepped() {
   return steps;
 }
 
-function soleBranch() {
-  return 18;
-}
-
-function alternating() {
-  return evenLength(6) + oddLength(6) | 0;
-}
-
-function pinned() {
-  return measured(1) + measured(2) | 0;
-}
-
-function requested(a) {
-  return ((Math.imul(((Math.imul(a + 2 | 0, 2) + Math.imul(a - 2 | 0, 3) | 0) + Math.imul(a, 5) | 0) + 14 | 0, 2) + a | 0) - 2 | 0) + ((Math.imul(((Math.imul(a + 3 | 0, 2) + Math.imul(3 - a | 0, 3) | 0) + 15 | 0) + Math.imul(a, 7) | 0, 2) + 3 | 0) - a | 0) | 0;
-}
-
-function recursive() {
-  return countDown(4);
-}
-
 function main() {
   return (((((countDown(4) + 260 | 0) + (measured(1) + measured(2) | 0) | 0) + 219 | 0) + stepped() | 0) + 18 | 0) + (evenLength(6) + oddLength(6) | 0) | 0;
 }
+main();

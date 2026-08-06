@@ -4,17 +4,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-openHandle<complex>(%v_0: Ptr, %mark: Long) {
-  b_1 {
-    call_complex +=(I64), @liveHandles, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    %v_3 = bitcast %v_2: Ptr
-    store %v_3, %mark, 8
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
 nested<complex>(): Long {
   b_0 {
     %p = alloca 24, 8: Ptr
@@ -224,15 +213,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_24 {
     %v_62 = bitcast 0: Ptr
     ret %v_62
-  }
-}
-
-marker<complex>(%it: Ptr): Long {
-  b_0 {
-    %v_1 = load %it, 8: Ptr
-    %v_2 = bitcast %v_1: Ptr
-    %v_3 = loads %v_2, 8: Long
-    ret %v_3
   }
 }
 

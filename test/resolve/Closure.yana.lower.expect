@@ -2,16 +2,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-applyUnit<complex>(%f: Ptr) {
-  b_0 {
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    call_complex %v_2, %v_3
-    ret 
-  }
-}
-
 reclaim$(Int) -> Int<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
@@ -281,16 +271,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-apply<complex>(%f: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = call_complex %v_2, %v_3, %x: Int
-    ret %v_4
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -306,6 +286,18 @@ ResolveTest.lambda$3<complex>(%env: Ptr) {
     %v_4 = add %v_3, 7: Int
     store %v_1, %v_4, 4
     ret 
+  }
+}
+
+@closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = imul %x, %v_1: Int
+    %v_3 = add %env, 4: Ptr
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = add %v_2, %v_4: Int
+    ret %v_5
   }
 }
 
@@ -354,18 +346,6 @@ main<complex>(): Int {
     %v_22 = add %v_21, %b: Int
     %v_23 = add %v_22, %c: Int
     ret %v_23
-  }
-}
-
-@closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = imul %x, %v_1: Int
-    %v_3 = add %env, 4: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = add %v_2, %v_4: Int
-    ret %v_5
   }
 }
 

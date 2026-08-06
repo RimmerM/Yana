@@ -317,6 +317,8 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
             }
 
             if(auto global_ = findGlobal(module, expr.var, expr.source)) {
+                if(!initializedGlobal(global_, expr.source)) return Nothing();
+
                 if(!local[global_]->mut) {
                     context.diagnostics.error("%@ is not mutable - declare it with `let &` to assign to it"_v,
                                               expr.source, context.findName(expr.var));

@@ -12,37 +12,6 @@ function add_eq_I64(target$o, target$k, target$s, amount) {
 }
 
 // ResolveTest
-function direct() {
-  var h = { value: 10n };
-  var g = { value: 0n };
-  Sink_Handle_sink(g, h);
-  return g.value;
-}
-
-function derived() {
-  var p = { left: { value: 20n }, right: 3n };
-  var q = { left: { value: 0n }, right: 0n };
-  moveInit$Pair(q, p);
-  return BigInt.asIntN(64, q.left.value + q.right);
-}
-
-function nested() {
-  var n = { inner: { left: { value: 40n }, right: 1n }, tag: 4n };
-  var m = { inner: { left: { value: 0n }, right: 0n }, tag: 0n };
-  moveInit$Nest(m, n);
-  return BigInt.asIntN(64, BigInt.asIntN(64, m.inner.left.value + m.inner.right) + m.tag);
-}
-
-function unwrap(e) {
-  var v12;
-  if (e.$tag === 0) {
-    v12 = e.$p;
-  } else {
-    v12 = e.$p.value;
-  }
-  return v12;
-}
-
 function tagged(flag) {
   var e;
   var v20;
@@ -201,3 +170,4 @@ function drop$_sub_gt_I64(value$c, value$e) {
   }
   return;
 }
+main();

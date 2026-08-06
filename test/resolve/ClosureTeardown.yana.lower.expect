@@ -264,16 +264,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-apply<complex>(%f: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = call_complex %v_2, %v_3, %x: Int
-    ret %v_4
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 

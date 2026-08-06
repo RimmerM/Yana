@@ -351,43 +351,6 @@ inlineSize<complex>(): Long {
   }
 }
 
-openHandle<complex>(%v_0: Ptr) {
-  b_1 {
-    call_complex +=(I64), @liveHandles, 1
-    %v_2 = call_complex allocateHeap, 16: Ptr
-    store %v_0, %v_2, 8
-    ret 
-  }
-}
-
-plainSize<complex>(): Long {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    %v_1 = imm 4: Long
-    %v_2 = imm 4: Long
-    %v_3 = alloca 16, 4: Ptr
-    store %xs, %v_3, 8
-    %v_4 = add %xs, 8: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = and %v_5, 18446744072635809792: Int
-    %v_7 = or %v_6, 4: Int
-    %v_8 = and %v_7, 18446744070488326143: Int
-    %v_9 = add %xs, 8: Ptr
-    store %v_9, %v_8, 4
-    store %v_3, 1, 4
-    %v_10 = add %v_3, 4: Ptr
-    store %v_10, 2, 4
-    %v_11 = add %v_3, 8: Ptr
-    store %v_11, 3, 4
-    %v_12 = add %v_3, 12: Ptr
-    store %v_12, 4, 4
-    %v_13 = add %xs, 12: Ptr
-    store %v_13, 4, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    ret 16
-  }
-}
-
 holdHandles<complex>(): Long {
   b_0 {
     call_complex +=(I64), @liveHandles, 1
@@ -425,6 +388,34 @@ holdHandles<complex>(): Long {
     %v_23 = cast %v_21: Int
     %v_24 = cast %v_23: Long
     ret %v_24
+  }
+}
+
+plainSize<complex>(): Long {
+  b_0 {
+    %xs = alloca 16, 8: Ptr
+    %v_1 = imm 4: Long
+    %v_2 = imm 4: Long
+    %v_3 = alloca 16, 4: Ptr
+    store %xs, %v_3, 8
+    %v_4 = add %xs, 8: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = and %v_5, 18446744072635809792: Int
+    %v_7 = or %v_6, 4: Int
+    %v_8 = and %v_7, 18446744070488326143: Int
+    %v_9 = add %xs, 8: Ptr
+    store %v_9, %v_8, 4
+    store %v_3, 1, 4
+    %v_10 = add %v_3, 4: Ptr
+    store %v_10, 2, 4
+    %v_11 = add %v_3, 8: Ptr
+    store %v_11, 3, 4
+    %v_12 = add %v_3, 12: Ptr
+    store %v_12, 4, 4
+    %v_13 = add %xs, 12: Ptr
+    store %v_13, 4, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %xs
+    ret 16
   }
 }
 

@@ -1,10 +1,4 @@
 
-copyIsIndependent<complex>(): Int {
-  b_0 {
-    ret 7
-  }
-}
-
 addressed<complex>(): Int {
   b_0 {
     %p = alloca 8, 4: Ptr
@@ -19,41 +13,11 @@ addressed<complex>(): Int {
   }
 }
 
-onlyRead<complex>(): Int {
-  b_0 {
-    ret 6
-  }
-}
-
-mutableOnOneArm<complex>(%flag: Int): Int {
-  b_0 {
-    %v_1 = select 2, 1, %flag: Int
-    %v_2 = add %v_1, 2: Int
-    ret %v_2
-  }
-}
-
-read<complex>(%it$x: Int, %it$y: Int): Int {
-  b_0 {
-    %v_1 = add %it$x, %it$y: Int
-    ret %v_1
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex addressed: Int
     %v_2 = add %v_1, 17: Int
     ret %v_2
-  }
-}
-
-bump<complex>(%it: Ptr) {
-  b_0 {
-    %v_1 = loads %it, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store %it, %v_2, 4
-    ret 
   }
 }
 

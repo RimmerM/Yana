@@ -1,4 +1,11 @@
 
+funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 3: Int
+    ret %v_1
+  }
+}
+
 funvalue$double<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = imul %x, 2: Int
@@ -18,9 +25,9 @@ retarget<complex>(%slot: Ptr) {
   }
 }
 
-double<complex>(%x: Int): Int {
+funvalue$square<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
-    %v_1 = imul %x, 2: Int
+    %v_1 = imul %x, %x: Int
     ret %v_1
   }
 }
@@ -28,34 +35,6 @@ double<complex>(%x: Int): Int {
 funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = sub 0, %x: Int
-    ret %v_1
-  }
-}
-
-square<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, %x: Int
-    ret %v_1
-  }
-}
-
-funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-triple<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-funvalue$square<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, %x: Int
     ret %v_1
   }
 }
@@ -75,13 +54,6 @@ retargetBoth<complex>(%a: Ptr, %b: Ptr) {
     store %v_6, %v_5, 8
     copy %b, %v_4, 16
     ret 
-  }
-}
-
-negate<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = sub 0, %x: Int
-    ret %v_1
   }
 }
 

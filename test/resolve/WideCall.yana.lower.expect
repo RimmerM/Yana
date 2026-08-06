@@ -1,17 +1,5 @@
 @effects = [0, 0, 0, 0]
 
-call<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.deferred$0, 8
-    %v_3 = bitcast 0: Ptr
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, %v_3, 8
-    ret 38
-  }
-}
-
 ResolveTest.deferred$0<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads @effects, 4: Int
@@ -29,22 +17,6 @@ ResolveTest.deferred$1<complex>(%env: Ptr): Int {
     %v_3 = add %v_1, %v_2: Int
     store @effects, %v_3, 4
     ret %v_2
-  }
-}
-
-callForcing<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.deferred$1, 8
-    %v_3 = bitcast 0: Ptr
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, %v_3, 8
-    %v_5 = add %v_2, 8: Ptr
-    %v_6 = load %v_2, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7: Int
-    ret %v_8
   }
 }
 
@@ -70,15 +42,6 @@ main<complex>(): Int {
     %v_14 = loads @effects, 4: Int
     %v_15 = add %v_13, %v_14: Int
     ret %v_15
-  }
-}
-
-bump<complex>(%mark: Int): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, %mark: Int
-    store @effects, %v_2, 4
-    ret %mark
   }
 }
 

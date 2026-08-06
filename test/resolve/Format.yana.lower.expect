@@ -49,25 +49,6 @@ stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   }
 }
 
-negative<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 11, 4
-    %v_3 = call_complex formatBound, %v_1: Int
-    %v_4 = sext %v_3: Long
-    %v_5 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_5, %v_4
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, %v_5, 16
-    call_complex showSigned, 18446744071562067968, %v_6
-    %v_7 = call_complex Length(String).length, %v_6: Long
-    %v_8 = cast %v_7: Int
-    ret %v_8
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -254,29 +235,6 @@ formatBound<complex>(%bound: Ptr): Int {
   b_5 {
     %v_7 = phi [b_3, %units], [b_4, 0]: Int
     ret %v_7
-  }
-}
-
-oneInt<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 11, 4
-    %v_3 = call_complex formatBound, %v_1: Int
-    %v_4 = add %v_3, 4: Int
-    %v_5 = sext %v_4: Long
-    %v_6 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_6, %v_5
-    %v_7 = alloca 16, 8: Ptr
-    copy %v_7, %v_6, 16
-    %v_8 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_8, @string$1, 4
-    call_complex pushString, %v_7, %v_8
-    call_complex showSigned, 42, %v_7
-    %v_9 = call_complex Length(String).length, %v_7: Long
-    %v_10 = cast %v_9: Int
-    ret %v_10
   }
 }
 
@@ -829,16 +787,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_24 {
     %v_62 = bitcast 0: Ptr
     ret %v_62
-  }
-}
-
-plain<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$0, 13
-    %v_2 = call_complex Length(String).length, %v_1: Long
-    %v_3 = cast %v_2: Int
-    ret %v_3
   }
 }
 

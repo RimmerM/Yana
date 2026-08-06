@@ -38,16 +38,17 @@ static llvm::StringRef toRef(StringView view) {
  * lowered entry keeps its convention and gets a wrapper, rather than being given the C convention
  * and made to differ from every call site that already exists in the module.
  */
-bool addNativeEntry(Context& context, llvm::Module& module, StringView entryName) {
-    auto entry = module.getFunction(toRef(entryName));
+bool addNativeEntry(Context& context, llvm::Module& module, StringId entryName) {
+    auto name = context.findName(entryName);
+    auto entry = module.getFunction(toRef(name));
 
     if(!entry) {
-        context.diagnostics.error("llvm: the program has no entry point %@"_v, nullptr, toString(entryName));
+        context.diagnostics.error("llvm: the program has no entry point %@"_v, nullptr, name);
         return false;
     }
 
     if(entry->arg_size() != 0) {
-        context.diagnostics.error("llvm: the entry point %@ cannot take arguments yet"_v, nullptr, toString(entryName));
+        context.diagnostics.error("llvm: the entry point %@ cannot take arguments yet"_v, nullptr, name);
         return false;
     }
 
@@ -55,6 +56,20 @@ bool addNativeEntry(Context& context, llvm::Module& module, StringView entryName
     auto word = llvm::Type::getInt32Ty(llvm);
 
     entry->setName("yana.entry");
+
+    /*
+     * And the C name has to be free before it can be taken.
+     *
+     * `main` in Yana is an ordinary function compiled under the compiler's own convention - the name
+     * says which function the program starts *at*, not what linkage it has - and where the entry is a
+     * synthesized initializer that calls it, it is still in the module under that name. Left there,
+     * LLVM renames the wrapper instead and C startup calls the wrong function: the program runs
+     * `main` under a convention nobody agreed on, with its own initialization skipped.
+     *
+     * After the rename above, so that the ordinary case - where the entry *is* `main` - has already
+     * vacated the name and finds nothing here.
+     */
+    if(auto occupied = module.getFunction("main")) occupied->setName("yana.main");
 
     auto main = llvm::Function::Create(llvm::FunctionType::get(word, false),
                                        llvm::Function::ExternalLinkage, "main", module);

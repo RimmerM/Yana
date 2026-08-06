@@ -1,0 +1,25 @@
+-- A program with no `main` at all.
+--
+-- `main` is optional, and this is the half of that which has nothing to fall back on: the whole of
+-- the program is its top level, the entry sequence is the whole of what runs, and the status is
+-- zero because nothing answered anything. Both targets say that, which is the point - the native
+-- wrapper reports zero for an entry that returns nothing and the JavaScript file completes as
+-- `undefined`, and a program cannot be allowed to mean two things depending on which one ran it.
+--
+-- Nothing here would have compiled to a program before: a module with no `main` resolved and emitted
+-- fine, but the native entry looked `main` up by name and the JavaScript output called nothing at
+-- all. It was a library either way.
+
+let &tally = 0 :: Int
+let &doubled = tally
+
+fn twice(n: Int) -> Int = n * 2
+
+tally = twice(21)
+
+-- After the assignment above, so this reads 42 rather than the 0 `tally` was declared at. `doubled`
+-- is declared before it and initialized before it too - a global's storage is written where the
+-- declaration is, not where the name first becomes visible.
+let &final = doubled + tally
+
+print("tally {tally} doubled {doubled} final {final}")

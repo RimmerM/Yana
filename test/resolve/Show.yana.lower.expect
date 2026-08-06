@@ -7,20 +7,6 @@
 @string$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @string$3 = [104, 101, 108, 108, 111]
 
-shownInt<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_1, 64
-    %sink = alloca 16, 8: Ptr
-    copy %sink, %v_1, 16
-    %v_2 = sext %value: Long
-    call_complex showSigned, %v_2, %sink
-    %v_3 = call_complex Length(String).length, %sink: Long
-    %v_4 = cast %v_3: Int
-    ret %v_4
-  }
-}
-
 stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -328,14 +314,6 @@ firstShownUnit<complex>(%value: Int): Int {
   }
 }
 
-stringBound<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = call_complex Length(String).length, %value: Long
-    %v_2 = cast %v_1: Int
-    ret %v_2
-  }
-}
-
 Length(String).length<complex>(%self: Ptr): Long {
   b_0 {
     %v_1 = bitcast %self: Ptr
@@ -360,12 +338,6 @@ shownString<complex>(%value: Ptr): Int {
     %v_5 = call_complex Length(String).length, %sink: Long
     %v_6 = cast %v_5: Int
     ret %v_6
-  }
-}
-
-intBound<complex>(%value: Int): Int {
-  b_0 {
-    ret 11
   }
 }
 

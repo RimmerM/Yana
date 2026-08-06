@@ -1,0 +1,34 @@
+@seed = [0, 0, 0, 0]
+@shape = [0, 0, 0, 0, 0, 0, 0, 0]
+@recorded = [0, 0, 0, 0]
+@first = [0, 0, 0, 0]
+@second = [0, 0, 0, 0]
+@counter = [0, 0, 0, 0]
+
+main$<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 7, 4
+    copy @shape, %v_1, 8
+    store @seed, 20, 4
+    %v_3 = loads @counter, 4: Int
+    %v_4 = add %v_3, 69: Int
+    store @counter, %v_4, 4
+    store @recorded, %v_4, 4
+    %v_5 = add %v_3, 70: Int
+    store @first, %v_5, 4
+    %v_6 = add %v_3, 71: Int
+    store @second, %v_6, 4
+    %v_7 = add %v_3, 72: Int
+    %v_8 = imul %v_4, 100: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = imul %v_5, 10000: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = imul %v_6, 1000000: Int
+    %v_13 = add %v_11, %v_12: Int
+    ret %v_13
+  }
+}
+

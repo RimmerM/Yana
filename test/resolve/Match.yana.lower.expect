@@ -298,18 +298,6 @@ nested<complex>(%m: Ptr): Int {
   }
 }
 
-classify<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %value, 0: Int
-    %v_2 = cmp_ige %value, 1: Int
-    %v_3 = cmp_ile %value, 10: Int
-    %v_4 = and %v_2, %v_3: Int
-    %v_5 = select 1, 2, %v_4: Int
-    %v_6 = select 0, %v_5, %v_1: Int
-    ret %v_6
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
@@ -427,17 +415,6 @@ main<complex>(): Int {
     %v_78 = add %v_74, %v_77: Int
     %v_79 = add %v_78, 34: Int
     ret %v_79
-  }
-}
-
-colorValue<complex>(%c: Int): Int {
-  b_0 {
-    %v_1 = cast %c: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    %v_3 = cmp_eq %v_1, 1: Int
-    %v_4 = select 2, 3, %v_3: Int
-    %v_5 = select 1, %v_4, %v_2: Int
-    ret %v_5
   }
 }
 

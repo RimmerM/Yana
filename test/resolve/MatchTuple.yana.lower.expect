@@ -1,53 +1,5 @@
 @drops = [0, 0, 0, 0]
 
-sameMaybe<complex>(%lhs: Ptr, %rhs: Ptr): Int {
-  b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = loads %lhs, 4: Int
-    %v_6 = cmp_eq %v_5, 0: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_3 {
-    %v_9 = loads %rhs, 4: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_4
-  }
-
-  b_11 {
-    %v_12 = add %lhs, 4: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = add %rhs, 4: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = cmp_eq %v_13, %v_15: Int
-    jmp b_17
-  }
-
-  b_8 {
-    jmp b_17
-  }
-
-  b_7 {
-    %v_18 = loads %rhs, 4: Int
-    %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_20, b_8
-  }
-
-  b_20 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_21 = phi [b_11, %v_16], [b_20, 1], [b_8, 0]: Int
-    ret %v_21
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %a = alloca 8, 4: Ptr
@@ -146,32 +98,6 @@ ordered<complex>(%a: Ptr, %b: Ptr, %c: Int): Int {
   b_19 {
     %v_26 = phi [b_13, %v_18], [b_22, %v_25], [b_8, 0]: Int
     ret %v_26
-  }
-}
-
-labelled<complex>(%x: Int, %y: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %x, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = add %x, %y: Int
-    jmp b_5
-  }
-
-  b_2 {
-    %v_6 = cmp_eq %y, 0: Int
-    je %v_6, b_7, b_3
-  }
-
-  b_7 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_8 = phi [b_7, 100], [b_3, %v_4]: Int
-    ret %v_8
   }
 }
 

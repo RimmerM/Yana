@@ -1,62 +1,4 @@
 
-counted<complex>(%n: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, %n: Int
-    je %v_7, b_3, b_8
-  }
-
-  b_8 {
-    ret %v_2
-  }
-
-  b_3 {
-    %v_4 = add %v_2, %v_5: Int
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
-  }
-}
-
-called<complex>(): Int {
-  b_0 {
-    ret 11
-  }
-}
-
-narrowed<complex>(): Int {
-  b_0 {
-    ret 3874
-  }
-}
-
-flagged<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = select 1, 0, %x: Int
-    %v_2 = select 1, 0, %x: Int
-    %v_3 = select 2, 0, %v_1: Int
-    %v_4 = add %v_2, %v_3: Int
-    ret %v_4
-  }
-}
-
-sum<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %v_1 = add %a, %b: Int
-    ret %v_1
-  }
-}
-
-borrowed<complex>(): Int {
-  b_0 {
-    ret 12
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     jmp b_1
@@ -78,15 +20,6 @@ main<complex>(): Int {
     %v_4 = add %v_2, %v_5: Int
     %v_6 = add %v_5, 1: Int
     jmp b_1
-  }
-}
-
-bump<complex>(%x: Ptr) {
-  b_0 {
-    %v_1 = loads %x, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store %x, %v_2, 4
-    ret 
   }
 }
 

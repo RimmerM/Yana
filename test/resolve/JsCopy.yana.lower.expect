@@ -36,30 +36,6 @@ next<complex>(%n: Int): Int {
   }
 }
 
-taken<complex>(%flag: Int): Int {
-  b_0 {
-    %v_1 = call_complex seed: Int
-    je %flag, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = call_complex next, %v_1: Int
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_2, %v_4], [b_3, %v_1]: Int
-    %v_7 = imul %v_6, 100: Int
-    %v_8 = add %v_7, %v_6: Int
-    %v_9 = add %v_8, %v_6: Int
-    ret %v_9
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex barrier, 1: Int

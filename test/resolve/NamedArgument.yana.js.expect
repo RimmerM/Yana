@@ -5,56 +5,13 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function subtract(from, take) {
-  return from - take | 0;
-}
-
-function scaled(value, by, plus) {
-  return Math.imul(value, by) + plus | 0;
-}
-
-function tagged(value, tag, weight) {
-  return value + Math.imul(tag, weight) | 0;
-}
-
-function step(counter$o, counter$k, counter$s, digit) {
-  counter$o[counter$k] = Math.imul(counter$o[counter$k], 10) + digit | 0;
-  return digit;
-}
-
-function order() {
-  return 13;
-}
-
-function borrowNamed() {
-  return 14;
-}
-
 function counted(counter$o, counter$k, counter$s) {
   counter$o[counter$k] = counter$o[counter$k] + 1 | 0;
   return 5;
 }
 
-function choose(take, other$c, other$e) {
-  var v7;
-  if (take) {
-    v7 = 1;
-  } else {
-    v7 = other$c(other$e);
-  }
-  return v7;
-}
-
 function lazyNamed() {
   return { $v: 0 }.$v + 10 | 0;
-}
-
-function lensed() {
-  return ResolveTest_continuation$1(null, 103);
-}
-
-function lensNamed() {
-  return ResolveTest_continuation$2(null, 201);
 }
 
 function loops() {
@@ -62,10 +19,6 @@ function loops() {
   var v13 = upTo(4, 0, ResolveTest_continuation$3, { $v: { $o: total, $k: "$v", $s: 1 } });
   var v24 = upTo(13, 10, ResolveTest_continuation$4, { $v: { $o: total, $k: "$v", $s: 1 } });
   return total.$v;
-}
-
-function throughValue() {
-  return ResolveTest_lambda$5(null, 30, 4);
 }
 
 function main() {
@@ -118,3 +71,4 @@ function ResolveTest_continuation$4(env, value) {
 function ResolveTest_lambda$5(env, from, take) {
   return from - take | 0;
 }
+main();

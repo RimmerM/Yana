@@ -1,32 +1,4 @@
 
-swap<complex>(%a: Ptr, %b: Ptr) {
-  b_0 {
-    %old = loads %a, 4: Int
-    %v_1 = loads %b, 4: Int
-    store %a, %v_1, 4
-    store %b, %old, 4
-    ret 
-  }
-}
-
-copyThroughBorrow<complex>(%target: Ptr, %amount: Int) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
-    store %target, %v_2, 4
-    ret 
-  }
-}
-
-moveBy<complex>(%p: Ptr, %dx: Int, %dy: Int) {
-  b_0 {
-    call_complex +=(Int), %p, %dx
-    %v_1 = add %p, 4: Ptr
-    call_complex +=(Int), %v_1, %dy
-    ret 
-  }
-}
-
 +=(Int)<complex>(%target: Ptr, %amount: Int) {
   b_0 {
     %v_1 = loads %target, 4: Int
@@ -51,15 +23,6 @@ main<complex>(): Int {
     %v_7 = loads %v_6, 4: Int
     %v_8 = add %v_5, %v_7: Int
     ret %v_8
-  }
-}
-
-bump<complex>(%counter: Ptr, %by: Int) {
-  b_0 {
-    %v_1 = loads %counter, 4: Int
-    %v_2 = add %v_1, %by: Int
-    store %counter, %v_2, 4
-    ret 
   }
 }
 

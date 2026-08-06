@@ -1,14 +1,14 @@
 
-retagged<complex>(%v_0: Ptr) {
+writeHigh<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 9: Long
-    %v_3 = and %v_2, 15: Long
-    %v_4 = shl %v_3, 40: Long
-    %v_5 = and 0, 18446727581035134975: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = cast 18446744073709551614: Long
-    %v_8 = and %v_7, 1099511627775: Long
-    %v_9 = and %v_6, 18446742974197923840: Long
+    %v_2 = cast 1000: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = and 0, 18446744073708503040: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 1048575: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = shl %v_7, 32: Long
+    %v_9 = and %v_5, 18442240478377148415: Long
     %v_10 = or %v_9, %v_8: Long
     store %v_0, %v_10, 8
     ret 
@@ -28,14 +28,6 @@ writeLow<complex>(%v_0: Ptr) {
     %v_10 = or %v_9, %v_8: Long
     store %v_0, %v_10, 8
     ret 
-  }
-}
-
-checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %actual, %expected: Int
-    %v_2 = select %weight, 0, %v_1: Int
-    ret %v_2
   }
 }
 
@@ -74,48 +66,6 @@ marked<complex>(%v_0: Ptr) {
     %v_10 = or %v_9, %v_8: Long
     store %v_0, %v_10, 8
     ret 
-  }
-}
-
-tagged<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = cast 549755813887: Long
-    %v_3 = and %v_2, 1099511627775: Long
-    %v_4 = and 0, 18446742974197923840: Long
-    %v_5 = or %v_4, %v_3: Long
-    %v_6 = cast 9: Long
-    %v_7 = and %v_6, 15: Long
-    %v_8 = shl %v_7, 40: Long
-    %v_9 = and %v_5, 18446727581035134975: Long
-    %v_10 = or %v_9, %v_8: Long
-    store %v_0, %v_10, 8
-    ret 
-  }
-}
-
-checkI<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %actual, %expected: Int
-    %v_2 = select %weight, 0, %v_1: Int
-    ret %v_2
-  }
-}
-
-readB<complex>(%p: Ptr): Int {
-  b_0 {
-    %v_1 = load %p, 8: Long
-    %v_2 = shr %v_1, 32: Long
-    %v_3 = and %v_2, 1048575: Long
-    %v_4 = cast %v_3: Int
-    ret %v_4
-  }
-}
-
-check<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %actual, %expected: Int
-    %v_2 = select %weight, 0, %v_1: Int
-    ret %v_2
   }
 }
 
@@ -352,16 +302,16 @@ main<complex>(): Int {
   }
 }
 
-writeHigh<complex>(%v_0: Ptr) {
+retagged<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = cast 1000: Long
-    %v_3 = and %v_2, 1048575: Long
-    %v_4 = and 0, 18446744073708503040: Long
-    %v_5 = or %v_4, %v_3: Long
-    %v_6 = cast 1048575: Long
-    %v_7 = and %v_6, 1048575: Long
-    %v_8 = shl %v_7, 32: Long
-    %v_9 = and %v_5, 18442240478377148415: Long
+    %v_2 = cast 9: Long
+    %v_3 = and %v_2, 15: Long
+    %v_4 = shl %v_3, 40: Long
+    %v_5 = and 0, 18446727581035134975: Long
+    %v_6 = or %v_5, %v_4: Long
+    %v_7 = cast 18446744073709551614: Long
+    %v_8 = and %v_7, 1099511627775: Long
+    %v_9 = and %v_6, 18446742974197923840: Long
     %v_10 = or %v_9, %v_8: Long
     store %v_0, %v_10, 8
     ret 

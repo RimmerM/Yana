@@ -1,4 +1,11 @@
 
+funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 3: Int
+    ret %v_1
+  }
+}
+
 funvalue$double<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = imul %x, 2: Int
@@ -18,49 +25,7 @@ retarget<complex>(%slot: Ptr) {
   }
 }
 
-double<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 2: Int
-    ret %v_1
-  }
-}
-
 funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = sub 0, %x: Int
-    ret %v_1
-  }
-}
-
-reweight<complex>(%step: Ptr, %weight: Int) {
-  b_0 {
-    %v_1 = add %step, 16: Ptr
-    store %v_1, %weight, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, funvalue$negate, 8
-    %v_3 = bitcast 0: Ptr
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, %v_3, 8
-    copy %step, %v_2, 16
-    ret 
-  }
-}
-
-funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-triple<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-negate<complex>(%x: Int): Int {
   b_0 {
     %v_1 = sub 0, %x: Int
     ret %v_1

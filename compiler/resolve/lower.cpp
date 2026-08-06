@@ -401,6 +401,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         auto target = result->addFunction(uniqueFunctionName(lower, function->name));
         target->source = function->source;
 
+        // Which of them the program starts at, recorded under the name it ended up with rather than
+        // the one it was resolved under - see LowerModule::entry.
+        if(functionPointer == program.entry) result->entry = target->name;
+
         if(!isUnit(lower.global, function->returnType) && !isMemoryType(lower.global, function->returnType)) {
             target->returnTypes.push(result->arena, lowerType(lower.global, function->returnType));
         }

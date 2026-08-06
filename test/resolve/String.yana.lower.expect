@@ -328,31 +328,6 @@ Ord(String).compare<complex>(%self: Ptr, %other: Ptr): Int {
   }
 }
 
-emptyLength<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$2, 0
-    %v_2 = call_complex Length(String).length, %v_1: Long
-    %v_3 = cast %v_2: Int
-    ret %v_3
-  }
-}
-
-appendToLiteral<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$5, 3
-    %start = alloca 16, 8: Ptr
-    copy %start, %v_1, 16
-    %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$6, 4
-    call_complex pushString, %start, %v_2
-    %v_3 = call_complex Length(String).length, %start: Long
-    %v_4 = cast %v_3: Int
-    ret %v_4
-  }
-}
-
 Length(String).length<complex>(%self: Ptr): Long {
   b_0 {
     %v_1 = bitcast %self: Ptr
@@ -361,16 +336,6 @@ Length(String).length<complex>(%self: Ptr): Long {
     %units = cast %v_3: Int
     %v_4 = sext %units: Long
     ret %v_4
-  }
-}
-
-literalLength<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$0, 5
-    %v_2 = call_complex Length(String).length, %v_1: Long
-    %v_3 = cast %v_2: Int
-    ret %v_3
   }
 }
 
@@ -848,29 +813,6 @@ pushString<complex>(%self: Ptr, %other: Ptr) {
     %v_3 = call_complex Length(String).length, %other: Long
     call_complex appendUnits, %self, %v_2, %v_3
     ret 
-  }
-}
-
-concatLength<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$3, 2
-    %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$4, 3
-    %joined = alloca 16, 8: Ptr
-    call_complex Append(String).+, %joined, %v_1, %v_2
-    %v_3 = call_complex Length(String).length, %joined: Long
-    %v_4 = cast %v_3: Int
-    ret %v_4
-  }
-}
-
-firstUnit<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$1, 3
-    %v_2 = call_complex stringUnit, %v_1, 0: Int
-    ret %v_2
   }
 }
 

@@ -1,35 +1,7 @@
 "use strict";
 // ResolveTest
-function origin() {
-  return { x: 3, y: 4 };
-}
-
 function madePoint() {
   return { x: 3, y: 4 };
-}
-
-function bump(n$o, n$k, n$s) {
-  n$o[n$k] = n$o[n$k] + 1 | 0;
-  return;
-}
-
-function widen(p) {
-  p.x = p.x + 1 | 0;
-  return;
-}
-
-function straight(count) {
-  var total = 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < count) {
-      total = total + 12 | 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return total;
 }
 
 function conditional(count) {
@@ -68,37 +40,6 @@ function nested(rows, columns) {
     break L0;
   }
   return total;
-}
-
-function written(count) {
-  var i = 0;
-  var v36 = 3;
-  L0: for (;;) {
-    if (i < count) {
-      var v15 = v36 + 4 | 0;
-      i = i + 1 | 0;
-      v36 = v15;
-      continue L0;
-    }
-    break L0;
-  }
-  return v36;
-}
-
-function withCall(seed, count) {
-  var v5 = seed + 1 | 0;
-  var seen = 0;
-  var i = 0;
-  var v23 = Math.imul(seed, v5);
-  L0: for (;;) {
-    if (i < count) {
-      seen = (seen + 1 | 0) + v23 | 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return seen;
 }
 
 function fromCall(count) {
@@ -184,3 +125,4 @@ function main() {
   }
   return (((v11 + seen | 0) + fromCall(2) | 0) + escaping(2) | 0) + never() | 0;
 }
+main();

@@ -1,149 +1,4 @@
 
-unbox<complex>(%value: Ptr): Int {
-  b_0 {
-    %inner = loads %value, 4: Int
-    jmp b_1
-  }
-
-  b_1 {
-    ret %inner
-  }
-}
-
-justInt<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 3, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
-nothingInt<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 0, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
-labelSum<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = loads %value, 4: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    %v_8 = add %value, 4: Ptr
-    %inner = loads %v_8, 4: Int
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_5, %inner], [b_6, 0]: Int
-    %v_10 = add %v_2, %v_9: Int
-    ret %v_10
-  }
-}
-
-okResult<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 11, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
-errResult<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 0, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 4, 4
-    copy %v_0, %v_2, 8
-    ret 
-  }
-}
-
-unwrapBool<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = load %value, 1: Long
-    %v_2 = cmp_le %v_1, 1: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    %inner = load %value, 1: Int
-    %v_8 = select 1, 0, %inner: Int
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_5, %v_8], [b_6, 2]: Int
-    ret %v_9
-  }
-}
-
-ascribedNothing<complex>(): Int {
-  b_0 {
-    %n = alloca 1, 1: Ptr
-    store %n, 2, 1
-    %v_1 = call_complex unwrapBool, %n: Int
-    ret %v_1
-  }
-}
-
-ascribedJust<complex>(): Int {
-  b_0 {
-    %j = alloca 1, 1: Ptr
-    store %j, 1, 1
-    %v_1 = call_complex unwrapBool, %j: Int
-    ret %v_1
-  }
-}
-
-unwrap<complex>(%value: Ptr, %fallback: Int): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %value, 4: Ptr
-    %inner = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %inner], [b_4, %fallback]: Int
-    ret %v_7
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %n = alloca 1, 1: Ptr
@@ -179,6 +34,31 @@ main<complex>(): Int {
   }
 }
 
+unwrapBool<complex>(%value: Ptr): Int {
+  b_0 {
+    %v_1 = load %value, 1: Long
+    %v_2 = cmp_le %v_1, 1: Int
+    %v_3 = select 1, 0, %v_2: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_5 {
+    %inner = load %value, 1: Int
+    %v_8 = select 1, 0, %inner: Int
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = phi [b_5, %v_8], [b_6, 2]: Int
+    ret %v_9
+  }
+}
+
 resultValue<complex>(%value: Ptr): Int {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -202,21 +82,6 @@ resultValue<complex>(%value: Ptr): Int {
   b_7 {
     %v_9 = phi [b_3, %inner], [b_4, %v_6]: Int
     ret %v_9
-  }
-}
-
-labelled<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = alloca 12, 4: Ptr
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 1, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 40, 4
-    %v_5 = add %v_2, 8: Ptr
-    store %v_5, 2, 4
-    copy %v_2, %v_3, 8
-    copy %v_0, %v_2, 12
-    ret 
   }
 }
 

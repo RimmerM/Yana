@@ -10,10 +10,6 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function levelOf(d$count, d$level) {
-  return d$level;
-}
-
 function raise(d) {
   add_eq_Int(d, "count", 1, 1);
   return;
@@ -37,10 +33,6 @@ function throughLens() {
   return ResolveTest_continuation$0({ $v: v0 }, v0.cold.level);
 }
 
-function countOf(h) {
-  return h.n;
-}
-
 function main() {
   var m = mutated();
   if (m !== 3221) {
@@ -58,3 +50,4 @@ function main() {
 function ResolveTest_continuation$0(env, value) {
   return value + env.$v.cold.count | 0;
 }
+main();

@@ -195,22 +195,6 @@ double<complex>(%xs: Ptr) {
   }
 }
 
-middle<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    %v_2 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_2, %xs$items, %xs$length, 1, 3
-    %xs$items = load %v_2, 8: Ptr
-    %v_3 = add %v_2, 8: Ptr
-    %xs$length = loads %v_3, 8: Long
-    %v_4 = call_complex total, %xs$items, %xs$length: Int
-    ret %v_4
-  }
-}
-
 reserve(Int)<complex>(%self: Ptr, %wanted: Int) {
   b_0 {
     %v_1 = add %self, 8: Ptr
@@ -295,49 +279,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
-  }
-}
-
-sumFrom<complex>(%xs$items: Ptr, %xs$length: Long, %from: Int): Int {
-  b_0 {
-    %v_1 = cast %xs$length: Long
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_0, %from], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = sext %v_3: Long
-    %v_9 = cmp_ilt %v_8, %xs$length: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    ret %v_6
-  }
-
-  b_10 {
-    %v_12 = cast %v_3: Long
-    %v_13 = cmp_ge %v_12, %v_1: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    jmp b_4
-  }
-
-  b_14 {
-    %v_16 = syscall 60, 134: Long
-    jmp b_4
-  }
-
-  b_4 {
-    %v_17 = imul %v_8, 4: Long
-    %v_18 = add %xs$items, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_7 = add %v_6, %v_19: Int
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
   }
 }
 
@@ -497,32 +438,6 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
   b_6 {
     ret 
-  }
-}
-
-atCursor<complex>(%c$items$items: Ptr, %c$items$length: Long, %c$at: Int): Int {
-  b_0 {
-    %v_1 = sext %c$at: Long
-    %v_2 = cast %c$at: Long
-    %v_3 = cast %c$items$length: Long
-    %v_4 = cmp_ge %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    %v_8 = syscall 60, 134: Long
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = imul %v_1, 4: Long
-    %v_10 = add %c$items$items, %v_9: Ptr
-    %v_11 = loads %v_10, 4: Int
-    ret %v_11
   }
 }
 

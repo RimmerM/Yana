@@ -1,47 +1,7 @@
 
-add<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %v_1 = add %a, %b: Int
-    ret %v_1
-  }
-}
-
-local<complex>(%value: Int): Int {
-  b_0 {
-    %next = add %value, 1: Int
-    %v_1 = imul %next, 2: Int
-    ret %v_1
-  }
-}
-
-classify<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = cmp_ilt %value, 0: Int
-    %v_2 = cmp_eq %value, 0: Int
-    %v_3 = select 0, 1, %v_2: Int
-    %v_4 = select 18446744073709551615, %v_3, %v_1: Int
-    ret %v_4
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     ret 7
-  }
-}
-
-noop<complex>() {
-  b_0 {
-    ret 
-  }
-}
-
-choose<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %v_1 = cmp_igt %a, %b: Int
-    %v_2 = add %a, 1: Int
-    %v_3 = select %v_2, %b, %v_1: Int
-    ret %v_3
   }
 }
 

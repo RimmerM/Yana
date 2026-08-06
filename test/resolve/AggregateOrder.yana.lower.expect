@@ -1,16 +1,5 @@
 @log = [0, 0, 0, 0]
 
-crossesEffect<complex>(): Int {
-  b_0 {
-    %first = call_complex note, 1: Int
-    %v_1 = call_complex note, 2: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, 9: Int
-    %v_4 = add %v_3, %first: Int
-    ret %v_4
-  }
-}
-
 note<complex>(%n: Int): Int {
   b_0 {
     %v_1 = loads @log, 4: Int
@@ -35,9 +24,24 @@ note<complex>(%n: Int): Int {
   }
 }
 
-folds<complex>(): Int {
+main<complex>(): Int {
   b_0 {
-    ret 56
+    %first = call_complex note, 1: Int
+    %v_1 = call_complex note, 2: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, 9: Int
+    %v_4 = add %v_3, %first: Int
+    %x = call_complex note, 3: Int
+    %v_5 = add %x, 1: Int
+    %v_6 = imul %v_5, 10: Int
+    %v_7 = add %v_6, 8: Int
+    %v_8 = add %v_4, %v_7: Int
+    %v_9 = call_complex elementCrossesEffect: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = add %v_10, 56: Int
+    %v_12 = loads @log, 4: Int
+    %v_13 = add %v_11, %v_12: Int
+    ret %v_13
   }
 }
 
@@ -72,37 +76,6 @@ elementCrossesEffect<complex>(): Int {
     %v_20 = add %v_17, %v_19: Int
     %v_21 = add %v_20, %first: Int
     ret %v_21
-  }
-}
-
-crossesBinding<complex>(): Int {
-  b_0 {
-    %x = call_complex note, 3: Int
-    %v_1 = add %x, 1: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, 8: Int
-    ret %v_3
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %first = call_complex note, 1: Int
-    %v_1 = call_complex note, 2: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, 9: Int
-    %v_4 = add %v_3, %first: Int
-    %x = call_complex note, 3: Int
-    %v_5 = add %x, 1: Int
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_6, 8: Int
-    %v_8 = add %v_4, %v_7: Int
-    %v_9 = call_complex elementCrossesEffect: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = add %v_10, 56: Int
-    %v_12 = loads @log, 4: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
   }
 }
 

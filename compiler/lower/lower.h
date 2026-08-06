@@ -591,6 +591,18 @@ struct LowerModule {
     HashMap<StringId, LowerPtr<LowerFunction>> functions;
 
     StringId name = 0;
+
+    /*
+     * The name of the function a finished program starts at - `Program::entry`, under whatever name
+     * lowering gave it (see uniqueFunctionName, which may have had to rename it).
+     *
+     * A name rather than a pointer because that is what everything downstream asks with: the code
+     * generator emits functions into a module and finds one again by name, and a backend that has to
+     * hold a lower-IR pointer in order to know which of them starts the program would be a second
+     * way of naming the same thing. Zero for a library, which has no entry.
+     */
+    StringId entry = 0;
+
     U16 errorCount = 0;
     U16 warningCount = 0;
 };

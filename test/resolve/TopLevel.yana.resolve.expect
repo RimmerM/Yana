@@ -1,0 +1,80 @@
+let bonus: Int = 3
+
+let &counter: Int = 0
+
+let &shape: Shape = <startup>
+
+let &seed: Int = <startup>
+
+let &recorded: Int = <startup>
+
+let &first: Int = <startup>
+
+let &second: Int = <startup>
+
+fn seedFrom(%n: Int) -> Int {
+  b0:
+    %v3 = mul %n, 5 : Int
+    ret %v3
+}
+
+fn area(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %n = load %s@Square : Int
+    %v9 = mul %n, %n : Int
+    ret %v9
+
+  b2:
+    %r = load %s@Circle : Int
+    %v6 = mul %r, %r : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = load counter : Int
+    %v2 = add 3, %v1 : Int
+    %v3 = load recorded : Int
+    %v6 = mul %v3, 100 : Int
+    %v7 = add %v2, %v6 : Int
+    %v8 = load first : Int
+    %v11 = mul %v8, 10000 : Int
+    %v12 = add %v7, %v11 : Int
+    %v13 = load second : Int
+    %v16 = mul %v13, 1000000 : Int
+    %v17 = add %v12, %v16 : Int
+    ret %v17
+}
+
+fn main$() -> Int {
+  b0:
+    %v0 = alloc : Shape
+    aggregate %local0.discriminant = 0, %local0@Circle = 7
+    init shape, %v0
+    %v6 = call seedFrom, 4 : Int
+    init seed, %v6
+    %v8 = load counter : Int
+    %v9 = load seed : Int
+    %v10 = add %v8, %v9 : Int
+    assign counter, %v10
+    %v12 = load counter : Int
+    %v13 = load shape : Shape
+    %v14 = call area, %v13 : Int
+    %v15 = add %v12, %v14 : Int
+    assign counter, %v15
+    %v17 = load counter : Int
+    init recorded, %v17
+    %v19 = load counter : Int
+    %v22 = add %v19, 1 : Int
+    init first, %v22
+    %v24 = load first : Int
+    %v27 = add %v24, 1 : Int
+    init second, %v27
+    %v29 = call main : Int
+    ret %v29
+}

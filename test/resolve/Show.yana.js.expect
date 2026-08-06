@@ -60,26 +60,6 @@ function shownInt(value) {
   return sink.$v.length;
 }
 
-function shownString(value) {
-  var sink = newStringOfCapacity(64);
-  sink = sink + value;
-  return sink.length;
-}
-
-function firstShownUnit(value) {
-  var sink = { $v: newStringOfCapacity(64) };
-  showSigned(BigInt.asIntN(64, BigInt(value)), sink, "$v", 1);
-  return sink.$v.charCodeAt(0);
-}
-
-function stringBound(value) {
-  return value.length;
-}
-
-function intBound(value) {
-  return 11;
-}
-
 function boolText() {
   var total = 0;
   if (shownBool(1) === 4) {
@@ -153,3 +133,4 @@ function contractHolds() {
 function main() {
   return ((boolText() + integerText() | 0) + stringText() | 0) + contractHolds() | 0;
 }
+main();

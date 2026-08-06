@@ -1,10 +1,4 @@
 
-nestedSize<complex>(): Long {
-  b_0 {
-    ret 16
-  }
-}
-
 slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long, %to: Long) {
   b_1 {
     %v_2 = cmp_ilt %from, 0: Int
@@ -72,6 +66,50 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
     store %v_26, %v_25, 8
     copy %v_0, %v_22, 16
     ret 
+  }
+}
+
+total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %v_1 = cast %xs$length: Long
+    jmp b_2
+  }
+
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = sext %v_6: Long
+    %v_9 = cmp_ilt %v_8, %xs$length: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    ret %v_3
+  }
+
+  b_10 {
+    %v_12 = sext %v_6: Long
+    %v_13 = cast %v_6: Long
+    %v_14 = cmp_ge %v_13, %v_1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_4
+  }
+
+  b_15 {
+    %v_17 = syscall 60, 134: Long
+    jmp b_4
+  }
+
+  b_4 {
+    %v_18 = imul %v_12, 4: Long
+    %v_19 = add %xs$items, %v_18: Ptr
+    %v_20 = loads %v_19, 4: Int
+    %v_5 = add %v_3, %v_20: Int
+    %v_7 = add %v_6, 1: Int
+    jmp b_2
   }
 }
 
@@ -143,92 +181,6 @@ double<complex>(%xs: Ptr) {
     store %v_35, %v_36, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
-  }
-}
-
-middle<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    %v_2 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_2, %xs$items, %xs$length, 1, 3
-    %xs$items = load %v_2, 8: Ptr
-    %v_3 = add %v_2, 8: Ptr
-    %xs$length = loads %v_3, 8: Long
-    %v_4 = call_complex total, %xs$items, %xs$length: Int
-    ret %v_4
-  }
-}
-
-emptySize<complex>(): Long {
-  b_0 {
-    %none = alloca 1, 1: Ptr
-    ret 0
-  }
-}
-
-fixedSize<complex>(): Long {
-  b_0 {
-    ret 16
-  }
-}
-
-total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %v_1 = cast %xs$length: Long
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = sext %v_6: Long
-    %v_9 = cmp_ilt %v_8, %xs$length: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    ret %v_3
-  }
-
-  b_10 {
-    %v_12 = sext %v_6: Long
-    %v_13 = cast %v_6: Long
-    %v_14 = cmp_ge %v_13, %v_1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    jmp b_4
-  }
-
-  b_15 {
-    %v_17 = syscall 60, 134: Long
-    jmp b_4
-  }
-
-  b_4 {
-    %v_18 = imul %v_12, 4: Long
-    %v_19 = add %xs$items, %v_18: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_5 = add %v_3, %v_20: Int
-    %v_7 = add %v_6, 1: Int
-    jmp b_2
-  }
-}
-
-pairSum<complex>(%p$items: Ptr, %p$length: Long): Int {
-  b_0 {
-    %v_1 = call_complex total, %p$items, %p$length: Int
-    ret %v_1
-  }
-}
-
-padStride<complex>(): Long {
-  b_0 {
-    ret 48
   }
 }
 

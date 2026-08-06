@@ -393,6 +393,15 @@ inline void adopt(ClassMatch& into, const ClassMatch& from) {
 
 struct ExprResolver;
 
+/*
+ * The dynamically initialized globals a top-level statement may still not read - see
+ * `ExprResolver::uninitialized`, which is the only thing that holds one.
+ *
+ * Sixteen inline because that is more dynamic globals than a module is likely to declare, and a
+ * module that declares more pays one allocation for the length of one function's resolution.
+ */
+using PendingGlobals = SmallArray<ModulePtr<Global>, 16>;
+
 // What an editor shows for a class function's name, recorded at the point the call decided which
 // class and which instance answered it. Shared with the `for` loop's own selection, which reaches a
 // class iterator without going through resolveCall.
@@ -868,6 +877,7 @@ struct ExprResolver {
     // What reading a module-level name produces: a constant for an immutable global of direct
     // type, and a load of its place for anything else. See expr.cpp.
     ModulePtr<Value> globalValue(ModulePtr<Global> global_, LocationId source);
+    bool initializedGlobal(ModulePtr<Global> global_, LocationId source);
 
     // The constant `bits` names at `type` - see expr.cpp. Shared by an immutable global and a
     // field default, which are recorded the same way and for the same reason.
@@ -1810,6 +1820,27 @@ struct ExprResolver {
     // do - return a value, cover every case - is the same mistake seen from the other side, and
     // the parser has already reported it once. See Implementation-Tooling.md §3.2.
     bool sawParseError = false;
+
+    /*
+     * The dynamically initialized globals whose declaring statement has not run yet - the entry
+     * sequence's own bookkeeping, and null in every other body.
+     *
+     * A list scanned linearly rather than a set, for the reason `bindings` above is a `SmallArray`:
+     * it holds one entry per dynamic global in one module and is read only where a global is named
+     * inside the entry sequence, so an inline buffer that never allocates beats a hash of it.
+     *
+     * A global is module-scoped from the first line of the file, so a top-level statement can name
+     * one whose initializer is further down. Inside the entry sequence that is a use-before-init of
+     * exactly the kind the ownership pass reports for a local, and it is caught here rather than
+     * there because a global has no state row in any frame: what a read of one is, is decided while
+     * the read is being resolved.
+     *
+     * Only the direct case. A statement that calls a function which reads a later global is not
+     * caught by anything, and reads the zero its storage was filled with - the same zero on both
+     * targets, which is the property `Global::dynamic` exists to keep. Analysis-Initialization.md
+     * §4.2's progress check is the version that catches it.
+     */
+    PendingGlobals* uninitialized = nullptr;
 };
 
 /*

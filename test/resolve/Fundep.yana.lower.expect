@@ -1,46 +1,4 @@
 
-fromOtherInstance<complex>(): Int {
-  b_0 {
-    ret 7
-  }
-}
-
-fromInstance<complex>(): Int {
-  b_0 {
-    ret 1
-  }
-}
-
-fromParametric<complex>(): Int {
-  b_0 {
-    %w = alloca 4, 4: Ptr
-    store %w, 5, 4
-    %inner = alloca 4, 4: Ptr
-    call_complex Elem(Wrap(a), Wrap(a)).head(Int), %inner, %w
-    %v_1 = loads %inner, 4: Int
-    ret %v_1
-  }
-}
-
-agreeingAscription<complex>(): Int {
-  b_0 {
-    ret 1
-  }
-}
-
-viaConstraint<complex>(): Int {
-  b_0 {
-    ret 1
-  }
-}
-
-Elem(Wrap(a), Wrap(a)).head(Int)<complex>(%v_0: Ptr, %self: Ptr) {
-  b_1 {
-    copy %v_0, %self, 4
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     ret 9

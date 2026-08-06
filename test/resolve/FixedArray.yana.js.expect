@@ -8,14 +8,6 @@ function checkCondition(failed) {
 }
 
 // ResolveTest
-function fixedSize() {
-  return 16n;
-}
-
-function nestedSize() {
-  return 16n;
-}
-
 function total(xs$items, xs$length, xs$offset) {
   var sum = 0;
   var i = 0;
@@ -67,21 +59,9 @@ function middle(xs$items, xs$length, xs$offset) {
   return total(xs$items, end - start | 0, xs$offset + start | 0);
 }
 
-function pairSum(p$items, p$length, p$offset) {
-  return total(p$items, p$length, p$offset);
-}
-
-function padStride() {
-  return 48n;
-}
-
 function padRead() {
   var v12 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
   return BigInt.asIntN(64, BigInt.asIntN(64, v12[0].wide + v12[1].wide) + v12[2].wide);
-}
-
-function emptySize() {
-  return 0n;
 }
 
 function main() {
@@ -109,3 +89,4 @@ function main() {
     }
   }
 }
+main();

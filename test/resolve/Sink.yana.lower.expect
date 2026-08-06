@@ -3,22 +3,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
-derived<complex>(): Long {
-  b_0 {
-    %p = alloca 16, 8: Ptr
-    store %p, 20, 8
-    %v_1 = add %p, 8: Ptr
-    store %v_1, 3, 8
-    %q = alloca 16, 8: Ptr
-    call_complex moveInit$Pair, %q, %p
-    %v_2 = loads %q, 8: Long
-    %v_3 = add %q, 8: Ptr
-    %v_4 = loads %v_3, 8: Long
-    %v_5 = add %v_2, %v_4: Long
-    ret %v_5
-  }
-}
-
 relocate(Pair)<complex>(%v_0: Ptr, %x: Ptr) {
   b_1 {
     %y = alloca 16, 8: Ptr
@@ -122,31 +106,6 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-unwrap<complex>(%e: Ptr): Long {
-  b_0 {
-    %v_1 = loads %e, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = add %e, 8: Ptr
-    %v_6 = loads %v_5, 8: Long
-    jmp b_7
-  }
-
-  b_3 {
-    %v_8 = add %e, 8: Ptr
-    %v = loads %v_8, 8: Long
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_3, %v], [b_4, %v_6]: Long
-    ret %v_9
-  }
-}
-
 consume<complex>(%it: Ptr): Long {
   b_0 {
     %v_1 = loads %it, 8: Long
@@ -200,17 +159,6 @@ moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
   }
 }
 
-direct<complex>(): Long {
-  b_0 {
-    %h = alloca 8, 8: Ptr
-    store %h, 10, 8
-    %g = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %g, %h
-    %v_1 = loads %g, 8: Long
-    ret %v_1
-  }
-}
-
 retag<complex>(%v_0: Ptr, %p: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -246,29 +194,6 @@ drop$() -> I64<complex>(%value: Ptr) {
 
   b_6 {
     ret 
-  }
-}
-
-nested<complex>(): Long {
-  b_0 {
-    %n = alloca 24, 8: Ptr
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, 40, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 1, 8
-    copy %n, %v_1, 16
-    %v_3 = add %n, 16: Ptr
-    store %v_3, 4, 8
-    %m = alloca 24, 8: Ptr
-    call_complex moveInit$Nest, %m, %n
-    %v_4 = loads %m, 8: Long
-    %v_5 = add %m, 8: Ptr
-    %v_6 = loads %v_5, 8: Long
-    %v_7 = add %v_4, %v_6: Long
-    %v_8 = add %m, 16: Ptr
-    %v_9 = loads %v_8, 8: Long
-    %v_10 = add %v_7, %v_9: Long
-    ret %v_10
   }
 }
 

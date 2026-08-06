@@ -54,17 +54,6 @@ function formatBound(bound) {
 }
 
 // ResolveTest
-function plain() {
-  return "no holes here".length;
-}
-
-function oneInt() {
-  var v7 = { $v: newStringOfCapacity(formatBound(11) + 4 | 0) };
-  v7.$v = v7.$v + "n = ";
-  showSigned(42n, v7, "$v", 1);
-  return v7.$v.length;
-}
-
 function oneIntText() {
   var v7 = { $v: newStringOfCapacity(formatBound(11) + 3 | 0) };
   v7.$v = v7.$v + "n=";
@@ -91,13 +80,6 @@ function oneIntText() {
   }
 }
 
-function oneString() {
-  var v6 = newStringOfCapacity(formatBound("world".length) + 6 | 0);
-  v6 = v6 + "hello ";
-  v6 = v6 + "world";
-  return v6.length;
-}
-
 function mixed() {
   var v19 = { $v: newStringOfCapacity((((formatBound("ab".length) + 3 | 0) + formatBound(11) | 0) + formatBound("ab".length) | 0) + formatBound(11) | 0) };
   v19.$v = v19.$v + "ab";
@@ -108,12 +90,6 @@ function mixed() {
   v19.$v = v19.$v + "-";
   showSigned(345n, v19, "$v", 1);
   return v19.$v.length;
-}
-
-function negative() {
-  var v8 = { $v: newStringOfCapacity(formatBound(11)) };
-  showSigned(-2147483648n, v8, "$v", 1);
-  return v8.$v.length;
 }
 
 function boolean() {
@@ -166,3 +142,4 @@ function printed() {
   console.log(v11.$v);
   return 0;
 }
+main();

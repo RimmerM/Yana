@@ -2,56 +2,13 @@
 var calls = 0;
 
 // ResolveTest
-function larger(a, b) {
-  return a > b ? a : b;
-}
-
-function sign(value) {
-  return value < 0 ? -1 : value === 0 ? 0 : 1;
-}
-
 function either(a, b) {
   var v4 = a > 0;
   return (v4 ? v4 : b > 0) ? 1 : 0;
 }
 
-function count() {
-  calls = calls + 1 | 0;
-  return 1;
-}
-
-function skipped(a) {
-  var v8;
-  var v3 = a > 0;
-  if (v3) {
-    calls = calls + 1 | 0;
-    v8 = 1;
-  } else {
-    v8 = v3;
-  }
-  return v8 ? 1 : 0;
-}
-
-function effects() {
-  calls = 1;
-  return 6;
-}
-
-function same(c) {
-  return 7;
-}
-
 function lowered() {
   return -3;
-}
-
-function magnitude(value) {
-  return value > 0 ? value : Math.fround(0 - value);
-}
-
-function positive() {
-  var v0 = lowered();
-  return (v0 > 0 ? v0 : Math.fround(0 - v0)) > 2.5 ? 5 : 0;
 }
 
 function smallest(limit) {
@@ -73,28 +30,8 @@ function zero() {
   return 0;
 }
 
-function ratio(value, divisor) {
-  var v10;
-  if (divisor !== 0) {
-    v10 = value / divisor | 0;
-  } else {
-    v10 = 0;
-  }
-  return v10;
-}
-
 function doubled(value) {
   return Math.imul(value, 2);
-}
-
-function guarded(value) {
-  var v9;
-  if (value > 0) {
-    v9 = doubled(value);
-  } else {
-    v9 = 0;
-  }
-  return v9;
 }
 
 function main() {
@@ -112,3 +49,4 @@ function main() {
   }
   return ((v58 + Math.imul(v208, 1024) | 0) + 10240 | 0) + Math.imul(doubled(3), 4096) | 0;
 }
+main();

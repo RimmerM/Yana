@@ -163,23 +163,53 @@ void markProgramReachable(Program& program) {
 
     Array<ModulePtr<Global>> tables;
 
+    /*
+     * What the walk starts from, and there are two answers because there are two things a
+     * compilation can be producing.
+     *
+     * **A program has one root: where it starts.** Everything a program can arrive at, it arrives at
+     * from there - through a call, a table slot, a teardown - so ordinary reachability is the whole
+     * answer and it applies to the root module exactly as it applies to every other. A function of
+     * the root module that nothing can reach is dead code, and a `pub` on it will not change that:
+     * `pub` says who may *name* it, which is a question about compiling against this module rather
+     * than about running it.
+     *
+     * **A library has no start**, so its declarations are the roots: something outside this
+     * compilation is going to call them, and there is nothing here that could say which. That is
+     * today's rule, kept for exactly the case it was right for.
+     *
+     * Both conditions, and each rules out a different mistake. A library compile of a module that
+     * happens to declare `main` is still a library, and rooting the walk there would emit one
+     * function and drop everything the library exists to offer. A program whose root module declares
+     * neither `main` nor a top-level statement has nowhere to start, and is reported as that by
+     * whichever backend was asked for one rather than being silently emptied here.
+     */
+    if(program.entry && isExecutableMode(program.context.settings.mode)) {
+        for(auto module: program.modules) {
+            for(auto function: module->functionOrder.contents(local)) local[function]->used = false;
+            for(auto global_: module->globalOrder.contents(local)) local[global_]->used = false;
+        }
+
+        local[program.entry]->used = true;
+        pending.push(program.entry);
+
+        markReachable(program, pending, tables);
+        return;
+    }
+
     for(auto module: program.modules) {
         /*
-         * A named function of the root module is part of the program whether or not this compilation
+         * A named function of the root module is part of the library whether or not this compilation
          * can see a call to it; everything else has to be reached.
-         *
-         * The exception is what the root check is *for*. A module the program merely imports
-         * contributes what it is used for, and the root module is the program - so its declarations
-         * are the roots of the walk rather than its findings. What that swept in with them was every
-         * compiler-built function generated *into* the root module, which is most of them: glue is
-         * built in the module that asked for it, so a program's own teardowns, entry thunks and
-         * descriptors all land here and were all kept unconditionally. `reclaim$Step` with an empty
-         * body and no caller is what that looks like.
          *
          * Anonymous is the right test rather than a proxy for one: `addAnonymousFunction` is
          * documented as "reachable through something other than its name", so a function that is one
          * has, by construction, a reference somewhere for this walk to find - a call, a table slot,
-         * an `InstDrop` half. If there is none, nothing can ever run it.
+         * an `InstDrop` half. If there is none, nothing can ever run it. What that keeps out is every
+         * compiler-built function generated *into* the root module, which is most of them: glue is
+         * built in the module that asked for it, so a program's own teardowns, entry thunks and
+         * descriptors all land here. `reclaim$Step` with an empty body and no caller is what
+         * including them looks like.
          */
         for(auto function: module->functionOrder.contents(local)) {
             local[function]->used = module->root && !local[function]->anonymous;

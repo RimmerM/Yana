@@ -118,7 +118,16 @@ static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Pr
     auto module = llvmgen::genModule(llvm, context, *lowered);
     if(context.diagnostics.errorCount()) return nullptr;
 
-    if(!llvmgen::addNativeEntry(context, *module, "main"_v)) return nullptr;
+    // The program's start rather than `main` by name - Analysis-Initialization.md stage B. Where the
+    // root module has top-level statements, `main` is what the synthesized entry calls last, and
+    // wrapping `main` itself would start the program after its own initialization had been skipped.
+    if(!lowered->entry) {
+        context.diagnostics.error("the program has no entry point - the module being compiled declares neither `main` nor any top-level statement"_v,
+                                  nullptr);
+        return nullptr;
+    }
+
+    if(!llvmgen::addNativeEntry(context, *module, lowered->entry)) return nullptr;
     if(!llvmgen::verifyGenModule(context, *module)) return nullptr;
 
     llvmgen::optimizeModule(context, *module, context.settings.optimization);

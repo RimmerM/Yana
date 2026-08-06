@@ -878,7 +878,17 @@ static void printGlobal(ResolvePrint& print, Global& global_) {
     print.writer.writeString(": "_v);
     printType(print, global_.type);
     print.writer.writeString(" = "_v);
-    writeUInt(print.writer, global_.initial);
+
+    // A dynamically initialized global has no constant to print - what it holds is written by the
+    // entry sequence, which is where the initializer is. Printing `initial` for one would print the
+    // zero its storage starts at as though it were the declaration, which is the one thing a reader
+    // of this dump would take it for.
+    if(global_.dynamic) {
+        print.writer.writeString("<startup>"_v);
+    } else {
+        writeUInt(print.writer, global_.initial);
+    }
+
     print.writer.writeByte('\n');
 }
 

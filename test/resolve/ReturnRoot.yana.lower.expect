@@ -1,26 +1,4 @@
 
-larger<complex>(%a: Ptr, %b: Ptr): Ptr {
-  b_0 {
-    %v_1 = loads %a, 4: Int
-    %v_2 = loads %b, 4: Int
-    %v_3 = cmp_igt %v_1, %v_2: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, %a], [b_5, %b]: Ptr
-    ret %v_7
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %here = alloca 8, 4: Ptr

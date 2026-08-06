@@ -1,32 +1,9 @@
 @seen = [0, 0, 0, 0]
 
-readBeforeCall<complex>(): Int {
-  b_0 {
-    store @seen, 8, 4
-    ret 339
-  }
-}
-
-readAfterCall<complex>(): Int {
-  b_0 {
-    store @seen, 5, 4
-    ret 6
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     store @seen, 8, 4
     ret 6339
-  }
-}
-
-bump<complex>(): Int {
-  b_0 {
-    %v_1 = loads @seen, 4: Int
-    %v_2 = add %v_1, 5: Int
-    store @seen, %v_2, 4
-    ret 1
   }
 }
 

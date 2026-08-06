@@ -1,83 +1,11 @@
 @released = [0, 0, 0, 0]
 
-guarded<complex>(): Int {
-  b_0 {
-    ret 35
-  }
-}
-
-unwrapOr<complex>(%value: Ptr, %fallback: Int): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %value, 4: Ptr
-    %inner = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %inner], [b_4, %fallback]: Int
-    ret %v_7
-  }
-}
-
-replaced<complex>(): Int {
-  b_0 {
-    ret 36
-  }
-}
-
 +=(Int)<complex>(%target: Ptr, %amount: Int) {
   b_0 {
     %v_1 = loads %target, 4: Int
     %v_2 = add %v_1, %amount: Int
     store %target, %v_2, 4
     ret 
-  }
-}
-
-countOf<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    ret %v_1
-  }
-}
-
-taken<complex>(): Int {
-  b_0 {
-    ret 35
-  }
-}
-
-bump<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %value, 4: Ptr
-    %inner = loads %v_6, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %inner], [b_4, 0]: Int
-    %v_8 = add %v_7, 1: Int
-    ret %v_8
   }
 }
 
@@ -91,18 +19,6 @@ main<complex>(): Int {
     %v_2 = loads @released, 4: Int
     %v_3 = add %v_2, 142: Int
     ret %v_3
-  }
-}
-
-sunk<complex>(): Int {
-  b_0 {
-    %o = alloca 8, 4: Ptr
-    %v_1 = imm 36: Int
-    store %o, 1, 4
-    %v_2 = add %o, 4: Ptr
-    store %v_2, %v_1, 4
-    call_complex +=(Int), @released, 1
-    ret %v_1
   }
 }
 

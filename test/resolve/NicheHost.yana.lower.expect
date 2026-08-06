@@ -23,143 +23,6 @@ depthOf<complex>(%m: Ptr): Int {
   }
 }
 
-intOr<complex>(%m: Ptr, %fallback: Int): Int {
-  b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = add %m, 4: Ptr
-    %n = loads %v_5, 4: Int
-    jmp b_6
-  }
-
-  b_3 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_3, %fallback], [b_4, %n]: Int
-    ret %v_7
-  }
-}
-
-paired<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 20, 4: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 2, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 6, 4
-    store %v_2, 1, 4
-    %v_5 = add %v_2, 4: Ptr
-    copy %v_5, %v_3, 8
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 0, 4
-    copy %v_1, %v_2, 12
-    %v_7 = add %v_1, 12: Ptr
-    copy %v_7, %v_6, 8
-    %v_8 = call_complex pairValue, %v_1: Int
-    %v_9 = alloca 20, 4: Ptr
-    %v_10 = alloca 12, 4: Ptr
-    store %v_10, 0, 4
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 1, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 3, 4
-    copy %v_9, %v_10, 12
-    %v_13 = add %v_9, 12: Ptr
-    copy %v_13, %v_11, 8
-    %v_14 = call_complex pairValue, %v_9: Int
-    %v_15 = imul %v_14, 10000: Int
-    %v_16 = add %v_8, %v_15: Int
-    ret %v_16
-  }
-}
-
-pairValue<complex>(%p: Ptr): Int {
-  b_0 {
-    %v_1 = call_complex pointOr, %p, 7: Int
-    %v_2 = imul %v_1, 100: Int
-    %v_3 = add %p, 12: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = cmp_eq %v_4, 0: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = add %p, 16: Ptr
-    %n = loads %v_8, 4: Int
-    jmp b_9
-  }
-
-  b_6 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_6, 7], [b_7, %n]: Int
-    %v_11 = add %v_2, %v_10: Int
-    ret %v_11
-  }
-}
-
-nested<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 4: Ptr
-    store %v_1, 0, 4
-    %outer = call_complex depthOf, %v_1: Int
-    %v_2 = alloca 16, 4: Ptr
-    %v_3 = alloca 12, 4: Ptr
-    store %v_3, 0, 4
-    store %v_2, 1, 4
-    %v_4 = add %v_2, 4: Ptr
-    copy %v_4, %v_3, 12
-    %middle = call_complex depthOf, %v_2: Int
-    %v_5 = alloca 16, 4: Ptr
-    %v_6 = alloca 12, 4: Ptr
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 2, 4
-    store %v_6, 1, 4
-    %v_9 = add %v_6, 4: Ptr
-    copy %v_9, %v_7, 8
-    store %v_5, 1, 4
-    %v_10 = add %v_5, 4: Ptr
-    copy %v_10, %v_6, 12
-    %inner = call_complex depthOf, %v_5: Int
-    %v_11 = imul %middle, 10: Int
-    %v_12 = add %outer, %v_11: Int
-    %v_13 = imul %inner, 100: Int
-    %v_14 = add %v_12, %v_13: Int
-    ret %v_14
-  }
-}
-
-objectFold<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 12, 4: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 3, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 4, 4
-    store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    copy %v_4, %v_2, 8
-    %some = call_complex pointOr, %v_1, 9: Int
-    %v_5 = alloca 12, 4: Ptr
-    store %v_5, 0, 4
-    %none = call_complex pointOr, %v_5, 9: Int
-    %v_6 = imul %none, 1000: Int
-    %v_7 = add %some, %v_6: Int
-    ret %v_7
-  }
-}
-
 pointOr<complex>(%m: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -187,9 +50,30 @@ pointOr<complex>(%m: Ptr, %fallback: Int): Int {
   }
 }
 
-intFold<complex>(): Int {
+pairValue<complex>(%p: Ptr): Int {
   b_0 {
-    ret 750
+    %v_1 = call_complex pointOr, %p, 7: Int
+    %v_2 = imul %v_1, 100: Int
+    %v_3 = add %p, 12: Ptr
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = add %p, 16: Ptr
+    %n = loads %v_8, 4: Int
+    jmp b_9
+  }
+
+  b_6 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_6, 7], [b_7, %n]: Int
+    %v_11 = add %v_2, %v_10: Int
+    ret %v_11
   }
 }
 

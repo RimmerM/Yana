@@ -337,9 +337,13 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         }
     }
 
-    for(auto decl: decls.contents(parse)) {
+    // By index rather than by iterator, because a top-level statement is kept as the pointer to the
+    // declaration it was written as - the entry sequence resolves it later.
+    for(Size i = 0; i < decls.size(); i++) {
+        auto pointer = declAt(decls, i);
+        auto& decl = *parse[pointer];
         if(!platformEnabled(module, decl)) continue;
-        if(decl.kind == ast::Decl::Stmt) declareGlobal(module, decl);
+        if(decl.kind == ast::Decl::Stmt) declareGlobal(module, decl, pointer);
     }
 
     for(auto& entry: module.classes) {
@@ -436,6 +440,10 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     program->root = module;
 
     resolveModuleDecls(*module, root, provider);
+
+    // The program's start, ahead of every other body: the root module's top-level statements are
+    // what decide the type of a dynamically initialized global, and any body may name one.
+    resolveProgramEntry(*program);
 
     // Bodies come last, and for every module at once: a Core instance may call a function that
     // only the root module's signatures made resolvable.

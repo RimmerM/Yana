@@ -21,6 +21,16 @@ inline bool isJsMode(CompileMode mode) {
     return mode == CompileMode::JsExecutable || mode == CompileMode::JsLibrary;
 }
 
+/// Whether a compilation mode produces a whole program rather than something to be linked or
+/// imported into one. This is what decides where reachability starts: a program has exactly one
+/// root - where it starts - and everything else it can arrive at, it arrives at from there, while a
+/// library's declarations are the roots because whoever will call them is not in this compilation.
+/// See markProgramReachable.
+inline bool isExecutableMode(CompileMode mode) {
+    return mode == CompileMode::NativeExecutable || mode == CompileMode::JsExecutable ||
+           mode == CompileMode::Llvm;
+}
+
 /// Native executable formats that can be generated.
 /// Only applicable to CompileMode::NativeExecutable and CompileMode::NativeShared.
 enum class ExecutableFormat {

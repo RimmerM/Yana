@@ -1,57 +1,5 @@
 @log = [0, 0, 0, 0]
 
-computed<complex>(%seed: Int): Int {
-  b_0 {
-    %v_1 = call_complex opaque, %seed: Int
-    %v_2 = add %v_1, 1000: Int
-    ret %v_2
-  }
-}
-
-opaque<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, %n: Int
-    store @log, %v_2, 4
-    %v_3 = cmp_igt %v_2, 1000: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    ret 0
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    ret %n
-  }
-}
-
-both<complex>(%seed: Int): Int {
-  b_0 {
-    %v_1 = call_complex opaque, %seed: Int
-    %v_2 = add %v_1, 120: Int
-    ret %v_2
-  }
-}
-
-derived<complex>(%seed: Int): Int {
-  b_0 {
-    %v_1 = call_complex opaque, %seed: Int
-    %v_2 = add %v_1, 127: Int
-    ret %v_2
-  }
-}
-
-readBetween<complex>(): Int {
-  b_0 {
-    ret 349
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = loads @log, 4: Int

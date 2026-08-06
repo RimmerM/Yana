@@ -1,0 +1,58 @@
+-- What a top level will not accept - the other half of TopLevel.yana.
+--
+-- A module's top level runs in the order it is written, so the mistakes are the ones an order makes
+-- possible: reading a name whose initializer has not run, and asking a module that has no such
+-- sequence to run one anyway.
+--
+-- Only a *dynamically* initialized global can be read too early. A constant one holds its value
+-- before the program starts and has no place in the sequence at all, so a statement above its
+-- declaration reads exactly what it was declared as - which is why `later` and `pending` below are
+-- written as calls rather than as numbers.
+
+import Startup
+
+data Point {x: Int, y: Int}
+
+fn compute() -> Int = 7
+
+-- Read before its own declaration. The name is in scope from the first line of the module - that is
+-- what makes a global a global - so this resolves to something that exists and holds nothing yet.
+let &early = later + 1
+let &later = compute()
+
+-- The same mistake through an assignment rather than a read, which is a different path into the
+-- resolver and used to be the one with no check on it at all.
+pending = 3
+let &pending = compute()
+
+-- Its own initializer, which is why the check happens *after* the initializer is resolved rather
+-- than before it: nothing about `self` is initialized until this statement finishes.
+let &self = self + 1
+
+-- A borrow has an extent and a global does not. What would be stored is the address of storage in
+-- the entry function's own frame, which stops existing the moment the program starts.
+fn xOf(return p: Point) -> &Int = p.x
+
+let &point = Point {x: 1, y: 2}
+let &edge = xOf(point)
+
+-- A module-level `let` has no `in`: what follows it is the rest of the file, which is already the
+-- scope of the name it declares.
+let scoped = 3 in scoped * 2
+
+-- The one thing here that is a *warning* rather than a rejection, and it is one deliberately. A
+-- global lives for the whole program and is never torn down - drop points are last-use-based, and a
+-- global has no last use - so a program-lifetime resource is a real thing to want and the meaning of
+-- this declaration is defined. What is not fine is writing an effect down and having it silently not
+-- run, which is what the warning names.
+data Handle {id: Int}
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        pending = pending + value.id
+
+let &held = Handle {id: 4}
+
+-- And the entry point takes no arguments. There is no argument or environment model to fill them
+-- from, so a `main` that declares one cannot be called by anything.
+fn main(n: Int) -> Int = n + later

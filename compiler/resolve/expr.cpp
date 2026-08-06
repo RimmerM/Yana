@@ -191,12 +191,33 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
 ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId source) {
     auto& definition = *local[global_];
 
+    if(!initializedGlobal(global_, source)) return nullptr;
+
     if(definition.mut || !isDirectType(global, definition.type)) {
         definition.used = true;
         return load(Place::inGlobal(global_), source);
     }
 
     return constantBits(definition.type, definition.initial, source);
+}
+
+/*
+ * Whether this global holds anything yet - the direct half of Analysis-Initialization.md §4.2.
+ *
+ * Asked only inside the entry sequence, which is the only body where the answer can be no: `main$`
+ * is resolved before every other body, so by the time an ordinary function is looked at, every
+ * global's initializer has run in the program and been resolved here.
+ *
+ * A global is in scope for the whole module from the first line, so a top-level statement naming one
+ * declared further down is an ordinary use-before-init - the same mistake the ownership pass reports
+ * for a local, reported here because a global has no state row in any frame to report it from.
+ */
+bool ExprResolver::initializedGlobal(ModulePtr<Global> global_, LocationId source) {
+    if(!uninitialized || !uninitialized->containsValue(global_)) return true;
+
+    context.diagnostics.error("%@ is read before its initializer runs - a module's top level runs in the order it is written, and this global is declared further down"_v,
+                              source, context.findName(local[global_]->name));
+    return false;
 }
 
 // The constant a declared-once value holds, from the bits its storage would have held at the width
