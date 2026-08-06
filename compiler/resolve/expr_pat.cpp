@@ -935,11 +935,11 @@ PatternResult ExprResolver::resolveCondition(const ast::Expr& expr, ModulePtr<Bl
 // `x is p` where nothing branches on it. The bindings cannot survive: the value is produced by a
 // join, and the path through it is exactly the one on which the pattern did not match.
 ModulePtr<Value> ExprResolver::resolveIs(const ast::Expr& expr, const ast::IsExpr&, bool used) {
-    auto bindingCount = bindings.size();
+    BindingScope scope(*this);
     ModulePtr<Block> onFail = nullptr;
 
     if(resolveCondition(expr, onFail) == PatternResult::Never) return nullptr;
-    bindings.resize(bindingCount);
+    scope.restore();
 
     BranchArmList arms;
     arms.push(BranchArm { current, makeInt(expr.source, module.scalar.bool_, 1), expr.source });
@@ -1089,7 +1089,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     for(auto alternative: alternatives) patterns.push(alternative.pat);
 
     PatternSpace space(*this, pivotType);
-    auto bindingCount = bindings.size();
+    BindingScope scope(*this);
     BranchArmList arms;
     auto exhaustive = false;
     auto rejected = false;
@@ -1120,7 +1120,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
 
         if(patternResult == PatternResult::Never) {
             rejected = true;
-            bindings.resize(bindingCount);
+            scope.restore();
             if(!failure) return nullptr;
 
             current = failure;
@@ -1129,7 +1129,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
 
         auto value = resolve(body, target, used, implicit);
         if(current) arms.push(BranchArm { current, value, body.source });
-        bindings.resize(bindingCount);
+        scope.restore();
 
         current = failure;
     }
@@ -1215,7 +1215,12 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
         return;
     }
 
-    auto checkpoint = bindings.size();
+    // Scoped, and then deliberately released below: the two exits from here owe opposite things.
+    // A pattern that could not be resolved has bound whatever it got through before it reported,
+    // and those names must not survive a declaration that failed - which is the same defect the
+    // guard closes in `if`, `while` and `is`. Everything after the release is the matching path,
+    // where the names are the whole point of the construct.
+    BindingScope scope(*this);
     auto failure = addBlock();
 
     if(resolvePattern(declaration.pat, value, failure) == PatternResult::Never) return;
@@ -1224,7 +1229,8 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
     // What the pattern bound is live on the matching path only, so the alternatives are resolved
     // with the scope the declaration started from and it is put back afterwards.
     Array<Binding> declared;
-    while(bindings.size() > checkpoint) declared.push(bindings.pop().unwrap());
+    while(bindings.size() > scope.base()) declared.push(bindings.pop().unwrap());
+    scope.release();
 
     current = failure;
     auto covered = false;
@@ -1259,7 +1265,7 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
             }
         }
 
-        bindings.resize(checkpoint);
+        scope.restore();
         current = next;
     }
 
@@ -1327,7 +1333,7 @@ void ExprResolver::resolveSkipAlternatives(const ast::VarDecl& declaration, Modu
     for(auto alternative: alternatives) patterns.push(alternative.pat);
 
     PatternSpace space(*this, valueType(reason));
-    auto checkpoint = bindings.size();
+    BindingScope scope(*this);
     auto covered = false;
 
     for(Size i = 0; i < alternatives.size() && current; i++) {
@@ -1353,7 +1359,7 @@ void ExprResolver::resolveSkipAlternatives(const ast::VarDecl& declaration, Modu
             if(current) arms.push(BranchArm { current, value, body.source });
         }
 
-        bindings.resize(checkpoint);
+        scope.restore();
         current = next;
     }
 

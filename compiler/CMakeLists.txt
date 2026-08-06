@@ -40,7 +40,14 @@ set(RESOLVE_SOURCE_FILES
     resolve/edit.h
     resolve/edit.cpp
     resolve/module.h
+    resolve/module_internal.h
     resolve/module.cpp
+    resolve/module_decl.cpp
+    resolve/module_sig.cpp
+    resolve/module_class.cpp
+    resolve/module_default.cpp
+    resolve/module_import.cpp
+    resolve/module_reach.cpp
     resolve/const.h
     resolve/const.cpp
     resolve/name.h
@@ -59,7 +66,14 @@ set(RESOLVE_SOURCE_FILES
     resolve/intrinsic.h
     resolve/intrinsic.cpp
     resolve/type.h
+    resolve/type_internal.h
     resolve/type.cpp
+    resolve/type_query.cpp
+    resolve/type_ast.cpp
+    resolve/type_schema.cpp
+    resolve/type_layout.cpp
+    resolve/type_own.cpp
+    resolve/type_print.cpp
     resolve/generic.h
     resolve/generic.cpp
     resolve/witness.h
@@ -87,15 +101,32 @@ set(RESOLVE_SOURCE_FILES
     resolve/builder.h
     resolve/solve.h
     resolve/solve.cpp
-    resolve/expr.cpp
     resolve/expr.h
+    resolve/expr.cpp
+    resolve/expr_convert.cpp
+    resolve/expr_flow.cpp
+    resolve/expr_decl.cpp
+    resolve/expr_body.cpp
     resolve/expr_call.cpp
     resolve/expr_construct.cpp
     resolve/expr_fun.cpp
+    resolve/expr_lens_internal.h
     resolve/expr_lens.cpp
+    resolve/expr_cont.cpp
+    resolve/expr_iter.cpp
+    resolve/expr_try.cpp
     resolve/expr_pat.cpp
     resolve/lower.h
+    resolve/lower_internal.h
     resolve/lower.cpp
+    resolve/lower_type.cpp
+    resolve/lower_gen.cpp
+    resolve/lower_place.cpp
+    resolve/lower_pack.cpp
+    resolve/lower_inst.cpp
+    resolve/lower_mem.cpp
+    resolve/lower_calc.cpp
+    resolve/lower_call.cpp
 
     # Physical layout. Deliberately a directory of its own rather than part of resolve/: nothing in
     # the resolver may include it, and a separate directory is what makes an accidental include
@@ -134,6 +165,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_select.cpp
     opt/opt_value.cpp
 )
+set_source_files_properties(resolve/inst.def PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
 target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse)

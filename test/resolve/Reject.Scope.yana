@@ -1,0 +1,45 @@
+-- What a pattern binds does not outlive the construct that tested it, including when the pattern
+-- failed to resolve.
+--
+-- The interesting half is the second one. A pattern binds as it goes and reports when it reaches
+-- something it cannot resolve, so a pattern that fails has usually bound something already - and
+-- the three constructs below each took their binding checkpoint, resolved the condition, and
+-- returned early on a rejected pattern *before* restoring it. The names then stayed in scope for
+-- the rest of the enclosing block, where nothing had matched them: `return a` below read a binding
+-- whose value is produced on a path the program never takes.
+--
+-- Not a crash and not a wrong answer at runtime, because the program is already being rejected. It
+-- is a wrong *diagnostic*: the second error here did not exist, so the author was told about the
+-- field and not about the name. See BindingScope in expr.h, which is what makes the restore the
+-- destructor's rather than the last statement's.
+
+-- `if`: the condition's bindings belong to the arms.
+fn ifScope(p: {a: Int, b: Int}) -> Int:
+    if p is {a, nosuch: n}:
+        return 0
+
+    return a
+
+-- `while`: the same, and the reason is stronger - the loop may run zero times, so a name the
+-- condition bound does not dominate the code after it even when the pattern is fine.
+fn whileScope(p: {a: Int, b: Int}) -> Int:
+    while p is {a, nosuch: n}:
+        return 0
+
+    return a
+
+-- `x is p` with nothing branching on it: the value is a join, and the path through it is exactly
+-- the one on which the pattern did not match.
+fn isScope(p: {a: Int, b: Int}) -> Bool:
+    let matched = p is {a, nosuch: n}
+    return a > 0
+
+-- A declaration with alternatives is the fourth, and the one where the two exits owe opposite
+-- things: a pattern that *matched* binds for the rest of the block, which is the whole construct,
+-- and a pattern that could not be resolved binds nothing. The guard is released at the point those
+-- two part company - see BindingScope::release - so this leaks nothing while `Guard.yana` keeps
+-- asserting that the matching path still binds.
+fn guardScope(p: {a: Int, b: Int}) -> Int:
+    let {a, nosuch: n} = p | return 0
+
+    return a

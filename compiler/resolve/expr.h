@@ -8,12 +8,25 @@
 /*
  * The AST -> IR translation for one function body.
  *
- * ExprResolver is shared by the four expr_*.cpp files rather than being local to one of them:
+ * ExprResolver is shared by the expr_*.cpp files rather than being local to one of them, and this
+ * is the whole partition - if a function is not in one of these, it is not part of this stage:
  *
- *   expr.cpp            the resolve() dispatch, literals, conversions, control flow and `let`.
+ *   expr.cpp            the resolve() dispatch, the bindings names resolve through, and the leaves:
+ *                       integers, floats, strings and interpolation.
+ *   expr_convert.cpp    settling a literal on a type, and converting a value to one.
+ *   expr_flow.cpp       `if`, multi-`if`, `while`, the counted `for`, `return` - the expressions
+ *                       that build blocks - and the join every one of them ends in.
+ *   expr_decl.cpp       `let` in its three binding conventions, places, and assignment.
+ *   expr_body.cpp       a body from its arguments to its return, and the two checks that need a
+ *                       whole one to exist.
  *   expr_call.cpp       operator fixity, precedence climbing, and call/overload selection.
- *   expr_construct.cpp  places and projections, tuple and record construction, field access.
- *   expr_pat.cpp        patterns, refutability, exhaustiveness, and `match`.
+ *   expr_construct.cpp  projections, tuple and record construction, field access, subscripts.
+ *   expr_fun.cpp        lambdas, captures, and the environment a lifted body is handed.
+ *   expr_pat.cpp        patterns, refutability, exhaustiveness, `match`, and the declaration forms
+ *                       that take alternatives.
+ *   expr_lens.cpp       lenses, `yield`, and the block a call site lifts into a continuation - with
+ *                       expr_cont.cpp, expr_iter.cpp and expr_try.cpp. Those four have a map of
+ *                       their own in expr_lens_internal.h.
  *
  * The division follows what the resolver has to know rather than what it produces: everything
  * in expr_construct.cpp is about addressing storage, everything in expr_pat.cpp is about
@@ -1681,6 +1694,65 @@ struct ExprResolver {
     // do - return a value, cover every case - is the same mistake seen from the other side, and
     // the parser has already reported it once. See Implementation-Tooling.md §3.2.
     bool sawParseError = false;
+};
+
+/*
+ * The names one construct binds, taken back out again when it ends.
+ *
+ * Everything that binds for the length of a block - an `if` arm, a `match` alternative, a loop
+ * body, an `is` test - has to unbind at the end of it, and each of them used to do that by
+ * remembering `bindings.size()` and resizing back to it by hand. The remembering is the easy half:
+ * a `return` between the two leaves the names in scope for whatever follows, which is not a crash
+ * but a program that quietly binds a name it should not have, and three constructs had one. So the
+ * restore is the destructor's, and the checkpoint cannot be taken without it.
+ *
+ * `restore()` is still public and is still called, because a construct with arms scopes each of
+ * them: what it means is "this arm is over", and calling it as often as there are arms is the
+ * ordinary use rather than a special case.
+ *
+ * `release()` is the other half, and it is what makes this usable by the one construct whose
+ * bindings have to *outlive* it. A declaration with alternatives takes its names out while the
+ * alternatives are resolved and puts them back on the matching path, so its exits are not all the
+ * same: the failing ones owe the restore and the succeeding one owes the opposite. Releasing at the
+ * point the names stop being this scope's business states that difference once, which is what the
+ * hand-written form could not - it had one checkpoint and four ways out, and three of them were
+ * right by inspection.
+ */
+struct BindingScope {
+    explicit BindingScope(ExprResolver& resolver): resolver(resolver), count(resolver.bindings.size()) {}
+    ~BindingScope() { if(armed) restore(); }
+
+    BindingScope(const BindingScope&) = delete;
+    BindingScope& operator = (const BindingScope&) = delete;
+
+    void restore() { resolver.bindings.resize(count); }
+
+    // Hands the names below this point back to the caller: nothing is restored now and nothing will
+    // be on the way out. Only for a construct that puts them back itself.
+    void release() { armed = false; }
+
+    // Where this scope's names start, which is what a pattern needs in order to say which bindings
+    // are its own - see resolvePattern's bindingBase.
+    Size base() const { return count; }
+
+private:
+    ExprResolver& resolver;
+    Size count;
+    bool armed = true;
+};
+
+// The loop a `break` or a `continue` written inside this one means. Paired the same way and for the
+// same reason as BindingScope: the push is written where the loop is understood and the pop is
+// written after a body that may leave through any number of paths.
+struct LoopScope {
+    LoopScope(ExprResolver& resolver, LoopTarget target): resolver(resolver) { resolver.loops.push(target); }
+    ~LoopScope() { resolver.loops.pop(); }
+
+    LoopScope(const LoopScope&) = delete;
+    LoopScope& operator = (const LoopScope&) = delete;
+
+private:
+    ExprResolver& resolver;
 };
 
 /*
