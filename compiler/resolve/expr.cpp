@@ -9,6 +9,7 @@
  */
 
 #include "expr.h"
+#include "const.h"
 #include "complete.h"
 #include "generic.h"
 #include "name.h"
@@ -185,20 +186,112 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
  * name for a constant and occupies nothing, which is what `let regionSize = 4194304 :: I64` should
  * cost and what makes it worth writing in place of a function returning the same number.
  *
- * Only a direct type folds. A memory type's value *is* its storage, and `initial` says only that
- * the storage starts zeroed, so for one of those the load stays.
+ * The fold itself is at the *place*, in `foldConstantRead` below, rather than here - because the
+ * read this is asked about is not always the whole value. `origin.x` of a constant `Point` is a read
+ * of a place with one projection on it, and it folds to `1` for exactly the reason a scalar global
+ * does; asking here would have answered about `origin`, which is the one part of that expression
+ * nothing wanted.
  */
 ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId source) {
-    auto& definition = *local[global_];
-
     if(!initializedGlobal(global_, source)) return nullptr;
+    return load(Place::inGlobal(global_), source);
+}
 
-    if(definition.mut || !isDirectType(global, definition.type)) {
-        definition.used = true;
-        return load(Place::inGlobal(global_), source);
+/*
+ * Which part of a global's constant a place names, or null where the place does not name a part of
+ * one at all.
+ *
+ * Two things stop the walk. A global **anything writes** - a `let &` the program assigns to, or a
+ * `let` the entry sequence fills - has a constant that says what its storage *started* at and
+ * nothing about what a read finds, which is one sentence for both and is the one `isWritten` states.
+ * And a projection this cannot follow - a `Deref` through a box, a `Property` of a type the body
+ * cannot see, an `Index` by something that is not a literal - answers null rather than guessing,
+ * which leaves the read as the load it was.
+ */
+ModulePtr<ConstValue> ExprResolver::constantAt(const Place& place) {
+    if(place.root != PlaceRoot::Global || !place.global) return nullptr;
+
+    auto& definition = *local[place.global];
+    if(definition.isWritten() || !definition.initial) return nullptr;
+
+    auto at = definition.initial;
+    auto path = place.projections;
+
+    for(auto projection: path.contents(local)) {
+        if(!at) return nullptr;
+
+        auto& value = *local[at];
+        auto children = value.children.contents(local);
+
+        switch(projection.kind) {
+            case ProjectionKind::Field: {
+                // The fields of an aggregate, or of the content tuple a constructor carries - which
+                // is why a `Construct` answers here as well as under its own `Downcast`.
+                if(value.kind != ConstKind::Aggregate && value.kind != ConstKind::Construct) return nullptr;
+                if(projection.index >= children.size()) return nullptr;
+
+                at = children[projection.index];
+                break;
+            }
+            case ProjectionKind::Index: {
+                // Only a literal index. A computed one is a read of storage whichever element it
+                // lands on, and this is not the pass that proves what a value is.
+                if(value.kind != ConstKind::Aggregate || !projection.value) return nullptr;
+                if(local[projection.value]->kind != Value::ConstInt) return nullptr;
+
+                auto index = ((ConstInt*)local[projection.value])->value;
+                if(index >= children.size()) return nullptr;
+
+                at = children[Size(index)];
+                break;
+            }
+            case ProjectionKind::Downcast: {
+                // A downcast to the constructor this constant is not is unreachable code rather than
+                // a value, so it is declined rather than answered.
+                if(value.kind != ConstKind::Construct || projection.index != value.index) return nullptr;
+
+                /*
+                 * A tuple content is *this* node's children, so the step arrives where it started:
+                 * the constructor's fields are what a `Field` after this one indexes, and a payload
+                 * carried whole is the one case where the downcast reaches a value of its own. That
+                 * is the same split `resolveConstruct` and `initializeFromConstant` make.
+                 */
+                auto record = global[value.type]->kind == Type::Record ? (RecordType*)global[value.type] : nullptr;
+                if(!record || value.index >= record->constructors.size()) return nullptr;
+
+                auto content = record->constructors.get(global, U16(value.index)).content;
+                if(content && global[content]->kind == Type::Tup) break;
+
+                if(children.size() != 1) return nullptr;
+                at = children[0];
+                break;
+            }
+            default:
+                return nullptr;
+        }
     }
 
-    return constantBits(definition.type, definition.initial, source);
+    return at;
+}
+
+/*
+ * The value a read of a constant place produces, or null where the read stays a load.
+ *
+ * **Only a direct-type leaf folds**, which is the same line the scalar case has always drawn and is
+ * drawn here for a second reason as well. A memory-typed leaf is storage: producing it as a value
+ * means *building* it, so a read of a whole constant record would construct one at every use, and a
+ * read of a hundred-element constant array would write a hundred elements. The static form is
+ * already exactly that value, and loading it is one read - so the aggregate keeps its storage, and
+ * what folds is the scalar somewhere inside it that the expression actually asked for.
+ */
+ModulePtr<Value> ExprResolver::foldConstantRead(const Place& place, LocationId source) {
+    auto constant = constantAt(place);
+    if(!constant) return nullptr;
+
+    auto& value = *local[constant];
+    if(value.kind != ConstKind::Scalar || !isDirectType(global, value.type)) return nullptr;
+
+    return constantBits(value.type, value.bits, source);
 }
 
 /*
@@ -233,6 +326,114 @@ ModulePtr<Value> ExprResolver::constantBits(TypePtr type, U64 bits, LocationId s
     }
 
     return makeInt(source, type, bits);
+}
+
+/*
+ * A constant, written into a place the caller already has.
+ *
+ * The whole of an aggregate constant's value form, and it is deliberately the same instructions the
+ * construction the author could have written produces: a field is an `Init` of the field's place, a
+ * sum writes its discriminant and then its payload through the `Downcast`, and a fixed array writes
+ * one element per index. Nothing here reads a layout, which is what keeps a constant a *value* on
+ * both targets rather than bytes that only one of them has.
+ *
+ * A string reaches `resolveString` instead of being walked, and that is the point of the text living
+ * on the node: what a string literal is differs completely between the targets, and there is already
+ * one place that knows it.
+ */
+void ExprResolver::initializeFromConstant(Place place, ModulePtr<ConstValue> constant, LocationId source) {
+    // A unit field, which occupies nothing - the same silence `write` keeps for a unit place.
+    if(!constant) return;
+
+    auto& value = *local[constant];
+
+    switch(value.kind) {
+        case ConstKind::Scalar:
+            initialize(place, constantBits(value.type, value.bits, source), source);
+            return;
+        case ConstKind::String:
+            initialize(place, resolveString(source, value.text), source);
+            return;
+        case ConstKind::Address:
+            initialize(place, constantValue(constant, source), source);
+            return;
+        case ConstKind::Aggregate: {
+            auto children = value.children.contents(local);
+
+            // A fixed array's components are elements, which are selected by a value rather than by
+            // a field number - the same `Index` projection `buildAggregate` builds.
+            if(global[value.type]->kind == Type::Array) {
+                auto index = module.scalar.int_;
+                for(Size i = 0; i < children.size(); i++) {
+                    initializeFromConstant(project(place, ProjectionKind::Index, 0, makeInt(source, index, i)),
+                                           children[i], source);
+                }
+
+                return;
+            }
+
+            for(Size i = 0; i < children.size(); i++) {
+                initializeFromConstant(project(place, ProjectionKind::Field, U16(i)), children[i], source);
+            }
+
+            return;
+        }
+        case ConstKind::Construct: {
+            auto record = global[value.type]->kind == Type::Record ? (RecordType*)global[value.type] : nullptr;
+
+            // The discriminant, where the record has one. A `Single` record does not, and neither
+            // does an enumeration - which never reaches here at all, being a scalar.
+            if(record && record->layout == RecordType::Multi) {
+                initialize(project(place, ProjectionKind::Discriminant, 0),
+                           makeInt(source, module.scalar.int_, value.index), source);
+            }
+
+            auto payload = project(place, ProjectionKind::Downcast, U16(value.index));
+            auto children = value.children.contents(local);
+
+            // One child is a payload carried whole; several are the fields of a content tuple, and
+            // the `Downcast` is what both of them are written through.
+            if(children.size() == 1 && global[placeType(payload)]->kind != Type::Tup) {
+                initializeFromConstant(payload, children[0], source);
+                return;
+            }
+
+            for(Size i = 0; i < children.size(); i++) {
+                initializeFromConstant(project(payload, ProjectionKind::Field, U16(i)), children[i], source);
+            }
+
+            return;
+        }
+    }
+}
+
+ModulePtr<Value> ExprResolver::constantValue(ModulePtr<ConstValue> constant, LocationId source) {
+    if(!constant) return nullptr;
+
+    auto& value = *local[constant];
+
+    switch(value.kind) {
+        case ConstKind::Scalar:
+            return constantBits(value.type, value.bits, source);
+        case ConstKind::String:
+            return resolveString(source, value.text);
+        case ConstKind::Address:
+            // The address of a global, which only a native string's static form contains - and that
+            // form is never walked from here, since a string is built through `resolveString`. Kept
+            // whole anyway, because a node that had no value form would be a hole in this switch.
+            return ref(emit<InstSymbol>(source, 0, value.type, nullptr, value.global));
+        case ConstKind::Aggregate:
+        case ConstKind::Construct:
+            break;
+    }
+
+    // Storage, built the way a construction of the same shape would build it. Fresh storage per use
+    // rather than a copy out of one static value, for the reason expr.h gives: two uses of one
+    // constant are two values, and one of them may be written through.
+    auto storage = allocate(value.type, source);
+    if(auto place = findPlace(storage)) initializeFromConstant(place.unwrap(), constant, source);
+
+    return storage;
 }
 
 // An integer-syntax literal can resolve to either kind of number, so a floating target takes it

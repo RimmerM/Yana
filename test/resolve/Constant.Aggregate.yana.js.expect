@@ -1,0 +1,113 @@
+"use strict";
+var corner = { x: 5, y: 6 };
+var cursor = { x: 10, y: 20 };
+var some = 9;
+var none = null;
+var boxShape = { $tag: 1, w: 4, h: 6, $p: 0 };
+var roundShape = { $tag: 0, w: 0, h: 0, $p: 11 };
+var table = [12, 13, 14];
+var corners = [{ x: 1, y: 1 }, { x: 2, y: 4 }];
+var greeting = "hello";
+var labelled = { name: "world!", id: 15 };
+var flags = 405;
+var packed = { $tag: 0, $p0: 99, $p: 0 };
+var wrapped = { $tag: 1, $p0: 0, $p: 40 };
+
+// ResolveTest
+function sum(p$x, p$y) {
+  return p$x + p$y | 0;
+}
+
+function area(s) {
+  var v12;
+  if (s.$tag === 0) {
+    v12 = s.$p;
+  } else {
+    v12 = Math.imul(s.w, s.h);
+  }
+  return v12;
+}
+
+function unwrapOr(m, fallback) {
+  var v9;
+  if (!(m === null)) {
+    v9 = m;
+  } else {
+    v9 = fallback;
+  }
+  return v9;
+}
+
+function boxedValue(b) {
+  var v26;
+  if (b.$tag === 0) {
+    var v28 = b.$p0;
+    v26 = (v28 & 15) + Math.imul(v28 >>> 4, 16) | 0;
+  } else {
+    if (b.$tag === 1) {
+      v26 = b.$p;
+    } else {
+      v26 = 0;
+    }
+  }
+  return v26;
+}
+
+function main() {
+  var score = 1;
+  if (sum(corner.x, corner.y) === 11) {
+    score = score + 2 | 0;
+  }
+  var v37 = cursor.x + 1 | 0;
+  cursor.x = v37;
+  if (sum(v37, cursor.y) === 31) {
+    score = score + 4 | 0;
+  }
+  score = score + 24 | 0;
+  if (unwrapOr(some, 0) === 9) {
+    score = score + 32 | 0;
+  }
+  if (unwrapOr(none, 100) === 100) {
+    score = score + 64 | 0;
+  }
+  if (area(boxShape) === 24) {
+    score = score + 128 | 0;
+  }
+  if (area(roundShape) === 11) {
+    score = score + 256 | 0;
+  }
+  if ((table[0] + table[2] | 0) === 26) {
+    score = score + 512 | 0;
+  }
+  if (sum(corners[1].x, corners[1].y) === 6) {
+    score = score + 1024 | 0;
+  }
+  if (greeting.length === 5) {
+    score = score + 2048 | 0;
+  }
+  if ((labelled.name.length + 15 | 0) === 21) {
+    score = score + 4096 | 0;
+  }
+  var bits = (flags & 15) + Math.imul(flags >>> 4 & 15, 16) | 0;
+  if (((flags >>> 8 & 1) !== 0 ? bits + 256 | 0 : bits) === 405) {
+    score = score + 8192 | 0;
+  }
+  if ((boxedValue(packed) + boxedValue(wrapped) | 0) === 139) {
+    score = score + 65536 | 0;
+  }
+  var s = { home: { x: 0, y: 0 }, label: null, mode: { $tag: 0, w: 0, h: 0, $p: 0 }, limit: null };
+  var v299 = { $tag: 1, w: 2, h: 5, $p: 0 };
+  var v306 = 4;
+  s.home.x = 2;
+  s.home.y = 3;
+  s.label = "ok";
+  s.mode = v299;
+  s.limit = v306;
+  if ((((s.label.length + 5 | 0) + area(v299) | 0) + unwrapOr(v306, 0) | 0) === 21) {
+    score = score + 16384 | 0;
+  }
+  var v349 = score + 32768 | 0;
+  score = v349;
+  return v349;
+}
+main();

@@ -5,6 +5,7 @@
 #include "../../resolve/place.h"
 #include "../../resolve/witness.h"
 #include "../../repr/table.h"
+#include "../../resolve/const.h"
 
 /*
  * The JS backend's internal interface - the generator state, the AST construction helpers, and the
@@ -1194,6 +1195,10 @@ TypePtr transparentTupleOf(Gen& g, TypePtr type);
 // The value a freshly allocated slot of this type holds, with every property it will ever have
 // already present - see type.cpp.
 JsPtr<Expr> zeroValue(Gen& g, TypePtr type);
+
+// A source-level constant as a host value, in the same shape zeroValue gives the type - see
+// type.cpp, and repr/constant.cpp for the target that has bytes instead.
+JsPtr<Expr> constantAggregate(Gen& g, ModulePtr<ConstValue> constant);
 
 AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate);
 JsPtr<Expr> buildFromPlan(Gen& g, InstAggregate& aggregate, const AggregateBuildPlan& plan);

@@ -176,10 +176,11 @@ void declareRecordDefaults(Module& module, ast::Decl& decl) {
                     continue;
                 }
 
-                auto constant = evaluateConstant(module, *module.parse[astField.def], type, "a field default"_v);
+                auto constant = evaluateConstant(module, *module.parse[astField.def], type, "a field default"_v,
+                                                 false);
 
                 if(constant) {
-                    constructor.defaults.push(module.types, FieldDefault { field, constant.bits });
+                    constructor.defaults.push(module.types, FieldDefault { field, constant });
                     added = true;
                 }
             }
@@ -501,6 +502,46 @@ void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
  * what makes that safe: `let &x = 300 :: U8` is the right form with the wrong contents, so it stays
  * the error it was instead of quietly becoming a runtime initializer that truncates.
  */
+/*
+ * A global whose type promises a teardown that will never happen.
+ *
+ * A global lives for the whole program and is never torn down - Analysis-Initialization.md §4.1's
+ * ruling, and the reason it is one: drop points are last-use-based and a global has no last use.
+ * Reclamation of its memory is the operating system's at exit and the host collector's on
+ * JavaScript, which is the same observable behaviour on both targets; an authored `Drop` is the half
+ * that was promised to *run*, so a global holding one silently skips an effect the program wrote.
+ *
+ * A warning rather than a rejection: the global is legal and its meaning is defined, and a
+ * program-lifetime resource is a real thing to want. Authored rather than the whole member graph,
+ * deliberately - `Type::Fun` is classified `Derived` because a closure's captures are not visible in
+ * its type, so testing `drop != None` would warn about every global holding a function value and say
+ * something untrue about most of them.
+ *
+ * Over every global at once, after the bodies are resolved, rather than beside each initializer.
+ * That is where it used to be, and it therefore only ever saw the *dynamic* ones - so a constant
+ * that carries a `Drop` said nothing at all, which is what `let &held = Handle {id: 4}` became the
+ * day a construction stopped needing an initializer to run.
+ */
+void checkGlobalTeardown(Module& module) {
+    auto& context = module.context;
+    auto global = *module.types;
+    auto local = *module.arena;
+
+    for(auto pointer: module.globalOrder.contents(local)) {
+        auto definition = local[pointer];
+
+        // Every compiler-built table and blob, none of which has a source type to ask about.
+        if(definition->anonymous || !definition->type) continue;
+        if(global[definition->type]->kind == Type::Error) continue;
+
+        if(ownershipOf(module, definition->type).drop != TeardownKind::Authored) continue;
+
+        context.diagnostics.warning("%@ has type %@, whose `Drop` will not run - a global lives for the whole program and is never torn down. Hold the value in `main` instead if the teardown has to happen"_v,
+                                    definition->source, context.findName(definition->name),
+                                    describeType(context, global, definition->type));
+    }
+}
+
 void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
     auto parse = module.parse;
     auto& context = module.context;
@@ -568,17 +609,38 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
          */
         auto notConstant = false;
         auto constant = evaluateConstant(module, *parse[declaration.content], nullptr,
-                                         "a global's initializer"_v, module.root ? &notConstant : nullptr);
+                                         "a global's initializer"_v, true,
+                                         module.root ? &notConstant : nullptr);
 
         if(!constant && !notConstant) {
             declared(nullptr);
             continue;
         }
 
+        /*
+         * A global's constant becomes storage, and one shape has no static form - see
+         * `constantHasStaticForm`. It is the *right* form with contents this position cannot place,
+         * so it is a report rather than a fall-back where there is nowhere to fall back to, and an
+         * ordinary startup initializer in the root module, where there is: `Node(Leaf)` is a value
+         * the entry sequence can build perfectly well.
+         */
+        if(constant && !constantHasStaticForm(*module.types, *module.arena, constant)) {
+            if(!module.root) {
+                context.diagnostics.error("a global's initializer holds a value reached through an indirection - a recursive type keeps its payload behind an owning pointer, and static storage has nothing for one to point at"_v,
+                                          declaration.content ? parse[declaration.content]->source
+                                                              : declaration.pat.source);
+                declared(nullptr);
+                continue;
+            }
+
+            constant = nullptr;
+            notConstant = true;
+        }
+
         auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
         recordDefinition(module.context, globalSymbol(module, global_ - *module.arena));
-        global_->type = constant.type;
-        global_->initial = constant.bits;
+        global_->type = constantType(*module.arena, constant);
+        global_->initial = constant;
         global_->mut = declaration.bind == ast::BindType::Ref;
         global_->dynamic = notConstant;
         declared(global_ - *module.arena);

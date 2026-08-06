@@ -1,0 +1,574 @@
+let origin: Point = Point(3, 4)
+
+let corner: Point = Point(5, 6)
+
+let diagonal: Line = Line(Point(1, 2), Point(3, 5))
+
+let &cursor: Point = Point(10, 20)
+
+let pair: {left: Int, right: Int} = {7, 8}
+
+let some: Maybe(Int) = Just(9)
+
+let none: Maybe(Int) = Nothing
+
+let boxShape: Shape = Rect(4, 6)
+
+let roundShape: Shape = Circle(11)
+
+let table: [Int *3] = [12, 13, 14]
+
+let corners: [Point *2] = [Point(1, 1), Point(2, 4)]
+
+let string$0: String = "hello"
+
+let greeting: String = "hello" {StringData(Array(Run(&string$0, 5, 0), 5))}
+
+let string$1: String = "world!"
+
+let labelled: Tagged = Tagged("world!" {StringData(Array(Run(&string$1, 6, 0), 6))}, 15)
+
+let flags: Flags = Flags(5, 9, 1)
+
+let packed: Boxed = Packed(3, 6)
+
+let wrapped: Boxed = Wrapped(40)
+
+let string$2: String = "ok"
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn stringLiteral(%bytes: %U8, %length: Int) -> String {
+  b0:
+    %v2 = alloc : StringData
+    %v3 = alloc : Array(U8)
+    %v4 = alloc : Run(U8)
+    %v5 = cast %length : U32
+    %v7 = and %v5, 1073741823 : U32
+    %v8 = cast %v7 : @bits(30) U32
+    init %local2@Run.items, %bytes
+    init %local2@Run.capacity, %v8
+    init %local2@Run.ownsHeap, 0
+    %v13 = cast %length : U32
+    %v15 = and %v13, 1073741823 : U32
+    %v16 = cast %v15 : @bits(30) U32
+    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
+    aggregate %local0@StringData.bytes = %v3
+    %v19 = move %local0 : StringData
+    %v20 = alloc : String
+    init %local3, %v19
+    ret %v20
+}
+
+fn Length(String).length(%self: String) -> I64 {
+  b0:
+    %v1 = borrow %self : &String
+    %v2 = cast %v1 : &StringData
+    %v3 = load [%v2]@StringData.bytes : Array(U8)
+    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %units = cast %v5 : Int
+    %v7 = cast %units : I64
+    ret %v7
+}
+
+fn scaled(%by: Int, %base: Point) -> Int {
+  b0:
+    %v2 = load %base@Point.x : Int
+    %v3 = load %base@Point.y : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = mul %v4, %by : Int
+    ret %v5
+}
+
+fn sum(%p: Point) -> Int {
+  b0:
+    %v1 = load %p@Point.x : Int
+    %v2 = load %p@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn area(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v6 = load %s@Rect : {w: Int, h: Int}
+    %w = load %s@Rect.w : Int
+    %h = load %s@Rect.h : Int
+    %v9 = mul %w, %h : Int
+    jmp b3
+
+  b2:
+    %r = load %s@Circle : Int
+    jmp b3
+
+  b3:
+    %v12 = phi [b2, %r], [b1, %v9] : Int
+    ret %v12
+}
+
+fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %m@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %v], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn boxedValue(%b: Boxed) -> Int {
+  b0:
+    %v1 = load %b.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v16 = load %b.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b4, b3
+
+  b2:
+    %v5 = load %b@Packed : {lo: @bits(4) U32, hi: @bits(4) U32}
+    %lo = load %b@Packed.lo : @bits(4) U32
+    %hi = load %b@Packed.hi : @bits(4) U32
+    %lo = cast %lo : U32
+    %v9 = cast %lo : Int
+    %hi = cast %hi : U32
+    %v11 = cast %hi : Int
+    %v14 = mul %v11, 16 : Int
+    %v15 = add %v9, %v14 : Int
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    %v20 = load %b@Wrapped : {only: Int}
+    %v = load %b@Wrapped.only : Int
+    jmp b5
+
+  b5:
+    %v26 = phi [b2, %v15], [b4, %v], [b3, 0] : Int
+    ret %v26
+}
+
+fn flagValue(%f: Flags) -> Int {
+  b0:
+    %v1 = load %f@Flags.low : @bits(4) U32
+    %v2 = cast %v1 : U32
+    %v3 = cast %v2 : Int
+    %v4 = load %f@Flags.high : @bits(4) U32
+    %v5 = cast %v4 : U32
+    %v6 = cast %v5 : Int
+    %v9 = mul %v6, 16 : Int
+    %bits = add %v3, %v9 : Int
+    %v11 = load %f@Flags.set : Bool
+    je %v11, b1, b2
+
+  b1:
+    %v15 = add %bits, 256 : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = phi [b1, %v15], [b2, %bits] : Int
+    ret %v18
+}
+
+fn main() -> Int {
+  b0:
+    %score = alloc : Int
+    init %score, 0
+    %v8 = add 3, 4 : Int
+    %v11 = cmp_eq %v8, 7 : Bool
+    je %v11, b1, b2
+
+  b1:
+    %v13 = load %score : Int
+    %v16 = add %v13, 1 : Int
+    assign %score, %v16
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load corner : Point
+    %v21 = call sum, %v20 : Int
+    %v24 = cmp_eq %v21, 11 : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v26 = load %score : Int
+    %v29 = add %v26, 2 : Int
+    assign %score, %v29
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load cursor@Point.x : Int
+    %v37 = add %v34, 1 : Int
+    assign cursor@Point.x, %v37
+    %v39 = load cursor : Point
+    %v40 = call sum, %v39 : Int
+    %v43 = cmp_eq %v40, 31 : Bool
+    je %v43, b7, b8
+
+  b7:
+    %v45 = load %score : Int
+    %v48 = add %v45, 4 : Int
+    assign %score, %v48
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v53 = load diagonal@Line.from : Point
+    %v56 = load diagonal@Line.to : Point
+    %v58 = add 2, 3 : Int
+    %v61 = cmp_eq %v58, 5 : Bool
+    je %v61, b10, b11
+
+  b10:
+    %v63 = load %score : Int
+    %v66 = add %v63, 8 : Int
+    assign %score, %v66
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v74 = add 7, 8 : Int
+    %v77 = cmp_eq %v74, 15 : Bool
+    je %v77, b13, b14
+
+  b13:
+    %v79 = load %score : Int
+    %v82 = add %v79, 16 : Int
+    assign %score, %v82
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v86 = load some : Maybe(Int)
+    %v88 = call unwrapOr, %v86, 0 : Int
+    %v91 = cmp_eq %v88, 9 : Bool
+    je %v91, b16, b17
+
+  b16:
+    %v93 = load %score : Int
+    %v96 = add %v93, 32 : Int
+    assign %score, %v96
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v100 = load none : Maybe(Int)
+    %v102 = call unwrapOr, %v100, 100 : Int
+    %v105 = cmp_eq %v102, 100 : Bool
+    je %v105, b19, b20
+
+  b19:
+    %v107 = load %score : Int
+    %v110 = add %v107, 64 : Int
+    assign %score, %v110
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v114 = load boxShape : Shape
+    %v115 = call area, %v114 : Int
+    %v118 = cmp_eq %v115, 24 : Bool
+    je %v118, b22, b23
+
+  b22:
+    %v120 = load %score : Int
+    %v123 = add %v120, 128 : Int
+    assign %score, %v123
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v127 = load roundShape : Shape
+    %v128 = call area, %v127 : Int
+    %v131 = cmp_eq %v128, 11 : Bool
+    je %v131, b25, b26
+
+  b25:
+    %v133 = load %score : Int
+    %v136 = add %v133, 256 : Int
+    assign %score, %v136
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v140 = load table : [Int *3]
+    %v142 = borrow table : &[Int *3]
+    %v143 = alloc : Flat(Int)
+    %v144 = addressof [%v142] : %Int
+    init %local1@Flat.items, %v144
+    %v147 = cast 3 : I64
+    init %local1@Flat.length, %v147
+    %v150 = borrow %local1 : &Flat(Int)
+    %v151 = load [%v150]@Flat.length : I64
+    %v152 = cast 0 : U64
+    %v153 = cast %v151 : U64
+    %v154 = cmp_ge %v152, %v153 : Bool
+    call checkCondition, %v154
+    %v156 = load [%v150]@Flat.items : %Int
+    %v157 = strideof Int : Long
+    %v158 = mul 0, %v157 : Long
+    %v159 = add %v156, %v158 : %Int
+    %v160 = borrow [%v159] : &Int
+    %v161 = load [%v160] : Int
+    %v162 = load table : [Int *3]
+    %v164 = borrow table : &[Int *3]
+    %v165 = alloc : Flat(Int)
+    %v166 = addressof [%v164] : %Int
+    init %local2@Flat.items, %v166
+    %v169 = cast 3 : I64
+    init %local2@Flat.length, %v169
+    %v172 = borrow %local2 : &Flat(Int)
+    %v173 = load [%v172]@Flat.length : I64
+    %v174 = cast 2 : U64
+    %v175 = cast %v173 : U64
+    %v176 = cmp_ge %v174, %v175 : Bool
+    call checkCondition, %v176
+    %v178 = load [%v172]@Flat.items : %Int
+    %v179 = strideof Int : Long
+    %v180 = mul 2, %v179 : Long
+    %v181 = add %v178, %v180 : %Int
+    %v182 = borrow [%v181] : &Int
+    %v183 = load [%v182] : Int
+    %v184 = add %v161, %v183 : Int
+    %v187 = cmp_eq %v184, 26 : Bool
+    je %v187, b28, b29
+
+  b28:
+    %v189 = load %score : Int
+    %v192 = add %v189, 512 : Int
+    assign %score, %v192
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v196 = load corners : [Point *2]
+    %v198 = borrow corners : &[Point *2]
+    %v199 = alloc : Flat(Point)
+    %v200 = addressof [%v198] : %Point
+    init %local3@Flat.items, %v200
+    %v203 = cast 2 : I64
+    init %local3@Flat.length, %v203
+    %v206 = borrow %local3 : &Flat(Point)
+    %v207 = load [%v206]@Flat.length : I64
+    %v208 = cast 1 : U64
+    %v209 = cast %v207 : U64
+    %v210 = cmp_ge %v208, %v209 : Bool
+    call checkCondition, %v210
+    %v212 = load [%v206]@Flat.items : %Point
+    %v213 = strideof Point : Long
+    %v214 = mul 1, %v213 : Long
+    %v215 = add %v212, %v214 : %Point
+    %v216 = borrow [%v215] : &Point
+    %v217 = load [%v216] : Point
+    %v218 = call sum, %v217 : Int
+    %v221 = cmp_eq %v218, 6 : Bool
+    je %v221, b31, b32
+
+  b31:
+    %v223 = load %score : Int
+    %v226 = add %v223, 1024 : Int
+    assign %score, %v226
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v230 = load greeting : String
+    %v231 = call Length(String).length, %v230 : I64
+    %v232 = cast %v231 : Int
+    %v235 = cmp_eq %v232, 5 : Bool
+    je %v235, b34, b35
+
+  b34:
+    %v237 = load %score : Int
+    %v240 = add %v237, 2048 : Int
+    assign %score, %v240
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v245 = load labelled@Tagged.name : String
+    %v246 = call Length(String).length, %v245 : I64
+    %v247 = cast %v246 : Int
+    %v250 = add %v247, 15 : Int
+    %v253 = cmp_eq %v250, 21 : Bool
+    je %v253, b37, b38
+
+  b37:
+    %v255 = load %score : Int
+    %v258 = add %v255, 4096 : Int
+    assign %score, %v258
+    jmp b39
+
+  b38:
+    jmp b39
+
+  b39:
+    %v262 = load flags : Flags
+    %v263 = call flagValue, %v262 : Int
+    %v266 = cmp_eq %v263, 405 : Bool
+    je %v266, b40, b41
+
+  b40:
+    %v268 = load %score : Int
+    %v271 = add %v268, 8192 : Int
+    assign %score, %v271
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v275 = load packed : Boxed
+    %v276 = call boxedValue, %v275 : Int
+    %v277 = load wrapped : Boxed
+    %v278 = call boxedValue, %v277 : Int
+    %v279 = add %v276, %v278 : Int
+    %v282 = cmp_eq %v279, 139 : Bool
+    je %v282, b43, b44
+
+  b43:
+    %v284 = load %score : Int
+    %v287 = add %v284, 65536 : Int
+    assign %score, %v287
+    jmp b45
+
+  b44:
+    jmp b45
+
+  b45:
+    %s = alloc : Settings
+    %v292 = alloc : Point
+    init %local5@Point.x, 2
+    init %local5@Point.y, 3
+    %v297 = symbol string$2 : %U8
+    %v299 = call stringLiteral, %v297, 2 : String
+    %v300 = alloc : Shape
+    init %local6.discriminant, 1
+    init %local6@Rect.w, 2
+    init %local6@Rect.h, 5
+    %v307 = alloc : Maybe(Int)
+    init %local7.discriminant, 1
+    init %local7@Just, 4
+    aggregate %local4@Settings.home = %v292, %local4@Settings.label = %v299, %local4@Settings.mode = %v300, %local4@Settings.limit = %v307
+    %v313 = load %local4@Settings.home : Point
+    %v314 = call sum, %v313 : Int
+    %v315 = load %local4@Settings.label : String
+    %v316 = call Length(String).length, %v315 : I64
+    %v317 = cast %v316 : Int
+    %v318 = add %v314, %v317 : Int
+    %v319 = load %local4@Settings.mode : Shape
+    %v320 = call area, %v319 : Int
+    %v321 = add %v318, %v320 : Int
+    %v322 = load %local4@Settings.limit : Maybe(Int)
+    %v324 = call unwrapOr, %v322, 0 : Int
+    %defaults = add %v321, %v324 : Int
+    %v328 = cmp_eq %defaults, 21 : Bool
+    je %v328, b46, b47
+
+  b46:
+    %v330 = load %score : Int
+    %v333 = add %v330, 16384 : Int
+    assign %score, %v333
+    jmp b48
+
+  b47:
+    jmp b48
+
+  b48:
+    %v338 = alloc : Point
+    init %local8@Point.x, 6
+    init %local8@Point.y, 7
+    %v343 = call scaled, 2, %v338 : Int
+    %v346 = cmp_eq %v343, 26 : Bool
+    je %v346, b49, b50
+
+  b49:
+    %v348 = load %score : Int
+    %v351 = add %v348, 32768 : Int
+    assign %score, %v351
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v355 = load %score : Int
+    ret %v355
+}

@@ -16,6 +16,23 @@ using GlobalPtr = RegionPtr<GlobalRegion, T>;
 template<class T>
 using GlobalList = SmallList<GlobalRegion, T, false>;
 
+/*
+ * The IR region, declared here rather than in inst.h - which is where it used to be and where
+ * everything that uses it still lives - because one thing in this file names something in it: a
+ * field default is a `ConstValue`, and a constant is allocated in the IR region for the reason
+ * `ConstValue` gives. A region tag is four lines and no dependency, so the two live together.
+ */
+struct ModuleRegion {};
+
+using ModuleBase = RegionBase<ModuleRegion>;
+
+template<class T>
+using ModulePtr = RegionPtr<ModuleRegion, T>;
+
+template<class T, bool allowEmbed = true>
+using ModuleList = SmallList<ModuleRegion, T, allowEmbed>;
+
+struct ConstValue;
 struct Type;
 struct GenEnv;
 struct GenType;
@@ -583,18 +600,18 @@ struct TupType: Type {
  * What one field of a constructor is when a construction leaves it out -
  * `data Flags {read: Bool = False, ...}`.
  *
- * A default is kept as the bits the field's storage would hold rather than as the expression it
- * was written as, for the same reason a global's initializer is (see declareGlobal): there is no
- * program point at which a declaration's code would run, and an expression would additionally
- * belong to the parse arena of the module that wrote it, which is not the one constructing the
- * value. That is what restricts a default to a literal, and it is enough for what the feature is
- * for - a flags type whose fields are all `False`, a counter that starts at zero, a null link.
+ * A default is kept as the *constant* the field starts at rather than as the expression it was
+ * written as, for the same reason a global's initializer is (see declareGlobal): there is no program
+ * point at which a declaration's code would run, and an expression would additionally belong to the
+ * parse arena of the module that wrote it, which is not the one constructing the value. What may be
+ * written is therefore whatever `evaluateConstant` accepts, and nothing here has to know which of
+ * those forms it was.
  *
  * `field` indexes the constructor's content tuple, so only a named field can carry one.
  */
 struct FieldDefault {
     U16 field = 0;
-    U64 value = 0;
+    ModulePtr<ConstValue> value = nullptr;
 };
 
 struct Constructor {

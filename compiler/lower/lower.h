@@ -571,6 +571,15 @@ struct LowerGlobal {
     explicit LowerGlobal(StringId name): name(name) {}
 
     StringId name;
+
+    /*
+     * Whether anything writes this storage. Clear is a *promise* rather than a hint - it becomes
+     * LLVM's `constant`, so a global that says so and is written anyway is a program whose reads all
+     * fold to the initializer and whose stores are dropped as dead.
+     *
+     * Which makes it a different question from the source language's `let &`: see Global::isWritten,
+     * where a global that no expression may assign to is still written once by the entry sequence.
+     */
     bool mut = false;
     Location source;
 

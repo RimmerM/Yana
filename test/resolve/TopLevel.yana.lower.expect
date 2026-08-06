@@ -1,5 +1,5 @@
 @seed = [0, 0, 0, 0]
-@shape = [0, 0, 0, 0, 0, 0, 0, 0]
+@shape = [0, 0, 0, 0, 7, 0, 0, 0]
 @recorded = [0, 0, 0, 0]
 @first = [0, 0, 0, 0]
 @second = [0, 0, 0, 0]
@@ -7,28 +7,47 @@
 
 main$<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 7, 4
-    copy @shape, %v_1, 8
-    store @seed, 20, 4
-    %v_3 = loads @counter, 4: Int
-    %v_4 = add %v_3, 69: Int
-    store @counter, %v_4, 4
-    store @recorded, %v_4, 4
-    %v_5 = add %v_3, 70: Int
-    store @first, %v_5, 4
-    %v_6 = add %v_3, 71: Int
-    store @second, %v_6, 4
-    %v_7 = add %v_3, 72: Int
-    %v_8 = imul %v_4, 100: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = imul %v_5, 10000: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = imul %v_6, 1000000: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
+    %v_1 = imm 20: Int
+    store @seed, %v_1, 4
+    %v_2 = loads @counter, 4: Int
+    %v_3 = add %v_2, %v_1: Int
+    store @counter, %v_3, 4
+    %v_4 = loads @shape, 4: Int
+    %v_5 = cmp_eq %v_4, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = add @shape, 4: Ptr
+    %n = loads %v_8, 4: Int
+    %v_9 = imul %n, %n: Int
+    jmp b_10
+  }
+
+  b_6 {
+    %v_11 = add @shape, 4: Ptr
+    %r = loads %v_11, 4: Int
+    %v_12 = imul %r, %r: Int
+    jmp b_10
+  }
+
+  b_10 {
+    %v_13 = phi [b_7, %v_9], [b_6, %v_12]: Int
+    %v_14 = add %v_3, %v_13: Int
+    store @counter, %v_14, 4
+    store @recorded, %v_14, 4
+    %v_15 = add %v_14, 1: Int
+    store @first, %v_15, 4
+    %v_16 = add %v_14, 2: Int
+    store @second, %v_16, 4
+    %v_17 = add %v_14, 3: Int
+    %v_18 = imul %v_14, 100: Int
+    %v_19 = add %v_17, %v_18: Int
+    %v_20 = imul %v_15, 10000: Int
+    %v_21 = add %v_19, %v_20: Int
+    %v_22 = imul %v_16, 1000000: Int
+    %v_23 = add %v_21, %v_22: Int
+    ret %v_23
   }
 }
 

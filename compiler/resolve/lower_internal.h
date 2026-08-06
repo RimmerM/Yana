@@ -31,6 +31,7 @@
 #include "place.h"
 #include "witness.h"
 #include "../repr/table.h"
+#include "../repr/constant.h"
 #include "../lower/lower_builder.h"
 
 // The side tables mapping one IR to the other are keyed by region offset rather than by address:

@@ -80,10 +80,10 @@ TypePtr requireReturnType(Module& module, Function& function, LocationId source)
 /*
  * `= expr` on a parameter: the constant a call site that leaves the position out passes instead.
  *
- * A constant and not an expression, which is the rule a field default is already under and is
- * stated once for both - see const.h. So what is recorded is the same thing: the bits the
- * parameter's storage holds at its own width, which the call site turns back into a value with
- * `constantBits`. Nothing runs at the call site, and nothing has to run at the declaration.
+ * A constant and not an expression, which is the rule a field default is already under and is stated
+ * once for both - see const.h. So what is recorded is the same thing: the constant the parameter
+ * starts at, which the call site turns back into a value with `constantValue`. Nothing is evaluated
+ * at the call site, and nothing has to run at the declaration.
  *
  * Three positions cannot have one, and each is a rule about the *caller* rather than about the
  * constant. A `return` parameter roots borrows in the result, and an omitted one has no caller
@@ -115,8 +115,8 @@ static void resolveArgumentDefault(Module& module, Arg& declared, const ast::Exp
 
     if(global[declared.type]->kind == Type::Error) return;
 
-    auto constant = evaluateConstant(module, expr, declared.type, "a default argument"_v);
-    if(constant) declared.defaultBits = Just(constant.bits);
+    auto constant = evaluateConstant(module, expr, declared.type, "a default argument"_v, false);
+    if(constant) declared.defaultValue = constant;
 }
 
 /*

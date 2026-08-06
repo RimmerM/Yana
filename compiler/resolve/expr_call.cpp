@@ -347,7 +347,7 @@ void ExprResolver::materializeDefaults(ModulePtr<Function> signature, LocationId
             continue;
         }
 
-        args[i] = constantBits(parameter->declaredType(), parameter->defaultBits.unwrap(), source);
+        args[i] = constantValue(parameter->defaultValue, source);
     }
 }
 

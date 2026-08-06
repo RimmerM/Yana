@@ -139,6 +139,8 @@ set(RESOLVE_SOURCE_FILES
     repr/repr_print.cpp
     repr/table.h
     repr/table.cpp
+    repr/constant.h
+    repr/constant.cpp
 
     # The optimizer - see Analysis-Optimization.md. A directory of its own on exactly the terms repr/
     # is one: it runs over the resolve IR but sits on the *emitting* side of the layout wall, so it

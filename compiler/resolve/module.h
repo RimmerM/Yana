@@ -569,9 +569,18 @@ struct Global {
     TypePtr type = nullptr;
     LocationId source = kNullLocation;
 
-    // The scalar constant this starts at, in the bit pattern of its own type. Aggregates leave it
-    // zero and are emitted as zeroed storage of their Repr's size.
-    U64 initial = 0;
+    /*
+     * The constant this starts at - see `ConstValue`, which is the whole of what may be written.
+     *
+     * A tree rather than bytes, for the reason that header gives: what a field's offset is and which
+     * end of an address comes first are the emitting target's answers, so each target lays this out
+     * with the same Repr it lays every other value of the type out with.
+     *
+     * Null for a global with no constant at all, which is one of two things: a compiler-built table
+     * or blob, whose storage the two fields below are, or a `dynamic` global, whose value is
+     * produced by the entry sequence and whose storage therefore starts at the zero of its type.
+     */
+    ModulePtr<ConstValue> initial = nullptr;
 
     /*
      * Set for a compiler-built constant table. When present it is the whole of the global's
@@ -626,16 +635,31 @@ struct Global {
      * root-module `let` whose initializer is an ordinary expression, run by the program's entry
      * sequence (Analysis-Initialization.md stage B).
      *
-     * Three things read it. `initial` says nothing about one of these, so its storage starts at the
+     * Four things read it. `initial` says nothing about one of these, so its storage starts at the
      * zero of its type on *both* targets rather than at whatever the target's uninitialized memory
      * happens to be - which is what makes a premature read read the same thing everywhere.
-     * `globalValue` will not fold one, because there is no constant to fold to. And the entry
-     * sequence is where its declaring `Init` is emitted, which is what keeps the drop pass from
-     * pre-dropping the zeroes it replaces.
+     * `globalValue` will not fold one, because there is no constant to fold to. The entry sequence
+     * is where its declaring `Init` is emitted, which is what keeps the drop pass from pre-dropping
+     * the zeroes it replaces. And `isWritten` below, which is the one an emitter asks.
      */
     bool dynamic = false;
 
+    // Whether the *language* lets the program assign to this - `let &`.
     bool mut = false;
+
+    /*
+     * Whether anything writes this global's storage, which is what an emitter has to know and is not
+     * the same question `mut` answers.
+     *
+     * A `dynamic` global is immutable to every expression that names it and is still written once, by
+     * the entry sequence that produces its value. Emitting one as read-only data is not a missed
+     * optimization but a wrong program: LLVM's `constant` is a promise, so every read of such a
+     * global folded to the zero its storage was declared with and the store was dropped as dead. A
+     * compiler-built table, a string literal's bytes and a constant `let` are the globals for which
+     * the promise is true.
+     */
+    bool isWritten() const { return mut || dynamic; }
+
     bool used = false;
 };
 

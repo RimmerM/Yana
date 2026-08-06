@@ -33,8 +33,23 @@
  * exists. Globals come along the same way - a global is part of the program exactly when
  * something that runs reads or writes it.
  */
-static void markPlace(ModuleBase local, const Place& place) {
-    if(place.root == PlaceRoot::Global && place.global) local[place.global]->used = true;
+
+/*
+ * The globals a *source* constant names, which is one thing: the bytes of a string literal, which
+ * the run of a constant string points at.
+ *
+ * Walked for the same reason a table's slots are - an address is a reason for what it names to
+ * exist, and the relocation is the only edge there is. A global whose constant was dropped instead
+ * would emit a run pointing at nothing.
+ */
+template<class F>
+static void eachConstantGlobal(ModuleBase local, ModulePtr<ConstValue> constant, F&& reach) {
+    if(!constant) return;
+
+    auto& value = *local[constant];
+    if(value.kind == ConstKind::Address) reach(value.global);
+
+    for(auto child: value.children.contents(local)) eachConstantGlobal(local, child, reach);
 }
 
 /*
@@ -82,6 +97,8 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
                 reachFunction(slot.function);
                 reachTable(slot.global);
             }
+
+            eachConstantGlobal(local, table->initial, reachTable);
         }
 
         if(pending.isEmpty()) continue;
@@ -103,11 +120,22 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
             for(auto instructionPointer: local[blockPointer]->instructions(local)) {
                 auto& instruction = *local[instructionPointer];
 
-                // A global is part of the program exactly when something that runs names storage
-                // rooted in it, and which places an instruction names is one list - see
-                // instructionPlaces. What the switch below is about is everything else an
-                // instruction can reach: a callee, a table, a teardown.
-                eachPlace(instruction, [&](const Place& place) { markPlace(local, place); });
+                /*
+                 * A global is part of the program exactly when something that runs names storage
+                 * rooted in it, and which places an instruction names is one list - see
+                 * instructionPlaces. What the switch below is about is everything else an
+                 * instruction can reach: a callee, a table, a teardown.
+                 *
+                 * Every instruction, including one whose value nothing reads. This pass runs before
+                 * the optimizer and lowering does no dead-code elimination of its own, so an
+                 * instruction that is still in a block is one that will be emitted - and a global
+                 * it names that this decided was unreachable is a place with nothing to lower to.
+                 * A read that exists only to be projected into is dropped where it is *made*
+                 * instead - see ExprResolver::dropUnusedRead.
+                 */
+                eachPlace(instruction, [&](const Place& place) {
+                    if(place.root == PlaceRoot::Global) reachTable(place.global);
+                });
 
                 switch(instruction.kind) {
                     case Value::Call:

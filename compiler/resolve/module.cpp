@@ -449,6 +449,10 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // only the root module's signatures made resolvable.
     for(auto entry: program->modules) resolveModuleBodies(*entry);
 
+    // What each module's globals owe, once every type's instances are settled - see
+    // checkGlobalTeardown, and why it is a sweep rather than a check beside each initializer.
+    for(auto entry: program->modules) checkGlobalTeardown(*entry);
+
     // A completion request stops here - Implementation-Tooling.md §8.2. Ownership and the generic
     // environments are the expensive half of a compile and they answer nothing completion asks, and
     // the answer itself was recorded while the body holding the cursor was being resolved.

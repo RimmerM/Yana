@@ -17,7 +17,8 @@ data Shape = Circle(Int) | Square(Int)
 data Rounded {value: Int = 2.5}
 data TooBig {value: U8 = 300}
 
--- A memory type has no constant form at all, which is the same answer a global of one gets.
+-- A record is written out rather than written as a number, which is the same answer a global of one
+-- gets: zero is not one of a `Pair`'s values however many bytes it would have filled.
 data Nested {inner: Pair = 0}
 
 -- An ascription is accepted here as well, and has to agree with the field it is on rather than
@@ -28,9 +29,23 @@ data Ascribed {value: Int = 1 :: I64}
 -- constant of a type this field does not have.
 data Mixed {flag: Bool = North}
 
--- A constructor that carries a value is storage rather than a number, whatever it is written in
--- front of.
-data Held {shape: Shape = Circle(1)}
+-- A constructor's argument is checked like any other position: `Circle(1)` is a constant now, and
+-- `Circle(2.5)` is the same wrong number the first case is.
+data Held {shape: Shape = Circle(2.5)}
+
+-- A field a construction leaves out and the declaration gives no default for. A default may be an
+-- aggregate, so what it is written as is a construction - and a construction with a hole in it is
+-- the error it would be anywhere else.
+data Partial {point: Pair = Pair {a: 1}}
+
+-- A growable array allocates its run, so there is nothing constant about one: the storage would
+-- have to exist before the program starts. `[T *n]` is the shape that does have a constant form,
+-- since its elements are the value's own bytes.
+data Grown {items: Array(Int) = [1, 2]}
+
+-- And a fixed array whose literal is not as long as the type says. The length is in the type, so
+-- this is a comparison rather than an inference.
+data Short {items: [Int *3] = [1, 2]}
 
 -- A name that is no constructor at all.
 data Unknown {heading: Direction = West}

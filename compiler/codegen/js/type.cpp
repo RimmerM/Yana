@@ -438,6 +438,323 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
 }
 
 /*
+ * A source-level constant, as a host value - see resolve/const.h, and repr/constant.cpp, which is
+ * the same walk producing bytes for the target that has them.
+ *
+ * Written beside `zeroValue` and following it step for step, because the two have to produce the
+ * *same shape*: a record built from a constant and a record built by filling a fresh slot are values
+ * of one type, and a property one of them has and the other does not is a second hidden class for
+ * every reader downstream. So every branch here has a counterpart above, and the property order is
+ * `eachProperty`'s in both.
+ *
+ * What has no counterpart is an address, and that is the whole of what this target does not have: a
+ * native constant string points its run at the bytes, and a host string is the text.
+ */
+
+// The bits of a constant whose type this target represents as one number - a scalarized record, a
+// bit-tagged sum, a co-packed field. False where the constant is not one of those, which is what
+// keeps a caller from writing a number where an object belongs.
+static bool constantBits(Gen& g, ModulePtr<ConstValue> constant, U64& into);
+
+// One property of an object built from a constant: the value the constructor's own fields put
+// there, or nothing where this property belongs to a different constructor - see constructValue.
+static Maybe<JsPtr<Expr>> propertyValue(Gen& g, TypePtr content, ModuleList<ModulePtr<ConstValue>, false>& children,
+                                        Name key);
+
+static JsPtr<Expr> aggregateValue(Gen& g, TypePtr tuple, ModuleList<ModulePtr<ConstValue>, false>& children);
+static JsPtr<Expr> constructValue(Gen& g, ModulePtr<ConstValue> constant);
+
+JsPtr<Expr> constantAggregate(Gen& g, ModulePtr<ConstValue> constant) {
+    // A unit field, which has no property at all and therefore no value - the same silence
+    // `eachProperty` keeps for one.
+    if(!constant) return nullValue(g);
+
+    auto& value = *g.local[constant];
+
+    switch(value.kind) {
+        case ConstKind::Scalar: {
+            // Through the same `constantValue` every constant in a function body goes through, so a
+            // global holding `1.5` and an expression holding it are one number and one rule.
+            if(isFloat(g.global, value.type)) {
+                ConstDouble constant_(nullptr, value.type, floatFromBits(g.global, value.type, value.bits));
+                return constantValue(g, constant_);
+            }
+
+            ConstInt constant_(nullptr, value.type, value.bits);
+            return constantValue(g, constant_);
+        }
+
+        case ConstKind::String: {
+            ConstString constant_(nullptr, g.program.scalar.string_, value.text);
+            return constantValue(g, constant_);
+        }
+
+        case ConstKind::Address:
+            // A native string's run, which this target never builds: `stringConstant` produces the
+            // text alone here, and there is nothing underneath it to reach.
+            return nullValue(g);
+
+        case ConstKind::Aggregate: {
+            auto declared = g.global[value.type];
+
+            if(declared->kind == Type::Array) {
+                // `[T *n]` is a host array of exactly `n` elements - the same statement zeroValue
+                // makes, with the elements written rather than zeroed.
+                auto elements = make<ArrayExpr>(g);
+                for(auto child: value.children.contents(g.local)) {
+                    elements->values.push(g.file.arena, constantAggregate(g, child));
+                }
+
+                return asExpr(g, elements);
+            }
+
+            if(declared->kind != Type::Tup) return nullValue(g);
+            return aggregateValue(g, value.type, value.children);
+        }
+
+        case ConstKind::Construct:
+            return constructValue(g, constant);
+    }
+
+    return nullValue(g);
+}
+
+static bool constantBits(Gen& g, ModulePtr<ConstValue> constant, U64& into) {
+    into = 0;
+    if(!constant) return true;
+
+    auto& value = *g.local[constant];
+    if(value.kind == ConstKind::Scalar) {
+        into = value.bits;
+        return true;
+    }
+
+    // The word a scalarized aggregate is, assembled from the bit range each of its fields owns -
+    // which is the same list `fieldProperty` hands the packed path below.
+    auto fields = [&](TypePtr tuple, ModuleList<ModulePtr<ConstValue>, false>& children) {
+        auto items = children.contents(g.local);
+        auto count = ((TupType*)g.global[tuple])->fields.size();
+
+        for(U16 slot = 0; slot < count && slot < items.size(); slot++) {
+            U64 bits = 0;
+            if(!constantBits(g, items[slot], bits)) return false;
+
+            auto property = fieldProperty(g, tuple, slot);
+            if(!property.isPacked()) {
+                // A field that owns the whole word, which a one-field scalar record's does.
+                into |= bits;
+                continue;
+            }
+
+            auto mask = property.bitWidth >= 64 ? ~U64(0) : (U64(1) << property.bitWidth) - 1;
+            into |= (bits & mask) << property.bitOffset;
+        }
+
+        return true;
+    };
+
+    if(value.kind == ConstKind::Aggregate && g.global[value.type]->kind == Type::Tup) {
+        return fields(value.type, value.children);
+    }
+
+    if(value.kind != ConstKind::Construct || g.global[value.type]->kind != Type::Record) return false;
+
+    auto& record = *(RecordType*)g.global[value.type];
+    auto& repr = g.repr.of(value.type);
+
+    if(discriminantOnly(g.global, record)) {
+        into = value.index;
+        return true;
+    }
+
+    // A bit tag is a co-packed field wearing another name - see bitTagAccess, which is the native
+    // half of this - so it is written into the same word the payload sits in.
+    if(repr.isBitTagged()) {
+        auto mask = repr.discriminantBits >= 64 ? ~U64(0) : (U64(1) << repr.discriminantBits) - 1;
+        into |= (value.index & mask) << repr.discriminantBitOffset;
+    } else if(repr.discriminant != DiscriminantKind::None) {
+        return false;
+    }
+
+    auto content = record.constructors.get(g.global, value.index).content;
+    if(!content || isUnit(g.global, content)) return true;
+
+    if(g.global[content]->kind == Type::Tup) return fields(content, value.children);
+
+    U64 payload = 0;
+    auto items = value.children.contents(g.local);
+    if(items.size() != 1 || !constantBits(g, items[0], payload)) return false;
+
+    into |= payload;
+    return true;
+}
+
+static Maybe<JsPtr<Expr>> propertyValue(Gen& g, TypePtr content, ModuleList<ModulePtr<ConstValue>, false>& children,
+                                        Name key) {
+    if(!content || g.global[content]->kind != Type::Tup) return Nothing();
+
+    auto items = children.contents(g.local);
+    auto count = ((TupType*)g.global[content])->fields.size();
+
+    U64 word = 0;
+    auto packed = false;
+    auto found = false;
+
+    for(U16 slot = 0; slot < count && slot < items.size(); slot++) {
+        auto property = fieldProperty(g, content, slot);
+        if(property.name.text != key.text) continue;
+
+        if(!property.isPacked()) {
+            // A function value cannot be a constant - there is nothing to write a code word from -
+            // so the two properties one occupies are never asked for here.
+            if(property.fun) return Nothing();
+            return Just(constantAggregate(g, items[slot]));
+        }
+
+        // Every field of one co-packed word contributes to the one property that word is, which is
+        // why this keeps scanning rather than answering at the first match.
+        U64 bits = 0;
+        if(!constantBits(g, items[slot], bits)) return Nothing();
+
+        auto mask = property.bitWidth >= 64 ? ~U64(0) : (U64(1) << property.bitWidth) - 1;
+        word |= (bits & mask) << property.bitOffset;
+
+        packed = true;
+        found = true;
+    }
+
+    if(!packed || !found) return Nothing();
+    return Just(number(g, F64(word)));
+}
+
+static JsPtr<Expr> aggregateValue(Gen& g, TypePtr tuple, ModuleList<ModulePtr<ConstValue>, false>& children) {
+    auto items = children.contents(g.local);
+
+    // A one-field tuple that this target represents as that field, which is the transparency
+    // `isNewtype` decides for every reader of a shape.
+    TypePtr inner = nullptr;
+    if(isNewtype(g, tuple, inner)) return items.size() ? constantAggregate(g, items[0]) : nullValue(g);
+
+    if(!isJsObject(g, tuple)) {
+        // Assembled from the fields here rather than through `constantBits`, since what that would
+        // be asked about is this tuple, and this tuple is what is being built.
+        U64 bits = 0;
+        auto count = ((TupType*)g.global[tuple])->fields.size();
+        for(U16 slot = 0; slot < count && slot < items.size(); slot++) {
+            U64 field = 0;
+            if(!constantBits(g, items[slot], field)) return nullValue(g);
+
+            auto property = fieldProperty(g, tuple, slot);
+            if(!property.isPacked()) {
+                bits |= field;
+                continue;
+            }
+
+            auto mask = property.bitWidth >= 64 ? ~U64(0) : (U64(1) << property.bitWidth) - 1;
+            bits |= (field & mask) << property.bitOffset;
+        }
+
+        return number(g, F64(bits));
+    }
+
+    auto object = make<ObjectExpr>(g);
+
+    eachProperty(g, tuple, [&](Name key, TypePtr member) {
+        auto value = propertyValue(g, tuple, children, key);
+        object->properties.push(g.file.arena, Property { key, value ? value.unwrap() : zeroValue(g, member) });
+    });
+
+    return asExpr(g, object);
+}
+
+static JsPtr<Expr> constructValue(Gen& g, ModulePtr<ConstValue> constant) {
+    auto& value = *g.local[constant];
+    if(g.global[value.type]->kind != Type::Record) return nullValue(g);
+
+    auto& record = *(RecordType*)g.global[value.type];
+    auto& repr = g.repr.of(value.type);
+    auto items = value.children.contents(g.local);
+
+    // A record that is its discriminant is the tag number, exactly as zeroValue says a fresh one is
+    // zero - and this is the shape a payload-free sum has as well as an enumeration's.
+    if(discriminantOnly(g.global, record)) return number(g, value.index);
+
+    auto content = record.constructors.get(g.global, U16(value.index)).content;
+
+    // A newtype is the value it wraps, with no object of its own.
+    TypePtr inner = nullptr;
+    if(isNewtype(g, value.type, inner)) return items.size() ? constantAggregate(g, items[0]) : nullValue(g);
+
+    /*
+     * A niche-folded record, which is its payload plus one pattern taken out of it. The payload
+     * constructor writes nothing extra - being inside the valid range is what identifies it - and
+     * every other constructor is the pattern alone, which on a host target is `null`.
+     */
+    if(repr.isNicheFolded()) {
+        if(value.index == repr.encoding.payloadConstructor) {
+            if(content && g.global[content]->kind == Type::Tup) return aggregateValue(g, content, value.children);
+            return items.size() ? constantAggregate(g, items[0]) : nullValue(g);
+        }
+
+        if(repr.encoding.niche.isAbsent()) return nullValue(g);
+        return number(g, F64(repr.encoding.patternOf(U16(value.index))));
+    }
+
+    // A record the Repr made one number, whose every field - and whose tag, where it has one - is a
+    // bit range of it.
+    if(!isJsObject(g, value.type)) {
+        U64 bits = 0;
+        if(!constantBits(g, constant, bits)) return nullValue(g);
+        return number(g, F64(bits));
+    }
+
+    if(record.layout == RecordType::Single) {
+        if(!content || isUnit(g.global, content)) return asExpr(g, make<ObjectExpr>(g));
+        if(g.global[content]->kind != Type::Tup) return items.size() ? constantAggregate(g, items[0]) : nullValue(g);
+
+        return aggregateValue(g, content, value.children);
+    }
+
+    /*
+     * A sum with a tag property, built through `eachProperty` so that it has every property a value
+     * of the type will ever have - including the ones the *other* constructors' payloads occupy,
+     * which take their zero here exactly as they do in a fresh slot.
+     */
+    auto object = make<ObjectExpr>(g);
+
+    eachProperty(g, value.type, [&](Name key, TypePtr member) {
+        if(key.text == g.tagField.text) {
+            object->properties.push(g.file.arena, Property { key, number(g, F64(value.index)) });
+            return;
+        }
+
+        /*
+         * The one property a payload with no field names to flatten occupies - see eachProperty,
+         * which is where the same three shapes are recognized.
+         *
+         * A *tuple* is two of those three - one the Repr made a number, and one that is its own
+         * single field - and in both the children here are that tuple's fields rather than one
+         * value. `aggregateValue` is what turns them back into the one value the property holds;
+         * reading `children[0]` would have written the first field where the whole payload goes.
+         */
+        if(key.text == g.payloadField.text && content && !isUnit(g.global, content) &&
+           payloadIsOneProperty(g, content)) {
+            auto payload = g.global[content]->kind == Type::Tup
+                ? aggregateValue(g, content, value.children)
+                : (items.size() ? constantAggregate(g, items[0]) : nullValue(g));
+
+            object->properties.push(g.file.arena, Property { key, payload });
+            return;
+        }
+
+        auto found = propertyValue(g, content, value.children, key);
+        object->properties.push(g.file.arena, Property { key, found ? found.unwrap() : zeroValue(g, member) });
+    });
+
+    return asExpr(g, object);
+}
+
+/*
  * What an *allocation* of this type starts as, which is not always its zero.
  *
  * The two differ for exactly one shape, and it is the shape that has no storage to be zeroed: a

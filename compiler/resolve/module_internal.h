@@ -49,6 +49,10 @@ void defineNewtype(Module& module, ast::Decl& decl);
 RecordType* declaredRecord(Module& module, StringId name);
 void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
 void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
+
+// The teardown a global's type promises and never gets - see module_decl.cpp. Asked over the whole
+// module once its bodies exist, since that is when what a type owes is settled.
+void checkGlobalTeardown(Module& module);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
 // -- module_sig.cpp ----------------------------------------------------------------------------

@@ -842,28 +842,12 @@ void genGlobal(Gen& g, ModulePtr<Global> pointer) {
     g.emittedGlobals.add(U32(pointer));
 
     /*
-     * A scalar starts at the bits of its constant and an aggregate at its zero value, which is the
-     * same statement in both cases: there is no program point at which module-level code would run,
-     * so an initializer is a constant rather than an expression.
+     * The global's constant, as a host value - see constantAggregate, which is the same walk
+     * repr/constant.cpp performs to produce bytes for the target that has them. A `dynamic` global
+     * has no constant at all and starts at the zero of its type, which is what the entry sequence
+     * then overwrites.
      */
-    JsPtr<Expr> initial;
-
-    if(isFloat(g.global, global_.type)) {
-        /*
-         * `initial` is *storage* - see floatBits - and a `var` holds a number rather than storage.
-         *
-         * Native emission writes those bytes out and the value reappears when the load reads them
-         * back, so the two targets need different halves of the same fact and only this one has to
-         * say so. Read as an integer, `let &one = 1.0 :: Float` was `var one = 1065353216`.
-         */
-        ConstDouble constant(nullptr, global_.type, floatFromBits(g.global, global_.type, global_.initial));
-        initial = constantValue(g, constant);
-    } else if(isDirectType(g.global, global_.type)) {
-        ConstInt constant(nullptr, global_.type, global_.initial);
-        initial = constantValue(g, constant);
-    } else {
-        initial = zeroValue(g, global_.type);
-    }
+    auto initial = global_.initial ? constantAggregate(g, global_.initial) : zeroValue(g, global_.type);
 
     // And the box where something takes a reference to this one, which is the storage a `var` has
     // no other way to offer - see Gen::boxedGlobals.

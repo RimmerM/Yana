@@ -1,0 +1,130 @@
+let dynamic: Int = <startup>
+
+let &counter: Int = 0
+
+let origin: Point = Point(1, 2)
+
+let string$0: String = "ab"
+
+let greeting: String = "ab" {StringData(Array(Run(&string$0, 2, 0), 2))}
+
+fn Length(String).length(%self: String) -> I64 {
+  b0:
+    %v1 = borrow %self : &String
+    %v2 = cast %v1 : &StringData
+    %v3 = load [%v2]@StringData.bytes : Array(U8)
+    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %units = cast %v5 : Int
+    %v7 = cast %units : I64
+    ret %v7
+}
+
+fn seven() -> Int {
+  b0:
+    ret 7
+}
+
+fn countdown(%k: Int) -> Int {
+  b0:
+    %v3 = cmp_le %k, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = load dynamic : Int
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = sub %k, 1 : Int
+    %v11 = call countdown, %v10 : Int
+    ret %v11
+}
+
+fn sum(%p: Point) -> Int {
+  b0:
+    %v1 = load %p@Point.x : Int
+    %v2 = load %p@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    %score = alloc : Int
+    init %score, 0
+    %v5 = call countdown, 3 : Int
+    %v8 = cmp_eq %v5, 7 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = load %score : Int
+    %v13 = add %v10, 1 : Int
+    assign %score, %v13
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = load counter : Int
+    %v20 = cmp_eq %v17, 20 : Bool
+    je %v20, b4, b5
+
+  b4:
+    %v22 = load %score : Int
+    %v25 = add %v22, 2 : Int
+    assign %score, %v25
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v29 = load origin : Point
+    %v30 = call sum, %v29 : Int
+    %v33 = cmp_eq %v30, 3 : Bool
+    je %v33, b7, b8
+
+  b7:
+    %v35 = load %score : Int
+    %v38 = add %v35, 4 : Int
+    assign %score, %v38
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v42 = load greeting : String
+    %v43 = call Length(String).length, %v42 : I64
+    %v44 = cast %v43 : Int
+    %v47 = cmp_eq %v44, 2 : Bool
+    je %v47, b10, b11
+
+  b10:
+    %v49 = load %score : Int
+    %v52 = add %v49, 8 : Int
+    assign %score, %v52
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v56 = load %score : Int
+    ret %v56
+}
+
+fn main$() -> Int {
+  b0:
+    %v0 = call seven : Int
+    init dynamic, %v0
+    %v2 = load counter : Int
+    %v5 = add %v2, 20 : Int
+    assign counter, %v5
+    %v7 = call main : Int
+    ret %v7
+}

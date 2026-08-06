@@ -879,9 +879,31 @@ struct ExprResolver {
     ModulePtr<Value> globalValue(ModulePtr<Global> global_, LocationId source);
     bool initializedGlobal(ModulePtr<Global> global_, LocationId source);
 
+    // Which part of a global's constant a place names, and what reading it produces where that part
+    // is a value rather than storage. Both null for every place that is not one - see expr.cpp.
+    ModulePtr<ConstValue> constantAt(const Place& place);
+    ModulePtr<Value> foldConstantRead(const Place& place, LocationId source);
+
     // The constant `bits` names at `type` - see expr.cpp. Shared by an immutable global and a
     // field default, which are recorded the same way and for the same reason.
     ModulePtr<Value> constantBits(TypePtr type, U64 bits, LocationId source);
+
+    /*
+     * A constant, as a value of the surrounding expression - a field default a construction left
+     * out, an argument a call left out, a read of an immutable global.
+     *
+     * A scalar is `constantBits` and nothing more. An aggregate has to be *built*: it is storage, so
+     * the constant is written into a fresh allocation exactly as the construction the author could
+     * have written would have written it, and what comes back names that storage. That is
+     * deliberately not a copy out of static data - the constant is the same value at every use, but
+     * the storage is not, and a caller that took a borrow of one would otherwise be borrowing
+     * something a second caller may write through.
+     *
+     * `initializeFromConstant` is the same walk against a place the caller already has, which is
+     * what a field default of a construction in progress needs.
+     */
+    ModulePtr<Value> constantValue(ModulePtr<ConstValue> constant, LocationId source);
+    void initializeFromConstant(Place place, ModulePtr<ConstValue> constant, LocationId source);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
 
     // Taking a borrow of what a value names, reading through one, or weakening a mutable one.
@@ -1614,6 +1636,10 @@ struct ExprResolver {
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
     ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);
+
+    // A read of a whole global that only existed for a projection to be taken off it - see
+    // expr_construct.cpp, and why it is removed here rather than left to the optimizer.
+    void dropUnusedRead(ModulePtr<Value> value);
     void buildAggregate(Place place, TypePtr element, Buffer<ModulePtr<Value>> values,
                         TypePtr indexType, LocationId source);
     bool buildFieldAggregate(Place place, TupType& tuple, Buffer<ModulePtr<Value>> values,
@@ -1678,8 +1704,6 @@ struct ExprResolver {
     bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args,
                    GlobalList<FieldDefault>* defaults, LocationId source, SumOwner sum = {});
 
-    // The default declared for one field of a constructor, or nothing where it has none.
-    Maybe<U64> fieldDefault(GlobalList<FieldDefault>* defaults, U16 field);
 
     /*
      * Patterns (expr_pat.cpp).

@@ -1,0 +1,176 @@
+{-
+   A constant that is *storage* - Analysis-Status.md P1 point 3's second half.
+
+   Constant.yana beside this file is every constant that is a number. This is every constant that is
+   not: a record, a constructor carrying a payload, a string and a fixed array, written in each of
+   the three positions that admit one - a module-level `let`, a field default, and a parameter's
+   `= expr`. The two files are separate rather than one because the numbers are: a scalar constant
+   folds and occupies nothing, and an aggregate one is *laid out*, so what this asserts is that two
+   targets that disagree about every offset write the same value.
+
+   Which is why it asserts values rather than text. Both backends materialize these constants
+   themselves - repr/constant.cpp writes bytes plus relocations, codegen/js/type.cpp writes host
+   values - from one description that knows neither, so a fixture holding only the emitted form would
+   be asserting each backend against itself. The `.js.expect` and `.lower.expect` beside this file
+   are where the two forms are visible; the number is what holds them to each other.
+
+   One number rather than seventeen tests, for the reason FloatNaN.yana gives: the score says which
+   claim failed, not that one of them did. Every claim contributes a distinct power of two, so `main`
+   is 131071 when they all pass.
+
+   Every string here is ASCII, for the reason String.yana gives: `length` answers in each target's
+   native unit, and a UTF-8 byte count and a UTF-16 unit count are the same number only there.
+-}
+
+data Point {x: Int, y: Int}
+data Line {from: Point, to: Point}
+data Tagged {name: String, id: Int}
+
+-- A sum whose payloads differ in shape: one carried whole, one a tuple of fields. Both are written
+-- as constants below, which is what makes the discriminant and the payload one question here.
+data Shape = Circle(Int) | Rect {w: Int, h: Int}
+
+-- Narrow fields, so the whole record is one word and every field of a constant one is a bit range
+-- of it - which is the path `writePacked` is on natively and the packed-property path on JS.
+data Flags {low: @bits(4) U32, high: @bits(4) U32, set: Bool}
+
+-- Two payloads that are *tuples* and are still one value: `Packed`'s is narrow enough for the Repr
+-- to make it a number, and `Wrapped`'s is its own single field. Both are one property on JS rather
+-- than fields spread into the sum's object, so a constant of either has to hand over the whole
+-- payload where its first field would have gone.
+data Boxed = Packed {lo: @bits(4) U32, hi: @bits(4) U32} | Wrapped {only: Int} | Empty
+
+-- ## The constants themselves
+
+-- A record whose fields are read one at a time. Each read folds to the field's own constant, so
+-- nothing loads this global and it is emitted on neither target.
+let origin = Point {x: 3, y: 4}
+
+-- ...and one read as a whole, which is a load of the storage it occupies. The same declaration in
+-- both cases: what differs is what the program does with it.
+let corner = Point {x: 5, y: 6}
+
+-- Nested, which is the case that says a constant is a tree rather than a list of words.
+let diagonal = Line {from: Point {x: 1, y: 2}, to: Point {x: 3, y: 5}}
+
+-- Mutable, which is storage with a written starting value rather than a name for a value. Both
+-- targets have to actually place it, since the program writes it.
+let &cursor = Point {x: 10, y: 20}
+
+-- A tuple, whose type the position has to say: written out it names no field types of its own. Its
+-- fields are named, since a positional one has no spelling a field selection can name.
+let pair = {left: 7, right: 8} :: {left: Int, right: Int}
+
+-- The two constructor shapes, and the one that carries nothing. `Maybe(Int)` is niche-folded on
+-- both targets, so `some` and `none` are the same storage read two ways.
+let some = Just(9) :: Maybe(Int)
+let none = Nothing :: Maybe(Int)
+let boxShape = Rect {w: 4, h: 6}
+let roundShape = Circle(11)
+
+-- A fixed array, whose elements are the value's own bytes - which is what gives it a constant form
+-- where a growable `Array(a)` has none.
+let table = [12, 13, 14] :: [Int *3]
+
+-- An array of aggregates, so the element stride is a record's rather than a word's.
+let corners = [Point {x: 1, y: 1}, Point {x: 2, y: 4}] :: [Point *2]
+
+-- A string, which is the one constant whose two targets share nothing but the text: natively the
+-- two words of a borrowed run over bytes in the module's data, and a host string here.
+let greeting = "hello"
+
+-- ...and one inside a record, which is where the run's pointer becomes a relocation rather than a
+-- global of its own.
+let labelled = Tagged {name: "world!", id: 15}
+
+-- A packed record, whose three fields share one word.
+let flags = Flags {low: 5, high: 9, set: True}
+
+-- ...and the two one-property payloads.
+let packed = Packed {lo: 3, hi: 6}
+let wrapped = Wrapped {only: 40}
+
+-- ## The other two positions
+
+-- Field defaults that are aggregates. A default is a *value* rather than bytes - it is written into
+-- the field the construction left out, exactly as the construction the author could have written
+-- would have written it - so this is the same constant reaching a different materialization.
+data Settings {home: Point = Point {x: 2, y: 3}, label: String = "ok", mode: Shape = Rect {w: 2, h: 5}, limit: Maybe(Int) = Just(4) :: Maybe(Int)}
+
+-- And a parameter's default, which is the third position the one evaluator serves.
+fn scaled(by: Int, base: Point = Point {x: 6, y: 7}) -> Int = (base.x + base.y) * by
+
+-- ## Reading them back
+
+fn sum(p: Point) -> Int = p.x + p.y
+
+fn area(s: Shape) -> Int = match s:
+    Circle(r) -> r
+    Rect {w, h} -> w * h
+
+fn unwrapOr(m: Maybe(Int), fallback: Int) -> Int = match m:
+    Just(v) -> v
+    Nothing -> fallback
+
+fn boxedValue(b: Boxed) -> Int = match b:
+    Packed {lo, hi} -> (lo :: Int) + (hi :: Int) * 16
+    Wrapped {only: v} -> v
+    Empty -> 0
+
+fn flagValue(f: Flags) -> Int:
+    let bits = (f.low :: Int) + (f.high :: Int) * 16
+    return if f.set then bits + 256 else bits
+
+fn main() -> Int:
+    let &score = 0
+
+    -- A field of a constant record, which folds at the read.
+    if origin.x + origin.y == 7 then score = score + 1
+
+    -- The whole of one, which does not: a memory type's value is its storage, so this is a load of
+    -- the bytes both backends wrote.
+    if sum(corner) == 11 then score = score + 2
+
+    -- Written, then read back - the half a `let &` is for.
+    cursor.x = cursor.x + 1
+    if sum(cursor) == 31 then score = score + 4
+
+    -- Nested, at both levels.
+    if diagonal.from.y + diagonal.to.x == 5 then score = score + 8
+
+    -- A structural tuple, which is a record with no declaration behind it.
+    if pair.left + pair.right == 15 then score = score + 16
+
+    -- The payload constructor of a niche-folded sum, and the pattern one. The two are the same
+    -- storage: `none` is a value the payload cannot produce, which is the whole of the encoding.
+    if unwrapOr(some, 0) == 9 then score = score + 32
+    if unwrapOr(none, 100) == 100 then score = score + 64
+
+    -- A sum with a tag of its own, in both of its payload shapes.
+    if area(boxShape) == 24 then score = score + 128
+    if area(roundShape) == 11 then score = score + 256
+
+    -- A fixed array, by index.
+    if table[0] + table[2] == 26 then score = score + 512
+
+    -- ...and one whose elements are records, which steps by the record's stride.
+    if sum(corners[1]) == 6 then score = score + 1024
+
+    -- A string constant, and one reached through a field of a record constant.
+    if (length(greeting) :: Int) == 5 then score = score + 2048
+    if (length(labelled.name) :: Int) + labelled.id == 21 then score = score + 4096
+
+    -- Every field of a packed constant, read out of the one word they share.
+    if flagValue(flags) == 405 then score = score + 8192
+
+    -- A payload that is one value however many fields it was declared with.
+    if boxedValue(packed) + boxedValue(wrapped) == 139 then score = score + 65536
+
+    -- The other two positions, in one claim each.
+    let s = Settings {}
+    let defaults = sum(s.home) + (length(s.label) :: Int) + area(s.mode) + unwrapOr(s.limit, 0)
+    if defaults == 21 then score = score + 16384
+
+    if scaled(2) == 26 then score = score + 32768
+
+    return score

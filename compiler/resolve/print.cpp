@@ -1,4 +1,5 @@
 #include "print.h"
+#include "const.h"
 #include "generic.h"
 #include "place.h"
 #include "witness.h"
@@ -779,6 +780,73 @@ static void printFunction(ResolvePrint& print, Function& function) {
 // the handful a program calls are dead weight in a fixture.
 // `let &heapNext: %U8 = 0` - the declaration as written, since a global has no body to print.
 /*
+ * A source-level constant - see ConstValue.
+ *
+ * As the value rather than as bytes, which is what it is: an aggregate prints as its components in
+ * braces, a fixed array in brackets, a constructor by name, and an address as the symbol it names.
+ * A dump that printed a layout would be asserting one this stage does not choose, which is the same
+ * rule `printTable` states for the compiler's own constants.
+ */
+static void printConstant(ResolvePrint& print, ModulePtr<ConstValue> constant) {
+    if(!constant) {
+        print.writer.writeString("<none>"_v);
+        return;
+    }
+
+    auto& value = *print.local[constant];
+
+    auto components = [&](char open, char close) {
+        print.writer.writeByte(open);
+
+        auto first = true;
+        for(auto child: value.children.contents(print.local)) {
+            if(!first) print.writer.writeString(", "_v);
+            first = false;
+            printConstant(print, child);
+        }
+
+        print.writer.writeByte(close);
+    };
+
+    switch(value.kind) {
+        case ConstKind::Scalar:
+            writeUInt(print.writer, value.bits);
+            return;
+        case ConstKind::Aggregate:
+            if(print.global[value.type]->kind == Type::Array) components('[', ']');
+            else components('{', '}');
+            return;
+        case ConstKind::Construct: {
+            auto declared = print.global[value.type];
+            if(declared->kind == Type::Record && value.index < ((RecordType*)declared)->constructors.size()) {
+                auto name = ((RecordType*)declared)->constructors.get(print.global, Size(value.index)).name;
+                print.writer.writeString(print.context.findName(name));
+            }
+
+            if(value.children.size()) components('(', ')');
+            return;
+        }
+        case ConstKind::Address:
+            print.writer.writeByte('&');
+            print.writer.writeString(print.context.findName(print.local[value.global]->name));
+            return;
+        case ConstKind::String:
+            // The text and the static form both, because they are two different assertions: what the
+            // string is, and which bytes and which run the target will write for it.
+            print.writer.writeByte('"');
+            print.writer.writeString(print.context.findName(value.text));
+            print.writer.writeByte('"');
+
+            if(value.children.size()) {
+                print.writer.writeByte(' ');
+                components('{', '}');
+            }
+
+            return;
+    }
+}
+
+/*
  * A compiler-built constant table - a TypeDesc, a runtime environment.
  *
  * Printed as its scalar words plus the symbol each of its addresses names, because the bytes on
@@ -879,14 +947,25 @@ static void printGlobal(ResolvePrint& print, Global& global_) {
     printType(print, global_.type);
     print.writer.writeString(" = "_v);
 
-    // A dynamically initialized global has no constant to print - what it holds is written by the
-    // entry sequence, which is where the initializer is. Printing `initial` for one would print the
-    // zero its storage starts at as though it were the declaration, which is the one thing a reader
-    // of this dump would take it for.
+    /*
+     * A dynamically initialized global has no constant to print - what it holds is written by the
+     * entry sequence, which is where the initializer is. Printing `initial` for one would print the
+     * zero its storage starts at as though it were the declaration, which is the one thing a reader
+     * of this dump would take it for.
+     *
+     * A string literal's blob has none either, and its bytes are the whole of it - see
+     * Global::literalBytes. Printed as the bytes rather than as nothing, since which literal a
+     * relocation points at is exactly what a fixture holding a constant string wants to assert.
+     */
     if(global_.dynamic) {
         print.writer.writeString("<startup>"_v);
+    } else if(global_.literalBytes.length) {
+        print.writer.writeByte('"');
+        print.writer.writeString(StringView((const char*)global_.literalBytes.ptr,
+                                            global_.literalBytes.length));
+        print.writer.writeByte('"');
     } else {
-        writeUInt(print.writer, global_.initial);
+        printConstant(print, global_.initial);
     }
 
     print.writer.writeByte('\n');

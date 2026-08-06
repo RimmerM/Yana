@@ -322,25 +322,9 @@ static void initializeGlobal(ExprResolver& resolver, ModulePtr<Global> pointer,
         return;
     }
 
-    /*
-     * A global lives for the whole program and is never torn down - Analysis-Initialization.md
-     * §4.1's ruling, and the reason it is one: drop points are last-use-based and a global has no
-     * last use. Reclamation of its memory is the operating system's at exit and the host
-     * collector's on JavaScript, which is the same observable behaviour on both targets; an
-     * authored `Drop` is the half that was promised to *run*, so a global holding one silently
-     * skips an effect the program wrote down.
-     *
-     * A warning rather than a rejection: the global is legal and its meaning is defined, and a
-     * program-lifetime resource is a real thing to want. Authored rather than the whole member
-     * graph, deliberately - `Type::Fun` is classified `Derived` because a closure's captures are
-     * not visible in its type, so testing `drop != None` would warn about every global holding a
-     * function value and say something untrue about most of them.
-     */
-    if(ownershipOf(module, type).drop == TeardownKind::Authored) {
-        context.diagnostics.warning("%@ has type %@, whose `Drop` will not run - a global lives for the whole program and is never torn down. Hold the value in `main` instead if the teardown has to happen"_v,
-                                    source, context.findName(definition->name),
-                                    describeType(context, global, type));
-    }
+    // The teardown a global never gets is reported by `checkGlobalTeardown` over every global at
+    // once, rather than here: a *constant* one has no initializer to resolve and would have been
+    // left out, which is exactly the shape `let &held = Handle {id: 4}` became.
 
     definition->type = type;
     resolver.initialize(Place::inGlobal(pointer), value, source);

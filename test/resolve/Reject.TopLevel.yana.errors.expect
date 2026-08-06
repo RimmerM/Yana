@@ -1,9 +1,9 @@
-10:20: error: a global's initializer must be a literal or a nullary constructor, optionally written `constant :: Type` - there is no program point at which a declaration's own code would run
+10:20: error: a global's initializer must be a literal, a constructor or an aggregate of those, optionally written `constant :: Type` - there is no program point at which a declaration's own code would run
 13:0: error: only a `let` declaration can appear at module level - a statement has to run at some point in a program's startup, and only the module being compiled has one
 41:0: error: a module-level `let` has no `in` - the name it declares is in scope for the whole module
 20:13: error: later is read before its initializer runs - a module's top level runs in the order it is written, and this global is declared further down
 25:0: error: pending is read before its initializer runs - a module's top level runs in the order it is written, and this global is declared further down
 30:12: error: self is read before its initializer runs - a module's top level runs in the order it is written, and this global is declared further down
 37:5: error: a global cannot hold a borrow - its storage outlives every frame, so there is nothing for the reference to refer to
-54:5: warning: held has type Handle, whose `Drop` will not run - a global lives for the whole program and is never torn down. Hold the value in `main` instead if the teardown has to happen
 58:0: error: `main` is the program's entry point and cannot take arguments yet - there is no argument or environment model to fill them from
+54:5: warning: held has type Handle, whose `Drop` will not run - a global lives for the whole program and is never torn down. Hold the value in `main` instead if the teardown has to happen

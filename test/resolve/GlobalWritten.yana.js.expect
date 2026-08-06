@@ -1,0 +1,38 @@
+"use strict";
+var dynamic = 0;
+var counter = 0;
+var origin = { x: 1, y: 2 };
+var greeting = "ab";
+
+// ResolveTest
+function countdown(k) {
+  if (k <= 0) {
+    return dynamic;
+  } else {
+    return countdown(k - 1 | 0);
+  }
+}
+
+function main() {
+  var score = 0;
+  if (countdown(3) === 7) {
+    score = score + 1 | 0;
+  }
+  if (counter === 20) {
+    score = score + 2 | 0;
+  }
+  if ((origin.x + origin.y | 0) === 3) {
+    score = score + 4 | 0;
+  }
+  if (greeting.length === 2) {
+    score = score + 8 | 0;
+  }
+  return score;
+}
+
+function main$() {
+  dynamic = 7;
+  counter = counter + 20 | 0;
+  return main();
+}
+main$();

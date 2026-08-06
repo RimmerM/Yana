@@ -1,0 +1,67 @@
+{-
+   What a global's storage promises, and what it must not promise.
+
+   A backend is told whether anything writes a global's storage, and on the native target that is a
+   *promise* rather than a hint: it becomes LLVM's `constant`, so the optimizer is entitled to fold
+   every read of such a global to the initializer and to drop the stores as dead. The question is
+   therefore "is this written", and the answer used to be read off `let &` - which was the same
+   question until a module-level `let` could have an initializer that runs.
+
+   It is not the same question any more. A `let` whose initializer is not a constant has its value
+   produced by the entry sequence (Analysis-Initialization.md stage B), so it is immutable to every
+   expression that names it and is still written once. Marked read-only, `dynamic` below read as zero
+   from everywhere the optimizer could not see the store, and the store itself was removed.
+
+   **The `.llvm.expect` beside this file is the assertion**, and it is there rather than in the score
+   because the score cannot fail from this: the run is compiled by the x64 backend, which places no
+   global in read-only memory, so the wrong answer is LLVM's alone. What the number asserts is what
+   the program *means*, on x64 and under Node, which is what the emitted form is then held to.
+
+   Four globals, one per answer:
+
+     dynamic    written by the entry sequence  - `global`
+     counter    written by a statement         - `global`
+     origin     a constant, read whole         - `constant`
+     greeting   a string literal, read whole   - `constant`
+
+   Each claim contributes a distinct power of two, so `main` is 15 when they all pass.
+-}
+
+data Point {x: Int, y: Int}
+
+fn seven() -> Int = 7
+
+-- Not a constant, so this is storage the entry sequence fills. Immutable all the same: nothing may
+-- assign to it, and `resolvePlace` says so.
+let dynamic = seven()
+
+-- Read from behind a call the native backend will not see through, which is what makes this a
+-- *behavioural* claim rather than a claim about one function's text. Folded to the initializer, a
+-- recursive read of a global marked read-only answers zero.
+fn countdown(k: Int) -> Int:
+    if k <= 0 then return dynamic
+    return countdown(k - 1)
+
+-- Mutable, and written by the statement below rather than by a declaration: the case `let &` has
+-- always described.
+let &counter = 0
+
+-- Constants, read whole so that they are emitted at all - a global whose every read folds occupies
+-- nothing and reaches no backend. Neither of these may lose its read-only placement to the fix
+-- above, which is the half of this fixture that is a regression test rather than a bug report.
+let origin = Point {x: 1, y: 2}
+let greeting = "ab"
+
+counter = counter + 20
+
+fn sum(p: Point) -> Int = p.x + p.y
+
+fn main() -> Int:
+    let &score = 0
+
+    if countdown(3) == 7 then score = score + 1
+    if counter == 20 then score = score + 2
+    if sum(origin) == 3 then score = score + 4
+    if (length(greeting) :: Int) == 2 then score = score + 8
+
+    return score

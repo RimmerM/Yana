@@ -1,4 +1,5 @@
 #include "index.h"
+#include "const.h"
 
 /*
  * Storing.
@@ -284,19 +285,71 @@ StringView symbolKindName(Symbol::Kind kind) {
 }
 
 /*
- * A parameter's default, written the way its declaration wrote it - see Arg::defaultBits.
+ * A parameter's default, written the way its declaration wrote it - see Arg::defaultValue.
  *
- * The bits are what the storage holds, so a payload-free record's constant is a constructor index
- * and printing it back as the constructor's name is what keeps `= False` readable as `False`. The
- * signed case is the same one `printValue` states: constants are stored sign-extended, so a
+ * A scalar's bits are what the storage holds, so a payload-free record's constant is a constructor
+ * index and printing it back as the constructor's name is what keeps `= False` readable as `False`.
+ * The signed case is the same one `printValue` states: constants are stored sign-extended, so a
  * negative default is a very large unsigned number in the payload.
  *
- * Only the forms `evaluateConstant` accepts arrive here, which is what keeps this three cases rather
- * than a formatter.
+ * An aggregate is printed as the construction it was, which is deliberately not the source text: a
+ * reader deciding whether to write the argument wants to see the *value*, and the value is what the
+ * declaration reduced to whichever way it was spelled.
  */
-static void describeDefault(Context& context, GlobalBase global, TypePtr type, U64 bits,
-                            StringBuilder& into) {
+static void describeDefault(Context& context, GlobalBase global, ModuleBase local,
+                            ModulePtr<ConstValue> constant, StringBuilder& into) {
+    if(!constant) return;
+
+    auto& value = *local[constant];
+    auto type = value.type;
     auto declared = global[type];
+
+    auto children = [&](StringView open, StringView close) {
+        into << open;
+
+        auto first = true;
+        for(auto child: value.children.contents(local)) {
+            if(!first) into << ", ";
+            first = false;
+            describeDefault(context, global, local, child, into);
+        }
+
+        into << close;
+    };
+
+    switch(value.kind) {
+        case ConstKind::Aggregate:
+            // A fixed array prints as the literal it was written as; everything else is a record or
+            // a tuple, and both are brace-delimited here for the same reason the source spells them
+            // that way.
+            if(declared->kind == Type::Array) children("["_v, "]"_v);
+            else children("{"_v, "}"_v);
+            return;
+        case ConstKind::Construct: {
+            auto record = declared->kind == Type::Record ? (RecordType*)declared : nullptr;
+            if(record && value.index < record->constructors.size()) {
+                into << context.findName(record->constructors.get(global, Size(value.index)).name);
+            }
+
+            if(value.children.size()) children("("_v, ")"_v);
+            return;
+        }
+        case ConstKind::Address:
+            // The bytes of a string literal, which the constant beside it already printed as the
+            // string. There is no source spelling for the address itself.
+            into << "&";
+            into << context.findName(local[value.global]->name);
+            return;
+        case ConstKind::String:
+            into << "\"";
+            into << context.findName(value.text);
+            into << "\"";
+            return;
+        case ConstKind::Scalar:
+            break;
+    }
+
+    auto bits = value.bits;
 
     if(declared->kind == Type::Record && bits < ((RecordType*)declared)->constructors.size()) {
         into << context.findName(((RecordType*)declared)->constructors.get(global, Size(bits)).name);
@@ -352,7 +405,7 @@ static void describeFunction(Context& context, Module& module, Function& functio
         // deciding whether to write the argument at all needs to see that it may be left out.
         if(arg->hasDefault()) {
             into << " = ";
-            describeDefault(context, global, arg->declaredType(), arg->defaultBits.unwrap(), into);
+            describeDefault(context, global, local, arg->defaultValue, into);
         }
 
         if(parameters) parameters->push(SignatureParameter { start, U32(into.size()), arg->name });

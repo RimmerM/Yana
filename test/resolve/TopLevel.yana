@@ -20,9 +20,10 @@ let bonus = 3
 -- into that storage rather than assigned into it at startup.
 let &counter = 0 :: Int
 
--- The case the feature exists for: an initializer that is not a constant. A constructed value has no
--- constant form at all, so this could not be written at module level before - only inside a
--- function, where it would then not be a module-level name.
+-- A constructed value, which is a *constant* since Analysis-Status.md P1 point 3's second half: it
+-- is laid out into the global's storage rather than built by the entry sequence, so there is nothing
+-- here for the sequence to run either. It is mutable, so it is still storage - what folding would
+-- give a `let` of one is what Constant.Aggregate.yana asserts.
 let &shape = Circle(7)
 
 -- And one that calls a function. The callee is declared further down the file, which is fine: every

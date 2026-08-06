@@ -1,4 +1,6 @@
 #include "expr.h"
+#include "const.h"
+#include "edit.h"
 #include "solve.h"
 #include "complete.h"
 #include "generic.h"
@@ -488,7 +490,50 @@ ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId val
     auto type = placeType(place);
     if(isUnit(global, type)) return nullptr;
 
+    // A read of part of an immutable global's constant, which is that part rather than a load - see
+    // foldConstantRead. The one choke point every read goes through, which is what makes `origin`,
+    // `origin.x` and `table[2]` one rule instead of three.
+    if(auto folded = foldConstantRead(place, source)) return folded;
+
+    // Storage is read, so the global is part of the program. `markProgramReachable` rebuilds this
+    // for an executable and this is what a library compile has instead - see that pass.
+    if(place.root == PlaceRoot::Global && place.global) local[place.global]->used = true;
+
     return ref(emit<InstLoadPlace>(source, valueName, type, place));
+}
+
+/*
+ * A read of a whole value that existed only to be projected into, removed.
+ *
+ * `origin.x` resolves its target first, so reading a field of a global is a read of the *global*
+ * followed by a read of the field's place - and the first of those is not something the expression
+ * asked for. It has always been dead, and the optimizer has always removed it. What makes it worth
+ * removing here as well is what it says in the meantime: this pass runs before `markProgramReachable`
+ * and before the optimizer, so a global whose every field read folds to a constant is still named by
+ * an instruction and is still emitted - which is exactly the "an immutable global occupies nothing"
+ * property that a scalar one has always had.
+ *
+ * Deliberately the narrowest shape that covers it: a `LoadPlace` of a *bare* global root, nothing
+ * reads, sitting at the end of the block it was just appended to. A path with projections on it may
+ * name values - an `Index` steps by one - and removing an instruction whose operands are still
+ * recorded as used is a worse bug than the one being fixed.
+ */
+void ExprResolver::dropUnusedRead(ModulePtr<Value> value) {
+    if(!value || !current) return;
+
+    auto& instruction = *local[value];
+    if(instruction.kind != Value::LoadPlace || instruction.useCount()) return;
+
+    auto& place = ((InstLoadPlace&)instruction).place;
+    if(place.root != PlaceRoot::Global || place.projections.size()) return;
+
+    auto block = local[current];
+    auto count = block->instructionCount();
+    if(!count || block->instructionAt(local, count - 1) != (ModulePtr<Inst>)value) return;
+
+    // Through the editor, because a block's lists are half of a statement the IR makes twice - see
+    // block.h, which is why they are private and this is its only friend.
+    IrEditor(module, function).eraseInstruction((ModulePtr<Inst>)value);
 }
 
 void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId source) {
@@ -1126,8 +1171,8 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
 
         auto field = tuple.fields.get(global, i);
 
-        if(auto def = fieldDefault(defaults, U16(i))) {
-            values[i] = constantBits(field.type, def.unwrap(), source);
+        if(auto def = fieldDefaultOf(global, defaults, U16(i))) {
+            values[i] = constantValue(def, source);
         } else if(field.name) {
             context.diagnostics.error("no value provided for field %@"_v, source,
                                       context.findName(field.name));
@@ -1165,16 +1210,6 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
     }
 
     return success;
-}
-
-Maybe<U64> ExprResolver::fieldDefault(GlobalList<FieldDefault>* defaults, U16 field) {
-    if(!defaults) return Nothing();
-
-    for(auto def: defaults->contents(global)) {
-        if(def.field == field) return Just(def.value);
-    }
-
-    return Nothing();
 }
 
 /*
@@ -1812,7 +1847,13 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
                                         : placeFor(value, field.target.source);
 
     auto place = projectField(root, field.field, expr.source);
-    return place ? load(place.unwrap(), expr.source) : nullptr;
+    if(!place) return nullptr;
+
+    // The target's own read, which the place above replaced - see dropUnusedRead. Before the field's
+    // read rather than after it, so that the one being removed is still the last instruction.
+    dropUnusedRead(value);
+
+    return load(place.unwrap(), expr.source);
 }
 
 /*

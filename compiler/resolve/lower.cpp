@@ -299,11 +299,29 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
     Array<RelocatedGlobal> relocated;
 
+    /*
+     * The addresses inside a *source* constant, on the same terms as a table's.
+     *
+     * One list for the whole module rather than one per global, because a source constant's
+     * relocations are already at byte offsets when they are found - a table's are at slot numbers,
+     * and `offsets` is what turns those into offsets afterwards. What both still have to wait for is
+     * the global they name existing, which is why neither is translated where it is produced.
+     */
+    struct ConstantAddress {
+        LowerPtr<LowerGlobal> target;
+        ConstRelocation address;
+    };
+
+    Array<ConstantAddress> constantAddresses;
+
     // The bytes of one global, wherever they end up going.
     auto lowerGlobal = [&](ModulePtr<Global> globalPointer) {
         auto source = lower.local[globalPointer];
         auto target = new (result->arena) LowerGlobal(source->name);
-        target->mut = source->mut;
+
+        // What is written rather than what may be assigned - see Global::isWritten, and
+        // LowerGlobal::mut, which is the question this side of the wall is asking.
+        target->mut = source->isWritten();
 
         PackOffsets offsets;
 
@@ -329,35 +347,31 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
             copy(source->literalBytes.ptr, target->initialContents.ptr, size);
         } else {
-            // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
-            // is the same statement in both cases: the global's Repr, filled from `initial`.
+            /*
+             * The global's constant, laid out with the same Repr every other value of its type is -
+             * see repr/constant.h, which is where that walk lives for the same reason a table's
+             * does. A `dynamic` global has no constant and starts at the zero of its type, which is
+             * the buffer this leaves untouched.
+             */
             auto size = typeSize(lower, source->type);
             target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
             set(target->initialContents.ptr, size, 0);
 
-            if(isDirectType(lower.global, source->type)) {
-                /*
-                 * Through a writer at the target's byte order rather than by copying the host's
-                 * bytes. `initial` is a U64 of *storage* - see floatBits - and which of its bytes
-                 * come first is a fact about whoever reads the emitted global, which is the target.
-                 *
-                 * A type narrower than the word takes the bytes the target would have put the value
-                 * in: the leading ones little-endian, the trailing ones big-endian.
-                 */
-                auto order = lower.repr.target.byteOrder;
+            if(source->initial) {
+                Array<ConstRelocation> addresses;
 
-                Byte word[sizeof(U64)];
-                Net::BufferWriter bits(word, sizeof(word));
-
-                if(order == LittleEndian) {
-                    bits.writeLong<LittleEndian>(source->initial);
-                } else {
-                    bits.writeLong<BigEndian>(source->initial);
+                // False is a compiler bug rather than a program's - `declareGlobal` refuses the one
+                // constant that has no static form. Reported as an internal error rather than
+                // asserted, because a wrong global is worse than a missing one either way.
+                if(!materializeConstant(lower.repr, lower.local, source->initial,
+                                        target->initialContents, addresses)) {
+                    context.diagnostics.error("internal: the constant of %@ has no form in this target's layout"_v,
+                                              source->source, context.findName(source->name));
                 }
 
-                auto width = size < sizeof(U64) ? Size(size) : sizeof(U64);
-                auto first = order == LittleEndian ? 0 : sizeof(U64) - width;
-                copy(word + first, target->initialContents.ptr, width);
+                for(auto& relocation: addresses) {
+                    constantAddresses.push(ConstantAddress { target - lower.lower, relocation });
+                }
             }
         }
 
@@ -454,6 +468,20 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
             target->relocations.push(result->arena, translated);
         }
+    }
+
+    // And the addresses a source constant holds, which is the same wait for the same reason: the
+    // bytes of a string literal are a global of their own, and the run pointing at them cannot say
+    // which until that global exists.
+    for(auto& entry: constantAddresses) {
+        auto found = result->globals.getValue(lower.local[entry.address.global]->name);
+        if(!found) continue;
+
+        LowerDataRelocation translated;
+        translated.offset = entry.address.offset;
+        translated.global = found.unwrap();
+
+        lower.lower[entry.target]->relocations.push(result->arena, translated);
     }
 
     for(auto functionPointer: emitted) {

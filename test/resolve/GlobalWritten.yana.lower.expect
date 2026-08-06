@@ -1,0 +1,125 @@
+@origin = [1, 0, 0, 0, 2, 0, 0, 0]
+@string$0 = [97, 98]
+@greeting = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@dynamic = [0, 0, 0, 0]
+@counter = [0, 0, 0, 0]
+
+Length(String).length<complex>(%self: Ptr): Long {
+  b_0 {
+    %v_1 = bitcast %self: Ptr
+    %v_2 = add %v_1, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %units = cast %v_3: Int
+    %v_4 = sext %units: Long
+    ret %v_4
+  }
+}
+
+main$<complex>(): Int {
+  b_0 {
+    store @dynamic, 7, 4
+    %v_1 = loads @counter, 4: Int
+    %v_2 = add %v_1, 20: Int
+    store @counter, %v_2, 4
+    %v_3 = call_complex main: Int
+    ret %v_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = imm 0: Int
+    %v_2 = call_complex countdown, 3: Int
+    %v_3 = cmp_eq %v_2, 7: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    %v_6 = add %v_1, 1: Int
+    jmp b_7
+  }
+
+  b_5 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_4, %v_6], [b_5, %v_1]: Int
+    %v_9 = loads @counter, 4: Int
+    %v_10 = cmp_eq %v_9, 20: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_8, 2: Int
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_8]: Int
+    %p$x = loads @origin, 4: Int
+    %v_16 = add @origin, 4: Ptr
+    %p$y = loads %v_16, 4: Int
+    %v_17 = add %p$x, %p$y: Int
+    %v_18 = cmp_eq %v_17, 3: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = add %v_15, 4: Int
+    jmp b_22
+  }
+
+  b_20 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = phi [b_19, %v_21], [b_20, %v_15]: Int
+    %v_24 = call_complex Length(String).length, @greeting: Long
+    %v_25 = cast %v_24: Int
+    %v_26 = cmp_eq %v_25, 2: Int
+    je %v_26, b_27, b_28
+  }
+
+  b_27 {
+    %v_29 = add %v_23, 8: Int
+    jmp b_30
+  }
+
+  b_28 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = phi [b_27, %v_29], [b_28, %v_23]: Int
+    ret %v_31
+  }
+}
+
+countdown<complex>(%k: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %k, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = loads @dynamic, 4: Int
+    ret %v_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %k, 1: Int
+    %v_7 = call_complex countdown, %v_6: Int
+    ret %v_7
+  }
+}
+

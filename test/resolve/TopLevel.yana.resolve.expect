@@ -2,7 +2,7 @@ let bonus: Int = 3
 
 let &counter: Int = 0
 
-let &shape: Shape = <startup>
+let &shape: Shape = Circle(7)
 
 let &seed: Int = <startup>
 
@@ -53,28 +53,25 @@ fn main() -> Int {
 
 fn main$() -> Int {
   b0:
-    %v0 = alloc : Shape
-    aggregate %local0.discriminant = 0, %local0@Circle = 7
-    init shape, %v0
-    %v6 = call seedFrom, 4 : Int
-    init seed, %v6
-    %v8 = load counter : Int
-    %v9 = load seed : Int
-    %v10 = add %v8, %v9 : Int
+    %v1 = call seedFrom, 4 : Int
+    init seed, %v1
+    %v3 = load counter : Int
+    %v4 = load seed : Int
+    %v5 = add %v3, %v4 : Int
+    assign counter, %v5
+    %v7 = load counter : Int
+    %v8 = load shape : Shape
+    %v9 = call area, %v8 : Int
+    %v10 = add %v7, %v9 : Int
     assign counter, %v10
     %v12 = load counter : Int
-    %v13 = load shape : Shape
-    %v14 = call area, %v13 : Int
-    %v15 = add %v12, %v14 : Int
-    assign counter, %v15
-    %v17 = load counter : Int
-    init recorded, %v17
-    %v19 = load counter : Int
+    init recorded, %v12
+    %v14 = load counter : Int
+    %v17 = add %v14, 1 : Int
+    init first, %v17
+    %v19 = load first : Int
     %v22 = add %v19, 1 : Int
-    init first, %v22
-    %v24 = load first : Int
-    %v27 = add %v24, 1 : Int
-    init second, %v27
-    %v29 = call main : Int
-    ret %v29
+    init second, %v22
+    %v24 = call main : Int
+    ret %v24
 }
