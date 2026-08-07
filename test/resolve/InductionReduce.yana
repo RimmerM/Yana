@@ -1,0 +1,217 @@
+{-
+   **An address recomputed from a loop counter becomes a pointer the loop carries.**
+
+   `compiler/lower/lower_induction.h` - `base + i*stride` is replaced by a pointer advanced by
+   `stride` on the back edge, wherever the stride is not one the addressing mode holds for free. The
+   `.lower.expect` beside this file records the shapes; this file's job is the part a golden cannot
+   check, which is that the answers did not move.
+
+   **The counter's width, and which narrow ones are admitted.** The rewrite is only sound where the
+   counter reaches the address at the width the address is computed in. An `Int` counter arrives
+   through a `sext`, and `sext(i + 1) == sext(i) + 1` only holds where the narrow addition does not
+   wrap - so a narrow counter is reduced exactly when that can be proved, and the `for` range forms
+   are where it can: `doc/spec/expressions.md` guarantees their counter does not overflow on the way
+   out, and the guard that makes it true is still standing in the lower IR. A hand-written `while`
+   counter has no such guard and is left alone, since `doc/spec/types.md` says integer overflow wraps.
+
+   So the two `sumInt`/`forInt` functions below are the pair: same source but for the loop form, one
+   reduced and one not, and the `.lower.expect` is what says which.
+
+   **Why the strides are 24 and 32.** A scale of 1, 2, 4 or 8 is a SIB byte and costs nothing, so
+   those are declined on purpose - `sumWords` walks an `[I64]` and keeps its `base + i*8`. What is
+   left is the record walk, which is the shape the whole item exists for.
+
+   Each check contributes 1, so `main` is the number of checks when they all pass.
+-}
+
+import Native
+
+-- 24 bytes, so the index arithmetic is a `mul` no strength reduction turns into a shift.
+data Cell {a: I64, b: I64, c: I64}
+
+-- 32 bytes, which is a shift, and one whose scale the SIB byte cannot hold either.
+data Quad {w: I64, x: I64, y: I64, z: I64}
+
+{-
+   Two fields of one element, which is the case that decides whether addresses are grouped: `xs[i].a`
+   and `xs[i].c` are two adds of the same base and the same scaled index, and both have to become the
+   same pointer with their field offsets left as the displacements they already were. One pointer,
+   one add on the back edge - not two of each.
+-}
+fn sumCells(xs: [Cell]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i].a + xs[i].c
+        i = i + 1
+
+    return acc
+
+-- The same at a stride that is a shift rather than a multiply.
+fn sumQuads(xs: [Quad]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i].w + xs[i].z
+        i = i + 1
+
+    return acc
+
+{-
+   One index scaled into two different arrays, which is the case that must *not* be grouped: the
+   bases differ, so it is two pointers - and the multiply dies anyway, because nothing reads it once
+   both of its addresses have been rewritten.
+-}
+fn dotCells(xs: [Cell], ys: [Cell]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs) && i < length(ys):
+        acc = acc + xs[i].a * ys[i].b
+        i = i + 1
+
+    return acc
+
+{-
+   Downwards. The step is `-1`, so the stride is `-24`, and the pointer starts at the last element
+   rather than the first - which is the whole reason the step is read as a bit pattern rather than as
+   a count.
+-}
+fn sumDown(xs: [Cell]) -> I64:
+    let &acc = 0 :: I64
+    let &i = length(xs) - 1 :: I64
+
+    while i >= 0:
+        acc = acc + xs[i].b
+        i = i - 1
+
+    return acc
+
+-- Stride 8, which the addressing mode holds for free. Declined on purpose: reducing this would
+-- trade an address that costs nothing for a live pointer and an add per iteration.
+fn sumWords(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i]
+        i = i + 1
+
+    return acc
+
+-- A hand-written `Int` counter under `while`. Declined: nothing here says `i + 1` cannot wrap, and
+-- the language says it does. Kept so that the golden records the shape that is left alone.
+fn sumInt(xs: [Cell]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        acc = acc + xs[i].c
+        i = i + 1
+
+    return acc
+
+{-
+   The same walk as a `for` range, which is the form the guarantee is stated for. The counter is
+   still an `Int` and still reaches the address through a `sext`, and the difference is entirely the
+   guard the range lowering puts in front of the step - `sub %n, %i` against the stride - which is
+   what says the addition cannot wrap. This one reduces.
+-}
+fn forInt(xs: [Cell], n: Int) -> I64:
+    let &acc = 0 :: I64
+
+    for i in 0 .. n:
+        acc = acc + xs[i].c
+
+    return acc
+
+-- Descending, narrow. The guard is the mirror - the distance is the counter itself once `downto 0`
+-- has folded its subtraction away - and the pointer starts one stride below the end.
+fn forDownInt(xs: [Cell], n: Int) -> I64:
+    let &acc = 0 :: I64
+
+    for i in n downto 0:
+        acc = acc * 10 + xs[i].a
+
+    return acc
+
+-- A stride, so that the pointer advances by 2 * 24 rather than by the element size.
+fn forStepInt(xs: [Cell], n: Int) -> I64:
+    let &acc = 0 :: I64
+
+    for i in 0 .. n step 2:
+        acc = acc * 10 + xs[i].a
+
+    return acc
+
+-- And the inclusive bound, which only changes which of `<` and `<=` the header asks. The proof reads
+-- the same either way, so this reduces too.
+fn forInclusiveInt(xs: [Cell], n: Int) -> I64:
+    let &acc = 0 :: I64
+
+    for i in 0 ..= n:
+        acc = acc * 10 + xs[i].a
+
+    return acc
+
+fn main() -> Int:
+    let &cells = [Cell {a: 1, b: 2, c: 3},
+                  Cell {a: 10, b: 20, c: 30},
+                  Cell {a: 100, b: 200, c: 300}]
+
+    let &others = [Cell {a: 7, b: 5, c: 9},
+                   Cell {a: 7, b: 5, c: 9},
+                   Cell {a: 7, b: 5, c: 9}]
+
+    let &quads = [Quad {w: 1, x: 2, y: 3, z: 4},
+                  Quad {w: 10, x: 20, y: 30, z: 40}]
+
+    let &words = [1, 2, 3, 4, 5] :: [I64]
+
+    let &total = 0 :: Int
+
+    -- (1 + 3) + (10 + 30) + (100 + 300) = 444
+    if sumCells(cells) == 444 then total = total + 1
+
+    -- (1 + 4) + (10 + 40) = 55
+    if sumQuads(quads) == 55 then total = total + 1
+
+    -- 1*5 + 10*5 + 100*5 = 555
+    if dotCells(cells, others) == 555 then total = total + 1
+
+    -- 2 + 20 + 200 = 222, reached from the far end
+    if sumDown(cells) == 222 then total = total + 1
+
+    -- 1 + 2 + 3 + 4 + 5 = 15
+    if sumWords(words) == 15 then total = total + 1
+
+    -- 3 + 30 + 300 = 333
+    if sumInt(cells) == 333 then total = total + 1
+
+    -- The same sum through the range form, which is the one that reduces.
+    if forInt(cells, 3) == 333 then total = total + 1
+
+    -- `3 downto 0` visits 2, 1, 0, so the digits arrive in reverse: 100, 10, 1 -> 10101.
+    if forDownInt(cells, 3) == 10101 then total = total + 1
+
+    -- `0 .. 3 step 2` visits 0 and 2: 1 then 1*10 + 100.
+    if forStepInt(cells, 3) == 110 then total = total + 1
+
+    -- `0 ..= 2` visits 0, 1, 2: 1, then 10 + 10, then 100 + 100 + 100.
+    if forInclusiveInt(cells, 2) == 1 * 100 + 10 * 10 + 100 then total = total + 1
+
+    {-
+       Every reduced loop, entered zero times. The pointer the preheader builds is never read, and
+       the answer has to be the accumulator's start rather than anything the setup computed - which
+       for `forDownInt` is the case worth having, since its setup computes an address one stride
+       below the array and would fault if anything read it.
+    -}
+    let &empty = [] :: [Cell]
+    if sumCells(empty) == 0 then total = total + 1
+    if forInt(cells, 0) == 0 then total = total + 1
+    if forDownInt(cells, 0) == 0 then total = total + 1
+    if forStepInt(cells, 0) == 0 then total = total + 1
+
+    return total

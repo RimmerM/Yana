@@ -10,6 +10,7 @@
 #include "../opt/opt.h"
 #include "../lower/lower_promote.h"
 #include "../lower/lower_strength.h"
+#include "../lower/lower_induction.h"
 
 /*
  * Aggregates that evaporate.
@@ -606,6 +607,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // *which* operands are literals. See lower_strength.h, and note that it emits arithmetic of
         // its own, so the fold runs again behind it before the dead immediates are swept.
         strengthReduceFunction(lower.lower, lower.to, *target);
+        foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the multiply that is left because its other operand is the loop's own counter, which
+        // is not a strength reduction of one operation into another but of a whole recurrence - see
+        // lower_induction.h. After the fold above, since what it needs to read is the stride as a
+        // number; it emits an immediate of its own, so the fold and the sweep run behind it.
+        reduceInductionVariables(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
         removeDeadConstants(lower.lower, lower.to.arena, *target);
     }
