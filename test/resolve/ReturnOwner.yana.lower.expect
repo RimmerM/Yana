@@ -90,7 +90,7 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_37 {
     %v_38 = load @heapFree, 8: Ptr
-    %v_39 = imul %v_31, 8: Long
+    %v_39 = shl %v_31, 3: Long
     %v_40 = add %v_38, %v_39: Ptr
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
@@ -125,7 +125,7 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_56 = bitcast %v_41: Ptr
     %v_57 = load %v_56, 8: Ptr
     %v_58 = load @heapFree, 8: Ptr
-    %v_59 = imul %v_31, 8: Long
+    %v_59 = shl %v_31, 3: Long
     %v_60 = add %v_58, %v_59: Ptr
     store %v_60, %v_57, 8
     ret %v_41
@@ -169,12 +169,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -313,7 +313,7 @@ byteSpan(Int)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 4: Long
+    %v_3 = shl %v_2, 2: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -348,7 +348,7 @@ push(Int)<complex>(%self: Ptr, %item: Int) {
   b_12 {
     %v_13 = load %self, 8: Ptr
     %v_14 = sext %count: Long
-    %v_15 = imul %v_14, 4: Long
+    %v_15 = shl %v_14, 2: Long
     %v_16 = add %v_13, %v_15: Ptr
     store %v_16, %item, 4
     %v_17 = add %count, 1: Int
@@ -482,7 +482,7 @@ collect<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
   }
 
   b_10 {
-    %v_22 = imul %v_16, 4: Long
+    %v_22 = shl %v_16, 2: Long
     %v_23 = add %xs$items, %v_22: Ptr
     %v_24 = loads %v_23, 4: Int
     call_complex push(Int), %out, %v_24
@@ -581,7 +581,7 @@ main<complex>(): Int {
     %v_33 = load %a, 8: Ptr
     %v_34 = add %v_33, 4: Ptr
     %v_35 = loads %v_34, 4: Int
-    %v_36 = imul %v_35, 2: Int
+    %v_36 = shl %v_35, 1: Int
     %v_37 = add %v_23, %v_36: Int
     %v_38 = add %a, 12: Ptr
     %v_39 = load %v_38, 4: Int
@@ -604,7 +604,7 @@ main<complex>(): Int {
     %v_47 = load %a, 8: Ptr
     %v_48 = add %v_47, 8: Ptr
     %v_49 = loads %v_48, 4: Int
-    %v_50 = imul %v_49, 4: Int
+    %v_50 = shl %v_49, 2: Int
     %v_51 = add %v_37, %v_50: Int
     %v_52 = add %a, 12: Ptr
     %v_53 = load %v_52, 4: Int
@@ -628,7 +628,7 @@ main<complex>(): Int {
     %v_62 = add %v_61, 12: Ptr
     %v_63 = loads %v_62, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %a
-    %v_64 = imul %v_63, 8: Int
+    %v_64 = shl %v_63, 3: Int
     %v_65 = add %v_51, %v_64: Int
     %v_66 = load %v_1, 8: Ptr
     %v_67 = add %v_1, 12: Ptr
@@ -679,7 +679,7 @@ main<complex>(): Int {
     %v_92 = load %b, 8: Ptr
     %v_93 = add %v_92, 4: Ptr
     %v_94 = loads %v_93, 4: Int
-    %v_95 = imul %v_94, 2: Int
+    %v_95 = shl %v_94, 1: Int
     %v_96 = add %v_82, %v_95: Int
     %v_97 = add %b, 12: Ptr
     %v_98 = load %v_97, 4: Int
@@ -702,7 +702,7 @@ main<complex>(): Int {
     %v_106 = load %b, 8: Ptr
     %v_107 = add %v_106, 8: Ptr
     %v_108 = loads %v_107, 4: Int
-    %v_109 = imul %v_108, 4: Int
+    %v_109 = shl %v_108, 2: Int
     %v_110 = add %v_96, %v_109: Int
     %v_111 = add %b, 12: Ptr
     %v_112 = load %v_111, 4: Int
@@ -726,7 +726,7 @@ main<complex>(): Int {
     %v_121 = add %v_120, 12: Ptr
     %v_122 = loads %v_121, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %b
-    %v_123 = imul %v_122, 8: Int
+    %v_123 = shl %v_122, 3: Int
     %v_124 = add %v_110, %v_123: Int
     %v_125 = alloca 16, 8: Ptr
     store %v_125, funvalue$double, 8
@@ -782,7 +782,7 @@ main<complex>(): Int {
     %v_154 = load %c, 8: Ptr
     %v_155 = add %v_154, 4: Ptr
     %v_156 = loads %v_155, 4: Int
-    %v_157 = imul %v_156, 2: Int
+    %v_157 = shl %v_156, 1: Int
     %v_158 = add %v_144, %v_157: Int
     %v_159 = add %c, 12: Ptr
     %v_160 = load %v_159, 4: Int
@@ -805,7 +805,7 @@ main<complex>(): Int {
     %v_168 = load %c, 8: Ptr
     %v_169 = add %v_168, 8: Ptr
     %v_170 = loads %v_169, 4: Int
-    %v_171 = imul %v_170, 4: Int
+    %v_171 = shl %v_170, 2: Int
     %v_172 = add %v_158, %v_171: Int
     %v_173 = add %c, 12: Ptr
     %v_174 = load %v_173, 4: Int
@@ -829,7 +829,7 @@ main<complex>(): Int {
     %v_183 = add %v_182, 12: Ptr
     %v_184 = loads %v_183, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %c
-    %v_185 = imul %v_184, 8: Int
+    %v_185 = shl %v_184, 3: Int
     %v_186 = add %v_172, %v_185: Int
     %v_187 = alloca 16, 8: Ptr
     %v_188 = alloca 16, 4: Ptr
@@ -894,7 +894,7 @@ main<complex>(): Int {
     %v_220 = load %d, 8: Ptr
     %v_221 = add %v_220, 4: Ptr
     %v_222 = loads %v_221, 4: Int
-    %v_223 = imul %v_222, 2: Int
+    %v_223 = shl %v_222, 1: Int
     %v_224 = add %v_210, %v_223: Int
     %v_225 = add %d, 12: Ptr
     %v_226 = load %v_225, 4: Int
@@ -917,7 +917,7 @@ main<complex>(): Int {
     %v_234 = load %d, 8: Ptr
     %v_235 = add %v_234, 8: Ptr
     %v_236 = loads %v_235, 4: Int
-    %v_237 = imul %v_236, 4: Int
+    %v_237 = shl %v_236, 2: Int
     %v_238 = add %v_224, %v_237: Int
     %v_239 = add %d, 12: Ptr
     %v_240 = load %v_239, 4: Int
@@ -941,7 +941,7 @@ main<complex>(): Int {
     %v_249 = add %v_248, 12: Ptr
     %v_250 = loads %v_249, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %d
-    %v_251 = imul %v_250, 8: Int
+    %v_251 = shl %v_250, 3: Int
     %v_252 = add %v_238, %v_251: Int
     %v_253 = loads @reclaims, 4: Int
     %v_254 = cmp_neq %v_253, 0: Int
@@ -1074,7 +1074,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   }
 
   b_15 {
-    %v_17 = imul %v_10, 4: Long
+    %v_17 = shl %v_10, 2: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = loads %v_18, 4: Int
     %v_20 = add %body, 8: Ptr
@@ -1100,7 +1100,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
 
 funvalue$double<complex>(%env: Ptr, %v: Int): Int {
   b_0 {
-    %v_1 = imul %v, 2: Int
+    %v_1 = shl %v, 1: Int
     ret %v_1
   }
 }
@@ -1239,7 +1239,7 @@ each(Int, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long,
   }
 
   b_15 {
-    %v_17 = imul %v_10, 4: Long
+    %v_17 = shl %v_10, 2: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = loads %v_18, 4: Int
     %v_20 = add %body, 8: Ptr

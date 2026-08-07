@@ -308,6 +308,29 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
             value = f.builder.CreateSRem(lhs, rhs, name);
             break;
 
+        /*
+         * The high half, spelled as the whole product taken at twice the width and cut down again.
+         *
+         * There is no `mulhi` in LLVM IR and no need for one: this is the shape the DAG combiner
+         * recognizes, so it reaches the machine's own one-operand multiply on every target that has
+         * one, and stays a real i128 multiply on the targets that do not.
+         */
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi: {
+            auto isSigned = inst.kind == LowerInst::IMulHi;
+            auto width = lhs->getType()->getIntegerBitWidth();
+            auto wide = llvm::IntegerType::get(f.gen.llvm, width * 2);
+
+            auto extend = [&](llvm::Value* v) {
+                return isSigned ? f.builder.CreateSExt(v, wide) : f.builder.CreateZExt(v, wide);
+            };
+
+            auto product = f.builder.CreateMul(extend(lhs), extend(rhs));
+            auto high = f.builder.CreateLShr(product, llvm::ConstantInt::get(wide, width));
+            value = f.builder.CreateTrunc(high, lhs->getType(), name);
+            break;
+        }
+
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar: {
@@ -577,6 +600,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::IDiv:
         case LowerInst::Rem:
         case LowerInst::IRem:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar:

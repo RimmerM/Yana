@@ -14,7 +14,7 @@ either<complex>(%m: Ptr): Int {
   b_3 {
     %v_6 = add %m, 4: Ptr
     %v = loads %v_6, 4: Int
-    %v_7 = imul %v, 2: Int
+    %v_7 = shl %v, 1: Int
     jmp b_5
   }
 
@@ -176,7 +176,7 @@ main<complex>(): Int {
     %v_10 = add %v_9, 4: Ptr
     store %v_10, 0, 4
     %v_11 = call_complex isZero, %v_9: Int
-    %v_12 = imul %v_11, 8: Int
+    %v_12 = shl %v_11, 3: Int
     %v_13 = add %v_8, %v_12: Int
     %v_14 = alloca 8, 4: Ptr
     store %v_14, 1, 4
@@ -229,12 +229,12 @@ main<complex>(): Int {
     %v_46 = add %v_45, 4: Ptr
     store %v_46, 1, 4
     %v_47 = call_complex present, %v_45: Int
-    %v_48 = imul %v_47, 64: Int
+    %v_48 = shl %v_47, 6: Int
     %v_49 = add %v_44, %v_48: Int
     %v_50 = alloca 8, 4: Ptr
     store %v_50, 0, 4
     %v_51 = call_complex present, %v_50: Int
-    %v_52 = imul %v_51, 128: Int
+    %v_52 = shl %v_51, 7: Int
     %v_53 = add %v_49, %v_52: Int
     %v_54 = alloca 8, 4: Ptr
     call_complex wrap, %v_54, 128

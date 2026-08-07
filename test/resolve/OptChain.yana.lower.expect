@@ -199,7 +199,7 @@ node<complex>(%v_0: Ptr, %n: Int) {
     %v_9 = alloca 20, 4: Ptr
     %v_10 = alloca 16, 4: Ptr
     %v_11 = alloca 4, 4: Ptr
-    %v_12 = imul %n, 2: Int
+    %v_12 = shl %n, 1: Int
     store %v_11, %v_12, 4
     %v_13 = alloca 8, 4: Ptr
     call_complex leafFor, %v_13, %n
@@ -242,7 +242,7 @@ checked<complex>(%v_0: Ptr, %n: Int) {
     %v_10 = alloca 20, 4: Ptr
     %v_11 = alloca 16, 4: Ptr
     %v_12 = alloca 4, 4: Ptr
-    %v_13 = imul %n, 4: Int
+    %v_13 = shl %n, 2: Int
     store %v_12, %v_13, 4
     %v_14 = alloca 8, 4: Ptr
     call_complex leafFor, %v_14, %n
@@ -997,7 +997,7 @@ main<complex>(): Int {
 
 funvalue$twice<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
-    %v_1 = imul %x, 2: Int
+    %v_1 = shl %x, 1: Int
     ret %v_1
   }
 }

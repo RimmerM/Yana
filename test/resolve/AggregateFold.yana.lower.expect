@@ -23,12 +23,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 

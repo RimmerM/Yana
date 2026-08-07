@@ -1,0 +1,148 @@
+{-
+   **A division, a remainder or a multiplication by a constant is replaced by cheaper arithmetic.**
+
+   `compiler/lower/lower_strength.h` - a shift where the constant is a power of two, a mask for the
+   remainder of one, and the top half of a reciprocal product for everything else. The `.lower.expect`
+   beside this file records the shapes; this file's job is the part a golden cannot check, which is
+   that the answers did not move.
+
+   **What is asserted, and why it needs no table of expected results.** Three properties pin a
+   truncating division exactly, for every dividend and every divisor: `q * d + r == x`, `|r| < |d|`,
+   and `r` carries the dividend's sign or is zero. Nothing else satisfies all three - so a quotient
+   that is wrong by even one is caught by the second, whichever way the remainder was computed. That
+   matters here because the remainder of a divisor that is *not* a power of two is built out of the
+   quotient (`x - (x / d) * d`), which makes the first property true by construction and the second
+   the only one doing work.
+
+   **The dividends have to be runtime values**, or the whole pass is bypassed: a division of two
+   literals is folded long before it, and the fixture would pass while asserting nothing. They come
+   out of a fixed array indexed by a loop variable, which is the cheapest thing in the language that
+   no fold can see through.
+
+   Each check contributes 1, so `main` is the number of checks when they all pass. The count alone
+   does not say which one failed - dump the lower IR for the divisor in question, since the sequence
+   is the same for every dividend.
+-}
+
+fn magL(v: Long) -> Long = if v < 0 then 0 - v else v
+fn magI(v: Int) -> Int = if v < 0 then 0 - v else v
+
+-- The three properties, over a signed pair. `d` arrives as a parameter rather than as the literal
+-- the division used, so the multiplication back is an ordinary one whatever the divisor was.
+fn okL(x: Long, d: Long, q: Long, r: Long) -> Int =
+    if q * d + r == x && magL(r) < magL(d) && ((r <= 0 && x <= 0) || (r >= 0 && x >= 0)) then 1 else 0
+
+fn okI(x: Int, d: Int, q: Int, r: Int) -> Int =
+    if q * d + r == x && magI(r) < magI(d) && ((r <= 0 && x <= 0) || (r >= 0 && x >= 0)) then 1 else 0
+
+-- Unsigned needs two of the three: there is no sign for the remainder to agree with.
+fn okU(x: U64, d: U64, q: U64, r: U64) -> Int =
+    if q * d + r == x && r < d then 1 else 0
+
+fn okW(x: U32, d: U32, q: U32, r: U32) -> Int =
+    if q * d + r == x && r < d then 1 else 0
+
+{-
+   The divisors, one function per width.
+
+   Powers of two on both signs, because those are the shift-and-bias sequences; then the ones that
+   are not, because those are the reciprocal. `-1`, `0` and `1` are deliberately absent: the first
+   two are what the machine may trap on and are left alone on purpose, and the third is forwarded
+   before this pass sees it.
+-}
+fn signedLong(x: Long) -> Int:
+    let &n = 0 :: Int
+
+    n = n + okL(x, 2, x / 2, x % 2)
+    n = n + okL(x, 8, x / 8, x % 8)
+    n = n + okL(x, 4096, x / 4096, x % 4096)
+    n = n + okL(x, -2, x / -2, x % -2)
+    n = n + okL(x, -8, x / -8, x % -8)
+    n = n + okL(x, 3, x / 3, x % 3)
+    n = n + okL(x, 7, x / 7, x % 7)
+    n = n + okL(x, 10, x / 10, x % 10)
+    n = n + okL(x, 100, x / 100, x % 100)
+    n = n + okL(x, 1000000007, x / 1000000007, x % 1000000007)
+    n = n + okL(x, -3, x / -3, x % -3)
+    n = n + okL(x, -10, x / -10, x % -10)
+
+    return n
+
+fn signedInt(x: Int) -> Int:
+    let &n = 0 :: Int
+
+    n = n + okI(x, 2, x / 2, x % 2)
+    n = n + okI(x, 16, x / 16, x % 16)
+    n = n + okI(x, -4, x / -4, x % -4)
+    n = n + okI(x, 3, x / 3, x % 3)
+    n = n + okI(x, 10, x / 10, x % 10)
+    n = n + okI(x, 65521, x / 65521, x % 65521)
+    n = n + okI(x, -7, x / -7, x % -7)
+
+    return n
+
+fn unsignedLong(x: U64) -> Int:
+    let &n = 0 :: Int
+
+    n = n + okU(x, 2, x / 2, x % 2)
+    n = n + okU(x, 64, x / 64, x % 64)
+    n = n + okU(x, 3, x / 3, x % 3)
+    n = n + okU(x, 10, x / 10, x % 10)
+
+    -- Divisors whose reciprocal needs one bit more than the type has, which is the sequence that
+    -- adds half the difference back rather than shifting once. 7 is the smallest of them.
+    n = n + okU(x, 7, x / 7, x % 7)
+    n = n + okU(x, 641, x / 641, x % 641)
+
+    return n
+
+fn unsignedInt(x: U32) -> Int:
+    let &n = 0 :: Int
+
+    n = n + okW(x, 4, x / 4, x % 4)
+    n = n + okW(x, 5, x / 5, x % 5)
+    n = n + okW(x, 7, x / 7, x % 7)
+    n = n + okW(x, 1000, x / 1000, x % 1000)
+
+    return n
+
+-- A multiplication by a power of two is the other half of the pass, and it is the one rewrite with
+-- no rounding in it at all: `x * 2^k` is `x << k` at every value, wrapping included.
+fn scaled(x: Long) -> Int =
+    if x * 8 == (x `shl` 3) && x * 1024 == (x `shl` 10) then 1 else 0
+
+fn main() -> Int:
+    let longs = [0, 1, -1, 7, -7, 100, -100, 1000000007, -1000000007,
+                 4611686018427387904, -4611686018427387904,
+                 9223372036854775807] :: [Long *12]
+
+    let ints = [0, 1, -1, 5, -5, 65521, -65521, 2147483647, -2147483647] :: [Int *9]
+
+    let ulongs = [0, 1, 7, 641, 1000000007, 9223372036854775807,
+                  18446744073709551615, 18446744073709551614] :: [U64 *8]
+
+    let uints = [0, 1, 4, 999, 4294967295, 4294967294] :: [U32 *6]
+
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < 12:
+        total = total + signedLong(longs[i]) + scaled(longs[i])
+        i = i + 1
+
+    i = 0
+    while i < 9:
+        total = total + signedInt(ints[i])
+        i = i + 1
+
+    i = 0
+    while i < 8:
+        total = total + unsignedLong(ulongs[i])
+        i = i + 1
+
+    i = 0
+    while i < 6:
+        total = total + unsignedInt(uints[i])
+        i = i + 1
+
+    return total

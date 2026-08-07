@@ -9,6 +9,7 @@
 #include "../compiler/stage.h"
 #include "../opt/opt.h"
 #include "../lower/lower_promote.h"
+#include "../lower/lower_strength.h"
 
 /*
  * Aggregates that evaporate.
@@ -597,8 +598,14 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         promoteStackSlots(lower.lower, *target);
 
         // What promotion turned into arithmetic over literals - a local's whole initial value is
-        // assembled out of a load of the storage it is about to stop being - and then the immediates
-        // that and promotion left with no readers. See lower_fold.h.
+        // assembled out of a load of the storage it is about to stop being. See lower_fold.h.
+        foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // Then the operations that are still divisions and multiplications, but by a number now
+        // known - which is a question that could only be asked once the fold above had answered
+        // *which* operands are literals. See lower_strength.h, and note that it emits arithmetic of
+        // its own, so the fold runs again behind it before the dead immediates are swept.
+        strengthReduceFunction(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
         removeDeadConstants(lower.lower, lower.to.arena, *target);
     }

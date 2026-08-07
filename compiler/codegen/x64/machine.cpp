@@ -64,6 +64,8 @@ enum: MachineFormId {
     FormIDiv,
     FormRem,
     FormIRem,
+    FormMulHi,
+    FormIMulHi,
     FormIMulReg,
     FormIMulImm,
 
@@ -217,6 +219,8 @@ MachineTarget::MachineTarget() {
     name(OpIDiv, "idiv"_v);
     name(OpRem, "rem"_v);
     name(OpIRem, "irem"_v);
+    name(OpMulHi, "mulhi"_v);
+    name(OpIMulHi, "imulhi"_v);
     name(OpShl, "shl"_v);
     name(OpShr, "shr"_v);
     name(OpSar, "sar"_v);
@@ -656,6 +660,12 @@ MachineTarget::MachineTarget() {
     group3(FormIDiv, OpIDiv, "idiv r/m"_v, IntRegister::rax, false, 7, EncodingPrelude::SignExtendRax);
     group3(FormRem, OpRem, "div r/m (remainder)"_v, IntRegister::rdx, true, 6, EncodingPrelude::ZeroRdx);
     group3(FormIRem, OpIRem, "idiv r/m (remainder)"_v, IntRegister::rdx, true, 7, EncodingPrelude::SignExtendRax);
+
+    // The same two multiplies, read for the half they are usually asked to throw away. No prelude:
+    // unlike a division, a multiply *writes* the whole pair rather than reading it, so nothing has
+    // to be in rdx beforehand.
+    group3(FormMulHi, OpMulHi, "mul r/m (high)"_v, IntRegister::rdx, true, 4, EncodingPrelude::None);
+    group3(FormIMulHi, OpIMulHi, "imul r/m (high)"_v, IntRegister::rdx, true, 5, EncodingPrelude::None);
 
     {
         // IMUL r, r/m is the two-operand form: the destination doubles as a source, so it is
@@ -1579,6 +1589,8 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::IDiv:       return OpIDiv;
         case LowerInst::Rem:        return OpRem;
         case LowerInst::IRem:       return OpIRem;
+        case LowerInst::MulHi:      return OpMulHi;
+        case LowerInst::IMulHi:     return OpIMulHi;
         case LowerInst::Shl:        return OpShl;
         case LowerInst::Shr:        return OpShr;
         case LowerInst::Sar:        return OpSar;
@@ -1908,13 +1920,17 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::IDiv:
         case LowerInst::Rem:
         case LowerInst::IRem:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
         case LowerInst::IMul: {
             assertTrue(isInt(((LowerInstBinary*)inst)->result.type)); // no integer form for this type
 
             switch(inst->kind) {
-                case LowerInst::IDiv: return FormIDiv;
-                case LowerInst::Rem:  return FormRem;
-                case LowerInst::IRem: return FormIRem;
+                case LowerInst::IDiv:   return FormIDiv;
+                case LowerInst::Rem:    return FormRem;
+                case LowerInst::IRem:   return FormIRem;
+                case LowerInst::MulHi:  return FormMulHi;
+                case LowerInst::IMulHi: return FormIMulHi;
                 default: return hasEmbeddedRhs(base, inst) ? FormIMulImm : FormIMulReg;
             }
         }

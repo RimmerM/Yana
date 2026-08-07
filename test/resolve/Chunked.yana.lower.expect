@@ -89,7 +89,7 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_37 {
     %v_38 = load @heapFree, 8: Ptr
-    %v_39 = imul %v_31, 8: Long
+    %v_39 = shl %v_31, 3: Long
     %v_40 = add %v_38, %v_39: Ptr
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
@@ -124,7 +124,7 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_56 = bitcast %v_41: Ptr
     %v_57 = load %v_56, 8: Ptr
     %v_58 = load @heapFree, 8: Ptr
-    %v_59 = imul %v_31, 8: Long
+    %v_59 = shl %v_31, 3: Long
     %v_60 = add %v_58, %v_59: Ptr
     store %v_60, %v_57, 8
     ret %v_41
@@ -168,12 +168,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -278,7 +278,7 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   b_20 {
     %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
     %v_22 = alloca 16, 8: Ptr
-    %v_23 = imul %v_11, 4: Long
+    %v_23 = shl %v_11, 2: Long
     %v_24 = add %self$items, %v_23: Ptr
     %v_25 = sub %v_21, %v_11: Long
     store %v_22, %v_24, 8
@@ -639,7 +639,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   }
 
   b_15 {
-    %v_17 = imul %v_10, 4: Long
+    %v_17 = shl %v_10, 2: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = loads %v_18, 4: Int
     %v_20 = add %body, 8: Ptr
@@ -986,7 +986,7 @@ each(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr)
   }
 
   b_16 {
-    %v_18 = imul %v_11, 4: Long
+    %v_18 = shl %v_11, 2: Long
     %v_19 = add %xs$items, %v_18: Ptr
     %v_20 = loads %v_19, 4: Int
     %v_21 = add %body, 8: Ptr

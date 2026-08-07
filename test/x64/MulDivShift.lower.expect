@@ -15,6 +15,17 @@ mulDivShift<complex>(%a: Int, %b: Int): Int {
   }
 }
 
+mulHigh<complex>(%a: Long, %b: Long, %c: Int, %d: Int): Long {
+  b_0 {
+    %h1 = mulhi %a, %b: Long
+    %h2 = imulhi %a, %b: Long
+    %h3 = mulhi %c, %d: Int
+    %h4 = imulhi %c, 7: Int
+    %s = add %h1, %h2: Long
+    ret %s
+  }
+}
+
 remLiveResult<complex>(%a: Int, %b: Int, %c: Int): Int {
   b_0 {
     %r = rem %a, %b: Int
@@ -41,6 +52,18 @@ block #1:
   imm uses=[] creates=[-]  => 
   shl uses=[rdi, -] creates=[rdi]  => c1e702
   ret uses=[rax] creates=[] pre=[r8->rax]  => 498bc0c3
+
+--- codegen: mulHigh ---
+block #0:
+  jmp uses=[] creates=[] pre=[rcx->r8, rdx->rcx]  => 4c8bc1488bca
+block #1:
+  mulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->r9]  => 488bc748f7e64c8bca
+  imulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->rsi]  => 488bc748f7ee488bf2
+  mulhi uses=[rax, r8] creates=[rdx] pre=[rcx->rax]  => 488bc141f7e0
+  imm uses=[] creates=[rdi]  => bf07000000
+  imulhi uses=[rax, rdi] creates=[rdx] pre=[rcx->rax]  => 488bc1f7ef
+  add uses=[r9, rsi] creates=[r9]  => 4901f1
+  ret uses=[rax] creates=[] pre=[r9->rax]  => 498bc1c3
 
 --- codegen: remLiveResult ---
 block #0:

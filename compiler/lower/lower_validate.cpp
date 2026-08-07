@@ -692,6 +692,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::IDiv:
         case LowerInst::Rem:
         case LowerInst::IRem:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
             return validateArith(diagnostics, base, (LowerInstBinary*)inst, false);
         case LowerInst::Shl:
         case LowerInst::Shr:

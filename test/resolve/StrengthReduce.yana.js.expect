@@ -1,0 +1,141 @@
+"use strict";
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+  return;
+}
+
+// ResolveTest
+function magL(v) {
+  return v < 0n ? BigInt.asIntN(64, 0n - v) : v;
+}
+
+function magI(v) {
+  return v < 0 ? 0 - v | 0 : v;
+}
+
+function okL(x, d, q, r) {
+  var v13;
+  var v41;
+  var v6 = BigInt.asIntN(64, BigInt.asIntN(64, q * d) + r) === x;
+  if (v6) {
+    v13 = magL(r) < magL(d);
+  } else {
+    v13 = v6;
+  }
+  if (v13) {
+    var v17 = r <= 0n;
+    var v49 = v17 ? x <= 0n : v17;
+    var v28 = r >= 0n;
+    v41 = v49 ? v49 : v28 ? x >= 0n : v28;
+  } else {
+    v41 = v13;
+  }
+  return v41 ? 1 : 0;
+}
+
+function okI(x, d, q, r) {
+  var v13;
+  var v41;
+  var v6 = (Math.imul(q, d) + r | 0) === x;
+  if (v6) {
+    v13 = magI(r) < magI(d);
+  } else {
+    v13 = v6;
+  }
+  if (v13) {
+    var v17 = r <= 0;
+    var v49 = v17 ? x <= 0 : v17;
+    var v28 = r >= 0;
+    v41 = v49 ? v49 : v28 ? x >= 0 : v28;
+  } else {
+    v41 = v13;
+  }
+  return v41 ? 1 : 0;
+}
+
+function okU(x, d, q, r) {
+  var v6 = BigInt.asUintN(64, BigInt.asUintN(64, q * d) + r) === x;
+  return (v6 ? r < d : v6) ? 1 : 0;
+}
+
+function okW(x, d, q, r) {
+  var v6 = (Math.imul(q, d) >>> 0) + r >>> 0 === x;
+  return (v6 ? r < d : v6) ? 1 : 0;
+}
+
+function signedLong(x) {
+  return ((((((((((okL(x, 2n, BigInt.asIntN(64, x / 2n), BigInt.asIntN(64, x % 2n)) + okL(x, 8n, BigInt.asIntN(64, x / 8n), BigInt.asIntN(64, x % 8n)) | 0) + okL(x, 4096n, BigInt.asIntN(64, x / 4096n), BigInt.asIntN(64, x % 4096n)) | 0) + okL(x, -2n, BigInt.asIntN(64, x / -2n), BigInt.asIntN(64, x % -2n)) | 0) + okL(x, -8n, BigInt.asIntN(64, x / -8n), BigInt.asIntN(64, x % -8n)) | 0) + okL(x, 3n, BigInt.asIntN(64, x / 3n), BigInt.asIntN(64, x % 3n)) | 0) + okL(x, 7n, BigInt.asIntN(64, x / 7n), BigInt.asIntN(64, x % 7n)) | 0) + okL(x, 10n, BigInt.asIntN(64, x / 10n), BigInt.asIntN(64, x % 10n)) | 0) + okL(x, 100n, BigInt.asIntN(64, x / 100n), BigInt.asIntN(64, x % 100n)) | 0) + okL(x, 1000000007n, BigInt.asIntN(64, x / 1000000007n), BigInt.asIntN(64, x % 1000000007n)) | 0) + okL(x, -3n, BigInt.asIntN(64, x / -3n), BigInt.asIntN(64, x % -3n)) | 0) + okL(x, -10n, BigInt.asIntN(64, x / -10n), BigInt.asIntN(64, x % -10n)) | 0;
+}
+
+function signedInt(x) {
+  return (((((okI(x, 2, x / 2 | 0, x % 2 | 0) + okI(x, 16, x / 16 | 0, x % 16 | 0) | 0) + okI(x, -4, x / -4 | 0, x % -4 | 0) | 0) + okI(x, 3, x / 3 | 0, x % 3 | 0) | 0) + okI(x, 10, x / 10 | 0, x % 10 | 0) | 0) + okI(x, 65521, x / 65521 | 0, x % 65521 | 0) | 0) + okI(x, -7, x / -7 | 0, x % -7 | 0) | 0;
+}
+
+function unsignedLong(x) {
+  return ((((okU(x, 2n, BigInt.asUintN(64, x / 2n), BigInt.asUintN(64, x % 2n)) + okU(x, 64n, BigInt.asUintN(64, x / 64n), BigInt.asUintN(64, x % 64n)) | 0) + okU(x, 3n, BigInt.asUintN(64, x / 3n), BigInt.asUintN(64, x % 3n)) | 0) + okU(x, 10n, BigInt.asUintN(64, x / 10n), BigInt.asUintN(64, x % 10n)) | 0) + okU(x, 7n, BigInt.asUintN(64, x / 7n), BigInt.asUintN(64, x % 7n)) | 0) + okU(x, 641n, BigInt.asUintN(64, x / 641n), BigInt.asUintN(64, x % 641n)) | 0;
+}
+
+function unsignedInt(x) {
+  return ((okW(x, 4, x / 4 >>> 0, x % 4 >>> 0) + okW(x, 5, x / 5 >>> 0, x % 5 >>> 0) | 0) + okW(x, 7, x / 7 >>> 0, x % 7 >>> 0) | 0) + okW(x, 1000, x / 1000 >>> 0, x % 1000 >>> 0) | 0;
+}
+
+function scaled(x) {
+  var v7 = BigInt.asIntN(64, x * 8n) === BigInt.asIntN(64, x << 3n);
+  return (v7 ? BigInt.asIntN(64, x * 1024n) === BigInt.asIntN(64, x << 10n) : v7) ? 1 : 0;
+}
+
+function main() {
+  var longs = [0n, 1n, -1n, 7n, -7n, 100n, -100n, 1000000007n, -1000000007n, 4611686018427387904n, -4611686018427387904n, 9223372036854775807n];
+  var ints = [0, 1, -1, 5, -5, 65521, -65521, 2147483647, -2147483647];
+  var ulongs = [0n, 1n, 7n, 641n, 1000000007n, 9223372036854775807n, 18446744073709551615n, 18446744073709551614n];
+  var uints = [0, 1, 4, 999, 4294967295, 4294967294];
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < 12) {
+      var v123 = i >>> 0;
+      checkCondition(v123 >= 12);
+      var v131 = total + signedLong(longs[i]) | 0;
+      checkCondition(v123 >= 12);
+      total = v131 + scaled(longs[i]) | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  i = 0;
+  L1: for (;;) {
+    if (i < 9) {
+      checkCondition(i >>> 0 >= 9);
+      total = total + signedInt(ints[i]) | 0;
+      i = i + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  i = 0;
+  L2: for (;;) {
+    if (i < 8) {
+      checkCondition(i >>> 0 >= 8);
+      total = total + unsignedLong(ulongs[i]) | 0;
+      i = i + 1 | 0;
+      continue L2;
+    }
+    break L2;
+  }
+  i = 0;
+  L3: for (;;) {
+    if (i < 6) {
+      checkCondition(i >>> 0 >= 6);
+      total = total + unsignedInt(uints[i]) | 0;
+      i = i + 1 | 0;
+      continue L3;
+    }
+    break L3;
+  }
+  return total;
+}
+main();

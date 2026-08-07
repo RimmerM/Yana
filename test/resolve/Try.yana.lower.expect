@@ -125,7 +125,7 @@ parse<complex>(%v_0: Ptr, %n: Int) {
 
   b_5 {
     %v_7 = alloca 8, 4: Ptr
-    %v_8 = imul %n, 2: Int
+    %v_8 = shl %n, 1: Int
     store %v_7, 1, 4
     %v_9 = add %v_7, 4: Ptr
     store %v_9, %v_8, 4
@@ -958,7 +958,7 @@ doubled(Maybe(Int))<complex>(%v_0: Ptr, %x: Int, %body: Ptr) {
     %v_2 = loads @log, 4: Int
     %v_3 = add %v_2, 1000: Int
     store @log, %v_3, 4
-    %v_4 = imul %x, 2: Int
+    %v_4 = shl %x, 1: Int
     %v_5 = add %body, 8: Ptr
     %v_6 = load %body, 8: Ptr
     %v_7 = load %v_5, 8: Ptr

@@ -103,7 +103,7 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_37 {
     %v_38 = load @heapFree, 8: Ptr
-    %v_39 = imul %v_31, 8: Long
+    %v_39 = shl %v_31, 3: Long
     %v_40 = add %v_38, %v_39: Ptr
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
@@ -138,7 +138,7 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_56 = bitcast %v_41: Ptr
     %v_57 = load %v_56, 8: Ptr
     %v_58 = load @heapFree, 8: Ptr
-    %v_59 = imul %v_31, 8: Long
+    %v_59 = shl %v_31, 3: Long
     %v_60 = add %v_58, %v_59: Ptr
     store %v_60, %v_57, 8
     ret %v_41
@@ -182,12 +182,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -326,7 +326,7 @@ byteSpan(Handle)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 4: Long
+    %v_3 = shl %v_2, 2: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -361,7 +361,7 @@ push(Handle)<complex>(%self: Ptr, %item: Ptr) {
   b_13 {
     %v_14 = load %self, 8: Ptr
     %v_15 = sext %count: Long
-    %v_16 = imul %v_15, 4: Long
+    %v_16 = shl %v_15, 2: Long
     %v_17 = add %v_14, %v_16: Ptr
     copy %v_17, %item, 4
     %v_18 = add %count, 1: Int
@@ -461,7 +461,7 @@ remove(Handle)<complex>(%v_0: Ptr, %self: Ptr, %index: Int) {
   b_10 {
     %v_11 = load %self, 8: Ptr
     %v_12 = sext %index: Long
-    %v_13 = imul %v_12, 4: Long
+    %v_13 = shl %v_12, 2: Long
     %v_14 = add %v_11, %v_13: Ptr
     %doomed = alloca 4, 4: Ptr
     copy %doomed, %v_14, 4
@@ -476,10 +476,10 @@ remove(Handle)<complex>(%v_0: Ptr, %self: Ptr, %index: Int) {
 
   b_20 {
     %v_22 = load %self, 8: Ptr
-    %v_23 = imul %v_12, 4: Long
+    %v_23 = shl %v_12, 2: Long
     %v_24 = add %v_22, %v_23: Ptr
     %v_25 = bitcast %v_24: Ptr
-    %v_26 = imul %v_12, 4: Long
+    %v_26 = shl %v_12, 2: Long
     %v_27 = add %v_22, %v_26: Ptr
     %v_28 = add %v_27, 4: Ptr
     %v_29 = bitcast %v_28: Ptr
@@ -570,7 +570,7 @@ slice(Handle)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: L
   b_20 {
     %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
     %v_22 = alloca 16, 8: Ptr
-    %v_23 = imul %v_11, 4: Long
+    %v_23 = shl %v_11, 2: Long
     %v_24 = add %self$items, %v_23: Ptr
     %v_25 = sub %v_21, %v_11: Long
     store %v_22, %v_24, 8
@@ -621,7 +621,7 @@ Reclaim(Array(a)).reclaim(Handle)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 4: Long
+    %v_20 = shl %v_19, 2: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_22 = load %v_21, 4: Int
     call_complex -=(Int), @live, 1
@@ -667,7 +667,7 @@ idsOf<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   }
 
   b_4 {
-    %v_17 = imul %v_6, 4: Long
+    %v_17 = shl %v_6, 2: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = loads %v_18, 4: Int
     %v_5 = add %v_11, %v_19: Int

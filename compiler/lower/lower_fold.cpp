@@ -34,6 +34,36 @@ I64 signedValue(U64 value, U32 bits) {
     return I64(value << spare) >> spare;
 }
 
+/*
+ * The top 64 bits of a 64x64 product, out of 32-bit pieces.
+ *
+ * By hand rather than through a wider integer type because there is no portable one: `__int128` is
+ * a GNU extension and this builds under MSVC too. Four partial products, and the only subtle line
+ * is the carry - the two cross terms and the top half of the low product all land in the same
+ * 32-bit column, and their sum can reach into the next.
+ */
+U64 highProduct(U64 a, U64 b) {
+    auto aLow = a & 0xffffffffu, aHigh = a >> 32;
+    auto bLow = b & 0xffffffffu, bHigh = b >> 32;
+
+    auto low = aLow * bLow;
+    auto crossA = aHigh * bLow;
+    auto crossB = aLow * bHigh;
+
+    auto carry = ((low >> 32) + (crossA & 0xffffffffu) + (crossB & 0xffffffffu)) >> 32;
+    return aHigh * bHigh + (crossA >> 32) + (crossB >> 32) + carry;
+}
+
+// The same half read as a signed number. The unsigned product treats each sign bit as magnitude
+// worth 2^64, so a negative operand has contributed the other operand's whole value one place too
+// high, and subtracting it once per negative operand is the correction.
+I64 signedHighProduct(I64 a, I64 b) {
+    auto high = I64(highProduct(U64(a), U64(b)));
+    if(a < 0) high -= b;
+    if(b < 0) high -= a;
+    return high;
+}
+
 // Both operands known: the operation itself, at `bits`. False where the answer is not one this may
 // state - a division by zero, or a shift by a distance the machine would have masked.
 bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
@@ -61,6 +91,16 @@ bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
         case LowerInst::IRem:
             if(!sb || (sa == lowest && sb == -1)) return false;
             into = U64(sa % sb);
+            break;
+
+        // The half of the product that does not fit, which is the one thing here that has to be
+        // computed at *twice* the operands' width. A 32-bit pair fits a U64; a 64-bit pair is the
+        // schoolbook split, because there is no wider integer to hold it.
+        case LowerInst::MulHi:
+            into = bits <= 32 ? (a * b) >> bits : highProduct(a, b);
+            break;
+        case LowerInst::IMulHi:
+            into = bits <= 32 ? U64(sa * sb) >> bits : U64(signedHighProduct(sa, sb));
             break;
 
         case LowerInst::Shl: if(b >= bits) return false; into = a << b; break;
@@ -188,6 +228,13 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
         case LowerInst::IMul:
             if(knownRhs && b == 1) return forward(lhs);
             if(knownLhs && a == 1) return forward(rhs);
+            if((knownRhs && b == 0) || (knownLhs && a == 0)) return Folded::value(0);
+            break;
+
+        // Only the zero, and no `forward` for it: the high half of a product is not one of the
+        // operands at any multiplier, and at 1 it is zero unsigned and the sign extension signed.
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
             if((knownRhs && b == 0) || (knownLhs && a == 0)) return Folded::value(0);
             break;
 

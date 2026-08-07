@@ -50,6 +50,14 @@ struct LowerInst {
         Rem,                // Remainder:  int % int
         IRem,               // Signed rem: int % int
 
+        // The *top* half of a product twice as wide as its operands: `mulhi a, b` at Int64 is bits
+        // 64..127 of `a * b`. Every machine that has a multiply produces this half beside the low
+        // one and throws it away; it is here because the reciprocal a division by a constant turns
+        // into is exactly that half and nothing else - see lower_strength.h, which is the only
+        // thing that builds one.
+        MulHi,              // Unsigned high multiply: int * int
+        IMulHi,             // Signed high multiply:   int * int
+
         // Bitwise integer operations (some support int - ptr operation as well):
         Shl,
         Shr,

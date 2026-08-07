@@ -59,6 +59,8 @@ enum : MachineOpcodeId {
     OpIDiv,
     OpRem,
     OpIRem,
+    OpMulHi,
+    OpIMulHi,
     OpShl,
     OpShr,
     OpSar,

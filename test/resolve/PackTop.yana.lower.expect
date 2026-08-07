@@ -83,7 +83,7 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_37 {
     %v_38 = load @heapFree, 8: Ptr
-    %v_39 = imul %v_31, 8: Long
+    %v_39 = shl %v_31, 3: Long
     %v_40 = add %v_38, %v_39: Ptr
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
@@ -118,7 +118,7 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_56 = bitcast %v_41: Ptr
     %v_57 = load %v_56, 8: Ptr
     %v_58 = load @heapFree, 8: Ptr
-    %v_59 = imul %v_31, 8: Long
+    %v_59 = shl %v_31, 3: Long
     %v_60 = add %v_58, %v_59: Ptr
     store %v_60, %v_57, 8
     ret %v_41
@@ -162,12 +162,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -445,7 +445,7 @@ byteSpan(B2)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 2: Long
+    %v_3 = shl %v_2, 1: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -585,7 +585,7 @@ byteSpan(B4)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 4: Long
+    %v_3 = shl %v_2, 2: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -725,7 +725,7 @@ byteSpan(Gap)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 2: Long
+    %v_3 = shl %v_2, 1: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -865,7 +865,7 @@ byteSpan(Signed)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
     %v_2 = sext %count: Long
-    %v_3 = imul %v_2, 4: Long
+    %v_3 = shl %v_2, 2: Long
     %v_4 = add %from, %v_3: Ptr
     %v_5 = bitcast %v_4: Ptr
     %v_6 = sub %v_5, %v_1: Long
@@ -993,7 +993,7 @@ push(B2)<complex>(%self: Ptr, %item: Ptr) {
   b_12 {
     %v_13 = load %self, 8: Ptr
     %v_14 = sext %count: Long
-    %v_15 = imul %v_14, 2: Long
+    %v_15 = shl %v_14, 1: Long
     %v_16 = add %v_13, %v_15: Ptr
     copy %v_16, %item, 2
     %v_17 = add %count, 1: Int
@@ -1087,7 +1087,7 @@ push(B4)<complex>(%self: Ptr, %item: Ptr) {
   b_12 {
     %v_13 = load %self, 8: Ptr
     %v_14 = sext %count: Long
-    %v_15 = imul %v_14, 4: Long
+    %v_15 = shl %v_14, 2: Long
     %v_16 = add %v_13, %v_15: Ptr
     copy %v_16, %item, 4
     %v_17 = add %count, 1: Int
@@ -1181,7 +1181,7 @@ push(Gap)<complex>(%self: Ptr, %item: Ptr) {
   b_12 {
     %v_13 = load %self, 8: Ptr
     %v_14 = sext %count: Long
-    %v_15 = imul %v_14, 2: Long
+    %v_15 = shl %v_14, 1: Long
     %v_16 = add %v_13, %v_15: Ptr
     copy %v_16, %item, 2
     %v_17 = add %count, 1: Int
@@ -1275,7 +1275,7 @@ push(Signed)<complex>(%self: Ptr, %item: Ptr) {
   b_12 {
     %v_13 = load %self, 8: Ptr
     %v_14 = sext %count: Long
-    %v_15 = imul %v_14, 4: Long
+    %v_15 = shl %v_14, 2: Long
     %v_16 = add %v_13, %v_15: Ptr
     copy %v_16, %item, 4
     %v_17 = add %count, 1: Int
@@ -1428,7 +1428,7 @@ Reclaim(Array(a)).reclaim(B2)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 2: Long
+    %v_20 = shl %v_19, 1: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
@@ -1475,7 +1475,7 @@ Reclaim(Array(a)).reclaim(B4)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 4: Long
+    %v_20 = shl %v_19, 2: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
@@ -1522,7 +1522,7 @@ Reclaim(Array(a)).reclaim(Gap)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 2: Long
+    %v_20 = shl %v_19, 1: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
@@ -1569,7 +1569,7 @@ Reclaim(Array(a)).reclaim(Signed)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 4: Long
+    %v_20 = shl %v_19, 2: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3

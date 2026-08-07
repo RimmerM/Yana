@@ -28,12 +28,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -80,7 +80,7 @@ Reclaim(Array(a)).reclaim(Point)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 8: Long
+    %v_20 = shl %v_19, 3: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
@@ -283,7 +283,7 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
   }
 
   b_15 {
-    %v_17 = imul %v_10, 8: Long
+    %v_17 = shl %v_10, 3: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = add %body, 8: Ptr
     %v_20 = load %body, 8: Ptr
@@ -439,7 +439,7 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
   }
 
   b_15 {
-    %v_17 = imul %v_10, 8: Long
+    %v_17 = shl %v_10, 3: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = add %body, 8: Ptr
     %v_20 = load %body, 8: Ptr
@@ -660,7 +660,7 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
   }
 
   b_15 {
-    %v_17 = imul %v_10, 8: Long
+    %v_17 = shl %v_10, 3: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = add %body, 8: Ptr
     %v_20 = load %body, 8: Ptr
@@ -733,7 +733,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   }
 
   b_15 {
-    %v_17 = imul %v_10, 4: Long
+    %v_17 = shl %v_10, 2: Long
     %v_18 = add %xs$items, %v_17: Ptr
     %v_19 = loads %v_18, 4: Int
     %v_20 = add %body, 8: Ptr

@@ -41,7 +41,7 @@ zero<complex>(): Int {
 
 doubled<complex>(%value: Int): Int {
   b_0 {
-    %v_1 = imul %value, 2: Int
+    %v_1 = shl %value, 1: Int
     ret %v_1
   }
 }
@@ -55,10 +55,10 @@ main<complex>(): Int {
     %v_4 = select %v_1, %v_3, %v_2: Float
     %v_5 = cmp_gt %v_4, 2.5: Int
     %v_6 = select 5, 0, %v_5: Int
-    %v_7 = imul %v_6, 256: Int
+    %v_7 = shl %v_6, 8: Int
     %v_8 = add %v_7, 1310: Int
     %v_9 = call_complex smallest, 5: Int
-    %v_10 = imul %v_9, 512: Int
+    %v_10 = shl %v_9, 9: Int
     %v_11 = add %v_8, %v_10: Int
     %v_12 = call_complex zero: Int
     %v_13 = cmp_neq %v_12, 0: Int
@@ -76,11 +76,11 @@ main<complex>(): Int {
 
   b_16 {
     %v_18 = phi [b_14, %v_17], [b_15, 0]: Int
-    %v_19 = imul %v_18, 1024: Int
+    %v_19 = shl %v_18, 10: Int
     %v_20 = add %v_11, %v_19: Int
     %v_21 = add %v_20, 10240: Int
     %v_22 = call_complex doubled, 3: Int
-    %v_23 = imul %v_22, 4096: Int
+    %v_23 = shl %v_22, 12: Int
     %v_24 = add %v_21, %v_23: Int
     ret %v_24
   }

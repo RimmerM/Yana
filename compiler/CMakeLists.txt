@@ -193,6 +193,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_fold.cpp
     lower/lower_promote.h
     lower/lower_promote.cpp
+    lower/lower_strength.h
+    lower/lower_strength.cpp
 )
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})

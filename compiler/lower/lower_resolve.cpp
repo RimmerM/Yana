@@ -343,6 +343,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("idiv"_v), handleBinary<LowerInst::IDiv>());
     instructionSet.add(Context::nameHash("rem"_v), handleBinary<LowerInst::Rem>());
     instructionSet.add(Context::nameHash("irem"_v), handleBinary<LowerInst::IRem>());
+    instructionSet.add(Context::nameHash("mulhi"_v), handleBinary<LowerInst::MulHi>());
+    instructionSet.add(Context::nameHash("imulhi"_v), handleBinary<LowerInst::IMulHi>());
     instructionSet.add(Context::nameHash("shl"_v), handleBinary<LowerInst::Shl>());
     instructionSet.add(Context::nameHash("shr"_v), handleBinary<LowerInst::Shr>());
     instructionSet.add(Context::nameHash("sar"_v), handleBinary<LowerInst::Sar>());

@@ -22,12 +22,12 @@ freeHeap<complex>(%allocation: Ptr) {
     %sizeClass = loads %v_7, 8: Long
     %v_8 = bitcast %allocation: Ptr
     %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
+    %v_10 = shl %sizeClass, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
+    %v_14 = shl %sizeClass, 3: Long
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
@@ -95,7 +95,7 @@ Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
   b_5 {
     %v_18 = load %value, 8: Ptr
     %v_19 = sext %v_4: Long
-    %v_20 = imul %v_19, 8: Long
+    %v_20 = shl %v_19, 3: Long
     %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
@@ -241,7 +241,7 @@ sumOfTwo(Array(Int), I64, Int)<complex>(%xs: Ptr, %a: Long, %b: Long): Int {
 
   b_9 {
     %v_11 = load %xs, 8: Ptr
-    %v_12 = imul %a, 4: Long
+    %v_12 = shl %a, 2: Long
     %v_13 = add %v_11, %v_12: Ptr
     %v_14 = loads %v_13, 4: Int
     %v_15 = add %xs, 12: Ptr
@@ -264,7 +264,7 @@ sumOfTwo(Array(Int), I64, Int)<complex>(%xs: Ptr, %a: Long, %b: Long): Int {
 
   b_23 {
     %v_25 = load %xs, 8: Ptr
-    %v_26 = imul %b, 4: Long
+    %v_26 = shl %b, 2: Long
     %v_27 = add %v_25, %v_26: Ptr
     %v_28 = loads %v_27, 4: Int
     %v_29 = add %v_14, %v_28: Int

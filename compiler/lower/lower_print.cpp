@@ -179,6 +179,10 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "rem"_v;
         case LowerInst::IRem:
             return "irem"_v;
+        case LowerInst::MulHi:
+            return "mulhi"_v;
+        case LowerInst::IMulHi:
+            return "imulhi"_v;
         case LowerInst::Shl:
             return "shl"_v;
         case LowerInst::Shr:

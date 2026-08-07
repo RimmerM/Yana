@@ -14,6 +14,20 @@ mulDivShift(%a: Int, %b: Int): Int {
     }
 }
 
+# The high halves, which are the same two group-3 multiplies read for the register they usually
+# throw away: the result is rdx and rax is the clobber, where `mul` and `imul` have it the other way
+# round. Both widths, since the 32-bit one is the same encoding without the REX.W.
+mulHigh(%a: Long, %b: Long, %c: Int, %d: Int): Long {
+    {
+        %h1 = mulhi %a, %b: Long
+        %h2 = imulhi %a, %b: Long
+        %h3 = mulhi %c, %d: Int
+        %h4 = imulhi %c, 7: Int
+        %s = add %h1, %h2: Long
+        ret %s
+    }
+}
+
 # `rem` produces its result in rdx while reading its dividend from rax, so both have to be clear of
 # anything still live - including a value that only passes through, like %c here (the third argument,
 # which arrives in rdx).

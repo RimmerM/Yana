@@ -1,0 +1,707 @@
+@image$base = []
+
+okL<complex>(%x: Long, %d: Long, %q: Long, %r: Long): Int {
+  b_0 {
+    %v_1 = imul %q, %d: Long
+    %v_2 = add %v_1, %r: Long
+    %v_3 = cmp_eq %v_2, %x: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_7 = cmp_ilt %r, 0: Int
+    %v_8 = sub 0, %r: Long
+    %v_9 = select %v_8, %r, %v_7: Long
+    %v_10 = cmp_ilt %d, 0: Int
+    %v_11 = sub 0, %d: Long
+    %v_12 = select %v_11, %d, %v_10: Long
+    %v_13 = cmp_ilt %v_9, %v_12: Int
+    jmp b_6
+  }
+
+  b_6 {
+    %v_14 = phi [b_4, %v_13], [b_5, %v_3]: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_15 {
+    %v_18 = cmp_ile %r, 0: Int
+    %v_19 = cmp_ile %x, 0: Int
+    %v_20 = select %v_19, %v_18, %v_18: Int
+    %v_21 = cmp_ige %r, 0: Int
+    %v_22 = cmp_ige %x, 0: Int
+    %v_23 = select %v_22, %v_21, %v_21: Int
+    %v_24 = select %v_20, %v_23, %v_20: Int
+    jmp b_17
+  }
+
+  b_17 {
+    %v_25 = phi [b_15, %v_24], [b_16, %v_14]: Int
+    %v_26 = select 1, 0, %v_25: Int
+    ret %v_26
+  }
+}
+
+okI<complex>(%x: Int, %d: Int, %q: Int, %r: Int): Int {
+  b_0 {
+    %v_1 = imul %q, %d: Int
+    %v_2 = add %v_1, %r: Int
+    %v_3 = cmp_eq %v_2, %x: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_7 = cmp_ilt %r, 0: Int
+    %v_8 = sub 0, %r: Int
+    %v_9 = select %v_8, %r, %v_7: Int
+    %v_10 = cmp_ilt %d, 0: Int
+    %v_11 = sub 0, %d: Int
+    %v_12 = select %v_11, %d, %v_10: Int
+    %v_13 = cmp_ilt %v_9, %v_12: Int
+    jmp b_6
+  }
+
+  b_6 {
+    %v_14 = phi [b_4, %v_13], [b_5, %v_3]: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_15 {
+    %v_18 = cmp_ile %r, 0: Int
+    %v_19 = cmp_ile %x, 0: Int
+    %v_20 = select %v_19, %v_18, %v_18: Int
+    %v_21 = cmp_ige %r, 0: Int
+    %v_22 = cmp_ige %x, 0: Int
+    %v_23 = select %v_22, %v_21, %v_21: Int
+    %v_24 = select %v_20, %v_23, %v_20: Int
+    jmp b_17
+  }
+
+  b_17 {
+    %v_25 = phi [b_15, %v_24], [b_16, %v_14]: Int
+    %v_26 = select 1, 0, %v_25: Int
+    ret %v_26
+  }
+}
+
+okU<complex>(%x: Long, %d: Long, %q: Long, %r: Long): Int {
+  b_0 {
+    %v_1 = mul %q, %d: Long
+    %v_2 = add %v_1, %r: Long
+    %v_3 = cmp_eq %v_2, %x: Int
+    %v_4 = cmp_lt %r, %d: Int
+    %v_5 = select %v_4, %v_3, %v_3: Int
+    %v_6 = select 1, 0, %v_5: Int
+    ret %v_6
+  }
+}
+
+okW<complex>(%x: Int, %d: Int, %q: Int, %r: Int): Int {
+  b_0 {
+    %v_1 = mul %q, %d: Int
+    %v_2 = add %v_1, %r: Int
+    %v_3 = cmp_eq %v_2, %x: Int
+    %v_4 = cmp_lt %r, %d: Int
+    %v_5 = select %v_4, %v_3, %v_3: Int
+    %v_6 = select 1, 0, %v_5: Int
+    ret %v_6
+  }
+}
+
+signedLong<complex>(%x: Long): Int {
+  b_0 {
+    %v_1 = sar %x, 63: Long
+    %v_2 = shr %v_1, 63: Long
+    %v_3 = add %x, %v_2: Long
+    %v_4 = sar %v_3, 1: Long
+    %v_5 = sar %x, 63: Long
+    %v_6 = shr %v_5, 63: Long
+    %v_7 = add %x, %v_6: Long
+    %v_8 = and %v_7, 18446744073709551614: Long
+    %v_9 = sub %x, %v_8: Long
+    %v_10 = call_complex okL, %x, 2, %v_4, %v_9: Int
+    %v_11 = sar %x, 63: Long
+    %v_12 = shr %v_11, 61: Long
+    %v_13 = add %x, %v_12: Long
+    %v_14 = sar %v_13, 3: Long
+    %v_15 = sar %x, 63: Long
+    %v_16 = shr %v_15, 61: Long
+    %v_17 = add %x, %v_16: Long
+    %v_18 = and %v_17, 18446744073709551608: Long
+    %v_19 = sub %x, %v_18: Long
+    %v_20 = call_complex okL, %x, 8, %v_14, %v_19: Int
+    %v_21 = add %v_10, %v_20: Int
+    %v_22 = sar %x, 63: Long
+    %v_23 = shr %v_22, 52: Long
+    %v_24 = add %x, %v_23: Long
+    %v_25 = sar %v_24, 12: Long
+    %v_26 = sar %x, 63: Long
+    %v_27 = shr %v_26, 52: Long
+    %v_28 = add %x, %v_27: Long
+    %v_29 = and %v_28, 18446744073709547520: Long
+    %v_30 = sub %x, %v_29: Long
+    %v_31 = call_complex okL, %x, 4096, %v_25, %v_30: Int
+    %v_32 = add %v_21, %v_31: Int
+    %v_33 = sar %x, 63: Long
+    %v_34 = shr %v_33, 63: Long
+    %v_35 = add %x, %v_34: Long
+    %v_36 = sar %v_35, 1: Long
+    %v_37 = neg %v_36: Long
+    %v_38 = sar %x, 63: Long
+    %v_39 = shr %v_38, 63: Long
+    %v_40 = add %x, %v_39: Long
+    %v_41 = and %v_40, 18446744073709551614: Long
+    %v_42 = sub %x, %v_41: Long
+    %v_43 = call_complex okL, %x, 18446744073709551614, %v_37, %v_42: Int
+    %v_44 = add %v_32, %v_43: Int
+    %v_45 = sar %x, 63: Long
+    %v_46 = shr %v_45, 61: Long
+    %v_47 = add %x, %v_46: Long
+    %v_48 = sar %v_47, 3: Long
+    %v_49 = neg %v_48: Long
+    %v_50 = sar %x, 63: Long
+    %v_51 = shr %v_50, 61: Long
+    %v_52 = add %x, %v_51: Long
+    %v_53 = and %v_52, 18446744073709551608: Long
+    %v_54 = sub %x, %v_53: Long
+    %v_55 = call_complex okL, %x, 18446744073709551608, %v_49, %v_54: Int
+    %v_56 = add %v_44, %v_55: Int
+    %v_57 = imulhi %x, 6148914691236517206: Long
+    %v_58 = shr %v_57, 63: Long
+    %v_59 = add %v_57, %v_58: Long
+    %v_60 = imulhi %x, 6148914691236517206: Long
+    %v_61 = shr %v_60, 63: Long
+    %v_62 = add %v_60, %v_61: Long
+    %v_63 = imul %v_62, 3: Long
+    %v_64 = sub %x, %v_63: Long
+    %v_65 = call_complex okL, %x, 3, %v_59, %v_64: Int
+    %v_66 = add %v_56, %v_65: Int
+    %v_67 = imulhi %x, 5270498306774157605: Long
+    %v_68 = sar %v_67, 1: Long
+    %v_69 = shr %v_68, 63: Long
+    %v_70 = add %v_68, %v_69: Long
+    %v_71 = imulhi %x, 5270498306774157605: Long
+    %v_72 = sar %v_71, 1: Long
+    %v_73 = shr %v_72, 63: Long
+    %v_74 = add %v_72, %v_73: Long
+    %v_75 = imul %v_74, 7: Long
+    %v_76 = sub %x, %v_75: Long
+    %v_77 = call_complex okL, %x, 7, %v_70, %v_76: Int
+    %v_78 = add %v_66, %v_77: Int
+    %v_79 = imulhi %x, 7378697629483820647: Long
+    %v_80 = sar %v_79, 2: Long
+    %v_81 = shr %v_80, 63: Long
+    %v_82 = add %v_80, %v_81: Long
+    %v_83 = imulhi %x, 7378697629483820647: Long
+    %v_84 = sar %v_83, 2: Long
+    %v_85 = shr %v_84, 63: Long
+    %v_86 = add %v_84, %v_85: Long
+    %v_87 = imul %v_86, 10: Long
+    %v_88 = sub %x, %v_87: Long
+    %v_89 = call_complex okL, %x, 10, %v_82, %v_88: Int
+    %v_90 = add %v_78, %v_89: Int
+    %v_91 = imulhi %x, 11805916207174113035: Long
+    %v_92 = add %v_91, %x: Long
+    %v_93 = sar %v_92, 6: Long
+    %v_94 = shr %v_93, 63: Long
+    %v_95 = add %v_93, %v_94: Long
+    %v_96 = imulhi %x, 11805916207174113035: Long
+    %v_97 = add %v_96, %x: Long
+    %v_98 = sar %v_97, 6: Long
+    %v_99 = shr %v_98, 63: Long
+    %v_100 = add %v_98, %v_99: Long
+    %v_101 = imul %v_100, 100: Long
+    %v_102 = sub %x, %v_101: Long
+    %v_103 = call_complex okL, %x, 100, %v_95, %v_102: Int
+    %v_104 = add %v_90, %v_103: Int
+    %v_105 = imulhi %x, 9903520244958400485: Long
+    %v_106 = add %v_105, %x: Long
+    %v_107 = sar %v_106, 29: Long
+    %v_108 = shr %v_107, 63: Long
+    %v_109 = add %v_107, %v_108: Long
+    %v_110 = imulhi %x, 9903520244958400485: Long
+    %v_111 = add %v_110, %x: Long
+    %v_112 = sar %v_111, 29: Long
+    %v_113 = shr %v_112, 63: Long
+    %v_114 = add %v_112, %v_113: Long
+    %v_115 = imul %v_114, 1000000007: Long
+    %v_116 = sub %x, %v_115: Long
+    %v_117 = call_complex okL, %x, 1000000007, %v_109, %v_116: Int
+    %v_118 = add %v_104, %v_117: Int
+    %v_119 = imulhi %x, 6148914691236517205: Long
+    %v_120 = sub %v_119, %x: Long
+    %v_121 = sar %v_120, 1: Long
+    %v_122 = shr %v_121, 63: Long
+    %v_123 = add %v_121, %v_122: Long
+    %v_124 = imulhi %x, 6148914691236517205: Long
+    %v_125 = sub %v_124, %x: Long
+    %v_126 = sar %v_125, 1: Long
+    %v_127 = shr %v_126, 63: Long
+    %v_128 = add %v_126, %v_127: Long
+    %v_129 = imul %v_128, 18446744073709551613: Long
+    %v_130 = sub %x, %v_129: Long
+    %v_131 = call_complex okL, %x, 18446744073709551613, %v_123, %v_130: Int
+    %v_132 = add %v_118, %v_131: Int
+    %v_133 = imulhi %x, 11068046444225730969: Long
+    %v_134 = sar %v_133, 2: Long
+    %v_135 = shr %v_134, 63: Long
+    %v_136 = add %v_134, %v_135: Long
+    %v_137 = imulhi %x, 11068046444225730969: Long
+    %v_138 = sar %v_137, 2: Long
+    %v_139 = shr %v_138, 63: Long
+    %v_140 = add %v_138, %v_139: Long
+    %v_141 = imul %v_140, 18446744073709551606: Long
+    %v_142 = sub %x, %v_141: Long
+    %v_143 = call_complex okL, %x, 18446744073709551606, %v_136, %v_142: Int
+    %v_144 = add %v_132, %v_143: Int
+    ret %v_144
+  }
+}
+
+signedInt<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = sar %x, 31: Int
+    %v_2 = shr %v_1, 31: Int
+    %v_3 = add %x, %v_2: Int
+    %v_4 = sar %v_3, 1: Int
+    %v_5 = sar %x, 31: Int
+    %v_6 = shr %v_5, 31: Int
+    %v_7 = add %x, %v_6: Int
+    %v_8 = and %v_7, 4294967294: Int
+    %v_9 = sub %x, %v_8: Int
+    %v_10 = call_complex okI, %x, 2, %v_4, %v_9: Int
+    %v_11 = sar %x, 31: Int
+    %v_12 = shr %v_11, 28: Int
+    %v_13 = add %x, %v_12: Int
+    %v_14 = sar %v_13, 4: Int
+    %v_15 = sar %x, 31: Int
+    %v_16 = shr %v_15, 28: Int
+    %v_17 = add %x, %v_16: Int
+    %v_18 = and %v_17, 4294967280: Int
+    %v_19 = sub %x, %v_18: Int
+    %v_20 = call_complex okI, %x, 16, %v_14, %v_19: Int
+    %v_21 = add %v_10, %v_20: Int
+    %v_22 = sar %x, 31: Int
+    %v_23 = shr %v_22, 30: Int
+    %v_24 = add %x, %v_23: Int
+    %v_25 = sar %v_24, 2: Int
+    %v_26 = neg %v_25: Int
+    %v_27 = sar %x, 31: Int
+    %v_28 = shr %v_27, 30: Int
+    %v_29 = add %x, %v_28: Int
+    %v_30 = and %v_29, 4294967292: Int
+    %v_31 = sub %x, %v_30: Int
+    %v_32 = call_complex okI, %x, 18446744073709551612, %v_26, %v_31: Int
+    %v_33 = add %v_21, %v_32: Int
+    %v_34 = imulhi %x, 1431655766: Int
+    %v_35 = shr %v_34, 31: Int
+    %v_36 = add %v_34, %v_35: Int
+    %v_37 = imulhi %x, 1431655766: Int
+    %v_38 = shr %v_37, 31: Int
+    %v_39 = add %v_37, %v_38: Int
+    %v_40 = imul %v_39, 3: Int
+    %v_41 = sub %x, %v_40: Int
+    %v_42 = call_complex okI, %x, 3, %v_36, %v_41: Int
+    %v_43 = add %v_33, %v_42: Int
+    %v_44 = imulhi %x, 1717986919: Int
+    %v_45 = sar %v_44, 2: Int
+    %v_46 = shr %v_45, 31: Int
+    %v_47 = add %v_45, %v_46: Int
+    %v_48 = imulhi %x, 1717986919: Int
+    %v_49 = sar %v_48, 2: Int
+    %v_50 = shr %v_49, 31: Int
+    %v_51 = add %v_49, %v_50: Int
+    %v_52 = imul %v_51, 10: Int
+    %v_53 = sub %x, %v_52: Int
+    %v_54 = call_complex okI, %x, 10, %v_47, %v_53: Int
+    %v_55 = add %v_43, %v_54: Int
+    %v_56 = imulhi %x, 2147975281: Int
+    %v_57 = add %v_56, %x: Int
+    %v_58 = sar %v_57, 15: Int
+    %v_59 = shr %v_58, 31: Int
+    %v_60 = add %v_58, %v_59: Int
+    %v_61 = imulhi %x, 2147975281: Int
+    %v_62 = add %v_61, %x: Int
+    %v_63 = sar %v_62, 15: Int
+    %v_64 = shr %v_63, 31: Int
+    %v_65 = add %v_63, %v_64: Int
+    %v_66 = imul %v_65, 65521: Int
+    %v_67 = sub %x, %v_66: Int
+    %v_68 = call_complex okI, %x, 65521, %v_60, %v_67: Int
+    %v_69 = add %v_55, %v_68: Int
+    %v_70 = imulhi %x, 1840700269: Int
+    %v_71 = sub %v_70, %x: Int
+    %v_72 = sar %v_71, 2: Int
+    %v_73 = shr %v_72, 31: Int
+    %v_74 = add %v_72, %v_73: Int
+    %v_75 = imulhi %x, 1840700269: Int
+    %v_76 = sub %v_75, %x: Int
+    %v_77 = sar %v_76, 2: Int
+    %v_78 = shr %v_77, 31: Int
+    %v_79 = add %v_77, %v_78: Int
+    %v_80 = imul %v_79, 4294967289: Int
+    %v_81 = sub %x, %v_80: Int
+    %v_82 = call_complex okI, %x, 18446744073709551609, %v_74, %v_81: Int
+    %v_83 = add %v_69, %v_82: Int
+    ret %v_83
+  }
+}
+
+unsignedLong<complex>(%x: Long): Int {
+  b_0 {
+    %v_1 = shr %x, 1: Long
+    %v_2 = and %x, 1: Long
+    %v_3 = call_complex okU, %x, 2, %v_1, %v_2: Int
+    %v_4 = shr %x, 6: Long
+    %v_5 = and %x, 63: Long
+    %v_6 = call_complex okU, %x, 64, %v_4, %v_5: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = mulhi %x, 12297829382473034411: Long
+    %v_9 = shr %v_8, 1: Long
+    %v_10 = mulhi %x, 12297829382473034411: Long
+    %v_11 = shr %v_10, 1: Long
+    %v_12 = mul %v_11, 3: Long
+    %v_13 = sub %x, %v_12: Long
+    %v_14 = call_complex okU, %x, 3, %v_9, %v_13: Int
+    %v_15 = add %v_7, %v_14: Int
+    %v_16 = mulhi %x, 14757395258967641293: Long
+    %v_17 = shr %v_16, 3: Long
+    %v_18 = mulhi %x, 14757395258967641293: Long
+    %v_19 = shr %v_18, 3: Long
+    %v_20 = mul %v_19, 10: Long
+    %v_21 = sub %x, %v_20: Long
+    %v_22 = call_complex okU, %x, 10, %v_17, %v_21: Int
+    %v_23 = add %v_15, %v_22: Int
+    %v_24 = mulhi %x, 2635249153387078803: Long
+    %v_25 = sub %x, %v_24: Long
+    %v_26 = shr %v_25, 1: Long
+    %v_27 = add %v_26, %v_24: Long
+    %v_28 = shr %v_27, 2: Long
+    %v_29 = mulhi %x, 2635249153387078803: Long
+    %v_30 = sub %x, %v_29: Long
+    %v_31 = shr %v_30, 1: Long
+    %v_32 = add %v_31, %v_29: Long
+    %v_33 = shr %v_32, 2: Long
+    %v_34 = mul %v_33, 7: Long
+    %v_35 = sub %x, %v_34: Long
+    %v_36 = call_complex okU, %x, 7, %v_28, %v_35: Int
+    %v_37 = add %v_23, %v_36: Int
+    %v_38 = mulhi %x, 14734372801465351681: Long
+    %v_39 = shr %v_38, 9: Long
+    %v_40 = mulhi %x, 14734372801465351681: Long
+    %v_41 = shr %v_40, 9: Long
+    %v_42 = mul %v_41, 641: Long
+    %v_43 = sub %x, %v_42: Long
+    %v_44 = call_complex okU, %x, 641, %v_39, %v_43: Int
+    %v_45 = add %v_37, %v_44: Int
+    ret %v_45
+  }
+}
+
+unsignedInt<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = shr %x, 2: Int
+    %v_2 = and %x, 3: Int
+    %v_3 = call_complex okW, %x, 4, %v_1, %v_2: Int
+    %v_4 = mulhi %x, 3435973837: Int
+    %v_5 = shr %v_4, 2: Int
+    %v_6 = mulhi %x, 3435973837: Int
+    %v_7 = shr %v_6, 2: Int
+    %v_8 = mul %v_7, 5: Int
+    %v_9 = sub %x, %v_8: Int
+    %v_10 = call_complex okW, %x, 5, %v_5, %v_9: Int
+    %v_11 = add %v_3, %v_10: Int
+    %v_12 = mulhi %x, 613566757: Int
+    %v_13 = sub %x, %v_12: Int
+    %v_14 = shr %v_13, 1: Int
+    %v_15 = add %v_14, %v_12: Int
+    %v_16 = shr %v_15, 2: Int
+    %v_17 = mulhi %x, 613566757: Int
+    %v_18 = sub %x, %v_17: Int
+    %v_19 = shr %v_18, 1: Int
+    %v_20 = add %v_19, %v_17: Int
+    %v_21 = shr %v_20, 2: Int
+    %v_22 = mul %v_21, 7: Int
+    %v_23 = sub %x, %v_22: Int
+    %v_24 = call_complex okW, %x, 7, %v_16, %v_23: Int
+    %v_25 = add %v_11, %v_24: Int
+    %v_26 = mulhi %x, 274877907: Int
+    %v_27 = shr %v_26, 6: Int
+    %v_28 = mulhi %x, 274877907: Int
+    %v_29 = shr %v_28, 6: Int
+    %v_30 = mul %v_29, 1000: Int
+    %v_31 = sub %x, %v_30: Int
+    %v_32 = call_complex okW, %x, 1000, %v_27, %v_31: Int
+    %v_33 = add %v_25, %v_32: Int
+    ret %v_33
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %longs = alloca 96, 8: Ptr
+    store %longs, 0, 8
+    %v_1 = add %longs, 8: Ptr
+    store %v_1, 1, 8
+    %v_2 = add %longs, 16: Ptr
+    store %v_2, 18446744073709551615, 8
+    %v_3 = add %longs, 24: Ptr
+    store %v_3, 7, 8
+    %v_4 = add %longs, 32: Ptr
+    store %v_4, 18446744073709551609, 8
+    %v_5 = add %longs, 40: Ptr
+    store %v_5, 100, 8
+    %v_6 = add %longs, 48: Ptr
+    store %v_6, 18446744073709551516, 8
+    %v_7 = add %longs, 56: Ptr
+    store %v_7, 1000000007, 8
+    %v_8 = add %longs, 64: Ptr
+    store %v_8, 18446744072709551609, 8
+    %v_9 = add %longs, 72: Ptr
+    store %v_9, 4611686018427387904, 8
+    %v_10 = add %longs, 80: Ptr
+    store %v_10, 13835058055282163712, 8
+    %v_11 = add %longs, 88: Ptr
+    store %v_11, 9223372036854775807, 8
+    %ints = alloca 36, 4: Ptr
+    store %ints, 0, 4
+    %v_12 = add %ints, 4: Ptr
+    store %v_12, 1, 4
+    %v_13 = add %ints, 8: Ptr
+    store %v_13, 18446744073709551615, 4
+    %v_14 = add %ints, 12: Ptr
+    store %v_14, 5, 4
+    %v_15 = add %ints, 16: Ptr
+    store %v_15, 18446744073709551611, 4
+    %v_16 = add %ints, 20: Ptr
+    store %v_16, 65521, 4
+    %v_17 = add %ints, 24: Ptr
+    store %v_17, 18446744073709486095, 4
+    %v_18 = add %ints, 28: Ptr
+    store %v_18, 2147483647, 4
+    %v_19 = add %ints, 32: Ptr
+    store %v_19, 18446744071562067969, 4
+    %ulongs = alloca 64, 8: Ptr
+    store %ulongs, 0, 8
+    %v_20 = add %ulongs, 8: Ptr
+    store %v_20, 1, 8
+    %v_21 = add %ulongs, 16: Ptr
+    store %v_21, 7, 8
+    %v_22 = add %ulongs, 24: Ptr
+    store %v_22, 641, 8
+    %v_23 = add %ulongs, 32: Ptr
+    store %v_23, 1000000007, 8
+    %v_24 = add %ulongs, 40: Ptr
+    store %v_24, 9223372036854775807, 8
+    %v_25 = add %ulongs, 48: Ptr
+    store %v_25, 18446744073709551615, 8
+    %v_26 = add %ulongs, 56: Ptr
+    store %v_26, 18446744073709551614, 8
+    %uints = alloca 24, 4: Ptr
+    store %uints, 0, 4
+    %v_27 = add %uints, 4: Ptr
+    store %v_27, 1, 4
+    %v_28 = add %uints, 8: Ptr
+    store %v_28, 4, 4
+    %v_29 = add %uints, 12: Ptr
+    store %v_29, 999, 4
+    %v_30 = add %uints, 16: Ptr
+    store %v_30, 4294967295, 4
+    %v_31 = add %uints, 20: Ptr
+    store %v_31, 4294967294, 4
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_0, 0], [b_34, %v_35]: Int
+    %v_36 = phi [b_0, 0], [b_34, %v_37]: Int
+    %v_38 = cmp_ilt %v_36, 12: Int
+    je %v_38, b_39, b_40
+  }
+
+  b_40 {
+    jmp b_41
+  }
+
+  b_41 {
+    %v_42 = phi [b_40, %v_33], [b_43, %v_44]: Int
+    %v_45 = phi [b_40, 0], [b_43, %v_46]: Int
+    %v_47 = cmp_ilt %v_45, 9: Int
+    je %v_47, b_48, b_49
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = phi [b_49, %v_42], [b_52, %v_53]: Int
+    %v_54 = phi [b_49, 0], [b_52, %v_55]: Int
+    %v_56 = cmp_ilt %v_54, 8: Int
+    je %v_56, b_57, b_58
+  }
+
+  b_58 {
+    jmp b_59
+  }
+
+  b_59 {
+    %v_60 = phi [b_58, %v_51], [b_61, %v_62]: Int
+    %v_63 = phi [b_58, 0], [b_61, %v_64]: Int
+    %v_65 = cmp_ilt %v_63, 6: Int
+    je %v_65, b_66, b_67
+  }
+
+  b_67 {
+    ret %v_60
+  }
+
+  b_66 {
+    %v_68 = sext %v_63: Long
+    %v_69 = cast %v_63: Long
+    %v_70 = cmp_ge %v_69, 6: Int
+    je %v_70, b_71, b_72
+  }
+
+  b_72 {
+    jmp b_61
+  }
+
+  b_71 {
+    %v_73 = syscall 60, 134: Long
+    jmp b_61
+  }
+
+  b_61 {
+    %v_74 = shl %v_68, 2: Long
+    %v_75 = add %uints, %v_74: Ptr
+    %v_76 = load %v_75, 4: Int
+    %v_77 = call_complex unsignedInt, %v_76: Int
+    %v_62 = add %v_60, %v_77: Int
+    %v_64 = add %v_63, 1: Int
+    jmp b_59
+  }
+
+  b_57 {
+    %v_78 = sext %v_54: Long
+    %v_79 = cast %v_54: Long
+    %v_80 = cmp_ge %v_79, 8: Int
+    je %v_80, b_81, b_82
+  }
+
+  b_82 {
+    jmp b_52
+  }
+
+  b_81 {
+    %v_83 = syscall 60, 134: Long
+    jmp b_52
+  }
+
+  b_52 {
+    %v_84 = shl %v_78, 3: Long
+    %v_85 = add %ulongs, %v_84: Ptr
+    %v_86 = load %v_85, 8: Long
+    %v_87 = call_complex unsignedLong, %v_86: Int
+    %v_53 = add %v_51, %v_87: Int
+    %v_55 = add %v_54, 1: Int
+    jmp b_50
+  }
+
+  b_48 {
+    %v_88 = sext %v_45: Long
+    %v_89 = cast %v_45: Long
+    %v_90 = cmp_ge %v_89, 9: Int
+    je %v_90, b_91, b_92
+  }
+
+  b_92 {
+    jmp b_43
+  }
+
+  b_91 {
+    %v_93 = syscall 60, 134: Long
+    jmp b_43
+  }
+
+  b_43 {
+    %v_94 = shl %v_88, 2: Long
+    %v_95 = add %ints, %v_94: Ptr
+    %v_96 = loads %v_95, 4: Int
+    %v_97 = call_complex signedInt, %v_96: Int
+    %v_44 = add %v_42, %v_97: Int
+    %v_46 = add %v_45, 1: Int
+    jmp b_41
+  }
+
+  b_39 {
+    %v_98 = sext %v_36: Long
+    %v_99 = cast %v_36: Long
+    %v_100 = cmp_ge %v_99, 12: Int
+    je %v_100, b_101, b_102
+  }
+
+  b_102 {
+    jmp b_103
+  }
+
+  b_101 {
+    %v_104 = syscall 60, 134: Long
+    jmp b_103
+  }
+
+  b_103 {
+    %v_105 = shl %v_98, 3: Long
+    %v_106 = add %longs, %v_105: Ptr
+    %v_107 = loads %v_106, 8: Long
+    %v_108 = call_complex signedLong, %v_107: Int
+    %v_109 = add %v_33, %v_108: Int
+    %v_110 = sext %v_36: Long
+    %v_111 = cast %v_36: Long
+    %v_112 = cmp_ge %v_111, 12: Int
+    je %v_112, b_113, b_114
+  }
+
+  b_114 {
+    jmp b_34
+  }
+
+  b_113 {
+    %v_115 = syscall 60, 134: Long
+    jmp b_34
+  }
+
+  b_34 {
+    %v_116 = shl %v_110, 3: Long
+    %v_117 = add %longs, %v_116: Ptr
+    %v_118 = loads %v_117, 8: Long
+    %v_119 = shl %v_118, 3: Long
+    %v_120 = shl %v_118, 3: Long
+    %v_121 = cmp_eq %v_119, %v_120: Int
+    %v_122 = shl %v_118, 10: Long
+    %v_123 = shl %v_118, 10: Long
+    %v_124 = cmp_eq %v_122, %v_123: Int
+    %v_125 = select %v_124, %v_121, %v_121: Int
+    %v_126 = select 1, 0, %v_125: Int
+    %v_35 = add %v_109, %v_126: Int
+    %v_37 = add %v_36, 1: Int
+    jmp b_32
+  }
+}
+

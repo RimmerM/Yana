@@ -101,13 +101,16 @@ elementStride<complex>(): Long {
     store %v_2, %v_1, 8
     %next = add %node, 16: Ptr
     %v_3 = sub %next, %node: Long
-    %v_4 = idiv %v_3, 16: Long
-    %v_5 = imul %v_4, 100: Long
-    %v_6 = bitcast %node: Ptr
-    %v_7 = bitcast %next: Ptr
-    %v_8 = sub %v_7, %v_6: Long
-    %v_9 = add %v_5, %v_8: Long
-    ret %v_9
+    %v_4 = sar %v_3, 63: Long
+    %v_5 = shr %v_4, 60: Long
+    %v_6 = add %v_3, %v_5: Long
+    %v_7 = sar %v_6, 4: Long
+    %v_8 = imul %v_7, 100: Long
+    %v_9 = bitcast %node: Ptr
+    %v_10 = bitcast %next: Ptr
+    %v_11 = sub %v_10, %v_9: Long
+    %v_12 = add %v_8, %v_11: Long
+    ret %v_12
   }
 }
 
@@ -197,7 +200,7 @@ maybePointer<complex>(): Long {
     store %v_2, %v_1, 8
     %v_3 = call_complex unwrapPointer, %empty: Long
     %v_4 = call_complex unwrapPointer, %full: Long
-    %v_5 = imul %v_4, 2: Long
+    %v_5 = shl %v_4, 1: Long
     %v_6 = add %v_3, %v_5: Long
     ret %v_6
   }
