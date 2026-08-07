@@ -1250,6 +1250,174 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
 }
 
 /*
+ * Folding a load into the instruction that consumes it.
+ *
+ * Most of the AMD64 ALU reads one operand straight out of memory, and §5.5 already takes that for a
+ * *frame slot*. What it does not take is a load the program wrote: `mov rax, [rdi]` followed by
+ * `add rcx, rax` is two instructions where `add rcx, [rdi]` is one, at the same length in bytes.
+ * The form that reads it there is the memory-source twin (MachineForm::memorySource); this is what
+ * moves an instruction onto one. §5 of test/bench/findings.md is the measurement.
+ *
+ * What the fold rewrites is one operand. The consumer stops reading the load's result and reads the
+ * *address* instead, and the load is removed - so what reaches allocation is an instruction shaped
+ * exactly like a load: an `address()` operand holding an X86Address placed immediately above it.
+ * Nothing in placement, legalization, emission or the verifiers learns a case for it; each asks the
+ * selected form which operand is an address and gets an answer it already knew what to do with.
+ *
+ * That the operand holds an X86Address is also the whole record of the fold. It is the one value
+ * that can only ever be an address, so selection reads the decision back off the operand list rather
+ * than off a flag that would have to be kept in step with it - which is why a load whose pointer
+ * arrived in a register is given one here as well. `[reg]` is an addressing mode like any other and
+ * costs nothing to say.
+ *
+ * Three things bound it, and each of the three is load-bearing:
+ *
+ *  - **The load has to be the instruction immediately above.** That is what makes the motion free of
+ *    any question about what may have written memory in between - nothing runs between the two - and
+ *    it is what leaves the address where it has to be: an X86Address sits immediately in front of
+ *    the access that folds it, and taking the load out from between them is what puts it in front of
+ *    the consumer instead.
+ *  - **The encoding reads exactly the bytes the load read.** A narrow load extends into its result,
+ *    which an operand of an ALU instruction has no room to do, and an access at any other width
+ *    would read a neighbouring value. This is the rule directMemoryOperands applies to a frame slot,
+ *    asked of an address instead.
+ *  - **Nothing may be copied into a fixed register in front of the instruction.** The address's own
+ *    base and index are live *into* the consumer - they belong to the X86Address one above it - so a
+ *    copy emitted in front could overwrite one. The destructive copy is covered, by
+ *    collectTieConflicts in place.cpp; a fixed-register operand is not, which is what keeps the
+ *    group-3 `mul` and `div` shapes out of this.
+ */
+
+// Whether exchanging this operation's operands leaves it computing the same thing. The same set
+// trySwapOperands uses, and restricted to the integer bank for the same reason: a float addition is
+// commutative in value but not in which NaN payload the machine propagates.
+static bool isCommutativeInt(LowerInst* inst) {
+    if(!isBinary(inst) || !isIntLike(((LowerInstBinary*)inst)->result.type)) return false;
+
+    switch(inst->kind) {
+        case LowerInst::Add:
+        case LowerInst::Mul:
+        case LowerInst::IMul:
+        case LowerInst::And:
+        case LowerInst::Or:
+        case LowerInst::Xor:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// The bytes a value of this type occupies, which is the access a load performs when it extends
+// nothing. Every scalar the lowering produces is four bytes or eight, which is exactly the
+// distinction a slot class already makes.
+static U32 accessWidthOf(LowerType type) {
+    return stackSlotClassFor(type) == StackSlotClass::Slot32 ? 4 : 8;
+}
+
+// Whether this form requires an operand in a particular register, which is the copy a folded address
+// cannot survive - see the third bound above.
+static bool hasFixedOperands(const MachineForm& form) {
+    for(auto& constraint: form.uses) {
+        if(constraint.kind == OperandConstraintKind::FixedRegister) return true;
+    }
+
+    return false;
+}
+
+// Folds the load above `index` into the instruction at it. Answers where that instruction ended up,
+// or Nothing when it was left alone - in which case nothing has been changed at all: the operand
+// exchange a commutative operation may need is made at the end, with every question already
+// answered, so that a fold which does not happen leaves no trace of having been considered.
+static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
+    if(index == 0) return Nothing();
+
+    auto inst = base[block->instructions.get(base, index)];
+    auto& form = machineTarget().form(selectForm(base, inst));
+
+    // Nothing to fold into: either a form with no memory-capable operand, or one already on its
+    // twin - a folded operand is one the form reads as an address, and there is one r/m field.
+    if(!form.memorySource) return Nothing();
+
+    auto& twin = machineTarget().form(form.memorySource);
+    if(hasFixedOperands(twin)) return Nothing();
+
+    auto memory = Size(form.memoryUse());
+    auto above = base[block->instructions.get(base, index - 1)];
+    if(above->kind != LowerInst::Load) return Nothing();
+
+    auto load = (LowerInstLoad*)above;
+    auto value = &load->result;
+
+    // One reader, and it has to be this instruction. `add %v, %v` reads it in both positions and
+    // only one of them can be the address, which a use count of one already excludes.
+    if(isImplicit(value) || value->uses.size() != 1) return Nothing();
+
+    auto used = inst->used();
+    auto at = used.size();
+    for(Size i = 0; i < used.size(); i++) {
+        if(base[used[i]] == value) at = i;
+    }
+
+    // Which operand holds it has to be the one the encoding can dereference, or an operand a
+    // commutative operation can exchange into it - which is the shape `arr[i] + sum` arrives in.
+    auto exchange = at != memory;
+    if(exchange && !(isCommutativeInt(inst) && used.size() == 2 && at < used.size())) return Nothing();
+
+    // The bytes the encoding reads are the bytes the load read, unextended.
+    if(load->getWidth() != accessWidthOf(value->type)) return Nothing();
+    if(stackSlotClassFor(value->type) != stackSlotClassFor(operationType(base, twin, inst))) return Nothing();
+
+    auto address = base[load->from];
+
+    if(isMem(address)) {
+        // Where the address fold put it, which is what removing the load turns into "immediately
+        // above the consumer". Checked rather than assumed: an address anywhere else would reach the
+        // encoder holding whatever the instructions in between had left in its registers.
+        if(index < 2 || base[block->instructions.get(base, index - 2)] != address->inst()) return Nothing();
+    } else if(isImplicit(address)) {
+        // A pointer the encoding swallowed has no register for an address to be built around.
+        return Nothing();
+    }
+
+    /*
+     * Committed from here: everything below changes the function.
+     */
+
+    if(exchange) ::swap(((LowerInstBinary*)inst)->lhs, ((LowerInstBinary*)inst)->rhs);
+
+    if(!isMem(address)) {
+        // A pointer that reached the load in a register becomes `[reg]`, so that the operand says
+        // what it is without a flag beside it.
+        auto computed = new (fun.arena) LowerInstX86Address(
+            LowerInst::X86Address, StringId(), address - base, nullptr, 1, 0
+        );
+
+        insertInstAt(base, block, index - 1, computed);
+        address = &computed->result;
+        index++;
+    }
+
+    replaceUse(base, value, inst, address);
+    inst->used()[memory] = address - base;
+    removeInst(base, load);
+
+    return Just(index - 1);
+}
+
+static void foldLoads(LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            // A fold removes the load above the instruction and may insert an address in its place,
+            // so the instruction just examined does not stay where the walk left it. Nothing above
+            // it changed shape, so carrying on from wherever it ended up skips nothing.
+            if(auto folded = tryFoldLoad(base, fun, block, i)) i = folded.unwrap();
+        }
+    }
+}
+
+/*
  * Block order.
  *
  * The list is rewritten into reverse postorder, so that a block is - wherever the CFG allows it -
@@ -1349,6 +1517,8 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
  *                              at which removing it actually shortens an interval - and before the
  *                              immediate peephole, so that an immediate the fold leaves with no uses
  *                              is made implicit rather than materialized into a register nothing reads
+ *   selectMemorySources        folds a load into the instruction that consumes it, which needs the
+ *                              address above it to be an X86Address already
  *   selectMachineInstructions  chooses the shape of each instruction: which immediates are embedded,
  *                              which comparisons stay in the flags, which callees are elided, which
  *                              encoding a block operation takes
@@ -1409,6 +1579,22 @@ static void canonicalizeOperands(LowerBase base, LowerFunction& fun) {
 static void selectAddressesAndLeas(LowerBase base, LowerFunction& fun) {
     foldAddresses(base, fun);
     foldLeas(base, fun);
+}
+
+// Folds a load into the instruction that consumes it, where the encoding has a form that reads its
+// operand out of memory: `add rax, [rdi + rcx*8]` in place of a load and an add.
+//
+// After the pass above rather than inside it, and the order is required both ways. The address the
+// load reads has to be an X86Address already, so that the fold inherits the whole addressing mode
+// rather than half of it; and the address folding asks the *opcode* which operand is an address
+// (opcodeAddressOperand), an answer that is only stable while no ALU instruction has been moved onto
+// a memory-source form.
+//
+// Expects: addresses selected.  Establishes: no load reaches allocation whose only reader could have
+// read it out of memory itself. Mutates: the instruction lists, the operand order of a commutative
+// operation, and the affected use lists. Invalidates: instruction positions within a block.
+static void selectMemorySources(LowerBase base, LowerFunction& fun) {
+    foldLoads(base, fun);
 }
 
 // Chooses the shape of each instruction: which immediates are embedded into the encoding, which
@@ -1549,6 +1735,7 @@ static const TransformPass kTransformPipeline[] = {
     { "expandUnsignedConversions"_v,   expandUnsignedConversions,   0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
+    { "selectMemorySources"_v,         selectMemorySources,         0 },
     { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },
     { "lowerOutgoingStackArguments"_v, lowerOutgoingStackArguments, 0 },
     { "normalizePhiEdges"_v,           normalizePhiEdges,           InvariantPhiEdgesNormalized },

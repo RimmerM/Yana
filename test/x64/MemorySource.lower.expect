@@ -1,0 +1,353 @@
+
+sink<complex>(%p: Ptr): Long {
+  b_0 {
+    ret 0
+  }
+}
+
+source<complex>(%p: Ptr): Ptr {
+  b_0 {
+    ret %p
+  }
+}
+
+foldedAdd<complex>(%p: Ptr, %i: Long, %acc: Long): Long {
+  b_0 {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 8: Long
+    %s = add %acc, %v: Long
+    ret %s
+  }
+}
+
+exchangedOperands<complex>(%p: Ptr, %i: Long, %acc: Long): Long {
+  b_0 {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 8: Long
+    %s = add %v, %acc: Long
+    ret %s
+  }
+}
+
+subtractionKeepsOrder<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = sub %v, %acc: Long
+    ret %s
+  }
+}
+
+foldedSubtract<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = sub %acc, %v: Long
+    ret %s
+  }
+}
+
+barePointer<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = and %acc, %v: Long
+    ret %s
+  }
+}
+
+foldedMultiply<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = imul %acc, %v: Long
+    ret %s
+  }
+}
+
+foldedCompare<complex>(%p: Ptr, %x: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %v_1 = cmp_ilt %x, %v: Int
+    je %v_1, less, notLess
+  }
+
+  less {
+    ret 1
+  }
+
+  notLess {
+    ret 0
+  }
+}
+
+foldedFloat<complex>(%p: Ptr, %acc: Double): Double {
+  b_0 {
+    %v = load %p, 8: Double
+    %s = add %acc, %v: Double
+    ret %s
+  }
+}
+
+narrowLoadStays<complex>(%p: Ptr, %acc: Int): Int {
+  b_0 {
+    %v = load %p, 1: Int
+    %s = add %acc, %v: Int
+    ret %s
+  }
+}
+
+twoReadersStay<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = add %acc, %v: Long
+    %t = add %s, %v: Long
+    ret %t
+  }
+}
+
+notAdjacentStays<complex>(%p: Ptr, %acc: Long, %x: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %y = imul %x, %x: Long
+    %s = add %acc, %v: Long
+    %t = add %s, %y: Long
+    ret %t
+  }
+}
+
+divisionStays<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = div %acc, %v: Long
+    ret %s
+  }
+}
+
+escapedPointerStillFolds<complex>(%p: Ptr, %acc: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = add %acc, %v: Long
+    %r = call_complex sink, %p: Long
+    %t = add %s, %r: Long
+    ret %t
+  }
+}
+
+tiedResultAvoidsAddress<complex>(%q: Ptr, %acc: Long): Long {
+  b_0 {
+    %p = call_complex source, %q: Ptr
+    %v = load %p, 8: Long
+    %s = add %acc, %v: Long
+    %t = add %s, %acc: Long
+    ret %t
+  }
+}
+
+twoLoadsOneFolds<complex>(%p: Ptr, %r: Ptr): Long {
+  b_0 {
+    %a = load %p, 8: Long
+    %b = load %r, 8: Long
+    %s = add %a, %b: Long
+    ret %s
+  }
+}
+
+sumArray<sysv>(%p: Ptr, %n: Long): Long {
+  entry {
+    %zero = cast 0: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [body, %i2]: Long
+    %acc = phi [entry, %zero], [body, %acc2]: Long
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, exit, body
+  }
+
+  body {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 8: Long
+    %acc2 = add %acc, %v: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    ret %acc
+  }
+}
+
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[rax]  => 31c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: source ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: foldedAdd ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => 480314f7
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+
+--- codegen: exchangedOperands ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => 480314f7
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+
+--- codegen: subtractionKeepsOrder ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  sub uses=[rdi, rsi] creates=[rdi]  => 4829f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: foldedSubtract ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => 482b37
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: barePointer ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  and uses=[rsi, -] creates=[rsi]  => 482337
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: foldedMultiply ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  imul uses=[rsi, -] creates=[rsi]  => 480faf37
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: foldedCompare ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 483b37
+  je uses=[-] creates=[]  => 0f8c03000000
+block notLess:
+  imm uses=[] creates=[rax]  => 31c0
+  ret uses=[rax] creates=[]  => c3
+block less:
+  imm uses=[] creates=[rax]  => b801000000
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: foldedFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[xmm0, -] creates=[xmm0]  => f20f5807
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: narrowLoadStays ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 0fb63f
+  add uses=[rsi, rdi] creates=[rsi]  => 01fe
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: twoReadersStay ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  add uses=[rsi, rdi] creates=[rsi]  => 4801fe
+  add uses=[rsi, rdi] creates=[rsi]  => 4801fe
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: notAdjacentStays ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  imul uses=[rax, rdx] creates=[rax] pre=[rdx->rax]  => 488bc2480fafc2
+  add uses=[rsi, rdi] creates=[rsi]  => 4801fe
+  add uses=[rsi, rax] creates=[rsi]  => 4801c6
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: divisionStays ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc64831d248f7f7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: escapedPointerStillFolds ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[rbx, -] creates=[rbx] pre=[rsi->rbx]  => 488bde48031f
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e86fffffff
+  add uses=[rbx, rax] creates=[rbx]  => 4801c3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
+
+--- codegen: tiedResultAvoidsAddress ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e861ffffff
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rbx->rcx]  => 488bcb480308
+  add uses=[rcx, rbx] creates=[rcx]  => 4801d9
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc15bc3
+
+--- codegen: twoLoadsOneFolds ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  x86_addr scale=1 disp=0 uses=[rsi] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 48033e
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: sumArray ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => b800000000
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8
+block head:
+  cmp_ige uses=[rax, rsi] creates=[-]  => 4839f0
+  je uses=[-] creates=[]  => 0f8d0c000000
+block body:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rdi, rax] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => 48030cc7
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 48ffc0
+  jmp uses=[] creates=[]  => e9ebffffff
+block exit:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3

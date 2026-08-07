@@ -55,9 +55,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   store uses=[rdi, rsi] creates=[]  => 8937
-  load uses=[rdi] creates=[rdi]  => 8b3f
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => 0337
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
 --- codegen: narrow ---
 block #0:
@@ -80,7 +80,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[rax]  => 488d0540000000
+  global uses=[] creates=[rax]  => 488d0542000000
   load uses=[rax] creates=[rax]  => 8b00
   ret uses=[rax] creates=[]  => c3
 

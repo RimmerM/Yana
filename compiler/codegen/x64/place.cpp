@@ -1028,12 +1028,30 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
 
         auto result = inst->created()[0].liveId();
 
-        for(Size i = 1; i < used.size(); i++) {
-            auto value = a.base[used[i]];
-            if(isImplicit(value) || used[i] == used[0]) continue;
+        auto conflicts = [&](LowerValue* value) {
+            if(isImplicit(value)) return;
 
             out[result].push(value->liveId());
             out[value->liveId()].push(result);
+        };
+
+        for(Size i = 1; i < used.size(); i++) {
+            if(used[i] == used[0]) continue;
+            conflicts(a.base[used[i]]);
+        }
+
+        // A folded address is read after that copy too, and its registers are not operands of this
+        // instruction at all: they belong to the X86Address one above it, whose own life ends there.
+        // So nothing else would keep the result off them - the address value itself is implicit, and
+        // the interference test sees two lives that do not overlap - and the copy in front would
+        // then compute the result into the very register the address is about to be read through.
+        //
+        // Reachable since a load can be folded into a destructive operation (foldLoads in
+        // transform.cpp); before that, the only instructions with a folded address were the ones
+        // with no copy in front of them.
+        auto address = a.machine.formOf(inst).addressOperand();
+        if(address >= 0 && isMem(a.base[used[address]])) {
+            for(auto part: a.base[used[address]]->inst()->used()) conflicts(a.base[part]);
         }
     };
 

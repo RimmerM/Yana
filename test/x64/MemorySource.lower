@@ -1,0 +1,218 @@
+# Folding a load into the instruction that consumes it.
+#
+# `MemoryOperand.lower` covers the half of this that depends on where the *allocator* put a value: an
+# operand left in a frame slot is read there rather than reloaded. This is the other half, and it
+# depends on nothing the allocator does. A load the program wrote whose only reader is an instruction
+# with a memory form is not emitted at all - the reader takes the address instead, and `add rax, [m]`
+# replaces a load and an add.
+#
+# What to look for below: the load gone, and the instruction that consumed it reading `-` in that
+# operand's place with an x86_addr immediately above it. Where a case is deliberately not folded, the
+# load is still there and the property is that it is.
+
+sink<complex>(%p: Ptr): Long {
+    { ret 0L }
+}
+
+source<complex>(%p: Ptr): Ptr {
+    { ret %p }
+}
+
+# The plain case. The address folds into an x86_addr as it would for the load, and the add inherits
+# it whole - one instruction where the lowering wrote three.
+foldedAdd(%p: Ptr, %i: Long, %acc: Long): Long {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 8: Long
+        %s = add %acc, %v: Long
+        ret %s
+    }
+}
+
+# The load in the destructive position. `add r, [m]` computes into the register operand, so the two
+# are exchanged first - which is only legal because addition is commutative, and is what
+# `arr[i] + acc` arrives as.
+exchangedOperands(%p: Ptr, %i: Long, %acc: Long): Long {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 8: Long
+        %s = add %v, %acc: Long
+        ret %s
+    }
+}
+
+# Subtraction is not commutative, so a load in the destructive position stays a load.
+subtractionKeepsOrder(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = sub %v, %acc: Long
+        ret %s
+    }
+}
+
+# The right-hand side of a subtraction is the one it can read from memory.
+foldedSubtract(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = sub %acc, %v: Long
+        ret %s
+    }
+}
+
+# A pointer that reached the load in a register still gets an x86_addr, because `[reg]` is an
+# addressing mode like any other - and because an operand holding one is how everything downstream
+# recognizes that the fold happened.
+barePointer(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = and %acc, %v: Long
+        ret %s
+    }
+}
+
+# The two-operand `imul` has one direction only, so its memory operand is always the right-hand side.
+foldedMultiply(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = imul %acc, %v: Long
+        ret %s
+    }
+}
+
+# A comparison folds its right-hand side and still leaves its own answer in the flags, so the branch
+# below it costs nothing either.
+foldedCompare(%p: Ptr, %x: Long): Long {
+    {
+        %v = load %p, 8: Long
+        je (cmp_ilt %x, %v), less, notLess
+    }
+    less { ret 1L }
+    notLess { ret 0L }
+}
+
+# Scalar SSE has a memory form of every arithmetic operation, and one direction for each.
+foldedFloat(%p: Ptr, %acc: Double): Double {
+    {
+        %v = load %p, 8: Double
+        %s = add %acc, %v: Double
+        ret %s
+    }
+}
+
+# A narrow load extends into its result, and an ALU operand has no room to do that: `add r32, [m]`
+# would read four bytes where the program asked for one. So this is not a form of the addition at
+# all, and the load stays.
+narrowLoadStays(%p: Ptr, %acc: Int): Int {
+    {
+        %v = load %p, 1: Int
+        %s = add %acc, %v: Int
+        ret %s
+    }
+}
+
+# A load read twice has to exist in a register regardless: folding it would perform the access twice
+# rather than not at all.
+twoReadersStay(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = add %acc, %v: Long
+        %t = add %s, %v: Long
+        ret %t
+    }
+}
+
+# The load has to be the instruction immediately above its reader. This one is not - the multiply
+# between them was written there - so nothing is folded, and the property is that nothing is: moving
+# the access past an instruction is a question this fold deliberately never has to ask.
+notAdjacentStays(%p: Ptr, %acc: Long, %x: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %y = imul %x, %x: Long
+        %s = add %acc, %v: Long
+        %t = add %s, %y: Long
+        ret %t
+    }
+}
+
+# A division reads its dividend out of rax, which is a copy emitted in front of the instruction - and
+# the address's own registers are live into it. So the group-3 shapes are excluded and the load stays.
+divisionStays(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = div %acc, %v: Long
+        ret %s
+    }
+}
+
+# The address escapes to a call, so it exists in a register whatever the load does. The load still
+# folds - it reads the pointer, and the pointer is where it was.
+escapedPointerStillFolds(%p: Ptr, %acc: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %s = add %acc, %v: Long
+        %r = call_complex sink, %p: Long
+        %t = add %s, %r: Long
+        ret %t
+    }
+}
+
+# The destructive copy against the address's own registers.
+#
+# `add r, [m]` writes its result over the register operand, so a copy is emitted in front of it
+# whenever that operand is still read afterwards - and the address's base is live *into* the
+# instruction, since it belongs to the x86_addr above rather than to this one. Nothing else keeps the
+# two apart: the address value is implicit, and the base's life ends one instruction earlier, so the
+# interference test sees two lives that do not overlap.
+#
+# Here the pointer comes back from a call, so it is in rax, which is also the first register first-fit
+# offers the addition's result. Without collectTieConflicts knowing about a folded address the copy is
+# `mov rax, rsi` and the add then reads through the value it was about to add. The property is that
+# the register the copy writes is not the one the ModRM byte reads.
+tiedResultAvoidsAddress(%q: Ptr, %acc: Long): Long {
+    {
+        %p = call_complex source, %q: Ptr
+        %v = load %p, 8: Long
+        %s = add %acc, %v: Long
+        %t = add %s, %acc: Long
+        ret %t
+    }
+}
+
+# Two loads, one instruction: only one of them can be the address, and it is the one adjacent to the
+# add. The other keeps its register.
+twoLoadsOneFolds(%p: Ptr, %r: Ptr): Long {
+    {
+        %a = load %p, 8: Long
+        %b = load %r, 8: Long
+        %s = add %a, %b: Long
+        ret %s
+    }
+}
+
+# The whole point, in the shape the benchmark measures it in: a loop whose body is a load and an
+# accumulate becomes a loop whose body is one instruction and the counter.
+sumArray<sysv>(%p: Ptr, %n: Long): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 8: Long
+        %acc2 = add %acc, %v: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit { ret %acc }
+}

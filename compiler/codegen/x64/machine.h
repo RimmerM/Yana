@@ -518,6 +518,18 @@ struct MachineForm {
     EncodingDescriptor encoding;
     TemporaryDemand temporaries;
 
+    // The same operation reading its memory-capable operand from an *address* rather than from a
+    // register or a frame slot: `add rax, [rdi + rcx*8]` where `add r/m, r` reads a second register.
+    // Zero for a form that has no such twin.
+    //
+    // Which of the two an instruction takes is decided by the value in that operand and by nothing
+    // else: an X86Address there is one a load fold put there (foldLoads in transform.cpp), and an
+    // X86Address is the one value that can only ever be an address. `memorySourceOf` is the twin's
+    // own back-pointer, and is what marks it as the one exception to the rule that every form of an
+    // opcode names the same operand as its address (validateMachineForms).
+    MachineFormId memorySource = 0;
+    MachineFormId memorySourceOf = 0;
+
     // The operand that may be read directly out of a frame slot, and the one that may be read and
     // written there in place, as indices into `uses`. At most one of the two can be taken at any one
     // instruction: both want the r/m field, and there is one.

@@ -50,11 +50,11 @@ enum: MachineFormId {
     FormNeg,
     FormNot,
 
-    FormAddReg, FormAddImm,
-    FormSubReg, FormSubImm,
-    FormAndReg, FormAndImm,
-    FormOrReg,  FormOrImm,
-    FormXorReg, FormXorImm,
+    FormAddReg, FormAddImm, FormAddMem,
+    FormSubReg, FormSubImm, FormSubMem,
+    FormAndReg, FormAndImm, FormAndMem,
+    FormOrReg,  FormOrImm,  FormOrMem,
+    FormXorReg, FormXorImm, FormXorMem,
 
     FormAddInc, FormAddDec,
     FormSubInc, FormSubDec,
@@ -67,6 +67,7 @@ enum: MachineFormId {
     FormMulHi,
     FormIMulHi,
     FormIMulReg,
+    FormIMulMem,
     FormIMulImm,
 
     FormShlImm, FormShlOne, FormShlCl,
@@ -75,6 +76,8 @@ enum: MachineFormId {
 
     FormCmpReg,
     FormCmpRegSet,
+    FormCmpMem,
+    FormCmpMemSet,
     FormCmpImm,
     FormCmpImmSet,
 
@@ -84,8 +87,15 @@ enum: MachineFormId {
     FormFDiv32, FormFDiv64,
     FormFNeg32, FormFNeg64,
 
+    FormFAdd32Mem, FormFAdd64Mem,
+    FormFSub32Mem, FormFSub64Mem,
+    FormFMul32Mem, FormFMul64Mem,
+    FormFDiv32Mem, FormFDiv64Mem,
+
     FormFCmp32, FormFCmp32Set,
     FormFCmp64, FormFCmp64Set,
+    FormFCmp32Mem, FormFCmp32MemSet,
+    FormFCmp64Mem, FormFCmp64MemSet,
 
     FormSelectFlags,
     FormSelectReg,
@@ -271,6 +281,75 @@ MachineTarget::MachineTarget() {
         form.id = id;
         form.opcode = opcode;
         form.name = formName;
+        return form;
+    };
+
+    /*
+     * The memory-source twin of a form.
+     *
+     * Most of the AMD64 ALU can read one operand straight out of memory, and §5.5 already takes that
+     * for a *frame slot*: the operand keeps its location and the encoder writes the slot into the
+     * ModRM byte. What it does not take is a load the program actually wrote - `mov rax, [rdi]`
+     * followed by `add rcx, rax` is two instructions where `add rcx, [rdi]` is one - because the
+     * address is not a location, it is an addressing mode, and only an `address()` operand carries
+     * one. So the memory source is a form of its own, and it is *derived* from the register form
+     * rather than written beside it: the two are one operation, and stating the opcode, the flags
+     * effect, the clobbers and the width twice is how they come to disagree.
+     *
+     * Exactly three things differ, and the twin is nothing but those three:
+     *
+     *  - the memory-capable operand becomes an `address()` - the same operand kind a load already
+     *    has, which placement leaves alone and legalization already resolves into a MachineAddress;
+     *  - every *other* operand that could have stayed in a frame slot becomes an ordinary register,
+     *    since the single r/m field is now the address's;
+     *  - the encoding becomes the LoadStore family - which is the one that writes a ModRM byte
+     *    around `regs.address` - in whichever direction reaches the memory operand. The group-1
+     *    shapes encode theirs in the ModRM.reg field of their register form, so those take the other
+     *    direction, which is what `opcodeAlt` already is.
+     *
+     * foldLoads in transform.cpp is what moves an instruction onto one, and §5 of
+     * test/bench/findings.md is the measurement.
+     */
+    auto memoryTwin = [&](MachineFormId id, MachineFormId sourceId, StringView formName) -> MachineForm& {
+        // A copy, taken before `add` below can move the array out from under a reference.
+        auto twin = forms[sourceId];
+        auto memory = twin.memoryUse();
+        assertTrue(memory >= 0); // a memory-source twin of a form with no memory operand
+
+        auto& e = twin.encoding;
+        auto direct = !e.rmField.isNone() && !e.rmField.result && I32(e.rmField.index) == memory;
+
+        // The other direction of the same operation, for the shapes whose register form puts the
+        // memory operand in ModRM.reg: `add r/m, r` becomes `add r, r/m` and the two operands stay
+        // exactly where they were.
+        if(!direct) {
+            assertTrue(e.opcodeAlt != 0 && !e.regField.isNone() && !e.regField.result
+                && I32(e.regField.index) == memory); // a memory operand this encoding cannot address
+
+            e.opcode = e.opcodeAlt;
+            e.regField = e.rmField;
+        }
+
+        e.family = EncodingFamily::LoadStore;
+        e.rmField = useRef(U8(memory));
+        e.opcodeAlt = 0;
+
+        for(Size i = 0; i < twin.uses.size(); i++) {
+            auto& constraint = twin.uses[i];
+
+            if(I32(i) == memory) constraint = address();
+            else if(constraint.kind == OperandConstraintKind::RegisterOrMemory) constraint = anyReg(constraint.regClass);
+        }
+
+        twin.id = id;
+        twin.name = formName;
+        twin.memorySource = 0;
+        twin.memorySourceOf = sourceId;
+
+        auto& form = add(id, twin.opcode, formName);
+        form = twin;
+
+        forms[sourceId].memorySource = id;
         return form;
     };
 
@@ -579,8 +658,9 @@ MachineTarget::MachineTarget() {
      * no register right-hand side to take from anywhere.
      */
 
-    auto binaryAlu = [&](MachineFormId regId, MachineFormId immId, MachineOpcodeId opcode,
-                         StringView regName, StringView immName, U8 rmRegOp, U8 regRmOp, U8 extension)
+    auto binaryAlu = [&](MachineFormId regId, MachineFormId immId, MachineFormId memId, MachineOpcodeId opcode,
+                         StringView regName, StringView immName, StringView memName,
+                         U8 rmRegOp, U8 regRmOp, U8 extension)
     {
         auto& regForm = add(regId, opcode, regName);
         regForm.uses.push(regOrMem(MemoryAccessKind::ReadWrite));
@@ -595,13 +675,20 @@ MachineTarget::MachineTarget() {
         immForm.defs.push(tiedDef(0));
         immForm.flagsEffect = FlagsEffect::Def;
         immForm.encoding = rmExtImm(0x83, 0x81, extension, useRef(0), useRef(1));
+
+        memoryTwin(memId, regId, memName);
     };
 
-    binaryAlu(FormAddReg, FormAddImm, OpAdd, "add r/m, r"_v, "add r/m, imm"_v, 0x01, 0x03, 0);
-    binaryAlu(FormSubReg, FormSubImm, OpSub, "sub r/m, r"_v, "sub r/m, imm"_v, 0x29, 0x2b, 5);
-    binaryAlu(FormAndReg, FormAndImm, OpAnd, "and r/m, r"_v, "and r/m, imm"_v, 0x21, 0x23, 4);
-    binaryAlu(FormOrReg, FormOrImm, OpOr, "or r/m, r"_v, "or r/m, imm"_v, 0x09, 0x0b, 1);
-    binaryAlu(FormXorReg, FormXorImm, OpXor, "xor r/m, r"_v, "xor r/m, imm"_v, 0x31, 0x33, 6);
+    binaryAlu(FormAddReg, FormAddImm, FormAddMem, OpAdd,
+        "add r/m, r"_v, "add r/m, imm"_v, "add r, [address]"_v, 0x01, 0x03, 0);
+    binaryAlu(FormSubReg, FormSubImm, FormSubMem, OpSub,
+        "sub r/m, r"_v, "sub r/m, imm"_v, "sub r, [address]"_v, 0x29, 0x2b, 5);
+    binaryAlu(FormAndReg, FormAndImm, FormAndMem, OpAnd,
+        "and r/m, r"_v, "and r/m, imm"_v, "and r, [address]"_v, 0x21, 0x23, 4);
+    binaryAlu(FormOrReg, FormOrImm, FormOrMem, OpOr,
+        "or r/m, r"_v, "or r/m, imm"_v, "or r, [address]"_v, 0x09, 0x0b, 1);
+    binaryAlu(FormXorReg, FormXorImm, FormXorMem, OpXor,
+        "xor r/m, r"_v, "xor r/m, imm"_v, "xor r, [address]"_v, 0x31, 0x33, 6);
 
     /*
      * Increment and decrement.
@@ -679,6 +766,8 @@ MachineTarget::MachineTarget() {
         form.encoding = regRm(0xaf, useRef(0), useRef(1));
         form.encoding.escape = 0x0f;
     }
+
+    memoryTwin(FormIMulMem, FormIMulReg, "imul r, [address]"_v);
 
     {
         // IMUL r, r/m, imm is a true three-operand form - the destination can differ from the source
@@ -769,6 +858,9 @@ MachineTarget::MachineTarget() {
     compare(FormCmpReg, FormCmpRegSet, "cmp r, r/m"_v, "cmp r, r/m; setcc r"_v,
         regOrMem(MemoryAccessKind::Read), regRm(0x39, useRef(1), useRef(0), 0x3b));
 
+    memoryTwin(FormCmpMem, FormCmpReg, "cmp r, [address]"_v);
+    memoryTwin(FormCmpMemSet, FormCmpRegSet, "cmp r, [address]; setcc r"_v);
+
     // A comparison against zero has a shorter equivalent in `test r, r`, which leaves every
     // condition code this backend reads in the same state. It needs the value in a register, so the
     // descriptor states it as the alternative and an operand still in the frame keeps the `cmp`.
@@ -840,6 +932,17 @@ MachineTarget::MachineTarget() {
     floatNeg(FormFNeg32, "movd r, xmm; btc r, 31; movd xmm, r"_v, ClassFloat32, OperationWidth::Fixed32);
     floatNeg(FormFNeg64, "movq r, xmm; btc r, 63; movq xmm, r"_v, ClassFloat64, OperationWidth::Fixed64);
 
+    // The memory sources of the four above, in the same order the enum declares them. Scalar SSE has
+    // one direction only, so each twin is its source's own encoding with the r/m field addressed.
+    memoryTwin(FormFAdd32Mem, FormFAdd32, "addss xmm, [address]"_v);
+    memoryTwin(FormFAdd64Mem, FormFAdd64, "addsd xmm, [address]"_v);
+    memoryTwin(FormFSub32Mem, FormFSub32, "subss xmm, [address]"_v);
+    memoryTwin(FormFSub64Mem, FormFSub64, "subsd xmm, [address]"_v);
+    memoryTwin(FormFMul32Mem, FormFMul32, "mulss xmm, [address]"_v);
+    memoryTwin(FormFMul64Mem, FormFMul64, "mulsd xmm, [address]"_v);
+    memoryTwin(FormFDiv32Mem, FormFDiv32, "divss xmm, [address]"_v);
+    memoryTwin(FormFDiv64Mem, FormFDiv64, "divsd xmm, [address]"_v);
+
     /*
      * Floating-point comparison.
      *
@@ -888,6 +991,11 @@ MachineTarget::MachineTarget() {
         0, ClassFloat32);
     floatCompare(FormFCmp64, FormFCmp64Set, "ucomisd xmm, xmm/m"_v, "ucomisd xmm, xmm/m; setcc r"_v,
         0x66, ClassFloat64);
+
+    memoryTwin(FormFCmp32Mem, FormFCmp32, "ucomiss xmm, [address]"_v);
+    memoryTwin(FormFCmp32MemSet, FormFCmp32Set, "ucomiss xmm, [address]; setcc r"_v);
+    memoryTwin(FormFCmp64Mem, FormFCmp64, "ucomisd xmm, [address]"_v);
+    memoryTwin(FormFCmp64MemSet, FormFCmp64Set, "ucomisd xmm, [address]; setcc r"_v);
 
     /*
      * Select.
@@ -1543,10 +1651,24 @@ bool validateMachineForms(const MachineTarget& target) {
     // the form is settled and asks the *opcode* which operand is an address (opcodeAddressOperand),
     // so a load whose narrow form named its address somewhere else would have the fold rewrite one
     // operand and the encoder read another.
+    //
+    // A memory-source twin is the one exception, and is excluded here rather than allowed to weaken
+    // the rule: it exists precisely to name an address where its source names a register, it is
+    // reached only by an instruction a load fold has already rewritten, and opcodeAddressOperand
+    // skips it for the same reason. What is checked instead is that it names the operand its source
+    // could have read from memory and no other.
     for(Size op = 1; op < kMachineOpcodeCount; op++) {
         Maybe<I32> address;
         for(auto& form: target.forms) {
             if(form.opcode != op) continue;
+
+            if(form.memorySourceOf) {
+                if(form.addressOperand() != target.forms[form.memorySourceOf].memoryUse()) {
+                    fail(form, "addresses an operand its register form does not read from memory"_v);
+                }
+
+                continue;
+            }
 
             auto formAddress = form.addressOperand();
             if(address.isNothing()) address = Just(formAddress);
@@ -1556,6 +1678,18 @@ bool validateMachineForms(const MachineTarget& target) {
                     target.opcodes[op].name);
                 break;
             }
+        }
+    }
+
+    // Both directions of the twinning agree, so that nothing can hold a form id that answers only
+    // one of the two questions.
+    for(auto& form: target.forms) {
+        if(form.memorySource && target.forms[form.memorySource].memorySourceOf != form.id) {
+            fail(form, "names a memory source that does not name it back"_v);
+        }
+
+        if(form.memorySourceOf && target.forms[form.memorySourceOf].memorySource != form.id) {
+            fail(form, "is a memory source its register form does not name"_v);
         }
     }
 
@@ -1706,8 +1840,26 @@ static MachineFormId byFloatWidth(LowerType type, MachineFormId f32, MachineForm
 // The form an instruction takes, before the target's own features are consulted.
 static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst);
 
+// An instruction whose memory-capable operand holds an X86Address had a load folded into it, and
+// takes the twin that reads it there rather than out of a register - see MachineForm::memorySource.
+//
+// The X86Address *is* the record of the fold. It is the one value that can only ever be an address,
+// so an operand holding one is an operand the encoding dereferences, and there is no flag anywhere
+// that has to be kept in step with the operand list. foldLoads in transform.cpp is what puts it
+// there, including for a load whose pointer arrived in a register - `[reg]` is an addressing mode
+// like any other, and making it one is what keeps this question answerable from the value alone.
+static MachineFormId selectMemorySourceForm(LowerBase base, MachineFormId id, LowerInst* inst) {
+    auto& form = machineTarget().form(id);
+    if(!form.memorySource) return id;
+
+    auto memory = form.memoryUse();
+    assertTrue(memory >= 0 && Size(memory) < inst->used().size()); // a twin of a form with no memory operand
+
+    return isMem(base[inst->used()[memory]]) ? form.memorySource : id;
+}
+
 MachineFormId selectForm(LowerBase base, LowerInst* inst) {
-    auto id = selectFormForTarget(base, inst);
+    auto id = selectMemorySourceForm(base, selectFormForTarget(base, inst), inst);
 
     // A form whose encoding needs an extension this build does not have is not selectable, and the
     // rejection belongs here rather than in the encoder: by then the operands have been allocated
@@ -2035,8 +2187,14 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 I32 opcodeAddressOperand(MachineOpcodeId opcode) {
     // The first form of the opcode answers for all of them: validateMachineForms requires them to
     // agree, which is what lets this be asked before selection has chosen between them.
+    //
+    // Except for the memory-source twins, which are skipped here. An ALU operation whose load has
+    // been folded does reference memory, and the passes that ask this run before that fold - so the
+    // answer they need is the one for an instruction the fold has not touched. What reads the twin's
+    // address operand is legalization and the verifiers, which ask the *selected form* and get the
+    // right answer for both.
     for(auto& form: machineTarget().forms) {
-        if(form.opcode == opcode) return form.addressOperand();
+        if(form.opcode == opcode && !form.memorySourceOf) return form.addressOperand();
     }
 
     return -1;

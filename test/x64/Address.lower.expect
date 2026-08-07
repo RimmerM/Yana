@@ -286,10 +286,9 @@ block #0:
 block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b04b7
-  add uses=[rax, rdx] creates=[rax]  => 01d0
+  add uses=[rdx, -] creates=[rdx]  => 0314b7
   x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  store uses=[-, rax] creates=[]  => 8904b7
+  store uses=[-, rdx] creates=[]  => 8914b7
   ret uses=[] creates=[]  => c3
 
 --- codegen: escapingAddress ---
@@ -300,7 +299,7 @@ block #1:
   add uses=[rdi, -] creates=[rdi]  => 4883c710
   store uses=[rdi, rsi] creates=[]  => 8937
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8cbffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8cdffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sharedIndex ---
@@ -311,8 +310,7 @@ block #1:
   x86_addr scale=4 disp=0 uses=[rdi, rdx] creates=[-]  => 
   load uses=[-] creates=[rax]  => 8b0497
   x86_addr scale=4 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 8b0c96
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  add uses=[rax, -] creates=[rax]  => 030496
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sharedIndexManyUsers ---
@@ -325,8 +323,7 @@ block #1:
   x86_addr scale=8 disp=0 uses=[rsi, rdx] creates=[-]  => 
   store uses=[-, rcx] creates=[]  => 48890cd6
   x86_addr scale=8 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 488b0cd6
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, -] creates=[rax]  => 480304d6
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sharedIndexChained ---
@@ -339,8 +336,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
   load uses=[-] creates=[rax]  => 8b0417
   x86_addr scale=1 disp=16 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 8b4c1610
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  add uses=[rax, -] creates=[rax]  => 03441610
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sharedIndexEscapes ---
@@ -354,7 +350,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
   load uses=[-] creates=[rbx]  => 8b1c17
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee890ffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee899ffffff
   add uses=[rbx, rax] creates=[rbx]  => 01c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 

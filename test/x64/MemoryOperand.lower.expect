@@ -304,9 +304,9 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e809feffff
-  load uses=[r15] creates=[rcx] pre=[stack:0->r15]  => 4c8b3c24418b0f
-  add uses=[rdx, rcx] creates=[rdx] pre=[rbp->rdx]  => 488bd501ca
-  add uses=[rbp, rdx] creates=[rbp]  => 01d5
+  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[stack:0->r15]  => 4c8b3c24
+  add uses=[rcx, -] creates=[rcx] pre=[rbp->rcx]  => 488bcd41030f
+  add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c408415f415e415d415c5d5bc3
 
@@ -316,7 +316,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8cefdffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8d0fdffff
   sext uses=[r15] creates=[rax] pre=[stack:0->r15]  => 448b3c244963c7
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rbp, rcx] creates=[rbp]  => 4801cd
@@ -328,11 +328,11 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e893fdffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e895fdffff
   imm uses=[] creates=[-]  => 
   add uses=[stack:0, -] creates=[stack:0]  => 83042407
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e887fdffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e889fdffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 488bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
@@ -344,11 +344,11 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e852fdffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e854fdffff
   imm uses=[] creates=[-]  => 
   add uses=[stack:0, -] creates=[stack:0]  => ff0424
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e847fdffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e849fdffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 488bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
@@ -360,10 +360,10 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e812fdffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e814fdffff
   neg uses=[stack:0] creates=[stack:0]  => f71c24
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e807fdffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e809fdffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 488bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
@@ -375,11 +375,11 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8d2fcffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8d4fcffff
   imm uses=[] creates=[-]  => 
   shl uses=[stack:0, -] creates=[stack:0]  => c1242403
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e8c6fcffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e8c8fcffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 488bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
@@ -391,10 +391,10 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1]  => 488bee891424894c2404
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e88dfcffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e88ffcffff
   add uses=[stack:0, r15] creates=[stack:0] pre=[stack:1->r15]  => 448b7c240444013c24
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e87cfcffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->rdi]  => 488bf8e87efcffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 488bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
