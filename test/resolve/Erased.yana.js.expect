@@ -1,22 +1,22 @@
 "use strict";
-const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
-const typeDesc$ = [48, 0, 1, 0, 131, teardown$none, teardown$none, teardown$none, teardown$none];
-const genEnv$pick_Int = [0, typeDesc$Int, typeDesc$];
-const genEnv$identity_Int = [0, typeDesc$Int];
-const genEnv$firstOf_Int = [0, typeDesc$Int];
-const typeDesc$Bool = [432, 1, 1, 1, 131, moveInit$Bool, copyInit$Bool, teardown$none, teardown$none];
-const genEnv$pick_Int_Bool = [0, typeDesc$Int, typeDesc$Bool];
-const witness$Num_Int = [5348, 327681, 1, typeDesc$Int, thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
-const witness$FromInt_Int = [3652, 65537, 0, typeDesc$Int, thunk$FromInt_Int_fromInt_0];
-const genEnv$twice_Int = [0, typeDesc$Int, witness$Num_Int];
-const witness$Ord_Int = [4828, 327681, 1, typeDesc$Int, thunk$Ord_Int_lt_0, thunk$Ord_Int_lt_eq_1, thunk$Ord_Int_gt_2, thunk$Ord_Int_gt_eq_3, thunk$Ord_Int_compare_4, null];
-const witness$Eq_Int = [4308, 131073, 0, typeDesc$Int, thunk$Eq_Int_eq_eq_0, thunk$Eq_Int_not_eq_1];
-const genEnv$smaller_Int = [0, typeDesc$Int, witness$Ord_Int];
-const genEnv$middle_Int = [0, typeDesc$Int, witness$Ord_Int];
-const genEnv$increment_Int = [0, typeDesc$Int, witness$Num_Int];
-const genEnv$nothingForwarded_Int = [0, typeDesc$Int];
-witness$Num_Int[9] = witness$FromInt_Int;
-witness$Ord_Int[9] = witness$Eq_Int;
+const typeDesc$Int = [4, 4, 1155, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
+const typeDesc$ = [0, 0, 387, teardown$none, teardown$none, teardown$none, teardown$none];
+const genEnv$pick_Int = [typeDesc$Int, typeDesc$];
+const genEnv$identity_Int = [typeDesc$Int];
+const genEnv$firstOf_Int = [typeDesc$Int];
+const typeDesc$Bool = [1, 1, 387, moveInit$Bool, copyInit$Bool, teardown$none, teardown$none];
+const genEnv$pick_Int_Bool = [typeDesc$Int, typeDesc$Bool];
+const witness$Num_Int = [thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
+const witness$FromInt_Int = [thunk$FromInt_Int_fromInt_0];
+const genEnv$twice_Int = [typeDesc$Int, witness$Num_Int];
+const witness$Ord_Int = [thunk$Ord_Int_lt_0, thunk$Ord_Int_lt_eq_1, thunk$Ord_Int_gt_2, thunk$Ord_Int_gt_eq_3, thunk$Ord_Int_compare_4, null];
+const witness$Eq_Int = [thunk$Eq_Int_eq_eq_0, thunk$Eq_Int_not_eq_1];
+const genEnv$smaller_Int = [typeDesc$Int, witness$Ord_Int];
+const genEnv$middle_Int = [typeDesc$Int, witness$Ord_Int];
+const genEnv$increment_Int = [typeDesc$Int, witness$Num_Int];
+const genEnv$nothingForwarded_Int = [typeDesc$Int];
+witness$Num_Int[5] = witness$FromInt_Int;
+witness$Ord_Int[5] = witness$Eq_Int;
 
 // Core
 function teardown$none(value) {
@@ -38,13 +38,13 @@ function pick(genEnv, flag, x, y) {
 
 function twice(genEnv, x) {
   var out1 = { $v: {} };
-  genEnv[2][4](out1, x, x);
+  genEnv[1][0](out1, x, x);
   return out1;
 }
 
 function smaller(genEnv, x, y) {
   var v6;
-  if (genEnv[2][4](x, y)) {
+  if (genEnv[1][0](x, y)) {
     v6 = x;
   } else {
     v6 = y;
@@ -53,15 +53,15 @@ function smaller(genEnv, x, y) {
 }
 
 function middle(genEnv, x, y, z) {
-  var v3 = smaller([0, genEnv[1], genEnv[2]], x, y);
-  return smaller([0, genEnv[1], genEnv[2]], v3, z);
+  var v3 = smaller([genEnv[0], genEnv[1]], x, y);
+  return smaller([genEnv[0], genEnv[1]], v3, z);
 }
 
 function increment(genEnv, x) {
   var out4 = { $v: {} };
-  genEnv[2][9][4](out4, 1n);
+  genEnv[1][5][0](out4, 1n);
   var out2 = { $v: {} };
-  genEnv[2][4](out2, x, out4);
+  genEnv[1][0](out2, x, out4);
   return out2;
 }
 
@@ -70,7 +70,7 @@ function carriesNothing() {
 }
 
 function nothingForwarded(genEnv, z) {
-  return pick([0, genEnv[1], typeDesc$], 0, { $v: null }, z);
+  return pick([genEnv[0], typeDesc$], 0, { $v: null }, z);
 }
 
 function main() {

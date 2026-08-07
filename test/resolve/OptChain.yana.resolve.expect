@@ -1,3 +1,5 @@
+let image$base: () = <none>
+
 let &log: Int = 0
 
 let &dropped: Int = 0
@@ -201,10 +203,10 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v8 = sizeof {slot: Int, slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
-    %v11 = load [%v10].drop : %()
+    %v10 = cast %v9 : %()
+    %v11 = tableslot : %()
     calldyn %v11, %v1
     jmp b2
 
@@ -239,10 +241,10 @@ fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v8 = sizeof {slot: Int, slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
-    %v11 = load [%v10].reclaim : %()
+    %v10 = cast %v9 : %()
+    %v11 = tableslot : %()
     calldyn %v11, %v1
     jmp b2
 

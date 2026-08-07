@@ -1,54 +1,15 @@
 #include "table.h"
 #include "Net/Buffer.h"
 
-U32 TableLayout::place(CellWidth width) {
-    auto bytes = width == CellWidth::Address ? target.pointerSize : U32(sizeof(U32));
-    auto cellAlign = width == CellWidth::Address ? target.pointerAlign : U32(sizeof(U32));
-
-    if(cellAlign > align) align = cellAlign;
-
-    auto at = (offset + cellAlign - 1) & ~(cellAlign - 1);
-    offset = at + bytes;
-    return at;
-}
-
-U32 TableLayout::size() const {
-    return (offset + align - 1) & ~(align - 1);
-}
-
-U32 tableSlotOffset(const ReprTarget& target, U16 wordCount, U16 slot) {
-    TableLayout layout(target);
-    U32 at = 0;
-
-    for(U16 i = 0; i <= slot; i++) {
-        at = layout.place(i < wordCount ? CellWidth::Word : CellWidth::Address);
-    }
-
-    return at;
-}
-
-U32 tableSize(const ReprTarget& target, U16 wordCount, U16 slotCount) {
-    TableLayout layout(target);
-    for(U16 i = 0; i < slotCount; i++) {
-        layout.place(i < wordCount ? CellWidth::Word : CellWidth::Address);
-    }
-
-    return layout.size();
-}
-
-U32 tableLayout(const ReprTarget& target, Buffer<const TableSlot> slots, PackOffsets& offsets) {
+U32 tableLayout(Buffer<const TableSlot> slots, PackOffsets& offsets) {
     offsets.clear();
+    for(Size i = 0; i < slots.length; i++) offsets.push(tableSlotOffset(U16(i)));
 
-    TableLayout layout(target);
-    for(Size i = 0; i < slots.length; i++) {
-        offsets.push(layout.place(isAddressCell(slots[i].kind) ? CellWidth::Address : CellWidth::Word));
-    }
-
-    return layout.size();
+    return tableSize(U16(slots.length));
 }
 
 U32 tableMetricValue(ReprTable& repr, const TableSlot& slot) {
-    auto type = TypePtr(slot.value);
+    auto type = slot.metricType();
     if(!type) return 0;
 
     auto& of = repr.of(type);
@@ -62,6 +23,26 @@ U32 tableMetricValue(ReprTable& repr, const TableSlot& slot) {
     return of.size;
 }
 
+/*
+ * What one word cell holds, for whichever backend is about to write it down.
+ *
+ * The one place the three word kinds are turned into a number, so that a native table and a JS one
+ * cannot disagree about what a PackedMetric combines to. An address cell has no word and answers
+ * zero - what fills it in is a relocation, or on JS the emitted name.
+ */
+U32 tableWordValue(ReprTable& repr, const TableSlot& slot) {
+    switch(slot.kind) {
+        case TableCell::Int: return slot.value();
+        case TableCell::Metric: return tableMetricValue(repr, slot);
+        case TableCell::PackedMetric:
+            return (tableMetricValue(repr, slot) << kPackedMetricShift) | slot.extra;
+        case TableCell::Function:
+        case TableCell::Global: break;
+    }
+
+    return 0;
+}
+
 void writeTableWords(ReprTable& repr, Buffer<const TableSlot> slots, Buffer<const U32> offsets,
                      ByteBuffer bytes) {
     Net::BufferWriter writer(bytes.ptr, bytes.length);
@@ -70,8 +51,10 @@ void writeTableWords(ReprTable& repr, Buffer<const TableSlot> slots, Buffer<cons
         // An address is left as zeroes; what fills it in is a relocation the caller records.
         if(isAddressCell(slots[i].kind)) continue;
 
-        auto word = slots[i].kind == TableCell::Metric
-            ? tableMetricValue(repr, slots[i]) : slots[i].value;
+        // A measurement is answered here rather than emitted: what is in the slot is which
+        // measurement of which type, and the type handle it names never reaches the output. See
+        // TableSlot.
+        auto word = tableWordValue(repr, slots[i]);
 
         writer.offset(offsets[i]);
 

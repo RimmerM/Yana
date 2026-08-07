@@ -1,8 +1,9 @@
+@image$base = []
 @sinkCalls = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Handle = [96, 232, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$relocate(Handle) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Pair = [140, 233, 0, 0, 16, 0, 0, 0, 8, 0, 0, 0, 16, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$relocate(Pair) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Handle = [8, 0, 0, 0, 8, 0, 0, 0, 128, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Handle) = [0, 0, 0, 0]
+@typeDesc$Pair = [16, 0, 0, 0, 16, 0, 0, 0, 128, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Pair) = [0, 0, 0, 0]
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {
@@ -12,23 +13,26 @@ teardown$none<complex>(%value: Ptr) {
 
 relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
   b_1 {
-    %v_2 = add %genEnv, 8: Ptr
-    %v_3 = load %v_2, 8: Ptr
-    %v_4 = add %v_3, 4: Ptr
+    %v_2 = loads %genEnv, 4: Int
+    %v_3 = sext %v_2: Long
+    %v_4 = add %v_3, @image$base: Ptr
     %v_5 = load %v_4, 4: Int
     %v_6 = cast %v_5: Long
     %y = alloca %v_6, 16: Ptr
-    %v_7 = add %genEnv, 8: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 24: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %y, %x
-    %v_11 = add %genEnv, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    %v_13 = add %v_12, 4: Ptr
-    %v_14 = load %v_13, 4: Int
-    %v_15 = cast %v_14: Long
-    copy %v_0, %y, %v_15
+    %v_7 = loads %genEnv, 4: Int
+    %v_8 = sext %v_7: Long
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 12: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_12 = sext %v_11: Long
+    %v_13 = add %v_12, @image$base: Ptr
+    call_complex %v_13, %y, %x
+    %v_14 = loads %genEnv, 4: Int
+    %v_15 = sext %v_14: Long
+    %v_16 = add %v_15, @image$base: Ptr
+    %v_17 = load %v_16, 4: Int
+    %v_18 = cast %v_17: Long
+    copy %v_0, %y, %v_18
     ret 
   }
 }

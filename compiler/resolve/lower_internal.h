@@ -152,6 +152,13 @@ U32 memoryWidth(LowerContext& lower, TypePtr type);
 LowerPtr<LowerValue> immediate(LowerContext& lower, U64 value, LowerType type = LowerType::Int64);
 LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> address,
                                U32 offset);
+
+// The address one slot of a compiler-built table holds - the single decoder of the self-relative
+// form every erased read goes through. See lower_gen.cpp.
+LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> descriptor);
+
+LowerPtr<LowerValue> tableSlotAddress(LowerContext& lower, LowerBlock& block,
+                                      LowerPtr<LowerValue> table, U16 slot);
 U64 lowMask(U32 bits);
 bool narrowerThanRegister(GlobalBase global, TypePtr type);
 bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind);

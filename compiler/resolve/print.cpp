@@ -877,15 +877,13 @@ static void printTable(ResolvePrint& print, Global& global_) {
 
         switch(slot.kind) {
             case TableCell::Int:
-                writeUInt(print.writer, slot.value);
+                writeUInt(print.writer, slot.value());
                 break;
 
-            case TableCell::Type:
-                printType(print, TypePtr(slot.value));
-                break;
-
-            // The measurement, not a number: this stage has no idea what the answer is, and a dump
-            // that guessed one would be asserting a layout nothing here chose.
+            // The measurement and the constant beside it, as `alignof T | 131` - the two halves
+            // printed as the two halves rather than combined, since combining them needs the answer
+            // this stage does not have.
+            case TableCell::PackedMetric:
             case TableCell::Metric:
                 switch(slot.metric) {
                     case TypeMetricKind::Size: print.writer.writeString("sizeof "_v); break;
@@ -893,19 +891,20 @@ static void printTable(ResolvePrint& print, Global& global_) {
                     case TypeMetricKind::Stride: print.writer.writeString("strideof "_v); break;
                 }
 
-                printType(print, TypePtr(slot.value));
-                break;
+                printType(print, slot.metricType());
 
-            case TableCell::Class:
-                print.writer.writeString(print.context.findName(
-                    print.global[GlobalPtr<TypeClass>(slot.value)]->name));
+                if(slot.kind == TableCell::PackedMetric) {
+                    print.writer.writeString(" | "_v);
+                    writeUInt(print.writer, slot.extra);
+                }
+
                 break;
 
             // An address, by the name of what it names. A null one is the deliberately empty slot -
             // "nothing to do" - and says so rather than printing a zero that looks like a number.
             case TableCell::Function:
-                if(slot.function) {
-                    print.writer.writeString(print.context.findName(print.local[slot.function]->name));
+                if(auto function = slot.function()) {
+                    print.writer.writeString(print.context.findName(print.local[function]->name));
                 } else {
                     print.writer.writeString("null"_v);
                 }
@@ -913,8 +912,8 @@ static void printTable(ResolvePrint& print, Global& global_) {
                 break;
 
             case TableCell::Global:
-                if(slot.global) {
-                    print.writer.writeString(print.context.findName(print.local[slot.global]->name));
+                if(auto global_ = slot.global()) {
+                    print.writer.writeString(print.context.findName(print.local[global_]->name));
                 } else {
                     print.writer.writeString("null"_v);
                 }

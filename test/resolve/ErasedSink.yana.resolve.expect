@@ -1,121 +1,94 @@
+let image$base: () = <none>
+
 let &sinkCalls: I64 = 0
 
 table typeDesc$Handle {
-  .0 Handle
-  .1 sizeof Handle
-  .2 alignof Handle
-  .3 strideof Handle
-  .4 128
-  .5 Sink(Handle).sink
+  .0 sizeof Handle
+  .1 strideof Handle
+  .2 alignof Handle | 128
+  .3 Sink(Handle).sink
+  .4 teardown$none
+  .5 teardown$none
   .6 teardown$none
-  .7 teardown$none
-  .8 teardown$none
 }
 
 table genEnv$relocate(Handle) {
-  .0 0
-  .1 typeDesc$Handle
+  .0 typeDesc$Handle
 }
 
 table typeDesc$Pair {
-  .0 Pair
-  .1 sizeof Pair
-  .2 alignof Pair
-  .3 strideof Pair
-  .4 128
-  .5 moveInit$Pair
+  .0 sizeof Pair
+  .1 strideof Pair
+  .2 alignof Pair | 128
+  .3 moveInit$Pair
+  .4 teardown$none
+  .5 teardown$none
   .6 teardown$none
-  .7 teardown$none
-  .8 teardown$none
 }
 
 table genEnv$relocate(Pair) {
-  .0 0
-  .1 typeDesc$Pair
+  .0 typeDesc$Pair
 }
 
 table typeDesc$Int {
-  .0 Int
-  .1 sizeof Int
-  .2 alignof Int
-  .3 strideof Int
-  .4 131
-  .5 moveInit$Int
-  .6 copyInit$Int
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Int
+  .1 strideof Int
+  .2 alignof Int | 131
+  .3 moveInit$Int
+  .4 copyInit$Int
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table witness$Num(Int) {
-  .0 Num
-  .1 327681
-  .2 1
-  .3 typeDesc$Int
-  .4 thunk$Num(Int).+#0
-  .5 thunk$Num(Int).-#1
-  .6 thunk$Num(Int).*#2
-  .7 thunk$Num(Int)./#3
-  .8 thunk$Num(Int).-#4
-  .9 witness$FromInt(Int)
+  .0 thunk$Num(Int).+#0
+  .1 thunk$Num(Int).-#1
+  .2 thunk$Num(Int).*#2
+  .3 thunk$Num(Int)./#3
+  .4 thunk$Num(Int).-#4
+  .5 witness$FromInt(Int)
 }
 
 table witness$FromInt(Int) {
-  .0 FromInt
-  .1 65537
-  .2 0
-  .3 typeDesc$Int
-  .4 thunk$FromInt(Int).fromInt#0
+  .0 thunk$FromInt(Int).fromInt#0
 }
 
 table genEnv$twice(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Num(Int)
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
 }
 
 table genEnv$numeric(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Num(Int)
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
 }
 
 table typeDesc$I64 {
-  .0 I64
-  .1 sizeof I64
-  .2 alignof I64
-  .3 strideof I64
-  .4 131
-  .5 moveInit$I64
-  .6 copyInit$I64
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof I64
+  .1 strideof I64
+  .2 alignof I64 | 131
+  .3 moveInit$I64
+  .4 copyInit$I64
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table witness$Num(I64) {
-  .0 Num
-  .1 327681
-  .2 1
-  .3 typeDesc$I64
-  .4 thunk$Num(I64).+#0
-  .5 thunk$Num(I64).-#1
-  .6 thunk$Num(I64).*#2
-  .7 thunk$Num(I64)./#3
-  .8 thunk$Num(I64).-#4
-  .9 witness$FromInt(I64)
+  .0 thunk$Num(I64).+#0
+  .1 thunk$Num(I64).-#1
+  .2 thunk$Num(I64).*#2
+  .3 thunk$Num(I64)./#3
+  .4 thunk$Num(I64).-#4
+  .5 witness$FromInt(I64)
 }
 
 table witness$FromInt(I64) {
-  .0 FromInt
-  .1 65537
-  .2 0
-  .3 typeDesc$I64
-  .4 thunk$FromInt(I64).fromInt#0
+  .0 thunk$FromInt(I64).fromInt#0
 }
 
 table genEnv$+=(I64) {
-  .0 0
-  .1 typeDesc$I64
-  .2 witness$Num(I64)
+  .0 typeDesc$I64
+  .1 witness$Num(I64)
 }
 
 (Num(a)) fn +=(%target: a, %amount: a) -> () {

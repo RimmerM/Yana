@@ -35,12 +35,10 @@ LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerVa
                                bool erased) {
     if(erased && !sink) {
         auto descriptor = genTypeDesc(lower, block, type);
-        auto slot = addOffset(lower, block, descriptor, tableSlotOffset(
-            lower.repr.target, TypeDescFields::kWordCount, TypeDescFields::kMoveInit));
-        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, StringId());
+        auto moveInit = tableSlotAddress(lower, block, descriptor, TypeDescFields::kMoveInit);
 
         return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
-            relocation->used()[0] = moveInit->created().ptr - lower.lower;
+            relocation->used()[0] = moveInit;
             relocation->used()[1] = target;
             relocation->used()[2] = source;
         });
@@ -769,15 +767,12 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 auto descriptor = genTypeDesc(lower, block, placeType);
 
                 auto erasedStep = [&](U16 slot) {
-                    auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
-                    auto slotAddress = addOffset(lower, block, descriptor, offset);
-                    auto loaded = load(lower.lower, lower.to, block, lower.lower[slotAddress], 8,
-                                       false, LowerType::Pointer, StringId());
+                    auto operation = tableSlotAddress(lower, block, descriptor, slot);
 
                     if(result) result->source = instruction.source;
                     result = call(lower.lower, lower.to, block, 0, 2, kDefaultCallType,
                                   [&](LowerInstCall* teardown) {
-                        teardown->used()[0] = loaded->created().ptr - lower.lower;
+                        teardown->used()[0] = operation;
                         teardown->used()[1] = address;
                     });
                 };

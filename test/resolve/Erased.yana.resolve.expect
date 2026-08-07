@@ -1,131 +1,102 @@
+let image$base: () = <none>
+
 table typeDesc$Int {
-  .0 Int
-  .1 sizeof Int
-  .2 alignof Int
-  .3 strideof Int
-  .4 131
-  .5 moveInit$Int
-  .6 copyInit$Int
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Int
+  .1 strideof Int
+  .2 alignof Int | 131
+  .3 moveInit$Int
+  .4 copyInit$Int
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table typeDesc$() {
-  .0 ()
-  .1 sizeof ()
-  .2 alignof ()
-  .3 strideof ()
-  .4 131
+  .0 sizeof ()
+  .1 strideof ()
+  .2 alignof () | 131
+  .3 teardown$none
+  .4 teardown$none
   .5 teardown$none
   .6 teardown$none
-  .7 teardown$none
-  .8 teardown$none
 }
 
 table genEnv$pick(Int, ()) {
-  .0 0
-  .1 typeDesc$Int
-  .2 typeDesc$()
+  .0 typeDesc$Int
+  .1 typeDesc$()
 }
 
 table genEnv$identity(Int) {
-  .0 0
-  .1 typeDesc$Int
+  .0 typeDesc$Int
 }
 
 table genEnv$firstOf(Int) {
-  .0 0
-  .1 typeDesc$Int
+  .0 typeDesc$Int
 }
 
 table typeDesc$Bool {
-  .0 Bool
-  .1 sizeof Bool
-  .2 alignof Bool
-  .3 strideof Bool
-  .4 131
-  .5 moveInit$Bool
-  .6 copyInit$Bool
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Bool
+  .1 strideof Bool
+  .2 alignof Bool | 131
+  .3 moveInit$Bool
+  .4 copyInit$Bool
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table genEnv$pick(Int, Bool) {
-  .0 0
-  .1 typeDesc$Int
-  .2 typeDesc$Bool
+  .0 typeDesc$Int
+  .1 typeDesc$Bool
 }
 
 table witness$Num(Int) {
-  .0 Num
-  .1 327681
-  .2 1
-  .3 typeDesc$Int
-  .4 thunk$Num(Int).+#0
-  .5 thunk$Num(Int).-#1
-  .6 thunk$Num(Int).*#2
-  .7 thunk$Num(Int)./#3
-  .8 thunk$Num(Int).-#4
-  .9 witness$FromInt(Int)
+  .0 thunk$Num(Int).+#0
+  .1 thunk$Num(Int).-#1
+  .2 thunk$Num(Int).*#2
+  .3 thunk$Num(Int)./#3
+  .4 thunk$Num(Int).-#4
+  .5 witness$FromInt(Int)
 }
 
 table witness$FromInt(Int) {
-  .0 FromInt
-  .1 65537
-  .2 0
-  .3 typeDesc$Int
-  .4 thunk$FromInt(Int).fromInt#0
+  .0 thunk$FromInt(Int).fromInt#0
 }
 
 table genEnv$twice(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Num(Int)
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
 }
 
 table witness$Ord(Int) {
-  .0 Ord
-  .1 327681
-  .2 1
-  .3 typeDesc$Int
-  .4 thunk$Ord(Int).<#0
-  .5 thunk$Ord(Int).<=#1
-  .6 thunk$Ord(Int).>#2
-  .7 thunk$Ord(Int).>=#3
-  .8 thunk$Ord(Int).compare#4
-  .9 witness$Eq(Int)
+  .0 thunk$Ord(Int).<#0
+  .1 thunk$Ord(Int).<=#1
+  .2 thunk$Ord(Int).>#2
+  .3 thunk$Ord(Int).>=#3
+  .4 thunk$Ord(Int).compare#4
+  .5 witness$Eq(Int)
 }
 
 table witness$Eq(Int) {
-  .0 Eq
-  .1 131073
-  .2 0
-  .3 typeDesc$Int
-  .4 thunk$Eq(Int).==#0
-  .5 thunk$Eq(Int).!=#1
+  .0 thunk$Eq(Int).==#0
+  .1 thunk$Eq(Int).!=#1
 }
 
 table genEnv$smaller(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Ord(Int)
+  .0 typeDesc$Int
+  .1 witness$Ord(Int)
 }
 
 table genEnv$middle(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Ord(Int)
+  .0 typeDesc$Int
+  .1 witness$Ord(Int)
 }
 
 table genEnv$increment(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$Num(Int)
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
 }
 
 table genEnv$nothingForwarded(Int) {
-  .0 0
-  .1 typeDesc$Int
+  .0 typeDesc$Int
 }
 
 fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {

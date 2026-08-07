@@ -248,7 +248,7 @@ struct Devirtualize {
         auto isEmpty = [&](U16 slot) {
             auto cell = table->table.get(opt.local, slot);
             if(cell.kind != TableCell::Function) return true;
-            return cell.function == opt.program.emptyTeardown;
+            return cell.function() == opt.program.emptyTeardown;
         };
 
         auto dropEmpty = isEmpty(ClosureHeaderFields::kDrop);

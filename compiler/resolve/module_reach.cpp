@@ -94,8 +94,8 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
             auto table = local[tables.pop().unwrap()];
 
             for(auto slot: table->table.contents(local)) {
-                reachFunction(slot.function);
-                reachTable(slot.global);
+                reachFunction(slot.function());
+                reachTable(slot.global());
             }
 
             eachConstantGlobal(local, table->initial, reachTable);
@@ -212,6 +212,22 @@ void markProgramReachable(Program& program) {
      * neither `main` nor a top-level statement has nowhere to start, and is reported as that by
      * whichever backend was asked for one rather than being silently emptied here.
      */
+    /*
+     * The one root that is not reached from anywhere, because what names it has not been built yet.
+     *
+     * Every table's address slots are measured from the image anchor - see repr/table.h - and the
+     * only thing that refers to it is the *lowering*, which runs long after this walk has decided
+     * what exists. So it cannot be found by walking, and a table naming a function is not a reason
+     * for it to exist the way a table naming a global is: nothing names it at all.
+     *
+     * A root rather than a permanent `used` flag, so that the clearing loop below and this stay one
+     * statement. It exists only where a table does - see imageAnchor - so a program with no generic
+     * code and no closures still emits nothing extra.
+     */
+    auto rootAnchor = [&] {
+        if(program.imageAnchor) local[program.imageAnchor]->used = true;
+    };
+
     if(program.entry && isExecutableMode(program.context.settings.mode)) {
         for(auto module: program.modules) {
             for(auto function: module->functionOrder.contents(local)) local[function]->used = false;
@@ -220,10 +236,13 @@ void markProgramReachable(Program& program) {
 
         local[program.entry]->used = true;
         pending.push(program.entry);
+        rootAnchor();
 
         markReachable(program, pending, tables);
         return;
     }
+
+    rootAnchor();
 
     for(auto module: program.modules) {
         /*

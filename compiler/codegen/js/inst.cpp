@@ -718,13 +718,17 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
 JsPtr<Expr> genEnvTable(Gen& g, InstGenCall& instruction) {
     auto table = make<ArrayExpr>(g);
 
-    // The schema word in front of the slots. Emitted code never reads it; it is here because the
-    // numbering says slot N is at N + kSlots, and a caller assembling a table has to agree with the
-    // interned ones it may be passed alongside.
-    for(U16 i = 0; i < GenEnvFields::kWordCount; i++) {
-        table->values.push(g.file.arena, number(g, 0));
-    }
-
+    /*
+     * Straight into the slots, with nothing in front of them.
+     *
+     * There used to be a schema word here, filled with a literal zero because nothing ever wrote a
+     * schema into it and nothing ever read one back out. A caller assembling a table still has to
+     * agree with the interned ones it may be passed alongside, and both now start at slot 0.
+     *
+     * The values are the emitted bindings themselves rather than offsets from anything: an array
+     * element holds a reference, so the anchor the native form measures from has no counterpart
+     * here and none is needed - see repr/table.h.
+     */
     for(auto slot: instruction.fill.contents(g.local)) {
         auto value = slot.isForwarded()
             ? genWitness(g, slot.forwarded, slot.forwardedSupers)
@@ -745,8 +749,7 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
         // witness. Two reads and no search, exactly as on native - and the callee is a concrete
         // thunk, so it needs no environment of its own.
         auto witness = genWitness(g, instruction.classSlot, instruction.classPath);
-        auto argCount = U16(g.global[g.global[instruction.typeClass]->gen]->types.size());
-        callee = tableCell(g, witness, ClassWitnessFields::method(argCount, instruction.index));
+        callee = tableCell(g, witness, ClassWitnessFields::method(instruction.index));
     } else {
         callee = functionValue(g, instruction.callee, instruction.source);
         args.push(instruction.env ? globalValue(g, instruction.env) : genEnvTable(g, instruction));
@@ -1936,6 +1939,23 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                                      useValue(g, select.whenFalse)));
             break;
         }
+        /*
+         * The address in one table slot, which here is not an address at all.
+         *
+         * A JS table is an array and a slot holds the emitted binding itself, so this is `table[N]`
+         * and there is nothing to decode - no width, no relocation, and no self-relative offset like
+         * the one the native path adds back. `wordCount` is ignored for the same reason: it exists
+         * to tell a byte offset where the words stop, and an array index has no bytes in it.
+         *
+         * That the two targets disagree this completely is exactly why the asker states the slot
+         * instead of the access - see InstTableSlot.
+         */
+        case Value::TableSlot: {
+            auto& read = (InstTableSlot&)instruction;
+            define(g, value, tableCell(g, useValue(g, read.table), read.slot));
+            break;
+        }
+
         case Value::TypeMetric: {
             /*
              * How wide a type is *here*, which is not what the native target would have said.
@@ -1948,9 +1968,17 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             auto& metric = (InstTypeMetric&)instruction;
 
             if(auto descriptor = genTypeDesc(g, metric.of)) {
-                auto slot = metric.metric == TypeMetricKind::Align ? TypeDescFields::kAlign
-                          : metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
-                          : TypeDescFields::kSize;
+                // The alignment shares the flags cell and sits above them - see
+                // TypeDescFields::kFlags. Same element, one shift.
+                if(metric.metric == TypeMetricKind::Align) {
+                    define(g, value, binary(g, BinaryOp::Shr,
+                                            tableCell(g, descriptor, TypeDescFields::kFlags),
+                                            number(g, F64(kPackedMetricShift))));
+                    break;
+                }
+
+                auto slot = metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
+                                                                    : TypeDescFields::kSize;
                 define(g, value, tableCell(g, descriptor, slot));
                 break;
             }

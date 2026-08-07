@@ -10,9 +10,7 @@ function teardown$none(value) {
 // ResolveTest
 function consume(f$c, f$e) {
   var v2 = f$c(f$e, 1);
-  if (f$c.$h != null) {
-    f$c.$h[0](f$e);
-  }
+  drop$_Int_sub_gt_Int(f$c, f$e);
   return v2;
 }
 
@@ -42,6 +40,13 @@ ResolveTest_lambda$1.$h = closure$ResolveTest_lambda$1;
 
 function dropAt$_g_Guard(value) {
   dropCalls = dropCalls + 1 | 0;
+  return;
+}
+
+function drop$_Int_sub_gt_Int(value$c, value$e) {
+  if (value$c.$h != null) {
+    value$c.$h[0](value$e);
+  }
   return;
 }
 main();

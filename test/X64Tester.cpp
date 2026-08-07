@@ -220,7 +220,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
         asm_.addGlobal(base, base[g]);
     }
 
-    asm_.resolveRelocations();
+    asm_.resolveRelocations(module.imageAnchor ? base[module.imageAnchor] : nullptr);
 
     Size funIndex = 0;
     for(auto fo: module.functionOrder) {

@@ -1538,9 +1538,15 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     }
 }
 
-void AsmModule::resolveRelocations() {
+void AsmModule::resolveRelocations(LowerGlobal* anchor) {
+    // Looked up once: every table slot in the module is measured from the same label, which is the
+    // whole reason a table built on a frame can hold the same encoding a constant one holds.
+    auto anchorAt = anchor ? globalOffsets.getValue(anchor) : Maybe<U32>(Nothing());
+    auto anchorOffset = anchorAt ? anchorAt.unwrap() : 0u;
+
     // The data sites first, since they only need the target's offset and every symbol is known by
-    // now. What they cannot have yet is the load address, which applyDataRelocations supplies.
+    // now. What an *absolute* one cannot have yet is the load address, which applyDataRelocations
+    // supplies; a self-relative one never needs it and is finished here.
     for(auto& r: pendingData) {
         U32 target;
 
@@ -1552,6 +1558,26 @@ void AsmModule::resolveRelocations() {
             auto o = globalOffsets.getValue(r.global);
             assertTrue(o.isJust());
             target = o.unwrap();
+        }
+
+        /*
+         * A table slot, written now and never again.
+         *
+         * Both offsets are inside this image, so their difference is the same number wherever the
+         * image is later mapped - which is the whole reason a slot is anchor-relative rather than
+         * absolute, and why the JIT and an ELF executable can hold identical bytes. See
+         * repr/table.h.
+         */
+        if(r.anchorRelative) {
+            // A slot without an anchor to measure from would be written as an offset from zero,
+            // which is a wrong address rather than a missing one - so say so instead.
+            assertTrue(anchor != nullptr);
+            auto savedOffset = buffer.offset();
+
+            buffer.offset(r.siteOffset);
+            buffer.writeInt<LittleEndian>(U32(I32(target) - I32(anchorOffset)));
+            buffer.offset(savedOffset);
+            continue;
         }
 
         dataRelocations.push(AsmDataRelocation { .siteOffset = r.siteOffset, .targetOffset = target });

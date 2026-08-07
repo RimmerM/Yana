@@ -496,6 +496,9 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 
     verifyIrProgram(*program, VerifyStage::Ownership, "after inserting drops"_v);
 
+    // Before the walk, because the walk decides which globals exist and this is one - see
+    // ensureImageAnchor, which is also why it is a root there rather than something reached.
+    ensureImageAnchor(*program);
     markProgramReachable(*program);
     return program;
 }

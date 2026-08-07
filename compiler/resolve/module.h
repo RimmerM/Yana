@@ -477,17 +477,11 @@ inline void eachPlaceRootValue(ModuleBase base, Function& function, const Value&
  * compiled against, and they are the only thing the two materializations share.
  */
 enum class TableCell: U8 {
-    // A plain number, in `value`.
+    // A plain number.
     Int,
 
-    // An interned type or class, as its region offset. Distinguished from Int because a dump can
-    // then name what one refers to instead of printing a region offset, which would make every
-    // fixture holding a descriptor churn whenever an unrelated declaration moved.
-    Type,
-    Class,
-
     /*
-     * How wide a type is, as `metric` of the type in `value` - the table-slot form of a TypeMetric.
+     * How wide a type is, as `metric` of `metricType()` - the table-slot form of a TypeMetric.
      *
      * The number itself is deliberately not here, for exactly the reason InstTypeMetric exists: a
      * descriptor's size is the *emitting target's* answer, and the two targets disagree about every
@@ -495,8 +489,26 @@ enum class TableCell: U8 {
      * whichever backend materializes it fills in its own numbers. Writing native sizes at build time
      * made a descriptor a native artifact that the JS backend then read as though it described JS
      * values, which was the last thing in resolve that knew how wide anything was.
+     *
+     * This is the one kind whose payload is a region offset, and the one kind where that is safe:
+     * the offset is the *question*, and no materializer emits it - each one answers it and emits the
+     * answer. See the note on TableSlot.
      */
     Metric,
+
+    /*
+     * A metric and a constant sharing one cell: `metric(type) << kPackedMetricShift | extra`.
+     *
+     * Exists because the two halves of such a cell have different authors. A type's alignment is the
+     * emitting target's answer, like any other metric; the flags beside it are resolve's, decided
+     * from ownership. Neither can be written where the other is known, so the cell carries both and
+     * whoever materializes it combines them - which is the same division Metric already makes, with
+     * one more thing to say.
+     *
+     * One cell uses it, TypeDescFields::kFlags, and the shift is chosen for that use: the flags
+     * occupy bits 0 to 7 and every bit above them was spare.
+     */
+    PackedMetric,
 
     // The address of a function or of another table, left for the materializer to name - on native
     // it becomes a LowerDataRelocation, and on JS the emitted name itself. Null where the slot is
@@ -505,25 +517,87 @@ enum class TableCell: U8 {
     Global,
 };
 
+// Where a PackedMetric's measurement starts, and therefore how many low bits are left for the
+// constant beside it. Here rather than in witness.h because it is the *cell's* encoding: whoever
+// writes one and whoever reads one both need it, and only one of the two knows what the bits mean.
+static constexpr U32 kPackedMetricShift = 8;
+
+/*
+ * One cell, as a kind and a single word.
+ *
+ * The payload is one U32 rather than a field per kind because no cell has ever held two of them:
+ * a number, a metric's type, a function and a global are four readings of the same word, and
+ * keeping four fields made every slot sixteen bytes to carry four. The accessors below are the
+ * whole interface - nothing reads `payload` directly, so a reading applied to the wrong kind is a
+ * missing case rather than a plausible-looking zero.
+ *
+ * **No surviving cell holds a region offset.** A type descriptor used to lead with the interned
+ * type it described and a class witness with its class, both as raw offsets into the compiler's
+ * arena, and both backends emitted those words verbatim - which made interning order observable in
+ * the output and made a JS module carry a number like `52056` that nothing ever loaded. They were
+ * there for a debug cross-check that was never built. Metric is the only kind left whose payload is
+ * an offset, and it never reaches output: `writeTableWords` and `tableValue` both replace it with
+ * their own measurement. Anything that wants identity in a table again should carry a
+ * content-derived id, not a handle.
+ */
 struct TableSlot {
     TableCell kind = TableCell::Int;
 
-    // Which measurement, for a Metric cell. Ignored by every other kind.
+    // Which measurement, for a Metric or PackedMetric cell. Ignored by every other kind.
     TypeMetricKind metric = TypeMetricKind::Size;
 
-    // The number, or the interned type or class, as its region offset.
-    U32 value = 0;
+    // The constant a PackedMetric carries below its measurement. Occupies what would otherwise be
+    // padding, which is why the cell that needed it cost nothing to allow.
+    U16 extra = 0;
 
-    // At most one of these, and only for the matching kind.
-    ModulePtr<Function> function = nullptr;
-    ModulePtr<Global> global = nullptr;
+    // Read through the accessors below, never directly - see the note above.
+    U32 payload = 0;
+
+    static TableSlot intOf(U32 value) {
+        return TableSlot { TableCell::Int, TypeMetricKind::Size, 0, value };
+    }
+
+    static TableSlot metricOf(TypePtr type, TypeMetricKind metric) {
+        return TableSlot { TableCell::Metric, metric, 0, U32(type) };
+    }
+
+    static TableSlot packedMetricOf(TypePtr type, TypeMetricKind metric, U16 extra) {
+        return TableSlot { TableCell::PackedMetric, metric, extra, U32(type) };
+    }
+
+    static TableSlot functionOf(ModulePtr<Function> function) {
+        return TableSlot { TableCell::Function, TypeMetricKind::Size, 0, U32(function) };
+    }
+
+    static TableSlot globalOf(ModulePtr<Global> global) {
+        return TableSlot { TableCell::Global, TypeMetricKind::Size, 0, U32(global) };
+    }
+
+    U32 value() const { return kind == TableCell::Int ? payload : 0; }
+
+    TypePtr metricType() const {
+        return kind == TableCell::Metric || kind == TableCell::PackedMetric ? TypePtr(payload) : nullptr;
+    }
+
+    ModulePtr<Function> function() const {
+        return kind == TableCell::Function ? ModulePtr<Function>(payload) : nullptr;
+    }
+
+    ModulePtr<Global> global() const {
+        return kind == TableCell::Global ? ModulePtr<Global>(payload) : nullptr;
+    }
 };
 
-// Whether a cell holds a target address rather than a 32-bit word. The only thing about a slot that
-// a layout has to know, which is what keeps every layout rule out of resolve.
+// Two bytes and a word, and it has to stay that way: a slot is the unit the arena holds tables in,
+// and the four-field form this replaced was sixteen bytes to carry the same four.
+static_assert(sizeof(TableSlot) == 8, "a table slot is a kind, a metric and one word");
+
+// Whether a cell holds an address rather than a 32-bit word. The only thing about a slot that a
+// layout has to know, which is what keeps every layout rule out of resolve.
 inline bool isAddressCell(TableCell kind) {
     return kind == TableCell::Function || kind == TableCell::Global;
 }
+
 
 /*
  * One interned runtime generic environment.
@@ -887,6 +961,15 @@ struct Program {
     // The teardown a type with nothing to run gets, so that a descriptor's lifecycle slots are
     // always callable - see emptyTeardown.
     ModulePtr<Function> emptyTeardown = nullptr;
+
+    /*
+     * The symbol every table slot is measured from - see imageAnchor, and TableCell.
+     *
+     * A label and nothing else: it occupies no storage and is never read, and what a reader wants is
+     * its *address*, which on x64 is one `lea r, [rip + global]` and no memory traffic at all. Null
+     * where no table was built, and on a target that has no addresses to measure.
+     */
+    ModulePtr<Global> imageAnchor = nullptr;
 
     // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
     // (class, type). See structuralInstance in name.cpp.

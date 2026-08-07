@@ -92,6 +92,11 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Not:
             addUse(((InstUnary*)inst)->from, inst);
             break;
+        // The table the slot is read out of. A TypeMetric has no operand at all - it names a type -
+        // which is why the two are not one case despite being the same kind of question.
+        case Value::TableSlot:
+            addUse(((InstTableSlot*)inst)->table, inst);
+            break;
         case Value::Add:
         case Value::Sub:
         case Value::Mul:

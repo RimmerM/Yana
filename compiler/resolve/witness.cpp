@@ -5,39 +5,21 @@
 #include "name.h"
 
 /*
- * The two tables the typed IR reaches into, as tuple types.
+ * How big a closure header is, as a type - and that is the whole of what it is for.
  *
- * A field of one of these is the slot of the same number - the tuples below are the slot lists of
- * witness.h's numberings, written as types so that a place rooted in a table address can read one
- * the way any other aggregate is read. Nothing here says where a field *is*; that is the emitting
- * target's, and whether its answer for the tuple agrees with its answer for the slot list is what
- * checkTableTypes asserts on the native side, where both descriptions exist.
+ * There used to be a tuple per table here, so that a place rooted in a table address could read a
+ * slot the way any other aggregate is read. That stopped being possible when a slot stopped being a
+ * pointer wide: a table's addresses are four bytes and self-relative, which is not a field of any
+ * type, and describing them as one was only ever right by coincidence. Reading a slot is
+ * InstTableSlot now, and the descriptor's tuple - which nothing but its own assertion ever read - is
+ * gone with it.
+ *
+ * This one survives because the *size* is still a real question. A native closure header sits
+ * immediately in front of its entry point, so the teardown finds it by subtracting the header's own
+ * size (see teardownFunValue), and that number has to be the emitting target's rather than one
+ * written here. Made of words rather than addresses because that is what a slot now is; the field
+ * names are gone, since nothing projects into it and a name would suggest something does.
  */
-TypePtr typeDescPlaceType(Module& module) {
-    auto& context = module.context;
-    auto word = module.scalar.int_;
-    auto address = resolvePointerType(module, module.scalar.unit);
-
-    Field fields[] = {
-        Field { word, context.addUnqualifiedName("logicalType", 11) },
-        Field { word, context.addUnqualifiedName("size", 4) },
-        Field { word, context.addUnqualifiedName("align", 5) },
-        Field { word, context.addUnqualifiedName("stride", 6) },
-        Field { word, context.addUnqualifiedName("flags", 5) },
-        Field { address, context.addUnqualifiedName("moveInit", 8) },
-        Field { address, context.addUnqualifiedName("copyInit", 8) },
-        Field { address, context.addUnqualifiedName("reclaim", 7) },
-        Field { address, context.addUnqualifiedName("drop", 4) },
-    };
-
-    // Pinned, because these bytes have two descriptions and both are already written: erased code
-    // reads the table by slot number through repr/table.h, and this tuple is how the typed IR reads
-    // the same words. A target free to reorder the fields would make the second description disagree
-    // with the first - which is what checkTableTypes in resolve/lower.cpp asserts it does not.
-    auto tuple = resolveTupleType(module, { fields, 9 }, kNullLocation, TypeLayout::C);
-    return (Type*)tuple - *module.types;
-}
-
 TypePtr funValueFieldType(Module& module, U16 field) {
     // The two words happen to have the same type, which is not a reason to answer without looking:
     // a projection index that is neither of them describes no word of a function value, and handing
@@ -48,34 +30,35 @@ TypePtr funValueFieldType(Module& module, U16 field) {
             return resolvePointerType(module, module.scalar.unit);
 
         // The header the target attached to the code word, where it attached one - see
-        // FunValueLayout::kHeader. Typed, unlike the two words, because what it points at is a
-        // layout this compiler both writes and reads.
+        // FunValueLayout::kHeader. A bare address like the other two: what is behind it is a table,
+        // and a table is read by slot rather than projected into - see InstTableSlot.
         case FunValueLayout::kHeader:
-            return resolvePointerType(module, closureHeaderPlaceType(module));
+            return resolvePointerType(module, module.scalar.unit);
         default:
             return module.scalar.error;
     }
 }
 
 U16 classSuperclassSlot(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index) {
-    auto argCount = U16(global[global[typeClass]->gen]->types.size());
     auto methodCount = U16(global[typeClass]->functions.size());
-
-    return ClassWitnessFields::super(argCount, methodCount, index);
+    return ClassWitnessFields::super(methodCount, index);
 }
 
 TypePtr closureHeaderPlaceType(Module& module) {
     auto& context = module.context;
-    auto address = resolvePointerType(module, module.scalar.unit);
+    auto word = module.scalar.int_;
 
-    Field fields[] = {
-        Field { address, context.addUnqualifiedName("drop", 4) },
-        Field { address, context.addUnqualifiedName("reclaim", 7) },
-    };
+    // One per slot, so that the tuple's size is the table's size. Which slot is which does not
+    // matter here and deliberately has no name: nothing reads a field of this.
+    Field fields[ClosureHeaderFields::kCount];
+    for(U16 i = 0; i < ClosureHeaderFields::kCount; i++) {
+        fields[i] = Field { word, context.addUnqualifiedName("slot", 4) };
+    }
 
-    // Pinned for the same reason as the descriptor, and more strictly: the code generator places
-    // these two words at exactly this distance in front of an entry point.
-    auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation, TypeLayout::C);
+    // Pinned, and this is the strict one: the code generator places exactly these bytes in front of
+    // an entry point and the teardown subtracts exactly this size to find them. checkTableTypes is
+    // what asserts the two agree.
+    auto tuple = resolveTupleType(module, { fields, ClosureHeaderFields::kCount }, kNullLocation, TypeLayout::C);
     return (Type*)tuple - *module.types;
 }
 
@@ -130,13 +113,19 @@ struct TableBuilder {
     }
 
     void putU32(U16 slot, U32 value) {
-        put(slot, TableSlot { TableCell::Int, TypeMetricKind::Size, value, nullptr, nullptr });
+        put(slot, TableSlot::intOf(value));
     }
 
     // How wide a type is, left as the question rather than the answer - see TableCell::Metric. This
     // is what keeps a descriptor free of any one target's numbers.
     void putMetric(U16 slot, TypePtr type, TypeMetricKind metric) {
-        put(slot, TableSlot { TableCell::Metric, metric, U32(type), nullptr, nullptr });
+        put(slot, TableSlot::metricOf(type, metric));
+    }
+
+    // A measurement and a constant in one cell - see TableCell::PackedMetric, which exists because
+    // the two halves are decided in different places.
+    void putPackedMetric(U16 slot, TypePtr type, TypeMetricKind metric, U16 extra) {
+        put(slot, TableSlot::packedMetricOf(type, metric, extra));
     }
 
     // A null target writes nothing, leaving the zero slot the constructor put there: that is how
@@ -145,24 +134,14 @@ struct TableBuilder {
         if(!function) return;
 
         (*module.arena)[function]->used = true;
-        put(slot, TableSlot { TableCell::Function, TypeMetricKind::Size, 0, function, nullptr });
-    }
-
-    // An interned type, as its region offset. Its own kind rather than an Int so that a dump can
-    // name the type instead of printing the offset - see TableCell::Type.
-    void putType(U16 slot, TypePtr type) {
-        put(slot, TableSlot { TableCell::Type, TypeMetricKind::Size, U32(type), nullptr, nullptr });
-    }
-
-    void putClass(U16 slot, GlobalPtr<TypeClass> typeClass) {
-        put(slot, TableSlot { TableCell::Class, TypeMetricKind::Size, U32(typeClass), nullptr, nullptr });
+        put(slot, TableSlot::functionOf(function));
     }
 
     void putGlobal(U16 slot, ModulePtr<Global> global_) {
         if(!global_) return;
 
         (*module.arena)[global_]->used = true;
-        put(slot, TableSlot { TableCell::Global, TypeMetricKind::Size, 0, nullptr, global_ });
+        put(slot, TableSlot::globalOf(global_));
     }
 
     Module& module;
@@ -799,7 +778,6 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
 
     auto classEnv = global[global[typeClass]->gen];
     auto methodCount = U16(global[typeClass]->functions.size());
-    auto argCount = U16(args.length);
     auto superCount = U16(classEnv->classes.size());
 
     StringBuilder text;
@@ -820,17 +798,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
     auto entry = program.classWitnesses.size();
     program.classWitnesses.push(::move(interned));
 
-    TableBuilder table(module, *global_,
-                       ClassWitnessFields::countFor(argCount, methodCount, superCount));
-    table.putClass(ClassWitnessFields::kClass, typeClass);
-    table.putU32(ClassWitnessFields::kCounts, U32(argCount) | (U32(methodCount) << 16));
-    table.putU32(ClassWitnessFields::kSuperCount, superCount);
-
-    for(U16 i = 0; i < argCount; i++) {
-        auto descriptor = typeDescFor(module, args[i], source);
-        if(descriptor) table.putGlobal(ClassWitnessFields::kArgs + i, descriptor);
-    }
-
+    TableBuilder table(module, *global_, ClassWitnessFields::countFor(methodCount, superCount));
     auto ok = true;
 
     for(U16 i = 0; i < methodCount; i++) {
@@ -845,7 +813,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
             continue;
         }
 
-        table.putFunction(ClassWitnessFields::method(argCount, i), thunk);
+        table.putFunction(ClassWitnessFields::method(i), thunk);
     }
 
     /*
@@ -873,7 +841,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
             continue;
         }
 
-        table.putGlobal(ClassWitnessFields::super(argCount, methodCount, slot), superclass);
+        table.putGlobal(ClassWitnessFields::super(methodCount, slot), superclass);
     }
 
     if(!ok) {
@@ -1069,18 +1037,28 @@ ModulePtr<Global> propertyWitnessFor(Module& module, TypePtr owner, StringId fie
 
     TableBuilder table(module, *global_, PropertyWitnessFields::kCount);
 
-    auto ownerDesc = typeDescFor(module, owner, source);
-    auto fieldDesc = typeDescFor(module, fieldType, source);
-    auto read = propertyReadThunk(module, owner, field, fieldType, source);
-    auto set = propertySetThunk(module, owner, field, fieldType, source);
-
-    if(!ownerDesc || !fieldDesc || !read || !set) {
+    /*
+     * Both types have to be concrete, asked directly rather than through their descriptors.
+     *
+     * This used to be `typeDescFor(owner) && typeDescFor(field)`, which answered the same question
+     * as a side effect of building the two descriptors the table then held. Nothing loaded those
+     * slots, so what is left is the question: a caller that is itself generic reaches here with a
+     * substituted type that is still a variable, and a witness over one describes no field of
+     * anything. genEnvFor's Type case makes the same test through the same null.
+     */
+    if(!owner || !fieldType || isGeneric(global, owner) || isGeneric(global, fieldType)) {
         program.propertyWitnesses.remove(entry);
         return nullptr;
     }
 
-    table.putGlobal(PropertyWitnessFields::kOwner, ownerDesc);
-    table.putGlobal(PropertyWitnessFields::kField, fieldDesc);
+    auto read = propertyReadThunk(module, owner, field, fieldType, source);
+    auto set = propertySetThunk(module, owner, field, fieldType, source);
+
+    if(!read || !set) {
+        program.propertyWitnesses.remove(entry);
+        return nullptr;
+    }
+
     table.putFunction(PropertyWitnessFields::kRead, read);
     table.putFunction(PropertyWitnessFields::kSet, set);
 
@@ -1531,14 +1509,15 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
      * reason.
      */
     TableBuilder table(module, *global_, TypeDescFields::kCount);
-    table.putType(TypeDescFields::kLogicalType, type);
     table.putMetric(TypeDescFields::kSize, type, TypeMetricKind::Size);
-    table.putMetric(TypeDescFields::kAlign, type, TypeMetricKind::Align);
     table.putMetric(TypeDescFields::kStride, type, TypeMetricKind::Stride);
 
     // Nothing selects a non-canonical Repr yet, and no type declares that it must keep its address,
     // so the only source of a stable-address requirement is a Repr variant - which is Milestone 8's.
-    table.putU32(TypeDescFields::kFlags, typeDescFlags(ownership, false));
+    // The alignment shares this cell, and cannot be written here: it is the emitting target's
+    // number where the flags are this pass's. See TableCell::PackedMetric.
+    table.putPackedMetric(TypeDescFields::kFlags, type, TypeMetricKind::Align,
+                          U16(typeDescFlags(ownership, false)));
 
     // Every lifecycle slot holds a callable address, so erased code never has to test one - see
     // emptyTeardown. A type whose bytes are its whole relocation still gets a real moveInit, since
@@ -1677,6 +1656,32 @@ void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Funct
     // The slot is overwritten rather than a second one appended, which is what a list of positions
     // makes obvious and a list of relocations did not: two entries for one slot would be two
     // addresses for one word, and which of them an emitter wrote would be whichever it saw last.
-    global_->table.set(local, ClosureHeaderFields::kReclaim,
-                       TableSlot { TableCell::Function, TypeMetricKind::Size, 0, reclaim, nullptr });
+    global_->table.set(local, ClosureHeaderFields::kReclaim, TableSlot::functionOf(reclaim));
+}
+
+/*
+ * The label every table slot is measured from - see repr/table.h.
+ *
+ * Created unconditionally rather than when the first table is built, and that distinction is the
+ * whole of why this is a function of its own. A *reader* needs the anchor as much as a writer does,
+ * and the two do not coincide: a function value's teardown reads a closure header's slot in every
+ * program that has a function value, including one where no lambda captured anything and so no
+ * header was ever built. Keying the anchor off table construction left those programs decoding a
+ * slot against nothing.
+ *
+ * Called once, after resolution and before `markProgramReachable` - which is the only window where
+ * every global exists and appending one more is still safe. It occupies nothing: a `()`-typed global
+ * is zero bytes, so this is a name for a position in the image rather than storage in it.
+ *
+ * Not created on a target whose tables hold references rather than offsets, since there is nothing
+ * there to measure and the symbol would be an export nobody reads.
+ */
+void ensureImageAnchor(Program& program) {
+    if(program.imageAnchor || isJsMode(program.context.settings.mode)) return;
+
+    auto& core = *program.core;
+    auto global_ = addAnonymousGlobal(core, program.context.addQualifiedName("image$base", 10, 1),
+                                      kNullLocation);
+
+    program.imageAnchor = global_ - *core.arena;
 }

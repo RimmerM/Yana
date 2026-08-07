@@ -34,26 +34,46 @@
 /*
  * The slots of a TypeDesc.
  *
- * One numbering with two readers, which is why it is not named for either of them. Erased code
- * reaches these through whatever its target's materialization made of them; a function value's
- * teardown reaches the same slots from the *typed* IR, as field projections into the tuple
- * typeDescPlaceType() describes. Those are the same numbers because the tuple's fields are the
- * table's slots, in order - and that identity is what lets one description serve both.
+ * Read only through whatever its target's materialization made of these positions - a word by byte
+ * offset, an address through InstTableSlot. There is no second description: a tuple laid out like a
+ * descriptor used to sit beside this one so that the typed IR could project into it, and it went
+ * away when a slot stopped being a field of anything.
  */
 namespace TypeDescFields {
-    // The interned type this describes, as its region offset. Stable within one program, which is
-    // all that identity is needed for: validating a context against its schema, interning, and
-    // specialization keys.
-    static constexpr U16 kLogicalType = 0;
-
-    static constexpr U16 kSize = 1;
-    static constexpr U16 kAlign = 2;
+    /*
+     * No leading identity word.
+     *
+     * This used to start with the interned type as its region offset, for a debug check that
+     * compares a context against its schema - and that check was never written, so every descriptor
+     * in every emitted program carried a compiler arena handle nothing loaded. Identity is what
+     * *interning* is for here: one descriptor per type, so the address of the descriptor is the
+     * identity, and a reader holding one already knows which it holds. If a debug check does get
+     * built it wants a content-derived id, which an arena offset is not - see TableSlot.
+     */
+    static constexpr U16 kSize = 0;
 
     // What indexing homogeneous storage advances by. `alignUp(size, align)` today, and explicit
-    // because a packed or target-specific array stride may differ from it later.
-    static constexpr U16 kStride = 3;
+    // because a packed or target-specific array stride may differ from it later - which is the one
+    // reason it is not derived from the two numbers beside it.
+    static constexpr U16 kStride = 1;
 
-    static constexpr U16 kFlags = 4;
+    /*
+     * The flags, and the alignment above them.
+     *
+     * Alignment had a word of its own and did not need one: TypeDescFlags uses bits 0 to 7 and the
+     * remaining 24 were spare, so the two share a cell and a descriptor is one word smaller. That is
+     * worth having only because of what an address slot now costs - four words used to round up to
+     * the same sixteen bytes as three, so removing one bought nothing until the addresses stopped
+     * being eight bytes wide.
+     *
+     * The alignment is stored as itself rather than as a log, so reading it is one shift and no
+     * table. 24 bits is every alignment any target has.
+     */
+    static constexpr U16 kFlags = 2;
+    static constexpr U32 kAlignShift = 8;
+
+    // Which bits of that cell are the flags, for a reader that wants them without the alignment.
+    static constexpr U32 kFlagMask = (1u << kAlignShift) - 1;
 
     /*
      * The four lifecycle operations, each a code address or null. See TypeDescFlags for what null
@@ -66,22 +86,17 @@ namespace TypeDescFields {
      * write that is not a relocation had nothing to reach, which is what `codegen/js/README.md`
      * gap 4 was.
      */
-    static constexpr U16 kMoveInit = 5;
-    static constexpr U16 kCopyInit = 6;
-    static constexpr U16 kReclaim = 7;
-    static constexpr U16 kDrop = 8;
+    static constexpr U16 kMoveInit = 3;
+    static constexpr U16 kCopyInit = 4;
+    static constexpr U16 kReclaim = 5;
+    static constexpr U16 kDrop = 6;
 
-    static constexpr U16 kCount = 9;
-
-    // Where the words stop and the addresses begin. A materializer that has the slots in hand does
-    // not need this; one describing the *shape* without an instance of it - which is what a reader
-    // computing "slot N of some descriptor" has - does.
-    static constexpr U16 kWordCount = 5;
+    static constexpr U16 kCount = 7;
 }
 
-// A tuple laid out exactly like a TypeDesc, so that a place rooted in a descriptor address can read
-// one of its words the way any other aggregate is read.
-TypePtr typeDescPlaceType(Module& module);
+// A descriptor has no tuple form. It used to have one, so that a place rooted in a descriptor
+// address could read a word the way any other aggregate is read; nothing ever did, and a slot is no
+// longer a field of anything - see InstTableSlot.
 
 // The type of one word of a function value - see FunValueLayout. Both are bare addresses: what is
 // behind the code word is not this compiler's business, and what is behind the environment word is
@@ -134,7 +149,6 @@ namespace ClosureHeaderFields {
     static constexpr U16 kReclaim = 1;
 
     static constexpr U16 kCount = 2;
-    static constexpr U16 kWordCount = 0;
 }
 
 TypePtr closureHeaderPlaceType(Module& module);
@@ -187,6 +201,8 @@ enum class TypeDescFlags: U32 {
     CanonicalRepr = 1 << 7,
 };
 
+// The flags alone. Packed with the alignment into one cell by typeDescFlagWord, which is what a
+// descriptor actually holds - see TypeDescFields::kFlags.
 inline U32 typeDescFlags(const Ownership& ownership, bool needsStableAddress) {
     U32 flags = U32(TypeDescFlags::CanonicalRepr);
     if(ownership.trivialCopy) flags |= U32(TypeDescFlags::TrivialCopy);
@@ -214,31 +230,46 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source);
 /*
  * The layout of a runtime `GenEnv`.
  *
- * One immutable realization of a GenSchema: the schema it was built for, then one pointer per slot
- * in the canonical numbering. Emitted code reads slot N and nothing else - no hashing, no search, no
- * comparison. Implementation-Generics.md part 1's "no runtime name lookup" is exactly this.
+ * One immutable realization of a GenSchema: one pointer per slot in the canonical numbering, and
+ * nothing else. Emitted code reads slot N - no hashing, no search, no comparison.
+ * Implementation-Generics.md part 1's "no runtime name lookup" is exactly this.
  *
- * The leading schema word is not read by emitted code. It is what a debug build compares against
- * the callee's own schema, which is the only check that can catch a caller and a callee disagreeing
- * about what slot 3 means.
+ * There is no leading schema word. One was reserved for a debug build to compare against the
+ * callee's own schema, and since that check was never written nothing ever *filled* it either: every
+ * environment ever emitted led with a literal zero, and a stack-built one led with a word the
+ * builder skipped. See TypeDescFields for the same story with the same ending.
  */
 namespace GenEnvFields {
-    static constexpr U16 kSchema = 0;
-    static constexpr U16 kSlots = 1;
+    static constexpr U16 kSlots = 0;
 
     static constexpr U16 slot(U16 index) { return U16(kSlots + index); }
     static constexpr U16 countFor(Size slotCount) { return U16(kSlots + slotCount); }
 
-    static constexpr U16 kWordCount = 1;
+    /*
+     * A GenEnv is the one table that is not always a constant: a generic function calling another
+     * builds its callee's environment on the frame - see genEnvironment. It holds the same
+     * anchor-relative offsets a constant table holds, which is the whole reason the anchor exists
+     * rather than each slot being measured from itself. See repr/table.h.
+     */
 }
 
 /*
  * The layout of a `ClassWitness` - Implementation-Generics.md part 6.
  *
- * One immutable method table per class implementation: the class it is for, the descriptors of the
- * types it was selected at, and one erased entry point per class function. A generic body that
- * deferred a dispatch loads the witness out of its own environment and the method out of the
- * witness, both at numbers the schema fixed at compile time.
+ * One immutable method table per class implementation: one erased entry point per class function,
+ * then one witness pointer per superclass. A generic body that deferred a dispatch loads the witness
+ * out of its own environment and the method out of the witness, both at numbers the schema fixed at
+ * compile time.
+ *
+ * Three leading words and a descriptor per class argument used to come first, and all four groups
+ * were write-only. The class id was for the unwritten debug check every other table here reserved
+ * one for; the argument and method counts are compile-time constants at every reader, since a
+ * reader has to know which class it is reading to know what a method index means; and the argument
+ * descriptors are Implementation-Generics.md part 6's provision for associated types, which do not
+ * exist. Nothing loaded any of them, and they dominated a small witness: a one-method single-
+ * argument class was 32 bytes of which 24 were these, and is now 8. They also held a descriptor -
+ * and, through the reachability walk, its move and copy glue - alive in programs that never
+ * mentioned the type.
  *
  * The method slots hold plain code addresses rather than full `FunctionWitness` records. A witness
  * carries a closure and a captured environment, and a class method has neither: it is a known
@@ -254,36 +285,28 @@ namespace GenEnvFields {
  * witness it already passed. See genWitnessPath, which is where that path is worked out.
  */
 namespace ClassWitnessFields {
-    // The class this implements, as its region offset - the same kind of identity a TypeDesc's
-    // logical type is, and used for the same debug validation.
-    static constexpr U16 kClass = 0;
+    // The two counted sections of addresses, in order. Nothing precedes them: a witness is its
+    // methods and its superclasses, and every count a reader needs it already knows statically.
+    static constexpr U16 kMethods = 0;
 
-    // The argument and method counts, packed into one word as `argCount | methodCount << 16`.
-    static constexpr U16 kCounts = 1;
-    static constexpr U16 kSuperCount = 2;
-
-    // The three counted sections of addresses, in order.
-    static constexpr U16 kArgs = 3;
-
-    static constexpr U16 method(U16 argCount, U16 index) { return U16(kArgs + argCount + index); }
-    static constexpr U16 super(U16 argCount, U16 methodCount, U16 index) {
-        return U16(kArgs + argCount + methodCount + index);
+    static constexpr U16 method(U16 index) { return U16(kMethods + index); }
+    static constexpr U16 super(U16 methodCount, U16 index) {
+        return U16(kMethods + methodCount + index);
     }
 
-    static constexpr U16 countFor(U16 argCount, U16 methodCount, U16 superCount) {
-        return U16(kArgs + argCount + methodCount + superCount);
+    static constexpr U16 countFor(U16 methodCount, U16 superCount) {
+        return U16(kMethods + methodCount + superCount);
     }
 
-    static constexpr U16 kWordCount = 3;
 }
 
 /*
  * Which slot of a witness for `typeClass` holds the pointer to its `index`th superclass - the
  * classes it declares, in declaration order.
  *
- * A constant per class, since the two counted sections in front of it are decided by the class
- * rather than by the instance: every witness for one class has the same shape, which is what lets a
- * body compiled once load an implied requirement's witness from a fixed slot.
+ * A constant per class, since the method section in front of it is decided by the class rather than
+ * by the instance: every witness for one class has the same shape, which is what lets a body
+ * compiled once load an implied requirement's witness from a fixed slot.
  */
 U16 classSuperclassSlot(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index);
 
@@ -299,9 +322,16 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
 /*
  * The layout of a `PropertyWitness` - Implementation-Generics.md part 5.
  *
- * One constrained field of one concrete owner: the two descriptors that say what it is, and the two
- * operations that reach it. A generic body that reads `a.name` loads this out of its environment at
- * the slot its schema numbered and calls through it, with nothing searched and no field name hashed.
+ * One constrained field of one concrete owner: the two operations that reach it, and nothing else. A
+ * generic body that reads `a.name` loads this out of its environment at the slot its schema numbered
+ * and calls through it, with nothing searched and no field name hashed.
+ *
+ * The owner's and the field's descriptors used to lead, per part 5, and were never loaded: they
+ * belong to the *scoped* ABI, where a callback is handed erased field storage and needs a
+ * descriptor to make sense of it. The by-value pair below hands the field to storage the caller
+ * already knows the type of, so it needs neither. They cost two addresses in every property witness
+ * plus - through the reachability walk - a descriptor and its move and copy glue for a field type
+ * the program may otherwise never mention. They come back with the scoped form, if it lands.
  *
  * `read` and `set` take addresses and no callbacks, which is deliberately narrower than the scoped
  * `read/modify` the design document describes. A scope is what a *borrow* of a field needs, and the
@@ -320,18 +350,10 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
  * exists".
  */
 namespace PropertyWitnessFields {
-    static constexpr U16 kOwner = 0;
-    static constexpr U16 kField = 1;
-    static constexpr U16 kRead = 2;
-    static constexpr U16 kSet = 3;
+    static constexpr U16 kRead = 0;
+    static constexpr U16 kSet = 1;
 
-    static constexpr U16 kCount = 4;
-
-    // No leading 32-bit cells: every slot here is an address, unlike a TypeDesc or a ClassWitness
-    // whose counts come first. Still named rather than written as a literal zero at the two call
-    // sites, because `tableSlotOffset` takes this and the slot index in that order and passing the
-    // wrong one of the two is an offset that is quietly right for the first slot.
-    static constexpr U16 kWordCount = 0;
+    static constexpr U16 kCount = 2;
 }
 
 /*
@@ -370,6 +392,15 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
  * still be specialized is left alone.
  */
 bool prepareGenericCalls(Program& program);
+
+/*
+ * Creates the label every compiler-built table's address slots are measured from.
+ *
+ * Must run after resolution and before the reachability walk: it is the last global added, and the
+ * walk is what decides which globals exist. Nothing in the IR refers to it - the only reference is
+ * made during lowering - so it is seeded as a root there rather than found.
+ */
+void ensureImageAnchor(Program& program);
 
 /*
  * Whether this generic body can be emitted as machine code at all, rather than only cloned.

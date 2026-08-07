@@ -559,8 +559,24 @@ struct LowerFunction {
 struct LowerGlobal;
 
 struct LowerDataRelocation {
-    // Where in `initialContents` the 8-byte address goes.
+    // Where in `initialContents` the address goes.
     U32 offset = 0;
+
+    /*
+     * A compiler-built table's slot rather than a pointer a source constant holds, and the two are
+     * written completely differently.
+     *
+     * A table slot is four bytes holding `target - &anchor`, which is known as soon as both are
+     * placed within the image - so it is written when the image is assembled and needs nothing at
+     * load time. See repr/table.h for why anchor-relative rather than absolute.
+     *
+     * A source constant's pointer - the run inside a string literal, say - is the program's own
+     * pointer type, so it is the target's full width and absolute, and it stays unknown until the
+     * image is mapped. Both arrive in one list because both are "an address inside data"; only the
+     * first can be resolved early, and treating them alike would either truncate a real pointer or
+     * make every table wait for a load address it does not need.
+     */
+    bool anchorRelative = false;
 
     // Exactly one of these is set.
     LowerPtr<LowerFunction> function = nullptr;
@@ -615,6 +631,11 @@ struct LowerModule {
      */
     Array<LowerPtr<LowerGlobal>> globalOrder;
     Array<LowerPtr<LowerFunction>> functionOrder;
+
+    // The label every compiler-built table's address slots are measured from - see repr/table.h.
+    // Null for a program with no tables, and on a target whose tables hold references rather than
+    // offsets; a backend that finds relocations to write and no anchor has a real inconsistency.
+    LowerPtr<LowerGlobal> imageAnchor = nullptr;
 
     StringId name {};
 

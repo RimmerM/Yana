@@ -166,6 +166,7 @@ static InstGroup instGroup(Value::Kind kind) {
             return InstGroup::Storage;
 
         case Value::TypeMetric:
+        case Value::TableSlot:
         case Value::Native:
         case Value::Cast:
         case Value::Neg:

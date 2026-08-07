@@ -1,135 +1,100 @@
+let image$base: () = <none>
+
 table typeDesc$Person {
-  .0 Person
-  .1 sizeof Person
-  .2 alignof Person
-  .3 strideof Person
-  .4 131
-  .5 moveInit$Person
-  .6 copyInit$Person
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Person
+  .1 strideof Person
+  .2 alignof Person | 131
+  .3 moveInit$Person
+  .4 copyInit$Person
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table property$Person.name {
-  .0 typeDesc$Person
-  .1 typeDesc$Int
-  .2 read$Person.name
-  .3 set$Person.name
-}
-
-table typeDesc$Int {
-  .0 Int
-  .1 sizeof Int
-  .2 alignof Int
-  .3 strideof Int
-  .4 131
-  .5 moveInit$Int
-  .6 copyInit$Int
-  .7 teardown$none
-  .8 teardown$none
+  .0 read$Person.name
+  .1 set$Person.name
 }
 
 table genEnv$nameOf(Person) {
-  .0 0
-  .1 typeDesc$Person
-  .2 property$Person.name
+  .0 typeDesc$Person
+  .1 property$Person.name
 }
 
 table typeDesc$Item {
-  .0 Item
-  .1 sizeof Item
-  .2 alignof Item
-  .3 strideof Item
-  .4 131
-  .5 moveInit$Item
-  .6 copyInit$Item
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Item
+  .1 strideof Item
+  .2 alignof Item | 131
+  .3 moveInit$Item
+  .4 copyInit$Item
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table property$Item.name {
-  .0 typeDesc$Item
-  .1 typeDesc$Int
-  .2 read$Item.name
-  .3 set$Item.name
+  .0 read$Item.name
+  .1 set$Item.name
 }
 
 table genEnv$nameOf(Item) {
-  .0 0
-  .1 typeDesc$Item
-  .2 property$Item.name
+  .0 typeDesc$Item
+  .1 property$Item.name
 }
 
 table genEnv$rename(Person) {
-  .0 0
-  .1 typeDesc$Person
-  .2 property$Person.name
+  .0 typeDesc$Person
+  .1 property$Person.name
 }
 
 table typeDesc$Left {
-  .0 Left
-  .1 sizeof Left
-  .2 alignof Left
-  .3 strideof Left
-  .4 131
-  .5 moveInit$Left
-  .6 copyInit$Left
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Left
+  .1 strideof Left
+  .2 alignof Left | 131
+  .3 moveInit$Left
+  .4 copyInit$Left
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table property$Left.name {
-  .0 typeDesc$Left
-  .1 typeDesc$Int
-  .2 read$Left.name
-  .3 set$Left.name
+  .0 read$Left.name
+  .1 set$Left.name
 }
 
 table property$Left.tag {
-  .0 typeDesc$Left
-  .1 typeDesc$Int
-  .2 read$Left.tag
-  .3 set$Left.tag
+  .0 read$Left.tag
+  .1 set$Left.tag
 }
 
 table genEnv$labelled(Left) {
-  .0 0
-  .1 typeDesc$Left
-  .2 property$Left.name
-  .3 property$Left.tag
+  .0 typeDesc$Left
+  .1 property$Left.name
+  .2 property$Left.tag
 }
 
 table typeDesc$Right {
-  .0 Right
-  .1 sizeof Right
-  .2 alignof Right
-  .3 strideof Right
-  .4 131
-  .5 moveInit$Right
-  .6 copyInit$Right
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Right
+  .1 strideof Right
+  .2 alignof Right | 131
+  .3 moveInit$Right
+  .4 copyInit$Right
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table property$Right.name {
-  .0 typeDesc$Right
-  .1 typeDesc$Int
-  .2 read$Right.name
-  .3 set$Right.name
+  .0 read$Right.name
+  .1 set$Right.name
 }
 
 table property$Right.tag {
-  .0 typeDesc$Right
-  .1 typeDesc$Int
-  .2 read$Right.tag
-  .3 set$Right.tag
+  .0 read$Right.tag
+  .1 set$Right.tag
 }
 
 table genEnv$labelled(Right) {
-  .0 0
-  .1 typeDesc$Right
-  .2 property$Right.name
-  .3 property$Right.tag
+  .0 typeDesc$Right
+  .1 property$Right.name
+  .2 property$Right.tag
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -217,24 +182,6 @@ fn moveInit$Person(%to: %Person, %from: %Person) -> () {
 fn copyInit$Person(%to: %Person, %from: %Person) -> () {
   b0:
     %v2 = sizeof Person : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn moveInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
     copymemory %v3, %v4, %v2

@@ -1,21 +1,19 @@
 "use strict";
-const typeDesc$Person = [52056, 8, 4, 8, 131, moveInit$Person, copyInit$Person, teardown$none, teardown$none];
-const property$Person_name = [typeDesc$Person, null, read$Person_name, set$Person_name];
-const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
-const genEnv$nameOf_Person = [0, typeDesc$Person, property$Person_name];
-const typeDesc$Item = [52356, 8, 4, 8, 131, moveInit$Item, copyInit$Item, teardown$none, teardown$none];
-const property$Item_name = [typeDesc$Item, typeDesc$Int, read$Item_name, set$Item_name];
-const genEnv$nameOf_Item = [0, typeDesc$Item, property$Item_name];
-const genEnv$rename_Person = [0, typeDesc$Person, property$Person_name];
-const typeDesc$Left = [52656, 8, 4, 8, 131, moveInit$Left, copyInit$Left, teardown$none, teardown$none];
-const property$Left_name = [typeDesc$Left, typeDesc$Int, read$Left_name, set$Left_name];
-const property$Left_tag = [typeDesc$Left, typeDesc$Int, read$Left_tag, set$Left_tag];
-const genEnv$labelled_Left = [0, typeDesc$Left, property$Left_name, property$Left_tag];
-const typeDesc$Right = [52956, 8, 4, 8, 131, moveInit$Right, copyInit$Right, teardown$none, teardown$none];
-const property$Right_name = [typeDesc$Right, typeDesc$Int, read$Right_name, set$Right_name];
-const property$Right_tag = [typeDesc$Right, typeDesc$Int, read$Right_tag, set$Right_tag];
-const genEnv$labelled_Right = [0, typeDesc$Right, property$Right_name, property$Right_tag];
-property$Person_name[1] = typeDesc$Int;
+const typeDesc$Person = [8, 8, 1155, moveInit$Person, copyInit$Person, teardown$none, teardown$none];
+const property$Person_name = [read$Person_name, set$Person_name];
+const genEnv$nameOf_Person = [typeDesc$Person, property$Person_name];
+const typeDesc$Item = [8, 8, 1155, moveInit$Item, copyInit$Item, teardown$none, teardown$none];
+const property$Item_name = [read$Item_name, set$Item_name];
+const genEnv$nameOf_Item = [typeDesc$Item, property$Item_name];
+const genEnv$rename_Person = [typeDesc$Person, property$Person_name];
+const typeDesc$Left = [8, 8, 1155, moveInit$Left, copyInit$Left, teardown$none, teardown$none];
+const property$Left_name = [read$Left_name, set$Left_name];
+const property$Left_tag = [read$Left_tag, set$Left_tag];
+const genEnv$labelled_Left = [typeDesc$Left, property$Left_name, property$Left_tag];
+const typeDesc$Right = [8, 8, 1155, moveInit$Right, copyInit$Right, teardown$none, teardown$none];
+const property$Right_name = [read$Right_name, set$Right_name];
+const property$Right_tag = [read$Right_tag, set$Right_tag];
+const genEnv$labelled_Right = [typeDesc$Right, property$Right_name, property$Right_tag];
 
 // Core
 function teardown$none(value) {
@@ -25,19 +23,19 @@ function teardown$none(value) {
 // ResolveTest
 function nameOf(genEnv, p) {
   var v1 = { $v: 0 };
-  genEnv[2][2](p, v1);
+  genEnv[1][0](p, v1);
   return v1.$v;
 }
 
 function rename(genEnv, p, to) {
-  genEnv[2][3](p, { $v: to });
+  genEnv[1][1](p, { $v: to });
   return;
 }
 
 function labelled(genEnv, p) {
-  var v4 = Math.imul(nameOf([0, genEnv[1], genEnv[2]], p), 100);
+  var v4 = Math.imul(nameOf([genEnv[0], genEnv[1]], p), 100);
   var v5 = { $v: 0 };
-  genEnv[3][2](p, v5);
+  genEnv[2][0](p, v5);
   return v4 + v5.$v | 0;
 }
 
@@ -60,16 +58,6 @@ function moveInit$Person(to, from) {
 function copyInit$Person(to, from) {
   to.name = from.name;
   to.age = from.age;
-  return;
-}
-
-function moveInit$Int(to, from) {
-  to.$v = from.$v;
-  return;
-}
-
-function copyInit$Int(to, from) {
-  to.$v = from.$v;
   return;
 }
 

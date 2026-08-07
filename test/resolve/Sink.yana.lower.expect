@@ -1,3 +1,4 @@
+@image$base = []
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -561,7 +562,7 @@ moveInit$Either<complex>(%to: Ptr, %from: Ptr) {
   }
 }
 
-@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.lambda$0<complex>(%env: Ptr): Long {
   b_0 {
     %v_1 = loads %env, 8: Long
@@ -607,10 +608,12 @@ drop$() -> I64<complex>(%value: Ptr) {
   b_5 {
     %v_7 = load %value, 8: Ptr
     %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 16: Long
+    %v_9 = sub %v_8, 8: Long
     %v_10 = bitcast %v_9: Ptr
-    %v_11 = load %v_10, 8: Ptr
-    call_complex %v_11, %v_2
+    %v_11 = loads %v_10, 4: Int
+    %v_12 = sext %v_11: Long
+    %v_13 = add %v_12, @image$base: Ptr
+    call_complex %v_13, %v_2
     jmp b_6
   }
 
@@ -631,11 +634,13 @@ reclaim$() -> I64<complex>(%value: Ptr) {
   b_5 {
     %v_7 = load %value, 8: Ptr
     %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 16: Long
+    %v_9 = sub %v_8, 8: Long
     %v_10 = bitcast %v_9: Ptr
-    %v_11 = add %v_10, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    call_complex %v_12, %v_2
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = sext %v_12: Long
+    %v_14 = add %v_13, @image$base: Ptr
+    call_complex %v_14, %v_2
     jmp b_6
   }
 

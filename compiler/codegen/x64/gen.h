@@ -1067,6 +1067,21 @@ struct AsmRelocation {
     // immediately following the field (matching how the CPU computes RIP-relative offsets).
     U32 siteOffset;
 
+    /*
+     * Data sites only, and ignored for a code site.
+     *
+     * Set for a compiler-built table's slot, which holds `target - anchorOffset` in four bytes and
+     * is therefore final the moment both are placed - so resolveRelocations writes it and it never
+     * reaches applyDataRelocations. Clear for a pointer inside a source constant, which is absolute
+     * and target-width and cannot be written until the image is mapped.
+     *
+     * Note that a table slot is measured from the image anchor, not from the byte after the field -
+     * unlike the rel32 above, which matches how the CPU computes a RIP-relative displacement.
+     * Nothing is executing here; the reader adds the anchor's address back, so that is what it must
+     * be measured from. See repr/table.h.
+     */
+    bool anchorRelative = false;
+
     // Resolution target: exactly one of these is set.
     // `function` is used for calls/address-loads that target a (possibly not-yet-emitted)
     // function elsewhere in the module; `block` is used for intra-function jumps; `global` is
@@ -1166,6 +1181,7 @@ struct AsmModule {
         for(auto relocation: global->relocations.contents(base)) {
             pendingData.push(AsmRelocation {
                 .siteOffset = start + relocation.offset,
+                .anchorRelative = relocation.anchorRelative,
                 .function = relocation.function ? base[relocation.function] : nullptr,
                 .global = relocation.global ? base[relocation.global] : nullptr,
             });
@@ -1213,9 +1229,14 @@ struct AsmModule {
         buffer.writeInt<LittleEndian>(0);
     }
 
-    // Patches every recorded relocation with the now-known offset of its target.
-    // Must be called after every block/function referenced by any relocation has been emitted.
-    void resolveRelocations();
+    /*
+     * Patches every recorded relocation with the now-known offset of its target.
+     * Must be called after every block/function referenced by any relocation has been emitted.
+     *
+     * `anchor` is the global every table slot is measured from - see repr/table.h. Null is allowed
+     * only for a module that built no table, since a slot cannot be written without it.
+     */
+    void resolveRelocations(LowerGlobal* anchor);
 };
 
 // Represents an address calculation (base + index * scale) + displacement.

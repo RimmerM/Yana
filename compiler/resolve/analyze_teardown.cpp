@@ -288,12 +288,12 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
      * around it reads the same two slots out of the same layout either way.
      */
     auto headerContent = closureHeaderPlaceType(module);
-    auto headerType = resolvePointerType(module, headerContent);
-    Place header;
+    auto headerType = resolvePointerType(module, module.scalar.unit);
+    ModulePtr<Value> header;
 
     if(isJsMode(module.context.settings.mode)) {
-        header = Place::atPointer(resolver.load(
-            resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source));
+        header = resolver.load(
+            resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source);
     } else {
         auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
         auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, StringId(), word, Value::Cast, codeWord));
@@ -301,12 +301,22 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
                                                                    TypeMetricKind::Size));
         auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, StringId(), word, Value::Sub, codeInt, distance));
 
-        header = Place::atPointer(
-            resolver.ref(resolver.emit<InstUnary>(source, StringId(), headerType, Value::Cast, headerInt)));
+        header = resolver.ref(resolver.emit<InstUnary>(source, StringId(), headerType, Value::Cast, headerInt));
     }
 
+    /*
+     * The slot, as a question rather than as a load.
+     *
+     * This used to be an ordinary field projection into a tuple laid out like the header, which was
+     * only ever right because an address slot happened to be exactly a pointer wide. It is four
+     * bytes and self-relative now on native and a bare array element on JS, and neither is something
+     * this pass may know: it runs before a target is chosen. So it states which slot of which table
+     * and lets whoever emits decode it - see InstTableSlot, and TypeMetric two lines above, which is
+     * the same trade for the same reason.
+     */
     auto slot = half == Teardown::Drop ? ClosureHeaderFields::kDrop : ClosureHeaderFields::kReclaim;
-    auto operation = resolver.load(resolver.project(header, ProjectionKind::Field, slot), source);
+    auto operation = resolver.ref(resolver.emit<InstTableSlot>(
+        source, StringId(), headerType, header, slot));
 
     // No signature: this is the compiler calling a teardown it generated, not a program calling a
     // function value, so there are no conventions to honour and no environment convention either.

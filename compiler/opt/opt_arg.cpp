@@ -241,7 +241,7 @@ void addressTaken(OptContext& opt, HashMap<U32, bool>& taken) {
 
     for(auto module: opt.program.modules) {
         for(auto globalPointer: module->globalOrder.contents(opt.local)) {
-            for(auto slot: opt.local[globalPointer]->table.contents(opt.local)) hold(slot.function);
+            for(auto slot: opt.local[globalPointer]->table.contents(opt.local)) hold(slot.function());
         }
 
         for(auto pointer: module->functionOrder.contents(opt.local)) {

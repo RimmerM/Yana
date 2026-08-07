@@ -207,7 +207,7 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
         });
     }
 
-    assembly.resolveRelocations();
+    assembly.resolveRelocations(module.imageAnchor ? base[module.imageAnchor] : nullptr);
 
     // The last thing to touch the buffer: the addresses inside constant data - a witness table
     // holding a function pointer - are only knowable once the image has an address, and this image

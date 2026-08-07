@@ -1047,6 +1047,38 @@ struct InstTypeMetric: Inst {
 };
 
 /*
+ * The address held in one slot of a compiler-built table - the address counterpart of
+ * InstTypeMetric, and here for the same reason.
+ *
+ * A witness table's slots are not a layout this stage may state. Native holds an address as four
+ * bytes relative to the slot itself, so reading one is a load, a sign-extension and an add; JS holds
+ * a real function reference in an array, so reading one is `table[N]` and there is no width in it at
+ * all. Both are answers to the same question - "the address in slot N" - and the question is all
+ * that is stable between them.
+ *
+ * This used to be an ordinary field projection into a tuple laid out like the table (the deleted
+ * `typeDescPlaceType`), which worked only because an address slot happened to be exactly a pointer
+ * wide. Narrowing the slot broke that identity, and the fix is not a second tuple: it is to stop
+ * describing the bytes here and describe the *access* instead. `witness.h`'s numberings are the
+ * whole of what a reader and a builder share.
+ *
+ * The slot index is the whole of what identifies the cell: every cell is four bytes, so slot N is
+ * at 4N on every target that has bytes at all, and an array index on the one that does not.
+ */
+struct InstTableSlot: Inst {
+    InstTableSlot(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> table, U16 slot):
+        Inst(Value::TableSlot, block, type), table(table), slot(slot) {}
+
+    // The address of the table itself. An operand rather than a place, because what a reader has in
+    // hand is an address it computed - a closure header is the bytes in front of an entry point, and
+    // no place names those.
+    ModulePtr<Value> table;
+    U16 slot;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { table = f(table); }
+};
+
+/*
  * An operation of the Native module that is not expressible as anything more basic.
  *
  * These are one instruction rather than one kind each because they have nothing in common with

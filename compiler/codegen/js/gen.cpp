@@ -782,8 +782,8 @@ JsPtr<Expr> tableValue(Gen& g, Global& global_) {
                  */
                 JsPtr<Expr> cell = nullValue(g);
 
-                if(slot.function) {
-                    if(auto found = g.functionNames.get(U32(slot.function))) {
+                if(auto function = slot.function()) {
+                    if(auto found = g.functionNames.get(U32(function))) {
                         cell = variable(g, found.unwrap());
                     }
                 }
@@ -793,10 +793,12 @@ JsPtr<Expr> tableValue(Gen& g, Global& global_) {
             }
 
             case TableCell::Global: {
-                if(slot.global && g.emittedGlobals.contains(U32(slot.global))) {
-                    table->values.push(g.file.arena, globalValue(g, slot.global));
-                } else if(slot.global) {
-                    g.forward.push(Forward { g.tableName, U32(table->values.size()), slot.global });
+                auto global_ = slot.global();
+
+                if(global_ && g.emittedGlobals.contains(U32(global_))) {
+                    table->values.push(g.file.arena, globalValue(g, global_));
+                } else if(global_) {
+                    g.forward.push(Forward { g.tableName, U32(table->values.size()), global_ });
                     table->values.push(g.file.arena, nullValue(g));
                 } else {
                     table->values.push(g.file.arena, nullValue(g));
@@ -805,20 +807,18 @@ JsPtr<Expr> tableValue(Gen& g, Global& global_) {
                 break;
             }
 
-            // How wide a type is *here*, which is not what the native target would have said. The
-            // descriptor was built without an answer for exactly this reason - see TableCell::Metric.
-            case TableCell::Metric:
-                table->values.push(g.file.arena,
-                                   number(g, F64(tableMetricValue(g.repr, slot))));
-                break;
-
-            // A number, a type or a class - all three are the word in `value`. What distinguishes
-            // the last two is only that a dump can name them; here they are what they were written
-            // as, which is a region offset an emitted debug check would compare.
+            /*
+             * A number, a measurement, or a measurement packed with a constant - all three answered
+             * by the one shared function, so that this target and the native one cannot combine a
+             * PackedMetric differently.
+             *
+             * How wide a type is *here* is not what the native target would have said, which is the
+             * whole reason the descriptor was built without an answer - see TableCell::Metric.
+             */
             case TableCell::Int:
-            case TableCell::Type:
-            case TableCell::Class:
-                table->values.push(g.file.arena, number(g, F64(slot.value)));
+            case TableCell::Metric:
+            case TableCell::PackedMetric:
+                table->values.push(g.file.arena, number(g, F64(tableWordValue(g.repr, slot))));
                 break;
         }
     }

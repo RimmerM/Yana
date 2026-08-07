@@ -408,7 +408,7 @@ static void benchNative(const Fixture& fixture) {
         }
 
         for(auto globalPointer: lowered->globalOrder) assembly.addGlobal(base, base[globalPointer]);
-        assembly.resolveRelocations();
+        assembly.resolveRelocations(lowered->imageAnchor ? base[lowered->imageAnchor] : nullptr);
     }
 }
 

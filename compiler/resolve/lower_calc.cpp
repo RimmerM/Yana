@@ -33,13 +33,30 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             // `imm` behind for every one the scaling fold above removed the only use of.
             if(!descriptor) return nullptr;
 
-            auto offset = metric.metric == TypeMetricKind::Align ? TypeDescFields::kAlign
-                        : metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
-                        : TypeDescFields::kSize;
+            // The alignment shares the flags cell and sits above them, so reading it is the same
+            // load and one shift - see TypeDescFields::kFlags. The other two are whole cells.
+            if(metric.metric == TypeMetricKind::Align) {
+                lower.values.add(instValue, descAlign(lower, block, descriptor));
+                return nullptr;
+            }
+
+            auto offset = metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
+                                                                  : TypeDescFields::kSize;
 
             lower.values.add(instValue, descField(lower, block, descriptor, offset));
             return nullptr;
         }
+
+        // The address in one table slot, decoded from the self-relative form this target holds it
+        // in. The instruction exists so that the *asker* - a closure teardown, which is resolve IR
+        // built before any target is chosen - does not have to know that form. See InstTableSlot.
+        case Value::TableSlot: {
+            auto& read = (InstTableSlot&)instruction;
+            lower.values.add(instValue, tableSlotAddress(lower, block, mappedValue(lower, read.table),
+                                                         read.slot));
+            return nullptr;
+        }
+
         case Value::Native: {
             auto& native = (InstNative&)instruction;
             SmallArray<LowerPtr<LowerValue>, 8> args;

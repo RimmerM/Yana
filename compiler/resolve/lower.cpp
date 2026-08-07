@@ -137,46 +137,31 @@ void prepareScalars(LowerContext& lower, ModulePtr<Function> pointer, Function& 
 }
 
 /*
- * The two descriptions of a compiler-built table, checked against each other rather than believed.
+ * How big a closure header is, checked rather than believed.
  *
- * A witness table is described twice on purpose. Erased code reads it by slot number, through
- * repr/table.h; a function value's teardown reads the same table from the typed IR, as field
- * projections into the tuple typeDescPlaceType and closureHeaderPlaceType describe. Those are the
- * same slots, so they had better be the same bytes - and they are computed by two different rules,
- * the table layout and the ordinary struct layout, which happen to agree.
+ * The code generator places a header's bytes immediately in front of an entry point, and the
+ * teardown finds them by subtracting the size of the tuple closureHeaderPlaceType describes - so
+ * those two numbers are the same number arrived at two ways, the table layout and the ordinary
+ * struct layout. A target whose struct rule disagreed with its table rule would emit a teardown
+ * reading from in front of the header, which is the kind of thing that shows up as a crash in
+ * unrelated code long afterwards.
  *
  * Checked here because here is the only place both exist. Resolve states the slots and has no
- * offsets; the JS backend has neither. A target whose struct rule disagreed with its table rule
- * would otherwise emit a teardown reading the wrong word, which is the kind of thing that shows up
- * as a crash in unrelated code long afterwards.
+ * offsets; the JS backend has neither, and attaches its header to the code word rather than placing
+ * it at a distance, so there is nothing for it to get wrong.
+ *
+ * The per-slot offsets are no longer checked, and the descriptor is not checked at all: nothing
+ * reads either table through a tuple any more. A slot is four bytes and self-relative on this target
+ * and an array element on the other, and neither is a field of anything - reading one is
+ * InstTableSlot, which asks for the slot rather than describing the bytes. What is left here is the
+ * one fact that is still two facts.
  */
 static void checkTableTypes(LowerContext& lower) {
     auto root = lower.from.root;
     if(!root) return;
 
-    auto& repr = lower.repr;
-    auto& target = repr.target;
-
-    auto descriptor = typeDescPlaceType(*root);
-    for(U16 i = 0; i < TypeDescFields::kCount; i++) {
-        assertTrue(repr.fieldOf(descriptor, i)->offset ==
-                   tableSlotOffset(target, TypeDescFields::kWordCount, i));
-    }
-
-    assertTrue(repr.sizeOf(descriptor) ==
-               tableSize(target, TypeDescFields::kWordCount, TypeDescFields::kCount));
-
-    // The header has the stricter of the two requirements: the code generator places these bytes at
-    // exactly this distance in front of an entry point, and the teardown subtracts the tuple's size
-    // to find them - see teardownFunValue.
     auto header = closureHeaderPlaceType(*root);
-    for(U16 i = 0; i < ClosureHeaderFields::kCount; i++) {
-        assertTrue(repr.fieldOf(header, i)->offset ==
-                   tableSlotOffset(target, ClosureHeaderFields::kWordCount, i));
-    }
-
-    assertTrue(repr.sizeOf(header) ==
-               tableSize(target, ClosureHeaderFields::kWordCount, ClosureHeaderFields::kCount));
+    assertTrue(lower.repr.sizeOf(header) == tableSize(ClosureHeaderFields::kCount));
 }
 
 /*
@@ -395,6 +380,11 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             if(source->prefixOf) continue;
 
             auto target = lowerGlobal(globalPointer);
+
+            // Carried across rather than looked up by name later: what the backend needs is the
+            // lowered global, and this is the one place both halves of it are in hand.
+            if(globalPointer == lower.from.imageAnchor) result->imageAnchor = target - lower.lower;
+
             /*
              * The list holds exactly the map's values, in the order the names first appeared.
              *
@@ -473,17 +463,18 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
             LowerDataRelocation translated;
             translated.offset = entry.offsets[at];
+            translated.anchorRelative = true;
 
-            if(slot.function) {
-                auto found = lower.functions.getValue(slot.function);
+            if(auto function = slot.function()) {
+                auto found = lower.functions.getValue(function);
 
                 // A table naming a function nothing else reached is what keeps that function alive,
                 // so this should not happen; leaving the slot null is still better than pointing it
                 // at the wrong thing.
                 if(!found) continue;
                 translated.function = found.unwrap();
-            } else if(slot.global) {
-                auto found = result->globals.getValue(lower.local[slot.global]->name);
+            } else if(auto global_ = slot.global()) {
+                auto found = result->globals.getValue(lower.local[global_]->name);
                 if(!found) continue;
                 translated.global = found.unwrap();
             } else {

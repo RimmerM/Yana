@@ -1,53 +1,41 @@
+let image$base: () = <none>
+
 let &copyCalls: Int = 0
 
 table typeDesc$Int {
-  .0 Int
-  .1 sizeof Int
-  .2 alignof Int
-  .3 strideof Int
-  .4 131
-  .5 moveInit$Int
-  .6 copyInit$Int
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Int
+  .1 strideof Int
+  .2 alignof Int | 131
+  .3 moveInit$Int
+  .4 copyInit$Int
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table witness$TrivialCopy(Int) {
-  .0 TrivialCopy
-  .1 1
-  .2 0
-  .3 typeDesc$Int
 }
 
 table genEnv$copyInto(Int) {
-  .0 0
-  .1 typeDesc$Int
-  .2 witness$TrivialCopy(Int)
+  .0 typeDesc$Int
+  .1 witness$TrivialCopy(Int)
 }
 
 table typeDesc$Point {
-  .0 Point
-  .1 sizeof Point
-  .2 alignof Point
-  .3 strideof Point
-  .4 131
-  .5 moveInit$Point
-  .6 copyInit$Point
-  .7 teardown$none
-  .8 teardown$none
+  .0 sizeof Point
+  .1 strideof Point
+  .2 alignof Point | 131
+  .3 moveInit$Point
+  .4 copyInit$Point
+  .5 teardown$none
+  .6 teardown$none
 }
 
 table witness$TrivialCopy(Point) {
-  .0 TrivialCopy
-  .1 1
-  .2 0
-  .3 typeDesc$Point
 }
 
 table genEnv$copyInto(Point) {
-  .0 0
-  .1 typeDesc$Point
-  .2 witness$TrivialCopy(Point)
+  .0 typeDesc$Point
+  .1 witness$TrivialCopy(Point)
 }
 
 fn teardown$none(%value: %()) -> () {

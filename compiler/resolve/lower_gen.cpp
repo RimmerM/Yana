@@ -9,19 +9,69 @@
 
 #include "lower_internal.h"
 
+// Defined below, beside the only other user of it.
+static LowerPtr<LowerValue> tableAddress(LowerContext& lower, LowerBlock& block, ModulePtr<Global> table);
+
+/*
+ * The image anchor's address, which every table slot is measured from - see repr/table.h.
+ *
+ * One `lea r, [rip + image$base]` and no memory traffic: what is wanted is the symbol's *address*,
+ * not anything stored at it, and nothing is stored at it. Pure and loop-invariant, so a body reading
+ * several slots computes it once however many times this is called.
+ */
+static LowerPtr<LowerValue> imageBase(LowerContext& lower, LowerBlock& block) {
+    return tableAddress(lower, block, lower.from.imageAnchor);
+}
+
+/*
+ * The address one slot of a compiler-built table holds.
+ *
+ * Every erased read goes through here - an environment slot, a witness's method, a superclass
+ * pointer, a property accessor, a descriptor's lifecycle half. One function because they are one
+ * question, and because the encoding is not something six call sites should each know.
+ *
+ * A slot is four bytes holding `target - &anchor`, so this is a load, a sign-extension and an add
+ * onto the anchor. See repr/table.h for why anchor-relative rather than absolute or self-relative -
+ * the short version is that a GenEnv may have been built on the frame, and only a shared base
+ * reaches the image from there.
+ *
+ * Signed, because a slot may name something in front of the anchor as easily as behind it.
+ */
+LowerPtr<LowerValue> tableSlotAddress(LowerContext& lower, LowerBlock& block,
+                                      LowerPtr<LowerValue> table, U16 slot) {
+    auto site = addOffset(lower, block, table, tableSlotOffset(slot));
+
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[site], 4, true, LowerType::Int32, StringId());
+    auto widened = cast<true, true>(lower.lower, lower.to, block,
+                                    lower.lower[loaded->created().ptr - lower.lower],
+                                    LowerType::Int64, StringId());
+
+    auto address = binary<LowerInst::Add>(lower.lower, lower.to, block,
+                                          lower.lower[widened->created().ptr - lower.lower],
+                                          lower.lower[imageBase(lower, block)],
+                                          LowerType::Pointer, StringId());
+    return address->created().ptr - lower.lower;
+}
+
+// The inverse: what goes *into* a slot for an address this frame computed. Only genEnvironment needs
+// it, since every other table is a constant whose slots the assembler writes.
+static LowerPtr<LowerValue> tableSlotValue(LowerContext& lower, LowerBlock& block,
+                                           LowerPtr<LowerValue> address) {
+    auto offset = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[address],
+                                         lower.lower[imageBase(lower, block)],
+                                         LowerType::Int64, StringId());
+    return offset->created().ptr - lower.lower;
+}
+
 /*
  * Reading the environment.
  *
- * Slot N is at a fixed offset and holds a pointer, so this is one load. That is the whole of
+ * Slot N is at a fixed offset, so this is one load and one add. That is the whole of
  * Implementation-Generics.md part 1's "no runtime name lookup": no hashing, no search, no
  * comparison - the schema decided the number at compile time and the code loads it.
  */
 static LowerPtr<LowerValue> genSlot(LowerContext& lower, LowerBlock& block, U16 slot) {
-    auto offset = tableSlotOffset(lower.repr.target, GenEnvFields::kWordCount,
-                                  GenEnvFields::slot(slot));
-    auto address = addOffset(lower, block, lower.genEnv, offset);
-    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
-    return loaded->created().ptr - lower.lower;
+    return tableSlotAddress(lower, block, lower.genEnv, GenEnvFields::slot(slot));
 }
 
 /*
@@ -38,10 +88,7 @@ static LowerPtr<LowerValue> genWitness(LowerContext& lower, LowerBlock& block, U
     auto witness = genSlot(lower, block, slot);
 
     for(auto step: path.contents(lower.local)) {
-        auto offset = tableSlotOffset(lower.repr.target, ClassWitnessFields::kWordCount, U16(step));
-        auto address = addOffset(lower, block, witness, offset);
-        auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
-        witness = loaded->created().ptr - lower.lower;
+        witness = tableSlotAddress(lower, block, witness, U16(step));
     }
 
     return witness;
@@ -64,14 +111,26 @@ LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr
 // One U32 field of a descriptor, widened to the 64-bit form every size and offset is computed in.
 LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
                                       LowerPtr<LowerValue> descriptor, U16 slot) {
-    auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
-    auto address = addOffset(lower, block, descriptor, offset);
+    auto address = addOffset(lower, block, descriptor, tableSlotOffset(slot));
     auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 4, false, LowerType::Int32, StringId());
     auto widened = cast<false, false>(lower.lower, lower.to, block,
                                       lower.lower[loaded->created().ptr - lower.lower],
                                       LowerType::Int64, StringId());
 
     return widened->created().ptr - lower.lower;
+}
+
+// A descriptor's alignment, which shares the flags cell rather than having one of its own - see
+// TypeDescFields::kFlags. The load is the same load; the shift is what the packing costs, and it is
+// paid only by an explicit `alignof` on a type variable.
+LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block,
+                               LowerPtr<LowerValue> descriptor) {
+    auto word = descField(lower, block, descriptor, TypeDescFields::kFlags);
+    auto shifted = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
+                                          lower.lower[immediate(lower, kPackedMetricShift)],
+                                          LowerType::Int64, StringId());
+
+    return shifted->created().ptr - lower.lower;
 }
 
 // How many bytes one value of this type occupies - a constant where the type is known, and a load
@@ -168,8 +227,7 @@ LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, Inst
 
     auto& target = lower.repr.target;
     auto slots = call.fill;
-    auto bytes = immediate(lower, tableSize(target, GenEnvFields::kWordCount,
-                                            GenEnvFields::countFor(slots.size())));
+    auto bytes = immediate(lower, tableSize(GenEnvFields::countFor(slots.size())));
     auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
         StringId(), bytes, target.pointerAlign));
 
@@ -181,9 +239,14 @@ LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, Inst
             ? genWitness(lower, block, slot.forwarded, slot.forwardedSupers)
             : tableAddress(lower, block, slot.constant);
 
-        auto address = addOffset(lower, block, base, tableSlotOffset(
-            target, GenEnvFields::kWordCount, GenEnvFields::slot(index)));
-        block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, 8));
+        auto address = addOffset(lower, block, base,
+                                 tableSlotOffset(GenEnvFields::slot(index)));
+
+        // Encoded exactly as the interned form this callee may equally be handed: an offset from
+        // the anchor, not the pointer this frame just computed. Being able to write that from a
+        // frame at all is what the anchor is for - see repr/table.h.
+        block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+            address, tableSlotValue(lower, block, value), kTableCellSize));
         index++;
     }
 
@@ -204,14 +267,7 @@ LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, Inst
  */
 LowerPtr<LowerValue> genMethod(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
     auto witness = genWitness(lower, block, call.classSlot, call.classPath);
-    auto argCount = U16(lower.global[lower.global[call.typeClass]->gen]->types.size());
-    auto offset = tableSlotOffset(lower.repr.target, ClassWitnessFields::kWordCount,
-                                  ClassWitnessFields::method(argCount, call.index));
-
-    auto address = addOffset(lower, block, witness, offset);
-    auto method = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
-
-    return method->created().ptr - lower.lower;
+    return tableSlotAddress(lower, block, witness, ClassWitnessFields::method(call.index));
 }
 
 /*
@@ -240,11 +296,7 @@ U16 propertySlotOf(LowerContext& lower, const Place& place) {
 // loads and no search, exactly as a class method dispatch is - see genMethod.
 LowerPtr<LowerValue> propertyOp(LowerContext& lower, LowerBlock& block, U16 slot, U16 field) {
     auto witness = genSlot(lower, block, slot);
-    auto offset = tableSlotOffset(lower.repr.target, PropertyWitnessFields::kWordCount, field);
-    auto address = addOffset(lower, block, witness, offset);
-    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
-
-    return loaded->created().ptr - lower.lower;
+    return tableSlotAddress(lower, block, witness, field);
 }
 
 // `op(owner, other)`, which is the shape both halves of a property witness have: two addresses in,
