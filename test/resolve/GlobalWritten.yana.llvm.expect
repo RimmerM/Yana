@@ -1,11 +1,11 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
+@dynamic = global [4 x i8] zeroinitializer, align 8
+@counter = global [4 x i8] zeroinitializer, align 8
 @origin = constant [8 x i8] c"\01\00\00\00\02\00\00\00", align 8
 @"string$0" = constant [2 x i8] c"ab", align 8
 @greeting = constant <{ ptr, [8 x i8] }> <{ ptr @"string$0", [8 x i8] c"\02\00\00\00\02\00\00\00" }>, align 8
-@dynamic = global [4 x i8] zeroinitializer, align 8
-@counter = global [4 x i8] zeroinitializer, align 8
 
 define fastcc i64 @"Length(String).length"(ptr %self) {
   br label %1
@@ -17,16 +17,25 @@ define fastcc i64 @"Length(String).length"(ptr %self) {
   ret i64 %4
 }
 
-define fastcc i32 @"main$"() {
+define fastcc i32 @countdown(i32 %k) {
   br label %1
 
 1:                                                ; preds = %0
-  store i32 7, ptr @dynamic, align 1
-  %2 = load i32, ptr @counter, align 1
-  %3 = add i32 %2, 20
-  store i32 %3, ptr @counter, align 1
-  %4 = call fastcc i32 @main()
-  ret i32 %4
+  %2 = icmp sle i32 %k, 0
+  %3 = zext i1 %2 to i32
+  br i1 %2, label %4, label %6
+
+4:                                                ; preds = %1
+  %5 = load i32, ptr @dynamic, align 1
+  ret i32 %5
+
+6:                                                ; preds = %1
+  br label %7
+
+7:                                                ; preds = %6
+  %8 = sub i32 %k, 1
+  %9 = call fastcc i32 @countdown(i32 %8)
+  ret i32 %9
 }
 
 define fastcc i32 @main() {
@@ -94,23 +103,14 @@ define fastcc i32 @main() {
   ret i32 %35
 }
 
-define fastcc i32 @countdown(i32 %k) {
+define fastcc i32 @"main$"() {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = icmp sle i32 %k, 0
-  %3 = zext i1 %2 to i32
-  br i1 %2, label %4, label %6
-
-4:                                                ; preds = %1
-  %5 = load i32, ptr @dynamic, align 1
-  ret i32 %5
-
-6:                                                ; preds = %1
-  br label %7
-
-7:                                                ; preds = %6
-  %8 = sub i32 %k, 1
-  %9 = call fastcc i32 @countdown(i32 %8)
-  ret i32 %9
+  store i32 7, ptr @dynamic, align 1
+  %2 = load i32, ptr @counter, align 1
+  %3 = add i32 %2, 20
+  store i32 %3, ptr @counter, align 1
+  %4 = call fastcc i32 @main()
+  ret i32 %4
 }

@@ -1,38 +1,5 @@
 @effects = [0, 0, 0, 0]
 
-Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
-  b_1 {
-    %lhs = alloca 4, 4: Ptr
-    store %lhs, %lhs$bits, 4
-    %v_2 = cmp_eq %lhs$bits, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_4 {
-    %v_6 = add %rhs, 8: Ptr
-    %v_7 = load %rhs, 8: Ptr
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = alloca 4, 4: Ptr
-    call_complex %v_7, %v_9, %v_8
-    %lhs$bits = loads %lhs, 4: Int
-    %rhs$bits = loads %v_9, 4: Int
-    %v_10 = alloca 4, 4: Ptr
-    %v_11 = and %lhs$bits, %rhs$bits: Int
-    store %v_10, %v_11, 4
-    jmp b_5
-  }
-
-  b_5 {
-    %v_12 = phi [b_3, %lhs], [b_4, %v_10]: Ptr
-    copy %v_0, %v_12, 4
-    ret 
-  }
-}
-
 ??(Int)<complex>(%value: Ptr, %fallback: Ptr): Int {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -57,34 +24,6 @@ Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
   b_9 {
     %v_12 = phi [b_3, %v_11], [b_4, %v_8]: Int
     ret %v_12
-  }
-}
-
-ResolveTest.deferred$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @effects, %v_2, 4
-    ret 7
-  }
-}
-
-ResolveTest.deferred$4<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @effects, %v_2, 4
-    ret 7
-  }
-}
-
-ResolveTest.deferred$2<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    %v_2 = loads @effects, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @effects, %v_3, 4
-    store %v_0, 3, 4
-    ret 
   }
 }
 
@@ -114,16 +53,6 @@ bound<complex>(%m: Ptr): Int {
     %v_10 = phi [b_9, 1], [b_4, 0]: Int
     %v_11 = select 1, %v_10, %v_10: Int
     ret %v_11
-  }
-}
-
-ResolveTest.deferred$1<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    %v_2 = loads @effects, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @effects, %v_3, 4
-    store %v_0, 3, 4
-    ret 
   }
 }
 
@@ -279,7 +208,78 @@ main<complex>(): Int {
   }
 }
 
+Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
+  b_1 {
+    %lhs = alloca 4, 4: Ptr
+    store %lhs, %lhs$bits, 4
+    %v_2 = cmp_eq %lhs$bits, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    %v_6 = add %rhs, 8: Ptr
+    %v_7 = load %rhs, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = alloca 4, 4: Ptr
+    call_complex %v_7, %v_9, %v_8
+    %lhs$bits = loads %lhs, 4: Int
+    %rhs$bits = loads %v_9, 4: Int
+    %v_10 = alloca 4, 4: Ptr
+    %v_11 = and %lhs$bits, %rhs$bits: Int
+    store %v_10, %v_11, 4
+    jmp b_5
+  }
+
+  b_5 {
+    %v_12 = phi [b_3, %lhs], [b_4, %v_10]: Ptr
+    copy %v_0, %v_12, 4
+    ret 
+  }
+}
+
+ResolveTest.deferred$0<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+ResolveTest.deferred$1<complex>(%v_0: Ptr, %env: Ptr) {
+  b_1 {
+    %v_2 = loads @effects, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @effects, %v_3, 4
+    store %v_0, 3, 4
+    ret 
+  }
+}
+
+ResolveTest.deferred$2<complex>(%v_0: Ptr, %env: Ptr) {
+  b_1 {
+    %v_2 = loads @effects, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @effects, %v_3, 4
+    store %v_0, 3, 4
+    ret 
+  }
+}
+
 ResolveTest.deferred$3<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+ResolveTest.deferred$4<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads @effects, 4: Int
     %v_2 = add %v_1, 1: Int

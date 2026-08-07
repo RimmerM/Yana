@@ -189,7 +189,7 @@ void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId 
  */
 static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
                            GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs,
-                           Array<U32>& steps, U32 depth) {
+                           SuperclassSteps& steps, U32 depth) {
     auto global = *module.types;
     if(!have) return false;
 
@@ -229,7 +229,7 @@ static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<Typ
 bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
     auto global = *module.types;
     auto classes = env.classes;
-    Array<U32> steps;
+    SuperclassSteps steps;
 
     for(auto constraint: classes.contents(global)) {
         TypeList have;
@@ -243,7 +243,7 @@ bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeCla
 }
 
 U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                   Array<U32>& supers) {
+                   SuperclassSteps& supers) {
     auto global = *module.types;
     supers.clear();
 
@@ -489,7 +489,7 @@ static void resolveProperty(Clone& clone, Place& into, U16 slot, const Place& pl
 
     auto& schema = genSchemaOf(clone.module, *env);
     TypePtr owner = nullptr;
-    StringId field = 0;
+    StringId field = StringId();
 
     for(auto entry: schema.slots.contents(global)) {
         if(entry.kind == GenSlotKind::Property && entry.index == slot) {
@@ -1056,15 +1056,15 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             return;
         case Value::Je: {
             auto& branch = (InstJe&)inst;
-            resolver.emit<InstJe>(inst.source, 0, type, cloneValue(clone, branch.cond),
+            resolver.emit<InstJe>(inst.source, StringId(), type, cloneValue(clone, branch.cond),
                                   cloneBlock(clone, branch.thenBlock), cloneBlock(clone, branch.elseBlock));
             return;
         }
         case Value::Jmp:
-            resolver.emit<InstJmp>(inst.source, 0, type, cloneBlock(clone, ((InstJmp&)inst).target));
+            resolver.emit<InstJmp>(inst.source, StringId(), type, cloneBlock(clone, ((InstJmp&)inst).target));
             return;
         case Value::Ret:
-            resolver.emit<InstRet>(inst.source, 0, type, cloneValue(clone, ((InstRet&)inst).value));
+            resolver.emit<InstRet>(inst.source, StringId(), type, cloneValue(clone, ((InstRet&)inst).value));
             return;
         default:
             clone.context.diagnostics.error("internal: this instruction cannot be specialized"_v, inst.source);

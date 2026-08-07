@@ -50,7 +50,7 @@ struct PositionIndex {
     /// after the fact is legitimate and only costs the sort.
     bool wasOrdered = true;
 
-    StringId module = 0;
+    StringId module {};
     Array<Entry> entries;
 };
 

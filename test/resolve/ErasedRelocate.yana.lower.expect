@@ -1,8 +1,14 @@
-@typeDesc$Pair = [140, 233, 0, 0, 16, 0, 0, 0, 8, 0, 0, 0, 16, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Handle = [96, 232, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @sinkCalls = [0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Handle = [96, 232, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$relocate(Handle) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Pair = [140, 233, 0, 0, 16, 0, 0, 0, 8, 0, 0, 0, 16, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$relocate(Pair) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
 
 relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
   b_1 {
@@ -23,33 +29,6 @@ relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
     %v_14 = load %v_13, 4: Int
     %v_15 = cast %v_14: Long
     copy %v_0, %y, %v_15
-    ret 
-  }
-}
-
-moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    %v_1 = bitcast %to: Ptr
-    %v_2 = bitcast %from: Ptr
-    copy %v_1, %v_2, 16
-    call_complex Sink(Handle).sink, %to, %from
-    ret 
-  }
-}
-
-Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    %v_1 = loads @sinkCalls, 8: Long
-    %v_2 = add %v_1, 1: Long
-    store @sinkCalls, %v_2, 8
-    %v_3 = loads %from, 8: Long
-    store %to, %v_3, 8
-    ret 
-  }
-}
-
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
     ret 
   }
 }
@@ -103,6 +82,27 @@ main<complex>(): Long {
     %v_18 = loads @sinkCalls, 8: Long
     %v_19 = add %v_17, %v_18: Long
     ret %v_19
+  }
+}
+
+Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = loads @sinkCalls, 8: Long
+    %v_2 = add %v_1, 1: Long
+    store @sinkCalls, %v_2, 8
+    %v_3 = loads %from, 8: Long
+    store %to, %v_3, 8
+    ret 
+  }
+}
+
+moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 16
+    call_complex Sink(Handle).sink, %to, %from
+    ret 
   }
 }
 

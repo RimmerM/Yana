@@ -266,7 +266,7 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
     auto succ = base[pred->outgoing[edge]];
     auto predOffset = pred - base;
 
-    auto split = new (arena) LowerBlock(pred->fun, 0, BlockIndex(fun.blocks.size()));
+    auto split = new (arena) LowerBlock(pred->fun, StringId(), BlockIndex(fun.blocks.size()));
     fun.blocks.push(arena, split - base);
 
     // Wired up by hand rather than through addInst, which would append the split block to `succ`'s
@@ -454,7 +454,7 @@ static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraint
             // argument; every other call names its target there, and that is not an argument.
             Size argStart = callType == LowerCallType::Syscall ? 0 : 1;
 
-            Array<ArgLocation> locations;
+            ArgLocationList locations;
             classifyArgs(convention, used.size() - argStart, [&](Size a) {
                 return base[used[a + argStart]]->type;
             }, locations);
@@ -520,28 +520,28 @@ struct Expansion {
     }
 
     LowerValue* integer(LowerType type, U64 value) {
-        return emit(new (fun.arena) LowerImm(0, type, value));
+        return emit(new (fun.arena) LowerImm(StringId(), type, value));
     }
 
     LowerValue* floating(LowerType type, F64 value) {
-        return emit(new (fun.arena) LowerImm(0, type, value));
+        return emit(new (fun.arena) LowerImm(StringId(), type, value));
     }
 
-    LowerValue* binary(LowerInst::Kind kind, LowerType type, LowerValue* lhs, LowerValue* rhs, StringId name = 0) {
+    LowerValue* binary(LowerInst::Kind kind, LowerType type, LowerValue* lhs, LowerValue* rhs, StringId name = StringId()) {
         return emit(new (fun.arena) LowerInstBinary(name, type, lhs - base, rhs - base, kind));
     }
 
-    LowerValue* convert(LowerType type, LowerValue* from, bool signedSource, bool signedResult, StringId name = 0) {
+    LowerValue* convert(LowerType type, LowerValue* from, bool signedSource, bool signedResult, StringId name = StringId()) {
         return emit(new (fun.arena) LowerInstCast(name, type, from - base, signedSource, signedResult));
     }
 
     LowerValue* compare(LowerCmp cmp, LowerValue* lhs, LowerValue* rhs) {
-        return emit(new (fun.arena) LowerInstCmp(0, lhs - base, rhs - base, cmp));
+        return emit(new (fun.arena) LowerInstCmp(StringId(), lhs - base, rhs - base, cmp));
     }
 
     // `select` yields its first value when the condition holds, which is the order the machine form
     // and the encoder both read it in.
-    LowerValue* select(LowerType type, LowerValue* condition, LowerValue* whenTrue, LowerValue* whenFalse, StringId name = 0) {
+    LowerValue* select(LowerType type, LowerValue* condition, LowerValue* whenTrue, LowerValue* whenFalse, StringId name = StringId()) {
         return emit(new (fun.arena) LowerInstSelect(name, whenTrue - base, whenFalse - base, condition - base, type));
     }
 };
@@ -949,7 +949,7 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
 
             for(auto user: users) {
                 auto computed = new (arena) LowerInstX86Address(
-                    LowerInst::X86Address, 0,
+                    LowerInst::X86Address, StringId(),
                     pattern.base ? pattern.base - base : nullptr,
                     pattern.index ? pattern.index - base : nullptr,
                     pattern.scale, U32(I32(pattern.displacement))

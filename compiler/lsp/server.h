@@ -159,7 +159,7 @@ struct Server {
     /// The document a whole-file request names, with its text and line table - which is either the
     /// open buffer's or the compiled file's. Null when the file is not part of the project.
     struct FileRequest {
-        StringId module = 0;
+        StringId module = StringId();
         StringView text;
         LineTable lines;
         bool found = false;

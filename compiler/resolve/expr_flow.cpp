@@ -69,19 +69,19 @@ ModulePtr<Value> ExprResolver::finishBranches(BranchArmList& arms, LocationId so
     for(auto& arm: arms) {
         current = arm.end;
         if(values) arm.value = convert(arm.value, resultType, arm.source);
-        terminate(emit<InstJmp>(arm.source, 0, module.scalar.unit, join));
+        terminate(emit<InstJmp>(arm.source, StringId(), module.scalar.unit, join));
     }
 
     current = join;
     if(!values) return nullptr;
     if(arms.size() == 1) return arms[0].value;
 
-    auto phi = create<InstPhi>(source, 0, resultType);
+    auto phi = create<InstPhi>(source, StringId(), resultType);
     for(auto& arm: arms) phi->inputs.push(module.arena, PhiInput { arm.end, arm.value });
     append(phi);
 
     auto result = ref(phi);
-    if(isMemoryType(global, resultType)) function.addLocal(module, resultType, 0, result);
+    if(isMemoryType(global, resultType)) function.addLocal(module, resultType, StringId(), result);
 
     return result;
 }
@@ -165,7 +165,7 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
     // and the body is resolved before anything else refers to it.
     auto exitBlock = addBlock();
 
-    terminate(emit<InstJmp>(loop.cond.source, 0, module.scalar.unit, conditionBlock));
+    terminate(emit<InstJmp>(loop.cond.source, StringId(), module.scalar.unit, conditionBlock));
 
     // A name the body binds belongs to the body, the way it does in the arms of an `if` or a
     // `match`. Letting one outlive the loop would also let it be read from the exit block, which
@@ -187,7 +187,7 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
 
     scope.restore();
 
-    if(current) terminate(emit<InstJmp>(loop.body.source, 0, module.scalar.unit, conditionBlock));
+    if(current) terminate(emit<InstJmp>(loop.body.source, StringId(), module.scalar.unit, conditionBlock));
     current = exitBlock;
 }
 
@@ -331,9 +331,9 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
         if(!initial) return;
     }
 
-    auto counter = allocate(counterType, source, 0, ast::BindType::Ref);
+    auto counter = allocate(counterType, source, StringId(), ast::BindType::Ref);
     initialize(placeFor(counter, source), convert(initial, counterType, source), source);
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, conditionBlock));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, conditionBlock));
 
     /*
      * The test that says whether this iteration runs at all.
@@ -399,7 +399,7 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
     auto done = emitCall(exhausted, { left, 2 }, source, module.scalar.bool_);
     if(!done) return;
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, convert(done, module.scalar.bool_, source),
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, convert(done, module.scalar.bool_, source),
                            exitBlock, stepBlock));
 
     current = stepBlock;
@@ -409,29 +409,29 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
     if(!next) return;
 
     assign(placeFor(counter, source), convert(next, counterType, source), source);
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, conditionBlock));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, conditionBlock));
 
     // Everything that was waiting for a block that did not exist yet. Each branch falls through to
     // the exit when its condition does not hold, which is one shape for the two guards and the
     // loop's own test alike.
     for(auto& branch: pending) {
         current = branch.block;
-        terminate(emit<InstJe>(source, 0, module.scalar.unit, branch.condition, branch.taken, exitBlock));
+        terminate(emit<InstJe>(source, StringId(), module.scalar.unit, branch.condition, branch.taken, exitBlock));
     }
 
     for(auto block: continues) {
         current = block;
-        terminate(emit<InstJmp>(source, 0, module.scalar.unit, advanceBlock));
+        terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, advanceBlock));
     }
 
     for(auto block: breaks) {
         current = block;
-        terminate(emit<InstJmp>(source, 0, module.scalar.unit, exitBlock));
+        terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, exitBlock));
     }
 
     if(tail) {
         current = tail;
-        terminate(emit<InstJmp>(loop.body.source, 0, module.scalar.unit, advanceBlock));
+        terminate(emit<InstJmp>(loop.body.source, StringId(), module.scalar.unit, advanceBlock));
     }
 
     current = exitBlock;

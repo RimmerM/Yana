@@ -64,6 +64,8 @@ ast::Expr Parser::emitCursorHere() {
 }
 
 ast::Module Parser::parseModule() {
+    StageScope stage(CompileStage::Parse);
+
     auto errorCount = context.diagnostics.errorCount();
     auto warningCount = context.diagnostics.warningCount();
 
@@ -139,7 +141,7 @@ ast::Import Parser::parseImport() {
     tryMaybe(expect(Token::kwImport, "expected module import"_v), return import);
 
     import.qualified = maybeVar(qualifiedId).isJust();
-    import.from = expectVarOrCon().from({ .id = 0 }).id;
+    import.from = expectVarOrCon().from({ .id = StringId() }).id;
 
     maybeParens([&] {
         sepBy([&] {
@@ -280,7 +282,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
 
     if(!parsedName) {
         decls.push(arena, ast::Decl {
-            .errorName = 0,
+            .errorName = StringId(),
             .attributes = ::move(attributes),
             .source = context.addLocation(location),
             .kind = ast::Decl::Error,
@@ -344,7 +346,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
 
             for(auto a: args.contents(*arena)) {
                 pivotArgs.push(arena, ast::TupArg {
-                    .name = 0,
+                    .name = StringId(),
                     .value = makeExpr(Var, var, a.name, currentNode()),
                 });
             }
@@ -471,7 +473,7 @@ void Parser::parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bo
     auto name = expectSync(Token::ConID, "expected a class name"_v, stmtStops());
     if(!name) {
         decls.push(arena, ast::Decl {
-            .errorName = 0,
+            .errorName = StringId(),
             .attributes = ::move(attributes),
             .source = context.addLocation(location),
             .kind = ast::Decl::Error,
@@ -502,11 +504,11 @@ void Parser::parseForeignDecl(ast::DeclList& decls, ast::AttrList attributes, bo
 
     auto externName = expect("expected identifier"_v, [&](Token& t) {
         return t.type == Token::String || t.type == Token::VarID;
-    }).from({ .id = 0 }).id;
+    }).from({ .id = StringId() }).id;
 
-    StringId localName = 0;
+    StringId localName {};
     if(maybeVar(asId)) {
-        localName = expect(Token::VarID, "expected identifier"_v).from({ .id = 0 }).id;
+        localName = expect(Token::VarID, "expected identifier"_v).from({ .id = StringId() }).id;
     } else if(isStringName) {
         error("expected 'as' and foreign import name after string identifier"_v);
     }
@@ -518,9 +520,9 @@ void Parser::parseForeignDecl(ast::DeclList& decls, ast::AttrList attributes, bo
 
     auto type = parseType();
 
-    StringId from = 0;
+    StringId from {};
     if(maybeVar(fromId)) {
-        from = expect(Token::String, "expected string for imported library name"_v).from({ .id = 0 }).id;
+        from = expect(Token::String, "expected string for imported library name"_v).from({ .id = StringId() }).id;
     }
 
     decls.push(arena, ast::Decl {
@@ -613,7 +615,7 @@ void Parser::parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         });
     };
 
-    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), { pushError(0); return; }).id;
+    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), { pushError(StringId()); return; }).id;
 
     tryMaybe(expect("expected attribute type"_v, [&](Token& t) {
         return t.type == Token::ParenL || t.type == Token::BraceL || t.type == Token::BracketL;
@@ -640,7 +642,7 @@ void Parser::parseCon(ast::ParseList<ast::Con>& list) {
      *      |   conid
      */
     WithLocation location(*this);
-    auto name = expect(Token::ConID, "expected constructor name"_v).from({ .id = 0 }).id;
+    auto name = expect(Token::ConID, "expected constructor name"_v).from({ .id = StringId() }).id;
     Maybe<ast::Type> type;
 
     if(token.type == Token::ParenL) {
@@ -671,14 +673,14 @@ ast::Expr Parser::parseBlock(bool isFun) {
     // ':' and then the block, two messages for one mistake, and this is the shape a function whose
     // signature is still being typed is in.
     WithLocation location(*this);
-    if(!expect(Token::opColon, "expected ':'"_v)) return makeExpr(Error, var, 0, location);
+    if(!expect(Token::opColon, "expected ':'"_v)) return makeExpr(Error, var, StringId(), location);
 
     Maybe<ast::Expr> expr;
     block([&] {
         expr = Just(parseExprSeq());
     }, "expected an indented block after the ':'"_v);
 
-    return expr ? expr.unwrap() : makeExpr(Error, var, 0, location);
+    return expr ? expr.unwrap() : makeExpr(Error, var, StringId(), location);
 }
 
 ast::Expr Parser::parseExprSeq() {
@@ -720,7 +722,7 @@ ast::Expr Parser::parseExprSeq() {
     } else if(exprs.size() == 1) {
         return exprs.get(*arena, 0);
     } else {
-        return makeExpr(Error, var, 0, location);
+        return makeExpr(Error, var, StringId(), location);
     }
 }
 
@@ -860,7 +862,7 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
 
         return makeExpr(Break, breakValue, body ? heap(body.unwrap()) : nullptr, location);
     } else if(maybe(Token::kwContinue)) {
-        return makeExpr(Continue, var, 0, location);
+        return makeExpr(Continue, var, StringId(), location);
     } else {
         return parseAppExpr();
     }
@@ -901,12 +903,12 @@ ast::Expr Parser::parseChain(ast::Expr base, const WithLocation& startLocation) 
 
                 if(maybe(Token::opDotDot)) {
                     auto to = parseExpr();
-                    args.push(arena, ast::TupArg { 0, makeExpr(Range, range,
+                    args.push(arena, ast::TupArg { StringId(), makeExpr(Range, range,
                         heap(ast::RangeExpr { index, to, false }), rangeLocation) });
                     return;
                 }
 
-                args.push(arena, ast::TupArg { 0, index });
+                args.push(arena, ast::TupArg { StringId(), index });
             }, Token::Comma, Token::BracketR);
         });
 
@@ -1079,7 +1081,7 @@ ast::Expr Parser::parseBaseExpr() {
             // If the list was never closed, the lambda's body is not what follows it - parsing
             // one here is what makes an unclosed '(' swallow the declarations after it.
             if(!expectClose(Token::ParenR, "expected ',' or ')' in argument list"_v)) {
-                return makeExpr(Error, var, 0, location);
+                return makeExpr(Error, var, StringId(), location);
             }
 
             return makeExpr(Fun, fun, heap(ast::FunExpr {
@@ -1121,7 +1123,7 @@ ast::Expr Parser::parseBaseExpr() {
         // (varexpr: type) block
         // (varexpr: type, ...) block
         // (varexpr, ...) block
-        auto firstName = expr.kind == ast::Expr::Var ? expr.var : 0;
+        auto firstName = expr.kind == ast::Expr::Var ? expr.var : StringId();
         if(!firstName) error("expected argument name"_v);
 
         Maybe<ast::Type> firstType;
@@ -1144,7 +1146,7 @@ ast::Expr Parser::parseBaseExpr() {
         }
 
         if(!expectClose(Token::ParenR, "expected ',' or ')' in argument list"_v)) {
-            return makeExpr(Error, var, 0, location);
+            return makeExpr(Error, var, StringId(), location);
         }
 
         return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
@@ -1224,7 +1226,7 @@ ast::Expr Parser::parseSelExpr(const WithLocation& location) {
         // the line - `f(` in the middle of being typed - so there is no inner expression to wrap.
         // The error node stands for the one that has not been written; unwrapping here crashed the
         // parser, and therefore the language server, on every keystroke that left a `(` open.
-        if(!expr) return makeExpr(Error, var, 0, location);
+        if(!expr) return makeExpr(Error, var, StringId(), location);
 
         return makeExpr(Nested, nested, heap(expr.unwrap()), location);
     } else if(atCursorGap()) {
@@ -1237,12 +1239,12 @@ ast::Expr Parser::parseSelExpr(const WithLocation& location) {
         return emitCursorHere();
     } else {
         error("expected an expression"_v);
-        return makeExpr(Error, var, 0, location);
+        return makeExpr(Error, var, StringId(), location);
     }
 }
 
 ast::Expr Parser::parseStringExpr(const WithLocation& location) {
-    auto string = tryMaybe(expect(Token::String, "expected string literal"_v), return makeExpr(Error, var, 0, location)).id;
+    auto string = tryMaybe(expect(Token::String, "expected string literal"_v), return makeExpr(Error, var, StringId(), location)).id;
 
     // Check if the string contains formatting.
     if(token.type == Token::StartOfFormat) {
@@ -1253,7 +1255,7 @@ ast::Expr Parser::parseStringExpr(const WithLocation& location) {
             auto expr = parseExpr();
             expect(Token::EndOfFormat, "expected end of string format after this expression"_v);
 
-            auto part = expect(Token::String, "expected string part"_v).from({ .id = 0 }).id;
+            auto part = expect(Token::String, "expected string part"_v).from({ .id = StringId() }).id;
             chunks.push(arena, ast::FormatChunk { part, heap(expr) });
         }
 
@@ -1323,7 +1325,7 @@ ast::VarDecl Parser::parseDeclExpr() {
                         auto source = node.unwrap().node;
                         alts.push(arena, ast::Alt {
                             .pat = { .source = context.addLocation(source), .kind = ast::Pat::Error },
-                            .expr = makeExpr(Error, var, 0, source),
+                            .expr = makeExpr(Error, var, StringId(), source),
                         });
                     }
                 } else {
@@ -1392,9 +1394,9 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
             error("expected name before field contents"_v, first.source);
         }
 
-        args.push(arena, ast::TupArg { first.kind == ast::Expr::Var ? first.var : 0, parseExpr() });
+        args.push(arena, ast::TupArg { first.kind == ast::Expr::Var ? first.var : StringId(), parseExpr() });
     } else {
-        args.push(arena, ast::TupArg { 0, first });
+        args.push(arena, ast::TupArg { StringId(), first });
     }
 
     if(maybe(Token::Comma)) {
@@ -1465,11 +1467,11 @@ void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
             error("expected name before field contents"_v, arg.source);
         }
 
-        list.push(arena, { arg.kind == ast::Expr::Var ? arg.var : 0, parseExpr() });
+        list.push(arena, { arg.kind == ast::Expr::Var ? arg.var : StringId(), parseExpr() });
     } else if(qualified && arg.kind == ast::Expr::Var) {
         list.push(arena, { arg.var, arg });
     } else {
-        list.push(arena, { 0, arg });
+        list.push(arena, { StringId(), arg });
     }
 }
 
@@ -1524,7 +1526,7 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
         // The replacement is whatever follows a `:`, and an `Error` node where the author has not
         // got that far. Pushed either way, because the path is what the resolver walks to reach the
         // cursor - an argument left out here is a cursor nothing ever reads.
-        auto value = maybe(Token::opColon) ? parseExpr() : makeExpr(Error, var, 0, location);
+        auto value = maybe(Token::opColon) ? parseExpr() : makeExpr(Error, var, StringId(), location);
         list.push(arena, ast::TupUpdateArg { path, value });
         return;
     }
@@ -1650,10 +1652,10 @@ ast::FieldPat Parser::parseFieldPat() {
             return ast::FieldPat { data.unwrap().id, heap(ast::Pat(parseBoundPattern())) };
         } else {
             auto varPat = ast::Pat { .var = data.unwrap().id, .source = context.addLocation(location), .kind = ast::Pat::Var };
-            return ast::FieldPat { qualified ? data.unwrap().id : 0, heap(ast::Pat(varPat)) };
+            return ast::FieldPat { qualified ? data.unwrap().id : StringId(), heap(ast::Pat(varPat)) };
         }
     } else {
-        return ast::FieldPat { 0, heap(ast::Pat(parseBoundPattern())) };
+        return ast::FieldPat { StringId(), heap(ast::Pat(parseBoundPattern())) };
     }
 }
 
@@ -1809,7 +1811,7 @@ ast::Pat Parser::parseLeftPattern() {
         return { .arr = pats, .source = context.addLocation(location), .kind = ast::Pat::Arr };
     } else if(maybe(Token::opDotDot)) {
         auto name = expect(Token::VarID, "expected variable name"_v);
-        return { .asVar = name ? name.unwrap().id : 0, .source = context.addLocation(location), .kind = ast::Pat::Rest };
+        return { .asVar = name ? name.unwrap().id : StringId(), .source = context.addLocation(location), .kind = ast::Pat::Rest };
     } else {
         error("expected pattern"_v);
         return { .source = context.addLocation(location), .kind = ast::Pat::Error };
@@ -1830,7 +1832,7 @@ ast::Expr Parser::parseQop() {
     }
 
     expect(Token::Grave, "expected an operator"_v);
-    auto op = expect(Token::VarID, "expected an operator"_v).from({ .id = 0 }).id;
+    auto op = expect(Token::VarID, "expected an operator"_v).from({ .id = StringId() }).id;
     expect(Token::Grave, "expected '`' after operator identifier"_v);
 
     return makeExpr(Var, var, op, location);
@@ -1888,10 +1890,10 @@ ast::Constraint Parser::parseConstraint() {
         return { .type = type, .source = context.addLocation(location), .kind = ast::Constraint::Class };
     }
 
-    auto name = expect(Token::VarID, "expected type constraint"_v).from({ .id = 0 }).id;
+    auto name = expect(Token::VarID, "expected type constraint"_v).from({ .id = StringId() }).id;
 
     if(maybe(Token::opDot)) {
-        auto field = expect(Token::VarID, "expected constraint field name"_v).from({ .id = 0 }).id;
+        auto field = expect(Token::VarID, "expected constraint field name"_v).from({ .id = StringId() }).id;
         expect(Token::opColon, "expected ':' after field name"_v);
         auto type = parseType();
 
@@ -1952,7 +1954,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         token = savedToken;
     }
 
-    list.push(arena, ast::ArgDecl { parseType(), 0, bind, returnRoot, lazy });
+    list.push(arena, ast::ArgDecl { parseType(), StringId(), bind, returnRoot, lazy });
 }
 
 void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {
@@ -2033,7 +2035,7 @@ ast::Type Parser::parseType() {
             return t;
         } else {
             error("expected '->' after function type args"_v);
-            return makeType(Error, name, 0, location, attributes);
+            return makeType(Error, name, StringId(), location, attributes);
         }
     }
 }
@@ -2079,7 +2081,7 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         return t;
     } else {
         error("expected a type"_v);
-        return makeType(Error, name, 0, location, attributes);
+        return makeType(Error, name, StringId(), location, attributes);
     }
 }
 
@@ -2103,21 +2105,21 @@ ast::Type Parser::parseTupleType(const WithLocation& location, ast::ParsePtr<ast
                     fields.push(arena, ast::TupField { n.unwrap().payload.id, fieldType, def });
                 } else {
                     auto gen = makeType(Gen, name, n.unwrap().payload.id, n.unwrap().node, nullptr);
-                    fields.push(arena, ast::TupField { 0, gen, nullptr });
+                    fields.push(arena, ast::TupField { StringId(), gen, nullptr });
                 }
             } else {
-                fields.push(arena, ast::TupField { 0, parseType(), nullptr });
+                fields.push(arena, ast::TupField { StringId(), parseType(), nullptr });
             }
         }, Token::Comma, Token::BraceR);
 
         if(fields.isEmpty()) {
-            type = Just(makeType(Unit, name, 0, location, attributes));
+            type = Just(makeType(Unit, name, StringId(), location, attributes));
         } else {
             type = Just(makeType(Tup, tup, { fields }, location, attributes));
         }
     });
 
-    return type ? type.unwrap() : makeType(Error, name, 0, location, attributes);
+    return type ? type.unwrap() : makeType(Error, name, StringId(), location, attributes);
 }
 
 ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
@@ -2139,7 +2141,7 @@ ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast
         }
     });
 
-    return type ? type.unwrap() : makeType(Error, name, 0, location, attributes);
+    return type ? type.unwrap() : makeType(Error, name, StringId(), location, attributes);
 }
 
 /*
@@ -2152,7 +2154,7 @@ ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast
  * missing `)` rather than a rule nobody needs to know about.
  */
 ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
-    auto name = expect(Token::ConID, "expected type name"_v).from({ .id = 0 }).id;
+    auto name = expect(Token::ConID, "expected type name"_v).from({ .id = StringId() }).id;
     ast::ParseList<StringId> kind;
     U16 determined = 0;
 
@@ -2161,7 +2163,7 @@ ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
     } else {
         maybeParens([&] {
             sepBy1([&] {
-                auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = 0 }).id;
+                auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = StringId() }).id;
                 if(n) kind.push(arena, n);
             }, [&] {
                 if(allowDependency && token.type == Token::opArrowR) {
@@ -2202,7 +2204,7 @@ ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
 }
 
 ast::Expr Parser::toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source) {
-    ast::Literal lit { .s = 0 };
+    ast::Literal lit { .s = StringId() };
     U32 kind = 0;
 
     switch(type) {

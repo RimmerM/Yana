@@ -729,9 +729,14 @@ struct Placer {
         Size reg = kNoRegister;
 
         // Sorted, disjoint, and strictly inside the web's interval. Inline, because one of these is
-        // built per web the allocator cannot place outright and a web is split around one or two
-        // calls; `bestWindows` next door is pooled for the same reason from the other direction.
-        SmallArray<Range, 4> windows;
+        // built per web the allocator cannot place outright; `bestWindows` next door is pooled for
+        // the same reason from the other direction.
+        //
+        // Sixteen rather than the four this started at. The guess was "a web is split around one or
+        // two calls", and the benchmark says otherwise: a web that survived the unsplit search is by
+        // construction one that crosses a lot of clobbers, and four was over the line often enough
+        // to be the largest allocation site in the backend.
+        SmallArray<Range, 16> windows;
 
         U32 cost = 0; // what the windows cost, in computeSpillCosts' units
     };
@@ -1475,7 +1480,7 @@ static void placePhis(Placer& a, LowerBlock* block, LowerBlock* successor) {
 static void placeArgs(Placer& a, const CallConvention& convention) {
     auto args = a.fun.args.contents(a.base);
 
-    Array<ArgLocation> locations;
+    ArgLocationList locations;
     classifyArgs(convention, args.size(), [&](Size i) {
         return a.base[args[i]]->result.type;
     }, locations);

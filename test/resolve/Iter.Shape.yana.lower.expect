@@ -1,14 +1,32 @@
 
-@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
-    store %v_0, 0, 1
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
     ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %total, 8
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.continuation$0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 1, 1: Ptr
+    call_complex stream(()), %v_4, 1, 2, %v_2
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %total, 8
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, ResolveTest.continuation$1, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_5, 8
+    %v_8 = alloca 1, 1: Ptr
+    call_complex Streamed(Bag).stream(()), %v_8, 40, 5, %v_6
+    %v_9 = loads %total, 4: Int
+    ret %v_9
   }
 }
 
@@ -21,12 +39,6 @@ ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
     %v_5 = add %v_4, %value: Int
     store %v_2, %v_5, 4
     store %v_0, 0, 1
-    ret 
-  }
-}
-
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
     ret 
   }
 }
@@ -55,28 +67,16 @@ stream(())<complex>(%v_0: Ptr, %b$v: Int, %times: Int, %body: Ptr) {
   }
 }
 
-main<complex>(): Int {
-  b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %total, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$0, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex stream(()), %v_4, 1, 2, %v_2
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %total, 8
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, ResolveTest.continuation$1, 8
-    %v_7 = add %v_6, 8: Ptr
-    store %v_7, %v_5, 8
-    %v_8 = alloca 1, 1: Ptr
-    call_complex Streamed(Bag).stream(()), %v_8, 40, 5, %v_6
-    %v_9 = loads %total, 4: Int
-    ret %v_9
+@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 0, 1
+    ret 
   }
 }
 

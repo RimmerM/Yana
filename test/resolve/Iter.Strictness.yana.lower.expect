@@ -1,53 +1,4 @@
 
-walk(())<complex>(%v_0: Ptr, %b$v: Int, %body: Ptr) {
-  b_1 {
-    %v_2 = add %body, 8: Ptr
-    %v_3 = load %body, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = alloca 1, 1: Ptr
-    call_complex %v_3, %v_5, %v_4, %b$v
-    %v_6 = loads %v_5, 1: Int
-    %v_7 = cmp_eq %v_6, 1: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    copy %v_0, %v_5, 1
-    ret 
-  }
-
-  b_9 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = load %env, 8: Ptr
-    %v_4 = loads %v_2, 4: Int
-    %v_5 = add %v_4, %value: Int
-    store %v_2, %v_5, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -76,6 +27,55 @@ main<complex>(): Int {
     call_complex Streamed(Bag).walk(()), %v_8, 30, %v_6
     %v_9 = loads %total, 4: Int
     ret %v_9
+  }
+}
+
+@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
+walk(())<complex>(%v_0: Ptr, %b$v: Int, %body: Ptr) {
+  b_1 {
+    %v_2 = add %body, 8: Ptr
+    %v_3 = load %body, 8: Ptr
+    %v_4 = load %v_2, 8: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    call_complex %v_3, %v_5, %v_4, %b$v
+    %v_6 = loads %v_5, 1: Int
+    %v_7 = cmp_eq %v_6, 1: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    copy %v_0, %v_5, 1
+    ret 
+  }
+
+  b_9 {
+    store %v_0, 0, 1
+    ret 
+  }
+}
+
+@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$1<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = load %env, 8: Ptr
+    %v_3 = load %env, 8: Ptr
+    %v_4 = loads %v_2, 4: Int
+    %v_5 = add %v_4, %value: Int
+    store %v_2, %v_5, 4
+    store %v_0, 0, 1
+    ret 
   }
 }
 

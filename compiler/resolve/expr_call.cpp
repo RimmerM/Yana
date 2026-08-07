@@ -942,7 +942,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(InfixChain& chain, Size& operan
         if(!lhs) return nullptr;
 
         args[0] = lhs;
-        lhs = emitCall(set, toBuffer(args), lhsExpr->source, target, 0);
+        lhs = emitCall(set, toBuffer(args), lhsExpr->source, target, StringId());
     }
 
     return lhs;
@@ -1058,7 +1058,7 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         args[0] = value;
     }
 
-    auto result = emitCall(set, toBuffer(args), expr.source, target, 0);
+    auto result = emitCall(set, toBuffer(args), expr.source, target, StringId());
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -1161,7 +1161,7 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
     ValueList values;
     for(auto& value: normalized) values.push(value.value);
 
-    auto result = emitDynamicCall(callable, toBuffer(values), expr.source, 0);
+    auto result = emitDynamicCall(callable, toBuffer(values), expr.source, StringId());
     return target ? convert(result, target, expr.source) : result;
 }
 
@@ -1397,7 +1397,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * implies the set is one plain function of this arity, which is exactly selectCallee's first
      * case. See ResolvedCallee.
      */
-    auto result = emitCall(set, toBuffer(args), expr.source, target, 0);
+    auto result = emitCall(set, toBuffer(args), expr.source, target, StringId());
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }

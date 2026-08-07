@@ -326,7 +326,7 @@ void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place place, Lo
         if(capture.byReference) {
             auto mutable_ = capture.convention == ast::BindType::Ref;
             auto type = resolveBorrowType(resolver.module, capture.type, mutable_);
-            auto borrow = resolver.emit<InstBorrow>(source, 0, type, from, mutable_);
+            auto borrow = resolver.emit<InstBorrow>(source, StringId(), type, from, mutable_);
             resolver.initialize(field, resolver.ref(borrow), source);
             continue;
         }
@@ -347,7 +347,7 @@ ModulePtr<Value> ExprResolver::makeFunValue(TypePtr type, ModulePtr<Function> co
     auto storage = allocate(type, source, name);
     auto place = placeFor(storage, source);
 
-    auto codeValue = ref(emit<InstSymbol>(source, 0, codeType, code, nullptr));
+    auto codeValue = ref(emit<InstSymbol>(source, StringId(), codeType, code, nullptr));
     initialize(project(place, ProjectionKind::Field, FunValueLayout::kCode), codeValue, source);
 
     initialize(project(place, ProjectionKind::Field, FunValueLayout::kEnv),
@@ -400,7 +400,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
     // already handed on, and its frame would release it a second time.
     auto result = resolver.emitDirectCall(callee, toBuffer(args), source);
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit,
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit,
                                               isUnit(*module.types, target->returnType) ? nullptr : result));
 
     return pointer;
@@ -450,7 +450,7 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
     auto type = resolveFunType(module, toBuffer(args), requireReturnType(module, *target, source),
                                ast::FunKind::Plain);
     auto thunk = functionThunk(module, callee, source);
-    return makeFunValue(type, thunk, nullptr, source, 0);
+    return makeFunValue(type, thunk, nullptr, source, StringId());
 }
 
 ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer<ModulePtr<Value>> args,
@@ -658,7 +658,7 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
             result = body.convert(result, lambda->returnType, source);
         }
 
-        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+        body.terminate(body.emit<InstRet>(source, StringId(), module.scalar.unit,
                                           body.returnValue(result, source)));
     } else if(!lambda->returnType) {
         // Every path left through an explicit `return`, which resultInferred has already reported.
@@ -680,7 +680,7 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
 
     // A lambda that captured nothing gets neither storage nor a header: the value's second word is
     // null, and its teardown is a branch that never fires.
-    if(body.captures.isEmpty()) return makeFunValue(type, lambda - local, nullptr, source, 0);
+    if(body.captures.isEmpty()) return makeFunValue(type, lambda - local, nullptr, source, StringId());
 
     // The header goes in front of the lifted function rather than into the value, which is what
     // keeps a function value two words wide. Its flags are completed by selectStorage, the only
@@ -688,7 +688,7 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     auto lambdaPointer = (ModulePtr<Function>)(lambda - local);
     closureHeaderFor(module, lambdaPointer, envType, source);
 
-    auto storage = allocate(envType, source, 0, ast::BindType::Borrow, true);
+    auto storage = allocate(envType, source, StringId(), ast::BindType::Borrow, true);
     ((InstAlloc*)local[storage])->closure = lambdaPointer;
 
     auto place = placeFor(storage, source);
@@ -697,9 +697,9 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     // Typed as a bare address rather than as `%Env`, because that is what the function value's
     // second word is: whoever reads it does so through the descriptor the code word leads to, which
     // is the only thing that knows what is in there.
-    auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
+    auto address = ref(emit<InstAddress>(source, StringId(), funValueFieldType(module, FunValueLayout::kEnv), place));
 
-    return makeFunValue(type, lambda - local, address, source, 0);
+    return makeFunValue(type, lambda - local, address, source, StringId());
 }
 
 /*
@@ -740,7 +740,7 @@ ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected,
     // The closure a callee that could not see the argument was handed. Calling it is the force, and
     // this is the one place a `@lazy` parameter costs an indirect call.
     if(deferred.thunk) {
-        auto result = emitDynamicCall(deferred.thunk, {}, source, 0);
+        auto result = emitDynamicCall(deferred.thunk, {}, source, StringId());
         return expected ? convert(result, expected, source) : result;
     }
 
@@ -819,7 +819,7 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
 
     if(body.current) {
         result = isUnit(global, type) ? nullptr : body.convert(result, type, source);
-        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit, result));
+        body.terminate(body.emit<InstRet>(source, StringId(), module.scalar.unit, result));
     }
 
     for(auto& capture: body.captures) {
@@ -831,7 +831,7 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
     }
 
     auto funType = resolveThunkType(module, type);
-    if(body.captures.isEmpty()) return makeFunValue(funType, lambda - local, nullptr, source, 0);
+    if(body.captures.isEmpty()) return makeFunValue(funType, lambda - local, nullptr, source, StringId());
 
     auto envType = (Type*)envTuple - global;
     checkTypeAcyclic(module, envType, source);
@@ -839,12 +839,12 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
     auto lambdaPointer = (ModulePtr<Function>)(lambda - local);
     closureHeaderFor(module, lambdaPointer, envType, source);
 
-    auto storage = allocate(envType, source, 0, ast::BindType::Borrow, true);
+    auto storage = allocate(envType, source, StringId(), ast::BindType::Borrow, true);
     ((InstAlloc*)local[storage])->closure = lambdaPointer;
 
     auto place = placeFor(storage, source);
     fillEnvironment(*this, body, place, source);
 
-    auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
-    return makeFunValue(funType, lambda - local, address, source, 0);
+    auto address = ref(emit<InstAddress>(source, StringId(), funValueFieldType(module, FunValueLayout::kEnv), place));
+    return makeFunValue(funType, lambda - local, address, source, StringId());
 }

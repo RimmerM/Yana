@@ -1,85 +1,7 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-@live = [0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
-
-heaped<complex>(%c: Int, %d: Int): Int {
-  b_0 {
-    %v_1 = loads @live, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @live, %v_2, 4
-    %g = call_complex allocateHeap, 4: Ptr
-    store %g, 1, 4
-    je %c, b_3, b_4
-  }
-
-  b_3 {
-    %n = call_complex consume, %g: Int
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 0], [b_4, 1]: Int
-    je %d, b_7, b_8
-  }
-
-  b_7 {
-    %v_9 = loads @live, 4: Int
-    %v_10 = add %v_9, 1: Int
-    store @live, %v_10, 4
-    %v_11 = and %v_6, 255: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    %v_14 = loads @live, 4: Int
-    %v_15 = sub %v_14, 1: Int
-    store @live, %v_15, 4
-    jmp b_13
-  }
-
-  b_13 {
-    store %g, 2, 4
-    %v_16 = loads @live, 4: Int
-    %v_17 = sub %v_16, 1: Int
-    store @live, %v_17, 4
-    %v_18 = bitcast %g: Ptr
-    call_complex freeHeap, %v_18
-    jmp b_19
-  }
-
-  b_20 {
-    jmp b_19
-  }
-
-  b_19 {
-    %v_21 = phi [b_13, 1], [b_20, %v_6]: Int
-    %v_22 = loads @live, 4: Int
-    ret %v_22
-  }
-
-  b_8 {
-    %v_23 = and %v_6, 255: Int
-    je %v_23, b_24, b_25
-  }
-
-  b_24 {
-    %v_26 = loads @live, 4: Int
-    %v_27 = sub %v_26, 1: Int
-    store @live, %v_27, 4
-    jmp b_25
-  }
-
-  b_25 {
-    %v_28 = bitcast %g: Ptr
-    call_complex freeHeap, %v_28
-    jmp b_20
-  }
-}
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@live = [0, 0, 0, 0]
 
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
@@ -219,16 +141,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-consume<complex>(%g: Ptr): Int {
-  b_0 {
-    %v_1 = loads %g, 4: Int
-    %v_2 = loads @live, 4: Int
-    %v_3 = sub %v_2, 1: Int
-    store @live, %v_3, 4
-    ret %v_1
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -259,6 +171,94 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
+  }
+}
+
+consume<complex>(%g: Ptr): Int {
+  b_0 {
+    %v_1 = loads %g, 4: Int
+    %v_2 = loads @live, 4: Int
+    %v_3 = sub %v_2, 1: Int
+    store @live, %v_3, 4
+    ret %v_1
+  }
+}
+
+heaped<complex>(%c: Int, %d: Int): Int {
+  b_0 {
+    %v_1 = loads @live, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @live, %v_2, 4
+    %g = call_complex allocateHeap, 4: Ptr
+    store %g, 1, 4
+    je %c, b_3, b_4
+  }
+
+  b_3 {
+    %n = call_complex consume, %g: Int
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 0], [b_4, 1]: Int
+    je %d, b_7, b_8
+  }
+
+  b_7 {
+    %v_9 = loads @live, 4: Int
+    %v_10 = add %v_9, 1: Int
+    store @live, %v_10, 4
+    %v_11 = and %v_6, 255: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = loads @live, 4: Int
+    %v_15 = sub %v_14, 1: Int
+    store @live, %v_15, 4
+    jmp b_13
+  }
+
+  b_13 {
+    store %g, 2, 4
+    %v_16 = loads @live, 4: Int
+    %v_17 = sub %v_16, 1: Int
+    store @live, %v_17, 4
+    %v_18 = bitcast %g: Ptr
+    call_complex freeHeap, %v_18
+    jmp b_19
+  }
+
+  b_20 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_21 = phi [b_13, 1], [b_20, %v_6]: Int
+    %v_22 = loads @live, 4: Int
+    ret %v_22
+  }
+
+  b_8 {
+    %v_23 = and %v_6, 255: Int
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    %v_26 = loads @live, 4: Int
+    %v_27 = sub %v_26, 1: Int
+    store @live, %v_27, 4
+    jmp b_25
+  }
+
+  b_25 {
+    %v_28 = bitcast %g: Ptr
+    call_complex freeHeap, %v_28
+    jmp b_20
   }
 }
 

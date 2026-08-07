@@ -1,5 +1,104 @@
 @dropped = [0, 0, 0, 0, 0, 0, 0, 0]
 
++=(I64)<complex>(%target: Ptr, %amount: Long) {
+  b_0 {
+    %v_1 = loads %target, 8: Long
+    %v_2 = add %v_1, %amount: Long
+    store %target, %v_2, 8
+    ret 
+  }
+}
+
+flip<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 1: Long
+    %v_6 = shr %v_5, %v_4: Long
+    %v_7 = and %v_6, 1: Long
+    %v_8 = cast %v_7: Int
+    %v_9 = xor %v_8, 1: Int
+    %v_10 = bitcast %x: Long
+    %v_11 = and %v_10, 281474976710655: Long
+    %v_12 = bitcast %v_11: Ptr
+    %v_13 = shr %v_10, 48: Long
+    %v_14 = load %v_12, 1: Long
+    %v_15 = cast %v_9: Long
+    %v_16 = imm 1: Long
+    %v_17 = and %v_15, %v_16: Long
+    %v_18 = shl %v_17, %v_13: Long
+    %v_19 = shl %v_16, %v_13: Long
+    %v_20 = not %v_19: Long
+    %v_21 = and %v_14, %v_20: Long
+    %v_22 = or %v_21, %v_18: Long
+    store %v_12, %v_22, 1
+    ret 
+  }
+}
+
+bump<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 1: Long
+    %v_6 = shr %v_5, %v_4: Long
+    %v_7 = and %v_6, 15: Long
+    %v_8 = imm 60: Long
+    %v_9 = shl %v_7, %v_8: Long
+    %v_10 = sar %v_9, %v_8: Long
+    %v_11 = sext %v_10: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = add %v_12, 1: Int
+    %v_14 = shl %v_13, 28: Int
+    %v_15 = sar %v_14, 28: Int
+    %v_16 = cast %v_15: Int
+    %v_17 = bitcast %x: Long
+    %v_18 = and %v_17, 281474976710655: Long
+    %v_19 = bitcast %v_18: Ptr
+    %v_20 = shr %v_17, 48: Long
+    %v_21 = load %v_19, 1: Long
+    %v_22 = cast %v_16: Long
+    %v_23 = imm 15: Long
+    %v_24 = and %v_22, %v_23: Long
+    %v_25 = shl %v_24, %v_20: Long
+    %v_26 = shl %v_23, %v_20: Long
+    %v_27 = not %v_26: Long
+    %v_28 = and %v_21, %v_27: Long
+    %v_29 = or %v_28, %v_25: Long
+    store %v_19, %v_29, 1
+    ret 
+  }
+}
+
+clear<complex>(%f: Ptr) {
+  b_0 {
+    %v_1 = bitcast %f: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 1: Long
+    %v_6 = shl 1, %v_4: Long
+    %v_7 = not %v_6: Long
+    %v_8 = and %v_5, %v_7: Long
+    store %v_3, %v_8, 1
+    %v_9 = bitcast %f: Long
+    %v_10 = and %v_9, 281474976710655: Long
+    %v_11 = bitcast %v_10: Ptr
+    %v_12 = shr %v_9, 48: Long
+    %v_13 = add %v_12, 1: Long
+    %v_14 = load %v_11, 1: Long
+    %v_15 = shl 1, %v_13: Long
+    %v_16 = not %v_15: Long
+    %v_17 = and %v_14, %v_16: Long
+    store %v_11, %v_17, 1
+    ret 
+  }
+}
+
 setBoth<complex>(%f: Ptr) {
   b_0 {
     %v_1 = bitcast %f: Long
@@ -29,6 +128,68 @@ setBoth<complex>(%f: Ptr) {
   }
 }
 
+valueOf<complex>(%f: Ptr): Int {
+  b_0 {
+    %v_1 = load %f, 1: Int
+    %v_2 = and %v_1, 1: Int
+    %v_3 = cast %v_2: Int
+    %v_4 = select 1, 0, %v_3: Int
+    %v_5 = shr %v_1, 1: Int
+    %v_6 = and %v_5, 1: Int
+    %v_7 = cast %v_6: Int
+    %v_8 = select 2, 0, %v_7: Int
+    %v_9 = add %v_4, %v_8: Int
+    ret %v_9
+  }
+}
+
+coPacked<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 3, 1
+    %v_3 = alloca 1, 1: Ptr
+    store %v_3, 0, 1
+    store %v_3, 0, 1
+    %v_4 = load %v_2, 1: Long
+    %v_5 = load %v_1, 1: Long
+    %v_6 = cast %v_4: Long
+    %v_7 = and %v_6, 3: Long
+    %v_8 = and %v_5, 18446744073709551612: Long
+    %v_9 = or %v_8, %v_7: Long
+    store %v_1, %v_9, 1
+    %v_10 = load %v_3, 1: Long
+    %v_11 = load %v_1, 1: Long
+    %v_12 = cast %v_10: Long
+    %v_13 = and %v_12, 3: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = and %v_11, 18446744073709551603: Long
+    %v_16 = or %v_15, %v_14: Long
+    store %v_1, %v_16, 1
+    call_complex clear, %v_1
+    %v_17 = bitcast %v_1: Long
+    %v_18 = or %v_17, 562949953421312: Long
+    %v_19 = bitcast %v_18: Ptr
+    call_complex setBoth, %v_19
+    %v_20 = load %v_1, 1: Long
+    %v_21 = and %v_20, 3: Long
+    %v_22 = alloca 1, 1: Ptr
+    store %v_22, %v_21, 1
+    %v_23 = call_complex valueOf, %v_22: Int
+    %v_24 = load %v_1, 1: Long
+    %v_25 = shr %v_24, 2: Long
+    %v_26 = and %v_25, 3: Long
+    %v_27 = alloca 1, 1: Ptr
+    store %v_27, %v_26, 1
+    %v_28 = call_complex valueOf, %v_27: Int
+    %v_29 = imul %v_28, 10: Int
+    %v_30 = add %v_23, %v_29: Int
+    ret %v_30
+  }
+}
+
 secondOf<complex>(%f: Ptr): Ptr {
   b_0 {
     %v_1 = bitcast %f: Long
@@ -47,9 +208,60 @@ secondOf<complex>(%f: Ptr): Ptr {
   }
 }
 
-hostBorrowed<complex>(): Int {
+reborrowed<complex>(): Int {
   b_0 {
-    ret 2
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 0, 1
+    %v_3 = alloca 1, 1: Ptr
+    store %v_3, 0, 1
+    store %v_3, 0, 1
+    %v_4 = load %v_2, 1: Long
+    %v_5 = load %v_1, 1: Long
+    %v_6 = cast %v_4: Long
+    %v_7 = and %v_6, 3: Long
+    %v_8 = and %v_5, 18446744073709551612: Long
+    %v_9 = or %v_8, %v_7: Long
+    store %v_1, %v_9, 1
+    %v_10 = load %v_3, 1: Long
+    %v_11 = load %v_1, 1: Long
+    %v_12 = cast %v_10: Long
+    %v_13 = and %v_12, 3: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = and %v_11, 18446744073709551603: Long
+    %v_16 = or %v_15, %v_14: Long
+    store %v_1, %v_16, 1
+    %v_17 = bitcast %v_1: Long
+    %v_18 = or %v_17, 562949953421312: Long
+    %v_19 = bitcast %v_18: Ptr
+    %v_20 = call_complex secondOf, %v_19: Ptr
+    %v_21 = bitcast %v_20: Long
+    %v_22 = and %v_21, 281474976710655: Long
+    %v_23 = bitcast %v_22: Ptr
+    %v_24 = shr %v_21, 48: Long
+    %v_25 = load %v_23, 1: Long
+    %v_26 = shl 1, %v_24: Long
+    %v_27 = shl 1, %v_24: Long
+    %v_28 = not %v_27: Long
+    %v_29 = and %v_25, %v_28: Long
+    %v_30 = or %v_29, %v_26: Long
+    store %v_23, %v_30, 1
+    %v_31 = load %v_1, 1: Long
+    %v_32 = and %v_31, 3: Long
+    %v_33 = alloca 1, 1: Ptr
+    store %v_33, %v_32, 1
+    %v_34 = call_complex valueOf, %v_33: Int
+    %v_35 = load %v_1, 1: Long
+    %v_36 = shr %v_35, 2: Long
+    %v_37 = and %v_36, 3: Long
+    %v_38 = alloca 1, 1: Ptr
+    store %v_38, %v_37, 1
+    %v_39 = call_complex valueOf, %v_38: Int
+    %v_40 = imul %v_39, 10: Int
+    %v_41 = add %v_34, %v_40: Int
+    ret %v_41
   }
 }
 
@@ -152,21 +364,27 @@ swapped<complex>(): Int {
   }
 }
 
-Drop(Owned).drop<complex>(%value: Ptr) {
+tagOf<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = load %value, 1: Int
-    %v_2 = and %v_1, 1: Int
-    %v_3 = cast %v_2: Int
-    %v_4 = select 1, 2, %v_3: Int
-    %v_5 = sext %v_4: Long
-    call_complex +=(I64), @dropped, %v_5
-    ret 
+    %v_1 = load %m, 1: Long
+    %v_2 = cmp_le %v_1, 3: Int
+    %v_3 = select 1, 0, %v_2: Int
+    %v_4 = cmp_eq %v_3, 0: Int
+    je %v_4, b_5, b_6
   }
-}
 
-hostShaped<complex>(): Int {
-  b_0 {
-    ret 7406401
+  b_6 {
+    %v_7 = call_complex valueOf, %m: Int
+    jmp b_8
+  }
+
+  b_5 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_5, 4], [b_6, %v_7]: Int
+    ret %v_9
   }
 }
 
@@ -214,56 +432,60 @@ heldValue<complex>(%h: Ptr): Int {
   }
 }
 
-flip<complex>(%x: Ptr) {
+reordered<complex>(): Int {
   b_0 {
-    %v_1 = bitcast %x: Long
-    %v_2 = and %v_1, 281474976710655: Long
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 1: Long
-    %v_6 = shr %v_5, %v_4: Long
-    %v_7 = and %v_6, 1: Long
-    %v_8 = cast %v_7: Int
-    %v_9 = xor %v_8, 1: Int
-    %v_10 = bitcast %x: Long
-    %v_11 = and %v_10, 281474976710655: Long
-    %v_12 = bitcast %v_11: Ptr
-    %v_13 = shr %v_10, 48: Long
-    %v_14 = load %v_12, 1: Long
-    %v_15 = cast %v_9: Long
-    %v_16 = imm 1: Long
-    %v_17 = and %v_15, %v_16: Long
-    %v_18 = shl %v_17, %v_13: Long
-    %v_19 = shl %v_16, %v_13: Long
-    %v_20 = not %v_19: Long
-    %v_21 = and %v_14, %v_20: Long
-    %v_22 = or %v_21, %v_18: Long
-    store %v_12, %v_22, 1
-    ret 
-  }
-}
-
-tagOf<complex>(%m: Ptr): Int {
-  b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 3: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex valueOf, %m: Int
-    jmp b_8
-  }
-
-  b_5 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_5, 4], [b_6, %v_7]: Int
-    ret %v_9
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 0, 8
+    store %v_1, 9, 8
+    %v_3 = add %v_1, 12: Ptr
+    store %v_3, 3, 1
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 40, 4
+    %v_5 = add %v_1, 14: Ptr
+    store %v_5, 358, 2
+    %v_6 = add %v_1, 14: Ptr
+    %v_7 = bitcast %v_6: Long
+    %v_8 = or %v_7, 1125899906842624: Long
+    %v_9 = bitcast %v_8: Ptr
+    call_complex bump, %v_9
+    %v_10 = load %v_1, 8: Long
+    %v_11 = add %v_10, 1: Long
+    store %v_1, %v_11, 8
+    %v_12 = add %v_1, 14: Ptr
+    %v_13 = load %v_12, 2: Int
+    %v_14 = shr %v_13, 8: Int
+    %v_15 = and %v_14, 1: Int
+    %v_16 = cast %v_15: Int
+    %v_17 = select 1, 0, %v_16: Int
+    %v_18 = cast %v_11: Int
+    %v_19 = imul %v_18, 10: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = add %v_1, 12: Ptr
+    %v_22 = load %v_21, 1: Int
+    %v_23 = cast %v_22: Int
+    %v_24 = imul %v_23, 100: Int
+    %v_25 = add %v_20, %v_24: Int
+    %v_26 = and %v_13, 15: Int
+    %v_27 = xor %v_26, 8: Int
+    %v_28 = sub %v_27, 8: Int
+    %v_29 = cast %v_28: Int
+    %v_30 = imul %v_29, 1000: Int
+    %v_31 = add %v_25, %v_30: Int
+    %v_32 = add %v_1, 8: Ptr
+    %v_33 = load %v_32, 4: Int
+    %v_34 = cast %v_33: Int
+    %v_35 = imul %v_34, 10000: Int
+    %v_36 = add %v_31, %v_35: Int
+    %v_37 = shr %v_13, 4: Int
+    %v_38 = and %v_37, 15: Int
+    %v_39 = xor %v_38, 8: Int
+    %v_40 = sub %v_39, 8: Int
+    %v_41 = cast %v_40: Int
+    %v_42 = imul %v_41, 1000000: Int
+    %v_43 = add %v_36, %v_42: Int
+    ret %v_43
   }
 }
 
@@ -319,192 +541,15 @@ pinned<complex>(): Int {
   }
 }
 
-clear<complex>(%f: Ptr) {
+hostShaped<complex>(): Int {
   b_0 {
-    %v_1 = bitcast %f: Long
-    %v_2 = and %v_1, 281474976710655: Long
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 1: Long
-    %v_6 = shl 1, %v_4: Long
-    %v_7 = not %v_6: Long
-    %v_8 = and %v_5, %v_7: Long
-    store %v_3, %v_8, 1
-    %v_9 = bitcast %f: Long
-    %v_10 = and %v_9, 281474976710655: Long
-    %v_11 = bitcast %v_10: Ptr
-    %v_12 = shr %v_9, 48: Long
-    %v_13 = add %v_12, 1: Long
-    %v_14 = load %v_11, 1: Long
-    %v_15 = shl 1, %v_13: Long
-    %v_16 = not %v_15: Long
-    %v_17 = and %v_14, %v_16: Long
-    store %v_11, %v_17, 1
-    ret 
+    ret 7406401
   }
 }
 
-coPacked<complex>(): Int {
+hostBorrowed<complex>(): Int {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, 0, 1
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    store %v_2, 3, 1
-    %v_3 = alloca 1, 1: Ptr
-    store %v_3, 0, 1
-    store %v_3, 0, 1
-    %v_4 = load %v_2, 1: Long
-    %v_5 = load %v_1, 1: Long
-    %v_6 = cast %v_4: Long
-    %v_7 = and %v_6, 3: Long
-    %v_8 = and %v_5, 18446744073709551612: Long
-    %v_9 = or %v_8, %v_7: Long
-    store %v_1, %v_9, 1
-    %v_10 = load %v_3, 1: Long
-    %v_11 = load %v_1, 1: Long
-    %v_12 = cast %v_10: Long
-    %v_13 = and %v_12, 3: Long
-    %v_14 = shl %v_13, 2: Long
-    %v_15 = and %v_11, 18446744073709551603: Long
-    %v_16 = or %v_15, %v_14: Long
-    store %v_1, %v_16, 1
-    call_complex clear, %v_1
-    %v_17 = bitcast %v_1: Long
-    %v_18 = or %v_17, 562949953421312: Long
-    %v_19 = bitcast %v_18: Ptr
-    call_complex setBoth, %v_19
-    %v_20 = load %v_1, 1: Long
-    %v_21 = and %v_20, 3: Long
-    %v_22 = alloca 1, 1: Ptr
-    store %v_22, %v_21, 1
-    %v_23 = call_complex valueOf, %v_22: Int
-    %v_24 = load %v_1, 1: Long
-    %v_25 = shr %v_24, 2: Long
-    %v_26 = and %v_25, 3: Long
-    %v_27 = alloca 1, 1: Ptr
-    store %v_27, %v_26, 1
-    %v_28 = call_complex valueOf, %v_27: Int
-    %v_29 = imul %v_28, 10: Int
-    %v_30 = add %v_23, %v_29: Int
-    ret %v_30
-  }
-}
-
-bump<complex>(%x: Ptr) {
-  b_0 {
-    %v_1 = bitcast %x: Long
-    %v_2 = and %v_1, 281474976710655: Long
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 1: Long
-    %v_6 = shr %v_5, %v_4: Long
-    %v_7 = and %v_6, 15: Long
-    %v_8 = imm 60: Long
-    %v_9 = shl %v_7, %v_8: Long
-    %v_10 = sar %v_9, %v_8: Long
-    %v_11 = sext %v_10: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = add %v_12, 1: Int
-    %v_14 = shl %v_13, 28: Int
-    %v_15 = sar %v_14, 28: Int
-    %v_16 = cast %v_15: Int
-    %v_17 = bitcast %x: Long
-    %v_18 = and %v_17, 281474976710655: Long
-    %v_19 = bitcast %v_18: Ptr
-    %v_20 = shr %v_17, 48: Long
-    %v_21 = load %v_19, 1: Long
-    %v_22 = cast %v_16: Long
-    %v_23 = imm 15: Long
-    %v_24 = and %v_22, %v_23: Long
-    %v_25 = shl %v_24, %v_20: Long
-    %v_26 = shl %v_23, %v_20: Long
-    %v_27 = not %v_26: Long
-    %v_28 = and %v_21, %v_27: Long
-    %v_29 = or %v_28, %v_25: Long
-    store %v_19, %v_29, 1
-    ret 
-  }
-}
-
-valueOf<complex>(%f: Ptr): Int {
-  b_0 {
-    %v_1 = load %f, 1: Int
-    %v_2 = and %v_1, 1: Int
-    %v_3 = cast %v_2: Int
-    %v_4 = select 1, 0, %v_3: Int
-    %v_5 = shr %v_1, 1: Int
-    %v_6 = and %v_5, 1: Int
-    %v_7 = cast %v_6: Int
-    %v_8 = select 2, 0, %v_7: Int
-    %v_9 = add %v_4, %v_8: Int
-    ret %v_9
-  }
-}
-
-reborrowed<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, 0, 1
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    store %v_2, 0, 1
-    %v_3 = alloca 1, 1: Ptr
-    store %v_3, 0, 1
-    store %v_3, 0, 1
-    %v_4 = load %v_2, 1: Long
-    %v_5 = load %v_1, 1: Long
-    %v_6 = cast %v_4: Long
-    %v_7 = and %v_6, 3: Long
-    %v_8 = and %v_5, 18446744073709551612: Long
-    %v_9 = or %v_8, %v_7: Long
-    store %v_1, %v_9, 1
-    %v_10 = load %v_3, 1: Long
-    %v_11 = load %v_1, 1: Long
-    %v_12 = cast %v_10: Long
-    %v_13 = and %v_12, 3: Long
-    %v_14 = shl %v_13, 2: Long
-    %v_15 = and %v_11, 18446744073709551603: Long
-    %v_16 = or %v_15, %v_14: Long
-    store %v_1, %v_16, 1
-    %v_17 = bitcast %v_1: Long
-    %v_18 = or %v_17, 562949953421312: Long
-    %v_19 = bitcast %v_18: Ptr
-    %v_20 = call_complex secondOf, %v_19: Ptr
-    %v_21 = bitcast %v_20: Long
-    %v_22 = and %v_21, 281474976710655: Long
-    %v_23 = bitcast %v_22: Ptr
-    %v_24 = shr %v_21, 48: Long
-    %v_25 = load %v_23, 1: Long
-    %v_26 = shl 1, %v_24: Long
-    %v_27 = shl 1, %v_24: Long
-    %v_28 = not %v_27: Long
-    %v_29 = and %v_25, %v_28: Long
-    %v_30 = or %v_29, %v_26: Long
-    store %v_23, %v_30, 1
-    %v_31 = load %v_1, 1: Long
-    %v_32 = and %v_31, 3: Long
-    %v_33 = alloca 1, 1: Ptr
-    store %v_33, %v_32, 1
-    %v_34 = call_complex valueOf, %v_33: Int
-    %v_35 = load %v_1, 1: Long
-    %v_36 = shr %v_35, 2: Long
-    %v_37 = and %v_36, 3: Long
-    %v_38 = alloca 1, 1: Ptr
-    store %v_38, %v_37, 1
-    %v_39 = call_complex valueOf, %v_38: Int
-    %v_40 = imul %v_39, 10: Int
-    %v_41 = add %v_34, %v_40: Int
-    ret %v_41
-  }
-}
-
-+=(I64)<complex>(%target: Ptr, %amount: Long) {
-  b_0 {
-    %v_1 = loads %target, 8: Long
-    %v_2 = add %v_1, %amount: Long
-    store %target, %v_2, 8
-    ret 
+    ret 2
   }
 }
 
@@ -671,60 +716,15 @@ main<complex>(): Int {
   }
 }
 
-reordered<complex>(): Int {
+Drop(Owned).drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, 0, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 0, 8
-    store %v_1, 9, 8
-    %v_3 = add %v_1, 12: Ptr
-    store %v_3, 3, 1
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, 40, 4
-    %v_5 = add %v_1, 14: Ptr
-    store %v_5, 358, 2
-    %v_6 = add %v_1, 14: Ptr
-    %v_7 = bitcast %v_6: Long
-    %v_8 = or %v_7, 1125899906842624: Long
-    %v_9 = bitcast %v_8: Ptr
-    call_complex bump, %v_9
-    %v_10 = load %v_1, 8: Long
-    %v_11 = add %v_10, 1: Long
-    store %v_1, %v_11, 8
-    %v_12 = add %v_1, 14: Ptr
-    %v_13 = load %v_12, 2: Int
-    %v_14 = shr %v_13, 8: Int
-    %v_15 = and %v_14, 1: Int
-    %v_16 = cast %v_15: Int
-    %v_17 = select 1, 0, %v_16: Int
-    %v_18 = cast %v_11: Int
-    %v_19 = imul %v_18, 10: Int
-    %v_20 = add %v_17, %v_19: Int
-    %v_21 = add %v_1, 12: Ptr
-    %v_22 = load %v_21, 1: Int
-    %v_23 = cast %v_22: Int
-    %v_24 = imul %v_23, 100: Int
-    %v_25 = add %v_20, %v_24: Int
-    %v_26 = and %v_13, 15: Int
-    %v_27 = xor %v_26, 8: Int
-    %v_28 = sub %v_27, 8: Int
-    %v_29 = cast %v_28: Int
-    %v_30 = imul %v_29, 1000: Int
-    %v_31 = add %v_25, %v_30: Int
-    %v_32 = add %v_1, 8: Ptr
-    %v_33 = load %v_32, 4: Int
-    %v_34 = cast %v_33: Int
-    %v_35 = imul %v_34, 10000: Int
-    %v_36 = add %v_31, %v_35: Int
-    %v_37 = shr %v_13, 4: Int
-    %v_38 = and %v_37, 15: Int
-    %v_39 = xor %v_38, 8: Int
-    %v_40 = sub %v_39, 8: Int
-    %v_41 = cast %v_40: Int
-    %v_42 = imul %v_41, 1000000: Int
-    %v_43 = add %v_36, %v_42: Int
-    ret %v_43
+    %v_1 = load %value, 1: Int
+    %v_2 = and %v_1, 1: Int
+    %v_3 = cast %v_2: Int
+    %v_4 = select 1, 2, %v_3: Int
+    %v_5 = sext %v_4: Long
+    call_complex +=(I64), @dropped, %v_5
+    ret 
   }
 }
 

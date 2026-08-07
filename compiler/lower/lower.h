@@ -414,7 +414,7 @@ struct LowerValue {
     LowerList<LowerPtr<LowerInst>> uses;
 
     // Source name for this value.
-    StringId name;
+    StringId name {};
 
     // Values are always embedded into the instruction that created them.
     // This contains the offset from this value back into the instruction, in uint_ptr intervals.
@@ -452,7 +452,7 @@ struct LowerBlock {
     LowerPtr<LowerBlock> outgoing[2] = { nullptr, nullptr };
 
     // Name of the block, if any.
-    StringId name;
+    StringId name {};
 
     // Source location where this block was defined.
     LocationId source = kNullLocation;
@@ -486,7 +486,7 @@ struct LowerFunction {
     {
         // Functions always have an implicit entry point block, which contains the argument references.
         // The entry point block can never be jumped to.
-        blocks.push(arena, new (arena) LowerBlock { this - *arena, 0, 0 } - *arena);
+        blocks.push(arena, new (arena) LowerBlock { this - *arena, StringId(), 0 } - *arena);
     }
 
     LowerArg* addArg(LowerBase base, StringId argName, LowerType type);
@@ -518,7 +518,7 @@ struct LowerFunction {
     // metadata, so a pass that changes either invalidates it, and one that changes neither cannot.
     FunctionFrequencyInfo buildFrequencies(LowerBase base);
 
-    StringId name;
+    StringId name {};
     LocationId source = kNullLocation;
 
     Region<LowerRegion>& arena;
@@ -570,7 +570,7 @@ struct LowerDataRelocation {
 struct LowerGlobal {
     explicit LowerGlobal(StringId name): name(name) {}
 
-    StringId name;
+    StringId name {};
 
     /*
      * Whether anything writes this storage. Clear is a *promise* rather than a hint - it becomes
@@ -596,10 +596,27 @@ struct LowerModule {
     LowerFunction* addFunction(StringId funName);
 
     Region<LowerRegion> arena;
+
+    // Finding one by name, which is how everything downstream of lowering refers to one.
     HashMap<StringId, LowerPtr<LowerGlobal>> globals;
     HashMap<StringId, LowerPtr<LowerFunction>> functions;
 
-    StringId name = 0;
+    /*
+     * The order they are emitted in, which is the order they were declared in.
+     *
+     * Separate from the maps above because iterating a HashMap walks its buckets, so emission order
+     * used to *be* hash order: the data section's layout, the order functions were assembled in and
+     * every golden file in test/resolve were all pinned to the bucket a name landed in. Changing the
+     * hash function reordered ~300 fixtures without changing a line of any of them.
+     *
+     * So the map answers "which global is called this" and the list answers "what comes next", and
+     * no pass may use the first for the second. Both are written by the same two places -
+     * addFunction below, and lowerProgram for globals.
+     */
+    Array<LowerPtr<LowerGlobal>> globalOrder;
+    Array<LowerPtr<LowerFunction>> functionOrder;
+
+    StringId name {};
 
     /*
      * The name of the function a finished program starts at - `Program::entry`, under whatever name
@@ -610,7 +627,7 @@ struct LowerModule {
      * hold a lower-IR pointer in order to know which of them starts the program would be a second
      * way of naming the same thing. Zero for a library, which has no entry.
      */
-    StringId entry = 0;
+    StringId entry {};
 
     U16 errorCount = 0;
     U16 warningCount = 0;

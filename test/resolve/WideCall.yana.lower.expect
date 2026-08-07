@@ -1,25 +1,5 @@
 @effects = [0, 0, 0, 0]
 
-ResolveTest.deferred$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = imm 1: Int
-    %v_3 = add %v_1, %v_2: Int
-    store @effects, %v_3, 4
-    ret %v_2
-  }
-}
-
-ResolveTest.deferred$1<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = imm 4: Int
-    %v_3 = add %v_1, %v_2: Int
-    store @effects, %v_3, 4
-    ret %v_2
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
@@ -42,6 +22,26 @@ main<complex>(): Int {
     %v_14 = loads @effects, 4: Int
     %v_15 = add %v_13, %v_14: Int
     ret %v_15
+  }
+}
+
+ResolveTest.deferred$0<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = imm 1: Int
+    %v_3 = add %v_1, %v_2: Int
+    store @effects, %v_3, 4
+    ret %v_2
+  }
+}
+
+ResolveTest.deferred$1<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = imm 4: Int
+    %v_3 = add %v_1, %v_2: Int
+    store @effects, %v_3, 4
+    ret %v_2
   }
 }
 

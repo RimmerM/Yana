@@ -6,6 +6,7 @@
  */
 
 #include "lower_internal.h"
+#include "../compiler/stage.h"
 #include "../opt/opt.h"
 #include "../lower/lower_promote.h"
 
@@ -268,7 +269,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     // The optimizer, against this target - see compiler/opt. Here rather than in the driver because
     // this function is what every native consumer reaches for, the fixture runner included, and an
     // optimization the tests do not see is one the tests do not check.
-    optimizeProgram(context, program, nativeReprTarget());
+    {
+        StageScope stage(CompileStage::Optimize);
+        optimizeProgram(context, program, nativeReprTarget());
+    }
 
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
     ReprTable repr(*program.types, nativeReprTarget());
@@ -391,7 +395,29 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             if(source->prefixOf) continue;
 
             auto target = lowerGlobal(globalPointer);
-            *result->globals.add(source->name).value = target - lower.lower;
+            /*
+             * The list holds exactly the map's values, in the order the names first appeared.
+             *
+             * Two modules can reach the same name - a string literal is numbered per module, so
+             * `string$0` is made by every module that has one - and the map has always kept the last
+             * of those and emitted it once. Pushing unconditionally emitted it twice, which is what
+             * `@string$0` appearing in Format.yana's dump under two different offsets was.
+             */
+            auto entry = result->globals.add(source->name);
+            auto pointer = target - lower.lower;
+
+            if(entry.existed) {
+                for(auto& existing: result->globalOrder) {
+                    if(existing == *entry.value) {
+                        existing = pointer;
+                        break;
+                    }
+                }
+            } else {
+                result->globalOrder.push(pointer);
+            }
+
+            *entry.value = pointer;
         }
     }
 
@@ -510,7 +536,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // An aggregate result is returned through storage the caller passes in, so it becomes a
         // leading pointer argument that every `ret` in the function copies into.
         if(isMemoryType(lower.global, function->returnType)) {
-            auto returnPlace = target->addArg(lower.lower, 0, LowerType::Pointer);
+            auto returnPlace = target->addArg(lower.lower, StringId(), LowerType::Pointer);
             lower.returnPlaces.add(functionPointer, &returnPlace->result - lower.lower);
         }
 

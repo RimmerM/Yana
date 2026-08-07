@@ -881,7 +881,7 @@ struct Verifier {
     void buildArgState(MachineState& state) {
         auto args = fun.args.contents(base);
 
-        Array<ArgLocation> locations;
+        ArgLocationList locations;
         classifyArgs(constraints.getConvention(fun.callType), args.size(), [&](Size i) {
             return base[args[i]]->result.type;
         }, locations);

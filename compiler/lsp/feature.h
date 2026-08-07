@@ -48,7 +48,7 @@ struct LocationWriter {
 
 private:
     struct FileLines {
-        StringId module = 0;
+        StringId module = StringId();
         StringView text;
         String uri;
         LineTable lines;

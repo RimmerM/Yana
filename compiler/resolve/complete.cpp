@@ -161,7 +161,7 @@ static void collectBindings(Collector& into) {
             // itself.
             if(isCursorSentinel(resolver->context, binding.name)) continue;
 
-            into.add(bindingSymbol(*resolver, binding), bindingType(*resolver, binding), 0, RankLocal);
+            into.add(bindingSymbol(*resolver, binding), bindingType(*resolver, binding), StringId(), RankLocal);
         }
     }
 }
@@ -276,7 +276,7 @@ static void collectFields(Collector& into, Module& module, TypePtr owner, TypePt
         auto field = tuple->fields.get(global, i);
         if(!field.name) continue;
 
-        into.add(fieldSymbol(module, owner, U16(i), field.name, ownerSource), field.type, 0, rank);
+        into.add(fieldSymbol(module, owner, U16(i), field.name, ownerSource), field.type, StringId(), rank);
     }
 }
 
@@ -413,7 +413,7 @@ static void collectParameters(Collector& into, Module& module, ModulePtr<Functio
         symbol.definition = argument->source;
         symbol.payload = argument->index;
 
-        into.add(symbol, argument->declaredType(), 0, RankExpected, true);
+        into.add(symbol, argument->declaredType(), StringId(), RankExpected, true);
     }
 }
 

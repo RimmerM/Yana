@@ -528,7 +528,7 @@ PatternResult ExprResolver::branchPattern(ModulePtr<Value> condition, ModulePtr<
 
     condition = convert(condition, module.scalar.bool_, source);
     auto success = addBlock();
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, condition, success, onFail));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, condition, success, onFail));
     current = success;
 
     return PatternResult::Maybe;
@@ -799,7 +799,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 ModulePtr<Value> discriminant = pivot;
 
                 if(record->layout == RecordType::Enum) {
-                    discriminant = ref(emit<InstUnary>(pattern.source, 0, module.scalar.int_, Value::Cast, pivot));
+                    discriminant = ref(emit<InstUnary>(pattern.source, StringId(), module.scalar.int_, Value::Cast, pivot));
                 } else {
                     discriminant = load(project(placeFor(pivot, pattern.source), ProjectionKind::Discriminant, 0), pattern.source);
                 }
@@ -926,7 +926,7 @@ PatternResult ExprResolver::resolveCondition(const ast::Expr& expr, ModulePtr<Bl
     auto success = addBlock();
     if(!onFail) onFail = addBlock();
 
-    terminate(emit<InstJe>(expr.source, 0, module.scalar.unit, value, success, onFail));
+    terminate(emit<InstJe>(expr.source, StringId(), module.scalar.unit, value, success, onFail));
     current = success;
 
     return PatternResult::Maybe;

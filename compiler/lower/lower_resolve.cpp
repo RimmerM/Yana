@@ -27,7 +27,7 @@ static Maybe<LowerValue*> findValue(LowerResolve& resolve, LowerBase base, Lower
     switch(ast.kind) {
         case LowerArgAst::Imm: {
             // Since i and f are in a union in both, we can always pass the integer representation to get the correct result.
-            auto v = new (resolve.moduleArena) LowerImm(0, ast.immType, ast.i);
+            auto v = new (resolve.moduleArena) LowerImm(StringId(), ast.immType, ast.i);
             block.addInst(base, v);
 
             return Just(&v->result);
@@ -45,7 +45,7 @@ static Maybe<LowerValue*> findValue(LowerResolve& resolve, LowerBase base, Lower
                 return Nothing();
             }
 
-            auto load = new (resolve.moduleArena) LowerInstFun(0, targetFun.unwrap());
+            auto load = new (resolve.moduleArena) LowerInstFun(StringId(), targetFun.unwrap());
             block.addInst(base, load);
 
             return Just(&load->result);
@@ -57,7 +57,7 @@ static Maybe<LowerValue*> findValue(LowerResolve& resolve, LowerBase base, Lower
                 return Nothing();
             }
 
-            auto load = new (resolve.moduleArena) LowerInstGlobal(0, global.unwrap());
+            auto load = new (resolve.moduleArena) LowerInstGlobal(StringId(), global.unwrap());
             block.addInst(base, load);
 
             return Just(&load->result);
@@ -606,7 +606,7 @@ bool resolveLowerModule(LowerResolve& resolve, LowerBase moduleBase, RegionBase<
     auto errorCount = resolve.diag.errorCount();
     auto warningCount = resolve.diag.warningCount();
 
-    for(auto offset: module.functions) {
+    for(auto offset: module.functionOrder) {
         resolve.knownLocals.reset();
         resolve.pending.clear();
 

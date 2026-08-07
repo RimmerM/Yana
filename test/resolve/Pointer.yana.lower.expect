@@ -1,20 +1,55 @@
 
-elementStride<complex>(): Long {
+roundTrip<complex>(): Long {
+  b_0 {
+    ret 8
+  }
+}
+
+throughField<complex>(): Long {
   b_0 {
     %node = alloca 16, 8: Ptr
     %v_1 = bitcast 0: Ptr
-    store %node, 0, 8
+    store %node, 3, 8
     %v_2 = add %node, 8: Ptr
     store %v_2, %v_1, 8
-    %next = add %node, 16: Ptr
-    %v_3 = sub %next, %node: Long
-    %v_4 = idiv %v_3, 16: Long
-    %v_5 = imul %v_4, 100: Long
-    %v_6 = bitcast %node: Ptr
-    %v_7 = bitcast %next: Ptr
-    %v_8 = sub %v_7, %v_6: Long
-    %v_9 = add %v_5, %v_8: Long
-    ret %v_9
+    %v_3 = loads %node, 8: Long
+    %v_4 = imul %v_3, 5: Long
+    store %node, %v_4, 8
+    %v_5 = loads %node, 8: Long
+    ret %v_4
+  }
+}
+
+pointerFields<complex>(): Long {
+  b_0 {
+    %first = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %first, 1, 8
+    %v_2 = add %first, 8: Ptr
+    store %v_2, %v_1, 8
+    %second = alloca 16, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %second, 2, 8
+    %v_4 = add %second, 8: Ptr
+    store %v_4, %v_3, 8
+    %v_5 = imm 5: Long
+    store %first, %v_5, 8
+    %v_6 = add %first, 8: Ptr
+    store %v_6, %second, 8
+    %v_7 = loads %first, 8: Long
+    %v_8 = add %first, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = loads %second, 8: Long
+    %v_11 = add %v_10, %v_5: Long
+    %v_12 = add %first, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    store %v_13, %v_11, 8
+    %v_14 = loads %first, 8: Long
+    %v_15 = add %first, 8: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = loads %v_16, 8: Long
+    %v_18 = add %v_17, 500: Long
+    ret %v_18
   }
 }
 
@@ -56,62 +91,22 @@ walkList<complex>(): Long {
   }
 }
 
-unwrapPointer<complex>(%value: Ptr): Long {
+elementStride<complex>(): Long {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %value, 8: Ptr
-    %p = load %v_6, 8: Ptr
-    %v_7 = bitcast %p: Long
-    %v_8 = cmp_eq %v_7, 0: Int
-    %v_9 = select 0, 1, %v_8: Long
-    jmp b_5
-  }
-
-  b_5 {
-    %v_10 = phi [b_3, %v_9], [b_4, 0]: Long
-    ret %v_10
-  }
-}
-
-pointerFields<complex>(): Long {
-  b_0 {
-    %first = alloca 16, 8: Ptr
+    %node = alloca 16, 8: Ptr
     %v_1 = bitcast 0: Ptr
-    store %first, 1, 8
-    %v_2 = add %first, 8: Ptr
+    store %node, 0, 8
+    %v_2 = add %node, 8: Ptr
     store %v_2, %v_1, 8
-    %second = alloca 16, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    store %second, 2, 8
-    %v_4 = add %second, 8: Ptr
-    store %v_4, %v_3, 8
-    %v_5 = imm 5: Long
-    store %first, %v_5, 8
-    %v_6 = add %first, 8: Ptr
-    store %v_6, %second, 8
-    %v_7 = loads %first, 8: Long
-    %v_8 = add %first, 8: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    %v_10 = loads %second, 8: Long
-    %v_11 = add %v_10, %v_5: Long
-    %v_12 = add %first, 8: Ptr
-    %v_13 = load %v_12, 8: Ptr
-    store %v_13, %v_11, 8
-    %v_14 = loads %first, 8: Long
-    %v_15 = add %first, 8: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    %v_17 = loads %v_16, 8: Long
-    %v_18 = add %v_17, 500: Long
-    ret %v_18
+    %next = add %node, 16: Ptr
+    %v_3 = sub %next, %node: Long
+    %v_4 = idiv %v_3, 16: Long
+    %v_5 = imul %v_4, 100: Long
+    %v_6 = bitcast %node: Ptr
+    %v_7 = bitcast %next: Ptr
+    %v_8 = sub %v_7, %v_6: Long
+    %v_9 = add %v_5, %v_8: Long
+    ret %v_9
   }
 }
 
@@ -164,21 +159,6 @@ compareAddresses<complex>(): Long {
   }
 }
 
-throughField<complex>(): Long {
-  b_0 {
-    %node = alloca 16, 8: Ptr
-    %v_1 = bitcast 0: Ptr
-    store %node, 3, 8
-    %v_2 = add %node, 8: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = loads %node, 8: Long
-    %v_4 = imul %v_3, 5: Long
-    store %node, %v_4, 8
-    %v_5 = loads %node, 8: Long
-    ret %v_4
-  }
-}
-
 blockOperations<complex>(): Long {
   b_0 {
     %source = alloca 16, 8: Ptr
@@ -222,9 +202,29 @@ maybePointer<complex>(): Long {
   }
 }
 
-roundTrip<complex>(): Long {
+unwrapPointer<complex>(%value: Ptr): Long {
   b_0 {
-    ret 8
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    %p = load %v_6, 8: Ptr
+    %v_7 = bitcast %p: Long
+    %v_8 = cmp_eq %v_7, 0: Int
+    %v_9 = select 0, 1, %v_8: Long
+    jmp b_5
+  }
+
+  b_5 {
+    %v_10 = phi [b_3, %v_9], [b_4, 0]: Long
+    ret %v_10
   }
 }
 

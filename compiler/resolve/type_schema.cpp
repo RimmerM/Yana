@@ -198,7 +198,7 @@ void requireClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClas
     // directly or inside one that names it as a superclass. The second is what keeps
     // `fn (Num(a)) inc(x: a) = x + 1` to a single witness: the literal's `FromInt(a)` is loaded out
     // of the `Num` witness the caller already passed.
-    Array<U32> supers;
+    SuperclassSteps supers;
     if(genWitnessPath(module, env, typeClass, args, supers) != maxLimit<U16>) return;
 
     ClassConstraint constraint;

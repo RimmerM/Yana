@@ -342,7 +342,7 @@ void generateLowerTest(const String& path, StringView content) {
     auto base = *module.arena;
     MachineFunction machine;
 
-    for(auto& f: module.functions) {
+    for(auto& f: module.functionOrder) {
         machine.reset();
         transformFunction(context, base, *base[f], machine);
     }

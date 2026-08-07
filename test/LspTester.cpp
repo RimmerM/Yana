@@ -688,7 +688,7 @@ static bool runCompletionFixture(const String& root, const String& expectPath, b
     // The text is copied out before any completion compile runs: a compile drops the provider's
     // buffers and reads them again, so a view of one taken beforehand does not survive it.
     struct Fixture {
-        StringId module = 0;
+        StringId module = StringId();
         String path;
         String text;
     };
@@ -783,7 +783,7 @@ static bool runCompletionSweep(const String& root) {
     probe.compile();
 
     struct Fixture {
-        StringId module = 0;
+        StringId module = StringId();
         String path;
         String text;
     };

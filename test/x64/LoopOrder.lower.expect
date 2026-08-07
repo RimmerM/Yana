@@ -43,61 +43,34 @@ bodyDeclaredFirst<complex>(%n: Int): Int {
   }
 }
 
-branchInBody<complex>(%n: Int, %c: Int): Int {
+twoBackEdges<complex>(%n: Int, %c: Int): Int {
   start {
     %z = cast 0: Int
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [join, %i2]: Int
+    %i = phi [start, %z], [left, %l], [right, %r]: Int
     %v_0 = cmp_ige %i, %n: Int
-    je %v_0, out, test
+    je %v_0, out, split
   }
 
-  test {
-    je %c, even, odd
+  split {
+    je %c, left, right
   }
 
-  even {
-    %e = add %i, 2: Int
-    jmp join
+  left {
+    %l = add %i, 1: Int
+    jmp head
   }
 
-  odd {
-    %o = add %i, 1: Int
-    jmp join
-  }
-
-  join {
-    %i2 = phi [even, %e], [odd, %o]: Int
+  right {
+    %r = add %i, 2: Int
     jmp head
   }
 
   out {
     ret %i
-  }
-}
-
-declaredOutOfOrder<complex>(%n: Int): Int {
-  start {
-    %z = cast 0: Int
-    jmp head
-  }
-
-  head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
-    je %v_0, out, body
-  }
-
-  out {
-    ret %i
-  }
-
-  body {
-    %i2 = add %i, 1: Int
-    jmp head
   }
 }
 
@@ -138,29 +111,56 @@ nested<complex>(%n: Int, %m: Int): Int {
   }
 }
 
-twoBackEdges<complex>(%n: Int, %c: Int): Int {
+declaredOutOfOrder<complex>(%n: Int): Int {
   start {
     %z = cast 0: Int
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [left, %l], [right, %r]: Int
+    %i = phi [start, %z], [body, %i2]: Int
     %v_0 = cmp_ige %i, %n: Int
-    je %v_0, out, split
+    je %v_0, out, body
   }
 
-  split {
-    je %c, left, right
+  out {
+    ret %i
   }
 
-  left {
-    %l = add %i, 1: Int
+  body {
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+}
+
+branchInBody<complex>(%n: Int, %c: Int): Int {
+  start {
+    %z = cast 0: Int
     jmp head
   }
 
-  right {
-    %r = add %i, 2: Int
+  head {
+    %i = phi [start, %z], [join, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, out, test
+  }
+
+  test {
+    je %c, even, odd
+  }
+
+  even {
+    %e = add %i, 2: Int
+    jmp join
+  }
+
+  odd {
+    %o = add %i, 1: Int
+    jmp join
+  }
+
+  join {
+    %i2 = phi [even, %e], [odd, %o]: Int
     jmp head
   }
 
@@ -204,7 +204,7 @@ block body:
 block out:
   ret uses=[rax] creates=[]  => c3
 
---- codegen: branchInBody ---
+--- codegen: twoBackEdges ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
@@ -214,35 +214,16 @@ block start:
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d17000000
-block test:
-  je uses=[rsi] creates=[]  => 85f60f8507000000
-block odd:
-  imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e903000000
-block even:
+block split:
+  je uses=[rsi] creates=[]  => 85f60f8508000000
+block right:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
-  jmp uses=[] creates=[]  => 
-block join:
-  jmp uses=[] creates=[]  => e9e1ffffff
-block out:
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: declaredOutOfOrder ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
-  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d07000000
-block body:
+  jmp uses=[] creates=[]  => e9e8ffffff
+block left:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9f1ffffff
+  jmp uses=[] creates=[]  => e9e1ffffff
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -275,7 +256,24 @@ block outerEnd:
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
 
---- codegen: twoBackEdges ---
+--- codegen: declaredOutOfOrder ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => b800000000
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8d07000000
+block body:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  jmp uses=[] creates=[]  => e9f1ffffff
+block out:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: branchInBody ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
@@ -285,15 +283,17 @@ block start:
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d17000000
-block split:
-  je uses=[rsi] creates=[]  => 85f60f8508000000
-block right:
-  imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax]  => 83c002
-  jmp uses=[] creates=[]  => e9e8ffffff
-block left:
+block test:
+  je uses=[rsi] creates=[]  => 85f60f8507000000
+block odd:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
+  jmp uses=[] creates=[]  => e903000000
+block even:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 83c002
+  jmp uses=[] creates=[]  => 
+block join:
   jmp uses=[] creates=[]  => e9e1ffffff
 block out:
   ret uses=[rax] creates=[]  => c3

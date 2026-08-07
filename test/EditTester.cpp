@@ -74,7 +74,7 @@ static Diamond buildDuplicateArms(Module& module, Function& function) {
 
     // The phi first and detached, because appending is what records its alternatives as uses and
     // they have to exist by then - the same order every pass that builds one works in.
-    result.phi = createInst<InstPhi>(module, function, *result.join, kNullLocation, 0,
+    result.phi = createInst<InstPhi>(module, function, *result.join, kNullLocation, StringId(),
                                      module.scalar.int_);
 
     auto entryPointer = (ModulePtr<Block>)(result.entry - *module.arena);
@@ -82,11 +82,11 @@ static Diamond buildDuplicateArms(Module& module, Function& function) {
     result.phi->inputs.push(module.arena, PhiInput { entryPointer, twenty });
     editor.append(*result.join, (Inst*)result.phi);
 
-    addInst<InstRet>(module, function, *result.join, kNullLocation, 0, module.scalar.unit,
+    addInst<InstRet>(module, function, *result.join, kNullLocation, StringId(), module.scalar.unit,
                      (ModulePtr<Value>)(result.phi - *module.arena));
 
     // Both arms at the join, which is the whole point: two edges between one pair of blocks.
-    addInst<InstJe>(module, function, *result.entry, kNullLocation, 0, module.scalar.unit,
+    addInst<InstJe>(module, function, *result.entry, kNullLocation, StringId(), module.scalar.unit,
                     result.cond, joinPointer, joinPointer);
 
     return result;
@@ -184,7 +184,7 @@ static void testFoldDuplicateBranch(Module& module) {
     auto joinPointer = (ModulePtr<Block>)(built.join - base);
 
     IrEditor editor(module, *function);
-    auto jump = createInst<InstJmp>(module, *function, *built.entry, kNullLocation, 0,
+    auto jump = createInst<InstJmp>(module, *function, *built.entry, kNullLocation, StringId(),
                                     module.scalar.unit, joinPointer);
     editor.setTerminator(*built.entry, jump);
 
@@ -232,7 +232,7 @@ static void testRedirectDuplicateArms(Module& module) {
     // Somewhere else to send them: a block with no phis, so the redirect owes only the edge records.
     auto target = function->addBlock(module);
     auto targetPointer = (ModulePtr<Block>)(target - base);
-    addInst<InstRet>(module, *function, *target, kNullLocation, 0, module.scalar.unit, nullptr);
+    addInst<InstRet>(module, *function, *target, kNullLocation, StringId(), module.scalar.unit, nullptr);
 
     IrEditor editor(module, *function);
     auto moved = editor.redirectSuccessor(*built.entry, joinPointer, targetPointer);

@@ -166,7 +166,7 @@ bool foldBranch(OptContext& opt, Block& block) {
      * and only the edge into `untaken` goes. Both arms leading to one block is not a special case
      * either: there were two edges into it and now there is one.
      */
-    auto jump = createInst<InstJmp>(*opt.module, *opt.function, block, terminator->source, 0,
+    auto jump = createInst<InstJmp>(*opt.module, *opt.function, block, terminator->source, StringId(),
                                     opt.program.scalar.unit, taken);
 
     opt.ir().setTerminator(block, jump);

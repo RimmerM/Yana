@@ -36,7 +36,7 @@ struct CompletionItem {
 
     // The import alias this name has to be written under, or zero when it may be written alone.
     // A `qualified` import is the only thing that sets one.
-    StringId qualifier = 0;
+    StringId qualifier = StringId();
 
     /*
      * Which group this item belongs to, lowest first: what the position asked for, then this body's

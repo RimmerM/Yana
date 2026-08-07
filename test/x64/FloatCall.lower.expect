@@ -1,11 +1,4 @@
 
-sysvCaller<sysv>(%x: Double, %n: Int): Double {
-  b_0 {
-    %r = call_sysv sysvCallee, %x, %n, %x, %n: Double
-    ret %r
-  }
-}
-
 sysvCallee<sysv>(%a: Double, %i: Int, %b: Double, %j: Int): Double {
   b_0 {
     %s = add %a, %b: Double
@@ -13,10 +6,56 @@ sysvCallee<sysv>(%a: Double, %i: Int, %b: Double, %j: Int): Double {
   }
 }
 
+sysvCaller<sysv>(%x: Double, %n: Int): Double {
+  b_0 {
+    %r = call_sysv sysvCallee, %x, %n, %x, %n: Double
+    ret %r
+  }
+}
+
+win64Callee<win64>(%i: Int, %a: Double, %j: Int, %b: Double, %c: Double): Double {
+  b_0 {
+    %s = add %a, %b: Double
+    %t = add %s, %c: Double
+    ret %t
+  }
+}
+
+win64Caller<win64>(%a: Double, %n: Int): Double {
+  b_0 {
+    %r = call_win64 win64Callee, %n, %a, %n, %a, %a: Double
+    ret %r
+  }
+}
+
+manyArgs<simple>(%a: Float, %b: Float, %c: Float, %d: Float, %e: Double): Float {
+  b_0 {
+    %s = add %a, %b: Float
+    %t = add %s, %c: Float
+    %u = add %t, %d: Float
+    ret %u
+  }
+}
+
+manyArgsCaller<simple>(%a: Float, %e: Double): Float {
+  b_0 {
+    %r = call_simple manyArgs, %a, %a, %a, %a, %e: Float
+    ret %r
+  }
+}
+
 acrossSysvCall<sysv>(%x: Double): Double {
   b_0 {
     %r = call_sysv sysvCallee, %x, 0, %x, 0: Double
     %s = add %r, %x: Double
+    ret %s
+  }
+}
+
+acrossSimpleCall<simple>(%x: Double, %y: Double): Double {
+  b_0 {
+    %r = call_simple simpleFloatCallee, %x: Double
+    %s = add %r, %y: Double
     ret %s
   }
 }
@@ -38,54 +77,6 @@ simpleFloatCallee<simple>(%a: Double): Double {
   }
 }
 
-manyArgsCaller<simple>(%a: Float, %e: Double): Float {
-  b_0 {
-    %r = call_simple manyArgs, %a, %a, %a, %a, %e: Float
-    ret %r
-  }
-}
-
-manyArgs<simple>(%a: Float, %b: Float, %c: Float, %d: Float, %e: Double): Float {
-  b_0 {
-    %s = add %a, %b: Float
-    %t = add %s, %c: Float
-    %u = add %t, %d: Float
-    ret %u
-  }
-}
-
-win64Callee<win64>(%i: Int, %a: Double, %j: Int, %b: Double, %c: Double): Double {
-  b_0 {
-    %s = add %a, %b: Double
-    %t = add %s, %c: Double
-    ret %t
-  }
-}
-
-win64Caller<win64>(%a: Double, %n: Int): Double {
-  b_0 {
-    %r = call_win64 win64Callee, %n, %a, %n, %a, %a: Double
-    ret %r
-  }
-}
-
-acrossSimpleCall<simple>(%x: Double, %y: Double): Double {
-  b_0 {
-    %r = call_simple simpleFloatCallee, %x: Double
-    %s = add %r, %y: Double
-    ret %s
-  }
-}
-
-
---- codegen: sysvCaller ---
-  prologue  => 4883ec08
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c8488bf7e805000000
-  ret uses=[xmm0] creates=[]  => 4883c408c3
 
 --- codegen: sysvCallee ---
 block #0:
@@ -94,56 +85,14 @@ block #1:
   add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
   ret uses=[xmm0] creates=[]  => c3
 
---- codegen: acrossSysvCall ---
+--- codegen: sysvCaller ---
   prologue  => 4883ec08
 block #0:
-  jmp uses=[] creates=[] pre=[xmm0->stack:0]  => f20f110424
+  jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  imm uses=[] creates=[rax]  => 31c0
-  imm uses=[] creates=[rcx]  => 31c9
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, rax->rdi, stack:0->xmm1, rcx->rsi]  => f20f100424488bf8f20f100c24488bf1e8d9ffffff
-  add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c8488bf7e8ecffffff
   ret uses=[xmm0] creates=[]  => 4883c408c3
-
---- codegen: simpleFloatCallee ---
-  prologue  => 4883ec300f111c240f116424100f116c2420
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  mul uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8f20f59c8
-  mul uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f59d1
-  mul uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8f20f59da
-  mul uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0f20f59e3
-  mul uses=[xmm5, xmm4] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8f20f59ec
-  mul uses=[xmm0, xmm5] creates=[xmm0]  => f20f59c5
-  add uses=[xmm0, xmm5] creates=[xmm0]  => f20f58c5
-  add uses=[xmm0, xmm4] creates=[xmm0]  => f20f58c4
-  add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
-  add uses=[xmm0, xmm2] creates=[xmm0]  => f20f58c2
-  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
-  ret uses=[xmm0] creates=[]  => 0f101c240f106424100f106c24204883c430c3
-
---- codegen: manyArgsCaller ---
-  prologue  => 4883ec10
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  x86_pusharg uses=[xmm1] creates=[-]  => f20f114c2408
-  x86_pusharg uses=[xmm0] creates=[-]  => f30f110424
-  fun uses=[] creates=[-]  => 
-  call_simple uses=[-, xmm0, xmm1, xmm2, -, -] creates=[xmm0] pre=[xmm0->xmm1, xmm0->xmm2]  => 0f28c80f28d0e805000000
-  ret uses=[xmm0] creates=[]  => 4883c410c3
-
---- codegen: manyArgs ---
-  prologue  => 4883ec100f111c24
-block #0:
-  jmp uses=[] creates=[] pre=[stack:0->xmm3]  => f30f105c2418
-block #1:
-  add uses=[xmm0, xmm1] creates=[xmm0]  => f30f58c1
-  add uses=[xmm0, xmm2] creates=[xmm0]  => f30f58c2
-  add uses=[xmm0, xmm3] creates=[xmm0]  => f30f58c3
-  ret uses=[xmm0] creates=[]  => 0f101c244883c410c3
 
 --- codegen: win64Callee ---
 block #0:
@@ -163,12 +112,63 @@ block #1:
   call_win64 uses=[-, rcx, xmm1, r8, xmm3, -] creates=[xmm0] pre=[rdx->rcx, xmm0->xmm1, rdx->r8, xmm0->xmm3]  => 488bca0f28c84c8bc20f28d8e8d3ffffff
   ret uses=[xmm0] creates=[]  => 4883c438c3
 
+--- codegen: manyArgs ---
+  prologue  => 4883ec100f111c24
+block #0:
+  jmp uses=[] creates=[] pre=[stack:0->xmm3]  => f30f105c2418
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm0]  => f30f58c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => f30f58c2
+  add uses=[xmm0, xmm3] creates=[xmm0]  => f30f58c3
+  ret uses=[xmm0] creates=[]  => 0f101c244883c410c3
+
+--- codegen: manyArgsCaller ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_pusharg uses=[xmm1] creates=[-]  => f20f114c2408
+  x86_pusharg uses=[xmm0] creates=[-]  => f30f110424
+  fun uses=[] creates=[-]  => 
+  call_simple uses=[-, xmm0, xmm1, xmm2, -, -] creates=[xmm0] pre=[xmm0->xmm1, xmm0->xmm2]  => 0f28c80f28d0e8c3ffffff
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: acrossSysvCall ---
+  prologue  => 4883ec08
+block #0:
+  jmp uses=[] creates=[] pre=[xmm0->stack:0]  => f20f110424
+block #1:
+  fun uses=[] creates=[-]  => 
+  imm uses=[] creates=[rax]  => 31c0
+  imm uses=[] creates=[rcx]  => 31c9
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, rax->rdi, stack:0->xmm1, rcx->rsi]  => f20f100424488bf8f20f100c24488bf1e851ffffff
+  add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
+  ret uses=[xmm0] creates=[]  => 4883c408c3
+
 --- codegen: acrossSimpleCall ---
   prologue  => 4883ec100f111c24
 block #0:
   jmp uses=[] creates=[] pre=[xmm1->xmm3]  => 0f28d9
 block #1:
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, xmm0] creates=[xmm0]  => e81cffffff
+  call_simple uses=[-, xmm0] creates=[xmm0]  => e80d000000
   add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
   ret uses=[xmm0] creates=[]  => 0f101c244883c410c3
+
+--- codegen: simpleFloatCallee ---
+  prologue  => 4883ec300f111c240f116424100f116c2420
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  mul uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8f20f59c8
+  mul uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f59d1
+  mul uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8f20f59da
+  mul uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0f20f59e3
+  mul uses=[xmm5, xmm4] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8f20f59ec
+  mul uses=[xmm0, xmm5] creates=[xmm0]  => f20f59c5
+  add uses=[xmm0, xmm5] creates=[xmm0]  => f20f58c5
+  add uses=[xmm0, xmm4] creates=[xmm0]  => f20f58c4
+  add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
+  add uses=[xmm0, xmm2] creates=[xmm0]  => f20f58c2
+  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
+  ret uses=[xmm0] creates=[]  => 0f101c240f106424100f106c24204883c430c3

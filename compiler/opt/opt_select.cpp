@@ -348,7 +348,7 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
      * `setTerminator`'s multiset rule rather than a test written here: a triangle's branch already
      * led to the join down one side, and that is the edge that survives.
      */
-    auto jump = createInst<InstJmp>(*opt.module, *opt.function, *head, terminator->source, 0,
+    auto jump = createInst<InstJmp>(*opt.module, *opt.function, *head, terminator->source, StringId(),
                                     opt.program.scalar.unit, diamond.join);
 
     opt.ir().setTerminator(*head, jump);

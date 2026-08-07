@@ -100,7 +100,7 @@ struct Leaf {
     Size pathStart = 0;
     Size pathCount = 0;
     TypePtr type = nullptr;
-    StringId name = 0;
+    StringId name = StringId();
 };
 
 struct Plan {
@@ -408,14 +408,14 @@ bool planFor(OptContext& opt, ModulePtr<Function> pointer, Function& function,
 Place materialize(OptContext& opt, Block& block, InstList& into, Value& at, ModulePtr<Value> value) {
     auto type = opt.local[value]->type;
 
-    auto allocation = createInst<InstAlloc>(*opt.module, *opt.function, block, at.source, 0, type,
+    auto allocation = createInst<InstAlloc>(*opt.module, *opt.function, block, at.source, StringId(), type,
                                             maxLimit<U32>);
     auto storage = (ModulePtr<Value>)(allocation - opt.local);
 
-    allocation->local = opt.function->addLocal(*opt.module, type, 0, storage);
+    allocation->local = opt.function->addLocal(*opt.module, type, StringId(), storage);
     into.push(allocation);
 
-    into.push(createInst<InstInit>(*opt.module, *opt.function, block, at.source, 0,
+    into.push(createInst<InstInit>(*opt.module, *opt.function, block, at.source, StringId(),
                                    opt.program.scalar.unit, Place::inLocal(allocation->local),
                                    value, Value::Init));
 
@@ -605,7 +605,7 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
             auto value = (ModulePtr<Value>)(fresh - base);
             arguments.push((ModulePtr<Arg>)(fresh - base));
 
-            prologue.push(createInst<InstInit>(*opt.module, *opt.function, *entry, arg->source, 0,
+            prologue.push(createInst<InstInit>(*opt.module, *opt.function, *entry, arg->source, StringId(),
                                                opt.program.scalar.unit,
                                                leafPlace(opt, plan, leaf, Place::inLocal(local)),
                                                value, Value::Init));

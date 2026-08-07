@@ -1,39 +1,4 @@
 
-main<complex>(): Int {
-  b_0 {
-    %n = alloca 1, 1: Ptr
-    store %n, 2, 1
-    %v_1 = call_complex unwrapBool, %n: Int
-    %j = alloca 1, 1: Ptr
-    store %j, 1, 1
-    %v_2 = call_complex unwrapBool, %j: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = add %v_3, 8: Int
-    %v_5 = alloca 1, 1: Ptr
-    store %v_5, 1, 1
-    %v_6 = call_complex unwrapBool, %v_5: Int
-    %v_7 = add %v_4, %v_6: Int
-    %v_8 = alloca 1, 1: Ptr
-    store %v_8, 2, 1
-    %v_9 = call_complex unwrapBool, %v_8: Int
-    %v_10 = add %v_7, %v_9: Int
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 1, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 11, 4
-    %v_13 = call_complex resultValue, %v_11: Int
-    %v_14 = add %v_10, %v_13: Int
-    %v_15 = alloca 8, 4: Ptr
-    store %v_15, 0, 4
-    %v_16 = add %v_15, 4: Ptr
-    store %v_16, 4, 4
-    %v_17 = call_complex resultValue, %v_15: Int
-    %v_18 = add %v_14, %v_17: Int
-    %v_19 = add %v_18, 48: Int
-    ret %v_19
-  }
-}
-
 unwrapBool<complex>(%value: Ptr): Int {
   b_0 {
     %v_1 = load %value, 1: Long
@@ -82,6 +47,41 @@ resultValue<complex>(%value: Ptr): Int {
   b_7 {
     %v_9 = phi [b_3, %inner], [b_4, %v_6]: Int
     ret %v_9
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %n = alloca 1, 1: Ptr
+    store %n, 2, 1
+    %v_1 = call_complex unwrapBool, %n: Int
+    %j = alloca 1, 1: Ptr
+    store %j, 1, 1
+    %v_2 = call_complex unwrapBool, %j: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = add %v_3, 8: Int
+    %v_5 = alloca 1, 1: Ptr
+    store %v_5, 1, 1
+    %v_6 = call_complex unwrapBool, %v_5: Int
+    %v_7 = add %v_4, %v_6: Int
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 2, 1
+    %v_9 = call_complex unwrapBool, %v_8: Int
+    %v_10 = add %v_7, %v_9: Int
+    %v_11 = alloca 8, 4: Ptr
+    store %v_11, 1, 4
+    %v_12 = add %v_11, 4: Ptr
+    store %v_12, 11, 4
+    %v_13 = call_complex resultValue, %v_11: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, 4, 4
+    %v_17 = call_complex resultValue, %v_15: Int
+    %v_18 = add %v_14, %v_17: Int
+    %v_19 = add %v_18, 48: Int
+    ret %v_19
   }
 }
 

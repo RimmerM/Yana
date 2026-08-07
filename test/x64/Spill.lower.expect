@@ -1,4 +1,41 @@
 
+manyLive<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v0 = add %a, 0: Int
+    %v1 = add %a, 1: Int
+    %v2 = add %a, 2: Int
+    %v3 = add %a, 3: Int
+    %v4 = add %a, 4: Int
+    %v5 = add %a, 5: Int
+    %v6 = add %a, 6: Int
+    %v7 = add %a, 7: Int
+    %v8 = add %a, 8: Int
+    %v9 = add %a, 9: Int
+    %v10 = add %a, 10: Int
+    %v11 = add %a, 11: Int
+    %v12 = add %a, 12: Int
+    %v13 = add %a, 13: Int
+    %v14 = add %a, 14: Int
+    %v15 = add %a, 15: Int
+    %s15 = add %v15, %v14: Int
+    %s14 = add %s15, %v13: Int
+    %s13 = add %s14, %v12: Int
+    %s12 = add %s13, %v11: Int
+    %s11 = add %s12, %v10: Int
+    %s10 = add %s11, %v9: Int
+    %s9 = add %s10, %v8: Int
+    %s8 = add %s9, %v7: Int
+    %s7 = add %s8, %v6: Int
+    %s6 = add %s7, %v5: Int
+    %s5 = add %s6, %v4: Int
+    %s4 = add %s5, %v3: Int
+    %s3 = add %s4, %v2: Int
+    %s2 = add %s3, %v1: Int
+    %s1 = add %s2, %v0: Int
+    ret %s1
+  }
+}
+
 liveAcrossCall<complex>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
   b_0 {
     %r = call_complex sink, %a: Int
@@ -16,6 +53,74 @@ liveAcrossCall<complex>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g
 sink<complex>(%x: Int): Int {
   b_0 {
     ret %x
+  }
+}
+
+slotReuse<complex>(%a: Int): Int {
+  b_0 {
+    %p0 = add %a, 0: Int
+    %p1 = add %a, 1: Int
+    %p2 = add %a, 2: Int
+    %p3 = add %a, 3: Int
+    %p4 = add %a, 4: Int
+    %p5 = add %a, 5: Int
+    %p6 = add %a, 6: Int
+    %p7 = add %a, 7: Int
+    %p8 = add %a, 8: Int
+    %p9 = add %a, 9: Int
+    %p10 = add %a, 10: Int
+    %p11 = add %a, 11: Int
+    %p12 = add %a, 12: Int
+    %p13 = add %a, 13: Int
+    %p14 = add %a, 14: Int
+    %p15 = add %a, 15: Int
+    %q0 = add %p15, %p14: Int
+    %q1 = add %q0, %p13: Int
+    %q2 = add %q1, %p12: Int
+    %q3 = add %q2, %p11: Int
+    %q4 = add %q3, %p10: Int
+    %q5 = add %q4, %p9: Int
+    %q6 = add %q5, %p8: Int
+    %q7 = add %q6, %p7: Int
+    %q8 = add %q7, %p6: Int
+    %q9 = add %q8, %p5: Int
+    %q10 = add %q9, %p4: Int
+    %q11 = add %q10, %p3: Int
+    %q12 = add %q11, %p2: Int
+    %q13 = add %q12, %p1: Int
+    %q14 = add %q13, %p0: Int
+    %r0 = add %q14, 0: Int
+    %r1 = add %q14, 1: Int
+    %r2 = add %q14, 2: Int
+    %r3 = add %q14, 3: Int
+    %r4 = add %q14, 4: Int
+    %r5 = add %q14, 5: Int
+    %r6 = add %q14, 6: Int
+    %r7 = add %q14, 7: Int
+    %r8 = add %q14, 8: Int
+    %r9 = add %q14, 9: Int
+    %r10 = add %q14, 10: Int
+    %r11 = add %q14, 11: Int
+    %r12 = add %q14, 12: Int
+    %r13 = add %q14, 13: Int
+    %r14 = add %q14, 14: Int
+    %r15 = add %q14, 15: Int
+    %t0 = add %r15, %r14: Int
+    %t1 = add %t0, %r13: Int
+    %t2 = add %t1, %r12: Int
+    %t3 = add %t2, %r11: Int
+    %t4 = add %t3, %r10: Int
+    %t5 = add %t4, %r9: Int
+    %t6 = add %t5, %r8: Int
+    %t7 = add %t6, %r7: Int
+    %t8 = add %t7, %r6: Int
+    %t9 = add %t8, %r5: Int
+    %t10 = add %t9, %r4: Int
+    %t11 = add %t10, %r3: Int
+    %t12 = add %t11, %r2: Int
+    %t13 = add %t12, %r1: Int
+    %t14 = add %t13, %r0: Int
+    ret %t14
   }
 }
 
@@ -103,215 +208,6 @@ framePointerPressure<complex>(%a: Int, %n: Int): Int {
   }
 }
 
-manyLive<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %v0 = add %a, 0: Int
-    %v1 = add %a, 1: Int
-    %v2 = add %a, 2: Int
-    %v3 = add %a, 3: Int
-    %v4 = add %a, 4: Int
-    %v5 = add %a, 5: Int
-    %v6 = add %a, 6: Int
-    %v7 = add %a, 7: Int
-    %v8 = add %a, 8: Int
-    %v9 = add %a, 9: Int
-    %v10 = add %a, 10: Int
-    %v11 = add %a, 11: Int
-    %v12 = add %a, 12: Int
-    %v13 = add %a, 13: Int
-    %v14 = add %a, 14: Int
-    %v15 = add %a, 15: Int
-    %s15 = add %v15, %v14: Int
-    %s14 = add %s15, %v13: Int
-    %s13 = add %s14, %v12: Int
-    %s12 = add %s13, %v11: Int
-    %s11 = add %s12, %v10: Int
-    %s10 = add %s11, %v9: Int
-    %s9 = add %s10, %v8: Int
-    %s8 = add %s9, %v7: Int
-    %s7 = add %s8, %v6: Int
-    %s6 = add %s7, %v5: Int
-    %s5 = add %s6, %v4: Int
-    %s4 = add %s5, %v3: Int
-    %s3 = add %s4, %v2: Int
-    %s2 = add %s3, %v1: Int
-    %s1 = add %s2, %v0: Int
-    ret %s1
-  }
-}
-
-slotReuse<complex>(%a: Int): Int {
-  b_0 {
-    %p0 = add %a, 0: Int
-    %p1 = add %a, 1: Int
-    %p2 = add %a, 2: Int
-    %p3 = add %a, 3: Int
-    %p4 = add %a, 4: Int
-    %p5 = add %a, 5: Int
-    %p6 = add %a, 6: Int
-    %p7 = add %a, 7: Int
-    %p8 = add %a, 8: Int
-    %p9 = add %a, 9: Int
-    %p10 = add %a, 10: Int
-    %p11 = add %a, 11: Int
-    %p12 = add %a, 12: Int
-    %p13 = add %a, 13: Int
-    %p14 = add %a, 14: Int
-    %p15 = add %a, 15: Int
-    %q0 = add %p15, %p14: Int
-    %q1 = add %q0, %p13: Int
-    %q2 = add %q1, %p12: Int
-    %q3 = add %q2, %p11: Int
-    %q4 = add %q3, %p10: Int
-    %q5 = add %q4, %p9: Int
-    %q6 = add %q5, %p8: Int
-    %q7 = add %q6, %p7: Int
-    %q8 = add %q7, %p6: Int
-    %q9 = add %q8, %p5: Int
-    %q10 = add %q9, %p4: Int
-    %q11 = add %q10, %p3: Int
-    %q12 = add %q11, %p2: Int
-    %q13 = add %q12, %p1: Int
-    %q14 = add %q13, %p0: Int
-    %r0 = add %q14, 0: Int
-    %r1 = add %q14, 1: Int
-    %r2 = add %q14, 2: Int
-    %r3 = add %q14, 3: Int
-    %r4 = add %q14, 4: Int
-    %r5 = add %q14, 5: Int
-    %r6 = add %q14, 6: Int
-    %r7 = add %q14, 7: Int
-    %r8 = add %q14, 8: Int
-    %r9 = add %q14, 9: Int
-    %r10 = add %q14, 10: Int
-    %r11 = add %q14, 11: Int
-    %r12 = add %q14, 12: Int
-    %r13 = add %q14, 13: Int
-    %r14 = add %q14, 14: Int
-    %r15 = add %q14, 15: Int
-    %t0 = add %r15, %r14: Int
-    %t1 = add %t0, %r13: Int
-    %t2 = add %t1, %r12: Int
-    %t3 = add %t2, %r11: Int
-    %t4 = add %t3, %r10: Int
-    %t5 = add %t4, %r9: Int
-    %t6 = add %t5, %r8: Int
-    %t7 = add %t6, %r7: Int
-    %t8 = add %t7, %r6: Int
-    %t9 = add %t8, %r5: Int
-    %t10 = add %t9, %r4: Int
-    %t11 = add %t10, %r3: Int
-    %t12 = add %t11, %r2: Int
-    %t13 = add %t12, %r1: Int
-    %t14 = add %t13, %r0: Int
-    ret %t14
-  }
-}
-
-
---- codegen: liveAcrossCall ---
-  prologue  => 535541544155415641574883ec08
-block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13, r8->r14, r9->r15, r10->rbp, r11->stack:0]  => 488bde4c8be24c8be94d8bf04d8bf9498bea44891c24
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e822000000
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  add uses=[rax, r12] creates=[rax]  => 4401e0
-  add uses=[rax, r13] creates=[rax]  => 4401e8
-  add uses=[rax, r14] creates=[rax]  => 4401f0
-  add uses=[rax, r15] creates=[rax]  => 4401f8
-  add uses=[rax, rbp] creates=[rax]  => 01e8
-  add uses=[rax, stack:0] creates=[rax]  => 030424
-  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
-
---- codegen: sink ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: spilledLoop ---
-  prologue  => 535541544155415641574883ec08
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->rdx, rax->r8, rax->r9, rax->r10, rax->r11, rax->rbx, rax->r12, rax->r13, rax->r14, rax->r15, rax->rbp]  => 488bc8890424488bd04c8bc04c8bc84c8bd04c8bd8488bd84c8be04c8be84c8bf04c8bf8488be8
-block head:
-  cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d2a000000
-block body:
-  add uses=[rcx, rsi] creates=[rcx]  => 01f1
-  add uses=[stack:0, rsi] creates=[stack:0]  => 013424
-  add uses=[rdx, rsi] creates=[rdx]  => 01f2
-  add uses=[r8, rsi] creates=[r8]  => 4101f0
-  add uses=[r9, rsi] creates=[r9]  => 4101f1
-  add uses=[r10, rsi] creates=[r10]  => 4101f2
-  add uses=[r11, rsi] creates=[r11]  => 4101f3
-  add uses=[rbx, rsi] creates=[rbx]  => 01f3
-  add uses=[r12, rsi] creates=[r12]  => 4101f4
-  add uses=[r13, rsi] creates=[r13]  => 4101f5
-  add uses=[r14, rsi] creates=[r14]  => 4101f6
-  add uses=[r15, rsi] creates=[r15]  => 4101f7
-  add uses=[rbp, rsi] creates=[rbp]  => 01f5
-  imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9ceffffff
-block out:
-  add uses=[rcx, rbp] creates=[rcx]  => 01e9
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c408415f415e415d415c5d5bc3
-
---- codegen: framePointerPressure ---
-  prologue  => 55488bec5341544155415641574883ec08
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  alloca uses=[rsi] creates=[rsi]  => 4883c6074883e6f84829f4488bf4
-  imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c000
-  imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
-  imm uses=[] creates=[-]  => 
-  add uses=[rdx, -] creates=[rdx] pre=[rdi->rdx]  => 488bd783c202
-  imm uses=[] creates=[-]  => 
-  add uses=[r8, -] creates=[r8] pre=[rdi->r8]  => 4c8bc74183c003
-  imm uses=[] creates=[-]  => 
-  add uses=[r9, -] creates=[r9] pre=[rdi->r9]  => 4c8bcf4183c104
-  imm uses=[] creates=[-]  => 
-  add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c205
-  imm uses=[] creates=[-]  => 
-  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c306
-  imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
-  imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c408
-  imm uses=[] creates=[-]  => 
-  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c509
-  imm uses=[] creates=[-]  => 
-  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60a
-  imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70b44897dd0
-  imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70c44897dd4
-  imm uses=[] creates=[-]  => 
-  add uses=[rdi, -] creates=[rdi]  => 83c70d
-  store uses=[rsi, rdi] creates=[]  => 48893e
-  add uses=[rdi, stack:1] creates=[rdi]  => 037dd4
-  add uses=[rdi, stack:0] creates=[rdi]  => 037dd0
-  add uses=[rdi, r14] creates=[rdi]  => 4401f7
-  add uses=[rdi, r13] creates=[rdi]  => 4401ef
-  add uses=[rdi, r12] creates=[rdi]  => 4401e7
-  add uses=[rdi, rbx] creates=[rdi]  => 01df
-  add uses=[rdi, r11] creates=[rdi]  => 4401df
-  add uses=[rdi, r10] creates=[rdi]  => 4401d7
-  add uses=[rdi, r9] creates=[rdi]  => 4401cf
-  add uses=[rdi, r8] creates=[rdi]  => 4401c7
-  add uses=[rdi, rdx] creates=[rdi]  => 01d7
-  add uses=[rdi, rcx] creates=[rdi]  => 01cf
-  add uses=[rdi, rax] creates=[rdi]  => 01c7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7488d65d8415f415e415d415c5b5dc3
 
 --- codegen: manyLive ---
   prologue  => 535541544155415641574883ec08
@@ -366,6 +262,28 @@ block #1:
   add uses=[rdi, rcx] creates=[rdi]  => 01cf
   add uses=[rdi, rax] creates=[rdi]  => 01c7
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c408415f415e415d415c5d5bc3
+
+--- codegen: liveAcrossCall ---
+  prologue  => 535541544155415641574883ec08
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13, r8->r14, r9->r15, r10->rbp, r11->stack:0]  => 488bde4c8be24c8be94d8bf04d8bf9498bea44891c24
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e822000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  add uses=[rax, r12] creates=[rax]  => 4401e0
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  add uses=[rax, r14] creates=[rax]  => 4401f0
+  add uses=[rax, r15] creates=[rax]  => 4401f8
+  add uses=[rax, rbp] creates=[rax]  => 01e8
+  add uses=[rax, stack:0] creates=[rax]  => 030424
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
 
 --- codegen: slotReuse ---
   prologue  => 535541544155415641574883ec08
@@ -467,3 +385,85 @@ block #1:
   add uses=[rdi, rcx] creates=[rdi]  => 01cf
   add uses=[rdi, rax] creates=[rdi]  => 01c7
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c408415f415e415d415c5d5bc3
+
+--- codegen: spilledLoop ---
+  prologue  => 535541544155415641574883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => b800000000
+  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->rdx, rax->r8, rax->r9, rax->r10, rax->r11, rax->rbx, rax->r12, rax->r13, rax->r14, rax->r15, rax->rbp]  => 488bc8890424488bd04c8bc04c8bc84c8bd04c8bd8488bd84c8be04c8be84c8bf04c8bf8488be8
+block head:
+  cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8d2a000000
+block body:
+  add uses=[rcx, rsi] creates=[rcx]  => 01f1
+  add uses=[stack:0, rsi] creates=[stack:0]  => 013424
+  add uses=[rdx, rsi] creates=[rdx]  => 01f2
+  add uses=[r8, rsi] creates=[r8]  => 4101f0
+  add uses=[r9, rsi] creates=[r9]  => 4101f1
+  add uses=[r10, rsi] creates=[r10]  => 4101f2
+  add uses=[r11, rsi] creates=[r11]  => 4101f3
+  add uses=[rbx, rsi] creates=[rbx]  => 01f3
+  add uses=[r12, rsi] creates=[r12]  => 4101f4
+  add uses=[r13, rsi] creates=[r13]  => 4101f5
+  add uses=[r14, rsi] creates=[r14]  => 4101f6
+  add uses=[r15, rsi] creates=[r15]  => 4101f7
+  add uses=[rbp, rsi] creates=[rbp]  => 01f5
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  jmp uses=[] creates=[]  => e9ceffffff
+block out:
+  add uses=[rcx, rbp] creates=[rcx]  => 01e9
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c408415f415e415d415c5d5bc3
+
+--- codegen: framePointerPressure ---
+  prologue  => 55488bec5341544155415641574883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  alloca uses=[rsi] creates=[rsi]  => 4883c6074883e6f84829f4488bf4
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c000
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx] pre=[rdi->rdx]  => 488bd783c202
+  imm uses=[] creates=[-]  => 
+  add uses=[r8, -] creates=[r8] pre=[rdi->r8]  => 4c8bc74183c003
+  imm uses=[] creates=[-]  => 
+  add uses=[r9, -] creates=[r9] pre=[rdi->r9]  => 4c8bcf4183c104
+  imm uses=[] creates=[-]  => 
+  add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c205
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c306
+  imm uses=[] creates=[-]  => 
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c408
+  imm uses=[] creates=[-]  => 
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c509
+  imm uses=[] creates=[-]  => 
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60a
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70b44897dd0
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70c44897dd4
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 83c70d
+  store uses=[rsi, rdi] creates=[]  => 48893e
+  add uses=[rdi, stack:1] creates=[rdi]  => 037dd4
+  add uses=[rdi, stack:0] creates=[rdi]  => 037dd0
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
+  add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
+  add uses=[rdi, r10] creates=[rdi]  => 4401d7
+  add uses=[rdi, r9] creates=[rdi]  => 4401cf
+  add uses=[rdi, r8] creates=[rdi]  => 4401c7
+  add uses=[rdi, rdx] creates=[rdi]  => 01d7
+  add uses=[rdi, rcx] creates=[rdi]  => 01cf
+  add uses=[rdi, rax] creates=[rdi]  => 01c7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7488d65d8415f415e415d415c5b5dc3

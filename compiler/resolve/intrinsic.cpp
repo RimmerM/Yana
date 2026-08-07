@@ -81,7 +81,7 @@ static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<Resolved
     auto rest = resolver.addBlock();
     auto skipped = resolver.addBlock();
 
-    resolver.terminate(resolver.emit<InstJe>(source, 0, unit, lhs,
+    resolver.terminate(resolver.emit<InstJe>(source, StringId(), unit, lhs,
                                              runWhenTrue ? rest : skipped,
                                              runWhenTrue ? skipped : rest));
 
@@ -195,14 +195,14 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
             pending.push(ResolvedArg::deferred(entry));
         }
 
-        result = method.deferred(resolver, toBuffer(pending), function->returnType, kNullLocation, 0);
+        result = method.deferred(resolver, toBuffer(pending), function->returnType, kNullLocation, StringId());
         function->deferredIntrinsic = method.deferred;
     } else {
-        result = method.emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);
+        result = method.emit(resolver, toBuffer(values), function->returnType, kNullLocation, StringId());
         function->intrinsic = method.emit;
     }
 
-    resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, result));
+    resolver.terminate(resolver.emit<InstRet>(kNullLocation, StringId(), module.scalar.unit, result));
     return function - local;
 }
 
@@ -232,21 +232,21 @@ static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass,
     auto greaterBlock = resolver.addBlock();
     auto lessBlock = resolver.addBlock();
 
-    auto equal = resolver.ref(resolver.emit<InstCmp>(kNullLocation, 0, module.scalar.bool_, lhs, rhs, CompareOp::Eq));
-    resolver.terminate(resolver.emit<InstJe>(kNullLocation, 0, module.scalar.unit, equal, equalBlock, greaterTest));
+    auto equal = resolver.ref(resolver.emit<InstCmp>(kNullLocation, StringId(), module.scalar.bool_, lhs, rhs, CompareOp::Eq));
+    resolver.terminate(resolver.emit<InstJe>(kNullLocation, StringId(), module.scalar.unit, equal, equalBlock, greaterTest));
 
     // Ordering has no payload, so each result is just its constructor index.
     auto returnOrdering = [&](ModulePtr<Block> block, U64 constructor) {
         resolver.current = block;
         auto value = resolver.makeInt(kNullLocation, ordering, constructor);
-        resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, value));
+        resolver.terminate(resolver.emit<InstRet>(kNullLocation, StringId(), module.scalar.unit, value));
     };
 
     returnOrdering(equalBlock, 1);
 
     resolver.current = greaterTest;
-    auto greater = resolver.ref(resolver.emit<InstCmp>(kNullLocation, 0, module.scalar.bool_, lhs, rhs, CompareOp::Gt));
-    resolver.terminate(resolver.emit<InstJe>(kNullLocation, 0, module.scalar.unit, greater, greaterBlock, lessBlock));
+    auto greater = resolver.ref(resolver.emit<InstCmp>(kNullLocation, StringId(), module.scalar.bool_, lhs, rhs, CompareOp::Gt));
+    resolver.terminate(resolver.emit<InstJe>(kNullLocation, StringId(), module.scalar.unit, greater, greaterBlock, lessBlock));
 
     returnOrdering(greaterBlock, 2);
     returnOrdering(lessBlock, 0);
@@ -300,7 +300,7 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
         instance->functions.set(local, i, generateCompare(module, *typeClass, args[0], gen));
     }
 
-    module.instances.push(instance - local);
+    registerInstance(module, instance - local);
 }
 
 /*
@@ -526,11 +526,11 @@ void checkIndexInBounds(ExprResolver& resolver, ModulePtr<Value> index, ModulePt
     auto word = resolver.module.scalar.unsignedSize;
     if(!word) return;
 
-    auto unsignedIndex = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, index));
+    auto unsignedIndex = resolver.ref(resolver.emit<InstUnary>(source, StringId(), word, Value::Cast, index));
     auto unsignedLength = resolver.convert(length, word, source, false);
     if(!unsignedLength) return;
 
-    auto failed = resolver.ref(resolver.emit<InstCmp>(source, 0, resolver.module.scalar.bool_,
+    auto failed = resolver.ref(resolver.emit<InstCmp>(source, StringId(), resolver.module.scalar.bool_,
                                                       unsignedIndex, unsignedLength, CompareOp::Ge));
 
     resolver.emitCheck(failed, source);
@@ -641,7 +641,7 @@ ModulePtr<Value> emitHostSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>
     if(!items || !offset) return nullptr;
 
     auto start = resolver.load(offset.unwrap(), source);
-    auto index = resolver.ref(resolver.emit<InstBinary>(source, 0, resolver.valueType(start),
+    auto index = resolver.ref(resolver.emit<InstBinary>(source, StringId(), resolver.valueType(start),
                                                         Value::Add, start, args[1]));
 
     // Against the window's own length rather than the host array's: what a slice may read is
@@ -663,7 +663,7 @@ ModulePtr<Value> emitHostArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>
     auto items = selfFieldValue<mode>(resolver, args[0], "items"_v, source);
 
     if(resolver.checksEnabled() && items) {
-        auto length = emitHostLengthOf(resolver, items, resolver.module.scalar.size, source, 0);
+        auto length = emitHostLengthOf(resolver, items, resolver.module.scalar.size, source, StringId());
         checkIndexInBounds(resolver, args[1], length, source);
     }
 

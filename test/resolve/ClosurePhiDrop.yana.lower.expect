@@ -1,23 +1,5 @@
 @dropCalls = [0, 0, 0, 0]
 
-drop${g: Guard}<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropCalls, %v_2, 4
-    ret 
-  }
-}
-
-drop${g: Guard}$1<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropCalls, %v_2, 4
-    ret 
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -97,12 +79,30 @@ ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
   }
 }
 
+drop${g: Guard}<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
+  }
+}
+
 @closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = imul %x, %v_1: Int
     ret %v_2
+  }
+}
+
+drop${g: Guard}$1<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
   }
 }
 

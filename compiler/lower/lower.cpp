@@ -184,6 +184,7 @@ LowerFunction* LowerModule::addFunction(StringId funName) {
     if(!result.existed) {
         auto f = new (arena) LowerFunction(arena, this, funName);
         *result.value = f - *arena;
+        functionOrder.push(f - *arena);
     }
 
     return (*arena)[*result.value];

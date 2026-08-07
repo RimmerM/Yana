@@ -1,15 +1,15 @@
 
-complexCaller<complex>(%a: Int, %b: Int): Int {
+win64Callee<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
   b_0 {
-    %r = call_complex clobberCallee, %a: Int
-    %s = add %r, %b: Int
+    %s = add %a, %e: Int
     ret %s
   }
 }
 
-clobberCallee<clobber>(%a: Int): Int {
+win64Caller<win64>(%x: Int): Int {
   b_0 {
-    ret %a
+    %r = call_win64 win64Callee, %x, %x, %x, %x, %x: Int
+    ret %r
   }
 }
 
@@ -28,17 +28,9 @@ simpleCaller<simple>(%a: Int, %b: Int): Int {
   }
 }
 
-win64Callee<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+clobberCallee<clobber>(%a: Int): Int {
   b_0 {
-    %s = add %a, %e: Int
-    ret %s
-  }
-}
-
-win64Caller<win64>(%x: Int): Int {
-  b_0 {
-    %r = call_win64 win64Callee, %x, %x, %x, %x, %x: Int
-    ret %r
+    ret %a
   }
 }
 
@@ -50,39 +42,14 @@ clobberCaller<clobber>(%a: Int, %b: Int): Int {
   }
 }
 
+complexCaller<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_complex clobberCallee, %a: Int
+    %s = add %r, %b: Int
+    ret %s
+  }
+}
 
---- codegen: complexCaller ---
-  prologue  => 53
-block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e804000000
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 5bc3
-
---- codegen: clobberCallee ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: simpleCallee ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: simpleCaller ---
-  prologue  => 51
-block #0:
-  jmp uses=[] creates=[] pre=[rsi->rcx]  => 488bce
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi, rsi] creates=[rax] pre=[rcx->rsi]  => 488bf1e8eeffffff
-  add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => 59c3
 
 --- codegen: win64Callee ---
 block #0:
@@ -101,12 +68,45 @@ block #1:
   call_win64 uses=[-, rcx, rdx, r8, r9, -] creates=[rax] pre=[rcx->rdx, rcx->r8, rcx->r9]  => 488bd14c8bc14c8bc9e8deffffff
   ret uses=[rax] creates=[]  => 4883c438c3
 
+--- codegen: simpleCallee ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: simpleCaller ---
+  prologue  => 51
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rcx]  => 488bce
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_simple uses=[-, rdi, rsi] creates=[rax] pre=[rcx->rsi]  => 488bf1e8eeffffff
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 59c3
+
+--- codegen: clobberCallee ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
 --- codegen: clobberCaller ---
   prologue  => 55
 block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp]  => 488bee
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8b6ffffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8f3ffffff
   add uses=[rax, rbp] creates=[rax]  => 01e8
   ret uses=[rax] creates=[]  => 5dc3
+
+--- codegen: complexCaller ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8e6ffffff
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 5bc3

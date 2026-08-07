@@ -1,19 +1,50 @@
-@cursor = [10, 0, 0, 0, 20, 0, 0, 0]
-@labelled = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0, 15, 0, 0, 0]
 @corner = [5, 0, 0, 0, 6, 0, 0, 0]
-@greeting = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
-@boxShape = [1, 0, 0, 0, 4, 0, 0, 0, 6, 0, 0, 0]
-@wrapped = [1, 0, 0, 0, 40, 0, 0, 0]
+@cursor = [10, 0, 0, 0, 20, 0, 0, 0]
 @some = [1, 0, 0, 0, 9, 0, 0, 0]
-@string$1 = [119, 111, 114, 108, 100, 33]
-@string$2 = [111, 107]
-@corners = [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0]
 @none = [0, 0, 0, 0, 0, 0, 0, 0]
-@string$0 = [104, 101, 108, 108, 111]
-@packed = [0, 0, 0, 0, 99, 0, 0, 0]
-@table = [12, 0, 0, 0, 13, 0, 0, 0, 14, 0, 0, 0]
-@flags = [149, 1]
+@boxShape = [1, 0, 0, 0, 4, 0, 0, 0, 6, 0, 0, 0]
 @roundShape = [0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0]
+@table = [12, 0, 0, 0, 13, 0, 0, 0, 14, 0, 0, 0]
+@corners = [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0]
+@string$0 = [104, 101, 108, 108, 111]
+@greeting = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
+@string$1 = [119, 111, 114, 108, 100, 33]
+@labelled = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0, 15, 0, 0, 0]
+@flags = [149, 1]
+@packed = [0, 0, 0, 0, 99, 0, 0, 0]
+@wrapped = [1, 0, 0, 0, 40, 0, 0, 0]
+@string$2 = [111, 107]
+
+stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
+    %v_5 = cast %length: Int
+    %v_6 = and %v_5, 1073741823: Int
+    %v_7 = cast %v_6: Int
+    store %v_4, %bytes, 8
+    %v_8 = add %v_4, 8: Ptr
+    %v_9 = load %v_8, 4: Int
+    %v_10 = cast %v_7: Int
+    %v_11 = and %v_10, 1073741823: Int
+    %v_12 = and %v_9, 18446744072635809792: Int
+    %v_13 = or %v_12, %v_11: Int
+    %v_14 = and %v_13, 18446744070488326143: Int
+    %v_15 = add %v_4, 8: Ptr
+    store %v_15, %v_14, 4
+    %v_16 = and %v_5, 1073741823: Int
+    %v_17 = cast %v_16: Int
+    copy %v_3, %v_4, 12
+    %v_18 = add %v_3, 12: Ptr
+    store %v_18, %v_17, 4
+    copy %v_2, %v_3, 16
+    %v_19 = alloca 16, 8: Ptr
+    copy %v_19, %v_2, 16
+    copy %v_0, %v_19, 16
+    ret 
+  }
+}
 
 Length(String).length<complex>(%self: Ptr): Long {
   b_0 {
@@ -51,37 +82,6 @@ area<complex>(%s: Ptr): Int {
   b_8 {
     %v_10 = phi [b_3, %r], [b_4, %v_7]: Int
     ret %v_10
-  }
-}
-
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = alloca 12, 8: Ptr
-    %v_5 = cast %length: Int
-    %v_6 = and %v_5, 1073741823: Int
-    %v_7 = cast %v_6: Int
-    store %v_4, %bytes, 8
-    %v_8 = add %v_4, 8: Ptr
-    %v_9 = load %v_8, 4: Int
-    %v_10 = cast %v_7: Int
-    %v_11 = and %v_10, 1073741823: Int
-    %v_12 = and %v_9, 18446744072635809792: Int
-    %v_13 = or %v_12, %v_11: Int
-    %v_14 = and %v_13, 18446744070488326143: Int
-    %v_15 = add %v_4, 8: Ptr
-    store %v_15, %v_14, 4
-    %v_16 = and %v_5, 1073741823: Int
-    %v_17 = cast %v_16: Int
-    copy %v_3, %v_4, 12
-    %v_18 = add %v_3, 12: Ptr
-    store %v_18, %v_17, 4
-    copy %v_2, %v_3, 16
-    %v_19 = alloca 16, 8: Ptr
-    copy %v_19, %v_2, 16
-    copy %v_0, %v_19, 16
-    ret 
   }
 }
 

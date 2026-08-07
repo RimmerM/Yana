@@ -75,7 +75,7 @@ struct Symbol {
     U32 payload = 0;
     U16 index = 0;
 
-    StringId name = 0;
+    StringId name {};
 
     // Where to jump to. `kNullLocation` for a symbol whose declaration is not in any file the
     // editor can open - everything in Core and Native, which are compiled into the compiler.
@@ -161,7 +161,7 @@ Symbol functionSymbol(Module& module, ModulePtr<Function> function);
 Symbol globalSymbol(Module& module, ModulePtr<Global> global);
 // `name` is what the occurrence wrote, kept as the fallback for a type that has no declaration
 // of its own to read one off - a scalar, a tuple, a function type.
-Symbol typeSymbol(Module& module, TypePtr type, StringId name = 0);
+Symbol typeSymbol(Module& module, TypePtr type, StringId name = StringId());
 Symbol aliasSymbol(Module& module, const TypeAlias& alias);
 Symbol constructorSymbol(Module& module, ConstructorRef reference);
 Symbol classSymbol(Module& module, GlobalPtr<TypeClass> typeClass);
@@ -183,7 +183,7 @@ struct SignatureParameter {
     // What a call site names this position by, or zero where it has no name to be named by - a
     // positional field of a constructor. It is what makes signature help follow a named argument to
     // the parameter it fills rather than to the one in its place.
-    StringId name = 0;
+    StringId name {};
 };
 
 /// The signature line an editor shows for a symbol - `fn map(f: (a) -> b, xs: [a]) -> [b]`, or the

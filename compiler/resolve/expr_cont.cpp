@@ -78,7 +78,7 @@ ModulePtr<Value> ExprResolver::outcomeIsExit(ModulePtr<Value> value, LocationId 
     ModulePtr<Value> discriminant = nullptr;
 
     if(record->layout == RecordType::Enum) {
-        discriminant = ref(emit<InstUnary>(source, 0, module.scalar.int_, Value::Cast, value));
+        discriminant = ref(emit<InstUnary>(source, StringId(), module.scalar.int_, Value::Cast, value));
     } else {
         discriminant = load(project(placeFor(value, source), ProjectionKind::Discriminant, 0), source);
     }
@@ -119,7 +119,7 @@ ModulePtr<Value> ExprResolver::outcomePayload(ModulePtr<Value> value, bool proce
     auto ownership = ownershipIn(module, functionGen(global, function), content);
 
     if(isGeneric(global, content) && !ownership.trivialCopy) {
-        auto moved = create<InstMove>(source, 0, content, place);
+        auto moved = create<InstMove>(source, StringId(), content, place);
         if(!ownership.trivialSink) moved->sink = sinkFor(module, content, source);
 
         append(moved);
@@ -148,7 +148,7 @@ void finishContinuationExits(Module& module, ExprResolver& body, TypePtr result,
         if(outcome) value = body.makeOutcome(outcome, false, value, exit.source);
         else if(value && !isUnit(global, result)) value = body.convert(value, result, exit.source);
 
-        body.terminate(body.emit<InstRet>(exit.source, 0, module.scalar.unit,
+        body.terminate(body.emit<InstRet>(exit.source, StringId(), module.scalar.unit,
                                           isUnit(global, result) ? nullptr : value));
     }
 
@@ -265,19 +265,19 @@ static ModulePtr<Value> closeContinuation(Module& module, ExprResolver& outer, E
     auto envType = (Type*)envTuple - global;
     checkTypeAcyclic(module, envType, source);
 
-    if(body.captures.isEmpty()) return outer.makeFunValue(type, lifted - local, nullptr, source, 0);
+    if(body.captures.isEmpty()) return outer.makeFunValue(type, lifted - local, nullptr, source, StringId());
 
     auto liftedPointer = (ModulePtr<Function>)(lifted - local);
     closureHeaderFor(module, liftedPointer, envType, source);
 
-    auto storage = outer.allocate(envType, source, 0, ast::BindType::Borrow, true);
+    auto storage = outer.allocate(envType, source, StringId(), ast::BindType::Borrow, true);
     ((InstAlloc*)local[storage])->closure = liftedPointer;
 
     auto place = outer.placeFor(storage, source);
     fillEnvironment(outer, body, place, source);
 
-    auto address = outer.ref(outer.emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
-    return outer.makeFunValue(type, lifted - local, address, source, 0);
+    auto address = outer.ref(outer.emit<InstAddress>(source, StringId(), funValueFieldType(module, FunValueLayout::kEnv), place));
+    return outer.makeFunValue(type, lifted - local, address, source, StringId());
 }
 
 /*
@@ -324,7 +324,7 @@ static ModulePtr<Value> finishLoopContinuation(Module& module, ExprResolver& out
     shape.outcome = step;
 
     if(body.current) {
-        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+        body.terminate(body.emit<InstRet>(source, StringId(), module.scalar.unit,
                                           body.makeOutcome(step, true, nullptr, source)));
     }
 
@@ -341,7 +341,7 @@ static ModulePtr<Value> finishLoopContinuation(Module& module, ExprResolver& out
             value = body.makeOutcome(step, false, payload, exit.source);
         }
 
-        body.terminate(body.emit<InstRet>(exit.source, 0, module.scalar.unit, value));
+        body.terminate(body.emit<InstRet>(exit.source, StringId(), module.scalar.unit, value));
     }
 
     for(auto& exit: body.exits) {
@@ -351,7 +351,7 @@ static ModulePtr<Value> finishLoopContinuation(Module& module, ExprResolver& out
         if(shape.breaks) value = body.makeOutcome(carried, false, value, exit.source);
         else if(value && !isUnit(global, carried)) value = body.convert(value, carried, exit.source);
 
-        body.terminate(body.emit<InstRet>(exit.source, 0, module.scalar.unit,
+        body.terminate(body.emit<InstRet>(exit.source, StringId(), module.scalar.unit,
                                           body.makeOutcome(step, false, value, exit.source)));
     }
 
@@ -541,7 +541,7 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
     if(!shape.exits) {
         lifted->returnType = shape.value;
         if(body.current) {
-            body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+            body.terminate(body.emit<InstRet>(source, StringId(), module.scalar.unit,
                                               isUnit(global, shape.value) ? nullptr : result));
         }
     } else if(!shape.fallsThrough) {
@@ -554,7 +554,7 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
         lifted->returnType = outcome;
         shape.outcome = outcome;
 
-        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+        body.terminate(body.emit<InstRet>(source, StringId(), module.scalar.unit,
                                           body.makeOutcome(outcome, true, result, source)));
 
         finishContinuationExits(module, body, outcome, outcome, source);
@@ -578,6 +578,6 @@ void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source)
         return;
     }
 
-    terminate(emit<InstRet>(source, 0, module.scalar.unit,
+    terminate(emit<InstRet>(source, StringId(), module.scalar.unit,
                             isUnit(global, function.returnType) ? nullptr : value));
 }

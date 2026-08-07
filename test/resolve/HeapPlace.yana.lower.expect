@@ -1,6 +1,6 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
@@ -140,19 +140,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-main<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %v_1, 10, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 20, 8
-    store %v_1, 12, 8
-    %v_3 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_3
-    ret 32
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -183,6 +170,19 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    store %v_1, 10, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 20, 8
+    store %v_1, 12, 8
+    %v_3 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_3
+    ret 32
   }
 }
 

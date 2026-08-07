@@ -1,4 +1,28 @@
 
+either<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v = loads %v_6, 4: Int
+    %v_7 = imul %v, 2: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_8 = phi [b_3, %v_7], [b_4, 0]: Int
+    ret %v_8
+  }
+}
+
 isZero<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -27,40 +51,33 @@ isZero<complex>(%m: Ptr): Int {
   }
 }
 
-present<complex>(%m: Ptr): Int {
+deep<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    %found = select 1, 0, %v_2: Int
-    %v_3 = select 2, 1, %found: Int
-    ret %v_3
-  }
-}
-
-wrap<complex>(%v_0: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = cmp_igt %value, 0: Int
     je %v_2, b_3, b_4
   }
 
-  b_3 {
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, %value, 4
-    jmp b_7
-  }
-
   b_4 {
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 0, 4
-    jmp b_7
+    jmp b_5
   }
 
-  b_7 {
-    %v_9 = phi [b_3, %v_5], [b_4, %v_8]: Ptr
-    copy %v_0, %v_9, 8
-    ret 
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_4
+  }
+
+  b_9 {
+    %v_10 = add %m, 8: Ptr
+    %v = loads %v_10, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_11 = phi [b_9, %v], [b_4, 0]: Int
+    ret %v_11
   }
 }
 
@@ -103,27 +120,40 @@ area<complex>(%s: Ptr): Int {
   }
 }
 
-either<complex>(%m: Ptr): Int {
+present<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
+    %found = select 1, 0, %v_2: Int
+    %v_3 = select 2, 1, %found: Int
+    ret %v_3
+  }
+}
+
+wrap<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = cmp_igt %value, 0: Int
     je %v_2, b_3, b_4
   }
 
-  b_4 {
-    jmp b_5
-  }
-
   b_3 {
-    %v_6 = add %m, 4: Ptr
-    %v = loads %v_6, 4: Int
-    %v_7 = imul %v, 2: Int
-    jmp b_5
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, %value, 4
+    jmp b_7
   }
 
-  b_5 {
-    %v_8 = phi [b_3, %v_7], [b_4, 0]: Int
-    ret %v_8
+  b_4 {
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 0, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = phi [b_3, %v_5], [b_4, %v_8]: Ptr
+    copy %v_0, %v_9, 8
+    ret 
   }
 }
 
@@ -247,36 +277,6 @@ main<complex>(): Int {
     %v_71 = imul %v_70, 100: Int
     %v_72 = add %v_62, %v_71: Int
     ret %v_72
-  }
-}
-
-deep<complex>(%m: Ptr): Int {
-  b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_4
-  }
-
-  b_9 {
-    %v_10 = add %m, 8: Ptr
-    %v = loads %v_10, 4: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_11 = phi [b_9, %v], [b_4, 0]: Int
-    ret %v_11
   }
 }
 

@@ -24,27 +24,6 @@ note<complex>(%n: Int): Int {
   }
 }
 
-main<complex>(): Int {
-  b_0 {
-    %first = call_complex note, 1: Int
-    %v_1 = call_complex note, 2: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, 9: Int
-    %v_4 = add %v_3, %first: Int
-    %x = call_complex note, 3: Int
-    %v_5 = add %x, 1: Int
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_6, 8: Int
-    %v_8 = add %v_4, %v_7: Int
-    %v_9 = call_complex elementCrossesEffect: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = add %v_10, 56: Int
-    %v_12 = loads @log, 4: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
-  }
-}
-
 elementCrossesEffect<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -72,6 +51,27 @@ elementCrossesEffect<complex>(): Int {
     %v_16 = add %v_13, %v_15: Int
     %v_17 = add %v_16, %first: Int
     ret %v_17
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %first = call_complex note, 1: Int
+    %v_1 = call_complex note, 2: Int
+    %v_2 = imul %v_1, 10: Int
+    %v_3 = add %v_2, 9: Int
+    %v_4 = add %v_3, %first: Int
+    %x = call_complex note, 3: Int
+    %v_5 = add %x, 1: Int
+    %v_6 = imul %v_5, 10: Int
+    %v_7 = add %v_6, 8: Int
+    %v_8 = add %v_4, %v_7: Int
+    %v_9 = call_complex elementCrossesEffect: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = add %v_10, 56: Int
+    %v_12 = loads @log, 4: Int
+    %v_13 = add %v_11, %v_12: Int
+    ret %v_13
   }
 }
 

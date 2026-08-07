@@ -1,47 +1,9 @@
 @name = [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
 
-getCount<complex>(): Int {
-  b_0 {
-    # live-in: 
-    ret 10
-    # live-out: 
-  }
-}
-
 print<complex>(%string: Ptr, %length: Long) {
   b_0 {
     # live-in: %string, %length
     %0 = syscall 1, 1, %string, %length: Int
-    ret 
-    # live-out: 
-  }
-}
-
-main<complex>() {
-  start {
-    # live-in: 
-    %space = alloca 1, 8: Ptr
-    store %space, 32, 1
-    %v_0 = call_complex getCount: Int
-    %count = cast %v_0: Long
-    jmp loop
-    # live-out: %space, %count, 0
-  }
-
-  loop {
-    # live-in: %space, %count, %i
-    %i = phi [start, 0], [loop, %i2]: Long
-    call_complex print, @name, 11
-    call_complex print, %space, 1
-    call_complex printInt, %i
-    %i2 = add %i, 1: Long
-    %v_1 = cmp_lt %i2, %count: Int
-    je %v_1, loop, end
-    # live-out: %space, %count, %i2
-  }
-
-  end {
-    # live-in: 
     ret 
     # live-out: 
   }
@@ -94,6 +56,44 @@ printInt<complex>(%number: Long) {
   print {
     # live-in: %string, %length
     call_complex print, %string, %length
+    ret 
+    # live-out: 
+  }
+}
+
+getCount<complex>(): Int {
+  b_0 {
+    # live-in: 
+    ret 10
+    # live-out: 
+  }
+}
+
+main<complex>() {
+  start {
+    # live-in: 
+    %space = alloca 1, 8: Ptr
+    store %space, 32, 1
+    %v_0 = call_complex getCount: Int
+    %count = cast %v_0: Long
+    jmp loop
+    # live-out: %space, %count, 0
+  }
+
+  loop {
+    # live-in: %space, %count, %i
+    %i = phi [start, 0], [loop, %i2]: Long
+    call_complex print, @name, 11
+    call_complex print, %space, 1
+    call_complex printInt, %i
+    %i2 = add %i, 1: Long
+    %v_1 = cmp_lt %i2, %count: Int
+    je %v_1, loop, end
+    # live-out: %space, %count, %i2
+  }
+
+  end {
+    # live-in: 
     ret 
     # live-out: 
   }

@@ -1,127 +1,9 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-either<complex>(%pick: Int, %a: Int, %b: Int): Int {
+teardown$none<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = cmp_ilt %pick, 1: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %a, 4
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, ResolveTest.lambda$1, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %v_4, 8
-    jmp b_7
-  }
-
-  b_3 {
-    %v_8 = alloca 4, 4: Ptr
-    store %v_8, %b, 4
-    %v_9 = alloca 16, 8: Ptr
-    store %v_9, ResolveTest.lambda$2, 8
-    %v_10 = add %v_9, 8: Ptr
-    store %v_10, %v_8, 8
-    jmp b_7
-  }
-
-  b_7 {
-    %f = phi [b_2, %v_5], [b_3, %v_9]: Ptr
-    %v_11 = add %f, 8: Ptr
-    %v_12 = load %f, 8: Ptr
-    %v_13 = load %v_11, 8: Ptr
-    %v_14 = call_complex %v_12, %v_13, 10: Int
-    ret %v_14
-  }
-}
-
-direct<complex>(%base: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %base, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$0, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = add %v_2, 8: Ptr
-    %v_5 = load %v_2, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6, 1: Int
-    ret %v_7
-  }
-}
-
-closureRelease${amount: Int}<complex>(%env: Ptr) {
-  b_0 {
-    %v_1 = bitcast %env: Ptr
-    call_complex freeHeap, %v_1
-    ret 
-  }
-}
-
-@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %x, %v_1: Int
-    ret %v_2
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-@closure$ResolveTest.lambda$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$2<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = imul %x, %v_1: Int
-    ret %v_2
-  }
-}
-
-escaping<complex>(%v_0: Ptr, %amount: Int) {
-  b_1 {
-    %v_2 = call_complex allocateHeap, 4: Ptr
-    store %v_2, %amount, 4
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.lambda$3, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, %v_2, 8
-    copy %v_0, %v_3, 16
     ret 
   }
 }
@@ -264,18 +146,101 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-teardown$none<complex>(%value: Ptr) {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
     ret 
   }
 }
 
-@closure$ResolveTest.lambda$3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$3<complex>(%env: Ptr, %x: Int): Int {
+direct<complex>(%base: Int): Int {
   b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %x, %v_1: Int
-    ret %v_2
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %base, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = add %v_2, 8: Ptr
+    %v_5 = load %v_2, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = call_complex %v_5, %v_6, 1: Int
+    ret %v_7
+  }
+}
+
+either<complex>(%pick: Int, %a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = cmp_ilt %pick, 1: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %a, 4
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, ResolveTest.lambda$1, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, %v_4, 8
+    jmp b_7
+  }
+
+  b_3 {
+    %v_8 = alloca 4, 4: Ptr
+    store %v_8, %b, 4
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, ResolveTest.lambda$2, 8
+    %v_10 = add %v_9, 8: Ptr
+    store %v_10, %v_8, 8
+    jmp b_7
+  }
+
+  b_7 {
+    %f = phi [b_2, %v_5], [b_3, %v_9]: Ptr
+    %v_11 = add %f, 8: Ptr
+    %v_12 = load %f, 8: Ptr
+    %v_13 = load %v_11, 8: Ptr
+    %v_14 = call_complex %v_12, %v_13, 10: Int
+    ret %v_14
+  }
+}
+
+escaping<complex>(%v_0: Ptr, %amount: Int) {
+  b_1 {
+    %v_2 = call_complex allocateHeap, 4: Ptr
+    store %v_2, %amount, 4
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.lambda$3, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, %v_2, 8
+    copy %v_0, %v_3, 16
+    ret 
   }
 }
 
@@ -334,12 +299,47 @@ main<complex>(): Int {
   }
 }
 
+@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = add %x, %v_1: Int
+    ret %v_2
+  }
+}
+
 @closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = add %x, %v_1: Int
     ret %v_2
+  }
+}
+
+@closure$ResolveTest.lambda$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$2<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = imul %x, %v_1: Int
+    ret %v_2
+  }
+}
+
+@closure$ResolveTest.lambda$3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$3<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = add %x, %v_1: Int
+    ret %v_2
+  }
+}
+
+closureRelease${amount: Int}<complex>(%env: Ptr) {
+  b_0 {
+    %v_1 = bitcast %env: Ptr
+    call_complex freeHeap, %v_1
+    ret 
   }
 }
 

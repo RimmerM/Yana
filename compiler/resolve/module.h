@@ -28,7 +28,7 @@ struct LensYield;
  */
 struct Local {
     TypePtr type = nullptr;
-    StringId name = 0;
+    StringId name {};
     ModulePtr<Value> value = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
     StorageClass storage = StorageClass::Stack;
@@ -197,7 +197,7 @@ using DeferredIntrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<Re
 struct Function {
     Function(Module* module, StringId name): module(module), name(name) {}
 
-    Block* addBlock(Module& module, StringId name = 0);
+    Block* addBlock(Module& module, StringId name = StringId());
     Arg* addArg(Module& module, StringId name, TypePtr type, LocationId source);
     U32 addLocal(Module& module, TypePtr type, StringId name, ModulePtr<Value> value,
                  ast::BindType convention = ast::BindType::Borrow, bool borrowed = false,
@@ -551,7 +551,7 @@ struct InternedWitness {
 // both accessors and the two descriptors beside them. See propertyWitnessFor.
 struct InternedProperty {
     TypePtr owner = nullptr;
-    StringId field = 0;
+    StringId field {};
     ModulePtr<Global> witness = nullptr;
 };
 
@@ -725,7 +725,7 @@ struct OperatorFixity {
 // `include` means everything the module exports.
 struct Import {
     Module* module = nullptr;
-    StringId localName = 0;
+    StringId localName {};
     Array<StringId> include;
     Array<StringId> exclude;
     bool qualified = false;
@@ -985,6 +985,26 @@ struct Program {
      * an explicit teardown because what it contains is private to the passes; see analyze.h.
      */
     AnalysisScratch* analysisScratch = nullptr;
+
+    /*
+     * Every class instance in the program, grouped by the class it implements.
+     *
+     * findInstances used to answer this by walking every module's own `instances` list and filtering
+     * it by class, which is O(instances in the whole program) at every instance lookup - and there
+     * is one lookup per class-dispatched call in every body resolved. It was the compiler's single
+     * hottest function by a wide margin.
+     *
+     * A mirror of the module lists rather than a replacement for them: a module still owns its own
+     * instances, because emission walks a module and coherence is not what decides which module an
+     * instance belongs to. registerInstance() writes both, and is the only way either is written.
+     *
+     * The rows are inline, on the ordinary terms of compiler/util/README.md: there is one per class
+     * in the program and most classes have a handful of instances, so a plain Array here would trade
+     * the lookup this exists to save for an allocation per class. A SmallArray is safe as a hash map
+     * value - the inline buffer is not pointed at from inside the object, so a rehash relocates one
+     * correctly.
+     */
+    HashMap<U32, SmallArray<ModulePtr<ClassInstance>, 8>> instancesByClass;
 
     /*
      * The lists resolution builds and throws away, kept for the length of the compilation.

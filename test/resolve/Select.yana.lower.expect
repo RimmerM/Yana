@@ -1,18 +1,5 @@
 @calls = [0, 0, 0, 0]
 
-zero<complex>(): Int {
-  b_0 {
-    ret 0
-  }
-}
-
-doubled<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = imul %value, 2: Int
-    ret %v_1
-  }
-}
-
 lowered<complex>(): Float {
   b_0 {
     ret -3
@@ -42,6 +29,19 @@ smallest<complex>(%limit: Int): Int {
     %v_4 = select %candidate, %v_2, %v_10: Int
     %v_6 = add %v_5, 1: Int
     jmp b_1
+  }
+}
+
+zero<complex>(): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+doubled<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = imul %value, 2: Int
+    ret %v_1
   }
 }
 

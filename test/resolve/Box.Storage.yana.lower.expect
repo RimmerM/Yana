@@ -1,63 +1,6 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
-
-outOfLine<complex>(): Int {
-  b_0 {
-    %c = alloca 12, 8: Ptr
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 7, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 8, 4
-    %v_3 = add %c, 8: Ptr
-    store %v_3, 1, 4
-    %v_4 = call_complex allocateHeap, 8: Ptr
-    store %c, %v_4, 8
-    %v_5 = load %c, 8: Ptr
-    copy %v_5, %v_1, 8
-    %owner = bitcast %c: Ptr
-    %v_6 = load %c, 8: Ptr
-    %target = bitcast %v_6: Ptr
-    %v_7 = cmp_lt %target, %owner: Int
-    %v_8 = xor %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    %v_11 = add %owner, 12: Ptr
-    %v_12 = cmp_lt %target, %v_11: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_10 {
-    jmp b_15
-  }
-
-  b_16 {
-    ret 18446744073709551615
-  }
-
-  b_14 {
-    jmp b_17
-  }
-
-  b_17 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_18 = load %c, 8: Ptr
-    %v_19 = add %v_18, 4: Ptr
-    %d$level = loads %v_19, 4: Int
-    call_complex reclaim$Config, %c
-    ret %d$level
-  }
-
-  b_13 {
-    call_complex reclaim$Config, %c
-    jmp b_16
-  }
-}
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
@@ -197,6 +140,96 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
+  }
+}
+
+outOfLine<complex>(): Int {
+  b_0 {
+    %c = alloca 12, 8: Ptr
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 7, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 8, 4
+    %v_3 = add %c, 8: Ptr
+    store %v_3, 1, 4
+    %v_4 = call_complex allocateHeap, 8: Ptr
+    store %c, %v_4, 8
+    %v_5 = load %c, 8: Ptr
+    copy %v_5, %v_1, 8
+    %owner = bitcast %c: Ptr
+    %v_6 = load %c, 8: Ptr
+    %target = bitcast %v_6: Ptr
+    %v_7 = cmp_lt %target, %owner: Int
+    %v_8 = xor %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = add %owner, 12: Ptr
+    %v_12 = cmp_lt %target, %v_11: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_10 {
+    jmp b_15
+  }
+
+  b_16 {
+    ret 18446744073709551615
+  }
+
+  b_14 {
+    jmp b_17
+  }
+
+  b_17 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_18 = load %c, 8: Ptr
+    %v_19 = add %v_18, 4: Ptr
+    %d$level = loads %v_19, 4: Int
+    call_complex reclaim$Config, %c
+    ret %d$level
+  }
+
+  b_13 {
+    call_complex reclaim$Config, %c
+    jmp b_16
+  }
+}
+
 writesThrough<complex>(): Int {
   b_0 {
     %v_1 = alloca 12, 8: Ptr
@@ -249,15 +282,6 @@ writesThrough<complex>(): Int {
   }
 }
 
-reclaim$Config<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_2
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %o = call_complex outOfLine: Int
@@ -280,35 +304,11 @@ main<complex>(): Int {
   }
 }
 
-freeHeap<complex>(%allocation: Ptr) {
+reclaim$Config<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_1 = load %value, 8: Ptr
+    %v_2 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_2
     ret 
   }
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "../compiler/stage.h"
 #include "lexer.h"
 #include "../util/parser_util.h"
 
@@ -102,7 +103,7 @@ struct Parser: BasicParser<Lexer, Token> {
     U32 cursorOffset = 0;
 
     // The name the sentinel is written with - see cursorName(). Zero when there is no cursor.
-    StringId cursorId = 0;
+    StringId cursorId {};
 
     /*
      * Whether the cursor is in the token about to be read.

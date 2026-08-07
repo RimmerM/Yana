@@ -192,7 +192,7 @@ ModulePtr<Function> emptyTeardown(Module& module, LocationId source) {
     function->addArg(core, name, resolvePointerType(core, core.scalar.unit), source);
 
     ExprResolver resolver(core.context, core, *function);
-    resolver.terminate(resolver.emit<InstRet>(source, 0, core.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), core.scalar.unit, nullptr));
 
     program.emptyTeardown = function - *core.arena;
     return program.emptyTeardown;
@@ -236,10 +236,10 @@ static bool hasSinkingMember(Module& module, TypePtr content) {
 // One call, given the two places the member occupies in the destination and the source.
 static void sinkMember(ExprResolver& resolver, Module& module, Place to, Place from,
                        ModulePtr<Function> implementation, LocationId source) {
-    auto toMember = resolver.addressOf(to, source, 0);
-    auto fromMember = resolver.addressOf(from, source, 0);
+    auto toMember = resolver.addressOf(to, source, StringId());
+    auto fromMember = resolver.addressOf(from, source, StringId());
 
-    auto call = resolver.create<InstCall>(source, 0, module.scalar.unit, implementation);
+    auto call = resolver.create<InstCall>(source, StringId(), module.scalar.unit, implementation);
     call->args.push(module.arena, toMember);
     call->args.push(module.arena, fromMember);
     resolver.append(call);
@@ -374,16 +374,16 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     // The bytes. copyMemory rather than a load and a store because the size is a constant here and
     // the type may be an aggregate with no register form at all.
     {
-        auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, module.scalar.long_,
+        auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), module.scalar.long_,
                                                                 type, TypeMetricKind::Size));
         auto byteType = resolvePointerType(module, module.scalar.unit);
 
-        auto castTo = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast,
+        auto castTo = resolver.ref(resolver.emit<InstUnary>(source, StringId(), byteType, Value::Cast,
                                                             (ModulePtr<Value>)(to - *module.arena)));
-        auto castFrom = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast,
+        auto castFrom = resolver.ref(resolver.emit<InstUnary>(source, StringId(), byteType, Value::Cast,
                                                               (ModulePtr<Value>)(from - *module.arena)));
 
-        auto copyInst = resolver.create<InstNative>(source, 0, module.scalar.unit, NativeOp::CopyMemory);
+        auto copyInst = resolver.create<InstNative>(source, StringId(), module.scalar.unit, NativeOp::CopyMemory);
         copyInst->args.push(module.arena, castTo);
         copyInst->args.push(module.arena, castFrom);
         copyInst->args.push(module.arena, bytes);
@@ -421,12 +421,12 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
                     resolver.project(fromBase, ProjectionKind::Discriminant, 0), source);
 
                 auto index = resolver.makeInt(source, module.scalar.int_, constructor.index);
-                auto matches = resolver.emit<InstCmp>(source, 0, module.scalar.bool_,
+                auto matches = resolver.emit<InstCmp>(source, StringId(), module.scalar.bool_,
                                                       discriminant, index, CompareOp::Eq);
 
                 auto sinks = resolver.addBlock();
                 auto next = resolver.addBlock();
-                resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit,
+                resolver.terminate(resolver.emit<InstJe>(source, StringId(), module.scalar.unit,
                                                          resolver.ref(matches), sinks, next));
 
                 resolver.current = sinks;
@@ -434,17 +434,17 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
                             resolver.project(toBase, ProjectionKind::Downcast, U16(constructor.index)),
                             resolver.project(fromBase, ProjectionKind::Downcast, U16(constructor.index)),
                             content, source);
-                resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+                resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
 
                 resolver.current = next;
             }
 
-            resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+            resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
             resolver.current = exit;
         }
     }
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
     return pointer;
 }
 
@@ -517,14 +517,14 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
              * frame was handed. The result is a value of that type, and the write is the ordinary
              * initialization of uninitialized storage that every constructor performs.
              */
-            auto duplicate = resolver.create<InstCall>(source, 0, type, implementation);
+            auto duplicate = resolver.create<InstCall>(source, StringId(), type, implementation);
             duplicate->args.push(module.arena, fromValue);
             resolver.append(duplicate);
 
             resolver.initialize(Place::atPointer(toValue), resolver.ref(duplicate), source);
         }
 
-        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+        resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
         return pointer;
     }
 
@@ -534,20 +534,20 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
      * is its own business, and on JS that is genBlockCopy's structural duplicate rather than
      * anything that would alias.
      */
-    auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, module.scalar.long_,
+    auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), module.scalar.long_,
                                                             type, TypeMetricKind::Size));
     auto byteType = resolvePointerType(module, module.scalar.unit);
 
-    auto castTo = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast, toValue));
-    auto castFrom = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast, fromValue));
+    auto castTo = resolver.ref(resolver.emit<InstUnary>(source, StringId(), byteType, Value::Cast, toValue));
+    auto castFrom = resolver.ref(resolver.emit<InstUnary>(source, StringId(), byteType, Value::Cast, fromValue));
 
-    auto copyInst = resolver.create<InstNative>(source, 0, module.scalar.unit, NativeOp::CopyMemory);
+    auto copyInst = resolver.create<InstNative>(source, StringId(), module.scalar.unit, NativeOp::CopyMemory);
     copyInst->args.push(module.arena, castTo);
     copyInst->args.push(module.arena, castFrom);
     copyInst->args.push(module.arena, bytes);
     resolver.append(copyInst);
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
     return pointer;
 }
 
@@ -764,9 +764,9 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
             resolver.initialize(Place::atPointer((ModulePtr<Value>)(resultArg - local)), result, source);
         }
 
-        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+        resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
     } else {
-        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, result));
+        resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, result));
     }
 
     return pointer;
@@ -975,7 +975,7 @@ static ModulePtr<Function> propertyReadThunk(Module& module, TypePtr owner, Stri
     // in it for anything to have to release.
     resolver.initialize(Place::atPointer((ModulePtr<Value>)(outArg - local)),
                         resolver.load(place, source), source);
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
 
     return pointer;
 }
@@ -1009,7 +1009,7 @@ static ModulePtr<Function> propertySetThunk(Module& module, TypePtr owner, Strin
 
     auto incoming = resolver.load(Place::atPointer((ModulePtr<Value>)(valueArg - local)), source);
     resolver.assign(place, incoming, source);
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
 
     return pointer;
 }
@@ -1136,7 +1136,7 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
             }
 
             if(anyGeneric) {
-                Array<U32> supers;
+                SuperclassSteps supers;
                 entry.forwarded = callerEnv
                     ? genWitnessPath(module, *callerEnv, slot.typeClass, toBuffer(expressed), supers)
                     : maxLimit<U16>;
@@ -1251,7 +1251,7 @@ bool prepareGenericCalls(Program& program) {
                         // environment. Which slot that is could not be recorded when the call was
                         // emitted, because the context was still collecting requirements.
                         auto env = functionGen(global, *function);
-                        Array<U32> supers;
+                        SuperclassSteps supers;
                         call.classSlot = env
                             ? genWitnessPath(*module, *env, call.typeClass, toBuffer(typeArgs), supers)
                             : maxLimit<U16>;
@@ -1643,7 +1643,7 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
         // so the read is what bridges the slot ABI to the teardown's own. It is the same bridge
         // teardownEntry is, written inline because this function already exists and already has the
         // address; a second entry function here would be one more call for nothing.
-        auto inner = resolver.create<InstCall>(source, 0, module.scalar.unit, reclaim);
+        auto inner = resolver.create<InstCall>(source, StringId(), module.scalar.unit, reclaim);
         inner->args.push(module.arena, resolver.load(Place::atPointer(env), source));
         resolver.append(inner);
     }
@@ -1656,14 +1656,14 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
         // both sides are one machine word and only what the program says it means differs.
         auto expected = free->args.isEmpty() ? envPointer : local[free->args.get(local, 0)]->type;
         auto address = sameType(expected, envPointer)
-            ? env : resolver.ref(resolver.emit<InstUnary>(source, 0, expected, Value::Cast, env));
+            ? env : resolver.ref(resolver.emit<InstUnary>(source, StringId(), expected, Value::Cast, env));
 
-        auto release = resolver.create<InstCall>(source, 0, module.scalar.unit, program.freeHeap);
+        auto release = resolver.create<InstCall>(source, StringId(), module.scalar.unit, program.freeHeap);
         release->args.push(module.arena, address);
         resolver.append(release);
     }
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
     return pointer;
 }
 

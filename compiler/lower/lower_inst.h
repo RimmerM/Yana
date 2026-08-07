@@ -439,7 +439,7 @@ struct LowerInstSetPattern: LowerInst {
 // of its arguments in order. It is implicit - nothing reads it, and it occupies no location.
 struct LowerInstX86PushArg: LowerInstSingle {
     LowerInstX86PushArg(LowerPtr<LowerValue> arg, U32 stackOffset, LowerType type):
-        LowerInstSingle(X86PushArg, 0, type), arg(arg), stackOffset(stackOffset)
+        LowerInstSingle(X86PushArg, StringId(), type), arg(arg), stackOffset(stackOffset)
     {
         result.flags = LowerValue::Implicit;
         usedCount = 1;

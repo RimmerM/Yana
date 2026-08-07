@@ -213,7 +213,7 @@ static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
  */
 void resolveInstance(Module& module, ast::Decl& decl) {
     auto& type = decl.instance.type;
-    StringId className = 0;
+    StringId className {};
     TypeList args;
 
     // The constraints are read first, since they name the variables the head is written over -
@@ -291,10 +291,12 @@ void resolveInstance(Module& module, ast::Decl& decl) {
     // Two instances one of which is no more specific than the other would make selection depend on
     // declaration order, whether they are written for the same types or for heads that mean the
     // same thing - `Eq(Ptr(a))` twice, under two names for `a`.
-    Array<ModulePtr<ClassInstance>> existing;
-    findInstances(module, classPointer, existing);
+    // Borrowed rather than declared, for the same reason matchInstanceAt borrows it: this collects
+    // every instance of the class in the whole program, and does it once per instance declaration.
+    Scratch<Array<ModulePtr<ClassInstance>>> existing(module.program.instanceCandidates);
+    findInstances(module, classPointer, *existing);
 
-    for(auto other: existing) {
+    for(auto other: *existing) {
         auto& previous = *(*module.arena)[other];
 
         if(instanceCovers(module, previous, *instance) && instanceCovers(module, *instance, previous)) {
@@ -532,7 +534,7 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                                          module.context.findName(entry.name));
     }
 
-    module.instances.push(instance - *module.arena);
+    registerInstance(module, instance - *module.arena);
 }
 
 /*

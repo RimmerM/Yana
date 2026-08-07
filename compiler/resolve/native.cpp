@@ -628,7 +628,7 @@ static ModulePtr<Value> emitNull(ExprResolver& resolver, Buffer<ModulePtr<Value>
 static ModulePtr<Value> emitIsNull(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                    LocationId source, StringId name) {
     auto address = resolver.module.scalar.long_;
-    auto number = resolver.ref(resolver.emit<InstUnary>(source, 0, address, Value::Cast, args[0]));
+    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Cast, args[0]));
     auto zero = resolver.makeInt(source, address, 0);
 
     return resolver.ref(resolver.emit<InstCmp>(source, name, type, number, zero, CompareOp::Eq));
@@ -726,10 +726,10 @@ template<Value::Kind kind>
 static ModulePtr<Value> emitPointerOffset(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                           LocationId source, StringId name) {
     auto offsetType = resolver.valueType(args[1]);
-    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, offsetType,
+    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), offsetType,
                                                             elementType(resolver, args),
                                                             TypeMetricKind::Stride));
-    auto offset = resolver.ref(resolver.emit<InstBinary>(source, 0, offsetType, Value::Mul,
+    auto offset = resolver.ref(resolver.emit<InstBinary>(source, StringId(), offsetType, Value::Mul,
                                                          args[1], scale));
 
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, kind, args[0], offset));
@@ -737,8 +737,8 @@ static ModulePtr<Value> emitPointerOffset(ExprResolver& resolver, Buffer<ModuleP
 
 static ModulePtr<Value> emitDifference(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                        LocationId source, StringId name) {
-    auto bytes = resolver.ref(resolver.emit<InstBinary>(source, 0, type, Value::Sub, args[1], args[0]));
-    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, type,
+    auto bytes = resolver.ref(resolver.emit<InstBinary>(source, StringId(), type, Value::Sub, args[1], args[0]));
+    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), type,
                                                             elementType(resolver, args),
                                                             TypeMetricKind::Stride));
 

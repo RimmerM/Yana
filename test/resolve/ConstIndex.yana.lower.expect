@@ -1,29 +1,35 @@
 @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-overwritten<complex>(): Int {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    %v_5 = and %v_4, 18446744072635809792: Int
-    %v_6 = or %v_5, 3: Int
-    %v_7 = and %v_6, 18446744070488326143: Int
-    %v_8 = add %v_1, 8: Ptr
-    store %v_8, %v_7, 4
-    store %v_2, 1, 4
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = add %v_2, 8: Ptr
-    %v_11 = imm 30: Int
-    store %v_10, %v_11, 4
-    %v_12 = add %v_1, 12: Ptr
-    store %v_12, 3, 4
-    %v_13 = add %v_2, 8: Ptr
-    %v_14 = loads %v_13, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_11
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
   }
 }
 
@@ -45,34 +51,6 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
   b_6 {
     ret 
-  }
-}
-
-computed<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    %v_5 = and %v_4, 18446744072635809792: Int
-    %v_6 = or %v_5, 3: Int
-    %v_7 = and %v_6, 18446744070488326143: Int
-    %v_8 = add %v_1, 8: Ptr
-    store %v_8, %v_7, 4
-    store %v_2, 4, 4
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, 5, 4
-    %v_10 = add %v_2, 8: Ptr
-    store %v_10, 60, 4
-    %v_11 = add %v_1, 12: Ptr
-    store %v_11, 3, 4
-    %v_12 = add %v_2, 8: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = add %v_2, 4: Ptr
-    %v_15 = loads %v_14, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret 65
   }
 }
 
@@ -126,49 +104,58 @@ spanned<complex>(): Int {
   }
 }
 
-main<complex>(): Int {
+overwritten<complex>(): Int {
   b_0 {
-    %v_1 = call_complex spanned: Int
-    %v_2 = call_complex overwritten: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex computed: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex aliased, 1: Int
-    %v_7 = add %v_5, %v_6: Int
-    ret %v_7
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 4: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = and %v_4, 18446744072635809792: Int
+    %v_6 = or %v_5, 3: Int
+    %v_7 = and %v_6, 18446744070488326143: Int
+    %v_8 = add %v_1, 8: Ptr
+    store %v_8, %v_7, 4
+    store %v_2, 1, 4
+    %v_9 = add %v_2, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = add %v_2, 8: Ptr
+    %v_11 = imm 30: Int
+    store %v_10, %v_11, 4
+    %v_12 = add %v_1, 12: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_2, 8: Ptr
+    %v_14 = loads %v_13, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret %v_11
   }
 }
 
-freeHeap<complex>(%allocation: Ptr) {
+computed<complex>(): Int {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 4: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = and %v_4, 18446744072635809792: Int
+    %v_6 = or %v_5, 3: Int
+    %v_7 = and %v_6, 18446744070488326143: Int
+    %v_8 = add %v_1, 8: Ptr
+    store %v_8, %v_7, 4
+    store %v_2, 4, 4
+    %v_9 = add %v_2, 4: Ptr
+    store %v_9, 5, 4
+    %v_10 = add %v_2, 8: Ptr
+    store %v_10, 60, 4
+    %v_11 = add %v_1, 12: Ptr
+    store %v_11, 3, 4
+    %v_12 = add %v_2, 8: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = add %v_2, 4: Ptr
+    %v_15 = loads %v_14, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret 65
   }
 }
 
@@ -212,6 +199,19 @@ aliased<complex>(%n: Int): Int {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     %v_24 = add %v_23, %v_9: Int
     ret %v_24
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex spanned: Int
+    %v_2 = call_complex overwritten: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex computed: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex aliased, 1: Int
+    %v_7 = add %v_5, %v_6: Int
+    ret %v_7
   }
 }
 

@@ -114,7 +114,7 @@ struct Discharge {
         ModulePtr<Value> subject = nullptr;
         auto subjectOf = [&]() {
             if(!subject) {
-                auto loaded = createInst<InstLoadPlace>(module, function, block, source, 0, type,
+                auto loaded = createInst<InstLoadPlace>(module, function, block, source, StringId(), type,
                                                         drop.place);
                 replacement.push(loaded);
                 subject = (ModulePtr<Value>)(loaded - opt.local);
@@ -128,7 +128,7 @@ struct Discharge {
 
             opt.local[callee]->used = true;
 
-            auto call = createInst<InstCall>(module, function, block, source, 0, unit, callee);
+            auto call = createInst<InstCall>(module, function, block, source, StringId(), unit, callee);
             call->args.push(module.arena, subjectOf());
             replacement.push(call);
         };
@@ -148,7 +148,7 @@ struct Discharge {
             free->used = true;
 
             auto pointerType = resolvePointerType(module, type);
-            auto address = createInst<InstAddress>(module, function, block, source, 0, pointerType,
+            auto address = createInst<InstAddress>(module, function, block, source, StringId(), pointerType,
                                                    drop.place);
             replacement.push(address);
 
@@ -157,13 +157,13 @@ struct Discharge {
                                                  : opt.local[free->args.get(opt.local, 0)]->type;
 
             if(!sameType(expected, pointerType)) {
-                auto cast = createInst<InstUnary>(module, function, block, source, 0, expected,
+                auto cast = createInst<InstUnary>(module, function, block, source, StringId(), expected,
                                                   Value::Cast, argument);
                 replacement.push(cast);
                 argument = (ModulePtr<Value>)(cast - opt.local);
             }
 
-            auto call = createInst<InstCall>(module, function, block, source, 0, unit,
+            auto call = createInst<InstCall>(module, function, block, source, StringId(), unit,
                                              opt.program.freeHeap);
             call->args.push(module.arena, argument);
             replacement.push(call);
@@ -211,7 +211,7 @@ struct Discharge {
 
     ModulePtr<Value> relocate(Block& block, InstList& into, LocationId source, TypePtr content,
                               const Place& from, ModulePtr<Function> sink) {
-        auto move = createInst<InstMove>(*opt.module, *opt.function, block, source, 0, content, from);
+        auto move = createInst<InstMove>(*opt.module, *opt.function, block, source, StringId(), content, from);
         move->sink = sink;
         if(sink) opt.local[sink]->used = true;
 
@@ -221,7 +221,7 @@ struct Discharge {
 
     void write(Block& block, InstList& into, LocationId source, const Place& to,
                ModulePtr<Value> value, Value::Kind kind) {
-        into.push(createInst<InstInit>(*opt.module, *opt.function, block, source, 0,
+        into.push(createInst<InstInit>(*opt.module, *opt.function, block, source, StringId(),
                                        opt.program.scalar.unit, to, value, kind));
     }
 
@@ -245,10 +245,10 @@ struct Discharge {
         auto source = swap.source;
         InstList replacement;
 
-        auto temporary = createInst<InstAlloc>(*opt.module, *opt.function, block, source, 0, content,
+        auto temporary = createInst<InstAlloc>(*opt.module, *opt.function, block, source, StringId(), content,
                                                maxLimit<U32>);
         auto storage = (ModulePtr<Value>)(temporary - opt.local);
-        temporary->local = opt.function->addLocal(*opt.module, content, 0, storage);
+        temporary->local = opt.function->addLocal(*opt.module, content, StringId(), storage);
         replacement.push(temporary);
 
         auto held = Place::inLocal(temporary->local);

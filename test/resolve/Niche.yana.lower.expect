@@ -1,52 +1,4 @@
 
-depthOf<complex>(%m: Ptr): Int {
-  b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 3: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = load %m, 1: Long
-    %v_8 = cmp_le %v_7, 3: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_5 {
-    jmp b_13
-  }
-
-  b_12 {
-    %o = load %m, 1: Int
-    %v_14 = alloca 1, 1: Ptr
-    store %v_14, %o, 1
-    %v_15 = call_complex tagOf, %v_14: Int
-    %v_16 = add %v_15, 300: Int
-    jmp b_13
-  }
-
-  b_11 {
-    %v_17 = load %m, 1: Long
-    %v_18 = cmp_le %v_17, 2: Int
-    %v_19 = select 1, 0, %v_18: Int
-    %v_20 = cmp_eq %v_19, 0: Int
-    je %v_20, b_21, b_12
-  }
-
-  b_21 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_22 = phi [b_5, 100], [b_21, 200], [b_12, %v_16]: Int
-    ret %v_22
-  }
-}
-
 tagOf<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = load %m, 1: Long
@@ -105,6 +57,54 @@ tagOf<complex>(%m: Ptr): Int {
   b_13 {
     %v_28 = phi [b_5, 0], [b_23, 1], [b_27, 2], [b_19, 3]: Int
     ret %v_28
+  }
+}
+
+depthOf<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = load %m, 1: Long
+    %v_2 = cmp_le %v_1, 3: Int
+    %v_3 = select 1, 0, %v_2: Int
+    %v_4 = cmp_eq %v_3, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = load %m, 1: Long
+    %v_8 = cmp_le %v_7, 3: Int
+    %v_9 = select 1, 0, %v_8: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_5 {
+    jmp b_13
+  }
+
+  b_12 {
+    %o = load %m, 1: Int
+    %v_14 = alloca 1, 1: Ptr
+    store %v_14, %o, 1
+    %v_15 = call_complex tagOf, %v_14: Int
+    %v_16 = add %v_15, 300: Int
+    jmp b_13
+  }
+
+  b_11 {
+    %v_17 = load %m, 1: Long
+    %v_18 = cmp_le %v_17, 2: Int
+    %v_19 = select 1, 0, %v_18: Int
+    %v_20 = cmp_eq %v_19, 0: Int
+    je %v_20, b_21, b_12
+  }
+
+  b_21 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_22 = phi [b_5, 100], [b_21, 200], [b_12, %v_16]: Int
+    ret %v_22
   }
 }
 

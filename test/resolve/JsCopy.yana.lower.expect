@@ -5,6 +5,13 @@ seed<complex>(): Int {
   }
 }
 
+next<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = add %n, 1: Int
+    ret %v_1
+  }
+}
+
 barrier<complex>(%flag: Int): Int {
   b_0 {
     %v_1 = call_complex seed: Int
@@ -26,13 +33,6 @@ barrier<complex>(%flag: Int): Int {
     %v_8 = imul %v_6, 100: Int
     %v_9 = add %v_8, %v_7: Int
     ret %v_9
-  }
-}
-
-next<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = add %n, 1: Int
-    ret %v_1
   }
 }
 

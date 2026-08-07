@@ -181,7 +181,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
                         ? resolver.makeOutcome(function.returnType, true, nullptr, decl.source)
                         : resolver.yieldResult;
 
-            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, result));
+            resolver.terminate(resolver.emit<InstRet>(decl.source, StringId(), module.scalar.unit, result));
         }
 
         checkLensYields(module, function, toBuffer(resolver.yields), decl.source);
@@ -220,7 +220,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
                 result = unit ? nullptr : resolver.convert(result, function.returnType, decl.source);
             }
 
-            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit,
+            resolver.terminate(resolver.emit<InstRet>(decl.source, StringId(), module.scalar.unit,
                                                       resolver.returnValue(result, decl.source)));
         } else if(infer) {
             // Every path left through an explicit `return`, so nothing falls off the end for the
@@ -249,7 +249,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
 
         if(resolver.current) {
             if(isUnit(*module.types, function.returnType)) {
-                resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, nullptr));
+                resolver.terminate(resolver.emit<InstRet>(decl.source, StringId(), module.scalar.unit, nullptr));
             } else if(!resolver.sawParseError) {
                 // A body with a hole in it does not return a value because it is not finished,
                 // which the parser has already said. Saying it again puts a second mark on a
@@ -441,7 +441,7 @@ static void resolveEntryBody(Module& module, Function& function, ModulePtr<Funct
         function.returnType = module.scalar.unit;
     }
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, status));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, status));
 }
 
 /*

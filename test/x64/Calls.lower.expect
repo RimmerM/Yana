@@ -1,29 +1,7 @@
 
-liveAcrossCall<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %r = call_complex callee, %a, %b: Int
-    %s = add %r, %a: Int
-    ret %s
-  }
-}
-
 callee<complex>(%x: Int, %y: Int): Int {
   b_0 {
     ret %x
-  }
-}
-
-sysCall<complex>(%n: Int, %fd: Int, %buf: Int, %len: Int): Int {
-  b_0 {
-    %r = syscall %n, %fd, %buf, %len: Int
-    ret %r
-  }
-}
-
-pushCall<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %b: Int
-    ret %r
   }
 }
 
@@ -40,39 +18,34 @@ simpleCall<complex>(%a: Int, %b: Int): Int {
   }
 }
 
+liveAcrossCall<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_complex callee, %a, %b: Int
+    %s = add %r, %a: Int
+    ret %s
+  }
+}
 
---- codegen: liveAcrossCall ---
-  prologue  => 53
-block #0:
-  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 488bfbe804000000
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 5bc3
+pushCall<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %b: Int
+    ret %r
+  }
+}
+
+sysCall<complex>(%n: Int, %fd: Int, %buf: Int, %len: Int): Int {
+  b_0 {
+    %r = syscall %n, %fd, %buf, %len: Int
+    ret %r
+  }
+}
+
 
 --- codegen: callee ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: sysCall ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  syscall uses=[rax, rdi, rsi, rdx] creates=[rax] pre=[rdi->rax, rsi->rdi, rdx->rsi, rcx->rdx]  => 488bc7488bfe488bf2488bd10f05
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: pushCall ---
-  prologue  => 4883ec08
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  x86_pusharg uses=[rsi] creates=[-]  => 48893424
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe805000000
-  ret uses=[rax] creates=[]  => 4883c408c3
 
 --- codegen: many ---
 block #0:
@@ -85,5 +58,32 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8bdffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8f3ffffff
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: liveAcrossCall ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 488bfbe8e6ffffff
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 5bc3
+
+--- codegen: pushCall ---
+  prologue  => 4883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_pusharg uses=[rsi] creates=[-]  => 48893424
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe8c4ffffff
+  ret uses=[rax] creates=[]  => 4883c408c3
+
+--- codegen: sysCall ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  syscall uses=[rax, rdi, rsi, rdx] creates=[rax] pre=[rdi->rax, rsi->rdi, rdx->rsi, rcx->rdx]  => 488bc7488bfe488bf2488bd10f05
   ret uses=[rax] creates=[]  => c3

@@ -11,11 +11,12 @@
 struct Identifier {
     Identifier(): textLength(0), segmentCount(0) {}
 
-    U32 getHash(U32 index) const {
+    // A name, so StringId rather than U32 - this is where a segment's id comes from.
+    StringId getHash(U32 index) const {
         if(segmentCount == 1) {
-            return segmentHash;
+            return StringId(segmentHash);
         } else {
-            return segmentHashes[index];
+            return StringId(segmentHashes[index]);
         }
     }
 
@@ -75,7 +76,7 @@ struct CompletionRequest;
  * `prefixStart` and `offset` is the partial name to filter by and only the server holds the text.
  */
 struct Cursor {
-    StringId module = 0;
+    StringId module {};
     U32 offset = 0;
 
     // The sentinel's node, so a caller can say where the answer applies, and where the partial name

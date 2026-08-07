@@ -1,35 +1,4 @@
 
-loopCall<complex>(%n: Int): Int {
-  start {
-    %z = cast 0: Int
-    jmp head
-  }
-
-  head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %s = phi [start, %z], [body, %s2]: Int
-    %v_0 = cmp_ilt %i, %n: Int
-    je %v_0, body, out
-  }
-
-  body {
-    %r = call_complex helper, %i: Int
-    %s2 = add %s, %r: Int
-    %i2 = add %i, 1: Int
-    jmp head
-  }
-
-  out {
-    ret %s
-  }
-}
-
-helper<complex>(%x: Int): Int {
-  b_0 {
-    ret %x
-  }
-}
-
 nested<complex>(%n: Int, %m: Int): Int {
   start {
     %z = cast 0: Int
@@ -63,33 +32,37 @@ nested<complex>(%n: Int, %m: Int): Int {
   }
 }
 
+loopCall<complex>(%n: Int): Int {
+  start {
+    %z = cast 0: Int
+    jmp head
+  }
 
---- codegen: loopCall ---
-  prologue  => 5341544155
-block #0:
-  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
-block start:
-  imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[r12]  => 41bc00000000
-  jmp uses=[] creates=[] pre=[r12->r13]  => 4d8bec
-block head:
-  cmp_ilt uses=[r12, rbx] creates=[-]  => 4139dc
-  je uses=[-] creates=[]  => 0f8d13000000
-block body:
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce814000000
-  add uses=[r13, rax] creates=[r13]  => 4101c5
-  imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12]  => 41ffc4
-  jmp uses=[] creates=[]  => e9e4ffffff
-block out:
-  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415d415c5bc3
+  head {
+    %i = phi [start, %z], [body, %i2]: Int
+    %s = phi [start, %z], [body, %s2]: Int
+    %v_0 = cmp_ilt %i, %n: Int
+    je %v_0, body, out
+  }
 
---- codegen: helper ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  body {
+    %r = call_complex helper, %i: Int
+    %s2 = add %s, %r: Int
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  out {
+    ret %s
+  }
+}
+
+helper<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
 
 --- codegen: nested ---
 block #0:
@@ -119,3 +92,30 @@ block outerEnd:
   jmp uses=[] creates=[]  => e9daffffff
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+
+--- codegen: loopCall ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
+block start:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[r12]  => 41bc00000000
+  jmp uses=[] creates=[] pre=[r12->r13]  => 4d8bec
+block head:
+  cmp_ilt uses=[r12, rbx] creates=[-]  => 4139dc
+  je uses=[-] creates=[]  => 0f8d13000000
+block body:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce814000000
+  add uses=[r13, rax] creates=[r13]  => 4101c5
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12]  => 41ffc4
+  jmp uses=[] creates=[]  => e9e4ffffff
+block out:
+  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415d415c5bc3
+
+--- codegen: helper ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

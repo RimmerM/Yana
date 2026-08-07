@@ -859,7 +859,7 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
 
         if(global[content]->kind != Type::Tup) {
             into << "(";
-            placeholder(0);
+            placeholder(StringId());
             into << ")";
             return true;
         }
@@ -1351,15 +1351,15 @@ static StringId writtenArgumentName(Context& context, StringView text, U32 from,
 
     auto start = i;
     while(i < to && isIdentifier(text.ptr[i])) i++;
-    if(i == start) return 0;
+    if(i == start) return StringId();
 
     auto end = i;
     while(i < to && isBlank(text.ptr[i])) i++;
 
     // `::` is an ascription and `:` opens a block, so the one that names an argument is a single
     // colon with something after it that is not another one.
-    if(i >= to || text.ptr[i] != ':') return 0;
-    if(i + 1 < text.length && text.ptr[i + 1] == ':') return 0;
+    if(i >= to || text.ptr[i] != ':') return StringId();
+    if(i + 1 < text.length && text.ptr[i + 1] == ':') return StringId();
 
     return context.addUnqualifiedName(text.ptr + start, end - start);
 }

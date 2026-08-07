@@ -1,10 +1,9 @@
 
-bits<complex>(%d: Double, %l: Long): Long {
+loadStore<complex>(%p: Ptr, %v: Double): Double {
   b_0 {
-    %a = bitcast %d: Long
-    %b = bitcast %l: Double
-    %c = bitcast %b: Long
-    %s = add %a, %c: Long
+    store %p, %v, 8
+    %l = load %p, 8: Double
+    %s = add %l, %v: Double
     ret %s
   }
 }
@@ -27,28 +26,11 @@ indexed<complex>(%p: Ptr, %i: Long): Double {
   }
 }
 
-unsigned64<complex>(%u: Long, %f: Double): Long {
+convert<complex>(%i: Int, %l: Long): Double {
   b_0 {
-    %a = cast %u: Double
-    %b = add %a, %f: Double
-    %r = cast %b: Long
-    ret %r
-  }
-}
-
-unusedConversion<complex>(%u: Long, %v: Long): Long {
-  b_0 {
-    %dead = cast %u: Double
-    %r = add %u, %v: Long
-    ret %r
-  }
-}
-
-widen<complex>(%f: Float, %d: Double): Float {
-  b_0 {
-    %a = cast %f: Double
-    %b = add %a, %d: Double
-    %c = cast %b: Float
+    %a = itof %i: Double
+    %b = itof %l: Double
+    %c = add %a, %b: Double
     ret %c
   }
 }
@@ -59,15 +41,6 @@ convert32<complex>(%i: Int, %l: Long): Float {
     %b = itof %l: Float
     %c = sub %a, %b: Float
     ret %c
-  }
-}
-
-loadStore<complex>(%p: Ptr, %v: Double): Double {
-  b_0 {
-    store %p, %v, 8
-    %l = load %p, 8: Double
-    %s = add %l, %v: Double
-    ret %s
   }
 }
 
@@ -90,22 +63,12 @@ unsigned32<complex>(%u: Int, %f: Double): Int {
   }
 }
 
-bits32<complex>(%f: Float, %i: Int): Int {
+unsigned64<complex>(%u: Long, %f: Double): Long {
   b_0 {
-    %a = bitcast %f: Int
-    %b = bitcast %i: Float
-    %c = bitcast %b: Int
-    %s = add %a, %c: Int
-    ret %s
-  }
-}
-
-convert<complex>(%i: Int, %l: Long): Double {
-  b_0 {
-    %a = itof %i: Double
-    %b = itof %l: Double
-    %c = add %a, %b: Double
-    ret %c
+    %a = cast %u: Double
+    %b = add %a, %f: Double
+    %r = cast %b: Long
+    ret %r
   }
 }
 
@@ -118,16 +81,52 @@ unsigned64Float<complex>(%u: Long, %f: Float): Long {
   }
 }
 
+unusedConversion<complex>(%u: Long, %v: Long): Long {
+  b_0 {
+    %dead = cast %u: Double
+    %r = add %u, %v: Long
+    ret %r
+  }
+}
 
---- codegen: bits ---
+widen<complex>(%f: Float, %d: Double): Float {
+  b_0 {
+    %a = cast %f: Double
+    %b = add %a, %d: Double
+    %c = cast %b: Float
+    ret %c
+  }
+}
+
+bits<complex>(%d: Double, %l: Long): Long {
+  b_0 {
+    %a = bitcast %d: Long
+    %b = bitcast %l: Double
+    %c = bitcast %b: Long
+    %s = add %a, %c: Long
+    ret %s
+  }
+}
+
+bits32<complex>(%f: Float, %i: Int): Int {
+  b_0 {
+    %a = bitcast %f: Int
+    %b = bitcast %i: Float
+    %c = bitcast %b: Int
+    %s = add %a, %c: Int
+    ret %s
+  }
+}
+
+
+--- codegen: loadStore ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  bitcast uses=[xmm0] creates=[rax]  => 66480f7ec0
-  bitcast uses=[rdi] creates=[xmm0]  => 66480f6ec7
-  bitcast uses=[xmm0] creates=[rcx]  => 66480f7ec1
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
-  ret uses=[rax] creates=[]  => c3
+  store uses=[rdi, xmm0] creates=[]  => f20f1107
+  load uses=[rdi] creates=[xmm1]  => f20f100f
+  add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: loadStore32 ---
 block #0:
@@ -146,6 +145,45 @@ block #1:
   x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
   load uses=[-] creates=[xmm0]  => f20f1004f7
   ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: convert ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  itof uses=[rdi] creates=[xmm0]  => f20f2ac7
+  itof uses=[rsi] creates=[xmm1]  => f2480f2ace
+  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: convert32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  itof uses=[rdi] creates=[xmm0]  => f30f2ac7
+  itof uses=[rsi] creates=[xmm1]  => f3480f2ace
+  sub uses=[xmm0, xmm1] creates=[xmm0]  => f30f5cc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: truncate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ftoi uses=[xmm0] creates=[rax]  => f30f2cc0
+  ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
+  sext uses=[rax] creates=[rax]  => 4863c0
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: unsigned32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  itof uses=[rdi] creates=[xmm1]  => f2480f2acf
+  add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
+  ftoi uses=[xmm1] creates=[rax]  => f2480f2cc1
+  cast uses=[rax] creates=[rax]  => 8bc0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: unsigned64 ---
 block #0:
@@ -172,80 +210,6 @@ block #1:
   select uses=[rax, rcx, -] creates=[rax]  => 480f42c1
   ret uses=[rax] creates=[]  => c3
 
---- codegen: unusedConversion ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 4801f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: widen ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  cast uses=[xmm0] creates=[xmm0]  => f30f5ac0
-  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
-  cast uses=[xmm0] creates=[xmm0]  => f20f5ac0
-  ret uses=[xmm0] creates=[]  => c3
-
---- codegen: convert32 ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  itof uses=[rdi] creates=[xmm0]  => f30f2ac7
-  itof uses=[rsi] creates=[xmm1]  => f3480f2ace
-  sub uses=[xmm0, xmm1] creates=[xmm0]  => f30f5cc1
-  ret uses=[xmm0] creates=[]  => c3
-
---- codegen: loadStore ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  store uses=[rdi, xmm0] creates=[]  => f20f1107
-  load uses=[rdi] creates=[xmm1]  => f20f100f
-  add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
-
---- codegen: truncate ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ftoi uses=[xmm0] creates=[rax]  => f30f2cc0
-  ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
-  sext uses=[rax] creates=[rax]  => 4863c0
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: unsigned32 ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  cast uses=[rdi] creates=[rdi]  => 8bff
-  itof uses=[rdi] creates=[xmm1]  => f2480f2acf
-  add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
-  ftoi uses=[xmm1] creates=[rax]  => f2480f2cc1
-  cast uses=[rax] creates=[rax]  => 8bc0
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: bits32 ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  bitcast uses=[xmm0] creates=[rax]  => 660f7ec0
-  bitcast uses=[rdi] creates=[xmm0]  => 660f6ec7
-  bitcast uses=[xmm0] creates=[rcx]  => 660f7ec1
-  add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: convert ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  itof uses=[rdi] creates=[xmm0]  => f20f2ac7
-  itof uses=[rsi] creates=[xmm1]  => f2480f2ace
-  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
-  ret uses=[xmm0] creates=[]  => c3
-
 --- codegen: unsigned64Float ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -269,4 +233,40 @@ block #1:
   ftoi uses=[xmm2] creates=[rcx]  => f3480f2cca
   cmp_ge uses=[xmm2, xmm0] creates=[-]  => 0f2ed0
   select uses=[rax, rcx, -] creates=[rax]  => 480f42c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: unusedConversion ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 4801f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: widen ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[xmm0] creates=[xmm0]  => f30f5ac0
+  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
+  cast uses=[xmm0] creates=[xmm0]  => f20f5ac0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: bits ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[rax]  => 66480f7ec0
+  bitcast uses=[rdi] creates=[xmm0]  => 66480f6ec7
+  bitcast uses=[xmm0] creates=[rcx]  => 66480f7ec1
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: bits32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[rax]  => 660f7ec0
+  bitcast uses=[rdi] creates=[xmm0]  => 660f6ec7
+  bitcast uses=[xmm0] creates=[rcx]  => 660f7ec1
+  add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => c3

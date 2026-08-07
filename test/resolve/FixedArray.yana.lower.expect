@@ -184,6 +184,37 @@ double<complex>(%xs: Ptr) {
   }
 }
 
+padRead<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 9, 8: Ptr
+    store %v_1, 10, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 1, 1
+    %v_3 = alloca 9, 8: Ptr
+    store %v_3, 20, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 2, 1
+    %v_5 = alloca 9, 8: Ptr
+    store %v_5, 30, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 3, 1
+    %v_7 = alloca 48, 8: Ptr
+    copy %v_7, %v_1, 9
+    %v_8 = add %v_7, 16: Ptr
+    copy %v_8, %v_3, 9
+    %v_9 = add %v_7, 32: Ptr
+    copy %v_9, %v_5, 9
+    %v_10 = loads %v_7, 8: Long
+    %v_11 = add %v_7, 16: Ptr
+    %v_12 = loads %v_11, 8: Long
+    %v_13 = add %v_10, %v_12: Long
+    %v_14 = add %v_7, 32: Ptr
+    %v_15 = loads %v_14, 8: Long
+    %v_16 = add %v_13, %v_15: Long
+    ret %v_16
+  }
+}
+
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 4: Ptr
@@ -277,37 +308,6 @@ main<complex>(): Int {
 
   b_8 {
     ret 18446744073709551613
-  }
-}
-
-padRead<complex>(): Long {
-  b_0 {
-    %v_1 = alloca 9, 8: Ptr
-    store %v_1, 10, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 1, 1
-    %v_3 = alloca 9, 8: Ptr
-    store %v_3, 20, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 2, 1
-    %v_5 = alloca 9, 8: Ptr
-    store %v_5, 30, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 3, 1
-    %v_7 = alloca 48, 8: Ptr
-    copy %v_7, %v_1, 9
-    %v_8 = add %v_7, 16: Ptr
-    copy %v_8, %v_3, 9
-    %v_9 = add %v_7, 32: Ptr
-    copy %v_9, %v_5, 9
-    %v_10 = loads %v_7, 8: Long
-    %v_11 = add %v_7, 16: Ptr
-    %v_12 = loads %v_11, 8: Long
-    %v_13 = add %v_10, %v_12: Long
-    %v_14 = add %v_7, 32: Ptr
-    %v_15 = loads %v_14, 8: Long
-    %v_16 = add %v_13, %v_15: Long
-    ret %v_16
   }
 }
 

@@ -46,7 +46,7 @@
  * the places these produce.
  */
 struct Binding {
-    StringId name = 0;
+    StringId name {};
     ModulePtr<Value> value = nullptr;
     U32 local = maxLimit<U32>;
 
@@ -90,7 +90,7 @@ struct Binding {
  * what decides whether the environment holds the value or an address.
  */
 struct Capture {
-    StringId name = 0;
+    StringId name {};
 
     // The captured value's type. The environment's field is `&T` for a by-reference capture and
     // `T` for the two that own, which is the whole of what the convention changes here.
@@ -560,7 +560,7 @@ struct OverloadSet {
      */
     ArgNames names;
 
-    StringId name = 0;
+    StringId name {};
 
     // How many arguments the call site *wrote*, which is what R1's key is about. It is no longer
     // how many parameters a candidate has: a candidate may declare more and fill the rest from its
@@ -1258,20 +1258,20 @@ struct ExprResolver {
     // Selects one callee out of an already-gathered set and emits the call to it. The written form:
     // `resolveCall` and the operators reach it with the set they resolved their arguments against.
     ModulePtr<Value> emitCall(const OverloadSet& set, Buffer<ResolvedArg> args, LocationId source,
-                              TypePtr target = nullptr, StringId resultName = 0);
+                              TypePtr target = nullptr, StringId resultName = StringId());
 
     // The synthesized form, which gathers the set itself. Everything this resolver builds on the
     // author's behalf - a pattern's `==`, an array literal's `slice`, a `for` loop's arithmetic -
     // has a name and a list of values it just produced, and nothing else to say about the callee.
-    ModulePtr<Value> emitCall(StringId name, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, LocationId nameSource = kNullLocation);
-    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+    ModulePtr<Value> emitCall(StringId name, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = StringId(), LocationId nameSource = kNullLocation);
+    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args, LocationId source, TypePtr target = nullptr, StringId resultName = StringId());
 
     // A call to a function the call site has already settled on, generic or not. The one place that
     // fork is stated - see expr_call.cpp.
     // `solved` is the substitution a selection already decided, or empty - see
     // ResolvedCallee::typeArgs. Every other caller reaches a callee without having solved it.
     ModulePtr<Value> emitKnownFunction(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
-                                       LocationId source, TypePtr target = nullptr, StringId resultName = 0,
+                                       LocationId source, TypePtr target = nullptr, StringId resultName = StringId(),
                                        Buffer<TypePtr> solved = {});
 
     // A call to a generic function: infers its type arguments from the call - or takes the ones
@@ -1331,7 +1331,7 @@ struct ExprResolver {
     // written in, which is what decides the instances its own requirements are proved against.
     ModulePtr<Value> emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance, Buffer<TypePtr> instanceArgs,
                                       U16 index, Buffer<ResolvedArg> args, LocationId source,
-                                      TypePtr target = nullptr, StringId resultName = 0);
+                                      TypePtr target = nullptr, StringId resultName = StringId());
 
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                             TypeList& instanceArgs);
@@ -1507,7 +1507,7 @@ struct ExprResolver {
     // assignment and a `&` argument check before writing through.
     // `closureEnv` marks the storage a closure's captures live in: released by the function value
     // that owns it rather than by this frame - see Local::closureEnv.
-    ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0,
+    ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = StringId(),
                               ast::BindType convention = ast::BindType::Borrow, bool closureEnv = false);
 
     // Storage for `extent` values of one type, laid out at a stride - Implementation-Containers.md
@@ -1651,7 +1651,7 @@ struct ExprResolver {
     void createBox(Place pointer, TypePtr target, LocationId source);
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
-    ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);
+    ModulePtr<Value> load(Place place, LocationId source, StringId name = StringId());
 
     // A read of a whole global that only existed for a projection to be taken off it - see
     // expr_construct.cpp, and why it is removed here rather than left to the optimizer.
@@ -1666,7 +1666,7 @@ struct ExprResolver {
     void initialize(Place place, ModulePtr<Value> value, LocationId source);
     void assign(Place place, ModulePtr<Value> value, LocationId source);
     void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind);
-    ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = 0);
+    ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = StringId());
 
     // `[1, 2, 3]`, and `xs[i]` in either a reading or an assigning position. Both build calls into
     // Collections rather than anything the IR knows about - see expr_construct.cpp.
@@ -1977,7 +1977,7 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
     // `Size` rather than a machine word: this counter is an index, and the two are the same type
     // natively and different host types on JS - see the note at the unrolled form above.
     auto word = module.scalar.size;
-    auto counter = allocate(word, source, 0, ast::BindType::Ref);
+    auto counter = allocate(word, source, StringId(), ast::BindType::Ref);
     auto counterPlace = placeFor(counter, source);
     initialize(counterPlace, makeInt(source, word, 0), source);
 
@@ -1985,22 +1985,22 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
     auto step = addBlock();
     auto exit = addBlock();
 
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, test));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, test));
     current = test;
 
     auto index = load(counterPlace, source);
     auto limit = makeInt(source, word, length);
-    auto more = ref(emit<InstCmp>(source, 0, module.scalar.bool_, index, limit, CompareOp::Lt));
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, more, step, exit));
+    auto more = ref(emit<InstCmp>(source, StringId(), module.scalar.bool_, index, limit, CompareOp::Lt));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, more, step, exit));
 
     current = step;
     body(project(array, ProjectionKind::Index, 0, index), index);
 
     auto one = makeInt(source, word, 1);
-    auto next = ref(emit<InstBinary>(source, 0, word, Value::Add, index, one));
+    auto next = ref(emit<InstBinary>(source, StringId(), word, Value::Add, index, one));
     assign(counterPlace, next, source);
 
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, test));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, test));
     current = exit;
 }
 

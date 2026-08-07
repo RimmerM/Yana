@@ -1,8 +1,8 @@
+@dynamic = [0, 0, 0, 0]
+@counter = [0, 0, 0, 0]
 @origin = [1, 0, 0, 0, 2, 0, 0, 0]
 @string$0 = [97, 98]
 @greeting = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
-@dynamic = [0, 0, 0, 0]
-@counter = [0, 0, 0, 0]
 
 Length(String).length<complex>(%self: Ptr): Long {
   b_0 {
@@ -15,14 +15,25 @@ Length(String).length<complex>(%self: Ptr): Long {
   }
 }
 
-main$<complex>(): Int {
+countdown<complex>(%k: Int): Int {
   b_0 {
-    store @dynamic, 7, 4
-    %v_1 = loads @counter, 4: Int
-    %v_2 = add %v_1, 20: Int
-    store @counter, %v_2, 4
-    %v_3 = call_complex main: Int
-    ret %v_3
+    %v_1 = cmp_ile %k, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = loads @dynamic, 4: Int
+    ret %v_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %k, 1: Int
+    %v_7 = call_complex countdown, %v_6: Int
+    ret %v_7
   }
 }
 
@@ -99,25 +110,14 @@ main<complex>(): Int {
   }
 }
 
-countdown<complex>(%k: Int): Int {
+main$<complex>(): Int {
   b_0 {
-    %v_1 = cmp_ile %k, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = loads @dynamic, 4: Int
-    ret %v_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %k, 1: Int
-    %v_7 = call_complex countdown, %v_6: Int
-    ret %v_7
+    store @dynamic, 7, 4
+    %v_1 = loads @counter, 4: Int
+    %v_2 = add %v_1, 20: Int
+    store @counter, %v_2, 4
+    %v_3 = call_complex main: Int
+    ret %v_3
   }
 }
 

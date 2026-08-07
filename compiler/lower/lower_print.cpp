@@ -290,14 +290,14 @@ StringView nameForCall(LowerCallType type) {
 void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module, PrintAnnotations annotations) {
     PrintContext print;
 
-    for(auto g: module.globals) {
+    for(auto g: module.globalOrder) {
         printGlobal(writer, context, base, *base[g], print);
         writer.writeByte('\n');
     }
 
     writer.writeByte('\n');
 
-    for(auto f: module.functions) {
+    for(auto f: module.functionOrder) {
         Ptr<Liveness> l;
         FunctionFrequencyInfo frequency;
 

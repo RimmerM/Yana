@@ -384,7 +384,7 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
         yields.push(LensYield { current, expr.source });
     }
 
-    auto result = emitDynamicCall(continuation, toBuffer(args), expr.source, 0);
+    auto result = emitDynamicCall(continuation, toBuffer(args), expr.source, StringId());
 
     // Marked here rather than derived in the ownership passes, because this is the only place that
     // knows the callee is a continuation. A lifted body reaches its enclosing one by capture, so
@@ -420,7 +420,7 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
     auto stopped = addBlock();
     auto next = addBlock();
 
-    terminate(emit<InstJe>(expr.source, 0, module.scalar.unit, leaving, stopped, next));
+    terminate(emit<InstJe>(expr.source, StringId(), module.scalar.unit, leaving, stopped, next));
 
     current = stopped;
     emitFunctionReturn(result, expr.source);
@@ -684,7 +684,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     values.push(continuation);
 
-    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, 0);
+    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
 
     if(!call_ || !current) return true;
 
@@ -712,7 +712,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     ResolvedArg carried[] = { call_ };
     auto outcome = emitInstanceCall(module, selection.instance, toBuffer(selection.instanceArgs),
-                                    selection.toOutcome, { carried, 1 }, source, nullptr, 0);
+                                    selection.toOutcome, { carried, 1 }, source, nullptr, StringId());
 
     if(!outcome || !current) return true;
 
@@ -722,7 +722,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     auto skipBlock = addBlock();
     auto proceedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, skipBlock, proceedBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, leaving, skipBlock, proceedBlock));
 
     /*
      * The alternatives, and then the ordinary call site underneath them.
@@ -782,7 +782,7 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
     auto exitBlock = addBlock();
     auto proceedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, exitBlock, proceedBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, leaving, exitBlock, proceedBlock));
 
     current = exitBlock;
     emitFunctionReturn(outcomePayload(value, false, source), source);

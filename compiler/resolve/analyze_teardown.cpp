@@ -145,7 +145,7 @@ static void teardownPlace(ExprResolver& resolver, Module& module, Place place, T
     if(!implementation && !releases) return;
 
     auto isDrop = half == Teardown::Drop;
-    auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place,
+    auto drop = resolver.emit<InstDrop>(source, StringId(), module.scalar.unit, place,
                                         isDrop ? teardown : TeardownKind::None,
                                         isDrop ? TeardownKind::None : teardown);
 
@@ -261,11 +261,11 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
             tested = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source);
         }
 
-        auto present = resolver.emit<InstCmp>(source, 0, module.scalar.bool_, tested, empty, CompareOp::Ne);
+        auto present = resolver.emit<InstCmp>(source, StringId(), module.scalar.bool_, tested, empty, CompareOp::Ne);
 
         auto run = resolver.addBlock();
         exit = resolver.addBlock();
-        resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit, resolver.ref(present), run, exit));
+        resolver.terminate(resolver.emit<InstJe>(source, StringId(), module.scalar.unit, resolver.ref(present), run, exit));
         resolver.current = run;
     }
 
@@ -296,13 +296,13 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
             resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source));
     } else {
         auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
-        auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, codeWord));
-        auto distance = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, word, headerContent,
+        auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, StringId(), word, Value::Cast, codeWord));
+        auto distance = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), word, headerContent,
                                                                    TypeMetricKind::Size));
-        auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, 0, word, Value::Sub, codeInt, distance));
+        auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, StringId(), word, Value::Sub, codeInt, distance));
 
         header = Place::atPointer(
-            resolver.ref(resolver.emit<InstUnary>(source, 0, headerType, Value::Cast, headerInt)));
+            resolver.ref(resolver.emit<InstUnary>(source, StringId(), headerType, Value::Cast, headerInt)));
     }
 
     auto slot = half == Teardown::Drop ? ClosureHeaderFields::kDrop : ClosureHeaderFields::kReclaim;
@@ -310,14 +310,14 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
 
     // No signature: this is the compiler calling a teardown it generated, not a program calling a
     // function value, so there are no conventions to honour and no environment convention either.
-    auto teardown = resolver.create<InstCallDyn>(source, 0, module.scalar.unit, nullptr, operation, nullptr);
+    auto teardown = resolver.create<InstCallDyn>(source, StringId(), module.scalar.unit, nullptr, operation, nullptr);
     teardown->args.push(module.arena, env);
     resolver.append(teardown);
 
     // Nothing to rejoin where there was no branch: the call is the whole body and the caller's
     // `ret` follows it.
     if(exit) {
-        resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+        resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
         resolver.current = exit;
     }
 }
@@ -462,12 +462,12 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
                     resolver.project(base, ProjectionKind::Discriminant, 0), source);
 
                 auto index = resolver.makeInt(source, module.scalar.int_, constructor.index);
-                auto matches = resolver.emit<InstCmp>(source, 0, module.scalar.bool_,
+                auto matches = resolver.emit<InstCmp>(source, StringId(), module.scalar.bool_,
                                                       discriminant, index, CompareOp::Eq);
 
                 auto drops = resolver.addBlock();
                 auto next = resolver.addBlock();
-                resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit,
+                resolver.terminate(resolver.emit<InstJe>(source, StringId(), module.scalar.unit,
                                                          resolver.ref(matches), drops, next));
 
                 resolver.current = drops;
@@ -481,17 +481,17 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
                                                      U16(constructor.index)),
                                     content, half, source);
                 }
-                resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+                resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
 
                 resolver.current = next;
             }
 
-            resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+            resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
             resolver.current = exit;
         }
     }
 
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
     return pointer;
 }
 
@@ -629,7 +629,7 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
     ExprResolver resolver(module.context, module, *function);
     teardownPlace(resolver, module, Place::atPointer((ModulePtr<Value>)(arg - *module.arena)),
                   type, false, half, source);
-    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
 
     return pointer;
 }

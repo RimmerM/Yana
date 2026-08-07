@@ -1,61 +1,5 @@
 @dropCalls = [0, 0, 0, 0]
 
-handedOff<complex>(%id: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %id, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$1, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = call_complex consume, %v_2: Int
-    ret %v_4
-  }
-}
-
-ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %x, %v_1: Int
-    ret %v_2
-  }
-}
-
-inFrame<complex>(%id: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %id, 4
-    %f = alloca 16, 8: Ptr
-    store %f, ResolveTest.lambda$0, 8
-    %v_2 = add %f, 8: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = add %f, 8: Ptr
-    %v_4 = load %f, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, 10: Int
-    call_complex drop${g: Guard}, %v_1
-    ret %v_6
-  }
-}
-
-drop${g: Guard}<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropCalls, %v_2, 4
-    ret 
-  }
-}
-
-drop${g: Guard}$1<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropCalls, %v_2, 4
-    ret 
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -109,6 +53,36 @@ consume<complex>(%f: Ptr): Int {
   }
 }
 
+inFrame<complex>(%id: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %id, 4
+    %f = alloca 16, 8: Ptr
+    store %f, ResolveTest.lambda$0, 8
+    %v_2 = add %f, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = add %f, 8: Ptr
+    %v_4 = load %f, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, 10: Int
+    call_complex drop${g: Guard}, %v_1
+    ret %v_6
+  }
+}
+
+handedOff<complex>(%id: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %id, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = call_complex consume, %v_2: Int
+    ret %v_4
+  }
+}
+
 main<complex>(): Int {
   b_0 {
     %a = call_complex inFrame, 3: Int
@@ -120,12 +94,38 @@ main<complex>(): Int {
   }
 }
 
+ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = loads %env, 4: Int
+    %v_2 = add %x, %v_1: Int
+    ret %v_2
+  }
+}
+
+drop${g: Guard}<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
+  }
+}
+
 @closure$ResolveTest.lambda$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = add %x, %v_1: Int
     ret %v_2
+  }
+}
+
+drop${g: Guard}$1<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
+    ret 
   }
 }
 

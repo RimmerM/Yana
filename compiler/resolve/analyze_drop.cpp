@@ -321,11 +321,11 @@ static U32 makeFlag(Analysis& analysis, ModulePtr<Inst>& allocation) {
     auto entry = analysis.blockAt(0);
     auto type = module.scalar.bool_;
 
-    auto created = createInst<InstAlloc>(module, function, *entry, entry->source, 0, type,
+    auto created = createInst<InstAlloc>(module, function, *entry, entry->source, StringId(), type,
                                          maxLimit<U32>);
 
     auto value = (ModulePtr<Value>)((Value*)created - analysis.local);
-    created->local = function.addLocal(module, type, 0, value, ast::BindType::Ref);
+    created->local = function.addLocal(module, type, StringId(), value, ast::BindType::Ref);
 
     allocation = (ModulePtr<Inst>)((Inst*)created - analysis.local);
     return created->local;
@@ -546,7 +546,7 @@ static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, Loca
     auto releases = localIndex < analysis.releasesStorage.size() && analysis.releasesStorage[localIndex];
     if(!drop_ && !reclaim && !releases) return nullptr;
 
-    auto drop = createInst<InstDrop>(module, analysis.function, block, source, 0,
+    auto drop = createInst<InstDrop>(module, analysis.function, block, source, StringId(),
                                      module.scalar.unit, Place::inLocal(localIndex),
                                      ownership.drop, ownership.reclaim);
 
@@ -587,7 +587,7 @@ static InstDrop* makeOverwriteDrop(Analysis& analysis, Block& block, ModulePtr<I
     auto reclaim = teardownFor(module, type, Teardown::Reclaim, source);
     if(!drop_ && !reclaim) return nullptr;
 
-    auto drop = createInst<InstDrop>(module, analysis.function, block, source, 0,
+    auto drop = createInst<InstDrop>(module, analysis.function, block, source, StringId(),
                                      module.scalar.unit, place, ownership.drop, ownership.reclaim);
 
     drop->drop = drop_;
@@ -609,7 +609,7 @@ static void makeFlagWrite(Analysis& analysis, Block& block, const PendingFlag& p
     auto value = addConstant<ConstInt>(module, function, block, source, module.scalar.bool_,
                                        pending.value ? 1 : 0);
 
-    auto write = createInst<InstInit>(module, function, block, source, 0, module.scalar.unit,
+    auto write = createInst<InstInit>(module, function, block, source, StringId(), module.scalar.unit,
                                       Place::inLocal(pending.flag),
                                       (ModulePtr<Value>)((Value*)value - analysis.local),
                                       pending.allocation ? Value::Init : Value::Assign);
@@ -819,14 +819,14 @@ static void elaborateFlaggedDrops(Analysis& analysis, FlaggedDropList& flagged) 
         guarded->source = source;
 
         editor.moveInstruction(pointer, *guarded);
-        editor.append(*guarded, createInst<InstJmp>(module, function, *guarded, source, 0,
+        editor.append(*guarded, createInst<InstJmp>(module, function, *guarded, source, StringId(),
                                                     module.scalar.unit, tailPointer));
 
-        auto read = createInst<InstLoadPlace>(module, function, *block, source, 0,
+        auto read = createInst<InstLoadPlace>(module, function, *block, source, StringId(),
                                               module.scalar.bool_, Place::inLocal(entry.flag));
         editor.append(*block, read);
 
-        editor.append(*block, createInst<InstJe>(module, function, *block, source, 0,
+        editor.append(*block, createInst<InstJe>(module, function, *block, source, StringId(),
                                                  module.scalar.unit,
                                                  (ModulePtr<Value>)((Value*)read - base),
                                                  guardedPointer, tailPointer));
@@ -842,7 +842,7 @@ static void elaborateFlaggedDrops(Analysis& analysis, FlaggedDropList& flagged) 
         if(dropped.releaseStorage) {
             dropped.releaseStorage = false;
 
-            auto release = createInst<InstDrop>(module, function, *tail, source, 0,
+            auto release = createInst<InstDrop>(module, function, *tail, source, StringId(),
                                                 module.scalar.unit, dropped.place,
                                                 dropped.dropKind, dropped.reclaimKind);
 

@@ -47,7 +47,7 @@ enum class Inferred: U8 {
 // One argument, as the callee's own summary describes it. Everything here is `FunctionSummary`'s
 // except the name, the type and the convention, which come from the `Arg` it is about.
 struct ArgExplanation {
-    StringId name = 0;
+    StringId name = StringId();
     TypePtr type = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
     LocationId source = kNullLocation;
@@ -70,7 +70,7 @@ struct ArgExplanation {
 // One local whose storage decision is worth reporting. Only the ones that are not the boring answer
 // are collected: a frame-placed local that nothing escapes says nothing a reader did not assume.
 struct LocalExplanation {
-    StringId name = 0;
+    StringId name = StringId();
     TypePtr type = nullptr;
     U32 index = 0;
     StorageClass storage = StorageClass::Stack;
@@ -87,7 +87,7 @@ struct LocalExplanation {
  * rewritten rather than extended.
  */
 struct AmbientDemand {
-    StringId name = 0;
+    StringId name = StringId();
     TypePtr type = nullptr;
 
     // The callee that required it and where, which is what makes an ambient failing three modules
@@ -105,8 +105,8 @@ struct AmbientDemand {
  * arguments" - be a filter over these records rather than a second printer.
  */
 struct Explanation {
-    StringId name = 0;
-    StringId module = 0;
+    StringId name = StringId();
+    StringId module = StringId();
     LocationId source = kNullLocation;
     TypePtr returnType = nullptr;
 

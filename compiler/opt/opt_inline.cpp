@@ -1486,14 +1486,14 @@ struct Inliner {
 
         switch(terminator.kind) {
             case Value::Ret:
-                return (Inst*)createInst<InstJmp>(module, function, into, source, 0, type,
+                return (Inst*)createInst<InstJmp>(module, function, into, source, StringId(), type,
                                                   continuation);
             case Value::Jmp:
-                return (Inst*)createInst<InstJmp>(module, function, into, source, 0, type,
+                return (Inst*)createInst<InstJmp>(module, function, into, source, StringId(), type,
                                                   mapBlock(clone, ((InstJmp&)terminator).target));
             case Value::Je: {
                 auto& branch = (InstJe&)terminator;
-                return (Inst*)createInst<InstJe>(module, function, into, source, 0, type,
+                return (Inst*)createInst<InstJe>(module, function, into, source, StringId(), type,
                                                  mapValue(clone, branch.cond),
                                                  mapBlock(clone, branch.thenBlock),
                                                  mapBlock(clone, branch.elseBlock));
@@ -1582,7 +1582,9 @@ struct Inliner {
         auto continuation = opt.ir().splitBlock(block, index);
         auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
 
-        Array<ClonedBlock> cloned;
+        // Inline: the blocks of one callee, at one call site. Nothing points into it - the entries
+        // hold the two block pointers rather than being pointed at - so growth past 16 is safe.
+        SmallArray<ClonedBlock, 16> cloned;
         for(Size i = 0; i < candidate.blocks.size(); i++) {
             ClonedBlock entry;
             entry.from = candidate.blocks[i];

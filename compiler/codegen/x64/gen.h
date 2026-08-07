@@ -84,6 +84,15 @@ struct CallConvention {
     bool defined = false;
 };
 
+/*
+ * Where the arguments of one call live.
+ *
+ * Inline, because one of these is built per call instruction by four passes here and a call with
+ * more than eight arguments is not what programs look like - see compiler/util/README.md. Nothing
+ * holds the address of an entry across a push: every reader indexes the finished list.
+ */
+using ArgLocationList = SmallArray<ArgLocation, 8>;
+
 // Assigns every argument of a call its location, by walking the argument list in order and handing
 // out registers of each class until the convention runs out. Both sides go through this - the caller
 // to place its operands, the callee to find where its arguments arrived, the verifier to check both.
@@ -91,7 +100,7 @@ struct CallConvention {
 // `typeOf` is asked for the type of argument `i`, so a caller can classify straight out of whatever
 // buffer it already has without building a type list first.
 template<class F>
-void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
+void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, ArgLocationList& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
 
     Size taken[kRegisterBankCount] = {};
@@ -119,7 +128,7 @@ void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, Arra
 
 // The same for a call's results, which no described convention passes on the stack.
 template<class F>
-void classifyResults(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
+void classifyResults(const CallConvention& convention, Size count, F&& typeOf, ArgLocationList& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
 
     Size taken[kRegisterBankCount] = {};
@@ -137,7 +146,7 @@ void classifyResults(const CallConvention& convention, Size count, F&& typeOf, A
 // Bytes of argument area a call needs: enough for the highest stack argument, plus any shadow space
 // the convention asks for even when every argument fitted in a register, rounded up so that opening
 // the area cannot knock rsp off the boundary the callee is entitled to expect.
-U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& args);
+U32 argAreaBytes(const CallConvention& convention, const ArgLocationList& args);
 
 // Byte count above which a Copy/SetPattern with a compile-time size stops being straight-lined into
 // plain moves and takes the rep-prefixed string instruction instead. Chosen once, in
@@ -177,8 +186,8 @@ const Constraints& targetConstraints();
 
 struct InstShape {
     // Parallel to the instruction's own used()/created() buffers, so operand N is entry N.
-    Array<ArgLocation> uses;
-    Array<ArgLocation> creates;
+    ArgLocationList uses;
+    ArgLocationList creates;
 
     // Emptied rather than rebuilt. Every caller asks for this per instruction inside a walk of the
     // function - four of the passes here do, some of them more than once per instruction - so one
@@ -1216,7 +1225,7 @@ struct AsmModule {
 //  - X86Lea: materializes the computed address into a real register (LEA), e.g. for pointer
 //    arithmetic that doesn't immediately feed a Load/Store.
 struct LowerInstX86Address: LowerInstSingle {
-    LowerInstX86Address(LowerInst::Kind kind, U32 name, LowerPtr<LowerValue> base, LowerPtr<LowerValue> index, U8 scale, U32 displacement):
+    LowerInstX86Address(LowerInst::Kind kind, StringId name, LowerPtr<LowerValue> base, LowerPtr<LowerValue> index, U8 scale, U32 displacement):
         LowerInstSingle(kind, name, LowerType::Pointer),
         first(base ? base : index), second(base && index ? index : nullptr),
         displacement(displacement), scale(scale),

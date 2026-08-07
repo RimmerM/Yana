@@ -20,9 +20,24 @@ neutralLayout<complex>(%c: Int, %a: Int): Int {
   }
 }
 
-sink<complex>(%v: Int): Int {
-  b_0 {
-    ret %v
+hintedLayout<complex>(%c: Int, %a: Int): Int {
+  start {
+    je %c, [hot, 99], [cold, 1]
+  }
+
+  hot {
+    %h = add %a, 1: Int
+    jmp end
+  }
+
+  cold {
+    %l = add %a, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [hot, %h], [cold, %l]: Int
+    ret %v_0
   }
 }
 
@@ -43,23 +58,19 @@ neutralSplitLayout<complex>(%c: Int, %a: Int): Int {
   }
 }
 
-hintedLayout<complex>(%c: Int, %a: Int): Int {
+hintedSplitLayout<complex>(%c: Int, %a: Int): Int {
   start {
-    je %c, [hot, 99], [cold, 1]
+    %x = add %a, 1: Int
+    je %c, [hot, 99], [end, 1]
   }
 
   hot {
-    %h = add %a, 1: Int
-    jmp end
-  }
-
-  cold {
-    %l = add %a, 2: Int
+    %h = add %x, 2: Int
     jmp end
   }
 
   end {
-    %v_0 = phi [hot, %h], [cold, %l]: Int
+    %v_0 = phi [start, %x], [hot, %h]: Int
     ret %v_0
   }
 }
@@ -110,23 +121,6 @@ neutralCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
   }
 }
 
-hintedSplitLayout<complex>(%c: Int, %a: Int): Int {
-  start {
-    %x = add %a, 1: Int
-    je %c, [hot, 99], [end, 1]
-  }
-
-  hot {
-    %h = add %x, 2: Int
-    jmp end
-  }
-
-  end {
-    %v_0 = phi [start, %x], [hot, %h]: Int
-    ret %v_0
-  }
-}
-
 hintedCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
   start {
     %v0 = add %a, 0: Int
@@ -173,6 +167,12 @@ hintedCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
   }
 }
 
+sink<complex>(%v: Int): Int {
+  b_0 {
+    ret %v
+  }
+}
+
 
 --- codegen: neutralLayout ---
 block #0:
@@ -190,11 +190,21 @@ block hot:
 block end:
   ret uses=[rax] creates=[]  => c3
 
---- codegen: sink ---
+--- codegen: hintedLayout ---
 block #0:
   jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+block start:
+  je uses=[rdi] creates=[]  => 85ff0f840a000000
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
+  jmp uses=[] creates=[]  => e906000000
+block cold:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: neutralSplitLayout ---
 block #0:
@@ -212,21 +222,21 @@ block hot:
 block end:
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
---- codegen: hintedLayout ---
+--- codegen: hintedSplitLayout ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rdi] creates=[]  => 85ff0f840a000000
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => ffc6
+  je uses=[rdi] creates=[]  => 85ff0f8408000000
 block hot:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
-  jmp uses=[] creates=[]  => e906000000
-block cold:
-  imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
+  add uses=[rsi, -] creates=[rsi]  => 83c602
+  jmp uses=[] creates=[]  => e900000000
+block #3:
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax] creates=[]  => c3
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
 --- codegen: neutralCost ---
   prologue  => 535541544155415641574883ec18
@@ -254,7 +264,7 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde85cffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde803010000
   je uses=[rbx] creates=[]  => 85db0f8513000000
 block rare:
   add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 498bc503442410
@@ -275,22 +285,6 @@ block #6:
   jmp uses=[] creates=[]  => e9beffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
-
---- codegen: hintedSplitLayout ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => ffc6
-  je uses=[rdi] creates=[]  => 85ff0f8408000000
-block hot:
-  imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => 83c602
-  jmp uses=[] creates=[]  => e900000000
-block #3:
-  jmp uses=[] creates=[]  => 
-block end:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
 --- codegen: hintedCost ---
   prologue  => 535541544155415641574883ec18
@@ -318,7 +312,7 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde88cfeffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde849000000
   je uses=[rbx] creates=[]  => 85db0f8412000000
 block common:
   add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
@@ -339,3 +333,9 @@ block #6:
   jmp uses=[] creates=[]  => e9beffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

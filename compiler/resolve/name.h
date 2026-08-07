@@ -173,7 +173,7 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
 struct VisibleModule {
     Module* module = nullptr;
     const Import* import = nullptr;
-    StringId qualifier = 0;
+    StringId qualifier {};
 };
 
 /*
@@ -192,7 +192,7 @@ struct VisibleModule {
  */
 template<class Visit>
 void forEachVisible(Context& context, Module& module, Visit&& visit) {
-    visit(VisibleModule { &module, nullptr, 0 });
+    visit(VisibleModule { &module, nullptr, StringId() });
 
     for(auto& import: module.imports) {
         if(!import.module) continue;
@@ -232,6 +232,11 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
 
 // Every instance of `typeClass` visible from this module, in declaration order.
 void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModulePtr<ClassInstance>>& target);
+
+// Records one resolved instance, in the module that declared it and in the program-wide index
+// findInstances reads. Both, always: an instance in one and not the other is either invisible to
+// dispatch or invisible to emission, and neither failure has anything to point at.
+void registerInstance(Module& module, ModulePtr<ClassInstance> instance);
 
 // One selected instance, and what selecting it bound its own type variables to. `args` is empty
 // for a concrete head and has one entry per variable of a parametric one - which is what an

@@ -1,5 +1,5 @@
-@number = [210, 4, 0, 0, 0, 0, 0, 0]
 @bytes = [1, 2, 3, 255]
+@number = [210, 4, 0, 0, 0, 0, 0, 0]
 @g = [42, 0, 0, 0]
 
 callee<complex>(%x: Int, %y: Int): Int {
@@ -16,6 +16,13 @@ namedRefs<complex>(): Int {
   }
 }
 
+manyArgs<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_complex callee, %a, %b: Int
+    ret %r
+  }
+}
+
 convCalls<complex>(%a: Int, %b: Int) {
   b_0 {
     %r0 = call_sysv callee, %a, %b: Int
@@ -24,13 +31,6 @@ convCalls<complex>(%a: Int, %b: Int) {
     %r3 = call_complex callee, %a, %b: Int
     %r4 = call_clobber callee, %a, %b: Int
     ret 
-  }
-}
-
-manyArgs<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %r = call_complex callee, %a, %b: Int
-    ret %r
   }
 }
 

@@ -1,6 +1,39 @@
 @log = [0, 0, 0, 0]
 @sideEffect = [0, 0, 0, 0]
 
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 1: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = alloca 1, 1: Ptr
+    store %v_6, 1, 1
+    jmp b_7
+  }
+
+  b_4 {
+    %inner = alloca 1, 1: Ptr
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 0, 1
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = phi [b_4, %v_8], [b_5, %v_6]: Ptr
+    copy %v_0, %v_9, 1
+    ret 
+  }
+}
+
 loopingOut<complex>(%n: Int): Int {
   b_0 {
     %seen = alloca 4, 4: Ptr
@@ -53,33 +86,6 @@ loopingOut<complex>(%n: Int): Int {
   }
 }
 
-Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = loads %value, 1: Int
-    %v_3 = cmp_eq %v_2, 1: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = alloca 1, 1: Ptr
-    store %v_6, 1, 1
-    jmp b_7
-  }
-
-  b_4 {
-    %inner = alloca 1, 1: Ptr
-    %v_8 = alloca 1, 1: Ptr
-    store %v_8, 0, 1
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_4, %v_8], [b_5, %v_6]: Ptr
-    copy %v_0, %v_9, 1
-    ret 
-  }
-}
-
 statementTail<complex>(%n: Int): Int {
   b_0 {
     %seen = alloca 4, 4: Ptr
@@ -129,52 +135,6 @@ statementTail<complex>(%n: Int): Int {
   }
 }
 
-leavingWithNothing<complex>(%n: Int) {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$3, 8
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, %v_2, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex findFirst(()), %v_4, %n, %v_1
-    %v_5 = alloca 1, 1: Ptr
-    copy %v_5, %v_4, 1
-    %v_6 = alloca 1, 1: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
-    %v_7 = loads %v_6, 1: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    ret 
-  }
-
-  b_10 {
-    ret 
-  }
-}
-
-ResolveTest.continuation$2<complex>(%env: Ptr, %found: Int) {
-  b_0 {
-    %v_1 = loads @sideEffect, 4: Int
-    %v_2 = add %v_1, %found: Int
-    store @sideEffect, %v_2, 4
-    ret 
-  }
-}
-
-ResolveTest.continuation$3<complex>(%env: Ptr, %found: Int) {
-  b_0 {
-    %v_1 = loads @sideEffect, 4: Int
-    %v_2 = imul %found, 10: Int
-    %v_3 = add %v_1, %v_2: Int
-    store @sideEffect, %v_3, 4
-    ret 
-  }
-}
-
 returningNothing<complex>(%n: Int) {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -206,20 +166,56 @@ returningNothing<complex>(%n: Int) {
   }
 }
 
-@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0<complex>(%env: Ptr, %found: Int) {
+leavingWithNothing<complex>(%n: Int) {
   b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_1, 4: Int
-    %v_4 = add %v_3, %found: Int
-    store %v_1, %v_4, 4
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$3, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 1, 1: Ptr
+    call_complex findFirst(()), %v_4, %n, %v_1
+    %v_5 = alloca 1, 1: Ptr
+    copy %v_5, %v_4, 1
+    %v_6 = alloca 1, 1: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
+    %v_7 = loads %v_6, 1: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    ret 
+  }
+
+  b_10 {
     ret 
   }
 }
 
-@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1<complex>(%env: Ptr, %found: Int) {
+main<complex>(): Int {
+  b_0 {
+    store @log, 0, 4
+    store @sideEffect, 0, 4
+    %a = call_complex loopingOut, 3: Int
+    %b = call_complex statementTail, 5: Int
+    %c = call_complex statementTail, 18446744073709551615: Int
+    call_complex returningNothing, 7
+    call_complex returningNothing, 18446744073709551615
+    call_complex leavingWithNothing, 2
+    call_complex leavingWithNothing, 18446744073709551615
+    %v_1 = add %a, %b: Int
+    %v_2 = add %v_1, %c: Int
+    %v_3 = loads @sideEffect, 4: Int
+    %v_4 = add %v_2, %v_3: Int
+    %v_5 = loads @log, 4: Int
+    %v_6 = add %v_4, %v_5: Int
+    ret %v_6
+  }
+}
+
+@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$0<complex>(%env: Ptr, %found: Int) {
   b_0 {
     %v_1 = load %env, 8: Ptr
     %v_2 = load %env, 8: Ptr
@@ -262,30 +258,34 @@ findFirst(())<complex>(%v_0: Ptr, %n: Int, %body: Ptr) {
   }
 }
 
-teardown$none<complex>(%value: Ptr) {
+@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$1<complex>(%env: Ptr, %found: Int) {
   b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %env, 8: Ptr
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = add %v_3, %found: Int
+    store %v_1, %v_4, 4
     ret 
   }
 }
 
-main<complex>(): Int {
+ResolveTest.continuation$2<complex>(%env: Ptr, %found: Int) {
   b_0 {
-    store @log, 0, 4
-    store @sideEffect, 0, 4
-    %a = call_complex loopingOut, 3: Int
-    %b = call_complex statementTail, 5: Int
-    %c = call_complex statementTail, 18446744073709551615: Int
-    call_complex returningNothing, 7
-    call_complex returningNothing, 18446744073709551615
-    call_complex leavingWithNothing, 2
-    call_complex leavingWithNothing, 18446744073709551615
-    %v_1 = add %a, %b: Int
-    %v_2 = add %v_1, %c: Int
-    %v_3 = loads @sideEffect, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = loads @log, 4: Int
-    %v_6 = add %v_4, %v_5: Int
-    ret %v_6
+    %v_1 = loads @sideEffect, 4: Int
+    %v_2 = add %v_1, %found: Int
+    store @sideEffect, %v_2, 4
+    ret 
+  }
+}
+
+ResolveTest.continuation$3<complex>(%env: Ptr, %found: Int) {
+  b_0 {
+    %v_1 = loads @sideEffect, 4: Int
+    %v_2 = imul %found, 10: Int
+    %v_3 = add %v_1, %v_2: Int
+    store @sideEffect, %v_3, 4
+    ret 
   }
 }
 

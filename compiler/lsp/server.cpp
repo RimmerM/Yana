@@ -520,7 +520,7 @@ void Server::onDidSave(const JsonValue&) {
  */
 
 bool Server::resolvePosition(const JsonValue& params, StringId& module, U32& offset, Document*& document) {
-    module = 0;
+    module = StringId();
     offset = 0;
     document = nullptr;
 
@@ -564,7 +564,7 @@ bool Server::resolvePosition(const JsonValue& params, StringId& module, U32& off
 void Server::onDefinition(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -586,7 +586,7 @@ void Server::onDefinition(const JsonValue& message, const JsonValue* id) {
 void Server::onHover(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -608,7 +608,7 @@ void Server::onHover(const JsonValue& message, const JsonValue* id) {
 void Server::onReferences(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -635,7 +635,7 @@ void Server::onReferences(const JsonValue& message, const JsonValue* id) {
 void Server::onCompletion(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -660,7 +660,7 @@ void Server::onCompletion(const JsonValue& message, const JsonValue* id) {
 void Server::onSignatureHelp(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -729,7 +729,7 @@ void Server::onSemanticTokens(const JsonValue& message, const JsonValue* id) {
 void Server::onTypeDefinition(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -751,7 +751,7 @@ void Server::onTypeDefinition(const JsonValue& message, const JsonValue* id) {
 void Server::onDocumentHighlight(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
-    StringId module = 0;
+    StringId module = StringId();
     U32 offset = 0;
     Document* document = nullptr;
 
@@ -865,7 +865,7 @@ void Server::refresh() {
 // Everything one file needs to turn byte offsets into client positions. Built per publish rather
 // than kept, because the text a compile ran against is the text this has to agree with.
 struct FileDiagnostics {
-    StringId module = 0;
+    StringId module = StringId();
     String uri;
     StringView text;
     LineTable lines;

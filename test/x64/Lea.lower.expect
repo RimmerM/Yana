@@ -5,14 +5,28 @@ sink<complex>(%p: Ptr): Int {
   }
 }
 
-addressAndValue<complex>(%p: Ptr, %i: Long): Int {
+take2<complex>(%p: Ptr, %q: Ptr): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+scaledArgument<complex>(%p: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %r = call_complex sink, %q: Int
+    ret %r
+  }
+}
+
+fullArgument<complex>(%p: Ptr, %i: Long): Int {
   b_0 {
     %o = shl %i, 2: Long
-    %q = add %p, %o: Ptr
-    %v = load %q, 4: Int
+    %a = add %p, %o: Ptr
+    %q = add %a, 24: Ptr
     %r = call_complex sink, %q: Int
-    %s = add %v, %r: Int
-    ret %s
+    ret %r
   }
 }
 
@@ -24,11 +38,10 @@ deadBase<complex>(%p: Ptr): Int {
   }
 }
 
-scaledArgument<complex>(%p: Ptr, %i: Long): Int {
+liveBase<complex>(%p: Ptr): Int {
   b_0 {
-    %o = shl %i, 3: Long
-    %q = add %p, %o: Ptr
-    %r = call_complex sink, %q: Int
+    %q = add %p, 16: Ptr
+    %r = call_complex take2, %p, %q: Int
     ret %r
   }
 }
@@ -42,13 +55,23 @@ twoElements<complex>(%p: Ptr, %i: Long): Int {
   }
 }
 
-fullArgument<complex>(%p: Ptr, %i: Long): Int {
+storedAddress<complex>(%p: Ptr, %i: Long, %out: Ptr) {
   b_0 {
     %o = shl %i, 2: Long
-    %a = add %p, %o: Ptr
-    %q = add %a, 24: Ptr
+    %q = add %p, %o: Ptr
+    store %out, %q, 8
+    ret 
+  }
+}
+
+addressAndValue<complex>(%p: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 4: Int
     %r = call_complex sink, %q: Int
-    ret %r
+    %s = add %v, %r: Int
+    ret %s
   }
 }
 
@@ -69,29 +92,6 @@ acrossBlocks<complex>(%p: Ptr, %i: Long, %c: Int): Int {
   }
 }
 
-liveBase<complex>(%p: Ptr): Int {
-  b_0 {
-    %q = add %p, 16: Ptr
-    %r = call_complex take2, %p, %q: Int
-    ret %r
-  }
-}
-
-storedAddress<complex>(%p: Ptr, %i: Long, %out: Ptr) {
-  b_0 {
-    %o = shl %i, 2: Long
-    %q = add %p, %o: Ptr
-    store %out, %q, 8
-    ret 
-  }
-}
-
-take2<complex>(%p: Ptr, %q: Ptr): Int {
-  b_0 {
-    ret 0
-  }
-}
-
 
 --- codegen: sink ---
 block #0:
@@ -100,27 +100,11 @@ block #1:
   imm uses=[] creates=[rax]  => 31c0
   ret uses=[rax] creates=[]  => c3
 
---- codegen: addressAndValue ---
-  prologue  => 53
+--- codegen: take2 ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[-]  => 
-  x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
-  load uses=[rdi] creates=[rbx]  => 8b1f
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8f1ffffff
-  add uses=[rbx, rax] creates=[rbx]  => 01c3
-  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
-
---- codegen: deadBase ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  add uses=[rdi, -] creates=[rdi]  => 4883c710
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8e1ffffff
+  imm uses=[] creates=[rax]  => 31c0
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: scaledArgument ---
@@ -130,7 +114,38 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_lea scale=8 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cf7
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8d7ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8f1ffffff
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fullArgument ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  x86_lea scale=4 disp=24 uses=[rdi, rsi] creates=[rdi]  => 488d7cb718
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8e6ffffff
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: deadBase ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 4883c710
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8dcffffff
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: liveBase ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_lea scale=1 disp=16 uses=[rdi] creates=[rax]  => 488d4710
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rax->rsi]  => 488bf0e8d2ffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: twoElements ---
@@ -142,19 +157,30 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_lea scale=1 disp=16 uses=[rdi] creates=[rdi]  => 488d7f10
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi, rax->rdi]  => 488bf7488bf8e836000000
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi, rax->rdi]  => 488bf7488bf8e8beffffff
   ret uses=[rax] creates=[]  => c3
 
---- codegen: fullArgument ---
+--- codegen: storedAddress ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
+  x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
+  store uses=[rdx, rdi] creates=[]  => 48893a
+  ret uses=[] creates=[]  => c3
+
+--- codegen: addressAndValue ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
   imm uses=[] creates=[-]  => 
-  x86_lea scale=4 disp=24 uses=[rdi, rsi] creates=[rdi]  => 488d7cb718
+  x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
+  load uses=[rdi] creates=[rbx]  => 8b1f
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8b8ffffff
-  ret uses=[rax] creates=[]  => c3
+  call_complex uses=[-, rdi] creates=[rax]  => e8a6ffffff
+  add uses=[rbx, rax] creates=[rbx]  => 01c3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 
 --- codegen: acrossBlocks ---
 block #0:
@@ -168,31 +194,5 @@ block miss:
   ret uses=[rax] creates=[]  => c3
 block hit:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8a3ffffff
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: liveBase ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  x86_lea scale=1 disp=16 uses=[rdi] creates=[rax]  => 488d4710
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rax->rsi]  => 488bf0e809000000
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: storedAddress ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
-  store uses=[rdx, rdi] creates=[]  => 48893a
-  ret uses=[] creates=[]  => c3
-
---- codegen: take2 ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[rax]  => 31c0
+  call_complex uses=[-, rdi] creates=[rax]  => e88bffffff
   ret uses=[rax] creates=[]  => c3

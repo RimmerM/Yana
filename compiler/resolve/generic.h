@@ -25,6 +25,15 @@
  * chain is rejected rather than lowered.
  */
 
+/*
+ * A path from a witness to one of its superclasses, one byte offset per step.
+ *
+ * `superclassPath` bounds its own walk at eight levels, and a real hierarchy stacks a handful, so
+ * this is a list that never reaches the heap - which matters because one is built per class
+ * requirement of every generic call. See compiler/util/README.md.
+ */
+using SuperclassSteps = SmallArray<U32, 8>;
+
 // The generic context of a function, or null when it is not generic.
 GenEnv* functionGen(GlobalBase global, const Function& function);
 
@@ -98,7 +107,7 @@ bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeCla
  * specialize instead is told.
  */
 U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                   Array<U32>& supers);
+                   SuperclassSteps& supers);
 
 /*
  * Instantiates `generic` for one set of fully concrete type arguments, cloning its resolved body

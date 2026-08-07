@@ -348,7 +348,7 @@ struct Value {
     ModulePtr<Block> block;
     TypePtr type;
     LocationId source = kNullLocation;
-    StringId name = 0;
+    StringId name {};
     U32 id = 0;
 
     /*
@@ -1144,7 +1144,7 @@ inline bool isHostOp(NativeOp op) {
 }
 
 struct InstNative: Inst {
-    InstNative(ModulePtr<Block> block, TypePtr type, NativeOp op, StringId method = 0):
+    InstNative(ModulePtr<Block> block, TypePtr type, NativeOp op, StringId method = StringId()):
         Inst(Value::Native, block, type), method(method), op(op) {}
 
     ModuleList<ModulePtr<Value>, false> args;

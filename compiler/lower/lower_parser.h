@@ -22,7 +22,7 @@ struct LowerArgAst {
         LowerInstAst* inst;
     };
 
-    StringId source = 0;
+    StringId source {};
     Kind kind;
     LowerType immType;
 
@@ -49,7 +49,7 @@ inline U64 encodeResultAst(StringId name, Maybe<LowerType> type) {
 }
 
 inline StringId getResultName(U64 result) {
-    return result & 0xffffffff;
+    return StringId(result & 0xffffffff);
 }
 
 inline Maybe<LowerType> getResultType(U64 result) {

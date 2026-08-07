@@ -1,5 +1,14 @@
 @counter = [0, 0, 0, 0]
 
++=(Int)<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
 ?:<complex>(%value: Ptr, %fallback: Ptr): Int {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -24,101 +33,6 @@
   b_9 {
     %v_11 = phi [b_3, %inner], [b_4, %v_8]: Int
     ret %v_11
-  }
-}
-
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
-    store %target, %v_2, 4
-    ret 
-  }
-}
-
-ResolveTest.deferred$7<complex>(%env: Ptr): Int {
-  b_0 {
-    call_complex +=(Int), @counter, 1
-    ret 20
-  }
-}
-
-ResolveTest.deferred$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = alloca 8, 4: Ptr
-    copy %v_2, %v_1, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$1, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = call_complex ?:, %v_2, %v_3: Int
-    ret %v_6
-  }
-}
-
-ResolveTest.deferred$4<complex>(%env: Ptr): Int {
-  b_0 {
-    call_complex +=(Int), @counter, 1
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = alloca 8, 4: Ptr
-    copy %v_2, %v_1, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$5, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = call_complex ?:, %v_2, %v_3: Int
-    ret %v_6
-  }
-}
-
-ResolveTest.deferred$2<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = alloca 8, 4: Ptr
-    copy %v_2, %v_1, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$3, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = call_complex ?:, %v_2, %v_3: Int
-    ret %v_6
-  }
-}
-
-ResolveTest.deferred$5<complex>(%env: Ptr): Int {
-  b_0 {
-    call_complex +=(Int), @counter, 1
-    ret 20
-  }
-}
-
-ResolveTest.deferred$1<complex>(%env: Ptr): Int {
-  b_0 {
-    ret 3
-  }
-}
-
-ResolveTest.deferred$6<complex>(%env: Ptr): Int {
-  b_0 {
-    call_complex +=(Int), @counter, 1
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = alloca 8, 4: Ptr
-    copy %v_2, %v_1, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$7, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = call_complex ?:, %v_2, %v_3: Int
-    ret %v_6
   }
 }
 
@@ -179,9 +93,95 @@ main<complex>(): Int {
   }
 }
 
+ResolveTest.deferred$0<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 8, 4: Ptr
+    copy %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.deferred$1, 8
+    %v_4 = bitcast 0: Ptr
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = call_complex ?:, %v_2, %v_3: Int
+    ret %v_6
+  }
+}
+
+ResolveTest.deferred$1<complex>(%env: Ptr): Int {
+  b_0 {
+    ret 3
+  }
+}
+
+ResolveTest.deferred$2<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 8, 4: Ptr
+    copy %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.deferred$3, 8
+    %v_4 = bitcast 0: Ptr
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = call_complex ?:, %v_2, %v_3: Int
+    ret %v_6
+  }
+}
+
 ResolveTest.deferred$3<complex>(%env: Ptr): Int {
   b_0 {
     ret 3
+  }
+}
+
+ResolveTest.deferred$4<complex>(%env: Ptr): Int {
+  b_0 {
+    call_complex +=(Int), @counter, 1
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 8, 4: Ptr
+    copy %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.deferred$5, 8
+    %v_4 = bitcast 0: Ptr
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = call_complex ?:, %v_2, %v_3: Int
+    ret %v_6
+  }
+}
+
+ResolveTest.deferred$5<complex>(%env: Ptr): Int {
+  b_0 {
+    call_complex +=(Int), @counter, 1
+    ret 20
+  }
+}
+
+ResolveTest.deferred$6<complex>(%env: Ptr): Int {
+  b_0 {
+    call_complex +=(Int), @counter, 1
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 8, 4: Ptr
+    copy %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.deferred$7, 8
+    %v_4 = bitcast 0: Ptr
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = call_complex ?:, %v_2, %v_3: Int
+    ret %v_6
+  }
+}
+
+ResolveTest.deferred$7<complex>(%env: Ptr): Int {
+  b_0 {
+    call_complex +=(Int), @counter, 1
+    ret 20
   }
 }
 

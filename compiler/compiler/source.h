@@ -22,7 +22,7 @@ struct SourceEntry {
     // The interned form of `id`, filled once there is a context to intern it into. This is what a
     // module is named by everywhere past the file system - an `import` names it, and so does the
     // resolver when it asks for a module it has not seen.
-    StringId name = 0;
+    StringId name = StringId();
 
     Ptr<char, HeapDeleter> text;
     Size length = 0;

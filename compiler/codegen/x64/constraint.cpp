@@ -264,7 +264,7 @@ const CallConvention& Constraints::getConvention(LowerCallType type) const {
     return convention[(Size)type];
 }
 
-U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& args) {
+U32 argAreaBytes(const CallConvention& convention, const ArgLocationList& args) {
     auto bytes = convention.shadowSpace;
 
     for(auto& location: args) {

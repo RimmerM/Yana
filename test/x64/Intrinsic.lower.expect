@@ -1,15 +1,4 @@
 
-stamp<complex>(): Long {
-  b_0 {
-    %lo, %hi = rdtscp : Int, Int
-    %l = cast %lo: Long
-    %h = cast %hi: Long
-    %s = shl %h, 32: Long
-    %r = or %l, %s: Long
-    ret %r
-  }
-}
-
 swap<complex>(%x: Long): Long {
   b_0 {
     %r = bswap %x: Long
@@ -20,31 +9,6 @@ swap<complex>(%x: Long): Long {
 bits<complex>(%x: Long): Int {
   b_0 {
     %r = popcnt %x: Int
-    ret %r
-  }
-}
-
-stampAcrossValue<complex>(%a: Long, %b: Long, %c: Long, %keep: Long): Long {
-  b_0 {
-    %lo, %hi = rdtscp : Int, Int
-    %l = cast %lo: Long
-    %r = add %keep, %l: Long
-    ret %r
-  }
-}
-
-sink<complex>(%v: Long): Long {
-  b_0 {
-    ret %v
-  }
-}
-
-features<complex>(%leaf: Int, %sub: Int): Int {
-  b_0 {
-    %a, %b, %c, %d = cpuid %leaf, %sub: Int, Int, Int, Int
-    %x = add %a, %b: Int
-    %y = add %c, %d: Int
-    %r = add %x, %y: Int
     ret %r
   }
 }
@@ -81,18 +45,42 @@ spilledBits<complex>(%p: Ptr, %x: Long): Int {
   }
 }
 
+features<complex>(%leaf: Int, %sub: Int): Int {
+  b_0 {
+    %a, %b, %c, %d = cpuid %leaf, %sub: Int, Int, Int, Int
+    %x = add %a, %b: Int
+    %y = add %c, %d: Int
+    %r = add %x, %y: Int
+    ret %r
+  }
+}
 
---- codegen: stamp ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
-  cast uses=[rax] creates=[rax]  => 8bc0
-  cast uses=[rdx] creates=[rdx]  => 8bd2
-  imm uses=[] creates=[-]  => 
-  shl uses=[rdx, -] creates=[rdx]  => 48c1e220
-  or uses=[rax, rdx] creates=[rax]  => 4809d0
-  ret uses=[rax] creates=[]  => c3
+stamp<complex>(): Long {
+  b_0 {
+    %lo, %hi = rdtscp : Int, Int
+    %l = cast %lo: Long
+    %h = cast %hi: Long
+    %s = shl %h, 32: Long
+    %r = or %l, %s: Long
+    ret %r
+  }
+}
+
+stampAcrossValue<complex>(%a: Long, %b: Long, %c: Long, %keep: Long): Long {
+  b_0 {
+    %lo, %hi = rdtscp : Int, Int
+    %l = cast %lo: Long
+    %r = add %keep, %l: Long
+    ret %r
+  }
+}
+
+sink<complex>(%v: Long): Long {
+  b_0 {
+    ret %v
+  }
+}
+
 
 --- codegen: swap ---
 block #0:
@@ -107,32 +95,6 @@ block #0:
 block #1:
   popcnt uses=[rdi] creates=[rdi]  => f3480fb8ff
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: stampAcrossValue ---
-block #0:
-  jmp uses=[] creates=[] pre=[rcx->rsi]  => 488bf1
-block #1:
-  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
-  cast uses=[rax] creates=[rax]  => 8bc0
-  add uses=[rsi, rax] creates=[rsi]  => 4801c6
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
-
---- codegen: sink ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: features ---
-  prologue  => 53
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  cpuid uses=[rax, rcx] creates=[rax, rbx, rcx, rdx] pre=[rdi->rax, rsi->rcx]  => 488bc7488bce0fa2
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  add uses=[rcx, rdx] creates=[rcx]  => 01d1
-  add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: spilledBits ---
   prologue  => 535541544155415641574883ec58
@@ -151,7 +113,7 @@ block #1:
   load uses=[rdi] creates=[r15] post=[r15->stack:9]  => 4c8b3f4c897c2448
   load uses=[rdi] creates=[r15] post=[r15->stack:10]  => 4c8b3f4c897c2450
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e87dffffff
+  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e880000000
   popcnt uses=[stack:0] creates=[rcx]  => f3480fb80c24
   add uses=[rbp, stack:1] creates=[rbp]  => 48036c2408
   add uses=[rbp, stack:2] creates=[rbp]  => 48036c2410
@@ -167,3 +129,41 @@ block #1:
   cast uses=[rbp] creates=[rbp]  => 8bed
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c458415f415e415d415c5d5bc3
+
+--- codegen: features ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cpuid uses=[rax, rcx] creates=[rax, rbx, rcx, rdx] pre=[rdi->rax, rsi->rcx]  => 488bc7488bce0fa2
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  add uses=[rcx, rdx] creates=[rcx]  => 01d1
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 5bc3
+
+--- codegen: stamp ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
+  cast uses=[rax] creates=[rax]  => 8bc0
+  cast uses=[rdx] creates=[rdx]  => 8bd2
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx]  => 48c1e220
+  or uses=[rax, rdx] creates=[rax]  => 4809d0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: stampAcrossValue ---
+block #0:
+  jmp uses=[] creates=[] pre=[rcx->rsi]  => 488bf1
+block #1:
+  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
+  cast uses=[rax] creates=[rax]  => 8bc0
+  add uses=[rsi, rax] creates=[rsi]  => 4801c6
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

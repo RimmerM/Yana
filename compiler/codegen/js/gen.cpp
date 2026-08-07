@@ -1,5 +1,6 @@
 #include "build.h"
 #include "../../opt/opt.h"
+#include "../../compiler/stage.h"
 
 /*
  * resolve IR -> JavaScript.
@@ -1353,7 +1354,10 @@ Ptr<File> genProgram(Context& context, Program& program) {
     // with its own target at the top of lowerProgram, and neither program has been through the
     // other's: `@platform` selects declarations during resolution, so a JS build and a native build
     // are two resolved programs and this rewrites one of them.
-    optimizeProgram(context, program, jsReprTarget());
+    {
+        StageScope stage(CompileStage::Optimize);
+        optimizeProgram(context, program, jsReprTarget());
+    }
 
     auto file = Ptr<File>(new File(8 * 1024 * 1024));
 

@@ -253,7 +253,8 @@ struct Hoister {
 
         scanEffects(loop);
 
-        Array<U32> order;
+        // Inline: this is parallel to the blocks of one loop, and is dropped before run() returns.
+        SmallArray<U32, 32> order;
         for(auto index: loop.blocks) order.push(index);
 
         for(Size i = 1; i < order.size(); i++) {

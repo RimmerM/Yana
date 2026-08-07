@@ -20,7 +20,7 @@ static LowerPtr<LowerValue> genSlot(LowerContext& lower, LowerBlock& block, U16 
     auto offset = tableSlotOffset(lower.repr.target, GenEnvFields::kWordCount,
                                   GenEnvFields::slot(slot));
     auto address = addOffset(lower, block, lower.genEnv, offset);
-    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
     return loaded->created().ptr - lower.lower;
 }
 
@@ -40,7 +40,7 @@ static LowerPtr<LowerValue> genWitness(LowerContext& lower, LowerBlock& block, U
     for(auto step: path.contents(lower.local)) {
         auto offset = tableSlotOffset(lower.repr.target, ClassWitnessFields::kWordCount, U16(step));
         auto address = addOffset(lower, block, witness, offset);
-        auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+        auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
         witness = loaded->created().ptr - lower.lower;
     }
 
@@ -66,10 +66,10 @@ LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
                                       LowerPtr<LowerValue> descriptor, U16 slot) {
     auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
     auto address = addOffset(lower, block, descriptor, offset);
-    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 4, false, LowerType::Int32, 0);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 4, false, LowerType::Int32, StringId());
     auto widened = cast<false, false>(lower.lower, lower.to, block,
                                       lower.lower[loaded->created().ptr - lower.lower],
-                                      LowerType::Int64, 0);
+                                      LowerType::Int64, StringId());
 
     return widened->created().ptr - lower.lower;
 }
@@ -138,7 +138,7 @@ LowerPtr<LowerValue> scaleBy(LowerContext& lower, LowerBlock& block, LowerPtr<Lo
     }
 
     auto product = binary<LowerInst::Mul>(lower.lower, lower.to, block, lower.lower[stride],
-                                          lower.lower[count], LowerType::Int64, 0);
+                                          lower.lower[count], LowerType::Int64, StringId());
     return product->created().ptr - lower.lower;
 }
 
@@ -171,7 +171,7 @@ LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, Inst
     auto bytes = immediate(lower, tableSize(target, GenEnvFields::kWordCount,
                                             GenEnvFields::countFor(slots.size())));
     auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-        0, bytes, target.pointerAlign));
+        StringId(), bytes, target.pointerAlign));
 
     auto base = storage->created().ptr - lower.lower;
     U16 index = 0;
@@ -209,7 +209,7 @@ LowerPtr<LowerValue> genMethod(LowerContext& lower, LowerBlock& block, InstGenCa
                                   ClassWitnessFields::method(argCount, call.index));
 
     auto address = addOffset(lower, block, witness, offset);
-    auto method = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+    auto method = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
 
     return method->created().ptr - lower.lower;
 }
@@ -242,7 +242,7 @@ LowerPtr<LowerValue> propertyOp(LowerContext& lower, LowerBlock& block, U16 slot
     auto witness = genSlot(lower, block, slot);
     auto offset = tableSlotOffset(lower.repr.target, PropertyWitnessFields::kWordCount, field);
     auto address = addOffset(lower, block, witness, offset);
-    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, StringId());
 
     return loaded->created().ptr - lower.lower;
 }

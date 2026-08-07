@@ -27,6 +27,18 @@
  * doc/spec/classes.md draws and not a gap in this one.
  */
 
+// Orders declarations by where they were written, so that the diagnostics below come out in that
+// order rather than in the order a hash map happened to hold them. An insertion sort because these
+// lists are the exported declarations of one module, which is a handful.
+template<class T, U32 N>
+static void sortBySource(GlobalBase global, SmallArray<GlobalPtr<T>, N>& list) {
+    for(Size i = 1; i < list.size(); i++) {
+        for(Size j = i; j > 0 && global[list[j]]->source < global[list[j - 1]]->source; j--) {
+            swap(list[j], list[j - 1]);
+        }
+    }
+}
+
 // A named type's own marker, read through the declaration rather than off the type in hand.
 //
 // `Maybe(Int)` is an instantiation, made where it was first written rather than by the declaration
@@ -89,9 +101,15 @@ static TypePtr privateTypeIn(GlobalBase global, TypePtr type) {
 
 // One position of an exported interface. `what` names the position rather than the declaration,
 // since the declaration's own name is already at the reported location and the thing a reader has
-// to be told is which part of it leaks.
-static void checkExportedType(Module& module, TypePtr type, const String& what, StringId declaration,
-                              LocationId source) {
+// to be told is which part of it leaks. `member` qualifies it where the signature belongs to a
+// class - see checkExportedSignature - and is 0 where the declaration is its own answer.
+//
+// The position is assembled *after* the early return rather than by the caller, because a signature
+// that leaks nothing is the whole corpus: every argument of every exported function and every member
+// of every exported class reaches here, and building the text for each of them was the single
+// largest source of allocations in the compiler.
+static void checkExportedType(Module& module, TypePtr type, StringId member, StringView what,
+                              StringId declaration, LocationId source) {
     auto global = *module.types;
     auto found = privateTypeIn(global, type);
     if(!found) return;
@@ -99,9 +117,14 @@ static void checkExportedType(Module& module, TypePtr type, const String& what, 
     StringBuilder text;
     describeType(module.context, global, found, text);
 
+    StringBuilder position;
+    if(member) position << "member " << module.context.findName(member) << "'s " << what;
+    else position << what;
+
     module.context.diagnostics.error("%@ is `pub` but its %@ names %@, which is not - an importer could hold a value of a type it cannot name, so either export %@ or stop exporting %@"_v,
-                                     source, module.context.findName(declaration), what, text.string(),
-                                     text.string(), module.context.findName(declaration));
+                                     source, module.context.findName(declaration), position.string(),
+                                     text.string(), text.string(),
+                                     module.context.findName(declaration));
 }
 
 /*
@@ -116,21 +139,13 @@ static void checkExportedSignature(Module& module, Function& function, StringId 
                                    StringId member, LocationId source) {
     auto local = *module.arena;
 
-    auto position = [&](StringView what) {
-        if(!member) return toString(what);
-
-        StringBuilder text;
-        text << "member " << module.context.findName(member) << "'s " << what;
-        return text.string();
-    };
-
     for(Size i = 0; i < function.args.size(); i++) {
         auto arg = local[function.args.get(local, i)];
-        checkExportedType(module, arg->declaredType(), position("argument type"_v), declaration,
+        checkExportedType(module, arg->declaredType(), member, "argument type"_v, declaration,
                           arg->source == kNullLocation ? source : arg->source);
     }
 
-    checkExportedType(module, function.returnType, position("result type"_v), declaration, source);
+    checkExportedType(module, function.returnType, member, "result type"_v, declaration, source);
 }
 
 /*
@@ -173,37 +188,63 @@ void checkModuleExports(Module& module, ast::Module& ast) {
      * name - and where it may not, every position that could hand one over is one of the four
      * below and is reported there.
      */
-    for(auto entry: module.functions.entries()) {
-        auto function = local[entry.value];
+    /*
+     * Declaration order in all four, never the order a name's hash put it in.
+     *
+     * These are diagnostics, so the order they come out in is the order a reader is handed them -
+     * and a hash map's is arbitrary. `functionOrder` and `globalOrder` are what the rest of the
+     * compiler walks for exactly this reason; types and classes have no such list, so the ones this
+     * check cares about are collected and sorted by where they were written. Sorting rather than
+     * adding two more lists because this runs once per module and reaches a handful of declarations,
+     * where the lists would be paid for on every one.
+     */
+    for(auto pointer: module.functionOrder.contents(local)) {
+        auto function = local[pointer];
         if(!function->exported) continue;
 
-        checkExportedSignature(module, *function, function->name, 0, function->source);
+        checkExportedSignature(module, *function, function->name, StringId(), function->source);
     }
 
-    for(auto entry: module.globals.entries()) {
-        auto global_ = local[entry.value];
+    for(auto pointer: module.globalOrder.contents(local)) {
+        auto global_ = local[pointer];
         if(!global_->exported) continue;
 
-        checkExportedType(module, global_->type, toString("type"_v), global_->name, global_->source);
+        checkExportedType(module, global_->type, StringId(), "type"_v, global_->name, global_->source);
     }
 
     // A record's fields, through its constructors' content tuples - which is where a field's type
     // lives, and is the same place field access reads one from.
+    SmallArray<GlobalPtr<RecordType>, 16> records;
     for(auto entry: module.namedTypes.entries()) {
         if(global[entry.value]->kind != Type::Record) continue;
 
         auto record = (RecordType*)global[entry.value];
         if(!record->exported || record->instanceOf) continue;
 
+        records.push(record - global);
+    }
+
+    sortBySource(global, records);
+
+    for(auto pointer: records) {
+        auto record = global[pointer];
+
         for(auto constructor: record->constructors.contents(global)) {
-            checkExportedType(module, constructor.content, toString("field type"_v), record->name,
+            checkExportedType(module, constructor.content, StringId(), "field type"_v, record->name,
                               record->source);
         }
     }
 
+    SmallArray<GlobalPtr<TypeClass>, 16> classes;
     for(auto entry: module.classes.entries()) {
-        auto typeClass = global[entry.value];
-        if(!typeClass->exported) continue;
+        if(!global[entry.value]->exported) continue;
+        classes.push(entry.value);
+    }
+
+    sortBySource(global, classes);
+
+    for(auto pointer: classes) {
+        auto typeClass = global[pointer];
 
         for(auto member: typeClass->functions.contents(global)) {
             if(!member.fun) continue;

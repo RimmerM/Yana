@@ -44,55 +44,78 @@ void computeDominance(OptContext& opt, Dominance& result) {
         else result.dominators[i].fill();
     }
 
+    // Borrowed once rather than per block per round. The constructor zeroes it, and every block with
+    // a predecessor overwrites the whole set with `copyFrom` before reading it - so the only case
+    // that needed the zeroing is the one below that never reaches `copyFrom` at all.
+    ScratchSet merged(opt.sets, count);
+
     auto changed = true;
     while(changed) {
         changed = false;
 
         for(Size i = 1; i < count; i++) {
             auto block = opt.local[result.blocks[i]];
-
-            ScratchSet next(opt.sets, count);
             auto first = true;
 
             for(auto predecessor: block->incoming(opt.local)) {
                 auto from = opt.local[predecessor]->index;
 
                 if(first) {
-                    next->copyFrom(result.dominators[from]);
+                    merged->copyFrom(result.dominators[from]);
                     first = false;
                 } else {
-                    next->intersectWith(result.dominators[from]);
+                    merged->intersectWith(result.dominators[from]);
                 }
             }
 
             // A block nothing reaches is dominated by itself and nothing else, which keeps it out of
             // every scope below without needing a case of its own.
-            next->set(i, true);
+            if(first) merged->reset(count);
+            merged->set(i, true);
 
-            if(!next->equals(result.dominators[i])) {
-                result.dominators[i].copyFrom(*next);
+            if(!merged->equals(result.dominators[i])) {
+                result.dominators[i].copyFrom(*merged);
                 changed = true;
             }
         }
     }
 
-    // The immediate dominator is the one strict dominator that every other strict dominator also
-    // dominates, which is the same as the one with the most dominators of its own.
+    /*
+     * The immediate dominator is the one strict dominator that every other strict dominator also
+     * dominates, which is the same as the one with the most dominators of its own.
+     *
+     * "How many dominators does block j have" is a property of j alone, so it is counted once per
+     * block rather than once per pair. It used to be the innermost of three nested loops over the
+     * block count, which made working out the immediate dominators cubic in the size of a function -
+     * and this pass runs on every function on every optimizer round.
+     */
+    // Inline: it lives for this call, and sixty-four covers a function's blocks - see
+    // compiler/util/README.md. A field on Dominance would look tidier and is not, because the two
+    // callers do not share one.
+    SmallArray<U32, 64> dominatorCount;
+    for(Size j = 0; j < count; j++) dominatorCount.push(U32(result.dominators[j].popCount()));
+
+    /*
+     * Both walks go over the set rather than over the block range.
+     *
+     * "Is j in this row" asked once per block per block is a bit test each, and it costs the same
+     * for a block with one dominator as for a block with all of them - which for the entry block's
+     * successors is the usual case. Asking the row for its members instead makes each of these
+     * linear in the answer, and the two of them together were a fifth of this function.
+     */
     for(Size i = 1; i < count; i++) {
         auto best = Dominance::kNone;
         Size bestCount = 0;
 
-        for(Size j = 0; j < count; j++) {
-            if(i == j || !result.dominators[i][j]) continue;
+        result.dominators[i].forEach([&](Size j) {
+            if(i == j) return;
 
-            Size own = 0;
-            for(Size k = 0; k < count; k++) own += result.dominators[j][k];
-
-            if(best != Dominance::kNone && own <= bestCount) continue;
+            Size own = dominatorCount[j];
+            if(best != Dominance::kNone && own <= bestCount) return;
 
             best = U32(j);
             bestCount = own;
-        }
+        });
 
         result.immediate[i] = best;
         if(best != Dominance::kNone) result.children[best].push(U32(i));
@@ -135,6 +158,10 @@ void computeDominance(OptContext& opt, Dominance& result) {
 void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
     auto count = dominance.blocks.size();
 
+    // Emptied per back edge rather than built per back edge. Inline, because the walk backwards from
+    // one back edge reaches the blocks of one loop - see compiler/util/README.md.
+    SmallArray<U32, 32> pending;
+
     for(Size i = 0; i < count; i++) {
         auto block = opt.local[dominance.blocks[i]];
 
@@ -165,7 +192,7 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
             // Backwards from the source of the back edge, stopping at the header - which is already
             // marked, so it needs no test of its own.
             auto& loop = loops[existing];
-            Array<U32> pending;
+            pending.clear();
             if(loop.contains.add(i)) pending.push(U32(i));
 
             while(pending.size()) {

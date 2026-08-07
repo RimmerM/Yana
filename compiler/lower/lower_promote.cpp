@@ -266,16 +266,16 @@ LowerPtr<LowerValue> narrowedTo(LowerBase base, LowerModule& module, LowerBlock&
     if(width >= bits) return stored;
 
     if(isSigned) {
-        auto shift = new (module.arena) LowerImm(0, slot.type, U64(bits - width));
+        auto shift = new (module.arena) LowerImm(StringId(), slot.type, U64(bits - width));
         block.addInst(base, shift);
 
         auto up = binary<LowerInst::Shl>(base, module, block, base[stored], shift->created().ptr,
-                                         slot.type, 0);
+                                         slot.type, StringId());
         return binary<LowerInst::Sar>(base, module, block, up->created().ptr, shift->created().ptr,
                                       slot.type, name)->created().ptr - base;
     }
 
-    auto mask = new (module.arena) LowerImm(0, slot.type, (U64(1) << width) - 1);
+    auto mask = new (module.arena) LowerImm(StringId(), slot.type, (U64(1) << width) - 1);
     block.addInst(base, mask);
 
     return binary<LowerInst::And>(base, module, block, base[stored], mask->created().ptr, slot.type,
@@ -292,7 +292,7 @@ LowerInstPhi* makePhi(LowerModule& module, LowerBlock& block, LowerType type) {
         sizeof(LowerPtr<LowerValue>) * count +
         sizeof(LowerPtr<LowerBlock>) * count);
 
-    auto phi = new (storage) LowerInstPhi(0, type);
+    auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = U8(count);
     return phi;
 }
@@ -364,7 +364,7 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
                     current[to] = current[from];
                 } else if(to != maxLimit<Size>) {
                     current[to] = load(base, module, block, base[source], slot.width, false,
-                                       slot.type, 0)->created().ptr - base;
+                                       slot.type, StringId())->created().ptr - base;
                 } else {
                     block.addInst(base, new (module.arena) LowerInstStore(
                         destination, current[from], slot.width));

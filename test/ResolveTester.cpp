@@ -188,7 +188,7 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     FunctionRegs registers;
     MachineFunction machine;
 
-    for(auto functionPointer: module.functions) {
+    for(auto functionPointer: module.functionOrder) {
         auto function = base[functionPointer];
         machine.reset();
         transformFunction(context, base, *function, machine);
@@ -200,7 +200,7 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
 
     // Globals go after every function, since this is a flat buffer rather than an object file
     // with sections - see AsmModule::addGlobal.
-    for(auto globalPointer: module.globals) assembly.addGlobal(base, base[globalPointer]);
+    for(auto globalPointer: module.globalOrder) assembly.addGlobal(base, base[globalPointer]);
     assembly.resolveRelocations();
 
     // The program's start rather than `main` by name: where the fixture has top-level statements,

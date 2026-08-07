@@ -205,7 +205,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     FunctionRegs regs;
     MachineFunction machine;
 
-    for(auto fo: module.functions) {
+    for(auto fo: module.functionOrder) {
         auto fun = base[fo];
         machine.reset();
         transformFunction(context, base, *fun, machine);
@@ -216,14 +216,14 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     }
 
     // After all code, so the two never interleave - see AsmModule::addGlobal.
-    for(auto& g: module.globals) {
+    for(auto& g: module.globalOrder) {
         asm_.addGlobal(base, base[g]);
     }
 
     asm_.resolveRelocations();
 
     Size funIndex = 0;
-    for(auto fo: module.functions) {
+    for(auto fo: module.functionOrder) {
         auto fun = base[fo];
         auto& trace = traces[funIndex++];
 

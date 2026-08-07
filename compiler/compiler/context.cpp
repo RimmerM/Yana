@@ -1,5 +1,8 @@
 #include "context.h"
+#include "stage.h"
 #include "Mem/Hash.h"
+
+StageObserver* gStageObserver = nullptr;
 
 void* Arena::alloc(Size size) {
     if(buffer + size > max) {
@@ -115,13 +118,13 @@ OpProperties Context::findOp(StringId op) {
 StringId Context::nameHash(const char* chars, Size count) {
     Tritium::Hasher hash;
     hash.addBytes(chars, count);
-    return hash.get();
+    return StringId(hash.get());
 }
 
 StringId Context::nameHash(const StringView& v) {
     Tritium::Hasher hash;
     hash.addBytes(v.ptr, v.length);
-    return hash.get();
+    return StringId(hash.get());
 }
 
 StringId Context::addUnqualifiedName(const char* chars, Size count) {
@@ -206,19 +209,34 @@ StringId Context::addQualifiedName(const char* chars, Size count) {
 StringId Context::addIdentifier(const Identifier& id) {
     StringId i;
     if(id.segmentCount == 1) {
-        i = id.segmentHash;
+        i = StringId(id.segmentHash);
     } else {
         Hasher hash;
         hash.addBytes(id.text, id.textLength);
-        i = hash.get();
+        i = StringId(hash.get());
     }
 
     identifiers.add(i, id);
     return i;
 }
 
+/*
+ * A lookup, and never an insertion.
+ *
+ * This used to be `identifiers[id]`, which on a HashMap is get-or-add: every name resolution added
+ * a row for a name it was only reading, checked the load factor, and could rehash the table from
+ * inside a read. `search` in resolve/name.h asks this once per name and once per import of that
+ * name, so it was several million inserts over a compilation.
+ *
+ * A StringId only ever comes from interning, so the miss below is unreachable in a compile that has
+ * not corrupted one. It answers the way the old get-or-add did - an empty identifier, textLength
+ * zero - rather than asserting, because that is what every caller here already treats as "no name".
+ */
 Identifier& Context::find(StringId id) {
-    return identifiers[id];
+    static Identifier none;
+
+    auto found = identifiers.get(id);
+    return found ? found.unwrap() : none;
 }
 
 String Context::findName(StringId id) {

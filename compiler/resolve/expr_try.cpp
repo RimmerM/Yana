@@ -154,7 +154,7 @@ static ModulePtr<Value> emitTry(ExprResolver& resolver, Module& module, Buffer<T
     // dispatch travels to whoever specializes - which is the rule resolveClassCall applies to every
     // class call, said again because this one does not go through it.
     if(match.args.contains([&](TypePtr type) { return isGeneric(global, type); })) {
-        return resolver.emitGenericDispatch(match, args, source, 0);
+        return resolver.emitGenericDispatch(match, args, source, StringId());
     }
 
     match.instance = resolver.selectInstance(match.typeClass, toBuffer(match.args), match.instanceArgs);
@@ -314,7 +314,7 @@ ModulePtr<Value> ExprResolver::resolveTry(const ast::Expr& expr, TypePtr target,
     auto exitBlock = addBlock();
     auto proceedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, leavingHere, exitBlock, proceedBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, leavingHere, exitBlock, proceedBlock));
 
     /*
      * The exit arm.
@@ -449,7 +449,7 @@ ModulePtr<Value> ExprResolver::resolveUnwrap(const ast::Expr& expr) {
     auto skipBlock = addBlock();
     auto proceedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, skipBlock, proceedBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, leaving, skipBlock, proceedBlock));
 
     // Left open, holding what the carrier exited with. The join comes back for it once the chain's
     // result type - and therefore what this has to be rebuilt as - is known.

@@ -37,7 +37,7 @@ LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerVa
         auto descriptor = genTypeDesc(lower, block, type);
         auto slot = addOffset(lower, block, descriptor, tableSlotOffset(
             lower.repr.target, TypeDescFields::kWordCount, TypeDescFields::kMoveInit));
-        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, 0);
+        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, StringId());
 
         return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
             relocation->used()[0] = moveInit->created().ptr - lower.lower;
@@ -54,7 +54,7 @@ LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerVa
     // Reachable because module.cpp's reachability walk follows the sink field, which is what puts
     // the callee in front of lowering at all.
     auto callee = lower.functions.getValue(sink).unwrap();
-    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, callee));
+    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), callee));
 
     return call(lower.lower, lower.to, block, 0, 3, lower.lower[callee]->callType, [&](LowerInstCall* sinkCall) {
         sinkCall->used()[0] = fun->created().ptr - lower.lower;
@@ -166,7 +166,7 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
             auto count = place.projections.size();
             auto owner = lowerPlace(lower, block, *function, place, count - 1);
             auto written = lower.local[value]->type;
-            auto staging = erasedStorage(lower, block, written, 0);
+            auto staging = erasedStorage(lower, block, written, StringId());
             auto staged = mappedValue(lower, value);
 
             if(isMemoryType(lower.global, written)) {
@@ -272,7 +272,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 // Native allocator instead. The release is an InstDrop the drop pass inserted,
                 // or the new owner's - see InstAlloc::releasedHere.
                 auto target = lower.functions.getValue(lower.from.allocateHeap).unwrap();
-                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), target));
 
                 result = call(lower.lower, lower.to, block, 1, 2, lower.lower[target]->callType,
                               [&](LowerInstCall* allocate) {
@@ -606,8 +606,8 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 auto isSigned = signedType(lower.global, swap.content);
                 auto kind = lowerType(lower.global, swap.content);
 
-                auto oldA = load(lower.lower, lower.to, block, lower.lower[a], width, isSigned, kind, 0);
-                auto oldB = load(lower.lower, lower.to, block, lower.lower[b], width, isSigned, kind, 0);
+                auto oldA = load(lower.lower, lower.to, block, lower.lower[a], width, isSigned, kind, StringId());
+                auto oldB = load(lower.lower, lower.to, block, lower.lower[b], width, isSigned, kind, StringId());
 
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
                     a, oldB->created().ptr - lower.lower, width));
@@ -620,7 +620,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             auto bytes = sizeOfType(lower, block, swap.content);
             auto alignment = isGeneric(lower.global, swap.content) ? 16u : typeAlign(lower, swap.content);
-            auto temporary = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(0, bytes, alignment));
+            auto temporary = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(StringId(), bytes, alignment));
             auto slot = temporary->created().ptr - lower.lower;
 
             relocateWith(lower, block, slot, a, swap.content, swap.sink, erased);
@@ -741,7 +741,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             auto callWith = [&](ModulePtr<Function> callee) {
                 auto target = lower.functions.getValue(callee).unwrap();
-                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), target));
 
                 return call(lower.lower, lower.to, block, 0, 2, lower.lower[target]->callType,
                             [&](LowerInstCall* dropCall) {
@@ -772,7 +772,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
                     auto slotAddress = addOffset(lower, block, descriptor, offset);
                     auto loaded = load(lower.lower, lower.to, block, lower.lower[slotAddress], 8,
-                                       false, LowerType::Pointer, 0);
+                                       false, LowerType::Pointer, StringId());
 
                     if(result) result->source = instruction.source;
                     result = call(lower.lower, lower.to, block, 0, 2, kDefaultCallType,

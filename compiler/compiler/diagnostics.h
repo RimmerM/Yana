@@ -3,7 +3,41 @@
 #include <Core.h>
 
 using namespace Tritium;
-using StringId = U32;
+
+/*
+ * An interned name, which is the hash of its text - see Context::addIdentifier.
+ *
+ * A type of its own rather than a bare U32 for two reasons. It stops a name being assigned from any
+ * other index in the compiler by accident, of which there are many: a value id, a block index, a
+ * type offset and a frame slot are all U32 and none of them is a name. And because the value already
+ * *is* a well-mixed hash, `getHash` below hands it straight back rather than hashing a hash - which
+ * is what every lookup in a HashMap keyed by one used to do, twice over, on every identifier the
+ * lexer read.
+ *
+ * The conversion out stays implicit while the one in is explicit. That is the asymmetry worth
+ * having: it catches the direction that is a mistake - a number becoming a name - while leaving the
+ * hundreds of places that print one, compare one or use one as a map key alone.
+ */
+struct StringId {
+    // Trivial on purpose: both token payloads hold one inside a union, and a union member with a
+    // default constructor of its own deletes the union's. So `StringId name;` is uninitialized just
+    // as the U32 it replaced was, and `StringId name {}` is the zero.
+    StringId() = default;
+    explicit constexpr StringId(U32 value): value(value) {}
+
+    constexpr operator U32() const { return value; }
+
+    constexpr bool operator == (StringId other) const { return value == other.value; }
+    constexpr bool operator != (StringId other) const { return value != other.value; }
+
+    U32 value;
+};
+
+// Identity: the value is a Murmur hash of the name's text already, so it is exactly what a bucket
+// index wants and mixing it again buys nothing. Found by argument-dependent lookup from inside
+// Tritium's HashMap, which is why it lives beside the type rather than with the other overloads.
+inline U32 getHash(StringId id) { return id.value; }
+
 using LocationId = U32;
 
 static constexpr LocationId kNullLocation = maxLimit<LocationId>;
@@ -28,7 +62,7 @@ struct Loc {
 };
 
 struct Location {
-    StringId sourceModule = 0;
+    StringId sourceModule {};
     Loc sourceStart = {0, 0, 0};
     Loc sourceEnd = {0, 0, 0};
 

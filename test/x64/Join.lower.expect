@@ -1,4 +1,25 @@
 
+diverge<complex>(%n: Int, %d: Int, %c: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    je %c, a, b
+  }
+
+  a {
+    %q = div %d, %n: Int
+    jmp end
+  }
+
+  b {
+    %r = add %d, %n: Int
+    jmp end
+  }
+
+  end {
+    ret %x
+  }
+}
+
 critEdge<complex>(%n: Int, %m: Int, %c: Int): Int {
   start {
     je %c, a, b
@@ -32,27 +53,6 @@ outOfOrder<complex>(%n: Int): Int {
   }
 }
 
-diverge<complex>(%n: Int, %d: Int, %c: Int): Int {
-  start {
-    %x = add %n, 1: Int
-    je %c, a, b
-  }
-
-  a {
-    %q = div %d, %n: Int
-    jmp end
-  }
-
-  b {
-    %r = add %d, %n: Int
-    jmp end
-  }
-
-  end {
-    ret %x
-  }
-}
-
 earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
   start {
     %keep = add %a, 7: Int
@@ -73,6 +73,22 @@ earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
   }
 }
 
+
+--- codegen: diverge ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  je uses=[rdx] creates=[]  => 85d20f850a000000
+block b:
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc601f8
+  jmp uses=[] creates=[]  => e907000000
+block a:
+  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc631d2f7f7
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: critEdge ---
 block #0:
@@ -103,22 +119,6 @@ block a:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
   ret uses=[rax] creates=[]  => c3
-
---- codegen: diverge ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
-  je uses=[rdx] creates=[]  => 85d20f850a000000
-block b:
-  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc601f8
-  jmp uses=[] creates=[]  => e907000000
-block a:
-  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc631d2f7f7
-  jmp uses=[] creates=[]  => 
-block end:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: earlyExit ---
 block #0:

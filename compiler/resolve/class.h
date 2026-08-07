@@ -17,7 +17,7 @@ struct Function;
  */
 
 struct ClassFun {
-    StringId name = 0;
+    StringId name {};
 
     // The signature, as a body-less Function: its args carry the declared types and names, and
     // its returnType the declared result. Types in it belong to the class's generic context.
@@ -108,6 +108,6 @@ struct ClassInstance {
 // Where a class function was found: the class, and which of its signatures.
 struct ClassFunRef {
     GlobalPtr<TypeClass> typeClass = nullptr;
-    StringId name = 0;
+    StringId name {};
     U16 index = 0;
 };

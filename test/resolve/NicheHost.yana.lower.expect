@@ -1,28 +1,4 @@
 
-depthOf<complex>(%m: Ptr): Int {
-  b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = add %m, 4: Ptr
-    %v_6 = call_complex pointOr, %v_5, 0: Int
-    %v_7 = add %v_6, 2: Int
-    jmp b_8
-  }
-
-  b_3 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_3, 1], [b_4, %v_7]: Int
-    ret %v_9
-  }
-}
-
 pointOr<complex>(%m: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -47,6 +23,30 @@ pointOr<complex>(%m: Ptr, %fallback: Int): Int {
   b_11 {
     %v_12 = phi [b_3, %fallback], [b_4, %v_10]: Int
     ret %v_12
+  }
+}
+
+depthOf<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %m, 4: Ptr
+    %v_6 = call_complex pointOr, %v_5, 0: Int
+    %v_7 = add %v_6, 2: Int
+    jmp b_8
+  }
+
+  b_3 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_3, 1], [b_4, %v_7]: Int
+    ret %v_9
   }
 }
 

@@ -76,7 +76,7 @@ Explanation explainFunction(Program& program, Function& function, const CallSite
 
     Explanation explanation;
     explanation.name = function.name;
-    explanation.module = function.module ? function.module->name : 0;
+    explanation.module = function.module ? function.module->name : StringId();
     explanation.source = function.source;
     explanation.returnType = function.returnType;
 

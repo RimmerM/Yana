@@ -145,6 +145,7 @@ void LowerParser::parseGlobal() {
     }
 
     auto result = module.globals.add(g->name);
+    if(!result.existed) module.globalOrder.push(g - *module.arena);
     if(result.existed) {
         diag.error("duplicate definition of global %@"_v, &g->source, context.findName(g->name));
     } else {
@@ -213,12 +214,16 @@ void LowerParser::parseDecl() {
         diag.error("duplicate definition of function %@"_v, f->source, context.findName(f->name));
     } else {
         *result.value = f - *module.arena;
+
+        // Beside the map, because emission walks the list - see LowerModule. This path builds a
+        // function without going through addFunction, so it has to say so itself.
+        module.functionOrder.push(f - *module.arena);
     }
 }
 
 void LowerParser::parseBlock(LowerFunction* fun) {
     auto label = maybeNode(LowerToken::LabelID);
-    auto block = fun->addBlock(*module.arena, label ? label.unwrap().payload.id : 0);
+    auto block = fun->addBlock(*module.arena, label ? label.unwrap().payload.id : StringId());
     block->source = context.addLocation(label ? label.unwrap().node : currentNode());
 
     auto ast = new (buffer) LowerBlockAst;
@@ -233,7 +238,7 @@ void LowerParser::parseBlock(LowerFunction* fun) {
 }
 
 LowerInstAst* LowerParser::parseInst(LowerBlockAst& to, bool implicitResult) {
-    auto inst = new (buffer) LowerInstAst(0);
+    auto inst = new (buffer) LowerInstAst(StringId());
     WithLocation location(*this);
 
     if(implicitResult) {

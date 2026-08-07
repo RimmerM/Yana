@@ -1,4 +1,43 @@
 
+manyLive<complex>(%a: Double, %b: Double): Double {
+  b_0 {
+    %v0 = add %a, %b: Double
+    %v1 = mul %a, %v0: Double
+    %v2 = mul %a, %v1: Double
+    %v3 = mul %a, %v2: Double
+    %v4 = mul %a, %v3: Double
+    %v5 = mul %a, %v4: Double
+    %v6 = mul %a, %v5: Double
+    %v7 = mul %a, %v6: Double
+    %v8 = mul %a, %v7: Double
+    %v9 = mul %a, %v8: Double
+    %v10 = mul %a, %v9: Double
+    %v11 = mul %a, %v10: Double
+    %v12 = mul %a, %v11: Double
+    %v13 = mul %a, %v12: Double
+    %v14 = mul %a, %v13: Double
+    %v15 = mul %a, %v14: Double
+    %v16 = mul %a, %v15: Double
+    %s16 = add %v16, %v15: Double
+    %s15 = add %s16, %v14: Double
+    %s14 = add %s15, %v13: Double
+    %s13 = add %s14, %v12: Double
+    %s12 = add %s13, %v11: Double
+    %s11 = add %s12, %v10: Double
+    %s10 = add %s11, %v9: Double
+    %s9 = add %s10, %v8: Double
+    %s8 = add %s9, %v7: Double
+    %s7 = add %s8, %v6: Double
+    %s6 = add %s7, %v5: Double
+    %s5 = add %s6, %v4: Double
+    %s4 = add %s5, %v3: Double
+    %s3 = add %s4, %v2: Double
+    %s2 = add %s3, %v1: Double
+    %s1 = add %s2, %v0: Double
+    ret %s1
+  }
+}
+
 manyLive32<complex>(%a: Float, %b: Float): Float {
   b_0 {
     %v0 = add %a, %b: Float
@@ -35,6 +74,48 @@ manyLive32<complex>(%a: Float, %b: Float): Float {
     %s2 = add %s3, %v1: Float
     %s1 = add %s2, %v0: Float
     ret %s1
+  }
+}
+
+mixedWidth<complex>(%a: Float, %b: Double): Double {
+  b_0 {
+    %f0 = mul %a, %a: Float
+    %f1 = mul %a, %f0: Float
+    %f2 = mul %a, %f1: Float
+    %f3 = mul %a, %f2: Float
+    %f4 = mul %a, %f3: Float
+    %f5 = mul %a, %f4: Float
+    %f6 = mul %a, %f5: Float
+    %f7 = mul %a, %f6: Float
+    %f8 = mul %a, %f7: Float
+    %d0 = mul %b, %b: Double
+    %d1 = mul %b, %d0: Double
+    %d2 = mul %b, %d1: Double
+    %d3 = mul %b, %d2: Double
+    %d4 = mul %b, %d3: Double
+    %d5 = mul %b, %d4: Double
+    %d6 = mul %b, %d5: Double
+    %d7 = mul %b, %d6: Double
+    %d8 = mul %b, %d7: Double
+    %g8 = add %f8, %f7: Float
+    %g7 = add %g8, %f6: Float
+    %g6 = add %g7, %f5: Float
+    %g5 = add %g6, %f4: Float
+    %g4 = add %g5, %f3: Float
+    %g3 = add %g4, %f2: Float
+    %g2 = add %g3, %f1: Float
+    %g1 = add %g2, %f0: Float
+    %e8 = add %d8, %d7: Double
+    %e7 = add %e8, %d6: Double
+    %e6 = add %e7, %d5: Double
+    %e5 = add %e6, %d4: Double
+    %e4 = add %e5, %d3: Double
+    %e3 = add %e4, %d2: Double
+    %e2 = add %e3, %d1: Double
+    %e1 = add %e2, %d0: Double
+    %w = cast %g1: Double
+    %r = add %w, %e1: Double
+    ret %r
   }
 }
 
@@ -84,87 +165,46 @@ swap<complex>(%x: Double, %y: Double, %n: Int): Double {
   }
 }
 
-mixedWidth<complex>(%a: Float, %b: Double): Double {
-  b_0 {
-    %f0 = mul %a, %a: Float
-    %f1 = mul %a, %f0: Float
-    %f2 = mul %a, %f1: Float
-    %f3 = mul %a, %f2: Float
-    %f4 = mul %a, %f3: Float
-    %f5 = mul %a, %f4: Float
-    %f6 = mul %a, %f5: Float
-    %f7 = mul %a, %f6: Float
-    %f8 = mul %a, %f7: Float
-    %d0 = mul %b, %b: Double
-    %d1 = mul %b, %d0: Double
-    %d2 = mul %b, %d1: Double
-    %d3 = mul %b, %d2: Double
-    %d4 = mul %b, %d3: Double
-    %d5 = mul %b, %d4: Double
-    %d6 = mul %b, %d5: Double
-    %d7 = mul %b, %d6: Double
-    %d8 = mul %b, %d7: Double
-    %g8 = add %f8, %f7: Float
-    %g7 = add %g8, %f6: Float
-    %g6 = add %g7, %f5: Float
-    %g5 = add %g6, %f4: Float
-    %g4 = add %g5, %f3: Float
-    %g3 = add %g4, %f2: Float
-    %g2 = add %g3, %f1: Float
-    %g1 = add %g2, %f0: Float
-    %e8 = add %d8, %d7: Double
-    %e7 = add %e8, %d6: Double
-    %e6 = add %e7, %d5: Double
-    %e5 = add %e6, %d4: Double
-    %e4 = add %e5, %d3: Double
-    %e3 = add %e4, %d2: Double
-    %e2 = add %e3, %d1: Double
-    %e1 = add %e2, %d0: Double
-    %w = cast %g1: Double
-    %r = add %w, %e1: Double
-    ret %r
-  }
-}
 
-manyLive<complex>(%a: Double, %b: Double): Double {
-  b_0 {
-    %v0 = add %a, %b: Double
-    %v1 = mul %a, %v0: Double
-    %v2 = mul %a, %v1: Double
-    %v3 = mul %a, %v2: Double
-    %v4 = mul %a, %v3: Double
-    %v5 = mul %a, %v4: Double
-    %v6 = mul %a, %v5: Double
-    %v7 = mul %a, %v6: Double
-    %v8 = mul %a, %v7: Double
-    %v9 = mul %a, %v8: Double
-    %v10 = mul %a, %v9: Double
-    %v11 = mul %a, %v10: Double
-    %v12 = mul %a, %v11: Double
-    %v13 = mul %a, %v12: Double
-    %v14 = mul %a, %v13: Double
-    %v15 = mul %a, %v14: Double
-    %v16 = mul %a, %v15: Double
-    %s16 = add %v16, %v15: Double
-    %s15 = add %s16, %v14: Double
-    %s14 = add %s15, %v13: Double
-    %s13 = add %s14, %v12: Double
-    %s12 = add %s13, %v11: Double
-    %s11 = add %s12, %v10: Double
-    %s10 = add %s11, %v9: Double
-    %s9 = add %s10, %v8: Double
-    %s8 = add %s9, %v7: Double
-    %s7 = add %s8, %v6: Double
-    %s6 = add %s7, %v5: Double
-    %s5 = add %s6, %v4: Double
-    %s4 = add %s5, %v3: Double
-    %s3 = add %s4, %v2: Double
-    %s2 = add %s3, %v1: Double
-    %s1 = add %s2, %v0: Double
-    ret %s1
-  }
-}
-
+--- codegen: manyLive ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f58d1
+  mul uses=[xmm1, xmm2] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8f20f59ca
+  mul uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8f20f59d9
+  mul uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0f20f59e3
+  mul uses=[xmm5, xmm4] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8f20f59ec
+  mul uses=[xmm6, xmm5] creates=[xmm6] pre=[xmm0->xmm6]  => 0f28f0f20f59f5
+  mul uses=[xmm7, xmm6] creates=[xmm7] pre=[xmm0->xmm7]  => 0f28f8f20f59fe
+  mul uses=[xmm8, xmm7] creates=[xmm8] pre=[xmm0->xmm8]  => 440f28c0f2440f59c7
+  mul uses=[xmm9, xmm8] creates=[xmm9] pre=[xmm0->xmm9]  => 440f28c8f2450f59c8
+  mul uses=[xmm10, xmm9] creates=[xmm10] pre=[xmm0->xmm10]  => 440f28d0f2450f59d1
+  mul uses=[xmm11, xmm10] creates=[xmm11] pre=[xmm0->xmm11]  => 440f28d8f2450f59da
+  mul uses=[xmm12, xmm11] creates=[xmm12] pre=[xmm0->xmm12]  => 440f28e0f2450f59e3
+  mul uses=[xmm13, xmm12] creates=[xmm13] pre=[xmm0->xmm13]  => 440f28e8f2450f59ec
+  mul uses=[xmm14, xmm13] creates=[xmm14] pre=[xmm0->xmm14]  => 440f28f0f2450f59f5
+  mul uses=[xmm15, xmm14] creates=[xmm15] pre=[xmm0->xmm15] post=[xmm15->stack:0]  => 440f28f8f2450f59fef2440f113c24
+  mul uses=[xmm15, stack:0] creates=[xmm15] pre=[xmm0->xmm15] post=[xmm15->stack:1]  => 440f28f8f2440f593c24f2440f117c2408
+  mul uses=[xmm0, stack:1] creates=[xmm0]  => f20f59442408
+  add uses=[xmm0, stack:1] creates=[xmm0]  => f20f58442408
+  add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
+  add uses=[xmm0, xmm14] creates=[xmm0]  => f2410f58c6
+  add uses=[xmm0, xmm13] creates=[xmm0]  => f2410f58c5
+  add uses=[xmm0, xmm12] creates=[xmm0]  => f2410f58c4
+  add uses=[xmm0, xmm11] creates=[xmm0]  => f2410f58c3
+  add uses=[xmm0, xmm10] creates=[xmm0]  => f2410f58c2
+  add uses=[xmm0, xmm9] creates=[xmm0]  => f2410f58c1
+  add uses=[xmm0, xmm8] creates=[xmm0]  => f2410f58c0
+  add uses=[xmm0, xmm7] creates=[xmm0]  => f20f58c7
+  add uses=[xmm0, xmm6] creates=[xmm0]  => f20f58c6
+  add uses=[xmm0, xmm5] creates=[xmm0]  => f20f58c5
+  add uses=[xmm0, xmm4] creates=[xmm0]  => f20f58c4
+  add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
+  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => f20f58c2
+  ret uses=[xmm0] creates=[]  => 4883c410c3
 
 --- codegen: manyLive32 ---
   prologue  => 4883ec08
@@ -205,42 +245,6 @@ block #1:
   add uses=[xmm0, xmm1] creates=[xmm0]  => f30f58c1
   add uses=[xmm0, xmm2] creates=[xmm0]  => f30f58c2
   ret uses=[xmm0] creates=[]  => 4883c408c3
-
---- codegen: cycle ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  jmp uses=[] creates=[]  => 
-block head:
-  imm uses=[] creates=[-]  => 
-  sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc8
-  imm uses=[] creates=[-]  => 
-  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 0f8413000000
-block #3:
-  jmp uses=[] creates=[] pre=[rax->rdi, xmm0->xmm15, xmm1->xmm0, xmm15->xmm1]  => 488bf8440f28f80f28c1410f28cfe9e0ffffff
-block done:
-  sub uses=[xmm0, xmm1] creates=[xmm0]  => f20f5cc1
-  ret uses=[xmm0] creates=[]  => c3
-
---- codegen: swap ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  jmp uses=[] creates=[]  => 
-block head:
-  imm uses=[] creates=[-]  => 
-  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 0f8418000000
-block body:
-  add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f58d1
-  mul uses=[xmm1, xmm0] creates=[xmm1]  => f20f59c8
-  imm uses=[] creates=[-]  => 
-  sub uses=[rdi, -] creates=[rdi]  => ffcf
-  jmp uses=[] creates=[] pre=[xmm1->xmm0, xmm2->xmm1]  => 0f28c10f28cae9e0ffffff
-block done:
-  sub uses=[xmm0, xmm1] creates=[xmm0]  => f20f5cc1
-  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: mixedWidth ---
   prologue  => 4883ec18
@@ -285,42 +289,38 @@ block #1:
   add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
   ret uses=[xmm0] creates=[]  => 4883c418c3
 
---- codegen: manyLive ---
-  prologue  => 4883ec10
+--- codegen: cycle ---
 block #0:
   jmp uses=[] creates=[]  => 
-block #1:
+block start:
+  jmp uses=[] creates=[]  => 
+block head:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc8
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 0f8413000000
+block #3:
+  jmp uses=[] creates=[] pre=[rax->rdi, xmm0->xmm15, xmm1->xmm0, xmm15->xmm1]  => 488bf8440f28f80f28c1410f28cfe9e0ffffff
+block done:
+  sub uses=[xmm0, xmm1] creates=[xmm0]  => f20f5cc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: swap ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  jmp uses=[] creates=[]  => 
+block head:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 0f8418000000
+block body:
   add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f58d1
-  mul uses=[xmm1, xmm2] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8f20f59ca
-  mul uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8f20f59d9
-  mul uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0f20f59e3
-  mul uses=[xmm5, xmm4] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8f20f59ec
-  mul uses=[xmm6, xmm5] creates=[xmm6] pre=[xmm0->xmm6]  => 0f28f0f20f59f5
-  mul uses=[xmm7, xmm6] creates=[xmm7] pre=[xmm0->xmm7]  => 0f28f8f20f59fe
-  mul uses=[xmm8, xmm7] creates=[xmm8] pre=[xmm0->xmm8]  => 440f28c0f2440f59c7
-  mul uses=[xmm9, xmm8] creates=[xmm9] pre=[xmm0->xmm9]  => 440f28c8f2450f59c8
-  mul uses=[xmm10, xmm9] creates=[xmm10] pre=[xmm0->xmm10]  => 440f28d0f2450f59d1
-  mul uses=[xmm11, xmm10] creates=[xmm11] pre=[xmm0->xmm11]  => 440f28d8f2450f59da
-  mul uses=[xmm12, xmm11] creates=[xmm12] pre=[xmm0->xmm12]  => 440f28e0f2450f59e3
-  mul uses=[xmm13, xmm12] creates=[xmm13] pre=[xmm0->xmm13]  => 440f28e8f2450f59ec
-  mul uses=[xmm14, xmm13] creates=[xmm14] pre=[xmm0->xmm14]  => 440f28f0f2450f59f5
-  mul uses=[xmm15, xmm14] creates=[xmm15] pre=[xmm0->xmm15] post=[xmm15->stack:0]  => 440f28f8f2450f59fef2440f113c24
-  mul uses=[xmm15, stack:0] creates=[xmm15] pre=[xmm0->xmm15] post=[xmm15->stack:1]  => 440f28f8f2440f593c24f2440f117c2408
-  mul uses=[xmm0, stack:1] creates=[xmm0]  => f20f59442408
-  add uses=[xmm0, stack:1] creates=[xmm0]  => f20f58442408
-  add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
-  add uses=[xmm0, xmm14] creates=[xmm0]  => f2410f58c6
-  add uses=[xmm0, xmm13] creates=[xmm0]  => f2410f58c5
-  add uses=[xmm0, xmm12] creates=[xmm0]  => f2410f58c4
-  add uses=[xmm0, xmm11] creates=[xmm0]  => f2410f58c3
-  add uses=[xmm0, xmm10] creates=[xmm0]  => f2410f58c2
-  add uses=[xmm0, xmm9] creates=[xmm0]  => f2410f58c1
-  add uses=[xmm0, xmm8] creates=[xmm0]  => f2410f58c0
-  add uses=[xmm0, xmm7] creates=[xmm0]  => f20f58c7
-  add uses=[xmm0, xmm6] creates=[xmm0]  => f20f58c6
-  add uses=[xmm0, xmm5] creates=[xmm0]  => f20f58c5
-  add uses=[xmm0, xmm4] creates=[xmm0]  => f20f58c4
-  add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
-  add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
-  add uses=[xmm0, xmm2] creates=[xmm0]  => f20f58c2
-  ret uses=[xmm0] creates=[]  => 4883c410c3
+  mul uses=[xmm1, xmm0] creates=[xmm1]  => f20f59c8
+  imm uses=[] creates=[-]  => 
+  sub uses=[rdi, -] creates=[rdi]  => ffcf
+  jmp uses=[] creates=[] pre=[xmm1->xmm0, xmm2->xmm1]  => 0f28c10f28cae9e0ffffff
+block done:
+  sub uses=[xmm0, xmm1] creates=[xmm0]  => f20f5cc1
+  ret uses=[xmm0] creates=[]  => c3

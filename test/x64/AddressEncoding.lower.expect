@@ -5,11 +5,59 @@ sink<simple>(%x: Int): Int {
   }
 }
 
+clobberSink<clobber>(%p: Ptr): Ptr {
+  b_0 {
+    ret %p
+  }
+}
+
+copyExtendedBase<complex>(%p: Ptr, %x: Int): Int {
+  b_0 {
+    %a = add %x, 1: Int
+    %b = add %x, 2: Int
+    %c = add %x, 3: Int
+    %d = add %x, 4: Int
+    %e = add %x, 5: Int
+    %dst = add %p, 16: Ptr
+    %src = add %p, 64: Ptr
+    %r = call_simple sink, %x: Int
+    copy %dst, %src, 12
+    %s0 = add %a, %b: Int
+    %s1 = add %s0, %c: Int
+    %s2 = add %s1, %d: Int
+    %s3 = add %s2, %e: Int
+    %s5 = add %s3, %r: Int
+    ret %s5
+  }
+}
+
 copyFramePointerBase<complex>(%p: Ptr, %q: Ptr): Ptr {
   b_0 {
     %r = call_clobber clobberSink, %q: Ptr
     copy %p, %r, 12
     ret %p
+  }
+}
+
+patternByteRex<complex>(%d: Ptr, %pat: Int) {
+  b_0 {
+    setpattern %d, 1, %pat
+    setpattern %d, 11, %pat
+    ret 
+  }
+}
+
+loadDisplacements<complex>(%p: Ptr): Long {
+  b_0 {
+    %qa = sub %p, 8: Ptr
+    %a = load %qa, 8: Long
+    %qb = sub %p, 100000: Ptr
+    %b = load %qb, 8: Long
+    %qc = add %p, 100000: Ptr
+    %c = load %qc, 8: Long
+    %s0 = add %a, %b: Long
+    %s1 = add %s0, %c: Long
+    ret %s1
   }
 }
 
@@ -40,60 +88,6 @@ loadScaledIndex<complex>(%p: Ptr, %i: Long, %x: Int): Long {
   }
 }
 
-win64Sink<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
-  b_0 {
-    ret %a
-  }
-}
-
-copyExtendedBase<complex>(%p: Ptr, %x: Int): Int {
-  b_0 {
-    %a = add %x, 1: Int
-    %b = add %x, 2: Int
-    %c = add %x, 3: Int
-    %d = add %x, 4: Int
-    %e = add %x, 5: Int
-    %dst = add %p, 16: Ptr
-    %src = add %p, 64: Ptr
-    %r = call_simple sink, %x: Int
-    copy %dst, %src, 12
-    %s0 = add %a, %b: Int
-    %s1 = add %s0, %c: Int
-    %s2 = add %s1, %d: Int
-    %s3 = add %s2, %e: Int
-    %s5 = add %s3, %r: Int
-    ret %s5
-  }
-}
-
-patternByteRex<complex>(%d: Ptr, %pat: Int) {
-  b_0 {
-    setpattern %d, 1, %pat
-    setpattern %d, 11, %pat
-    ret 
-  }
-}
-
-sysvSink<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
-  b_0 {
-    ret %a
-  }
-}
-
-loadDisplacements<complex>(%p: Ptr): Long {
-  b_0 {
-    %qa = sub %p, 8: Ptr
-    %a = load %qa, 8: Long
-    %qb = sub %p, 100000: Ptr
-    %b = load %qb, 8: Long
-    %qc = add %p, 100000: Ptr
-    %c = load %qc, 8: Long
-    %s0 = add %a, %b: Long
-    %s1 = add %s0, %c: Long
-    ret %s1
-  }
-}
-
 stackArgsRspBase<sysv>(%x: Int): Int {
   b_0 {
     %a = call_win64 win64Sink, %x, %x, %x, %x, %x, %x: Int
@@ -103,9 +97,15 @@ stackArgsRspBase<sysv>(%x: Int): Int {
   }
 }
 
-clobberSink<clobber>(%p: Ptr): Ptr {
+win64Sink<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
   b_0 {
-    ret %p
+    ret %a
+  }
+}
+
+sysvSink<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
+  b_0 {
+    ret %a
   }
 }
 
@@ -116,16 +116,79 @@ block #0:
 block #1:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
 
+--- codegen: clobberSink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: copyExtendedBase ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488bceffc1
+  imm uses=[] creates=[-]  => 
+  add uses=[r8, -] creates=[r8] pre=[rsi->r8]  => 4c8bc64183c002
+  imm uses=[] creates=[-]  => 
+  add uses=[r9, -] creates=[r9] pre=[rsi->r9]  => 4c8bce4183c103
+  imm uses=[] creates=[-]  => 
+  add uses=[r10, -] creates=[r10] pre=[rsi->r10]  => 4c8bd64183c204
+  imm uses=[] creates=[-]  => 
+  add uses=[rbx, -] creates=[rbx] pre=[rsi->rbx]  => 488bde83c305
+  imm uses=[] creates=[-]  => 
+  x86_lea scale=1 disp=16 uses=[rdi] creates=[r12]  => 4c8d6710
+  imm uses=[] creates=[-]  => 
+  x86_lea scale=1 disp=64 uses=[rdi] creates=[r13]  => 4c8d6f40
+  fun uses=[] creates=[-]  => 
+  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee8c3ffffff
+  imm uses=[] creates=[rdx]  => ba0c000000
+  copy uses=[r12, r13, rdx] creates=[]  => 4d8b5d004d891c24458b5d0845895c2408
+  add uses=[rcx, r8] creates=[rcx]  => 4401c1
+  add uses=[rcx, r9] creates=[rcx]  => 4401c9
+  add uses=[rcx, r10] creates=[rcx]  => 4401d1
+  add uses=[rcx, rbx] creates=[rcx]  => 01d9
+  add uses=[rcx, rax] creates=[rcx]  => 01c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1415d415c5bc3
+
 --- codegen: copyFramePointerBase ---
   prologue  => 53554154415541564157
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rbp]  => 488bef
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee86f010000
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee886ffffff
   imm uses=[] creates=[rcx]  => b90c000000
   copy uses=[rbp, rax, rcx] creates=[]  => 4c8b184c895d00448b580844895d08
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc5415f415e415d415c5d5bc3
+
+--- codegen: patternByteRex ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[rax]  => b801000000
+  setpattern uses=[rdi, rax, rsi] creates=[]  => 408837
+  imm uses=[] creates=[rax]  => b80b000000
+  setpattern uses=[rdi, rax, rsi] creates=[]  => 488937668977084088770a
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadDisplacements ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=-8 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 488b47f8
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=-100000 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b8f6079feff
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=100000 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rdx]  => 488b97a0860100
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: loadScaledIndex ---
   prologue  => 5341544155
@@ -149,7 +212,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13] pre=[rsi->r13]  => 4c8bee49ffc5
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 488bfae884ffffff
+  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 488bfae8edfeffff
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=0 uses=[r12, r13] creates=[-]  => 
   load uses=[-] creates=[rdx]  => 4b8b14ec
@@ -164,75 +227,6 @@ block #1:
   add uses=[rdx, rcx] creates=[rdx]  => 4801ca
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2415d415c5bc3
 
---- codegen: win64Sink ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
-
---- codegen: copyExtendedBase ---
-  prologue  => 5341544155
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488bceffc1
-  imm uses=[] creates=[-]  => 
-  add uses=[r8, -] creates=[r8] pre=[rsi->r8]  => 4c8bc64183c002
-  imm uses=[] creates=[-]  => 
-  add uses=[r9, -] creates=[r9] pre=[rsi->r9]  => 4c8bce4183c103
-  imm uses=[] creates=[-]  => 
-  add uses=[r10, -] creates=[r10] pre=[rsi->r10]  => 4c8bd64183c204
-  imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rsi->rbx]  => 488bde83c305
-  imm uses=[] creates=[-]  => 
-  x86_lea scale=1 disp=16 uses=[rdi] creates=[r12]  => 4c8d6710
-  imm uses=[] creates=[-]  => 
-  x86_lea scale=1 disp=64 uses=[rdi] creates=[r13]  => 4c8d6f40
-  fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee825ffffff
-  imm uses=[] creates=[rdx]  => ba0c000000
-  copy uses=[r12, r13, rdx] creates=[]  => 4d8b5d004d891c24458b5d0845895c2408
-  add uses=[rcx, r8] creates=[rcx]  => 4401c1
-  add uses=[rcx, r9] creates=[rcx]  => 4401c9
-  add uses=[rcx, r10] creates=[rcx]  => 4401d1
-  add uses=[rcx, rbx] creates=[rcx]  => 01d9
-  add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1415d415c5bc3
-
---- codegen: patternByteRex ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[rax]  => b801000000
-  setpattern uses=[rdi, rax, rsi] creates=[]  => 408837
-  imm uses=[] creates=[rax]  => b80b000000
-  setpattern uses=[rdi, rax, rsi] creates=[]  => 488937668977084088770a
-  ret uses=[] creates=[]  => c3
-
---- codegen: sysvSink ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: loadDisplacements ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=-8 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 488b47f8
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=-100000 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 488b8f6079feff
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=100000 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rdx]  => 488b97a0860100
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
-  add uses=[rax, rdx] creates=[rax]  => 4801d0
-  ret uses=[rax] creates=[]  => c3
-
 --- codegen: stackArgsRspBase ---
   prologue  => 534883ec30
 block #0:
@@ -241,15 +235,21 @@ block #1:
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2428
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2420
   fun uses=[] creates=[-]  => 
-  call_win64 uses=[-, rcx, rdx, r8, r9, -, -] creates=[rax] pre=[rdi->rcx, rdi->rdx, rdi->r8, rdi->r9] post=[rax->rbx]  => 488bcf488bd74c8bc74c8bcfe845ffffff488bd8
+  call_win64 uses=[-, rcx, rdx, r8, r9, -, -] creates=[rax] pre=[rdi->rcx, rdi->rdx, rdi->r8, rdi->r9] post=[rax->rbx]  => 488bcf488bd74c8bc74c8bcfe82b000000488bd8
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2408
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe8a3ffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe80f000000
   add uses=[rbx, rax] creates=[rbx]  => 01c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc34883c4305bc3
 
---- codegen: clobberSink ---
+--- codegen: win64Sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: sysvSink ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:

@@ -1,7 +1,7 @@
 
-hinted<complex>(%c: Int): Int {
+neutral<complex>(%c: Int): Int {
   start {
-    je %c, [left, 99], [right, 1]
+    je %c, left, right
   }
 
   left {
@@ -20,9 +20,9 @@ hinted<complex>(%c: Int): Int {
   }
 }
 
-neutral<complex>(%c: Int): Int {
+hinted<complex>(%c: Int): Int {
   start {
-    je %c, left, right
+    je %c, [left, 99], [right, 1]
   }
 
   left {

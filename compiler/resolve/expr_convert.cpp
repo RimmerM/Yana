@@ -161,7 +161,7 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
         } else if(isGeneric(global, target)) {
             // Inside a generic body the instance is the caller's to supply, exactly as it is for
             // any other class call the body's own type variables decide.
-            return emitGenericDispatch(match, { args, 1 }, source, 0);
+            return emitGenericDispatch(match, { args, 1 }, source, StringId());
         }
     }
 
@@ -209,7 +209,7 @@ ModulePtr<Value> ExprResolver::truthy(ModulePtr<Value> value, LocationId source)
         } else if(isGeneric(global, type)) {
             // In a generic body the instance is the caller's to supply, exactly as it is for any
             // other class call this body's own type variables decide.
-            return emitGenericDispatch(match, { args, 1 }, source, 0);
+            return emitGenericDispatch(match, { args, 1 }, source, StringId());
         }
     }
 
@@ -304,7 +304,7 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
                 return value;
             }
 
-            return ref(emit<InstBorrow>(source, 0, target, Place::inBorrow(value), false));
+            return ref(emit<InstBorrow>(source, StringId(), target, Place::inBorrow(value), false));
         }
 
         if(!sameType(from, wanted->to)) {
@@ -401,16 +401,16 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
          * distance everything else was already getting.
          */
         auto distance = U32(((IntType*)global[canonical])->bits) - wanted.bits;
-        auto up = ref(emit<InstBinary>(source, 0, from, Value::Shl, value,
+        auto up = ref(emit<InstBinary>(source, StringId(), from, Value::Shl, value,
                                        makeInt(source, from, distance)));
-        auto down = ref(emit<InstBinary>(source, 0, from, Value::Sar, up,
+        auto down = ref(emit<InstBinary>(source, StringId(), from, Value::Sar, up,
                                          makeInt(source, from, distance)));
 
         return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, down));
     }
 
     auto mask = wanted.bits >= 64 ? maxLimit<U64> : (U64(1) << wanted.bits) - 1;
-    auto masked = ref(emit<InstBinary>(source, 0, from, Value::And, value,
+    auto masked = ref(emit<InstBinary>(source, StringId(), from, Value::And, value,
                                        makeInt(source, from, mask)));
 
     return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, masked));
@@ -424,7 +424,7 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
  * declaration expands to.
  */
 ModulePtr<Value> ExprResolver::hostArrayLength(ModulePtr<Value> items, LocationId source) {
-    auto instruction = create<InstNative>(source, 0, module.scalar.size, NativeOp::HostField,
+    auto instruction = create<InstNative>(source, StringId(), module.scalar.size, NativeOp::HostField,
                                           context.addUnqualifiedName("length", 6));
 
     instruction->args.push(module.arena, items);
@@ -463,7 +463,7 @@ ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Plac
 
     if(fixed) {
         auto pointer = resolvePointerType(module, element);
-        items = ref(emit<InstUnary>(source, 0, pointer, Value::Cast, load(array, source)));
+        items = ref(emit<InstUnary>(source, StringId(), pointer, Value::Cast, load(array, source)));
         count = makeInt(source, module.scalar.size, ((ArrayType*)global[from])->length);
     } else {
         auto held = projectField(array, context.addUnqualifiedName("items", 5), source, source);

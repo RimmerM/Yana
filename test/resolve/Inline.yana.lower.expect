@@ -1,4 +1,26 @@
 
+countDown<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %n, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = sub %n, 1: Int
+    %v_6 = call_complex countDown, %v_5: Int
+    %v_7 = add %n, %v_6: Int
+    ret %v_7
+  }
+}
+
 evenLength<complex>(%n: Int): Int {
   b_0 {
     %v_1 = cmp_ile %n, 0: Int
@@ -38,28 +60,6 @@ oddLength<complex>(%n: Int): Int {
     %v_5 = sub %n, 1: Int
     %v_6 = call_complex evenLength, %v_5: Int
     ret %v_6
-  }
-}
-
-countDown<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = cmp_ile %n, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    ret 0
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = sub %n, 1: Int
-    %v_6 = call_complex countDown, %v_5: Int
-    %v_7 = add %n, %v_6: Int
-    ret %v_7
   }
 }
 

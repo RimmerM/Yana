@@ -1,27 +1,11 @@
 @g = [42, 0, 0, 0]
 
-blockOps<complex>(%dst: Ptr, %src: Ptr) {
-  b_0 {
-    copy %dst, %src, 12
-    setpattern %dst, 6, 0
-    ret 
-  }
-}
-
 loadStore<complex>(%p: Ptr, %v: Int): Int {
   b_0 {
     store %p, %v, 4
     %l = load %p, 4: Int
     %w = add %l, %v: Int
     ret %w
-  }
-}
-
-blockOpsDynamic<complex>(%dst: Ptr, %src: Ptr, %n: Int, %pat: Int) {
-  b_0 {
-    copy %dst, %src, %n
-    setpattern %dst, %n, %pat
-    ret 
   }
 }
 
@@ -49,17 +33,22 @@ globalLoad<complex>(): Int {
   }
 }
 
+blockOps<complex>(%dst: Ptr, %src: Ptr) {
+  b_0 {
+    copy %dst, %src, 12
+    setpattern %dst, 6, 0
+    ret 
+  }
+}
 
---- codegen: blockOps ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[rax]  => b80c000000
-  copy uses=[rdi, rsi, rax] creates=[]  => 4c8b1e4c891f448b5e0844895f08
-  imm uses=[] creates=[rax]  => b806000000
-  imm uses=[] creates=[rcx]  => 31c9
-  setpattern uses=[rdi, rax, rcx] creates=[]  => 890f66894f04
-  ret uses=[] creates=[]  => c3
+blockOpsDynamic<complex>(%dst: Ptr, %src: Ptr, %n: Int, %pat: Int) {
+  b_0 {
+    copy %dst, %src, %n
+    setpattern %dst, %n, %pat
+    ret 
+  }
+}
+
 
 --- codegen: loadStore ---
 block #0:
@@ -69,14 +58,6 @@ block #1:
   load uses=[rdi] creates=[rdi]  => 8b3f
   add uses=[rdi, rsi] creates=[rdi]  => 01f7
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: blockOpsDynamic ---
-block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax, rcx->r8]  => 488bc74c8bc1
-block #1:
-  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rcx]  => 488bf8488bcaf3a4
-  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, r8->rax]  => 488bf8488bca498bc0f3aa
-  ret uses=[] creates=[]  => c3
 
 --- codegen: narrow ---
 block #0:
@@ -99,6 +80,25 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[rax]  => 488d0505000000
+  global uses=[] creates=[rax]  => 488d0540000000
   load uses=[rax] creates=[rax]  => 8b00
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: blockOps ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[rax]  => b80c000000
+  copy uses=[rdi, rsi, rax] creates=[]  => 4c8b1e4c891f448b5e0844895f08
+  imm uses=[] creates=[rax]  => b806000000
+  imm uses=[] creates=[rcx]  => 31c9
+  setpattern uses=[rdi, rax, rcx] creates=[]  => 890f66894f04
+  ret uses=[] creates=[]  => c3
+
+--- codegen: blockOpsDynamic ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax, rcx->r8]  => 488bc74c8bc1
+block #1:
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rcx]  => 488bf8488bcaf3a4
+  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, r8->rax]  => 488bf8488bca498bc0f3aa
+  ret uses=[] creates=[]  => c3

@@ -34,20 +34,20 @@ ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringI
 ModulePtr<Value> ExprResolver::allocateRun(TypePtr type, ModulePtr<Value> extent, LocationId source) {
     if(auto env = functionGen(global, function)) requireTypeSlot(module, *env, type);
 
-    auto allocation = emit<InstAlloc>(source, 0, type, maxLimit<U32>, extent);
+    auto allocation = emit<InstAlloc>(source, StringId(), type, maxLimit<U32>, extent);
     auto result = ref(allocation);
 
-    allocation->local = function.addLocal(module, type, 0, result, ast::BindType::Ref, false, false);
+    allocation->local = function.addLocal(module, type, StringId(), result, ast::BindType::Ref, false, false);
     return result;
 }
 
 ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr element,
                                              ModulePtr<Value> index, LocationId source) {
     auto word = module.scalar.long_;
-    auto scale = ref(emit<InstTypeMetric>(source, 0, word, element, TypeMetricKind::Stride));
-    auto offset = ref(emit<InstBinary>(source, 0, word, Value::Mul, index, scale));
+    auto scale = ref(emit<InstTypeMetric>(source, StringId(), word, element, TypeMetricKind::Stride));
+    auto offset = ref(emit<InstBinary>(source, StringId(), word, Value::Mul, index, scale));
 
-    return ref(emit<InstBinary>(source, 0, valueType(base), Value::Add, base, offset));
+    return ref(emit<InstBinary>(source, StringId(), valueType(base), Value::Add, base, offset));
 }
 
 /*
@@ -64,7 +64,7 @@ ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr elem
  * `sizeOf([[Int *4]])` exactly `4 * n * sizeOf(Int)`.
  */
 ModulePtr<Value> ExprResolver::fixedArrayBase(const Place& array, TypePtr element, LocationId source) {
-    return ref(emit<InstAddress>(source, 0, resolvePointerType(module, element), array));
+    return ref(emit<InstAddress>(source, StringId(), resolvePointerType(module, element), array));
 }
 
 /*
@@ -105,10 +105,10 @@ bool ExprResolver::buildRunInto(TypePtr runType, ModulePtr<Value> count, Locatio
     auto word = module.scalar.long_;
     auto extent = local[count]->kind == Value::ConstInt
         ? makeInt(source, word, ((ConstInt*)local[count])->value)
-        : ref(emit<InstUnary>(source, 0, word, Value::Cast, count));
+        : ref(emit<InstUnary>(source, StringId(), word, Value::Cast, count));
 
     auto slots = allocateRun(element, extent, source);
-    items = ref(emit<InstAddress>(source, 0, pointerField, placeFor(slots, source)));
+    items = ref(emit<InstAddress>(source, StringId(), pointerField, placeFor(slots, source)));
 
     // What the escape analysis writes its answer into - one bit, "is this run's storage the
     // allocator's". It starts false, which is the arm that releases nothing, so a run that never
@@ -148,7 +148,7 @@ bool ExprResolver::buildRunInto(TypePtr runType, ModulePtr<Value> count, Locatio
         // refinements of *one* canonical type - so the width conversion has to happen first, at the
         // unrefined type, exactly as the ascription does it.
         auto canonical = canonicalType(global, countField);
-        auto widened = ref(emit<InstUnary>(source, 0, canonical, Value::Cast, count));
+        auto widened = ref(emit<InstUnary>(source, StringId(), canonical, Value::Cast, count));
         capacity = convertRefinement(widened, canonical, countField, source);
     }
 
@@ -212,7 +212,7 @@ ModulePtr<Value> ExprResolver::inlineArrayDescriptor(const Place& array, TypePtr
     auto capacityField = runFields->fields.get(global, 1).type;
     auto tagField = runFields->fields.get(global, 2).type;
 
-    auto storage = allocate(plain, source, 0, mut ? ast::BindType::Ref : ast::BindType::Borrow);
+    auto storage = allocate(plain, source, StringId(), mut ? ast::BindType::Ref : ast::BindType::Borrow);
     if(!storage) return nullptr;
 
     auto descriptor = placeFor(storage, source);
@@ -248,7 +248,7 @@ ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count,
                                         ModulePtr<Value>& items) {
     if(!runType || global[runType]->kind != Type::Record) return nullptr;
 
-    auto storage = allocate(runType, source, 0);
+    auto storage = allocate(runType, source, StringId());
     if(!buildRunInto(runType, count, source, items, placeFor(storage, source))) return nullptr;
 
     return storage;
@@ -560,7 +560,7 @@ void ExprResolver::buildAggregate(Place place, TypePtr element, Buffer<ModulePtr
                                   TypePtr indexType, LocationId source) {
     if(values.size() == 0 || isUnit(global, element)) return;
 
-    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, place);
+    auto aggregate = create<InstAggregate>(source, StringId(), module.scalar.unit, place);
 
     for(Size i = 0; i < values.size(); i++) {
         auto value = convert(values[i], element, source);
@@ -612,7 +612,7 @@ bool ExprResolver::buildFieldAggregate(Place place, TupType& tuple, Buffer<Modul
         if(packCandidate(global, tuple, U16(i))) return false;
     }
 
-    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, place);
+    auto aggregate = create<InstAggregate>(source, StringId(), module.scalar.unit, place);
     aggregate->constructor = constructor;
 
     // In front of the fields, which is the order the stores it replaces were in and the order a
@@ -655,7 +655,7 @@ bool ExprResolver::buildSumAggregate(Place root, TypePtr recordType, U16 constru
     if(constructor >= record.constructors.size()) return false;
     if(record.constructors.get(global, constructor).boxed) return false;
 
-    auto aggregate = create<InstAggregate>(source, 0, module.scalar.unit, root);
+    auto aggregate = create<InstAggregate>(source, StringId(), module.scalar.unit, root);
 
     aggregate->components.push(module.arena, AggregateComponent {
         Projection { ProjectionKind::Discriminant, 0, nullptr }, tag });
@@ -688,9 +688,9 @@ void ExprResolver::createBox(Place pointer, TypePtr target, LocationId source) {
 
     ((InstAlloc*)local[storage])->ownedElsewhere = true;
 
-    auto address = ref(emit<InstAddress>(source, 0, resolvePointerType(module, target),
+    auto address = ref(emit<InstAddress>(source, StringId(), resolvePointerType(module, target),
                                          placeFor(storage, source)));
-    emit<InstInit>(source, 0, module.scalar.unit, pointer, address, Value::Init);
+    emit<InstInit>(source, StringId(), module.scalar.unit, pointer, address, Value::Init);
 }
 
 /*
@@ -747,7 +747,7 @@ void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source,
         if(auto box = boxOf(place)) createBox(box.unwrap(), placeType(place), source);
     }
 
-    emit<InstInit>(source, 0, module.scalar.unit, place, value, kind);
+    emit<InstInit>(source, StringId(), module.scalar.unit, place, value, kind);
 }
 
 /*
@@ -862,7 +862,7 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
     }
 
     if(!needsBorrowTemporary(module, function, place, wanted)) {
-        return ref(emit<InstBorrow>(source, 0, borrowType, place, borrow->mut));
+        return ref(emit<InstBorrow>(source, StringId(), borrowType, place, borrow->mut));
     }
 
     auto held = placeType(place);
@@ -882,7 +882,7 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
         auto descriptor = inlineArrayDescriptor(place, held, source, borrow->mut);
         if(!descriptor) return nullptr;
 
-        return ref(emit<InstBorrow>(source, 0, borrowType, placeFor(descriptor, source), borrow->mut));
+        return ref(emit<InstBorrow>(source, StringId(), borrowType, placeFor(descriptor, source), borrow->mut));
     }
 
     /*
@@ -901,7 +901,7 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
         return nullptr;
     }
 
-    auto storage = allocate(wanted, source, 0, ast::BindType::Ref);
+    auto storage = allocate(wanted, source, StringId(), ast::BindType::Ref);
     if(!storage) return nullptr;
 
     auto temporary = placeFor(storage, source);
@@ -914,7 +914,7 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
     // unrefined type it declared and nothing else.
     initialize(temporary, convert(load(place, source), wanted, source), source);
 
-    auto result = ref(emit<InstBorrow>(source, 0, borrowType, temporary, borrow->mut));
+    auto result = ref(emit<InstBorrow>(source, StringId(), borrowType, temporary, borrow->mut));
 
     // An immutable borrow has nothing to commit, because nothing wrote through it.
     if(borrow->mut) packedBorrows.push(PackedBorrow { place, temporary, held, source });
@@ -1903,7 +1903,7 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
     ValueList values;
     for(auto item: items.contents(parse)) values.push(resolve(item, element));
 
-    auto storage = allocate(target, source, 0);
+    auto storage = allocate(target, source, StringId());
     auto place = placeFor(storage, source);
 
     /*
@@ -2021,7 +2021,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         if(fields->fields.size() != 1) return nullptr;
         auto itemsField = fields->fields.get(global, 0).type;
 
-        auto storage = allocate(arrayType, source, 0);
+        auto storage = allocate(arrayType, source, StringId());
         auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
 
         /*
@@ -2038,7 +2038,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
          * deliberately, because a run in a temporary is a whole-aggregate copy away from the array
          * that owns it - see below.
          */
-        auto items = ref(emit<InstNative>(source, 0, itemsField, NativeOp::HostArray));
+        auto items = ref(emit<InstNative>(source, StringId(), itemsField, NativeOp::HostArray));
         buildAggregate(Place::atPointer(items), element, toBuffer(values), module.scalar.size, source);
 
         initialize(project(place, ProjectionKind::Field, 0), items, source);
@@ -2061,7 +2061,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
      * Constructing in place is the honest fix and it costs nothing here, because the caller of a
      * literal always has somewhere to put it. Implementation-Containers.md §13.2 is what wanted it.
      */
-    auto storage = allocate(arrayType, source, 0);
+    auto storage = allocate(arrayType, source, StringId());
     auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
 
     // The run, sized at exactly the literal's length: a literal is Implementation-Containers.md

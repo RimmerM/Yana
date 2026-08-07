@@ -1,29 +1,30 @@
 
-sink<clobber>(%x: Int): Int {
+fences<complex>() {
   b_0 {
+    mfence 
+    lfence 
+    sfence 
+    pause 
+    ret 
+  }
+}
+
+interrupts<complex>(%x: Int, %y: Int): Int {
+  start {
+    %c = cmp_ilt %x, %y: Int
+    cli 
+    swapgs 
+    je %c, less, more
+  }
+
+  less {
+    sti 
     ret %x
   }
-}
 
-controlBits<complex>(%a: Long, %b: Long): Long {
-  b_0 {
-    %cr0 = readcr0 : Long
-    writecr0 %a
-    %cr4 = readcr4 : Long
-    writecr4 %b
-    %r = add %cr0, %cr4: Long
-    ret %r
-  }
-}
-
-ports<complex>(%port: Int, %v: Int): Int {
-  b_0 {
-    out8 %port, %v
-    out32 %port, %v
-    %a = in8 %port: Int
-    %b = in32 %port: Int
-    %r = add %a, %b: Int
-    ret %r
+  more {
+    hlt 
+    ret %y
   }
 }
 
@@ -40,10 +41,54 @@ cacheOps<complex>(%p: Ptr, %i: Long) {
   }
 }
 
+prefetchAndLoad<complex>(%p: Ptr, %i: Long): Long {
+  b_0 {
+    %q = add %p, %i: Ptr
+    prefetch %q
+    %v = load %q, 8: Long
+    ret %v
+  }
+}
+
+sink<clobber>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+spilledAddress<complex>(%arg: Int, %keep: Int, %p: Ptr): Int {
+  b_0 {
+    %r = call_clobber sink, %arg: Int
+    clflush %p
+    %s = add %keep, %r: Int
+    %t = add %keep, %s: Int
+    ret %t
+  }
+}
+
+copyMsr<complex>(%from: Int, %to: Int) {
+  b_0 {
+    %lo, %hi = rdmsr %from: Int, Int
+    wrmsr %to, %lo, %hi
+    ret 
+  }
+}
+
 xcr0<complex>(): Int {
   b_0 {
     %lo, %hi = xgetbv 0: Int, Int
     %r = add %lo, %hi: Int
+    ret %r
+  }
+}
+
+ports<complex>(%port: Int, %v: Int): Int {
+  b_0 {
+    out8 %port, %v
+    out32 %port, %v
+    %a = in8 %port: Int
+    %b = in32 %port: Int
+    %r = add %a, %b: Int
     ret %r
   }
 }
@@ -57,38 +102,22 @@ pageFault<complex>(): Long {
   }
 }
 
+controlBits<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %cr0 = readcr0 : Long
+    writecr0 %a
+    %cr4 = readcr4 : Long
+    writecr4 %b
+    %r = add %cr0, %cr4: Long
+    ret %r
+  }
+}
+
 timestamp<complex>(%a: Long, %b: Long, %keep: Long): Long {
   b_0 {
     %t = rdtsc : Long
     %r = add %keep, %t: Long
     ret %r
-  }
-}
-
-copyMsr<complex>(%from: Int, %to: Int) {
-  b_0 {
-    %lo, %hi = rdmsr %from: Int, Int
-    wrmsr %to, %lo, %hi
-    ret 
-  }
-}
-
-prefetchAndLoad<complex>(%p: Ptr, %i: Long): Long {
-  b_0 {
-    %q = add %p, %i: Ptr
-    prefetch %q
-    %v = load %q, 8: Long
-    ret %v
-  }
-}
-
-fences<complex>() {
-  b_0 {
-    mfence 
-    lfence 
-    sfence 
-    pause 
-    ret 
   }
 }
 
@@ -117,63 +146,31 @@ spin<complex>(%limit: Long): Long {
   }
 }
 
-interrupts<complex>(%x: Int, %y: Int): Int {
-  start {
-    %c = cmp_ilt %x, %y: Int
-    cli 
-    swapgs 
-    je %c, less, more
-  }
 
-  less {
-    sti 
-    ret %x
-  }
-
-  more {
-    hlt 
-    ret %y
-  }
-}
-
-spilledAddress<complex>(%arg: Int, %keep: Int, %p: Ptr): Int {
-  b_0 {
-    %r = call_clobber sink, %arg: Int
-    clflush %p
-    %s = add %keep, %r: Int
-    %t = add %keep, %s: Int
-    ret %t
-  }
-}
-
-
---- codegen: sink ---
+--- codegen: fences ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
+  mfence uses=[] creates=[]  => 0faef0
+  lfence uses=[] creates=[]  => 0faee8
+  sfence uses=[] creates=[]  => 0faef8
+  pause uses=[] creates=[]  => f390
+  ret uses=[] creates=[]  => c3
+
+--- codegen: interrupts ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
+  cli uses=[] creates=[]  => fa
+  swapgs uses=[] creates=[]  => 0f01f8
+  je uses=[-] creates=[]  => 0f8c05000000
+block more:
+  hlt uses=[] creates=[]  => f4
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+block less:
+  sti uses=[] creates=[]  => fb
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: controlBits ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  readcr0 uses=[] creates=[rax]  => 0f20c0
-  writecr0 uses=[rdi] creates=[]  => 0f22c7
-  readcr4 uses=[] creates=[rcx]  => 0f20e1
-  writecr4 uses=[rsi] creates=[]  => 0f22e6
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: ports ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  out8 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ee
-  out32 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ef
-  in8 uses=[rdx] creates=[rax] pre=[rdi->rdx] post=[rax->rcx]  => 488bd7ec0fb6c0488bc8
-  in32 uses=[rdx] creates=[rax] pre=[rdi->rdx]  => 488bd7ed
-  add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: cacheOps ---
 block #0:
@@ -189,40 +186,6 @@ block #1:
   invlpg uses=[rdi] creates=[]  => 0f013f
   ret uses=[] creates=[]  => c3
 
---- codegen: xcr0 ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[rax]  => 31c0
-  xgetbv uses=[rcx] creates=[rax, rdx] pre=[rax->rcx]  => 488bc80f01d0
-  add uses=[rax, rdx] creates=[rax]  => 01d0
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: pageFault ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  readcr2 uses=[] creates=[rax]  => 0f20d0
-  readcr3 uses=[] creates=[rcx]  => 0f20d9
-  writecr3 uses=[rcx] creates=[]  => 0f22d9
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: timestamp ---
-block #0:
-  jmp uses=[] creates=[] pre=[rdx->rcx]  => 488bca
-block #1:
-  rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0
-  add uses=[rcx, rax] creates=[rcx]  => 4801c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
-
---- codegen: copyMsr ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  rdmsr uses=[rcx] creates=[rax, rdx] pre=[rdi->rcx]  => 488bcf0f32
-  wrmsr uses=[rcx, rax, rdx] creates=[] pre=[rsi->rcx]  => 488bce0f30
-  ret uses=[] creates=[]  => c3
-
 --- codegen: prefetchAndLoad ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -233,15 +196,79 @@ block #1:
   load uses=[-] creates=[rax]  => 488b0437
   ret uses=[rax] creates=[]  => c3
 
---- codegen: fences ---
+--- codegen: sink ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  mfence uses=[] creates=[]  => 0faef0
-  lfence uses=[] creates=[]  => 0faee8
-  sfence uses=[] creates=[]  => 0faef8
-  pause uses=[] creates=[]  => f390
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: spilledAddress ---
+  prologue  => 535541544155415641574883ec08
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee48891424
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax]  => e8e2ffffff
+  clflush uses=[r15] creates=[] pre=[stack:0->r15]  => 4c8b3c24410fae3f
+  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd01c1
+  add uses=[rbp, rcx] creates=[rbp]  => 01cd
+  ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c408415f415e415d415c5d5bc3
+
+--- codegen: copyMsr ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  rdmsr uses=[rcx] creates=[rax, rdx] pre=[rdi->rcx]  => 488bcf0f32
+  wrmsr uses=[rcx, rax, rdx] creates=[] pre=[rsi->rcx]  => 488bce0f30
   ret uses=[] creates=[]  => c3
+
+--- codegen: xcr0 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[rax]  => 31c0
+  xgetbv uses=[rcx] creates=[rax, rdx] pre=[rax->rcx]  => 488bc80f01d0
+  add uses=[rax, rdx] creates=[rax]  => 01d0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: ports ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  out8 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ee
+  out32 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ef
+  in8 uses=[rdx] creates=[rax] pre=[rdi->rdx] post=[rax->rcx]  => 488bd7ec0fb6c0488bc8
+  in32 uses=[rdx] creates=[rax] pre=[rdi->rdx]  => 488bd7ed
+  add uses=[rcx, rax] creates=[rcx]  => 01c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: pageFault ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  readcr2 uses=[] creates=[rax]  => 0f20d0
+  readcr3 uses=[] creates=[rcx]  => 0f20d9
+  writecr3 uses=[rcx] creates=[]  => 0f22d9
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: controlBits ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  readcr0 uses=[] creates=[rax]  => 0f20c0
+  writecr0 uses=[rdi] creates=[]  => 0f22c7
+  readcr4 uses=[] creates=[rcx]  => 0f20e1
+  writecr4 uses=[rsi] creates=[]  => 0f22e6
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: timestamp ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdx->rcx]  => 488bca
+block #1:
+  rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: spin ---
 block #0:
@@ -260,30 +287,3 @@ block body:
   jmp uses=[] creates=[]  => e9e1ffffff
 block done:
   ret uses=[rax] creates=[]  => c3
-
---- codegen: interrupts ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
-  cli uses=[] creates=[]  => fa
-  swapgs uses=[] creates=[]  => 0f01f8
-  je uses=[-] creates=[]  => 0f8c05000000
-block more:
-  hlt uses=[] creates=[]  => f4
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
-block less:
-  sti uses=[] creates=[]  => fb
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-
---- codegen: spilledAddress ---
-  prologue  => 535541544155415641574883ec08
-block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee48891424
-block #1:
-  fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e811ffffff
-  clflush uses=[r15] creates=[] pre=[stack:0->r15]  => 4c8b3c24410fae3f
-  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd01c1
-  add uses=[rbp, rcx] creates=[rbp]  => 01cd
-  ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c408415f415e415d415c5d5bc3

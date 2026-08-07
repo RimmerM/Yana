@@ -114,7 +114,7 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
 
 // One name written in call position in a default body, by the key an overload set is arranged by.
 struct DefaultCall {
-    StringId name = 0;
+    StringId name {};
     U16 arity = 0;
 };
 

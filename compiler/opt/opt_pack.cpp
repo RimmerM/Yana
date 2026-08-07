@@ -409,7 +409,7 @@ struct Expander {
 
                 InstList written;
                 written.push(createInst<InstInit>(
-                    *opt.module, *opt.function, *block, opt.local[storage]->source, 0,
+                    *opt.module, *opt.function, *block, opt.local[storage]->source, StringId(),
                     opt.program.scalar.unit, place,
                     makeConstant(opt, *opt.local[storage], unit, 0), Value::Init));
 
@@ -453,7 +453,7 @@ struct Expander {
 
         auto binary = [&](Value::Kind kind, ModulePtr<Value> lhs, U64 rhs) {
             auto instruction = createInst<InstBinary>(
-                *opt.module, *opt.function, block, source, 0, unit, kind, lhs,
+                *opt.module, *opt.function, block, source, StringId(), unit, kind, lhs,
                 makeConstant(opt, *opt.local[word], unit, rhs));
 
             into.push(instruction);
@@ -492,7 +492,7 @@ struct Expander {
         auto mask = lowMask(access.bitWidth);
 
         auto binary = [&](Value::Kind kind, ModulePtr<Value> lhs, ModulePtr<Value> rhs) {
-            auto instruction = createInst<InstBinary>(*opt.module, *opt.function, block, source, 0,
+            auto instruction = createInst<InstBinary>(*opt.module, *opt.function, block, source, StringId(),
                                                       unit, kind, lhs, rhs);
             into.push(instruction);
             return valueOf(instruction);
@@ -500,7 +500,7 @@ struct Expander {
 
         auto immediate = [&](U64 value) { return makeConstant(opt, *opt.local[word], unit, value); };
 
-        auto placed = binary(Value::And, convert(block, source, 0, into, value, unit), immediate(mask));
+        auto placed = binary(Value::And, convert(block, source, StringId(), into, value, unit), immediate(mask));
         if(access.bitOffset) placed = binary(Value::Shl, placed, immediate(access.bitOffset));
 
         auto cleared = binary(Value::And, word, immediate(~(mask << access.bitOffset)));
@@ -511,7 +511,7 @@ struct Expander {
     // access rather than shared: Design.md's rule is that a packed word is read at commit time, and
     // it is the *forwarding* pass that is allowed to notice two reads are the same one.
     Inst* loadUnit(Block& block, LocationId source, Place place) {
-        return createInst<InstLoadPlace>(*opt.module, *opt.function, block, source, 0, unit, place);
+        return createInst<InstLoadPlace>(*opt.module, *opt.function, block, source, StringId(), unit, place);
     }
 
     bool rewriteLoad(Block& block, Size index, ModulePtr<Inst> pointer) {
@@ -558,7 +558,7 @@ struct Expander {
 
         auto merged = encode(block, store.source, replacement, valueOf(word), access, store.value);
 
-        replacement.push(createInst<InstInit>(*opt.module, *opt.function, block, store.source, 0,
+        replacement.push(createInst<InstInit>(*opt.module, *opt.function, block, store.source, StringId(),
                                               opt.program.scalar.unit, place, merged, store.kind));
 
         opt.ir().insert(block, index, replacement);

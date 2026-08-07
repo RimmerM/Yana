@@ -478,7 +478,7 @@ void promotePlaces(OptContext& opt) {
         for(auto& candidate: candidates) {
             if(!candidate.available[block->index]) continue;
 
-            auto phi = createInst<InstPhi>(*opt.module, *opt.function, *block, block->source, 0,
+            auto phi = createInst<InstPhi>(*opt.module, *opt.function, *block, block->source, StringId(),
                                            candidate.type);
 
             candidate.entry[block->index] = (ModulePtr<Value>)(phi - opt.local);

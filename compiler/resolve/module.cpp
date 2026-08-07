@@ -9,6 +9,7 @@
  */
 
 #include "module_internal.h"
+#include "../compiler/stage.h"
 #include "analyze.h"
 #include "const.h"
 #include "core.h"
@@ -114,7 +115,13 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 }
 
 Program::Program(Context& context, Size typeMemory, Size irMemory):
-    context(context), types(typeMemory), arena(irMemory) {}
+    context(context), types(typeMemory), arena(irMemory)
+{
+    // Sized once for the classes a program declares rather than grown into. Every rehash on the way
+    // there re-probes every instance row already in the table, and the count is not a guess that has
+    // to be right - it is one allocation either way, and Core alone declares most of them.
+    instancesByClass.reserve(64);
+}
 
 Program::~Program() {
     for(auto module: modules) delete module;
@@ -482,7 +489,10 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // Ownership runs over the finished program rather than per module, because a generic
     // function's specializations only exist once every body that calls one has been resolved -
     // and it is the specializations, not the generic body, that get drops.
-    runProgramOwnership(*program);
+    {
+        StageScope stage(CompileStage::Ownership);
+        runProgramOwnership(*program);
+    }
 
     verifyIrProgram(*program, VerifyStage::Ownership, "after inserting drops"_v);
 

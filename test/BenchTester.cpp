@@ -18,11 +18,45 @@
  * repository yet - so `-repeat` is how the measurement is made long enough to be stable rather than
  * `-repeat` standing in for a bigger input.
  *
+ * The phases are what a compilation is made of rather than what its entry points are called. Three
+ * of them could not be timed from where they are called at all and are marked inside the compiler -
+ * see compiler/compiler/stage.h - because a module is parsed wherever an import or an embedded
+ * library module first reaches it, the ownership passes run at the end of resolution, and the IR
+ * optimizer runs on resolve IR from inside `lowerProgram`. Timing the two entry points alone
+ * reported "resolve" for a number that was a third parsing, and "lower" for a number that was mostly
+ * the optimizer. Every phase's number here is its *own* cost, with whatever nested inside it
+ * subtracted; see the phase stack below.
+ *
  * Run it from `test/`, like the other drivers:
  *
  *     ../build-bench/test/YanaBench -repeat 20
  *
- * and against a build with optimizations on. A Debug build measures the assertions.
+ * ## Which build
+ *
+ * `build-bench` is CMAKE_BUILD_TYPE=Bench, which is `-O2 -g` and *not* what ships: CMakeLists.txt
+ * appends `-O3 -flto` to Release and RelWithDebInfo only. That is deliberate - an incremental
+ * rebuild is 1.5s here against 24s for Release, which is the difference between profiling being a
+ * loop and being an errand - but wall time runs about 6% high across every phase, and a small
+ * function in another translation unit is a call here that link-time optimization may remove there.
+ *
+ * So a *profile* taken against this build can name a cost that is not in the shipped compiler. The
+ * predicates in util/lexer_util.cpp are the example: `isDigit` and its neighbours are a call each
+ * here and are inlined away under LTO, and an afternoon can be spent making them faster for nobody.
+ *
+ * Configure a third directory to check one, rather than reading a stripped Release binary:
+ *
+ *     cmake -S . -B build-lto -DCMAKE_BUILD_TYPE=Bench \
+ *           -DCMAKE_CXX_FLAGS_BENCH="-O2 -g -DNDEBUG -flto -fno-stack-protector" \
+ *           -DCMAKE_EXE_LINKER_FLAGS="-flto"
+ *
+ * which lands within half a percent of Release and keeps its symbols. Release itself is linked
+ * `-Wl,-s`, so `nm` reports nothing about it and "the symbol is gone" says nothing about inlining -
+ * that mistake is why this paragraph is here.
+ *
+ * Allocation counts are unaffected by any of this - they are a property of the code, and every build
+ * reports them identically.
+ *
+ * A Debug build measures the assertions and answers nothing.
  */
 
 #include <Core.h>
@@ -32,6 +66,7 @@
 #include <cstdio>
 #include <dlfcn.h>
 
+#include "../compiler/compiler/stage.h"
 #include "../compiler/parse/parser.h"
 #include "../compiler/resolve/analyze.h"
 #include "../compiler/resolve/lower.h"
@@ -229,33 +264,82 @@ struct Phase {
 };
 
 static Phase gPhases[] = {
-    { "parse" }, { "resolve" }, { "lower+opt" }, { "amd64" }, { "js" },
+    { "parse" }, { "resolve" }, { "ownership" }, { "opt" }, { "lower" }, { "amd64" }, { "js" },
 };
 
-enum PhaseId { PhaseParse, PhaseResolve, PhaseLower, PhaseX64, PhaseJs, PhaseCount };
+enum PhaseId { PhaseParse, PhaseResolve, PhaseOwnership, PhaseOpt, PhaseLower, PhaseX64, PhaseJs, PhaseCount };
+
+/*
+ * The phase stack, and why a phase's number is not simply its elapsed time.
+ *
+ * Phases nest: a module is parsed from inside resolution, the ownership passes run at the end of it,
+ * and the optimizer runs from inside lowering. What a reader wants of each is its *own* cost, so an
+ * entry subtracts whatever its children reported and hands its whole elapsed time up to its parent
+ * to be subtracted there. The columns then add up to the total rather than double-counting the
+ * inner ones - which the old flat timers did, silently, since nothing they measured nested.
+ *
+ * The depth is bounded by the pipeline itself: parse inside resolve is two, plus whatever a driver
+ * brackets around them, and the assert below is what says so out loud rather than corrupting the
+ * numbers if that stops being true.
+ */
+struct PhaseFrame {
+    PhaseId id;
+    U64 startTime;
+    U64 startAllocations;
+    U64 childTime;
+    U64 childAllocations;
+};
+
+static PhaseFrame gPhaseStack[8];
+static Size gPhaseDepth = 0;
+
+static void enterPhase(PhaseId id) {
+    assertTrue(gPhaseDepth < 8); // phases nested deeper than the pipeline has stages
+    gPhaseStack[gPhaseDepth++] = PhaseFrame { id, nanoTime(), gAllocations, 0, 0 };
+}
+
+static void leavePhase() {
+    auto& frame = gPhaseStack[--gPhaseDepth];
+    auto time = nanoTime() - frame.startTime;
+    auto allocations = gAllocations - frame.startAllocations;
+
+    gPhases[frame.id].time += time - frame.childTime;
+    gPhases[frame.id].allocations += allocations - frame.childAllocations;
+
+    if(gPhaseDepth) {
+        gPhaseStack[gPhaseDepth - 1].childTime += time;
+        gPhaseStack[gPhaseDepth - 1].childAllocations += allocations;
+    }
+}
 
 // Charges everything done in its scope to one phase. A scope rather than a wrapper around a lambda
 // because two of the phases produce a value the rest of the function goes on to use, and a
 // scope-bound timer says that without the value having to travel through a return.
 struct PhaseTimer {
-    explicit PhaseTimer(PhaseId id): id(id), startTime(nanoTime()), startAllocations(gAllocations) {}
-
-    ~PhaseTimer() {
-        gPhases[id].time += nanoTime() - startTime;
-        gPhases[id].allocations += gAllocations - startAllocations;
-    }
-
-    PhaseId id;
-    U64 startTime;
-    U64 startAllocations;
+    explicit PhaseTimer(PhaseId id) { enterPhase(id); }
+    ~PhaseTimer() { leavePhase(); }
 };
 
-// The parse, charged to its phase. A function rather than a scope inside the caller because the
-// module it produces is not copyable and has to be returned into the caller's own storage - which
-// happens before the timer here is destroyed, so the phase still covers exactly the parse.
+// The three stages the compiler marks for itself, mapped onto the phases above. Installed for the
+// whole run - see gStageObserver, which is null in every build that is not this one.
+struct BenchStages: StageObserver {
+    void enterStage(CompileStage stage) override {
+        switch(stage) {
+            case CompileStage::Parse: enterPhase(PhaseParse); break;
+            case CompileStage::Ownership: enterPhase(PhaseOwnership); break;
+            case CompileStage::Optimize: enterPhase(PhaseOpt); break;
+            default: break;
+        }
+    }
+
+    void leaveStage(CompileStage) override { leavePhase(); }
+};
+
+// The root module's parse. No timer of its own: Parser::parseModule marks the parse stage for
+// itself, which is what also catches the imports resolution reaches and the library modules the
+// compiler carries as embedded source - so one mechanism reports all three.
 static ast::Module parseFixture(Context& context, Diagnostics& diagnostics, StringView source,
                                 StringId name) {
-    PhaseTimer timer(PhaseParse);
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     return parser.parseModule();
@@ -313,7 +397,7 @@ static void benchNative(const Fixture& fixture) {
         FunctionRegs registers;
         MachineFunction machine;
 
-        for(auto functionPointer: lowered->functions) {
+        for(auto functionPointer: lowered->functionOrder) {
             auto function = base[functionPointer];
             machine.reset();
             transformFunction(context, base, *function, machine);
@@ -323,7 +407,7 @@ static void benchNative(const Fixture& fixture) {
             genFunction(context, base, assembly, *function, machine, registers);
         }
 
-        for(auto globalPointer: lowered->globals) assembly.addGlobal(base, base[globalPointer]);
+        for(auto globalPointer: lowered->globalOrder) assembly.addGlobal(base, base[globalPointer]);
         assembly.resolveRelocations();
     }
 }
@@ -509,6 +593,11 @@ int main(int argc, const char** argv) {
         phase.allocations = 0;
     }
 
+    // After the warm-up rather than before it: what the observer costs is two virtual calls per
+    // marked scope, and the warm-up should pay them too so that the two runs do the same work.
+    BenchStages stages;
+    gStageObserver = &stages;
+
     gCounting = true;
     auto start = nanoTime();
 
@@ -522,13 +611,29 @@ int main(int argc, const char** argv) {
     auto elapsed = nanoTime() - start;
     auto total = gAllocations;
     gCounting = false;
+    gStageObserver = nullptr;
+    assertTrue(gPhaseDepth == 0); // a phase entered and never left
 
     println("%@ fixtures x %@ repeats", fixtures.size(), repeat);
+
+    U64 phaseTime = 0;
+    U64 phaseAllocations = 0;
 
     for(auto& phase: gPhases) {
         println("  %@: %@ ms, %@ allocations/repeat", phase.name,
                 F64(phase.time) / 1000000.0, phase.allocations / repeat);
+
+        phaseTime += phase.time;
+        phaseAllocations += phase.allocations;
     }
+
+    // What no phase covers, printed so that the columns visibly add up to the total rather than
+    // being trusted to. It is the driver's own work between the brackets - building a Context and a
+    // Program and tearing them down, reading an imported module off disk, and validateLowerModule,
+    // which is deliberately outside the phases for the reason given in benchNative. A few percent is
+    // this; more than that is a phase that stopped covering what it says it does.
+    println("  other: %@ ms, %@ allocations/repeat", F64(elapsed - phaseTime) / 1000000.0,
+            (total - phaseAllocations) / repeat);
 
     println("  total: %@ ms, %@ allocations/repeat", F64(elapsed) / 1000000.0, total / repeat);
 

@@ -1,4 +1,24 @@
 
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = alloca 8, 4: Ptr
+    copy %v_3, %v_1, 8
+    %v_4 = call_complex orElse(Int), %v_3, 0: Int
+    %v_5 = add %v_4, 39: Int
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 0, 4
+    %v_7 = alloca 8, 4: Ptr
+    copy %v_7, %v_6, 8
+    %v_8 = call_complex orElse(Int), %v_7, 7: Int
+    %v_9 = add %v_5, %v_8: Int
+    ret %v_9
+  }
+}
+
 orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %value, 4: Int
@@ -19,26 +39,6 @@ orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
   b_5 {
     %v_8 = phi [b_3, %v_7], [b_4, %fallback]: Int
     ret %v_8
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 5, 4
-    %v_3 = alloca 8, 4: Ptr
-    copy %v_3, %v_1, 8
-    %v_4 = call_complex orElse(Int), %v_3, 0: Int
-    %v_5 = add %v_4, 39: Int
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 0, 4
-    %v_7 = alloca 8, 4: Ptr
-    copy %v_7, %v_6, 8
-    %v_8 = call_complex orElse(Int), %v_7, 7: Int
-    %v_9 = add %v_5, %v_8: Int
-    ret %v_9
   }
 }
 

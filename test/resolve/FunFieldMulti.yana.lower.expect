@@ -1,18 +1,4 @@
 
-funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-funvalue$double<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 2: Int
-    ret %v_1
-  }
-}
-
 retarget<complex>(%slot: Ptr) {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -22,20 +8,6 @@ retarget<complex>(%slot: Ptr) {
     store %v_3, %v_2, 8
     copy %slot, %v_1, 16
     ret 
-  }
-}
-
-funvalue$square<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, %x: Int
-    ret %v_1
-  }
-}
-
-funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = sub 0, %x: Int
-    ret %v_1
   }
 }
 
@@ -109,6 +81,34 @@ main<complex>(): Int {
     %v_37 = add %before, %one: Int
     %v_38 = add %v_37, %both: Int
     ret %v_38
+  }
+}
+
+funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 3: Int
+    ret %v_1
+  }
+}
+
+funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = sub 0, %x: Int
+    ret %v_1
+  }
+}
+
+funvalue$square<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, %x: Int
+    ret %v_1
+  }
+}
+
+funvalue$double<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 2: Int
+    ret %v_1
   }
 }
 

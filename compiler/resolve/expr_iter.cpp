@@ -172,7 +172,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
 
     values.push(continuation);
 
-    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, 0);
+    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
 
     if(!call_ || !current) return;
 
@@ -189,7 +189,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     auto exitBlock = addBlock();
     auto completedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, exitBlock, completedBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, leaving, exitBlock, completedBlock));
 
     current = exitBlock;
     auto carried = outcomePayload(call_, false, source);
@@ -212,7 +212,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     auto returnBlock = addBlock();
     auto brokeBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, inner, returnBlock, brokeBlock));
+    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, inner, returnBlock, brokeBlock));
 
     current = returnBlock;
     emitFunctionReturn(outcomePayload(carried, false, source), source);
@@ -220,10 +220,10 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     auto afterBlock = addBlock();
 
     current = brokeBlock;
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, afterBlock));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, afterBlock));
 
     current = completedBlock;
-    terminate(emit<InstJmp>(source, 0, module.scalar.unit, afterBlock));
+    terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, afterBlock));
 
     current = afterBlock;
 }

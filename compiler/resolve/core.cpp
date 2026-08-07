@@ -506,7 +506,7 @@ static ModulePtr<Value> emitSwap(ExprResolver& resolver, Buffer<ModulePtr<Value>
     auto b = exchangedPlace(resolver, args[1], type, source);
     if(!a || !b) return nullptr;
 
-    auto swap = resolver.emit<InstSwap>(source, 0, resolver.module.scalar.unit,
+    auto swap = resolver.emit<InstSwap>(source, StringId(), resolver.module.scalar.unit,
                                         Place::inBorrow(a), Place::inBorrow(b), type);
 
     swap->sink = relocationFor(resolver, type, source);

@@ -119,11 +119,11 @@ LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, Function
                 auto scale = immediate(lower, stride);
 
                 auto scaled = binary<LowerInst::Mul>(lower.lower, lower.to, block, lower.lower[index],
-                                                     lower.lower[scale], LowerType::Int64, 0)
+                                                     lower.lower[scale], LowerType::Int64, StringId())
                     ->created().ptr - lower.lower;
 
                 auto stepped = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[from],
-                                                      lower.lower[scaled], LowerType::Pointer, 0)
+                                                      lower.lower[scaled], LowerType::Pointer, StringId())
                     ->created().ptr - lower.lower;
 
                 address = stepped;
@@ -136,7 +136,7 @@ LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, Function
                 // so everything accumulated so far has to be spent before it is loaded.
                 auto from = addOffset(lower, block, address, offset);
                 auto loaded = load(lower.lower, lower.to, block, lower.lower[from], 8, false,
-                                   LowerType::Pointer, 0);
+                                   LowerType::Pointer, StringId());
 
                 address = loaded->created().ptr - lower.lower;
                 offset = 0;

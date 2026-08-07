@@ -125,7 +125,7 @@ private:
 
     // One built index per module asked about, dropped with the compile.
     struct ModulePositions {
-        StringId module = 0;
+        StringId module = StringId();
         PositionIndex index;
     };
 

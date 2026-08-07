@@ -1,12 +1,8 @@
 
-callerWithLocal<complex>(%v: Int): Int {
+leafNoFrame<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %a = alloca 8, 8: Ptr
-    store %a, %v, 8
-    %r = call_complex leafNoFrame, %v, %v: Int
-    %s = load %a, 8: Int
-    %t = add %r, %s: Int
-    ret %t
+    %s = add %a, %b: Int
+    ret %s
   }
 }
 
@@ -27,27 +23,25 @@ callerNoFrame<complex>(%a: Int, %b: Int): Int {
   }
 }
 
-leafNoFrame<complex>(%a: Int, %b: Int): Int {
+callerWithLocal<complex>(%v: Int): Int {
   b_0 {
-    %s = add %a, %b: Int
-    ret %s
+    %a = alloca 8, 8: Ptr
+    store %a, %v, 8
+    %r = call_complex leafNoFrame, %v, %v: Int
+    %s = load %a, 8: Int
+    %t = add %r, %s: Int
+    ret %t
   }
 }
 
 
---- codegen: callerWithLocal ---
-  prologue  => 55488bec534883ec08
+--- codegen: leafNoFrame ---
+  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d5df0
-  store uses=[rbx, rdi] creates=[]  => 48893b
-  fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 488bf7e839000000
-  load uses=[rbx] creates=[rbx]  => 488b1b
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
 
 --- codegen: leafWithLocal ---
   prologue  => 55488bec4883ec08
@@ -66,14 +60,20 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rsi]  => 488bf3e809000000
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rsi]  => 488bf3e8d1ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 488d65f85b5dc3
 
---- codegen: leafNoFrame ---
-  prologue  => 55488bec
+--- codegen: callerWithLocal ---
+  prologue  => 55488bec534883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rbx]  => 488d5df0
+  store uses=[rbx, rdi] creates=[]  => 48893b
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 488bf7e8b0ffffff
+  load uses=[rbx] creates=[rbx]  => 488b1b
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 488d65f85b5dc3

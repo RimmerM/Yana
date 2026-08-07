@@ -141,6 +141,7 @@ struct IndexSet {
     // anything about; the point is that eight of them, which is the ordinary case, is free.
     static constexpr Size kInlineBits = 256;
     static constexpr Size kInlineBytes = kInlineBits / 8;
+    static constexpr Size kInlineWords = kInlineBytes / sizeof(U64);
 
     IndexSet() = default;
     IndexSet(const IndexSet&) = delete;
@@ -161,22 +162,45 @@ struct IndexSet {
         if(heap) Tritium::hFree(heap);
     }
 
-    // Clears the set and makes room for `count` indices, reusing this instance's buffer where it
-    // already holds that many.
+    /*
+     * Clears the set and makes room for `count` indices, reusing this instance's buffer where it
+     * already holds that many.
+     *
+     * The inline case clears all four words rather than the `needed` bytes it was asked for, which
+     * is what keeps this out of libc. A byte loop over a runtime count is a `memset` call whatever
+     * it is written as, and the count here is one or two bytes in nearly every function - so the
+     * call and its size dispatch cost several times what the clearing does. Four unconditional
+     * stores have no call, no branch on the length and no dependence on `count` at all.
+     *
+     * This is the hottest single line in the ownership passes: every ScratchProvenance borrow
+     * resets one, and the fixpoint takes one per instruction per round.
+     */
     void reset(Size count) {
         auto needed = (count + 7) / 8;
 
         if(needed > capacity()) {
             if(heap) Tritium::hFree(heap);
 
-            heap = (Byte*)Tritium::hAlloc(needed);
-            heapBytes = needed;
+            // Rounded up to whole words, so that `popCount` and `forEach` can read the buffer a
+            // word at a time without the last read running past the allocation. The bits the
+            // rounding adds are past `size()` and the clear below leaves them zero, which is the
+            // invariant those two rely on anyway.
+            heapBytes = (needed + 7) & ~Size(7);
+            heap = (Byte*)Tritium::hAlloc(heapBytes);
         }
 
         this->count = count;
 
-        auto p = bytes();
-        for(Size i = 0; i < needed; i++) p[i] = 0;
+        // Whole words either way, which is what leaves the bytes between `byteCount()` and the end
+        // of the last word clear - `popCount` and `forEach` read those, and a set that shrank into
+        // a buffer a wider function grew would otherwise still be holding that function's bits
+        // there. Everything else here works in bytes and never looks at them.
+        if(!heap) {
+            for(Size i = 0; i < kInlineWords; i++) inlineWords[i] = 0;
+        } else {
+            auto words = (U64*)heap;
+            for(Size i = 0; i < (needed + 7) / 8; i++) words[i] = 0;
+        }
     }
 
     Size size() const { return count; }
@@ -271,16 +295,54 @@ struct IndexSet {
         return true;
     }
 
+    /*
+     * How many indices the set holds, and every one of them - both a word at a time.
+     *
+     * The alternative is what the callers used to write: a `get` per index over the whole range,
+     * which is a bounds check, a shift and a mask each, and which costs the same whether the set
+     * holds one index or all of them. Counting the dominators of every block was two of those loops
+     * nested, and together they were a fifth of computeDominance.
+     *
+     * Reading whole words is safe because `reset` clears whole words and nothing between here and
+     * `byteCount()` writes past `size()` - see the invariant in the header comment above.
+     */
+    Size popCount() const {
+        auto words = (const U64*)bytes();
+        Size total = 0;
+
+        for(Size i = 0; i < wordCount(); i++) total += Size(Tritium::Math::countBits(words[i]));
+        return total;
+    }
+
+    // Calls `f(index)` for every index in the set, lowest first. The shift consuming a bit is
+    // written as a mask rather than a shift for the reason the walk in `Bits::iterate` documents:
+    // shifting a word right by its own width is undefined and on x86 leaves it unchanged, so the
+    // top bit of a word would hand out indices forever.
+    template<class F>
+    void forEach(F&& f) const {
+        auto words = (const U64*)bytes();
+
+        for(Size i = 0; i < wordCount(); i++) {
+            auto word = words[i];
+
+            while(word) {
+                f(i * 64 + Size(Tritium::Math::findFirstBit(word)));
+                word &= word - 1;
+            }
+        }
+    }
+
 private:
     Size byteCount() const { return (count + 7) / 8; }
+    Size wordCount() const { return (count + 63) / 64; }
     Size capacity() const { return heap ? heapBytes : kInlineBytes; }
 
     // The set-wise operations above read one set while writing another, so the read side has to be
     // callable on a const set. Casting here rather than at each of them keeps the constness of the
     // arguments honest, which is what the callers care about.
-    Byte* bytes() const { return heap ? heap : const_cast<Byte*>(inlineBytes); }
+    Byte* bytes() const { return heap ? heap : (Byte*)const_cast<U64*>(inlineWords); }
 
-    // Takes over `other`'s storage, leaving it empty. The inline bytes cannot be stolen, so they are
+    // Takes over `other`'s storage, leaving it empty. The inline words cannot be stolen, so they are
     // copied - which is a fixed few words and no allocation either way.
     void take(IndexSet& other) {
         heap = other.heap;
@@ -288,7 +350,7 @@ private:
         count = other.count;
 
         if(!heap) {
-            for(Size i = 0; i < kInlineBytes; i++) inlineBytes[i] = other.inlineBytes[i];
+            for(Size i = 0; i < kInlineWords; i++) inlineWords[i] = other.inlineWords[i];
         }
 
         other.heap = nullptr;
@@ -299,7 +361,10 @@ private:
     Byte* heap = nullptr;
     Size heapBytes = 0;
     Size count = 0;
-    Byte inlineBytes[kInlineBytes] = {};
+
+    // Words rather than bytes, so that `reset` can clear the whole thing with four aligned stores
+    // and so that reading it as bytes is the aliasing-legal direction rather than the other one.
+    U64 inlineWords[kInlineWords] = {};
 };
 
 /*

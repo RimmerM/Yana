@@ -357,11 +357,11 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
 
     // Declarations first, and all of them: a call is a forward reference as often as not, and a
     // constant table holding the address of a function is one by definition.
-    for(auto g: module.globals) declareGlobal(gen, *base[g]);
-    for(auto f: module.functions) declareFunction(gen, *base[f]);
+    for(auto g: module.globalOrder) declareGlobal(gen, *base[g]);
+    for(auto f: module.functionOrder) declareFunction(gen, *base[f]);
 
     // Now that everything has a name, what the constant tables hold can be filled in.
-    for(auto g: module.globals) {
+    for(auto g: module.globalOrder) {
         gen.globalOf(g)->setInitializer(initializerOf(gen, *base[g], true));
     }
 
@@ -369,14 +369,14 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
     // too: a reference to the function names the entry point, and the data sits at a negative
     // offset from it. That is exactly the contract LowerFunction::prefix states, so a closure
     // header needs nothing here beyond building the constant.
-    for(auto f: module.functions) {
+    for(auto f: module.functionOrder) {
         auto fun = base[f];
         if(!fun->prefix) continue;
 
         gen.functionOf(f)->setPrefixData(initializerOf(gen, *base[fun->prefix], true));
     }
 
-    for(auto f: module.functions) {
+    for(auto f: module.functionOrder) {
         genFunctionBody(gen, *base[f], *gen.functionOf(f));
     }
 

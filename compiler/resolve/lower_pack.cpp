@@ -35,7 +35,7 @@ LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& block,
 
     auto address = addOffset(lower, block, payload, niche.offset);
     auto loaded = load(lower.lower, lower.to, block, lower.lower[address], niche.bytes, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
     auto word = loaded->created().ptr - lower.lower;
 
     /*
@@ -47,12 +47,12 @@ LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& block,
     if(niche.validStart) {
         auto base = immediate(lower, niche.validStart);
         relative = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[word],
-                                          lower.lower[base], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                          lower.lower[base], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     auto span = immediate(lower, niche.validEnd - niche.validStart);
     auto inRange = cmp(lower.lower, lower.to, block, lower.lower[relative], lower.lower[span],
-                       LowerCmp::le, 0)->created().ptr - lower.lower;
+                       LowerCmp::le, StringId())->created().ptr - lower.lower;
 
     auto tagLower = lowerType(lower.global, tagType);
     auto pick = [&](LowerPtr<LowerValue> whenInRange, LowerPtr<LowerValue> otherwise) {
@@ -81,26 +81,26 @@ LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& block,
 
     if(encoding.ascending) {
         ordinal = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[word],
-                                         lower.lower[first], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                         lower.lower[first], LowerType::Int64, StringId())->created().ptr - lower.lower;
     } else {
         ordinal = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[first],
-                                         lower.lower[word], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                         lower.lower[word], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     auto narrowed = cast<false, false>(lower.lower, lower.to, block, lower.lower[ordinal],
-                                       tagLower, 0)->created().ptr - lower.lower;
+                                       tagLower, StringId())->created().ptr - lower.lower;
 
     // `ordinal >= payloadConstructor` means this constructor was written after the payload one, so
     // its index is one higher than its position in the pattern sequence.
     auto boundary = immediate(lower, payloadIndex, tagLower);
     auto shifted = cmp(lower.lower, lower.to, block, lower.lower[narrowed], lower.lower[boundary],
-                       LowerCmp::ge, 0)->created().ptr - lower.lower;
+                       LowerCmp::ge, StringId())->created().ptr - lower.lower;
 
     auto one = immediate(lower, 1, tagLower);
     auto bumped = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[narrowed],
-                                         lower.lower[one], tagLower, 0)->created().ptr - lower.lower;
+                                         lower.lower[one], tagLower, StringId())->created().ptr - lower.lower;
 
-    auto adjust = new (lower.to.arena) LowerInstSelect(0, bumped, narrowed, shifted, tagLower);
+    auto adjust = new (lower.to.arena) LowerInstSelect(StringId(), bumped, narrowed, shifted, tagLower);
     block.addInst(lower.lower, adjust);
 
     auto payloadTag = immediate(lower, payloadIndex, tagLower);
@@ -123,7 +123,7 @@ LowerPtr<LowerValue> decodePackedBits(LowerContext& lower, LowerBlock& block,
                                              LowerPtr<LowerValue> word, const PackedAccess& field,
                                              bool isSigned) {
     auto loaded = load(lower.lower, lower.to, block, lower.lower[word], field.wordBytes, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
     auto bits = loaded->created().ptr - lower.lower;
 
     if(isSigned) {
@@ -131,24 +131,24 @@ LowerPtr<LowerValue> decodePackedBits(LowerContext& lower, LowerBlock& block,
         auto down = immediate(lower, 64 - field.bitWidth);
 
         auto high = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[bits],
-                                           lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                           lower.lower[up], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
         return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[high],
-                                      lower.lower[down], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      lower.lower[down], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     auto value = bits;
     if(field.bitOffset) {
         auto shift = immediate(lower, field.bitOffset);
         value = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[value],
-                                       lower.lower[shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                       lower.lower[shift], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     if(field.bitOffset + field.bitWidth >= U32(field.wordBytes) * 8) return value;
 
     auto mask = immediate(lower, lowMask(field.bitWidth));
     return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
-                                  lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                  lower.lower[mask], LowerType::Int64, StringId())->created().ptr - lower.lower;
 }
 
 LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& block,
@@ -182,29 +182,29 @@ LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& block,
 void encodePackedField(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> word,
                               const PackedAccess& field, LowerPtr<LowerValue> value) {
     auto loaded = load(lower.lower, lower.to, block, lower.lower[word], field.wordBytes, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
     auto bits = loaded->created().ptr - lower.lower;
 
     auto widened = cast<false, false>(lower.lower, lower.to, block, lower.lower[value],
-                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto fieldMask = immediate(lower, lowMask(field.bitWidth));
     auto trimmed = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[widened],
-                                          lower.lower[fieldMask], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                          lower.lower[fieldMask], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto placed = trimmed;
     if(field.bitOffset) {
         auto shift = immediate(lower, field.bitOffset);
         placed = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[trimmed],
-                                        lower.lower[shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                        lower.lower[shift], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     auto clearMask = immediate(lower, ~(lowMask(field.bitWidth) << field.bitOffset));
     auto cleared = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[bits],
-                                          lower.lower[clearMask], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                          lower.lower[clearMask], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto merged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[cleared],
-                                        lower.lower[placed], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                        lower.lower[placed], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(word, merged, field.wordBytes));
 }
@@ -226,14 +226,14 @@ NarrowRef unpackNarrowRef(LowerContext& lower, LowerBlock& block, LowerPtr<Lower
 
     auto addressMask = immediate(lower, lowMask(addressBits));
     auto masked = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[word],
-                                         lower.lower[addressMask], LowerType::Int64, 0)
+                                         lower.lower[addressMask], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
 
     auto address = reinterpret(lower, block, masked, LowerType::Pointer);
 
     auto shiftBy = immediate(lower, addressBits);
     auto shift = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
-                                        lower.lower[shiftBy], LowerType::Int64, 0)
+                                        lower.lower[shiftBy], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
 
     // Where the field sits inside the pointee, added to where the pointee sits inside its unit. This
@@ -242,7 +242,7 @@ NarrowRef unpackNarrowRef(LowerContext& lower, LowerBlock& block, LowerPtr<Lower
     if(access.bitOffset) {
         auto within = immediate(lower, access.bitOffset);
         shift = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[shift],
-                                       lower.lower[within], LowerType::Int64, 0)
+                                       lower.lower[within], LowerType::Int64, StringId())
             ->created().ptr - lower.lower;
     }
 
@@ -265,7 +265,7 @@ LowerPtr<LowerValue> packNarrowRef(LowerContext& lower, LowerBlock& block,
 
     auto tag = immediate(lower, U64(shift) << lower.repr.target.addressBits);
     auto tagged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[word],
-                                        lower.lower[tag], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                        lower.lower[tag], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     return reinterpret(lower, block, tagged, LowerType::Pointer);
 }
@@ -290,26 +290,26 @@ LowerPtr<LowerValue> stepNarrowRef(LowerContext& lower, LowerBlock& block, const
 
     // (total / unitBits) * unitBytes, as two shifts, which is exact because both are powers of two.
     auto units = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[ref.shift],
-                                        lower.lower[immediate(lower, unitLog)], LowerType::Int64, 0)
+                                        lower.lower[immediate(lower, unitLog)], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
     auto step = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[units],
-                                       lower.lower[immediate(lower, unitLog - 3)], LowerType::Int64, 0)
+                                       lower.lower[immediate(lower, unitLog - 3)], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
 
     auto address = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[ref.address],
-                                          lower.lower[step], LowerType::Pointer, 0)
+                                          lower.lower[step], LowerType::Pointer, StringId())
         ->created().ptr - lower.lower;
 
     auto within = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[ref.shift],
-                                         lower.lower[immediate(lower, unitBits - 1)], LowerType::Int64, 0)
+                                         lower.lower[immediate(lower, unitBits - 1)], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
 
     auto word = reinterpret(lower, block, address, LowerType::Int64);
     auto tag = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[within],
                                       lower.lower[immediate(lower, lower.repr.target.addressBits)],
-                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      LowerType::Int64, StringId())->created().ptr - lower.lower;
     auto tagged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[word],
-                                        lower.lower[tag], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                        lower.lower[tag], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     return reinterpret(lower, block, tagged, LowerType::Pointer);
 }
@@ -318,26 +318,26 @@ LowerPtr<LowerValue> stepNarrowRef(LowerContext& lower, LowerBlock& block, const
 // written in.
 LowerPtr<LowerValue> decodeNarrowBits(LowerContext& lower, LowerBlock& block, const NarrowRef& ref) {
     auto loaded = load(lower.lower, lower.to, block, lower.lower[ref.address], ref.unitBytes, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
     auto word = loaded->created().ptr - lower.lower;
 
     auto shifted = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
-                                          lower.lower[ref.shift], LowerType::Int64, 0)
+                                          lower.lower[ref.shift], LowerType::Int64, StringId())
         ->created().ptr - lower.lower;
 
     auto mask = immediate(lower, lowMask(ref.bits));
     auto masked = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[shifted],
-                                         lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                         lower.lower[mask], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     // Sign extension, where the type has a sign to extend: shift the value's top bit up to the
     // word's and bring it back arithmetically.
     if(ref.isSigned) {
         auto up = immediate(lower, 64 - ref.bits);
         auto high = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[masked],
-                                           lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                           lower.lower[up], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
         return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[high],
-                                      lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      lower.lower[up], LowerType::Int64, StringId())->created().ptr - lower.lower;
     }
 
     return masked;
@@ -368,27 +368,27 @@ LowerPtr<LowerValue> decodeNarrowRef(LowerContext& lower, LowerBlock& block, con
 void encodeNarrowRef(LowerContext& lower, LowerBlock& block, const NarrowRef& ref,
                             LowerPtr<LowerValue> value) {
     auto loaded = load(lower.lower, lower.to, block, lower.lower[ref.address], ref.unitBytes, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
     auto word = loaded->created().ptr - lower.lower;
 
     auto widened = cast<false, false>(lower.lower, lower.to, block, lower.lower[value],
-                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto mask = immediate(lower, lowMask(ref.bits));
     auto trimmed = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[widened],
-                                          lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                          lower.lower[mask], LowerType::Int64, StringId())->created().ptr - lower.lower;
     auto placed = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[trimmed],
-                                         lower.lower[ref.shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                         lower.lower[ref.shift], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto hole = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[mask],
-                                       lower.lower[ref.shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                       lower.lower[ref.shift], LowerType::Int64, StringId())->created().ptr - lower.lower;
     auto keep = unary<LowerInst::Not>(lower.lower, lower.to, block, lower.lower[hole],
-                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+                                      LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     auto cleared = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[word],
-                                          lower.lower[keep], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                          lower.lower[keep], LowerType::Int64, StringId())->created().ptr - lower.lower;
     auto merged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[cleared],
-                                        lower.lower[placed], LowerType::Int64, 0)->created().ptr - lower.lower;
+                                        lower.lower[placed], LowerType::Int64, StringId())->created().ptr - lower.lower;
 
     block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(ref.address, merged, ref.unitBytes));
 }
@@ -426,7 +426,7 @@ LowerPtr<LowerValue> scalarBitsOf(LowerContext& lower, LowerBlock& block, TypePt
 
     auto& repr = lower.repr.of(type);
     auto loaded = load(lower.lower, lower.to, block, lower.lower[value], repr.size, false,
-                       LowerType::Int64, 0);
+                       LowerType::Int64, StringId());
 
     return loaded->created().ptr - lower.lower;
 }

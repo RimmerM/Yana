@@ -1,17 +1,17 @@
 
+merged<complex>(%v: Int, %a: Int, %b: Int): Int {
+  b_0 {
+    %cmp = cmp_eq %v, 1: Int
+    %r = select %a, %b, %cmp: Int
+    ret %r
+  }
+}
+
 materialized<complex>(%v: Int, %a: Int, %b: Int): Int {
   b_0 {
     %cmp = cmp_ilt %v, 0: Int
     %x = add %a, 1: Int
     %r = select %x, %b, %cmp: Int
-    ret %r
-  }
-}
-
-merged<complex>(%v: Int, %a: Int, %b: Int): Int {
-  b_0 {
-    %cmp = cmp_eq %v, 1: Int
-    %r = select %a, %b, %cmp: Int
     ret %r
   }
 }
@@ -29,6 +29,15 @@ crossBlock<complex>(%v: Int, %a: Int, %b: Int): Int {
 }
 
 
+--- codegen: merged ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff01
+  select uses=[rsi, rdx, -] creates=[rsi]  => 0f45f2
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
 --- codegen: materialized ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -38,15 +47,6 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
   select uses=[rsi, rdx, rdi] creates=[rsi]  => 85ff0f44f2
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
-
---- codegen: merged ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  cmp_eq uses=[rdi, -] creates=[-]  => 83ff01
-  select uses=[rsi, rdx, -] creates=[rsi]  => 0f45f2
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
 --- codegen: crossBlock ---

@@ -322,7 +322,7 @@ ModulePtr<Value> ExprResolver::constantBits(TypePtr type, U64 bits, LocationId s
     // an integer reinterpreted - which is the same thing `null()` expands to.
     if(isPointer(global, type)) {
         auto address = makeInt(source, module.scalar.long_, bits);
-        return ref(emit<InstUnary>(source, 0, type, Value::Cast, address));
+        return ref(emit<InstUnary>(source, StringId(), type, Value::Cast, address));
     }
 
     return makeInt(source, type, bits);
@@ -421,7 +421,7 @@ ModulePtr<Value> ExprResolver::constantValue(ModulePtr<ConstValue> constant, Loc
             // The address of a global, which only a native string's static form contains - and that
             // form is never walked from here, since a string is built through `resolveString`. Kept
             // whole anyway, because a node that had no value form would be a hole in this switch.
-            return ref(emit<InstSymbol>(source, 0, value.type, nullptr, value.global));
+            return ref(emit<InstSymbol>(source, StringId(), value.type, nullptr, value.global));
         case ConstKind::Aggregate:
         case ConstKind::Construct:
             break;
@@ -530,10 +530,10 @@ ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
     // pointee type comes from the callee's own signature rather than being built here. That keeps
     // this correct if the unit ever stops being a byte, which is what part 2's table leaves open.
     auto byteType = local[local[constructor]->args.get(local, 0)]->type;
-    auto address = ref(emit<InstSymbol>(source, 0, byteType, nullptr, bytes - local));
+    auto address = ref(emit<InstSymbol>(source, StringId(), byteType, nullptr, bytes - local));
     auto length = makeInt(source, module.scalar.int_, size);
 
-    auto call = create<InstCall>(source, 0, module.scalar.string_, constructor);
+    auto call = create<InstCall>(source, StringId(), module.scalar.string_, constructor);
     call->args.push(module.arena, address);
     call->args.push(module.arena, length);
     append(call);
@@ -585,7 +585,7 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
     struct Hole {
         ModulePtr<Value> value = nullptr;
         TypePtr type = nullptr;
-        StringId text = 0;
+        StringId text = StringId();
         bool hasText = false;
     };
 
@@ -634,16 +634,16 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
             return nullptr;
         }
 
-        auto measure = create<InstCall>(expr.source, 0, (*module.arena)[bound]->returnType, bound);
+        auto measure = create<InstCall>(expr.source, StringId(), (*module.arena)[bound]->returnType, bound);
         measure->args.push(module.arena, hole.value);
         append(measure);
 
-        auto units = create<InstCall>(expr.source, 0, module.scalar.int_, program.formatBound);
+        auto units = create<InstCall>(expr.source, StringId(), module.scalar.int_, program.formatBound);
         units->args.push(module.arena, ref(measure));
         append(units);
         (*module.arena)[program.formatBound]->used = true;
 
-        total = ref(emit<InstBinary>(expr.source, 0, module.scalar.int_, Value::Add, total, ref(units)));
+        total = ref(emit<InstBinary>(expr.source, StringId(), module.scalar.int_, Value::Add, total, ref(units)));
     }
 
     // The sink. One allocation, whose extent is whatever the sum turned out to be - see above.
@@ -652,11 +652,11 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
     if(!extent) return nullptr;
 
     (*module.arena)[program.newString]->used = true;
-    auto sink = create<InstCall>(expr.source, 0, module.scalar.string_, program.newString);
+    auto sink = create<InstCall>(expr.source, StringId(), module.scalar.string_, program.newString);
     sink->args.push(module.arena, extent);
     append(sink);
 
-    sink->local = function.addLocal(module, sink->type, 0, ref(sink));
+    sink->local = function.addLocal(module, sink->type, StringId(), ref(sink));
 
     /*
      * The sink's own storage, which is exactly what `let &sink = newStringOfCapacity(n)` compiles to
@@ -673,7 +673,7 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
      * The copy is a temporary's, so the optimizer removes it wherever it can adopt the storage - the
      * same path an array literal's run takes.
      */
-    auto storage = allocate(module.scalar.string_, expr.source, 0, ast::BindType::Ref);
+    auto storage = allocate(module.scalar.string_, expr.source, StringId(), ast::BindType::Ref);
     if(!storage) return nullptr;
 
     initialize(placeFor(storage, expr.source), ref(sink), expr.source);
@@ -694,7 +694,7 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
         if(!borrowed) return false;
 
         (*module.arena)[callee]->used = true;
-        auto call = create<InstCall>(expr.source, 0, module.scalar.unit, callee);
+        auto call = create<InstCall>(expr.source, StringId(), module.scalar.unit, callee);
 
         if(sinkFirst) {
             call->args.push(module.arena, borrowed);
@@ -1055,7 +1055,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             }
 
             auto targetBlock = expr.kind == ast::Expr::Break ? loop.breakBlock : loop.continueBlock;
-            terminate(emit<InstJmp>(expr.source, 0, module.scalar.unit, targetBlock));
+            terminate(emit<InstJmp>(expr.source, StringId(), module.scalar.unit, targetBlock));
 
             return nullptr;
         }

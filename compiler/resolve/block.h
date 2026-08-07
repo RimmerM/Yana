@@ -72,7 +72,7 @@ struct Block {
 
     ModulePtr<Function> function;
 
-    StringId name = 0;
+    StringId name {};
     LocationId source = kNullLocation;
 
     // The block's position in `Function::blocks`, which every walk in opt_flow.cpp indexes by - see

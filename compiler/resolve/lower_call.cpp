@@ -38,10 +38,10 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
                 auto envAddress = addOffset(lower, block, base, FunValueLayout::offsetOf(FunValueLayout::kEnv));
 
                 address = load(lower.lower, lower.to, block, lower.lower[codeAddress], 8, false,
-                               LowerType::Pointer, 0)->created().ptr - lower.lower;
+                               LowerType::Pointer, StringId())->created().ptr - lower.lower;
 
                 env = load(lower.lower, lower.to, block, lower.lower[envAddress], 8, false,
-                           LowerType::Pointer, 0)->created().ptr - lower.lower;
+                           LowerType::Pointer, StringId())->created().ptr - lower.lower;
             } else {
                 address = mappedValue(lower, callInst.address);
             }
@@ -119,7 +119,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
         case Value::Call: {
             auto& callInst = (InstCall&)instruction;
             auto target = lower.functions.getValue(callInst.callee).unwrap();
-            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), target));
             auto memoryResult = isMemoryType(lower.global, instruction.type);
             LowerPtr<LowerValue> returnPlace = nullptr;
 
@@ -214,7 +214,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
                 address = genMethod(lower, block, callInst);
             } else {
                 auto target = lower.functions.getValue(callInst.callee).unwrap();
-                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), target));
                 address = fun->created().ptr - lower.lower;
                 envValue = genEnvironment(lower, block, callInst);
             }
@@ -233,7 +233,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
             auto materialize = [&](LowerPtr<LowerValue> value, TypePtr concrete) {
                 auto bytes = immediate(lower, typeSize(lower, concrete));
                 auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-                    0, bytes, typeAlign(lower, concrete)));
+                    StringId(), bytes, typeAlign(lower, concrete)));
 
                 auto address = storage->created().ptr - lower.lower;
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
@@ -279,7 +279,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
                     // size its type descriptor gives, which is zero - so what it points at never
                     // matters, only that it is an address at all. See storageSize.
                     auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-                        0, storageSize(lower, block, concrete), 8));
+                        StringId(), storageSize(lower, block, concrete), 8));
 
                     arguments.push(storage->created().ptr - lower.lower);
                     continue;

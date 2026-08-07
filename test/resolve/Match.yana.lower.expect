@@ -1,5 +1,34 @@
-@minusOne = [255, 255, 255, 255, 255, 255, 255, 255]
 @least = [0, 0, 0, 0, 0, 0, 0, 128]
+@minusOne = [255, 255, 255, 255, 255, 255, 255, 255]
+
+shapeValue<complex>(%s: Ptr): Int {
+  b_0 {
+    %v_1 = loads %s, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %s, 4: Ptr
+    %r = loads %v_5, 4: Int
+    %v_6 = add %r, 1: Int
+    jmp b_7
+  }
+
+  b_3 {
+    %v_8 = add %s, 4: Ptr
+    %width = loads %v_8, 4: Int
+    %v_9 = add %s, 8: Ptr
+    %height = loads %v_9, 4: Int
+    %v_10 = imul %width, %height: Int
+    jmp b_7
+  }
+
+  b_7 {
+    %v_11 = phi [b_3, %v_10], [b_4, %v_6]: Int
+    ret %v_11
+  }
+}
 
 area<complex>(%s: Ptr): Int {
   b_0 {
@@ -63,6 +92,74 @@ area<complex>(%s: Ptr): Int {
   b_13 {
     %v_28 = phi [b_12, 100], [b_7, %r], [b_25, %v_27], [b_17, %v_21]: Int
     ret %v_28
+  }
+}
+
+nested<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = load %m, 1: Long
+    %v_2 = cmp_le %v_1, 2: Int
+    %v_3 = select 1, 0, %v_2: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = load %m, 1: Long
+    %v_8 = cmp_le %v_7, 2: Int
+    %v_9 = select 1, 0, %v_8: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_5 {
+    %v_13 = load %m, 1: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = cmp_eq %v_14, 0: Int
+    je %v_15, b_16, b_6
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_12 {
+    %v_18 = load %m, 1: Long
+    %v_19 = cmp_le %v_18, 2: Int
+    %v_20 = select 1, 0, %v_19: Int
+    %v_21 = cmp_eq %v_20, 1: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_11 {
+    %v_24 = load %m, 1: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = cmp_eq %v_25, 1: Int
+    je %v_26, b_27, b_12
+  }
+
+  b_27 {
+    jmp b_17
+  }
+
+  b_23 {
+    jmp b_17
+  }
+
+  b_22 {
+    %v_28 = load %m, 1: Int
+    %v_29 = cast %v_28: Int
+    %v_30 = cmp_eq %v_29, 2: Int
+    je %v_30, b_31, b_23
+  }
+
+  b_31 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_32 = phi [b_16, 1], [b_27, 2], [b_31, 3], [b_23, 0]: Int
+    ret %v_32
   }
 }
 
@@ -198,103 +295,6 @@ signed<complex>(%value: Long): Int {
     %v_5 = select 2, %v_4, %v_2: Int
     %v_6 = select 1, %v_5, %v_1: Int
     ret %v_6
-  }
-}
-
-shapeValue<complex>(%s: Ptr): Int {
-  b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = add %s, 4: Ptr
-    %r = loads %v_5, 4: Int
-    %v_6 = add %r, 1: Int
-    jmp b_7
-  }
-
-  b_3 {
-    %v_8 = add %s, 4: Ptr
-    %width = loads %v_8, 4: Int
-    %v_9 = add %s, 8: Ptr
-    %height = loads %v_9, 4: Int
-    %v_10 = imul %width, %height: Int
-    jmp b_7
-  }
-
-  b_7 {
-    %v_11 = phi [b_3, %v_10], [b_4, %v_6]: Int
-    ret %v_11
-  }
-}
-
-nested<complex>(%m: Ptr): Int {
-  b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 2: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = load %m, 1: Long
-    %v_8 = cmp_le %v_7, 2: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_5 {
-    %v_13 = load %m, 1: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = cmp_eq %v_14, 0: Int
-    je %v_15, b_16, b_6
-  }
-
-  b_16 {
-    jmp b_17
-  }
-
-  b_12 {
-    %v_18 = load %m, 1: Long
-    %v_19 = cmp_le %v_18, 2: Int
-    %v_20 = select 1, 0, %v_19: Int
-    %v_21 = cmp_eq %v_20, 1: Int
-    je %v_21, b_22, b_23
-  }
-
-  b_11 {
-    %v_24 = load %m, 1: Int
-    %v_25 = cast %v_24: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_12
-  }
-
-  b_27 {
-    jmp b_17
-  }
-
-  b_23 {
-    jmp b_17
-  }
-
-  b_22 {
-    %v_28 = load %m, 1: Int
-    %v_29 = cast %v_28: Int
-    %v_30 = cmp_eq %v_29, 2: Int
-    je %v_30, b_31, b_23
-  }
-
-  b_31 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_32 = phi [b_16, 1], [b_27, 2], [b_31, 3], [b_23, 0]: Int
-    ret %v_32
   }
 }
 

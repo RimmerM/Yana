@@ -91,15 +91,27 @@ bool Lexer::handleWhitespace() {
     return isWhiteChar(*p);
 }
 
+/*
+ * The three characters a comment body is allowed to care about.
+ *
+ * A newline moves the location, a `{` may open a nested comment and a `-` may close one. Every other
+ * character inside a comment is skipped without being looked at, which is what lets `findChar` do
+ * the skipping sixteen bytes at a time instead of the loop doing it one at a time - see
+ * skipWhitespace, where that scan was 4% of the whole compiler.
+ */
+static const char kCommentChars[] = { '\n', '{', '-' };
+
 void Lexer::skipWhitespace() {
     while(p < m) {
         // Skip whitespace.
         if(!handleWhitespace()) {
             // Check for single-line comments.
             if(m - p > 3 && *p == '-' && p[1] == '-' && !isSymbol(p[2])) {
-                // Skip the current line.
+                // Skip the current line. The line end is searched for rather than walked to, since
+                // nothing between here and it means anything.
                 p += 2;
-                while(p < m && *p != '\n') p++;
+                auto end = Tritium::findChar(StringView { p, Size(m - p) }, '\n');
+                p = end ? end : m;
 
                 // If this is a newline, we update the location.
                 // If it is the file end, the caller will take care of it.
@@ -120,6 +132,24 @@ void Lexer::skipWhitespace() {
                 // Skip until the comment end.
                 p += 2;
                 while(p < m) {
+                    /*
+                     * Straight to the next character that could mean something.
+                     *
+                     * The three tests below are the body this loop always had; what is new is that
+                     * the characters none of them can fire on are skipped by the scan rather than
+                     * stepped over one at a time. `p` still advances by one past an opener or a
+                     * non-final closer, which is load-bearing: `{-}` opens and closes on the same
+                     * `-`, and advancing by two past a `{-` would stop it closing.
+                     */
+                    auto next = Tritium::findChar(StringView { p, Size(m - p) },
+                                                  Buffer<char> { (char*)kCommentChars, 3 });
+                    if(!next) {
+                        p = m;
+                        break;
+                    }
+
+                    p = next;
+
                     // Update the source location if needed.
                     if(*p == '\n') nextLine();
 

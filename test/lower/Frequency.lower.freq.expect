@@ -1,29 +1,4 @@
 
-hinted<complex>(%c: Int): Int {
-  start {
-    # frequency: 1.00
-    je %c, [left, 99], [right, 1]
-  }
-
-  left {
-    # frequency: 0.98
-    %a = cast 1: Int
-    jmp end
-  }
-
-  right {
-    # frequency: 0.00
-    %b = cast 2: Int
-    jmp end
-  }
-
-  end {
-    # frequency: 0.99
-    %v_0 = phi [left, %a], [right, %b]: Int
-    ret %v_0
-  }
-}
-
 neutral<complex>(%c: Int): Int {
   start {
     # frequency: 1.00
@@ -44,6 +19,31 @@ neutral<complex>(%c: Int): Int {
 
   end {
     # frequency: 1.00
+    %v_0 = phi [left, %a], [right, %b]: Int
+    ret %v_0
+  }
+}
+
+hinted<complex>(%c: Int): Int {
+  start {
+    # frequency: 1.00
+    je %c, [left, 99], [right, 1]
+  }
+
+  left {
+    # frequency: 0.98
+    %a = cast 1: Int
+    jmp end
+  }
+
+  right {
+    # frequency: 0.00
+    %b = cast 2: Int
+    jmp end
+  }
+
+  end {
+    # frequency: 0.99
     %v_0 = phi [left, %a], [right, %b]: Int
     ret %v_0
   }

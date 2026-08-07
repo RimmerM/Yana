@@ -827,11 +827,11 @@ bool validateLowerFunction(Diagnostics* diagnostics, LowerBase base, LowerFuncti
 bool validateLowerModule(Diagnostics* diagnostics, LowerModule* module) {
     auto base = *module->arena;
 
-    for(auto g: module->globals) {
+    for(auto g: module->globalOrder) {
         if(!validateLowerGlobal(diagnostics, base, base[g])) return false;
     }
 
-    for(auto f: module->functions) {
+    for(auto f: module->functionOrder) {
         if(!validateLowerFunction(diagnostics, base, base[f])) return false;
     }
 

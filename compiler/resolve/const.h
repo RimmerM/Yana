@@ -91,7 +91,7 @@ struct ConstValue {
 
     // `String` only: the decoded text, interned. Its static form, where the target has one, is the
     // single child below.
-    StringId text = 0;
+    StringId text {};
 
     // `Address` only: what the address names.
     ModulePtr<Global> global = nullptr;

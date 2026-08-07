@@ -1,6 +1,6 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
@@ -140,42 +140,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-placed<complex>(): Long {
-  b_0 {
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %v_1, 10, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 20, 8
-    store %v_1, 12, 8
-    %v_3 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_3
-    ret 32
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, 1, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 2, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, 3, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 4, 8
-    %v_5 = alloca 16, 8: Ptr
-    copy %v_5, %v_3, 16
-    copy %v_1, %v_5, 16
-    %v_6 = call_complex borrowed, %v_1: Ptr
-    %v_7 = loads %v_6, 8: Long
-    %v_8 = call_complex placed: Long
-    %v_9 = add %v_7, %v_8: Long
-    %v_10 = add %v_9, 8: Long
-    %v_11 = cast %v_10: Int
-    ret %v_11
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -212,6 +176,42 @@ freeHeap<complex>(%allocation: Ptr) {
 borrowed<complex>(%p: Ptr): Ptr {
   b_0 {
     ret %p
+  }
+}
+
+placed<complex>(): Long {
+  b_0 {
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    store %v_1, 10, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 20, 8
+    store %v_1, 12, 8
+    %v_3 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_3
+    ret 32
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, 1, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 2, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, 3, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 4, 8
+    %v_5 = alloca 16, 8: Ptr
+    copy %v_5, %v_3, 16
+    copy %v_1, %v_5, 16
+    %v_6 = call_complex borrowed, %v_1: Ptr
+    %v_7 = loads %v_6, 8: Long
+    %v_8 = call_complex placed: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = add %v_9, 8: Long
+    %v_11 = cast %v_10: Int
+    ret %v_11
   }
 }
 

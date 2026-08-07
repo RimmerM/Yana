@@ -775,7 +775,8 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
         genAddImm(to, rsp, I32(frame.fixedSize), false);
     }
 
-    Array<PhysicalReg> saved;
+    // Inline: this is a register set turned into an order, so it is bounded by the machine.
+    SmallArray<PhysicalReg, 16> saved;
     frame.savedRegs.iterate([&](PhysicalReg r) { saved.push(r); });
     for(Size i = saved.size(); i > 0; i--) genPopReg(to, reg(saved[i - 1]));
 

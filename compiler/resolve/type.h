@@ -271,7 +271,7 @@ struct IntType: Type {
         return width == Bool ? 1 : width == Int ? 32 : 64;
     }
 
-    IntType(U16 bits, Width width, bool isSigned, StringId name = 0, TypePtr canonical = nullptr):
+    IntType(U16 bits, Width width, bool isSigned, StringId name = StringId(), TypePtr canonical = nullptr):
         Type(Type::Int), name(name), canonical(canonical), bits(bits), width(width),
         isSigned(isSigned) {}
 
@@ -443,7 +443,7 @@ struct ArrayType: Type {
  */
 struct FunArg {
     TypePtr type = nullptr;
-    StringId name = 0;
+    StringId name {};
     ast::BindType convention = ast::BindType::Borrow;
     bool returnRoot = false;
 
@@ -551,7 +551,7 @@ struct LiteralType: Type {
  */
 struct Field {
     TypePtr type = nullptr;
-    StringId name = 0;
+    StringId name {};
     bool boxed = false;
 };
 
@@ -633,7 +633,7 @@ struct FieldDefault {
 };
 
 struct Constructor {
-    StringId name = 0;
+    StringId name {};
     TypePtr content = nullptr;
     U32 index = 0;
 
@@ -691,7 +691,7 @@ struct GenType: Type {
 struct ClassConstraint {
     GlobalPtr<TypeClass> typeClass = nullptr;
     GlobalList<TypePtr> args;
-    StringId name = 0;
+    StringId name {};
     LocationId source = kNullLocation;
 };
 
@@ -705,7 +705,7 @@ struct ClassConstraint {
 struct PropertyConstraint {
     TypePtr owner = nullptr;
     TypePtr result = nullptr;
-    StringId field = 0;
+    StringId field {};
     LocationId source = kNullLocation;
 };
 
@@ -718,7 +718,7 @@ struct PropertyConstraint {
  */
 struct FunctionConstraint {
     TypePtr signature = nullptr;
-    StringId name = 0;
+    StringId name {};
     LocationId source = kNullLocation;
 };
 
@@ -759,7 +759,7 @@ struct GenSlot {
     GlobalList<TypePtr> args;
 
     // Property slot: the field name and its type. Function slot: the function name.
-    StringId name = 0;
+    StringId name {};
     TypePtr result = nullptr;
 
     LocationId source = kNullLocation;
@@ -947,7 +947,7 @@ struct ConstructorRef {
 // after it. `module` is where that resolution happens: an alias reached through an import
 // resolves its target in the module that wrote it, not in the one that named it.
 struct TypeAlias {
-    StringId name = 0;
+    StringId name {};
     Module* module = nullptr;
     GlobalPtr<GenEnv> gen = nullptr;
     ast::ParsePtr<ast::Decl> ast = nullptr;

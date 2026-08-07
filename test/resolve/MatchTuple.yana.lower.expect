@@ -1,26 +1,5 @@
 @drops = [0, 0, 0, 0]
 
-main<complex>(): Int {
-  b_0 {
-    %a = alloca 8, 4: Ptr
-    store %a, 1, 4
-    %v_1 = add %a, 4: Ptr
-    store %v_1, 3, 4
-    %b = alloca 8, 4: Ptr
-    store %b, 1, 4
-    %v_2 = add %b, 4: Ptr
-    store %v_2, 4, 4
-    %v_3 = call_complex ordered, %a, %b, 0: Int
-    %v_4 = loads @drops, 4: Int
-    %v_5 = add %v_4, 2: Int
-    store @drops, %v_5, 4
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = add %v_7, 7: Int
-    ret %v_8
-  }
-}
-
 ordered<complex>(%a: Ptr, %b: Ptr, %c: Int): Int {
   b_0 {
     %v_1 = loads %a, 4: Int
@@ -74,6 +53,27 @@ ordered<complex>(%a: Ptr, %b: Ptr, %c: Int): Int {
   b_19 {
     %v_26 = phi [b_13, %v_18], [b_22, %v_25], [b_8, 0]: Int
     ret %v_26
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %a = alloca 8, 4: Ptr
+    store %a, 1, 4
+    %v_1 = add %a, 4: Ptr
+    store %v_1, 3, 4
+    %b = alloca 8, 4: Ptr
+    store %b, 1, 4
+    %v_2 = add %b, 4: Ptr
+    store %v_2, 4, 4
+    %v_3 = call_complex ordered, %a, %b, 0: Int
+    %v_4 = loads @drops, 4: Int
+    %v_5 = add %v_4, 2: Int
+    store @drops, %v_5, 4
+    %v_6 = imul %v_5, 10: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = add %v_7, 7: Int
+    ret %v_8
   }
 }
 

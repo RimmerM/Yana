@@ -205,10 +205,10 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
     for(U16 i = 0; i < U16(fields.count); i++) {
         auto member = fieldType(opt, fields, i);
 
-        auto loaded = createInst<InstLoadPlace>(*opt.module, *opt.function, block, write.source, 0,
+        auto loaded = createInst<InstLoadPlace>(*opt.module, *opt.function, block, write.source, StringId(),
                                                 member, fieldPlace(opt, Place::inLocal(source.unwrap()), fields, i));
 
-        auto stored = createInst<InstInit>(*opt.module, *opt.function, block, write.source, 0,
+        auto stored = createInst<InstInit>(*opt.module, *opt.function, block, write.source, StringId(),
                                            opt.program.scalar.unit,
                                            fieldPlace(opt, destination, fields, i),
                                            (ModulePtr<Value>)(loaded - opt.local), write.kind);
@@ -338,7 +338,7 @@ bool splitAggregate(OptContext& opt, Block& block, Size index, InstAggregate& ag
     eachWrittenComponent(opt.local, opt.module->arena, aggregate,
                          [&](Place place, ModulePtr<Value> value, Size) {
         replacement.push(createInst<InstInit>(
-            *opt.module, *opt.function, block, aggregate.source, 0, opt.program.scalar.unit,
+            *opt.module, *opt.function, block, aggregate.source, StringId(), opt.program.scalar.unit,
             place, value, Value::Init));
     });
 

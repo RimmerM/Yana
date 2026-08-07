@@ -69,7 +69,7 @@ enum class OwnState: U8 {
 // One local, as the analysis sees it.
 struct TrackedLocal {
     TypePtr type = nullptr;
-    StringId name = 0;
+    StringId name {};
 
     // False for the slot behind a `&` parameter: storage the caller owns, which this frame must
     // neither drop nor move out of.

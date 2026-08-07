@@ -83,7 +83,7 @@ U32 memoryWidth(LowerContext& lower, TypePtr type) {
 }
 
 LowerPtr<LowerValue> immediate(LowerContext& lower, U64 value, LowerType type) {
-    auto instruction = new (lower.to.arena) LowerImm(0, type, value);
+    auto instruction = new (lower.to.arena) LowerImm(StringId(), type, value);
     lower.constantBlock->addInst(lower.lower, instruction);
     return instruction->created().ptr - lower.lower;
 }
@@ -94,7 +94,7 @@ LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, LowerPtr<
     if(!offset) return address;
 
     auto offsetValue = immediate(lower, offset);
-    auto add = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[address], lower.lower[offsetValue], LowerType::Pointer, 0);
+    auto add = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[address], lower.lower[offsetValue], LowerType::Pointer, StringId());
     return add->created().ptr - lower.lower;
 }
 
@@ -194,7 +194,7 @@ LowerPtr<LowerValue> maskToWidth(LowerContext& lower, LowerBlock& block,
                                         LowerPtr<LowerValue> value, TypePtr type, LowerType lowered) {
     auto mask = immediate(lower, lowMask(U32(((IntType*)lower.global[type])->bits)), lowered);
     return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
-                                  lower.lower[mask], lowered, 0)->created().ptr - lower.lower;
+                                  lower.lower[mask], lowered, StringId())->created().ptr - lower.lower;
 }
 
 LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* result,
@@ -209,7 +209,7 @@ LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* re
 
     auto distance = immediate(lower, signShift(lower.global, type), lowered);
     auto up = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
-                                     lower.lower[distance], lowered, 0)->created().ptr - lower.lower;
+                                     lower.lower[distance], lowered, StringId())->created().ptr - lower.lower;
 
     return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[up],
                                   lower.lower[distance], lowered, name);
@@ -221,7 +221,7 @@ LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* re
 LowerPtr<LowerValue> reinterpret(LowerContext& lower, LowerBlock& block,
                                         LowerPtr<LowerValue> value, LowerType type) {
     auto instruction = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
-        LowerInst::Bitcast, 0, type, value));
+        LowerInst::Bitcast, StringId(), type, value));
 
     return instruction->created().ptr - lower.lower;
 }

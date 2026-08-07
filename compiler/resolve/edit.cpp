@@ -599,7 +599,8 @@ Block* IrEditor::splitBlock(Block& block, Size index) {
     auto continuationPointer = (ModulePtr<Block>)(continuation - base);
     continuation->source = block.source;
 
-    Array<ModulePtr<Inst>> moved;
+    // Inline: the tail of one block, held only for the length of this call.
+    SmallArray<ModulePtr<Inst>, 16> moved;
     for(Size i = index + 1; i < block.instructionCount(); i++) {
         moved.push(block.instructionAt(base, i));
     }
@@ -652,7 +653,7 @@ Block* IrEditor::splitEdge(Block& from, Size successor) {
 
     // The edge out of the split, from the jump itself rather than written into slot zero by hand -
     // `to`'s incoming record was moved above rather than added, which is why this is not `append`.
-    auto jump = createInst<InstJmp>(module, function, *split, split->source, 0, module.scalar.unit, to);
+    auto jump = createInst<InstJmp>(module, function, *split, split->source, StringId(), module.scalar.unit, to);
     split->terminatorInst = (ModulePtr<Inst>)((Inst*)jump - base);
     successorsOf(*jump, split->outgoingBlocks);
 

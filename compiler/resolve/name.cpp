@@ -225,25 +225,14 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
     }
 }
 
+void registerInstance(Module& module, ModulePtr<ClassInstance> instance) {
+    module.instances.push(instance);
+
+    auto typeClass = (*module.arena)[instance]->typeClass;
+    module.program.instancesByClass[U32(typeClass)].push(instance);
+}
+
 void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModulePtr<ClassInstance>>& target) {
-    auto local = *module.arena;
-
-    auto collect = [&](Module& in) {
-        for(auto instance: in.instances) {
-            if(local[instance]->typeClass != typeClass) continue;
-
-            auto duplicate = false;
-            for(auto existing: target) {
-                if(existing == instance) {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if(!duplicate) target.push(instance);
-        }
-    };
-
     /*
      * Every instance in the program, not only the ones this module imported.
      *
@@ -259,8 +248,15 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
      * container work hit that: an array literal gives a module that never imported Native a `Run(a)`
      * to reclaim, and `Array(Buffer)` is instantiated from inside Collections, where the program's
      * own `instance Drop(Buffer)` was not visible and its buffers were therefore never released.
+     *
+     * Copied out rather than handed back as a view into the index, because the caller resolves types
+     * while it walks the result: proving a candidate head's own constraints can instantiate a generic
+     * and register the instances that instantiation needs, which would move the row underneath it.
      */
-    for(auto entry: module.program.modules) collect(*entry);
+    auto found = module.program.instancesByClass.get(U32(typeClass));
+    if(found.isNothing()) return;
+
+    for(auto instance: found.unwrap()) target.push(instance);
 }
 
 /*

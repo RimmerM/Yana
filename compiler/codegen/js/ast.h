@@ -44,7 +44,7 @@ using JsList = SmallList<JsRegion, T, allowEmbed>;
  * once is what makes that a solvable problem instead of a rule every use site has to agree on.
  */
 struct Name {
-    StringId text = 0;
+    StringId text = StringId();
 };
 
 enum class UnaryOp: U8 {

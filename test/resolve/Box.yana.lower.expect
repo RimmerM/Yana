@@ -1,85 +1,6 @@
-@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
-
-reclaim$Pinned<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast %v_2: Ptr
-    call_complex freeHeap, %v_3
-    ret 
-  }
-}
-
-throughLens<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 12, 8: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 6, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 40, 4
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, 3, 4
-    %v_5 = call_complex allocateHeap, 8: Ptr
-    store %v_1, %v_5, 8
-    %v_6 = load %v_1, 8: Ptr
-    copy %v_6, %v_2, 8
-    %v_7 = alloca 8, 8: Ptr
-    store %v_7, %v_1, 8
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.continuation$0, 8
-    %v_9 = add %v_8, 8: Ptr
-    store %v_9, %v_7, 8
-    %v_10 = load %v_1, 8: Ptr
-    %v_11 = add %v_10, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = add %v_8, 8: Ptr
-    %v_14 = load %v_8, 8: Ptr
-    %v_15 = load %v_13, 8: Ptr
-    %v_16 = call_complex %v_14, %v_15, %v_12: Int
-    call_complex reclaim$Config, %v_1
-    ret %v_16
-  }
-}
-
-reclaim$Config<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_2
-    ret 
-  }
-}
-
-pinnedValue<complex>(): Int {
-  b_0 {
-    %p = alloca 16, 8: Ptr
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 3, 4
-    store %p, 5, 4
-    %v_3 = call_complex allocateHeap, 8: Ptr
-    %v_4 = add %p, 8: Ptr
-    store %v_4, %v_3, 8
-    %v_5 = add %p, 8: Ptr
-    %v_6 = load %v_5, 8: Ptr
-    copy %v_6, %v_1, 8
-    %v_7 = add %p, 8: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = imul %v_9, 10: Int
-    %v_11 = add %v_10, 500: Int
-    %v_12 = add %p, 8: Ptr
-    %v_13 = load %v_12, 8: Ptr
-    %v_14 = add %v_13, 4: Ptr
-    %v_15 = loads %v_14, 4: Int
-    call_complex reclaim$Pinned, %p
-    %v_16 = add %v_11, %v_15: Int
-    ret %v_16
-  }
-}
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 +=(Int)<complex>(%target: Ptr, %amount: Int) {
   b_0 {
@@ -90,77 +11,8 @@ pinnedValue<complex>(): Int {
   }
 }
 
-freeHeap<complex>(%allocation: Ptr) {
+teardown$none<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = imul %sizeClass, 8: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = imul %sizeClass, 8: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
-    ret 
-  }
-}
-
-mutated<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 12, 8: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 20, 4
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, 3, 4
-    %v_5 = call_complex allocateHeap, 8: Ptr
-    store %v_1, %v_5, 8
-    %v_6 = load %v_1, 8: Ptr
-    copy %v_6, %v_2, 8
-    %v_7 = load %v_1, 8: Ptr
-    call_complex raise, %v_7
-    %v_8 = load %v_1, 8: Ptr
-    %v_9 = add %v_8, 4: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = add %v_10, 1: Int
-    %v_12 = load %v_1, 8: Ptr
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, %v_11, 4
-    %v_14 = add %v_1, 8: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = imul %v_15, 1000: Int
-    %v_17 = load %v_1, 8: Ptr
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = imul %v_18, 100: Int
-    %v_20 = add %v_16, %v_19: Int
-    call_complex reclaim$Config, %v_1
-    %v_21 = add %v_20, %v_11: Int
-    ret %v_21
-  }
-}
-
-raise<complex>(%d: Ptr) {
-  b_0 {
-    call_complex +=(Int), %d, 1
     ret 
   }
 }
@@ -303,21 +155,138 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
+freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = add %value, %v_4: Int
-    ret %v_5
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = imul %sizeClass, 8: Long
+    %v_15 = add %v_13, %v_14: Ptr
+    store %v_15, %allocation, 8
+    ret 
   }
 }
 
-teardown$none<complex>(%value: Ptr) {
+raise<complex>(%d: Ptr) {
   b_0 {
+    call_complex +=(Int), %d, 1
     ret 
+  }
+}
+
+mutated<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 12, 8: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 20, 4
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 3, 4
+    %v_5 = call_complex allocateHeap, 8: Ptr
+    store %v_1, %v_5, 8
+    %v_6 = load %v_1, 8: Ptr
+    copy %v_6, %v_2, 8
+    %v_7 = load %v_1, 8: Ptr
+    call_complex raise, %v_7
+    %v_8 = load %v_1, 8: Ptr
+    %v_9 = add %v_8, 4: Ptr
+    %v_10 = loads %v_9, 4: Int
+    %v_11 = add %v_10, 1: Int
+    %v_12 = load %v_1, 8: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    store %v_13, %v_11, 4
+    %v_14 = add %v_1, 8: Ptr
+    %v_15 = loads %v_14, 4: Int
+    %v_16 = imul %v_15, 1000: Int
+    %v_17 = load %v_1, 8: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = imul %v_18, 100: Int
+    %v_20 = add %v_16, %v_19: Int
+    call_complex reclaim$Config, %v_1
+    %v_21 = add %v_20, %v_11: Int
+    ret %v_21
+  }
+}
+
+pinnedValue<complex>(): Int {
+  b_0 {
+    %p = alloca 16, 8: Ptr
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 3, 4
+    store %p, 5, 4
+    %v_3 = call_complex allocateHeap, 8: Ptr
+    %v_4 = add %p, 8: Ptr
+    store %v_4, %v_3, 8
+    %v_5 = add %p, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    copy %v_6, %v_1, 8
+    %v_7 = add %p, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = imul %v_9, 10: Int
+    %v_11 = add %v_10, 500: Int
+    %v_12 = add %p, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = add %v_13, 4: Ptr
+    %v_15 = loads %v_14, 4: Int
+    call_complex reclaim$Pinned, %p
+    %v_16 = add %v_11, %v_15: Int
+    ret %v_16
+  }
+}
+
+throughLens<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 12, 8: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 6, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 40, 4
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 3, 4
+    %v_5 = call_complex allocateHeap, 8: Ptr
+    store %v_1, %v_5, 8
+    %v_6 = load %v_1, 8: Ptr
+    copy %v_6, %v_2, 8
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, ResolveTest.continuation$0, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, %v_7, 8
+    %v_10 = load %v_1, 8: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = add %v_8, 8: Ptr
+    %v_14 = load %v_8, 8: Ptr
+    %v_15 = load %v_13, 8: Ptr
+    %v_16 = call_complex %v_14, %v_15, %v_12: Int
+    call_complex reclaim$Config, %v_1
+    ret %v_16
   }
 }
 
@@ -355,6 +324,37 @@ main<complex>(): Int {
     %v_10 = call_complex pinnedValue: Int
     %v_11 = add %v_9, %v_10: Int
     ret %v_11
+  }
+}
+
+@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = load %v_1, 8: Ptr
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = add %value, %v_4: Int
+    ret %v_5
+  }
+}
+
+reclaim$Config<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = load %value, 8: Ptr
+    %v_2 = bitcast %v_1: Ptr
+    call_complex freeHeap, %v_2
+    ret 
+  }
+}
+
+reclaim$Pinned<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast %v_2: Ptr
+    call_complex freeHeap, %v_3
+    ret 
   }
 }
 
