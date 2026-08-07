@@ -91,7 +91,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c8488bf7e8ecffffff
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c88bf7e8edffffff
   ret uses=[xmm0] creates=[]  => 4883c408c3
 
 --- codegen: win64Callee ---
@@ -105,11 +105,11 @@ block #1:
 --- codegen: win64Caller ---
   prologue  => 4883ec38
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[xmm0->xmm1, rdx->rcx]  => 0f28c88bca
 block #1:
-  x86_pusharg uses=[xmm0] creates=[-]  => f20f11442420
+  x86_pusharg uses=[xmm1] creates=[-]  => f20f114c2420
   fun uses=[] creates=[-]  => 
-  call_win64 uses=[-, rcx, xmm1, r8, xmm3, -] creates=[xmm0] pre=[rdx->rcx, xmm0->xmm1, rdx->r8, xmm0->xmm3]  => 488bca0f28c84c8bc20f28d8e8d3ffffff
+  call_win64 uses=[-, rcx, xmm1, r8, xmm3, -] creates=[xmm0] pre=[rcx->r8, xmm1->xmm3]  => 448bc10f28d9e8d4ffffff
   ret uses=[xmm0] creates=[]  => 4883c438c3
 
 --- codegen: manyArgs ---
@@ -139,9 +139,9 @@ block #0:
   jmp uses=[] creates=[] pre=[xmm0->stack:0]  => f20f110424
 block #1:
   fun uses=[] creates=[-]  => 
-  imm uses=[] creates=[rax]  => 31c0
-  imm uses=[] creates=[rcx]  => 31c9
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, rax->rdi, stack:0->xmm1, rcx->rsi]  => f20f100424488bf8f20f100c24488bf1e851ffffff
+  imm uses=[] creates=[rdi]  => 31ff
+  imm uses=[] creates=[rsi]  => 31f6
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, stack:0->xmm1]  => f20f100424f20f100c24e859ffffff
   add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
   ret uses=[xmm0] creates=[]  => 4883c408c3
 

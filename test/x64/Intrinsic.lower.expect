@@ -86,15 +86,15 @@ sink<complex>(%v: Long): Long {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  bswap uses=[rdi] creates=[rdi]  => 480fcf
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 488bc7480fc8
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: bits ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  popcnt uses=[rdi] creates=[rdi]  => f3480fb8ff
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  popcnt uses=[rdi] creates=[rax]  => f3480fb8c7
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: spilledBits ---
   prologue  => 535541544155415641574883ec58
@@ -113,7 +113,7 @@ block #1:
   load uses=[rdi] creates=[r15] post=[r15->stack:9]  => 4c8b3f4c897c2448
   load uses=[rdi] creates=[r15] post=[r15->stack:10]  => 4c8b3f4c897c2450
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e880000000
+  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e87d000000
   popcnt uses=[stack:0] creates=[rcx]  => f3480fb80c24
   add uses=[rbp, stack:1] creates=[rbp]  => 48036c2408
   add uses=[rbp, stack:2] creates=[rbp]  => 48036c2410
@@ -127,15 +127,15 @@ block #1:
   add uses=[rbp, stack:10] creates=[rbp]  => 48036c2450
   add uses=[rbp, rax] creates=[rbp]  => 4801c5
   cast uses=[rbp] creates=[rbp]  => 8bed
-  add uses=[rbp, rcx] creates=[rbp]  => 01cd
-  ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c458415f415e415d415c5d5bc3
+  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 8bc501c8
+  ret uses=[rax] creates=[]  => 4883c458415f415e415d415c5d5bc3
 
 --- codegen: features ---
   prologue  => 53
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax, rsi->rcx]  => 8bc78bce
 block #1:
-  cpuid uses=[rax, rcx] creates=[rax, rbx, rcx, rdx] pre=[rdi->rax, rsi->rcx]  => 488bc7488bce0fa2
+  cpuid uses=[rax, rcx] creates=[rax, rbx, rcx, rdx]  => 0fa2
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rcx, rdx] creates=[rcx]  => 01d1
   add uses=[rax, rcx] creates=[rax]  => 01c8
@@ -164,6 +164,6 @@ block #1:
 
 --- codegen: sink ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3

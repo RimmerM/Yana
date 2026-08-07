@@ -143,9 +143,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  x86_lea scale=1 disp=16 uses=[rdi] creates=[rax]  => 488d4710
+  x86_lea scale=1 disp=16 uses=[rdi] creates=[rsi]  => 488d7710
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rax->rsi]  => 488bf0e8d2ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8d5ffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: twoElements ---
@@ -155,9 +155,9 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_lea scale=1 disp=8 uses=[rdi] creates=[rax]  => 488d4708
   imm uses=[] creates=[-]  => 
-  x86_lea scale=1 disp=16 uses=[rdi] creates=[rdi]  => 488d7f10
+  x86_lea scale=1 disp=16 uses=[rdi] creates=[rsi]  => 488d7710
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi, rax->rdi]  => 488bf7488bf8e8beffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rax->rdi]  => 488bf8e8c4ffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: storedAddress ---
@@ -178,9 +178,9 @@ block #1:
   x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
   load uses=[rdi] creates=[rbx]  => 8b1f
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8a6ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8acffffff
   add uses=[rbx, rax] creates=[rbx]  => 01c3
-  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 8bc35bc3
 
 --- codegen: acrossBlocks ---
 block #0:
@@ -194,5 +194,5 @@ block miss:
   ret uses=[rax] creates=[]  => c3
 block hit:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e88bffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e892ffffff
   ret uses=[rax] creates=[]  => c3

@@ -469,11 +469,25 @@ static LowerCmp negateCmp(LowerCmp cmp) {
     return cmp;
 }
 
-// Materializes the flags into a real register, for a comparison whose result could not stay in the
-// flags. SETcc r/m8 (0f 90+cc /0) writes 1 or 0 into the register's low byte and leaves the other
-// three untouched, so it is followed by MOVZX r32, r/m8 (0f b6 /r) to clear them - the result is an
-// ordinary 0-or-1 Int that later instructions can read in full.
-static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
+/*
+ * Materializing the flags into a real register, for a comparison whose result could not stay in
+ * them. SETcc r/m8 (0f 90+cc /0) writes 1 or 0 into the register's *low byte* and leaves the other
+ * three exactly as they were, so something has to clear them before the result is an ordinary 0-or-1
+ * Int that later instructions can read in full.
+ *
+ * There are two ways to do that and they are not equally good. Clearing them afterwards with
+ * MOVZX r32, r/m8 (0f b6 /r) needs nothing of the register and works everywhere, which is why it is
+ * the fallback - but the `setcc` still merges its byte into whatever the register held, so the
+ * instruction depends on the last write to that register however unrelated it was, and on a machine
+ * that renames registers whole that dependency is real. Zeroing the register *before* the comparison
+ * with `xor r32, r32` costs the same instruction, one byte less, and no dependency at all: the
+ * `setcc` writes into a register the same basic block just proved to be zero.
+ *
+ * The catch is that the zeroing has to go before the comparison, because it writes the flags - so it
+ * is only available when the destination is not one of the registers the comparison reads. That is
+ * `preZeroesFlagsResult` in genFunction below, and the two halves here are what it picks between.
+ */
+static void genSetCc(AsmModule& to, U8 reg, LowerCmp cmp) {
     // Encoding 4-7 as an 8-bit operand names ah/ch/dh/bh unless some REX prefix is present, which
     // switches them to spl/bpl/sil/dil - the registers the allocator's numbering actually means.
     auto byteRex = needsRex(reg) || (reg & 7) >= 4;
@@ -482,6 +496,12 @@ static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
     to.buffer.writeByte(0x0f);
     to.buffer.writeByte(0x90 + conditionCode(cmp));
     to.buffer.writeByte(makeMod(3, reg, 0));
+}
+
+static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
+    genSetCc(to, reg, cmp);
+
+    auto byteRex = needsRex(reg) || (reg & 7) >= 4;
 
     if(byteRex) to.buffer.writeByte(makeRex(false, reg, reg, 0));
     to.buffer.writeByte(0x0f);
@@ -508,8 +528,10 @@ static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
  * not carried anywhere - and that is guaranteed, because tryMergeCompare refuses to fold a float
  * equality into a branch or a select at all.
  */
-static void genFloatFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
-    genFlagsToReg(to, reg, cmp);
+static void genFloatFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp, bool preZeroed) {
+    if(preZeroed) genSetCc(to, reg, cmp);
+    else genFlagsToReg(to, reg, cmp);
+
     if(cmp != LowerCmp::eq && cmp != LowerCmp::neq) return;
 
     // JNP rel8 (0x7b): the ordered case is the one the setcc above already answered, so it skips.
@@ -555,9 +577,17 @@ struct ClassMoveEncoding {
     U8 copyPrefix = 0;  // the mandatory prefix a register copy needs
     U8 memPrefix = 0;   // the mandatory prefix a frame transfer needs
 
-    // REX.W on a register-to-register copy. Both GPR classes copy at 64 bits: the narrow one's upper
-    // half is dead by construction (every 32-bit operation this backend emits clears it), and a byte
-    // per copy is not worth a width the class table would then have to be trusted about.
+    // REX.W on a register-to-register copy, and on the exchange that breaks a cycle. Stated per
+    // class rather than per bank, because the two GPR classes are exactly the two widths: a copy of
+    // a 32-bit value at 64 bits carries a REX.W it does not need, which is a byte on every copy the
+    // allocator emits, and there is one of those at the end of most functions.
+    //
+    // Narrowing it is safe in the one direction that matters. A 32-bit move clears the upper half of
+    // its destination rather than preserving it, so the value the class holds arrives intact and
+    // what is destroyed is whatever the register happened to have above it - which nothing can be
+    // reading, since a location belongs to one web and a web to one class. The same goes for the
+    // exchange: both ends of a transfer are of one class by construction, so `xchg r32, r32` clears
+    // two halves that both belong to 32-bit values.
     bool wide = false;
 
     // The frame transfer's width is stated by `memPrefix` rather than by REX.W, which is how every
@@ -576,9 +606,9 @@ struct ClassMoveEncoding {
 // Ordered rather than designated, since the class ids run in this order and a compiler need not
 // accept a designated initializer out of it.
 static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
-    // ClassGpr32, ClassGpr64. MOV r, r/m either way, and XCHG r/m64, r64 to break a cycle without
-    // needing a scratch register at all.
-    { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
+    // ClassGpr32, ClassGpr64. MOV r, r/m either way, and XCHG r/m, r to break a cycle without
+    // needing a scratch register at all. Each at its own width - see `wide`.
+    { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .defined = true },
     { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
 
     // ClassFloat32, ClassFloat64: a scalar float in a vector register. Copied whole with MOVAPS
@@ -1404,6 +1434,38 @@ struct Emitter {
      * One instruction.
      */
 
+    // Whether a comparison that has to materialize its result can have that register zeroed ahead of
+    // the comparison itself rather than extended afterwards - see genSetCc.
+    //
+    // The zeroing goes *before* the comparison, because it writes the flags, so the one thing that
+    // rules it out is the comparison reading the register it would destroy. Every place the encoding
+    // could name one is checked: the two operands, wherever legalization resolved them to, and the
+    // base and index of the one address the instruction may reference. A prelude is refused outright
+    // rather than reasoned about - no form that materializes the flags has one today, and one that
+    // did would be establishing state of its own before the encoding runs.
+    //
+    // An operand in a frame slot names no register of its own: it is addressed through the frame
+    // base, which is rsp - never allocatable - or rbp, which a function addressing its frame that
+    // way does not hand out either.
+    bool preZeroesFlagsResult(const EncodingDescriptor& e, const InstRegs& regs) {
+        if(!e.materializeFlags || e.prelude != EncodingPrelude::None) return false;
+
+        auto at = regs.creates[0].at;
+        assertTrue(at.isPhysical()); // a materialized comparison with nowhere to write its result
+
+        for(auto& use: regs.uses) {
+            if(use.at.isPhysical() && use.at.physicalReg() == at.physicalReg()) return false;
+        }
+
+        if(regs.hasAddress && at.bank == BankGpr) {
+            auto& address = regs.address;
+            if(address.hasBase && address.base == at.index) return false;
+            if(address.hasIndex && address.index == at.index) return false;
+        }
+
+        return true;
+    }
+
     // The step some forms need before the operation itself, because the encoding reads a register
     // the instruction does not name as an operand.
     void emitPrelude(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
@@ -1456,6 +1518,13 @@ struct Emitter {
         auto hasWidth = e.family != EncodingFamily::None && e.family != EncodingFamily::Pseudo;
         auto is64 = hasWidth && !e.widthInPrefix && is64Bit(operationType(base, form, inst));
 
+        // The zeroing half of materializing a comparison into a register, which has to stand ahead of
+        // the comparison because it writes the flags - see genSetCc. `is64` is not this instruction's
+        // width: `xor r32, r32` clears the whole register, so the narrow encoding is right whatever
+        // the comparison was of.
+        auto preZeroed = preZeroesFlagsResult(e, regs);
+        if(preZeroed) genZeroReg(to, reg(regs.creates[0]), false);
+
         emitPrelude(e, regs, is64);
 
         switch(e.family) {
@@ -1473,14 +1542,16 @@ struct Emitter {
             case EncodingFamily::Pseudo:      emitPseudo(e.pseudo, inst, selected, regs); break;
         }
 
-        // A comparison whose result could not stay in the flags carries them into a register
-        // afterwards. A floating-point one reads the parity flag as well for the two of its six that
-        // need it - see genFloatFlagsToReg.
+        // And the `setcc` itself, which is all that is left where the register was zeroed above and
+        // is followed by the zero-extension where it was not. A floating-point comparison reads the
+        // parity flag as well for the two of its six that need it - see genFloatFlagsToReg.
         if(e.materializeFlags) {
             auto condition = selected.condition.unwrap();
 
             if(machineTarget().form(selected.form).opcode == OpFCmp) {
-                genFloatFlagsToReg(to, reg(regs.creates[0]), condition);
+                genFloatFlagsToReg(to, reg(regs.creates[0]), condition, preZeroed);
+            } else if(preZeroed) {
+                genSetCc(to, reg(regs.creates[0]), condition);
             } else {
                 genFlagsToReg(to, reg(regs.creates[0]), condition);
             }

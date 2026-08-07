@@ -36,8 +36,10 @@ enum: MachineFormId {
     FormCastMov,
     FormCastSext,
     FormCastImm,
+    FormCastZero,
     FormBitcast,
     FormBitcastImm,
+    FormBitcastZero,
 
     FormCastIToF32, FormCastIToF64,
     FormCastF32ToI, FormCastF64ToI,
@@ -217,8 +219,22 @@ MachineTarget::MachineTarget() {
     name(OpGlobalAddress, "globaladdr"_v);
     name(OpFunctionAddress, "funaddr"_v);
     name(OpMove, "move"_v);
-    name(OpCast, "cast"_v);
-    name(OpBitcast, "bitcast"_v);
+
+    // A cast whose source is an embedded constant is a materialization, and takes the same two forms
+    // a materialization does: `xor r, r` for zero and `mov r, imm` for everything else. Which of the
+    // two follows the constant's value alone, exactly as it does for OpImm above.
+    name(OpCast, "cast"_v, true);
+
+    // And a bitcast of one, for the same reason - and this is the pair that pays: `bitcast 0` is
+    // what the lowering makes of every null pointer, where a cast of a constant is folded away
+    // before it is ever built (foldCast in lower_builder.h) and only a hand-written .lower file
+    // has one.
+    //
+    // Both are the first flags-selective opcodes whose answer moves the *wrong* way as the peepholes
+    // run - the form that writes nothing is the one they start in. What makes that safe is the sweep
+    // order rather than anything about these rows; see MachineOpcodeDesc::flagsSelective and §3.5.2
+    // of the README.
+    name(OpBitcast, "bitcast"_v, true);
     name(OpNeg, "neg"_v);
     name(OpNot, "not"_v);
     name(OpAdd, "add"_v);
@@ -508,6 +524,20 @@ MachineTarget::MachineTarget() {
     }
 
     {
+        // And zero is `xor r, r` here for the same reason it is under OpImm: two bytes where the
+        // move is five, since the register is zeroed whole whatever width either end of the cast
+        // declares. The immediate is still declared as the operand it is - what the source is has
+        // not changed, only what the encoding does with it - so the operand accounting is the same
+        // as the form above's and the peephole that embeds the constant sees one answer for both.
+        auto& form = add(FormCastZero, OpCast, "xor r, r"_v);
+        form.uses.push(immediate(ImmediateWidth::Imm64));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::Def;
+        form.encoding = regRm(0x31, defRef(0), defRef(0));
+        form.encoding.width = OperationWidth::Fixed32;
+    }
+
+    {
         // A bitcast between two integer classes is a copy and nothing more, so one between a
         // register and itself emits nothing at all.
         auto& form = add(FormBitcast, OpBitcast, "mov r, r"_v);
@@ -525,6 +555,17 @@ MachineTarget::MachineTarget() {
             .family = EncodingFamily::MoveImm,
             .regField = defRef(0), .immField = useRef(0),
         };
+    }
+
+    {
+        // The zero of the pair, which is the one that matters here: `bitcast 0` is what the lowering
+        // makes of a null pointer, and it is the only constant a bitcast is ever given.
+        auto& form = add(FormBitcastZero, OpBitcast, "xor r, r"_v);
+        form.uses.push(immediate(ImmediateWidth::Imm64));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::Def;
+        form.encoding = regRm(0x31, defRef(0), defRef(0));
+        form.encoding.width = OperationWidth::Fixed32;
     }
 
     /*
@@ -1953,7 +1994,13 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
             requireIntLike(from);
             requireIntLike(to);
-            if(isImm(base[cast->from])) return FormCastImm;
+            // An embedded constant makes the cast a materialization, and zero is materialized with
+            // `xor` here for the same reason it is under Imm above. Which of the two it is depends
+            // on the value alone; whether the source is embedded at all is a peephole's answer, and
+            // is settled before anything asks what this writes - the flags window is walked in a
+            // sweep of its own, after every form decision a peephole makes.
+            auto source = base[cast->from];
+            if(isImm(source)) return immValue(source) == 0 ? FormCastZero : FormCastImm;
 
             /*
              * Only a signed value *widened* into a signed one has to carry its sign bit up; every
@@ -1996,7 +2043,12 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
             requireIntLike(from);
             requireIntLike(to);
-            return isImm(base[bitcast->from]) ? FormBitcastImm : FormBitcast;
+
+            // The same two materializing forms a constant-sourced cast takes, chosen the same way.
+            auto source = base[bitcast->from];
+            if(isImm(source)) return immValue(source) == 0 ? FormBitcastZero : FormBitcastImm;
+
+            return FormBitcast;
         }
 
         case LowerInst::Neg: {

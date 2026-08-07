@@ -54,8 +54,8 @@ block #0:
 block #1:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdi, -] creates=[-]  => 83ff01
-  select uses=[rsi, rdx, -] creates=[rsi]  => 0f45f2
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  select uses=[rax, rdx, -] creates=[rax] pre=[rsi->rax]  => 8bc60f45c2
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: hoisted ---
 block #0:
@@ -65,8 +65,8 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
   cmp_ilt uses=[rdi, -] creates=[-]  => 85ff
-  select uses=[rsi, rdx, -] creates=[rsi]  => 0f4df2
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  select uses=[rax, rdx, -] creates=[rax] pre=[rsi->rax]  => 8bc60f4dc2
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: zeroArm ---
 block #0:
@@ -87,8 +87,8 @@ block #1:
   load uses=[rsi] creates=[rsi]  => 8b36
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
-  select uses=[rsi, rdx, rdi] creates=[rsi]  => 85ff0f44f2
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  select uses=[rax, rdx, rdi] creates=[rax] pre=[rsi->rax]  => 8bc685ff0f44c2
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: crossBlock ---
 block #0:
@@ -98,5 +98,5 @@ block start:
   cmp_ige uses=[rdi, -] creates=[rdi]  => 83ff0a400f9dc7400fb6ff
   jmp uses=[] creates=[]  => 
 block next:
-  select uses=[rsi, rdx, rdi] creates=[rsi]  => 85ff0f44f2
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  select uses=[rax, rdx, rdi] creates=[rax] pre=[rsi->rax]  => 8bc685ff0f44c2
+  ret uses=[rax] creates=[]  => c3

@@ -194,24 +194,24 @@ hoistedStackArg<complex>(%a: Int): Int {
 
 --- codegen: leaf ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: noFrame ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc701f0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: saveSeveral ---
   prologue  => 5341544155
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13]  => 488bde4c8be24c8be9
+  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13]  => 8bde448be2448be9
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8e3ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8e6ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rax, r12] creates=[rax]  => 4401e0
   add uses=[rax, r13] creates=[rax]  => 4401e8
@@ -220,31 +220,31 @@ block #1:
 --- codegen: twoExits ---
   prologue  => 53
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
+  jmp uses=[] creates=[] pre=[rdi->rbx]  => 8bdf
 block start:
-  je uses=[rsi] creates=[]  => 85f60f8505000000
+  je uses=[rsi] creates=[]  => 85f60f8504000000
 block quick:
-  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 8bc35bc3
 block slow:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 488bfbe8bcffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 8bfbe8c2ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: savedAcrossLoop ---
   prologue  => 53415441554156
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->r12]  => 488bdf4c8be6
+  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->r12]  => 8bdf448be6
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[r13]  => 41bd00000000
+  cast uses=[-] creates=[r13]  => 4531ed
   cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
   je uses=[-] creates=[]  => 0f8d1d000000
 block #3:
-  jmp uses=[] creates=[] pre=[r13->r14]  => 4d8bf5
+  jmp uses=[] creates=[] pre=[r13->r14]  => 458bf5
 block body:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce891ffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce89bffffff
   add uses=[r14, rax] creates=[r14]  => 4101c6
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13]  => 41ffc5
@@ -253,9 +253,9 @@ block head:
   cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
   je uses=[-] creates=[]  => 0f8ce9ffffff
 block #7:
-  jmp uses=[] creates=[] pre=[r14->r13]  => 4d8bee
+  jmp uses=[] creates=[] pre=[r14->r13]  => 458bee
 block out:
-  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415e415d415c5bc3
+  ret uses=[rax] creates=[] pre=[r13->rax]  => 418bc5415e415d415c5bc3
 
 --- codegen: locals ---
   prologue  => 4883ec28
@@ -280,7 +280,7 @@ block #1:
   alloca uses=[-] creates=[rbx]  => 488d1c24
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e848ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e852ffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 4883c4085bc3
@@ -292,8 +292,8 @@ block #0:
 block #1:
   alloca uses=[rdi] creates=[rdi]  => 4883c7074883e7f84829fc488bfc
   store uses=[rdi, rsi] creates=[]  => 488937
-  load uses=[rdi] creates=[rdi]  => 488b3f
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
+  load uses=[rdi] creates=[rax]  => 488b07
+  ret uses=[rax] creates=[]  => c9c3
 
 --- codegen: overAlignedLocal ---
   prologue  => 55488bec4883e4e04883ec20
@@ -313,8 +313,8 @@ block #0:
 block #1:
   alloca uses=[rdi] creates=[rdi]  => 4883c7464883e7f84829fc488bfc4883c73f4883e7c0
   store uses=[rdi, rsi] creates=[]  => 488937
-  load uses=[rdi] creates=[rdi]  => 488b3f
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
+  load uses=[rdi] creates=[rax]  => 488b07
+  ret uses=[rax] creates=[]  => c9c3
 
 --- codegen: stackArg ---
 block #0:
@@ -335,7 +335,7 @@ block #1:
   alloca uses=[-] creates=[rbx]  => 488d5c2410
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe8c1ffffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8c4ffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 4883c4185bc3
@@ -348,33 +348,33 @@ block #1:
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2408
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe88fffffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe895ffffff
   ret uses=[rax] creates=[]  => 4883c410c3
 
 --- codegen: sysvCallee ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rdi, r9] creates=[rdi]  => 4401cf
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  add uses=[rax, r9] creates=[rax] pre=[rdi->rax]  => 8bc74401c8
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: sysvCaller ---
   prologue  => 53
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 8bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe8e1ffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe8e6ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: alignedCallFromWeakerConvention ---
   prologue  => 55488bec534883e4f0
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 8bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe8bdffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe8c6ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 488d65f85b5dc3
 
@@ -384,19 +384,19 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdfffc3
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 8bdfffc3
   imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c402
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 448be74183c402
   imm uses=[] creates=[-]  => 
-  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c503
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 448bef4183c503
   imm uses=[] creates=[-]  => 
-  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c604
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 448bf74183c604
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70544893c24
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 448bff4183c70544893c24
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70644897c2404
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 448bff4183c70644897c2404
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe85affffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe867ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rax, r12] creates=[rax]  => 4401e0
   add uses=[rax, r13] creates=[rax]  => 4401e8
@@ -411,15 +411,15 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc0
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
   x86_pusharg uses=[rax] creates=[-]  => 4889442408
   x86_pusharg uses=[rax] creates=[-]  => 48890424
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c002
+  add uses=[rsi, -] creates=[rsi] pre=[rdi->rsi]  => 8bf783c602
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 488bc883c103
+  add uses=[rdx, -] creates=[rdx] pre=[rsi->rdx]  => 8bd683c203
   imm uses=[] creates=[-]  => 
-  add uses=[rdx, -] creates=[rdx] pre=[rcx->rdx]  => 488bd183c204
+  add uses=[rcx, -] creates=[rcx] pre=[rdx->rcx]  => 8bca83c104
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rax->rsi, rdi->r8, rax->r9, rcx->r10, rdx->r11, rcx<->rdx]  => 488bf04c8bc74c8bc84c8bd14c8bda4887d1e888feffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->r8, rsi->r9, rdx->r10, rcx->r11]  => 448bc7448bce448bd2448bd9e8a5feffff
   ret uses=[rax] creates=[]  => 4883c410c3

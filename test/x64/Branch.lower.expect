@@ -55,6 +55,25 @@ flagWindowLoad<complex>(%v: Int, %w: Int, %p: Ptr): Int {
   }
 }
 
+flagWindowLive<complex>(%v: Int, %w: Int, %p: Ptr): Int {
+  start {
+    %cmp = cmp_ilt %v, %w: Int
+    %l = load %p, 4: Int
+    %x = add %l, 1: Int
+    je %cmp, a, b
+  }
+
+  a {
+    %s = add %v, %w: Int
+    %t = add %s, %x: Int
+    ret %t
+  }
+
+  b {
+    ret %w
+  }
+}
+
 wideBranch<complex>(%v: Long, %w: Long): Long {
   start {
     %v_0 = cmp_ilt %v, %w: Int
@@ -84,67 +103,83 @@ wideBranch<complex>(%v: Long, %w: Long): Long {
 
 --- codegen: branch ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
   imm uses=[] creates=[-]  => 
-  cmp_le uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 0f860f000000
+  cmp_le uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 0f860c000000
 block b:
   imm uses=[] creates=[rcx]  => b902000000
-  mul uses=[rax, rcx] creates=[rax] pre=[rdi->rax]  => 488bc7f7e1
-  jmp uses=[] creates=[]  => e905000000
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  jmp uses=[] creates=[]  => e902000000
 block a:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc0
+  add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 488bd6c3
+  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 8bd6c3
 
 --- codegen: flagWindow ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcfffc1
   imm uses=[] creates=[r8]  => 41b803000000
-  mul uses=[rax, r8] creates=[rax] pre=[rsi->rax]  => 488bc641f7e0
+  mul uses=[rax, r8] creates=[rax] pre=[rsi->rax]  => 8bc641f7e0
   cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
   je uses=[-] creates=[]  => 0f8c01000000
 block b:
   ret uses=[rax] creates=[]  => c3
 block a:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: flagWindowLoad ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
 block start:
-  cmp_ilt uses=[rdi, rsi] creates=[rdi]  => 39f7400f9cc7400fb6ff
+  cmp_ilt uses=[rdi, rax] creates=[rdi]  => 39c7400f9cc7400fb6ff
   load uses=[rdx] creates=[rdx]  => 8b12
   imm uses=[] creates=[-]  => 
   add uses=[rdx, -] creates=[rdx]  => ffc2
-  je uses=[rdi] creates=[]  => 85ff0f8504000000
+  je uses=[rdi] creates=[]  => 85ff0f8501000000
 block b:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[]  => c3
 block a:
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
+
+--- codegen: flagWindowLive ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
+block start:
+  cmp_ilt uses=[rdi, rax] creates=[rcx]  => 31c939c70f9cc1
+  load uses=[rdx] creates=[rdx]  => 8b12
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => ffc2
+  je uses=[rcx] creates=[]  => 85c90f8501000000
+block b:
+  ret uses=[rax] creates=[]  => c3
+block a:
+  add uses=[rdi, rax] creates=[rdi]  => 01c7
+  add uses=[rax, rdx] creates=[rax] pre=[rdi->rax]  => 8bc701d0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: wideBranch ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
 block start:
-  cmp_ilt uses=[rdi, rsi] creates=[-]  => 4839f7
-  je uses=[-] creates=[]  => 0f8c14000000
+  cmp_ilt uses=[rdi, rax] creates=[-]  => 4839c7
+  je uses=[-] creates=[]  => 0f8c11000000
 block b:
   imm uses=[] creates=[-]  => 
-  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  cmp_ilt uses=[rax, -] creates=[-]  => 4885c0
   je uses=[-] creates=[]  => 0f8c07000000
 block d:
   imm uses=[] creates=[-]  => 
   sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748ffc8
   ret uses=[rax] creates=[]  => c3
 block c:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[]  => c3
 block a:
-  add uses=[rdi, rsi] creates=[rdi]  => 4801f7
+  add uses=[rdi, rax] creates=[rdi]  => 4801c7
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

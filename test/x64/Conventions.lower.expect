@@ -56,7 +56,7 @@ block #0:
   jmp uses=[] creates=[] pre=[stack:0->rax]  => 488b442428
 block #1:
   add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: win64Caller ---
   prologue  => 4883ec38
@@ -65,48 +65,48 @@ block #0:
 block #1:
   x86_pusharg uses=[rcx] creates=[-]  => 48894c2420
   fun uses=[] creates=[-]  => 
-  call_win64 uses=[-, rcx, rdx, r8, r9, -] creates=[rax] pre=[rcx->rdx, rcx->r8, rcx->r9]  => 488bd14c8bc14c8bc9e8deffffff
+  call_win64 uses=[-, rcx, rdx, r8, r9, -] creates=[rax] pre=[rcx->rdx, rcx->r8, rcx->r9]  => 8bd1448bc1448bc9e8e0ffffff
   ret uses=[rax] creates=[]  => 4883c438c3
 
 --- codegen: simpleCallee ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc701f0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: simpleCaller ---
   prologue  => 51
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rcx]  => 488bce
+  jmp uses=[] creates=[] pre=[rsi->rcx]  => 8bce
 block #1:
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi, rsi] creates=[rax] pre=[rcx->rsi]  => 488bf1e8eeffffff
+  call_simple uses=[-, rdi, rsi] creates=[rax] pre=[rcx->rsi]  => 8bf1e8f1ffffff
   add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => 59c3
 
 --- codegen: clobberCallee ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: clobberCaller ---
   prologue  => 55
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbp]  => 488bee
+  jmp uses=[] creates=[] pre=[rsi->rbp]  => 8bee
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8f3ffffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8f5ffffff
   add uses=[rax, rbp] creates=[rax]  => 01e8
   ret uses=[rax] creates=[]  => 5dc3
 
 --- codegen: complexCaller ---
   prologue  => 53
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 8bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8e6ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8e9ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 5bc3

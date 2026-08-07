@@ -39,36 +39,36 @@ remLiveResult<complex>(%a: Int, %b: Int, %c: Int): Int {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  mul uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->r8]  => 488bc7f7e64c8bc0
-  imul uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc70fafc6
+  mul uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->r8]  => 8bc7f7e6448bc0
+  imul uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc70fafc6
   imm uses=[] creates=[-]  => 
   imul uses=[rdi, -] creates=[rax]  => 6bc703
-  div uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc731d2f7f6
-  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc799f7fe
-  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc799f7fe
-  shl uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3e0
-  shr uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3e8
-  sar uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3f8
+  div uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc731d2f7f6
+  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc799f7fe
+  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 8bc799f7fe
+  shl uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 8bc78bced3e0
+  shr uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 8bc78bced3e8
+  sar uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 8bc78bced3f8
   imm uses=[] creates=[-]  => 
   shl uses=[rdi, -] creates=[rdi]  => c1e702
-  ret uses=[rax] creates=[] pre=[r8->rax]  => 498bc0c3
+  ret uses=[rax] creates=[] pre=[r8->rax]  => 418bc0c3
 
 --- codegen: mulHigh ---
 block #0:
-  jmp uses=[] creates=[] pre=[rcx->r8, rdx->rcx]  => 4c8bc1488bca
+  jmp uses=[] creates=[] pre=[rcx->r8, rdx->rcx]  => 448bc18bca
 block #1:
   mulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->r9]  => 488bc748f7e64c8bca
   imulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->rsi]  => 488bc748f7ee488bf2
-  mulhi uses=[rax, r8] creates=[rdx] pre=[rcx->rax]  => 488bc141f7e0
+  mulhi uses=[rax, r8] creates=[rdx] pre=[rcx->rax]  => 8bc141f7e0
   imm uses=[] creates=[rdi]  => bf07000000
-  imulhi uses=[rax, rdi] creates=[rdx] pre=[rcx->rax]  => 488bc1f7ef
-  add uses=[r9, rsi] creates=[r9]  => 4901f1
-  ret uses=[rax] creates=[] pre=[r9->rax]  => 498bc1c3
+  imulhi uses=[rax, rdi] creates=[rdx] pre=[rcx->rax]  => 8bc1f7ef
+  add uses=[rax, rsi] creates=[rax] pre=[r9->rax]  => 498bc14801f0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: remLiveResult ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdx->rcx]  => 488bca
+  jmp uses=[] creates=[] pre=[rdi->rax, rdx->rcx]  => 8bc78bca
 block #1:
-  rem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc731d2f7f6
-  add uses=[rdx, rcx] creates=[rdx]  => 01ca
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+  rem uses=[rax, rsi] creates=[rdx]  => 31d2f7f6
+  add uses=[rax, rcx] creates=[rax] pre=[rdx->rax]  => 8bc201c8
+  ret uses=[rax] creates=[]  => c3

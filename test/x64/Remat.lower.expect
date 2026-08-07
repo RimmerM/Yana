@@ -134,21 +134,21 @@ constantUnderPressure<complex>(%a: Long): Long {
 
 --- codegen: sink ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: indirect ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: takePtr ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
 block #1:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: constantAcrossCall ---
   prologue  => 535541544155415641574883ec08
@@ -157,7 +157,7 @@ block #0:
 block #1:
   imm uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e8d7ffffff488bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e8d8ffffff8bc8488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
@@ -174,14 +174,14 @@ block #0:
 block #1:
   global uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e879ffffff488bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e87bffffff8bc8488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
   add uses=[rax, rbp] creates=[rax]  => 4801e8
-  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[remat:0->r15]  => 4c8d3d0d020000
+  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[remat:0->r15]  => 4c8d3d10020000
   add uses=[rax, -] creates=[rax]  => 490307
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
@@ -192,15 +192,15 @@ block #0:
 block #1:
   fun uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e81effffff488bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e821ffffff8bc8488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
-  add uses=[rax, rbp] creates=[rax]  => 4801e8
+  add uses=[rsi, rbp] creates=[rsi] pre=[rax->rsi]  => 488bf04801ee
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi, rax->rsi]  => 488d3df6feffff488bf0e8f2feffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3df6feffffe8f5feffff
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: localAcrossCall ---
@@ -211,7 +211,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   alloca uses=[-] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:1] post=[rax->rcx, stack:1->rax]  => 4889442420e8bdfeffff488bc8488b442420
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:1] post=[rax->rcx, stack:1->rax]  => 4889442420e8c1feffff8bc8488b442420
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
@@ -229,7 +229,7 @@ block #0:
 block #1:
   imm uses=[] creates=[r15] post=[r15->stack:1]  => 49bfefcdab89674523014c897c2408
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e84efeffff488bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e853feffff8bc8488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801c1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
@@ -292,5 +292,5 @@ block #1:
   add uses=[rdi, rdx] creates=[rdi]  => 4801d7
   add uses=[rdi, rcx] creates=[rdi]  => 4801cf
   add uses=[rdi, rax] creates=[rdi]  => 4801c7
-  imul uses=[rdi, r15] creates=[rdi] pre=[remat:0->r15]  => 49bfefcdab8967452301490fafff
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c408415f415e415d415c5d5bc3
+  imul uses=[rax, r15] creates=[rax] pre=[rdi->rax, remat:0->r15]  => 488bc749bfefcdab8967452301490fafc7
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3

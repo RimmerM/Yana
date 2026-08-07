@@ -76,36 +76,36 @@ earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
 
 --- codegen: diverge ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
-  je uses=[rdx] creates=[]  => 85d20f850a000000
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcfffc1
+  je uses=[rdx] creates=[]  => 85d20f8507000000
 block b:
-  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc601f8
-  jmp uses=[] creates=[]  => e907000000
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  jmp uses=[] creates=[]  => e904000000
 block a:
-  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc631d2f7f7
+  div uses=[rax, rdi] creates=[rax]  => 31d2f7f7
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: critEdge ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
-  je uses=[rdx] creates=[]  => 85d20f8504000000
+  je uses=[rdx] creates=[]  => 85d20f8503000000
 block b:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
 block a:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: outOfOrder ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc0
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
   jmp uses=[] creates=[]  => 
 block b:
   imm uses=[] creates=[-]  => 
@@ -121,15 +121,15 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf83c107
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcf83c107
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 85d2
-  je uses=[-] creates=[]  => 0f8419000000
+  je uses=[-] creates=[]  => 0f8416000000
 block slow:
-  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->r8]  => 488bc799f7fe4c8bc0
-  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc799f7fe
+  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->r8]  => 8bc799f7fe448bc0
+  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 8bc799f7fe
   add uses=[r8, rdx] creates=[r8]  => 4101d0
-  add uses=[r8, rcx] creates=[r8]  => 4101c8
-  ret uses=[rax] creates=[] pre=[r8->rax]  => 498bc0c3
+  add uses=[rax, rcx] creates=[rax] pre=[r8->rax]  => 418bc001c8
+  ret uses=[rax] creates=[]  => c3
 block quick:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3

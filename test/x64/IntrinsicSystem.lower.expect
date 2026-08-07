@@ -159,18 +159,18 @@ block #1:
 
 --- codegen: interrupts ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
-  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
+  cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
   cli uses=[] creates=[]  => fa
   swapgs uses=[] creates=[]  => 0f01f8
-  je uses=[-] creates=[]  => 0f8c05000000
+  je uses=[-] creates=[]  => 0f8c04000000
 block more:
   hlt uses=[] creates=[]  => f4
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
 block less:
   sti uses=[] creates=[]  => fb
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: cacheOps ---
 block #0:
@@ -198,36 +198,36 @@ block #1:
 
 --- codegen: sink ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: spilledAddress ---
   prologue  => 535541544155415641574883ec08
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 488bee48891424
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 8bee48891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8e2ffffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8e4ffffff
   clflush uses=[r15] creates=[] pre=[stack:0->r15]  => 4c8b3c24410fae3f
-  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488bcd01c1
-  add uses=[rbp, rcx] creates=[rbp]  => 01cd
-  ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc54883c408415f415e415d415c5d5bc3
+  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 8bcd01c1
+  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 8bc501c8
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: copyMsr ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rcx]  => 8bcf
 block #1:
-  rdmsr uses=[rcx] creates=[rax, rdx] pre=[rdi->rcx]  => 488bcf0f32
-  wrmsr uses=[rcx, rax, rdx] creates=[] pre=[rsi->rcx]  => 488bce0f30
+  rdmsr uses=[rcx] creates=[rax, rdx]  => 0f32
+  wrmsr uses=[rcx, rax, rdx] creates=[] pre=[rsi->rcx]  => 8bce0f30
   ret uses=[] creates=[]  => c3
 
 --- codegen: xcr0 ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[rax]  => 31c0
-  xgetbv uses=[rcx] creates=[rax, rdx] pre=[rax->rcx]  => 488bc80f01d0
+  imm uses=[] creates=[rcx]  => 31c9
+  xgetbv uses=[rcx] creates=[rax, rdx]  => 0f01d0
   add uses=[rax, rdx] creates=[rax]  => 01d0
   ret uses=[rax] creates=[]  => c3
 
@@ -235,12 +235,12 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  out8 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ee
-  out32 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 488bd7488bc6ef
-  in8 uses=[rdx] creates=[rax] pre=[rdi->rdx] post=[rax->rcx]  => 488bd7ec0fb6c0488bc8
-  in32 uses=[rdx] creates=[rax] pre=[rdi->rdx]  => 488bd7ed
+  out8 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 8bd78bc6ee
+  out32 uses=[rdx, rax] creates=[] pre=[rdi->rdx, rsi->rax]  => 8bd78bc6ef
+  in8 uses=[rdx] creates=[rax] pre=[rdi->rdx] post=[rax->rcx]  => 8bd7ec0fb6c08bc8
+  in32 uses=[rdx] creates=[rax] pre=[rdi->rdx]  => 8bd7ed
   add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: pageFault ---
 block #0:

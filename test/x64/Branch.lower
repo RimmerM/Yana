@@ -42,6 +42,12 @@ flagWindow(%v: Int, %w: Int): Int {
 # The same window, with a load in the middle of it. The load does not write the flags and so is not
 # in the way; the add reads it and therefore cannot go above the comparison, and the comparison is
 # materialized.
+#
+# `setcc` writes one byte and leaves the other three alone, so a materialized comparison has to clear
+# them somehow. Here it cannot do so in front of the comparison: the result reuses the register the
+# left-hand side is dying in, and zeroing that would destroy the operand the comparison is about to
+# read - so the extension stays behind the `setcc` as a `movzx`. `flagWindowLive` below is the other
+# half.
 flagWindowLoad(%v: Int, %w: Int, %p: Ptr): Int {
     start {
         %cmp = cmp_ilt %v, %w
@@ -52,6 +58,29 @@ flagWindowLoad(%v: Int, %w: Int, %p: Ptr): Int {
 
     a {
         ret %x
+    }
+
+    b {
+        ret %w
+    }
+}
+
+# And the half that can. Both compared values are read again on the taken arm, so the result gets a
+# register of its own, and the clearing goes in front of the comparison as `xor r32, r32` - one byte
+# shorter than the `movzx` above, and leaving the `setcc` with no dependency on whatever the register
+# held before.
+flagWindowLive(%v: Int, %w: Int, %p: Ptr): Int {
+    start {
+        %cmp = cmp_ilt %v, %w
+        %l = load %p, 4: Int
+        %x = add %l, 1: Int
+        je %cmp, a, b
+    }
+
+    a {
+        %s = add %v, %w: Int
+        %t = add %s, %x: Int
+        ret %t
     }
 
     b {

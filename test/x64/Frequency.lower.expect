@@ -178,14 +178,14 @@ sink<complex>(%v: Int): Int {
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rdi] creates=[]  => 85ff0f850b000000
+  je uses=[rdi] creates=[]  => 85ff0f850a000000
 block cold:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
-  jmp uses=[] creates=[]  => e905000000
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc683c002
+  jmp uses=[] creates=[]  => e904000000
 block hot:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[]  => c3
@@ -194,14 +194,14 @@ block end:
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rdi] creates=[]  => 85ff0f840a000000
+  je uses=[rdi] creates=[]  => 85ff0f8409000000
 block hot:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
-  jmp uses=[] creates=[]  => e906000000
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
+  jmp uses=[] creates=[]  => e905000000
 block cold:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc683c002
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[]  => c3
@@ -211,64 +211,64 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => ffc6
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
   je uses=[rdi] creates=[]  => 85ff0f8403000000
 block hot:
   imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => 83c602
+  add uses=[rax, -] creates=[rax]  => 83c002
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: hintedSplitLayout ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => ffc6
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
   je uses=[rdi] creates=[]  => 85ff0f8403000000
 block hot:
   imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => 83c602
+  add uses=[rax, -] creates=[rax]  => 83c002
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: neutralCost ---
   prologue  => 535541544155415641574883ec18
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c24488bde
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c248bde
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 4c8be24183c400
+  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 448be24183c400
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 4c8bfa41ffc744897c2404
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 448bfa41ffc744897c2404
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:2]  => 4c8bfa4183c70244897c2408
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:2]  => 448bfa4183c70244897c2408
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:3]  => 4c8bfa4183c70344897c240c
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:3]  => 448bfa4183c70344897c240c
   imm uses=[] creates=[-]  => 
-  add uses=[r13, -] creates=[r13] pre=[rcx->r13]  => 4c8be94183c504
+  add uses=[r13, -] creates=[r13] pre=[rcx->r13]  => 448be94183c504
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 4c8bf94183c70544897c2410
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 448bf94183c70544897c2410
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 4c8bf94183c70644897c2414
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 448bf94183c70644897c2414
   imm uses=[] creates=[-]  => 
-  add uses=[r14, -] creates=[r14] pre=[rcx->r14]  => 4c8bf14183c607
+  add uses=[r14, -] creates=[r14] pre=[rcx->r14]  => 448bf14183c607
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rbp]  => bd00000000
+  cast uses=[-] creates=[rbp]  => 31ed
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde8f9000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 8bfde8f4000000
   je uses=[rbx] creates=[]  => 85db0f8513000000
 block rare:
-  add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 498bc503442410
+  add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 418bc503442410
   add uses=[rax, stack:5] creates=[rax]  => 03442414
   add uses=[rax, r14] creates=[rax]  => 4401f0
   jmp uses=[] creates=[]  => e90f000000
 block common:
-  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
+  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 418bc403442404
   add uses=[rax, stack:2] creates=[rax]  => 03442408
   add uses=[rax, stack:3] creates=[rax]  => 0344240c
   jmp uses=[] creates=[]  => 
@@ -276,40 +276,40 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8cc3ffffff
+  je uses=[-] creates=[]  => 0f8cc4ffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 
 --- codegen: hintedCost ---
   prologue  => 535541544155415641574883ec18
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c24488bde
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c248bde
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 4c8be24183c400
+  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 448be24183c400
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 4c8bfa41ffc744897c2404
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 448bfa41ffc744897c2404
   imm uses=[] creates=[-]  => 
-  add uses=[r13, -] creates=[r13] pre=[rdx->r13]  => 4c8bea4183c502
+  add uses=[r13, -] creates=[r13] pre=[rdx->r13]  => 448bea4183c502
   imm uses=[] creates=[-]  => 
-  add uses=[r14, -] creates=[r14] pre=[rdx->r14]  => 4c8bf24183c603
+  add uses=[r14, -] creates=[r14] pre=[rdx->r14]  => 448bf24183c603
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:2]  => 4c8bf94183c70444897c2408
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:2]  => 448bf94183c70444897c2408
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:3]  => 4c8bf94183c70544897c240c
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:3]  => 448bf94183c70544897c240c
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 4c8bf94183c70644897c2410
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 448bf94183c70644897c2410
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 4c8bf94183c70744897c2414
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 448bf94183c70744897c2414
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rbp]  => bd00000000
+  cast uses=[-] creates=[rbp]  => 31ed
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde844000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 8bfde844000000
   je uses=[rbx] creates=[]  => 85db0f8412000000
 block common:
-  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
+  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 418bc403442404
   add uses=[rax, r13] creates=[rax]  => 4401e8
   add uses=[rax, r14] creates=[rax]  => 4401f0
   jmp uses=[] creates=[]  => e910000000
@@ -322,12 +322,12 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8cc3ffffff
+  je uses=[-] creates=[]  => 0f8cc4ffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 
 --- codegen: sink ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3

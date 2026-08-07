@@ -4,13 +4,16 @@
 // Whether running this instruction can change the flags register.
 //
 // Answered from the form selection would give it, which is the same function the final selection
-// pass calls - so the two cannot drift apart. It runs here while the peepholes are still deciding
-// what is implicit, and a peephole can change which form an instruction takes: an immediate that
-// becomes embedded turns a register form into an immediate one. What it cannot change is whether
-// the form writes the flags, which validateMachineForms checks for every opcode that does not
-// explicitly declare its forms to differ - and the two that do (an immediate materialized with
-// `xor` rather than `mov`, and a branch or select on a register rather than on the flags) select
-// from the instruction alone rather than from anything a peephole decides.
+// pass calls - so the two cannot drift apart. A peephole can change which form an instruction takes:
+// an immediate that becomes embedded turns a register form into an immediate one. What it usually
+// cannot change is whether the form writes the flags, which validateMachineForms checks for every
+// opcode that does not explicitly declare its forms to differ.
+//
+// The six that do declare it are why this has one caller and where that caller is matters. Three of
+// them are conservative until they settle - an immediate is `xor r, r` until it is embedded - but a
+// constant-sourced `cast` or `bitcast` is not: it *gains* the flags effect when its constant is
+// embedded. So this is only ever asked from the second sweep of selectMachineInstructions, by which
+// point every form decision a peephole makes has been made. See MachineOpcodeDesc::flagsSelective.
 inline bool modifiesFlags(LowerBase base, LowerInst* inst) {
     return writesFlags(machineTarget().form(selectForm(base, inst)).flagsEffect);
 }
@@ -2127,11 +2130,17 @@ static void selectMemorySources(LowerBase base, LowerFunction& fun) {
 // annotations, and the order of the instructions a compare fold lifts out of its flag window.
 // Invalidates: instruction positions within a block.
 //
-// In two sweeps, and the order between them is the point. Everything a peephole can decide about an
-// instruction's *form* is decided first; only then does the compare folding walk its windows asking
-// what writes the flags. Both answers a peephole can still change are conservative until it has run
-// - an immediate is `xor r, r` until it is embedded - so a comparison looked at first would be told
-// that instructions about to disappear stand in its way.
+// In two sweeps, and the order between them is the point - load-bearing rather than tidy. Everything
+// a peephole can decide about an instruction's *form* is decided first; only then does the compare
+// folding walk its windows asking what writes the flags.
+//
+// Two things need that. Some of the answers a peephole can still change are conservative until it has
+// run - an immediate is `xor r, r` until it is embedded - so a comparison looked at first would be
+// told that instructions about to disappear stand in its way. And one is not conservative at all: a
+// `cast` or `bitcast` of a constant zero becomes the `xor` that materializes it only *once* the
+// constant is embedded, so a comparison looked at first would be told that an instruction about to
+// start writing the flags does not. Nothing after this pass moves a form's flags effect, which is
+// what makes the window the folding cleared still empty when the bytes are written.
 static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         if(inst->kind == LowerInst::Imm) {

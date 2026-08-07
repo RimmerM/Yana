@@ -175,7 +175,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d0a000000
 block body:
@@ -193,7 +193,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d0a000000
 block body:
@@ -211,7 +211,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
@@ -234,13 +234,13 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 488bc8488bd0
+  cast uses=[-] creates=[rax]  => 31c0
+  jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
 block outer:
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
   je uses=[-] creates=[]  => 0f8d20000000
 block #3:
-  jmp uses=[] creates=[] pre=[rax->r8]  => 4c8bc0
+  jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
 block innerHead:
   cmp_ige uses=[r8, rsi] creates=[-]  => 4139f0
   je uses=[-] creates=[]  => 0f8d0b000000
@@ -256,14 +256,14 @@ block outerEnd:
   add uses=[rcx, -] creates=[rcx]  => ffc1
   jmp uses=[] creates=[]  => e9d8ffffff
 block done:
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 
 --- codegen: declaredOutOfOrder ---
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d0a000000
 block body:
@@ -281,7 +281,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 0f8d1a000000
 block test:

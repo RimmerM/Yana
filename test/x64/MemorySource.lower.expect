@@ -188,9 +188,9 @@ block #1:
 
 --- codegen: source ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
 block #1:
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: foldedAdd ---
 block #0:
@@ -198,8 +198,8 @@ block #0:
 block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  add uses=[rdx, -] creates=[rdx]  => 480314f7
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+  add uses=[rax, -] creates=[rax] pre=[rdx->rax]  => 488bc2480304f7
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: exchangedOperands ---
 block #0:
@@ -207,40 +207,40 @@ block #0:
 block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  add uses=[rdx, -] creates=[rdx]  => 480314f7
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
+  add uses=[rax, -] creates=[rax] pre=[rdx->rax]  => 488bc2480304f7
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: subtractionKeepsOrder ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   load uses=[rdi] creates=[rdi]  => 488b3f
-  sub uses=[rdi, rsi] creates=[rdi]  => 4829f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  sub uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74829f0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: foldedSubtract ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  sub uses=[rsi, -] creates=[rsi]  => 482b37
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  sub uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6482b07
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: barePointer ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  and uses=[rsi, -] creates=[rsi]  => 482337
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  and uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6482307
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: foldedMultiply ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  imul uses=[rsi, -] creates=[rsi]  => 480faf37
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  imul uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6480faf07
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: foldedCompare ---
 block #0:
@@ -269,8 +269,8 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   load uses=[rdi] creates=[rdi]  => 0fb63f
-  add uses=[rsi, rdi] creates=[rsi]  => 01fe
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 8bc601f8
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: twoReadersStay ---
 block #0:
@@ -278,8 +278,8 @@ block #0:
 block #1:
   load uses=[rdi] creates=[rdi]  => 488b3f
   add uses=[rsi, rdi] creates=[rsi]  => 4801fe
-  add uses=[rsi, rdi] creates=[rsi]  => 4801fe
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc64801f8
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: notAdjacentStays ---
 block #0:
@@ -293,10 +293,10 @@ block #1:
 
 --- codegen: divisionStays ---
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
 block #1:
   load uses=[rdi] creates=[rdi]  => 488b3f
-  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc64831d248f7f7
+  div uses=[rax, rdi] creates=[rax]  => 4831d248f7f7
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: escapedPointerStillFolds ---
@@ -307,7 +307,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   add uses=[rbx, -] creates=[rbx] pre=[rsi->rbx]  => 488bde48031f
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e86fffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e870ffffff
   add uses=[rbx, rax] creates=[rbx]  => 4801c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 
@@ -317,11 +317,11 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e861ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e862ffffff
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rbx->rcx]  => 488bcb480308
-  add uses=[rcx, rbx] creates=[rcx]  => 4801d9
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc15bc3
+  add uses=[rax, rbx] creates=[rax] pre=[rcx->rax]  => 488bc14801d8
+  ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: twoLoadsOneFolds ---
 block #0:
@@ -329,15 +329,15 @@ block #0:
 block #1:
   load uses=[rdi] creates=[rdi]  => 488b3f
   x86_addr scale=1 disp=0 uses=[rsi] creates=[-]  => 
-  add uses=[rdi, -] creates=[rdi]  => 48033e
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7480306
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: sumArray ---
 block #0:
   jmp uses=[] creates=[]  => 
 block entry:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[rax]  => b800000000
+  cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rsi] creates=[-]  => 4839f0
   je uses=[-] creates=[]  => 0f8d16000000
 block #2:

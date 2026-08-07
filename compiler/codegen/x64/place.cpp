@@ -146,6 +146,17 @@ struct WebInfo {
     bool canRemat = false;
     Remat recipe;
 
+    // A register something that *reads* this web needs it in: the result register at a return, an
+    // argument register at a call, the count in rcx at a shift. A web given that register to begin
+    // with makes the copy legalization would emit there a copy from a register to itself, which is
+    // the same saving copyHint buys from the other end - see computeAvoidSets.
+    //
+    // One register rather than a set, because only one such site can ever be satisfied unless they
+    // all agree. `preferredWeight` is how often the site it came from runs, which is what picks
+    // between them: a read inside a loop is worth more than the one on the way out of the function.
+    MachineLocation preferred;
+    U32 preferredWeight = 0;
+
     LiveInterval interval() const { return intervalOf(ranges); }
 
     // What losing its register would actually cost this web, which is whichever of the two homeless
@@ -162,6 +173,8 @@ struct WebInfo {
         spillCost = 0;
         rematCost = 0;
         canRemat = false;
+        preferred = MachineLocation::invalid();
+        preferredWeight = 0;
     }
 };
 
@@ -512,6 +525,12 @@ struct Placer {
         return U32(scaled < kMaxBlockWeight ? scaled : kMaxBlockWeight);
     }
 
+    // The weight of the block the placing walk is in, which is what a hint offered by the
+    // instruction being placed is worth - see `assign`, where it is weighed against what a web's own
+    // preference is worth. One entry's worth while the arguments are being placed, since the entry
+    // block is what runs them.
+    U32 currentWeight = 1;
+
     // Where a web lives, and whether it has been given anywhere yet. Both read the result directly:
     // a web's home is its first segment, so there is no second record of it to disagree. An unplaced
     // web answers an invalid location rather than asserting, because a hint offered before its
@@ -641,10 +660,30 @@ struct Placer {
             return isFree(webId, cls, reg, interval);
         };
 
-        auto chosen = kNoRegister;
+        auto takes = [&](MachineLocation at) {
+            return at.isPhysical() && at.bank == bank && usable(at.index, avoid);
+        };
 
-        if(hint.isPhysical() && hint.bank == bank && usable(hint.index, avoid)) {
+        // Two registers are worth having, and each is worth exactly the one copy taking it removes:
+        // the caller's hint, which removes a copy standing at the instruction being placed, and the
+        // web's own preference, which removes one standing where the web is read into a fixed
+        // register (computeAvoidSets). So the two are compared by how often the copy each removes
+        // would have run, and the preference takes a tie - the instruction defining a value writes
+        // its result register whether or not the hint was taken, so the copy the preference removes
+        // is the one more likely to have been unconditional.
+        //
+        // Neither is ever a compromise: `usable` is the same test the search below applies, so a
+        // register taken this way is one first-fit could have handed out anyway.
+        auto chosen = kNoRegister;
+        auto hintOk = takes(hint);
+        auto preferOk = takes(info.preferred);
+
+        if(hintOk && preferOk) {
+            chosen = info.preferredWeight >= currentWeight ? info.preferred.index : hint.index;
+        } else if(hintOk) {
             chosen = hint.index;
+        } else if(preferOk) {
+            chosen = info.preferred.index;
         } else {
             for(Size i = 0; i < orderCount[bank]; i++) {
                 if(usable(order[bank][i], avoid)) { chosen = order[bank][i]; break; }
@@ -1169,7 +1208,14 @@ static void buildWebs(Placer& a) {
 }
 
 /*
- * Pass 1: work out which registers each value has to stay out of.
+ * Pass 1: work out which registers each value has to stay out of - and, from the same walk, the one
+ * register each web would rather be in.
+ *
+ * The two come out of the same question asked in opposite directions. A fixed-register operand is a
+ * register the web must not be *left* in over the instruction that writes it, and a register the web
+ * has to be *in* at the instruction that reads it - so the same site that adds to an avoid set adds
+ * to somebody else's preference, and a web that ends in `ret` is told here that rax is where it
+ * wants to live rather than discovering it one copy too late.
  */
 
 static void computeAvoidSets(Placer& a) {
@@ -1214,6 +1260,30 @@ static void computeAvoidSets(Placer& a) {
                         .weight = weight,
                         .terminator = terminator,
                     });
+                }
+            }
+
+            // And the preference, from the operands the loop above skipped: the ones the parallel
+            // copy *does* place, which is precisely where a copy is emitted unless the web is
+            // already there. Outside the mask test, because a return writes nothing and is the site
+            // this exists for.
+            {
+                auto used = inst->used();
+                for(Size i = 0; i < used.size(); i++) {
+                    auto want = wantForUse(shape, i);
+                    if(!want.isPhysical()) continue;
+
+                    auto v = a.base[used[i]];
+                    if(isImplicit(v)) continue;
+
+                    // The first site of a given weight keeps it, so a preference is decided by how
+                    // often it runs and then by where it is - and never by how the walk happens to
+                    // reach two sites that are worth exactly the same.
+                    auto& web = a.webFor(v);
+                    if(weight <= web.preferredWeight) continue;
+
+                    web.preferred = want;
+                    web.preferredWeight = weight;
                 }
             }
 
@@ -1623,6 +1693,7 @@ void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const 
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
+        a.currentWeight = a.weightOf(block);
 
         for(auto i: block->instructions.contents(base)) {
             placeInst(a, base[i], index);

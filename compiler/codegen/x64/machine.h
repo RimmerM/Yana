@@ -591,14 +591,27 @@ struct MachineOpcodeDesc {
     // are still deciding which form it will take, and that question only has one answer if the forms
     // all give the same one.
     //
-    // An opcode that sets this owes one thing instead: **a peephole may only ever move its selection
-    // towards a form that writes fewer flags.** The folding walks forward from a comparison to its
-    // use asking each instruction in between whether it writes the flags, where "yes" is the answer
-    // that blocks the fold - so an answer that can still change has to be conservative while it can.
-    // All four opcodes that set this obey it. An immediate not yet embedded selects `xor r, r`
-    // (writes) and becomes implicit (writes nothing); a branch or a select not yet given its
-    // comparison tests a register (writes) and becomes a read of the flags; an alloca whose count is
-    // not yet embedded is the dynamic form (writes) and becomes the `lea`.
+    // An opcode that sets this owes something instead, and there are two ways to pay it. The folding
+    // walks forward from a comparison to its use asking each instruction in between whether it
+    // writes the flags, where "yes" is the answer that blocks the fold - so the answer it gets has to
+    // be one that will still be true when the bytes are emitted.
+    //
+    // **Either the answer is conservative while it can still change** - a peephole may then only move
+    // the selection towards a form that writes *fewer* flags. Three obey it this way: an immediate
+    // not yet embedded selects `xor r, r` (writes) and becomes implicit (writes nothing); a branch or
+    // a select not yet given its comparison tests a register (writes) and becomes a read of the
+    // flags; an alloca whose count is not yet embedded is the dynamic form (writes) and becomes the
+    // `lea`.
+    //
+    // **Or the answer is already final when it is asked**, which is what the two sweeps of
+    // selectMachineInstructions buy: every form decision a peephole makes is settled by the first
+    // sweep, and the folding is the whole of the second. `cast` and `bitcast` pay this way and could
+    // not pay the other - a constant source makes them the materializing `mov r, imm`, and zero makes
+    // that `xor r, r` only once the constant is embedded, which is a *gain* of a flags effect.
+    //
+    // The second guarantee is a property of the pipeline rather than of those rows, so a pass
+    // inserted between the two sweeps breaks it for everything that leans on it. See §3.5.2 of the
+    // README, which states both and says which rows rely on which.
     bool flagsSelective = false;
 };
 

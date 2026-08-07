@@ -40,8 +40,8 @@ callerWithLocal<complex>(%v: Int): Int {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rdi, rsi] creates=[rdi]  => 01f7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc701f0
+  ret uses=[rax] creates=[]  => c9c3
 
 --- codegen: leafWithLocal ---
   prologue  => 55488bec4883ec08
@@ -57,10 +57,10 @@ block #1:
 --- codegen: callerNoFrame ---
   prologue  => 55488bec53
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 8bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rsi]  => 488bf3e8d1ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rsi]  => 8bf3e8d4ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 488d65f85b5dc3
 
@@ -73,7 +73,7 @@ block #1:
   alloca uses=[-] creates=[rbx]  => 488d5df0
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 488bf7e8b0ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 8bf7e8b4ffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 488d65f85b5dc3

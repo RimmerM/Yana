@@ -56,8 +56,8 @@ block #0:
 block #1:
   store uses=[rdi, rsi] creates=[]  => 8937
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi]  => 0337
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc60307
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: narrow ---
 block #0:
@@ -80,7 +80,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[rax]  => 488d0542000000
+  global uses=[] creates=[rax]  => 488d0543000000
   load uses=[rax] creates=[rax]  => 8b00
   ret uses=[rax] creates=[]  => c3
 
@@ -97,8 +97,8 @@ block #1:
 
 --- codegen: blockOpsDynamic ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax, rcx->r8]  => 488bc74c8bc1
+  jmp uses=[] creates=[] pre=[rdi->rax, rcx->r8]  => 488bc7448bc1
 block #1:
-  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rcx]  => 488bf8488bcaf3a4
-  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, r8->rax]  => 488bf8488bca498bc0f3aa
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rcx]  => 488bf88bcaf3a4
+  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, r8->rax]  => 488bf88bca418bc0f3aa
   ret uses=[] creates=[]  => c3
