@@ -1418,6 +1418,506 @@ static void foldLoads(LowerBase base, LowerFunction& fun) {
 }
 
 /*
+ * Loop rotation.
+ *
+ * A loop written with its test at the top costs two branches an iteration: the conditional one that
+ * decides whether to run the body, and the unconditional one that goes back for the next iteration.
+ * Only one of the two can ever be a fallthrough, whatever order the blocks are put in - which is why
+ * this is a transform rather than a further refinement of §3.2.
+ *
+ *   head:  cmp rax,rsi        =>    pre:   cmp rax,rsi
+ *          jge exit                        jge exit
+ *          ...body...               body:  ...body...
+ *          jmp head                 head:  cmp rax,rsi
+ *   exit:                                  jl  body
+ *                                   exit:
+ *
+ * What moves is not the test but the *entry*: the preheader stops jumping into the header and asks
+ * the header's own question instead, so the header is left reachable only from the latch and becomes
+ * the bottom of the loop. The body is then the block the loop is entered through, the header is the
+ * block it is left from, and the two branches an iteration used to pay are one.
+ *
+ * The test is therefore evaluated in two places, and both of them run exactly when the single copy
+ * used to: the preheader's copy is the first iteration's test, and the header's copy is every later
+ * one. Nothing is speculated and nothing runs an extra time, which is why a load in the header is as
+ * duplicable as a compare - the limit below is about code size and nothing else.
+ *
+ * ## What it costs in bytes
+ *
+ * Nothing, to within an instruction. The preheader's `jmp` and the latch's `jmp` both disappear into
+ * fallthroughs, and what replaces them is the duplicated test - a compare and a conditional branch
+ * against two five-byte jumps.
+ *
+ * ## SSA, and why the phis move
+ *
+ * A header phi names a value per predecessor, and after rotation the header has only the latch left.
+ * The merge it was performing has moved to the body, which is now what both the preheader and the
+ * header lead into, so each header phi becomes one there - and, where the loop's result is read
+ * afterwards, one in the exit block as well, since the exit is now reached from the preheader too.
+ * Both take the same pair: what the preheader hands over, and what the rotated header holds.
+ *
+ * The one that is easy to get wrong is what a *header* instruction reads. The rotated header runs
+ * after the body, so a phi it used to read has already been advanced by the latch: the value it
+ * wants is the phi's latch alternative, and a header phi appearing in that alternative is in turn
+ * the body's phi. `%i` in the test becomes `%i2`, which is exactly the induction variable the
+ * iteration just finished computing.
+ *
+ * ## What is declined
+ *
+ * The shape has to be the ordinary one, and every requirement below exists because the repair above
+ * is stated in terms of it - one preheader ending in an unconditional jump, one latch, and a header
+ * whose two successors are one block inside the loop and one outside, each reached from nowhere else.
+ * The header must also be the only block the loop leaves through, or a value it defines could be
+ * read on a path the exit block does not dominate and there would be nowhere to put the phi.
+ *
+ * A header instruction read anywhere but the header is declined for the same reason in miniature.
+ * The repair exists - it is the same pair of phis - but the shape it would serve is a header doing
+ * work rather than a header asking a question, and duplicating that work is a different trade.
+ */
+
+// The largest header this will duplicate. The shape it is for is a comparison and its operands, and
+// a header past this size is one where the duplication is the dominant cost rather than a rounding
+// error against the two jumps it removes.
+static constexpr Size kMaxRotatedHeader = 4;
+
+// Whether the header's copy of this instruction may also be made in the preheader.
+//
+// Every kind here computes one value from its operands and reads nothing that the block it moves
+// into cannot supply. A store, a call or a `copy` is excluded because duplicating it duplicates an
+// effect - even though it would run the same number of times, the second copy is code that has to
+// be kept in step with the first - and an `alloca` because a second one is a second allocation.
+static bool isRotatableHeaderInst(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Imm:
+        case LowerInst::Global:
+        case LowerInst::Fun:
+        case LowerInst::Set:
+        case LowerInst::Cast:
+        case LowerInst::Bitcast:
+        case LowerInst::Neg:
+        case LowerInst::Not:
+        case LowerInst::Add:
+        case LowerInst::Sub:
+        case LowerInst::Mul:
+        case LowerInst::IMul:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
+        case LowerInst::Shl:
+        case LowerInst::Shr:
+        case LowerInst::Sar:
+        case LowerInst::And:
+        case LowerInst::Or:
+        case LowerInst::Xor:
+        case LowerInst::Cmp:
+        case LowerInst::Select:
+        case LowerInst::Load:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// How much storage one of the kinds above occupies. Each of them is a fixed-shape allocation - the
+// created value and the operand pointers are members rather than a trailing array - so the copy
+// below can be a flat one, and every field an instruction carries comes across without this having
+// to know which fields those are.
+static Size rotatedInstSize(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Imm:    return sizeof(LowerImm);
+        case LowerInst::Global: return sizeof(LowerInstGlobal);
+        case LowerInst::Fun:    return sizeof(LowerInstFun);
+        case LowerInst::Cast:   return sizeof(LowerInstCast);
+        case LowerInst::Cmp:    return sizeof(LowerInstCmp);
+        case LowerInst::Select: return sizeof(LowerInstSelect);
+        case LowerInst::Load:   return sizeof(LowerInstLoad);
+        default:                return isUnary(inst) ? sizeof(LowerInstUnary) : sizeof(LowerInstBinary);
+    }
+}
+
+// A second copy of one header instruction, detached: it belongs to no block and nothing reads it
+// yet, and its operands still name what the original's did until the caller remaps them.
+//
+// The result value is rebuilt in place rather than patched, which is what clears the use list the
+// copy inherited - a list whose entries name the *original's* readers - and drops the source name
+// with it, so the two copies do not both claim to be `%i`.
+static LowerInst* cloneHeaderInst(Region<LowerRegion>& arena, LowerInst* inst) {
+    auto size = rotatedInstSize(inst);
+    auto clone = (LowerInst*)arena.alloc(size);
+    copyMem(inst, clone, size);
+
+    clone->block = nullptr;
+    clone->liveId = kNullLive;
+
+    auto created = clone->created();
+    for(Size i = 0; i < created.size(); i++) {
+        new (&created[i]) LowerValue(clone, created[i].type, StringId());
+    }
+
+    return clone;
+}
+
+// Which alternative of `phi` the edge from `from` carries.
+static Size phiSourceIndex(LowerBase base, LowerInstPhi* phi, LowerBlock* from) {
+    auto sources = phi->sources();
+
+    for(Size i = 0; i < sources.size(); i++) {
+        if(base[sources[i]] == from) return i;
+    }
+
+    assertTrue("a phi has no alternative for one of its own predecessors" == nullptr);
+    return 0;
+}
+
+// An unattached phi with room for `count` alternatives - filled in and added to a block by the
+// caller, the way lower_promote.cpp's builds one, because adding it is what registers its reads.
+static LowerInstPhi* makeRotationPhi(Region<LowerRegion>& arena, LowerType type, Size count) {
+    auto storage = arena.alloc(
+        sizeof(LowerInstPhi) +
+        sizeof(LowerPtr<LowerValue>) * count +
+        sizeof(LowerPtr<LowerBlock>) * count);
+
+    auto phi = new (storage) LowerInstPhi(StringId(), type);
+    phi->usedCount = U8(count);
+    return phi;
+}
+
+// Everything an instruction reads stops counting it as a reader. The instruction itself is dropped
+// from wherever it is listed by the caller - see removeInst, which is this plus that.
+static void detachOperands(LowerBase base, LowerInst* inst) {
+    for(auto offset: inst->used()) {
+        auto v = base[offset];
+        auto uses = v->uses.contents(base);
+
+        for(Size i = 0; i < uses.size(); i++) {
+            if(base[uses[i]] == inst) { v->uses.remove(base, i); break; }
+        }
+    }
+}
+
+// Points one operand of `user` at a different value, both use lists included.
+static void retargetOperand(LowerBase base, LowerInst* user, Size slot, LowerValue* to) {
+    auto from = base[user->used()[slot]];
+    if(from == to) return;
+
+    replaceUse(base, from, user, to);
+    user->used()[slot] = to - base;
+}
+
+// Replaces the phi at `index` with one that takes an alternative from one more predecessor.
+//
+// A phi's alternatives are allocated with it, so gaining an edge means a new instruction rather than
+// a longer list - and the result value moves with it, which is why every reader has to be pointed at
+// the replacement. Only the exit and body blocks need this, and only for the preheader's new edge.
+static void growPhi(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index,
+                    LowerBlock* extraSource, LowerValue* extraValue)
+{
+    auto& arena = fun.arena;
+    auto old = base[block->phis.get(base, index)];
+    auto count = Size(old->usedCount);
+
+    auto phi = makeRotationPhi(arena, old->result.type, count + 1);
+    phi->result.name = old->result.name;
+    phi->source = old->source;
+    phi->block = block - base;
+
+    auto used = phi->used();
+    auto sources = phi->sources();
+    auto oldUsed = old->used();
+    auto oldSources = old->sources();
+
+    for(Size i = 0; i < count; i++) {
+        used[i] = oldUsed[i];
+        sources[i] = oldSources[i];
+    }
+
+    used[count] = extraValue - base;
+    sources[count] = extraSource - base;
+
+    detachOperands(base, (LowerInst*)old);
+    for(auto u: used) base[u]->uses.push(arena, (LowerInst*)phi - base);
+
+    block->phis.set(base, index, phi - base);
+    replaceAllUses(base, &old->result, &phi->result);
+}
+
+// A phi this pass built that nothing turned out to read. Taken back out rather than left behind,
+// since a value with no readers is still a live range the allocator would carry through the loop.
+static bool dropUnusedPhi(LowerBase base, LowerBlock* block, LowerInstPhi*& phi) {
+    if(!phi || phi->result.uses.size()) return false;
+
+    for(Size i = 0; i < block->phis.size(); i++) {
+        if(base[block->phis.get(base, i)] == phi) {
+            block->phis.remove(base, i);
+            break;
+        }
+    }
+
+    detachOperands(base, (LowerInst*)phi);
+    phi = nullptr;
+    return true;
+}
+
+// One loop in the shape the rotation is stated in - see the comment above for what each block has to
+// be, and rotatableLoop for what is checked.
+struct RotatableLoop {
+    LowerBlock* header;
+    LowerBlock* pre;    // the one predecessor outside the loop, ending in an unconditional jump
+    LowerBlock* latch;  // the one predecessor inside it
+    LowerBlock* body;   // the header's successor inside the loop, which the rotation makes the entry
+    LowerBlock* exit;   // the header's successor outside it
+};
+
+// One header phi and the three values it becomes: what the preheader hands over, what the rotated
+// header holds, and the merge of the two in each of the blocks that now sees both.
+struct RotatedPhi {
+    LowerInstPhi* header;
+    LowerValue* pre;
+    LowerValue* hdr;
+    LowerInstPhi* body;
+    LowerInstPhi* exit;
+};
+
+static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
+                                          LowerBlock* header)
+{
+    if(base[header->terminator]->kind != LowerInst::Je) return Nothing();
+
+    auto index = header->index;
+    auto first = base[header->outgoing[0]];
+    auto second = base[header->outgoing[1]];
+
+    // Exactly one arm may leave. A header that branches within the loop is not the block the loop is
+    // left from, and one whose arms both leave is not a loop this pass can read.
+    auto firstStays = loops.contains(index, first->index);
+    if(firstStays == loops.contains(index, second->index)) return Nothing();
+
+    RotatableLoop loop {};
+    loop.header = header;
+    loop.body = firstStays ? first : second;
+    loop.exit = firstStays ? second : first;
+
+    if(loop.body == header) return Nothing();
+    if(header->incoming.size() != 2) return Nothing();
+
+    auto a = base[header->incoming.get(base, 0)];
+    auto b = base[header->incoming.get(base, 1)];
+
+    auto aStays = loops.contains(index, a->index);
+    if(aStays == loops.contains(index, b->index)) return Nothing();
+
+    loop.latch = aStays ? a : b;
+    loop.pre = aStays ? b : a;
+
+    // The preheader has to be a block whose whole purpose is to enter the loop, since its jump is
+    // what becomes the guard; and the two blocks that gain the preheader as a predecessor have to
+    // have had only the header, or a phi in either would need alternatives this cannot supply.
+    if(base[loop.pre->terminator]->kind != LowerInst::Jmp) return Nothing();
+    if(loop.body->incoming.size() != 1) return Nothing();
+    if(loop.exit->incoming.size() != 1) return Nothing();
+
+    // The header has to be the only way out. Anything else in the loop that leaves it reaches code
+    // the exit block does not dominate, and a header value read there would have nowhere to merge.
+    for(auto o: fun.blocks.contents(base)) {
+        auto block = base[o];
+        if(block == header || !loops.contains(index, block->index)) continue;
+
+        for(auto s: block->outgoing) {
+            if(s && !loops.contains(index, base[s]->index)) return Nothing();
+        }
+    }
+
+    if(header->instructions.size() > kMaxRotatedHeader) return Nothing();
+
+    for(auto i: header->instructions.contents(base)) {
+        auto inst = base[i];
+        if(!isRotatableHeaderInst(inst)) return Nothing();
+
+        // Read only where it is computed. A phi reader is refused whatever block it sits in, since
+        // what it reads the value on is an edge - including the latch edge, which leaves the header
+        // by a route the block of the reader does not show.
+        for(auto u: inst->created().ptr->uses.contents(base)) {
+            auto user = base[u];
+            if(user->kind == LowerInst::Phi || base[user->block] != header) return Nothing();
+        }
+    }
+
+    return Just(loop);
+}
+
+static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops, const RotatableLoop& loop) {
+    auto& arena = fun.arena;
+    auto header = loop.header;
+    auto pre = loop.pre;
+    auto body = loop.body;
+    auto exit = loop.exit;
+    auto headerIndex = header->index;
+
+    SmallArray<RotatedPhi, 8> phis;
+    for(auto p: header->phis.contents(base)) {
+        auto phi = base[p];
+        phis.push(RotatedPhi { phi, base[phi->used()[phiSourceIndex(base, phi, pre)]], nullptr, nullptr, nullptr });
+    }
+
+    // What each value the header defines is called at the end of the preheader: a phi is whatever it
+    // takes from that edge, and an instruction is the copy made below. Everything else is itself,
+    // since a value the header could read already reached the preheader to get there.
+    SmallArray<LowerValue*, kMaxRotatedHeader> originals;
+    SmallArray<LowerValue*, kMaxRotatedHeader> clones;
+
+    auto inPre = [&](LowerValue* v) -> LowerValue* {
+        for(auto& r: phis) if(&r.header->result == v) return r.pre;
+        for(Size i = 0; i < originals.size(); i++) if(originals[i] == v) return clones[i];
+        return v;
+    };
+
+    for(auto i: header->instructions.contents(base)) {
+        auto inst = base[i];
+        auto clone = cloneHeaderInst(arena, inst);
+
+        auto used = clone->used();
+        for(Size k = 0; k < used.size(); k++) used[k] = inPre(base[used[k]]) - base;
+
+        pre->addInst(base, clone);
+        originals.push(inst->created().ptr);
+        clones.push(clone->created().ptr);
+    }
+
+    auto je = (LowerInstJe*)base[header->terminator];
+    auto guardCond = inPre(base[je->cond]);
+
+    // The preheader stops entering the loop and starts deciding. Unwired by hand because addInst
+    // records an edge rather than replacing one, and refuses a successor that already names it.
+    pre->terminator = nullptr;
+    pre->outgoing[0] = nullptr;
+    pre->outgoing[1] = nullptr;
+
+    for(Size i = 0; i < header->incoming.size(); i++) {
+        if(base[header->incoming.get(base, i)] == pre) { header->incoming.remove(base, i); break; }
+    }
+
+    auto guard = new (arena) LowerInstJe(guardCond - base, je->then, je->otherwise);
+    guard->likelihood[0] = je->likelihood[0];
+    guard->likelihood[1] = je->likelihood[1];
+    guard->source = je->source;
+    pre->addInst(base, guard);
+
+    // Whatever the two blocks already merged, they now merge one more edge of. The alternative the
+    // preheader brings is what its own copy of the header computed, which is what the first
+    // iteration - or the zero-iteration case, in the exit block - would have arrived with.
+    for(auto block: { body, exit }) {
+        for(Size i = 0; i < block->phis.size(); i++) {
+            auto phi = base[block->phis.get(base, i)];
+            auto slot = phiSourceIndex(base, phi, header);
+            growPhi(base, fun, block, i, pre, inPre(base[phi->used()[slot]]));
+        }
+    }
+
+    // The merges the header's own phis become. Built before they are filled in, because what the
+    // rotated header holds is stated in terms of them: a phi advanced by the latch reads, at the
+    // point the latch now sits, the body's phi rather than the header's.
+    for(auto& r: phis) {
+        r.body = makeRotationPhi(arena, r.header->result.type, 2);
+        r.exit = makeRotationPhi(arena, r.header->result.type, 2);
+    }
+
+    auto inBody = [&](LowerValue* v) -> LowerValue* {
+        for(auto& r: phis) if(&r.header->result == v) return &r.body->result;
+        return v;
+    };
+
+    for(auto& r: phis) {
+        r.hdr = inBody(base[r.header->used()[phiSourceIndex(base, r.header, loop.latch)]]);
+    }
+
+    for(auto& r: phis) {
+        for(auto phi: { r.body, r.exit }) {
+            auto used = phi->used();
+            auto sources = phi->sources();
+
+            used[0] = r.pre - base;
+            sources[0] = pre - base;
+            used[1] = r.hdr - base;
+            sources[1] = header - base;
+        }
+
+        body->addInst(base, r.body);
+        exit->addInst(base, r.exit);
+    }
+
+    /*
+     * Everything that still names a header phi, pointed at whichever of the three answers its own
+     * position asks for. What decides is where the read happens, which for a phi is the edge it
+     * reads on and not the block it sits in:
+     *
+     *   in the header      the value the latch just produced, which is what the rotated header sees
+     *   elsewhere in loop  the body's phi, which is now what the loop is entered through
+     *   outside the loop   the exit's phi, which merges the guard's answer with the last iteration's
+     */
+    for(auto& r: phis) {
+        auto value = &r.header->result;
+
+        Array<LowerInst*> users;
+        for(auto u: value->uses.contents(base)) users.push(base[u]);
+
+        for(auto user: users) {
+            auto used = user->used();
+
+            for(Size slot = 0; slot < used.size(); slot++) {
+                if(base[used[slot]] != value) continue;
+
+                auto from = user->kind == LowerInst::Phi
+                    ? base[((LowerInstPhi*)user)->sources()[slot]]
+                    : base[user->block];
+
+                auto to = from == header ? r.hdr
+                    : loops.contains(headerIndex, from->index) ? &r.body->result
+                    : &r.exit->result;
+
+                retargetOperand(base, user, slot, to);
+            }
+        }
+    }
+
+    for(auto& r: phis) {
+        assertTrue(r.header->result.uses.size() == 0);
+        detachOperands(base, (LowerInst*)r.header);
+    }
+
+    while(header->phis.size()) header->phis.remove(base, header->phis.size() - 1);
+
+    // A loop-carried value that turns out to be read only inside the loop needs no exit merge, and
+    // one only the header itself advances needs no body merge. Which of them are unread is not
+    // known until the rewriting above has run, and dropping one can leave another unread in turn.
+    bool dropped = true;
+    while(dropped) {
+        dropped = false;
+
+        for(auto& r: phis) {
+            dropped |= dropUnusedPhi(base, body, r.body);
+            dropped |= dropUnusedPhi(base, exit, r.exit);
+        }
+    }
+}
+
+static void rotateFunctionLoops(LowerBase base, LowerFunction& fun) {
+    auto loops = fun.buildLoops(base);
+
+    // Snapshotted, because rotating one loop is what stops its header from being one. Which blocks a
+    // loop *contains* is what everything below asks, and that is what rotation leaves alone: no
+    // block is created or renumbered, and the body it moves the entry to was already a member.
+    SmallArray<LowerPtr<LowerBlock>, 16> headers;
+    for(auto o: fun.blocks.contents(base)) {
+        if(loops.isHeader(base[o]->index)) headers.push(o);
+    }
+
+    for(auto o: headers) {
+        if(auto loop = rotatableLoop(base, fun, loops, base[o])) {
+            rotateLoop(base, fun, loops, loop.unwrap());
+        }
+    }
+}
+
+/*
  * Block order.
  *
  * The list is rewritten into reverse postorder, so that a block is - wherever the CFG allows it -
@@ -1511,6 +2011,9 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
  *
  * The order is not arbitrary and each step of it is load-bearing:
  *
+ *   rotateLoops                changes the CFG, and so goes before every pass that reasons about a
+ *                              position within it - and before liveness is ever built, since it both
+ *                              creates and removes phis
  *   canonicalizeOperands       puts immediates where the later passes expect to find them, so that
  *                              nothing downstream has to check both sides of a commutative operation
  *   selectAddressesAndLeas     removes address arithmetic *before* liveness, which is the only point
@@ -1549,6 +2052,20 @@ static void forEachInst(LowerBase base, LowerFunction& fun, F&& onInst) {
 /*
  * The passes.
  */
+
+// Turns a loop tested at the top into one tested at the bottom, by making the preheader ask the
+// header's question itself - see the loop-rotation comment above.
+//
+// First, and it has to be: it is the only pass here that changes the CFG other than by splitting an
+// edge, and every pass below either reasons about an instruction's position within a block or reads
+// the branch structure the layout is chosen from.
+//
+// Expects: the lowering's output, unmodified.  Establishes: no loop of the shape described above
+// leaves its test at the top. Mutates: the CFG, the phis of four blocks, and the instruction list of
+// the preheader. Invalidates: loops, dominators and every block-relative position.
+static void rotateLoops(LowerBase base, LowerFunction& fun) {
+    rotateFunctionLoops(base, fun);
+}
 
 // Moves operands into the canonical position for the passes below: an immediate onto the right-hand
 // side of a commutative operation, so that nothing downstream has to look at both sides, and a
@@ -1732,6 +2249,7 @@ struct TransformPass {
 };
 
 static const TransformPass kTransformPipeline[] = {
+    { "rotateLoops"_v,                 rotateLoops,                 0 },
     { "expandUnsignedConversions"_v,   expandUnsignedConversions,   0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },

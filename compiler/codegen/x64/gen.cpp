@@ -827,8 +827,17 @@ struct Emitter {
     const FrameObjects& objects;
 
     // The block laid out immediately after the one being emitted, which is what lets a branch to it
-    // become a fallthrough. Null at the end of the function.
+    // become a fallthrough. Null at the end of the function. This is the next block that is
+    // *emitted*, so a block skipped by the bypass below is never something to fall into.
     LowerBlock* next = nullptr;
+
+    // Where a branch naming each block actually has to land, indexed by block index - see the
+    // empty-block note in genFunction. Identity for every block that is emitted.
+    Buffer<LowerBlock*> bypass;
+
+    LowerBlock* branchTarget(LowerPtr<LowerBlock> block) {
+        return bypass[base[block]->index];
+    }
 
     // The resolved operand an encoding field names. Emission indexes these and nothing else: which
     // operand is which was decided when the form was selected.
@@ -1220,17 +1229,31 @@ struct Emitter {
             to.addRelocation(target);
         };
 
+        auto whenTrue = branchTarget(je->then);
+        auto whenFalse = branchTarget(je->otherwise);
+
+        // Two arms that land in the same place are one jump, or none. The two edges were distinct
+        // when the branch was built; what makes them the same address is a bypassed block on one of
+        // them, which is also the case where the condition has nothing left to decide.
+        if(whenTrue == whenFalse) {
+            if(whenTrue == next) return;
+
+            to.buffer.writeByte(0xe9);
+            to.addRelocation(whenTrue);
+            return;
+        }
+
         // Whichever successor the block order put next is the one that costs nothing to fall into,
         // so the branch is emitted around it. When neither is next, the conditional branch is
         // followed by an unconditional one.
-        if(base[je->otherwise] == next) {
-            jump(condition, base[je->then]);
-        } else if(base[je->then] == next) {
-            jump(negateCmp(condition), base[je->otherwise]);
+        if(whenFalse == next) {
+            jump(condition, whenTrue);
+        } else if(whenTrue == next) {
+            jump(negateCmp(condition), whenFalse);
         } else {
-            jump(condition, base[je->then]);
+            jump(condition, whenTrue);
             to.buffer.writeByte(0xe9);
-            to.addRelocation(base[je->otherwise]);
+            to.addRelocation(whenFalse);
         }
     }
 
@@ -1285,10 +1308,11 @@ struct Emitter {
 
             case PseudoKind::Jump: {
                 auto jmp = (LowerInstJmp*)inst;
-                if(base[jmp->then] == next) break; // a jump to the next block is a fallthrough
+                auto target = branchTarget(jmp->then);
+                if(target == next) break; // a jump to the next block is a fallthrough
 
                 to.buffer.writeByte(0xe9);
-                to.addRelocation(base[jmp->then]);
+                to.addRelocation(target);
                 break;
             }
 
@@ -1464,6 +1488,77 @@ struct Emitter {
     }
 };
 
+/*
+ * Blocks that turned out to emit nothing.
+ *
+ * Splitting an edge (§3.2) gives a phi transfer somewhere to live, and it has to be done before the
+ * allocator runs, so it is done wherever a transfer *could* be needed. What is left once the
+ * allocator has coalesced what it can is, in most cases, a block whose entire content is a jump - and
+ * a jump to a jump is a branch that could have gone to the second one directly.
+ *
+ * That was free while the extra block sat on a path taken once. Loop rotation puts one on the back
+ * edge of every rotated loop, where the second jump is paid every iteration and is exactly the one
+ * the rotation exists to remove, so it stops being free.
+ *
+ * The answer is not to emit them. A block with no instructions, no moves and an unconditional jump
+ * contributes no bytes and no label anything needs: every branch naming it is pointed past it, and
+ * nothing can fall into it, since a fallthrough goes to the next block that *is* emitted and a
+ * terminator that wanted to reach it emits a real jump when that block is not the one. The entry
+ * block is excluded, because what falls into it is the prologue rather than a terminator, and so
+ * there is nothing to redirect.
+ *
+ * `bypass` is filled in with the block a branch naming each block should name instead: the block
+ * itself wherever it is emitted, and otherwise the end of the chain of skipped blocks it starts.
+ */
+static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block) {
+    if(block->instructions.isNotEmpty()) return false;
+    if(base[block->terminator]->kind != LowerInst::Jmp) return false;
+
+    auto found = regs.legalized.blocks.get(block);
+    assertTrue(found.isJust());
+
+    // The terminator is the only entry a block with no instructions has, and a phi transfer is what
+    // would be in its `moves` - see BlockRegs.
+    auto& termRegs = found.unwrap().insts[0];
+    return termRegs.moves.size() == 0 && termRegs.postMoves.size() == 0;
+}
+
+template<class Blocks>
+static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks,
+                          SmallArray<bool, 64>& skipped, SmallArray<LowerBlock*, 64>& bypass)
+{
+    for(Size i = 0; i < blocks.size(); i++) {
+        // Indexed by block index throughout, which the layout has already made equal to the
+        // position - see InvariantBlocksOrdered.
+        assertTrue(base[blocks[i]]->index == BlockIndex(i));
+        skipped.push(i != 0 && emitsNothing(base, regs, base[blocks[i]]));
+    }
+
+    // A cycle of blocks that all emit nothing is a loop with an empty body, and skipping all of them
+    // would leave the jump that closes it with nowhere to land. One block of each cycle is kept,
+    // which is what makes the chain below terminate.
+    for(Size i = 0; i < blocks.size(); i++) {
+        if(!skipped[i]) continue;
+
+        auto block = base[blocks[i]];
+        Size steps = 0;
+
+        while(skipped[block->index] && steps <= blocks.size()) {
+            block = base[block->outgoing[0]];
+            steps++;
+        }
+
+        if(steps > blocks.size()) skipped[i] = false;
+    }
+
+    for(Size i = 0; i < blocks.size(); i++) {
+        auto block = base[blocks[i]];
+        while(skipped[block->index]) block = base[block->outgoing[0]];
+
+        bypass.push(block);
+    }
+}
+
 void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, const MachineFunction& machine, FunctionRegs& regs, InstEmitCallback onInst, void* onInstCtx) {
     auto blocks = fun.blocks.contents(base);
     to.startFunction(base, &fun);
@@ -1480,7 +1575,14 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     auto frame = computeFrameLayout(context, base, fun, targetConstraints(), regs);
     assertTrue(verifyFrameLayout(context, fun, objects, frame)); // debug builds only
 
+    // Which blocks contribute nothing and where a branch naming one of them should go instead - see
+    // above. Both are indexed by block index, and so parallel to the block list.
+    SmallArray<bool, 64> skipped;
+    SmallArray<LowerBlock*, 64> bypass;
+    computeBypass(base, regs, blocks, skipped, bypass);
+
     Emitter emitter { to, base, machine, frame, objects };
+    emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };
 
     // The prologue belongs to the function rather than to any instruction in it, so it is reported
     // with a null instruction (see InstEmitCallback) and only when it emitted something. Its
@@ -1494,6 +1596,8 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     }
 
     for(Size i = 0; i < blocks.size(); i++) {
+        if(skipped[i]) continue;
+
         auto b = base[blocks[i]];
         to.startBlock(b);
 
@@ -1505,8 +1609,12 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         assertTrue(blockRegs.insts.size() == insts.size() + 1);
 
         // Keep track of the block that will be positioned immediately after this one, which is what
-        // lets a terminator branching to it emit no jump at all.
-        emitter.next = i + 1 >= blocks.size() ? nullptr : base[blocks[i + 1]];
+        // lets a terminator branching to it emit no jump at all. The next block *emitted*: one that
+        // was skipped is not somewhere control can arrive.
+        emitter.next = nullptr;
+        for(Size j = i + 1; j < blocks.size(); j++) {
+            if(!skipped[j]) { emitter.next = base[blocks[j]]; break; }
+        }
 
         // Operand placement, the instruction itself, then result placement - uniform for every
         // instruction, so nothing that emits code has to remember to handle its own moves.

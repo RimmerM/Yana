@@ -69,7 +69,9 @@ static void writeExpect(Context& context, LowerModule& module, const String& pat
     }
 }
 
-void lowerTest(const String& path, StringView content) {
+// One fixture. Answers whether it passed, which is what the driver's exit code is made of - a run
+// that reports every failure in its output and then exits 0 is one nothing above it can act on.
+bool lowerTest(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
 
     TestProvider provider;
@@ -84,7 +86,7 @@ void lowerTest(const String& path, StringView content) {
 
     if(!parser.parseModule()) {
         println("Failed to parse test file.");
-        return;
+        return false;
     }
 
     // Every test compares its plain (unannotated) printout against `<name>.expect` -
@@ -108,9 +110,10 @@ void lowerTest(const String& path, StringView content) {
     }
 
     println(pass ? "Pass."_v : "Fail."_v);
+    return pass;
 }
 
-void generateLowerTest(const String& path, StringView content) {
+bool generateLowerTest(const String& path, StringView content) {
     logInfo("Generating expect file for test \"%@\"", path);
 
     TestProvider provider;
@@ -125,7 +128,7 @@ void generateLowerTest(const String& path, StringView content) {
 
     if(!parser.parseModule()) {
         println("Failed to parse test file.");
-        return;
+        return false;
     }
 
     auto expectPath = path + String(".expect");
@@ -145,9 +148,12 @@ void generateLowerTest(const String& path, StringView content) {
         writeExpect(context, module, freqPath, PrintAnnotations { .frequency = true });
         println("Created expect file \"%@\".", freqPath);
     }
+
+    return true;
 }
 
-void testLower(bool generate) {
+bool testLower(bool generate) {
+    auto passed = true;
     Array<String> tests;
 
     listDirectory("lower", [&](const String& name, bool isDirectory) {
@@ -161,14 +167,19 @@ void testLower(bool generate) {
         }
     });
 
+    // A corpus of nothing is the same hole one level down: the driver has verified nothing, and
+    // saying so is the only answer that cannot be mistaken for having run. The fixture paths are
+    // relative to `test/`, so this is what a run from the wrong directory looks like.
     if(tests.size() == 0) {
         println("no tests found");
+        return false;
     }
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());
         if(result.isErr()) {
             println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
+            passed = false;
             continue;
         }
 
@@ -178,11 +189,13 @@ void testLower(bool generate) {
         file.read({ (Byte*)buffer.get(), size });
 
         if(generate) {
-            generateLowerTest(test, { buffer.get(), size });
+            if(!generateLowerTest(test, { buffer.get(), size })) passed = false;
         } else {
-            lowerTest(test, { buffer.get(), size });
+            if(!lowerTest(test, { buffer.get(), size })) passed = false;
         }
     }
+
+    return passed;
 }
 
 int main(int argc, const char** argv) {
@@ -193,5 +206,5 @@ int main(int argc, const char** argv) {
         if(arg == "generate") generateExpects = true;
     }
 
-    testLower(generateExpects);
+    return testLower(generateExpects) ? 0 : 1;
 }

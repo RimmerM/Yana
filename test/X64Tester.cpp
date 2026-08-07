@@ -313,7 +313,9 @@ static void writeExpect(Context& context, LowerBase base, LowerModule& module, c
     }
 }
 
-void x64Test(const String& path, StringView content) {
+// One fixture. Answers whether it passed, which is what the driver's exit code is made of - a run
+// that reports every failure in its output and then exits 0 is one nothing above it can act on.
+bool x64Test(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
 
     TestProvider provider;
@@ -329,16 +331,17 @@ void x64Test(const String& path, StringView content) {
 
     if(!parser.parseModule()) {
         println("Failed to parse test file.");
-        return;
+        return false;
     }
 
     auto expectPath = path + String(".expect");
     auto pass = compareAgainst(context, *module.arena, module, expectPath);
 
     println(pass ? "Pass."_v : "Fail."_v);
+    return pass;
 }
 
-void generateX64Test(const String& path, StringView content) {
+bool generateX64Test(const String& path, StringView content) {
     logInfo("Generating expect file for test \"%@\"", path);
 
     TestProvider provider;
@@ -354,15 +357,17 @@ void generateX64Test(const String& path, StringView content) {
 
     if(!parser.parseModule()) {
         println("Failed to parse test file.");
-        return;
+        return false;
     }
 
     auto expectPath = path + String(".expect");
     writeExpect(context, *module.arena, module, expectPath);
     println("Created expect file \"%@\".", expectPath);
+    return true;
 }
 
-void testX64(bool generate) {
+bool testX64(bool generate) {
+    auto passed = true;
     Array<String> tests;
 
     listDirectory("x64", [&](const String& name, bool isDirectory) {
@@ -376,14 +381,19 @@ void testX64(bool generate) {
         }
     });
 
+    // A corpus of nothing is the same hole one level down: the driver has verified nothing, and
+    // saying so is the only answer that cannot be mistaken for having run. The fixture paths are
+    // relative to `test/`, so this is what a run from the wrong directory looks like.
     if(tests.size() == 0) {
         println("no tests found");
+        return false;
     }
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());
         if(result.isErr()) {
             println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
+            passed = false;
             continue;
         }
 
@@ -393,11 +403,13 @@ void testX64(bool generate) {
         file.read({ (Byte*)buffer.get(), size });
 
         if(generate) {
-            generateX64Test(test, { buffer.get(), size });
+            if(!generateX64Test(test, { buffer.get(), size })) passed = false;
         } else {
-            x64Test(test, { buffer.get(), size });
+            if(!x64Test(test, { buffer.get(), size })) passed = false;
         }
     }
+
+    return passed;
 }
 
 int main(int argc, const char** argv) {
@@ -408,5 +420,5 @@ int main(int argc, const char** argv) {
         if(arg == "generate") generateExpects = true;
     }
 
-    testX64(generateExpects);
+    return testX64(generateExpects) ? 0 : 1;
 }

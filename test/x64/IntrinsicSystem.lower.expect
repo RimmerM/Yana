@@ -276,14 +276,18 @@ block #0:
 block start:
   rdtsc uses=[] creates=[rax] post=[rax->rcx]  => 0f3148c1e2204809d0488bc8
   lfence uses=[] creates=[]  => 0faee8
-  jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1
-block test:
-  sub uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04829ca
-  cmp_lt uses=[rdx, rdi] creates=[-]  => 4839fa
-  je uses=[-] creates=[]  => 0f8310000000
+  sub uses=[rax, rcx] creates=[rax] pre=[rcx->rax]  => 488bc14829c8
+  cmp_lt uses=[rax, rdi] creates=[-]  => 4839f8
+  je uses=[-] creates=[]  => 0f831d000000
 block body:
   pause uses=[] creates=[]  => f390
   rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0
-  jmp uses=[] creates=[]  => e9e1ffffff
+  jmp uses=[] creates=[]  => 
+block test:
+  sub uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04829ca
+  cmp_lt uses=[rdx, rdi] creates=[-]  => 4839fa
+  je uses=[-] creates=[]  => 0f82e6ffffff
+block #4:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8
 block done:
-  ret uses=[rax] creates=[]  => c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3

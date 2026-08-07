@@ -21,6 +21,14 @@ directory is passed through to every driver.
 | `YanaLspTest` | `lsp/` | the editor-facing answers |
 | `YanaLspProtocolTest` | `lsp/protocol.expect` | the lifecycle over the real message loop |
 
+**Every driver reports its result in its exit status**, and `run-tests.sh` has nothing else to go on:
+it runs each driver as a job, reads the status, and names the ones that were not zero. A failure is a
+fixture that did not match, a fixture that could not be opened or parsed, and — because a driver that
+verified nothing must not be mistaken for one that verified everything — a fixture directory that came
+out empty, which is what running from anywhere but this directory looks like. `YanaX64Test` and
+`YanaLowerTest` returned nothing at all until 2026-08-07, so twelve failing x64 goldens read as "all
+green" for as long as that suite has existed; if you add a driver, this is the part to get right.
+
 The fixture modes — which `.expect` files opt a fixture into what — are documented where they are
 implemented, in the header comments of `ResolveTester.cpp`. `generate` as an argument rewrites the
 expectation files rather than comparing against them; read `git status test/` afterwards, because

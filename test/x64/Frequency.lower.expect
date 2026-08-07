@@ -212,9 +212,7 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
-  je uses=[rdi] creates=[]  => 85ff0f8505000000
-block #2:
-  jmp uses=[] creates=[]  => e903000000
+  je uses=[rdi] creates=[]  => 85ff0f8403000000
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => 83c602
@@ -228,12 +226,10 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
-  je uses=[rdi] creates=[]  => 85ff0f8408000000
+  je uses=[rdi] creates=[]  => 85ff0f8403000000
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => 83c602
-  jmp uses=[] creates=[]  => e900000000
-block #3:
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
@@ -264,7 +260,7 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde803010000
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde8f9000000
   je uses=[rbx] creates=[]  => 85db0f8513000000
 block rare:
   add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 498bc503442410
@@ -280,9 +276,7 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8d05000000
-block #6:
-  jmp uses=[] creates=[]  => e9beffffff
+  je uses=[-] creates=[]  => 0f8cc3ffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 
@@ -312,7 +306,7 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde849000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde844000000
   je uses=[rbx] creates=[]  => 85db0f8412000000
 block common:
   add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
@@ -328,9 +322,7 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8d05000000
-block #6:
-  jmp uses=[] creates=[]  => e9beffffff
+  je uses=[-] creates=[]  => 0f8cc3ffffff
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 

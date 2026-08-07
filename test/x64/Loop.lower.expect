@@ -30,15 +30,17 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
   imm uses=[] creates=[-]  => 
   cmp_le uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 0f8709000000
+  je uses=[-] creates=[]  => 0f870c000000
 block loop:
   imm uses=[] creates=[-]  => 
   sub uses=[rdi, -] creates=[rdi]  => ffcf
   add uses=[rax, rsi] creates=[rax]  => 01f0
-  jmp uses=[] creates=[]  => e9efffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 0f86f4ffffff
 block end:
   ret uses=[rax] creates=[]  => c3

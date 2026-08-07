@@ -393,13 +393,13 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->rdx, rax->r8, rax->r9, rax->r10, rax->r11, rax->rbx, rax->r12, rax->r13, rax->r14, rax->r15, rax->rbp]  => 488bc8890424488bd04c8bc04c8bc84c8bd04c8bd8488bd84c8be04c8be84c8bf04c8bf8488be8
-block head:
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d2a000000
+  je uses=[-] creates=[]  => 0f8c08000000
+block #2:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8e957000000
+block #3:
+  jmp uses=[] creates=[] pre=[rax->rdx, rax->r8, rax->r9, rax->r10, rax->r11, rax->rbx, rax->r12, rax->r13, rax->r14, rax->r15, rax->rbp, rax->stack:0, rax->rcx]  => 488bd04c8bc04c8bc84c8bd04c8bd8488bd84c8be04c8be84c8bf04c8bf8488be8890424488bc8
 block body:
-  add uses=[rcx, rsi] creates=[rcx]  => 01f1
-  add uses=[stack:0, rsi] creates=[stack:0]  => 013424
   add uses=[rdx, rsi] creates=[rdx]  => 01f2
   add uses=[r8, rsi] creates=[r8]  => 4101f0
   add uses=[r9, rsi] creates=[r9]  => 4101f1
@@ -411,12 +411,19 @@ block body:
   add uses=[r14, rsi] creates=[r14]  => 4101f6
   add uses=[r15, rsi] creates=[r15]  => 4101f7
   add uses=[rbp, rsi] creates=[rbp]  => 01f5
+  add uses=[stack:0, rsi] creates=[stack:0]  => 013424
+  add uses=[rcx, rsi] creates=[rcx]  => 01f1
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9ceffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8cd3ffffff
+block #7:
+  jmp uses=[] creates=[] pre=[rdx->rax]  => 488bc2
 block out:
-  add uses=[rcx, rbp] creates=[rcx]  => 01e9
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c408415f415e415d415c5d5bc3
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: framePointerPressure ---
   prologue  => 55488bec5341544155415641574883ec08

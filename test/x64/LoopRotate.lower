@@ -1,0 +1,255 @@
+# Loop rotation.
+#
+# A loop tested at the top pays a conditional branch into the body and an unconditional one back;
+# only one of the two can be a fallthrough whatever order the blocks are put in. Rotation moves the
+# entry rather than the test: the preheader asks the header's own question, so the header is left
+# reachable only from the latch and becomes the bottom of the loop.
+#
+# What each case below asserts is the shape of the trace - the guard in the preheader, the body
+# first, the test last with a backward conditional branch, and no jump anywhere in the loop - or,
+# for the four that are declined, that the trace is exactly the one the unrotated loop produces.
+#
+# See the loop-rotation comment in codegen/x64/transform.cpp for what each requirement is for.
+
+# The ordinary counted loop, with the accumulator read after it. `entry` gains the compare, `body`
+# comes first, `head` ends in a backward branch, and the merge of the two values the exit could
+# arrive with is what the last block's phi is.
+counted(%n: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Int
+        %acc = phi [entry, %zero], [body, %acc2]: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        %acc2 = add %acc, %i: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# A header phi whose latch alternative is *another header phi*: `%a` takes what `%b` held, and `%b`
+# takes their sum, which is the shape a shift register or a Fibonacci step has.
+#
+# This is the case the substitution has to get right. What the rotated header holds for `%a` is not
+# `%b` - that phi has moved - but the *body's* phi for `%b`, read where the latch now sits, which is
+# below the body. The transfer at the end of `head` therefore reads both body phis and writes both,
+# which is a parallel copy rather than two moves.
+shift(%n: Int, %x: Int, %y: Int): Int {
+    entry {
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %n], [body, %i2]: Int
+        %a = phi [entry, %x], [body, %b]: Int
+        %b = phi [entry, %y], [body, %s]: Int
+        je (cmp_eq %i, 0), exit, body
+    }
+
+    body {
+        %s = add %a, %b: Int
+        %i2 = sub %i, 1: Int
+        jmp head
+    }
+
+    exit {
+        ret %a
+    }
+}
+
+# A branch inside the body, so the loop is four blocks and the latch is not the block the header
+# enters. Rotation is stated in terms of the header's successor and the header's predecessor, and
+# neither has to be the same block.
+diamond(%n: Int, %c: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [rejoin, %i2]: Int
+        %acc = phi [entry, %zero], [rejoin, %acc2]: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        je %c, odd, rejoin
+    }
+
+    odd {
+        jmp rejoin
+    }
+
+    rejoin {
+        %step = phi [body, 1], [odd, 2]: Int
+        %acc2 = add %acc, %step: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# Two loops, the inner one with a preheader of its own, and a phi in the block the inner loop leaves
+# to. Both rotate, and the inner one's rotation runs against a preheader the outer one's rotation
+# has already put a phi into.
+nested(%rows: Int, %cols: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp outerHead
+    }
+
+    outerHead {
+        %r = phi [entry, %zero], [outerLatch, %r2]: Int
+        %acc = phi [entry, %zero], [outerLatch, %acc3]: Int
+        je (cmp_ige %r, %rows), exit, innerPre
+    }
+
+    innerPre {
+        jmp innerHead
+    }
+
+    innerHead {
+        %c = phi [innerPre, %zero], [innerBody, %c2]: Int
+        %acc2 = phi [innerPre, %acc], [innerBody, %acc2i]: Int
+        je (cmp_ige %c, %cols), outerLatch, innerBody
+    }
+
+    innerBody {
+        %acc2i = add %acc2, %c: Int
+        %c2 = add %c, 1: Int
+        jmp innerHead
+    }
+
+    outerLatch {
+        %acc3 = phi [innerHead, %acc2]: Int
+        %r2 = add %r, 1: Int
+        jmp outerHead
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# Declined: two latches. Both arms jump back, so there is no single value the rotated header could
+# read for a phi the latch advances, and nothing here duplicates a merge to find one.
+twoLatches(%n: Int, %c: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [left, %l], [right, %r]: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        je %c, left, right
+    }
+
+    left {
+        %l = add %i, 1: Int
+        jmp head
+    }
+
+    right {
+        %r = add %i, 2: Int
+        jmp head
+    }
+
+    exit {
+        ret %i
+    }
+}
+
+# Declined: no preheader. The header is entered directly from a conditional branch, so there is no
+# block whose jump can become the guard - and creating one is a different transform.
+noPreheader(%n: Int, %c: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        je %c, exit, head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    exit {
+        %v = phi [entry, %zero], [head, %i]: Int
+        ret %v
+    }
+}
+
+# Declined: the header does work that is read outside it. `%q` is computed in the header and added
+# to in the body, so duplicating the header duplicates the work rather than the question.
+headerWork(%p: Ptr, %n: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Int
+        %acc = phi [entry, %zero], [body, %acc2]: Int
+        %q = add %i, 7: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        %acc2 = add %acc, %q: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# Declined: the loop is left from a block that is not the header. A value the header defines would
+# then be read where the header's exit block does not dominate, and there is nowhere to merge it.
+twoExits(%n: Int, %c: Int): Int {
+    entry {
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Int
+        je (cmp_ige %i, %n), exit, body
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        je %c, early, head
+    }
+
+    early {
+        jmp exit
+    }
+
+    exit {
+        %v = phi [head, %i], [early, %i2]: Int
+        ret %v
+    }
+}

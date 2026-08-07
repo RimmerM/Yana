@@ -238,19 +238,24 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[r13]  => 41bd00000000
-  jmp uses=[] creates=[] pre=[r13->r14]  => 4d8bf5
-block head:
   cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
-  je uses=[-] creates=[]  => 0f8d13000000
+  je uses=[-] creates=[]  => 0f8d1d000000
+block #3:
+  jmp uses=[] creates=[] pre=[r13->r14]  => 4d8bf5
 block body:
   fun uses=[] creates=[-]  => 
   call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce891ffffff
   add uses=[r14, rax] creates=[r14]  => 4101c6
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13]  => 41ffc5
-  jmp uses=[] creates=[]  => e9e4ffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
+  je uses=[-] creates=[]  => 0f8ce9ffffff
+block #7:
+  jmp uses=[] creates=[] pre=[r14->r13]  => 4d8bee
 block out:
-  ret uses=[rax] creates=[] pre=[r14->rax]  => 498bc6415e415d415c5bc3
+  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415e415d415c5bc3
 
 --- codegen: locals ---
   prologue  => 4883ec28
@@ -275,7 +280,7 @@ block #1:
   alloca uses=[-] creates=[rbx]  => 488d1c24
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e84fffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e848ffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 4883c4085bc3

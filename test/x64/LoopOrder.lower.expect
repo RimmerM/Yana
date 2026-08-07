@@ -176,14 +176,15 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d07000000
+  je uses=[-] creates=[]  => 0f8d0a000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9f1ffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8cf6ffffff
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -193,14 +194,15 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d07000000
+  je uses=[-] creates=[]  => 0f8d0a000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9f1ffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8cf6ffffff
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -262,14 +264,15 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d07000000
+  je uses=[-] creates=[]  => 0f8d0a000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9f1ffffff
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8cf6ffffff
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -279,10 +282,8 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d17000000
+  je uses=[-] creates=[]  => 0f8d1a000000
 block test:
   je uses=[rsi] creates=[]  => 85f60f8507000000
 block odd:
@@ -293,7 +294,8 @@ block even:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
   jmp uses=[] creates=[]  => 
-block join:
-  jmp uses=[] creates=[]  => e9e1ffffff
+block head:
+  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 0f8ce6ffffff
 block out:
   ret uses=[rax] creates=[]  => c3

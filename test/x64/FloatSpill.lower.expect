@@ -292,8 +292,6 @@ block #1:
 --- codegen: cycle ---
 block #0:
   jmp uses=[] creates=[]  => 
-block start:
-  jmp uses=[] creates=[]  => 
 block head:
   imm uses=[] creates=[-]  => 
   sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc8
@@ -310,17 +308,23 @@ block done:
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  jmp uses=[] creates=[]  => 
-block head:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 0f8418000000
+  je uses=[-] creates=[]  => 0f8426000000
 block body:
   add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f58d1
   mul uses=[xmm1, xmm0] creates=[xmm1]  => f20f59c8
   imm uses=[] creates=[-]  => 
   sub uses=[rdi, -] creates=[rdi]  => ffcf
+  jmp uses=[] creates=[]  => 
+block head:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 0f840b000000
+block #5:
   jmp uses=[] creates=[] pre=[xmm1->xmm0, xmm2->xmm1]  => 0f28c10f28cae9e0ffffff
+block #6:
+  jmp uses=[] creates=[] pre=[xmm1->xmm0, xmm2->xmm1]  => 0f28c10f28ca
 block done:
   sub uses=[xmm0, xmm1] creates=[xmm0]  => f20f5cc1
   ret uses=[xmm0] creates=[]  => c3
