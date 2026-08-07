@@ -98,6 +98,44 @@ sharedIndex<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
   }
 }
 
+sharedIndexManyUsers<complex>(%p: Ptr, %r: Ptr, %i: Long, %v: Long): Long {
+  b_0 {
+    %o = shl %i, 3: Long
+    %a = add %p, %o: Ptr
+    %b = add %r, %o: Ptr
+    %x = load %a, 8: Long
+    store %b, %v, 8
+    %y = load %b, 8: Long
+    %s = add %x, %y: Long
+    ret %s
+  }
+}
+
+sharedIndexChained<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 2: Long
+    %a = add %p, %o: Ptr
+    %b = add %r, %o: Ptr
+    %c = add %b, 16: Ptr
+    %x = load %a, 4: Int
+    %y = load %c, 4: Int
+    %s = add %x, %y: Int
+    ret %s
+  }
+}
+
+sharedIndexEscapes<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 2: Long
+    %a = add %p, %o: Ptr
+    %b = add %r, %o: Ptr
+    %x = load %a, 4: Int
+    %y = call_complex sink, %b: Int
+    %s = add %x, %y: Int
+    ret %s
+  }
+}
+
 narrowScale<complex>(%p: Ptr, %i: Int): Int {
   b_0 {
     %o = shl %i, 2: Int
@@ -270,13 +308,55 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  shl uses=[rdx, -] creates=[rdx]  => 48c1e202
-  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b0417
-  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 8b0c16
+  x86_addr scale=4 disp=0 uses=[rdi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b0497
+  x86_addr scale=4 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c96
   add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: sharedIndexManyUsers ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rdi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 488b04d7
+  x86_addr scale=8 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890cd6
+  x86_addr scale=8 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0cd6
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sharedIndexChained ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx]  => 48c1e202
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b0417
+  x86_addr scale=1 disp=16 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b4c1610
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sharedIndexEscapes ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx]  => 48c1e202
+  add uses=[rsi, rdx] creates=[rsi]  => 4801d6
+  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rbx]  => 8b1c17
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee890ffffff
+  add uses=[rbx, rax] creates=[rbx]  => 01c3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 
 --- codegen: narrowScale ---
 block #0:

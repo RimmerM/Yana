@@ -107,8 +107,9 @@ escapingAddress(%p: Ptr, %v: Int): Int {
     }
 }
 
-# The shift result feeds two different addresses, so it stays materialized - but it can still be the
-# index of both, unscaled. Only the value that a fold makes dead may be taken apart.
+# The shift result feeds two different addresses, and neither is its only use - but between them they
+# are all of them, so it is dead once both have been rewritten. Both take it at scale 4 off the
+# unshifted index, and the shift goes.
 sharedIndex(%p: Ptr, %r: Ptr, %i: Long): Int {
     {
         %o = shl %i, 2: Long
@@ -116,6 +117,54 @@ sharedIndex(%p: Ptr, %r: Ptr, %i: Long): Int {
         %b = add %r, %o: Ptr
         %x = load %a, 4: Int
         %y = load %b, 4: Int
+        %s = add %x, %y: Int
+        ret %s
+    }
+}
+
+# The two tests compose: the shift is shared between two adds, and one of those is read by more than
+# one access. Three address instructions come out of two adds, and the shift still goes.
+sharedIndexManyUsers(%p: Ptr, %r: Ptr, %i: Long, %v: Long): Long {
+    {
+        %o = shl %i, 3: Long
+        %a = add %p, %o: Ptr
+        %b = add %r, %o: Ptr
+        %x = load %a, 8: Long
+        store %b, %v, 8
+        %y = load %b, 8: Long
+        %s = add %x, %y: Long
+        ret %s
+    }
+}
+
+# One of the shift's users is the base of a *further* add rather than an address of its own. That add
+# absorbs it, so the chain still collapses into two accesses - but the test for sharing is "every user
+# is an address and nothing else", which cannot see through the second add and so does not fire. The
+# shift stays materialized and both addresses index it at 1, which is what they did before sharing was
+# taken apart at all. The narrower rule costs this case; folding it would need the users of a user.
+sharedIndexChained(%p: Ptr, %r: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %a = add %p, %o: Ptr
+        %b = add %r, %o: Ptr
+        %c = add %b, 16: Ptr
+        %x = load %a, 4: Int
+        %y = load %c, 4: Int
+        %s = add %x, %y: Int
+        ret %s
+    }
+}
+
+# One of the shift's users is read as a value as well as an address, so that address is not folded at
+# all - which leaves the shift alive whatever the other user does with it. Being shared is only worth
+# taking apart when *every* reader is an address, so this one stays materialized and indexes at 1.
+sharedIndexEscapes(%p: Ptr, %r: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %a = add %p, %o: Ptr
+        %b = add %r, %o: Ptr
+        %x = load %a, 4: Int
+        %y = call_complex sink, %b: Int
         %s = add %x, %y: Int
         ret %s
     }

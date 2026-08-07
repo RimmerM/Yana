@@ -889,15 +889,46 @@ static Maybe<I64> addressDisplacement(LowerValue* v) {
     return Just(I64(I32(U32(imm))));
 }
 
-// Matches `v` against `index * {1,2,4,8}`, the only scaling the SIB byte can encode.
+// Whether every use of `v` is address arithmetic this fold is going to take apart, so that `v` is
+// dead once the last of them has been rewritten even though no single one of them is its only use.
+//
+// This is what lets one shift serve as the scaled index of several addresses. The rule further in is
+// "this is the only use", because folding a computation something else still reads would perform it
+// twice; but a shift whose *every* reader is an address performs it zero times once they have all
+// been rewritten, and the readers need not be the same instruction for that to hold.
+//
+// Deliberately narrow, since the cost of being wrong is a live range extended for nothing: each user
+// has to be a pointer `add` - the one shape the peel below absorbs an index into - reading `v` once,
+// and its result has to be an address and nothing else. Anything longer, and the chain above it might
+// stop for a reason of its own and leave `v` materialized after all.
+static bool isOnlyUsedAsScaledIndex(LowerBase base, LowerValue* v) {
+    for(auto u: v->uses.contents(base)) {
+        auto user = base[u];
+        if(user->kind != LowerInst::Add) return false;
+
+        auto binary = (LowerInstBinary*)user;
+        auto lhs = base[binary->lhs];
+        auto rhs = base[binary->rhs];
+
+        // `add %o, %o` reads it in both positions, and an address has one index.
+        if(lhs == rhs) return false;
+        if(!isPtr(binary->result.type)) return false;
+        if(!isOnlyUsedAsAddress(base, &binary->result)) return false;
+    }
+
+    return !v->uses.isEmpty();
+}
+
+// Matches `v` against `index * {1,2,4,8}`, the only scaling the SIB byte can encode. `exclusive` says
+// whether this fold is what makes `v` dead - false when it is shared between several addresses, in
+// which case the last of them to be folded is the one that removes it.
 //
 // Only a 64-bit multiply qualifies. A 32-bit `shl %i, 2` wraps at 32 bits and the address unit does
 // not, so folding one would change what an index near the top of its range produces. A plain
 // unscaled index is not subject to that: it reaches the address in the same register the 64-bit add
 // would have read it from, whatever its declared width.
-static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerValue*& index, U8& scale) {
+static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerValue*& index, U8& scale, bool& exclusive) {
     if(!is64Bit(v->type)) return false;
-    if(!isOnlyUse(base, v, user)) return false;
 
     auto inst = v->inst();
     if(!isBinary(inst)) return false;
@@ -922,8 +953,14 @@ static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerVal
     auto source = base[binary->lhs];
     if(isImplicit(source)) return false;
 
+    // Last, since it is the only test here that walks a list: the shape has to be one the SIB byte
+    // can hold before it is worth asking who else reads it.
+    auto onlyUse = isOnlyUse(base, v, user);
+    if(!onlyUse && !isOnlyUsedAsScaledIndex(base, v)) return false;
+
     index = source;
     scale = U8(factor);
+    exclusive = onlyUse;
     return true;
 }
 
@@ -973,11 +1010,17 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
         } else if(inst->kind == LowerInst::Add && !out.index) {
             // Add is commutative and the immediate peephole has already run, so either side may be
             // the one carrying the index.
-            if(matchScaled(base, rhs, inst, index, scale)) {
-                scaled = rhs->inst();
+            //
+            // A shift shared between several addresses is taken apart by each of them but removed
+            // only by the last, so `scaled` stays null for all but that one - the value is still
+            // read, and the instruction has to stay until it is not.
+            bool exclusive = false;
+
+            if(matchScaled(base, rhs, inst, index, scale, exclusive)) {
+                if(exclusive) scaled = rhs->inst();
                 next = lhs;
-            } else if(matchScaled(base, lhs, inst, index, scale)) {
-                scaled = lhs->inst();
+            } else if(matchScaled(base, lhs, inst, index, scale, exclusive)) {
+                if(exclusive) scaled = lhs->inst();
                 next = rhs;
             } else if(!isImplicit(rhs)) {
                 index = rhs;
@@ -1037,13 +1080,15 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
 
         LowerValue* index = nullptr;
         U8 scale = 1;
+        bool exclusive = false;
 
         // matchScaled proves what this needs: a 64-bit multiply or shift by an encodable factor, read
-        // by nothing but the instruction that is about to be folded away.
-        if(matchScaled(base, candidate, user, index, scale) && scale != 1) {
+        // by nothing but the instruction that is about to be folded away - or by nothing but other
+        // addresses, in which case it stays until the last of them has been rewritten.
+        if(matchScaled(base, candidate, user, index, scale, exclusive) && scale != 1) {
             // Outermost first, so that each is already unused by the time it goes.
             if(bitcast) folded.push(bitcast);
-            folded.push(candidate->inst());
+            if(exclusive) folded.push(candidate->inst());
 
             out.index = index;
             out.scale = scale;
