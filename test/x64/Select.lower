@@ -3,8 +3,7 @@
 # CMOV carries the negated condition code.
 #
 # Flags-producing comparisons: `merged` has nothing between the cmp and its use, so tryMergeCompare
-# folds it into the select's condition code; `materialized` has an interfering flags-clobbering add
-# in between, forcing the comparison into a real register and a test against it.
+# folds it into the select's condition code.
 
 merged(%v: Int, %a: Int, %b: Int): Int {
     {
@@ -14,10 +13,37 @@ merged(%v: Int, %a: Int, %b: Int): Int {
     }
 }
 
-materialized(%v: Int, %a: Int, %b: Int): Int {
+# The clobber between the comparison and the select does not have to be there: nothing it reads is
+# defined below the comparison, so it is lifted above it - taking the immediate it reads, which is
+# an instruction of its own, along with it - and the comparison merges after all.
+hoisted(%v: Int, %a: Int, %b: Int): Int {
     {
         %cmp = cmp_ilt %v, 0
         %x = add %a, 1: Int
+        %r = select %cmp, %x, %b: Int
+        ret %r
+    }
+}
+
+# `select %c, %v, 0` is the shape the zero peephole used to cost a factor of two on: the zero is
+# materialized as `xor r, r` between the comparison and the select that reads it. Here it goes above
+# the comparison and the select becomes a CMOV on the flags.
+zeroArm(%p: Ptr, %t: Long): Long {
+    {
+        %v = load %p, 8: Long
+        %c = cmp_igt %v, %t
+        %r = select %c, %v, 0L: Long
+        ret %r
+    }
+}
+
+# And where the clobber genuinely cannot move, the comparison still goes to a register: the add
+# reads a load, and a load's position is not free to change.
+materialized(%v: Int, %p: Ptr, %b: Int): Int {
+    {
+        %cmp = cmp_ilt %v, 0
+        %l = load %p, 4: Int
+        %x = add %l, 1: Int
         %r = select %cmp, %x, %b: Int
         ret %r
     }

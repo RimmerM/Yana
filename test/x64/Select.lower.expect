@@ -7,10 +7,29 @@ merged<complex>(%v: Int, %a: Int, %b: Int): Int {
   }
 }
 
-materialized<complex>(%v: Int, %a: Int, %b: Int): Int {
+hoisted<complex>(%v: Int, %a: Int, %b: Int): Int {
   b_0 {
     %cmp = cmp_ilt %v, 0: Int
     %x = add %a, 1: Int
+    %r = select %x, %b, %cmp: Int
+    ret %r
+  }
+}
+
+zeroArm<complex>(%p: Ptr, %t: Long): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %c = cmp_igt %v, %t: Int
+    %r = select %v, 0, %c: Long
+    ret %r
+  }
+}
+
+materialized<complex>(%v: Int, %p: Ptr, %b: Int): Int {
+  b_0 {
+    %cmp = cmp_ilt %v, 0: Int
+    %l = load %p, 4: Int
+    %x = add %l, 1: Int
     %r = select %x, %b, %cmp: Int
     ret %r
   }
@@ -38,12 +57,34 @@ block #1:
   select uses=[rsi, rdx, -] creates=[rsi]  => 0f45f2
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
+--- codegen: hoisted ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => ffc6
+  cmp_ilt uses=[rdi, -] creates=[-]  => 85ff
+  select uses=[rsi, rdx, -] creates=[rsi]  => 0f4df2
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: zeroArm ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  imm uses=[] creates=[rax]  => 31c0
+  cmp_igt uses=[rdi, rsi] creates=[-]  => 4839f7
+  select uses=[rdi, rax, -] creates=[rdi]  => 480f4ef8
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
 --- codegen: materialized ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rdi, -] creates=[rdi]  => 85ff400f9cc7400fb6ff
+  load uses=[rsi] creates=[rsi]  => 8b36
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi]  => ffc6
   select uses=[rsi, rdx, rdi] creates=[rsi]  => 85ff0f44f2

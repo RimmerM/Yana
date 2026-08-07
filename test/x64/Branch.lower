@@ -18,6 +18,47 @@ branch(%v: Int, %out: Int): Int, Int {
     }
 }
 
+# The branch side of the flag window - see Select.lower for the same thing under a CMOV. Both
+# instructions between the comparison and the branch that reads it write the flags, and neither
+# reads anything defined below the comparison, so both are lifted above it and the branch tests the
+# flags rather than a materialized comparison result.
+flagWindow(%v: Int, %w: Int): Int {
+    start {
+        %cmp = cmp_ilt %v, %w
+        %x = add %v, 1: Int
+        %y = mul %w, 3: Int
+        je %cmp, a, b
+    }
+
+    a {
+        ret %x
+    }
+
+    b {
+        ret %y
+    }
+}
+
+# The same window, with a load in the middle of it. The load does not write the flags and so is not
+# in the way; the add reads it and therefore cannot go above the comparison, and the comparison is
+# materialized.
+flagWindowLoad(%v: Int, %w: Int, %p: Ptr): Int {
+    start {
+        %cmp = cmp_ilt %v, %w
+        %l = load %p, 4: Int
+        %x = add %l, 1: Int
+        je %cmp, a, b
+    }
+
+    a {
+        ret %x
+    }
+
+    b {
+        ret %w
+    }
+}
+
 # A comparison works at the width of what it compares, not at the width of what it produces: the
 # result of every comparison is an Int, so taking the operand size from it would compare two 64-bit
 # values by their low halves alone. Both comparisons here have to carry a REX.W prefix - the

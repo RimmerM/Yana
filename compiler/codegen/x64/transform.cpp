@@ -148,32 +148,9 @@ static bool orderFloatCompare(LowerBase base, LowerInst* inst) {
     return true;
 }
 
-static bool hasFlagsInterference(LowerBase base, LowerInstCmp* cmp, LowerInst* use, Size startIndex) {
-    // Currently, we simply check if there is any interfering instruction below the creation, until we get to the use.
-    // TODO: Follow paths between blocks from the definition to the use.
-    if(use->block != cmp->block) return true;
-
-    auto block = base[cmp->block];
-    auto list = block->instructions.contents(base);
-
-    for(Size i = startIndex + 1; i < list.size(); i++) {
-        auto inst = base[list[i]];
-        if(inst == use) return false;
-        if(modifiesFlags(base, inst)) return true;
-    }
-
-    if(use == base[block->terminator]) return false;
-    return true;
-}
-
-static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
-    auto& uses = cmp->result.uses;
-
-    if(uses.size() == 0) {
-        cmp->result.flags |= LowerValue::Implicit;
-        return true;
-    }
-
+// Whether this comparison's result is of a shape that could be left in the flags at all, before
+// anything is asked about what stands between it and the things that read it.
+static bool canCarryInFlags(LowerBase base, LowerInstCmp* cmp) {
     /*
      * A floating-point equality is not a condition code, so it cannot be carried in the flags.
      *
@@ -193,7 +170,7 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
 
     auto result = &cmp->result - base;
 
-    for(auto offset: uses.contents(base)) {
+    for(auto offset: cmp->result.uses.contents(base)) {
         auto use = base[offset];
 
         // If the result is used as an actual value, it needs to written to a register.
@@ -210,12 +187,186 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
             auto& select = *(LowerInstSelect*)use;
             if(select.lhs == result || select.rhs == result) return false;
         }
-
-        // Check if there is any instruction between the definition and use that could modify the flags.
-        if(hasFlagsInterference(base, cmp, use, index)) return false;
     }
 
-    // The only uses are instructions that can use flags directly, and no interference, so the result can stay as flags.
+    return true;
+}
+
+/*
+ * The window between a comparison and the things that read it.
+ *
+ * A comparison whose flags are still intact where they are read needs no register at all: the branch
+ * or the select reads ZF and CF directly, which is what tryMergeCompare below arranges. Anything in
+ * between that writes the flags takes that away, and the comparison becomes a `setcc`, a
+ * zero-extension and a `test` against the result - six instructions where two would do.
+ *
+ * The clobber is usually not something that had to be there. `select %c, %v, 0` materializes its
+ * zero as `xor r, r` - three bytes where `mov r, 0` is five, which is the whole reason that form
+ * exists - and lowering puts it where it is read, which is inside the window. Nothing about that
+ * instruction depends on the comparison, so it can simply be computed first.
+ *
+ * Hoisting whatever can be moved is therefore part of the fold rather than a pass of its own: the
+ * motion is only worth performing where it makes the merge happen, and only the merge knows that.
+ * §2 of test/bench/findings.md measures what it is worth - 1.85x on `conditionalSum` and 1.34x on
+ * `countBytes`, which is where a three-byte size peephole was costing a factor of two.
+ */
+
+// Moves the instruction at `from` in `block`'s list up to `to`, shifting what it passes down one.
+//
+// Only the list order changes: the instruction keeps its block and every value it reads keeps its
+// use, so nothing outside the list has to be told. Positions within the block do move, which is why
+// the caller has to carry the shift back into its own walk.
+static void moveInstTo(LowerBase base, LowerBlock* block, Size from, Size to) {
+    assertTrue(to <= from); // this only ever lifts an instruction earlier
+    auto inst = block->instructions.get(base, from);
+
+    for(Size i = from; i > to; i--) {
+        block->instructions.set(base, i, block->instructions.get(base, i - 1));
+    }
+
+    block->instructions.set(base, to, inst);
+}
+
+// How far a comparison's flags have to survive, as an index one past the last instruction that could
+// clobber them - so the terminator, which is not in the list, is the list's own size.
+//
+// Nothing() when a use sits somewhere this cannot answer for: another block, which the walk does not
+// follow. TODO: follow paths between blocks from the definition to the use.
+static Maybe<Size> flagsWindowEnd(LowerBase base, LowerInstCmp* cmp, Size index) {
+    auto block = base[cmp->block];
+    auto list = block->instructions.contents(base);
+    auto terminator = base[block->terminator];
+
+    // The empty window, which is what a comparison read by the instruction directly below it has.
+    Size end = index + 1;
+
+    for(auto offset: cmp->result.uses.contents(base)) {
+        auto use = base[offset];
+        if(use->block != cmp->block) return Nothing();
+
+        if(use == terminator) {
+            if(list.size() > end) end = list.size();
+            continue;
+        }
+
+        Size at = index + 1;
+        for(; at < list.size(); at++) {
+            if(base[list[at]] == use) break;
+        }
+
+        assertTrue(at < list.size()); // a use in the comparison's own block, but not below it
+        if(at > end) end = at;
+    }
+
+    return Just(end);
+}
+
+// Whether this instruction can be computed before the comparison rather than after it.
+//
+// Only a value computed in registers from registers qualifies: it reads and writes no memory, so
+// moving it above the loads and stores that share the window changes nothing, and it cannot fault,
+// so it cannot change what has run when something else does. That rules out a call, whose flag
+// clobber is not movable at all, and the divisions, which fault and are far too expensive for their
+// position to be what a window costs.
+//
+// A comparison is left out deliberately. Lifting one above another only exchanges which of the two
+// windows the clobber sits in, and the one it moves into is the one already being fixed.
+static bool canHoistOverCompare(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Imm:
+        case LowerInst::Set:
+        case LowerInst::Cast:
+        case LowerInst::Bitcast:
+        case LowerInst::Neg:
+        case LowerInst::Not:
+        case LowerInst::Add:
+        case LowerInst::Sub:
+        case LowerInst::Mul:
+        case LowerInst::IMul:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
+        case LowerInst::Shl:
+        case LowerInst::Shr:
+        case LowerInst::Sar:
+        case LowerInst::And:
+        case LowerInst::Or:
+        case LowerInst::Xor:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Empties the window of everything that writes the flags, by lifting each such instruction above the
+// comparison. Answers false, having moved nothing, when even one of them has to stay - a partial
+// move buys nothing, since a single clobber left behind costs the same as all of them.
+//
+// An instruction that goes up takes whatever it reads from inside the window with it, which is what
+// the backwards walk is for: an operand is always defined above its reader, so walking up from the
+// use means everything that has to travel is already known by the time its definition is reached.
+// The window's own `add r, 1` is the ordinary case - the immediate it reads is an instruction of its
+// own, sitting between the comparison and the add, and writing no flags at all.
+//
+// Anything that has to travel and cannot - a load, whose position is not free to change - ends the
+// attempt, and so does anything reading the comparison's own result, which is never a condition.
+static bool clearFlagsWindow(LowerBase base, LowerInstCmp* cmp, Size index, Size end, Size& hoisted) {
+    auto block = base[cmp->block];
+    auto list = block->instructions.contents(base);
+
+    // The values the instructions being lifted read, and where those instructions are - collected in
+    // descending order of position, since that is the direction the walk goes.
+    SmallArray<LowerValue*, 16> needed;
+    SmallArray<Size, 8> lift;
+
+    for(Size i = end; i-- > index + 1;) {
+        auto inst = base[list[i]];
+        bool lifts = modifiesFlags(base, inst);
+
+        if(!lifts) {
+            for(auto& value: inst->created()) {
+                if(needed.containsValue(&value)) { lifts = true; break; }
+            }
+        }
+
+        if(!lifts) continue;
+        if(!canHoistOverCompare(inst)) return false;
+
+        for(auto use: inst->used()) needed.push(base[use]);
+        lift.push(i);
+    }
+
+    if(needed.containsValue(&cmp->result)) return false;
+
+    // Lifted in ascending order, so that they arrive above the comparison in the order they had.
+    // Each move shifts only what lies between the comparison and the instruction being lifted, so
+    // the positions collected above stay correct for the ones still to come.
+    for(Size i = 0; i < lift.size(); i++) moveInstTo(base, block, lift[lift.size() - i - 1], index + i);
+
+    hoisted = lift.size();
+    return true;
+}
+
+// Carries a comparison into the branches and selects that read it, so that its answer stays in the
+// flags rather than being materialized. Returns how many instructions were lifted above it to make
+// that possible, which is how far its own position in the block moved down.
+static Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
+    auto& uses = cmp->result.uses;
+
+    if(uses.size() == 0) {
+        cmp->result.flags |= LowerValue::Implicit;
+        return 0;
+    }
+
+    if(!canCarryInFlags(base, cmp)) return 0;
+
+    auto end = flagsWindowEnd(base, cmp, index);
+    if(end.isNothing()) return 0;
+
+    Size hoisted = 0;
+    if(!clearFlagsWindow(base, cmp, index, end.unwrap(), hoisted)) return 0;
+
+    // The only uses are instructions that can use flags directly, and nothing writes them in
+    // between any more, so the result can stay as flags.
     cmp->result.flags |= LowerValue::Implicit;
 
     for(auto offset: uses.contents(base)) {
@@ -228,7 +379,7 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
         }
     }
 
-    return true;
+    return hoisted;
 }
 
 // Records, once, which of the two encodings a Copy/SetPattern will take, so that the register
@@ -1224,18 +1375,19 @@ static void selectAddressesAndLeas(LowerBase base, LowerFunction& fun) {
 // allocator, the form selection below and the encoder all read one answer instead of each deriving it.
 //
 // Expects: addresses selected.  Establishes: every value that occupies no location is marked
-// Implicit, and every Copy/SetPattern has its encoding recorded. Mutates: value flags and
-// instruction annotations only. Invalidates: nothing.
+// Implicit, and every Copy/SetPattern has its encoding recorded. Mutates: value flags, instruction
+// annotations, and the order of the instructions a compare fold lifts out of its flag window.
+// Invalidates: instruction positions within a block.
+//
+// In two sweeps, and the order between them is the point. Everything a peephole can decide about an
+// instruction's *form* is decided first; only then does the compare folding walk its windows asking
+// what writes the flags. Both answers a peephole can still change are conservative until it has run
+// - an immediate is `xor r, r` until it is embedded - so a comparison looked at first would be told
+// that instructions about to disappear stand in its way.
 static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         if(inst->kind == LowerInst::Imm) {
             tryEmbedImm(base, (LowerImm*)inst);
-        }
-
-        // Needs the instruction's index within its block, to walk forward from the comparison to its
-        // use looking for anything that writes the flags in between.
-        if(inst->kind == LowerInst::Cmp) {
-            tryMergeCompare(base, (LowerInstCmp*)inst, i);
         }
 
         if(inst->kind == LowerInst::Fun) {
@@ -1244,6 +1396,20 @@ static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
 
         selectBlockOpEncoding(base, inst);
     });
+
+    // Walked by index rather than through forEachInst, because a fold that lifts an instruction out
+    // of its window moves the comparison down the list by exactly that many places. Skipping past
+    // them is right as well as necessary: what was lifted is never itself a comparison.
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Cmp) continue;
+
+            i += tryMergeCompare(base, (LowerInstCmp*)inst, i);
+        }
+    }
 }
 
 // Turns a call's stack-passed arguments into explicit stores into the outgoing argument area, placed

@@ -21,6 +21,40 @@ branch<complex>(%v: Int, %out: Int): Int, Int {
   }
 }
 
+flagWindow<complex>(%v: Int, %w: Int): Int {
+  start {
+    %cmp = cmp_ilt %v, %w: Int
+    %x = add %v, 1: Int
+    %y = mul %w, 3: Int
+    je %cmp, a, b
+  }
+
+  a {
+    ret %x
+  }
+
+  b {
+    ret %y
+  }
+}
+
+flagWindowLoad<complex>(%v: Int, %w: Int, %p: Ptr): Int {
+  start {
+    %cmp = cmp_ilt %v, %w: Int
+    %l = load %p, 4: Int
+    %x = add %l, 1: Int
+    je %cmp, a, b
+  }
+
+  a {
+    ret %x
+  }
+
+  b {
+    ret %w
+  }
+}
+
 wideBranch<complex>(%v: Long, %w: Long): Long {
   start {
     %v_0 = cmp_ilt %v, %w: Int
@@ -65,6 +99,35 @@ block a:
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 488bd6c3
+
+--- codegen: flagWindow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  imm uses=[] creates=[r8]  => 41b803000000
+  mul uses=[rax, r8] creates=[rax] pre=[rsi->rax]  => 488bc641f7e0
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
+  je uses=[-] creates=[]  => 0f8c01000000
+block b:
+  ret uses=[rax] creates=[]  => c3
+block a:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: flagWindowLoad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_ilt uses=[rdi, rsi] creates=[rdi]  => 39f7400f9cc7400fb6ff
+  load uses=[rdx] creates=[rdx]  => 8b12
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => ffc2
+  je uses=[rdi] creates=[]  => 85ff0f8504000000
+block b:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+block a:
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
 
 --- codegen: wideBranch ---
 block #0:
