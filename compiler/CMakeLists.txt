@@ -240,6 +240,13 @@ set(JS_SOURCE_FILES
 
 add_library(YanaJS ${JS_SOURCE_FILES})
 target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve)
+set(ELF_SOURCE_FILES
+    codegen/elf/elf.h
+    codegen/elf/elf.cpp
+)
+
+add_library(YanaElf ${ELF_SOURCE_FILES})
+target_link_libraries(YanaElf PUBLIC YanaCore)
 
 set(X64_SOURCE_FILES
     codegen/x64/target.h
@@ -256,11 +263,13 @@ set(X64_SOURCE_FILES
     codegen/x64/verify.cpp
     codegen/x64/frame.cpp
     codegen/x64/constraint.cpp
+    codegen/x64/emit.h
+    codegen/x64/emit.cpp
     codegen/x64/x64_util.h
 )
 
 add_library(YanaX64 ${X64_SOURCE_FILES})
-target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower)
+target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower YanaElf)
 
 set(PROJECT_SOURCE_FILES
     compiler/source.h
@@ -278,7 +287,7 @@ set(DRIVER_SOURCE_FILES
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
-target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaProject YanaLower YanaLLVM YanaJS)
+target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaProject YanaLower YanaLLVM YanaJS YanaX64)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)

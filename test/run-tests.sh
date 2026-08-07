@@ -51,6 +51,13 @@ done
 
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
+
+# Source to executable file to running process, over the same corpus the resolve driver runs
+# in-process. It compiles every runnable fixture, so it is sharded on the same terms they are.
+for i in $(seq 0 $((jobs - 1))); do
+    echo "elf.$i|$build/test/YanaElfTest shard:$i/$jobs" >> "$jobfile"
+done
+
 echo "edit|$build/test/YanaEditTest" >> "$jobfile"
 echo "lsp|$build/test/YanaLspTest" >> "$jobfile"
 echo "lsp-protocol|$build/test/YanaLspProtocolTest" >> "$jobfile"

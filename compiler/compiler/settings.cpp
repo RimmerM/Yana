@@ -25,6 +25,7 @@ struct Flag {
         target,
         arch,
         format,
+        backend,
         framePointer,
         inlining,
         optimization,
@@ -60,6 +61,7 @@ Flag flagTable[] = {
     { "target"_v, 1, Flag::target },
     { "arch"_v, 1, Flag::arch },
     { "format"_v, 1, Flag::format },
+    { "backend"_v, 1, Flag::backend },
     { "frame-pointer"_v, 1, Flag::framePointer },
     { "opt"_v, 1, Flag::optimization },
     { "inline"_v, 1, Flag::inlining },
@@ -97,6 +99,14 @@ StringView formatTable[] = {
     "elf"_v,   // ELF
     "mach"_v,  // MachO
     "pe"_v,  // PE
+};
+
+// NativeBackend, in declaration order. "local" rather than "x64", because what it selects is the
+// compiler's own code generator rather than an architecture - `-arch` is already the flag that says
+// which machine, and naming one here would make `-backend x64 -arch arm64` a sentence.
+StringView backendTable[] = {
+    "llvm"_v,  // Llvm
+    "local"_v, // Local
 };
 
 StringView targetTable[] = {
@@ -330,6 +340,20 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
     if(!hasArch && !hasExtensions) {
         applyHostExtensions(settings);
     }
+
+    /*
+     * And the backend, which is the one default that has to be taken *after* the three above rather
+     * than beside them: which code generators exist is a fact about the target, and the target is
+     * only settled here.
+     *
+     * The local one wherever it exists - see NativeBackend. It is the faster build and needs no
+     * toolchain installed, which is what a build being run wants; LLVM is the faster program, which
+     * is what a build being shipped wants, and it is one flag away. Everywhere else there is nothing
+     * to choose and the value stays what it was constructed as.
+     */
+    if(!settings.explicitBackend && localBackendSupported(settings)) {
+        settings.backend = NativeBackend::Local;
+    }
 }
 
 template<class F>
@@ -512,6 +536,15 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     error = "Unrecognized executable format. Valid formats are: elf|mach|pe.";
                     return false;
                 }
+            case Flag::backend:
+                settings.explicitBackend = true;
+                if(auto backend = matchString(backendTable, sizeof(backendTable) / sizeof(StringView), value)) {
+                    settings.backend = (NativeBackend)backend.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized native backend. Valid backends are: llvm|local.";
+                    return false;
+                }
             case Flag::framePointer:
                 if(auto fp = matchString(framePointerTable, sizeof(framePointerTable) / sizeof(StringView), value)) {
                     settings.framePointer = (FramePointerMode)fp.unwrap();
@@ -593,6 +626,38 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
     if(!settings.explicitMode && !settings.explaining()) {
         return Err(String("No compilation mode provided. Set the mode with "
                           "-mode <lib|exe|shared|js|jslib|ir|llvm>, or as `target` in a yana.toml."));
+    }
+
+    /*
+     * What the local backend can actually produce.
+     *
+     * Only when it was *asked for*. A defaulted backend is derived from the same target these
+     * questions are about, so it can only ever be one this target supports - and the modes that do
+     * not read a backend at all must not become errors because of a value nothing chose. Naming one
+     * is different: `-backend local -arch arm64` is a sentence, and answering it with an executable
+     * for the wrong machine, or silently with LLVM, are both worse than saying so.
+     *
+     * Reported here rather than where the file would be written, because all of it is answerable
+     * from the flags alone and the useful moment to hear about a target that has no code generator
+     * is before the program has been compiled for it. The LLVM path has its own list of the
+     * architectures it can emit for - see createMachine - and says so at the same point in its own
+     * pipeline; this is the same statement for a backend whose list is shorter.
+     */
+    if(settings.explicitBackend && settings.backend == NativeBackend::Local) {
+        if(settings.mode != CompileMode::NativeExecutable) {
+            return Err(String("The local backend only generates executables. "
+                              "Use -mode exe, or -backend llvm."));
+        }
+
+        if(settings.arch != TargetArch::X64) {
+            return Err(String("The local backend only generates amd64 code. "
+                              "Use -arch x64, or -backend llvm."));
+        }
+
+        if(settings.format != ExecutableFormat::ELF || settings.target != TargetType::Linux) {
+            return Err(String("The local backend only generates ELF executables for Linux. "
+                              "Use -target linux -format elf, or -backend llvm."));
+        }
     }
 
     return Ok();

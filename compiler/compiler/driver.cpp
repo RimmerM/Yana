@@ -8,6 +8,7 @@
 #include "../lower/lower_validate.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
+#include "../codegen/x64/emit.h"
 #include "settings.h"
 #include "source.h"
 #include "project.h"
@@ -96,11 +97,16 @@ static bool compileJs(Context& context, Program& program, const String& outputDi
     });
 }
 
-// Everything the two native modes share: the resolved program as an LLVM module, entry point and
-// all. `-mode llvm` stops at the text of it, which is why the wrapper and the optimization happen
-// here rather than in the executable path - the IR that mode writes is the IR that mode would
-// compile, and one that had been through neither would be a different program.
-static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Program& program) {
+/*
+ * Everything every native build shares, whichever backend then consumes it: the lowered form of the
+ * program, checked, written out if it was asked for, and known to have somewhere to start.
+ *
+ * Above the fork rather than inside either arm, because it is the same program either way. The two
+ * backends are two code generators over one IR, and the useful thing about being able to switch
+ * between them with a flag is that everything before the switch is held fixed - a difference between
+ * their output is then a difference between them.
+ */
+static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
     auto lowered = lowerProgram(context, program);
     if(context.diagnostics.errorCount()) return nullptr;
 
@@ -115,17 +121,30 @@ static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Pr
         });
     }
 
-    auto module = llvmgen::genModule(llvm, context, *lowered);
-    if(context.diagnostics.errorCount()) return nullptr;
-
     // The program's start rather than `main` by name - Analysis-Initialization.md stage B. Where the
     // root module has top-level statements, `main` is what the synthesized entry calls last, and
-    // wrapping `main` itself would start the program after its own initialization had been skipped.
+    // starting at `main` itself would start the program after its own initialization had been
+    // skipped. Asked here, so that a program with nowhere to start is reported once and by the same
+    // sentence however it was going to be compiled.
     if(!lowered->entry) {
         context.diagnostics.error("the program has no entry point - the module being compiled declares neither `main` nor any top-level statement"_v,
                                   nullptr);
         return nullptr;
     }
+
+    return lowered;
+}
+
+// Everything the two LLVM modes share: the resolved program as an LLVM module, entry point and all.
+// `-mode llvm` stops at the text of it, which is why the wrapper and the optimization happen here
+// rather than in the executable path - the IR that mode writes is the IR that mode would compile,
+// and one that had been through neither would be a different program.
+static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Program& program) {
+    auto lowered = lowerNative(context, program);
+    if(!lowered) return nullptr;
+
+    auto module = llvmgen::genModule(llvm, context, *lowered);
+    if(context.diagnostics.errorCount()) return nullptr;
 
     if(!llvmgen::addNativeEntry(context, *module, lowered->entry)) return nullptr;
     if(!llvmgen::verifyGenModule(context, *module)) return nullptr;
@@ -151,6 +170,21 @@ static bool compileNative(Context& context, Program& program, const String& outp
     if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
 
     return llvmgen::linkExecutable(context, objectPath, joinPath(outputDir, name, ""_v));
+}
+
+/*
+ * The same mode through the compiler's own backend.
+ *
+ * No object file and no link step, because there is nothing to link: the whole program is in one
+ * lowered module, and everything it calls is in it. What comes out is the executable itself, at the
+ * same path `-backend llvm` would have left one - the two differ in how the file was produced and in
+ * nothing a caller has to know about.
+ */
+static bool compileNativeLocal(Context& context, Program& program, const String& outputDir, StringView name) {
+    auto lowered = lowerNative(context, program);
+    if(!lowered) return false;
+
+    return genX64Executable(context, *lowered, joinPath(outputDir, name, ""_v));
 }
 
 /*
@@ -324,8 +358,13 @@ int main(int argc, const char** argv) {
     auto built = false;
 
     switch(context.settings.mode) {
+        // The one mode with two implementations - see NativeBackend. Which one this is came from the
+        // target unless a flag overrode it, and a flag that named a target with no code generator
+        // behind it was already refused by checkSettings, so what is left here is only the choice.
         case CompileMode::NativeExecutable:
-            built = compileNative(context, *program, outputDir, name);
+            built = context.settings.backend == NativeBackend::Local
+                ? compileNativeLocal(context, *program, outputDir, name)
+                : compileNative(context, *program, outputDir, name);
             break;
         case CompileMode::Llvm:
             built = compileLlvm(context, *program, outputDir, name);

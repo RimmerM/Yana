@@ -93,6 +93,31 @@ struct TargetExtensions {
     bool neon = false;   /// Enabled ARM NEON SIMD instructions.
 };
 
+/*
+ * Which code generator a native build goes through.
+ *
+ * A flag of its own rather than a `CompileMode`, because it answers a different question: a mode
+ * says what is produced - an executable, a shared library, LLVM text - and this says who produces
+ * it. The same `-mode exe` means the same thing under both, which is what makes switching between
+ * them a way to compare two compilers on one program rather than two different builds.
+ *
+ * The two are not interchangeable. LLVM runs its own optimization pipeline and links through the
+ * platform's `cc`, so it produces the faster program and needs a toolchain to be installed; the
+ * local backend generates and lays out the machine code itself and writes the executable directly,
+ * so it needs nothing on the machine and is much faster to run.
+ *
+ * **The local one is the default where it exists**, which is ELF/Linux/amd64 and nowhere else - see
+ * localBackendSupported. That trades the faster program for the faster build and for a compiler that
+ * needs nothing installed beside it, which is the trade a build being run wants far more often than
+ * a build being shipped: `-backend llvm` is one flag, and it is the flag a release build passes.
+ * Everywhere the local backend does not exist the default is LLVM, which is why this is chosen from
+ * the target rather than written down as a value.
+ */
+enum class NativeBackend {
+    Llvm,  /// The optimizing path: LLVM IR, LLVM's pipeline, an object file and the system linker.
+    Local, /// The self-contained path: compiler/codegen/x64 and compiler/codegen/elf, and nothing else.
+};
+
 /// When a function should establish a frame pointer.
 /// A frame pointer costs a push, a move, a pop and one of the general registers for the whole
 /// function; what it buys is an address for fixed frame objects that stays valid while the stack
@@ -141,6 +166,12 @@ struct CompileSettings {
     bool explicitMode = false;
     bool explicitOutput = false;
 
+    /// Whether `-backend` was named. Not for a project file's sake - one cannot set a backend - but
+    /// for the difference between a backend that was *chosen* and one that was *defaulted*: naming
+    /// one this target has no code generator for is a mistake to report, and defaulting to one is
+    /// not, since the default is derived from that same target. See localBackendSupported.
+    bool explicitBackend = false;
+
     /// Where to look for a `yana.toml`, or empty to look upwards from the working directory.
     /// `noProject` skips the search: a build that has been given every path it needs on the command
     /// line should not change behaviour because of a file in a directory above it.
@@ -169,10 +200,24 @@ struct CompileSettings {
     TargetArch arch = TargetArch::X64;
     TargetExtensions extensions;
 
+    /*
+     * Which native code generator runs - see NativeBackend. Read only by `-mode exe`; `-mode llvm`
+     * and the JavaScript modes have exactly one path each and nothing to choose between, and a
+     * value left here for one of them is ignored rather than contradicted.
+     *
+     * LLVM here rather than the real default, for the reason the four above are what they are: this
+     * is the value a driver that configures nothing gets, and the local backend is not a thing every
+     * host can produce. `applyDefaults` replaces it with the one the target actually implies, on the
+     * path that parses a command line - which is the only path that knows what the target is.
+     */
+    NativeBackend backend = NativeBackend::Llvm;
+
     FramePointerMode framePointer = FramePointerMode::Needed;
 
     /// How hard the optimizing native backend works, 0-3. Only the LLVM path reads it: the local
-    /// amd64 backend is the fast one by construction and has no levels to choose between.
+    /// amd64 backend is the fast one by construction and has no levels to choose between - so on the
+    /// platform where that one is the default, `-opt` does nothing until `-backend llvm` is passed
+    /// with it. `optimizeIr` below is the switch that means something on both.
     U32 optimization = 2;
 
     /// Whether the IR optimizer (compiler/opt) runs at all.
@@ -230,6 +275,25 @@ struct CompileSettings {
 
     bool explaining() const { return explainAll || explainName != ""; }
 };
+
+/*
+ * Whether the local backend can produce an executable for the target these settings name.
+ *
+ * One statement of the list, read twice and for two different questions: `applyDefaults` asks it to
+ * decide what an unnamed backend should be, and `checkSettings` asks it to decide whether a named
+ * one is a mistake. Written apart from both so that the answers cannot drift - a target that gained
+ * a code generator and only half of them heard about it would default to the local backend on a
+ * machine that then refused to use it, or the reverse.
+ *
+ * The mode is deliberately not part of it. A backend is a fact about the target and a mode is a
+ * question about the output, and mixing them would make the default depend on a setting a project
+ * file can still change after this has been asked.
+ */
+inline bool localBackendSupported(const CompileSettings& settings) {
+    return settings.arch == TargetArch::X64 &&
+           settings.target == TargetType::Linux &&
+           settings.format == ExecutableFormat::ELF;
+}
 
 /// Parses the provided command line into a set of compiler options.
 /// If invalid arguments are provided, returns a human-readable error string.
