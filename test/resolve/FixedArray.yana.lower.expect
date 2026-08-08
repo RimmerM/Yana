@@ -141,24 +141,18 @@ double<complex>(%xs: Ptr) {
     %v_18 = shl %v_11, 2: Long
     %v_19 = add %v_17, %v_18: Ptr
     %value = loads %v_19, 4: Int
-    %v_20 = cmp_ge %v_12, %v_13: Int
-    je %v_20, b_21, b_3
+    jmp b_3
   }
 
   b_3 {
-    %v_22 = add %value, %value: Int
-    store %v_19, %v_22, 4
+    %v_20 = add %value, %value: Int
+    store %v_19, %v_20, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
 
-  b_21 {
-    %v_23 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_15 {
-    %v_24 = syscall 60, 134: Long
+    %v_21 = syscall 60, 134: Long
     unreachable 
   }
 }

@@ -142,7 +142,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_lea scale=1 disp=64 uses=[rdi] creates=[r13]  => 4c8d6f40
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 8bfee8c5ffffff
+  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 8bfee8acffffff
   imm uses=[] creates=[remat:0]  => 
   copy uses=[r12, r13, r15] creates=[] pre=[remat:0->r15]  => 41bf0c0000004d8b5d004d891c24458b5d0845895c2408
   add uses=[rcx, r8] creates=[rcx]  => 4401c1
@@ -158,7 +158,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rdi]  => 488bef488bfe
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e885ffffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e86bffffff
   imm uses=[] creates=[remat:0]  => 
   copy uses=[rbp, rax, r15] creates=[] pre=[remat:0->r15]  => 41bf0c0000004c8b184c895d00448b580844895d08
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc5415f415e415d415c5d5bc3
@@ -213,7 +213,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13] pre=[rsi->r13]  => 4c8bee49ffc5
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 8bfae8e9feffff
+  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 8bfae8b2feffff
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=0 uses=[r12, r13] creates=[-]  => 
   load uses=[-] creates=[rdx]  => 4b8b14ec
@@ -236,11 +236,11 @@ block #1:
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2428
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2420
   fun uses=[] creates=[-]  => 
-  call_win64 uses=[-, rcx, rdx, r8, r9, -, -] creates=[rax] pre=[rdi->rcx, rdi->rdx, rdi->r8, rdi->r9] post=[rax->rbx]  => 8bcf8bd7448bc7448bcfe8260000008bd8
+  call_win64 uses=[-, rcx, rdx, r8, r9, -, -] creates=[rax] pre=[rdi->rcx, rdi->rdx, rdi->r8, rdi->r9] post=[rax->rbx]  => 8bcf8bd7448bc7448bcfe8320000008bd8
   x86_pusharg uses=[rdi] creates=[-]  => 48897c2408
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe80d000000
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe826000000
   add uses=[rbx, rax] creates=[rbx]  => 01c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 8bc34883c4305bc3
 

@@ -115,6 +115,7 @@ enum: MachineFormId {
     FormLoadF32, FormLoadF64,
 
     FormStore8, FormStore16, FormStore32, FormStore64,
+    FormStore8Imm, FormStore16Imm, FormStore32Imm, FormStore64Imm,
     FormStoreF32, FormStoreF64,
 
     FormBlockCopyRep,
@@ -1239,6 +1240,49 @@ MachineTarget::MachineTarget() {
     store(FormStore32, "mov dword [address], r"_v, 0x89, OperationWidth::Fixed32);
     store(FormStore64, "mov qword [address], r"_v, 0x89, OperationWidth::Fixed64);
 
+    /*
+     * The same, with the value in the encoding rather than in a register.
+     *
+     * `mov [address], imm` has no second register at all, so ModRM.reg carries the opcode extension
+     * /0 instead - which is the case `emitLoadStore` was already written for. What this removes is
+     * not only the `mov $imm, r` above the store: it removes the operand, so the constant never
+     * enters allocation and never competes for a register. `each` in test/bench/programs/Pipeline.yana
+     * is the shape that makes the difference visible - two callee-saved registers were being pushed
+     * and popped there to hold the constants 1 and 2 across nothing at all, because a store demanded
+     * a register for them and every other register was taken.
+     *
+     * All four declare **Imm32** rather than a width of their own, and that is what makes the
+     * selection below total. `canEmbedImm` in transform.cpp decides whether to embed a constant
+     * before any form has been chosen, and it asks by opcode - so it answers for the widest form the
+     * opcode has. A narrow form that declared a narrower immediate would be refusing values that
+     * question had already accepted, and an operand that has been taken out of allocation has no
+     * register left to fall back to. Truncating is not a compromise here: the store discards the
+     * upper bytes whatever carries them, so writing the low ones is what the register form does too.
+     * The 64-bit form is the only one the width genuinely constrains - its immediate is sign-extended
+     * rather than truncated - and Imm32 is exactly that constraint.
+     */
+    auto storeImm = [&](MachineFormId id, StringView formName, U8 opcode, U8 immediateBytes,
+                        U8 prefix, OperationWidth width)
+    {
+        auto& form = add(id, OpStore, formName);
+        form.uses.push(address());
+        form.uses.push(immediate(ImmediateWidth::Imm32));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = opcode,
+            .prefix = prefix,
+            .extension = 0,
+            .immField = useRef(1),
+            .width = width,
+            .immediateBytes = immediateBytes,
+        };
+    };
+
+    storeImm(FormStore8Imm, "mov byte [address], imm8"_v, 0xc6, 1, 0, OperationWidth::Fixed32);
+    storeImm(FormStore16Imm, "mov word [address], imm16"_v, 0xc7, 2, 0x66, OperationWidth::Fixed32);
+    storeImm(FormStore32Imm, "mov dword [address], imm32"_v, 0xc7, 4, 0, OperationWidth::Fixed32);
+    storeImm(FormStore64Imm, "mov qword [address], imm32"_v, 0xc7, 4, 0, OperationWidth::Fixed64);
+
     // A store has no result to take its width from, so it states it - and states it as the width of
     // the value rather than of the address, which is what the prefix already says in bytes.
     auto floatStore = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls,
@@ -2247,6 +2291,21 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             if(isFloat(type)) {
                 assertTrue(store->getWidth() == (type == LowerType::Float32 ? 4u : 8u));
                 return byFloatWidth(type, FormStoreF32, FormStoreF64);
+            }
+
+            // A constant goes into the encoding rather than into a register. Every width has such a
+            // form and every one of them declares Imm32, so this answers for exactly the constants
+            // `canEmbedImm` has already accepted - which it has to, since by here the operand may
+            // have been taken out of allocation and have no register to fall back to.
+            if(isImm(base[store->value]) &&
+               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, store->value)))
+            {
+                switch(store->getWidth()) {
+                    case 1: return FormStore8Imm;
+                    case 2: return FormStore16Imm;
+                    case 4: return FormStore32Imm;
+                    default: return FormStore64Imm;
+                }
             }
 
             switch(store->getWidth()) {

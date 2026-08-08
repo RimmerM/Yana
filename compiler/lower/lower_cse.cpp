@@ -3,19 +3,48 @@
 
 namespace {
 
+bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth);
+
+/*
+ * How far `sameOperand` looks below the operands it is comparing.
+ *
+ * The shape it has to reach is a checked subscript, whose address is `add %items, (shl (cast %i))` -
+ * three deep, and four with the extension of a narrower index below it. Past that the answer stops
+ * paying: what is being asked is whether two instructions the walk has *not* unified compute the
+ * same thing, and two chains that agree for five levels and were still written twice do not occur in
+ * IR this pass has already been over once.
+ */
+static constexpr Size kMaxOperandDepth = 4;
+
 /*
  * Whether two operands are the same value.
  *
- * Identity, and one thing beside it: two immediates of one type holding one number. They are not
- * shared - `immediate()` in resolve/lower_type.cpp builds a fresh `Imm` per call, and the fold and
- * the strength reduction each build their own - so comparing operands by identity alone says that
- * the two `add %frame, 12`s under two reads of one field are two different computations, which is
- * most of what this pass exists to collect.
+ * Identity first, then two things beside it.
  *
- * The comparison is on the immediate's stored word, which for a floating one is its bits: `LowerImm`
- * holds the two in a union, so this is a bitwise equality either way and `-0.0` never reads as `0.0`.
+ * Two immediates of one type holding one number. They are not shared - `immediate()` in
+ * resolve/lower_type.cpp builds a fresh `Imm` per call, and the fold and the strength reduction each
+ * build their own - so comparing operands by identity alone says that the two `add %frame, 12`s
+ * under two reads of one field are two different computations, which is most of what this pass
+ * exists to collect. The comparison is on the immediate's stored word, which for a floating one is
+ * its bits: `LowerImm` holds the two in a union, so this is a bitwise equality either way and `-0.0`
+ * never reads as `0.0`.
+ *
+ * And two *pure computations* that agree, which is the recursive half and the one the branch fold
+ * and the load unification below both rest on. A checked subscript reached twice writes its index
+ * extension, its scale and its base addition out twice, and the second copy is only recognisable as
+ * the first one once those are compared by what they compute rather than by which instruction
+ * computed them. The walk unifies them where it may, but it may not always - `answerableFrom`
+ * declines a value a loop header computes, and a checked loop's index extension is exactly that -
+ * so a question asked only of the values the walk happened to unify would miss the case it is for.
+ *
+ * The recursion goes through `isRepeatable` only, which is to say through arithmetic and never
+ * through a load. Two loads of one address are the same value only where nothing wrote between them,
+ * and that is a fact about a *path* rather than about the two instructions - `availableLoads` below
+ * is what holds it. Descending into one here would be asserting it without having asked.
  */
-bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue> second) {
+bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue> second,
+                 Size depth = 0)
+{
     if(first == second) return true;
     if(!first || !second) return false;
 
@@ -25,9 +54,15 @@ bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue
 
     auto left = a->inst();
     auto right = b->inst();
-    if(left->kind != LowerInst::Imm || right->kind != LowerInst::Imm) return false;
 
-    return ((LowerImm*)left)->i == ((LowerImm*)right)->i;
+    if(left->kind == LowerInst::Imm && right->kind == LowerInst::Imm) {
+        return ((LowerImm*)left)->i == ((LowerImm*)right)->i;
+    }
+
+    if(depth >= kMaxOperandDepth) return false;
+    if(!isRepeatable(left) || !isRepeatable(right)) return false;
+
+    return sameComputation(base, left, right, depth + 1);
 }
 
 // Commutative in the sense this pass needs: the operands may be compared as a pair rather than in
@@ -52,7 +87,7 @@ bool isCommutative(LowerInst* inst) {
  * produce two different numbers. `skipsExtend` is deliberately *not* compared - it is the backend's
  * note to itself about an encoding and is zero everywhere this pass can be reached from.
  */
-bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b) {
+bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0) {
     if(a->kind != b->kind) return false;
 
     auto left = ((LowerInstSingle*)a)->created().ptr;
@@ -60,8 +95,20 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b) {
     if(left->type != right->type) return false;
 
     auto same = [&](LowerPtr<LowerValue> x, LowerPtr<LowerValue> y) {
-        return sameOperand(base, x, y);
+        return sameOperand(base, x, y, depth);
     };
+
+    // A load says which storage it reads in its width and its signedness as well as in its address,
+    // and two that disagree about either are two different numbers out of the same bytes. Whether
+    // the storage still holds what the first one read is not asked here - see `availableLoads`.
+    if(a->kind == LowerInst::Load) {
+        auto loadA = (LowerInstLoad*)a;
+        auto loadB = (LowerInstLoad*)b;
+
+        if(loadA->getWidth() != loadB->getWidth()) return false;
+        if(loadA->isSigned() != loadB->isSigned()) return false;
+        return same(loadA->from, loadB->from);
+    }
 
     if(a->kind == LowerInst::Cast) {
         auto castA = (LowerInstCast*)a;
@@ -143,6 +190,33 @@ bool costsARegister(LowerInst* inst) {
 }
 
 /*
+ * Whether this may have written storage some earlier load read.
+ *
+ * The whole memory model this pass has, and it is deliberately the coarsest one: any write retires
+ * every load in scope rather than the loads that could alias it. There is no place information at
+ * this tier - a `Load` names an address that arithmetic produced, and two addresses are the same
+ * question this pass is being asked rather than one it can answer - so an alias rule here would be
+ * either "the same address" (which is already the unification test) or a guess.
+ *
+ * A call retires them because a callee may write anything it was handed, and a *syscall* does too,
+ * which is the one place this and `costsARegister` disagree: the kernel keeping its argument
+ * registers says nothing about what it does to memory, and `read` into a buffer is a write. It costs
+ * nothing here - the syscall that sits between every check and the one below it is an abort arm, a
+ * block with no successors, so it is never on a path between two loads.
+ */
+bool writesStorage(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Store:
+        case LowerInst::Copy:
+        case LowerInst::SetPattern:
+        case LowerInst::Call:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
  * A value a loop *header* computes, answered from anywhere but that header - declined, and this is
  * the rule the whole difference between the pass paying and costing turns on.
  *
@@ -187,8 +261,11 @@ struct Eliminator {
     // other way round, which is the direction a walk needs.
     ArrayList<BlockIndex, 4> children;
 
-    // Per block and indexed by postorder offset: whether it contains a call worth not crossing.
+    // Per block and indexed by postorder offset: whether it contains a call worth not crossing, and
+    // whether it writes storage at all. Two questions rather than one because the two lists below
+    // are retired on different events - see `writesStorage`.
     SmallArray<bool, 64> calls;
+    SmallArray<bool, 64> writes;
 
     /*
      * The computations on the path from the entry to the block being visited. Every one of them
@@ -201,11 +278,28 @@ struct Eliminator {
     SmallArray<LowerPtr<LowerInst>, 32> available;
     Size retired = 0;
 
+    /*
+     * The same for the loads, kept apart from the computations because what retires the two is not
+     * the same event.
+     *
+     * A computation survives anything but a call it would have to be held across; a load survives
+     * only until something writes storage, which a store does and a call does too. Held in one list
+     * with the wider watermark, every load a store retired would take the arithmetic in front of it
+     * with it - and the arithmetic is the larger half of what this pass collects.
+     */
+    SmallArray<LowerPtr<LowerInst>, 32> loads;
+    Size loadsRetired = 0;
+
     // Everything that could run between a block's immediate dominator and the block itself. A path
     // to here goes through that dominator by definition, so anything reachable backwards from a
     // predecessor without passing it is on such a path - and a loop header finds its own body,
     // because the latch is one of its predecessors.
-    bool callBetween(BlockIndex postIndex) {
+    //
+    // Both questions are answered by one walk, since the walk is the expensive part and the two
+    // differ only in which flag they read.
+    struct Between { bool call = false; bool write = false; };
+
+    Between between(BlockIndex postIndex) {
         SmallArray<BlockIndex, 32> pending;
         SmallArray<bool, 64> seen;
         for(Size i = 0; i < dominance.postorder.size(); i++) seen.push(false);
@@ -221,26 +315,87 @@ struct Eliminator {
         auto block = base[fun.blocks.get(base, dominance.postorder[postIndex])];
         for(auto pred: block->incoming.contents(base)) reach(base[pred]->postIndex);
 
+        Between found;
         while(pending.size()) {
             auto at = pending.pop().unwrap();
-            if(calls[at]) return true;
+            if(calls[at]) found.call = true;
+            if(writes[at]) found.write = true;
+            if(found.call && found.write) return found;
 
             for(auto pred: base[fun.blocks.get(base, dominance.postorder[at])]->incoming.contents(base)) {
                 reach(base[pred]->postIndex);
             }
         }
 
-        return false;
+        return found;
     }
 
+    /*
+     * What a branch above this block has already decided, one entry per arm the walk is inside.
+     *
+     * Pushed when the walk descends from a block into a dominator-tree child that is one of its two
+     * successors *and has no other predecessor*: every path that reaches the child left the parent
+     * by that edge, so the parent's question has one answer for the whole of the child's subtree.
+     * That is the whole of the reasoning, and the one-predecessor test is what makes it sound - a
+     * child reached from elsewhere as well is reached on a path the branch says nothing about.
+     */
+    struct BranchFact {
+        LowerPtr<LowerInst> cmp;
+        bool holds;
+    };
+
+    SmallArray<BranchFact, 16> facts;
+
+    // A branch whose answer is already known, and the successor it therefore always takes. Applied
+    // after the walk rather than during it, so that the dominator tree the walk is reading stays the
+    // tree the function has - see `eliminateCommonValues`.
+    struct DecidedBranch {
+        LowerPtr<LowerBlock> block;
+        bool takesThen;
+    };
+
+    SmallArray<DecidedBranch, 8> decided;
+
     bool changed = false;
+
+    /*
+     * Whether this block's branch asks a question the walk is already inside the answer to.
+     *
+     * The comparison is by what is computed rather than by which value computes it, which is the
+     * point: the second bounds check of one index against one length is written as a second `cmp` of
+     * a second sign extension, and no earlier pass unified either - `answerableFrom` declines the
+     * extension because a checked loop computes it in its header, and `answerableAcrossBlocks`
+     * declines the comparison because a `cmp` read from another block has to be materialized. So the
+     * two are the same check and are not the same value, and only `sameComputation` says so.
+     */
+    Maybe<bool> decidedBranch(LowerBlock* block) {
+        if(!block->terminator) return Nothing();
+
+        auto terminator = base[block->terminator];
+        if(terminator->kind != LowerInst::Je) return Nothing();
+
+        auto condition = base[((LowerInstJe*)terminator)->cond]->inst();
+        if(condition->kind != LowerInst::Cmp) return Nothing();
+
+        for(Size i = facts.size(); i-- > 0;) {
+            auto known = base[facts[i].cmp];
+            if(sameComputation(base, known, condition)) return Just(facts[i].holds);
+        }
+
+        return Nothing();
+    }
 
     void run(BlockIndex postIndex) {
         auto scope = available.size();
         auto retiredScope = retired;
+        auto loadScope = loads.size();
+        auto loadsRetiredScope = loadsRetired;
+        auto factScope = facts.size();
         auto block = base[fun.blocks.get(base, dominance.postorder[postIndex])];
 
-        if(callBetween(postIndex)) retired = available.size();
+        auto crossed = between(postIndex);
+        if(crossed.call) retired = available.size();
+        if(crossed.write) loadsRetired = loads.size();
 
         // Inline: one of these per block, holding the instructions of that block while the list it
         // came from is rewritten - the same shape as foldFunctionConstants, and for the same reason.
@@ -251,25 +406,30 @@ struct Eliminator {
             auto inst = base[instPtr];
 
             if(costsARegister(inst)) retired = available.size();
+            if(writesStorage(inst)) loadsRetired = loads.size();
 
-            if(!isRepeatable(inst)) {
+            auto isLoad = inst->kind == LowerInst::Load;
+            if(!isLoad && !isRepeatable(inst)) {
                 kept.push(instPtr);
                 continue;
             }
 
+            auto& pool = isLoad ? loads : available;
+            auto floor = isLoad ? loadsRetired : retired;
+
             LowerPtr<LowerInst> existing = nullptr;
-            for(Size i = available.size(); i-- > retired;) {
-                auto candidate = base[available[i]];
+            for(Size i = pool.size(); i-- > floor;) {
+                auto candidate = base[pool[i]];
                 if(!sameComputation(base, candidate, inst)) continue;
                 if(!answerableAcrossBlocks(inst) && candidate->block != inst->block) continue;
                 if(!answerableFrom(base, loops, candidate, inst)) continue;
 
-                existing = available[i];
+                existing = pool[i];
                 break;
             }
 
             if(!existing) {
-                available.push(instPtr);
+                pool.push(instPtr);
                 kept.push(instPtr);
                 continue;
             }
@@ -287,12 +447,108 @@ struct Eliminator {
             for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
         }
 
-        for(auto child: children[postIndex]) run(child);
+        if(auto known = decidedBranch(block)) decided.push(DecidedBranch { block - base, known.unwrap() });
+
+        for(auto child: children[postIndex]) {
+            auto pushed = pushFact(block, base[fun.blocks.get(base, dominance.postorder[child])]);
+            run(child);
+            if(pushed) facts.pop();
+        }
 
         while(available.size() > scope) available.pop();
+        while(loads.size() > loadScope) loads.pop();
+        while(facts.size() > factScope) facts.pop();
         retired = retiredScope;
+        loadsRetired = loadsRetiredScope;
+    }
+
+    // See `facts`. The child has to be one of the two arms and to be reachable through no other
+    // edge, which together say that every path into it took that arm.
+    bool pushFact(LowerBlock* block, LowerBlock* child) {
+        if(!block->terminator || base[block->terminator]->kind != LowerInst::Je) return false;
+        if(child->incoming.size() != 1) return false;
+
+        auto je = (LowerInstJe*)base[block->terminator];
+        auto condition = base[je->cond]->inst();
+        if(condition->kind != LowerInst::Cmp) return false;
+
+        auto holds = je->then == child - base;
+        if(!holds && je->otherwise != child - base) return false;
+
+        facts.push(BranchFact { condition - base, holds });
+        return true;
     }
 };
+
+// Taking a block that nothing reaches out of the function. It has no successors - see the caller,
+// which is the only one and only offers such a block - so there is no edge to unpick and no phi
+// anywhere reading an alternative from it. Renumbering is not optional: `index` is a position in
+// this list and half the analyses index arrays by it.
+void removeBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
+    for(auto instPtr: block->instructions.contents(base)) detach(base, base[instPtr]);
+    if(block->terminator) detach(base, base[block->terminator]);
+
+    for(Size i = 0; i < fun.blocks.size(); i++) {
+        if(fun.blocks.get(base, i) != block - base) continue;
+
+        fun.blocks.remove(base, i);
+        break;
+    }
+
+    for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
+}
+
+/*
+ * Turning a branch whose answer is known into the jump it always was.
+ *
+ * The arm being dropped has to be a block **control never leaves** - an abort arm, or a `ret`. That
+ * is a narrowing rather than the general rule, and it is what keeps this to the one thing it has to
+ * do. A dropped arm with successors of its own can leave a whole region unreachable, and the x64
+ * block ordering asserts that no such region exists (`assertTrue(postorder.size() == fun.blocks.size())`
+ * in codegen/x64/transform.cpp), so anything more general owes a reachability sweep and a repair for
+ * every phi in what it disconnected. A block with no outgoing edges owes neither: nothing names it
+ * but the branch above, so once that branch stops naming it, it is gone.
+ *
+ * Which is exactly the shape the pass is for. A bounds check that a dominating check already decided
+ * is a `je` whose other arm is a syscall and an `unreachable`, and there are two of those in every
+ * loop that reads one element twice.
+ */
+bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun,
+                    LowerBlock* block, bool takesThen)
+{
+    auto je = (LowerInstJe*)base[block->terminator];
+    auto taken = takesThen ? je->then : je->otherwise;
+    auto dropped = takesThen ? je->otherwise : je->then;
+
+    auto droppedBlock = base[dropped];
+    if(droppedBlock->outgoing[0] || droppedBlock->outgoing[1]) return false;
+
+    // Unwired by hand rather than through `addInst`, which records an edge instead of replacing one
+    // and refuses a successor that already names this block - and the taken one does, since it is
+    // keeping the edge it already had. Leaving that edge alone is also what keeps the taken block's
+    // phis reading the alternative they were built with.
+    detach(base, je);
+    block->terminator = nullptr;
+    block->outgoing[0] = nullptr;
+    block->outgoing[1] = nullptr;
+
+    for(Size i = 0; i < droppedBlock->incoming.size(); i++) {
+        if(droppedBlock->incoming.get(base, i) != block - base) continue;
+
+        droppedBlock->incoming.remove(base, i);
+        break;
+    }
+
+    auto jmp = new (arena) LowerInstJmp(taken);
+    jmp->block = block - base;
+    block->terminator = (LowerInst*)jmp - base;
+    block->outgoing[0] = taken;
+
+    // And the arm itself, once nothing reaches it. Its instructions stop counting as readers of what
+    // they read, so the sweep behind this pass can collect whatever they were the last use of.
+    if(droppedBlock->incoming.isEmpty()) removeBlock(base, fun, droppedBlock);
+    return true;
+}
 
 } // namespace
 
@@ -313,17 +569,26 @@ void eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& f
         auto block = base[fun.blocks.get(base, eliminator.dominance.postorder[i])];
 
         auto hasCall = false;
+        auto hasWrite = false;
         for(auto instPtr: block->instructions.contents(base)) {
-            if(costsARegister(base[instPtr])) { hasCall = true; break; }
+            if(costsARegister(base[instPtr])) hasCall = true;
+            if(writesStorage(base[instPtr])) hasWrite = true;
         }
 
         eliminator.calls.push(hasCall);
+        eliminator.writes.push(hasWrite);
         if(i == eliminator.dominance.startIndex) continue;
 
         eliminator.children[eliminator.dominance.tree[i]].push(i);
     }
 
     eliminator.run(eliminator.dominance.startIndex);
+
+    for(auto& branch: eliminator.decided) {
+        if(takeDecidedArm(base, module.arena, fun, base[branch.block], branch.takesThen)) {
+            eliminator.changed = true;
+        }
+    }
 
     if(eliminator.changed) removeDeadValues(base, module.arena, fun);
 }

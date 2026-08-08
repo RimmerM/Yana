@@ -561,6 +561,25 @@ LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, Lo
     return materialize(base, module, block, foldBinaryValue(base, kind, lhs, rhs, type), type, name);
 }
 
+// The other operand of a float multiply by exactly two, or nothing. Exactly two: the bit pattern is
+// compared rather than the value, so no other power of two and no `-2.0` reaches this - the sign bit
+// makes the doubling a subtraction from zero, which `x + x` is not.
+Maybe<LowerPtr<LowerValue>> foldFloatDoubling(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Mul) return Nothing();
+
+    auto binary = (LowerInstBinary*)inst;
+    if(!isFloat(binary->result.type)) return Nothing();
+
+    auto isTwo = [&](LowerPtr<LowerValue> operand) {
+        auto value = base[operand]->inst();
+        return value->kind == LowerInst::Imm && ((LowerImm*)value)->f == 2.0;
+    };
+
+    if(isTwo(binary->rhs)) return Just(binary->lhs);
+    if(isTwo(binary->lhs)) return Just(binary->rhs);
+    return Nothing();
+}
+
 void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& fun) {
     auto changed = true;
 
@@ -593,6 +612,41 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                  * every other rewrite here replaces the instruction it folded, so this is the only
                  * one that can leave a computation standing with nothing reading it.
                  */
+                /*
+                 * A float doubled is a float added to itself, which is exact for every value it can
+                 * hold - including the infinities, the NaNs and both zeroes, since the two are the
+                 * same operation on the same exponent and `x + x` never rounds.
+                 *
+                 * Worth a rewrite rather than an encoding note because of what it takes *away*. The
+                 * multiply needs the constant 2.0 in a vector register, this backend has no constant
+                 * pool to load one from (see `emitFloatImm`), and a loop that doubles something on
+                 * every iteration therefore holds a whole xmm register for the literal from the
+                 * function's entry to its exit - plus a `movaps` at the multiply, since the operation
+                 * is two-address and the constant has to survive. `escape` in
+                 * test/bench/programs/Float.yana is the measured case: `2.0 * x * y` in its inner
+                 * loop is what the register and the copy were being spent on.
+                 */
+                if(auto doubled = foldFloatDoubling(base, inst)) {
+                    auto value = base[doubled.unwrap()];
+                    auto result = ((LowerInstSingle*)inst)->created().ptr;
+                    auto sum = new (module.arena) LowerInstBinary(result->name, result->type,
+                                                                 doubled.unwrap(), doubled.unwrap(),
+                                                                 LowerInst::Add);
+
+                    sum->block = blockPtr;
+                    sum->source = inst->source;
+                    value->uses.push(module.arena, (LowerInst*)sum - base);
+                    value->uses.push(module.arena, (LowerInst*)sum - base);
+
+                    detach(base, inst);
+                    replaceUses(base, module.arena, result - base, &sum->result - base);
+                    kept.push((LowerInst*)sum - base);
+
+                    rewrote = true;
+                    changed = true;
+                    continue;
+                }
+
                 Narrowed narrowed;
                 if(narrowComparison(base, inst, narrowed)) {
                     auto compare = (LowerInstCmp*)inst;

@@ -58,7 +58,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8f5ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8dbffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: liveAcrossCall ---
@@ -67,7 +67,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->rbx]  => 8bdf
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 8bfbe8eaffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 8bfbe8c6ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 5bc3
 
@@ -78,7 +78,7 @@ block #0:
 block #1:
   x86_pusharg uses=[rsi] creates=[-]  => 48893424
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8caffffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8b1ffffff
   ret uses=[rax] creates=[]  => 4883c408c3
 
 --- codegen: sysCall ---

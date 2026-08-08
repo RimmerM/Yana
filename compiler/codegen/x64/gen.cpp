@@ -1008,7 +1008,16 @@ struct Emitter {
             auto& immOp = field(regs, e.immField);
             assertTrue(immOp.isImmediate);
             assertTrue(fitsImmediate(form.immediateWidth(), immOp.immediate)); // a wider constant needs a register
-            to.buffer.writeInt<LittleEndian>(U32(immOp.immediate));
+
+            // As wide as the access rather than as wide as the number - see `immediateBytes`. The
+            // narrow widths truncate, which is what the store does anyway; the 64-bit one writes
+            // four bytes the processor sign-extends, which is what Imm32 above is the constraint for.
+            switch(e.immediateBytes) {
+                case 1: to.buffer.writeByte(U8(immOp.immediate)); break;
+                case 2: to.buffer.writeShort<LittleEndian>(U16(immOp.immediate)); break;
+                case 4: to.buffer.writeInt<LittleEndian>(U32(immOp.immediate)); break;
+                default: assertTrue("no store encoding carries an immediate of this width" == nullptr);
+            }
         }
     }
 
@@ -1170,8 +1179,18 @@ struct Emitter {
             bits = narrow;
         }
 
+        // Positive zero is the one pattern that needs neither register nor bank crossing: `xorps`
+        // against itself clears the whole vector, which is one two-byte instruction where the pair
+        // below is ten. Negative zero is *not* this - its sign bit is set - and the bit test says so
+        // rather than a comparison against 0.0, which would read the two as equal.
+        auto destination = reg(regs.creates[0]);
+        if(bits == 0) {
+            genRegReg(to, false, destination, destination, 0x57, 0x0f); // xorps xmm, xmm
+            return;
+        }
+
         genMovImmValue(to, is64, bits, scratch);
-        emitMoveAcrossBanks(reg(regs.creates[0]), scratch, is64, true);
+        emitMoveAcrossBanks(destination, scratch, is64, true);
     }
 
     // Negation. The sign bit is toggled in a general register rather than exclusive-ored against a
@@ -1663,7 +1682,6 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 
     // The prologue belongs to the function rather than to any instruction in it, so it is reported
     // with a null instruction (see InstEmitCallback) and only when it emitted something. Its
-    // counterpart is emitted by the return pseudo, where it falls inside the terminator's byte range.
     auto prologueStart = U32(to.buffer.offset());
     genPrologue(to, frame);
 

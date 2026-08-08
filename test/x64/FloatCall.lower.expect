@@ -91,7 +91,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c88bf7e8edffffff
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[xmm0->xmm1, rdi->rsi]  => 0f28c88bf7e8e2ffffff
   ret uses=[xmm0] creates=[]  => 4883c408c3
 
 --- codegen: win64Callee ---
@@ -109,7 +109,7 @@ block #0:
 block #1:
   x86_pusharg uses=[xmm1] creates=[-]  => f20f114c2420
   fun uses=[] creates=[-]  => 
-  call_win64 uses=[-, rcx, xmm1, r8, xmm3, -] creates=[xmm0] pre=[rcx->r8, xmm1->xmm3]  => 448bc10f28d9e8d4ffffff
+  call_win64 uses=[-, rcx, xmm1, r8, xmm3, -] creates=[xmm0] pre=[rcx->r8, xmm1->xmm3]  => 448bc10f28d9e8c6ffffff
   ret uses=[xmm0] creates=[]  => 4883c438c3
 
 --- codegen: manyArgs ---
@@ -130,7 +130,7 @@ block #1:
   x86_pusharg uses=[xmm1] creates=[-]  => f20f114c2408
   x86_pusharg uses=[xmm0] creates=[-]  => f30f110424
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, xmm0, xmm1, xmm2, -, -] creates=[xmm0] pre=[xmm0->xmm1, xmm0->xmm2]  => 0f28c80f28d0e8c3ffffff
+  call_simple uses=[-, xmm0, xmm1, xmm2, -, -] creates=[xmm0] pre=[xmm0->xmm1, xmm0->xmm2]  => 0f28c80f28d0e8b6ffffff
   ret uses=[xmm0] creates=[]  => 4883c410c3
 
 --- codegen: acrossSysvCall ---
@@ -141,7 +141,7 @@ block #1:
   fun uses=[] creates=[-]  => 
   imm uses=[] creates=[remat:0]  => 
   imm uses=[] creates=[remat:1]  => 
-  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, remat:0->rdi, stack:0->xmm1, remat:1->rsi]  => f20f100424bf00000000f20f100c24be00000000e853ffffff
+  call_sysv uses=[-, xmm0, rdi, xmm1, rsi] creates=[xmm0] pre=[stack:0->xmm0, remat:0->rdi, stack:0->xmm1, remat:1->rsi]  => f20f100424bf00000000f20f100c24be00000000e81effffff
   add uses=[xmm0, stack:0] creates=[xmm0]  => f20f580424
   ret uses=[xmm0] creates=[]  => 4883c408c3
 
@@ -151,7 +151,7 @@ block #0:
   jmp uses=[] creates=[] pre=[xmm1->xmm3]  => 0f28d9
 block #1:
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, xmm0] creates=[xmm0]  => e80d000000
+  call_simple uses=[-, xmm0] creates=[xmm0]  => e810000000
   add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
   ret uses=[xmm0] creates=[]  => 0f101c244883c410c3
 

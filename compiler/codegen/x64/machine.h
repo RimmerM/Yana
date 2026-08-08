@@ -478,6 +478,13 @@ struct EncodingDescriptor {
     // place, which is a property of the value rather than of the prefix that names it.
     bool widthInPrefix = false;
 
+    // How many bytes of the immediate the LoadStore family writes after the address. The other
+    // families take the width from the value - one byte or four, according to which opcode was
+    // chosen - but a store's immediate is as wide as the *access* rather than as wide as the number,
+    // so `movb $0, [rax]` carries one byte and `movq $0, [rax]` carries four regardless of what is
+    // being stored. Zero for the forms that carry no immediate at all.
+    U8 immediateBytes = 0;
+
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     bool omitWhenSame = false; // emits nothing when source and destination are already the same register
 

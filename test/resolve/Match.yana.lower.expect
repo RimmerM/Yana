@@ -102,57 +102,55 @@ nested<complex>(%m: Ptr): Int {
   }
 
   b_4 {
-    %v_5 = load %m, 1: Long
-    %v_6 = cmp_le %v_5, 2: Int
-    je %v_6, b_7, b_8
+    %v_5 = cmp_le %v_1, 2: Int
+    je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_9 = load %m, 1: Int
-    %v_10 = cast %v_9: Int
-    %v_11 = cmp_eq %v_10, 0: Int
-    je %v_11, b_12, b_4
+    %v_8 = load %m, 1: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_4
   }
 
-  b_12 {
-    jmp b_13
-  }
-
-  b_8 {
-    %v_14 = load %m, 1: Long
-    %v_15 = cmp_le %v_14, 2: Int
-    je %v_15, b_16, b_17
+  b_11 {
+    jmp b_12
   }
 
   b_7 {
-    %v_18 = load %m, 1: Int
-    %v_19 = cast %v_18: Int
-    %v_20 = cmp_eq %v_19, 1: Int
-    je %v_20, b_21, b_8
+    %v_13 = cmp_le %v_1, 2: Int
+    je %v_13, b_14, b_15
   }
 
-  b_21 {
-    jmp b_13
+  b_6 {
+    %v_16 = load %m, 1: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_7
   }
 
-  b_17 {
-    jmp b_13
+  b_19 {
+    jmp b_12
   }
 
-  b_16 {
-    %v_22 = load %m, 1: Int
-    %v_23 = cast %v_22: Int
-    %v_24 = cmp_eq %v_23, 2: Int
-    je %v_24, b_25, b_17
+  b_15 {
+    jmp b_12
   }
 
-  b_25 {
-    jmp b_13
+  b_14 {
+    %v_20 = load %m, 1: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = cmp_eq %v_21, 2: Int
+    je %v_22, b_23, b_15
   }
 
-  b_13 {
-    %v_26 = phi [b_12, 1], [b_21, 2], [b_25, 3], [b_17, 0]: Int
-    ret %v_26
+  b_23 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_24 = phi [b_11, 1], [b_19, 2], [b_23, 3], [b_15, 0]: Int
+    ret %v_24
   }
 }
 
@@ -228,32 +226,31 @@ firstOrRest<complex>(%m: Ptr): Int {
   }
 
   b_4 {
-    %v_9 = load %m, 1: Long
-    %v_10 = cmp_le %v_9, 2: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    jmp b_13
+    %v_9 = cmp_le %v_1, 2: Int
+    je %v_9, b_10, b_11
   }
 
   b_11 {
+    jmp b_12
+  }
+
+  b_10 {
     %rest = load %m, 1: Int
-    %v_14 = cast %rest: Int
-    %v_15 = cmp_eq %v_14, 0: Int
-    %v_16 = cmp_eq %v_14, 1: Int
-    %v_17 = select 2, 3, %v_16: Int
-    %v_18 = select 1, %v_17, %v_15: Int
-    jmp b_13
+    %v_13 = cast %rest: Int
+    %v_14 = cmp_eq %v_13, 0: Int
+    %v_15 = cmp_eq %v_13, 1: Int
+    %v_16 = select 2, 3, %v_15: Int
+    %v_17 = select 1, %v_16, %v_14: Int
+    jmp b_12
   }
 
   b_8 {
-    jmp b_13
+    jmp b_12
   }
 
-  b_13 {
-    %v_19 = phi [b_8, 10], [b_11, %v_18], [b_12, 0]: Int
-    ret %v_19
+  b_12 {
+    %v_18 = phi [b_8, 10], [b_10, %v_17], [b_11, 0]: Int
+    ret %v_18
   }
 }
 

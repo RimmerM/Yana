@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdlib.h>
 #include "Net/Buffer.h"
 #include "Net/Stream.h"
 #include "../../lower/lower_inst.h"
@@ -1157,14 +1158,50 @@ struct AsmModule {
      * would point the reader at the wrong word. The padding that *is* allowed goes before them, and
      * is what keeps the prefix - and so the entry point - on a sensible boundary after whatever the
      * previous function's last instruction left behind.
+     *
+     * Every entry point is put on a sixteen-byte boundary, which is what every other x86-64 toolchain
+     * does and what this did not: functions used to be packed end to end, so a function's address -
+     * and with it the alignment of every loop inside it - was decided by the total size of everything
+     * emitted before it. That is a cost twice over. It is a *measurement* hazard, and the one
+     * test/bench/README.md's caution about padding is about: a change that shrinks one function moves
+     * every function below it, and a hot loop that lands across a 32-byte boundary differently is
+     * worth up to 40% on its own, so an improvement and a regression are indistinguishable. And it is
+     * a cost in itself, since which side of a boundary an entry point falls on is then arbitrary
+     * rather than chosen. The padding is the same trapping byte the process entry uses.
      */
     void startFunction(LowerBase base, LowerFunction* fun) {
-        if(fun->prefix) {
-            while(buffer.offset() & 15) buffer.writeByte(0);
-            emitData(base, base[fun->prefix]);
-        }
+        // The prefix is what the padding is measured back from, since the entry point is what has to
+        // land on the boundary and the prefix is glued to the front of it.
+        auto prefix = fun->prefix ? base[fun->prefix]->initialContents.size() : 0;
+        auto mask = U64(functionAlignment()) - 1;
+        while((buffer.offset() + prefix) & mask) buffer.writeByte(0xcc);
 
+        if(fun->prefix) emitData(base, base[fun->prefix]);
         functionOffsets.add(fun, U32(buffer.offset()));
+    }
+
+    /*
+     * The boundary above, and the one control that makes a timing comparison mean anything.
+     *
+     * Sixteen is the answer, and is what every other x86-64 toolchain uses. `YANA_FUNC_ALIGN` raises
+     * it, and exists for exactly one purpose: **a measurement**. Padded to a boundary wider than any
+     * function in the image, every function lands at a fixed multiple of it whatever the ones in
+     * front of it are - so a change that alters one function's size cannot move another, and the
+     * difference between two runs is the change rather than where the change pushed everything else.
+     *
+     * That is not a small correction. test/bench/README.md's caution about it was written before
+     * this existed and understates it: on the corpus, a fold that removed two bounds checks from
+     * `direct` in Pipeline.yana and touched no other byte of the program measured **+28 ms** on the
+     * whole program and **-1 ms** on `direct` itself, purely because the 45 bytes it saved moved every
+     * function below it. Rank a change with `YANA_FUNC_ALIGN=256` and read the ordinary build for
+     * what actually ships.
+     */
+    static U32 functionAlignment() {
+        auto set = getenv("YANA_FUNC_ALIGN");
+        if(!set) return 16;
+
+        auto value = U32(atoi(set));
+        return value >= 16 && (value & (value - 1)) == 0 ? value : 16;
     }
 
     // Appends a global's data to the buffer and records the offset its address-loads resolve to.

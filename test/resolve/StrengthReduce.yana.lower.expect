@@ -561,33 +561,27 @@ main<complex>(): Int {
     %v_103 = call_complex signedLong, %v_102: Int
     %v_104 = add %v_33, %v_103: Int
     %v_105 = cast %v_36: Long
-    %v_106 = cmp_ge %v_105, 12: Int
-    je %v_106, b_107, b_34
+    jmp b_34
   }
 
   b_34 {
-    %v_108 = cast %v_105: Long
-    %v_109 = shl %v_108, 3: Long
-    %v_110 = add %longs, %v_109: Ptr
-    %v_111 = loads %v_110, 8: Long
-    %v_112 = shl %v_111, 3: Long
+    %v_106 = cast %v_105: Long
+    %v_107 = shl %v_106, 3: Long
+    %v_108 = add %longs, %v_107: Ptr
+    %v_109 = loads %v_108, 8: Long
+    %v_110 = shl %v_109, 3: Long
+    %v_111 = cmp_eq %v_110, %v_110: Int
+    %v_112 = shl %v_109, 10: Long
     %v_113 = cmp_eq %v_112, %v_112: Int
-    %v_114 = shl %v_111, 10: Long
-    %v_115 = cmp_eq %v_114, %v_114: Int
-    %v_116 = select %v_115, %v_113, %v_113: Int
-    %v_117 = select 1, 0, %v_116: Int
-    %v_35 = add %v_104, %v_117: Int
+    %v_114 = select %v_113, %v_111, %v_111: Int
+    %v_115 = select 1, 0, %v_114: Int
+    %v_35 = add %v_104, %v_115: Int
     %v_37 = add %v_36, 1: Int
     jmp b_32
   }
 
-  b_107 {
-    %v_118 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_97 {
-    %v_119 = syscall 60, 134: Long
+    %v_116 = syscall 60, 134: Long
     unreachable 
   }
 }

@@ -278,104 +278,103 @@ resize(U8)<complex>(%self: Ptr, %wanted: Int): Int {
   }
 
   b_8 {
-    %v_9 = load %v_1, 4: Long
-    %v_10 = shr %v_9, 30: Long
+    %v_9 = shr %v_2, 30: Long
+    %v_10 = cast %v_9: Int
     %v_11 = cast %v_10: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cmp_eq %v_12, 2: Int
-    je %v_13, b_14, b_15
+    %v_12 = cmp_eq %v_11, 2: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 0
   }
 
   b_14 {
-    ret 0
+    jmp b_15
   }
 
   b_15 {
-    jmp b_16
+    %v_16 = cmp_igt %wanted, 1073741823: Int
+    je %v_16, b_17, b_18
   }
 
-  b_16 {
-    %v_17 = cmp_igt %wanted, 1073741823: Int
-    je %v_17, b_18, b_19
+  b_17 {
+    ret 0
   }
 
   b_18 {
-    ret 0
+    jmp b_19
   }
 
   b_19 {
-    jmp b_20
+    %v_20 = load %self, 8: Ptr
+    %v_21 = call_complex byteSpan(U8), %v_20, %wanted: Long
+    %v_22 = call_complex allocateHeap, %v_21: Ptr
+    %v_23 = bitcast %v_22: Long
+    %v_24 = cmp_eq %v_23, 0: Int
+    je %v_24, b_25, b_26
   }
 
-  b_20 {
-    %v_21 = load %self, 8: Ptr
-    %v_22 = call_complex byteSpan(U8), %v_21, %wanted: Long
-    %v_23 = call_complex allocateHeap, %v_22: Ptr
-    %v_24 = bitcast %v_23: Long
-    %v_25 = cmp_eq %v_24, 0: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_26 {
+  b_25 {
     ret 0
   }
 
-  b_27 {
-    jmp b_28
+  b_26 {
+    jmp b_27
   }
 
-  b_28 {
-    %v_29 = cmp_igt %room, 0: Int
-    je %v_29, b_30, b_31
+  b_27 {
+    %v_28 = cmp_igt %room, 0: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = load %self, 8: Ptr
+    %v_32 = call_complex byteSpan(U8), %v_31, %room: Long
+    copy %v_22, %v_31, %v_32
+    jmp b_33
   }
 
   b_30 {
-    %v_32 = load %self, 8: Ptr
-    %v_33 = call_complex byteSpan(U8), %v_32, %room: Long
-    copy %v_23, %v_32, %v_33
-    jmp b_34
+    jmp b_33
   }
 
-  b_31 {
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = add %self, 8: Ptr
-    %v_36 = load %v_35, 4: Long
-    %v_37 = shr %v_36, 30: Long
+  b_33 {
+    %v_34 = add %self, 8: Ptr
+    %v_35 = load %v_34, 4: Long
+    %v_36 = shr %v_35, 30: Long
+    %v_37 = cast %v_36: Int
     %v_38 = cast %v_37: Int
-    %v_39 = cast %v_38: Int
-    %v_40 = cmp_eq %v_39, 1: Int
-    je %v_40, b_41, b_42
+    %v_39 = cmp_eq %v_38, 1: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_40 {
+    %v_42 = load %self, 8: Ptr
+    call_complex freeHeap, %v_42
+    jmp b_43
   }
 
   b_41 {
-    %v_43 = load %self, 8: Ptr
-    call_complex freeHeap, %v_43
-    jmp b_44
+    jmp b_43
   }
 
-  b_42 {
-    jmp b_44
-  }
-
-  b_44 {
-    store %self, %v_23, 8
-    %v_45 = cast %wanted: Int
-    %v_46 = and %v_45, 1073741823: Int
-    %v_47 = cast %v_46: Int
-    %v_48 = add %self, 8: Ptr
-    %v_49 = load %v_48, 4: Long
-    %v_50 = cast %v_47: Long
-    %v_51 = and %v_50, 1073741823: Long
-    %v_52 = and %v_49, 18446744072635809792: Long
-    %v_53 = or %v_52, %v_51: Long
-    store %v_48, %v_53, 4
-    %v_54 = load %v_48, 4: Long
-    %v_55 = and %v_54, 18446744070488326143: Long
-    %v_56 = or %v_55, 1073741824: Long
-    store %v_48, %v_56, 4
+  b_43 {
+    store %self, %v_22, 8
+    %v_44 = cast %wanted: Int
+    %v_45 = and %v_44, 1073741823: Int
+    %v_46 = cast %v_45: Int
+    %v_47 = add %self, 8: Ptr
+    %v_48 = load %v_47, 4: Long
+    %v_49 = cast %v_46: Long
+    %v_50 = and %v_49, 1073741823: Long
+    %v_51 = and %v_48, 18446744072635809792: Long
+    %v_52 = or %v_51, %v_50: Long
+    store %v_47, %v_52, 4
+    %v_53 = load %v_47, 4: Long
+    %v_54 = and %v_53, 18446744070488326143: Long
+    %v_55 = or %v_54, 1073741824: Long
+    store %v_47, %v_55, 4
     ret 1
   }
 }
@@ -603,21 +602,20 @@ appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
 
   b_21 {
     %v_22 = load %v_10, 8: Ptr
-    %v_23 = load %v_11, 4: Int
-    %v_24 = cast %v_13: Long
-    %v_25 = add %v_22, %v_24: Ptr
-    %v_26 = call_complex byteSpan(U8), %from, %v_8: Long
-    copy %v_25, %from, %v_26
-    %v_27 = cast %wanted: Int
-    %v_28 = and %v_27, 1073741823: Int
-    %v_29 = cast %v_28: Int
-    %v_30 = add %v_10, 12: Ptr
-    store %v_30, %v_29, 4
+    %v_23 = cast %v_13: Long
+    %v_24 = add %v_22, %v_23: Ptr
+    %v_25 = call_complex byteSpan(U8), %from, %v_8: Long
+    copy %v_24, %from, %v_25
+    %v_26 = cast %wanted: Int
+    %v_27 = and %v_26, 1073741823: Int
+    %v_28 = cast %v_27: Int
+    %v_29 = add %v_10, 12: Ptr
+    store %v_29, %v_28, 4
     ret 
   }
 
   b_20 {
-    %v_31 = syscall 60, 134: Long
+    %v_30 = syscall 60, 134: Long
     unreachable 
   }
 

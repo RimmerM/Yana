@@ -30,51 +30,49 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_4 {
-    %v_5 = load %m, 1: Long
-    %v_6 = cmp_le %v_5, 2: Int
-    je %v_6, b_7, b_8
+    %v_5 = cmp_le %v_1, 2: Int
+    je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_9 = load %m, 1: Int
-    %v_10 = cast %v_9: Int
-    %v_11 = cmp_eq %v_10, 0: Int
-    je %v_11, b_12, b_4
+    %v_8 = load %m, 1: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_4
   }
 
-  b_12 {
+  b_11 {
     ret 10
   }
 
-  b_8 {
-    %v_13 = load %m, 1: Long
-    %v_14 = cmp_le %v_13, 2: Int
-    je %v_14, b_15, b_16
-  }
-
   b_7 {
-    %v_17 = load %m, 1: Int
-    %v_18 = cast %v_17: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_8
+    %v_12 = cmp_le %v_1, 2: Int
+    je %v_12, b_13, b_14
   }
 
-  b_20 {
+  b_6 {
+    %v_15 = load %m, 1: Int
+    %v_16 = cast %v_15: Int
+    %v_17 = cmp_eq %v_16, 1: Int
+    je %v_17, b_18, b_7
+  }
+
+  b_18 {
     ret 20
   }
 
-  b_16 {
+  b_14 {
     ret 0
   }
 
-  b_15 {
-    %v_21 = load %m, 1: Int
-    %v_22 = cast %v_21: Int
-    %v_23 = cmp_eq %v_22, 2: Int
-    je %v_23, b_24, b_16
+  b_13 {
+    %v_19 = load %m, 1: Int
+    %v_20 = cast %v_19: Int
+    %v_21 = cmp_eq %v_20, 2: Int
+    je %v_21, b_22, b_14
   }
 
-  b_24 {
+  b_22 {
     ret 30
   }
 }

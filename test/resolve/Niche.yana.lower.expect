@@ -17,40 +17,39 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_7 {
-    %v_9 = load %m, 1: Long
-    %v_10 = cmp_le %v_9, 2: Int
-    je %v_10, b_11, b_12
+    %v_9 = cmp_le %v_1, 2: Int
+    je %v_9, b_10, b_11
   }
 
   b_6 {
-    %v_13 = load %m, 1: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = cmp_eq %v_14, 0: Int
-    je %v_15, b_16, b_7
+    %v_12 = load %m, 1: Int
+    %v_13 = cast %v_12: Int
+    %v_14 = cmp_eq %v_13, 0: Int
+    je %v_14, b_15, b_7
   }
 
-  b_16 {
-    jmp b_8
-  }
-
-  b_12 {
+  b_15 {
     jmp b_8
   }
 
   b_11 {
-    %v_17 = load %m, 1: Int
-    %v_18 = cast %v_17: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_12
+    jmp b_8
   }
 
-  b_20 {
+  b_10 {
+    %v_16 = load %m, 1: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_11
+  }
+
+  b_19 {
     jmp b_8
   }
 
   b_8 {
-    %v_21 = phi [b_4, 0], [b_16, 1], [b_20, 2], [b_12, 3]: Int
-    ret %v_21
+    %v_20 = phi [b_4, 0], [b_15, 1], [b_19, 2], [b_11, 3]: Int
+    ret %v_20
   }
 }
 
@@ -80,19 +79,18 @@ depthOf<complex>(%m: Ptr): Int {
   }
 
   b_6 {
-    %v_12 = load %m, 1: Long
-    %v_13 = cmp_le %v_12, 2: Int
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_7
+    %v_12 = cmp_le %v_1, 2: Int
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_7
   }
 
-  b_15 {
+  b_14 {
     jmp b_8
   }
 
   b_8 {
-    %v_16 = phi [b_4, 100], [b_15, 200], [b_7, %v_11]: Int
-    ret %v_16
+    %v_15 = phi [b_4, 100], [b_14, 200], [b_7, %v_11]: Int
+    ret %v_15
   }
 }
 
