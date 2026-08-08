@@ -26,87 +26,85 @@ flags<complex>(): Int {
     store %v_3, ResolveTest.deferred$0, 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, %v_2, 8
-    %v_5 = add %v_3, 8: Ptr
-    %v_6 = load %v_3, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = alloca 1, 1: Ptr
+    call_complex %v_5, %v_7, %v_6
     %v_8 = alloca 1, 1: Ptr
-    call_complex %v_6, %v_8, %v_7
-    %v_9 = alloca 1, 1: Ptr
-    store %v_9, 0, 1
-    %v_10 = load %v_8, 1: Int
-    %v_11 = and %v_10, 1: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = shr %v_10, 1: Int
-    %v_14 = and %v_13, 1: Int
-    %v_15 = cast %v_14: Int
-    %v_16 = cast %v_12: Int
-    %v_17 = cast %v_15: Int
+    store %v_8, 0, 1
+    %v_9 = load %v_7, 1: Int
+    %v_10 = and %v_9, 1: Int
+    %v_11 = cast %v_10: Int
+    %v_12 = shr %v_9, 1: Int
+    %v_13 = and %v_12, 1: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = cast %v_11: Int
+    %v_16 = and %v_15, 1: Int
+    %v_17 = cast %v_14: Int
     %v_18 = and %v_17, 1: Int
     %v_19 = shl %v_18, 1: Int
-    %v_20 = and %v_16, 1: Int
-    %v_21 = or %v_20, %v_19: Int
-    store %v_9, %v_21, 1
-    %v_22 = call_complex Eq(Flags).==, %v_9, %r: Int
-    je %v_22, b_23, b_24
+    %v_20 = or %v_16, %v_19: Int
+    store %v_8, %v_20, 1
+    %v_21 = call_complex Eq(Flags).==, %v_8, %r: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_22 {
+    jmp b_23
   }
 
   b_23 {
-    jmp b_24
-  }
-
-  b_24 {
-    %v_25 = phi [b_0, 0], [b_23, 256]: Int
-    %v_26 = alloca 1, 1: Ptr
-    store %v_26, 0, 1
+    %v_24 = phi [b_0, 0], [b_22, 256]: Int
+    %v_25 = alloca 1, 1: Ptr
+    store %v_25, 0, 1
     %rw = alloca 1, 1: Ptr
     copy %rw, %rw, 1
-    copy %v_26, %rw, 1
-    %v_27 = alloca 16, 8: Ptr
-    store %v_27, ResolveTest.deferred$1, 8
-    %v_28 = add %v_27, 8: Ptr
-    store %v_28, %v_26, 8
-    %v_29 = add %v_27, 8: Ptr
-    %v_30 = load %v_27, 8: Ptr
-    %v_31 = load %v_29, 8: Ptr
-    %v_32 = alloca 1, 1: Ptr
-    call_complex %v_30, %v_32, %v_31
-    %v_33 = alloca 1, 1: Ptr
-    store %v_33, 0, 1
-    %v_34 = load %v_32, 1: Int
-    %v_35 = shr %v_34, 1: Int
-    %v_36 = and %v_35, 1: Int
-    %v_37 = cast %v_36: Int
-    %v_38 = cast %v_37: Int
-    %v_39 = and %v_38, 1: Int
-    %v_40 = shl %v_39, 1: Int
-    %v_41 = or %v_40, 1: Int
-    store %v_33, %v_41, 1
-    %v_42 = call_complex Eq(Flags).==, %v_33, %rw: Int
-    je %v_42, b_43, b_44
+    copy %v_25, %rw, 1
+    %v_26 = alloca 16, 8: Ptr
+    store %v_26, ResolveTest.deferred$1, 8
+    %v_27 = add %v_26, 8: Ptr
+    store %v_27, %v_25, 8
+    %v_28 = load %v_26, 8: Ptr
+    %v_29 = load %v_27, 8: Ptr
+    %v_30 = alloca 1, 1: Ptr
+    call_complex %v_28, %v_30, %v_29
+    %v_31 = alloca 1, 1: Ptr
+    store %v_31, 0, 1
+    %v_32 = load %v_30, 1: Int
+    %v_33 = shr %v_32, 1: Int
+    %v_34 = and %v_33, 1: Int
+    %v_35 = cast %v_34: Int
+    %v_36 = cast %v_35: Int
+    %v_37 = and %v_36, 1: Int
+    %v_38 = shl %v_37, 1: Int
+    %v_39 = or %v_38, 1: Int
+    store %v_31, %v_39, 1
+    %v_40 = call_complex Eq(Flags).==, %v_31, %rw: Int
+    je %v_40, b_41, b_42
   }
 
-  b_43 {
-    %v_45 = add %v_25, 512: Int
-    jmp b_44
+  b_41 {
+    %v_43 = add %v_24, 512: Int
+    jmp b_42
   }
 
-  b_44 {
-    %v_46 = phi [b_24, %v_25], [b_43, %v_45]: Int
-    %v_47 = alloca 1, 1: Ptr
-    store %v_47, 0, 1
-    store %v_47, 2, 1
-    %v_48 = call_complex Eq(Flags).==, %v_1, %v_47: Int
-    je %v_48, b_49, b_50
+  b_42 {
+    %v_44 = phi [b_23, %v_24], [b_41, %v_43]: Int
+    %v_45 = alloca 1, 1: Ptr
+    store %v_45, 0, 1
+    store %v_45, 2, 1
+    %v_46 = call_complex Eq(Flags).==, %v_1, %v_45: Int
+    je %v_46, b_47, b_48
   }
 
-  b_49 {
-    %v_51 = add %v_46, 1024: Int
-    jmp b_50
+  b_47 {
+    %v_49 = add %v_44, 1024: Int
+    jmp b_48
   }
 
-  b_50 {
-    %v_52 = phi [b_44, %v_46], [b_49, %v_51]: Int
-    ret %v_52
+  b_48 {
+    %v_50 = phi [b_42, %v_44], [b_47, %v_49]: Int
+    ret %v_50
   }
 }
 
@@ -131,25 +129,23 @@ Eq(Flags).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   }
 
   b_8 {
-    %v_10 = load %lhs, 1: Int
-    %v_11 = shr %v_10, 1: Int
-    %v_12 = and %v_11, 1: Int
-    %v_13 = cast %v_12: Int
-    %v_14 = load %rhs, 1: Int
-    %v_15 = shr %v_14, 1: Int
-    %v_16 = and %v_15, 1: Int
-    %v_17 = cast %v_16: Int
-    %v_18 = cmp_eq %v_13, %v_17: Int
-    jmp b_19
+    %v_10 = shr %v_1, 1: Int
+    %v_11 = and %v_10, 1: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = shr %v_4, 1: Int
+    %v_14 = and %v_13, 1: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = cmp_eq %v_12, %v_15: Int
+    jmp b_17
   }
 
   b_9 {
-    jmp b_19
+    jmp b_17
   }
 
-  b_19 {
-    %v_20 = phi [b_8, %v_18], [b_9, %v_7]: Int
-    ret %v_20
+  b_17 {
+    %v_18 = phi [b_8, %v_16], [b_9, %v_7]: Int
+    ret %v_18
   }
 }
 

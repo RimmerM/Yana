@@ -201,16 +201,13 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_45 {
     %v_63 = bitcast %v_41: Ptr
     %v_64 = load %v_63, 8: Ptr
-    %v_65 = load @heapFree, 8: Ptr
-    %v_66 = shl %v_31, 3: Long
-    %v_67 = add %v_65, %v_66: Ptr
-    store %v_67, %v_64, 8
+    store %v_40, %v_64, 8
     ret %v_41
   }
 
   b_36 {
-    %v_68 = bitcast 0: Ptr
-    ret %v_68
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 
   b_29 {
@@ -220,8 +217,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_69 = bitcast 0: Ptr
-    ret %v_69
+    %v_66 = bitcast 0: Ptr
+    ret %v_66
   }
 }
 
@@ -251,9 +248,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -322,30 +318,28 @@ main<complex>(): Int {
     %v_10 = bitcast 0: Ptr
     %v_11 = add %v_9, 8: Ptr
     store %v_11, %v_10, 8
-    %v_12 = add %v_9, 8: Ptr
-    %v_13 = load %v_9, 8: Ptr
-    %v_14 = load %v_12, 8: Ptr
-    %b = call_complex %v_13, %v_14: Int
+    %v_12 = load %v_9, 8: Ptr
+    %v_13 = load %v_11, 8: Ptr
+    %b = call_complex %v_12, %v_13: Int
     call_complex drop$() -> Int, %v_9
     call_complex reclaim$() -> Int, %v_9
-    %v_15 = loads @dropCalls, 4: Int
-    %v_16 = cmp_neq %v_15, 1: Int
-    je %v_16, b_17, b_18
+    %v_14 = loads @dropCalls, 4: Int
+    %v_15 = cmp_neq %v_14, 1: Int
+    je %v_15, b_16, b_17
   }
 
-  b_17 {
+  b_16 {
     ret 18446744073709551614
   }
 
-  b_18 {
-    jmp b_19
+  b_17 {
+    jmp b_18
   }
 
-  b_19 {
-    %v_20 = add %a, %b: Int
-    %v_21 = loads @dropCalls, 4: Int
-    %v_22 = add %v_20, %v_21: Int
-    ret %v_22
+  b_18 {
+    %v_19 = add %a, %b: Int
+    %v_20 = add %v_19, %v_14: Int
+    ret %v_20
   }
 }
 

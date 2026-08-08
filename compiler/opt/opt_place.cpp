@@ -395,6 +395,94 @@ bool holdsLoadableValue(OptContext& opt, TypePtr type) {
     return type && !isUnit(opt.global, type) && !isMemoryType(opt.global, type);
 }
 
+/*
+ * Whether an instruction may write storage a pass is tracking, or hand out a way to.
+ *
+ * The default is yes. An instruction kind this does not recognize is one whose effect on storage has
+ * not been checked, and forgetting too much costs an optimization while forgetting too little is a
+ * miscompile - which is the same asymmetry `borrowStaysHere` in codegen/js/gen.cpp resolves the same
+ * way.
+ *
+ * Two passes ask it, of the same thing and at different reach. `forwardPlaces` asks it of the
+ * instruction in front of the one it is looking at; `eliminateCommonValues` asks it of every block
+ * that could run between a load and a second load of the same place. Neither may answer it
+ * differently, which is why it is a question about a kind rather than a member of either.
+ */
+bool writesUnknownStorage(OptContext& opt, Value& instruction) {
+    switch(instruction.kind) {
+        // Pure computation, and storage that has just come into existence with nothing in it.
+        case Value::Alloc:
+            return false;
+
+        // Reads. `Copy` reads its place and writes storage of its own that nothing else names yet,
+        // and `Borrow` of an immutable place cannot be written through.
+        case Value::LoadPlace:
+        case Value::Copy:
+            return false;
+
+        case Value::Borrow:
+            return ((InstBorrow&)instruction).mut;
+
+        // Handled by the caller, which knows which places they name - an aggregate through
+        // `eachWrittenComponent`, since its own place has no path and names the whole record.
+        case Value::Init:
+        case Value::Assign:
+        case Value::Aggregate:
+            return false;
+
+        // A parameter and a merge, which arrive rather than being computed. Neither reads nor writes
+        // storage; they are not `kInstPure` because neither may be *recomputed*, which is a
+        // different question from this one.
+        case Value::Arg:
+        case Value::Phi:
+            return false;
+
+        /*
+         * The check the compiler inserts at a subscript - see Program::checkCondition.
+         *
+         * Its one argument is a `Bool` passed by value, so there is no storage of the caller's it
+         * has a way to name: it reads the flag and either returns having done nothing or does not
+         * return at all. A pass that forgot the table here would be undoing the shape §15 asked for
+         * - the check is a *call* precisely so that the block it is emitted into stays one block,
+         * and forgetting at it costs exactly what splitting it would have.
+         *
+         * That is a statement about this callee and no other. Every other call does whatever its
+         * callee does, which this pass has never had a way to ask.
+         */
+        case Value::Call:
+            return !isCheckCall(opt, ((InstCall&)instruction).callee);
+
+        /*
+         * The two host operations that write nothing. Everything else a `Native` can be - a method
+         * call on a host value, an allocation, a copy between two addresses - is left to the
+         * default, which is that it may have written anything.
+         */
+        case Value::Native:
+            switch(((InstNative&)instruction).op) {
+                /*
+                 * A host property read - `xs.length`, which is the whole of NativeOp::HostField (see
+                 * `HostMember`: both intrinsics that produce one read a length). It computes no
+                 * address and writes nothing.
+                 *
+                 * Not the same claim as `isPureValue`, which still declines it: what a property
+                 * answers changes when something writes the value it belongs to, exactly as a load's
+                 * answer does. So it may not be recomputed anywhere - only relied on not to be a
+                 * writer.
+                 */
+                case NativeOp::HostField:
+                // And an empty array, which is storage that has just come into existence with
+                // nothing in it - the managed target's `Alloc`, and no more of a writer.
+                case NativeOp::HostArray:
+                    return false;
+                default:
+                    return true;
+            }
+
+        default:
+            return !isPureValue(instruction);
+    }
+}
+
 namespace {
 
 // What one place is known to hold. A store and a load establish the same fact and are not kept
@@ -574,79 +662,7 @@ struct Forwarder {
         }
     }
 
-    /*
-     * Whether an instruction may write storage this pass is tracking, or hand out a way to.
-     *
-     * The default is yes. An instruction kind this does not recognize is one whose effect on storage
-     * has not been checked, and forgetting too much costs an optimization while forgetting too
-     * little is a miscompile - which is the same asymmetry `borrowStaysHere` in codegen/js/gen.cpp
-     * resolves the same way.
-     */
-    bool clobbers(Value& instruction) {
-        switch(instruction.kind) {
-            // Pure computation, and storage that has just come into existence with nothing in it.
-            case Value::Alloc:
-                return false;
-
-            // Reads. `Copy` reads its place and writes storage of its own that nothing else names
-            // yet, and `Borrow` of an immutable place cannot be written through.
-            case Value::LoadPlace:
-            case Value::Copy:
-                return false;
-
-            case Value::Borrow:
-                return ((InstBorrow&)instruction).mut;
-
-            // Handled by the caller, which knows which place they name.
-            case Value::Init:
-            case Value::Assign:
-                return false;
-
-            /*
-             * The check the compiler inserts at a subscript - see Program::checkCondition.
-             *
-             * Its one argument is a `Bool` passed by value, so there is no storage of the caller's
-             * it has a way to name: it reads the flag and either returns having done nothing or
-             * does not return at all. A pass that forgot the table here would be undoing the shape
-             * §15 asked for - the check is a *call* precisely so that the block it is emitted into
-             * stays one block, and forgetting at it costs exactly what splitting it would have.
-             *
-             * That is a statement about this callee and no other. Every other call does whatever
-             * its callee does, which this pass has never had a way to ask.
-             */
-            case Value::Call:
-                return !isCheckCall(opt, ((InstCall&)instruction).callee);
-
-            /*
-             * The two host operations that write nothing. Everything else a `Native` can be - a
-             * method call on a host value, an allocation, a copy between two addresses - is left to
-             * the default, which is that it may have written anything.
-             */
-            case Value::Native:
-                switch(((InstNative&)instruction).op) {
-                    /*
-                     * A host property read - `xs.length`, which is the whole of NativeOp::HostField
-                     * (see `HostMember`: both intrinsics that produce one read a length). It
-                     * computes no address and writes nothing.
-                     *
-                     * Not the same claim as `isPureValue`, which still declines it: what a property
-                     * answers changes when something writes the value it belongs to, exactly as a
-                     * load's answer does. So it may not be recomputed anywhere - only relied on not
-                     * to be a writer.
-                     */
-                    case NativeOp::HostField:
-                    // And an empty array, which is storage that has just come into existence with
-                    // nothing in it - the managed target's `Alloc`, and no more of a writer.
-                    case NativeOp::HostArray:
-                        return false;
-                    default:
-                        return true;
-                }
-
-            default:
-                return !isPureValue(instruction);
-        }
-    }
+    bool clobbers(Value& instruction) { return writesUnknownStorage(opt, instruction); }
 
     bool forwardable(TypePtr type) { return holdsLoadableValue(opt, type); }
 

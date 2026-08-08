@@ -185,10 +185,7 @@ fn allocateHeap(%size: I64) -> %U8 {
   b20:
     %v36 = cast %v133 : %%U8
     %v37 = load [%v36] : %U8
-    %v134 = load heapFree : %%U8
-    %v136 = mul %v118, 8 : I64
-    %v137 = add %v134, %v136 : %%U8
-    assign [%v137], %v37
+    assign [%v132], %v37
     ret %v133
 
   b21:
@@ -232,8 +229,7 @@ fn freeHeap(%allocation: %U8) -> () {
     %v23 = load [%v22] : %U8
     assign [%v14], %v23
     %v24 = load heapFree : %%U8
-    %v26 = mul %sizeClass, 8 : I64
-    %v27 = add %v24, %v26 : %%U8
+    %v27 = add %v24, %v21 : %%U8
     assign [%v27], %allocation
     ret
 }
@@ -382,8 +378,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %v23 = mul %v21, 4 : I64
     %v24 = add %v20, %v23 : %Int
     assign [%v24], %item
-    %v27 = add %count, 1 : Int
-    %v28 = cast %v27 : U32
+    %v28 = cast %v8 : U32
     %v30 = and %v28, 1073741823 : U32
     %v31 = cast %v30 : @bits(30) U32
     assign %self@Array.length, %v31

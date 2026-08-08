@@ -9,6 +9,7 @@
 #include "../compiler/stage.h"
 #include "../opt/opt.h"
 #include "../lower/lower_promote.h"
+#include "../lower/lower_cse.h"
 #include "../lower/lower_strength.h"
 #include "../lower/lower_induction.h"
 
@@ -608,6 +609,14 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // its own, so the fold runs again behind it before the dead immediates are swept.
         strengthReduceFunction(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // Then the computation this translation wrote down twice - an address assembled once per
+        // read of a field, a promoted local's arithmetic repeated in each block that indexes with
+        // it, the quotient sequence a program asking for both `x / d` and `x % d` gets twice. See
+        // lower_cse.h. Behind the strength reduction so that the last of those is one of the shapes
+        // it can see, and in front of the loop pass so that what that pass is shown is one multiply
+        // rather than three.
+        eliminateCommonValues(lower.lower, lower.to, *target);
 
         // And the multiply that is left because its other operand is the loop's own counter, which
         // is not a strength reduction of one operation into another but of a whole recurrence - see

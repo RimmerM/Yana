@@ -90,34 +90,33 @@ area<complex>(%s: Ptr): Int {
   }
 
   b_4 {
-    %v_5 = loads %s, 4: Int
-    %v_6 = cmp_eq %v_5, 1: Int
-    je %v_6, b_7, b_8
+    %v_5 = cmp_eq %v_1, 1: Int
+    je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_9 = add %s, 4: Ptr
-    %r = loads %v_9, 4: Int
-    %v_10 = imul %r, %r: Int
-    jmp b_11
-  }
-
-  b_8 {
-    jmp b_11
+    %v_8 = add %s, 4: Ptr
+    %r = loads %v_8, 4: Int
+    %v_9 = imul %r, %r: Int
+    jmp b_10
   }
 
   b_7 {
-    %v_12 = add %s, 4: Ptr
-    %w = loads %v_12, 4: Int
-    %v_13 = add %s, 8: Ptr
-    %h = loads %v_13, 4: Int
-    %v_14 = imul %w, %h: Int
-    jmp b_11
+    jmp b_10
   }
 
-  b_11 {
-    %v_15 = phi [b_3, %v_10], [b_7, %v_14], [b_8, 0]: Int
-    ret %v_15
+  b_6 {
+    %v_11 = add %s, 4: Ptr
+    %w = loads %v_11, 4: Int
+    %v_12 = add %s, 8: Ptr
+    %h = loads %v_12, 4: Int
+    %v_13 = imul %w, %h: Int
+    jmp b_10
+  }
+
+  b_10 {
+    %v_14 = phi [b_3, %v_9], [b_6, %v_13], [b_7, 0]: Int
+    ret %v_14
   }
 }
 
@@ -125,8 +124,7 @@ present<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    %found = select 1, 0, %v_2: Int
-    %v_3 = select 2, 1, %found: Int
+    %v_3 = select 2, 1, %v_2: Int
     ret %v_3
   }
 }

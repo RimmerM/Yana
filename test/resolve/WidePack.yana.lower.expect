@@ -28,20 +28,16 @@ nudge<complex>(%x: Ptr) {
     %v_10 = add %v_9, 1: Int
     %v_11 = and %v_10, 1048575: Int
     %v_12 = cast %v_11: Int
-    %v_13 = bitcast %x: Long
-    %v_14 = and %v_13, 281474976710655: Long
-    %v_15 = bitcast %v_14: Ptr
-    %v_16 = shr %v_13, 48: Long
-    %v_17 = load %v_15, 4: Long
-    %v_18 = cast %v_12: Long
-    %v_19 = imm 1048575: Long
-    %v_20 = and %v_18, %v_19: Long
-    %v_21 = shl %v_20, %v_16: Long
-    %v_22 = shl %v_19, %v_16: Long
-    %v_23 = not %v_22: Long
-    %v_24 = and %v_17, %v_23: Long
-    %v_25 = or %v_24, %v_21: Long
-    store %v_15, %v_25, 4
+    %v_13 = load %v_3, 4: Long
+    %v_14 = cast %v_12: Long
+    %v_15 = imm 1048575: Long
+    %v_16 = and %v_14, %v_15: Long
+    %v_17 = shl %v_16, %v_4: Long
+    %v_18 = shl %v_15, %v_4: Long
+    %v_19 = not %v_18: Long
+    %v_20 = and %v_13, %v_19: Long
+    %v_21 = or %v_20, %v_17: Long
+    store %v_3, %v_21, 4
     ret 
   }
 }
@@ -109,20 +105,16 @@ nudge12<complex>(%x: Ptr) {
     %v_10 = add %v_9, 1: Int
     %v_11 = and %v_10, 4095: Int
     %v_12 = cast %v_11: Int
-    %v_13 = bitcast %x: Long
-    %v_14 = and %v_13, 281474976710655: Long
-    %v_15 = bitcast %v_14: Ptr
-    %v_16 = shr %v_13, 48: Long
-    %v_17 = load %v_15, 2: Long
-    %v_18 = cast %v_12: Long
-    %v_19 = imm 4095: Long
-    %v_20 = and %v_18, %v_19: Long
-    %v_21 = shl %v_20, %v_16: Long
-    %v_22 = shl %v_19, %v_16: Long
-    %v_23 = not %v_22: Long
-    %v_24 = and %v_17, %v_23: Long
-    %v_25 = or %v_24, %v_21: Long
-    store %v_15, %v_25, 2
+    %v_13 = load %v_3, 2: Long
+    %v_14 = cast %v_12: Long
+    %v_15 = imm 4095: Long
+    %v_16 = and %v_14, %v_15: Long
+    %v_17 = shl %v_16, %v_4: Long
+    %v_18 = shl %v_15, %v_4: Long
+    %v_19 = not %v_18: Long
+    %v_20 = and %v_13, %v_19: Long
+    %v_21 = or %v_20, %v_17: Long
+    store %v_3, %v_21, 2
     ret 
   }
 }
@@ -137,14 +129,12 @@ boxed<complex>(%v_0: Ptr) {
     %v_6 = or %v_5, 1: Int
     %v_7 = and %v_6, 18446744069415632895: Int
     %v_8 = or %v_7, 4293918720: Int
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, %v_8, 4
-    %v_10 = add %v_2, 4: Ptr
-    %v_11 = add %v_10, 2: Ptr
-    %v_12 = bitcast %v_11: Long
-    %v_13 = or %v_12, 1125899906842624: Long
-    %v_14 = bitcast %v_13: Ptr
-    call_complex nudge12, %v_14
+    store %v_3, %v_8, 4
+    %v_9 = add %v_3, 2: Ptr
+    %v_10 = bitcast %v_9: Long
+    %v_11 = or %v_10, 1125899906842624: Long
+    %v_12 = bitcast %v_11: Ptr
+    call_complex nudge12, %v_12
     copy %v_0, %v_2, 8
     ret 
   }

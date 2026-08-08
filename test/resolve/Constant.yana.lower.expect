@@ -81,58 +81,57 @@ main<complex>(): Int {
 
   b_38 {
     %v_40 = phi [b_32, %v_34], [b_37, %v_39]: Int
-    %v_41 = load @fell, 4: Float
-    %v_42 = cmp_eq -1, %v_41: Int
-    je %v_42, b_43, b_44
+    %v_41 = cmp_eq -1, %v_35: Int
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    %v_44 = add %v_40, 1048576: Int
+    jmp b_43
   }
 
   b_43 {
-    %v_45 = add %v_40, 1048576: Int
-    jmp b_44
+    %v_45 = phi [b_38, %v_40], [b_42, %v_44]: Int
+    %v_46 = load @state, 1: Int
+    %v_47 = cast %v_46: Int
+    %v_48 = cmp_eq %v_47, 0: Int
+    %v_49 = select 0, 1, %v_48: Int
+    %v_50 = cmp_eq %v_49, 1: Int
+    je %v_50, b_51, b_52
   }
 
-  b_44 {
-    %v_46 = phi [b_38, %v_40], [b_43, %v_45]: Int
-    %v_47 = load @state, 1: Int
-    %v_48 = cast %v_47: Int
-    %v_49 = cmp_eq %v_48, 0: Int
-    %v_50 = select 0, 1, %v_49: Int
-    %v_51 = cmp_eq %v_50, 1: Int
-    je %v_51, b_52, b_53
+  b_51 {
+    %v_53 = add %v_45, 131072: Int
+    jmp b_52
   }
 
   b_52 {
-    %v_54 = add %v_46, 131072: Int
-    jmp b_53
+    %v_54 = phi [b_43, %v_45], [b_51, %v_53]: Int
+    %v_55 = loads @minimum, 8: Long
+    %v_56 = cmp_ilt %v_55, 0: Int
+    je %v_56, b_57, b_58
   }
 
-  b_53 {
-    %v_55 = phi [b_44, %v_46], [b_52, %v_54]: Int
-    %v_56 = loads @minimum, 8: Long
-    %v_57 = cmp_ilt %v_56, 0: Int
-    je %v_57, b_58, b_59
+  b_57 {
+    %v_59 = add %v_54, 262144: Int
+    jmp b_58
   }
 
   b_58 {
-    %v_60 = add %v_55, 262144: Int
-    jmp b_59
+    %v_60 = phi [b_52, %v_54], [b_57, %v_59]: Int
+    %v_61 = load @mask, 8: Long
+    %v_62 = cmp_neq %v_61, 0: Int
+    je %v_62, b_63, b_64
   }
 
-  b_59 {
-    %v_61 = phi [b_53, %v_55], [b_58, %v_60]: Int
-    %v_62 = load @mask, 8: Long
-    %v_63 = cmp_neq %v_62, 0: Int
-    je %v_63, b_64, b_65
+  b_63 {
+    %v_65 = add %v_60, 524288: Int
+    jmp b_64
   }
 
   b_64 {
-    %v_66 = add %v_61, 524288: Int
-    jmp b_65
-  }
-
-  b_65 {
-    %v_67 = phi [b_59, %v_61], [b_64, %v_66]: Int
-    ret %v_67
+    %v_66 = phi [b_58, %v_60], [b_63, %v_65]: Int
+    ret %v_66
   }
 }
 

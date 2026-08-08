@@ -220,16 +220,13 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_45 {
     %v_63 = bitcast %v_41: Ptr
     %v_64 = load %v_63, 8: Ptr
-    %v_65 = load @heapFree, 8: Ptr
-    %v_66 = shl %v_31, 3: Long
-    %v_67 = add %v_65, %v_66: Ptr
-    store %v_67, %v_64, 8
+    store %v_40, %v_64, 8
     ret %v_41
   }
 
   b_36 {
-    %v_68 = bitcast 0: Ptr
-    ret %v_68
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 
   b_29 {
@@ -239,8 +236,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_69 = bitcast 0: Ptr
-    ret %v_69
+    %v_66 = bitcast 0: Ptr
+    ret %v_66
   }
 }
 
@@ -270,9 +267,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -316,15 +312,14 @@ small<complex>(): Long {
     %v_6 = load %hs, 8: Ptr
     %v_7 = bitcast %v_6: Ptr
     %v_8 = loads %v_7, 8: Long
-    %v_9 = add %hs, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = bitcast %v_10: Ptr
-    %v_12 = loads %v_11, 8: Long
+    %v_9 = load %v_5, 8: Ptr
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = loads %v_10, 8: Long
     call_complex Drop(Handle).drop, %hs
-    %v_13 = add %hs, 8: Ptr
-    call_complex Drop(Handle).drop, %v_13
-    %v_14 = add %v_8, %v_12: Long
-    ret %v_14
+    %v_12 = add %hs, 8: Ptr
+    call_complex Drop(Handle).drop, %v_12
+    %v_13 = add %v_8, %v_11: Long
+    ret %v_13
   }
 }
 
@@ -369,30 +364,29 @@ large<complex>(): Long {
     %v_18 = load %hs, 8: Ptr
     %v_19 = bitcast %v_18: Ptr
     %v_20 = loads %v_19, 8: Long
-    %v_21 = add %hs, 40: Ptr
-    %v_22 = load %v_21, 8: Ptr
-    %v_23 = bitcast %v_22: Ptr
-    %v_24 = loads %v_23, 8: Long
-    jmp b_25
+    %v_21 = load %v_17, 8: Ptr
+    %v_22 = bitcast %v_21: Ptr
+    %v_23 = loads %v_22, 8: Long
+    jmp b_24
   }
 
-  b_25 {
-    %v_26 = phi [b_0, 0], [b_27, %v_28]: Long
-    %v_29 = cmp_ilt %v_26, 6: Int
-    je %v_29, b_27, b_30
+  b_24 {
+    %v_25 = phi [b_0, 0], [b_26, %v_27]: Long
+    %v_28 = cmp_ilt %v_25, 6: Int
+    je %v_28, b_26, b_29
   }
 
-  b_30 {
-    %v_31 = add %v_20, %v_24: Long
-    ret %v_31
+  b_29 {
+    %v_30 = add %v_20, %v_23: Long
+    ret %v_30
   }
 
-  b_27 {
-    %v_32 = shl %v_26, 3: Long
-    %v_33 = add %hs, %v_32: Ptr
-    call_complex Drop(Handle).drop, %v_33
-    %v_28 = add %v_26, 1: Long
-    jmp b_25
+  b_26 {
+    %v_31 = shl %v_25, 3: Long
+    %v_32 = add %hs, %v_31: Ptr
+    call_complex Drop(Handle).drop, %v_32
+    %v_27 = add %v_25, 1: Long
+    jmp b_24
   }
 }
 

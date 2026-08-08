@@ -25,8 +25,7 @@ fn freeHeap(%allocation: %U8) -> () {
     %v23 = load [%v22] : %U8
     assign [%v14], %v23
     %v24 = load heapFree : %%U8
-    %v26 = mul %sizeClass, 8 : I64
-    %v27 = add %v24, %v26 : %%U8
+    %v27 = add %v24, %v21 : %%U8
     assign [%v27], %allocation
     ret
 }
@@ -54,28 +53,27 @@ fn spanned() -> Int {
     %v7 = alloc *4 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v198 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v203 = and %v198, 18446744072635809792 : U32
-    %v204 = or %v203, 4 : U32
-    %v213 = and %v204, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v213
+    %v196 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v201 = and %v196, 18446744072635809792 : U32
+    %v202 = or %v201, 4 : U32
+    %v211 = and %v202, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v211
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
     %v22 = alloc : Array(Int)
     %v25 = alloc *2 : Int
     %v26 = addressof %local3 : %Int
     init %ys@Array.run@Run.items, %v26
-    %v216 = load %ys@Array.run@Run.capacity:unit32 : U32
-    %v221 = and %v216, 18446744072635809792 : U32
-    %v222 = or %v221, 2 : U32
-    %v231 = and %v222, 18446744070488326143 : U32
-    init %ys@Array.run@Run.capacity:unit32, %v231
+    %v214 = load %ys@Array.run@Run.capacity:unit32 : U32
+    %v219 = and %v214, 18446744072635809792 : U32
+    %v220 = or %v219, 2 : U32
+    %v229 = and %v220, 18446744070488326143 : U32
+    init %ys@Array.run@Run.capacity:unit32, %v229
     aggregate [%v26][0] = 5, [%v26][1] = 9
     init %ys@Array.length, 2
     %v49 = add %v8, 4 : %Int
     assign [%v49], 20
-    %v83 = add %v8, 4 : %Int
-    %v85 = load [%v83] : Int
+    %v85 = load [%v49] : Int
     %v99 = add %v26, 0 : %Int
     %v101 = load [%v99] : Int
     %v126 = load %ys : Array(Int)
@@ -114,11 +112,11 @@ fn computed() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v7
-    %v124 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v129 = and %v124, 18446744072635809792 : U32
-    %v130 = or %v129, 3 : U32
-    %v139 = and %v130, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v139
+    %v122 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v127 = and %v122, 18446744072635809792 : U32
+    %v128 = or %v127, 3 : U32
+    %v137 = and %v128, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v137
     aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 60
     init %xs@Array.length, 3
     %v53 = add %v7, 8 : %Int
@@ -136,11 +134,11 @@ fn aliased(%n: Int) -> Int {
     %v7 = alloc *3 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v110 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v115 = and %v110, 18446744072635809792 : U32
-    %v116 = or %v115, 3 : U32
-    %v125 = and %v116, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v125
+    %v108 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v113 = and %v108, 18446744072635809792 : U32
+    %v114 = or %v113, 3 : U32
+    %v123 = and %v114, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v123
     aggregate [%v8][0] = 100, [%v8][1] = 2, [%v8][2] = 3
     init %xs@Array.length, 3
     %v49 = add %v8, 0 : %Int
@@ -155,9 +153,8 @@ fn aliased(%n: Int) -> Int {
     jmp b2
 
   b2:
-    %v61 = load %xs@Array.run@Run.items : %Int
     %v63 = mul %v53, 4 : Long
-    %v64 = add %v61, %v63 : %Int
+    %v64 = add %v8, %v63 : %Int
     %v66 = load [%v64] : Int
     %v71 = load %xs : Array(Int)
     call Reclaim(Array(a)).reclaim(Int), %v71

@@ -219,16 +219,13 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_45 {
     %v_63 = bitcast %v_41: Ptr
     %v_64 = load %v_63, 8: Ptr
-    %v_65 = load @heapFree, 8: Ptr
-    %v_66 = shl %v_31, 3: Long
-    %v_67 = add %v_65, %v_66: Ptr
-    store %v_67, %v_64, 8
+    store %v_40, %v_64, 8
     ret %v_41
   }
 
   b_36 {
-    %v_68 = bitcast 0: Ptr
-    ret %v_68
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 
   b_29 {
@@ -238,8 +235,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_69 = bitcast 0: Ptr
-    ret %v_69
+    %v_66 = bitcast 0: Ptr
+    ret %v_66
   }
 }
 
@@ -269,9 +266,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -296,110 +292,108 @@ resize(Buffer)<complex>(%self: Ptr, %wanted: Int): Int {
   }
 
   b_8 {
-    %v_9 = add %self, 8: Ptr
-    %v_10 = load %v_9, 4: Long
-    %v_11 = shr %v_10, 30: Long
+    %v_9 = load %v_1, 4: Long
+    %v_10 = shr %v_9, 30: Long
+    %v_11 = cast %v_10: Int
     %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Int
-    %v_14 = cmp_eq %v_13, 2: Int
-    je %v_14, b_15, b_16
+    %v_13 = cmp_eq %v_12, 2: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    ret 0
   }
 
   b_15 {
-    ret 0
+    jmp b_16
   }
 
   b_16 {
-    jmp b_17
+    %v_17 = cmp_igt %wanted, 1073741823: Int
+    je %v_17, b_18, b_19
   }
 
-  b_17 {
-    %v_18 = cmp_igt %wanted, 1073741823: Int
-    je %v_18, b_19, b_20
+  b_18 {
+    ret 0
   }
 
   b_19 {
-    ret 0
+    jmp b_20
   }
 
   b_20 {
-    jmp b_21
+    %v_21 = load %self, 8: Ptr
+    %v_22 = call_complex byteSpan(Buffer), %v_21, %wanted: Long
+    %v_23 = call_complex allocateHeap, %v_22: Ptr
+    %fresh = bitcast %v_23: Ptr
+    %v_24 = bitcast %fresh: Long
+    %v_25 = cmp_eq %v_24, 0: Int
+    je %v_25, b_26, b_27
   }
 
-  b_21 {
-    %v_22 = load %self, 8: Ptr
-    %v_23 = call_complex byteSpan(Buffer), %v_22, %wanted: Long
-    %v_24 = call_complex allocateHeap, %v_23: Ptr
-    %fresh = bitcast %v_24: Ptr
-    %v_25 = bitcast %fresh: Long
-    %v_26 = cmp_eq %v_25, 0: Int
-    je %v_26, b_27, b_28
-  }
-
-  b_27 {
+  b_26 {
     ret 0
   }
 
-  b_28 {
-    jmp b_29
+  b_27 {
+    jmp b_28
   }
 
-  b_29 {
-    %v_30 = cmp_igt %room, 0: Int
-    je %v_30, b_31, b_32
+  b_28 {
+    %v_29 = cmp_igt %room, 0: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_30 {
+    %v_32 = bitcast %fresh: Ptr
+    %v_33 = load %self, 8: Ptr
+    %v_34 = bitcast %v_33: Ptr
+    %v_35 = call_complex byteSpan(Buffer), %v_33, %room: Long
+    copy %v_32, %v_34, %v_35
+    jmp b_36
   }
 
   b_31 {
-    %v_33 = bitcast %fresh: Ptr
-    %v_34 = load %self, 8: Ptr
-    %v_35 = bitcast %v_34: Ptr
-    %v_36 = call_complex byteSpan(Buffer), %v_34, %room: Long
-    copy %v_33, %v_35, %v_36
-    jmp b_37
+    jmp b_36
   }
 
-  b_32 {
-    jmp b_37
-  }
-
-  b_37 {
-    %v_38 = add %self, 8: Ptr
-    %v_39 = load %v_38, 4: Long
-    %v_40 = shr %v_39, 30: Long
+  b_36 {
+    %v_37 = add %self, 8: Ptr
+    %v_38 = load %v_37, 4: Long
+    %v_39 = shr %v_38, 30: Long
+    %v_40 = cast %v_39: Int
     %v_41 = cast %v_40: Int
-    %v_42 = cast %v_41: Int
-    %v_43 = cmp_eq %v_42, 1: Int
-    je %v_43, b_44, b_45
+    %v_42 = cmp_eq %v_41, 1: Int
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    %v_45 = load %self, 8: Ptr
+    %v_46 = bitcast %v_45: Ptr
+    call_complex freeHeap, %v_46
+    jmp b_47
   }
 
   b_44 {
-    %v_46 = load %self, 8: Ptr
-    %v_47 = bitcast %v_46: Ptr
-    call_complex freeHeap, %v_47
-    jmp b_48
+    jmp b_47
   }
 
-  b_45 {
-    jmp b_48
-  }
-
-  b_48 {
+  b_47 {
     store %self, %fresh, 8
-    %v_49 = cast %wanted: Int
-    %v_50 = and %v_49, 1073741823: Int
-    %v_51 = cast %v_50: Int
-    %v_52 = add %self, 8: Ptr
-    %v_53 = load %v_52, 4: Long
-    %v_54 = cast %v_51: Long
-    %v_55 = and %v_54, 1073741823: Long
-    %v_56 = and %v_53, 18446744072635809792: Long
-    %v_57 = or %v_56, %v_55: Long
-    store %v_52, %v_57, 4
-    %v_58 = add %self, 8: Ptr
-    %v_59 = load %v_58, 4: Long
-    %v_60 = and %v_59, 18446744070488326143: Long
-    %v_61 = or %v_60, 1073741824: Long
-    store %v_58, %v_61, 4
+    %v_48 = cast %wanted: Int
+    %v_49 = and %v_48, 1073741823: Int
+    %v_50 = cast %v_49: Int
+    %v_51 = add %self, 8: Ptr
+    %v_52 = load %v_51, 4: Long
+    %v_53 = cast %v_50: Long
+    %v_54 = and %v_53, 1073741823: Long
+    %v_55 = and %v_52, 18446744072635809792: Long
+    %v_56 = or %v_55, %v_54: Long
+    store %v_51, %v_56, 4
+    %v_57 = load %v_51, 4: Long
+    %v_58 = and %v_57, 18446744070488326143: Long
+    %v_59 = or %v_58, 1073741824: Long
+    store %v_51, %v_59, 4
     ret 1
   }
 }
@@ -469,12 +463,11 @@ push(Buffer)<complex>(%self: Ptr, %item: Ptr) {
     %v_16 = shl %v_15, 3: Long
     %v_17 = add %v_14, %v_16: Ptr
     copy %v_17, %item, 8
-    %v_18 = add %count, 1: Int
-    %v_19 = cast %v_18: Int
-    %v_20 = and %v_19, 1073741823: Int
-    %v_21 = cast %v_20: Int
-    %v_22 = add %self, 12: Ptr
-    store %v_22, %v_21, 4
+    %v_18 = cast %v_3: Int
+    %v_19 = and %v_18, 1073741823: Int
+    %v_20 = cast %v_19: Int
+    %v_21 = add %self, 12: Ptr
+    store %v_21, %v_20, 4
     ret 
   }
 }
@@ -561,48 +554,43 @@ remove(Buffer)<complex>(%v_0: Ptr, %self: Ptr, %index: Int) {
     %v_14 = add %v_11, %v_13: Ptr
     %doomed = alloca 8, 8: Ptr
     copy %doomed, %v_14, 8
-    %v_15 = add %self, 12: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cast %v_16: Int
-    %v_18 = sub %v_17, %index: Int
-    %rest = sub %v_18, 1: Int
-    %v_19 = cmp_igt %rest, 0: Int
-    je %v_19, b_20, b_21
+    %v_15 = load %v_3, 4: Int
+    %v_16 = cast %v_15: Int
+    %v_17 = sub %v_16, %index: Int
+    %rest = sub %v_17, 1: Int
+    %v_18 = cmp_igt %rest, 0: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = load %self, 8: Ptr
+    %v_22 = add %v_21, %v_13: Ptr
+    %v_23 = bitcast %v_22: Ptr
+    %v_24 = add %v_22, 8: Ptr
+    %v_25 = bitcast %v_24: Ptr
+    %v_26 = call_complex byteSpan(Buffer), %v_21, %rest: Long
+    copy %v_23, %v_25, %v_26
+    jmp b_27
   }
 
   b_20 {
-    %v_22 = load %self, 8: Ptr
-    %v_23 = shl %v_12, 3: Long
-    %v_24 = add %v_22, %v_23: Ptr
-    %v_25 = bitcast %v_24: Ptr
-    %v_26 = shl %v_12, 3: Long
-    %v_27 = add %v_22, %v_26: Ptr
-    %v_28 = add %v_27, 8: Ptr
-    %v_29 = bitcast %v_28: Ptr
-    %v_30 = call_complex byteSpan(Buffer), %v_22, %rest: Long
-    copy %v_25, %v_29, %v_30
-    jmp b_31
+    jmp b_27
   }
 
-  b_21 {
-    jmp b_31
-  }
-
-  b_31 {
-    %v_32 = add %self, 12: Ptr
-    %v_33 = load %v_32, 4: Int
+  b_27 {
+    %v_28 = add %self, 12: Ptr
+    %v_29 = load %v_28, 4: Int
+    %v_30 = cast %v_29: Int
+    %v_31 = sub %v_30, 1: Int
+    %v_32 = cast %v_31: Int
+    %v_33 = and %v_32, 1073741823: Int
     %v_34 = cast %v_33: Int
-    %v_35 = sub %v_34, 1: Int
-    %v_36 = cast %v_35: Int
-    %v_37 = and %v_36, 1073741823: Int
-    %v_38 = cast %v_37: Int
-    %v_39 = add %self, 12: Ptr
-    store %v_39, %v_38, 4
-    %v_40 = alloca 16, 8: Ptr
-    store %v_40, 1, 4
-    %v_41 = add %v_40, 8: Ptr
-    copy %v_41, %doomed, 8
-    copy %v_0, %v_40, 16
+    store %v_28, %v_34, 4
+    %v_35 = alloca 16, 8: Ptr
+    store %v_35, 1, 4
+    %v_36 = add %v_35, 8: Ptr
+    copy %v_36, %doomed, 8
+    copy %v_0, %v_35, 16
     ret 
   }
 }
@@ -724,312 +712,305 @@ main<complex>(): Long {
   }
 
   b_33 {
-    %v_34 = add %xs, 12: Ptr
-    %v_35 = load %v_34, 4: Int
-    %v_36 = cast %v_35: Int
-    %v_37 = cast %v_36: Long
-    %v_38 = cmp_ge 0, %v_37: Int
-    je %v_38, b_39, b_40
+    %v_34 = cast %v_29: Long
+    %v_35 = cmp_ge 0, %v_34: Int
+    je %v_35, b_36, b_37
   }
 
-  b_40 {
-    jmp b_41
+  b_37 {
+    jmp b_38
   }
 
-  b_39 {
-    %v_42 = syscall 60, 134: Long
-    jmp b_41
+  b_36 {
+    %v_39 = syscall 60, 134: Long
+    jmp b_38
   }
 
-  b_41 {
-    %v_43 = load %xs, 8: Ptr
-    %v_44 = load %v_43, 8: Ptr
-    %v_45 = bitcast %v_44: Ptr
-    %v_46 = loads %v_45, 8: Long
-    %v_47 = cmp_neq %v_46, 1: Int
-    je %v_47, b_48, b_49
+  b_38 {
+    %v_40 = load %xs, 8: Ptr
+    %v_41 = load %v_40, 8: Ptr
+    %v_42 = bitcast %v_41: Ptr
+    %v_43 = loads %v_42, 8: Long
+    %v_44 = cmp_neq %v_43, 1: Int
+    je %v_44, b_45, b_46
   }
 
-  b_49 {
-    %v_50 = add %xs, 12: Ptr
-    %v_51 = load %v_50, 4: Int
-    %v_52 = cast %v_51: Int
-    %v_53 = cast %v_52: Long
-    %v_54 = cmp_ge 1, %v_53: Int
-    je %v_54, b_55, b_56
+  b_46 {
+    %v_47 = load %v_27, 4: Int
+    %v_48 = cast %v_47: Int
+    %v_49 = cast %v_48: Long
+    %v_50 = cmp_ge 1, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
-  b_56 {
-    jmp b_57
+  b_52 {
+    jmp b_53
   }
 
-  b_55 {
-    %v_58 = syscall 60, 134: Long
-    jmp b_57
+  b_51 {
+    %v_54 = syscall 60, 134: Long
+    jmp b_53
   }
 
-  b_57 {
-    %v_59 = load %xs, 8: Ptr
-    %v_60 = add %v_59, 8: Ptr
-    %v_61 = load %v_60, 8: Ptr
-    %v_62 = bitcast %v_61: Ptr
-    %v_63 = loads %v_62, 8: Long
-    %v_64 = cmp_neq %v_63, 3: Int
+  b_53 {
+    %v_55 = load %xs, 8: Ptr
+    %v_56 = add %v_55, 8: Ptr
+    %v_57 = load %v_56, 8: Ptr
+    %v_58 = bitcast %v_57: Ptr
+    %v_59 = loads %v_58, 8: Long
+    %v_60 = cmp_neq %v_59, 3: Int
+    je %v_60, b_61, b_62
+  }
+
+  b_62 {
+    %v_63 = loads @liveBuffers, 8: Long
+    %v_64 = cmp_neq %v_63, 2: Int
     je %v_64, b_65, b_66
   }
 
   b_66 {
-    %v_67 = loads @liveBuffers, 8: Long
-    %v_68 = cmp_neq %v_67, 2: Int
-    je %v_68, b_69, b_70
+    %v_67 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_67, %xs, 5
+    call_complex drop$Maybe(Buffer), %v_67
+    %v_68 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_68, %xs, 18446744073709551615
+    call_complex drop$Maybe(Buffer), %v_68
+    %v_69 = add %xs, 12: Ptr
+    %v_70 = load %v_69, 4: Int
+    %v_71 = cast %v_70: Int
+    %v_72 = cast %v_71: Long
+    %v_73 = cmp_neq %v_72, 2: Int
+    je %v_73, b_74, b_75
   }
 
-  b_70 {
-    %v_71 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_71, %xs, 5
-    call_complex drop$Maybe(Buffer), %v_71
-    %v_72 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_72, %xs, 18446744073709551615
-    call_complex drop$Maybe(Buffer), %v_72
-    %v_73 = add %xs, 12: Ptr
-    %v_74 = load %v_73, 4: Int
-    %v_75 = cast %v_74: Int
-    %v_76 = cast %v_75: Long
-    %v_77 = cmp_neq %v_76, 2: Int
-    je %v_77, b_78, b_79
+  b_75 {
+    %v_76 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_76, %xs, 1
+    call_complex drop$Maybe(Buffer), %v_76
+    %v_77 = add %xs, 12: Ptr
+    %v_78 = load %v_77, 4: Int
+    %v_79 = cast %v_78: Int
+    %v_80 = cast %v_79: Long
+    %v_81 = cmp_neq %v_80, 1: Int
+    je %v_81, b_82, b_83
   }
 
-  b_79 {
-    %v_80 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_80, %xs, 1
-    call_complex drop$Maybe(Buffer), %v_80
-    %v_81 = add %xs, 12: Ptr
-    %v_82 = load %v_81, 4: Int
-    %v_83 = cast %v_82: Int
-    %v_84 = cast %v_83: Long
-    %v_85 = cmp_neq %v_84, 1: Int
+  b_83 {
+    %v_84 = cast %v_79: Long
+    %v_85 = cmp_ge 0, %v_84: Int
     je %v_85, b_86, b_87
   }
 
   b_87 {
-    %v_88 = add %xs, 12: Ptr
-    %v_89 = load %v_88, 4: Int
-    %v_90 = cast %v_89: Int
-    %v_91 = cast %v_90: Long
-    %v_92 = cmp_ge 0, %v_91: Int
-    je %v_92, b_93, b_94
+    jmp b_88
   }
 
-  b_94 {
-    jmp b_95
+  b_86 {
+    %v_89 = syscall 60, 134: Long
+    jmp b_88
   }
 
-  b_93 {
-    %v_96 = syscall 60, 134: Long
-    jmp b_95
+  b_88 {
+    %v_90 = load %xs, 8: Ptr
+    %v_91 = load %v_90, 8: Ptr
+    %v_92 = bitcast %v_91: Ptr
+    %v_93 = loads %v_92, 8: Long
+    %v_94 = cmp_neq %v_93, 1: Int
+    je %v_94, b_95, b_96
   }
 
-  b_95 {
-    %v_97 = load %xs, 8: Ptr
-    %v_98 = load %v_97, 8: Ptr
-    %v_99 = bitcast %v_98: Ptr
-    %v_100 = loads %v_99, 8: Long
-    %v_101 = cmp_neq %v_100, 1: Int
-    je %v_101, b_102, b_103
+  b_96 {
+    %v_97 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_97, %xs, 0
+    call_complex drop$Maybe(Buffer), %v_97
+    %v_98 = add %xs, 12: Ptr
+    %v_99 = load %v_98, 4: Int
+    %v_100 = cast %v_99: Int
+    %v_101 = cast %v_100: Long
+    %v_102 = cmp_neq %v_101, 0: Int
+    je %v_102, b_103, b_104
   }
 
-  b_103 {
-    %v_104 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_104, %xs, 0
-    call_complex drop$Maybe(Buffer), %v_104
-    %v_105 = add %xs, 12: Ptr
-    %v_106 = load %v_105, 4: Int
-    %v_107 = cast %v_106: Int
-    %v_108 = cast %v_107: Long
-    %v_109 = cmp_neq %v_108, 0: Int
-    je %v_109, b_110, b_111
+  b_104 {
+    %v_105 = loads @liveBuffers, 8: Long
+    %v_106 = cmp_neq %v_105, 0: Int
+    je %v_106, b_107, b_108
   }
 
-  b_111 {
-    %v_112 = loads @liveBuffers, 8: Long
-    %v_113 = cmp_neq %v_112, 0: Int
-    je %v_113, b_114, b_115
-  }
-
-  b_115 {
+  b_108 {
     call_complex +=(I64), @liveBuffers, 1
     %buffer = alloca 8, 8: Ptr
-    %v_116 = call_complex allocateHeap, 16: Ptr
-    store %buffer, %v_116, 8
-    setpattern %v_116, 16, 0
-    %v_117 = load %buffer, 8: Ptr
-    %v_118 = bitcast %v_117: Ptr
-    store %v_118, 7, 8
+    %v_109 = call_complex allocateHeap, 16: Ptr
+    store %buffer, %v_109, 8
+    setpattern %v_109, 16, 0
+    %v_110 = load %buffer, 8: Ptr
+    %v_111 = bitcast %v_110: Ptr
+    store %v_111, 7, 8
     call_complex push(Buffer), %xs, %buffer
     call_complex +=(I64), @liveBuffers, 1
     %buffer = alloca 8, 8: Ptr
-    %v_119 = call_complex allocateHeap, 16: Ptr
-    store %buffer, %v_119, 8
-    setpattern %v_119, 16, 0
-    %v_120 = load %buffer, 8: Ptr
-    %v_121 = bitcast %v_120: Ptr
-    store %v_121, 8, 8
+    %v_112 = call_complex allocateHeap, 16: Ptr
+    store %buffer, %v_112, 8
+    setpattern %v_112, 16, 0
+    %v_113 = load %buffer, 8: Ptr
+    %v_114 = bitcast %v_113: Ptr
+    store %v_114, 8, 8
     call_complex push(Buffer), %xs, %buffer
-    %v_122 = loads @liveBuffers, 8: Long
-    %v_123 = cmp_neq %v_122, 2: Int
-    je %v_123, b_124, b_125
+    %v_115 = loads @liveBuffers, 8: Long
+    %v_116 = cmp_neq %v_115, 2: Int
+    je %v_116, b_117, b_118
   }
 
-  b_125 {
-    %v_126 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_126, %xs, 0
-    %v_127 = loads %v_126, 4: Int
-    %v_128 = cmp_eq %v_127, 1: Int
-    je %v_128, b_129, b_130
+  b_118 {
+    %v_119 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_119, %xs, 0
+    %v_120 = loads %v_119, 4: Int
+    %v_121 = cmp_eq %v_120, 1: Int
+    je %v_121, b_122, b_123
   }
 
-  b_130 {
-    call_complex drop$Maybe(Buffer), %v_126
-    jmp b_131
+  b_123 {
+    call_complex drop$Maybe(Buffer), %v_119
+    jmp b_124
   }
 
-  b_129 {
-    %v_132 = add %v_126, 8: Ptr
-    %v_133 = load %v_132, 8: Ptr
-    %v_134 = loads @liveBuffers, 8: Long
-    %v_135 = imul %v_134, 10: Long
-    %v_136 = bitcast %v_133: Ptr
-    %v_137 = loads %v_136, 8: Long
-    call_complex freeHeap, %v_133
+  b_122 {
+    %v_125 = add %v_119, 8: Ptr
+    %v_126 = load %v_125, 8: Ptr
+    %v_127 = loads @liveBuffers, 8: Long
+    %v_128 = imul %v_127, 10: Long
+    %v_129 = bitcast %v_126: Ptr
+    %v_130 = loads %v_129, 8: Long
+    call_complex freeHeap, %v_126
     call_complex -=(I64), @liveBuffers, 1
-    %v_138 = add %v_135, %v_137: Long
-    jmp b_131
+    %v_131 = add %v_128, %v_130: Long
+    jmp b_124
   }
 
-  b_131 {
-    %kept = phi [b_129, %v_138], [b_130, 18446744073709551615]: Long
-    %v_139 = cmp_neq %kept, 27: Int
-    je %v_139, b_140, b_141
+  b_124 {
+    %kept = phi [b_122, %v_131], [b_123, 18446744073709551615]: Long
+    %v_132 = cmp_neq %kept, 27: Int
+    je %v_132, b_133, b_134
   }
 
-  b_141 {
-    %v_142 = loads @liveBuffers, 8: Long
+  b_134 {
+    %v_135 = loads @liveBuffers, 8: Long
+    %v_136 = cmp_neq %v_135, 1: Int
+    je %v_136, b_137, b_138
+  }
+
+  b_138 {
+    %v_139 = add %xs, 12: Ptr
+    %v_140 = load %v_139, 4: Int
+    %v_141 = cast %v_140: Int
+    %v_142 = cast %v_141: Long
     %v_143 = cmp_neq %v_142, 1: Int
     je %v_143, b_144, b_145
   }
 
   b_145 {
-    %v_146 = add %xs, 12: Ptr
-    %v_147 = load %v_146, 4: Int
-    %v_148 = cast %v_147: Int
-    %v_149 = cast %v_148: Long
-    %v_150 = cmp_neq %v_149, 1: Int
-    je %v_150, b_151, b_152
+    %v_146 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_146, %xs, 9
+    %v_147 = loads %v_146, 4: Int
+    %v_148 = cmp_eq %v_147, 1: Int
+    je %v_148, b_149, b_150
   }
 
-  b_152 {
-    %v_153 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_153, %xs, 9
-    %v_154 = loads %v_153, 4: Int
-    %v_155 = cmp_eq %v_154, 1: Int
-    je %v_155, b_156, b_157
+  b_150 {
+    call_complex drop$Maybe(Buffer), %v_146
+    %v_151 = loads @liveBuffers, 8: Long
+    %v_152 = cmp_neq %v_151, 1: Int
+    je %v_152, b_153, b_154
   }
 
-  b_157 {
-    call_complex drop$Maybe(Buffer), %v_153
-    %v_158 = loads @liveBuffers, 8: Long
-    %v_159 = cmp_neq %v_158, 1: Int
-    je %v_159, b_160, b_161
-  }
-
-  b_161 {
-    %v_162 = alloca 16, 8: Ptr
-    call_complex remove(Buffer), %v_162, %xs, 0
+  b_154 {
+    %v_155 = alloca 16, 8: Ptr
+    call_complex remove(Buffer), %v_155, %xs, 0
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
-    call_complex drop$Maybe(Buffer), %v_162
-    %v_163 = loads @liveBuffers, 8: Long
-    %v_164 = cmp_neq %v_163, 0: Int
-    je %v_164, b_165, b_166
+    call_complex drop$Maybe(Buffer), %v_155
+    %v_156 = loads @liveBuffers, 8: Long
+    %v_157 = cmp_neq %v_156, 0: Int
+    je %v_157, b_158, b_159
   }
 
-  b_166 {
+  b_159 {
     ret 1
   }
 
-  b_165 {
+  b_158 {
     ret 18446744073709551598
   }
 
-  b_160 {
+  b_153 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551599
   }
 
-  b_156 {
+  b_149 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
-    %v_167 = add %v_153, 8: Ptr
-    %v_168 = load %v_167, 8: Ptr
-    call_complex freeHeap, %v_168
+    %v_160 = add %v_146, 8: Ptr
+    %v_161 = load %v_160, 8: Ptr
+    call_complex freeHeap, %v_161
     call_complex -=(I64), @liveBuffers, 1
     ret 18446744073709551600
   }
 
-  b_151 {
+  b_144 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551601
   }
 
-  b_144 {
+  b_137 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551602
   }
 
-  b_140 {
+  b_133 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551603
   }
 
-  b_124 {
+  b_117 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551604
   }
 
-  b_114 {
+  b_107 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551605
   }
 
-  b_110 {
+  b_103 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551606
   }
 
-  b_102 {
+  b_95 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551607
   }
 
-  b_86 {
+  b_82 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551608
   }
 
-  b_78 {
+  b_74 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551609
   }
 
-  b_69 {
+  b_65 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551610
   }
 
-  b_65 {
+  b_61 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551611
   }
 
-  b_48 {
+  b_45 {
     call_complex Reclaim(Array(a)).reclaim(Buffer), %xs
     ret 18446744073709551612
   }

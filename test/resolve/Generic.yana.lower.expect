@@ -4,24 +4,22 @@ unwrapBool<complex>(%value: Ptr): Int {
   b_0 {
     %v_1 = load %value, 1: Long
     %v_2 = cmp_le %v_1, 1: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
+    je %v_2, b_3, b_4
   }
 
-  b_6 {
-    jmp b_7
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %inner = load %value, 1: Int
+    %v_6 = select 1, 0, %inner: Int
+    jmp b_5
   }
 
   b_5 {
-    %inner = load %value, 1: Int
-    %v_8 = select 1, 0, %inner: Int
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_5, %v_8], [b_6, 2]: Int
-    ret %v_9
+    %v_7 = phi [b_3, %v_6], [b_4, 2]: Int
+    ret %v_7
   }
 }
 

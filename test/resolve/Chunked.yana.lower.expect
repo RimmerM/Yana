@@ -206,16 +206,13 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_45 {
     %v_63 = bitcast %v_41: Ptr
     %v_64 = load %v_63, 8: Ptr
-    %v_65 = load @heapFree, 8: Ptr
-    %v_66 = shl %v_31, 3: Long
-    %v_67 = add %v_65, %v_66: Ptr
-    store %v_67, %v_64, 8
+    store %v_40, %v_64, 8
     ret %v_41
   }
 
   b_36 {
-    %v_68 = bitcast 0: Ptr
-    ret %v_68
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 
   b_29 {
@@ -225,8 +222,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_69 = bitcast 0: Ptr
-    ret %v_69
+    %v_66 = bitcast 0: Ptr
+    ret %v_66
   }
 }
 
@@ -256,9 +253,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -428,56 +424,53 @@ threeChunks<complex>(%v_0: Ptr, %x: Int) {
     %v_9 = or %v_8, 2: Int
     %v_10 = and %v_9, 18446744070488326143: Int
     %v_11 = or %v_10, 1073741824: Int
-    %v_12 = add %v_4, 8: Ptr
-    store %v_12, %v_11, 4
+    store %v_6, %v_11, 4
     store %v_5, %x, 4
-    %v_13 = add %v_5, 4: Ptr
-    store %v_13, %v_3, 4
-    %v_14 = add %v_4, 12: Ptr
-    store %v_14, 2, 4
-    %v_15 = add %x, 2: Int
-    %v_16 = add %x, 3: Int
-    %v_17 = alloca 16, 8: Ptr
-    %v_18 = call_complex allocateHeap, 8: Ptr
-    store %v_17, %v_18, 8
-    %v_19 = add %v_17, 8: Ptr
-    %v_20 = load %v_19, 4: Int
-    %v_21 = and %v_20, 18446744072635809792: Int
-    %v_22 = or %v_21, 2: Int
-    %v_23 = and %v_22, 18446744070488326143: Int
-    %v_24 = or %v_23, 1073741824: Int
-    %v_25 = add %v_17, 8: Ptr
-    store %v_25, %v_24, 4
-    store %v_18, %v_15, 4
-    %v_26 = add %v_18, 4: Ptr
-    store %v_26, %v_16, 4
-    %v_27 = add %v_17, 12: Ptr
-    store %v_27, 2, 4
-    %v_28 = add %x, 4: Int
-    %v_29 = add %x, 5: Int
-    %v_30 = alloca 16, 8: Ptr
-    %v_31 = call_complex allocateHeap, 8: Ptr
-    store %v_30, %v_31, 8
-    %v_32 = add %v_30, 8: Ptr
-    %v_33 = load %v_32, 4: Int
-    %v_34 = and %v_33, 18446744072635809792: Int
-    %v_35 = or %v_34, 2: Int
-    %v_36 = and %v_35, 18446744070488326143: Int
-    %v_37 = or %v_36, 1073741824: Int
-    %v_38 = add %v_30, 8: Ptr
-    store %v_38, %v_37, 4
-    store %v_31, %v_28, 4
-    %v_39 = add %v_31, 4: Ptr
-    store %v_39, %v_29, 4
-    %v_40 = add %v_30, 12: Ptr
-    store %v_40, 2, 4
+    %v_12 = add %v_5, 4: Ptr
+    store %v_12, %v_3, 4
+    %v_13 = add %v_4, 12: Ptr
+    store %v_13, 2, 4
+    %v_14 = add %x, 2: Int
+    %v_15 = add %x, 3: Int
+    %v_16 = alloca 16, 8: Ptr
+    %v_17 = call_complex allocateHeap, 8: Ptr
+    store %v_16, %v_17, 8
+    %v_18 = add %v_16, 8: Ptr
+    %v_19 = load %v_18, 4: Int
+    %v_20 = and %v_19, 18446744072635809792: Int
+    %v_21 = or %v_20, 2: Int
+    %v_22 = and %v_21, 18446744070488326143: Int
+    %v_23 = or %v_22, 1073741824: Int
+    store %v_18, %v_23, 4
+    store %v_17, %v_14, 4
+    %v_24 = add %v_17, 4: Ptr
+    store %v_24, %v_15, 4
+    %v_25 = add %v_16, 12: Ptr
+    store %v_25, 2, 4
+    %v_26 = add %x, 4: Int
+    %v_27 = add %x, 5: Int
+    %v_28 = alloca 16, 8: Ptr
+    %v_29 = call_complex allocateHeap, 8: Ptr
+    store %v_28, %v_29, 8
+    %v_30 = add %v_28, 8: Ptr
+    %v_31 = load %v_30, 4: Int
+    %v_32 = and %v_31, 18446744072635809792: Int
+    %v_33 = or %v_32, 2: Int
+    %v_34 = and %v_33, 18446744070488326143: Int
+    %v_35 = or %v_34, 1073741824: Int
+    store %v_30, %v_35, 4
+    store %v_29, %v_26, 4
+    %v_36 = add %v_29, 4: Ptr
+    store %v_36, %v_27, 4
+    %v_37 = add %v_28, 12: Ptr
+    store %v_37, 2, 4
     copy %v_2, %v_4, 16
-    %v_41 = add %v_2, 16: Ptr
-    copy %v_41, %v_17, 16
-    %v_42 = add %v_2, 32: Ptr
-    copy %v_42, %v_30, 16
-    %v_43 = add %v_2, 48: Ptr
-    store %v_43, 3, 4
+    %v_38 = add %v_2, 16: Ptr
+    copy %v_38, %v_16, 16
+    %v_39 = add %v_2, 32: Ptr
+    copy %v_39, %v_28, 16
+    %v_40 = add %v_2, 48: Ptr
+    store %v_40, 3, 4
     copy %v_0, %v_2, 52
     ret 
   }
@@ -607,63 +600,61 @@ main<complex>(): Int {
     %v_5 = and %v_4, 18446744072635809792: Int
     %v_6 = or %v_5, 3: Int
     %v_7 = and %v_6, 18446744070488326143: Int
-    %v_8 = add %v_1, 8: Ptr
-    store %v_8, %v_7, 4
+    store %v_3, %v_7, 4
     store %v_2, 10, 4
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, 20, 4
-    %v_10 = add %v_2, 8: Ptr
-    store %v_10, 30, 4
-    %v_11 = add %v_1, 12: Ptr
-    store %v_11, 3, 4
+    %v_8 = add %v_2, 4: Ptr
+    store %v_8, 20, 4
+    %v_9 = add %v_2, 8: Ptr
+    store %v_9, 30, 4
+    %v_10 = add %v_1, 12: Ptr
+    store %v_10, 3, 4
     copy %ring, %v_1, 16
     %arr = alloca 16, 8: Ptr
-    %v_12 = alloca 12, 4: Ptr
-    store %arr, %v_12, 8
-    %v_13 = add %arr, 8: Ptr
-    %v_14 = load %v_13, 4: Int
-    %v_15 = and %v_14, 18446744072635809792: Int
-    %v_16 = or %v_15, 3: Int
-    %v_17 = and %v_16, 18446744070488326143: Int
-    %v_18 = add %arr, 8: Ptr
-    store %v_18, %v_17, 4
-    store %v_12, 4, 4
-    %v_19 = add %v_12, 4: Ptr
-    store %v_19, 5, 4
-    %v_20 = add %v_12, 8: Ptr
-    store %v_20, 6, 4
-    %v_21 = add %arr, 12: Ptr
-    store %v_21, 3, 4
-    %v_22 = call_complex sumChunked, %cs: Int
-    %v_23 = call_complex sumContiguous, %ring: Int
-    %v_24 = add %v_22, %v_23: Int
-    %v_25 = call_complex sumArray, %arr: Int
+    %v_11 = alloca 12, 4: Ptr
+    store %arr, %v_11, 8
+    %v_12 = add %arr, 8: Ptr
+    %v_13 = load %v_12, 4: Int
+    %v_14 = and %v_13, 18446744072635809792: Int
+    %v_15 = or %v_14, 3: Int
+    %v_16 = and %v_15, 18446744070488326143: Int
+    store %v_12, %v_16, 4
+    store %v_11, 4, 4
+    %v_17 = add %v_11, 4: Ptr
+    store %v_17, 5, 4
+    %v_18 = add %v_11, 8: Ptr
+    store %v_18, 6, 4
+    %v_19 = add %arr, 12: Ptr
+    store %v_19, 3, 4
+    %v_20 = call_complex sumChunked, %cs: Int
+    %v_21 = call_complex sumContiguous, %ring: Int
+    %v_22 = add %v_20, %v_21: Int
+    %v_23 = call_complex sumArray, %arr: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %arr
-    %v_26 = add %v_24, %v_25: Int
-    %v_27 = alloca 16, 8: Ptr
-    call_complex Contiguous(Ring, Int).elements, %v_27, %ring
-    %xs$items = load %v_27, 8: Ptr
-    %v_28 = add %v_27, 8: Ptr
-    %xs$length = loads %v_28, 8: Long
-    %v_29 = call_complex total, %xs$items, %xs$length: Int
-    %v_30 = add %v_26, %v_29: Int
-    %v_31 = alloca 16, 8: Ptr
-    call_complex Contiguous(Ring, Int).elements, %v_31, %ring
-    %v_32 = add %v_31, 8: Ptr
-    %xs$length = loads %v_32, 8: Long
-    %v_33 = cast %xs$length: Int
+    %v_24 = add %v_22, %v_23: Int
+    %v_25 = alloca 16, 8: Ptr
+    call_complex Contiguous(Ring, Int).elements, %v_25, %ring
+    %xs$items = load %v_25, 8: Ptr
+    %v_26 = add %v_25, 8: Ptr
+    %xs$length = loads %v_26, 8: Long
+    %v_27 = call_complex total, %xs$items, %xs$length: Int
+    %v_28 = add %v_24, %v_27: Int
+    %v_29 = alloca 16, 8: Ptr
+    call_complex Contiguous(Ring, Int).elements, %v_29, %ring
+    %v_30 = add %v_29, 8: Ptr
+    %xs$length = loads %v_30, 8: Long
+    %v_31 = cast %xs$length: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %ring
-    %v_34 = add %v_30, %v_33: Int
-    %v_35 = call_complex firstOver, %cs, 3: Int
-    %v_36 = add %v_34, %v_35: Int
-    %v_37 = call_complex firstOfEachChunk, %cs: Int
+    %v_32 = add %v_28, %v_31: Int
+    %v_33 = call_complex firstOver, %cs, 3: Int
+    %v_34 = add %v_32, %v_33: Int
+    %v_35 = call_complex firstOfEachChunk, %cs: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %cs
-    %v_38 = add %cs, 16: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_38
-    %v_39 = add %cs, 32: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_39
-    %v_40 = add %v_36, %v_37: Int
-    ret %v_40
+    %v_36 = add %cs, 16: Ptr
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_36
+    %v_37 = add %cs, 32: Ptr
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_37
+    %v_38 = add %v_34, %v_35: Int
+    ret %v_38
   }
 }
 

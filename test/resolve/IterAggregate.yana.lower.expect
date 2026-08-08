@@ -33,9 +33,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -137,19 +136,18 @@ twoLifts<complex>(%ps$items: Ptr, %ps$length: Long): Int {
     store %v_3, %v_2, 8
     %v_4 = alloca 16, 8: Ptr
     store %v_4, funvalue$yOf, 8
-    %v_5 = bitcast 0: Ptr
-    %v_6 = add %v_4, 8: Ptr
-    store %v_6, %v_5, 8
-    %v_7 = alloca 8, 8: Ptr
-    store %v_7, %sum, 8
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.continuation$4, 8
-    %v_9 = add %v_8, 8: Ptr
-    store %v_9, %v_7, 8
-    %v_10 = alloca 1, 1: Ptr
-    call_complex mapFiltered(Point, Int, ()), %v_10, %ps$items, %ps$length, %v_1, %v_4, %v_8
-    %v_11 = loads %sum, 4: Int
-    ret %v_11
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_2, 8
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, %sum, 8
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, ResolveTest.continuation$4, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_6, 8
+    %v_9 = alloca 1, 1: Ptr
+    call_complex mapFiltered(Point, Int, ()), %v_9, %ps$items, %ps$length, %v_1, %v_4, %v_7
+    %v_10 = loads %sum, 4: Int
+    ret %v_10
   }
 }
 
@@ -192,44 +190,41 @@ main<complex>(): Int {
     %v_11 = and %v_10, 18446744072635809792: Int
     %v_12 = or %v_11, 3: Int
     %v_13 = and %v_12, 18446744070488326143: Int
-    %v_14 = add %v_7, 8: Ptr
-    store %v_14, %v_13, 4
+    store %v_9, %v_13, 4
     copy %v_8, %v_1, 8
-    %v_15 = add %v_8, 8: Ptr
-    copy %v_15, %v_3, 8
-    %v_16 = add %v_8, 16: Ptr
-    copy %v_16, %v_5, 8
-    %v_17 = add %v_7, 12: Ptr
-    store %v_17, 3, 4
-    %v_18 = alloca 16, 8: Ptr
-    %v_19 = alloca 16, 4: Ptr
-    store %v_18, %v_19, 8
-    %v_20 = add %v_18, 8: Ptr
-    %v_21 = load %v_20, 4: Int
-    %v_22 = and %v_21, 18446744072635809792: Int
-    %v_23 = or %v_22, 4: Int
-    %v_24 = and %v_23, 18446744070488326143: Int
+    %v_14 = add %v_8, 8: Ptr
+    copy %v_14, %v_3, 8
+    %v_15 = add %v_8, 16: Ptr
+    copy %v_15, %v_5, 8
+    %v_16 = add %v_7, 12: Ptr
+    store %v_16, 3, 4
+    %v_17 = alloca 16, 8: Ptr
+    %v_18 = alloca 16, 4: Ptr
+    store %v_17, %v_18, 8
+    %v_19 = add %v_17, 8: Ptr
+    %v_20 = load %v_19, 4: Int
+    %v_21 = and %v_20, 18446744072635809792: Int
+    %v_22 = or %v_21, 4: Int
+    %v_23 = and %v_22, 18446744070488326143: Int
+    store %v_19, %v_23, 4
+    store %v_18, 1, 4
+    %v_24 = add %v_18, 4: Ptr
+    store %v_24, 2, 4
     %v_25 = add %v_18, 8: Ptr
-    store %v_25, %v_24, 4
-    store %v_19, 1, 4
-    %v_26 = add %v_19, 4: Ptr
-    store %v_26, 2, 4
-    %v_27 = add %v_19, 8: Ptr
-    store %v_27, 3, 4
-    %v_28 = add %v_19, 12: Ptr
-    store %v_28, 4, 4
-    %v_29 = add %v_18, 12: Ptr
-    store %v_29, 4, 4
-    %v_30 = imm 3: Long
-    %v_31 = call_complex direct, %v_8, %v_30: Int
-    %v_32 = call_complex oneLift, %v_8, %v_30: Int
-    %v_33 = add %v_31, %v_32: Int
-    %v_34 = call_complex twoLifts, %v_8, %v_30: Int
+    store %v_25, 3, 4
+    %v_26 = add %v_18, 12: Ptr
+    store %v_26, 4, 4
+    %v_27 = add %v_17, 12: Ptr
+    store %v_27, 4, 4
+    %v_28 = call_complex direct, %v_8, 3: Int
+    %v_29 = call_complex oneLift, %v_8, 3: Int
+    %v_30 = add %v_28, %v_29: Int
+    %v_31 = call_complex twoLifts, %v_8, 3: Int
     call_complex Reclaim(Array(a)).reclaim(Point), %v_7
-    %v_35 = add %v_33, %v_34: Int
-    %v_36 = call_complex scalar, %v_19, 4: Int
-    %v_37 = add %v_35, %v_36: Int
-    ret %v_37
+    %v_32 = add %v_30, %v_31: Int
+    %v_33 = call_complex scalar, %v_18, 4: Int
+    %v_34 = add %v_32, %v_33: Int
+    ret %v_34
   }
 }
 
@@ -343,17 +338,15 @@ filtered(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %keep:
     call_complex each(Point, Outcome((), ())), %v_6, %xs$items, %xs$length, %v_4
     %v_7 = load %v_6, 1: Long
     %v_8 = cmp_le %v_7, 1: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
+    je %v_8, b_9, b_10
   }
 
-  b_11 {
+  b_9 {
     copy %v_0, %v_6, 1
     ret 
   }
 
-  b_12 {
+  b_10 {
     store %v_0, 0, 1
     ret 
   }
@@ -448,9 +441,7 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
     call_complex %v_20, %v_22, %v_21, %v_18
     %v_23 = load %v_22, 1: Long
     %v_24 = cmp_le %v_23, 1: Int
-    %v_25 = select 1, 0, %v_24: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_5
+    je %v_24, b_25, b_5
   }
 
   b_5 {
@@ -458,7 +449,7 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
     jmp b_3
   }
 
-  b_27 {
+  b_25 {
     copy %v_0, %v_22, 1
     ret 
   }
@@ -499,17 +490,15 @@ mapFiltered(Point, Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long
     call_complex filtered(Point, Outcome((), ())), %v_6, %xs$items, %xs$length, %keep, %v_4
     %v_7 = load %v_6, 1: Long
     %v_8 = cmp_le %v_7, 1: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
+    je %v_8, b_9, b_10
   }
 
-  b_11 {
+  b_9 {
     copy %v_0, %v_6, 1
     ret 
   }
 
-  b_12 {
+  b_10 {
     store %v_0, 0, 1
     ret 
   }
@@ -562,17 +551,15 @@ filtered(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length:
     call_complex each(Point, Outcome((), Outcome((), ()))), %v_6, %xs$items, %xs$length, %v_4
     %v_7 = load %v_6, 1: Long
     %v_8 = cmp_le %v_7, 2: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
+    je %v_8, b_9, b_10
   }
 
-  b_11 {
+  b_9 {
     copy %v_0, %v_6, 1
     ret 
   }
 
-  b_12 {
+  b_10 {
     store %v_0, 2, 1
     ret 
   }
@@ -599,27 +586,25 @@ ResolveTest.continuation$0(Point, Outcome((), ()))<complex>(%v_0: Ptr, %env: Ptr
     call_complex %v_12, %v_14, %v_13, %value
     %v_15 = load %v_14, 1: Long
     %v_16 = cmp_le %v_15, 1: Int
-    %v_17 = select 1, 0, %v_16: Int
-    %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_20
+    je %v_16, b_17, b_18
   }
 
   b_8 {
-    jmp b_21
+    jmp b_19
   }
 
-  b_19 {
-    %v_22 = alloca 1, 1: Ptr
-    copy %v_22, %v_14, 1
-    copy %v_0, %v_22, 1
+  b_17 {
+    %v_20 = alloca 1, 1: Ptr
+    copy %v_20, %v_14, 1
+    copy %v_0, %v_20, 1
     ret 
   }
 
-  b_20 {
-    jmp b_21
+  b_18 {
+    jmp b_19
   }
 
-  b_21 {
+  b_19 {
     store %v_0, 3, 1
     ret 
   }
@@ -669,9 +654,7 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
     call_complex %v_20, %v_22, %v_21, %v_18
     %v_23 = load %v_22, 1: Long
     %v_24 = cmp_le %v_23, 2: Int
-    %v_25 = select 1, 0, %v_24: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_5
+    je %v_24, b_25, b_5
   }
 
   b_5 {
@@ -679,7 +662,7 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
     jmp b_3
   }
 
-  b_27 {
+  b_25 {
     copy %v_0, %v_22, 1
     ret 
   }

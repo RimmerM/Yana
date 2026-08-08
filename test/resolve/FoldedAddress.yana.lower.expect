@@ -27,9 +27,8 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = load %v_11, 8: Ptr
     store %v_8, %v_12, 8
     %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %sizeClass, 3: Long
-    %v_15 = add %v_13, %v_14: Ptr
-    store %v_15, %allocation, 8
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
     ret 
   }
 }
@@ -189,52 +188,47 @@ double<complex>(%xs: Ptr) {
 
   b_9 {
     %v_11 = sext %v_2: Long
-    %v_12 = add %xs, 8: Ptr
-    %v_13 = loads %v_12, 8: Long
-    %v_14 = cast %v_2: Long
-    %v_15 = cast %v_13: Long
-    %v_16 = cmp_ge %v_14, %v_15: Int
-    je %v_16, b_17, b_18
+    %v_12 = cast %v_2: Long
+    %v_13 = cast %v_6: Long
+    %v_14 = cmp_ge %v_12, %v_13: Int
+    je %v_14, b_15, b_16
   }
 
-  b_18 {
-    jmp b_19
+  b_16 {
+    jmp b_17
+  }
+
+  b_15 {
+    %v_18 = syscall 60, 134: Long
+    jmp b_17
   }
 
   b_17 {
-    %v_20 = syscall 60, 134: Long
-    jmp b_19
+    %v_19 = load %xs, 8: Ptr
+    %v_20 = shl %v_11, 2: Long
+    %v_21 = add %v_19, %v_20: Ptr
+    %value = loads %v_21, 4: Int
+    %v_22 = add %xs, 8: Ptr
+    %v_23 = loads %v_22, 8: Long
+    %v_24 = cast %v_23: Long
+    %v_25 = cmp_ge %v_12, %v_24: Int
+    je %v_25, b_26, b_27
   }
 
-  b_19 {
-    %v_21 = load %xs, 8: Ptr
-    %v_22 = shl %v_11, 2: Long
-    %v_23 = add %v_21, %v_22: Ptr
-    %value = loads %v_23, 4: Int
-    %v_24 = sext %v_2: Long
-    %v_25 = add %xs, 8: Ptr
-    %v_26 = loads %v_25, 8: Long
-    %v_27 = cast %v_2: Long
-    %v_28 = cast %v_26: Long
-    %v_29 = cmp_ge %v_27, %v_28: Int
-    je %v_29, b_30, b_31
-  }
-
-  b_31 {
+  b_27 {
     jmp b_3
   }
 
-  b_30 {
-    %v_32 = syscall 60, 134: Long
+  b_26 {
+    %v_28 = syscall 60, 134: Long
     jmp b_3
   }
 
   b_3 {
-    %v_33 = load %xs, 8: Ptr
-    %v_34 = shl %v_24, 2: Long
-    %v_35 = add %v_33, %v_34: Ptr
-    %v_36 = add %value, %value: Int
-    store %v_35, %v_36, 4
+    %v_29 = load %xs, 8: Ptr
+    %v_30 = add %v_29, %v_20: Ptr
+    %v_31 = add %value, %value: Int
+    store %v_30, %v_31, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
@@ -250,17 +244,16 @@ oneSize<complex>(): Long {
     %v_4 = and %v_3, 18446744072635809792: Int
     %v_5 = or %v_4, 4: Int
     %v_6 = and %v_5, 18446744070488326143: Int
-    %v_7 = add %xs, 8: Ptr
-    store %v_7, %v_6, 4
+    store %v_2, %v_6, 4
     store %v_1, 1, 4
-    %v_8 = add %v_1, 4: Ptr
-    store %v_8, 2, 4
-    %v_9 = add %v_1, 8: Ptr
-    store %v_9, 3, 4
-    %v_10 = add %v_1, 12: Ptr
+    %v_7 = add %v_1, 4: Ptr
+    store %v_7, 2, 4
+    %v_8 = add %v_1, 8: Ptr
+    store %v_8, 3, 4
+    %v_9 = add %v_1, 12: Ptr
+    store %v_9, 4, 4
+    %v_10 = add %xs, 12: Ptr
     store %v_10, 4, 4
-    %v_11 = add %xs, 12: Ptr
-    store %v_11, 4, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
     ret 16
   }
@@ -277,20 +270,19 @@ twoSize<complex>(): Long {
     %v_5 = and %v_4, 18446744072635809792: Int
     %v_6 = or %v_5, 4: Int
     %v_7 = and %v_6, 18446744070488326143: Int
-    %v_8 = add %v_1, 8: Ptr
-    store %v_8, %v_7, 4
+    store %v_3, %v_7, 4
     store %v_2, 1, 4
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = add %v_2, 8: Ptr
-    store %v_10, 3, 4
-    %v_11 = add %v_2, 12: Ptr
+    %v_8 = add %v_2, 4: Ptr
+    store %v_8, 2, 4
+    %v_9 = add %v_2, 8: Ptr
+    store %v_9, 3, 4
+    %v_10 = add %v_2, 12: Ptr
+    store %v_10, 4, 4
+    %v_11 = add %v_1, 12: Ptr
     store %v_11, 4, 4
-    %v_12 = add %v_1, 12: Ptr
-    store %v_12, 4, 4
     copy %q, %v_1, 16
-    %v_13 = add %q, 16: Ptr
-    store %v_13, 0, 4
+    %v_12 = add %q, 16: Ptr
+    store %v_12, 0, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %q
     ret 16
   }
@@ -300,52 +292,52 @@ main<complex>(): Int {
   b_0 {
     %v_1 = call_complex oneSize: Long
     %v_2 = cmp_neq %v_1, 16: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 18446744073709551615
+    %v_3 = imm 4: Long
+    je %v_2, b_4, b_5
   }
 
   b_4 {
-    jmp b_5
+    ret 18446744073709551615
   }
 
   b_5 {
-    %v_6 = call_complex twoSize: Long
-    %v_7 = cmp_neq %v_6, 16: Int
-    je %v_7, b_8, b_9
+    jmp b_6
   }
 
-  b_8 {
-    ret 18446744073709551614
+  b_6 {
+    %v_7 = call_complex twoSize: Long
+    %v_8 = cmp_neq %v_7, 16: Int
+    je %v_8, b_9, b_10
   }
 
   b_9 {
-    jmp b_10
+    ret 18446744073709551614
   }
 
   b_10 {
-    %v_11 = alloca 16, 8: Ptr
-    %v_12 = alloca 16, 4: Ptr
-    store %v_11, %v_12, 8
-    %v_13 = add %v_11, 8: Ptr
-    %v_14 = load %v_13, 4: Int
-    %v_15 = and %v_14, 18446744072635809792: Int
-    %v_16 = or %v_15, 4: Int
-    %v_17 = and %v_16, 18446744070488326143: Int
-    %v_18 = add %v_11, 8: Ptr
-    store %v_18, %v_17, 4
-    store %v_12, 1, 4
-    %v_19 = add %v_12, 4: Ptr
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = alloca 16, 8: Ptr
+    %v_13 = alloca 16, 4: Ptr
+    store %v_12, %v_13, 8
+    %v_14 = add %v_12, 8: Ptr
+    %v_15 = load %v_14, 4: Int
+    %v_16 = and %v_15, 18446744072635809792: Int
+    %v_17 = or %v_16, 4: Int
+    %v_18 = and %v_17, 18446744070488326143: Int
+    store %v_14, %v_18, 4
+    store %v_13, 1, 4
+    %v_19 = add %v_13, 4: Ptr
     store %v_19, 2, 4
-    %v_20 = add %v_12, 8: Ptr
+    %v_20 = add %v_13, 8: Ptr
     store %v_20, 3, 4
-    %v_21 = add %v_12, 12: Ptr
+    %v_21 = add %v_13, 12: Ptr
     store %v_21, 4, 4
-    %v_22 = add %v_11, 12: Ptr
+    %v_22 = add %v_12, 12: Ptr
     store %v_22, 4, 4
-    %v_23 = call_complex total, %v_12, 4: Int
+    %v_23 = call_complex total, %v_13, 4: Int
     %v_24 = cmp_neq %v_23, 10: Int
     je %v_24, b_25, b_26
   }
@@ -359,116 +351,105 @@ main<complex>(): Int {
   }
 
   b_28 {
-    %v_29 = load %v_11, 8: Ptr
-    %v_30 = add %v_11, 12: Ptr
-    %v_31 = load %v_30, 4: Int
-    %v_32 = cast %v_31: Int
-    %v_33 = cast %v_32: Long
     %xs = alloca 16, 8: Ptr
-    store %xs, %v_29, 8
-    %v_34 = add %xs, 8: Ptr
-    store %v_34, %v_33, 8
-    %v_35 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_35, %v_29, %v_33, 1, 3
-    %xs$items = load %v_35, 8: Ptr
-    %v_36 = add %v_35, 8: Ptr
-    %xs$length = loads %v_36, 8: Long
-    %v_37 = call_complex total, %xs$items, %xs$length: Int
-    %v_38 = cmp_neq %v_37, 5: Int
-    je %v_38, b_39, b_40
+    store %xs, %v_13, 8
+    %v_29 = add %xs, 8: Ptr
+    store %v_29, %v_3, 8
+    %v_30 = alloca 16, 8: Ptr
+    call_complex slice(Int), %v_30, %v_13, %v_3, 1, 3
+    %xs$items = load %v_30, 8: Ptr
+    %v_31 = add %v_30, 8: Ptr
+    %xs$length = loads %v_31, 8: Long
+    %v_32 = call_complex total, %xs$items, %xs$length: Int
+    %v_33 = cmp_neq %v_32, 5: Int
+    je %v_33, b_34, b_35
   }
 
-  b_41 {
+  b_36 {
     ret 18446744073709551612
   }
 
-  b_40 {
-    jmp b_42
+  b_35 {
+    jmp b_37
   }
 
-  b_42 {
-    %v_43 = alloca 16, 8: Ptr
-    %v_44 = load %v_11, 8: Ptr
-    store %v_43, %v_44, 8
-    %v_45 = add %v_11, 12: Ptr
-    %v_46 = load %v_45, 4: Int
-    %v_47 = cast %v_46: Int
-    %v_48 = cast %v_47: Long
-    %v_49 = add %v_43, 8: Ptr
-    store %v_49, %v_48, 8
-    call_complex double, %v_43
-    %v_50 = call_complex total, %v_44, %v_48: Int
-    %v_51 = cmp_neq %v_50, 20: Int
-    je %v_51, b_52, b_53
+  b_37 {
+    %v_38 = alloca 16, 8: Ptr
+    store %v_38, %v_13, 8
+    %v_39 = add %v_38, 8: Ptr
+    store %v_39, %v_3, 8
+    call_complex double, %v_38
+    %v_40 = call_complex total, %v_13, %v_3: Int
+    %v_41 = cmp_neq %v_40, 20: Int
+    je %v_41, b_42, b_43
   }
 
-  b_54 {
+  b_44 {
     ret 18446744073709551611
   }
 
-  b_53 {
-    jmp b_55
+  b_43 {
+    jmp b_45
   }
 
-  b_55 {
-    %v_56 = alloca 16, 8: Ptr
-    %v_57 = alloca 8, 4: Ptr
-    store %v_56, %v_57, 8
-    %v_58 = add %v_56, 8: Ptr
-    %v_59 = load %v_58, 4: Int
-    %v_60 = and %v_59, 18446744072635809792: Int
-    %v_61 = or %v_60, 2: Int
-    %v_62 = and %v_61, 18446744070488326143: Int
-    %v_63 = add %v_56, 8: Ptr
-    store %v_63, %v_62, 4
-    store %v_57, 7, 4
-    %v_64 = add %v_57, 4: Ptr
-    store %v_64, 8, 4
-    %v_65 = add %v_56, 12: Ptr
-    store %v_65, 2, 4
-    %v_66 = call_complex total, %v_57, 2: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_56
-    %v_67 = cmp_neq %v_66, 15: Int
-    je %v_67, b_68, b_69
+  b_45 {
+    %v_46 = alloca 16, 8: Ptr
+    %v_47 = alloca 8, 4: Ptr
+    store %v_46, %v_47, 8
+    %v_48 = add %v_46, 8: Ptr
+    %v_49 = load %v_48, 4: Int
+    %v_50 = and %v_49, 18446744072635809792: Int
+    %v_51 = or %v_50, 2: Int
+    %v_52 = and %v_51, 18446744070488326143: Int
+    store %v_48, %v_52, 4
+    store %v_47, 7, 4
+    %v_53 = add %v_47, 4: Ptr
+    store %v_53, 8, 4
+    %v_54 = add %v_46, 12: Ptr
+    store %v_54, 2, 4
+    %v_55 = call_complex total, %v_47, 2: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_46
+    %v_56 = cmp_neq %v_55, 15: Int
+    je %v_56, b_57, b_58
   }
 
-  b_70 {
+  b_59 {
     ret 18446744073709551610
   }
 
-  b_69 {
-    jmp b_71
+  b_58 {
+    jmp b_60
   }
 
-  b_71 {
-    %v_72 = load %v_11, 8: Ptr
-    %v_73 = add %v_11, 12: Ptr
-    %v_74 = load %v_73, 4: Int
-    %v_75 = cast %v_74: Int
-    %v_76 = cast %v_75: Long
-    %v_77 = call_complex total, %v_72, %v_76: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_11
-    ret %v_77
+  b_60 {
+    %v_61 = load %v_12, 8: Ptr
+    %v_62 = add %v_12, 12: Ptr
+    %v_63 = load %v_62, 4: Int
+    %v_64 = cast %v_63: Int
+    %v_65 = cast %v_64: Long
+    %v_66 = call_complex total, %v_61, %v_65: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_12
+    ret %v_66
   }
 
   b_25 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_11
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_12
     jmp b_27
   }
 
-  b_39 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_11
-    jmp b_41
+  b_34 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_12
+    jmp b_36
   }
 
-  b_52 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_11
-    jmp b_54
+  b_42 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_12
+    jmp b_44
   }
 
-  b_68 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_11
-    jmp b_70
+  b_57 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_12
+    jmp b_59
   }
 }
 

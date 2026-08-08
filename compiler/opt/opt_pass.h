@@ -317,6 +317,18 @@ bool samePlace(OptContext& opt, const Place& a, const Place& b);
 bool holdsLoadableValue(OptContext& opt, TypePtr type);
 
 /*
+ * Whether an instruction may write storage a pass is tracking, or hand out a way to - opt_place.cpp,
+ * where the rule and the reason its default is `true` both live.
+ *
+ * Read by both passes that carry a fact about storage across an instruction, and the two ask it at
+ * different reach: `forwardPlaces` of the instruction in front of the one it is looking at,
+ * `eliminateCommonValues` of every block that could run between two loads of one place. The places
+ * an instruction *names* are the caller's question - a store is not one of these, and what it
+ * invalidates is `placesMayAlias` rather than everything.
+ */
+bool writesUnknownStorage(OptContext& opt, Value& instruction);
+
+/*
  * A block whose one predecessor ends by jumping straight to it, folded back into that predecessor -
  * see opt_branch.cpp, which is where the rule and its guards live.
  *

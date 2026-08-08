@@ -40,11 +40,12 @@ function unwrapOr(m, fallback) {
 
 function boxedValue(b) {
   var v26;
-  if (b.$tag === 0) {
+  var v1 = b.$tag;
+  if (v1 === 0) {
     var v28 = b.$p0;
     v26 = (v28 & 15) + Math.imul(v28 >>> 4, 16) | 0;
   } else {
-    if (b.$tag === 1) {
+    if (v1 === 1) {
       v26 = b.$p;
     } else {
       v26 = 0;

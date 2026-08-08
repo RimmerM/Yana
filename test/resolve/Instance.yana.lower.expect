@@ -104,32 +104,33 @@ pointers<complex>(): Long {
 
   b_15 {
     %v_16 = phi [b_11, 0], [b_14, 1]: Long
-    je %v_3, b_17, b_18
-  }
-
-  b_18 {
-    jmp b_19
-  }
-
-  b_17 {
-    jmp b_19
+    %v_17 = cmp_lt %v_1, %v_2: Int
+    je %v_17, b_18, b_19
   }
 
   b_19 {
-    %v_20 = phi [b_17, %v_1], [b_18, %v_2]: Ptr
-    %v_21 = cmp_eq %v_20, %v_7: Int
-    je %v_21, b_22, b_23
+    jmp b_20
   }
 
-  b_22 {
-    %v_24 = add %v_16, 2: Long
-    jmp b_23
+  b_18 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = phi [b_18, %v_1], [b_19, %v_2]: Ptr
+    %v_22 = cmp_eq %v_21, %v_7: Int
+    je %v_22, b_23, b_24
   }
 
   b_23 {
-    %v_25 = phi [b_19, %v_16], [b_22, %v_24]: Long
-    %v_26 = add %v_25, 4: Long
-    ret %v_26
+    %v_25 = add %v_16, 2: Long
+    jmp b_24
+  }
+
+  b_24 {
+    %v_26 = phi [b_20, %v_16], [b_23, %v_25]: Long
+    %v_27 = add %v_26, 4: Long
+    ret %v_27
   }
 }
 
@@ -159,43 +160,42 @@ Eq(Maybe(a)).==(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   }
 
   b_4 {
-    %v_5 = loads %lhs, 4: Int
-    %v_6 = cmp_eq %v_5, 0: Int
-    je %v_6, b_7, b_8
+    %v_5 = cmp_eq %v_1, 0: Int
+    je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_9 = add %lhs, 4: Ptr
-    %x = loads %v_9, 4: Int
-    %v_10 = loads %rhs, 4: Int
-    %v_11 = cmp_eq %v_10, 1: Int
-    je %v_11, b_12, b_4
+    %v_8 = add %lhs, 4: Ptr
+    %x = loads %v_8, 4: Int
+    %v_9 = loads %rhs, 4: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_4
   }
 
-  b_12 {
-    %v_13 = add %rhs, 4: Ptr
-    %y = loads %v_13, 4: Int
-    %v_14 = cmp_eq %x, %y: Int
-    jmp b_15
-  }
-
-  b_8 {
-    jmp b_15
+  b_11 {
+    %v_12 = add %rhs, 4: Ptr
+    %y = loads %v_12, 4: Int
+    %v_13 = cmp_eq %x, %y: Int
+    jmp b_14
   }
 
   b_7 {
-    %v_16 = loads %rhs, 4: Int
-    %v_17 = cmp_eq %v_16, 0: Int
-    je %v_17, b_18, b_8
+    jmp b_14
   }
 
-  b_18 {
-    jmp b_15
+  b_6 {
+    %v_15 = loads %rhs, 4: Int
+    %v_16 = cmp_eq %v_15, 0: Int
+    je %v_16, b_17, b_7
   }
 
-  b_15 {
-    %v_19 = phi [b_12, %v_14], [b_18, 1], [b_8, 0]: Int
-    ret %v_19
+  b_17 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_18 = phi [b_11, %v_13], [b_17, 1], [b_7, 0]: Int
+    ret %v_18
   }
 }
 

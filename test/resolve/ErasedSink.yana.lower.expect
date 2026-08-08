@@ -276,23 +276,22 @@ main<complex>(): Long {
     %v_15 = add %movedPair, 8: Ptr
     %v_16 = loads %v_15, 8: Long
     %v_17 = add %v_14, %v_16: Long
-    %v_18 = loads @sinkCalls, 8: Long
-    %v_19 = add %v_17, %v_18: Long
+    %v_18 = add %v_17, %v_7: Long
+    %v_19 = alloca 4, 4: Ptr
+    store %v_19, 19, 4
     %v_20 = alloca 4, 4: Ptr
-    store %v_20, 19, 4
-    %v_21 = alloca 4, 4: Ptr
-    call_complex twice, @genEnv$twice(Int), %v_21, %v_20
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = sext %v_22: Long
-    %v_24 = add %v_19, %v_23: Long
+    call_complex twice, @genEnv$twice(Int), %v_20, %v_19
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = sext %v_21: Long
+    %v_23 = add %v_18, %v_22: Long
+    %v_24 = alloca 4, 4: Ptr
+    store %v_24, 4, 4
     %v_25 = alloca 4, 4: Ptr
-    store %v_25, 4, 4
-    %v_26 = alloca 4, 4: Ptr
-    call_complex numeric, @genEnv$numeric(Int), %v_26, %v_25
-    %v_27 = loads %v_26, 4: Int
-    %v_28 = sext %v_27: Long
-    %v_29 = add %v_24, %v_28: Long
-    ret %v_29
+    call_complex numeric, @genEnv$numeric(Int), %v_25, %v_24
+    %v_26 = loads %v_25, 4: Int
+    %v_27 = sext %v_26: Long
+    %v_28 = add %v_23, %v_27: Long
+    ret %v_28
   }
 }
 

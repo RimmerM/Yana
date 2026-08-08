@@ -126,74 +126,67 @@ main<complex>(): Int {
 
   b_48 {
     %v_49 = phi [b_45, %v_47], [b_46, %v_43]: Int
-    %v_50 = load @one, 4: Float
-    %v_51 = load @zero, 4: Float
-    %v_52 = cmp_gt %v_50, %v_51: Int
-    je %v_52, b_53, b_54
+    %v_50 = cmp_gt %v, %v_1: Int
+    je %v_50, b_51, b_52
   }
 
-  b_53 {
-    %v_55 = add %v_49, 256: Int
-    jmp b_56
+  b_51 {
+    %v_53 = add %v_49, 256: Int
+    jmp b_54
+  }
+
+  b_52 {
+    jmp b_54
   }
 
   b_54 {
-    jmp b_56
+    %v_55 = phi [b_51, %v_53], [b_52, %v_49]: Int
+    %v_56 = cmp_lt %v_1, %v: Int
+    je %v_56, b_57, b_58
   }
 
-  b_56 {
-    %v_57 = phi [b_53, %v_55], [b_54, %v_49]: Int
-    %v_58 = load @zero, 4: Float
-    %v_59 = load @one, 4: Float
-    %v_60 = cmp_lt %v_58, %v_59: Int
-    je %v_60, b_61, b_62
+  b_57 {
+    %v_59 = add %v_55, 512: Int
+    jmp b_60
   }
 
-  b_61 {
-    %v_63 = add %v_57, 512: Int
-    jmp b_64
+  b_58 {
+    jmp b_60
   }
 
-  b_62 {
-    jmp b_64
+  b_60 {
+    %v_61 = phi [b_57, %v_59], [b_58, %v_55]: Int
+    %v_62 = cmp_eq %v, %v: Int
+    je %v_62, b_63, b_64
+  }
+
+  b_63 {
+    %v_65 = add %v_61, 1024: Int
+    jmp b_66
   }
 
   b_64 {
-    %v_65 = phi [b_61, %v_63], [b_62, %v_57]: Int
-    %v_66 = load @one, 4: Float
-    %v_67 = cmp_eq %v_66, %v_66: Int
-    je %v_67, b_68, b_69
+    jmp b_66
   }
 
-  b_68 {
-    %v_70 = add %v_65, 1024: Int
-    jmp b_71
+  b_66 {
+    %v_67 = phi [b_63, %v_65], [b_64, %v_61]: Int
+    %v_68 = cmp_neq %v, %v_1: Int
+    je %v_68, b_69, b_70
   }
 
   b_69 {
-    jmp b_71
+    %v_71 = add %v_67, 2048: Int
+    jmp b_72
   }
 
-  b_71 {
-    %v_72 = phi [b_68, %v_70], [b_69, %v_65]: Int
-    %v_73 = load @one, 4: Float
-    %v_74 = load @zero, 4: Float
-    %v_75 = cmp_neq %v_73, %v_74: Int
-    je %v_75, b_76, b_77
+  b_70 {
+    jmp b_72
   }
 
-  b_76 {
-    %v_78 = add %v_72, 2048: Int
-    jmp b_79
-  }
-
-  b_77 {
-    jmp b_79
-  }
-
-  b_79 {
-    %v_80 = phi [b_76, %v_78], [b_77, %v_72]: Int
-    ret %v_80
+  b_72 {
+    %v_73 = phi [b_69, %v_71], [b_70, %v_67]: Int
+    ret %v_73
   }
 }
 

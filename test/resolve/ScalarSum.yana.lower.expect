@@ -79,69 +79,57 @@ fiveOf<complex>(%f: Ptr): Int {
   }
 
   b_7 {
-    %v_8 = load %f, 2: Long
-    %v_9 = shr %v_8, 8: Long
-    %v_10 = and %v_9, 7: Long
-    %v_11 = cast %v_10: Int
-    %v_12 = cmp_eq %v_11, 1: Int
-    je %v_12, b_13, b_14
+    %v_8 = cmp_eq %v_4, 1: Int
+    je %v_8, b_9, b_10
   }
 
   b_6 {
     %x = load %f, 1: Int
-    %v_15 = cast %x: Int
-    jmp b_16
+    %v_11 = cast %x: Int
+    jmp b_12
+  }
+
+  b_10 {
+    %v_13 = cmp_eq %v_4, 2: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_9 {
+    %x = load %f, 1: Int
+    %v_16 = cast %x: Int
+    %v_17 = imul %v_16, 10: Int
+    jmp b_12
+  }
+
+  b_15 {
+    %v_18 = cmp_eq %v_4, 3: Int
+    je %v_18, b_19, b_20
   }
 
   b_14 {
-    %v_17 = load %f, 2: Long
-    %v_18 = shr %v_17, 8: Long
-    %v_19 = and %v_18, 7: Long
-    %v_20 = cast %v_19: Int
-    %v_21 = cmp_eq %v_20, 2: Int
-    je %v_21, b_22, b_23
-  }
-
-  b_13 {
     %x = load %f, 1: Int
-    %v_24 = cast %x: Int
-    %v_25 = imul %v_24, 10: Int
-    jmp b_16
+    %v_21 = cast %x: Int
+    %v_22 = imul %v_21, 100: Int
+    jmp b_12
   }
 
-  b_23 {
-    %v_26 = load %f, 2: Long
-    %v_27 = shr %v_26, 8: Long
-    %v_28 = and %v_27, 7: Long
-    %v_29 = cast %v_28: Int
-    %v_30 = cmp_eq %v_29, 3: Int
-    je %v_30, b_31, b_32
-  }
-
-  b_22 {
+  b_20 {
     %x = load %f, 1: Int
-    %v_33 = cast %x: Int
-    %v_34 = imul %v_33, 100: Int
-    jmp b_16
+    %v_23 = cast %x: Int
+    %v_24 = imul %v_23, 10000: Int
+    jmp b_12
   }
 
-  b_32 {
+  b_19 {
     %x = load %f, 1: Int
-    %v_35 = cast %x: Int
-    %v_36 = imul %v_35, 10000: Int
-    jmp b_16
+    %v_25 = cast %x: Int
+    %v_26 = imul %v_25, 1000: Int
+    jmp b_12
   }
 
-  b_31 {
-    %x = load %f, 1: Int
-    %v_37 = cast %x: Int
-    %v_38 = imul %v_37, 1000: Int
-    jmp b_16
-  }
-
-  b_16 {
-    %v_39 = phi [b_6, %v_15], [b_13, %v_25], [b_22, %v_34], [b_31, %v_38], [b_32, %v_36]: Int
-    ret %v_39
+  b_12 {
+    %v_27 = phi [b_6, %v_11], [b_9, %v_17], [b_14, %v_22], [b_19, %v_26], [b_20, %v_24]: Int
+    ret %v_27
   }
 }
 
@@ -229,23 +217,22 @@ maybeOf<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = load %m, 2: Long
     %v_2 = cmp_le %v_1, 511: Int
-    %v_3 = select 1, 0, %v_2: Int
-    %v_4 = cmp_eq %v_3, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex payloadOf, %m: Int
-    jmp b_8
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
   }
 
   b_5 {
-    jmp b_8
+    %v_6 = call_complex payloadOf, %m: Int
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_5, 500], [b_6, %v_7]: Int
-    ret %v_9
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_4, 500], [b_5, %v_6]: Int
+    ret %v_8
   }
 }
 

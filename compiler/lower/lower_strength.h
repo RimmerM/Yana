@@ -43,10 +43,10 @@
  * ## What is declined, and why
  *
  * A program that asks for both `x / d` and `x % d` at the same non-power-of-two `d` gets the
- * quotient sequence twice, because the only CSE this compiler has runs over the resolve IR and this
- * is below it. That is not a regression - it was two divisions before, and it is two five-instruction
- * sequences now - but it is the first concrete thing the lower-IR CSE the x64 README's roadmap ends
- * on would collect.
+ * quotient sequence twice, and this pass does nothing about it: the two are built independently, and
+ * noticing that is a question about the finished IR rather than about either rewrite. That was the
+ * first concrete thing named for a lower-IR CSE and it is now what collects it - `lower_cse.cpp` runs
+ * immediately behind this pass, for exactly that reason.
  *
  * A division by zero and a signed division by -1 are both left exactly as they were. The machine is
  * entitled to trap on either - `idiv` raises #DE for the second whenever the dividend is the type's

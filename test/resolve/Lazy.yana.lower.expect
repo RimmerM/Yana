@@ -145,67 +145,65 @@ main<complex>(): Int {
     %v_42 = add %v_38, 512: Int
     %v_43 = alloca 16, 8: Ptr
     store %v_43, ResolveTest.deferred$4, 8
-    %v_44 = bitcast 0: Ptr
-    %v_45 = add %v_43, 8: Ptr
-    store %v_45, %v_44, 8
-    %v_46 = add %v_43, 8: Ptr
-    %v_47 = load %v_43, 8: Ptr
-    %v_48 = load %v_46, 8: Ptr
-    %v_49 = call_complex %v_47, %v_48: Int
-    %v_50 = add %v_49, 1: Int
-    %v_51 = cmp_eq %v_50, 8: Int
-    je %v_51, b_52, b_53
+    %v_44 = add %v_43, 8: Ptr
+    store %v_44, %v_40, 8
+    %v_45 = load %v_43, 8: Ptr
+    %v_46 = load %v_44, 8: Ptr
+    %v_47 = call_complex %v_45, %v_46: Int
+    %v_48 = add %v_47, 1: Int
+    %v_49 = cmp_eq %v_48, 8: Int
+    je %v_49, b_50, b_51
   }
 
-  b_52 {
-    %v_54 = add %v_42, 1024: Int
-    jmp b_53
+  b_50 {
+    %v_52 = add %v_42, 1024: Int
+    jmp b_51
   }
 
-  b_53 {
-    %v_55 = phi [b_36, %v_42], [b_52, %v_54]: Int
-    %v_56 = alloca 16, 8: Ptr
-    store %v_56, ResolveTest.deferred$1, 8
-    %v_57 = bitcast 0: Ptr
-    %v_58 = add %v_56, 8: Ptr
-    store %v_58, %v_57, 8
-    %v_59 = alloca 4, 4: Ptr
-    call_complex Logic(Mask).&&, %v_59, 0, %v_56
-    %v_60 = loads %v_59, 4: Int
-    %v_61 = cmp_eq %v_60, 0: Int
-    je %v_61, b_62, b_63
+  b_51 {
+    %v_53 = phi [b_36, %v_42], [b_50, %v_52]: Int
+    %v_54 = alloca 16, 8: Ptr
+    store %v_54, ResolveTest.deferred$1, 8
+    %v_55 = bitcast 0: Ptr
+    %v_56 = add %v_54, 8: Ptr
+    store %v_56, %v_55, 8
+    %v_57 = alloca 4, 4: Ptr
+    call_complex Logic(Mask).&&, %v_57, 0, %v_54
+    %v_58 = loads %v_57, 4: Int
+    %v_59 = cmp_eq %v_58, 0: Int
+    je %v_59, b_60, b_61
   }
 
-  b_62 {
-    %v_64 = add %v_55, 2048: Int
-    jmp b_63
+  b_60 {
+    %v_62 = add %v_53, 2048: Int
+    jmp b_61
   }
 
-  b_63 {
-    %v_65 = phi [b_53, %v_55], [b_62, %v_64]: Int
-    %v_66 = alloca 16, 8: Ptr
-    store %v_66, ResolveTest.deferred$2, 8
-    %v_67 = bitcast 0: Ptr
-    %v_68 = add %v_66, 8: Ptr
-    store %v_68, %v_67, 8
-    %v_69 = alloca 4, 4: Ptr
-    call_complex Logic(Mask).&&, %v_69, 7, %v_66
-    %v_70 = loads %v_69, 4: Int
-    %v_71 = cmp_eq %v_70, 3: Int
-    je %v_71, b_72, b_73
+  b_61 {
+    %v_63 = phi [b_51, %v_53], [b_60, %v_62]: Int
+    %v_64 = alloca 16, 8: Ptr
+    store %v_64, ResolveTest.deferred$2, 8
+    %v_65 = bitcast 0: Ptr
+    %v_66 = add %v_64, 8: Ptr
+    store %v_66, %v_65, 8
+    %v_67 = alloca 4, 4: Ptr
+    call_complex Logic(Mask).&&, %v_67, 7, %v_64
+    %v_68 = loads %v_67, 4: Int
+    %v_69 = cmp_eq %v_68, 3: Int
+    je %v_69, b_70, b_71
   }
 
-  b_72 {
-    %v_74 = add %v_65, 4096: Int
-    jmp b_73
+  b_70 {
+    %v_72 = add %v_63, 4096: Int
+    jmp b_71
   }
 
-  b_73 {
-    %v_75 = phi [b_63, %v_65], [b_72, %v_74]: Int
-    %v_76 = imul %v_75, 100: Int
-    %v_77 = loads @effects, 4: Int
-    %v_78 = add %v_76, %v_77: Int
-    ret %v_78
+  b_71 {
+    %v_73 = phi [b_61, %v_63], [b_70, %v_72]: Int
+    %v_74 = imul %v_73, 100: Int
+    %v_75 = loads @effects, 4: Int
+    %v_76 = add %v_74, %v_75: Int
+    ret %v_76
   }
 }
 

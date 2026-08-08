@@ -160,10 +160,20 @@ struct Hoister {
      * only has to say *no* correctly, and every case it is unsure about it answers yes. Two
      * different fields of one aggregate are the separation that matters, since that is what lets a
      * loop writing `p.x` keep a hoisted read of `p.y`.
+     *
+     * `framed` is what the caller has already proved about `b` - that it is rooted in a local this
+     * frame contains - and it is the one thing that lets a pointer or a borrow be answered `no`.
+     * `computeContainment` refuses a local any `Borrow` or `Address` names, so a contained local is
+     * one no pointer in the function can be pointing at; opt_promote.cpp's `surveyCandidate` states
+     * the same fact and relies on it, and this was the one walk in the directory that did not.
+     *
+     * It is what a loop writing through a subscript costs without it. `out[c] = row * n + c` writes
+     * a borrow-rooted place, so every read of every counter in the loop aliased it and `row * n`
+     * stayed in the body - while the identical loop that only reads hoisted it into the preheader.
      */
-    bool mayAlias(const Place& a, const Place& b) {
-        if(a.root == PlaceRoot::Pointer || b.root == PlaceRoot::Pointer) return true;
-        if(a.root == PlaceRoot::Borrow || b.root == PlaceRoot::Borrow) return true;
+    bool mayAlias(const Place& a, const Place& b, bool framed) {
+        if(a.root == PlaceRoot::Pointer || b.root == PlaceRoot::Pointer) return !framed;
+        if(a.root == PlaceRoot::Borrow || b.root == PlaceRoot::Borrow) return !framed;
 
         if(a.root != b.root) return false;
         if(a.root == PlaceRoot::Local && a.local != b.local) return false;
@@ -224,10 +234,13 @@ struct Hoister {
             if(definedIn(loop, projection.value)) return false;
         }
 
-        if(anyClobber && !staysInFrame(opt, contained, load.place)) return false;
+        // Asked once and used twice: it is what makes a call survivable, and it is also the proof
+        // that no pointer or borrow the loop writes through can be naming this storage.
+        auto framed = staysInFrame(opt, contained, load.place);
+        if(anyClobber && !framed) return false;
 
         for(auto& place: written) {
-            if(mayAlias(place, load.place)) return false;
+            if(mayAlias(place, load.place, framed)) return false;
         }
 
         return true;

@@ -101,12 +101,13 @@ function main() {
                   } else {
                     result = BigInt.asIntN(64, result + relocated.value);
                     var relocatedPair = relocate_Pair({ left: { value: 80n }, right: 8n });
-                    if (sinkCalls.$v !== 8n) {
+                    var v164 = sinkCalls.$v;
+                    if (v164 !== 8n) {
                       return -10n;
                     } else {
                       var v260 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
                       result = v260;
-                      return BigInt.asIntN(64, v260 + sinkCalls.$v);
+                      return BigInt.asIntN(64, v260 + v164);
                     }
                   }
                 }
@@ -165,8 +166,9 @@ function relocate_Pair(x) {
 }
 
 function drop$_sub_gt_I64(value$c, value$e) {
-  if (value$c.$h != null) {
-    value$c.$h[0](value$e);
+  var v4 = value$c.$h;
+  if (v4 != null) {
+    v4[0](value$e);
   }
   return;
 }

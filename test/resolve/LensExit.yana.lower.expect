@@ -18,14 +18,13 @@ alwaysLeaves<complex>(%x: Int): Int {
     %v_4 = loads @log, 4: Int
     %v_5 = add %v_4, 1: Int
     store @log, %v_5, 4
-    %v_6 = add %v_2, 8: Ptr
-    %v_7 = load %v_2, 8: Ptr
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = call_complex %v_7, %v_8: Int
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
-    store @log, %v_11, 4
-    ret %v_9
+    %v_6 = load %v_2, 8: Ptr
+    %v_7 = load %v_3, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7: Int
+    %v_9 = loads @log, 4: Int
+    %v_10 = add %v_9, 100: Int
+    store @log, %v_10, 4
+    ret %v_8
   }
 }
 
@@ -40,14 +39,13 @@ sometimesLeaves<complex>(%x: Int): Int {
     %v_4 = loads @log, 4: Int
     %v_5 = add %v_4, 1: Int
     store @log, %v_5, 4
-    %v_6 = add %v_2, 8: Ptr
-    %v_7 = load %v_2, 8: Ptr
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = call_complex %v_7, %v_8: Int
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
-    store @log, %v_11, 4
-    ret %v_9
+    %v_6 = load %v_2, 8: Ptr
+    %v_7 = load %v_3, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7: Int
+    %v_9 = loads @log, 4: Int
+    %v_10 = add %v_9, 100: Int
+    store @log, %v_10, 4
+    ret %v_8
   }
 }
 
@@ -101,14 +99,13 @@ leavesWithValue<complex>(%x: Int): Int {
     %v_5 = add %v_4, 1: Int
     store @log, %v_5, 4
     %v_6 = shl %x, 1: Int
-    %v_7 = add %v_1, 8: Ptr
-    %v_8 = load %v_1, 8: Ptr
-    %v_9 = load %v_7, 8: Ptr
-    %v_10 = call_complex %v_8, %v_9, %v_6: Int
-    %v_11 = loads @log, 4: Int
-    %v_12 = add %v_11, 100: Int
-    store @log, %v_12, 4
-    ret %v_10
+    %v_7 = load %v_1, 8: Ptr
+    %v_8 = load %v_3, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8, %v_6: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 100: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 
@@ -123,14 +120,13 @@ twoDeep<complex>(%x: Int): Int {
     %v_4 = loads @log, 4: Int
     %v_5 = add %v_4, 1: Int
     store @log, %v_5, 4
-    %v_6 = add %v_2, 8: Ptr
-    %v_7 = load %v_2, 8: Ptr
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = call_complex %v_7, %v_8: Int
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
-    store @log, %v_11, 4
-    ret %v_9
+    %v_6 = load %v_2, 8: Ptr
+    %v_7 = load %v_3, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7: Int
+    %v_9 = loads @log, 4: Int
+    %v_10 = add %v_9, 100: Int
+    store @log, %v_10, 4
+    ret %v_8
   }
 }
 
@@ -185,7 +181,7 @@ ResolveTest.continuation$1<complex>(%env: Ptr): Int {
 
   b_5 {
     %v_6 = loads %env, 4: Int
-    %v_7 = add %v_6, 2: Int
+    %v_7 = add %v_1, 2: Int
     ret %v_7
   }
 }
@@ -272,14 +268,13 @@ ResolveTest.continuation$4<complex>(%env: Ptr): Int {
     %v_5 = loads @log, 4: Int
     %v_6 = add %v_5, 1: Int
     store @log, %v_6, 4
-    %v_7 = add %v_3, 8: Ptr
-    %v_8 = load %v_3, 8: Ptr
-    %v_9 = load %v_7, 8: Ptr
-    %v_10 = call_complex %v_8, %v_9: Int
-    %v_11 = loads @log, 4: Int
-    %v_12 = add %v_11, 100: Int
-    store @log, %v_12, 4
-    ret %v_10
+    %v_7 = load %v_3, 8: Ptr
+    %v_8 = load %v_4, 8: Ptr
+    %v_9 = call_complex %v_7, %v_8: Int
+    %v_10 = loads @log, 4: Int
+    %v_11 = add %v_10, 100: Int
+    store @log, %v_11, 4
+    ret %v_9
   }
 }
 

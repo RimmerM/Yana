@@ -193,6 +193,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_fold.cpp
     lower/lower_promote.h
     lower/lower_promote.cpp
+    lower/lower_cse.h
+    lower/lower_cse.cpp
     lower/lower_strength.h
     lower/lower_strength.cpp
     lower/lower_induction.h

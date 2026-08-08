@@ -264,9 +264,99 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
     return Folded::nothing();
 }
 
+/*
+ * Whether this value is already one of the two integers a `Bool` is.
+ *
+ * A `Cmp` is the only instruction in this IR whose result is defined to be 0 or 1 - every other
+ * producer of a truth value is one of these wrapped in something, which is exactly what the two
+ * folds below unwrap. A `Select` between the literals 1 and 0 is admitted as well, so that the two
+ * rules compose in one round rather than needing a second: `cmp_eq (select 1, 0, c), 1` is the shape
+ * lowering actually emits, and answering it needs both halves at once.
+ */
+bool isBooleanValued(LowerBase base, LowerValue* value) {
+    auto inst = value->inst();
+    if(inst->kind == LowerInst::Cmp) return true;
+
+    if(inst->kind != LowerInst::Select) return false;
+
+    auto select = (LowerInstSelect*)inst;
+    if(select->getEmbeddedCmp()) return false;
+
+    U64 whenTrue, whenFalse;
+    if(!lowerConstantOf(base, base[select->lhs], whenTrue)) return false;
+    if(!lowerConstantOf(base, base[select->rhs], whenFalse)) return false;
+
+    return whenTrue == 1 && whenFalse == 0;
+}
+
+/*
+ * A truth value materialized and then asked whether it is true.
+ *
+ * Two rewrites, and they only pay together. Lowering a `Bool` produces `select 1, 0, %c` - the
+ * comparison as a number - and lowering the `if` that reads it produces `cmp_eq %that, 1`, so the
+ * four instructions a niche test compiles to are a comparison, a materialization of it, a comparison
+ * against the materialization, and the branch. Both middle instructions are identities:
+ *
+ *   `select 1, 0, %c`  is  `%c`          for a `%c` that is already 0 or 1
+ *   `cmp_eq %b, 1`     is  `%b`          for the same reason, and so is `cmp_neq %b, 0`
+ *
+ * `Maybe(Tree)` is what makes this worth a pass rather than a peephole. `node.left is Just(l)` is a
+ * niche range test, and the four instructions above become `cmp; jbe` - seven instructions per node
+ * down to three, twice in every walk of the tree.
+ *
+ * The inverses (`cmp_eq %b, 0`, `cmp_neq %b, 1`) are deliberately not folded. They are the *negation*
+ * of `%b`, which is a new instruction rather than one of the operands, and `Folded` says either a
+ * constant or an operand already there - inverting the comparison inside `%c` instead would rewrite
+ * an instruction this pass does not own, and `%c` may have other readers that wanted it the first way.
+ */
+Folded foldBooleanValue(LowerBase base, LowerInst* inst) {
+    if(inst->kind == LowerInst::Select) {
+        auto select = (LowerInstSelect*)inst;
+        if(select->getEmbeddedCmp()) return Folded::nothing();
+
+        auto condition = base[select->cmp];
+        if(!isBooleanValued(base, condition)) return Folded::nothing();
+        if(condition->type != select->result.type) return Folded::nothing();
+
+        U64 whenTrue, whenFalse;
+        if(!lowerConstantOf(base, base[select->lhs], whenTrue)) return Folded::nothing();
+        if(!lowerConstantOf(base, base[select->rhs], whenFalse)) return Folded::nothing();
+        if(whenTrue != 1 || whenFalse != 0) return Folded::nothing();
+
+        return Folded::forward(condition);
+    }
+
+    if(inst->kind != LowerInst::Cmp) return Folded::nothing();
+
+    auto compare = (LowerInstCmp*)inst;
+    auto kind = compare->getCmp();
+    if(kind != LowerCmp::eq && kind != LowerCmp::neq) return Folded::nothing();
+
+    // Either way round: the constant is the one side and the truth value the other.
+    auto lhs = base[compare->lhs];
+    auto rhs = base[compare->rhs];
+
+    U64 constant;
+    LowerValue* boolean = nullptr;
+
+    if(lowerConstantOf(base, rhs, constant)) boolean = lhs;
+    else if(lowerConstantOf(base, lhs, constant)) boolean = rhs;
+    else return Folded::nothing();
+
+    if(!isBooleanValued(base, boolean)) return Folded::nothing();
+    if(boolean->type != compare->result.type) return Folded::nothing();
+
+    auto identity = (kind == LowerCmp::eq && constant == 1) ||
+                    (kind == LowerCmp::neq && constant == 0);
+
+    return identity ? Folded::forward(boolean) : Folded::nothing();
+}
+
 // What an instruction that is already in a block comes to, for the pass below. One switch over the
 // three shapes the folds above cover; everything else answers nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
+    if(auto boolean = foldBooleanValue(base, inst); boolean.kind != Folded::None) return boolean;
+
     if(isCast(inst)) {
         if(inst->kind != LowerInst::Cast) return Folded::nothing();
 
