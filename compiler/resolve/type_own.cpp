@@ -284,8 +284,25 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     if(!result.trivialSink) result.trivialCopy = false;
 
     value->resolvingOwnership = false;
-    value->ownership = result;
-    value->ownershipReady = true;
+
+    /*
+     * Remembered only once no further instance can appear - see Program::declarationsComplete.
+     *
+     * This is the one classification a later declaration can change, and the header above says so;
+     * what it did not say is that the cache made "later" mean "never". Three of the built-in modules
+     * resolve their own bodies inside their define step, so a type reached from one of those bodies
+     * was classified against a program that was still being declared - and `instance Reclaim(String)`
+     * is declared two modules further up than the first body to ask a `String` what it owes.
+     *
+     * Recomputing until then costs a walk over the members of whatever built-in bodies mention, and
+     * that is the whole of the cost: the first query after this point caches, and every query the
+     * ownership pass makes is after it.
+     */
+    if(module.program.declarationsComplete) {
+        value->ownership = result;
+        value->ownershipReady = true;
+    }
+
     return result;
 }
 

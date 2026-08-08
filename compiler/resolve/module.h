@@ -1037,6 +1037,25 @@ struct Program {
     bool optimized = false;
 
     /*
+     * Whether every module's declarations have been read - see resolveProgram, which is the only
+     * thing that sets it.
+     *
+     * `ownershipOf` caches its answer on the type, and that answer is the one classification a
+     * *later* declaration can change: writing `instance Drop(T)` or `instance Reclaim(T)` is exactly
+     * the statement that T's structural answer was wrong. So a cached answer is only sound once no
+     * further instance can appear, and until then the classification is recomputed rather than
+     * remembered.
+     *
+     * The window is real rather than hypothetical. Collections, NativeText and Text resolve their
+     * own bodies inside their define step - each needs the module below it finished before the next
+     * is built - so those bodies are resolved before the modules above them have declared anything.
+     * `instance Reclaim(String)` is declared in Text and the first thing to ask a `String` for its
+     * ownership is NativeText's `stringLiteral`, two steps earlier: the answer "nothing to release"
+     * was cached there and every string temporary in every program leaked for it.
+     */
+    bool declarationsComplete = false;
+
+    /*
      * Whether any function value in this program can carry a teardown at all - see
      * markClosureHeaders, which is the only thing that ever clears it.
      *

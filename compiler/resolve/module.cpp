@@ -456,6 +456,12 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 
     resolveModuleDecls(*module, root, provider);
 
+    // Every instance the program will ever have now exists, which is what makes a type's ownership
+    // answerable once and for all - see Program::declarationsComplete for what asking too early
+    // cost. Nothing below adds a declaration: a body may *instantiate* a generic, and a
+    // specialization inherits the head's instances rather than declaring new ones.
+    program->declarationsComplete = true;
+
     // The program's start, ahead of every other body: the root module's top-level statements are
     // what decide the type of a dynamically initialized global, and any body may name one.
     resolveProgramEntry(*program);

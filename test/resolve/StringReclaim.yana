@@ -1,0 +1,61 @@
+import Native
+
+-- A string that owns its bytes has to be released when the value that owns it dies, and the place
+-- that is easiest to get wrong is a temporary: a value nothing ever named. `Recursive.Reclaim.yana`
+-- makes the same argument for a box, and for the same reason - a teardown that never runs produces
+-- every number the program itself asserts, so the assertion has to be made against the allocator.
+--
+-- Native only, deliberately: this reads `Native`'s bump allocator, and on JS the host collector owns
+-- the bytes.
+
+data Row {id: Int, score: Int}
+
+-- The shape `Text.yana` is written in: the string is built in a callee and handed back.
+fn line(row: Row) -> String = "row {row.id}: score {row.score} ok"
+
+fn buildInCallee() -> Int:
+    let text = line(Row {id: 7, score: 9})
+    return length(text) :: Int
+
+-- The same interpolation, written where it is used.
+fn buildHere() -> Int:
+    let id = 7 :: Int
+    let text = "row {id}: score {id} ok"
+    return length(text) :: Int
+
+-- A concatenation, whose result owns its bytes where neither operand did.
+fn concatHere() -> Int:
+    let joined = "ab" + "cde"
+    return length(joined) :: Int
+
+-- An interpolation that is never named at all.
+fn buildUnnamed() -> Int = length("row {7}: score {9} ok") :: Int
+
+fn main() -> Int:
+    -- Once each first, so the region is mapped and every size class these strings fall into has been
+    -- reached. Everything measured after this is reuse or growth.
+    let warmCallee = buildInCallee()
+    let warmHere = buildHere()
+    let warmConcat = concatHere()
+    let warmUnnamed = buildUnnamed()
+
+    -- `allocateHeap` serves a request from the free list of its size class when one is there, and
+    -- only advances `heapNext` for a genuinely fresh block. So building the same string again moves
+    -- this pointer exactly when the first one was not released.
+    let settled = heapNext
+
+    if buildInCallee() != warmCallee then return -1
+    if !(heapNext == settled) then return -2
+
+    if buildHere() != warmHere then return -3
+    if !(heapNext == settled) then return -4
+
+    if concatHere() != warmConcat then return -5
+    if !(heapNext == settled) then return -6
+
+    if buildUnnamed() != warmUnnamed then return -7
+    if !(heapNext == settled) then return -8
+
+    -- 17 + 17 + 5 + 17: the four lengths, so that a fixture which released everything by never
+    -- building anything is not one that passes.
+    return warmCallee + warmHere + warmConcat + warmUnnamed

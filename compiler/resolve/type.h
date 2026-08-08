@@ -201,7 +201,9 @@ struct Type {
 
     // Cached by ownershipOf(). Ownership classification is a whole-program property - one type has
     // one answer - so it is cached on the type the way Repr is, rather than recomputed per module
-    // that asks. That relies on instance coherence, which the language already requires.
+    // that asks. That relies on instance coherence, which the language already requires, and on
+    // every instance already existing: nothing is remembered here until Program::declarationsComplete,
+    // because an `instance Reclaim(T)` read later is exactly a statement that this answer was wrong.
     Ownership ownership;
     bool ownershipReady = false;
     bool resolvingOwnership = false;
