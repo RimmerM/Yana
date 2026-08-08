@@ -24,166 +24,157 @@ main<complex>(): Int {
   }
 
   b_8 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
     jmp b_9
   }
 
   b_9 {
     %v_10 = phi [b_8, 0], [b_11, %v_12]: Int
-    %v_13 = cmp_ilt %v_10, 4: Int
-    je %v_13, b_14, b_15
+    %v_13 = phi [b_8, 0], [b_11, %v_14]: Int
+    %v_15 = cmp_ilt %v_13, 4: Int
+    je %v_15, b_16, b_17
   }
 
-  b_15 {
-    %v_16 = loads %total, 4: Int
-    %v_17 = add %v_2, %v_16: Int
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %row = alloca 4, 4: Ptr
-    store %row, 0, 4
-    jmp b_18
+  b_17 {
+    %v_18 = add %v_2, %v_10: Int
+    jmp b_19
   }
 
-  b_18 {
-    %v_19 = loads %row, 4: Int
-    %v_20 = cmp_ilt %v_19, 2: Int
-    je %v_20, b_21, b_22
-  }
-
-  b_22 {
-    %v_23 = loads %total, 4: Int
-    %v_24 = add %v_17, %v_23: Int
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = phi [b_22, 3], [b_27, %v_28]: Int
-    %v_29 = phi [b_22, 0], [b_27, %v_30]: Int
-    %v_31 = cmp_ilt %v_29, 3: Int
-    je %v_31, b_27, b_32
-  }
-
-  b_32 {
-    %v_33 = add %v_24, %v_26: Int
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = phi [b_32, 0], [b_36, %v_37]: Int
-    %v_38 = phi [b_32, 0], [b_36, %v_39]: Int
-    %v_40 = cmp_ilt %v_38, 2: Int
-    je %v_40, b_36, b_41
-  }
-
-  b_41 {
-    %v_42 = add %v_33, %v_35: Int
-    %q = alloca 8, 4: Ptr
-    call_complex madePoint, %q
-    %v_43 = loads %q, 4: Int
-    %v_44 = add %q, 4: Ptr
-    %v_45 = loads %v_44, 4: Int
-    %v_46 = imul %v_43, %v_45: Int
-    jmp b_47
-  }
-
-  b_47 {
-    %v_48 = phi [b_41, 0], [b_49, %v_50]: Int
-    %v_51 = phi [b_41, 0], [b_49, %v_52]: Int
-    %v_53 = cmp_ilt %v_51, 2: Int
-    je %v_53, b_49, b_54
-  }
-
-  b_54 {
-    %v_55 = add %v_42, %v_48: Int
-    jmp b_56
-  }
-
-  b_56 {
-    %v_57 = phi [b_54, 3], [b_58, %v_59]: Int
-    %v_60 = phi [b_54, 0], [b_58, %v_61]: Int
-    %v_62 = phi [b_54, 0], [b_58, %v_63]: Int
-    %v_64 = cmp_ilt %v_60, 2: Int
-    je %v_64, b_58, b_65
-  }
-
-  b_65 {
-    %v_66 = add %v_55, %v_62: Int
-    jmp b_67
-  }
-
-  b_67 {
-    %v_68 = phi [b_65, 7], [b_69, %v_70]: Int
-    %v_71 = phi [b_65, 0], [b_69, %v_72]: Int
-    %v_73 = cmp_igt %v_71, 0: Int
-    je %v_73, b_69, b_74
-  }
-
-  b_74 {
-    %v_75 = add %v_66, %v_68: Int
-    ret %v_75
-  }
-
-  b_69 {
-    %v_70 = add %v_68, 12: Int
-    %v_72 = sub %v_71, 1: Int
-    jmp b_67
-  }
-
-  b_58 {
-    %v_59 = add %v_57, 1: Int
-    %v_76 = shl %v_59, 2: Int
-    %v_63 = add %v_62, %v_76: Int
-    %v_61 = add %v_60, 1: Int
-    jmp b_56
-  }
-
-  b_49 {
-    %v_77 = add %v_48, 1: Int
-    %v_50 = add %v_77, %v_46: Int
-    %v_52 = add %v_51, 1: Int
-    jmp b_47
-  }
-
-  b_36 {
-    %v_37 = add %v_35, 13: Int
-    %v_39 = add %v_38, 1: Int
-    jmp b_34
+  b_19 {
+    %v_20 = phi [b_17, 0], [b_21, %v_22]: Int
+    %v_23 = phi [b_17, 0], [b_21, %v_24]: Int
+    %v_25 = cmp_ilt %v_23, 2: Int
+    je %v_25, b_26, b_27
   }
 
   b_27 {
-    %v_28 = add %v_26, 4: Int
-    %v_30 = add %v_29, 1: Int
-    jmp b_25
+    %v_28 = add %v_18, %v_20: Int
+    jmp b_29
   }
 
-  b_21 {
-    jmp b_78
+  b_29 {
+    %v_30 = phi [b_27, 3], [b_31, %v_32]: Int
+    %v_33 = phi [b_27, 0], [b_31, %v_34]: Int
+    %v_35 = cmp_ilt %v_33, 3: Int
+    je %v_35, b_31, b_36
+  }
+
+  b_36 {
+    %v_37 = add %v_28, %v_30: Int
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_36, 0], [b_40, %v_41]: Int
+    %v_42 = phi [b_36, 0], [b_40, %v_43]: Int
+    %v_44 = cmp_ilt %v_42, 2: Int
+    je %v_44, b_40, b_45
+  }
+
+  b_45 {
+    %v_46 = add %v_37, %v_39: Int
+    %q = alloca 8, 4: Ptr
+    call_complex madePoint, %q
+    %v_47 = loads %q, 4: Int
+    %v_48 = add %q, 4: Ptr
+    %v_49 = loads %v_48, 4: Int
+    %v_50 = imul %v_47, %v_49: Int
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = phi [b_45, 0], [b_53, %v_54]: Int
+    %v_55 = phi [b_45, 0], [b_53, %v_56]: Int
+    %v_57 = cmp_ilt %v_55, 2: Int
+    je %v_57, b_53, b_58
+  }
+
+  b_58 {
+    %v_59 = add %v_46, %v_52: Int
+    jmp b_60
+  }
+
+  b_60 {
+    %v_61 = phi [b_58, 3], [b_62, %v_63]: Int
+    %v_64 = phi [b_58, 0], [b_62, %v_65]: Int
+    %v_66 = phi [b_58, 0], [b_62, %v_67]: Int
+    %v_68 = cmp_ilt %v_64, 2: Int
+    je %v_68, b_62, b_69
+  }
+
+  b_69 {
+    %v_70 = add %v_59, %v_66: Int
+    jmp b_71
+  }
+
+  b_71 {
+    %v_72 = phi [b_69, 7], [b_73, %v_74]: Int
+    %v_75 = phi [b_69, 0], [b_73, %v_76]: Int
+    %v_77 = cmp_igt %v_75, 0: Int
+    je %v_77, b_73, b_78
   }
 
   b_78 {
-    %v_79 = phi [b_21, 0], [b_80, %v_81]: Int
-    %v_82 = cmp_ilt %v_79, 3: Int
-    je %v_82, b_80, b_83
+    %v_79 = add %v_70, %v_72: Int
+    ret %v_79
+  }
+
+  b_73 {
+    %v_74 = add %v_72, 12: Int
+    %v_76 = sub %v_75, 1: Int
+    jmp b_71
+  }
+
+  b_62 {
+    %v_63 = add %v_61, 1: Int
+    %v_80 = shl %v_63, 2: Int
+    %v_67 = add %v_66, %v_80: Int
+    %v_65 = add %v_64, 1: Int
+    jmp b_60
+  }
+
+  b_53 {
+    %v_81 = add %v_52, 1: Int
+    %v_54 = add %v_81, %v_50: Int
+    %v_56 = add %v_55, 1: Int
+    jmp b_51
+  }
+
+  b_40 {
+    %v_41 = add %v_39, 13: Int
+    %v_43 = add %v_42, 1: Int
+    jmp b_38
+  }
+
+  b_31 {
+    %v_32 = add %v_30, 4: Int
+    %v_34 = add %v_33, 1: Int
+    jmp b_29
+  }
+
+  b_26 {
+    jmp b_82
+  }
+
+  b_82 {
+    %v_22 = phi [b_26, %v_20], [b_83, %v_84]: Int
+    %v_85 = phi [b_26, 0], [b_83, %v_86]: Int
+    %v_87 = cmp_ilt %v_85, 3: Int
+    je %v_87, b_83, b_21
+  }
+
+  b_21 {
+    %v_24 = add %v_23, 1: Int
+    jmp b_19
   }
 
   b_83 {
-    %v_84 = loads %row, 4: Int
-    %v_85 = add %v_84, 1: Int
-    store %row, %v_85, 4
-    jmp b_18
+    %v_84 = add %v_22, 7: Int
+    %v_86 = add %v_85, 1: Int
+    jmp b_82
   }
 
-  b_80 {
-    %v_86 = loads %total, 4: Int
-    %v_87 = add %v_86, 7: Int
-    store %total, %v_87, 4
-    %v_81 = add %v_79, 1: Int
-    jmp b_78
-  }
-
-  b_14 {
-    %v_88 = cmp_igt %v_10, 1: Int
+  b_16 {
+    %v_88 = cmp_igt %v_13, 1: Int
     je %v_88, b_89, b_90
   }
 
@@ -192,14 +183,13 @@ main<complex>(): Int {
   }
 
   b_89 {
-    %v_91 = loads %total, 4: Int
-    %v_92 = add %v_91, 12: Int
-    store %total, %v_92, 4
+    %v_91 = add %v_10, 12: Int
     jmp b_11
   }
 
   b_11 {
-    %v_12 = add %v_10, 1: Int
+    %v_12 = phi [b_90, %v_10], [b_89, %v_91]: Int
+    %v_14 = add %v_13, 1: Int
     jmp b_9
   }
 

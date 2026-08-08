@@ -168,10 +168,19 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
  * Where the slot is known to hold something.
  *
  * A forward must-analysis, `in[b] = AND over predecessors of out[p]` and `out[b] = in[b] || writes`,
- * from the pessimistic end so that a loop whose body writes the slot converges to "written" while one
- * that does not stays unwritten. A block nothing jumps to - the entry, and anything unreachable -
- * starts with nothing, which is what makes an unreachable predecessor deny a phi rather than leave it
- * an alternative that does not exist.
+ * solved from the *optimistic* end: every block starts "written" and the fixpoint takes away the ones
+ * that are not. A block nothing jumps to - the entry, and anything unreachable - has no predecessors
+ * and so is denied on the first pass, which is what makes an unreachable predecessor deny a phi
+ * rather than leave it an alternative that does not exist.
+ *
+ * The direction matters, and starting from the pessimistic end is wrong rather than conservative. An
+ * `in` that is the AND over predecessors cannot become true inside a loop unless it was already true
+ * when the latch was first looked at, so "false everywhere" is a fixpoint of every cycle whose blocks
+ * do not all write the slot. What that cost was every local live across a *nested* loop: the outer
+ * loop's latch writes `row` and not `total`, so `total` was never available at the block that reads
+ * it, and both stayed in memory. One loop deep happened to work - there the latch is the body, and
+ * the body writes what it carries - which is why this went unnoticed. The greatest fixpoint is the
+ * answer a must-analysis wants and the optimistic start is what reaches it.
  */
 void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
     auto count = fun.blocks.size();
@@ -179,7 +188,13 @@ void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
     slot.available.reset(count);
 
     IndexSet out;
-    out.copyFrom(slot.stores);
+    out.reset(count);
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto index = base[blockPtr]->index;
+        slot.available.set(index, true);
+        out.set(index, true);
+    }
 
     auto changed = true;
     while(changed) {
@@ -194,10 +209,16 @@ void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
                 if(!out[base[predPtr]->index]) { in = false; break; }
             }
 
-            if(in && slot.available.add(block->index)) changed = true;
+            if(slot.available[block->index] != in) {
+                slot.available.set(block->index, in);
+                changed = true;
+            }
 
             auto exit = in || slot.stores[block->index];
-            if(exit && out.add(block->index)) changed = true;
+            if(out[block->index] != exit) {
+                out.set(block->index, exit);
+                changed = true;
+            }
         }
     }
 }

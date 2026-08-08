@@ -78,6 +78,15 @@ struct CallConvention {
     // independently, filling rdi..r9 with integers however many floats came first.
     bool positionalArgs = false;
 
+    // Whether an argument register survives the call. It does not under any convention whose callee
+    // is compiled code - the callee owns the register the moment it is entered, and `finish` checks
+    // that every argument register is in the clobber set for exactly that reason. The Linux syscall
+    // convention is the one exception: the kernel gives back everything but rax, rcx and r11, so a
+    // value in rsi is still there after a `write`. What the call's *own* arguments cost is unchanged
+    // either way - the copies that place them write those registers where the call stands, and
+    // writtenRegisters adds them to the site's mask from the shape.
+    bool preservesArgs = false;
+
     // Set once the convention has tables to work from. A function or call using one that does not
     // has to be rejected: with empty tables every argument would silently be classified onto the
     // stack, which is a working compile of the wrong program.

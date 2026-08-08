@@ -108,7 +108,9 @@ static const IntRegister kSyscallResults[] = { IntRegister::rax };
 // without appearing in any argument or result table, and a callee is entitled to use them - so it
 // is stated in full and checked here for the mistake that actually happens: a convention that gains
 // an argument or result register without gaining the clobber that goes with it, which would show up
-// as a caller reading back a register the callee had quietly stopped preserving.
+// as a caller reading back a register the callee had quietly stopped preserving. `preservesArgs`
+// exempts the argument half of that check and only it - a result register is written by definition,
+// whoever the callee is.
 static void finish(CallConvention& convention) {
     auto& target = targetRegisters();
 
@@ -116,17 +118,17 @@ static void finish(CallConvention& convention) {
     // bank could have been given in the first place - a convention that passed an argument in rsp,
     // or in a vector register the bank does not have, would be describing a machine that does not
     // exist. Checked here because the tables are written by hand.
-    auto checkTable = [&](RegisterBankId bank, const CallConvention::BankRegs& table) {
+    auto checkTable = [&](RegisterBankId bank, const CallConvention::BankRegs& table, bool clobbered) {
         for(Size i = 0; i < table.count; i++) {
             assertTrue(table.regs[i].bank == bank); // a convention table holds a register of another bank
             assertTrue(target.bank(bank).allocatable.has(table.regs[i])); // ... that is not allocatable
-            assertTrue(convention.clobber.has(table.regs[i])); // argument or result register is not clobbered
+            assertTrue(!clobbered || convention.clobber.has(table.regs[i])); // argument or result register is not clobbered
         }
     };
 
     for(Size bank = 0; bank < kRegisterBankCount; bank++) {
-        checkTable(RegisterBankId(bank), convention.args[bank]);
-        checkTable(RegisterBankId(bank), convention.results[bank]);
+        checkTable(RegisterBankId(bank), convention.args[bank], !convention.preservesArgs);
+        checkTable(RegisterBankId(bank), convention.results[bank], true);
     }
 
     // A convention that clobbered rbp would be saying that a call destroys its caller's frame
@@ -240,13 +242,26 @@ Constraints::Constraints() {
     /*
      * Linux syscalls. Never a function's own convention - the kernel is the callee - so its
      * preserved set is only ever read as "what a syscall leaves alone".
+     *
+     * And what it leaves alone is everything but three registers. rax carries the result, and the
+     * `syscall` instruction itself destroys rcx and r11 - it puts the return address in one and the
+     * flags in the other - so those three are the whole clobber set. The argument registers are
+     * *not* in it, which is what separates this convention from every other one here: the kernel
+     * reads them and hands them back, where a compiled callee owns the register it was passed in.
+     *
+     * It matters wherever a check that ends the program sits inside a loop. A bounds check's failure
+     * arm is an `exit` syscall, every value the loop carries is live across it, and treating the
+     * syscall as destroying rdi through r9 left them nine registers to dodge - which is more than
+     * the six callee-saved ones they could then have, so the rest of the loop's values went to the
+     * frame. What each syscall's own arguments cost is unchanged: the copies placing them write
+     * those registers where the call stands, and writtenRegisters takes them from the shape.
      */
     {
         auto& syscall = convention[(Size)LowerCallType::Syscall];
         addGenRegs(syscall.args[BankGpr], kSyscallArgs);
         addGenRegs(syscall.results[BankGpr], kSyscallResults);
 
-        addGenClobber(syscall.clobber, kSyscallArgs);
+        syscall.preservesArgs = true;
         addGenClobber(syscall.clobber, kSyscallResults);
         syscall.clobber.add(gpr(IntRegister::rcx));
         syscall.clobber.add(gpr(IntRegister::r11));
