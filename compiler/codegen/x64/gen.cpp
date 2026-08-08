@@ -862,11 +862,63 @@ struct Emitter {
     LowerBlock* next = nullptr;
 
     // Where a branch naming each block actually has to land, indexed by block index - see the
-    // empty-block note in genFunction. Identity for every block that is emitted.
+    // empty-block note in genFunction. Identity for every block that is emitted, and null for a
+    // block whose whole content is a return the shared epilogue has taken over (§7.2).
     Buffer<LowerBlock*> bypass;
 
     LowerBlock* branchTarget(LowerPtr<LowerBlock> block) {
         return bypass[base[block]->index];
+    }
+
+    // Every jump this function emits, in the order they were written - the input to relaxBranches.
+    SmallArray<AsmBranch, 32> branches;
+
+    // Whether the returns of this function share one epilogue (§7.2), and whether it is what follows
+    // the block being emitted - which is the fallthrough rule for it, exactly as `next` is for a
+    // block. The two are separate questions: the epilogue sits behind one chosen return rather than
+    // at the end, so the last emitted block is usually not the one it follows.
+    bool sharedEpilogue = false;
+    bool epilogueNext = false;
+
+    // And whether *this* return declined to use it, because the jump it would cost is taken more
+    // often than the bytes it would save are worth - see §7.2.2. Per block, since the question is
+    // about one return path rather than about the function.
+    bool ownEpilogue = false;
+
+    /*
+     * A jump, written long with its short form recorded beside it.
+     *
+     * Neither the distance nor the direction is known here: a forward branch names a block that has
+     * not been emitted, and even a backward one is measured against a function that is still going
+     * to shrink. So every jump is four bytes of displacement and a note, and relaxBranches settles
+     * the whole function's worth at once - see §7.1.
+     *
+     * `target` is null for the shared epilogue, which is where a branch aimed at a bypassed return
+     * block lands. A jump whose target is what comes next is not emitted at all, and that includes
+     * the epilogue - but which question that is depends on the target, since a null `next` means
+     * "nothing follows" where a null target means "the epilogue does".
+     */
+    void emitJump(LowerBlock* target) {
+        if(target ? target == next : epilogueNext) return;
+
+        auto start = U32(to.buffer.offset());
+        to.buffer.writeByte(0xe9); // JMP rel32
+
+        branches.push(AsmBranch { .start = start, .site = U32(to.buffer.offset()),
+                                  .block = target, .shortOpcode = 0xeb });
+        to.buffer.writeInt<LittleEndian>(0);
+    }
+
+    void emitJumpIf(LowerCmp cmp, LowerBlock* target) {
+        auto start = U32(to.buffer.offset());
+        auto cc = conditionCode(cmp);
+
+        to.buffer.writeByte(0x0f); // Jcc rel32
+        to.buffer.writeByte(0x80 + cc);
+
+        branches.push(AsmBranch { .start = start, .site = U32(to.buffer.offset()),
+                                  .block = target, .shortOpcode = U8(0x70 + cc) });
+        to.buffer.writeInt<LittleEndian>(0);
     }
 
     // The resolved operand an encoding field names. Emission indexes these and nothing else: which
@@ -1272,12 +1324,6 @@ struct Emitter {
         auto je = (LowerInstJe*)inst;
         auto condition = selected.condition.unwrap();
 
-        auto jump = [&](LowerCmp cmp, LowerBlock* target) {
-            to.buffer.writeByte(0x0f);
-            to.buffer.writeByte(0x80 + conditionCode(cmp));
-            to.addRelocation(target);
-        };
-
         auto whenTrue = branchTarget(je->then);
         auto whenFalse = branchTarget(je->otherwise);
 
@@ -1285,10 +1331,7 @@ struct Emitter {
         // when the branch was built; what makes them the same address is a bypassed block on one of
         // them, which is also the case where the condition has nothing left to decide.
         if(whenTrue == whenFalse) {
-            if(whenTrue == next) return;
-
-            to.buffer.writeByte(0xe9);
-            to.addRelocation(whenTrue);
+            emitJump(whenTrue);
             return;
         }
 
@@ -1296,13 +1339,12 @@ struct Emitter {
         // so the branch is emitted around it. When neither is next, the conditional branch is
         // followed by an unconditional one.
         if(whenFalse == next) {
-            jump(condition, whenTrue);
+            emitJumpIf(condition, whenTrue);
         } else if(whenTrue == next) {
-            jump(negateCmp(condition), whenFalse);
+            emitJumpIf(negateCmp(condition), whenFalse);
         } else {
-            jump(condition, whenTrue);
-            to.buffer.writeByte(0xe9);
-            to.addRelocation(whenFalse);
+            emitJumpIf(condition, whenTrue);
+            emitJump(whenFalse);
         }
     }
 
@@ -1351,6 +1393,20 @@ struct Emitter {
                 // the registers the convention returns them in. Those and the saved registers are
                 // disjoint by construction - a result register is one the call clobbers, and a saved
                 // register is one it doesn't - so restoring here cannot overwrite a returned value.
+                //
+                // A shared epilogue (§7.2) is placed directly behind one return, which is the one
+                // that costs nothing: it falls into it. Every other return jumps, unless §7.2.2
+                // decided this one's jump is taken too often to be worth the bytes.
+                if(sharedEpilogue && epilogueNext) {
+                    assertTrue(regs.postMoves.size() == 0); // a copy between the return and the epilogue
+                    break;
+                }
+
+                if(sharedEpilogue && !ownEpilogue) {
+                    emitJump(nullptr);
+                    break;
+                }
+
                 genEpilogue(to, frame);
                 to.buffer.writeByte(0xc3);
                 break;
@@ -1361,15 +1417,9 @@ struct Emitter {
             case PseudoKind::NoReturn:
                 break;
 
-            case PseudoKind::Jump: {
-                auto jmp = (LowerInstJmp*)inst;
-                auto target = branchTarget(jmp->then);
-                if(target == next) break; // a jump to the next block is a fallthrough
-
-                to.buffer.writeByte(0xe9);
-                to.addRelocation(target);
+            case PseudoKind::Jump:
+                emitJump(branchTarget(((LowerInstJmp*)inst)->then));
                 break;
-            }
 
             case PseudoKind::Branch:
                 emitBranch(inst, selected, regs);
@@ -1605,29 +1655,87 @@ struct Emitter {
  *
  * `bypass` is filled in with the block a branch naming each block should name instead: the block
  * itself wherever it is emitted, and otherwise the end of the chain of skipped blocks it starts.
+ *
+ * A shared epilogue (§7.2) adds one case to the same rule. A block whose entire content is a return
+ * emits exactly one jump once the epilogue has been lifted out of it, so it is a block that emits
+ * nothing by the definition above - and what a branch naming it should name instead is the epilogue,
+ * which is not a block. Null is that answer, and it is why every consumer of a branch target here
+ * takes a null one as meaning the epilogue rather than as meaning nothing. This is where the "four
+ * failure conditions branch straight to the shared exit" shape comes from: the conditional branch
+ * that already existed is retargeted, and no jump is added at all.
+ *
+ * That is the case where a return block emits *nothing*. The one where it emits the same thing as
+ * another return block is §7.2.1, and it is decided after emission rather than here, because what
+ * two blocks emit is a question about bytes.
  */
-static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block) {
+static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block, bool sharedEpilogue) {
     if(block->instructions.isNotEmpty()) return false;
-    if(base[block->terminator]->kind != LowerInst::Jmp) return false;
+
+    auto kind = base[block->terminator]->kind;
+    if(kind != LowerInst::Jmp && !(sharedEpilogue && kind == LowerInst::Ret)) return false;
 
     auto found = regs.legalized.blocks.get(block);
     assertTrue(found.isJust());
 
     // The terminator is the only entry a block with no instructions has, and a phi transfer is what
-    // would be in its `moves` - see BlockRegs.
+    // would be in its `moves` - see BlockRegs. For a return those moves are the copies that place
+    // the returned values, which is exactly what makes such a block one that still emits something.
     auto& termRegs = found.unwrap().insts[0];
     return termRegs.moves.size() == 0 && termRegs.postMoves.size() == 0;
 }
 
+// The block a chain of skipped blocks ends at, or null where it ends at the shared epilogue. A
+// return has no successor to follow, so it is where the walk stops.
+static LowerBlock* endOfChain(LowerBase base, SmallArray<bool, 64>& skipped, LowerBlock* block) {
+    while(block && skipped[block->index]) {
+        if(base[block->terminator]->kind == LowerInst::Ret) return nullptr;
+        block = base[block->outgoing[0]];
+    }
+
+    return block;
+}
+
+/*
+ * Whether the block emitted in front of block `i` reaches it by falling into it.
+ *
+ * Which is the whole of what decides whether a return block may be taken out (§7.2): the branch
+ * that named it is retargeted at the epilogue and costs exactly what it cost before, but a
+ * *fallthrough* has nothing to retarget and would become a jump that was not there. `j` is the
+ * block emitted before `i`, so everything between them is already skipped and `i` is what `j`
+ * falls into if it falls into anything.
+ */
 template<class Blocks>
-static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks,
+static bool fallenInto(LowerBase base, Blocks blocks, SmallArray<bool, 64>& skipped, Size i) {
+    Size j = i;
+    while(j > 0 && skipped[--j]) {}
+    if(skipped[j]) return false;
+
+    // Both slots, since a block with one successor leaves the second null rather than absent.
+    auto target = base[blocks[i]];
+    for(auto successor: base[blocks[j]]->outgoing) {
+        if(successor && endOfChain(base, skipped, base[successor]) == target) return true;
+    }
+
+    return false;
+}
+
+// Whether any block is emitted after this one. Where none is, the epilogue is what a fallthrough
+// reaches either way, so a return here survives being retargeted at it.
+template<class Blocks>
+static bool anythingAfter(Blocks blocks, SmallArray<bool, 64>& skipped, Size i) {
+    for(Size k = i + 1; k < blocks.size(); k++) if(!skipped[k]) return true;
+    return false;
+}
+
+template<class Blocks>
+static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks, bool sharedEpilogue,
                           SmallArray<bool, 64>& skipped, SmallArray<LowerBlock*, 64>& bypass)
 {
     for(Size i = 0; i < blocks.size(); i++) {
         // Indexed by block index throughout, which the layout has already made equal to the
         // position - see InvariantBlocksOrdered.
         assertTrue(base[blocks[i]]->index == BlockIndex(i));
-        skipped.push(i != 0 && emitsNothing(base, regs, base[blocks[i]]));
+        skipped.push(i != 0 && emitsNothing(base, regs, base[blocks[i]], false));
     }
 
     // A cycle of blocks that all emit nothing is a loop with an empty body, and skipping all of them
@@ -1647,11 +1755,243 @@ static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks,
         if(steps > blocks.size()) skipped[i] = false;
     }
 
-    for(Size i = 0; i < blocks.size(); i++) {
-        auto block = base[blocks[i]];
-        while(skipped[block->index]) block = base[block->outgoing[0]];
+    // The return blocks, after the jump chains and in layout order - each answer depends on which
+    // blocks in front of it are emitted, and a return is never part of a chain, so the two rounds do
+    // not interfere. A block declined here keeps its own epilogue like any other return.
+    if(sharedEpilogue) {
+        for(Size i = 1; i < blocks.size(); i++) {
+            if(skipped[i] || !emitsNothing(base, regs, base[blocks[i]], true)) continue;
+            skipped[i] = !anythingAfter(blocks, skipped, i) || !fallenInto(base, blocks, skipped, i);
+        }
+    }
 
-        bypass.push(block);
+    for(Size i = 0; i < blocks.size(); i++) {
+        bypass.push(endOfChain(base, skipped, base[blocks[i]]));
+    }
+}
+
+/*
+ * §7.2.2 What a jump on a return path is worth in bytes.
+ *
+ * There is no principled number here. It is an exchange rate between bytes and executed
+ * instructions, which are not the same unit, so it is stated once - in one place, with the
+ * measurement that set it beside it - rather than implied by a rule somewhere.
+ *
+ * At 32: a return taken on every call of its function has to save 32 bytes before it will jump to a
+ * shared epilogue, and one taken on an eighth of them has to save four. That is what separates the
+ * two shapes §15.2 of `test/bench/findings.md` measured. `allocateHeap`'s failure arms are taken
+ * almost never and share a six-byte saving each; `Tree`'s `build` has two returns, both taken on
+ * half its calls, and sharing an eleven-byte saving between them cost 17 ms - which is the whole of
+ * what a size-only rule got wrong.
+ */
+static constexpr U64 kBytesPerReturnJump = 28;
+
+// Whether a return emitting `jmp <epilogue>` rather than its own copy is worth it, given how often
+// that jump runs. The saving is what the epilogue costs less the two bytes of jump; the cost is one
+// jump per execution of this block, stated relative to one execution of the function.
+static bool worthJumpingToEpilogue(const FunctionFrequencyInfo& frequency, BlockIndex block, U32 epilogueSize) {
+    auto saved = U64(epilogueSize - 2);
+    return saved * kEntryFrequency >= kBytesPerReturnJump * frequency.frequencyOf(block);
+}
+
+/*
+ * §7.1 Branch relaxation.
+ *
+ * AMD64 has two encodings of every jump - a one-byte displacement and a four-byte one - and the
+ * short one is four bytes smaller for a conditional and three for an unconditional. Which one a
+ * branch may take is not something the encoder can answer: a forward branch names a block that has
+ * not been emitted, and a backward one is measured against a function that every branch below it is
+ * still going to shrink. So every jump is written long (see Emitter::emitJump) and all of them are
+ * settled here at once, when the function is finished and nothing else will move it.
+ *
+ * The fixpoint starts optimistic - every branch short - and only ever takes one back to its long
+ * form. That direction is what makes it terminate and what makes it good: shrinking a branch brings
+ * every other branch's target closer, so an assignment reached from below can only be improved on by
+ * another pass, where one reached from above would need a branch to be lengthened after the fact.
+ * At most one pass per branch is possible; one or two is what functions actually take.
+ *
+ * The rewrite afterwards is a compaction rather than a patch. Spans between branches are copied
+ * verbatim - they contain no offset measured from anything that moved, since a RIP-relative
+ * displacement is resolved from its recorded site and a jump is exactly what is being rewritten -
+ * and everything recorded against the old layout is remapped through `moved`: the block offsets, the
+ * relocation sites inside this function, and the byte ranges reported to `onInst`.
+ *
+ * The three hand-written rel8 jumps in the expansions above (emitFloatSelect, genFloatFlagsToReg)
+ * are not branches in this sense and must never become ones: each measures a distance to the end of
+ * the instruction it is part of, so it stays correct precisely because its whole span moves
+ * together. A jump that crosses another instruction has to be recorded here instead.
+ *
+ * A block target is resolved here and never reaches resolveRelocations. It cannot be deferred, since
+ * the whole point is that its size is the thing being decided, and it need not be: both ends are
+ * inside a function that is already placed.
+ */
+
+// One emitted thing's byte range, held until relaxation has moved it - a range is only worth
+// reporting once it is final. `inst` is null for the prologue and the shared epilogue.
+struct EmittedRange {
+    LowerInst* inst;
+    const InstRegs* regs;
+    U32 start;
+    U32 end;
+};
+
+/*
+ * §7.2.1 A return tail already emitted, which a later one may turn out to be a copy of.
+ *
+ * `start` is the block's first byte and `content` runs to just before its jump to the shared
+ * epilogue - the jump is excluded because the block hosting the epilogue does not have one, and it
+ * is the best thing to merge into: a tail aimed at it reaches the epilogue by falling into it.
+ */
+struct ReturnTail {
+    LowerBlock* block;
+    U32 start;
+    U32 contentEnd;
+};
+
+static bool equalBytes(const Byte* a, const Byte* b, U32 count) {
+    for(U32 i = 0; i < count; i++) if(a[i] != b[i]) return false;
+    return true;
+}
+
+// What a function occupies in the module being built, which is what relaxation has to move.
+struct FunctionExtent {
+    U32 codeStart;    // its first emitted byte, after any alignment padding and prefix data
+    Size firstBlock;  // its first entry in AsmModule::blocks
+    Size firstReloc;  // its first entry in AsmModule::relocations
+    U32 epilogue;     // where the shared epilogue landed; unused when there is none
+};
+
+static void relaxBranches(AsmModule& to, SmallArray<AsmBranch, 32>& branches,
+                          const FunctionExtent& extent, SmallArray<EmittedRange, 128>& ranges)
+{
+    auto count = branches.size();
+    if(count == 0) return;
+
+    // What each branch's target is in the layout as first written. These do not change: it is the
+    // mapping onto the new layout that does, and it is computed from these.
+    auto reserved = U32(count);
+    SmallArray<U32, 32> targets(reserved);
+    SmallArray<U32, 32> ends(reserved);
+
+    for(Size i = 0; i < count; i++) {
+        auto block = branches[i].block;
+
+        if(block) {
+            auto found = to.blockOffsets.getValue(block);
+            assertTrue(found.isJust()); // a branch naming a block that was never emitted
+            targets.push(to.blocks[found.unwrap()].startOffset);
+        } else {
+            targets.push(extent.epilogue);
+        }
+
+        ends.push(branches[i].site + 4);
+    }
+
+    // The bytes removed by the first k branches, rebuilt whenever the assignment changes.
+    SmallArray<U32, 33> removed(reserved + 1);
+    for(Size i = 0; i <= count; i++) removed.push(0);
+
+    auto rebuild = [&] {
+        for(Size i = 0; i < count; i++) {
+            auto longSize = branches[i].site + 4 - branches[i].start;
+            removed[i + 1] = removed[i] + (branches[i].isShort ? longSize - 2 : 0);
+        }
+    };
+
+    // Where an offset in the old layout ends up in the new one. A branch ending exactly at it counts
+    // as being in front of it: everything from a branch's last byte onwards moves with the branch.
+    auto moved = [&](U32 at) {
+        Size low = 0, high = count;
+
+        while(low < high) {
+            auto middle = (low + high) / 2;
+            if(ends[middle] <= at) low = middle + 1;
+            else high = middle;
+        }
+
+        return at - removed[low];
+    };
+
+    for(Size i = 0; i < count; i++) branches[i].isShort = true;
+
+    for(bool changed = true; changed;) {
+        changed = false;
+        rebuild();
+
+        for(Size i = 0; i < count; i++) {
+            if(!branches[i].isShort) continue;
+
+            // Measured from the byte after the short encoding, which is where the CPU counts from.
+            auto delta = I64(moved(targets[i])) - I64(moved(branches[i].start) + 2);
+            if(delta >= -128 && delta <= 127) continue;
+
+            branches[i].isShort = false;
+            changed = true;
+        }
+    }
+
+    rebuild();
+
+    /*
+     * The compaction. `write` never runs ahead of `read`, since a branch either keeps its length or
+     * loses bytes, so the spans move towards the front of the buffer and overlap in the safe
+     * direction - `moveMem` states that rather than relying on it.
+     */
+    auto bytes = to.buffer.buffer;
+    auto emitted = U32(to.buffer.offset());
+    U32 read = extent.codeStart;
+    U32 write = extent.codeStart;
+
+    for(Size i = 0; i < count; i++) {
+        auto& branch = branches[i];
+
+        if(auto span = branch.start - read) {
+            moveMem(bytes + read, bytes + write, span);
+            write += span;
+        }
+
+        assertTrue(write == moved(branch.start)); // the mapping and the rewrite disagree
+        to.buffer.offset(write);
+
+        auto target = moved(targets[i]);
+
+        if(branch.isShort) {
+            to.buffer.writeByte(branch.shortOpcode);
+            to.buffer.writeByte(U8(I8(I64(target) - I64(write + 2))));
+        } else if(branch.shortOpcode == 0xeb) {
+            to.buffer.writeByte(0xe9);
+            to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 5)));
+        } else {
+            to.buffer.writeByte(0x0f);
+            to.buffer.writeByte(U8(0x80 + (branch.shortOpcode - 0x70)));
+            to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 6)));
+        }
+
+        write = U32(to.buffer.offset());
+        read = branch.site + 4;
+    }
+
+    if(auto tail = emitted - read) {
+        moveMem(bytes + read, bytes + write, tail);
+        write += tail;
+    }
+
+    to.buffer.offset(write);
+
+    // Everything the old layout was recorded in. Nothing outside this function is in any of them:
+    // the extent's three indices are where it started, and a function is never revisited.
+    for(Size i = extent.firstBlock; i < to.blocks.size(); i++) {
+        to.blocks[i].startOffset = moved(to.blocks[i].startOffset);
+        to.blocks[i].endOffset = moved(to.blocks[i].endOffset);
+    }
+
+    for(Size i = extent.firstReloc; i < to.relocations.size(); i++) {
+        to.relocations[i].siteOffset = moved(to.relocations[i].siteOffset);
+    }
+
+    for(auto& range: ranges) {
+        range.start = moved(range.start);
+        range.end = moved(range.end);
     }
 }
 
@@ -1671,29 +2011,139 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     auto frame = computeFrameLayout(context, base, fun, targetConstraints(), regs);
     assertTrue(verifyFrameLayout(context, fun, objects, frame)); // debug builds only
 
-    // Which blocks contribute nothing and where a branch naming one of them should go instead - see
-    // above. Both are indexed by block index, and so parallel to the block list.
+    FunctionExtent extent {
+        .codeStart = U32(to.buffer.offset()),
+        .firstBlock = to.blocks.size(),
+        .firstReloc = to.relocations.size(),
+    };
+
+    /*
+     * §7.2 One epilogue per function.
+     *
+     * Every `Return` used to restore the frame for itself, so a function with five of them carried
+     * five copies of the same pops - 94 such sites across the program corpus, 899 bytes of them.
+     * Lifting the epilogue to the end of the function and sending the returns there removes all but
+     * one copy, at the cost of a jump per return that has to be sent.
+     *
+     * That jump executes, and *where* it is charged is what decides whether the trade is a good one.
+     * Putting the epilogue at the end of the function gives the free fallthrough to the block laid
+     * out last, which block ordering has already made the least likely one - so the hot return pays
+     * and the cold return does not. On the program corpus that was **+31 ms**, nearly all of it on
+     * the two programs whose hot path is a call per element.
+     *
+     * So the epilogue goes behind the *first* return in layout order instead. That is the return on
+     * the likely path, since §3.2 lays a branch's likely successor out as its fallthrough, and it is
+     * the one that now costs nothing. The jumps land on the arms that are laid out later, which are
+     * the arms taken less often - and most of them are not emitted at all: a block whose whole
+     * content is a return emits nothing once the epilogue has left it, so computeBypass takes it out
+     * and the branch that named it names the epilogue instead. `fallenInto` is the one case that
+     * looks free and is not, a branch that reached such a block by falling into it having nothing to
+     * retarget.
+     */
+    auto epilogueSize = [&] {
+        // Measured by writing it rather than predicted from the frame: the bytes are the exact
+        // answer, and a second statement of what genEpilogue emits is a second thing to keep in
+        // step. Nothing is written past here yet, so rewinding over it leaves the buffer as it was.
+        auto at = U32(to.buffer.offset());
+        genEpilogue(to, frame);
+        auto size = U32(to.buffer.offset()) - at + 1; // with the `ret` it is followed by
+        to.buffer.offset(at);
+        return size;
+    }();
+
+    /*
+     * Who uses the shared epilogue, which decides whether there is one.
+     *
+     * Two rounds, because the question is circular in one direction only: whether a return block is
+     * *taken out* depends on there being an epilogue for its branches to name, and whether there is
+     * an epilogue depends on how many returns would use it. So it is answered optimistically and the
+     * bypass recomputed if the answer turns out to be nobody.
+     *
+     * `ownEpilogue` is §7.2.2's per-return decision and the reason a use has to be counted rather
+     * than assumed: a return that declines to jump is not a user, and a function whose only other
+     * return declines has one user and therefore no epilogue to share.
+     */
     SmallArray<bool, 64> skipped;
     SmallArray<LowerBlock*, 64> bypass;
-    computeBypass(base, regs, blocks, skipped, bypass);
+    SmallArray<bool, 64> ownEpilogue;
+
+    auto sharedEpilogue = epilogueSize > 2;
+    auto host = blocks.size();
+
+    for(auto attempt = 0; attempt < 2; attempt++) {
+        skipped.clear();
+        bypass.clear();
+        ownEpilogue.clear();
+        host = blocks.size();
+
+        computeBypass(base, regs, blocks, sharedEpilogue, skipped, bypass);
+        for(Size i = 0; i < blocks.size(); i++) ownEpilogue.push(false);
+
+        if(!sharedEpilogue) break;
+
+        // The block the epilogue is placed behind: the first emitted return there is. A function
+        // whose every return block was taken out has none, and the epilogue then goes at the end,
+        // where only the branches that name it reach it. A bypassed return is a user either way -
+        // it reaches the epilogue through a branch that already existed.
+        Size users = 0;
+
+        for(Size i = 0; i < blocks.size(); i++) {
+            if(base[base[blocks[i]]->terminator]->kind != LowerInst::Ret) continue;
+
+            if(skipped[i]) { users++; continue; }
+            if(host == blocks.size()) { host = i; users++; continue; }
+
+            // Only a return that carries work of its own. A block holding nothing but the return is
+            // one the bypass rule above already makes free wherever it can, and declining to share
+            // it writes the whole epilogue out to save a jump that is the entire block - measured at
+            // 184 bytes across the corpus and no time at all.
+            ownEpilogue[i] = base[blocks[i]]->instructions.isNotEmpty() &&
+                !worthJumpingToEpilogue(regs.frequency, BlockIndex(i), epilogueSize);
+            if(!ownEpilogue[i]) users++;
+        }
+
+        if(users > 1) break;
+
+        // Nobody, so the return blocks it took out have to come back and every return writes its own.
+        sharedEpilogue = false;
+    }
 
     Emitter emitter { to, base, machine, frame, objects };
     emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };
+    emitter.sharedEpilogue = sharedEpilogue;
 
-    // The prologue belongs to the function rather than to any instruction in it, so it is reported
-    // with a null instruction (see InstEmitCallback) and only when it emitted something. Its
+    // Held rather than reported as they are emitted: relaxation below rewrites the function, so an
+    // offset is only final once it has run. The prologue and the shared epilogue belong to the
+    // function rather than to any instruction in it and are reported with a null one, in that order.
+    SmallArray<EmittedRange, 128> ranges;
+    InstRegs none;
+
+    // The return tails emitted so far, which is what §7.2.1 compares a new one against.
+    SmallArray<ReturnTail, 16> tails;
+
     auto prologueStart = U32(to.buffer.offset());
     genPrologue(to, frame);
 
     if(onInst && U32(to.buffer.offset()) != prologueStart) {
-        InstRegs none;
-        onInst(onInstCtx, nullptr, none, prologueStart, U32(to.buffer.offset()));
+        ranges.push(EmittedRange { nullptr, &none, prologueStart, U32(to.buffer.offset()) });
     }
 
     for(Size i = 0; i < blocks.size(); i++) {
         if(skipped[i]) continue;
 
         auto b = base[blocks[i]];
+
+        /*
+         * Where this block began, and what the lists holding its side effects looked like - which is
+         * what §7.2.1 rewinds to if the block turns out to be a copy of one already emitted. The
+         * three marks are the whole of what a block contributes besides bytes: the jumps it wrote,
+         * the relocations it wrote, and the ranges it reported.
+         */
+        auto blockStart = U32(to.buffer.offset());
+        auto branchMark = U32(emitter.branches.size());
+        auto relocationMark = U32(to.relocations.size());
+        auto rangeMark = U32(ranges.size());
+
         to.startBlock(b);
 
         auto found = regs.legalized.blocks.get(b);
@@ -1711,6 +2161,14 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             if(!skipped[j]) { emitter.next = base[blocks[j]]; break; }
         }
 
+        // The one block the epilogue is placed behind, whose return therefore falls into it. Nothing
+        // else about this block's layout changes: a block that ends in a return has no fallthrough
+        // of its own for the epilogue to have got in the way of. A function with no return to host
+        // it puts it at the end, which is the last emitted block having nothing after it.
+        emitter.epilogueNext = sharedEpilogue &&
+            (i == host || (host == blocks.size() && emitter.next == nullptr));
+        emitter.ownEpilogue = ownEpilogue[i];
+
         // Operand placement, the instruction itself, then result placement - uniform for every
         // instruction, so nothing that emits code has to remember to handle its own moves.
         for(Size j = 0; j < insts.size(); j++) {
@@ -1722,7 +2180,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             emitter.emitInst(inst, instRegs);
             genMoves(to, frame, objects, remats, instRegs.postMoves);
 
-            if(onInst) onInst(onInstCtx, inst, instRegs, start, U32(to.buffer.offset()));
+            if(onInst) ranges.push(EmittedRange { inst, &instRegs, start, U32(to.buffer.offset()) });
         }
 
         auto termStart = U32(to.buffer.offset());
@@ -1730,15 +2188,84 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         auto& termRegs = blockRegs.insts[insts.size()];
 
         // A terminator's moves include the copies that feed the successor's phis, so they have to
-        // land before the branch itself.
+        // land before the branch itself. For a return under a shared epilogue they are the copies
+        // placing the returned values, and everything up to here is the block's *content* - what
+        // §7.2.1 compares, with the jump to the epilogue left out of it.
         genMoves(to, frame, objects, remats, termRegs.moves);
+        auto contentEnd = U32(to.buffer.offset());
         emitter.emitInst(terminator, termRegs);
         genMoves(to, frame, objects, remats, termRegs.postMoves);
 
-        if(onInst) onInst(onInstCtx, terminator, termRegs, termStart, U32(to.buffer.offset()));
+        if(onInst) ranges.push(EmittedRange { terminator, &termRegs, termStart, U32(to.buffer.offset()) });
 
         to.endBlock(b);
+
+        /*
+         * §7.2.1 The same return, written twice.
+         *
+         * Sharing the epilogue leaves the *setup* duplicated: four arms that answer zero are four
+         * copies of `mov eax, 0` and four jumps to one epilogue, where LLVM keeps one copy and aims
+         * the four branches at it. Which two of those are the same is a question about bytes, and the
+         * bytes exist only once the block has been emitted - so it is emitted, compared, and rewound
+         * over where it turns out to be a copy. Nothing structural is compared and nothing about an
+         * encoding is restated: equal bytes is the strongest form of the question and the cheapest.
+         *
+         * The block stays in `AsmModule::blocks` and is pointed at the copy that survives, which is
+         * what redirects every branch naming it - `relaxBranches` resolves a target through that
+         * table, so nothing else has to learn about the merge.
+         *
+         * Three conditions, and each is a way the rewind could lose something the bytes do not carry:
+         * a relocation written inside the block would be resolved against a site that no longer
+         * exists; a block reached by falling into it has no branch to retarget; and the block hosting
+         * the epilogue is the one thing here that must stay where it is.
+         */
+        auto isTail = base[b->terminator]->kind == LowerInst::Ret && termRegs.postMoves.size() == 0;
+        auto merged = false;
+
+        // A return that kept its own epilogue (§7.2.2) is still something a later copy can be
+        // merged into - landing there runs the epilogue inline and is one jump *cheaper* - but it is
+        // never merged away itself, since the block it landed on might be one that jumps.
+        if(sharedEpilogue && isTail && i != host && !ownEpilogue[i] &&
+           to.relocations.size() == relocationMark && !fallenInto(base, blocks, skipped, i))
+        {
+            for(auto& tail: tails) {
+                if(tail.contentEnd - tail.start != contentEnd - blockStart) continue;
+
+                auto a = to.buffer.buffer + tail.start;
+                auto c = to.buffer.buffer + blockStart;
+                if(!equalBytes(a, c, contentEnd - blockStart)) continue;
+
+                to.buffer.offset(blockStart);
+                emitter.branches.resize(branchMark);
+                ranges.resize(rangeMark);
+
+                auto at = to.blockOffsets.getValue(b);
+                assertTrue(at.isJust());
+                to.blocks[at.unwrap()].startOffset = tail.start;
+                to.blocks[at.unwrap()].endOffset = tail.start;
+
+                merged = true;
+                break;
+            }
+        }
+
+        if(isTail && !merged) tails.push(ReturnTail { b, blockStart, contentEnd });
+
+        // The shared epilogue, immediately behind the return that falls into it and outside every
+        // block - it belongs to the function, and a block it were inside would be one whose extent
+        // depended on where the epilogue went.
+        if(emitter.epilogueNext) {
+            extent.epilogue = U32(to.buffer.offset());
+            genEpilogue(to, frame);
+            to.buffer.writeByte(0xc3);
+
+            if(onInst) ranges.push(EmittedRange { nullptr, &none, extent.epilogue, U32(to.buffer.offset()) });
+        }
     }
+
+    relaxBranches(to, emitter.branches, extent, ranges);
+
+    for(auto& range: ranges) onInst(onInstCtx, range.inst, *range.regs, range.start, range.end);
 }
 
 void AsmModule::resolveRelocations(LowerGlobal* anchor) {
@@ -1791,18 +2318,16 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
     for(auto& r: relocations) {
         U32 target;
 
+        // Only the two that cross a symbol boundary reach here: a jump within a function was
+        // resolved by relaxBranches, which is where its size was decided (§7.1).
         if(r.function) {
             auto o = functionOffsets.getValue(r.function);
             assertTrue(o.isJust());
             target = o.unwrap();
-        } else if(r.global) {
+        } else {
             auto o = globalOffsets.getValue(r.global);
             assertTrue(o.isJust()); // a referenced global was never emitted via addGlobal()
             target = o.unwrap();
-        } else {
-            auto o = blockOffsets.getValue(r.block);
-            assertTrue(o.isJust());
-            target = blocks[o.unwrap()].startOffset;
         }
 
         auto rel = I32(target) - I32(r.siteOffset + 4);

@@ -163,9 +163,9 @@ block start:
 block head:
   add uses=[rcx, rdi] creates=[rcx] pre=[rax->rcx]  => 8bc801f9
   cmp_le uses=[rcx, rsi] creates=[-]  => 39f1
-  je uses=[-] creates=[]  => 0f8707000000
+  je uses=[-] creates=[]  => 7704
 block #3:
-  jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1e9edffffff
+  jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1ebf4
 block end:
   ret uses=[rax] creates=[]  => c3
 
@@ -186,7 +186,7 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
-  je uses=[rsi] creates=[]  => 85f60f8501000000
+  je uses=[rsi] creates=[]  => 85f67501
 block b:
   ret uses=[rax] creates=[]  => c3
 block a:
@@ -197,9 +197,9 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block head:
   cmp_le uses=[rax, rdx] creates=[-]  => 39d0
-  je uses=[-] creates=[]  => 0f8707000000
+  je uses=[-] creates=[]  => 7704
 block #3:
-  jmp uses=[] creates=[] pre=[rsi<->rax]  => 87c6e9f1ffffff
+  jmp uses=[] creates=[] pre=[rsi<->rax]  => 87c6ebf8
 block end:
   ret uses=[rax] creates=[]  => c3
 
@@ -209,7 +209,7 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 85d2
-  je uses=[-] creates=[]  => 0f8427000000
+  je uses=[-] creates=[]  => 7420
 block body:
   add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74801f0
   sub uses=[rcx, rdi] creates=[rcx] pre=[rsi->rcx]  => 488bce4829f9
@@ -219,9 +219,9 @@ block body:
 block head:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 85d2
-  je uses=[-] creates=[]  => 0f840b000000
+  je uses=[-] creates=[]  => 7408
 block #5:
-  jmp uses=[] creates=[] pre=[rcx->rdi, rax->rsi]  => 488bf9488bf0e9dfffffff
+  jmp uses=[] creates=[] pre=[rcx->rdi, rax->rsi]  => 488bf9488bf0ebe6
 block #6:
   jmp uses=[] creates=[] pre=[rcx->rdi, rax->rsi]  => 488bf9488bf0
 block done:
@@ -234,11 +234,11 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc783c007
-  je uses=[rsi] creates=[]  => 85f60f8509000000
+  je uses=[rsi] creates=[]  => 85f67506
 block left:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc8ffc1
-  jmp uses=[] creates=[]  => e90d000000
+  jmp uses=[] creates=[]  => eb0d
 block right:
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => 83c702
@@ -254,21 +254,21 @@ block join:
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rsi] creates=[]  => 85f60f850a000000
+  je uses=[rsi] creates=[]  => 85f67507
 block r:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc783c002
-  jmp uses=[] creates=[]  => e904000000
+  jmp uses=[] creates=[]  => eb04
 block l:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
   jmp uses=[] creates=[]  => 
 block mid:
-  je uses=[rsi] creates=[]  => 85f60f8508000000
+  je uses=[rsi] creates=[]  => 85f67505
 block r2:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c004
-  jmp uses=[] creates=[]  => e903000000
+  jmp uses=[] creates=[]  => eb03
 block l2:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c003

@@ -164,7 +164,7 @@ block start:
   cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
   cli uses=[] creates=[]  => fa
   swapgs uses=[] creates=[]  => 0f01f8
-  je uses=[-] creates=[]  => 0f8c04000000
+  je uses=[-] creates=[]  => 7c04
 block more:
   hlt uses=[] creates=[]  => f4
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
@@ -278,7 +278,7 @@ block start:
   lfence uses=[] creates=[]  => 0faee8
   sub uses=[rax, rcx] creates=[rax] pre=[rcx->rax]  => 488bc14829c8
   cmp_lt uses=[rax, rdi] creates=[-]  => 4839f8
-  je uses=[-] creates=[]  => 0f831d000000
+  je uses=[-] creates=[]  => 7319
 block body:
   pause uses=[] creates=[]  => f390
   rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0
@@ -286,7 +286,7 @@ block body:
 block test:
   sub uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04829ca
   cmp_lt uses=[rdx, rdi] creates=[-]  => 4839fa
-  je uses=[-] creates=[]  => 0f82e6ffffff
+  je uses=[-] creates=[]  => 72ea
 block #4:
   jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8
 block done:

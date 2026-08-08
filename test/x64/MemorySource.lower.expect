@@ -248,7 +248,7 @@ block #0:
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   cmp_ilt uses=[rsi, -] creates=[-]  => 483b37
-  je uses=[-] creates=[]  => 0f8c06000000
+  je uses=[-] creates=[]  => 7c06
 block notLess:
   imm uses=[] creates=[remat:0]  => 
   ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
@@ -339,7 +339,7 @@ block entry:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rsi] creates=[-]  => 4839f0
-  je uses=[-] creates=[]  => 0f8d16000000
+  je uses=[-] creates=[]  => 7d12
 block #2:
   jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8
 block body:
@@ -351,7 +351,7 @@ block body:
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rsi] creates=[-]  => 4839f0
-  je uses=[-] creates=[]  => 0f8cf0ffffff
+  je uses=[-] creates=[]  => 7cf4
 block #6:
   jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1
 block exit:

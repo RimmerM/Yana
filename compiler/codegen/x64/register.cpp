@@ -92,7 +92,10 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     // How often each block runs relative to the entry, which is what every cost the placement weighs
     // is stated in. Computed once here rather than inside each pass: it is a function of the CFG and
     // the edge metadata, and nothing on the loop below touches either.
-    auto frequency = fun.buildFrequencies(base);
+    // Kept in the result rather than local: emission weighs a jump against the same numbers (§7.2),
+    // and the move-assignment reuses whatever buffer the previous function grew.
+    result.frequency = fun.buildFrequencies(base);
+    auto& frequency = result.frequency;
 
     // Whether rbp is this function's frame pointer or one more register to hand out. Asked once,
     // here, and given to both the allocator and (through FunctionRegs) frame layout: the two

@@ -188,11 +188,11 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   x86_lea scale=4 disp=0 uses=[rdi, rsi] creates=[rdi]  => 488d3cb7
-  je uses=[rdx] creates=[]  => 85d20f8506000000
+  je uses=[rdx] creates=[]  => 85d27506
 block miss:
   imm uses=[] creates=[remat:0]  => 
   ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block hit:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e839ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e83dffffff
   ret uses=[rax] creates=[]  => c3

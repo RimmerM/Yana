@@ -100,6 +100,152 @@ wideBranch<complex>(%v: Long, %w: Long): Long {
   }
 }
 
+farBranch<complex>(%v: Int, %w: Int): Int {
+  start {
+    %v_0 = cmp_ilt %v, %w: Int
+    je %v_0, near, far
+  }
+
+  near {
+    ret %v
+  }
+
+  far {
+    %a0 = mul %v, 1000003: Int
+    %a1 = mul %a0, 1000033: Int
+    %a2 = mul %a1, 1000037: Int
+    %a3 = mul %a2, 1000039: Int
+    %a4 = mul %a3, 1000081: Int
+    %a5 = mul %a4, 1000099: Int
+    %a6 = mul %a5, 1000117: Int
+    %a7 = mul %a6, 1000121: Int
+    %a8 = mul %a7, 1000133: Int
+    %a9 = mul %a8, 1000151: Int
+    %b0 = mul %a9, 1000159: Int
+    %b1 = mul %b0, 1000171: Int
+    %b2 = mul %b1, 1000183: Int
+    %b3 = mul %b2, 1000187: Int
+    %b4 = mul %b3, 1000193: Int
+    %b5 = mul %b4, 1000199: Int
+    %b6 = mul %b5, 1000211: Int
+    %b7 = mul %b6, 1000213: Int
+    %b8 = mul %b7, 1000231: Int
+    %b9 = mul %b8, 1000249: Int
+    %v_1 = cmp_ilt %b9, %w: Int
+    je %v_1, start, near
+  }
+}
+
+sharedEpilogue<complex>(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+  start {
+    %r = call_complex callee2, %a, %b: Int
+    %s = add %r, %a: Int
+    %t = add %b, %c: Int
+    %u = add %c, %d: Int
+    %v_0 = cmp_ilt %s, 0: Int
+    je %v_0, first, rest
+  }
+
+  first {
+    %p = mul %s, %t: Int
+    %q = add %p, %u: Int
+    ret %q
+  }
+
+  rest {
+    %w = add %t, %u: Int
+    %v_1 = cmp_ilt %w, 100: Int
+    je %v_1, second, third
+  }
+
+  second {
+    ret %t
+  }
+
+  third {
+    ret %w
+  }
+}
+
+sharedEpilogueBypass<complex>(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+  start {
+    %r = call_complex callee2, %a, %b: Int
+    %s = add %r, %a: Int
+    %v_0 = cmp_ilt %s, 0: Int
+    je %v_0, exit, more
+  }
+
+  more {
+    %t = mul %s, %a: Int
+    %u = add %t, %c: Int
+    %v = mul %u, %d: Int
+    ret %v
+  }
+
+  exit {
+    ret %s
+  }
+}
+
+sharedReturnTail<complex>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+  start {
+    %r = call_complex callee2, %a, %b: Int
+    %v_0 = cmp_ilt %r, 0: Int
+    je %v_0, deep, one
+  }
+
+  one {
+    %v_1 = cmp_ilt %r, 10: Int
+    je %v_1, deep, two
+  }
+
+  two {
+    %v_2 = cmp_ilt %r, 20: Int
+    je %v_2, zeroA, three
+  }
+
+  three {
+    %v_3 = cmp_ilt %r, 30: Int
+    je %v_3, zeroB, four
+  }
+
+  four {
+    %v_4 = cmp_ilt %r, 40: Int
+    je %v_4, zeroC, ok
+  }
+
+  deep {
+    %u = mul %r, %c: Int
+    ret %u
+  }
+
+  ok {
+    %s = add %r, %c: Int
+    %t = mul %s, %d: Int
+    %v = add %t, %e: Int
+    %w = mul %v, %f: Int
+    ret %w
+  }
+
+  zeroA {
+    ret 0
+  }
+
+  zeroB {
+    ret 0
+  }
+
+  zeroC {
+    ret 0
+  }
+}
+
+callee2<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
 
 --- codegen: branch ---
   prologue  => 4157
@@ -108,11 +254,11 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cmp_le uses=[rax, -] creates=[-]  => 85c0
-  je uses=[-] creates=[]  => 0f860e000000
+  je uses=[-] creates=[]  => 760b
 block b:
   imm uses=[] creates=[remat:0]  => 
   mul uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 41bf0200000041f7e7
-  jmp uses=[] creates=[]  => e902000000
+  jmp uses=[] creates=[]  => eb02
 block a:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
@@ -130,11 +276,12 @@ block start:
   imm uses=[] creates=[remat:0]  => 
   mul uses=[rax, r15] creates=[rax] pre=[rsi->rax, remat:0->r15]  => 8bc641bf0300000041f7e7
   cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
-  je uses=[-] creates=[]  => 0f8c03000000
+  je uses=[-] creates=[]  => 7c03
 block b:
-  ret uses=[rax] creates=[]  => 415fc3
+  ret uses=[rax] creates=[]  => 
+  epilogue  => 415fc3
 block a:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1415fc3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1ebf9
 
 --- codegen: flagWindowLoad ---
 block #0:
@@ -144,7 +291,7 @@ block start:
   load uses=[rdx] creates=[rdx]  => 8b12
   imm uses=[] creates=[-]  => 
   add uses=[rdx, -] creates=[rdx]  => ffc2
-  je uses=[rdi] creates=[]  => 85ff0f8501000000
+  je uses=[rdi] creates=[]  => 85ff7501
 block b:
   ret uses=[rax] creates=[]  => c3
 block a:
@@ -158,7 +305,7 @@ block start:
   load uses=[rdx] creates=[rdx]  => 8b12
   imm uses=[] creates=[-]  => 
   add uses=[rdx, -] creates=[rdx]  => ffc2
-  je uses=[rcx] creates=[]  => 85c90f8501000000
+  je uses=[rcx] creates=[]  => 85c97501
 block b:
   ret uses=[rax] creates=[]  => c3
 block a:
@@ -171,11 +318,11 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
 block start:
   cmp_ilt uses=[rdi, rax] creates=[-]  => 4839c7
-  je uses=[-] creates=[]  => 0f8c11000000
+  je uses=[-] creates=[]  => 7c0d
 block b:
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 4885c0
-  je uses=[-] creates=[]  => 0f8c07000000
+  je uses=[-] creates=[]  => 7c07
 block d:
   imm uses=[] creates=[-]  => 
   sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748ffc8
@@ -185,3 +332,147 @@ block c:
 block a:
   add uses=[rdi, rax] creates=[rdi]  => 4801c7
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: farBranch ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
+  je uses=[-] creates=[]  => 0f8c96000000
+block far:
+  imm uses=[] creates=[rcx]  => b943420f00
+  mul uses=[rax, rcx] creates=[rax] pre=[rdi->rax]  => 8bc7f7e1
+  imm uses=[] creates=[rcx]  => b961420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b965420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b967420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b991420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9a3420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9b5420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9b9420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9c5420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9d7420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9df420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9eb420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9f7420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b9fb420f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b901430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b907430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b913430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b915430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b927430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[rcx]  => b939430f00
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
+  je uses=[-] creates=[]  => 0f8c62ffffff
+block near:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 8bc7c3
+
+--- codegen: sharedEpilogue ---
+  prologue  => 53415441554156
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->r12, rdx->r13, rcx->r14]  => 8bdf448be6448bea448bf1
+block start:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi, r12->rsi]  => 8bfb418bf4e8c4000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  add uses=[r12, r13] creates=[r12]  => 4501ec
+  add uses=[r13, r14] creates=[r13]  => 4501f5
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7c18
+block rest:
+  add uses=[rax, r13] creates=[rax] pre=[r12->rax]  => 418bc44401e8
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 83f864
+  je uses=[-] creates=[]  => 7c08
+block third:
+  ret uses=[rax] creates=[]  => 
+  epilogue  => 415e415d415c5bc3
+block second:
+  ret uses=[rax] creates=[] pre=[r12->rax]  => 418bc4ebf3
+block first:
+  mul uses=[rax, r12] creates=[rax]  => 41f7e4
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  ret uses=[rax] creates=[]  => 415e415d415c5bc3
+
+--- codegen: sharedEpilogueBypass ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx, rdx->r12, rcx->r13]  => 8bdf448be2448be9
+block start:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 8bfbe87c000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7c08
+block more:
+  mul uses=[rax, rbx] creates=[rax]  => f7e3
+  add uses=[rax, r12] creates=[rax]  => 4401e0
+  mul uses=[rax, r13] creates=[rax]  => 41f7e5
+  ret uses=[rax] creates=[]  => 
+  epilogue  => 415d415c5bc3
+
+--- codegen: sharedReturnTail ---
+  prologue  => 53415441554156
+block #0:
+  jmp uses=[] creates=[] pre=[rdx->rbx, rcx->r12, r8->r13, r9->r14]  => 8bda448be1458be8458bf1
+block start:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax]  => e849000000
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7c2e
+block one:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 83f80a
+  je uses=[-] creates=[]  => 7c29
+block two:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 83f814
+  je uses=[-] creates=[]  => 7c1d
+block three:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 83f81e
+  je uses=[-] creates=[]  => 7c18
+block four:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rax, -] creates=[-]  => 83f828
+  je uses=[-] creates=[]  => 7c13
+block ok:
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  mul uses=[rax, r12] creates=[rax]  => 41f7e4
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  mul uses=[rax, r14] creates=[rax]  => 41f7e6
+  ret uses=[rax] creates=[]  => 
+  epilogue  => 415e415d415c5bc3
+block zeroC:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000ebf1
+block deep:
+  mul uses=[rax, rbx] creates=[rax]  => f7e3
+  ret uses=[rax] creates=[]  => 415e415d415c5bc3
+
+--- codegen: callee2 ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3

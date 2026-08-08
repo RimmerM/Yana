@@ -941,6 +941,11 @@ struct FunctionRegs {
     // with the pass that chose it.
     TemporaryReserve temporaries;
 
+    // How often each block runs relative to the entry - see FunctionFrequencyInfo. Built once by
+    // allocateRegisters, which needs it for every spill cost it weighs, and carried here so that
+    // emission can weigh a jump the same way (§7.2) rather than walking the CFG a second time.
+    FunctionFrequencyInfo frequency;
+
     // Empties the whole allocation for the next function, keeping every buffer - see
     // allocateRegisters.
     void clear() {
@@ -1129,11 +1134,36 @@ struct AsmRelocation {
 
     // Resolution target: exactly one of these is set.
     // `function` is used for calls/address-loads that target a (possibly not-yet-emitted)
-    // function elsewhere in the module; `block` is used for intra-function jumps; `global` is
-    // used for address-loads of module-level data (see AsmModule::addGlobal).
+    // function elsewhere in the module; `global` is used for address-loads of module-level data
+    // (see AsmModule::addGlobal). A jump within a function is not one of these - its target is
+    // known the moment the function is finished, and relaxBranches resolves it there.
     LowerFunction* function = nullptr;
-    LowerBlock* block = nullptr;
     LowerGlobal* global = nullptr;
+};
+
+/*
+ * A jump within a function, whose displacement may turn out to be one byte or four.
+ *
+ * Recorded rather than resolved as it is written, because which of the two it is cannot be answered
+ * until the whole function has been emitted - and answering it shortens the function, which changes
+ * the answer for every other branch in it. `relaxBranches` in gen.cpp settles all of them at once
+ * and then writes the bytes; see §7.1 of the README.
+ *
+ * The instruction is written in its *long* form and this says how to write the short one, so the
+ * buffer holds a legal function at every point and the relaxation is a rewrite rather than a
+ * back-patch of something incomplete.
+ */
+struct AsmBranch {
+    U32 start;    // the instruction's first byte - the 0x0f escape, for a conditional
+    U32 site;     // the rel32 field, which is `start + 1` for a jmp and `start + 2` for a jcc
+
+    // The block this branch lands on, or null for the function's shared epilogue (§7.2). Null is a
+    // real target rather than a missing one: the epilogue is not a block, and a branch aimed at a
+    // return that emits nothing else is aimed at it directly.
+    LowerBlock* block;
+
+    U8 shortOpcode;   // 0xeb, or 0x70 + the condition code the long form encodes as 0x80 + cc
+    bool isShort;     // what relaxation decided
 };
 
 /*
@@ -1295,11 +1325,6 @@ struct AsmModule {
     // Records a placeholder relocation at the rel32 field about to be written at the buffer's
     // current offset, then writes a placeholder 0 in its place. Call resolveRelocations() once
     // all functions referenced by any relocation have been emitted.
-    void addRelocation(LowerBlock* target) {
-        relocations.push(AsmRelocation { .siteOffset = U32(buffer.offset()), .block = target });
-        buffer.writeInt<LittleEndian>(0);
-    }
-
     void addRelocation(LowerFunction* target) {
         relocations.push(AsmRelocation { .siteOffset = U32(buffer.offset()), .function = target });
         buffer.writeInt<LittleEndian>(0);
@@ -1511,8 +1536,13 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
 // occupies in `to.buffer` - used by test harnesses to build an annotated disassembly listing
 // without genFunction itself needing to know anything about how that listing is formatted.
 //
-// `inst` is null for the function prologue, which belongs to the function rather than to any one
-// instruction; `regs` is empty in that case.
+// `inst` is null for the two sequences that belong to the *function* rather than to any one
+// instruction, and `regs` is empty for both: the prologue, which is reported first because it is
+// emitted first, and the shared epilogue of §7.2, which is reported last for the same reason. A
+// function that duplicates its epilogue reports only the prologue.
+//
+// Offsets are final. They are reported once branch relaxation (§7.1) has rewritten the function, so
+// a range here is where the instruction actually ended up rather than where it was first written.
 using InstEmitCallback = void (*)(void* ctx, LowerInst* inst, const InstRegs& regs, U32 startOffset, U32 endOffset);
 
 void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, const MachineFunction& machine, FunctionRegs& regs, InstEmitCallback onInst = nullptr, void* onInstCtx = nullptr);

@@ -177,14 +177,14 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d0a000000
+  je uses=[-] creates=[]  => 7d06
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8cf6ffffff
+  je uses=[-] creates=[]  => 7cfa
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -195,14 +195,14 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d0a000000
+  je uses=[-] creates=[]  => 7d06
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8cf6ffffff
+  je uses=[-] creates=[]  => 7cfa
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -215,17 +215,17 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d17000000
+  je uses=[-] creates=[]  => 7d0d
 block split:
-  je uses=[rsi] creates=[]  => 85f60f8508000000
+  je uses=[rsi] creates=[]  => 85f67505
 block right:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
-  jmp uses=[] creates=[]  => e9e8ffffff
+  jmp uses=[] creates=[]  => ebf3
 block left:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9e1ffffff
+  jmp uses=[] creates=[]  => ebef
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -238,23 +238,23 @@ block start:
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
 block outer:
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 0f8d20000000
+  je uses=[-] creates=[]  => 7d16
 block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
 block innerHead:
   cmp_ige uses=[r8, rsi] creates=[-]  => 4139f0
-  je uses=[-] creates=[]  => 0f8d0b000000
+  je uses=[-] creates=[]  => 7d08
 block innerBody:
   add uses=[rdx, r8] creates=[rdx]  => 4401c2
   imm uses=[] creates=[-]  => 
   add uses=[r8, -] creates=[r8]  => 41ffc0
-  jmp uses=[] creates=[]  => e9ecffffff
+  jmp uses=[] creates=[]  => ebf3
 block outerEnd:
   imm uses=[] creates=[-]  => 
   add uses=[rdx, -] creates=[rdx]  => ffc2
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => e9d8ffffff
+  jmp uses=[] creates=[]  => ebe6
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 
@@ -265,14 +265,14 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d0a000000
+  je uses=[-] creates=[]  => 7d06
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8cf6ffffff
+  je uses=[-] creates=[]  => 7cfa
 block out:
   ret uses=[rax] creates=[]  => c3
 
@@ -283,19 +283,19 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d1a000000
+  je uses=[-] creates=[]  => 7d0f
 block test:
-  je uses=[rsi] creates=[]  => 85f60f8507000000
+  je uses=[rsi] creates=[]  => 85f67504
 block odd:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e903000000
+  jmp uses=[] creates=[]  => eb03
 block even:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
   jmp uses=[] creates=[]  => 
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8ce6ffffff
+  je uses=[-] creates=[]  => 7cf1
 block out:
   ret uses=[rax] creates=[]  => c3

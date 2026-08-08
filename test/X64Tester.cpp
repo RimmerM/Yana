@@ -232,13 +232,17 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
         writer.writeString(" ---\n"_v);
 
         LowerBlock* currentBlock = nullptr;
+        bool seenPrologue = false;
 
         for(auto& e: trace.entries) {
             // The prologue belongs to the function rather than to any block, and is reported with a
-            // null instruction (see InstEmitCallback). Its counterpart falls inside the byte range
-            // of whichever `ret` it precedes, so there is no matching epilogue line.
+            // null instruction (see InstEmitCallback). So is a *shared* epilogue, which is the other
+            // sequence that belongs to the whole function - and it is reported after every block
+            // where the prologue is reported before any, which is what tells the two apart. A
+            // function that duplicates its epilogue has one inside the byte range of each `ret`.
             if(!e.inst) {
-                writer.writeString("  prologue  => "_v);
+                writer.writeString(seenPrologue ? "  epilogue  => "_v : "  prologue  => "_v);
+                seenPrologue = true;
                 for(auto off = e.start; off < e.end; off++) writeHex(writer, asm_.buffer.buffer[off]);
                 writer.writeByte('\n');
                 continue;

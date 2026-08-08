@@ -178,11 +178,11 @@ sink<complex>(%v: Int): Int {
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rdi] creates=[]  => 85ff0f850a000000
+  je uses=[rdi] creates=[]  => 85ff7507
 block cold:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc683c002
-  jmp uses=[] creates=[]  => e904000000
+  jmp uses=[] creates=[]  => eb04
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
@@ -194,11 +194,11 @@ block end:
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
-  je uses=[rdi] creates=[]  => 85ff0f8409000000
+  je uses=[rdi] creates=[]  => 85ff7406
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
-  jmp uses=[] creates=[]  => e905000000
+  jmp uses=[] creates=[]  => eb05
 block cold:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc683c002
@@ -212,7 +212,7 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
-  je uses=[rdi] creates=[]  => 85ff0f8403000000
+  je uses=[rdi] creates=[]  => 85ff7403
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
@@ -226,7 +226,7 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc6ffc0
-  je uses=[rdi] creates=[]  => 85ff0f8403000000
+  je uses=[rdi] creates=[]  => 85ff7403
 block hot:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c002
@@ -261,12 +261,12 @@ block start:
 block head:
   fun uses=[] creates=[-]  => 
   call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 8bfde8f4000000
-  je uses=[rbx] creates=[]  => 85db0f8513000000
+  je uses=[rbx] creates=[]  => 85db7510
 block rare:
   add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 418bc503442410
   add uses=[rax, stack:5] creates=[rax]  => 03442414
   add uses=[rax, r14] creates=[rax]  => 4401f0
-  jmp uses=[] creates=[]  => e90f000000
+  jmp uses=[] creates=[]  => eb0f
 block common:
   add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 418bc403442404
   add uses=[rax, stack:2] creates=[rax]  => 03442408
@@ -276,7 +276,7 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8cc4ffffff
+  je uses=[-] creates=[]  => 7ccf
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 
@@ -307,12 +307,12 @@ block start:
 block head:
   fun uses=[] creates=[-]  => 
   call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 8bfde844000000
-  je uses=[rbx] creates=[]  => 85db0f8412000000
+  je uses=[rbx] creates=[]  => 85db740f
 block common:
   add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 418bc403442404
   add uses=[rax, r13] creates=[rax]  => 4401e8
   add uses=[rax, r14] creates=[rax]  => 4401f0
-  jmp uses=[] creates=[]  => e910000000
+  jmp uses=[] creates=[]  => eb10
 block rare:
   add uses=[rax, stack:3] creates=[rax] pre=[stack:2->rax]  => 8b4424080344240c
   add uses=[rax, stack:4] creates=[rax]  => 03442410
@@ -322,7 +322,7 @@ block join:
   imm uses=[] creates=[-]  => 
   add uses=[rbp, -] creates=[rbp]  => ffc5
   cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
-  je uses=[-] creates=[]  => 0f8cc4ffffff
+  je uses=[-] creates=[]  => 7ccf
 block done:
   ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
 

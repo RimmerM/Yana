@@ -115,3 +115,173 @@ wideBranch(%v: Long, %w: Long): Long {
         ret %e
     }
 }
+
+# A branch too far to reach in a byte, which is what keeps the long form of §7.1 covered: every other
+# branch in this suite relaxes, so without this the rel32 arm of the fixpoint is never emitted.
+#
+# The arm below the branch is a chain of multiplies chosen for length rather than for meaning - each
+# `imul` with a four-byte immediate is seven bytes, so twenty of them put the join block more than
+# 127 bytes past the branch that skips them. The jump back over the same block is equally far and is
+# a rel32 too, in the other direction.
+#
+# Both are also the case relaxation has to get right rather than merely encode: the branch is decided
+# against a layout that every *other* branch in the function is still shrinking, so a fixpoint that
+# stopped after one pass could leave this one short by a byte it no longer has.
+farBranch(%v: Int, %w: Int): Int {
+    start {
+        je (cmp_ilt %v, %w), near, far
+    }
+
+    near {
+        ret %v
+    }
+
+    far {
+        %a0 = mul %v, 1000003: Int
+        %a1 = mul %a0, 1000033: Int
+        %a2 = mul %a1, 1000037: Int
+        %a3 = mul %a2, 1000039: Int
+        %a4 = mul %a3, 1000081: Int
+        %a5 = mul %a4, 1000099: Int
+        %a6 = mul %a5, 1000117: Int
+        %a7 = mul %a6, 1000121: Int
+        %a8 = mul %a7, 1000133: Int
+        %a9 = mul %a8, 1000151: Int
+        %b0 = mul %a9, 1000159: Int
+        %b1 = mul %b0, 1000171: Int
+        %b2 = mul %b1, 1000183: Int
+        %b3 = mul %b2, 1000187: Int
+        %b4 = mul %b3, 1000193: Int
+        %b5 = mul %b4, 1000199: Int
+        %b6 = mul %b5, 1000211: Int
+        %b7 = mul %b6, 1000213: Int
+        %b8 = mul %b7, 1000231: Int
+        %b9 = mul %b8, 1000249: Int
+        je (cmp_ilt %b9, %w), start, near
+    }
+}
+
+# Three returns and a frame worth restoring, which is §7.2's shape. The call is what gives the
+# function an epilogue with something in it: four values live across it have to be in preserved
+# registers, so there are four pushes to undo. A function that saves nothing has a one-byte epilogue
+# and is left alone, since two bytes of jump cannot reach one byte of `ret`.
+#
+# `third` is the first return in layout order and so is the one the epilogue is placed behind - its
+# `ret` emits nothing at all and falls into it. `second` jumps back, two bytes against the eight it
+# would have repeated. `first` does not: it is the arm the entry branch falls towards, it carries work
+# of its own, and §7.2.2 measures a jump there as costing more than the six bytes it would save - so
+# it keeps its own copy. All three cases of the rule in one function.
+sharedEpilogue(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+    start {
+        %r = call_complex callee2, %a, %b: Int
+        %s = add %r, %a: Int
+        %t = add %b, %c: Int
+        %u = add %c, %d: Int
+        je (cmp_ilt %s, 0), first, rest
+    }
+
+    first {
+        %p = mul %s, %t: Int
+        %q = add %p, %u: Int
+        ret %q
+    }
+
+    rest {
+        %w = add %t, %u: Int
+        je (cmp_ilt %w, 100), second, third
+    }
+
+    second {
+        ret %t
+    }
+
+    third {
+        ret %w
+    }
+}
+
+# The half of §7.2 that is free, and the reason most of the bytes are. `exit` holds a return and
+# nothing else - no instruction, and no copy, since what it returns is already in the register the
+# convention returns in - so once the epilogue has left it there is nothing there at all. It becomes
+# a block that emits nothing by §3.2.3's own rule, and the `je` that named it names the epilogue
+# instead. No jump is added and no byte is spent on the arm: an existing branch was pointed
+# somewhere else.
+sharedEpilogueBypass(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+    start {
+        %r = call_complex callee2, %a, %b: Int
+        %s = add %r, %a: Int
+        je (cmp_ilt %s, 0), exit, more
+    }
+
+    more {
+        %t = mul %s, %a: Int
+        %u = add %t, %c: Int
+        %v = mul %u, %d: Int
+        ret %v
+    }
+
+    exit {
+        ret %s
+    }
+}
+
+# §7.2.1: the same return, written three times. Each of the three guarded arms answers zero, so each
+# is `mov eax, 0` and a jump to the epilogue - the same bytes. The first is kept and the other two are
+# emitted, compared against it, and rewound over, with the branches that named them left pointing at
+# the copy that survives. Nothing structural is compared: the bytes are.
+#
+# They are also cold enough for §7.2.2 to leave alone, which is what the depth is for. Each sits one
+# branch further in than the last, so the shallowest runs an eighth as often as the function does and
+# a two-byte jump there is worth less than the six bytes of epilogue it saves. Four values live across
+# the call are what make the epilogue worth sharing at all.
+sharedReturnTail(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+    start {
+        %r = call_complex callee2, %a, %b: Int
+        je (cmp_ilt %r, 0), deep, one
+    }
+
+    one {
+        je (cmp_ilt %r, 10), deep, two
+    }
+
+    two {
+        je (cmp_ilt %r, 20), zeroA, three
+    }
+
+    three {
+        je (cmp_ilt %r, 30), zeroB, four
+    }
+
+    four {
+        je (cmp_ilt %r, 40), zeroC, ok
+    }
+
+    deep {
+        %u = mul %r, %c: Int
+        ret %u
+    }
+
+    ok {
+        %s = add %r, %c: Int
+        %t = mul %s, %d: Int
+        %v = add %t, %e: Int
+        %w = mul %v, %f: Int
+        ret %w
+    }
+
+    zeroA {
+        ret 0
+    }
+
+    zeroB {
+        ret 0
+    }
+
+    zeroC {
+        ret 0
+    }
+}
+
+callee2(%x: Int, %y: Int): Int {
+    { ret %x }
+}
