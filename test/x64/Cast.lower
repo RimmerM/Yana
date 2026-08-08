@@ -32,3 +32,88 @@ immCast(): Long {
         ret %t
     }
 }
+
+# The extend-skipping peephole, which is why the four functions below exist in pairs: each is a cast
+# the allocator will put in one register, and what differs between the two halves is whether the
+# upper half of that register was already clear.
+
+# It was. An addition at Int wrote a 32-bit destination, which clears bits 32-63 of it, so the
+# widening has nothing left to do and emits nothing at all. `%w` widens the sum and `%c` narrows it
+# straight back, and neither is an instruction.
+skipComputed(%a: Int, %b: Int): Long {
+    {
+        %s = add %a, %b: Int
+        %w = cast %s: Long
+        %c = cast %w: Int
+        %r = cast %c: Long
+        ret %r
+    }
+}
+
+# It was not. An argument arrives in a register the System V convention says nothing about above bit
+# 31, so this is the zero-extension it looks like and stays.
+keepArgument(%v: Int): Long {
+    {
+        %w = cast %v: Long
+        ret %w
+    }
+}
+
+identity(%x: Int): Int {
+    { ret %x }
+}
+
+# Nor was it for a value that came back from a call. The return register's upper half is the callee's
+# business and no convention here declares it clear, so this widening stands too.
+keepCallResult(%a: Int): Long {
+    {
+        %r = call_complex identity, %a: Int
+        %w = cast %r: Long
+        ret %w
+    }
+}
+
+# A cast between two 64-bit types moves at 64 bits whatever either end calls itself, so it is a copy
+# before anything is proved about its source - `mov rax, rax`, which was 3 bytes of nothing.
+skipWide(%a: Long, %b: Long): Long {
+    {
+        %s = add %a, %b: Long
+        %c = cast %s: Long
+        %r = add %c, %b: Long
+        ret %r
+    }
+}
+
+# The same question asked of a 64-bit operation, which is where a container's capacity arithmetic
+# lives. A mask cannot set a bit neither operand has, and a logical shift only moves bits down, so
+# both leave a register with nothing above bit 31 and the narrowing has nothing to clear. `sar`
+# fills from the sign bit instead, so the third narrowing here is the one that stays.
+skipMasked(%p: Ptr): Int {
+    {
+        %h = load %p, 8: Long
+        %m = and %h, 1073741823L: Long
+        %mn = cast %m: Int
+        %s = shr %h, 40L: Long
+        %sn = cast %s: Int
+        %a = sar %h, 40L: Long
+        %an = cast %a: Int
+        %r = add %mn, %sn: Int
+        %r2 = add %r, %an: Int
+        ret %r2
+    }
+}
+
+# The two loads either side of the rule. A byte lands in a register the `movzx` filled, so widening
+# it is free; a signed four-byte load is `movsxd`, which is the one load that carries a bit upwards,
+# so narrowing it back has to clear what the sign extension wrote.
+loadWidths(%p: Ptr): Long {
+    {
+        %b = load %p, 1: Int
+        %bw = cast %b: Long
+        %s = loads %p, 4: Long
+        %sn = cast %s: Int
+        %sw = cast %sn: Long
+        %r = add %bw, %sw: Long
+        ret %r
+    }
+}

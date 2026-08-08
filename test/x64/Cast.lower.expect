@@ -34,6 +34,73 @@ immCast<complex>(): Long {
   }
 }
 
+skipComputed<complex>(%a: Int, %b: Int): Long {
+  b_0 {
+    %s = add %a, %b: Int
+    %w = cast %s: Long
+    %c = cast %w: Int
+    %r = cast %c: Long
+    ret %r
+  }
+}
+
+keepArgument<complex>(%v: Int): Long {
+  b_0 {
+    %w = cast %v: Long
+    ret %w
+  }
+}
+
+identity<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+keepCallResult<complex>(%a: Int): Long {
+  b_0 {
+    %r = call_complex identity, %a: Int
+    %w = cast %r: Long
+    ret %w
+  }
+}
+
+skipWide<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %s = add %a, %b: Long
+    %c = cast %s: Long
+    %r = add %c, %b: Long
+    ret %r
+  }
+}
+
+skipMasked<complex>(%p: Ptr): Int {
+  b_0 {
+    %h = load %p, 8: Long
+    %m = and %h, 1073741823: Long
+    %mn = cast %m: Int
+    %s = shr %h, 40: Long
+    %sn = cast %s: Int
+    %a = sar %h, 40: Long
+    %an = cast %a: Int
+    %r = add %mn, %sn: Int
+    %r2 = add %r, %an: Int
+    ret %r2
+  }
+}
+
+loadWidths<complex>(%p: Ptr): Long {
+  b_0 {
+    %b = load %p, 1: Int
+    %bw = cast %b: Long
+    %s = loads %p, 4: Long
+    %sn = cast %s: Int
+    %sw = cast %sn: Long
+    %r = add %bw, %sw: Long
+    ret %r
+  }
+}
+
 
 --- codegen: widen ---
 block #0:
@@ -66,8 +133,79 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[rax]  => 48b80000000001000000
-  cast uses=[rax] creates=[rax]  => 488bc0
+  cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rcx]  => 48c7c1ffffffff
   add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipComputed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  cast uses=[rdi] creates=[rdi]  => 
+  cast uses=[rdi] creates=[rdi]  => 
+  cast uses=[rdi] creates=[rax]  => 8bc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepArgument ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rax]  => 8bc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: identity ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepCallResult ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8f8ffffff
+  cast uses=[rax] creates=[rax]  => 8bc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 4801f7
+  cast uses=[rdi] creates=[rdi]  => 
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74801f0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipMasked ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc74881e0ffffff3f
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf48c1e928
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  sar uses=[rdi, -] creates=[rdi]  => 48c1ff28
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: loadWidths ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rax]  => 0fb607
+  cast uses=[rax] creates=[rax]  => 
+  loads uses=[rdi] creates=[rdi]  => 48633f
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  cast uses=[rdi] creates=[rdi]  => 
+  add uses=[rax, rdi] creates=[rax]  => 4801f8
   ret uses=[rax] creates=[]  => c3

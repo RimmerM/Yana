@@ -250,6 +250,19 @@ struct LowerInstCast: LowerInstUnary {
     bool isSignedResult() const {
         return flags & 2;
     }
+
+    // Whether the source already holds the result's representation, so the extension or truncation
+    // this cast describes needs no instruction of its own. Recorded by the backend rather than by
+    // the lowering - what it means is a question about registers - in the same way a Copy carries
+    // its chosen encoding and a Select its folded comparison. See trySkipCastExtend in the x64
+    // transform, which is the only thing that sets it.
+    bool skipsExtend() const {
+        return flags & 4;
+    }
+
+    void setSkipsExtend(bool skips) {
+        flags = U8((flags & ~4) | (skips ? 4 : 0));
+    }
 };
 
 struct LowerInstBinary: LowerInstSingle {

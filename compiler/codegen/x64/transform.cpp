@@ -95,6 +95,167 @@ static bool tryElideDirectCallee(LowerBase base, LowerInstFun* fun) {
     return true;
 }
 
+/*
+ * Casts that extend nothing.
+ *
+ * An unsigned cast between an integer and a wider one is a move at the narrower of the two widths,
+ * because a 32-bit `mov` clears the upper half of its destination rather than preserving it - so one
+ * encoding both truncates a 64-bit source and zero-extends a 32-bit one (see FormCastMov). The
+ * allocator then usually gives the result the register its source is vacating, and the whole cast
+ * becomes `mov eax, eax`: a real instruction, and one that is doing nothing whenever the upper half
+ * it clears was already clear.
+ *
+ * It nearly always was. Every AMD64 instruction with a 32-bit destination clears bits 32-63 of it,
+ * so a value some other 32-bit operation produced arrives already extended and the cast has nothing
+ * left to do. The two questions below are that: which definitions carry the guarantee, and which
+ * casts are asking for exactly it.
+ */
+
+// How far isZeroExtended will follow a 64-bit operation into its operands. The kinds that need it -
+// masking and shifting a value down - come in short chains a container's capacity arithmetic is the
+// shape of (`(header >> 30) & 0x3fffffff`), and a budget rather than a visited set is what keeps a
+// question asked once per cast from walking a whole dataflow graph.
+static const U32 kExtendedDepth = 4;
+
+// Whether the register holding `value` is known to have its upper 32 bits clear.
+//
+// A property of the defining *instruction* rather than of the value's type, in both directions. An
+// Int32 that arrived in an argument register or came back from a call is a 32-bit value whose upper
+// half nobody promised anything about - neither the System V convention nor this backend's own
+// clears it - while an Int64 produced by an unsigned widening is a 64-bit value that provably is
+// clear, since the move that widened it is what cleared it.
+//
+// Conservative by construction: a kind not named here is answered "no", which costs a peephole and
+// never an answer. Spilling does not disturb it either way, since a slot is exactly as wide as the
+// value in it and the reload fills the same bits the definition did.
+static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExtendedDepth) {
+    auto inst = value->inst();
+    auto type = value->type;
+
+    // A 32-bit result is the whole of the common case and needs nothing looked up: every one of the
+    // operations below is emitted at its result's own width and writes the whole destination
+    // register, so a 32-bit one of them clears the rest of it.
+    auto narrow = type == LowerType::Int32;
+
+    switch(inst->kind) {
+        // A constant is known exactly, whatever it is materialized by.
+        case LowerInst::Imm:
+            return isIntLike(type) && ((LowerImm*)inst)->i <= 0xffffffffull;
+
+        case LowerInst::Set:
+        case LowerInst::Neg:   case LowerInst::Not:
+        case LowerInst::Add:   case LowerInst::Sub:
+        case LowerInst::Mul:   case LowerInst::IMul:
+        case LowerInst::Div:   case LowerInst::IDiv:
+        case LowerInst::Rem:   case LowerInst::IRem:
+        case LowerInst::MulHi: case LowerInst::IMulHi:
+        case LowerInst::Shl:   case LowerInst::Sar:
+            return narrow;
+
+        // Masking cannot set a bit its operands do not have between them, so one clear operand is
+        // enough however wide the operation is. This is the rule that reaches a container's
+        // capacity: `and rax, 0x3fffffff` at Long is as extended as a 32-bit operation's result.
+        case LowerInst::And: {
+            if(narrow) return true;
+            if(depth == 0) return false;
+
+            auto binary = (LowerInstBinary*)inst;
+            return isZeroExtended(base, base[binary->lhs], depth - 1)
+                || isZeroExtended(base, base[binary->rhs], depth - 1);
+        }
+
+        // Where a bitwise operation can, so both sides have to be clear.
+        case LowerInst::Or: case LowerInst::Xor: {
+            if(narrow) return true;
+            if(depth == 0) return false;
+
+            auto binary = (LowerInstBinary*)inst;
+            return isZeroExtended(base, base[binary->lhs], depth - 1)
+                && isZeroExtended(base, base[binary->rhs], depth - 1);
+        }
+
+        // A logical shift only moves bits down: a clear operand stays clear, and a constant count of
+        // 32 or more leaves nothing above bit 31 whatever went in. The arithmetic shift above has
+        // neither property, since it fills from the sign bit.
+        case LowerInst::Shr: {
+            if(narrow) return true;
+
+            auto binary = (LowerInstBinary*)inst;
+            auto count = base[binary->rhs];
+            if(count->inst()->kind == LowerInst::Imm && immValue(count) >= 32) return true;
+
+            return depth > 0 && isZeroExtended(base, base[binary->lhs], depth - 1);
+        }
+
+        // A comparison materialized into a register is a zero-extension by construction - `setcc`
+        // into a byte the sequence either zeroed first or `movzx`-es afterwards - and its value is 0
+        // or 1 regardless. One folded into the flags has no register at all to answer for.
+        case LowerInst::Cmp:
+            return !isImplicit(value);
+
+        // Anything loaded at four bytes or fewer lands in a register the load itself filled: the
+        // narrow forms extend into the result's own width, and a four-byte one is `mov r32` unless
+        // it is the signed widening `movsxd`. A sign extension is the one that carries a bit up.
+        case LowerInst::Load: {
+            auto load = (LowerInstLoad*)inst;
+            if(!isIntLike(type) || load->getWidth() > 4) return false;
+            return !load->isSigned() || !is64Bit(type);
+        }
+
+        // And a cast, which is the case that makes two of these in a row collapse into one. The
+        // marking below does not enter into it: a cast with a 32-bit end moves at 32 bits, and one
+        // this peephole marked instead inherits a source it has already required to be clear - so
+        // the answer is the same either way, and this question stays independent of the order the
+        // casts are visited in.
+        case LowerInst::Cast: {
+            auto cast = (LowerInstCast*)inst;
+            auto source = base[cast->from];
+            auto from = source->type;
+            if(!isIntLike(from) || !isIntLike(type)) return false;
+
+            if(isImm(source)) return immValue(source) <= 0xffffffffull;
+            if(!is64Bit(from) && is64Bit(type) && cast->isSignedSource() && cast->isSignedResult()) {
+                return false;
+            }
+
+            return !is64Bit(from) || !is64Bit(type);
+        }
+
+        default:
+            return false;
+    }
+}
+
+// Marks a cast whose move would change no bit of its source, so that selection gives it the form
+// that emits nothing when the allocator has put the two in one register (FormCastCopy).
+//
+// Two shapes qualify. A cast between two 64-bit types moves at 64 bits and is a plain copy already,
+// whatever either end calls itself - a refinement widening to the type it refines is the one that
+// reaches here. And a cast with a 32-bit end is the zero-extending truncating move, which is a copy
+// exactly when the bits it would clear are clear.
+//
+// The signed widening is not one of them: `movsxd` is a different instruction with something real to
+// do. Nor is a constant source, which makes the cast a materialization rather than a move.
+static bool trySkipCastExtend(LowerBase base, LowerInstCast* cast) {
+    auto source = base[cast->from];
+    auto from = source->type;
+    auto to = cast->result.type;
+
+    if(!isIntLike(from) || !isIntLike(to)) return false;
+    if(isImm(source)) return false;
+
+    if(is64Bit(from) && is64Bit(to)) {
+        cast->setSkipsExtend(true);
+        return true;
+    }
+
+    if(!is64Bit(from) && is64Bit(to) && cast->isSignedSource() && cast->isSignedResult()) return false;
+    if(!isZeroExtended(base, source)) return false;
+
+    cast->setSkipsExtend(true);
+    return true;
+}
+
 // Tries to swap operands to the provided instruction in order to make it easier to perform further optimizations.
 // This needs to be done before register allocation,
 // since swapping and then embedding may reduce the number of registers needed.
@@ -2126,9 +2287,10 @@ static void selectMemorySources(LowerBase base, LowerFunction& fun) {
 // allocator, the form selection below and the encoder all read one answer instead of each deriving it.
 //
 // Expects: addresses selected.  Establishes: every value that occupies no location is marked
-// Implicit, and every Copy/SetPattern has its encoding recorded. Mutates: value flags, instruction
-// annotations, and the order of the instructions a compare fold lifts out of its flag window.
-// Invalidates: instruction positions within a block.
+// Implicit, every Copy/SetPattern has its encoding recorded, and every cast whose extension is a
+// no-op is marked as one. Mutates: value flags, instruction annotations, and the order of the
+// instructions a compare fold lifts out of its flag window. Invalidates: instruction positions
+// within a block.
 //
 // In two sweeps, and the order between them is the point - load-bearing rather than tidy. Everything
 // a peephole can decide about an instruction's *form* is decided first; only then does the compare
@@ -2149,6 +2311,13 @@ static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
 
         if(inst->kind == LowerInst::Fun) {
             tryElideDirectCallee(base, (LowerInstFun*)inst);
+        }
+
+        // After tryEmbedImm rather than in a sweep of its own: whether a constant source has been
+        // taken out of its register is what decides whether a cast is a move at all, and an Imm is
+        // reached before the instructions that read it.
+        if(inst->kind == LowerInst::Cast) {
+            trySkipCastExtend(base, (LowerInstCast*)inst);
         }
 
         selectBlockOpEncoding(base, inst);

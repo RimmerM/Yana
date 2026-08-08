@@ -34,6 +34,7 @@ enum: MachineFormId {
     FormMoveF32,
     FormMoveF64,
     FormCastMov,
+    FormCastCopy,
     FormCastSext,
     FormCastImm,
     FormCastZero,
@@ -500,6 +501,23 @@ MachineTarget::MachineTarget() {
         form.defs.push(def());
         form.encoding = regRm(0x8b, defRef(0), useRef(0));
         form.encoding.width = OperationWidth::Narrowest;
+    }
+
+    {
+        // The same move, for a cast whose clearing has been shown to be a no-op: the source register
+        // already holds the bits the destination has to end up with, so this emits nothing at all
+        // once the two are in one register and an ordinary copy while they are not. That is the only
+        // difference from the form above, which cannot omit itself for exactly the reason it exists.
+        //
+        // Which of the two an integer cast takes is trySkipCastExtend's answer, recorded on the
+        // instruction; both write nothing to the flags, so choosing between them is not one of the
+        // decisions OpCast's flags-selectiveness is about.
+        auto& form = add(FormCastCopy, OpCast, "mov r, r (extended)"_v);
+        form.uses.push(anyReg());
+        form.defs.push(def());
+        form.encoding = regRm(0x8b, defRef(0), useRef(0));
+        form.encoding.width = OperationWidth::Narrowest;
+        form.encoding.omitWhenSame = true;
     }
 
     {
@@ -2001,6 +2019,11 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             // sweep of its own, after every form decision a peephole makes.
             auto source = base[cast->from];
             if(isImm(source)) return immValue(source) == 0 ? FormCastZero : FormCastImm;
+
+            // A cast the peephole proved changes no bit is a copy, and a copy between one register
+            // and itself is nothing. Asked before the sign question below because it subsumes it:
+            // the peephole never marks a widening that has a sign bit to carry.
+            if(cast->skipsExtend()) return FormCastCopy;
 
             /*
              * Only a signed value *widened* into a signed one has to carry its sign bit up; every
