@@ -970,15 +970,42 @@ pub fn checkCondition(failed: Bool) -> {}:
 {-
    Room for `wanted` elements.
 
-   Growth policy and nothing else - doubling, with a floor - because relocation is the run's. The
-   `&` on `resize`'s own `self` is what makes that safe with no rule of this module's own: a mutable
-   borrow of the run conflicts with any live borrow into it, so a caller holding an element borrow
-   across a push is rejected by the ordinary check rather than by anything written here.
+   The capacity test and nothing else, with the growth behind `growArray`. Split that way on purpose,
+   and the split is what makes this function *disappear* at its call sites: written as one body it is
+   twenty instructions in ten blocks, which is over any budget the inliner has, so `push` was a call
+   per element and the caller's own bounds check reloaded the capacity one instruction after that call
+   returned - a load nothing may forward across a call, a check nothing may discharge, and an address
+   nothing may hoist out of the loop the push sits in.
+
+   Written as a test and a tail call it is four instructions in two blocks, the inliner takes it under
+   the ordinary budget with no rule of its own, and what lands in the caller is exactly the test. See
+   §14.2 of `test/bench/findings.md` for what that is worth and for why the same shape recognised in
+   the *compiler* is not: inlining the whole body carries the growth into the caller's hot loop, and
+   the two cancel.
 -}
 @platform(native) pub fn reserve(&self: Array(a), wanted: Int) -> {}:
-    let room = self.run.capacity :: Int
-    if wanted <= room then return
+    if wanted <= (self.run.capacity :: Int) then return
+    growArray(self, wanted)
 
+{-
+   The growth, which runs once per doubling.
+
+   Doubling with a floor, and nothing else - relocation is the run's. The `&` on `resize`'s own `self`
+   is what makes that safe with no rule of this module's own: a mutable borrow of the run conflicts
+   with any live borrow into it, so a caller holding an element borrow across a push is rejected by
+   the ordinary check rather than by anything written here.
+
+   Not `pub`: it is `reserve`'s cold half and re-tests nothing, so calling it directly would grow an
+   array that already had the room.
+
+   `@noinline` because the whole point of the split is that this body stays where it is, and the one
+   term that would otherwise take it back is `soleCallSite`: a program with a single `push` leaves
+   this with one caller, and a body with one caller is one the inliner moves rather than copies. That
+   is a size win and a speed loss - what it moves is a doubling and a `resize` call, into the loop the
+   push sits in - so the attribute says which of the two this function is for.
+-}
+@platform(native) @noinline fn growArray(&self: Array(a), wanted: Int) -> {}:
+    let room = self.run.capacity :: Int
     let &wide = room + room :: Int
     if wide < wanted then wide = wanted
     if wide < 4 then wide = 4

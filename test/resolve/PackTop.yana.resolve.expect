@@ -1131,8 +1131,8 @@ fn reserve(B1)(%self: Array(B1), %wanted: Int) -> () {
     %v3 = load %self@Array.run : Run(B1)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = cmp_le %wanted, %room : Bool
+    %v6 = cast %v5 : Int
+    %v7 = cmp_le %wanted, %v6 : Bool
     je %v7, b1, b2
 
   b1:
@@ -1142,38 +1142,51 @@ fn reserve(B1)(%self: Array(B1), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
+    %v11 = load %self : Array(B1)
+    %v12 = borrow_mut %self : &mut Array(B1)
+    call growArray(B1), %v12, %wanted
+    ret
+}
+
+fn growArray(B1)(%self: Array(B1), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(B1)
+    %v3 = load %self@Array.run : Run(B1)
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = add %room, %room : Int
     %wide = alloc : Int
-    init %wide, %v11
-    %v14 = load %wide : Int
-    %v15 = cmp_lt %v14, %wanted : Bool
-    je %v15, b4, b5
+    init %wide, %v7
+    %v10 = load %wide : Int
+    %v11 = cmp_lt %v10, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v28 = load %self : Array(B1)
-    %v29 = load %self@Array.run : Run(B1)
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(B1)
-    %v32 = call resize(B1), %v31, %v30 : Bool
+    %v24 = load %self : Array(B1)
+    %v25 = load %self@Array.run : Run(B1)
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(B1)
+    %v28 = call resize(B1), %v27, %v26 : Bool
     ret
 }
 
@@ -1224,8 +1237,8 @@ fn reserve(B2)(%self: Array(B2), %wanted: Int) -> () {
     %v3 = load %self@Array.run : Run(B2)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = cmp_le %wanted, %room : Bool
+    %v6 = cast %v5 : Int
+    %v7 = cmp_le %wanted, %v6 : Bool
     je %v7, b1, b2
 
   b1:
@@ -1235,38 +1248,51 @@ fn reserve(B2)(%self: Array(B2), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
+    %v11 = load %self : Array(B2)
+    %v12 = borrow_mut %self : &mut Array(B2)
+    call growArray(B2), %v12, %wanted
+    ret
+}
+
+fn growArray(B2)(%self: Array(B2), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(B2)
+    %v3 = load %self@Array.run : Run(B2)
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = add %room, %room : Int
     %wide = alloc : Int
-    init %wide, %v11
-    %v14 = load %wide : Int
-    %v15 = cmp_lt %v14, %wanted : Bool
-    je %v15, b4, b5
+    init %wide, %v7
+    %v10 = load %wide : Int
+    %v11 = cmp_lt %v10, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v28 = load %self : Array(B2)
-    %v29 = load %self@Array.run : Run(B2)
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(B2)
-    %v32 = call resize(B2), %v31, %v30 : Bool
+    %v24 = load %self : Array(B2)
+    %v25 = load %self@Array.run : Run(B2)
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(B2)
+    %v28 = call resize(B2), %v27, %v26 : Bool
     ret
 }
 
@@ -1317,8 +1343,8 @@ fn reserve(B4)(%self: Array(B4), %wanted: Int) -> () {
     %v3 = load %self@Array.run : Run(B4)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = cmp_le %wanted, %room : Bool
+    %v6 = cast %v5 : Int
+    %v7 = cmp_le %wanted, %v6 : Bool
     je %v7, b1, b2
 
   b1:
@@ -1328,38 +1354,51 @@ fn reserve(B4)(%self: Array(B4), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
+    %v11 = load %self : Array(B4)
+    %v12 = borrow_mut %self : &mut Array(B4)
+    call growArray(B4), %v12, %wanted
+    ret
+}
+
+fn growArray(B4)(%self: Array(B4), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(B4)
+    %v3 = load %self@Array.run : Run(B4)
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = add %room, %room : Int
     %wide = alloc : Int
-    init %wide, %v11
-    %v14 = load %wide : Int
-    %v15 = cmp_lt %v14, %wanted : Bool
-    je %v15, b4, b5
+    init %wide, %v7
+    %v10 = load %wide : Int
+    %v11 = cmp_lt %v10, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v28 = load %self : Array(B4)
-    %v29 = load %self@Array.run : Run(B4)
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(B4)
-    %v32 = call resize(B4), %v31, %v30 : Bool
+    %v24 = load %self : Array(B4)
+    %v25 = load %self@Array.run : Run(B4)
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(B4)
+    %v28 = call resize(B4), %v27, %v26 : Bool
     ret
 }
 
@@ -1410,8 +1449,8 @@ fn reserve(Gap)(%self: Array(Gap), %wanted: Int) -> () {
     %v3 = load %self@Array.run : Run(Gap)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = cmp_le %wanted, %room : Bool
+    %v6 = cast %v5 : Int
+    %v7 = cmp_le %wanted, %v6 : Bool
     je %v7, b1, b2
 
   b1:
@@ -1421,38 +1460,51 @@ fn reserve(Gap)(%self: Array(Gap), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
+    %v11 = load %self : Array(Gap)
+    %v12 = borrow_mut %self : &mut Array(Gap)
+    call growArray(Gap), %v12, %wanted
+    ret
+}
+
+fn growArray(Gap)(%self: Array(Gap), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Gap)
+    %v3 = load %self@Array.run : Run(Gap)
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = add %room, %room : Int
     %wide = alloc : Int
-    init %wide, %v11
-    %v14 = load %wide : Int
-    %v15 = cmp_lt %v14, %wanted : Bool
-    je %v15, b4, b5
+    init %wide, %v7
+    %v10 = load %wide : Int
+    %v11 = cmp_lt %v10, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v28 = load %self : Array(Gap)
-    %v29 = load %self@Array.run : Run(Gap)
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(Gap)
-    %v32 = call resize(Gap), %v31, %v30 : Bool
+    %v24 = load %self : Array(Gap)
+    %v25 = load %self@Array.run : Run(Gap)
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(Gap)
+    %v28 = call resize(Gap), %v27, %v26 : Bool
     ret
 }
 
@@ -1503,8 +1555,8 @@ fn reserve(Signed)(%self: Array(Signed), %wanted: Int) -> () {
     %v3 = load %self@Array.run : Run(Signed)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = cmp_le %wanted, %room : Bool
+    %v6 = cast %v5 : Int
+    %v7 = cmp_le %wanted, %v6 : Bool
     je %v7, b1, b2
 
   b1:
@@ -1514,38 +1566,51 @@ fn reserve(Signed)(%self: Array(Signed), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
+    %v11 = load %self : Array(Signed)
+    %v12 = borrow_mut %self : &mut Array(Signed)
+    call growArray(Signed), %v12, %wanted
+    ret
+}
+
+fn growArray(Signed)(%self: Array(Signed), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Signed)
+    %v3 = load %self@Array.run : Run(Signed)
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = add %room, %room : Int
     %wide = alloc : Int
-    init %wide, %v11
-    %v14 = load %wide : Int
-    %v15 = cmp_lt %v14, %wanted : Bool
-    je %v15, b4, b5
+    init %wide, %v7
+    %v10 = load %wide : Int
+    %v11 = cmp_lt %v10, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v28 = load %self : Array(Signed)
-    %v29 = load %self@Array.run : Run(Signed)
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(Signed)
-    %v32 = call resize(Signed), %v31, %v30 : Bool
+    %v24 = load %self : Array(Signed)
+    %v25 = load %self@Array.run : Run(Signed)
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(Signed)
+    %v28 = call resize(Signed), %v27, %v26 : Bool
     ret
 }
 

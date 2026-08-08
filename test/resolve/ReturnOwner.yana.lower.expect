@@ -425,86 +425,91 @@ push(Int)<complex>(%self: Ptr, %item: Int) {
     %v_2 = load %v_1, 4: Int
     %count = cast %v_2: Int
     %v_3 = add %count, 1: Int
-    call_complex reserve(Int), %self, %v_3
     %v_4 = add %self, 8: Ptr
     %v_5 = load %v_4, 4: Long
     %v_6 = and %v_5, 1073741823: Long
     %v_7 = cast %v_6: Int
     %v_8 = cast %v_7: Int
-    %v_9 = cmp_ige %count, %v_8: Int
+    %v_9 = cmp_ile %v_3, %v_8: Int
     je %v_9, b_10, b_11
   }
 
   b_11 {
-    %v_12 = load %self, 8: Ptr
-    %v_13 = sext %count: Long
-    %v_14 = shl %v_13, 2: Long
-    %v_15 = add %v_12, %v_14: Ptr
-    store %v_15, %item, 4
-    %v_16 = cast %v_3: Int
-    %v_17 = and %v_16, 1073741823: Int
-    %v_18 = cast %v_17: Int
-    %v_19 = add %self, 12: Ptr
-    store %v_19, %v_18, 4
-    ret 
+    call_complex growArray(Int), %self, %v_3
+    jmp b_12
   }
 
   b_10 {
-    %v_20 = syscall 60, 134: Long
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = add %self, 8: Ptr
+    %v_14 = load %v_13, 4: Long
+    %v_15 = and %v_14, 1073741823: Long
+    %v_16 = cast %v_15: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = cmp_ige %count, %v_17: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    %v_21 = load %self, 8: Ptr
+    %v_22 = sext %count: Long
+    %v_23 = shl %v_22, 2: Long
+    %v_24 = add %v_21, %v_23: Ptr
+    store %v_24, %item, 4
+    %v_25 = cast %v_3: Int
+    %v_26 = and %v_25, 1073741823: Int
+    %v_27 = cast %v_26: Int
+    %v_28 = add %self, 12: Ptr
+    store %v_28, %v_27, 4
+    ret 
+  }
+
+  b_19 {
+    %v_29 = syscall 60, 134: Long
     unreachable 
   }
 }
 
-reserve(Int)<complex>(%self: Ptr, %wanted: Int) {
+growArray(Int)<complex>(%self: Ptr, %wanted: Int) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
     %v_3 = and %v_2, 1073741823: Long
     %v_4 = cast %v_3: Int
     %room = cast %v_4: Int
-    %v_5 = cmp_ile %wanted, %room: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    ret 
+    %v_5 = add %room, %room: Int
+    %v_6 = cmp_ilt %v_5, %wanted: Int
+    je %v_6, b_7, b_8
   }
 
   b_7 {
-    jmp b_8
+    jmp b_9
   }
 
   b_8 {
-    %v_9 = add %room, %room: Int
-    %v_10 = cmp_ilt %v_9, %wanted: Int
-    je %v_10, b_11, b_12
+    jmp b_9
   }
 
-  b_11 {
-    jmp b_13
+  b_9 {
+    %v_10 = phi [b_7, %wanted], [b_8, %v_5]: Int
+    %v_11 = cmp_ilt %v_10, 4: Int
+    je %v_11, b_12, b_13
   }
 
   b_12 {
-    jmp b_13
+    jmp b_14
   }
 
   b_13 {
-    %v_14 = phi [b_11, %wanted], [b_12, %v_9]: Int
-    %v_15 = cmp_ilt %v_14, 4: Int
-    je %v_15, b_16, b_17
+    jmp b_14
   }
 
-  b_16 {
-    jmp b_18
-  }
-
-  b_17 {
-    jmp b_18
-  }
-
-  b_18 {
-    %v_19 = phi [b_16, 4], [b_17, %v_14]: Int
-    %v_20 = call_complex resize(Int), %self, %v_19: Int
+  b_14 {
+    %v_15 = phi [b_12, 4], [b_13, %v_10]: Int
+    %v_16 = call_complex resize(Int), %self, %v_15: Int
     ret 
   }
 }

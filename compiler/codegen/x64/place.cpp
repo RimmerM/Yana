@@ -429,18 +429,26 @@ struct Placer {
     // Where each argument arrived, in argument order - see Placement::incomingArgs.
     Array<MachineLocation>& incomingArgs;
 
-    // Webs this pass has to leave homeless whatever it would otherwise have done, because a previous
-    // pass found something that wanted their register more. *Homeless* rather than spilled: which of
-    // the two homeless states such a web takes is still its own choice, and a cheap constant takes a
-    // recipe rather than a slot. Indexed by web id; see the displacement comment on `assign` and the
-    // loop in allocateRegisters.
-    const IndexSet& forcedHomeless;
+    // The registers each web has to keep out of, because a previous pass over this function found
+    // something that wanted one of them more. Indexed by web id; see the displacement comment on
+    // `assign` and the loop in allocateRegisters.
+    //
+    // A set rather than a flag, and that is the whole of what makes a displacement cost the displaced
+    // web one register rather than all of them: the asking web needed *this* register free over
+    // *this* interval, and nothing about the rest of the file follows from that. A web that used to
+    // be told "take no register at all" spent the frame on registers nothing else had asked for -
+    // measured on `each` in `Pipeline.yana`, three values in the frame with r14 free the whole way.
+    const Array<RegSet>& displacedFrom;
+
+    // The webs a previous pass displaced, which went homeless at their turn and are offered a
+    // register again once the walk has finished - see `reclaimDisplaced`.
+    Array<LiveId> deferred;
 
     // Webs *this* pass would rather have displaced than the one it displaced instead. Placement is
     // one walk in the order legalization will later read it, so a web already placed has already
     // been offered to everything that could have taken its register from it - the request is carried
     // out to allocateRegisters and applied to the next pass.
-    Array<LiveId>& displacementRequests;
+    Array<Placement::DisplacementRequest>& displacementRequests;
 
     // Set when legalizing this placement could need scratch registers - see the field of the same
     // name on Placement for the two things that set it. The first pass over a function reserves
@@ -460,14 +468,14 @@ struct Placer {
 
     Placer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
         const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-        const TemporaryReserve& temporaries, const IndexSet& forcedHomeless,
+        const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom,
         PlacementScratch& scratch, Placement& out):
         base(base), fun(fun), live(live), machine(machine), constraints(constraints),
         scratch(scratch), shapes(scratch.shapes), frequency(frequency), out(out),
         webs(scratch.webs), occupants(scratch.occupants), tieConflicts(scratch.tieConflicts),
         frame(out.frame), slotOccupants(scratch.slotOccupants), slotWebs(scratch.slotWebs),
         clobberSites(scratch.clobberSites),
-        remats(out.remats), incomingArgs(out.incomingArgs), forcedHomeless(forcedHomeless),
+        remats(out.remats), incomingArgs(out.incomingArgs), displacedFrom(displacedFrom),
         displacementRequests(out.displacementRequests), temporaries(temporaries)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
@@ -647,11 +655,26 @@ struct Placer {
 
         auto cls = classForType(v->type);
         auto bank = targetRegisters().regClass(cls).bank;
-        auto avoid = info.avoid | extraAvoid;
+        auto avoid = info.avoid | extraAvoid | displacedFrom[Size(webId)];
         auto interval = info.interval();
 
-        // A previous pass found something that needed this web's register more than it did.
-        if(forcedHomeless[webId]) return assignHomeless(webId, v->type, cls, interval);
+        /*
+         * A previous pass found something that needed one of this web's registers more than it did.
+         *
+         * It goes homeless *here*, and is offered a register again only once the walk has finished -
+         * see `reclaimDisplaced`. Letting it search now would undo the comparison that displaced it:
+         * `findDisplacement` chose this web because it valued its register least of everything in
+         * the way, and a web that answers that by taking the next register along has simply moved
+         * the shortage to whoever asks after it. Which is measurable - on the program corpus,
+         * searching here costs `Sieve` 15 ms and the corpus 21.
+         *
+         * What is left over at the end is a different question and a safe one: a register nothing
+         * else took is one no comparison was ever made about.
+         */
+        if(!displacedFrom[Size(webId)].isEmpty()) {
+            deferred.push(webId);
+            return assignHomeless(webId, v->type, cls, interval);
+        }
 
         /*
          * A value that costs nothing to recreate never takes a register, however free one looks
@@ -974,8 +997,12 @@ struct Placer {
     }
 
     void recordDisplacement(LiveId webId, RegisterBankId bank, Size reg, const LiveInterval& interval) {
+        auto physical = PhysicalReg { bank, U16(reg) };
+
         for(auto id: occupants[bank][reg]) {
-            if(displaces(webId, id, interval)) displacementRequests.push(id);
+            if(displaces(webId, id, interval)) {
+                displacementRequests.push(Placement::DisplacementRequest { .web = id, .reg = physical });
+            }
         }
     }
 
@@ -1257,13 +1284,26 @@ static void computeAvoidSets(Placer& a) {
             a.written |= mask;
 
             if(!mask.isEmpty()) {
-                // An operand that the parallel copy in front of this instruction does *not* place
-                // is read straight out of its own register, so that register has to survive both
-                // the copy and whatever the instruction's expansion writes before reading its
-                // sources (`xor rdx, rdx` ahead of a division, r11 as scratch in an unrolled copy).
-                //
-                // This half is `avoidFixed` as well: it is the operand's own instruction, so there
-                // is no window that could carry the web past it - it has to be readable *here*.
+                /*
+                 * An operand that the parallel copy in front of this instruction does *not* place
+                 * is read straight out of its own register, so that register has to survive both
+                 * the copy and whatever the instruction's expansion writes before reading its
+                 * sources (`xor rdx, rdx` ahead of a division, r11 as scratch in an unrolled copy).
+                 *
+                 * This half is `avoidFixed` as well: it is the operand's own instruction, so there
+                 * is no window that could carry the web past it - it has to be readable *here*.
+                 *
+                 * A **call** is the exception, and it is the one that pays. Its clobber set is the
+                 * callee's, and the callee has not run when the target operand is read - so the only
+                 * registers that operand has to dodge are the fixed ones the copy in front of it
+                 * writes. Charging it the whole clobber set left an indirect call's target with the
+                 * preserved registers and nothing else, which is exactly the set the values living
+                 * *across* the call are competing for: `each` in `Pipeline.yana` spent rbp on a
+                 * function pointer loaded one instruction earlier and reloaded its item pointer from
+                 * the frame every iteration for want of it.
+                 */
+                auto operandMask = shape.isCall ? fixedRegisters(shape) : mask;
+
                 auto used = inst->used();
                 for(Size i = 0; i < used.size(); i++) {
                     auto v = a.base[used[i]];
@@ -1271,8 +1311,8 @@ static void computeAvoidSets(Placer& a) {
                     if(shape.uses[i].kind != ArgLocation::None) continue;
 
                     auto& web = a.webFor(v);
-                    web.avoid |= mask;
-                    web.avoidFixed |= mask;
+                    web.avoid |= operandMask;
+                    web.avoidFixed |= operandMask;
                 }
 
                 // A return ends the function, so nothing can be live across it.
@@ -1638,6 +1678,71 @@ static void placeArgs(Placer& a, const CallConvention& convention) {
     }
 }
 
+/*
+ * The webs an earlier pass displaced, offered a register once nothing else can want one.
+ *
+ * A displacement is a comparison - this register is worth more to the web asking than to the ones
+ * holding it - and the displaced web going homeless is what makes that comparison true. So it may
+ * not simply look for another register at its own turn: everything placed after it would then be
+ * choosing from a file this web had already taken from, and the shortage moves rather than going
+ * away.
+ *
+ * Once the walk is over there is no such trade left to get wrong. A register still free over a web's
+ * whole interval is one every other web in the function was offered and did not take, so handing it
+ * over costs nothing anywhere - it is the case §9.1's promotion fixpoint is about, seen from the
+ * allocator: `each` in `Pipeline.yana` had three values in the frame with r14 free from entry to
+ * exit, because all three had been displaced in the pass that measured the scratch reserve.
+ *
+ * Hottest first, since two of them can want the one register that is left.
+ *
+ * Only a web in a *slot*. One that took a recipe is homeless because recreating it is cheaper than
+ * a register would be (§5.6), which is a decision about the value and not about the shortage, and it
+ * stands whatever is free.
+ */
+static void reclaimDisplaced(Placer& a) {
+    auto& order = a.deferred;
+    if(order.isEmpty()) return;
+
+    // Insertion sort: this list is the displaced webs of one function, which kMaxDisplacements bounds
+    // at sixteen.
+    for(Size i = 1; i < order.size(); i++) {
+        auto id = order[i];
+        auto cost = a.webs[id].spillCost;
+        Size j = i;
+
+        for(; j > 0 && a.webs[order[j - 1]].spillCost < cost; j--) order[j] = order[j - 1];
+        order[j] = id;
+    }
+
+    for(auto webId: order) {
+        auto home = a.homeOfWeb(webId);
+        if(!home.isValid() || home.kind != LocationKind::StackSlot) continue;
+
+        auto& info = a.webs[webId];
+        auto interval = info.interval();
+        if(interval.isEmpty()) continue;
+
+        auto cls = a.out.webs[webId].regClass;
+        auto bank = targetRegisters().regClass(cls).bank;
+        auto avoid = info.avoid | a.displacedFrom[Size(webId)];
+
+        for(Size i = 0; i < a.orderCount[bank]; i++) {
+            auto reg = PhysicalReg { bank, U16(a.order[bank][i]) };
+            if(!a.allocatable.has(reg) || avoid.has(reg)) continue;
+            if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) continue;
+            if(!a.isFree(webId, cls, reg, interval)) continue;
+
+            // The slot it was holding is left where it is. Nothing else may take it - `takeSlot`
+            // recycles by interval overlap and this web's interval has not changed - so handing it
+            // back would need the slot list rebuilt for a frame that is at most one slot wider.
+            a.occupy(cls, reg, webId);
+            a.written.add(reg);
+            a.out.webs[webId].segments[0].location = MachineLocation::physical(reg);
+            break;
+        }
+    }
+}
+
 // Frame objects that come from the instructions rather than from the signature, plus the two facts
 // about the stack that decide whether the function can address its frame through rsp.
 static void collectFrameObjects(Placer& a) {
@@ -1693,12 +1798,12 @@ static void collectFrameObjects(Placer& a) {
 
 void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-    const TemporaryReserve& temporaries, const IndexSet& forcedHomeless, RegScratch& scratch,
+    const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom, RegScratch& scratch,
     Placement& out)
 {
     if(!scratch.placement) scratch.placement = new PlacementScratch();
 
-    Placer a(base, fun, live, machine, constraints, frequency, framePointer, temporaries, forcedHomeless,
+    Placer a(base, fun, live, machine, constraints, frequency, framePointer, temporaries, displacedFrom,
         *scratch.placement, out);
     collectFrameObjects(a);
 
@@ -1740,6 +1845,9 @@ void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const 
     }
 
     assertTrue(index == live.instCount); // the walk here and buildRanges' numbering must agree
+
+    // After the walk and nowhere else - see the comment on the function.
+    reclaimDisplaced(a);
 
     // Everything else was written straight into `out` as the walk went; these two are the placer's
     // running totals, and are only the answer once it has finished.

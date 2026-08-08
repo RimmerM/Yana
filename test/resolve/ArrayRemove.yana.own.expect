@@ -106,8 +106,14 @@ fn push(Buffer) {
 fn reserve(Buffer) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 7) [8, 29)
-  %wide: Int writable live [10, 27)
+  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 7) [8, 12)
+}
+
+fn growArray(Buffer) {
+  arg self writable addressed resizable
+  arg wanted readonly
+  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 25)
+  %wide: Int writable live [6, 23)
 }
 
 fn remove(Buffer) {

@@ -358,14 +358,26 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %v3 = load %self@Array.length : @bits(30) U32
     %count = cast %v3 : Int
     %v8 = add %count, 1 : Int
-    %v9 = borrow_mut %self : &mut Array(Int)
-    call reserve(Int), %v9, %v8
+    %v36 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v38 = cast %v36 : Int
+    %v39 = cmp_le %v8, %v38 : Bool
+    je %v39, b2, b1
+
+  b1:
+    %v43 = borrow_mut %self : &mut Array(Int)
+    call growArray(Int), %v43, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
     %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v15 = cast %v13 : Int
     %v16 = cmp_ge %count, %v15 : Bool
-    je %v16, b2, b1
+    je %v16, b5, b4
 
-  b1:
+  b4:
     %v20 = load %self@Array.run@Run.items : %Int
     %v21 = cast %count : I64
     %v23 = mul %v21, 4 : I64
@@ -377,54 +389,44 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     assign %self@Array.length, %v31
     ret
 
-  b2:
-    %v36 = syscall 60, 134 : I64
+  b5:
+    %v49 = syscall 60, 134 : I64
     unreachable
 }
 
-fn reserve(Int)(%self: Array(Int), %wanted: Int) -> () {
+fn growArray(Int)(%self: Array(Int), %wanted: Int) -> () {
   b0:
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %room = cast %v4 : Int
-    %v7 = cmp_le %wanted, %room : Bool
-    je %v7, b1, b2
+    %v7 = add %room, %room : Int
+    %wide = alloc : Int
+    init %wide, %v7
+    %v11 = cmp_lt %v7, %wanted : Bool
+    je %v11, b1, b2
 
   b1:
-    ret
+    assign %wide, %wanted
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
-    %wide = alloc : Int
-    init %wide, %v11
-    %v15 = cmp_lt %v11, %wanted : Bool
-    je %v15, b4, b5
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
 
   b4:
-    assign %wide, %wanted
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(Int)
-    %v32 = call resize(Int), %v31, %v30 : Bool
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v28 = call resize(Int), %v27, %v26 : Bool
     ret
 }
 

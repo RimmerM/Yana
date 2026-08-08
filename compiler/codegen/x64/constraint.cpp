@@ -321,6 +321,7 @@ void shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& 
     if(inst->kind == LowerInst::Call) {
         auto callType = ((LowerInstCall*)inst)->getCallType();
         shape.convention = &constraints.getConvention(callType);
+        shape.isCall = true;
 
         // A syscall has no callee to resolve: its used()[0] is the syscall number, which the
         // convention places like any other argument. Every other call names its target first, and
@@ -400,12 +401,8 @@ DirectMemoryChoice directMemoryOperands(LowerBase base, const MachineFunction& m
     return out;
 }
 
-RegSet writtenRegisters(const InstShape& shape) {
-    // A return ends the function: nothing is live afterwards, so there is nothing for its clobbers
-    // to protect and no reason to keep anything out of the registers it writes.
-    if(shape.isReturn) return RegSet {};
-
-    auto set = shape.clobber;
+RegSet fixedRegisters(const InstShape& shape) {
+    RegSet set;
 
     for(auto& location: shape.uses) {
         if(location.kind == ArgLocation::Register) set.add(location.reg);
@@ -416,4 +413,12 @@ RegSet writtenRegisters(const InstShape& shape) {
     }
 
     return set;
+}
+
+RegSet writtenRegisters(const InstShape& shape) {
+    // A return ends the function: nothing is live afterwards, so there is nothing for its clobbers
+    // to protect and no reason to keep anything out of the registers it writes.
+    if(shape.isReturn) return RegSet {};
+
+    return shape.clobber | fixedRegisters(shape);
 }

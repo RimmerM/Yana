@@ -100,8 +100,12 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     // and a frame addressed through rbp are each individually correct.
     auto framePointer = functionNeedsFramePointer(ctx, base, fun);
 
-    auto& forcedHomeless = scratch.forcedHomeless;
-    forcedHomeless.reset(live->valueMap.size());
+    // One row per value, emptied rather than reallocated - the same rule every other buffer here
+    // follows. A row is the set of registers earlier passes over *this* function took away from that
+    // web; a fresh function starts with every row empty.
+    auto& displacedFrom = scratch.displacedFrom;
+    while(displacedFrom.size() < live->valueMap.size()) displacedFrom.push(RegSet {});
+    for(Size i = 0; i < displacedFrom.size(); i++) displacedFrom[i] = RegSet {};
 
     // The placement is written into the result rather than assigned to it, so a second pass over
     // this function - and the next function after it - reuses everything the first one grew. Nothing
@@ -115,7 +119,7 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
 
     for(;;) {
         computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
-            temporaries, forcedHomeless, scratch, placement);
+            temporaries, displacedFrom, scratch, placement);
         bool again = false;
 
         // A web with no register has to be brought into a scratch one at the instructions that cannot
@@ -131,10 +135,14 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
             if(temporaries.growTo(demand)) again = true;
         }
 
-        for(auto id: placement.displacementRequests) {
-            if(forcedHomeless[id] || displacements >= kMaxDisplacements) continue;
+        // A repeat is dropped rather than counted: the register is already out of that web's reach,
+        // so granting it again would spend a displacement and change nothing. That is also what
+        // keeps the loop finite - a register only ever enters one of these sets.
+        for(auto& request: placement.displacementRequests) {
+            if(displacements >= kMaxDisplacements) break;
+            if(displacedFrom[Size(request.web)].has(request.reg)) continue;
 
-            forcedHomeless.set(id, true);
+            displacedFrom[Size(request.web)].add(request.reg);
             displacements++;
             again = true;
         }

@@ -208,6 +208,7 @@ struct InstShape {
         clobber = RegSet {};
         convention = nullptr;
         isReturn = false;
+        isCall = false;
     }
 
     // Registers the instruction writes behind its operands' backs.
@@ -221,6 +222,19 @@ struct InstShape {
     // arguments, and nothing is live once the function has returned - so a return neither clobbers
     // anything nor has anything left to protect.
     bool isReturn = false;
+
+    /*
+     * A call or a syscall, which is the one shape whose clobbers land *after* its operands have been
+     * read rather than before them.
+     *
+     * Every other instruction's `clobber` is what its expansion writes behind its operands' backs -
+     * `xor rdx, rdx` in front of a division, r11 as scratch inside an unrolled copy - so an operand
+     * read straight out of its own register has to keep away from all of it. A call's clobber set is
+     * the callee's, and the callee does not run until the target has been read and the arguments
+     * placed. So the only registers a call's own operands have to dodge are the fixed ones its
+     * parallel copy writes, and `computeAvoidSets` is where the difference is spent.
+     */
+    bool isCall = false;
 };
 
 // Fills `into`, which the caller owns and reuses - see InstShape::clear.
@@ -246,6 +260,12 @@ inline MachineLocation wantForResult(const InstShape& shape, Size i) {
 // has to survive the instruction, and an operand that isn't itself placed by that parallel copy,
 // both have to stay out of these.
 RegSet writtenRegisters(const InstShape& shape);
+
+// The registers this instruction's own operands and results are pinned to, which is the part of
+// `writtenRegisters` that stands *in front of* the instruction: the parallel copy places them
+// whatever else the expansion then does. For a call it is the whole of what its target operand has
+// to keep away from - see InstShape::isCall.
+RegSet fixedRegisters(const InstShape& shape);
 
 /*
  * Memory operands.
@@ -824,11 +844,26 @@ struct Placement {
     // one. Nothing here knows whether a cycle will actually occur; that is what the measurement is.
     bool requiresLegalizationTemps = false;
 
-    // Webs this pass would rather have displaced than left the web that asked for their register
-    // homeless. Both are requests from placement to placement - a displaced web chooses a recipe or
-    // a slot for itself on the next pass, which is why this asks for it to be left *homeless* rather
-    // than spilled. Applied to the next placement pass; see `assign` in place.cpp.
-    Array<LiveId> displacementRequests;
+    /*
+     * Webs this pass would rather have displaced than left the web that asked for their register
+     * homeless.
+     *
+     * A request from placement to placement, and it names *a register* rather than asking for the
+     * web to be left with none. That is the whole of what the asking web needed: this one register,
+     * free over this interval. What the displaced web then does is its own search again, against a
+     * register file that has since changed - so a web displaced out of r13 in one pass can take r14
+     * in the next if nothing else wanted it, where being left homeless outright meant the frame
+     * whatever else was free.
+     *
+     * It is also what bounds the loop. A register only ever *enters* a web's displaced set, so each
+     * request either narrows one web's choices by one register or is a repeat and is dropped.
+     */
+    struct DisplacementRequest {
+        LiveId web = LiveId(0);
+        PhysicalReg reg;
+    };
+
+    Array<DisplacementRequest> displacementRequests;
 
     Size valueCount() const { return webOf.size(); }
 
@@ -1391,10 +1426,10 @@ struct RegScratch {
 
     void resetRecords() { records.reset(); }
 
-    // The webs a placement pass has to leave homeless whatever it would otherwise have done, one
-    // entry per value - see Placement::displacementRequests. Held here rather than in the placer
-    // because it is the one piece of state that survives *between* passes over a function.
-    IndexSet forcedHomeless;
+    // The registers each web has already been displaced out of, one entry per value - see
+    // Placement::DisplacementRequest. Held here rather than in the placer because it is the one
+    // piece of state that survives *between* passes over a function.
+    Array<RegSet> displacedFrom;
 };
 
 // One complete placement of a function, written into `out` - which is emptied first, so a placement
@@ -1402,12 +1437,12 @@ struct RegScratch {
 //
 // `framePointer` and `temporaries` are what is held back from every web - rbp when the frame is
 // addressed through it, and the scratch registers legalization is going to need - and
-// `forcedHomeless` names the webs a previous pass asked to be left homeless. `frequency` is what
+// `displacedFrom` names, per web, the registers a previous pass asked it to keep out of. `frequency` is what
 // every decision that trades one part of the function against another is weighed by; it depends on
 // the CFG alone, so one is computed per allocation rather than per pass.
 void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-    const TemporaryReserve& temporaries, const IndexSet& forcedHomeless, RegScratch& scratch,
+    const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom, RegScratch& scratch,
     Placement& out);
 
 // Resolves every instruction against a completed placement, handing out scratch registers from

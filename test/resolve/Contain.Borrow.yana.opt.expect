@@ -353,49 +353,80 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn reserve(Int)(%self: Array(Int), %wanted: Int) -> () {
+fn push(Int)(%self: Array(Int), %item: Int) -> () {
   b0:
-    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
-    %room = cast %v4 : Int
-    %v7 = cmp_le %wanted, %room : Bool
-    je %v7, b1, b2
+    %v3 = load %self@Array.length : @bits(30) U32
+    %count = cast %v3 : Int
+    %v8 = add %count, 1 : Int
+    %v36 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v38 = cast %v36 : Int
+    %v39 = cmp_le %v8, %v38 : Bool
+    je %v39, b2, b1
 
   b1:
-    ret
+    %v43 = borrow_mut %self : &mut Array(Int)
+    call growArray(Int), %v43, %v8
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v11 = add %room, %room : Int
-    %wide = alloc : Int
-    init %wide, %v11
-    %v15 = cmp_lt %v11, %wanted : Bool
-    je %v15, b4, b5
+    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v15 = cast %v13 : Int
+    %v16 = cmp_ge %count, %v15 : Bool
+    je %v16, b5, b4
 
   b4:
+    %v20 = load %self@Array.run@Run.items : %Int
+    %v21 = cast %count : I64
+    %v23 = mul %v21, 4 : I64
+    %v24 = add %v20, %v23 : %Int
+    assign [%v24], %item
+    %v28 = cast %v8 : U32
+    %v30 = and %v28, 1073741823 : U32
+    %v31 = cast %v30 : @bits(30) U32
+    assign %self@Array.length, %v31
+    ret
+
+  b5:
+    %v49 = syscall 60, 134 : I64
+    unreachable
+}
+
+fn growArray(Int)(%self: Array(Int), %wanted: Int) -> () {
+  b0:
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %room = cast %v4 : Int
+    %v7 = add %room, %room : Int
+    %wide = alloc : Int
+    init %wide, %v7
+    %v11 = cmp_lt %v7, %wanted : Bool
+    je %v11, b1, b2
+
+  b1:
     assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = load %wide : Int
+    %v18 = cmp_lt %v16, 4 : Bool
+    je %v18, b4, b5
+
+  b4:
+    assign %wide, 4
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = load %wide : Int
-    %v22 = cmp_lt %v20, 4 : Bool
-    je %v22, b7, b8
-
-  b7:
-    assign %wide, 4
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v30 = load %wide : Int
-    %v31 = borrow_mut %self@Array.run : &mut Run(Int)
-    %v32 = call resize(Int), %v31, %v30 : Bool
+    %v26 = load %wide : Int
+    %v27 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v28 = call resize(Int), %v27, %v26 : Bool
     ret
 }
 
@@ -454,15 +485,15 @@ fn fill(%n: Int) -> Int {
     je %v36, b7, b4
 
   b4:
-    %v227 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v229 = shr %v227, 30 : U32
-    %v139 = cmp_eq %v229, 1 : Bool
-    je %v139, b5, b6
+    %v201 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v203 = shr %v201, 30 : U32
+    %v113 = cmp_eq %v203, 1 : Bool
+    je %v113, b5, b6
 
   b5:
-    %v141 = load %xs@Array.run@Run.items : %Int
-    %v142 = cast %v141 : %U8
-    call freeHeap, %v142
+    %v115 = load %xs@Array.run@Run.items : %Int
+    %v116 = cast %v115 : %U8
+    call freeHeap, %v116
     jmp b6
 
   b6:
@@ -476,8 +507,8 @@ fn fill(%n: Int) -> Int {
     je %v46, b13, b8
 
   b8:
-    %v261 = cast %v43 : I64
-    %v50 = mul %v261, 4 : Long
+    %v232 = cast %v43 : I64
+    %v50 = mul %v232, 4 : Long
     %v51 = add %v48, %v50 : %Int
     %v54 = load %k : Int
     %v58 = cast %v54 : U64
@@ -485,8 +516,8 @@ fn fill(%n: Int) -> Int {
     je %v61, b12, b9
 
   b9:
-    %v262 = cast %v58 : I64
-    %v65 = mul %v262, 4 : Long
+    %v233 = cast %v58 : I64
+    %v65 = mul %v233, 4 : Long
     %v66 = add %v48, %v65 : %Int
     %v68 = load [%v66] : Int
     %v71 = add %v68, 1 : Int
@@ -498,8 +529,8 @@ fn fill(%n: Int) -> Int {
     je %v82, b11, b10
 
   b10:
-    %v263 = cast %v79 : I64
-    %v86 = mul %v263, 4 : Long
+    %v234 = cast %v79 : I64
+    %v86 = mul %v234, 4 : Long
     %v87 = add %v48, %v86 : %Int
     %v89 = load [%v87] : Int
     %v90 = add %v73, %v89 : Int
@@ -510,48 +541,24 @@ fn fill(%n: Int) -> Int {
     jmp b3
 
   b11:
-    %v154 = syscall 60, 134 : I64
+    %v128 = syscall 60, 134 : I64
     unreachable
 
   b12:
-    %v148 = syscall 60, 134 : I64
+    %v122 = syscall 60, 134 : I64
     unreachable
 
   b13:
-    %v132 = syscall 60, 134 : I64
+    %v106 = syscall 60, 134 : I64
     unreachable
 
   b14:
     %v19 = load %i : Int
-    %v104 = load %xs@Array.length : @bits(30) U32
-    %count = cast %v104 : Int
-    %v107 = add %count, 1 : Int
-    %v108 = borrow_mut %xs : &mut Array(Int)
-    call reserve(Int), %v108, %v107
-    %v230 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v232 = and %v230, 1073741823 : U32
-    %v111 = cast %v232 : Int
-    %v112 = cmp_ge %count, %v111 : Bool
-    je %v112, b16, b15
-
-  b15:
-    %v114 = load %xs@Array.run@Run.items : %Int
-    %v115 = cast %count : I64
-    %v117 = mul %v115, 4 : I64
-    %v118 = add %v114, %v117 : %Int
-    assign [%v118], %v19
-    %v120 = cast %v107 : U32
-    %v122 = and %v120, 1073741823 : U32
-    %v123 = cast %v122 : @bits(30) U32
-    assign %xs@Array.length, %v123
-    %v22 = load %i : Int
-    %v25 = add %v22, 1 : Int
+    %v20 = borrow_mut %xs : &mut Array(Int)
+    call push(Int), %v20, %v19
+    %v25 = add %v19, 1 : Int
     assign %i, %v25
     jmp b1
-
-  b16:
-    %v126 = syscall 60, 134 : I64
-    unreachable
 }
 
 fn main() -> Int {
