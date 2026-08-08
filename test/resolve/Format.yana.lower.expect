@@ -553,17 +553,6 @@ stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   }
 }
 
-stringUnit<complex>(%self: Ptr, %index: Long): Int {
-  b_0 {
-    %v_1 = bitcast %self: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = add %v_2, %index: Ptr
-    %v_4 = load %v_3, 1: Int
-    %v_5 = cast %v_4: Int
-    ret %v_5
-  }
-}
-
 newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -601,8 +590,12 @@ pushString<complex>(%self: Ptr, %other: Ptr) {
   b_0 {
     %v_1 = bitcast %other: Ptr
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex Length(String).length, %other: Long
-    call_complex appendUnits, %self, %v_2, %v_3
+    %v_3 = bitcast %other: Ptr
+    %v_4 = add %v_3, 12: Ptr
+    %v_5 = load %v_4, 4: Int
+    %units = cast %v_5: Int
+    %v_6 = sext %units: Long
+    call_complex appendUnits, %self, %v_2, %v_6
     ret 
   }
 }
@@ -717,75 +710,79 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 
   b_20 {
-    %v_22 = call_complex Length(String).length, %digits: Long
-    %v_23 = cast %v_22: Int
-    jmp b_24
+    %v_22 = bitcast %digits: Ptr
+    %v_23 = add %v_22, 12: Ptr
+    %v_24 = load %v_23, 4: Int
+    %units = cast %v_24: Int
+    jmp b_25
   }
 
-  b_24 {
-    %v_25 = phi [b_20, %v_23], [b_26, %v_27]: Int
-    %v_28 = cmp_igt %v_25, 0: Int
-    je %v_28, b_26, b_29
+  b_25 {
+    %v_26 = phi [b_20, %units], [b_27, %v_28]: Int
+    %v_29 = cmp_igt %v_26, 0: Int
+    je %v_29, b_27, b_30
   }
 
-  b_29 {
-    %v_30 = bitcast %digits: Ptr
-    %v_31 = add %v_30, 8: Ptr
-    %v_32 = load %v_31, 4: Long
-    %v_33 = shr %v_32, 30: Long
-    %v_34 = cast %v_33: Int
+  b_30 {
+    %v_31 = bitcast %digits: Ptr
+    %v_32 = add %v_31, 8: Ptr
+    %v_33 = load %v_32, 4: Long
+    %v_34 = shr %v_33, 30: Long
     %v_35 = cast %v_34: Int
-    %v_36 = cmp_eq %v_35, 1: Int
-    je %v_36, b_37, b_38
-  }
-
-  b_38 {
-    jmp b_39
-  }
-
-  b_37 {
-    %v_40 = load %v_30, 8: Ptr
-    call_complex freeHeap, %v_40
-    jmp b_39
+    %v_36 = cast %v_35: Int
+    %v_37 = cmp_eq %v_36, 1: Int
+    je %v_37, b_38, b_39
   }
 
   b_39 {
+    jmp b_40
+  }
+
+  b_38 {
+    %v_41 = load %v_31, 8: Ptr
+    call_complex freeHeap, %v_41
+    jmp b_40
+  }
+
+  b_40 {
     ret 
   }
 
-  b_26 {
-    %v_27 = sub %v_25, 1: Int
-    %v_41 = sext %v_27: Long
-    %v_42 = call_complex stringUnit, %digits, %v_41: Int
-    %v_43 = bitcast %to: Ptr
-    %v_44 = cast %v_42: Int
-    call_complex push(U8), %v_43, %v_44
-    jmp b_24
+  b_27 {
+    %v_28 = sub %v_26, 1: Int
+    %v_42 = sext %v_28: Long
+    %v_43 = bitcast %digits: Ptr
+    %v_44 = load %v_43, 8: Ptr
+    %v_45 = add %v_44, %v_42: Ptr
+    %v_46 = load %v_45, 1: Int
+    %v_47 = bitcast %to: Ptr
+    call_complex push(U8), %v_47, %v_46
+    jmp b_25
   }
 
   b_13 {
-    %v_45 = imulhi %v_12, 7378697629483820647: Long
-    %v_46 = sar %v_45, 2: Long
-    %v_47 = shr %v_46, 63: Long
-    %v_48 = add %v_46, %v_47: Long
-    %v_49 = imul %v_48, 10: Long
-    %v_50 = sub %v_12, %v_49: Long
-    %v_51 = sub 0, %v_50: Long
-    %digit = cast %v_51: Int
-    %v_52 = add %digit, 48: Int
-    %v_53 = bitcast %digits: Ptr
-    %v_54 = cast %v_52: Int
-    call_complex push(U8), %v_53, %v_54
-    %v_55 = imulhi %v_12, 7378697629483820647: Long
-    %v_56 = sar %v_55, 2: Long
-    %v_57 = shr %v_56, 63: Long
-    %v_14 = add %v_56, %v_57: Long
+    %v_48 = imulhi %v_12, 7378697629483820647: Long
+    %v_49 = sar %v_48, 2: Long
+    %v_50 = shr %v_49, 63: Long
+    %v_51 = add %v_49, %v_50: Long
+    %v_52 = imul %v_51, 10: Long
+    %v_53 = sub %v_12, %v_52: Long
+    %v_54 = sub 0, %v_53: Long
+    %digit = cast %v_54: Int
+    %v_55 = add %digit, 48: Int
+    %v_56 = bitcast %digits: Ptr
+    %v_57 = cast %v_55: Int
+    call_complex push(U8), %v_56, %v_57
+    %v_58 = imulhi %v_12, 7378697629483820647: Long
+    %v_59 = sar %v_58, 2: Long
+    %v_60 = shr %v_59, 63: Long
+    %v_14 = add %v_59, %v_60: Long
     jmp b_11
   }
 
   b_2 {
-    %v_58 = bitcast %to: Ptr
-    call_complex push(U8), %v_58, 48
+    %v_61 = bitcast %to: Ptr
+    call_complex push(U8), %v_61, 48
     ret 
   }
 }
@@ -851,6 +848,32 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
   }
 }
 
+oneInt<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 11, 4
+    %v_3 = call_complex formatBound, %v_1: Int
+    %v_4 = add %v_3, 4: Int
+    %v_5 = sext %v_4: Long
+    %v_6 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_6, %v_5
+    %v_7 = alloca 16, 8: Ptr
+    copy %v_7, %v_6, 16
+    %v_8 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_8, @string$1, 4
+    call_complex pushString, %v_7, %v_8
+    call_complex showSigned, 42, %v_7
+    %v_9 = bitcast %v_7: Ptr
+    %v_10 = add %v_9, 12: Ptr
+    %v_11 = load %v_10, 4: Int
+    %units = cast %v_11: Int
+    call_complex Reclaim(String).reclaim, %v_7
+    ret %units
+  }
+}
+
 oneIntText<complex>(): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
@@ -871,91 +894,108 @@ oneIntText<complex>(): Int {
     %v_9 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_9, @string$3, 1
     call_complex pushString, %v_7, %v_9
-    %v_10 = call_complex Length(String).length, %v_7: Long
-    %v_11 = cast %v_10: Int
-    %v_12 = cmp_neq %v_11, 4: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_15 {
-    ret 0
-  }
-
-  b_14 {
-    jmp b_16
+    %v_10 = bitcast %v_7: Ptr
+    %v_11 = add %v_10, 12: Ptr
+    %v_12 = load %v_11, 4: Int
+    %units = cast %v_12: Int
+    %v_13 = cmp_neq %units, 4: Int
+    je %v_13, b_14, b_15
   }
 
   b_16 {
-    %v_17 = call_complex stringUnit, %v_7, 0: Int
-    %v_18 = cmp_eq %v_17, 110: Int
-    je %v_18, b_19, b_20
+    ret 0
   }
 
-  b_19 {
-    jmp b_21
+  b_15 {
+    jmp b_17
   }
 
-  b_20 {
-    jmp b_21
+  b_17 {
+    %v_18 = bitcast %v_7: Ptr
+    %v_19 = load %v_18, 8: Ptr
+    %v_20 = load %v_19, 1: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = cmp_eq %v_21, 110: Int
+    je %v_22, b_23, b_24
   }
 
-  b_21 {
-    %v_22 = phi [b_19, 1], [b_20, 0]: Int
-    %v_23 = call_complex stringUnit, %v_7, 1: Int
-    %v_24 = cmp_eq %v_23, 61: Int
-    je %v_24, b_25, b_26
+  b_23 {
+    jmp b_25
+  }
+
+  b_24 {
+    jmp b_25
   }
 
   b_25 {
-    %v_27 = add %v_22, 1: Int
-    jmp b_28
-  }
-
-  b_26 {
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = phi [b_25, %v_27], [b_26, %v_22]: Int
-    %v_30 = call_complex stringUnit, %v_7, 2: Int
-    %v_31 = cmp_eq %v_30, 55: Int
-    je %v_31, b_32, b_33
-  }
-
-  b_32 {
-    %v_34 = add %v_29, 1: Int
-    jmp b_35
+    %v_26 = phi [b_23, 1], [b_24, 0]: Int
+    %v_27 = bitcast %v_7: Ptr
+    %v_28 = load %v_27, 8: Ptr
+    %v_29 = add %v_28, 1: Ptr
+    %v_30 = load %v_29, 1: Int
+    %v_31 = cast %v_30: Int
+    %v_32 = cmp_eq %v_31, 61: Int
+    je %v_32, b_33, b_34
   }
 
   b_33 {
-    jmp b_35
+    %v_35 = add %v_26, 1: Int
+    jmp b_36
   }
 
-  b_35 {
-    %v_36 = phi [b_32, %v_34], [b_33, %v_29]: Int
-    %v_37 = call_complex stringUnit, %v_7, 3: Int
+  b_34 {
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = phi [b_33, %v_35], [b_34, %v_26]: Int
+    %v_38 = bitcast %v_7: Ptr
+    %v_39 = load %v_38, 8: Ptr
+    %v_40 = add %v_39, 2: Ptr
+    %v_41 = load %v_40, 1: Int
+    %v_42 = cast %v_41: Int
+    %v_43 = cmp_eq %v_42, 55: Int
+    je %v_43, b_44, b_45
+  }
+
+  b_44 {
+    %v_46 = add %v_37, 1: Int
+    jmp b_47
+  }
+
+  b_45 {
+    jmp b_47
+  }
+
+  b_47 {
+    %v_48 = phi [b_44, %v_46], [b_45, %v_37]: Int
+    %v_49 = bitcast %v_7: Ptr
+    %v_50 = load %v_49, 8: Ptr
+    %v_51 = add %v_50, 3: Ptr
+    %v_52 = load %v_51, 1: Int
+    %v_53 = cast %v_52: Int
     call_complex Reclaim(String).reclaim, %v_7
-    %v_38 = cmp_eq %v_37, 33: Int
-    je %v_38, b_39, b_40
+    %v_54 = cmp_eq %v_53, 33: Int
+    je %v_54, b_55, b_56
   }
 
-  b_39 {
-    %v_41 = add %v_36, 1: Int
-    jmp b_42
+  b_55 {
+    %v_57 = add %v_48, 1: Int
+    jmp b_58
   }
 
-  b_40 {
-    jmp b_42
+  b_56 {
+    jmp b_58
   }
 
-  b_42 {
-    %v_43 = phi [b_39, %v_41], [b_40, %v_36]: Int
-    ret %v_43
+  b_58 {
+    %v_59 = phi [b_55, %v_57], [b_56, %v_48]: Int
+    ret %v_59
   }
 
-  b_13 {
+  b_14 {
     call_complex Reclaim(String).reclaim, %v_7
-    jmp b_15
+    jmp b_16
   }
 }
 
@@ -964,29 +1004,30 @@ oneString<complex>(): Int {
     %inner = alloca 16, 8: Ptr
     call_complex stringLiteral, %inner, @string$4, 5
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = call_complex Length(String).length, %inner: Long
-    %v_3 = cast %v_2: Int
+    %v_2 = bitcast %inner: Ptr
+    %v_3 = add %v_2, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %units = cast %v_4: Int
     store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, %v_3, 4
-    %v_5 = call_complex formatBound, %v_1: Int
-    %v_6 = add %v_5, 6: Int
-    %v_7 = sext %v_6: Long
-    %v_8 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_8, %v_7
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, %units, 4
+    %v_6 = call_complex formatBound, %v_1: Int
+    %v_7 = add %v_6, 6: Int
+    %v_8 = sext %v_7: Long
     %v_9 = alloca 16, 8: Ptr
-    copy %v_9, %v_8, 16
+    call_complex newStringOfCapacity, %v_9, %v_8
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$5, 6
-    call_complex pushString, %v_9, %v_10
-    %v_11 = bitcast %inner: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    %v_13 = call_complex Length(String).length, %inner: Long
-    call_complex appendUnits, %v_9, %v_12, %v_13
-    %v_14 = call_complex Length(String).length, %v_9: Long
-    call_complex Reclaim(String).reclaim, %v_9
-    %v_15 = cast %v_14: Int
-    ret %v_15
+    copy %v_10, %v_9, 16
+    %v_11 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_11, @string$5, 6
+    call_complex pushString, %v_10, %v_11
+    call_complex pushString, %v_10, %inner
+    %v_12 = bitcast %v_10: Ptr
+    %v_13 = add %v_12, 12: Ptr
+    %v_14 = load %v_13, 4: Int
+    %units = cast %v_14: Int
+    call_complex Reclaim(String).reclaim, %v_10
+    ret %units
   }
 }
 
@@ -995,61 +1036,61 @@ mixed<complex>(): Int {
     %name = alloca 16, 8: Ptr
     call_complex stringLiteral, %name, @string$6, 2
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = call_complex Length(String).length, %name: Long
-    %v_3 = cast %v_2: Int
+    %v_2 = bitcast %name: Ptr
+    %v_3 = add %v_2, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %units = cast %v_4: Int
     store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, %v_3, 4
-    %v_5 = call_complex formatBound, %v_1: Int
-    %v_6 = add %v_5, 3: Int
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 11, 4
-    %v_9 = call_complex formatBound, %v_7: Int
-    %v_10 = add %v_6, %v_9: Int
-    %v_11 = alloca 8, 4: Ptr
-    %v_12 = call_complex Length(String).length, %name: Long
-    %v_13 = cast %v_12: Int
-    store %v_11, 1, 4
-    %v_14 = add %v_11, 4: Ptr
-    store %v_14, %v_13, 4
-    %v_15 = call_complex formatBound, %v_11: Int
-    %v_16 = add %v_10, %v_15: Int
-    %v_17 = alloca 8, 4: Ptr
-    store %v_17, 1, 4
-    %v_18 = add %v_17, 4: Ptr
-    store %v_18, 11, 4
-    %v_19 = call_complex formatBound, %v_17: Int
-    %v_20 = add %v_16, %v_19: Int
-    %v_21 = sext %v_20: Long
-    %v_22 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_22, %v_21
-    %v_23 = alloca 16, 8: Ptr
-    copy %v_23, %v_22, 16
-    %v_24 = bitcast %name: Ptr
-    %v_25 = load %v_24, 8: Ptr
-    %v_26 = call_complex Length(String).length, %name: Long
-    call_complex appendUnits, %v_23, %v_25, %v_26
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, %units, 4
+    %v_6 = call_complex formatBound, %v_1: Int
+    %v_7 = add %v_6, 3: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 11, 4
+    %v_10 = call_complex formatBound, %v_8: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = alloca 8, 4: Ptr
+    %v_13 = bitcast %name: Ptr
+    %v_14 = add %v_13, 12: Ptr
+    %v_15 = load %v_14, 4: Int
+    %units = cast %v_15: Int
+    store %v_12, 1, 4
+    %v_16 = add %v_12, 4: Ptr
+    store %v_16, %units, 4
+    %v_17 = call_complex formatBound, %v_12: Int
+    %v_18 = add %v_11, %v_17: Int
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, 11, 4
+    %v_21 = call_complex formatBound, %v_19: Int
+    %v_22 = add %v_18, %v_21: Int
+    %v_23 = sext %v_22: Long
+    %v_24 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_24, %v_23
+    %v_25 = alloca 16, 8: Ptr
+    copy %v_25, %v_24, 16
+    call_complex pushString, %v_25, %name
+    %v_26 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_26, @string$7, 1
+    call_complex pushString, %v_25, %v_26
+    call_complex showSigned, 12, %v_25
     %v_27 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_27, @string$7, 1
-    call_complex pushString, %v_23, %v_27
-    call_complex showSigned, 12, %v_23
+    call_complex stringLiteral, %v_27, @string$8, 1
+    call_complex pushString, %v_25, %v_27
+    call_complex pushString, %v_25, %name
     %v_28 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_28, @string$8, 1
-    call_complex pushString, %v_23, %v_28
-    %v_29 = bitcast %name: Ptr
-    %v_30 = load %v_29, 8: Ptr
-    %v_31 = call_complex Length(String).length, %name: Long
-    call_complex appendUnits, %v_23, %v_30, %v_31
-    %v_32 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_32, @string$9, 1
-    call_complex pushString, %v_23, %v_32
-    call_complex showSigned, 345, %v_23
-    %v_33 = call_complex Length(String).length, %v_23: Long
-    call_complex Reclaim(String).reclaim, %v_23
-    %v_34 = cast %v_33: Int
-    ret %v_34
+    call_complex stringLiteral, %v_28, @string$9, 1
+    call_complex pushString, %v_25, %v_28
+    call_complex showSigned, 345, %v_25
+    %v_29 = bitcast %v_25: Ptr
+    %v_30 = add %v_29, 12: Ptr
+    %v_31 = load %v_30, 4: Int
+    %units = cast %v_31: Int
+    call_complex Reclaim(String).reclaim, %v_25
+    ret %units
   }
 }
 
@@ -1081,10 +1122,12 @@ boolean<complex>(): Int {
     %v_14 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_14, @string$1, 5
     call_complex pushString, %v_11, %v_14
-    %v_15 = call_complex Length(String).length, %v_11: Long
+    %v_15 = bitcast %v_11: Ptr
+    %v_16 = add %v_15, 12: Ptr
+    %v_17 = load %v_16, 4: Int
+    %units = cast %v_17: Int
     call_complex Reclaim(String).reclaim, %v_11
-    %v_16 = cast %v_15: Int
-    ret %v_16
+    ret %units
   }
 }
 
@@ -1121,10 +1164,12 @@ inLoop<complex>(): Int {
     call_complex pushString, %v_15, %v_16
     %v_17 = sext %v_5: Long
     call_complex showSigned, %v_17, %v_15
-    %v_18 = call_complex Length(String).length, %v_15: Long
+    %v_18 = bitcast %v_15: Ptr
+    %v_19 = add %v_18, 12: Ptr
+    %v_20 = load %v_19, 4: Int
+    %units = cast %v_20: Int
     call_complex Reclaim(String).reclaim, %v_15
-    %v_19 = cast %v_18: Int
-    %v_4 = add %v_2, %v_19: Int
+    %v_4 = add %v_2, %units: Int
     %v_6 = add %v_5, 1: Int
     jmp b_1
   }
@@ -1136,53 +1181,38 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_1, @string$0, 13
     %v_2 = call_complex Length(String).length, %v_1: Long
     %v_3 = cast %v_2: Int
-    %v_4 = alloca 8, 4: Ptr
-    store %v_4, 1, 4
-    %v_5 = add %v_4, 4: Ptr
-    store %v_5, 11, 4
-    %v_6 = call_complex formatBound, %v_4: Int
-    %v_7 = add %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_9, %v_8
-    %v_10 = alloca 16, 8: Ptr
-    copy %v_10, %v_9, 16
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$1, 4
-    call_complex pushString, %v_10, %v_11
-    call_complex showSigned, 42, %v_10
-    %v_12 = call_complex Length(String).length, %v_10: Long
-    call_complex Reclaim(String).reclaim, %v_10
-    %v_13 = cast %v_12: Int
-    %v_14 = add %v_3, %v_13: Int
-    %v_15 = call_complex oneIntText: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = call_complex oneString: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = call_complex mixed: Int
-    %v_20 = add %v_18, %v_19: Int
-    %v_21 = alloca 8, 4: Ptr
-    store %v_21, 1, 4
-    %v_22 = add %v_21, 4: Ptr
-    store %v_22, 11, 4
-    %v_23 = call_complex formatBound, %v_21: Int
-    %v_24 = sext %v_23: Long
-    %v_25 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_25, %v_24
-    %v_26 = alloca 16, 8: Ptr
-    copy %v_26, %v_25, 16
-    call_complex showSigned, 18446744071562067968, %v_26
-    %v_27 = call_complex Length(String).length, %v_26: Long
-    call_complex Reclaim(String).reclaim, %v_26
-    %v_28 = cast %v_27: Int
-    %v_29 = add %v_20, %v_28: Int
-    %v_30 = call_complex boolean: Int
-    %v_31 = add %v_29, %v_30: Int
-    %v_32 = call_complex inLoop: Int
-    %v_33 = add %v_31, %v_32: Int
-    %v_34 = call_complex printed: Int
-    %v_35 = add %v_33, %v_34: Int
-    ret %v_35
+    %v_4 = call_complex oneInt: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex oneIntText: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex oneString: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex mixed: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = alloca 8, 4: Ptr
+    store %v_12, 1, 4
+    %v_13 = add %v_12, 4: Ptr
+    store %v_13, 11, 4
+    %v_14 = call_complex formatBound, %v_12: Int
+    %v_15 = sext %v_14: Long
+    %v_16 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_16, %v_15
+    %v_17 = alloca 16, 8: Ptr
+    copy %v_17, %v_16, 16
+    call_complex showSigned, 18446744071562067968, %v_17
+    %v_18 = bitcast %v_17: Ptr
+    %v_19 = add %v_18, 12: Ptr
+    %v_20 = load %v_19, 4: Int
+    %units = cast %v_20: Int
+    call_complex Reclaim(String).reclaim, %v_17
+    %v_21 = add %v_11, %units: Int
+    %v_22 = call_complex boolean: Int
+    %v_23 = add %v_21, %v_22: Int
+    %v_24 = call_complex inLoop: Int
+    %v_25 = add %v_23, %v_24: Int
+    %v_26 = call_complex printed: Int
+    %v_27 = add %v_25, %v_26: Int
+    ret %v_27
   }
 }
 
@@ -1191,44 +1221,47 @@ printed<complex>(): Int {
     %name = alloca 16, 8: Ptr
     call_complex stringLiteral, %name, @string$12, 6
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = call_complex Length(String).length, %name: Long
-    %v_3 = cast %v_2: Int
+    %v_2 = bitcast %name: Ptr
+    %v_3 = add %v_2, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %units = cast %v_4: Int
     store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, %v_3, 4
-    %v_5 = call_complex formatBound, %v_1: Int
-    %v_6 = add %v_5, 14: Int
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 11, 4
-    %v_9 = call_complex formatBound, %v_7: Int
-    %v_10 = add %v_6, %v_9: Int
-    %v_11 = sext %v_10: Long
-    %v_12 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_12, %v_11
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, %units, 4
+    %v_6 = call_complex formatBound, %v_1: Int
+    %v_7 = add %v_6, 14: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 11, 4
+    %v_10 = call_complex formatBound, %v_8: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = sext %v_11: Long
     %v_13 = alloca 16, 8: Ptr
-    copy %v_13, %v_12, 16
+    call_complex newStringOfCapacity, %v_13, %v_12
     %v_14 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_14, @string$13, 1
-    call_complex pushString, %v_13, %v_14
-    %v_15 = bitcast %name: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    %v_17 = call_complex Length(String).length, %name: Long
-    call_complex appendUnits, %v_13, %v_16, %v_17
-    %v_18 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_18, @string$14, 5
-    call_complex pushString, %v_13, %v_18
-    call_complex showSigned, 2, %v_13
-    %v_19 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_19, @string$15, 8
-    call_complex pushString, %v_13, %v_19
-    %v_20 = bitcast %v_13: Ptr
-    %v_21 = load %v_20, 8: Ptr
-    %v_22 = call_complex Length(String).length, %v_13: Long
-    %v_23 = bitcast %v_21: Long
-    %v_24 = syscall 1, 1, %v_23, %v_22: Long
-    call_complex Reclaim(String).reclaim, %v_13
+    copy %v_14, %v_13, 16
+    %v_15 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_15, @string$13, 1
+    call_complex pushString, %v_14, %v_15
+    call_complex pushString, %v_14, %name
+    %v_16 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_16, @string$14, 5
+    call_complex pushString, %v_14, %v_16
+    call_complex showSigned, 2, %v_14
+    %v_17 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_17, @string$15, 8
+    call_complex pushString, %v_14, %v_17
+    %v_18 = bitcast %v_14: Ptr
+    %v_19 = load %v_18, 8: Ptr
+    %v_20 = bitcast %v_14: Ptr
+    %v_21 = add %v_20, 12: Ptr
+    %v_22 = load %v_21, 4: Int
+    %units = cast %v_22: Int
+    %v_23 = sext %units: Long
+    %v_24 = bitcast %v_19: Long
+    %v_25 = syscall 1, 1, %v_24, %v_23: Long
+    call_complex Reclaim(String).reclaim, %v_14
     ret 0
   }
 }

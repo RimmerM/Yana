@@ -5,17 +5,6 @@
 @string$0 = [97, 98]
 @greeting = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
-Length(String).length<complex>(%self: Ptr): Long {
-  b_0 {
-    %v_1 = bitcast %self: Ptr
-    %v_2 = add %v_1, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %units = cast %v_3: Int
-    %v_4 = sext %units: Long
-    ret %v_4
-  }
-}
-
 countdown<complex>(%k: Int): Int {
   b_0 {
     %v_1 = cmp_ile %k, 0: Int
@@ -90,24 +79,26 @@ main<complex>(): Int {
 
   b_20 {
     %v_21 = phi [b_17, %v_19], [b_18, %v_13]: Int
-    %v_22 = call_complex Length(String).length, @greeting: Long
-    %v_23 = cast %v_22: Int
-    %v_24 = cmp_eq %v_23, 2: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
-    %v_27 = add %v_21, 8: Int
-    jmp b_28
+    %v_22 = bitcast @greeting: Ptr
+    %v_23 = add %v_22, 12: Ptr
+    %v_24 = load %v_23, 4: Int
+    %units = cast %v_24: Int
+    %v_25 = cmp_eq %units, 2: Int
+    je %v_25, b_26, b_27
   }
 
   b_26 {
-    jmp b_28
+    %v_28 = add %v_21, 8: Int
+    jmp b_29
   }
 
-  b_28 {
-    %v_29 = phi [b_25, %v_27], [b_26, %v_21]: Int
-    ret %v_29
+  b_27 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = phi [b_26, %v_28], [b_27, %v_21]: Int
+    ret %v_30
   }
 }
 

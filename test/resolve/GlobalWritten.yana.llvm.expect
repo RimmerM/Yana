@@ -8,16 +8,6 @@ target triple = "x86_64-unknown-linux-gnu"
 @"string$0" = constant [2 x i8] c"ab", align 8
 @greeting = constant <{ ptr, [8 x i8] }> <{ ptr @"string$0", [8 x i8] c"\02\00\00\00\02\00\00\00" }>, align 8
 
-define fastcc i64 @"Length(String).length"(ptr %self) {
-  br label %1
-
-1:                                                ; preds = %0
-  %2 = getelementptr i8, ptr %self, i64 12
-  %3 = load i32, ptr %2, align 1
-  %4 = sext i32 %3 to i64
-  ret i64 %4
-}
-
 define fastcc i32 @countdown(i32 %k) {
   br label %1
 
@@ -86,22 +76,21 @@ define fastcc i32 @main() {
 
 25:                                               ; preds = %22, %24
   %26 = phi i32 [ %23, %22 ], [ %16, %24 ]
-  %27 = call fastcc i64 @"Length(String).length"(ptr @greeting)
-  %28 = trunc i64 %27 to i32
-  %29 = icmp eq i32 %28, 2
-  %30 = zext i1 %29 to i32
-  br i1 %29, label %31, label %33
+  %27 = load i32, ptr getelementptr (i8, ptr @greeting, i64 12), align 1
+  %28 = icmp eq i32 %27, 2
+  %29 = zext i1 %28 to i32
+  br i1 %28, label %30, label %32
 
-31:                                               ; preds = %25
-  %32 = add i32 %26, 8
-  br label %34
+30:                                               ; preds = %25
+  %31 = add i32 %26, 8
+  br label %33
 
-33:                                               ; preds = %25
-  br label %34
+32:                                               ; preds = %25
+  br label %33
 
-34:                                               ; preds = %31, %33
-  %35 = phi i32 [ %32, %31 ], [ %26, %33 ]
-  ret i32 %35
+33:                                               ; preds = %30, %32
+  %34 = phi i32 [ %31, %30 ], [ %26, %32 ]
+  ret i32 %34
 }
 
 define fastcc i32 @"main$"() {

@@ -54,6 +54,15 @@
  * mutable borrow *and* called with a constant *and* called once gets all three, and one that is
  * simply small needs none of them.
  *
+ * One of them is priced against something the callee's own body does not show, and it is the reason
+ * a *table* is enough here rather than a cost model. `accessor` weighs a body that reads through what
+ * it was handed and does nothing else - `length(self)`, `stringUnit(self, i)`, `xs[i]` - and what
+ * such a call costs is not the call: it is that the address the callee computed cannot leave it. A
+ * `call` is a barrier to loop hoisting, to place forwarding and to check discharge all three, so an
+ * accessor left as a call is an invariant address recomputed per iteration, a load nothing may
+ * forward, and a bounds check nothing may prove twice. `size` counts a container accessor at eight or
+ * ten instructions, which is over the base budget by construction. See `isAccessorBody`.
+ *
  * ## What is declined, and why each one
  *
  * The ownership instructions are the list that matters. `Drop`, `Move`, `Swap` and `Exchange` are
@@ -124,6 +133,35 @@ struct InlinePolicy {
      * the same reason.
      */
     U32 borrowResult = 0;
+
+    /*
+     * A body that is a guarded read of what the call handed it and nothing else - see
+     * `isAccessorBody`, which is what decides the shape.
+     *
+     * The one term here that is priced against what the *caller* then does rather than against what
+     * the callee contains, and it is the only way an accessor is ever worth its size. `size` counts
+     * a container accessor's projections, its casts and the compare its bounds check is - which is
+     * eight or ten instructions for `xs[i]` - so an accessor is over the base budget by construction
+     * while being exactly the call that must not survive. What the copy buys is not the call: it is
+     * that the address the callee computed lands in the caller's own block, where the loop passes
+     * can hoist the invariant half of it, `opt_place.cpp` can forward the load, and
+     * `opt_discharge.cpp` can see the check is one it has already made.
+     *
+     * None of which is visible in the callee, and none of it survives a call - a `call` is a
+     * barrier to every one of those three. So the bonus is deliberately narrow rather than a raised
+     * `budget`: measured over `test/bench/programs`, `hashOf`'s inner loop is a permanent call per
+     * element without it and eight call-free instructions with it, exactly two callees in the ten
+     * programs qualify at all, and nine of the ten do not move by a byte. Raising the budget to reach
+     * the same two takes every ten-instruction body in the prelude with them - see §9.3 of
+     * `test/bench/findings.md`, which also has why the attribute is not the answer here.
+     *
+     * Target-independent, on the same grounds as `constantArgument` and `soleCallSite`: what it
+     * prices is that a computation crosses the call boundary at all, and a boundary is a boundary on
+     * both targets. On JS these bodies are a `HostField` or a `HostCall` and are small enough to
+     * qualify without it, so the term is what makes the two targets agree here rather than what
+     * makes them differ.
+     */
+    U32 accessor = 0;
 
     // Subtracted where the callee is called from more than one place, and again where it is called
     // from many. What this prices is code growth, which is paid once per call site.
@@ -207,6 +245,12 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.mutableBorrow = 0;
             policy.memoryResult = 0;
             policy.borrowResult = 0;
+
+            // Zero here for the reason the base budget is: an accessor with thirteen call sites is
+            // thirteen copies of it, and the whole of what this level will pay for is a body that
+            // moves. The argument for the bonus is a speed one and this is the level that declines
+            // to hear one.
+            policy.accessor = 0;
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
@@ -223,6 +267,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.mutableBorrow = managed ? 10 : 3;
             policy.memoryResult = managed ? 12 : 4;
             policy.borrowResult = managed ? 12 : 0;
+            policy.accessor = 6;
             policy.repeatedPenalty = managed ? 3 : 1;
             policy.manyCallSites = managed ? 4 : 8;
             policy.manyPenalty = managed ? 6 : 2;
@@ -245,6 +290,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.mutableBorrow = managed ? 16 : 6;
             policy.memoryResult = managed ? 20 : 8;
             policy.borrowResult = managed ? 20 : 0;
+            policy.accessor = 12;
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
@@ -325,6 +371,11 @@ struct Candidate {
     U32 resultLocal = maxLimit<U32>;
 
     U32 size = 0;
+
+    // What `isAccessorBody` decided, which `policy.accessor` prices. A property of the declaration
+    // like everything else here, so it is computed with the rest of the description rather than per
+    // call site.
+    bool accessor = false;
 
     bool isStraightLine() const { return blocks.size() == 1; }
 
@@ -649,6 +700,100 @@ struct Inliner {
     }
 
     /*
+     * Whether this body is an accessor: a guarded read of what the call handed it, and nothing else.
+     *
+     * `policy.accessor` is what the answer is worth and says why. This is the shape, and every clause
+     * is one of the four things that make the copy pay downstream rather than a description of a
+     * small function:
+     *
+     *  - **one block**, so the whole body becomes the tail of the caller's own block. That is the
+     *    same argument `blockCost` makes and it is stricter here on purpose: what the caller has to
+     *    be able to do with the graft is fold it, and a value behind a branch is where forwarding,
+     *    hoisting and discharge all stop answering. A checked accessor is still one block, because a
+     *    check is a call and not a branch - see `isCheckCall`;
+     *  - **a register result**, because a memory-typed one is `memoryResult`'s case and priced there.
+     *    What that returns is an allocation the caller made; what this returns is a value read out of
+     *    storage the caller already had;
+     *  - **nothing but computation, reads and its own check.** A store, an allocation or any other
+     *    call is a body that *does* something, and the whole claim here is that the callee does
+     *    nothing the caller could not have written inline. `Borrow` and `Address` are admitted beside
+     *    the pure kinds because they are how a place is reached rather than something done to one -
+     *    an address computation is exactly what this is meant to let across;
+     *  - **every place rooted in a parameter.** This is what separates an accessor from a small pure
+     *    function that happens to load: `freeListHead` reads a global and is a read of the program's
+     *    state, `length(self)` reads its receiver and is a projection of the caller's own. Only the
+     *    second one becomes an address the caller can hoist, because only the second one is rooted in
+     *    something the caller named.
+     *
+     * A load is required rather than merely permitted, which is the difference between this and "any
+     * small pure body". `byteSpan` is nine instructions of pointer arithmetic and no load at all, and
+     * inlining it is worth what any nine instructions are worth: the case for the bonus is that the
+     * *address* the load used crosses the boundary, and there is no address where there is no load.
+     */
+    bool isAccessorBody(Candidate& candidate) {
+        if(!candidate.isStraightLine()) return false;
+        if(candidate.resultLocal != Candidate::kNone) return false;
+
+        // One block whose every `ret` returns a value, which for one block is its terminator - and
+        // that terminator is a `ret` rather than needing to be checked for one, since `describe` found
+        // a return among these blocks and an entry nothing jumps back into.
+        auto block = opt.local[candidate.blocks[0]];
+        auto& terminator = *opt.local[block->terminator()];
+        if(terminator.kind != Value::Ret || !((InstRet&)terminator).value) return false;
+
+        auto loads = false;
+
+        for(auto pointer: block->instructions(opt.local)) {
+            auto& instruction = *opt.local[pointer];
+
+            switch(instruction.kind) {
+                case Value::LoadPlace:
+                    loads = true;
+                    break;
+
+                // The two ways a place is named as a value rather than acted on.
+                case Value::Borrow:
+                case Value::Address:
+                    break;
+
+                case Value::Call:
+                    if(!isCheckCall(opt, ((InstCall&)instruction).callee)) return false;
+                    break;
+
+                default:
+                    if(!isPureValue(instruction)) return false;
+                    break;
+            }
+
+            auto rooted = true;
+            eachPlace(instruction, [&](const Place& place) {
+                switch(place.root) {
+                    // A borrow or a raw pointer is an address this body was handed or computed out of
+                    // one it was handed, since nothing above it wrote either.
+                    case PlaceRoot::Borrow:
+                    case PlaceRoot::Pointer:
+                        break;
+
+                    // A local is the receiver's storage where the parameter is re-rooted, and the
+                    // callee's own frame otherwise. Nothing above writes such a slot, so the second
+                    // case is a read of storage nothing filled rather than a shape to price.
+                    case PlaceRoot::Local:
+                        if(!rerootedParameter(candidate, place.local)) rooted = false;
+                        break;
+
+                    case PlaceRoot::Global:
+                        rooted = false;
+                        break;
+                }
+            });
+
+            if(!rooted) return false;
+        }
+
+        return loads;
+    }
+
+    /*
      * The callee's reachable blocks, in reverse postorder - see `Candidate::blocks` for why that is
      * the order and not the block list's own.
      *
@@ -938,6 +1083,10 @@ struct Inliner {
             }
         }
 
+        // Last, because it asks which parameters were re-rooted and which local a memory result came
+        // out of, and both of those are what the two walks above just decided.
+        candidate.accessor = isAccessorBody(candidate);
+
         return Just(::move(candidate));
     }
 
@@ -1098,6 +1247,8 @@ struct Inliner {
         if(policy.borrowResult && returnsReifiedReference(*candidate.callee)) {
             limit += policy.borrowResult;
         }
+
+        if(candidate.accessor) limit += policy.accessor;
 
         if(candidate.callee->inlineHint) limit += policy.requested;
 

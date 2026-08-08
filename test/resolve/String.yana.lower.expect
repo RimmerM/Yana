@@ -564,8 +564,12 @@ pushString<complex>(%self: Ptr, %other: Ptr) {
   b_0 {
     %v_1 = bitcast %other: Ptr
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex Length(String).length, %other: Long
-    call_complex appendUnits, %self, %v_2, %v_3
+    %v_3 = bitcast %other: Ptr
+    %v_4 = add %v_3, 12: Ptr
+    %v_5 = load %v_4, 4: Int
+    %units = cast %v_5: Int
+    %v_6 = sext %units: Long
+    call_complex appendUnits, %self, %v_2, %v_6
     ret 
   }
 }
@@ -642,19 +646,27 @@ Length(String).length<complex>(%self: Ptr): Long {
 
 Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
-    %leftLength = call_complex Length(String).length, %lhs: Long
-    %rightLength = call_complex Length(String).length, %rhs: Long
-    %v_2 = add %leftLength, %rightLength: Long
-    %v_3 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_3, %v_2
-    %fresh = alloca 16, 8: Ptr
-    copy %fresh, %v_3, 16
-    %v_4 = bitcast %lhs: Ptr
-    %v_5 = load %v_4, 8: Ptr
-    call_complex appendUnits, %fresh, %v_5, %leftLength
+    %v_2 = bitcast %lhs: Ptr
+    %v_3 = add %v_2, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %units = cast %v_4: Int
+    %v_5 = sext %units: Long
     %v_6 = bitcast %rhs: Ptr
-    %v_7 = load %v_6, 8: Ptr
-    call_complex appendUnits, %fresh, %v_7, %rightLength
+    %v_7 = add %v_6, 12: Ptr
+    %v_8 = load %v_7, 4: Int
+    %units = cast %v_8: Int
+    %v_9 = sext %units: Long
+    %v_10 = add %v_5, %v_9: Long
+    %v_11 = alloca 16, 8: Ptr
+    call_complex newStringOfCapacity, %v_11, %v_10
+    %fresh = alloca 16, 8: Ptr
+    copy %fresh, %v_11, 16
+    %v_12 = bitcast %lhs: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    call_complex appendUnits, %fresh, %v_13, %v_5
+    %v_14 = bitcast %rhs: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    call_complex appendUnits, %fresh, %v_15, %v_9
     copy %v_0, %fresh, 16
     ret 
   }
@@ -662,142 +674,174 @@ Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
 
 Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
   b_0 {
-    %count = call_complex Length(String).length, %self: Long
-    %v_1 = call_complex Length(String).length, %other: Long
-    %v_2 = cmp_neq %count, %v_1: Int
-    je %v_2, b_3, b_4
+    %v_1 = bitcast %self: Ptr
+    %v_2 = add %v_1, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %units = cast %v_3: Int
+    %v_4 = sext %units: Long
+    %v_5 = bitcast %other: Ptr
+    %v_6 = add %v_5, 12: Ptr
+    %v_7 = load %v_6, 4: Int
+    %units = cast %v_7: Int
+    %v_8 = sext %units: Long
+    %v_9 = cmp_neq %v_4, %v_8: Int
+    je %v_9, b_10, b_11
   }
 
-  b_3 {
+  b_10 {
     ret 0
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_5, 0], [b_8, %v_9]: Long
-    %v_10 = cmp_ilt %v_7, %count: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    ret 1
   }
 
   b_11 {
-    %v_13 = call_complex stringUnit, %self, %v_7: Int
-    %v_14 = call_complex stringUnit, %other, %v_7: Int
-    %v_15 = cmp_neq %v_13, %v_14: Int
-    je %v_15, b_16, b_17
+    jmp b_12
   }
 
-  b_16 {
+  b_12 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_12, 0], [b_15, %v_16]: Long
+    %v_17 = cmp_ilt %v_14, %v_4: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    ret 1
+  }
+
+  b_18 {
+    %v_20 = bitcast %self: Ptr
+    %v_21 = load %v_20, 8: Ptr
+    %v_22 = add %v_21, %v_14: Ptr
+    %v_23 = load %v_22, 1: Int
+    %v_24 = cast %v_23: Int
+    %v_25 = bitcast %other: Ptr
+    %v_26 = load %v_25, 8: Ptr
+    %v_27 = add %v_26, %v_14: Ptr
+    %v_28 = load %v_27, 1: Int
+    %v_29 = cast %v_28: Int
+    %v_30 = cmp_neq %v_24, %v_29: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
     ret 0
   }
 
-  b_17 {
-    jmp b_8
+  b_32 {
+    jmp b_15
   }
 
-  b_8 {
-    %v_9 = add %v_7, 1: Long
-    jmp b_6
+  b_15 {
+    %v_16 = add %v_14, 1: Long
+    jmp b_13
   }
 }
 
 Ord(String).compare<complex>(%self: Ptr, %other: Ptr): Int {
   b_0 {
-    %leftLength = call_complex Length(String).length, %self: Long
-    %rightLength = call_complex Length(String).length, %other: Long
-    %v_1 = cmp_ilt %rightLength, %leftLength: Int
-    je %v_1, b_2, b_3
+    %v_1 = bitcast %self: Ptr
+    %v_2 = add %v_1, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %units = cast %v_3: Int
+    %v_4 = sext %units: Long
+    %v_5 = bitcast %other: Ptr
+    %v_6 = add %v_5, 12: Ptr
+    %v_7 = load %v_6, 4: Int
+    %units = cast %v_7: Int
+    %v_8 = sext %units: Long
+    %v_9 = cmp_ilt %v_8, %v_4: Int
+    je %v_9, b_10, b_11
   }
 
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %rightLength], [b_3, %leftLength]: Long
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 0], [b_8, %v_9]: Long
-    %v_10 = cmp_ilt %v_7, %v_5: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    %v_13 = cmp_ilt %leftLength, %rightLength: Int
-    je %v_13, b_14, b_15
+  b_10 {
+    jmp b_12
   }
 
   b_11 {
-    %left = call_complex stringUnit, %self, %v_7: Int
-    %right = call_complex stringUnit, %other, %v_7: Int
-    %v_16 = cmp_ilt %left, %right: Int
-    je %v_16, b_17, b_18
+    jmp b_12
   }
 
-  b_17 {
-    ret 0
-  }
-
-  b_18 {
-    jmp b_19
-  }
-
-  b_19 {
-    %v_20 = cmp_igt %left, %right: Int
-    je %v_20, b_21, b_22
-  }
-
-  b_21 {
-    ret 2
-  }
-
-  b_22 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = add %v_7, 1: Long
-    jmp b_6
+  b_12 {
+    %v_13 = phi [b_10, %v_8], [b_11, %v_4]: Long
+    jmp b_14
   }
 
   b_14 {
+    %v_15 = phi [b_12, 0], [b_16, %v_17]: Long
+    %v_18 = cmp_ilt %v_15, %v_13: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    %v_21 = cmp_ilt %v_4, %v_8: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_19 {
+    %v_24 = bitcast %self: Ptr
+    %v_25 = load %v_24, 8: Ptr
+    %v_26 = add %v_25, %v_15: Ptr
+    %v_27 = load %v_26, 1: Int
+    %v_28 = cast %v_27: Int
+    %v_29 = bitcast %other: Ptr
+    %v_30 = load %v_29, 8: Ptr
+    %v_31 = add %v_30, %v_15: Ptr
+    %v_32 = load %v_31, 1: Int
+    %v_33 = cast %v_32: Int
+    %v_34 = cmp_ilt %v_28, %v_33: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
     ret 0
   }
 
-  b_15 {
-    jmp b_23
+  b_36 {
+    jmp b_37
   }
 
-  b_23 {
-    %v_24 = cmp_igt %leftLength, %rightLength: Int
-    je %v_24, b_25, b_26
+  b_37 {
+    %v_38 = cmp_igt %v_28, %v_33: Int
+    je %v_38, b_39, b_40
   }
 
-  b_25 {
+  b_39 {
     ret 2
   }
 
-  b_26 {
-    jmp b_27
+  b_40 {
+    jmp b_16
   }
 
-  b_27 {
+  b_16 {
+    %v_17 = add %v_15, 1: Long
+    jmp b_14
+  }
+
+  b_22 {
+    ret 0
+  }
+
+  b_23 {
+    jmp b_41
+  }
+
+  b_41 {
+    %v_42 = cmp_igt %v_4, %v_8: Int
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    ret 2
+  }
+
+  b_44 {
+    jmp b_45
+  }
+
+  b_45 {
     ret 1
   }
 }
@@ -977,26 +1021,30 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_12, @string$4, 3
     %joined = alloca 16, 8: Ptr
     call_complex Append(String).+, %joined, %v_11, %v_12
-    %v_13 = call_complex Length(String).length, %joined: Long
+    %v_13 = bitcast %joined: Ptr
+    %v_14 = add %v_13, 12: Ptr
+    %v_15 = load %v_14, 4: Int
+    %units = cast %v_15: Int
     call_complex Reclaim(String).reclaim, %joined
-    %v_14 = cast %v_13: Int
-    %v_15 = add %v_10, %v_14: Int
-    %v_16 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_16, @string$5, 3
-    %start = alloca 16, 8: Ptr
-    copy %start, %v_16, 16
+    %v_16 = add %v_10, %units: Int
     %v_17 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_17, @string$6, 4
-    call_complex pushString, %start, %v_17
-    %v_18 = call_complex Length(String).length, %start: Long
+    call_complex stringLiteral, %v_17, @string$5, 3
+    %start = alloca 16, 8: Ptr
+    copy %start, %v_17, 16
+    %v_18 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_18, @string$6, 4
+    call_complex pushString, %start, %v_18
+    %v_19 = bitcast %start: Ptr
+    %v_20 = add %v_19, 12: Ptr
+    %v_21 = load %v_20, 4: Int
+    %units = cast %v_21: Int
     call_complex Reclaim(String).reclaim, %start
-    %v_19 = cast %v_18: Int
-    %v_20 = add %v_15, %v_19: Int
-    %v_21 = call_complex equalityHolds: Int
-    %v_22 = add %v_20, %v_21: Int
-    %v_23 = call_complex orderingHolds: Int
+    %v_22 = add %v_16, %units: Int
+    %v_23 = call_complex equalityHolds: Int
     %v_24 = add %v_22, %v_23: Int
-    ret %v_24
+    %v_25 = call_complex orderingHolds: Int
+    %v_26 = add %v_24, %v_25: Int
+    ret %v_26
   }
 }
 
