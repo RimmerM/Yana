@@ -1,6 +1,12 @@
 fn initHeap {
 }
 
+fn growHeap {
+  arg needed readonly
+  %size: I64 writable live [1, 26) [27, 36) [37, 49)
+  %region: %U8 writable live [11, 26) [27, 36) [37, 46)
+}
+
 fn heapClassOf {
   arg total readonly
   %size: I64 writable live [0, 8) [10, 18)
@@ -78,8 +84,8 @@ fn slice(Int) {
 fn push(Int) {
   arg self writable addressed resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 15) [16, 30)
-  %item: Int readonly live [0, 15) [16, 25)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 28)
+  %item: Int readonly live [0, 23)
 }
 
 fn reserve(Int) {

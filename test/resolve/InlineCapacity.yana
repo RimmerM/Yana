@@ -127,9 +127,16 @@ fn main() -> Int:
     if length(xs) != 4 then return -7
     if total(xs) != 10 then return -8
 
-    -- And refused past it. `resize` sees `runFixed` and answers False, so `push` leaves the array
-    -- exactly as it was rather than moving the elements to storage nothing frees.
-    push(xs, 5)
+    -- And refused past it: `resize` sees `runFixed` and answers False rather than moving the
+    -- elements to storage the descriptor does not own, and `push` traps on the refusal.
+    --
+    -- Which is why there is no fifth `push` here. This used to be one, asserting that `length` was
+    -- still 4 afterwards - the array left exactly as it was and the element discarded without a
+    -- word. §7.1 says the opposite ("a push past `n` fails, in the same trap tier as a bounds
+    -- check"), and the silent version was the same wrong answer a plain array gave when the heap
+    -- ran out. Both are `checkCondition` now. Nothing in this suite can assert a trap - the driver
+    -- runs `main` in its own process, so an abort takes the run down with it - so what is left is
+    -- the boundary itself, which is the half a number can speak for.
     if length(xs) != 4 then return -9
 
     -- Written through a mutable slice, which reaches the elements because the descriptor holds

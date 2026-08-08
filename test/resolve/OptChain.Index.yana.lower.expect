@@ -2,6 +2,7 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 Try(Maybe(a), a, ()).toOutcome(Array(Int))<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
@@ -53,6 +54,71 @@ Try(Maybe(a), a, ()).toOutcome(Array(Int))<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
+growHeap<complex>(%needed: Long): Int {
+  b_0 {
+    %v_1 = loads @heapRegionNext, 8: Long
+    %v_2 = cmp_ilt %v_1, %needed: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, %needed], [b_4, %v_1]: Long
+    %v_7 = call_complex mapMemory, %v_6: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = cmp_igt %needed, 4194304: Int
+    %least = select %needed, 4194304, %v_12: Long
+    %v_13 = cmp_ige %least, %v_6: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_11 {
+    jmp b_16
+  }
+
+  b_14 {
+    ret 0
+  }
+
+  b_15 {
+    %v_17 = call_complex mapMemory, %least: Ptr
+    %v_18 = bitcast %v_17: Long
+    %v_19 = cmp_eq %v_18, 0: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    ret 0
+  }
+
+  b_21 {
+    jmp b_16
+  }
+
+  b_16 {
+    %v_22 = phi [b_11, %v_6], [b_21, %least]: Long
+    %v_23 = phi [b_11, %v_7], [b_21, %v_17]: Ptr
+    store @heapNext, %v_23, 8
+    %v_24 = add %v_23, %v_22: Ptr
+    store @heapLimit, %v_24, 8
+    %v_25 = add %v_22, %v_22: Long
+    store @heapRegionNext, %v_25, 8
+    ret 1
+  }
+}
+
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -96,6 +162,7 @@ allocateHeap<complex>(%size: Long): Ptr {
     store @heapNext, %v_18, 8
     %v_19 = add %region, 4194304: Ptr
     store @heapLimit, %v_19, 8
+    store @heapRegionNext, 8388608, 8
     jmp b_20
   }
 
@@ -143,40 +210,56 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_46 {
-    %block = load @heapNext, 8: Ptr
     %v_47 = shl 16, %v_31: Long
-    %v_48 = add %block, %v_47: Ptr
-    %v_49 = load @heapLimit, 8: Ptr
-    %v_50 = cmp_gt %v_48, %v_49: Int
-    je %v_50, b_51, b_52
+    %v_48 = load @heapNext, 8: Ptr
+    %v_49 = add %v_48, %v_47: Ptr
+    %v_50 = load @heapLimit, 8: Ptr
+    %v_51 = cmp_gt %v_49, %v_50: Int
+    je %v_51, b_52, b_53
+  }
+
+  b_53 {
+    jmp b_54
   }
 
   b_52 {
-    store @heapNext, %v_48, 8
-    %v_53 = bitcast %block: Ptr
-    store %v_53, %v_31, 8
-    %v_54 = add %block, 8: Ptr
-    ret %v_54
+    %v_55 = call_complex growHeap, %v_47: Int
+    %v_56 = xor %v_55, 1: Int
+    je %v_56, b_57, b_58
   }
 
-  b_51 {
-    %v_55 = bitcast 0: Ptr
-    ret %v_55
+  b_58 {
+    jmp b_54
+  }
+
+  b_54 {
+    %block = load @heapNext, 8: Ptr
+    %v_59 = add %block, %v_47: Ptr
+    store @heapNext, %v_59, 8
+    %v_60 = bitcast %block: Ptr
+    store %v_60, %v_31, 8
+    %v_61 = add %block, 8: Ptr
+    ret %v_61
+  }
+
+  b_57 {
+    %v_62 = bitcast 0: Ptr
+    ret %v_62
   }
 
   b_45 {
-    %v_56 = bitcast %v_41: Ptr
-    %v_57 = load %v_56, 8: Ptr
-    %v_58 = load @heapFree, 8: Ptr
-    %v_59 = shl %v_31, 3: Long
-    %v_60 = add %v_58, %v_59: Ptr
-    store %v_60, %v_57, 8
+    %v_63 = bitcast %v_41: Ptr
+    %v_64 = load %v_63, 8: Ptr
+    %v_65 = load @heapFree, 8: Ptr
+    %v_66 = shl %v_31, 3: Long
+    %v_67 = add %v_65, %v_66: Ptr
+    store %v_67, %v_64, 8
     ret %v_41
   }
 
   b_36 {
-    %v_61 = bitcast 0: Ptr
-    ret %v_61
+    %v_68 = bitcast 0: Ptr
+    ret %v_68
   }
 
   b_29 {
@@ -186,8 +269,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    %v_69 = bitcast 0: Ptr
+    ret %v_69
   }
 }
 
@@ -221,6 +304,28 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_15 = add %v_13, %v_14: Ptr
     store %v_15, %allocation, 8
     ret 
+  }
+}
+
+mapMemory<complex>(%size: Long): Ptr {
+  b_0 {
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
   }
 }
 

@@ -999,15 +999,29 @@ pub fn checkCondition(failed: Bool) -> {}:
    a raw pointer is an assignment the ownership pass reads as a hand-over - so nothing is released
    at the end of this body on the path that stored.
 
-   And on the path that did not, it is. A failed reserve leaves the array as it was rather than
-   writing past the end of it, and the element it was given dies here rather than being leaked or
-   handed back. There is no way to report the failure yet; `Result` is the eventual answer and needs
-   the array first.
+   A reserve that could not get the room is a check that failed, and it is spelled as one.
+
+   It used to `return` instead: the array was left as it was, the element died here rather than being
+   leaked, and the caller was told nothing. That is a silent wrong answer - the array simply stops
+   growing and every push after it discards its argument - and it was reachable, because the heap was
+   a single 4 MiB region and an `[Int]` hit the end of it at 131072 elements (see `growHeap` in
+   Native, which is the reason that particular failure no longer happens). What is left is a genuine
+   refusal from the kernel or a `resize` past what `Count` can hold, and neither is something a
+   program can be allowed to walk past.
+
+   `checkCondition` and not a diagnostic with a message, on the same terms as every bounds check:
+   what it can say is 134 natively and a throw on JS, because printing a sentence needs `Text` and
+   `Text` imports this module. Reporting it *as a value* is still `Result`'s job, which still needs
+   the array first - the difference is that until then the program stops instead of continuing on a
+   container that quietly lost an element.
+
+   The store is now on the only path out, which is why nothing is released at the end of this body:
+   `item` is handed over on the path that continues and `checkFailed` does not return.
 -}
 @platform(native) pub fn push(&self: Array(a), ->item: a) -> {}:
     let count = self.length :: Int
     reserve(self, count + 1)
-    if count >= (self.run.capacity :: Int) then return
+    checkCondition(count >= (self.run.capacity :: Int))
 
     store(self.run.items + count, item)
     self.length = count + 1 :: Count
@@ -1639,15 +1653,31 @@ import Host
 @platform(js) pub fn pushString(&self: String, other: String) -> {}:
     self = hostConcat(self, other)
 
--- The block copy both of the above are written in terms of. Private to this section: it takes a raw
--- address, so it is exactly as unsafe as `copyMemory` and exactly as unreachable from a program.
+{-
+   The block copy both of the above are written in terms of. Private to this section: it takes a raw
+   address, so it is exactly as unsafe as `copyMemory` and exactly as unreachable from a program.
+
+   The check is the same one `push` makes and is here for a worse reason. `push` compared the count
+   against the capacity and gave up, which lost an element; this copies a whole block and had no
+   comparison at all, so a `reserveString` the allocator refused was followed by a `copyMemory` of
+   `count` units into a buffer that had not grown to hold them. That is a write past the end of the
+   run, not a lost append - and it was reachable by exactly the route the array's was, since both
+   reserves end at the same `resize`.
+
+   Read off `run.capacity` rather than off `reserveString`, which answers nothing: what has to hold
+   before the copy is that the room is *there*, and that is one comparison against the field the copy
+   is about to run past.
+-}
 @platform(native) pub fn appendUnits(&self: String, from: %U8, count: Size) -> {}:
     if count <= 0 then return {}
     reserveString(self, count)
 
     let target = stringDataMut(self)
+    let wanted = (target.bytes.length :: Int) + (count :: Int)
+    checkCondition((target.bytes.run.capacity :: Int) < wanted)
+
     copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count :: Int))
-    target.bytes.length = ((target.bytes.length :: Int) + (count :: Int)) :: Count
+    target.bytes.length = wanted :: Count
 
 {-
    ==========================================================================================

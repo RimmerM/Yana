@@ -17,6 +17,12 @@ fn -=(I64) {
 fn initHeap {
 }
 
+fn growHeap {
+  arg needed readonly
+  %size: I64 writable live [1, 26) [27, 36) [37, 49)
+  %region: %U8 writable live [11, 26) [27, 36) [37, 46)
+}
+
 fn heapClassOf {
   arg total readonly
   %size: I64 writable live [0, 8) [10, 18)
@@ -93,8 +99,8 @@ fn emptyArray(Buffer) {
 fn push(Buffer) {
   arg self writable addressed resizable
   arg item writable retained
-  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 15) [16, 30)
-  %item: Buffer droppable writable escapes live [0, 15) [16, 25)
+  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 28)
+  %item: Buffer droppable writable escapes live [0, 23)
 }
 
 fn reserve(Buffer) {

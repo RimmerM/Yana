@@ -1,0 +1,56 @@
+{-
+   An array grown past what one region of the heap holds - Native's `growHeap`.
+
+   The allocator is a bump pointer over mapped address space with a free list per size class, and it
+   used to have exactly one region of 4 MiB. That is a smaller ceiling than it sounds, because a
+   doubling container does not spend those bytes once: growing to 2^k slots takes a block at every
+   class below it on the way, and each is freed to a list that only ever hands blocks back at its own
+   class - so the live array is the last block and roughly as much again is dead behind it. `push` on
+   an `[Int]` therefore stopped at exactly 131072, with the 1 MiB block that capacity fits in and
+   ~1 MiB of abandoned smaller ones leaving no room for the 2 MiB the next doubling asked for.
+
+   And it stopped *silently*: `reserve` discarded `resize`'s answer, and `push` compared the count
+   against the capacity and returned, discarding the element it had been handed. An array that
+   quietly stops growing is the kind of wrong answer nothing downstream can notice, which is why the
+   comparison is a `checkCondition` now - Implementation-Containers.md §7.1's "in the same trap tier
+   as a bounds check", which the fixed-capacity half of `push` was already supposed to be in.
+
+   So the number below has to be past 131072, and the loop has to *push* rather than `reserve` in one
+   call: reserving the whole capacity up front takes one block and no dead ones behind it, which fit
+   in the old single region and would have passed throughout.
+
+   The elements are summed rather than counted because `length` alone does not distinguish an array
+   that grew from one that grew and lost its contents to a relocation that copied the wrong extent -
+   `resize` copies the old capacity rather than the live prefix, and this is the fixture that crosses
+   enough size classes for that to be worth asserting.
+-}
+
+fn main() -> Int:
+    let &xs = emptyArray() :: Array(Int)
+    let &i = 0 :: Int
+
+    -- 200000 elements is 800 KB of `Int` and a capacity of 262144, which is the doubling the old
+    -- heap could not reach. It crosses fourteen size classes on the way and needs a second region.
+    while i < 200000:
+        push(xs, i)
+        i = i + 1
+
+    if (length(xs) :: Int) != 200000 then return -1
+
+    -- Every element still where it was put, read at the boundaries the relocations landed on: the
+    -- last index of the old ceiling, the first past it, and the far end.
+    if xs[0] != 0 then return -2
+    if xs[131071] != 131071 then return -3
+    if xs[131072] != 131072 then return -4
+    if xs[199999] != 199999 then return -5
+
+    -- And the whole of it, folded, so that a copy which dropped a middle range is caught as well as
+    -- one that dropped an end. Every hundredth element, because the sum of all 200000 overflows Int.
+    let &total = 0 :: Int
+    let &j = 0 :: Int
+    while j < 200000:
+        total = total + xs[j]
+        j = j + 100
+
+    -- 0 + 100 + ... + 199900 = 100 * (0 + 1 + ... + 1999) = 100 * 1999000 = 199900000
+    return total

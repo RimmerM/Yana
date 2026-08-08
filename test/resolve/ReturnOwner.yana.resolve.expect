@@ -6,6 +6,8 @@ let &heapLimit: %U8 = 0
 
 let &heapFree: %%U8 = 0
 
+let &heapRegionNext: I64 = 0
+
 let &reclaims: Int = 0
 
 table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
@@ -64,7 +66,95 @@ fn initHeap() -> () {
     %v22 = mul 4194304, %v21 : I64
     %v23 = add %region, %v22 : %U8
     assign heapLimit, %v23
+    %v27 = add 4194304, 4194304 : I64
+    assign heapRegionNext, %v27
     ret
+}
+
+fn growHeap(%needed: I64) -> Bool {
+  b0:
+    %v1 = load heapRegionNext : I64
+    %size = alloc : I64
+    init %size, %v1
+    %v4 = load %size : I64
+    %v5 = cmp_lt %v4, %needed : Bool
+    je %v5, b1, b2
+
+  b1:
+    assign %size, %needed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load %size : I64
+    %v11 = call mapMemory, %v10 : %U8
+    %region = alloc : %U8
+    init %region, %v11
+    %v14 = load %region : %U8
+    %v15 = cast %v14 : Long
+    %v17 = cmp_eq %v15, 0 : Bool
+    je %v17, b4, b5
+
+  b4:
+    %v20 = cmp_gt %needed, 4194304 : Bool
+    je %v20, b6, b7
+
+  b5:
+    jmp b15
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %least = phi [b6, %needed], [b7, 4194304] : I64
+    %v26 = load %size : I64
+    %v27 = cmp_ge %least, %v26 : Bool
+    je %v27, b9, b10
+
+  b9:
+    ret False
+
+  b10:
+    jmp b11
+
+  b11:
+    assign %size, %least
+    %v33 = load %size : I64
+    %v34 = call mapMemory, %v33 : %U8
+    assign %region, %v34
+    %v36 = load %region : %U8
+    %v37 = cast %v36 : Long
+    %v39 = cmp_eq %v37, 0 : Bool
+    je %v39, b12, b13
+
+  b12:
+    ret False
+
+  b13:
+    jmp b14
+
+  b14:
+    jmp b15
+
+  b15:
+    %v46 = load %region : %U8
+    assign heapNext, %v46
+    %v48 = load %region : %U8
+    %v49 = load %size : I64
+    %v50 = strideof U8 : I64
+    %v51 = mul %v49, %v50 : I64
+    %v52 = add %v48, %v51 : %U8
+    assign heapLimit, %v52
+    %v54 = load %size : I64
+    %v55 = load %size : I64
+    %v56 = add %v54, %v55 : I64
+    assign heapRegionNext, %v56
+    ret True
 }
 
 fn heapClassOf(%total: I64) -> I64 {
@@ -178,33 +268,45 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b12
 
   b12:
-    %block = load heapNext : %U8
     %blockSize = call heapBlockSize, %sizeClass : I64
+    %v42 = load heapNext : %U8
     %v43 = strideof U8 : I64
     %v44 = mul %blockSize, %v43 : I64
-    %v45 = add %block, %v44 : %U8
+    %v45 = add %v42, %v44 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
     je %v47, b13, b14
 
   b13:
-    %v50 = cast 0 : %U8
-    ret %v50
+    %v49 = call growHeap, %blockSize : Bool
+    %v51 = xor %v49, True : Bool
+    je %v51, b15, b16
 
   b14:
-    jmp b15
+    jmp b18
 
   b15:
-    %v53 = strideof U8 : I64
-    %v54 = mul %blockSize, %v53 : I64
-    %v55 = add %block, %v54 : %U8
-    assign heapNext, %v55
-    %v57 = cast %block : %I64
-    assign [%v57], %sizeClass
-    %v61 = strideof U8 : I64
-    %v62 = mul 8, %v61 : I64
-    %v63 = add %block, %v62 : %U8
-    ret %v63
+    %v54 = cast 0 : %U8
+    ret %v54
+
+  b16:
+    jmp b17
+
+  b17:
+    jmp b18
+
+  b18:
+    %block = load heapNext : %U8
+    %v60 = strideof U8 : I64
+    %v61 = mul %blockSize, %v60 : I64
+    %v62 = add %block, %v61 : %U8
+    assign heapNext, %v62
+    %v64 = cast %block : %I64
+    assign [%v64], %sizeClass
+    %v68 = strideof U8 : I64
+    %v69 = mul 8, %v68 : I64
+    %v70 = add %block, %v69 : %U8
+    ret %v70
 }
 
 fn freeHeap(%allocation: %U8) -> () {
@@ -454,28 +556,20 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
-    je %v16, b1, b2
-
-  b1:
-    ret
-
-  b2:
-    jmp b3
-
-  b3:
-    %v20 = load %self : Array(Int)
-    %v21 = load %self@Array.run : Run(Int)
-    %v22 = load %self@Array.run@Run.items : %Int
-    %v23 = cast %count : I64
-    %v24 = strideof Int : I64
-    %v25 = mul %v23, %v24 : I64
-    %v26 = add %v22, %v25 : %Int
-    assign [%v26], %item
-    %v29 = add %count, 1 : Int
-    %v30 = cast %v29 : U32
-    %v32 = and %v30, 1073741823 : U32
-    %v33 = cast %v32 : @bits(30) U32
-    assign %self@Array.length, %v33
+    call checkCondition, %v16
+    %v18 = load %self : Array(Int)
+    %v19 = load %self@Array.run : Run(Int)
+    %v20 = load %self@Array.run@Run.items : %Int
+    %v21 = cast %count : I64
+    %v22 = strideof Int : I64
+    %v23 = mul %v21, %v22 : I64
+    %v24 = add %v20, %v23 : %Int
+    assign [%v24], %item
+    %v27 = add %count, 1 : Int
+    %v28 = cast %v27 : U32
+    %v30 = and %v28, 1073741823 : U32
+    %v31 = cast %v30 : @bits(30) U32
+    assign %self@Array.length, %v31
     ret
 }
 

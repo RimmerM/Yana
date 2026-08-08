@@ -6,6 +6,8 @@ let &heapLimit: %U8 = 0
 
 let &heapFree: %%U8 = 0
 
+let &heapRegionNext: I64 = 0
+
 let &liveHandles: I64 = 0
 
 fn +=(I64)(%target: I64, %amount: I64) -> () {
@@ -50,7 +52,95 @@ fn initHeap() -> () {
     %v22 = mul 4194304, %v21 : I64
     %v23 = add %region, %v22 : %U8
     assign heapLimit, %v23
+    %v27 = add 4194304, 4194304 : I64
+    assign heapRegionNext, %v27
     ret
+}
+
+fn growHeap(%needed: I64) -> Bool {
+  b0:
+    %v1 = load heapRegionNext : I64
+    %size = alloc : I64
+    init %size, %v1
+    %v4 = load %size : I64
+    %v5 = cmp_lt %v4, %needed : Bool
+    je %v5, b1, b2
+
+  b1:
+    assign %size, %needed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load %size : I64
+    %v11 = call mapMemory, %v10 : %U8
+    %region = alloc : %U8
+    init %region, %v11
+    %v14 = load %region : %U8
+    %v15 = cast %v14 : Long
+    %v17 = cmp_eq %v15, 0 : Bool
+    je %v17, b4, b5
+
+  b4:
+    %v20 = cmp_gt %needed, 4194304 : Bool
+    je %v20, b6, b7
+
+  b5:
+    jmp b15
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %least = phi [b6, %needed], [b7, 4194304] : I64
+    %v26 = load %size : I64
+    %v27 = cmp_ge %least, %v26 : Bool
+    je %v27, b9, b10
+
+  b9:
+    ret False
+
+  b10:
+    jmp b11
+
+  b11:
+    assign %size, %least
+    %v33 = load %size : I64
+    %v34 = call mapMemory, %v33 : %U8
+    assign %region, %v34
+    %v36 = load %region : %U8
+    %v37 = cast %v36 : Long
+    %v39 = cmp_eq %v37, 0 : Bool
+    je %v39, b12, b13
+
+  b12:
+    ret False
+
+  b13:
+    jmp b14
+
+  b14:
+    jmp b15
+
+  b15:
+    %v46 = load %region : %U8
+    assign heapNext, %v46
+    %v48 = load %region : %U8
+    %v49 = load %size : I64
+    %v50 = strideof U8 : I64
+    %v51 = mul %v49, %v50 : I64
+    %v52 = add %v48, %v51 : %U8
+    assign heapLimit, %v52
+    %v54 = load %size : I64
+    %v55 = load %size : I64
+    %v56 = add %v54, %v55 : I64
+    assign heapRegionNext, %v56
+    ret True
 }
 
 fn heapClassOf(%total: I64) -> I64 {
@@ -164,33 +254,45 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b12
 
   b12:
-    %block = load heapNext : %U8
     %blockSize = call heapBlockSize, %sizeClass : I64
+    %v42 = load heapNext : %U8
     %v43 = strideof U8 : I64
     %v44 = mul %blockSize, %v43 : I64
-    %v45 = add %block, %v44 : %U8
+    %v45 = add %v42, %v44 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
     je %v47, b13, b14
 
   b13:
-    %v50 = cast 0 : %U8
-    ret %v50
+    %v49 = call growHeap, %blockSize : Bool
+    %v51 = xor %v49, True : Bool
+    je %v51, b15, b16
 
   b14:
-    jmp b15
+    jmp b18
 
   b15:
-    %v53 = strideof U8 : I64
-    %v54 = mul %blockSize, %v53 : I64
-    %v55 = add %block, %v54 : %U8
-    assign heapNext, %v55
-    %v57 = cast %block : %I64
-    assign [%v57], %sizeClass
-    %v61 = strideof U8 : I64
-    %v62 = mul 8, %v61 : I64
-    %v63 = add %block, %v62 : %U8
-    ret %v63
+    %v54 = cast 0 : %U8
+    ret %v54
+
+  b16:
+    jmp b17
+
+  b17:
+    jmp b18
+
+  b18:
+    %block = load heapNext : %U8
+    %v60 = strideof U8 : I64
+    %v61 = mul %blockSize, %v60 : I64
+    %v62 = add %block, %v61 : %U8
+    assign heapNext, %v62
+    %v64 = cast %block : %I64
+    assign [%v64], %sizeClass
+    %v68 = strideof U8 : I64
+    %v69 = mul 8, %v68 : I64
+    %v70 = add %block, %v69 : %U8
+    ret %v70
 }
 
 fn freeHeap(%allocation: %U8) -> () {
@@ -443,28 +545,20 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
-    je %v16, b1, b2
-
-  b1:
-    ret
-
-  b2:
-    jmp b3
-
-  b3:
-    %v20 = load %self : Array(Int)
-    %v21 = load %self@Array.run : Run(Int)
-    %v22 = load %self@Array.run@Run.items : %Int
-    %v23 = cast %count : I64
-    %v24 = strideof Int : I64
-    %v25 = mul %v23, %v24 : I64
-    %v26 = add %v22, %v25 : %Int
-    assign [%v26], %item
-    %v29 = add %count, 1 : Int
-    %v30 = cast %v29 : U32
-    %v32 = and %v30, 1073741823 : U32
-    %v33 = cast %v32 : @bits(30) U32
-    assign %self@Array.length, %v33
+    call checkCondition, %v16
+    %v18 = load %self : Array(Int)
+    %v19 = load %self@Array.run : Run(Int)
+    %v20 = load %self@Array.run@Run.items : %Int
+    %v21 = cast %count : I64
+    %v22 = strideof Int : I64
+    %v23 = mul %v21, %v22 : I64
+    %v24 = add %v20, %v23 : %Int
+    assign [%v24], %item
+    %v27 = add %count, 1 : Int
+    %v28 = cast %v27 : U32
+    %v30 = and %v28, 1073741823 : U32
+    %v31 = cast %v30 : @bits(30) U32
+    assign %self@Array.length, %v31
     ret
 }
 
@@ -967,131 +1061,119 @@ fn main() -> Int {
 
   b24:
     %v187 = load %xs : @inline(4) @capacity(4) Array(Int)
-    %v190 = alloc : Array(Int)
-    %v191 = addressof %xs@Array.run : %Int
-    init %local8@Array.run@Run.items, %v191
+    %v188 = alloc : Array(Int)
+    %v189 = addressof %xs@Array.run : %Int
+    init %local8@Array.run@Run.items, %v189
     init %local8@Array.run@Run.capacity, 4
     init %local8@Array.run@Run.ownsHeap, 2
-    %v197 = load %xs@Array.length : @bits(30) U32
-    init %local8@Array.length, %v197
-    %v199 = borrow_mut %local8 : &mut Array(Int)
-    call push(Int), %v199, 5
-    %v201 = load %local8@Array.length : @bits(30) U32
-    assign %xs@Array.length, %v201
-    %v203 = load %xs : @inline(4) @capacity(4) Array(Int)
-    %v204 = alloc : Array(Int)
-    %v205 = addressof %xs@Array.run : %Int
-    init %local9@Array.run@Run.items, %v205
-    init %local9@Array.run@Run.capacity, 4
-    init %local9@Array.run@Run.ownsHeap, 2
-    %v211 = load %xs@Array.length : @bits(30) U32
-    init %local9@Array.length, %v211
-    %v213 = load %local9@Array.length : @bits(30) U32
-    %v214 = cast %v213 : U32
-    %v215 = cast %v214 : I64
-    %v218 = cmp_ne %v215, 4 : Bool
-    je %v218, b48, b26
+    %v195 = load %xs@Array.length : @bits(30) U32
+    init %local8@Array.length, %v195
+    %v197 = load %local8@Array.length : @bits(30) U32
+    %v198 = cast %v197 : U32
+    %v199 = cast %v198 : I64
+    %v202 = cmp_ne %v199, 4 : Bool
+    je %v202, b48, b26
 
   b25:
-    %v222 = neg 9 : Int
-    ret %v222
+    %v206 = neg 9 : Int
+    ret %v206
 
   b26:
     jmp b27
 
   b27:
-    %v225 = load %xs : @inline(4) @capacity(4) Array(Int)
-    %v226 = borrow_mut %xs : &mut @inline(4) @capacity(4) Array(Int)
-    %v227 = alloc : Flat(Int)
-    %v228 = addressof [%v226]@Array.run : %Int
-    init %local10@Flat.items, %v228
-    %v230 = load [%v226]@Array.length : @bits(30) U32
-    %v231 = cast %v230 : U32
-    %v232 = cast %v231 : I64
-    init %local10@Flat.length, %v232
-    %v234 = borrow_mut %local10 : &mut Flat(Int)
-    call double, %v234
-    %v236 = load %xs : @inline(4) @capacity(4) Array(Int)
-    %v237 = borrow %xs : &@inline(4) @capacity(4) Array(Int)
-    %v238 = alloc : Flat(Int)
-    %v239 = addressof [%v237]@Array.run : %Int
-    init %local11@Flat.items, %v239
-    %v241 = load [%v237]@Array.length : @bits(30) U32
-    %v242 = cast %v241 : U32
-    %v243 = cast %v242 : I64
-    init %local11@Flat.length, %v243
-    %v245 = call total, %v238 : Int
-    %v248 = cmp_ne %v245, 20 : Bool
-    je %v248, b49, b29
+    %v209 = load %xs : @inline(4) @capacity(4) Array(Int)
+    %v210 = borrow_mut %xs : &mut @inline(4) @capacity(4) Array(Int)
+    %v211 = alloc : Flat(Int)
+    %v212 = addressof [%v210]@Array.run : %Int
+    init %local9@Flat.items, %v212
+    %v214 = load [%v210]@Array.length : @bits(30) U32
+    %v215 = cast %v214 : U32
+    %v216 = cast %v215 : I64
+    init %local9@Flat.length, %v216
+    %v218 = borrow_mut %local9 : &mut Flat(Int)
+    call double, %v218
+    %v220 = load %xs : @inline(4) @capacity(4) Array(Int)
+    %v221 = borrow %xs : &@inline(4) @capacity(4) Array(Int)
+    %v222 = alloc : Flat(Int)
+    %v223 = addressof [%v221]@Array.run : %Int
+    init %local10@Flat.items, %v223
+    %v225 = load [%v221]@Array.length : @bits(30) U32
+    %v226 = cast %v225 : U32
+    %v227 = cast %v226 : I64
+    init %local10@Flat.length, %v227
+    %v229 = call total, %v222 : Int
+    %v232 = cmp_ne %v229, 20 : Bool
+    je %v232, b49, b29
 
   b28:
-    %v252 = neg 10 : Int
-    ret %v252
+    %v236 = neg 10 : Int
+    ret %v236
 
   b29:
     jmp b30
 
   b30:
-    %v255 = call holdHandles : I64
-    %v258 = cmp_ne %v255, 2 : Bool
-    je %v258, b50, b32
+    %v239 = call holdHandles : I64
+    %v242 = cmp_ne %v239, 2 : Bool
+    je %v242, b50, b32
 
   b31:
-    %v262 = neg 11 : Int
-    ret %v262
+    %v246 = neg 11 : Int
+    ret %v246
 
   b32:
     jmp b33
 
   b33:
-    %v265 = load liveHandles : I64
-    %v268 = cmp_ne %v265, 0 : Bool
-    je %v268, b51, b35
+    %v249 = load liveHandles : I64
+    %v252 = cmp_ne %v249, 0 : Bool
+    je %v252, b51, b35
 
   b34:
-    %v272 = neg 12 : Int
-    ret %v272
+    %v256 = neg 12 : Int
+    ret %v256
 
   b35:
     jmp b36
 
   b36:
-    %v275 = call holdInRecord : Int
-    %v278 = cmp_ne %v275, 5 : Bool
-    je %v278, b52, b38
+    %v259 = call holdInRecord : Int
+    %v262 = cmp_ne %v259, 5 : Bool
+    je %v262, b52, b38
 
   b37:
-    %v282 = neg 13 : Int
-    ret %v282
+    %v266 = neg 13 : Int
+    ret %v266
 
   b38:
     jmp b39
 
   b39:
-    %v285 = load liveHandles : I64
-    %v288 = cmp_ne %v285, 0 : Bool
-    je %v288, b53, b41
+    %v269 = load liveHandles : I64
+    %v272 = cmp_ne %v269, 0 : Bool
+    je %v272, b53, b41
 
   b40:
-    %v292 = neg 14 : Int
-    ret %v292
+    %v276 = neg 14 : Int
+    ret %v276
 
   b41:
     jmp b42
 
   b42:
-    %v295 = load %xs : @inline(4) @capacity(4) Array(Int)
-    %v296 = borrow %xs : &@inline(4) @capacity(4) Array(Int)
-    %v297 = alloc : Flat(Int)
-    %v298 = addressof [%v296]@Array.run : %Int
-    init %local12@Flat.items, %v298
-    %v300 = load [%v296]@Array.length : @bits(30) U32
-    %v301 = cast %v300 : U32
-    %v302 = cast %v301 : I64
-    init %local12@Flat.length, %v302
-    %v304 = call total, %v297 : Int
+    %v279 = load %xs : @inline(4) @capacity(4) Array(Int)
+    %v280 = borrow %xs : &@inline(4) @capacity(4) Array(Int)
+    %v281 = alloc : Flat(Int)
+    %v282 = addressof [%v280]@Array.run : %Int
+    init %local11@Flat.items, %v282
+    %v284 = load [%v280]@Array.length : @bits(30) U32
+    %v285 = cast %v284 : U32
+    %v286 = cast %v285 : I64
+    init %local11@Flat.length, %v286
+    %v288 = call total, %v281 : Int
     drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
-    ret %v304
+    ret %v288
 
   b43:
     drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)

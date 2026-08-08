@@ -359,16 +359,78 @@ bool runProgramOwnership(Program& program) {
 
     if(!program.ownership) program.ownership = Ptr<OwnershipResults>(new OwnershipResults());
 
-    // A signature has no body to summarize, so it says nothing rather than saying the optimistic
-    // thing: a class method's implementation is chosen per instance, and a caller that assumed one
-    // did not mutate its argument would be assuming it of every instance there will ever be.
+    /*
+     * The two states a summary starts in, which are not the same state.
+     *
+     * A signature has no body to summarize, so it says nothing rather than saying the optimistic
+     * thing: a class method's implementation is chosen per instance, and a caller that assumed one
+     * did not mutate its argument would be assuming it of every instance there will ever be. That is
+     * `opaque`, and every reader answers it conservatively.
+     *
+     * A function that *has* a body the silent phase has simply not reached yet is the opposite, and
+     * this is where the difference is made real. FunctionSummary::ready describes it as "a callee
+     * that has not been visited contributes nothing, which is what makes the fixpoint start
+     * optimistic and climb" - but the only way to read a summary is summaryOf(), which answers null
+     * for `!ready` exactly as it does for `opaque`, so an unvisited callee contributed *everything*
+     * instead. The system started at the top of the lattice rather than at the bottom.
+     *
+     * For a body called only from elsewhere that cost precision and nothing else: the callee is
+     * visited, its summary moves, and its callers are woken and settle on the real answer. For a
+     * **recursive** one it was a wrong answer that could never be taken back. The first visit of
+     * `fn quick(&xs: [Int], ...)` read its own not-yet-ready summary, assumed the recursive call kept
+     * `xs`, and derived `retained` from that assumption; the second visit read that derived summary
+     * and re-derived the same thing from it. It is a fixpoint - just not the least one - so the
+     * worklist stopped there, and every caller was told the borrow escaped. `quick(a, 0, 2)` on a
+     * local array was then rejected for outliving the frame that owns it, while the same borrow
+     * passed two levels deep into non-recursive callees was fine.
+     *
+     * So an analyzable function is seeded at the bottom instead of being left unready: nothing
+     * retained, no roots, result bounded by the frame. Every fact the fixpoint computes is a "may"
+     * fact and every rule deriving one is monotone, so climbing from here reaches the least fixpoint,
+     * which is the precise answer and still a sound one - the assumption a recursive call makes about
+     * itself is discharged by the same iteration that made it.
+     *
+     * `args` is sized here as well as in deriveSummary, because the readers treat an index past the
+     * end as conservative and a summary that is ready but empty would be the old answer wearing the
+     * new flag.
+     *
+     * Functions the resolver *generates* while drops are being inserted - a teardown's glue, a
+     * specialization of an instance method - are not seeded, because they do not exist yet. They stay
+     * unready, and a caller that reaches one before it has been analyzed still reads the conservative
+     * answer, which is what that phase has always done.
+     */
     for(auto module: program.modules) {
         for(auto pointer: module->functionOrder.contents(base)) {
             auto function = base[pointer];
-            if(ownershipApplies(*function)) continue;
 
-            function->summary.opaque = true;
-            function->summary.ready = true;
+            if(!ownershipApplies(*function)) {
+                function->summary.opaque = true;
+                function->summary.ready = true;
+                continue;
+            }
+
+            auto& summary = function->summary;
+            while(summary.args.size() < function->args.size()) {
+                summary.args.push(module->arena, ArgSummary());
+            }
+
+            // The declaration's half of an ArgSummary, which is a contract rather than a derived
+            // fact: seeding it as false and letting it climb would be right too, but a caller woken
+            // for a `return` marker that was knowable from the start is a visit spent on nothing.
+            U16 index = 0;
+            for(auto argPointer: function->args.contents(base)) {
+                auto arg = base[argPointer];
+                ArgSummary seeded;
+                seeded.returnRoot = arg->returnRoot;
+                if(arg->isMutableBorrow()) seeded.requirements.mutation = MutationDemand::Writable;
+
+                summary.args.set(base, index, seeded);
+                if(arg->returnRoot) summary.declaredRoots |= rootBit(index);
+
+                index++;
+            }
+
+            summary.ready = true;
         }
     }
 

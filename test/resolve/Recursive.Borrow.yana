@@ -1,0 +1,100 @@
+{-
+   A borrow handed into a recursive callee.
+
+   The check being exercised is checkEscapingViews - "this borrow of `xs` outlives the frame that
+   owns it" - and what was wrong was not the check but the summary it reads. `settleSummaries` climbs
+   a monotone system of "may" facts and `FunctionSummary::ready` describes the start of that climb as
+   "a callee that has not been visited contributes nothing", but the only reader is `summaryOf`,
+   which answered null for an unvisited callee exactly as it does for an opaque one - so an unvisited
+   callee contributed *everything* and the system started at the top of the lattice rather than the
+   bottom.
+
+   For a callee reached only from elsewhere that cost precision and was then taken back: the callee
+   is visited, its summary moves, and its callers are woken. A **recursive** one had nobody to take
+   it back. `quicksort`'s first visit read its own not-yet-ready summary, assumed the recursive call
+   kept `xs`, and derived `retained` from that assumption; the next visit read that derived answer
+   and re-derived it. A fixpoint, just not the least one - so the worklist stopped, and every caller
+   was told the slice escaped.
+
+   Which is why the same borrow two levels deep into *non-recursive* callees was always fine, and why
+   `sortDescending` below is here beside the sort rather than in a fixture of its own: mutual
+   recursion is the same cycle with more than one function on it, and a fix that only broke the
+   self-loop would leave it rejected.
+
+   The number is the assertion. A sort that ran is not something the IR shows - the goldens beside
+   this file would look the same for a body that never recursed - so what proves the borrow was
+   usable rather than merely accepted is reading the sorted elements back out.
+-}
+
+-- Two levels deep and nothing recursive, which was accepted before and after. Here as the control:
+-- it is the same `&[Int]` reaching the same write, differing only in the shape of the call graph.
+fn writeAt(&xs: [Int], at: Int, v: Int) -> {}:
+    xs[at] = v
+
+fn swapAt(&xs: [Int], a: Int, b: Int) -> {}:
+    let old = xs[a]
+    writeAt(xs, a, xs[b])
+    writeAt(xs, b, old)
+
+-- Lomuto, taking the borrow it was given straight back into itself.
+fn partition(&xs: [Int], lo: Int, hi: Int) -> Int:
+    let pivot = xs[hi]
+    let &cut = lo :: Int
+    let &i = lo :: Int
+
+    while i < hi:
+        if xs[i] <= pivot:
+            swapAt(xs, i, cut)
+            cut = cut + 1
+
+        i = i + 1
+
+    swapAt(xs, cut, hi)
+    return cut
+
+fn quicksort(&xs: [Int], lo: Int, hi: Int) -> {}:
+    if lo >= hi then return
+
+    let cut = partition(xs, lo, hi)
+    quicksort(xs, lo, cut - 1)
+    quicksort(xs, cut + 1, hi)
+
+-- The same borrow around a two-function cycle. Neither of these is self-recursive, so what has to
+-- settle is a loop through the call graph rather than a self-edge.
+fn reverseInto(&xs: [Int], lo: Int, hi: Int) -> {}:
+    if lo >= hi then return
+
+    swapAt(xs, lo, hi)
+    sortDescending(xs, lo + 1, hi - 1)
+
+fn sortDescending(&xs: [Int], lo: Int, hi: Int) -> {}:
+    if lo >= hi then return
+
+    reverseInto(xs, lo, hi)
+
+fn main() -> Int:
+    let &xs = [5, 3, 9, 1, 7, 2, 8]
+
+    -- The whole point: a local array, borrowed into a function that borrows it into itself. This
+    -- was "this borrow of xs outlives the frame that owns it".
+    quicksort(xs, 0, (length(xs) :: Int) - 1)
+
+    -- 1 2 3 5 7 8 9, checked at both ends and in the middle so that a partial sort is not read as a
+    -- whole one.
+    if xs[0] != 1 then return -1
+    if xs[3] != 5 then return -2
+    if xs[6] != 9 then return -3
+
+    -- And the same slice through the mutual cycle, which reverses the sorted order.
+    sortDescending(xs, 0, (length(xs) :: Int) - 1)
+    if xs[0] != 9 then return -4
+    if xs[6] != 1 then return -5
+
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+    while i < (length(xs) :: Int):
+        total = total + xs[i]
+        i = i + 1
+
+    -- 1 + 2 + 3 + 5 + 7 + 8 + 9 = 35
+    return total

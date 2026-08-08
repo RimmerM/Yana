@@ -114,31 +114,43 @@ pub fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> 
 {-
    The heap.
   
-   One mapped region, carved from the front: a table of free-list heads, then a bump area. An
-   allocation is a header word holding its size class followed by the payload the caller is given,
-   so every payload is 8-byte aligned and every block is a power of two at least 16 bytes.
-  
+   Mapped regions, carved from the front: a table of free-list heads at the base of the first, then
+   a bump area. An allocation is a header word holding its size class followed by the payload the
+   caller is given, so every payload is 8-byte aligned and every block is a power of two at least
+   16 bytes.
+
    Freeing threads the block onto the free list for its class, using the first 8 bytes of the
    payload as the next pointer - which is why a block is never smaller than 16 bytes, and why the
    header is not written again when the block is reused: it still says what it said.
-  
-   A single region and no unmapping is the whole of the policy. Design.md's runtime memory
-   reclamation is about *when* a value is released, which the compiler decides; this is only where
-   the bytes come from.
+
+   Bump, free lists per class, and no unmapping is the whole of the policy. The regions are not a
+   list and are never walked: nothing asks which one a block came from, because `freeHeap` reads the
+   class out of the block's own header and the free lists are shared across all of them. Design.md's
+   runtime memory reclamation is about *when* a value is released, which the compiler decides; this
+   is only where the bytes come from.
 -}
 
 {-
-   4 MiB of address space, and 32 size classes from 16 bytes up. The table is 256 bytes, so the bump
-   area starts there. An immutable `let` is a name for a constant and occupies nothing, so the first
-   two are the numbers themselves wherever they are read; the three `let &` are the static storage
-   the policy actually needs.
+   32 size classes from 16 bytes up, and as many regions of address space as a program turns out to
+   need. The first is 4 MiB; the table of free-list heads is 256 bytes at its base, so the bump area
+   starts there. An immutable `let` is a name for a constant and occupies nothing, so the first two
+   are the numbers themselves wherever they are read; the `let &` are the static storage the policy
+   actually needs.
 
-   All five are `pub` and everything below them until `allocateHeap` is not, which is the line this
+   All of them are `pub` and everything below them until `allocateHeap` is not, which is the line this
    module draws between its *state* and its *mechanism*. A program that wrote `import Native` may
    read where the bump pointer is - observing the allocator is a large part of what the unsafe module
    is for, and `Recursive.Reclaim.yana` is a test that does exactly that - while calling
    `setFreeListHead` by hand does not observe anything, it corrupts the free list. The first is a
    fact about the program and the second is an invariant nobody outside these forty lines can hold.
+
+   **One region used to be all there was**, and that made 4 MiB the whole heap a program could ever
+   have. It bit long before the number suggests, because a doubling container does not spend those
+   bytes once: growing to 2^k slots allocates every size class below it on the way, each freed to a
+   list that only ever hands blocks back at that same class, so the live array is the *last* block
+   and roughly as much again is dead behind it. `push` on an `[Int]` therefore stopped at 131072 -
+   the 1 MiB block that capacity fits in, plus ~1 MiB of abandoned smaller ones, leaving no room for
+   the 2 MiB the next doubling asked for.
 -}
 pub let heapRegionSize = 4194304 :: I64
 pub let heapClassCount = 32 :: I64
@@ -146,6 +158,11 @@ pub let heapClassCount = 32 :: I64
 pub let &heapNext = 0 :: %U8
 pub let &heapLimit = 0 :: %U8
 pub let &heapFree = 0 :: Ptr(Ptr(U8))
+
+-- How large the *next* region will be. Doubles as regions are taken, so a program that keeps growing
+-- pays a syscall per doubling rather than one per allocation, and a program that allocates a little
+-- never maps more than the first 4 MiB.
+pub let &heapRegionNext = 0 :: I64
 
 fn initHeap() -> {}:
     let region = mapMemory(heapRegionSize)
@@ -157,6 +174,46 @@ fn initHeap() -> {}:
     heapFree = cast(region) :: Ptr(Ptr(U8))
     heapNext = region + table
     heapLimit = region + heapRegionSize
+    heapRegionNext = heapRegionSize + heapRegionSize
+
+{-
+   A fresh region, at least large enough for `needed` bytes.
+
+   The bump area moves to it and the tail of the old one is abandoned, which is what a bump allocator
+   is: there is no list of regions to walk, because nothing ever asks which region a block came from
+   - `freeHeap` reads the size class out of the block's own header, and the free lists are keyed by
+   class and shared across every region. The abandoned tail is smaller than the block that did not
+   fit, and the next region is twice the size, so what is given up is bounded by what was asked for.
+
+   A request larger than the standing region size gets a region of its own size rather than being
+   refused, which is what keeps the cap on a single allocation the size *class* table's - 32 classes
+   from 16 bytes - rather than a number this policy happened to pick.
+
+   And a refusal of the *doubled* size is retried at what was actually asked for, which is the one
+   place the growth policy could otherwise turn into a failure of its own making: a program that has
+   already taken a gigabyte asks the kernel for two before it asks for the sixteen bytes it wanted,
+   and being told no to the first is not being told no to the second. The retry is skipped when the
+   two sizes are the same request, so an ordinary refusal still costs one syscall.
+-}
+fn growHeap(needed: I64) -> Bool:
+    let &size = heapRegionNext :: I64
+    if size < needed then size = needed
+
+    let &region = mapMemory(size) :: %U8
+
+    if isNull(region):
+        let least = if needed > heapRegionSize then needed else heapRegionSize
+        if least >= size then return False
+
+        size = least
+        region = mapMemory(size)
+        if isNull(region) then return False
+
+    heapNext = region
+    heapLimit = region + size
+    heapRegionNext = size + size
+
+    return True
 
 -- The size class of a request: the number of doublings from 16 bytes needed to hold it.
 fn heapClassOf(total: I64) -> I64:
@@ -174,8 +231,8 @@ fn heapBlockSize(sizeClass: I64) -> I64 = (16 :: I64) `shl` sizeClass
 fn freeListHead(sizeClass: I64) -> %U8 = *(heapFree + sizeClass)
 fn setFreeListHead(sizeClass: I64, block: %U8) -> {} = store(heapFree + sizeClass, block)
 
--- Allocates `size` bytes, 8-byte aligned, or null when the region is exhausted or the request is
--- larger than the largest size class.
+-- Allocates `size` bytes, 8-byte aligned, or null when the kernel refused more address space or the
+-- request is larger than the largest size class.
 pub fn allocateHeap(size: I64) -> %U8:
     if isNull(heapFree):
         initHeap()
@@ -190,10 +247,14 @@ pub fn allocateHeap(size: I64) -> %U8:
         setFreeListHead(sizeClass, *(cast(reused) :: Ptr(%U8)))
         return reused
 
-    let block = heapNext
     let blockSize = heapBlockSize(sizeClass)
-    if block + blockSize > heapLimit then return null()
 
+    -- Out of bump area rather than out of memory: another region is asked for, and only the kernel
+    -- saying no is a refusal. `heapNext` is re-read afterwards because growHeap moved it.
+    if heapNext + blockSize > heapLimit:
+        if !growHeap(blockSize) then return null()
+
+    let block = heapNext
     heapNext = block + blockSize
     store(cast(block) :: Ptr(I64), sizeClass)
 
