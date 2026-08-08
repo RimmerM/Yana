@@ -509,6 +509,16 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, inst));
     });
 
+    // The end of a block control never leaves. No operands, since there is nothing to return and
+    // nowhere to go - see LowerInstUnreachable.
+    instructionSet.add(Context::nameHash("unreachable"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 0);
+        assertOnlyTerminator();
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstUnreachable()));
+    });
+
     instructionSet.add(Context::nameHash("phi"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
 

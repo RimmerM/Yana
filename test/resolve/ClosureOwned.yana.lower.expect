@@ -303,25 +303,21 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
     %v_12 = sext %v_6: Long
     %v_13 = cast %v_6: Long
     %v_14 = cmp_ge %v_13, %v_1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    jmp b_4
-  }
-
-  b_15 {
-    %v_17 = syscall 60, 134: Long
-    jmp b_4
+    je %v_14, b_15, b_4
   }
 
   b_4 {
-    %v_18 = shl %v_12, 2: Long
-    %v_19 = add %xs$items, %v_18: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_5 = add %v_3, %v_20: Int
+    %v_16 = shl %v_12, 2: Long
+    %v_17 = add %xs$items, %v_16: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_5 = add %v_3, %v_18: Int
     %v_7 = add %v_6, 1: Int
     jmp b_2
+  }
+
+  b_15 {
+    %v_19 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

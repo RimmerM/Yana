@@ -86,7 +86,18 @@ struct LowerInst {
         Je = FirstTerminator,
         Jmp,
         Ret,
-        LastTerminator = Ret,
+
+        /*
+         * A block control never leaves the end of - the abort arm of a check, and nothing else
+         * today. See InstUnreachable in resolve/inst.h, which is where the fact is established.
+         *
+         * A terminator rather than a flag on the block, for the reason `Ret` is one: what every walk
+         * below here reads is the *edges*, and having none is the whole of what this says. It
+         * differs from a `Ret` in exactly one thing, which is what it cost to keep spelling it as
+         * one - a return has an epilogue and a `c3`, and this encodes to nothing at all.
+         */
+        Unreachable,
+        LastTerminator = Unreachable,
 
         Phi,
 
@@ -650,6 +661,18 @@ struct LowerInstRet: LowerInst {
 
     // LowerInst::usedValues contains the returned values list.
     // The list can be empty if the function returns nothing.
+};
+
+/*
+ * The end of a block nothing arrives at the end of.
+ *
+ * No operands and no successors, which is what makes every walk in the backend already correct about
+ * it: liveness ends here because nothing is live out of a block with no edges, and the frame is
+ * never restored because control does not leave. The x64 form encodes zero bytes - see FormNoReturn,
+ * which is the only form in the table that emits nothing and is allowed to.
+ */
+struct LowerInstUnreachable: LowerInst {
+    explicit LowerInstUnreachable(): LowerInst(Unreachable) {}
 };
 
 // SSA ϕ-node. Can only exist in the list of phi nodes of a block.

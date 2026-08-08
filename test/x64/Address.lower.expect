@@ -214,8 +214,8 @@ displacementOverflow<complex>(%p: Ptr): Int {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 
 --- codegen: displacement ---
 block #0:
@@ -299,7 +299,7 @@ block #1:
   add uses=[rdi, -] creates=[rdi]  => 4883c710
   store uses=[rdi, rsi] creates=[]  => 8937
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8cdffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e8caffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sharedIndex ---
@@ -350,7 +350,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
   load uses=[-] creates=[rbx]  => 8b1c17
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee899ffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 488bfee896ffffff
   add uses=[rbx, rax] creates=[rbx]  => 01c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 8bc35bc3
 
@@ -383,10 +383,10 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  je uses=[rdx] creates=[]  => 85d20f8503000000
+  je uses=[rdx] creates=[]  => 85d20f8506000000
 block miss:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block hit:
   x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
   load uses=[-] creates=[rax]  => 8b04b7

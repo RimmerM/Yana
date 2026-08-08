@@ -30,43 +30,6 @@ bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue
     return ((LowerImm*)left)->i == ((LowerImm*)right)->i;
 }
 
-/*
- * Whether an instruction may be answered from an earlier one.
- *
- * Every kind here computes a value out of its operands and does nothing else, so an earlier one that
- * dominates has already produced the same number. The list is written out rather than derived from a
- * range, because the ranges in lower_inst.h group instructions by *shape* - `isBinary` includes the
- * comparison, and `FirstUnary` starts at `Set` - and what is being asked here is a different
- * question that happens to have a similar answer.
- *
- * The four dividing operations are in it, and that is worth stating because they can trap. The
- * machine raises on a zero divisor and on `INT_MIN / -1`, and removing the *second* of two identical
- * divisions removes no trap: the first dominates it, so the fault has already happened by the time
- * control could reach the one being removed.
- *
- * `Imm`, `Global` and `Fun` are not here - see lower_cse.h, where the reason is the same for all
- * three and is about what the backend does with a value that has two readers rather than one.
- */
-bool isRepeatable(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Set:
-        case LowerInst::Cast:  case LowerInst::Bitcast:
-        case LowerInst::Neg:   case LowerInst::Not:
-        case LowerInst::Add:   case LowerInst::Sub:
-        case LowerInst::Mul:   case LowerInst::IMul:
-        case LowerInst::Div:   case LowerInst::IDiv:
-        case LowerInst::Rem:   case LowerInst::IRem:
-        case LowerInst::MulHi: case LowerInst::IMulHi:
-        case LowerInst::Shl:   case LowerInst::Shr: case LowerInst::Sar:
-        case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
-        case LowerInst::Cmp:
-        case LowerInst::Select:
-            return true;
-        default:
-            return false;
-    }
-}
-
 // Commutative in the sense this pass needs: the operands may be compared as a pair rather than in
 // order. A comparison is not one of these - swapping its operands is a different comparison unless
 // the test is swapped with them, and there is nothing here to swap it against.
@@ -330,53 +293,6 @@ struct Eliminator {
         retired = retiredScope;
     }
 };
-
-/*
- * The computations nothing reads any more.
- *
- * A replacement moves the readers of one value onto another, which can leave the *operands* of what
- * it replaced with nothing reading them: `%a = add x, y` feeding only a `%b = mul %a, z` that has
- * just been answered from an earlier one is dead the moment `%b` goes. The chain usually collapses
- * on its own, because the walk meets an operand before its consumer and answers it first, but only
- * where the operand was itself redundant.
- *
- * Only the kinds this pass is entitled to remove, which is the same list it is entitled to repeat -
- * so this stays a sweep after an elimination rather than a dead-code pass with an opinion about
- * calls, loads and stores. `removeDeadConstants` in lower_fold.h takes the immediates afterwards,
- * for the same reason and with the same restraint.
- */
-void removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
-    auto changed = true;
-
-    while(changed) {
-        changed = false;
-
-        for(auto blockPtr: fun.blocks.contents(base)) {
-            auto block = base[blockPtr];
-
-            SmallArray<LowerPtr<LowerInst>, 32> kept;
-            auto dropped = false;
-
-            for(auto instPtr: block->instructions.contents(base)) {
-                auto inst = base[instPtr];
-
-                if(isRepeatable(inst) && ((LowerInstSingle*)inst)->created().ptr->uses.isEmpty()) {
-                    detach(base, inst);
-                    dropped = true;
-                    continue;
-                }
-
-                kept.push(instPtr);
-            }
-
-            if(!dropped) continue;
-
-            block->instructions.clear();
-            for(auto instPtr: kept) block->instructions.push(arena, instPtr);
-            changed = true;
-        }
-    }
-}
 
 } // namespace
 

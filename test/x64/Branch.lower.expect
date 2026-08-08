@@ -102,37 +102,39 @@ wideBranch<complex>(%v: Long, %w: Long): Long {
 
 
 --- codegen: branch ---
+  prologue  => 4157
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
   imm uses=[] creates=[-]  => 
   cmp_le uses=[rax, -] creates=[-]  => 85c0
-  je uses=[-] creates=[]  => 0f860c000000
+  je uses=[-] creates=[]  => 0f860e000000
 block b:
-  imm uses=[] creates=[rcx]  => b902000000
-  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  imm uses=[] creates=[remat:0]  => 
+  mul uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 41bf0200000041f7e7
   jmp uses=[] creates=[]  => e902000000
 block a:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 8bd6c3
+  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 8bd6415fc3
 
 --- codegen: flagWindow ---
+  prologue  => 4157
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcfffc1
-  imm uses=[] creates=[r8]  => 41b803000000
-  mul uses=[rax, r8] creates=[rax] pre=[rsi->rax]  => 8bc641f7e0
+  imm uses=[] creates=[remat:0]  => 
+  mul uses=[rax, r15] creates=[rax] pre=[rsi->rax, remat:0->r15]  => 8bc641bf0300000041f7e7
   cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
-  je uses=[-] creates=[]  => 0f8c01000000
+  je uses=[-] creates=[]  => 0f8c03000000
 block b:
-  ret uses=[rax] creates=[]  => c3
+  ret uses=[rax] creates=[]  => 415fc3
 block a:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1415fc3
 
 --- codegen: flagWindowLoad ---
 block #0:

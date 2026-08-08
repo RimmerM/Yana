@@ -430,26 +430,22 @@ push(Int)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    jmp b_12
+    %v_12 = load %self, 8: Ptr
+    %v_13 = sext %count: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = add %v_12, %v_14: Ptr
+    store %v_15, %item, 4
+    %v_16 = cast %v_3: Int
+    %v_17 = and %v_16, 1073741823: Int
+    %v_18 = cast %v_17: Int
+    %v_19 = add %self, 12: Ptr
+    store %v_19, %v_18, 4
+    ret 
   }
 
   b_10 {
-    %v_13 = syscall 60, 134: Long
-    jmp b_12
-  }
-
-  b_12 {
-    %v_14 = load %self, 8: Ptr
-    %v_15 = sext %count: Long
-    %v_16 = shl %v_15, 2: Long
-    %v_17 = add %v_14, %v_16: Ptr
-    store %v_17, %item, 4
-    %v_18 = cast %v_3: Int
-    %v_19 = and %v_18, 1073741823: Int
-    %v_20 = cast %v_19: Int
-    %v_21 = add %self, 12: Ptr
-    store %v_21, %v_20, 4
-    ret 
+    %v_20 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -577,30 +573,24 @@ grown<complex>(): Int {
     %v_12 = load %v_11, 4: Int
     %v_13 = cast %v_12: Int
     %v_14 = cast %v_13: Long
-    %v_15 = cmp_ge 0, %v_14: Int
+    %v_15 = cmp_eq %v_14, 0: Int
     je %v_15, b_16, b_17
   }
 
   b_17 {
-    jmp b_18
+    %v_18 = load %v_1, 8: Ptr
+    %v_19 = loads %v_18, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_20 = cast %v_13: Long
+    %v_21 = sext %v_19: Long
+    %v_22 = add %v_21, %v_20: Long
+    %v_23 = cast %v_22: Int
+    ret %v_23
   }
 
   b_16 {
-    %v_19 = syscall 60, 134: Long
-    jmp b_18
-  }
-
-  b_18 {
-    %v_20 = load %v_1, 8: Ptr
-    %v_21 = loads %v_20, 4: Int
-    %v_22 = load %v_11, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_23 = cast %v_22: Int
-    %v_24 = cast %v_23: Long
-    %v_25 = sext %v_21: Long
-    %v_26 = add %v_25, %v_24: Long
-    %v_27 = cast %v_26: Int
-    ret %v_27
+    %v_24 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

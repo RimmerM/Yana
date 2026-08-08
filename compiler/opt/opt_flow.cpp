@@ -312,35 +312,83 @@ static bool callKeepsStorage(OptContext& opt, Value& instruction, ModulePtr<Valu
 }
 
 /*
+ * Whether a borrow of a local is an address that outlives the instruction that received it.
+ *
+ * The same question `callKeepsStorage` answers about a whole record handed on as an argument, asked
+ * one level deeper: `borrow_mut %out` followed by `call push, %v25` is the address of a local
+ * reaching a callee, and if the callee retains nothing then no address of that local exists anywhere
+ * outside the call. Which is exactly the fact `computeContainment` reports.
+ *
+ * Every reader of the borrow has to be such a call, and "reader" is the whole use list rather than
+ * the argument positions - a borrow stored into a record, returned, merged by a phi or handed to a
+ * `CallDyn` is one whose address the frame now holds, and each of those is a use.
+ *
+ * **A borrow used as a place root is refused, and that is not a conservatism.** A read or a write
+ * through the borrow is an access to the local's own storage, and the two passes that read
+ * containment for pointer disambiguation - `mayAlias` in opt_loop.cpp and `surveyCandidate` in
+ * opt_promote.cpp - answer such a place against a local-rooted one by saying they cannot meet. That
+ * answer is true only while no borrow-rooted place in the function names this local, which is what
+ * this refuses to admit. What is admitted is the borrow whose only life is the call it was taken for.
+ */
+static bool borrowEndsAtItsCalls(OptContext& opt, ModulePtr<Inst> pointer) {
+    auto borrow = (ModulePtr<Value>)pointer;
+
+    for(auto user: opt.local[borrow]->uses(opt.local)) {
+        auto& reader = *opt.local[user];
+
+        switch(reader.kind) {
+            case Value::Call:
+            case Value::GenCall:
+                if(callKeepsStorage(opt, reader, borrow)) return false;
+                break;
+            default:
+                return false;
+        }
+    }
+
+    return true;
+}
+
+/*
  * Which locals a callee could not reach *for longer than one instruction*.
  *
  * The use list answers this almost exactly, for the reason opt_scalar.cpp gives at greater length:
  * every instruction naming a place rooted in a local is recorded as a user of that local's `Alloc`,
  * so a local whose users are all reads and writes *of its own place* has had its address handed to
- * nothing. It was not borrowed, it was not pointed at and it was not captured, because each of those
- * is an instruction and each would be in the list.
+ * nothing. It was not pointed at and it was not captured, because each of those is an instruction
+ * and each would be in the list.
  *
- * Everything not admitted below declines. `Borrow` and `Address` hand out the address that is the
- * whole question; `Drop` runs a teardown that receives one; `Move`, `Swap` and `Exchange` are
- * ownership transfers the analyses already decided and not something to reason about the storage of
- * here.
+ * Everything not admitted below declines. `Address` hands out the address that is the whole
+ * question; `Drop` runs a teardown that receives one; `Move`, `Swap` and `Exchange` are ownership
+ * transfers the analyses already decided and not something to reason about the storage of here.
  *
  * The alloc appearing as an *operand* rather than as a place root is the whole-aggregate read a call
  * argument is - `call g, %v2` hands the record itself on. opt_arg.cpp found the same case from the
  * other side, and it used to be the one way a local on the list above still escaped.
  *
  * **A call argument is exposure with an end to it**, which is the one thing this is not
- * flow-insensitive about. A borrow escapes for the rest of the frame because the address is a value
- * the function now holds; an unretained argument is reachable only while the callee runs, so it is
+ * flow-insensitive about. An unretained argument is reachable only while the callee runs, so it is
  * admitted here and the *call* forgets what it may have written instead - see `forgetExposed`'s
  * caller in opt_place.cpp and `scanEffects` in opt_loop.cpp, which are the two readers and both have
  * to do it. Without that split a record handed to `==` once was un-forwardable everywhere in the
  * function, including at instructions in front of the call: Default.yana built `Flags {read: True,
  * write: True}` and then branched on a load of the field it had just written.
  *
- * Otherwise flow-insensitive on purpose: a local borrowed anywhere is treated as reachable
- * everywhere, which costs the forwarding before the borrow and needs no reasoning about where a loan
- * ends.
+ * **And a borrow taken for a call is the same statement one level deeper** - see
+ * `borrowEndsAtItsCalls`, which is where the rule and its one refusal live. This is the half that
+ * reaches ordinary container code: `push(out, 0)` is a `borrow_mut` of a local, and without it every
+ * loop that both writes through a container's elements and reads its header reloaded the header
+ * every iteration, because the local a `Borrow` named was exposed for the rest of the frame.
+ *
+ * It costs two more readers than the argument case did, and the reason is the asymmetry
+ * `eachAddressedLocal` states: a by-value argument is a binding the callee cannot assign, an address
+ * is not. So `eliminateCommonValues` and `promotePlaces` - which forward across a by-value argument
+ * on purpose - have to end their facts at a call that was handed an address, and the second declines
+ * such a local outright because what it builds is a value per block rather than a scope to forget in.
+ *
+ * Otherwise flow-insensitive on purpose: a local whose address is held by a *value* - anything
+ * `Address` produced, or a borrow that outlives its call - is treated as reachable everywhere, which
+ * costs the forwarding before that instruction and needs no reasoning about where a loan ends.
  */
 void computeContainment(OptContext& opt, IndexSet& contained) {
     contained.reset(opt.function->localCount());
@@ -376,6 +424,15 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
                     case Value::GenCall:
                         handedOver = true;
                         ok = !callKeepsStorage(opt, instruction, slot.value);
+                        break;
+
+                    // The address of the storage, which is the same statement when every reader of
+                    // that address is such a call - see `borrowEndsAtItsCalls`. The borrow itself is
+                    // not an operand of anything here, so there is nothing for the test below to
+                    // add: what it hands out is its own result.
+                    case Value::Borrow:
+                        handedOver = true;
+                        ok = borrowEndsAtItsCalls(opt, user);
                         break;
 
                     default:

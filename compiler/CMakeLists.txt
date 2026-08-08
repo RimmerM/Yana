@@ -161,6 +161,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_fold.cpp
     opt/opt_inline.cpp
     opt/opt_loop.cpp
+    opt/opt_range.cpp
     opt/opt_pack.cpp
     opt/opt_place.cpp
     opt/opt_promote.cpp
@@ -195,6 +196,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_promote.cpp
     lower/lower_cse.h
     lower/lower_cse.cpp
+    lower/lower_licm.h
+    lower/lower_licm.cpp
     lower/lower_strength.h
     lower/lower_strength.cpp
     lower/lower_induction.h

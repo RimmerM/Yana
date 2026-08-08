@@ -352,6 +352,146 @@ Folded foldBooleanValue(LowerBase base, LowerInst* inst) {
     return identity ? Folded::forward(boolean) : Folded::nothing();
 }
 
+// The same relation with its operands the other way round, for a comparison written with its
+// constant on the left. `a < b` is `b > a`; the equalities read the same either way. Sound here
+// because every comparison this file looks at is over integers - the exchange is the one the float
+// ordering in the x64 transform has to be careful about, and no float reaches this.
+LowerCmp swappedCmp(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::gt:  return LowerCmp::lt;
+        case LowerCmp::ge:  return LowerCmp::le;
+        case LowerCmp::lt:  return LowerCmp::gt;
+        case LowerCmp::le:  return LowerCmp::ge;
+        case LowerCmp::igt: return LowerCmp::ilt;
+        case LowerCmp::ige: return LowerCmp::ile;
+        case LowerCmp::ilt: return LowerCmp::igt;
+        case LowerCmp::ile: return LowerCmp::ige;
+        default: return cmp;
+    }
+}
+
+// What a comparison against a constant is rewritten into: the same relation over a different operand
+// and a different immediate. Only ever `eq` or `neq`, because narrowing is the whole point.
+struct Narrowed {
+    LowerValue* value;
+    U64 constant;
+    LowerCmp cmp;
+};
+
+/*
+ * A range test spelled as a subtraction and an unsigned comparison.
+ *
+ * Two rewrites, and as with the pair above they are worth much more together than apart. A niche
+ * `Maybe` reaches here as the four instructions §10.1 left three of:
+ *
+ *   %a = sub %x, 1
+ *   %b = cmp_le %a, 18446744073709551614      ; that is, `all - 1`
+ *
+ * which the x64 selector emits as `dec` and a `cmp` against a 64-bit immediate - so a `movabs` for
+ * the constant as well. What it means is `x != 0`, which is `test %rax,%rax`.
+ *
+ *   an unsigned ordering whose true or false set holds one value   is  that equality
+ *   `cmp_eq (sub %x, C), K`                                        is  `cmp_eq %x, K + C`
+ *
+ * The first is what turns the ordering into an equality; the second is what then lets the subtraction
+ * go. Neither alone removes an instruction, which is why they are one function and why the pass loop
+ * around it has to be able to apply the second to the first's result.
+ *
+ * The second is gated on the subtraction having exactly one reader. Where it has more it stays, and
+ * moving the comparison off it would only lengthen the live range of what it reads - the rewrite is
+ * an unqualified win precisely when it is what makes the arithmetic dead.
+ *
+ * The ends of a range - `x <=u all`, which is always true, and `x <u 0`, which is never - are
+ * deliberately not answered here. They are a constant rather than a comparison, so they belong to
+ * `Folded`, and nothing in this compiler emits one.
+ */
+bool narrowComparison(LowerBase base, LowerInst* inst, Narrowed& into) {
+    if(inst->kind != LowerInst::Cmp) return false;
+
+    auto compare = (LowerInstCmp*)inst;
+    auto lhs = base[compare->lhs];
+    auto rhs = base[compare->rhs];
+
+    // Both sides the same integer type: a comparison of pointers reaches here as a `bitcast` and its
+    // operands, and a float comparison is not one of these shapes at all.
+    if(lhs->type != rhs->type || !isInt(lhs->type)) return false;
+
+    auto cmp = compare->getCmp();
+    LowerValue* value;
+    U64 constant, other;
+
+    if(!lowerConstantOf(base, rhs, constant)) {
+        if(!lowerConstantOf(base, lhs, constant)) return false;
+
+        value = rhs;
+        cmp = swappedCmp(cmp);
+    } else if(lowerConstantOf(base, lhs, other)) {
+        // Both constant. Not this function's business, and answering it would be a rewrite that is
+        // not a fixpoint - the loop below runs until nothing changes.
+        return false;
+    } else {
+        value = lhs;
+    }
+
+    auto all = maskOf(widthOf(value->type));
+
+    /*
+     * The ordering, where one side of it admits a single value. Four relations and two ends each:
+     * `<u k` is [0, k-1] and `>=u k` is its complement, so the interesting constants are the ones
+     * that leave one number on one side or the other.
+     */
+    switch(cmp) {
+        case LowerCmp::lt:
+            if(constant == 1) { into = { value, 0, LowerCmp::eq }; return true; }
+            if(constant == all) { into = { value, all, LowerCmp::neq }; return true; }
+            break;
+
+        case LowerCmp::le:
+            if(constant == 0) { into = { value, 0, LowerCmp::eq }; return true; }
+            if(constant == all - 1) { into = { value, all, LowerCmp::neq }; return true; }
+            break;
+
+        case LowerCmp::gt:
+            if(constant == all - 1) { into = { value, all, LowerCmp::eq }; return true; }
+            if(constant == 0) { into = { value, 0, LowerCmp::neq }; return true; }
+            break;
+
+        case LowerCmp::ge:
+            if(constant == all) { into = { value, all, LowerCmp::eq }; return true; }
+            if(constant == 1) { into = { value, 0, LowerCmp::neq }; return true; }
+            break;
+
+        default:
+            break;
+    }
+
+    if(cmp != LowerCmp::eq && cmp != LowerCmp::neq) return false;
+
+    /*
+     * The equality, over a value that is itself a constant away from another one. Adding a constant
+     * is a bijection on the machine's integers, so the wrapping needs no guard - the two sides move
+     * together whatever they wrap through, which is why this holds where the ordering above would
+     * not.
+     */
+    auto source = value->inst();
+    if(source->kind != LowerInst::Add && source->kind != LowerInst::Sub) return false;
+    if(((LowerInstSingle*)source)->result.uses.size() != 1) return false;
+
+    auto binary = (LowerInstBinary*)source;
+    auto from = base[binary->lhs];
+
+    // Declines the pointer forms of both, which answer a different type than they read: `ptr - ptr`
+    // is a distance, and there is no constant to move across it.
+    if(from->type != value->type || !isInt(from->type)) return false;
+
+    U64 offset;
+    if(!lowerConstantOf(base, base[binary->rhs], offset)) return false;
+
+    auto adjusted = source->kind == LowerInst::Sub ? constant + offset : constant - offset;
+    into = { from, adjusted & all, cmp };
+    return true;
+}
+
 // What an instruction that is already in a block comes to, for the pass below. One switch over the
 // three shapes the folds above cover; everything else answers nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
@@ -437,6 +577,37 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
 
             for(auto instPtr: block->instructions.contents(base)) {
                 auto inst = base[instPtr];
+
+                /*
+                 * A comparison narrowed in place, before it is asked what it comes to. In place
+                 * because the answer is another comparison rather than a constant or an operand
+                 * already standing there, which is all `Folded` may say - and the result value is
+                 * the same one, so every reader of it stays pointed at the right thing.
+                 *
+                 * The immediate it now reads is a new one placed immediately above it; the one it
+                 * stopped reading is left to `removeDeadConstants` at the end of the pipeline, which
+                 * is where every other rewrite here leaves its orphaned literals too.
+                 *
+                 * The addition or subtraction the second rewrite takes the comparison off is what
+                 * `removeDeadValues` below is for, and it is the reason this pass needs one at all:
+                 * every other rewrite here replaces the instruction it folded, so this is the only
+                 * one that can leave a computation standing with nothing reading it.
+                 */
+                Narrowed narrowed;
+                if(narrowComparison(base, inst, narrowed)) {
+                    auto compare = (LowerInstCmp*)inst;
+                    auto imm = new (module.arena) LowerImm(StringId(), narrowed.value->type,
+                                                          narrowed.constant);
+                    imm->block = blockPtr;
+                    imm->source = inst->source;
+                    kept.push(imm - base);
+
+                    setOperand(base, module.arena, inst, compare->lhs, narrowed.value);
+                    setOperand(base, module.arena, inst, compare->rhs, &imm->result);
+                    compare->setCmp(narrowed.cmp);
+                    rewrote = true;
+                }
+
                 auto folded = foldInstruction(base, inst);
 
                 if(folded.kind == Folded::None) {
@@ -472,7 +643,68 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
             for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
             changed = true;
         }
+
+        // Inside the round rather than after it, and unconditionally: what the narrowing above
+        // orphans is in whichever block defined it, which this round may already have walked past.
+        if(removeDeadValues(base, module.arena, fun)) changed = true;
     }
+}
+
+bool isRepeatable(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Set:
+        case LowerInst::Cast:  case LowerInst::Bitcast:
+        case LowerInst::Neg:   case LowerInst::Not:
+        case LowerInst::Add:   case LowerInst::Sub:
+        case LowerInst::Mul:   case LowerInst::IMul:
+        case LowerInst::Div:   case LowerInst::IDiv:
+        case LowerInst::Rem:   case LowerInst::IRem:
+        case LowerInst::MulHi: case LowerInst::IMulHi:
+        case LowerInst::Shl:   case LowerInst::Shr: case LowerInst::Sar:
+        case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
+        case LowerInst::Cmp:
+        case LowerInst::Select:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
+    auto changed = true;
+    auto dropped = false;
+
+    while(changed) {
+        changed = false;
+
+        for(auto blockPtr: fun.blocks.contents(base)) {
+            auto block = base[blockPtr];
+
+            SmallArray<LowerPtr<LowerInst>, 32> kept;
+            auto rewrote = false;
+
+            for(auto instPtr: block->instructions.contents(base)) {
+                auto inst = base[instPtr];
+
+                if(isRepeatable(inst) && ((LowerInstSingle*)inst)->created().ptr->uses.isEmpty()) {
+                    detach(base, inst);
+                    rewrote = true;
+                    continue;
+                }
+
+                kept.push(instPtr);
+            }
+
+            if(!rewrote) continue;
+
+            block->instructions.clear();
+            for(auto instPtr: kept) block->instructions.push(arena, instPtr);
+            changed = true;
+            dropped = true;
+        }
+    }
+
+    return dropped;
 }
 
 void removeDeadConstants(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {

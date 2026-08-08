@@ -116,6 +116,13 @@ static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
     }
 
     if(context.settings.printIr) {
+        // `lowerProgram` runs the optimizer over `program` in place, so this is the resolve IR the
+        // lowering below it actually read - which is a different program from the `.ir` written at
+        // the end of resolution, and the one to read when a question is about a pass in `opt/`.
+        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".opt.ir"_v), [&](Net::Writer& writer) {
+            printProgram(writer, context, program);
+        });
+
         writeText(context, joinPath(context.settings.outputDir, "program"_v, ".lower"_v), [&](Net::Writer& writer) {
             printModule(writer, context, *lowered->arena, *lowered);
         });

@@ -95,6 +95,9 @@ enum : MachineOpcodeId {
     OpJcc,
     OpRet,
 
+    // The end of a block control never leaves - see FormNoReturn, which encodes to zero bytes.
+    OpNoReturn,
+
     kDescribedOpcodeCount,
 };
 
@@ -393,6 +396,11 @@ enum class PseudoKind: U8 {
     CallIndirect,
     Syscall,
     Return,
+
+    // Emits nothing. The block it ends has no successors and is never fallen out of, so there is
+    // neither an epilogue to run nor a `ret` to run it before.
+    NoReturn,
+
     Jump,
     Branch,
     AllocaFixed,

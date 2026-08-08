@@ -336,124 +336,123 @@ main<complex>(): Int {
     %v_79 = add %v_78, 12: Ptr
     %v_80 = load %v_79, 4: Int
     %units = cast %v_80: Int
-    %v_81 = add %units, 15: Int
-    %v_82 = cmp_eq %v_81, 21: Int
-    je %v_82, b_83, b_84
+    %v_81 = cmp_eq %units, 6: Int
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    %v_84 = add %v_77, 4096: Int
+    jmp b_83
   }
 
   b_83 {
-    %v_85 = add %v_77, 4096: Int
-    jmp b_84
+    %v_85 = phi [b_75, %v_77], [b_82, %v_84]: Int
+    %v_86 = load @flags, 2: Int
+    %v_87 = and %v_86, 15: Int
+    %v_88 = cast %v_87: Int
+    %v_89 = shr %v_86, 4: Int
+    %v_90 = and %v_89, 15: Int
+    %v_91 = cast %v_90: Int
+    %v_92 = shl %v_91, 4: Int
+    %bits = add %v_88, %v_92: Int
+    %v_93 = shr %v_86, 8: Int
+    %v_94 = and %v_93, 1: Int
+    %v_95 = cast %v_94: Int
+    %v_96 = add %bits, 256: Int
+    %v_97 = select %v_96, %bits, %v_95: Int
+    %v_98 = cmp_eq %v_97, 405: Int
+    je %v_98, b_99, b_100
   }
 
-  b_84 {
-    %v_86 = phi [b_75, %v_77], [b_83, %v_85]: Int
-    %v_87 = load @flags, 2: Int
-    %v_88 = and %v_87, 15: Int
-    %v_89 = cast %v_88: Int
-    %v_90 = shr %v_87, 4: Int
-    %v_91 = and %v_90, 15: Int
-    %v_92 = cast %v_91: Int
-    %v_93 = shl %v_92, 4: Int
-    %bits = add %v_89, %v_93: Int
-    %v_94 = shr %v_87, 8: Int
-    %v_95 = and %v_94, 1: Int
-    %v_96 = cast %v_95: Int
-    %v_97 = add %bits, 256: Int
-    %v_98 = select %v_97, %bits, %v_96: Int
-    %v_99 = cmp_eq %v_98, 405: Int
-    je %v_99, b_100, b_101
+  b_99 {
+    %v_101 = add %v_85, 8192: Int
+    jmp b_100
   }
 
   b_100 {
-    %v_102 = add %v_86, 8192: Int
-    jmp b_101
+    %v_102 = phi [b_83, %v_85], [b_99, %v_101]: Int
+    %v_103 = call_complex boxedValue, @packed: Int
+    %v_104 = call_complex boxedValue, @wrapped: Int
+    %v_105 = add %v_103, %v_104: Int
+    %v_106 = cmp_eq %v_105, 139: Int
+    je %v_106, b_107, b_108
   }
 
-  b_101 {
-    %v_103 = phi [b_84, %v_86], [b_100, %v_102]: Int
-    %v_104 = call_complex boxedValue, @packed: Int
-    %v_105 = call_complex boxedValue, @wrapped: Int
-    %v_106 = add %v_104, %v_105: Int
-    %v_107 = cmp_eq %v_106, 139: Int
-    je %v_107, b_108, b_109
+  b_107 {
+    %v_109 = add %v_102, 65536: Int
+    jmp b_108
   }
 
   b_108 {
-    %v_110 = add %v_103, 65536: Int
-    jmp b_109
-  }
-
-  b_109 {
-    %v_111 = phi [b_101, %v_103], [b_108, %v_110]: Int
+    %v_110 = phi [b_100, %v_102], [b_107, %v_109]: Int
     %s = alloca 44, 8: Ptr
-    %v_112 = alloca 8, 4: Ptr
-    store %v_112, 2, 4
-    %v_113 = add %v_112, 4: Ptr
-    store %v_113, 3, 4
-    %v_114 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_114, @string$2, 2
-    %v_115 = alloca 12, 4: Ptr
-    store %v_115, 1, 4
-    %v_116 = add %v_115, 4: Ptr
-    store %v_116, 2, 4
-    %v_117 = add %v_115, 8: Ptr
-    store %v_117, 5, 4
-    %v_118 = alloca 8, 4: Ptr
-    store %v_118, 1, 4
-    %v_119 = add %v_118, 4: Ptr
-    store %v_119, 4, 4
-    %v_120 = add %s, 28: Ptr
-    copy %v_120, %v_112, 8
-    copy %s, %v_114, 16
-    %v_121 = add %s, 16: Ptr
-    copy %v_121, %v_115, 12
-    %v_122 = add %s, 36: Ptr
-    copy %v_122, %v_118, 8
-    %p$x = loads %v_120, 4: Int
-    %v_123 = add %s, 32: Ptr
-    %p$y = loads %v_123, 4: Int
-    %v_124 = add %p$x, %p$y: Int
-    %v_125 = bitcast %s: Ptr
-    %v_126 = add %v_125, 12: Ptr
-    %v_127 = load %v_126, 4: Int
-    %units = cast %v_127: Int
-    %v_128 = add %v_124, %units: Int
-    %v_129 = call_complex area, %v_115: Int
-    %v_130 = add %v_128, %v_129: Int
-    %v_131 = add %s, 36: Ptr
-    %v_132 = loads %v_131, 4: Int
-    %v_133 = cmp_eq %v_132, 1: Int
-    je %v_133, b_134, b_135
-  }
-
-  b_135 {
-    jmp b_136
+    %v_111 = alloca 8, 4: Ptr
+    store %v_111, 2, 4
+    %v_112 = add %v_111, 4: Ptr
+    store %v_112, 3, 4
+    %v_113 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_113, @string$2, 2
+    %v_114 = alloca 12, 4: Ptr
+    store %v_114, 1, 4
+    %v_115 = add %v_114, 4: Ptr
+    store %v_115, 2, 4
+    %v_116 = add %v_114, 8: Ptr
+    store %v_116, 5, 4
+    %v_117 = alloca 8, 4: Ptr
+    store %v_117, 1, 4
+    %v_118 = add %v_117, 4: Ptr
+    store %v_118, 4, 4
+    %v_119 = add %s, 28: Ptr
+    copy %v_119, %v_111, 8
+    copy %s, %v_113, 16
+    %v_120 = add %s, 16: Ptr
+    copy %v_120, %v_114, 12
+    %v_121 = add %s, 36: Ptr
+    copy %v_121, %v_117, 8
+    %p$x = loads %v_119, 4: Int
+    %v_122 = add %s, 32: Ptr
+    %p$y = loads %v_122, 4: Int
+    %v_123 = add %p$x, %p$y: Int
+    %v_124 = bitcast %s: Ptr
+    %v_125 = add %v_124, 12: Ptr
+    %v_126 = load %v_125, 4: Int
+    %units = cast %v_126: Int
+    %v_127 = add %v_123, %units: Int
+    %v_128 = call_complex area, %v_114: Int
+    %v_129 = add %v_127, %v_128: Int
+    %v_130 = add %s, 36: Ptr
+    %v_131 = loads %v_130, 4: Int
+    %v_132 = cmp_eq %v_131, 1: Int
+    je %v_132, b_133, b_134
   }
 
   b_134 {
-    %v_137 = add %s, 40: Ptr
-    %v = loads %v_137, 4: Int
-    jmp b_136
+    jmp b_135
   }
 
-  b_136 {
-    %v_138 = phi [b_134, %v], [b_135, 0]: Int
+  b_133 {
+    %v_136 = add %s, 40: Ptr
+    %v = loads %v_136, 4: Int
+    jmp b_135
+  }
+
+  b_135 {
+    %v_137 = phi [b_133, %v], [b_134, 0]: Int
     call_complex Reclaim(String).reclaim, %s
-    %defaults = add %v_130, %v_138: Int
-    %v_139 = cmp_eq %defaults, 21: Int
-    je %v_139, b_140, b_141
+    %defaults = add %v_129, %v_137: Int
+    %v_138 = cmp_eq %defaults, 21: Int
+    je %v_138, b_139, b_140
+  }
+
+  b_139 {
+    %v_141 = add %v_110, 16384: Int
+    jmp b_140
   }
 
   b_140 {
-    %v_142 = add %v_111, 16384: Int
-    jmp b_141
-  }
-
-  b_141 {
-    %v_143 = phi [b_136, %v_111], [b_140, %v_142]: Int
-    %v_144 = add %v_143, 32768: Int
-    ret %v_144
+    %v_142 = phi [b_135, %v_110], [b_139, %v_141]: Int
+    %v_143 = add %v_142, 32768: Int
+    ret %v_143
   }
 }
 

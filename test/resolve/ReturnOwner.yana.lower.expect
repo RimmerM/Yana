@@ -437,26 +437,22 @@ push(Int)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    jmp b_12
+    %v_12 = load %self, 8: Ptr
+    %v_13 = sext %count: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = add %v_12, %v_14: Ptr
+    store %v_15, %item, 4
+    %v_16 = cast %v_3: Int
+    %v_17 = and %v_16, 1073741823: Int
+    %v_18 = cast %v_17: Int
+    %v_19 = add %self, 12: Ptr
+    store %v_19, %v_18, 4
+    ret 
   }
 
   b_10 {
-    %v_13 = syscall 60, 134: Long
-    jmp b_12
-  }
-
-  b_12 {
-    %v_14 = load %self, 8: Ptr
-    %v_15 = sext %count: Long
-    %v_16 = shl %v_15, 2: Long
-    %v_17 = add %v_14, %v_16: Ptr
-    store %v_17, %item, 4
-    %v_18 = cast %v_3: Int
-    %v_19 = and %v_18, 1073741823: Int
-    %v_20 = cast %v_19: Int
-    %v_21 = add %self, 12: Ptr
-    store %v_21, %v_20, 4
-    ret 
+    %v_20 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -568,25 +564,21 @@ collect<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
     %v_16 = sext %v_9: Long
     %v_17 = cast %v_9: Long
     %v_18 = cmp_ge %v_17, %v_7: Int
-    je %v_18, b_19, b_20
-  }
-
-  b_20 {
-    jmp b_10
-  }
-
-  b_19 {
-    %v_21 = syscall 60, 134: Long
-    jmp b_10
+    je %v_18, b_19, b_10
   }
 
   b_10 {
-    %v_22 = shl %v_16, 2: Long
-    %v_23 = add %xs$items, %v_22: Ptr
-    %v_24 = loads %v_23, 4: Int
-    call_complex push(Int), %out, %v_24
+    %v_20 = shl %v_16, 2: Long
+    %v_21 = add %xs$items, %v_20: Ptr
+    %v_22 = loads %v_21, 4: Int
+    call_complex push(Int), %out, %v_22
     %v_11 = add %v_9, 1: Int
     jmp b_8
+  }
+
+  b_19 {
+    %v_23 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -642,460 +634,339 @@ main<complex>(): Int {
     %v_13 = load %v_12, 4: Int
     %v_14 = cast %v_13: Int
     %v_15 = cast %v_14: Long
-    %v_16 = cmp_ge 0, %v_15: Int
+    %v_16 = cmp_eq %v_15, 0: Int
     %v_17 = imm 4: Long
     je %v_16, b_18, b_19
   }
 
   b_19 {
-    jmp b_20
+    %v_20 = load %a, 8: Ptr
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = cmp_ge 1, %v_15: Int
+    je %v_22, b_23, b_24
   }
 
-  b_18 {
-    %v_21 = syscall 60, 134: Long
-    jmp b_20
+  b_24 {
+    %v_25 = add %v_20, 4: Ptr
+    %v_26 = loads %v_25, 4: Int
+    %v_27 = shl %v_26, 1: Int
+    %v_28 = add %v_21, %v_27: Int
+    %v_29 = cmp_ge 2, %v_15: Int
+    je %v_29, b_30, b_31
   }
 
-  b_20 {
-    %v_22 = load %a, 8: Ptr
-    %v_23 = loads %v_22, 4: Int
-    %v_24 = load %v_12, 4: Int
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Long
-    %v_27 = cmp_ge 1, %v_26: Int
-    je %v_27, b_28, b_29
+  b_31 {
+    %v_32 = add %v_20, 8: Ptr
+    %v_33 = loads %v_32, 4: Int
+    %v_34 = shl %v_33, 2: Int
+    %v_35 = add %v_28, %v_34: Int
+    %v_36 = cmp_ge 3, %v_15: Int
+    je %v_36, b_37, b_38
   }
 
-  b_29 {
-    jmp b_30
+  b_38 {
+    %v_39 = add %v_20, 12: Ptr
+    %v_40 = loads %v_39, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %a
+    %v_41 = shl %v_40, 3: Int
+    %v_42 = add %v_35, %v_41: Int
+    %b = alloca 16, 8: Ptr
+    call_complex collectFor, %b, %v_2, %v_17
+    %v_43 = add %b, 12: Ptr
+    %v_44 = load %v_43, 4: Int
+    %v_45 = cast %v_44: Int
+    %v_46 = cast %v_45: Long
+    %v_47 = cmp_eq %v_46, 0: Int
+    je %v_47, b_48, b_49
   }
 
-  b_28 {
-    %v_31 = syscall 60, 134: Long
-    jmp b_30
-  }
-
-  b_30 {
-    %v_32 = load %a, 8: Ptr
-    %v_33 = add %v_32, 4: Ptr
-    %v_34 = loads %v_33, 4: Int
-    %v_35 = shl %v_34, 1: Int
-    %v_36 = add %v_23, %v_35: Int
-    %v_37 = load %v_12, 4: Int
-    %v_38 = cast %v_37: Int
-    %v_39 = cast %v_38: Long
-    %v_40 = cmp_ge 2, %v_39: Int
-    je %v_40, b_41, b_42
-  }
-
-  b_42 {
-    jmp b_43
-  }
-
-  b_41 {
-    %v_44 = syscall 60, 134: Long
-    jmp b_43
-  }
-
-  b_43 {
-    %v_45 = load %a, 8: Ptr
-    %v_46 = add %v_45, 8: Ptr
-    %v_47 = loads %v_46, 4: Int
-    %v_48 = shl %v_47, 2: Int
-    %v_49 = add %v_36, %v_48: Int
-    %v_50 = load %v_12, 4: Int
-    %v_51 = cast %v_50: Int
-    %v_52 = cast %v_51: Long
-    %v_53 = cmp_ge 3, %v_52: Int
+  b_49 {
+    %v_50 = load %b, 8: Ptr
+    %v_51 = loads %v_50, 4: Int
+    %v_52 = add %v_42, %v_51: Int
+    %v_53 = cmp_ge 1, %v_46: Int
     je %v_53, b_54, b_55
   }
 
   b_55 {
-    jmp b_56
+    %v_56 = add %v_50, 4: Ptr
+    %v_57 = loads %v_56, 4: Int
+    %v_58 = shl %v_57, 1: Int
+    %v_59 = add %v_52, %v_58: Int
+    %v_60 = cmp_ge 2, %v_46: Int
+    je %v_60, b_61, b_62
   }
 
-  b_54 {
-    %v_57 = syscall 60, 134: Long
-    jmp b_56
-  }
-
-  b_56 {
-    %v_58 = load %a, 8: Ptr
-    %v_59 = add %v_58, 12: Ptr
-    %v_60 = loads %v_59, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %a
-    %v_61 = shl %v_60, 3: Int
-    %v_62 = add %v_49, %v_61: Int
-    %b = alloca 16, 8: Ptr
-    call_complex collectFor, %b, %v_2, %v_17
-    %v_63 = add %b, 12: Ptr
-    %v_64 = load %v_63, 4: Int
-    %v_65 = cast %v_64: Int
-    %v_66 = cast %v_65: Long
-    %v_67 = cmp_ge 0, %v_66: Int
+  b_62 {
+    %v_63 = add %v_50, 8: Ptr
+    %v_64 = loads %v_63, 4: Int
+    %v_65 = shl %v_64, 2: Int
+    %v_66 = add %v_59, %v_65: Int
+    %v_67 = cmp_ge 3, %v_46: Int
     je %v_67, b_68, b_69
   }
 
   b_69 {
-    jmp b_70
+    %v_70 = add %v_50, 12: Ptr
+    %v_71 = loads %v_70, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %b
+    %v_72 = shl %v_71, 3: Int
+    %v_73 = add %v_66, %v_72: Int
+    %v_74 = alloca 16, 8: Ptr
+    store %v_74, funvalue$double, 8
+    %v_75 = bitcast 0: Ptr
+    %v_76 = add %v_74, 8: Ptr
+    store %v_76, %v_75, 8
+    %c = alloca 16, 8: Ptr
+    call_complex collectMapped(Int, Int), %c, %v_2, %v_17, %v_74
+    %v_77 = add %c, 12: Ptr
+    %v_78 = load %v_77, 4: Int
+    %v_79 = cast %v_78: Int
+    %v_80 = cast %v_79: Long
+    %v_81 = cmp_eq %v_80, 0: Int
+    je %v_81, b_82, b_83
   }
 
-  b_68 {
-    %v_71 = syscall 60, 134: Long
-    jmp b_70
-  }
-
-  b_70 {
-    %v_72 = load %b, 8: Ptr
-    %v_73 = loads %v_72, 4: Int
-    %v_74 = add %v_62, %v_73: Int
-    %v_75 = load %v_63, 4: Int
-    %v_76 = cast %v_75: Int
-    %v_77 = cast %v_76: Long
-    %v_78 = cmp_ge 1, %v_77: Int
-    je %v_78, b_79, b_80
-  }
-
-  b_80 {
-    jmp b_81
-  }
-
-  b_79 {
-    %v_82 = syscall 60, 134: Long
-    jmp b_81
-  }
-
-  b_81 {
-    %v_83 = load %b, 8: Ptr
-    %v_84 = add %v_83, 4: Ptr
+  b_83 {
+    %v_84 = load %c, 8: Ptr
     %v_85 = loads %v_84, 4: Int
-    %v_86 = shl %v_85, 1: Int
-    %v_87 = add %v_74, %v_86: Int
-    %v_88 = load %v_63, 4: Int
-    %v_89 = cast %v_88: Int
-    %v_90 = cast %v_89: Long
-    %v_91 = cmp_ge 2, %v_90: Int
-    je %v_91, b_92, b_93
+    %v_86 = add %v_73, %v_85: Int
+    %v_87 = cmp_ge 1, %v_80: Int
+    je %v_87, b_88, b_89
   }
 
-  b_93 {
-    jmp b_94
+  b_89 {
+    %v_90 = add %v_84, 4: Ptr
+    %v_91 = loads %v_90, 4: Int
+    %v_92 = shl %v_91, 1: Int
+    %v_93 = add %v_86, %v_92: Int
+    %v_94 = cmp_ge 2, %v_80: Int
+    je %v_94, b_95, b_96
   }
 
-  b_92 {
-    %v_95 = syscall 60, 134: Long
-    jmp b_94
-  }
-
-  b_94 {
-    %v_96 = load %b, 8: Ptr
-    %v_97 = add %v_96, 8: Ptr
+  b_96 {
+    %v_97 = add %v_84, 8: Ptr
     %v_98 = loads %v_97, 4: Int
     %v_99 = shl %v_98, 2: Int
-    %v_100 = add %v_87, %v_99: Int
-    %v_101 = load %v_63, 4: Int
-    %v_102 = cast %v_101: Int
-    %v_103 = cast %v_102: Long
-    %v_104 = cmp_ge 3, %v_103: Int
-    je %v_104, b_105, b_106
+    %v_100 = add %v_93, %v_99: Int
+    %v_101 = cmp_ge 3, %v_80: Int
+    je %v_101, b_102, b_103
   }
 
-  b_106 {
-    jmp b_107
-  }
-
-  b_105 {
-    %v_108 = syscall 60, 134: Long
-    jmp b_107
-  }
-
-  b_107 {
-    %v_109 = load %b, 8: Ptr
-    %v_110 = add %v_109, 12: Ptr
-    %v_111 = loads %v_110, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %b
-    %v_112 = shl %v_111, 3: Int
-    %v_113 = add %v_100, %v_112: Int
-    %v_114 = alloca 16, 8: Ptr
-    store %v_114, funvalue$double, 8
-    %v_115 = bitcast 0: Ptr
-    %v_116 = add %v_114, 8: Ptr
-    store %v_116, %v_115, 8
-    %c = alloca 16, 8: Ptr
-    call_complex collectMapped(Int, Int), %c, %v_2, %v_17, %v_114
-    %v_117 = add %c, 12: Ptr
-    %v_118 = load %v_117, 4: Int
-    %v_119 = cast %v_118: Int
-    %v_120 = cast %v_119: Long
-    %v_121 = cmp_ge 0, %v_120: Int
-    je %v_121, b_122, b_123
-  }
-
-  b_123 {
-    jmp b_124
-  }
-
-  b_122 {
-    %v_125 = syscall 60, 134: Long
-    jmp b_124
-  }
-
-  b_124 {
-    %v_126 = load %c, 8: Ptr
-    %v_127 = loads %v_126, 4: Int
-    %v_128 = add %v_113, %v_127: Int
-    %v_129 = load %v_117, 4: Int
-    %v_130 = cast %v_129: Int
-    %v_131 = cast %v_130: Long
-    %v_132 = cmp_ge 1, %v_131: Int
-    je %v_132, b_133, b_134
-  }
-
-  b_134 {
-    jmp b_135
-  }
-
-  b_133 {
-    %v_136 = syscall 60, 134: Long
-    jmp b_135
-  }
-
-  b_135 {
-    %v_137 = load %c, 8: Ptr
-    %v_138 = add %v_137, 4: Ptr
-    %v_139 = loads %v_138, 4: Int
-    %v_140 = shl %v_139, 1: Int
-    %v_141 = add %v_128, %v_140: Int
-    %v_142 = load %v_117, 4: Int
-    %v_143 = cast %v_142: Int
-    %v_144 = cast %v_143: Long
-    %v_145 = cmp_ge 2, %v_144: Int
-    je %v_145, b_146, b_147
-  }
-
-  b_147 {
-    jmp b_148
-  }
-
-  b_146 {
-    %v_149 = syscall 60, 134: Long
-    jmp b_148
-  }
-
-  b_148 {
-    %v_150 = load %c, 8: Ptr
-    %v_151 = add %v_150, 8: Ptr
-    %v_152 = loads %v_151, 4: Int
-    %v_153 = shl %v_152, 2: Int
-    %v_154 = add %v_141, %v_153: Int
-    %v_155 = load %v_117, 4: Int
-    %v_156 = cast %v_155: Int
-    %v_157 = cast %v_156: Long
-    %v_158 = cmp_ge 3, %v_157: Int
-    je %v_158, b_159, b_160
-  }
-
-  b_160 {
-    jmp b_161
-  }
-
-  b_159 {
-    %v_162 = syscall 60, 134: Long
-    jmp b_161
-  }
-
-  b_161 {
-    %v_163 = load %c, 8: Ptr
-    %v_164 = add %v_163, 12: Ptr
-    %v_165 = loads %v_164, 4: Int
+  b_103 {
+    %v_104 = add %v_84, 12: Ptr
+    %v_105 = loads %v_104, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %c
-    %v_166 = shl %v_165, 3: Int
-    %v_167 = add %v_154, %v_166: Int
-    %v_168 = alloca 16, 8: Ptr
-    %v_169 = alloca 16, 4: Ptr
-    store %v_168, %v_169, 8
-    %v_170 = add %v_168, 8: Ptr
-    %v_171 = load %v_170, 4: Int
-    %v_172 = and %v_171, 18446744072635809792: Int
-    %v_173 = or %v_172, 4: Int
-    %v_174 = and %v_173, 18446744070488326143: Int
-    store %v_170, %v_174, 4
-    store %v_169, 5, 4
-    %v_175 = add %v_169, 4: Ptr
-    store %v_175, 6, 4
-    %v_176 = add %v_169, 8: Ptr
-    store %v_176, 7, 4
-    %v_177 = add %v_169, 12: Ptr
-    store %v_177, 8, 4
-    %v_178 = add %v_168, 12: Ptr
-    store %v_178, 4, 4
+    %v_106 = shl %v_105, 3: Int
+    %v_107 = add %v_100, %v_106: Int
+    %v_108 = alloca 16, 8: Ptr
+    %v_109 = alloca 16, 4: Ptr
+    store %v_108, %v_109, 8
+    %v_110 = add %v_108, 8: Ptr
+    %v_111 = load %v_110, 4: Int
+    %v_112 = and %v_111, 18446744072635809792: Int
+    %v_113 = or %v_112, 4: Int
+    %v_114 = and %v_113, 18446744070488326143: Int
+    store %v_110, %v_114, 4
+    store %v_109, 5, 4
+    %v_115 = add %v_109, 4: Ptr
+    store %v_115, 6, 4
+    %v_116 = add %v_109, 8: Ptr
+    store %v_116, 7, 4
+    %v_117 = add %v_109, 12: Ptr
+    store %v_117, 8, 4
+    %v_118 = add %v_108, 12: Ptr
+    store %v_118, 4, 4
     %d = alloca 16, 8: Ptr
-    call_complex roundTrip(Int), %d, %v_168
-    %v_179 = add %d, 12: Ptr
-    %v_180 = load %v_179, 4: Int
-    %v_181 = cast %v_180: Int
-    %v_182 = cast %v_181: Long
-    %v_183 = cmp_ge 0, %v_182: Int
-    je %v_183, b_184, b_185
+    call_complex roundTrip(Int), %d, %v_108
+    %v_119 = add %d, 12: Ptr
+    %v_120 = load %v_119, 4: Int
+    %v_121 = cast %v_120: Int
+    %v_122 = cast %v_121: Long
+    %v_123 = cmp_eq %v_122, 0: Int
+    je %v_123, b_124, b_125
   }
 
-  b_185 {
-    jmp b_186
+  b_125 {
+    %v_126 = load %d, 8: Ptr
+    %v_127 = loads %v_126, 4: Int
+    %v_128 = add %v_107, %v_127: Int
+    %v_129 = cmp_ge 1, %v_122: Int
+    je %v_129, b_130, b_131
   }
 
-  b_184 {
-    %v_187 = syscall 60, 134: Long
-    jmp b_186
+  b_131 {
+    %v_132 = add %v_126, 4: Ptr
+    %v_133 = loads %v_132, 4: Int
+    %v_134 = shl %v_133, 1: Int
+    %v_135 = add %v_128, %v_134: Int
+    %v_136 = cmp_ge 2, %v_122: Int
+    je %v_136, b_137, b_138
   }
 
-  b_186 {
-    %v_188 = load %d, 8: Ptr
-    %v_189 = loads %v_188, 4: Int
-    %v_190 = add %v_167, %v_189: Int
-    %v_191 = load %v_179, 4: Int
-    %v_192 = cast %v_191: Int
-    %v_193 = cast %v_192: Long
-    %v_194 = cmp_ge 1, %v_193: Int
-    je %v_194, b_195, b_196
+  b_138 {
+    %v_139 = add %v_126, 8: Ptr
+    %v_140 = loads %v_139, 4: Int
+    %v_141 = shl %v_140, 2: Int
+    %v_142 = add %v_135, %v_141: Int
+    %v_143 = cmp_ge 3, %v_122: Int
+    je %v_143, b_144, b_145
   }
 
-  b_196 {
-    jmp b_197
-  }
-
-  b_195 {
-    %v_198 = syscall 60, 134: Long
-    jmp b_197
-  }
-
-  b_197 {
-    %v_199 = load %d, 8: Ptr
-    %v_200 = add %v_199, 4: Ptr
-    %v_201 = loads %v_200, 4: Int
-    %v_202 = shl %v_201, 1: Int
-    %v_203 = add %v_190, %v_202: Int
-    %v_204 = load %v_179, 4: Int
-    %v_205 = cast %v_204: Int
-    %v_206 = cast %v_205: Long
-    %v_207 = cmp_ge 2, %v_206: Int
-    je %v_207, b_208, b_209
-  }
-
-  b_209 {
-    jmp b_210
-  }
-
-  b_208 {
-    %v_211 = syscall 60, 134: Long
-    jmp b_210
-  }
-
-  b_210 {
-    %v_212 = load %d, 8: Ptr
-    %v_213 = add %v_212, 8: Ptr
-    %v_214 = loads %v_213, 4: Int
-    %v_215 = shl %v_214, 2: Int
-    %v_216 = add %v_203, %v_215: Int
-    %v_217 = load %v_179, 4: Int
-    %v_218 = cast %v_217: Int
-    %v_219 = cast %v_218: Long
-    %v_220 = cmp_ge 3, %v_219: Int
-    je %v_220, b_221, b_222
-  }
-
-  b_222 {
-    jmp b_223
-  }
-
-  b_221 {
-    %v_224 = syscall 60, 134: Long
-    jmp b_223
-  }
-
-  b_223 {
-    %v_225 = load %d, 8: Ptr
-    %v_226 = add %v_225, 12: Ptr
-    %v_227 = loads %v_226, 4: Int
+  b_145 {
+    %v_146 = add %v_126, 12: Ptr
+    %v_147 = loads %v_146, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %d
-    %v_228 = shl %v_227, 3: Int
-    %v_229 = add %v_216, %v_228: Int
-    %v_230 = loads @reclaims, 4: Int
-    %v_231 = cmp_neq %v_230, 0: Int
-    je %v_231, b_232, b_233
+    %v_148 = shl %v_147, 3: Int
+    %v_149 = add %v_142, %v_148: Int
+    %v_150 = loads @reclaims, 4: Int
+    %v_151 = cmp_neq %v_150, 0: Int
+    je %v_151, b_152, b_153
   }
 
-  b_233 {
-    %v_234 = load %v_1, 8: Ptr
-    %v_235 = add %v_1, 12: Ptr
-    %v_236 = load %v_235, 4: Int
-    %v_237 = cast %v_236: Int
-    %v_238 = cast %v_237: Long
+  b_153 {
+    %v_154 = load %v_1, 8: Ptr
+    %v_155 = add %v_1, 12: Ptr
+    %v_156 = load %v_155, 4: Int
+    %v_157 = cast %v_156: Int
+    %v_158 = cast %v_157: Long
     %c = alloca 16, 8: Ptr
-    %v_239 = alloca 16, 8: Ptr
-    call_complex collect, %v_239, %v_234, %v_238
-    copy %c, %v_239, 16
+    %v_159 = alloca 16, 8: Ptr
+    call_complex collect, %v_159, %v_154, %v_158
+    copy %c, %v_159, 16
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_240 = loads @reclaims, 4: Int
-    %v_241 = cmp_neq %v_240, 0: Int
-    je %v_241, b_242, b_243
+    %v_160 = loads @reclaims, 4: Int
+    %v_161 = cmp_neq %v_160, 0: Int
+    je %v_161, b_162, b_163
   }
 
-  b_243 {
-    %v_244 = add %c, 12: Ptr
-    %v_245 = load %v_244, 4: Int
-    %v_246 = cast %v_245: Int
-    %v_247 = cast %v_246: Long
-    %v_248 = cmp_ge 0, %v_247: Int
-    je %v_248, b_249, b_250
+  b_163 {
+    %v_164 = add %c, 12: Ptr
+    %v_165 = load %v_164, 4: Int
+    %v_166 = cast %v_165: Int
+    %v_167 = cast %v_166: Long
+    %v_168 = cmp_eq %v_167, 0: Int
+    je %v_168, b_169, b_170
   }
 
-  b_250 {
-    jmp b_251
+  b_170 {
+    %v_171 = load %c, 8: Ptr
+    %v_172 = loads %v_171, 4: Int
+    %v_173 = add %v_149, %v_172: Int
+    %v_174 = cmp_ge 3, %v_167: Int
+    je %v_174, b_175, b_176
   }
 
-  b_249 {
-    %v_252 = syscall 60, 134: Long
-    jmp b_251
-  }
-
-  b_251 {
-    %v_253 = load %c, 8: Ptr
-    %v_254 = loads %v_253, 4: Int
-    %v_255 = add %v_229, %v_254: Int
-    %v_256 = cmp_ge 3, %v_247: Int
-    je %v_256, b_257, b_258
-  }
-
-  b_258 {
-    jmp b_259
-  }
-
-  b_257 {
-    %v_260 = syscall 60, 134: Long
-    jmp b_259
-  }
-
-  b_259 {
-    %v_261 = add %v_253, 12: Ptr
-    %v_262 = loads %v_261, 4: Int
-    %v_263 = loads @reclaims, 4: Int
-    %v_264 = add %v_263, 1: Int
-    store @reclaims, %v_264, 4
+  b_176 {
+    %v_177 = add %v_171, 12: Ptr
+    %v_178 = loads %v_177, 4: Int
+    %v_179 = add %v_160, 1: Int
+    store @reclaims, %v_179, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %c
-    %v_265 = add %v_255, %v_262: Int
-    ret %v_265
+    %v_180 = add %v_173, %v_178: Int
+    ret %v_180
   }
 
-  b_242 {
-    %v_266 = add %v_240, 1: Int
-    store @reclaims, %v_266, 4
+  b_175 {
+    %v_181 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_169 {
+    %v_182 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_162 {
+    %v_183 = add %v_160, 1: Int
+    store @reclaims, %v_183, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %c
     ret 18446744073709551614
   }
 
-  b_232 {
+  b_152 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551615
+  }
+
+  b_144 {
+    %v_184 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_137 {
+    %v_185 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_130 {
+    %v_186 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_124 {
+    %v_187 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_102 {
+    %v_188 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_95 {
+    %v_189 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_88 {
+    %v_190 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_82 {
+    %v_191 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_68 {
+    %v_192 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_61 {
+    %v_193 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_54 {
+    %v_194 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_48 {
+    %v_195 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_37 {
+    %v_196 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_30 {
+    %v_197 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_23 {
+    %v_198 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_18 {
+    %v_199 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -1135,26 +1006,17 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   }
 
   b_14 {
-    jmp b_15
-  }
-
-  b_13 {
-    %v_16 = syscall 60, 134: Long
-    jmp b_15
-  }
-
-  b_15 {
-    %v_17 = shl %v_10, 2: Long
-    %v_18 = add %xs$items, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = add %body, 8: Ptr
-    %v_21 = load %body, 8: Ptr
-    %v_22 = load %v_20, 8: Ptr
-    %v_23 = alloca 1, 1: Ptr
-    call_complex %v_21, %v_23, %v_22, %v_19
-    %v_24 = loads %v_23, 1: Int
-    %v_25 = cmp_eq %v_24, 1: Int
-    je %v_25, b_26, b_5
+    %v_15 = shl %v_10, 2: Long
+    %v_16 = add %xs$items, %v_15: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %body, 8: Ptr
+    %v_19 = load %body, 8: Ptr
+    %v_20 = load %v_18, 8: Ptr
+    %v_21 = alloca 1, 1: Ptr
+    call_complex %v_19, %v_21, %v_20, %v_17
+    %v_22 = loads %v_21, 1: Int
+    %v_23 = cmp_eq %v_22, 1: Int
+    je %v_23, b_24, b_5
   }
 
   b_5 {
@@ -1162,9 +1024,14 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
     jmp b_3
   }
 
-  b_26 {
-    copy %v_0, %v_23, 1
+  b_24 {
+    copy %v_0, %v_21, 1
     ret 
+  }
+
+  b_13 {
+    %v_25 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -1298,26 +1165,17 @@ each(Int, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long,
   }
 
   b_14 {
-    jmp b_15
-  }
-
-  b_13 {
-    %v_16 = syscall 60, 134: Long
-    jmp b_15
-  }
-
-  b_15 {
-    %v_17 = shl %v_10, 2: Long
-    %v_18 = add %xs$items, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = add %body, 8: Ptr
-    %v_21 = load %body, 8: Ptr
-    %v_22 = load %v_20, 8: Ptr
-    %v_23 = alloca 1, 1: Ptr
-    call_complex %v_21, %v_23, %v_22, %v_19
-    %v_24 = load %v_23, 1: Long
-    %v_25 = cmp_le %v_24, 1: Int
-    je %v_25, b_26, b_5
+    %v_15 = shl %v_10, 2: Long
+    %v_16 = add %xs$items, %v_15: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %body, 8: Ptr
+    %v_19 = load %body, 8: Ptr
+    %v_20 = load %v_18, 8: Ptr
+    %v_21 = alloca 1, 1: Ptr
+    call_complex %v_19, %v_21, %v_20, %v_17
+    %v_22 = load %v_21, 1: Long
+    %v_23 = cmp_le %v_22, 1: Int
+    je %v_23, b_24, b_5
   }
 
   b_5 {
@@ -1325,9 +1183,14 @@ each(Int, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long,
     jmp b_3
   }
 
-  b_26 {
-    copy %v_0, %v_23, 1
+  b_24 {
+    copy %v_0, %v_21, 1
     ret 
+  }
+
+  b_13 {
+    %v_25 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

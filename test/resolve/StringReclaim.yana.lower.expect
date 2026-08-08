@@ -488,25 +488,21 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    jmp b_12
+    %v_12 = load %self, 8: Ptr
+    %v_13 = sext %count: Long
+    %v_14 = add %v_12, %v_13: Ptr
+    store %v_14, %item, 1
+    %v_15 = cast %v_3: Int
+    %v_16 = and %v_15, 1073741823: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = add %self, 12: Ptr
+    store %v_18, %v_17, 4
+    ret 
   }
 
   b_10 {
-    %v_13 = syscall 60, 134: Long
-    jmp b_12
-  }
-
-  b_12 {
-    %v_14 = load %self, 8: Ptr
-    %v_15 = sext %count: Long
-    %v_16 = add %v_14, %v_15: Ptr
-    store %v_16, %item, 1
-    %v_17 = cast %v_3: Int
-    %v_18 = and %v_17, 1073741823: Int
-    %v_19 = cast %v_18: Int
-    %v_20 = add %self, 12: Ptr
-    store %v_20, %v_19, 4
-    ret 
+    %v_19 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -612,28 +608,23 @@ appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   }
 
   b_21 {
-    jmp b_22
+    %v_22 = load %v_10, 8: Ptr
+    %v_23 = load %v_11, 4: Int
+    %v_24 = cast %v_13: Long
+    %v_25 = add %v_22, %v_24: Ptr
+    %v_26 = call_complex byteSpan(U8), %from, %v_8: Long
+    copy %v_25, %from, %v_26
+    %v_27 = cast %wanted: Int
+    %v_28 = and %v_27, 1073741823: Int
+    %v_29 = cast %v_28: Int
+    %v_30 = add %v_10, 12: Ptr
+    store %v_30, %v_29, 4
+    ret 
   }
 
   b_20 {
-    %v_23 = syscall 60, 134: Long
-    jmp b_22
-  }
-
-  b_22 {
-    %v_24 = load %v_10, 8: Ptr
-    %v_25 = load %v_11, 4: Int
-    %v_26 = cast %v_25: Int
-    %v_27 = cast %v_26: Long
-    %v_28 = add %v_24, %v_27: Ptr
-    %v_29 = call_complex byteSpan(U8), %from, %v_8: Long
-    copy %v_28, %from, %v_29
-    %v_30 = cast %wanted: Int
-    %v_31 = and %v_30, 1073741823: Int
-    %v_32 = cast %v_31: Int
-    %v_33 = add %v_10, 12: Ptr
-    store %v_33, %v_32, 4
-    ret 
+    %v_31 = syscall 60, 134: Long
+    unreachable 
   }
 
   b_2 {

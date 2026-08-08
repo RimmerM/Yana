@@ -267,6 +267,28 @@ struct Function {
      */
     bool anonymous = false;
 
+    /*
+     * Whether control can come back out of a call to this function.
+     *
+     * A *declaration* rather than an inference, and it has to be: `checkFailed` is `exitProcess(134)`
+     * followed by a `return`, so nothing about its body says it does not come back - what says so is
+     * the kernel, and the only place that can be written down is beside the function that names the
+     * system call. `Collections.checkFailed` is the one that carries it today; see `defineCollections`
+     * in core.cpp, where it is set for the same reason `checkCondition` is recorded there.
+     *
+     * One thing reads it - `endNonReturningBlocks` in opt/opt_branch.cpp, which ends the block such a
+     * call stands in. That is where the whole of §10 item 2 of test/bench/findings.md is: the bounds
+     * check's abort arm stops being a predecessor of the block below the check, so that block stops
+     * being a join, and the second check of the same index against the same length is then a
+     * redundancy the CSE and the loop passes can see.
+     *
+     * It is read *before* the inliner, and that is not an ordering detail: inlining the callee is
+     * what makes the call stop existing, so a round that ran after it would find nothing to read. The
+     * body is still copied in afterwards, behind the terminator this leaves - which is what keeps an
+     * abort arm a system call rather than an ordinary one.
+     */
+    bool noReturn = false;
+
     // Set when the function is generic: its type variables, and the class requirements its
     // signature declared or its body turned out to need. The body is resolved once against these
     // and specialized by cloning - see generic.h.

@@ -63,6 +63,38 @@ LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, Lo
 void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& fun);
 
 /*
+ * Whether an instruction computes a value out of its operands and does nothing else.
+ *
+ * Two passes ask it and they ask it for two reasons that happen to have one answer: something that
+ * only computes may be answered from an earlier one that dominates it, and it may be dropped when
+ * nothing reads it. Written out rather than derived from a range, because the ranges in lower_inst.h
+ * group instructions by *shape* - `isBinary` includes the comparison and `FirstUnary` starts at
+ * `Set` - and this is a different question.
+ *
+ * The four dividing operations are in it, and that is worth stating because they can trap. The
+ * machine raises on a zero divisor and on `INT_MIN / -1`; neither reader of this list is made unsound
+ * by that. Removing the *second* of two identical divisions removes no trap, since the first
+ * dominates it and the fault has already happened - and a division nothing reads at all is one this
+ * compiler never emits, because a division is only ever written down for its answer.
+ */
+bool isRepeatable(LowerInst* inst);
+
+/*
+ * The computations nothing reads any more, dropped. Answers whether it dropped anything.
+ *
+ * Two passes leave these behind. A replacement moves the readers of one value onto another, which can
+ * leave the *operands* of what it replaced with nothing reading them: `%a = add x, y` feeding only a
+ * `%b = mul %a, z` that has just been answered from an earlier one is dead the moment `%b` goes. And
+ * the comparison narrowing in `foldFunctionConstants` takes a reader off an addition without removing
+ * the addition, which is the same situation arrived at from the other side.
+ *
+ * Only the kinds above, so that this stays a sweep behind a rewrite rather than a dead-code pass with
+ * an opinion about calls, loads and stores. Iterated, because dropping one value is what makes its
+ * operands dead in turn.
+ */
+bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
+
+/*
  * The immediates nothing reads any more, dropped.
  *
  * A fold never removes the operands it consumed, and cannot: the immediate a caller built may be

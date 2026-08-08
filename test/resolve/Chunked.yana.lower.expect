@@ -726,26 +726,17 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   }
 
   b_14 {
-    jmp b_15
-  }
-
-  b_13 {
-    %v_16 = syscall 60, 134: Long
-    jmp b_15
-  }
-
-  b_15 {
-    %v_17 = shl %v_10, 2: Long
-    %v_18 = add %xs$items, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = add %body, 8: Ptr
-    %v_21 = load %body, 8: Ptr
-    %v_22 = load %v_20, 8: Ptr
-    %v_23 = alloca 1, 1: Ptr
-    call_complex %v_21, %v_23, %v_22, %v_19
-    %v_24 = loads %v_23, 1: Int
-    %v_25 = cmp_eq %v_24, 1: Int
-    je %v_25, b_26, b_5
+    %v_15 = shl %v_10, 2: Long
+    %v_16 = add %xs$items, %v_15: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %body, 8: Ptr
+    %v_19 = load %body, 8: Ptr
+    %v_20 = load %v_18, 8: Ptr
+    %v_21 = alloca 1, 1: Ptr
+    call_complex %v_19, %v_21, %v_20, %v_17
+    %v_22 = loads %v_21, 1: Int
+    %v_23 = cmp_eq %v_22, 1: Int
+    je %v_23, b_24, b_5
   }
 
   b_5 {
@@ -753,9 +744,14 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
     jmp b_3
   }
 
-  b_26 {
-    copy %v_0, %v_23, 1
+  b_24 {
+    copy %v_0, %v_21, 1
     ret 
+  }
+
+  b_13 {
+    %v_25 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -1073,26 +1069,17 @@ each(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr)
   }
 
   b_15 {
-    jmp b_16
-  }
-
-  b_14 {
-    %v_17 = syscall 60, 134: Long
-    jmp b_16
-  }
-
-  b_16 {
-    %v_18 = shl %v_11, 2: Long
-    %v_19 = add %xs$items, %v_18: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_21 = add %body, 8: Ptr
-    %v_22 = load %body, 8: Ptr
-    %v_23 = load %v_21, 8: Ptr
-    %v_24 = alloca 8, 4: Ptr
-    call_complex %v_22, %v_24, %v_23, %v_20
-    %v_25 = loads %v_24, 4: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_5
+    %v_16 = shl %v_11, 2: Long
+    %v_17 = add %xs$items, %v_16: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = add %body, 8: Ptr
+    %v_20 = load %body, 8: Ptr
+    %v_21 = load %v_19, 8: Ptr
+    %v_22 = alloca 8, 4: Ptr
+    call_complex %v_20, %v_22, %v_21, %v_18
+    %v_23 = loads %v_22, 4: Int
+    %v_24 = cmp_eq %v_23, 1: Int
+    je %v_24, b_25, b_5
   }
 
   b_5 {
@@ -1100,9 +1087,14 @@ each(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr)
     jmp b_3
   }
 
-  b_27 {
-    copy %v_0, %v_24, 8
+  b_25 {
+    copy %v_0, %v_22, 8
     ret 
+  }
+
+  b_14 {
+    %v_26 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

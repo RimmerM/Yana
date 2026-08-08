@@ -219,6 +219,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "jmp"_v;
         case LowerInst::Ret:
             return "ret"_v;
+        case LowerInst::Unreachable:
+            return "unreachable"_v;
         case LowerInst::Phi:
             return "phi"_v;
         case LowerInst::X86Address:

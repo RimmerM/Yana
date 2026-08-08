@@ -1379,6 +1379,21 @@ void defineCollections(Program& program) {
     if(context.settings.checks) {
         auto found = module->functions.get(context.addUnqualifiedName("checkCondition", 14));
         program.checkCondition = found ? found.unwrap() : nullptr;
+
+        /*
+         * And the arm it branches to, marked as one control does not come back out of.
+         *
+         * Here rather than in an attribute on the declaration because there is nothing in the source
+         * to attach one to that would mean anything: `checkFailed` is `exitProcess(134)` and a
+         * `return`, and what makes it final is the kernel rather than the shape of the body. Both
+         * targets' spellings are equally final - a status on native, a thrown value on JS - so the
+         * fact is about this function rather than about either platform's implementation of it.
+         *
+         * See `Function::noReturn` for what reads it. It is set whether or not `checkCondition` was
+         * found, since a build with the checks off has no call to either.
+         */
+        auto failed = module->functions.get(context.addUnqualifiedName("checkFailed", 11));
+        if(failed) (*module->arena)[failed.unwrap()]->noReturn = true;
     }
 
     // After `arrayType` above, and before this module's own bodies below - several of which

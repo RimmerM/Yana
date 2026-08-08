@@ -354,6 +354,16 @@ void emitTerminator(Gen& g, U32 block, U32& next, U32 stopAt, bool& done) {
             done = true;
             break;
         }
+        /*
+         * A block control never leaves emits nothing at all, and `done` is the whole of what it
+         * says: whatever put it there already ended the program. On this target that is `hostFail`,
+         * which throws - so the statement in front of this one is a `throw` and anything emitted
+         * behind it would be unreachable JavaScript rather than a return of the wrong shape.
+         */
+        case Value::Unreachable:
+            done = true;
+            break;
+
         case Value::Jmp: {
             auto target = blockOf(g, ((InstJmp&)instruction).target);
             genPhiCopies(g, block, target);

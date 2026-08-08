@@ -108,6 +108,41 @@ inline void eachHandedLocal(OptContext& opt, Value& instruction, F&& f) {
 }
 
 /*
+ * The locals whose *address* an instruction is handed, which is the second way storage reaches a
+ * callee - `push(out, 0)` passes a `borrow_mut` of a local rather than the record itself.
+ *
+ * Kept apart from `eachHandedLocal` above, and the split is a ruling rather than a tidiness. The two
+ * are the two halves of what `computeContainment` admits, and the readers of containment divide on
+ * exactly this line:
+ *
+ *  - **A by-value argument is a binding the callee cannot assign**, so the storage behind it is read
+ *    while the call runs and not written. That is what lets `promotePlaces` forward a field across
+ *    `score(f)` and `eliminateCommonValues` keep a load over it, which is the whole of what
+ *    Contain.Call.yana and Default.yana assert. `forwardPlaces` and `scanEffects` forget anyway,
+ *    which costs those two passes nothing they were getting.
+ *  - **An address is one the callee may write through**, and every reader has to end its facts at
+ *    the instruction that received it. There is no summary flag for "wrote through this argument"
+ *    and no reason to want one: the call is a point, and forgetting at a point is exact.
+ *
+ * The whole local rather than the borrowed sub-place, because that is what every caller does with
+ * the answer - a `Place::inLocal` covers the path the borrow was taken of and every path beside it.
+ * Mutability is not asked either: `&` is the mutable form in this IR and `InstBorrow::mut` is the
+ * exclusivity question rather than the writability one.
+ */
+template<class F>
+inline void eachAddressedLocal(OptContext& opt, Value& instruction, F&& f) {
+    eachOperand(opt.local, instruction, [&](ModulePtr<Value> operand) {
+        auto& value = *opt.local[operand];
+        if(value.kind != Value::Borrow) return;
+
+        auto& place = ((InstBorrow&)value).place;
+        if(place.root == PlaceRoot::Local && place.local < opt.function->localCount()) {
+            f(place.local);
+        }
+    });
+}
+
+/*
  * Whether a call is one of the checks the compiler inserted - see Program::checkCondition.
  *
  * Recognized by the callee rather than by its name, for the reason the pointer is recorded on the
@@ -347,6 +382,12 @@ bool mergeBlocks(OptContext& opt);
  */
 bool removeUnreachableBlocks(OptContext& opt);
 
+/*
+ * The blocks a call that does not come back ends - see opt_branch.cpp, and §10 item 2 of
+ * test/bench/findings.md for what the edge it removes was costing. Answers whether anything changed.
+ */
+bool endNonReturningBlocks(OptContext& opt);
+
 void foldFunction(OptContext& opt);
 void foldBranches(OptContext& opt);
 
@@ -362,6 +403,12 @@ void collapseBorrows(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void promotePlaces(OptContext& opt);
 void hoistLoopValues(OptContext& opt);
+
+/*
+ * What a branch proves about the arm below it - see opt_range.cpp, which is the whole of the range
+ * reasoning in this directory and is deliberately one fact rather than a lattice.
+ */
+void narrowCheckedIndexes(OptContext& opt);
 void eliminateDeadLoops(OptContext& opt);
 
 /*

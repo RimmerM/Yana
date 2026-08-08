@@ -53,22 +53,22 @@ fn spanned() -> Int {
     %v7 = alloc *4 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v196 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v201 = and %v196, 18446744072635809792 : U32
-    %v202 = or %v201, 4 : U32
-    %v211 = and %v202, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v211
+    %v191 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v196 = and %v191, 18446744072635809792 : U32
+    %v197 = or %v196, 4 : U32
+    %v206 = and %v197, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v206
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
     %v22 = alloc : Array(Int)
     %v25 = alloc *2 : Int
     %v26 = addressof %local3 : %Int
     init %ys@Array.run@Run.items, %v26
-    %v214 = load %ys@Array.run@Run.capacity:unit32 : U32
-    %v219 = and %v214, 18446744072635809792 : U32
-    %v220 = or %v219, 2 : U32
-    %v229 = and %v220, 18446744070488326143 : U32
-    init %ys@Array.run@Run.capacity:unit32, %v229
+    %v209 = load %ys@Array.run@Run.capacity:unit32 : U32
+    %v214 = and %v209, 18446744072635809792 : U32
+    %v215 = or %v214, 2 : U32
+    %v224 = and %v215, 18446744070488326143 : U32
+    init %ys@Array.run@Run.capacity:unit32, %v224
     aggregate [%v26][0] = 5, [%v26][1] = 9
     init %ys@Array.length, 2
     %v49 = add %v8, 4 : %Int
@@ -92,11 +92,11 @@ fn overwritten() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v7
-    %v114 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v119 = and %v114, 18446744072635809792 : U32
-    %v120 = or %v119, 3 : U32
-    %v129 = and %v120, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v129
+    %v111 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v116 = and %v111, 18446744072635809792 : U32
+    %v117 = or %v116, 3 : U32
+    %v126 = and %v117, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v126
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 30
     init %xs@Array.length, 3
     %v65 = add %v7, 8 : %Int
@@ -112,11 +112,11 @@ fn computed() -> Int {
     %v6 = alloc *3 : Int
     %v7 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v7
-    %v122 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v127 = and %v122, 18446744072635809792 : U32
-    %v128 = or %v127, 3 : U32
-    %v137 = and %v128, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v137
+    %v119 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v124 = and %v119, 18446744072635809792 : U32
+    %v125 = or %v124, 3 : U32
+    %v134 = and %v125, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v134
     aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 60
     init %xs@Array.length, 3
     %v53 = add %v7, 8 : %Int
@@ -134,32 +134,32 @@ fn aliased(%n: Int) -> Int {
     %v7 = alloc *3 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v108 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v113 = and %v108, 18446744072635809792 : U32
-    %v114 = or %v113, 3 : U32
-    %v123 = and %v114, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v123
+    %v121 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v126 = and %v121, 18446744072635809792 : U32
+    %v127 = or %v126, 3 : U32
+    %v136 = and %v127, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v136
     aggregate [%v8][0] = 100, [%v8][1] = 2, [%v8][2] = 3
     init %xs@Array.length, 3
     %v49 = add %v8, 0 : %Int
     %v51 = load [%v49] : Int
-    %v53 = cast %n : I64
     %v56 = cast %n : U64
     %v59 = cmp_ge %v56, 3 : Bool
-    je %v59, b1, b2
+    je %v59, b2, b1
 
   b1:
-    %v88 = syscall 60, 134 : I64
-    jmp b2
-
-  b2:
-    %v63 = mul %v53, 4 : Long
+    %v151 = cast %v56 : I64
+    %v63 = mul %v151, 4 : Long
     %v64 = add %v8, %v63 : %Int
     %v66 = load [%v64] : Int
     %v71 = load %xs : Array(Int)
     call Reclaim(Array(a)).reclaim(Int), %v71
     %v67 = add %v66, 100 : Int
     ret %v67
+
+  b2:
+    %v86 = syscall 60, 134 : I64
+    unreachable
 }
 
 fn main() -> Int {

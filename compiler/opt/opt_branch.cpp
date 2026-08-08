@@ -281,6 +281,73 @@ bool mergeBlocks(OptContext& opt) {
     return true;
 }
 
+/*
+ * A block whose last call does not come back, ended there - §10 item 2 of test/bench/findings.md.
+ *
+ * Every bounds check and every `@bits` narrowing is `checkCondition`, which the inliner takes: what
+ * arrives here is `je %failed, abort, ok` with `call checkFailed` in the abort arm and both arms
+ * jumping to the block below the check. The abort arm does not come back - `checkFailed` is a
+ * declared `noReturn`, see `Function::noReturn` - so that second edge is one no execution ever
+ * takes, and everything it costs is paid by the code that does execute:
+ *
+ *  - the block below the check is a *join*, so it starts a new block-local scope. `forwardPlaces`
+ *    stops there, and so does anything else that reasons within a block.
+ *  - `killBetween` in opt_value.cpp finds the abort arm on a path between two reads of one place, so
+ *    `out.length` read by two checks of one index is two loads, and the second check is then a
+ *    comparison of two values the first check's are not.
+ *  - the branch itself survives, since `je` on a condition that has not folded is a branch.
+ *
+ * With the edge gone the join has one predecessor, `mergeBlocks` folds it back, and all three go at
+ * once. `Matrix`'s innermost loop is where this was measured; it is the largest single piece of it.
+ *
+ * The call is the last instruction of its block by construction, because the inliner refuses a
+ * `noReturn` callee - which is what keeps the fact readable at all, and is the other half of this
+ * item. A call in the middle of a block would leave instructions behind it that are equally dead;
+ * they are left alone, because nothing produces one and a rule with no producer is a rule with no
+ * test.
+ */
+bool endNonReturningBlocks(OptContext& opt) {
+    auto ended = false;
+
+    for(auto pointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[pointer];
+
+        auto terminator = block->terminator();
+        if(!terminator || opt.local[terminator]->kind == Value::Unreachable) continue;
+
+        auto count = block->instructionCount();
+        if(!count) continue;
+
+        auto& last = *opt.local[block->instructionAt(opt.local, count - 1)];
+        if(last.kind != Value::Call) continue;
+
+        auto callee = ((InstCall&)last).callee;
+        if(!callee || !opt.local[callee]->noReturn) continue;
+
+        auto end = createInst<InstUnreachable>(*opt.module, *opt.function, *block,
+                                               opt.local[terminator]->source, StringId(),
+                                               opt.program.scalar.unit);
+
+        // Every edge this block owned goes, with the phi alternatives that arrived over each: the
+        // new successor set is empty, so `setTerminator`'s multiset diff removes all of them.
+        opt.ir().setTerminator(*block, end);
+        ended = true;
+    }
+
+    if(!ended) return false;
+
+    // The same cleanup a folded branch owes, and for the same reasons in the same order: the arm
+    // that stopped leading anywhere may have been a block's only way in, a join left with one
+    // predecessor keeps its phis until they are collapsed, and a block with phis is one the merge
+    // declines.
+    removeUnreachableBlocks(opt);
+    collapseSinglePhis(opt);
+    mergeBlocks(opt);
+
+    opt.changed = true;
+    return true;
+}
+
 void foldBranches(OptContext& opt) {
     auto folded = false;
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {

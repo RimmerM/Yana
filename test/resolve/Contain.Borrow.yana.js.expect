@@ -1,0 +1,60 @@
+"use strict";
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  } else {
+    return;
+  }
+}
+
+// ResolveTest
+function mutate(f) {
+  f.$o[f.$k] = $b1u$set(f.$o[f.$k], f.$s, 1);
+  return 0;
+}
+
+function around() {
+  var v0 = { $v: 2 };
+  return (mutate({ $o: v0, $k: "$v", $s: 1 }) + 10 | 0) + (v0.$v & 1 ? 100 : 200) | 0;
+}
+
+function fill(n) {
+  var v2 = [];
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      v2[v2.length] = i;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var sum = 0;
+  var k = 0;
+  L1: for (;;) {
+    if (k < n) {
+      var v35 = v2.length;
+      var v36 = k >>> 0;
+      checkCondition(v36 >= v35 >>> 0);
+      var v54 = v2[k] + 1 | 0;
+      v2[k] = v54;
+      checkCondition(v36 >= v2.length >>> 0);
+      sum = sum + v54 | 0;
+      k = k + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  return sum;
+}
+
+function main() {
+  return around() + fill(3) | 0;
+}
+
+// bit ranges of a word wider than the host's operators - see codegen/js/place.cpp
+function $b1u$set(w, s, v) {
+  return w + ((v & 1) - (Math.floor(w / s) & 1)) * s;
+}
+main();

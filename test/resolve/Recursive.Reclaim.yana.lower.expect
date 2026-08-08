@@ -278,28 +278,27 @@ mapMemory<complex>(%size: Long): Ptr {
 sum<complex>(%xs: Ptr): Int {
   b_0 {
     %v_1 = load %xs, 8: Long
-    %v_2 = sub %v_1, 1: Long
-    %v_3 = cmp_le %v_2, 18446744073709551614: Int
-    %v_4 = cmp_eq %v_3, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = add %xs, 8: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = load %xs, 8: Ptr
-    %v_10 = call_complex sum, %v_9: Int
-    %v_11 = add %v_8, %v_10: Int
-    jmp b_12
+    %v_2 = cmp_neq %v_1, 0: Int
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
   }
 
   b_5 {
-    jmp b_12
+    %v_6 = add %xs, 8: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = load %xs, 8: Ptr
+    %v_9 = call_complex sum, %v_8: Int
+    %v_10 = add %v_7, %v_9: Int
+    jmp b_11
   }
 
-  b_12 {
-    %v_13 = phi [b_5, 0], [b_6, %v_11]: Int
-    ret %v_13
+  b_4 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_4, 0], [b_5, %v_10]: Int
+    ret %v_12
   }
 }
 
@@ -375,49 +374,47 @@ main<complex>(): Int {
 drop$List<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Long
-    %v_2 = sub %v_1, 1: Long
-    %v_3 = cmp_le %v_2, 18446744073709551614: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_6 {
-    ret 
-  }
-
-  b_4 {
-    %v_7 = load %value, 8: Ptr
-    call_complex drop$List, %v_7
-    jmp b_6
+    %v_2 = cmp_neq %v_1, 0: Int
+    je %v_2, b_3, b_4
   }
 
   b_5 {
-    jmp b_6
+    ret 
+  }
+
+  b_3 {
+    %v_6 = load %value, 8: Ptr
+    call_complex drop$List, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
   }
 }
 
 reclaim$List<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Long
-    %v_2 = sub %v_1, 1: Long
-    %v_3 = cmp_le %v_2, 18446744073709551614: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_6 {
-    ret 
-  }
-
-  b_4 {
-    %v_7 = load %value, 8: Ptr
-    call_complex reclaim$List, %v_7
-    %v_8 = load %value, 8: Ptr
-    %v_9 = bitcast %v_8: Ptr
-    call_complex freeHeap, %v_9
-    jmp b_6
+    %v_2 = cmp_neq %v_1, 0: Int
+    je %v_2, b_3, b_4
   }
 
   b_5 {
-    jmp b_6
+    ret 
+  }
+
+  b_3 {
+    %v_6 = load %value, 8: Ptr
+    call_complex reclaim$List, %v_6
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
   }
 }
 

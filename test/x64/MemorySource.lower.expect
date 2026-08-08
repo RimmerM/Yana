@@ -183,8 +183,8 @@ sumArray<sysv>(%p: Ptr, %n: Long): Long {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 
 --- codegen: source ---
 block #0:
@@ -248,13 +248,13 @@ block #0:
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   cmp_ilt uses=[rsi, -] creates=[-]  => 483b37
-  je uses=[-] creates=[]  => 0f8c03000000
+  je uses=[-] creates=[]  => 0f8c06000000
 block notLess:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block less:
-  imm uses=[] creates=[rax]  => b801000000
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b801000000c3
 
 --- codegen: foldedFloat ---
 block #0:
@@ -307,7 +307,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   add uses=[rbx, -] creates=[rbx] pre=[rsi->rbx]  => 488bde48031f
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e870ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e86affffff
   add uses=[rbx, rax] creates=[rbx]  => 4801c3
   ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 
@@ -317,7 +317,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e862ffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e85fffffff
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rbx->rcx]  => 488bcb480308
   add uses=[rax, rbx] creates=[rax] pre=[rcx->rax]  => 488bc14801d8

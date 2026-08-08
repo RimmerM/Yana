@@ -41,6 +41,24 @@
  * A call is not moved either, however invariant its arguments look. That needs an effect summary of
  * the callee, and `computeEffects` in resolve is the thing to reach for when it does - inventing a
  * second notion of purity here is risk 3 in Analysis-Optimization.md §7.
+ *
+ * ## And a read out of a *nested* loop, which is a cost rule rather than a correctness one
+ *
+ * A read whose preheader is itself inside another loop is left where it is, however invariant it is.
+ * What hoisting one produces is a value live across the whole of the containing loop's body, and the
+ * containing loop's body is exactly where the register pressure is worst - so the trade is two loads
+ * per inner iteration against a register held over every instruction of the outer one.
+ *
+ * It was measured rather than assumed, and the assumption was the other way round. §11.1 of
+ * test/bench/findings.md ranked this hoist first on the list and named `Matrix`'s two array words as
+ * the prize; once the containment rule that unblocks them landed, taking them out of the innermost
+ * loop cost that program 160.2 ms to 213.3 and the corpus 22 ms. With this gate it is 155.9 - better
+ * than either - because the reads still leave the loops whose preheader runs once per call, and the
+ * ones inside the nest stay where the block-local passes and CSE can still remove the duplicates.
+ *
+ * Pure values are not gated. One has no storage question, so hoisting it out of a nest is what
+ * strength reduction and the index arithmetic depend on, and the value it leaves behind is usually
+ * one the loop was recomputing rather than an extra one.
  */
 
 namespace {
@@ -85,6 +103,12 @@ struct Hoister {
     // Whether anything in this loop writes storage a hoisted read could see, decided once per loop
     // rather than per candidate - see `scanEffects`.
     bool anyClobber = false;
+
+    /*
+     * Whether a *read* may leave this loop, which is a cost question rather than a legality one -
+     * see `hoistLoopValues`, where it is decided and where the measurement behind it is.
+     */
+    bool readsMayLeave = true;
     Array<Place> written;
 
     bool definedIn(Loop& loop, ModulePtr<Value> value) { return definedInLoop(opt, loop, value); }
@@ -143,12 +167,14 @@ struct Hoister {
                 eachPlace(instruction, [&](const Place& place) { written.push(place); });
 
                 // And the storage a call is handed, for the reason opt_place.cpp forgets it at the
-                // same instruction: `computeContainment` admits an unretained argument, so
-                // `anyClobber` no longer saves a candidate from the one call that actually received
-                // it. A hoisted read would then answer the first iteration's bytes forever.
-                eachHandedLocal(opt, instruction, [&](U32 local) {
-                    written.push(Place::inLocal(local));
-                });
+                // same instruction: `computeContainment` admits an unretained argument and an
+                // unretained borrow, so `anyClobber` no longer saves a candidate from the one call
+                // that actually received it. A hoisted read would then answer the first iteration's
+                // bytes forever.
+                auto forget = [&](U32 local) { written.push(Place::inLocal(local)); };
+
+                eachHandedLocal(opt, instruction, forget);
+                eachAddressedLocal(opt, instruction, forget);
             }
         }
     }
@@ -163,9 +189,11 @@ struct Hoister {
      *
      * `framed` is what the caller has already proved about `b` - that it is rooted in a local this
      * frame contains - and it is the one thing that lets a pointer or a borrow be answered `no`.
-     * `computeContainment` refuses a local any `Borrow` or `Address` names, so a contained local is
-     * one no pointer in the function can be pointing at; opt_promote.cpp's `surveyCandidate` states
-     * the same fact and relies on it, and this was the one walk in the directory that did not.
+     * `computeContainment` refuses a local any `Address` names, and admits a `Borrow` of one only
+     * where every reader of that borrow is a call retaining nothing - so at any instruction in the
+     * loop that is not one of those calls, no pointer in the function is pointing at a contained
+     * local. Those calls are the ones `scanEffects` pushes the whole local into `written` for, which
+     * is what makes the gap they leave a gap this walk never looks through.
      *
      * It is what a loop writing through a subscript costs without it. `out[c] = row * n + c` writes
      * a borrow-rooted place, so every read of every counter in the loop aliased it and `row * n`
@@ -223,6 +251,7 @@ struct Hoister {
      * anything at all the storage has to be a local no callee can name.
      */
     bool invariantRead(Loop& loop, InstLoadPlace& load) {
+        if(!readsMayLeave) return false;
         if(load.place.root != PlaceRoot::Local && load.place.root != PlaceRoot::Global) return false;
 
         // The value has to *be* the answer rather than name storage holding it, which is the same
@@ -324,7 +353,24 @@ void hoistLoopValues(OptContext& opt) {
     // Innermost first, which `computeLoops` sorted for. A value hoisted out of an inner loop lands
     // in a block the outer one contains, so the outer loop's own walk - or the next driver round,
     // where the two are not nested directly - carries it the rest of the way out.
-    for(auto& loop: loops) hoister.run(loop);
+    for(auto& loop: loops) {
+        /*
+         * Whether this loop's preheader is itself inside another loop, which is the whole of the
+         * cost rule below.
+         *
+         * Answered per loop rather than held on `Loop`, because it is a question about the *list* -
+         * a loop knows its own blocks and nothing about the ones containing it.
+         */
+        auto nested = false;
+        for(auto& other: loops) {
+            if(&other == &loop) continue;
+            if(loop.preheader == Loop::kNone) continue;
+            if(insideLoop(other, loop.preheader)) nested = true;
+        }
+
+        hoister.readsMayLeave = !nested;
+        hoister.run(loop);
+    }
 }
 
 /*

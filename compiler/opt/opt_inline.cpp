@@ -626,12 +626,19 @@ struct Inliner {
         }
     }
 
-    // The three ways a block can end that this pass knows how to graft. Everything else - a block
+    // The four ways a block can end that this pass knows how to graft. Everything else - a block
     // with no terminator at all, which the resolver only leaves behind on an error path - declines
     // the whole callee, since a body with a way out this does not reproduce is one whose copy would
     // simply fall off the end.
+    //
+    // `Unreachable` is one of them, and every check in the program depends on its being one:
+    // `checkCondition` is the function every bounds test calls, `endNonReturningBlocks` ends its
+    // abort arm with one before this pass runs, and refusing it here would leave every subscript in
+    // the program paying a call. Copying it is the one case with nothing to reproduce - it makes no
+    // edge and reads nothing.
     bool clonableTerminator(Value::Kind kind) {
-        return kind == Value::Ret || kind == Value::Jmp || kind == Value::Je;
+        return kind == Value::Ret || kind == Value::Jmp || kind == Value::Je ||
+               kind == Value::Unreachable;
     }
 
     /*
@@ -1639,6 +1646,13 @@ struct Inliner {
             case Value::Ret:
                 return (Inst*)createInst<InstJmp>(module, function, into, source, StringId(), type,
                                                   continuation);
+
+            // The one terminator that stays itself: a `ret` becomes the jump back to what follows
+            // the call, and this is the block that has nothing to go back to.
+            case Value::Unreachable:
+                return (Inst*)createInst<InstUnreachable>(module, function, into, source, StringId(),
+                                                          type);
+
             case Value::Jmp:
                 return (Inst*)createInst<InstJmp>(module, function, into, source, StringId(), type,
                                                   mapBlock(clone, ((InstJmp&)terminator).target));

@@ -13,12 +13,17 @@
  * ## The proof
  *
  * Everything here rests on `computeContainment`: a local whose `Alloc` is used only by reads and
- * writes of its own place has had its address handed to nothing, so no call, no borrow, no pointer
- * and no capture can reach it. Which means the *only* instructions that can write it are the ones
- * this pass can see, and the only places that can overlap one of its fields are other places rooted
+ * writes of its own place has had its address handed to nothing, so no pointer and no capture can
+ * reach it. Which means the only places that can overlap one of its fields are other places rooted
  * in the same local. That is what removes the aliasing question entirely, and it is why this needs no
  * clobber rule and no notion of a barrier - a call in the middle of the function is not an event at
  * all here.
+ *
+ * With the one exception that containment is now weaker than that sentence: a local handed to a call
+ * that retains nothing is contained, and so is one a `Borrow` taken for such a call names. Neither
+ * leaves an address behind afterwards, which is all the aliasing rule needed, and both may be
+ * *written* while the call runs. `surveyCandidate` declines such a local rather than modelling it -
+ * see the note there, which is why this is not a barrier after all.
  *
  * The reasoning is opt_scalar.cpp's, one step further: that pass uses the use list to prove a local
  * is *written and never read*, and removes it. This one uses the same list to prove a local is
@@ -243,6 +248,25 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                 auto stored = isWrite(*instruction) ? ((InstInit*)instruction)->value : nullptr;
                 eachPlace(*instruction, [&](const Place& place) { visit(place, stored); });
             }
+
+            /*
+             * And the instruction that was handed the storage itself, which is the one write this
+             * walk cannot see and cannot answer.
+             *
+             * `computeContainment` admits an unretained call argument and an unretained borrow of a
+             * local: neither leaves an address behind, which is what entitles the aliasing rule
+             * above to say that only a place rooted in this same local can reach this one. What it
+             * does not say is that the callee wrote nothing *while it ran*, and a write it made is a
+             * store this pass would have to have a value for.
+             *
+             * The other three readers of containment forget at the call and carry on. This one has
+             * nothing to forget *to* - what it is building is a value per block for the whole
+             * function - so the candidate is declined outright. It is the storage a callee received,
+             * which is exactly the storage this pass has no business holding in registers.
+             */
+            eachAddressedLocal(opt, *instruction, [&](U32 local) {
+                if(local == candidate.place.local) usable = false;
+            });
 
             if(!usable) return false;
         }

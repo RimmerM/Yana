@@ -123,7 +123,7 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: copyExtendedBase ---
-  prologue  => 5341544155
+  prologue  => 53415441554157
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -142,15 +142,15 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_lea scale=1 disp=64 uses=[rdi] creates=[r13]  => 4c8d6f40
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 8bfee8c7ffffff
-  imm uses=[] creates=[rdx]  => ba0c000000
-  copy uses=[r12, r13, rdx] creates=[]  => 4d8b5d004d891c24458b5d0845895c2408
+  call_simple uses=[-, rdi] creates=[rax] pre=[rsi->rdi]  => 8bfee8c5ffffff
+  imm uses=[] creates=[remat:0]  => 
+  copy uses=[r12, r13, r15] creates=[] pre=[remat:0->r15]  => 41bf0c0000004d8b5d004d891c24458b5d0845895c2408
   add uses=[rcx, r8] creates=[rcx]  => 4401c1
   add uses=[rcx, r9] creates=[rcx]  => 4401c9
   add uses=[rcx, r10] creates=[rcx]  => 4401d1
   add uses=[rcx, rbx] creates=[rcx]  => 01d9
   add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1415d415c5bc3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1415f415d415c5bc3
 
 --- codegen: copyFramePointerBase ---
   prologue  => 53554154415541564157
@@ -158,20 +158,21 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rdi]  => 488bef488bfe
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e88affffff
-  imm uses=[] creates=[rcx]  => b90c000000
-  copy uses=[rbp, rax, rcx] creates=[]  => 4c8b184c895d00448b580844895d08
+  call_clobber uses=[-, rdi] creates=[rax]  => e885ffffff
+  imm uses=[] creates=[remat:0]  => 
+  copy uses=[rbp, rax, r15] creates=[] pre=[remat:0->r15]  => 41bf0c0000004c8b184c895d00448b580844895d08
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 488bc5415f415e415d415c5d5bc3
 
 --- codegen: patternByteRex ---
+  prologue  => 4157
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[rax]  => b801000000
-  setpattern uses=[rdi, rax, rsi] creates=[]  => 408837
-  imm uses=[] creates=[rax]  => b80b000000
-  setpattern uses=[rdi, rax, rsi] creates=[]  => 488937668977084088770a
-  ret uses=[] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  setpattern uses=[rdi, r15, rsi] creates=[] pre=[remat:0->r15]  => 41bf01000000408837
+  imm uses=[] creates=[remat:1]  => 
+  setpattern uses=[rdi, r15, rsi] creates=[] pre=[remat:1->r15]  => 41bf0b000000488937668977084088770a
+  ret uses=[] creates=[]  => 415fc3
 
 --- codegen: loadDisplacements ---
 block #0:
@@ -212,7 +213,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13] pre=[rsi->r13]  => 4c8bee49ffc5
   fun uses=[] creates=[-]  => 
-  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 8bfae8f5feffff
+  call_simple uses=[-, rdi] creates=[rax] pre=[rdx->rdi]  => 8bfae8e9feffff
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=0 uses=[r12, r13] creates=[-]  => 
   load uses=[-] creates=[rdx]  => 4b8b14ec

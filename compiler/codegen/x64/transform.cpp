@@ -226,6 +226,87 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
     }
 }
 
+/*
+ * Whether bit 31 of a 32-bit value is known clear - that is, whether it is non-negative read as a
+ * signed `Int32`.
+ *
+ * The companion to the question above, and the two answer different halves of one register: that one
+ * is about bits 32-63, this one about bit 31. Together they say a 32-bit definition already holds its
+ * own sign extension, which is what makes a *signed* widening of it emit nothing.
+ *
+ * Only the kinds whose result cannot reach bit 31 at all, so this needs no range arithmetic: masking
+ * against a constant that does not have it, shifting down by a constant, a comparison, a load too
+ * narrow to reach it, and a widening from something narrower. `Bits.crc` in the corpus is the shape
+ * it was written for - `sext (and %x, 255)`, whose 255 says the answer is eight bits wide and whose
+ * `movslq` was therefore a copy.
+ *
+ * An `add`, a `mul` and a shift *up* are deliberately absent even where their operands qualify: each
+ * of them can carry into bit 31, and the whole value of this question is that it never has to reason
+ * about how far.
+ */
+static bool isNonNegative32(LowerBase base, LowerValue* value, U32 depth = kExtendedDepth) {
+    auto inst = value->inst();
+    if(value->type != LowerType::Int32) return false;
+
+    switch(inst->kind) {
+        case LowerInst::Imm:
+            return (((LowerImm*)inst)->i & 0x80000000ull) == 0;
+
+        // One operand without the bit is enough, since masking cannot set a bit neither side has.
+        case LowerInst::And: {
+            if(depth == 0) return false;
+
+            auto binary = (LowerInstBinary*)inst;
+            return isNonNegative32(base, base[binary->lhs], depth - 1)
+                || isNonNegative32(base, base[binary->rhs], depth - 1);
+        }
+
+        // Where masking can, so both sides have to be clear.
+        case LowerInst::Or: case LowerInst::Xor: {
+            if(depth == 0) return false;
+
+            auto binary = (LowerInstBinary*)inst;
+            return isNonNegative32(base, base[binary->lhs], depth - 1)
+                && isNonNegative32(base, base[binary->rhs], depth - 1);
+        }
+
+        // A logical shift down by a known distance clears exactly that many bits at the top, so any
+        // distance at all clears bit 31. The arithmetic one fills from the sign bit and clears
+        // nothing; the shift up is the carrying case this declines outright.
+        case LowerInst::Shr: {
+            auto count = base[((LowerInstBinary*)inst)->rhs];
+            return count->inst()->kind == LowerInst::Imm && immValue(count) >= 1;
+        }
+
+        case LowerInst::Cmp:
+            return !isImplicit(value);
+
+        // Fewer than four bytes cannot reach bit 31 whichever way the load extends; four bytes can,
+        // and a signed narrow load carries its own sign bit up into it.
+        case LowerInst::Load: {
+            auto load = (LowerInstLoad*)inst;
+            return load->getWidth() < 4 && !load->isSigned();
+        }
+
+        // A widening from something narrower, unsigned: the bits it fills are zeros, and bit 31 is
+        // one of them. A same-width cast is a rename and answers for whatever it renamed.
+        case LowerInst::Cast: {
+            auto cast = (LowerInstCast*)inst;
+            auto source = base[cast->from];
+            if(!isIntLike(source->type)) return false;
+
+            if(source->type == LowerType::Int32) {
+                return depth > 0 && isNonNegative32(base, source, depth - 1);
+            }
+
+            return !cast->isSignedSource();
+        }
+
+        default:
+            return false;
+    }
+}
+
 // Marks a cast whose move would change no bit of its source, so that selection gives it the form
 // that emits nothing when the allocator has put the two in one register (FormCastCopy).
 //
@@ -249,7 +330,17 @@ static bool trySkipCastExtend(LowerBase base, LowerInstCast* cast) {
         return true;
     }
 
-    if(!is64Bit(from) && is64Bit(to) && cast->isSignedSource() && cast->isSignedResult()) return false;
+    /*
+     * The signed widening, which is `movsxd` and has something real to do - unless the bit it would
+     * copy upwards is a zero, in which case it is copying the same zeros the unsigned widening
+     * writes and the two are one instruction. `isNonNegative32` is that question; the general one
+     * below then asks whether even that move is needed.
+     */
+    if(!is64Bit(from) && is64Bit(to) && cast->isSignedSource() && cast->isSignedResult() &&
+       !isNonNegative32(base, source)) {
+        return false;
+    }
+
     if(!isZeroExtended(base, source)) return false;
 
     cast->setSkipsExtend(true);
@@ -1841,6 +1932,36 @@ struct RotatedPhi {
     LowerInstPhi* exit;
 };
 
+/*
+ * A block a loop leaves to that carries nothing onwards - the one second exit the rotation can take.
+ *
+ * The gate below asks for a single exit because of where a header phi's readers are sent: one outside
+ * the loop is pointed at the merge built in the *exit* block, which is only its value where the exit
+ * dominates it. A second way out reaches code the exit does not dominate, and there is nothing to
+ * point such a reader at.
+ *
+ * Unless the block it reaches is dominated by the loop's own body, in which case there is: the merge
+ * built there. That is what this asks for, in the two conditions it is the conjunction of - every way
+ * in comes from inside the loop, and there is no way onwards - because together they say the block is
+ * dominated by the body after the rotation as well as before it, and that nothing beyond it can be
+ * looking at a loop value at all.
+ *
+ * Two shapes in ordinary code are exactly this. A bounds check's abort arm is one that reads nothing
+ * (§10 item 2 of test/bench/findings.md gave every one of them a `ret`, which is what made every
+ * checked loop multi-exit); an early `return` out of a `while` is one that reads the induction
+ * variable, and `Float.escape` in the corpus is a loop that pays an unconditional jump per iteration
+ * for having one.
+ */
+static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex, LowerBlock* block) {
+    if(block->outgoing[0] || block->outgoing[1]) return false;
+
+    for(auto p: block->incoming.contents(base)) {
+        if(!loops.contains(headerIndex, base[p]->index)) return false;
+    }
+
+    return true;
+}
+
 static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
                                           LowerBlock* header)
 {
@@ -1879,14 +2000,16 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
     if(loop.body->incoming.size() != 1) return Nothing();
     if(loop.exit->incoming.size() != 1) return Nothing();
 
-    // The header has to be the only way out. Anything else in the loop that leaves it reaches code
-    // the exit block does not dominate, and a header value read there would have nowhere to merge.
+    // The header has to be the only way out, or every other way out has to be one that goes nowhere
+    // - see `terminalExit`, which is what makes a header value read at one still have somewhere to
+    // merge.
     for(auto o: fun.blocks.contents(base)) {
         auto block = base[o];
         if(block == header || !loops.contains(index, block->index)) continue;
 
         for(auto s: block->outgoing) {
-            if(s && !loops.contains(index, base[s]->index)) return Nothing();
+            if(!s || loops.contains(index, base[s]->index)) continue;
+            if(!terminalExit(base, loops, index, base[s])) return Nothing();
         }
     }
 
@@ -2016,6 +2139,11 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
      *   in the header      the value the latch just produced, which is what the rotated header sees
      *   elsewhere in loop  the body's phi, which is now what the loop is entered through
      *   outside the loop   the exit's phi, which merges the guard's answer with the last iteration's
+     *
+     * A terminal second exit reads on an edge that leaves the loop and is nevertheless the *body's*
+     * answer: every way into such a block is from inside the loop, so the body dominates it, and the
+     * exit's merge - which is what the guard's zero-iteration answer arrives through - is a value it
+     * was never reached by. See `terminalExit`.
      */
     for(auto& r: phis) {
         auto value = &r.header->result;
@@ -2033,8 +2161,11 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
                     ? base[((LowerInstPhi*)user)->sources()[slot]]
                     : base[user->block];
 
+                auto inLoop = loops.contains(headerIndex, from->index) ||
+                              terminalExit(base, loops, headerIndex, from);
+
                 auto to = from == header ? r.hdr
-                    : loops.contains(headerIndex, from->index) ? &r.body->result
+                    : inLoop ? &r.body->result
                     : &r.exit->result;
 
                 retargetOperand(base, user, slot, to);

@@ -29,6 +29,19 @@ inline void detach(LowerBase base, LowerInst* inst) {
     for(Size i = 0; i < used.length; i++) dropUse(base, used.ptr[i], inst - base);
 }
 
+// Pointing one operand of an instruction at a different value, both directions at once. The operand
+// is named by reference because it is a field of the instruction - `binary->lhs` and the rest - so
+// that a caller rewriting one of two identical operands moves exactly the one it meant.
+inline void setOperand(LowerBase base, Region<LowerRegion>& arena, LowerInst* inst,
+                       LowerPtr<LowerValue>& operand, LowerValue* to) {
+    auto target = to - base;
+    if(operand == target) return;
+
+    dropUse(base, operand, inst - base);
+    operand = target;
+    base[target]->uses.push(arena, inst - base);
+}
+
 // Pointing every reader of one value at another.
 inline void replaceUses(LowerBase base, Region<LowerRegion>& arena, LowerPtr<LowerValue> from,
                         LowerPtr<LowerValue> to) {

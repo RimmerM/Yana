@@ -646,6 +646,9 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Ret:
             genRet(f, (LowerInstRet&)inst);
             break;
+        case LowerInst::Unreachable:
+            f.builder.CreateUnreachable();
+            break;
         case LowerInst::Phi:
             // Created empty before any block was built, and filled once every block exists.
             break;

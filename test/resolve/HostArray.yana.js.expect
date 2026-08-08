@@ -17,8 +17,9 @@ function sub_eq_Int(target$o, target$k, target$s, amount) {
 function checkCondition(failed) {
   if (failed) {
     throw "yana: a runtime check failed";
+  } else {
+    return;
   }
-  return;
 }
 
 function remove_Handle(self, index) {
@@ -67,32 +68,32 @@ function idsOf(xs$items, xs$length, xs$offset) {
 function container() {
   add_eq_Int(live, "$v", 1, 1);
   add_eq_Int(live, "$v", 1, 1);
-  var v4 = [1, 2];
+  var v5 = [1, 2];
   add_eq_Int(live, "$v", 1, 1);
-  v4[v4.length] = 3;
-  checkCondition(0 >= v4.length >>> 0);
+  v5[v5.length] = 3;
+  checkCondition(0 >= v5.length >>> 0);
   add_eq_Int(live, "$v", 1, 1);
-  Drop_Handle_drop(v4[0]);
-  v4[0] = 4;
+  Drop_Handle_drop(v5[0]);
+  v5[0] = 4;
   if (live.$v !== 3) {
-    Reclaim_Array_a_reclaim_Handle(v4);
+    Reclaim_Array_a_reclaim_Handle(v5);
     return -1;
   } else {
     if (closed !== 1) {
-      Reclaim_Array_a_reclaim_Handle(v4);
+      Reclaim_Array_a_reclaim_Handle(v5);
       return -2;
     } else {
       var score = 0;
-      var v57 = remove_Handle(v4, 1);
+      var v57 = remove_Handle(v5, 1);
       if (!(v57 === null)) {
         Drop_Handle_drop(v57);
         score = v57;
         if (live.$v !== 2) {
-          Reclaim_Array_a_reclaim_Handle(v4);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return -4;
         } else {
-          var whole = idsOf(v4, v4.length, 0);
-          var v98 = v4.length;
+          var whole = idsOf(v5, v5.length, 0);
+          var v98 = v5.length;
           var start = 1;
           if (1 > v98) {
             start = v98;
@@ -104,12 +105,12 @@ function container() {
           if (end > v98) {
             end = v98;
           }
-          var tail = idsOf(v4, end - start | 0, start);
-          Reclaim_Array_a_reclaim_Handle(v4);
+          var tail = idsOf(v5, end - start | 0, start);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return (Math.imul(score, 1000) + Math.imul(whole, 10) | 0) + tail | 0;
         }
       } else {
-        Reclaim_Array_a_reclaim_Handle(v4);
+        Reclaim_Array_a_reclaim_Handle(v5);
         if (!(v57 === null)) {
           Drop_Handle_drop(v57);
         }

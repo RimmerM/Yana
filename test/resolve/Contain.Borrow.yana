@@ -1,0 +1,70 @@
+-- The address of a local handed to a callee is exposure *for the call*, not for the frame.
+--
+-- Contain.Call.yana is this one level up: a record passed whole to a callee stays contained,
+-- because an unretained argument is reachable only while the callee runs. `computeContainment`
+-- refused the same statement about a `Borrow` - a local any borrow named was exposed for the rest
+-- of the frame - and that is the form ordinary container code takes. `push(xs, 0)` is a borrow of a
+-- local, so a loop that both writes through a container's elements and reads its header reloaded
+-- the header every iteration, having no way to know that nothing in the loop could name it.
+--
+-- The rule is the same one: every reader of the borrow has to be a call the summary says retains
+-- nothing, and then no address of the local exists anywhere outside those calls. A borrow used as a
+-- place *root* is refused, since a read or a write through one is an access to the local's own
+-- storage and the aliasing rules answer such a place by saying it cannot meet a local-rooted one.
+--
+-- Both halves are asserted here, because both failures are silent in the IR alone.
+
+data Flags {read: Bool, write: Bool}
+
+-- Writes through the borrow, and retains nothing: the address does not outlive the call.
+@noinline
+fn mutate(f: &Flags) -> Int:
+    f.read = True
+    return 0
+
+-- The fold above the call and the reload below it, in one function.
+--
+-- `f.write` is read before anything has had the address at all, so the construction answers it.
+-- `f.read` is read after a callee held the address for the length of one instruction, so it is a
+-- load - and the fact that it is the *other* field is deliberately not used: what a callee did with
+-- an address is not something a summary records, so the whole local is forgotten at the call.
+fn around() -> Int:
+    let &f = Flags {read: False, write: True}
+
+    let before = if f.write then 10 else 20
+    let handed = mutate(f)
+    let after = if f.read then 100 else 200
+
+    return before + handed + after
+
+{-
+   The shape §11.1 of test/bench/findings.md is about.
+
+   The first loop borrows `xs` once per iteration for `push`, so nothing there is invariant. The
+   second borrows nothing: it writes through the container's *elements*, which are the heap buffer
+   rather than the local, and reads the container's header. Both header words - the length the
+   bounds check reads and the buffer address the subscript adds to - leave the body, because the
+   local they are rooted in is one no pointer in the function can be pointing at.
+
+   The number is what says the writes still happened: `[0, 1, 2]` each raised by one is 1+2+3.
+-}
+fn fill(n: Int) -> Int:
+    let &xs = [] :: [Int]
+    let &i = 0 :: Int
+
+    while i < n:
+        push(xs, i)
+        i = i + 1
+
+    let &sum = 0 :: Int
+    let &k = 0 :: Int
+
+    while k < n:
+        xs[k] = xs[k] + 1
+        sum = sum + xs[k]
+        k = k + 1
+
+    return sum
+
+fn main() -> Int:
+    return around() + fill(3)

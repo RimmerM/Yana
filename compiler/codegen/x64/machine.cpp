@@ -136,6 +136,7 @@ enum: MachineFormId {
     FormJccFlags,
     FormJccReg,
     FormRet,
+    FormNoReturn,
 
     kMachineFormCount,
 };
@@ -287,6 +288,10 @@ MachineTarget::MachineTarget() {
     name(OpJcc, "jcc"_v, true);
 
     name(OpRet, "ret"_v);
+
+    // The end of a block control never leaves. Named like any other opcode so that the printers and
+    // the verifiers have something to say about it, and encoding to nothing at all - see FormNoReturn.
+    name(OpNoReturn, "noreturn"_v);
 
     // Each form is pushed in the order the ids above declare it, so that the id is its index.
     auto add = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName) -> MachineForm& {
@@ -1443,6 +1448,23 @@ MachineTarget::MachineTarget() {
         };
     }
 
+    {
+        /*
+         * The one form in this table that emits no bytes, and the only one entitled to.
+         *
+         * Every other zero-byte case in the backend is an instruction that *became* nothing - a cast
+         * whose extension was already done, a copy into the register the value was already in - and
+         * each of those is a form that would have emitted something had the fold not applied. This
+         * one has nothing to emit in the first place: the block it ends is one nothing arrives at
+         * the end of, so there is no epilogue to run and no address to return to. It carries no
+         * operands and no successors, which is why it needs neither convention nor clobbers.
+         */
+        auto& form = add(FormNoReturn, OpNoReturn, "noreturn"_v);
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::NoReturn,
+        };
+    }
+
     assertTrue(forms.size() == kMachineFormCount);
 
     // The intrinsics' forms go into the same table, after the described ones, so that everything
@@ -1809,6 +1831,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Je:         return OpJcc;
         case LowerInst::Jmp:        return OpJmp;
         case LowerInst::Ret:        return OpRet;
+        case LowerInst::Unreachable: return OpNoReturn;
         case LowerInst::Phi:        return OpPhi;
         case LowerInst::X86Address: return OpAddress;
         case LowerInst::X86Lea:     return OpLea;
@@ -2253,6 +2276,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             return ((LowerInstJe*)inst)->getEmbeddedCmp() ? FormJccFlags : FormJccReg;
         case LowerInst::Jmp: return FormJmp;
         case LowerInst::Ret: return FormRet;
+        case LowerInst::Unreachable: return FormNoReturn;
     }
 
     assertTrue("no machine form for this instruction" == nullptr);

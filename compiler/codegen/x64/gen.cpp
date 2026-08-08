@@ -1336,6 +1336,12 @@ struct Emitter {
                 to.buffer.writeByte(0xc3);
                 break;
 
+            // Nothing at all - see FormNoReturn. The parallel copies in front of this terminator
+            // have already been emitted by the caller, which is correct rather than wasteful: a
+            // block with no successors carries no phi arguments, so there are none.
+            case PseudoKind::NoReturn:
+                break;
+
             case PseudoKind::Jump: {
                 auto jmp = (LowerInstJmp*)inst;
                 auto target = branchTarget(jmp->then);

@@ -226,8 +226,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[rcx]  => 31c9
-  xgetbv uses=[rcx] creates=[rax, rdx]  => 0f01d0
+  imm uses=[] creates=[remat:0]  => 
+  xgetbv uses=[rcx] creates=[rax, rdx] pre=[remat:0->rcx]  => b9000000000f01d0
   add uses=[rax, rdx] creates=[rax]  => 01d0
   ret uses=[rax] creates=[]  => c3
 

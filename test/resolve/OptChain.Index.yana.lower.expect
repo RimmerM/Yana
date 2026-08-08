@@ -407,66 +407,59 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_16 {
-    jmp b_17
+    %v_17 = load %v_3, 8: Ptr
+    %v_18 = add %v_17, 4: Ptr
+    %v_19 = loads %v_18, 4: Int
+    %v_20 = cmp_eq %v_7, 0: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_21 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_23
+  }
+
+  b_23 {
+    %v_24 = alloca 8, 4: Ptr
+    store %v_24, 1, 4
+    %v_25 = add %v_24, 4: Ptr
+    store %v_25, %v_19, 4
+    jmp b_26
   }
 
   b_15 {
-    %v_18 = syscall 60, 134: Long
-    jmp b_17
-  }
-
-  b_17 {
-    %v_19 = load %v_3, 8: Ptr
-    %v_20 = add %v_19, 4: Ptr
-    %v_21 = loads %v_20, 4: Int
-    %v_22 = load %v_4, 4: Long
-    %v_23 = cmp_le %v_22, 1073741823: Int
-    %v_24 = select 0, 1, %v_23: Int
-    %v_25 = cmp_eq %v_24, 0: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    jmp b_28
-  }
-
-  b_26 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = alloca 8, 4: Ptr
-    store %v_29, 1, 4
-    %v_30 = add %v_29, 4: Ptr
-    store %v_30, %v_21, 4
-    jmp b_31
+    %v_27 = syscall 60, 134: Long
+    unreachable 
   }
 
   b_9 {
-    %v_32 = cmp_eq %v_7, 0: Int
-    je %v_32, b_33, b_34
+    %v_28 = cmp_eq %v_7, 0: Int
+    je %v_28, b_29, b_30
   }
 
-  b_34 {
-    jmp b_35
+  b_30 {
+    jmp b_31
   }
 
-  b_33 {
+  b_29 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_3
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = alloca 1, 1: Ptr
-    %v_37 = alloca 8, 4: Ptr
-    store %v_37, 0, 4
     jmp b_31
   }
 
   b_31 {
-    %v_38 = phi [b_28, %v_29], [b_35, %v_37]: Ptr
-    copy %v_0, %v_38, 8
+    %v_32 = alloca 1, 1: Ptr
+    %v_33 = alloca 8, 4: Ptr
+    store %v_33, 0, 4
+    jmp b_26
+  }
+
+  b_26 {
+    %v_34 = phi [b_23, %v_24], [b_31, %v_33]: Ptr
+    copy %v_0, %v_34, 8
     ret 
   }
 }
@@ -489,70 +482,63 @@ sum<complex>(%v_0: Ptr, %n: Int) {
     %v_11 = load %v_4, 4: Int
     %v_12 = cast %v_11: Int
     %v_13 = cast %v_12: Long
-    %v_14 = cmp_ge 0, %v_13: Int
+    %v_14 = cmp_eq %v_13, 0: Int
     je %v_14, b_15, b_16
   }
 
   b_16 {
-    jmp b_17
+    %v_17 = load %v_3, 8: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = cmp_eq %v_7, 0: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_20 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = alloca 8, 4: Ptr
+    store %v_23, 1, 4
+    %v_24 = add %v_23, 4: Ptr
+    store %v_24, %v_18, 4
+    jmp b_25
   }
 
   b_15 {
-    %v_18 = syscall 60, 134: Long
-    jmp b_17
-  }
-
-  b_17 {
-    %v_19 = load %v_3, 8: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_21 = load %v_4, 4: Long
-    %v_22 = cmp_le %v_21, 1073741823: Int
-    %v_23 = select 0, 1, %v_22: Int
-    %v_24 = cmp_eq %v_23, 0: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    jmp b_27
-  }
-
-  b_25 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_3
-    jmp b_27
-  }
-
-  b_27 {
-    %v_28 = alloca 8, 4: Ptr
-    store %v_28, 1, 4
-    %v_29 = add %v_28, 4: Ptr
-    store %v_29, %v_20, 4
-    jmp b_30
+    %v_26 = syscall 60, 134: Long
+    unreachable 
   }
 
   b_9 {
-    %v_31 = cmp_eq %v_7, 0: Int
-    je %v_31, b_32, b_33
+    %v_27 = cmp_eq %v_7, 0: Int
+    je %v_27, b_28, b_29
   }
 
-  b_33 {
-    jmp b_34
+  b_29 {
+    jmp b_30
   }
 
-  b_32 {
+  b_28 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_3
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = alloca 1, 1: Ptr
-    %v_36 = alloca 8, 4: Ptr
-    store %v_36, 0, 4
     jmp b_30
   }
 
   b_30 {
-    %v_37 = phi [b_27, %v_28], [b_34, %v_36]: Ptr
-    copy %v_0, %v_37, 8
+    %v_31 = alloca 1, 1: Ptr
+    %v_32 = alloca 8, 4: Ptr
+    store %v_32, 0, 4
+    jmp b_25
+  }
+
+  b_25 {
+    %v_33 = phi [b_22, %v_23], [b_30, %v_32]: Ptr
+    copy %v_0, %v_33, 8
     ret 
   }
 }

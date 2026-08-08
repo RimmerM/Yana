@@ -330,6 +330,20 @@ void computeEffects(OptContext& opt, Effects& effects) {
              * built in, which is the whole of it rather than the elements it writes.
              */
             eachWritten(opt, *instruction, [&](const Place& place) { effects.writes.push(place); });
+
+            /*
+             * And the storage the instruction was *handed*, which `exposes` is the wrong rule for.
+             *
+             * `computeContainment` admits an unretained call argument and an unretained borrow, so a
+             * record passed to `==` and a container `push` is taken a `&mut` of both stay contained -
+             * and `killExposed` therefore spares their loads at every call in the function. That is
+             * the whole point of admitting them, and it is only true of the calls that were handed
+             * something else. The one that received this storage may have written it, so it is a
+             * write of the local like any other and `killAliasing` ends the facts here.
+             */
+            eachAddressedLocal(opt, *instruction, [&](U32 local) {
+                effects.writes.push(Place::inLocal(local));
+            });
         }
 
         row.writeCount = U32(effects.writes.size()) - row.firstWrite;
@@ -545,9 +559,12 @@ struct Eliminator {
             }
 
             // And what this instruction does to the storage the scope is holding, which is the same
-            // two invalidations `killBetween` applies for a whole block.
+            // three invalidations `killBetween` applies for a whole block.
             if(writesUnknownStorage(opt, *instruction)) killExposed();
             eachWritten(opt, *instruction, [&](const Place& place) { killAliasing(place); });
+            eachAddressedLocal(opt, *instruction, [&](U32 local) {
+                killAliasing(Place::inLocal(local));
+            });
         }
 
         depth++;

@@ -725,6 +725,11 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateJmp(diagnostics, base, (LowerInstJmp*)inst);
         case LowerInst::Ret:
             return validateRet(diagnostics, base, (LowerInstRet*)inst);
+
+        // Nothing to hold to the signature, which is the difference from a `ret`: this one does not
+        // return, so there is no result for `validateRet`'s rule to be about.
+        case LowerInst::Unreachable:
+            return true;
         case LowerInst::Phi:
             return validatePhi(diagnostics, base, (LowerInstPhi*)inst, dominators);
         case LowerInst::Intrinsic:

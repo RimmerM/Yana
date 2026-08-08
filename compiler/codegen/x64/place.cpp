@@ -653,6 +653,30 @@ struct Placer {
         // A previous pass found something that needed this web's register more than it did.
         if(forcedHomeless[webId]) return assignHomeless(webId, v->type, cls, interval);
 
+        /*
+         * A value that costs nothing to recreate never takes a register, however free one looks
+         * here.
+         *
+         * The search below asks whether a register is *available over this web's life*, and takes
+         * one whenever it is. That question is the wrong one for a recipe: what a register buys such
+         * a web is `homelessCost`, which is already known and is a *weighted* number - so a constant
+         * read once on an abort arm is worth one cold instruction, and holding a register for it
+         * denies that register to everything the web spans. §11.2 made that span the whole function:
+         * an `imm 134` has no block of its own, so its interval runs from the entry to the last
+         * abort arm, and Matrix's innermost loop was three registers short with `mov $0x86, %ebp`
+         * sitting in one of them.
+         *
+         * The bar is one recreation at unit weight - a value read once, on a path that runs as often
+         * as the function is entered. That is the abort arm exactly, and it is nothing else: a
+         * constant read inside a loop carries that loop's weight and keeps its register, because
+         * `rematCost` is weighted by where the reads *are* rather than by how many there are. Above
+         * the bar the comparison is the one at the bottom of this function, where a register that is
+         * not free is weighed against the recipe properly.
+         */
+        if(info.canRemat && info.rematCost <= kRematCost) {
+            return assignHomeless(webId, v->type, cls, interval);
+        }
+
         auto usable = [&](Size i, const RegSet& blocked) {
             auto reg = PhysicalReg { bank, U16(i) };
             if(!allocatable.has(reg) || blocked.has(reg)) return false;

@@ -10,6 +10,7 @@
 #include "../opt/opt.h"
 #include "../lower/lower_promote.h"
 #include "../lower/lower_cse.h"
+#include "../lower/lower_licm.h"
 #include "../lower/lower_strength.h"
 #include "../lower/lower_induction.h"
 
@@ -617,6 +618,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // it can see, and in front of the loop pass so that what that pass is shown is one multiply
         // rather than three.
         eliminateCommonValues(lower.lower, lower.to, *target);
+
+        // And the reads a loop repeats because its address does not change and nothing in it writes
+        // - see lower_licm.h, and §10 item 1 of test/bench/findings.md for why the resolve-tier
+        // hoister above cannot reach these. Behind the CSE so that a loop reading one address twice
+        // is shown one load.
+        hoistLoopLoads(lower.lower, lower.to, *target);
 
         // And the multiply that is left because its other operand is the loop's own counter, which
         // is not a strength reduction of one operation into another but of a whole recurrence - see

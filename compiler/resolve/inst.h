@@ -1481,6 +1481,25 @@ struct InstRet: Inst {
     template<class F> void eachTransferField(ModuleBase, F&& f) { f(value, source); }
 };
 
+/*
+ * A block control never leaves - the one terminator with neither a successor nor a result.
+ *
+ * Written by `endNonReturningBlocks` in opt_flow.cpp and by nothing else. What puts one there is a
+ * call to a function declared not to come back (see `Function::noReturn`), which is `checkFailed` and
+ * so far only `checkFailed`: every bounds check and every `@bits` narrowing branches to an arm that
+ * calls it, and until this existed that arm jumped back to the block below the check. The join it
+ * made is what kept two checks of one index against one length from being one check - see §10 item 2
+ * of test/bench/findings.md.
+ *
+ * It is a terminator with no successor slots, which is what every walk over the CFG already knows how
+ * to read: a `ret` is the same shape, so dominance, the loop finder and the reachability sweeps need
+ * to be told nothing. What it is *not* is a return - nothing is handed back, and the ownership passes
+ * have finished by the time one is created, so no path through here owes a drop.
+ */
+struct InstUnreachable: Inst {
+    InstUnreachable(ModulePtr<Block> block, TypePtr unit): Inst(Value::Unreachable, block, unit) {}
+};
+
 struct PhiInput {
     ModulePtr<Block> block;
     ModulePtr<Value> value;

@@ -195,6 +195,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Je:
         case Value::Jmp:
         case Value::Ret:
+        case Value::Unreachable:
             return InstGroup::Terminator;
     }
 
@@ -285,6 +286,20 @@ void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> poi
             result = block.addInst(lower.lower, returnLower);
             break;
         }
+
+        /*
+         * A block control never leaves, said as itself.
+         *
+         * It used to be a `ret` of zeros of the function's own result types - a lie contained to a
+         * block nothing arrives at the end of, and one `validateRet` held to the signature like any
+         * other return. What that cost is an epilogue and a `c3` per abort arm, which was the whole
+         * of §11.2's +323 bytes; the lower IR now has the terminator instead, and the x64 form for
+         * it encodes nothing at all.
+         */
+        case Value::Unreachable:
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnreachable());
+            break;
+
         default:
             assertTrue("expected resolve terminator" == nullptr);
             return;

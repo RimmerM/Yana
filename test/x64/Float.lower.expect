@@ -158,13 +158,13 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_gt uses=[xmm0, xmm1] creates=[-]  => 660f2ec1
-  je uses=[-] creates=[]  => 0f8703000000
+  je uses=[-] creates=[]  => 0f8706000000
 block else:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block then:
-  imm uses=[] creates=[rax]  => b801000000
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b801000000c3
 
 --- codegen: compareValue ---
 block #0:
@@ -179,13 +179,13 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[rax]  => 31c0660f2ec10f94c07b0231c0
-  je uses=[rax] creates=[]  => 85c00f8503000000
+  je uses=[rax] creates=[]  => 85c00f8506000000
 block else:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block then:
-  imm uses=[] creates=[rax]  => b801000000
-  ret uses=[rax] creates=[]  => c3
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b801000000c3
 
 --- codegen: compareUnequal ---
 block #0:

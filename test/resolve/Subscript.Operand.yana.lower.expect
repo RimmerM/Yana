@@ -146,25 +146,21 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
     %v_12 = sext %v_6: Long
     %v_13 = cast %v_6: Long
     %v_14 = cmp_ge %v_13, %v_1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    jmp b_4
-  }
-
-  b_15 {
-    %v_17 = syscall 60, 134: Long
-    jmp b_4
+    je %v_14, b_15, b_4
   }
 
   b_4 {
-    %v_18 = shl %v_12, 2: Long
-    %v_19 = add %xs$items, %v_18: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_5 = add %v_3, %v_20: Int
+    %v_16 = shl %v_12, 2: Long
+    %v_17 = add %xs$items, %v_16: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_5 = add %v_3, %v_18: Int
     %v_7 = add %v_6, 1: Int
     jmp b_2
+  }
+
+  b_15 {
+    %v_19 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -239,83 +235,83 @@ main<complex>(): Int {
     %v_43 = load %v_42, 4: Int
     %v_44 = cast %v_43: Int
     %v_45 = cast %v_44: Long
-    %v_46 = cmp_ge 0, %v_45: Int
+    %v_46 = cmp_eq %v_45, 0: Int
     je %v_46, b_47, b_48
   }
 
-  b_47 {
-    %v_49 = syscall 60, 134: Long
-    jmp b_48
-  }
-
   b_48 {
-    %v_50 = loads %v_41, 4: Int
-    %v_51 = sext %v_50: Long
-    %v_52 = cast %v_50: Long
-    %v_53 = cmp_ge %v_52, 5: Int
-    je %v_53, b_54, b_55
+    %v_49 = loads %v_41, 4: Int
+    %v_50 = cast %v_49: Long
+    %v_51 = cmp_ge %v_50, 5: Int
+    je %v_51, b_52, b_53
   }
 
-  b_54 {
-    %v_56 = syscall 60, 134: Long
-    jmp b_55
-  }
-
-  b_55 {
-    %v_57 = shl %v_51, 2: Long
-    %v_58 = add %v_2, %v_57: Ptr
-    %v_59 = loads %v_58, 4: Int
+  b_53 {
+    %v_54 = cast %v_50: Long
+    %v_55 = shl %v_54, 2: Long
+    %v_56 = add %v_2, %v_55: Ptr
+    %v_57 = loads %v_56, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_13
-    %v_60 = cmp_neq %v_59, 3: Int
-    je %v_60, b_61, b_62
+    %v_58 = cmp_neq %v_57, 3: Int
+    je %v_58, b_59, b_60
   }
 
-  b_62 {
-    %v_63 = call_complex total, %v_2, %v_31: Int
-    %v_64 = cmp_neq %v_63, 15: Int
-    je %v_64, b_65, b_66
+  b_60 {
+    %v_61 = call_complex total, %v_2, %v_31: Int
+    %v_62 = cmp_neq %v_61, 15: Int
+    je %v_62, b_63, b_64
   }
 
-  b_66 {
+  b_64 {
+    %v_65 = alloca 16, 8: Ptr
+    store %v_65, %v_2, 8
+    %v_66 = add %v_65, 8: Ptr
+    store %v_66, %v_31, 8
     %v_67 = alloca 16, 8: Ptr
-    store %v_67, %v_2, 8
+    call_complex slice(Int), %v_67, %v_2, %v_31, 0, 5
+    %xs$items = load %v_67, 8: Ptr
     %v_68 = add %v_67, 8: Ptr
-    store %v_68, %v_31, 8
-    %v_69 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_69, %v_2, %v_31, 0, 5
-    %xs$items = load %v_69, 8: Ptr
-    %v_70 = add %v_69, 8: Ptr
-    %xs$length = loads %v_70, 8: Long
-    %v_71 = call_complex total, %xs$items, %xs$length: Int
-    %v_72 = cmp_neq %v_71, 15: Int
-    je %v_72, b_73, b_74
+    %xs$length = loads %v_68, 8: Long
+    %v_69 = call_complex total, %xs$items, %xs$length: Int
+    %v_70 = cmp_neq %v_69, 15: Int
+    je %v_70, b_71, b_72
   }
 
-  b_74 {
+  b_72 {
     store %v_2, 10, 4
-    %v_75 = load %v_1, 8: Ptr
-    %v_76 = add %v_1, 12: Ptr
-    %v_77 = load %v_76, 4: Int
-    %v_78 = cast %v_77: Int
-    %v_79 = cast %v_78: Long
-    %v_80 = call_complex total, %v_75, %v_79: Int
+    %v_73 = load %v_1, 8: Ptr
+    %v_74 = add %v_1, 12: Ptr
+    %v_75 = load %v_74, 4: Int
+    %v_76 = cast %v_75: Int
+    %v_77 = cast %v_76: Long
+    %v_78 = call_complex total, %v_73, %v_77: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_80
+    ret %v_78
   }
 
-  b_73 {
+  b_71 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551611
   }
 
-  b_65 {
+  b_63 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551612
   }
 
-  b_61 {
+  b_59 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
     ret 18446744073709551613
+  }
+
+  b_52 {
+    %v_79 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_47 {
+    %v_80 = syscall 60, 134: Long
+    unreachable 
   }
 
   b_39 {

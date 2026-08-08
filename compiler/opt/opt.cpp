@@ -62,6 +62,12 @@ void optimizeRounds(OptContext& opt) {
         // header merged back into the block above it - belongs to the pass below.
         runPass(eliminateDeadLoops);
 
+        // Immediately in front of the fold, for the reason the dead-loop pass is: what it produces is
+        // a CFG the same cleanups have to run over. It is above the place passes' reach rather than
+        // below them because what it removes is a *join*, and a join is where every block-local pass
+        // stops - so the round after this one is the first that can see through a bounds check.
+        runPass(endNonReturningBlocks);
+
         // After the place passes rather than before them, because most constant conditions are made
         // rather than written: a `Bool` inlining turned into a literal, a field forwarding answered
         // from the write above it. Ahead of the loop pass so that neither it nor the dominance walk
@@ -85,6 +91,14 @@ void optimizeRounds(OptContext& opt) {
         // of CSE for the same reason in the other direction - two hoisted copies of one computation
         // land in the preheader together, where the dominator walk unifies them.
         runPass(hoistLoopValues);
+
+        /*
+         * Ahead of CSE rather than after it, because what it produces is a *second* spelling of a
+         * value that already exists: the sign extension becomes a conversion of the zero extension,
+         * and it is the dominator walk below that then unifies two subscripts of one index. Below
+         * the branch folder for the reason every range question is - the arm has to still be there.
+         */
+        runPass(narrowCheckedIndexes);
 
         runPass(eliminateCommonValues);
         runPass(eliminateDeadValues);
@@ -394,6 +408,33 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // rather than once per copy of the callee. What inlining leaves behind is again work for the
     // passes below - a constructor's `alloc` in its caller's own block, which opt_scalar.cpp
     // removes, and arguments that are now constants, which opt_fold.cpp propagates.
+    /*
+     * The abort arms, ended - before the inliner rather than inside the rounds below, and the order
+     * is the whole of what makes this item pay rather than cost.
+     *
+     * The fact this reads is a `Call` to a declared `noReturn` function, and inlining is what makes
+     * that call stop existing: `checkFailed` is `exitProcess(134)`, so a caller that inlines it holds
+     * a bare system call that nothing downstream can tell apart from any other. Cutting the edge
+     * first leaves the block ending in `Unreachable`, and the body may then be copied in behind that
+     * - which is what keeps the arm a *syscall* rather than a call, and §9.5's clobber set with it.
+     *
+     * Measured both ways round on the corpus: with the inliner declining instead, `Sieve` pays 7% for
+     * the abort arm becoming an ordinary call in the middle of its loops.
+     */
+    for(auto module: program.modules) {
+        opt.module = module;
+
+        for(auto pointer: module->functionOrder.contents(opt.local)) {
+            auto function = opt.local[pointer];
+            if(function->signature || function->blocks.isEmpty() || !function->used) continue;
+
+            opt.function = function;
+            endNonReturningBlocks(opt);
+        }
+    }
+
+    verifyIrProgram(program, VerifyStage::Ownership, "after endNonReturningBlocks"_v);
+
     inlineCalls(opt);
     verifyIrProgram(program, VerifyStage::Optimized, "after inlineCalls"_v);
 
