@@ -236,6 +236,11 @@ static void collectTransitions(const Placement& placement, Array<SegmentTransiti
             auto& segment = web.segments[i];
             if(segment.location == previous.location) continue;
 
+            // Leaving a segment the web was *copied* into costs nothing: its home never stopped
+            // holding the value, so the copy back would write what is already there. See
+            // AllocationSegment::cached, and §5.9 of place.cpp for why that is sound.
+            if(previous.cached) continue;
+
             // Nothing carries a value across a hole, so two segments with a hole between them are
             // two stretches of one location and never a boundary. Placement builds them that way;
             // reaching here with a gap would mean a value expected somewhere nothing put it.

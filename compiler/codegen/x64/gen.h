@@ -722,6 +722,23 @@ struct AllocationSegment {
     U32 to = 0;
 
     MachineLocation location;
+
+    /*
+     * Set on a segment the web was *copied* into rather than moved into: its home goes on holding
+     * the value for the whole of it, so entering costs one load and leaving costs nothing at all.
+     *
+     * That is the difference between the two kinds of split there are. A web live across a call
+     * steps out of a register into the frame and has to step back (§5.8): the register is where the
+     * value was, so the store and the reload are both real. A web with no register at all steps into
+     * one over a cluster of its uses (§5.9): the slot it came from is nobody else's for the whole of
+     * its life, so it still holds the value when the cluster ends and the copy back would write what
+     * is already there.
+     *
+     * Nothing may *define* a member of the web inside such a segment - splitAroundClusters refuses
+     * one that would - which is what makes the value at the far end the same value that went in.
+     * `collectTransitions` in legalize.cpp is what reads this.
+     */
+    bool cached = false;
 };
 
 /*

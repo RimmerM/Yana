@@ -94,6 +94,12 @@ functionAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
 # A fixed-size alloca is a constant displacement from a base register the frame keeps valid for the
 # whole function, so its address is an `lea` that can be repeated. Spilling it would have meant
 # storing a frame address into the frame.
+#
+# Its two reads stand next to each other, so the recipe is also where the *other* split applies: a
+# cluster segment holds the address in a register across both of them and the `lea` is emitted once
+# rather than twice (`post=[remat:0->rcx]`). A recipe is a home like any other as far as that is
+# concerned - it goes on producing the same answer, so leaving the segment costs nothing. See
+# `Cluster.lower`.
 localAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
     {
         %p = alloca 32: Ptr

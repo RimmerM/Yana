@@ -217,9 +217,9 @@ block #1:
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488bcd4801d1
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488bd04801ca
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
-  add uses=[rax, rbp] creates=[rax]  => 4801e8
-  store uses=[r15, rax] creates=[] pre=[remat:0->r15]  => 4c8d3c24498907
-  load uses=[r15] creates=[rax] pre=[remat:0->r15]  => 4c8d3c24498b07
+  add uses=[rax, rbp] creates=[rax] post=[remat:0->rcx]  => 4801e8488d0c24
+  store uses=[rcx, rax] creates=[]  => 488901
+  load uses=[rcx] creates=[rax]  => 488b01
   ret uses=[rax] creates=[]  => 4883c428415f415e415d415c5d5bc3
 
 --- codegen: foldedConstant ---

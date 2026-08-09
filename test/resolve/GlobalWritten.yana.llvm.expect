@@ -11,22 +11,22 @@ target triple = "x86_64-unknown-linux-gnu"
 define fastcc i32 @countdown(i32 %k) {
   br label %1
 
-1:                                                ; preds = %0
-  %2 = icmp sle i32 %k, 0
-  %3 = zext i1 %2 to i32
-  br i1 %2, label %4, label %6
+1:                                                ; preds = %8, %0
+  %2 = phi i32 [ %k, %0 ], [ %9, %8 ]
+  %3 = icmp sle i32 %2, 0
+  %4 = zext i1 %3 to i32
+  br i1 %3, label %5, label %7
 
-4:                                                ; preds = %1
-  %5 = load i32, ptr @dynamic, align 1
-  ret i32 %5
+5:                                                ; preds = %1
+  %6 = load i32, ptr @dynamic, align 1
+  ret i32 %6
 
-6:                                                ; preds = %1
-  br label %7
+7:                                                ; preds = %1
+  br label %8
 
-7:                                                ; preds = %6
-  %8 = sub i32 %k, 1
-  %9 = call fastcc i32 @countdown(i32 %8)
-  ret i32 %9
+8:                                                ; preds = %7
+  %9 = sub i32 %2, 1
+  br label %1
 }
 
 define fastcc i32 @main() {

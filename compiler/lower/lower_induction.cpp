@@ -171,6 +171,49 @@ bool isDifference(LowerBase base, LowerValue* value, LowerValue* of, LowerValue*
 }
 
 /*
+ * The second no-wrap proof, and the one an ordinary `while` loop can offer - §14.5 item 1 of
+ * test/bench/findings.md.
+ *
+ * The proof below this one reads the guard a `for` range emits. A `while i < n` has no such guard,
+ * and was declined for it - which is what that file calls the `sext` wall, and what kept every
+ * hand-written scan loop out of both this pass and the widening beside it. But the loop's own test is
+ * evidence in its own right whenever it is the *strict* one and the step is exactly one:
+ *
+ *     %i < %B  ⟹  %i <= %B - 1  ⟹  %i + 1 <= %B <= INT_MAX
+ *
+ * so the addition lands at or below the largest value of the counter's own type and cannot wrap. Both
+ * halves are load-bearing. `<=` gives `%i + 1 <= %B + 1`, which is exactly one past what the type
+ * holds; and a step of two gives `%i + 2 <= %B + 1`, the same. Neither is provable without a bound on
+ * `%B`, and nothing here provides one.
+ *
+ * Descending is the mirror: `%i > %B` with a step of minus one gives `%i - 1 >= %B >= INT_MIN`.
+ *
+ * The header test is a fact *about this iteration* because the step is inside the loop. Every path
+ * that reaches a block in the loop passed through the header - it is the loop's only entry - and the
+ * arm that leaves the header for the loop is the one the test was true on. The counter is a header
+ * phi, so its value did not change in between.
+ */
+bool strictTestCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLoop& loop,
+                              LowerInstPhi* phi, LowerInst* stepInst, I64 amount, bool ascending)
+{
+    if(amount != 1) return false;
+    if(!loops.contains(loop.header->index, base[stepInst->block]->index)) return false;
+
+    auto headerJe = base[loop.header->terminator];
+    if(headerJe->kind != LowerInst::Je) return false;
+
+    auto branch = (LowerInstJe*)headerJe;
+    if(!loops.contains(loop.header->index, base[branch->then]->index)) return false;
+    if(loops.contains(loop.header->index, base[branch->otherwise]->index)) return false;
+
+    auto continues = comparisonOf(base, base[branch->cond]);
+    auto bound = comparedAgainst(base, continues, &phi->result);
+    if(!bound || bound == &phi->result || bound->type != phi->result.type) return false;
+
+    return continues->getCmp() == (ascending ? LowerCmp::ilt : LowerCmp::igt);
+}
+
+/*
  * Whether a narrow counter provably does not wrap, which is the whole of what widening it needs.
  *
  * `doc/spec/expressions.md` states this as a language rule for the `for` range forms — "no bound and
@@ -216,6 +259,14 @@ bool stepCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLo
     if(!amount || amount.unwrap() == 0) return false;
     if(stride->type != phi->result.type) return false;
     if(I64(signedValue(amount.unwrap(), widthOf(phi->result.type))) <= 0) return false;
+
+    // The second proof, which needs no guard at all - see `strictTestCannotOverflow`. It is tried
+    // first because it is the cheaper question and the one an ordinary `while` loop answers.
+    if(strictTestCannotOverflow(base, loops, loop, phi, stepInst,
+                                signedValue(amount.unwrap(), widthOf(phi->result.type)), ascending))
+    {
+        return true;
+    }
 
     // The step runs on exactly one edge, and it is the one the guard lets through.
     auto stepBlock = base[stepInst->block];
@@ -704,6 +755,217 @@ void reduceLoop(LowerBase base, LowerModule& module, LowerFunction& fun, const L
     }
 }
 
+/*
+ * A narrow counter and everything that has to change with it, for the widening below.
+ *
+ * `extensions` are the sign extensions that become the wide counter itself, and `comparisons` the
+ * tests that have to be re-asked at the wider width. Between them and the step they must account for
+ * every reader the counter has: one left over is a reader of a value that will no longer exist, and
+ * narrowing the wide counter back for it would spend the instruction this is trying to remove.
+ */
+struct NarrowCounter {
+    LowerInstPhi* phi;
+    LowerInst* step;
+    LowerValue* initial;
+    U64 amount;
+
+    SmallArray<LowerInst*, 4> extensions;
+    SmallArray<LowerInstCmp*, 4> comparisons;
+};
+
+// Whether sign-extending both operands of a comparison leaves it asking the same question. The
+// signed orderings and the two equalities do; the unsigned orderings do not, since sign extension is
+// exactly what changes which of two patterns is the larger unsigned number.
+bool survivesWidening(LowerCmp kind) {
+    switch(kind) {
+        case LowerCmp::eq:
+        case LowerCmp::neq:
+        case LowerCmp::igt:
+        case LowerCmp::ige:
+        case LowerCmp::ilt:
+        case LowerCmp::ile:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// The operand of a comparison that is not the counter, where exactly one of them is.
+LowerValue* otherOperand(LowerBase base, LowerInstCmp* cmp, LowerValue* of) {
+    auto lhs = base[cmp->lhs];
+    auto rhs = base[cmp->rhs];
+
+    if((lhs == of) == (rhs == of)) return nullptr;
+    return lhs == of ? rhs : lhs;
+}
+
+/*
+ * Every reader of a narrow counter, sorted into the three kinds the widening can carry.
+ *
+ * The step is the one that does not have to be checked for anything: `inductionOf` found it, and its
+ * own result is checked to have exactly one reader - the phi - because the wide chain replaces both
+ * and a second reader of the advanced value would be left naming a deleted one.
+ */
+bool classifyCounter(LowerBase base, const LoopInfo& loops, BlockIndex header, NarrowCounter& counter) {
+    auto advanced = counter.step->created().ptr;
+    if(advanced->uses.size() != 1) return false;
+
+    for(auto u: counter.phi->result.uses.contents(base)) {
+        auto inst = base[u];
+        if(inst == counter.step) continue;
+
+        if(inst->kind == LowerInst::Cast && inst->createdCount == 1) {
+            auto conversion = (LowerInstCast*)inst;
+
+            // Sign-extending to the wide width, and only that: a zero extension of a counter this
+            // pass is about to make signed-wide is a different number wherever the counter is
+            // negative, which the no-wrap proof says nothing about.
+            if(conversion->isSignedSource() && conversion->isSignedResult() &&
+               conversion->result.type == LowerType::Int64)
+            {
+                counter.extensions.push(inst);
+                continue;
+            }
+
+            return false;
+        }
+
+        if(inst->kind == LowerInst::Cmp) {
+            auto cmp = (LowerInstCmp*)inst;
+            if(!survivesWidening(cmp->getCmp())) return false;
+
+            auto other = otherOperand(base, cmp, &counter.phi->result);
+            if(!other || other->type != counter.phi->result.type) return false;
+
+            // Re-asked in the preheader, so the widened operand has to be computable there. Every
+            // block that can read the counter's phi is dominated by the header and so by the
+            // preheader, which is what makes one sign extension serve every comparison.
+            if(!outsideLoop(base, loops, header, other)) return false;
+
+            counter.comparisons.push(cmp);
+            continue;
+        }
+
+        return false;
+    }
+
+    // Nothing is bought by widening a counter no address widens: the arithmetic is the same
+    // arithmetic one register class up, and on x64 it is the same arithmetic with a REX byte.
+    return counter.extensions.isNotEmpty();
+}
+
+/*
+ * The counter, widened - §14.5 item 1 and 3 of test/bench/findings.md, arrived at without item 2.
+ *
+ * `hashOf` in test/bench/programs/Text.yana is the case the item is written about: seven instructions
+ * in its byte loop against `-Os`'s six, and the extra one is the `movslq` that widens the index for
+ * the address. The item costed removing it as a pointer induction variable plus a down-counter to
+ * take the index's last reader away, and noted that neither pays without the other. Widening the
+ * counter itself is a third answer that needs neither: the sign extension stops existing because
+ * there is nothing left to extend, and the address, the step and the test are the same three
+ * instructions they always were one width up.
+ *
+ *     %i  = phi [pre, 0], [body, %i2]      %i = phi [pre, 0], [body, %i2]  : Long
+ *     %w  = sext %i                   ->   %p = add %base, %i
+ *     %p  = add %base, %w                  %i2 = add %i, 1
+ *     %i2 = add %i, 1                      %c = cmp_ilt %i, %n64
+ *     %c  = cmp_ilt %i, %n
+ *
+ * What makes it legal is the no-wrap proof and nothing else: the wide sequence is the sign extension
+ * of the narrow one exactly when the narrow one does not wrap, which is what `stepCannotOverflow`
+ * answers and what §14.5 item 1 widened to reach a `while` loop at all.
+ *
+ * After `reduceInductionVariables` rather than before it. A sign extension that pass is going to
+ * delete - the index of a stride the SIB byte cannot hold, which becomes a pointer the loop carries -
+ * is not one this should widen a counter for, and running behind it is what makes "is there a sign
+ * extension left" the right question rather than a guess.
+ */
+void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopInfo& loops,
+                       const ReducibleLoop& loop, DeadSweep& sweep)
+{
+    auto& arena = fun.arena;
+    auto header = loop.header->index;
+
+    SmallArray<LowerInstPhi*, 8> phis;
+    for(auto p: loop.header->phis.contents(base)) phis.push(base[p]);
+
+    for(auto phi: phis) {
+        auto induction = inductionOf(base, loops, loop, phi);
+        if(!induction) continue;
+
+        auto& found = induction.unwrap();
+        if(!found.widened) continue;   // already at the address unit's width
+        if(!outsideLoop(base, loops, header, found.initial)) continue;
+
+        NarrowCounter counter;
+        counter.phi = phi;
+        counter.step = phiValueFrom(base, phi, loop.latch)->inst();
+        counter.initial = found.initial;
+        counter.amount = found.step;
+
+        if(!classifyCounter(base, loops, header, counter)) continue;
+
+        /*
+         * The wide chain, built beside the narrow one and then put in its place.
+         *
+         * The step is appended to the block the narrow one is in, which is where its own operands
+         * are and where it already runs once per iteration. The initial value is the preheader's,
+         * sign-extended - a literal zero folds all the way away.
+         */
+        auto initial = resultOf(cast<true, true>(base, module, *loop.pre, counter.initial,
+                                                 LowerType::Int64, StringId()));
+
+        auto wide = makeInductionPhi(arena, LowerType::Int64);
+        wide->source = phi->source;
+
+        auto stepBlock = base[counter.step->block];
+        auto stepImm = immediate(base, module, *stepBlock, LowerType::Int64, counter.amount);
+        auto stepped = binary<LowerInst::Add>(base, module, *stepBlock, &wide->result, stepImm,
+                                              LowerType::Int64, StringId());
+
+        auto used = wide->used();
+        auto sources = wide->sources();
+
+        used[0] = initial - base;
+        sources[0] = loop.pre - base;
+        used[1] = resultOf(stepped) - base;
+        sources[1] = loop.latch - base;
+
+        loop.header->addInst(base, wide);
+
+        // The extensions are what the wide counter *is*, so their readers read it directly.
+        for(auto extension: counter.extensions) {
+            replaceUses(base, arena, extension->created().ptr - base, &wide->result - base);
+            sweep.kill(extension);
+        }
+
+        // And the tests, re-asked one width up. The bound is widened once per comparison rather than
+        // once per loop; `eliminateCommonValues` has already run, so two of them would not be
+        // unified - but two comparisons against one bound is not a shape the front end emits.
+        for(auto cmp: counter.comparisons) {
+            auto other = otherOperand(base, cmp, &phi->result);
+            auto widened = resultOf(cast<true, true>(base, module, *loop.pre, other,
+                                                     LowerType::Int64, StringId()));
+
+            auto counterFirst = base[cmp->lhs] == &phi->result;
+            setOperand(base, arena, cmp, counterFirst ? cmp->lhs : cmp->rhs, &wide->result);
+            setOperand(base, arena, cmp, counterFirst ? cmp->rhs : cmp->lhs, widened);
+        }
+
+        // Nothing reads the narrow counter now. The phi goes by hand - it is not in the instruction
+        // list the sweep rebuilds - and the step follows it as ordinary dead arithmetic.
+        detach(base, (LowerInst*)phi);
+
+        for(Size i = 0; i < loop.header->phis.size(); i++) {
+            if(base[loop.header->phis.get(base, i)] != phi) continue;
+            loop.header->phis.remove(base, i);
+            break;
+        }
+
+        sweep.kill(counter.step);
+    }
+}
+
 } // namespace
 
 void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun) {
@@ -722,6 +984,27 @@ void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction
 
         if(auto loop = reducibleLoop(base, loops, dominators, block)) {
             reduceLoop(base, module, fun, loops, dominators, loop.unwrap(), sweep);
+        }
+    }
+
+    sweep.sweep(fun);
+}
+
+void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    if(fun.blocks.size() < 2) return;
+
+    // The same two answers the reduction above reads, and valid for the same reason: nothing here
+    // creates, removes or renumbers a block either.
+    auto loops = fun.buildLoops(base);
+    auto dominators = fun.buildDominatorTree(base);
+    DeadSweep sweep { base, module, {} };
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+        if(!loops.isHeader(block->index)) continue;
+
+        if(auto loop = reducibleLoop(base, loops, dominators, block)) {
+            widenLoopCounters(base, module, fun, loops, loop.unwrap(), sweep);
         }
     }
 

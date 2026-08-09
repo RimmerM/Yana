@@ -235,29 +235,29 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
   b_1 {
     %n = cast %xs$length: Int
     %v_2 = bitcast %xs$length: Long
-    jmp b_3
+    %v_3 = sext %n: Long
+    jmp b_4
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_4 {
+    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
+    %v_8 = cmp_ilt %v_5, %v_3: Int
+    je %v_8, b_9, b_10
   }
 
-  b_9 {
+  b_10 {
     store %v_0, 0, 1
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = bitcast %v_10: Long
+  b_9 {
+    %v_11 = bitcast %v_5: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
 
   b_14 {
-    %v_15 = shl %v_10, 3: Long
+    %v_15 = shl %v_5, 3: Long
     %v_16 = add %xs$items, %v_15: Ptr
     %v_17 = add %body, 8: Ptr
     %v_18 = load %body, 8: Ptr
@@ -266,12 +266,12 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
     call_complex %v_18, %v_20, %v_19, %v_16
     %v_21 = loads %v_20, 1: Int
     %v_22 = cmp_eq %v_21, 1: Int
-    je %v_22, b_23, b_5
+    je %v_22, b_23, b_6
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_6 {
+    %v_7 = add %v_5, 1: Long
+    jmp b_4
   }
 
   b_23 {
@@ -382,29 +382,29 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
   b_1 {
     %n = cast %xs$length: Int
     %v_2 = bitcast %xs$length: Long
-    jmp b_3
+    %v_3 = sext %n: Long
+    jmp b_4
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_4 {
+    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
+    %v_8 = cmp_ilt %v_5, %v_3: Int
+    je %v_8, b_9, b_10
   }
 
-  b_9 {
+  b_10 {
     store %v_0, 2, 1
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = bitcast %v_10: Long
+  b_9 {
+    %v_11 = bitcast %v_5: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
 
   b_14 {
-    %v_15 = shl %v_10, 3: Long
+    %v_15 = shl %v_5, 3: Long
     %v_16 = add %xs$items, %v_15: Ptr
     %v_17 = add %body, 8: Ptr
     %v_18 = load %body, 8: Ptr
@@ -413,12 +413,12 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
     call_complex %v_18, %v_20, %v_19, %v_16
     %v_21 = load %v_20, 1: Long
     %v_22 = cmp_le %v_21, 1: Int
-    je %v_22, b_23, b_5
+    je %v_22, b_23, b_6
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_6 {
+    %v_7 = add %v_5, 1: Long
+    jmp b_4
   }
 
   b_23 {
@@ -586,29 +586,29 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
   b_1 {
     %n = cast %xs$length: Int
     %v_2 = bitcast %xs$length: Long
-    jmp b_3
+    %v_3 = sext %n: Long
+    jmp b_4
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_4 {
+    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
+    %v_8 = cmp_ilt %v_5, %v_3: Int
+    je %v_8, b_9, b_10
   }
 
-  b_9 {
+  b_10 {
     store %v_0, 3, 1
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = bitcast %v_10: Long
+  b_9 {
+    %v_11 = bitcast %v_5: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
 
   b_14 {
-    %v_15 = shl %v_10, 3: Long
+    %v_15 = shl %v_5, 3: Long
     %v_16 = add %xs$items, %v_15: Ptr
     %v_17 = add %body, 8: Ptr
     %v_18 = load %body, 8: Ptr
@@ -617,12 +617,12 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
     call_complex %v_18, %v_20, %v_19, %v_16
     %v_21 = load %v_20, 1: Long
     %v_22 = cmp_le %v_21, 2: Int
-    je %v_22, b_23, b_5
+    je %v_22, b_23, b_6
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_6 {
+    %v_7 = add %v_5, 1: Long
+    jmp b_4
   }
 
   b_23 {
@@ -652,29 +652,29 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
   b_1 {
     %n = cast %xs$length: Int
     %v_2 = bitcast %xs$length: Long
-    jmp b_3
+    %v_3 = sext %n: Long
+    jmp b_4
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_4 {
+    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
+    %v_8 = cmp_ilt %v_5, %v_3: Int
+    je %v_8, b_9, b_10
   }
 
-  b_9 {
+  b_10 {
     store %v_0, 0, 1
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = bitcast %v_10: Long
+  b_9 {
+    %v_11 = bitcast %v_5: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
 
   b_14 {
-    %v_15 = shl %v_10, 2: Long
+    %v_15 = shl %v_5, 2: Long
     %v_16 = add %xs$items, %v_15: Ptr
     %v_17 = loads %v_16, 4: Int
     %v_18 = add %body, 8: Ptr
@@ -684,12 +684,12 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
     call_complex %v_19, %v_21, %v_20, %v_17
     %v_22 = loads %v_21, 1: Int
     %v_23 = cmp_eq %v_22, 1: Int
-    je %v_23, b_24, b_5
+    je %v_23, b_24, b_6
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_6 {
+    %v_7 = add %v_5, 1: Long
+    jmp b_4
   }
 
   b_24 {

@@ -56,12 +56,16 @@ splitAcrossCall(%n: Int, %p: Ptr, %q: Ptr): Long {
 
 # The same function with three of each pair of reads removed, which is enough to turn the answer
 # round: two reloads are what a store and a reload cost, so the window buys back exactly what it
-# spends and is refused. %q stays in the frame and is read out of it at each load, exactly as before
-# this existed.
+# spends and is refused. %q gets no register for its life.
 #
 # Two is where the line falls, and it falls there by arithmetic rather than by a tuned constant: a
 # window is two instructions and each read it saves is one, so the smallest split worth taking turns
 # three reads into two. See kSplitMargin in place.cpp.
+#
+# What %q does instead is the *other* split - a cluster segment over its two reads, which costs one
+# load rather than a store and a reload and so is worth taking at exactly the margin this one is
+# refused at. `post=[stack:0->rcx]` at the first read is that load, and nothing goes back. The two
+# splits meet here and nowhere else; see `Cluster.lower` and §5.9 of the README.
 marginalAcrossCall(%n: Int, %p: Ptr, %q: Ptr): Long {
     {
         %r = call_clobber sink, %n: Int

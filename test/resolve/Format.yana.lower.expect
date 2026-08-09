@@ -1064,7 +1064,7 @@ inLoop<complex>(): Int {
 
   b_1 {
     %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
     %v_7 = cmp_ilt %v_5, 100: Int
     je %v_7, b_3, b_8
   }
@@ -1088,15 +1088,14 @@ inLoop<complex>(): Int {
     %v_16 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_16, @string$11, 10
     call_complex pushString, %v_15, %v_16
-    %v_17 = sext %v_5: Long
-    call_complex showSigned, %v_17, %v_15
-    %v_18 = bitcast %v_15: Ptr
-    %v_19 = add %v_18, 12: Ptr
-    %v_20 = load %v_19, 4: Int
-    %units = cast %v_20: Int
+    call_complex showSigned, %v_5, %v_15
+    %v_17 = bitcast %v_15: Ptr
+    %v_18 = add %v_17, 12: Ptr
+    %v_19 = load %v_18, 4: Int
+    %units = cast %v_19: Int
     call_complex Reclaim(String).reclaim, %v_15
     %v_4 = add %v_2, %units: Int
-    %v_6 = add %v_5, 1: Int
+    %v_6 = add %v_5, 1: Long
     jmp b_1
   }
 }

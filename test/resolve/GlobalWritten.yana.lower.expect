@@ -7,23 +7,23 @@
 
 countdown<complex>(%k: Int): Int {
   b_0 {
-    %v_1 = cmp_ile %k, 0: Int
-    je %v_1, b_2, b_3
+    %v_1 = phi [b_2, %k], [b_3, %v_4]: Int
+    %v_5 = cmp_ile %v_1, 0: Int
+    je %v_5, b_6, b_7
   }
 
-  b_2 {
-    %v_4 = loads @dynamic, 4: Int
-    ret %v_4
+  b_6 {
+    %v_8 = loads @dynamic, 4: Int
+    ret %v_8
+  }
+
+  b_7 {
+    jmp b_3
   }
 
   b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %k, 1: Int
-    %v_7 = call_complex countdown, %v_6: Int
-    ret %v_7
+    %v_4 = sub %v_1, 1: Int
+    jmp b_0
   }
 }
 

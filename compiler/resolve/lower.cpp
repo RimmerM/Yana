@@ -10,6 +10,7 @@
 #include "../opt/opt.h"
 #include "../lower/lower_forward.h"
 #include "../lower/lower_promote.h"
+#include "../lower/lower_tail.h"
 #include "../lower/lower_store.h"
 #include "../lower/lower_cse.h"
 #include "../lower/lower_licm.h"
@@ -658,6 +659,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // forwarding has already removed.
         promoteStackSlots(lower.lower, *target);
 
+        // Then the calls this function makes to itself with nothing left to do afterwards, which
+        // become a loop round its own body - see lower_tail.h. Behind the promotion, because what
+        // it threads through the loop is the accumulator that pass has just turned into a value,
+        // and in front of everything below so that what they are shown is an ordinary loop.
+        eliminateTailRecursion(lower.lower, lower.to, *target);
+
         // What promotion turned into arithmetic over literals - a local's whole initial value is
         // assembled out of a load of the storage it is about to stop being. See lower_fold.h.
         foldFunctionConstants(lower.lower, lower.to, *target);
@@ -696,6 +703,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // lower_induction.h. After the fold above, since what it needs to read is the stride as a
         // number; it emits an immediate of its own, so the fold and the sweep run behind it.
         reduceInductionVariables(lower.lower, lower.to, *target);
+        foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the sign extension that is left because the counter driving it is narrower than the
+        // address it feeds, which the pass above only removes where it replaced the address outright
+        // - see lower_induction.h. Behind it for exactly that reason, and in front of one more fold
+        // because the widened start of a counter that began at zero is a cast of a literal.
+        widenInductionVariables(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
         removeDeadConstants(lower.lower, lower.to.arena, *target);
     }

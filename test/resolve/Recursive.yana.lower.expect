@@ -282,27 +282,31 @@ mapMemory<complex>(%size: Long): Ptr {
 
 sum<complex>(%xs: Ptr): Int {
   b_0 {
-    %v_1 = load %xs, 8: Long
-    %v_2 = cmp_neq %v_1, 0: Int
-    je %v_2, b_3, b_4
+    %v_1 = phi [b_2, %xs], [b_3, %v_4]: Ptr
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: Int
+    %v_7 = load %v_1, 8: Long
+    %v_8 = cmp_neq %v_7, 0: Int
+    je %v_8, b_3, b_9
   }
 
   b_3 {
-    %v_5 = add %xs, 8: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = load %xs, 8: Ptr
-    %v_8 = call_complex sum, %v_7: Int
-    %v_9 = add %v_6, %v_8: Int
-    jmp b_10
+    %v_10 = add %v_1, 8: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_4 = load %v_1, 8: Ptr
+    %v_6 = add %v_5, %v_11: Int
+    jmp b_0
   }
 
-  b_4 {
-    jmp b_10
+  b_9 {
+    jmp b_12
   }
 
-  b_10 {
-    %v_11 = phi [b_4, 0], [b_3, %v_9]: Int
-    ret %v_11
+  b_12 {
+    ret %v_5
+  }
+
+  b_2 {
+    jmp b_0
   }
 }
 
@@ -470,27 +474,31 @@ buildTree<complex>(): Int {
 
 idsOf<complex>(%c: Ptr): Int {
   b_0 {
-    %v_1 = load %c, 8: Long
-    %v_2 = cmp_neq %v_1, 0: Int
-    je %v_2, b_3, b_4
+    %v_1 = phi [b_2, %c], [b_3, %v_4]: Ptr
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: Int
+    %v_7 = load %v_1, 8: Long
+    %v_8 = cmp_neq %v_7, 0: Int
+    je %v_8, b_3, b_9
   }
 
   b_3 {
-    %v_5 = add %c, 8: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = load %c, 8: Ptr
-    %v_8 = call_complex idsOf, %v_7: Int
-    %v_9 = add %v_6, %v_8: Int
-    jmp b_10
+    %v_10 = add %v_1, 8: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_4 = load %v_1, 8: Ptr
+    %v_6 = add %v_5, %v_11: Int
+    jmp b_0
   }
 
-  b_4 {
-    jmp b_10
+  b_9 {
+    jmp b_12
   }
 
-  b_10 {
-    %v_11 = phi [b_4, 0], [b_3, %v_9]: Int
-    ret %v_11
+  b_12 {
+    ret %v_5
+  }
+
+  b_2 {
+    jmp b_0
   }
 }
 

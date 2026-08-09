@@ -196,6 +196,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_forward.cpp
     lower/lower_promote.h
     lower/lower_promote.cpp
+    lower/lower_tail.h
+    lower/lower_tail.cpp
     lower/lower_store.h
     lower/lower_store.cpp
     lower/lower_cse.h

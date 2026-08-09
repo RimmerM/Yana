@@ -3,25 +3,25 @@
 
 note<complex>(%n: Int): Int {
   b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, %n: Int
-    store @log, %v_3, 4
-    %v_4 = cmp_igt %v_3, 1000000000: Int
-    je %v_4, b_5, b_6
+    %v_1 = phi [b_2, %n], [b_3, 0]: Int
+    %v_4 = loads @log, 4: Int
+    %v_5 = imul %v_4, 10: Int
+    %v_6 = add %v_5, %v_1: Int
+    store @log, %v_6, 4
+    %v_7 = cmp_igt %v_6, 1000000000: Int
+    je %v_7, b_3, b_8
   }
 
-  b_5 {
-    %v_7 = call_complex note, 0: Int
-    ret %v_7
-  }
-
-  b_6 {
-    jmp b_8
+  b_3 {
+    jmp b_0
   }
 
   b_8 {
-    ret %n
+    jmp b_9
+  }
+
+  b_9 {
+    ret %v_1
   }
 }
 

@@ -1,0 +1,254 @@
+
+sink<clobber>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+clusterOfReads<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  b_0 {
+    %r = call_clobber sink, %n: Int
+    %a1 = load %p, 8: Long
+    %b1 = load %q, 8: Long
+    %c1 = load %t, 8: Long
+    %s1 = add %a1, %b1: Long
+    %s2 = add %s1, %c1: Long
+    %a2 = load %p, 8: Long
+    %b2 = load %q, 8: Long
+    %c2 = load %t, 8: Long
+    %s3 = add %s2, %a2: Long
+    %s4 = add %s3, %b2: Long
+    %s5 = add %s4, %c2: Long
+    ret %s5
+  }
+}
+
+clusterInLoop<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [body, %i2]: Long
+    %acc = phi [entry, %zero], [body, %acc2]: Long
+    je %n, exit, body
+  }
+
+  body {
+    %r = call_clobber sink, %n: Int
+    %a1 = load %p, 8: Long
+    %b1 = load %q, 8: Long
+    %c1 = load %t, 8: Long
+    %s1 = add %a1, %b1: Long
+    %s2 = add %s1, %c1: Long
+    %a2 = load %p, 8: Long
+    %b2 = load %q, 8: Long
+    %c2 = load %t, 8: Long
+    %s3 = add %s2, %a2: Long
+    %s4 = add %s3, %b2: Long
+    %s5 = add %s4, %c2: Long
+    %acc2 = add %acc, %s5: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    ret %acc
+  }
+}
+
+clusterAtBlockStart<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  entry {
+    %r = call_clobber sink, %n: Int
+    %a1 = load %p, 8: Long
+    %b1 = load %q, 8: Long
+    %s1 = add %a1, %b1: Long
+    %a2 = load %p, 8: Long
+    %b2 = load %q, 8: Long
+    %s2 = add %s1, %a2: Long
+    %s3 = add %s2, %b2: Long
+    %a3 = load %p, 8: Long
+    %b3 = load %q, 8: Long
+    %s4 = add %s3, %a3: Long
+    %s5 = add %s4, %b3: Long
+    jmp tail
+  }
+
+  tail {
+    %c1 = load %t, 8: Long
+    %c2 = load %t, 8: Long
+    %s6 = add %s5, %c1: Long
+    %s7 = add %s6, %c2: Long
+    ret %s7
+  }
+}
+
+clusterOneInstructionIn<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  entry {
+    %r = call_clobber sink, %n: Int
+    %a1 = load %p, 8: Long
+    %b1 = load %q, 8: Long
+    %s1 = add %a1, %b1: Long
+    %a2 = load %p, 8: Long
+    %b2 = load %q, 8: Long
+    %s2 = add %s1, %a2: Long
+    %s3 = add %s2, %b2: Long
+    %a3 = load %p, 8: Long
+    %b3 = load %q, 8: Long
+    %s4 = add %s3, %a3: Long
+    %s5 = add %s4, %b3: Long
+    jmp tail
+  }
+
+  tail {
+    %z = add %s5, 1: Long
+    %c1 = load %t, 8: Long
+    %c2 = load %t, 8: Long
+    %s6 = add %z, %c1: Long
+    %s7 = add %s6, %c2: Long
+    ret %s7
+  }
+}
+
+singleRead<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  b_0 {
+    %r = call_clobber sink, %n: Int
+    %a1 = load %p, 8: Long
+    %b1 = load %q, 8: Long
+    %c1 = load %t, 8: Long
+    %s1 = add %a1, %b1: Long
+    %s2 = add %s1, %c1: Long
+    ret %s2
+  }
+}
+
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: clusterOfReads ---
+  prologue  => 535541544155415641574883ec10
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1]  => 488bee4889142448894c2408
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax]  => e8d1ffffff
+  load uses=[rbp] creates=[rax] post=[stack:0->rsi]  => 488b4500488b3424
+  load uses=[rsi] creates=[rcx] post=[stack:1->rdi]  => 488b0e488b7c2408
+  load uses=[rdi] creates=[rdx]  => 488b17
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  load uses=[rbp] creates=[rbp]  => 488b6d00
+  load uses=[rsi] creates=[rcx]  => 488b0e
+  load uses=[rdi] creates=[rdx]  => 488b17
+  add uses=[rax, rbp] creates=[rax]  => 4801e8
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3
+
+--- codegen: clusterInLoop ---
+  prologue  => 535541544155415641574883ec28
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbp, rdx->stack:1, rcx->stack:2]  => 897c2420488bee4889142448894c2408
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[r15] post=[r15->stack:3]  => 4531ff4c897c2410
+  je uses=[r15] creates=[] pre=[stack:0->r15]  => 448b7c24204585ff755d
+block #2:
+  jmp uses=[] creates=[] pre=[stack:3->r14, r14->stack:4]  => 4c8b7424104c89742418
+block body:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 8b7c2420e84dffffff
+  load uses=[rbp] creates=[rax] post=[stack:1->rsi]  => 488b4500488b3424
+  load uses=[rsi] creates=[rcx] post=[stack:2->rdi]  => 488b0e488b7c2408
+  load uses=[rdi] creates=[rdx]  => 488b17
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  load uses=[rbp] creates=[rcx]  => 488b4d00
+  load uses=[rsi] creates=[rdx]  => 488b16
+  load uses=[rdi] creates=[rsi]  => 488b37
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  add uses=[rax, rsi] creates=[rax]  => 4801f0
+  add uses=[stack:4, rax] creates=[stack:4]  => 4801442418
+  imm uses=[] creates=[-]  => 
+  add uses=[stack:3, -] creates=[stack:3]  => 48ff442410
+  jmp uses=[] creates=[]  => 
+block head:
+  je uses=[r15] creates=[] pre=[stack:0->r15]  => 448b7c24204585ff74b7
+block #6:
+  jmp uses=[] creates=[] pre=[stack:4->r14, r14->stack:3]  => 4c8b7424184c89742410
+block exit:
+  ret uses=[rax] creates=[] pre=[stack:3->rax]  => 488b4424104883c428415f415e415d415c5d5bc3
+
+--- codegen: clusterAtBlockStart ---
+  prologue  => 535541544155415641574883ec10
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->rax, rcx->stack:1]  => 488bee488bc248894c2408
+block entry:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e8befeffff8bc8488b0424
+  load uses=[rbp] creates=[rcx]  => 488b4d00
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => 480308
+  load uses=[rbp] creates=[rdx]  => 488b5500
+  load uses=[rax] creates=[rsi]  => 488b30
+  add uses=[rcx, rdx] creates=[rcx]  => 4801d1
+  add uses=[rcx, rsi] creates=[rcx]  => 4801f1
+  load uses=[rbp] creates=[rbp]  => 488b6d00
+  load uses=[rax] creates=[rax]  => 488b00
+  add uses=[rcx, rbp] creates=[rcx]  => 4801e9
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  jmp uses=[] creates=[]  => 
+block tail:
+  load uses=[r15] creates=[rax] pre=[stack:1->r15]  => 4c8b7c2408498b07
+  load uses=[r15] creates=[rdx] pre=[stack:1->r15]  => 4c8b7c2408498b17
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488bc14801d0
+  ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3
+
+--- codegen: clusterOneInstructionIn ---
+  prologue  => 535541544155415641574883ec10
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->rax, rcx->stack:1]  => 488bee488bc248894c2408
+block entry:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e83efeffff8bc8488b0424
+  load uses=[rbp] creates=[rcx]  => 488b4d00
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => 480308
+  load uses=[rbp] creates=[rdx]  => 488b5500
+  load uses=[rax] creates=[rsi]  => 488b30
+  add uses=[rcx, rdx] creates=[rcx]  => 4801d1
+  add uses=[rcx, rsi] creates=[rcx]  => 4801f1
+  load uses=[rbp] creates=[rbp]  => 488b6d00
+  load uses=[rax] creates=[rax]  => 488b00
+  add uses=[rcx, rbp] creates=[rcx]  => 4801e9
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  jmp uses=[] creates=[]  => 
+block tail:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] post=[stack:1->rdx]  => 48ffc1488b542408
+  load uses=[rdx] creates=[rax]  => 488b02
+  load uses=[rdx] creates=[rdx]  => 488b12
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488bc14801d0
+  ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3
+
+--- codegen: singleRead ---
+  prologue  => 535541544155415641574883ec10
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1]  => 488bee4889142448894c2408
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax]  => e8d1fdffff
+  load uses=[rbp] creates=[rbp]  => 488b6d00
+  load uses=[r15] creates=[rax] pre=[stack:0->r15]  => 4c8b3c24498b07
+  load uses=[r15] creates=[rcx] pre=[stack:1->r15]  => 4c8b7c2408498b0f
+  add uses=[rbp, rax] creates=[rbp]  => 4801c5
+  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 488bc54801c8
+  ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3

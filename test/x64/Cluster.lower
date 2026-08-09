@@ -1,0 +1,178 @@
+# Cluster splitting.
+#
+# The other direction of the split in `Split.lower`. There the web has a register and steps out of it
+# across what would destroy it; here it has none at all, and steps *into* one over a stretch of one
+# block where its reads are.
+#
+# A web with no register pays a reload at every read, however close together the reads are. What it
+# would have needed for the register it did not get is one that is free - and safe - over the whole
+# of its life, and over one stretch of one block a register is very often both when it is neither
+# anywhere else. So the web is given one there, and its home goes on holding the value: the load at
+# the top of the window is the only instruction the window costs, and there is **no store at the
+# bottom**, because nothing else may have the slot for the web's whole life and nothing defines the
+# web inside the window.
+#
+# That is what makes two reads already worth it - one load against two reloads - where `Split.lower`'s
+# window needs three, and it is why the two splits meet exactly at the margin: `marginalAcrossCall`
+# there is a web whose two reads could not pay for a store and a reload, and it is a cluster now.
+#
+# `post=[stack:k->rN]` on the instruction before the window is the load, and every read inside it is
+# an ordinary register read. Nothing comes back the other way.
+#
+# The Clobber convention destroys every register but rbp, so exactly one value can cross one of its
+# calls in a register and everything else that outlives the call has to be bought with a window.
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+# Three pointers across a call, each read twice afterwards. rbp goes to the first of them for its
+# whole life; the other two are each worth exactly what a persistent window would cost, so
+# `Split.lower`'s split declines both - and each takes a caller-saved register over the run of
+# instructions its own two reads span, which is a register nothing safe could ever have had.
+#
+# The two windows overlap and hold different registers, which is the ordinary case rather than a
+# special one: a window is a claim on a register over a stretch, and two claims on two registers over
+# one stretch are no more related than two webs in two registers.
+clusterOfReads(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %c1 = load %t, 8: Long
+        %s1 = add %a1, %b1: Long
+        %s2 = add %s1, %c1: Long
+        %a2 = load %p, 8: Long
+        %b2 = load %q, 8: Long
+        %c2 = load %t, 8: Long
+        %s3 = add %s2, %a2: Long
+        %s4 = add %s3, %b2: Long
+        %s5 = add %s4, %c2: Long
+
+        ret %s5
+    }
+}
+
+# The same shape inside a loop, which is `loopCallN` in `test/bench/kernels.lower` and the function
+# this exists for. Both sides of the comparison carry the body's weight, so the answer is the
+# straight-line one; what the loop adds is that the load runs once an iteration where the reloads ran
+# twice, and that the window lives entirely inside the body block - it begins after the call and ends
+# at the last read, so the back edge carries nothing.
+clusterInLoop(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je %n, exit, body
+    }
+
+    body {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %c1 = load %t, 8: Long
+        %s1 = add %a1, %b1: Long
+        %s2 = add %s1, %c1: Long
+        %a2 = load %p, 8: Long
+        %b2 = load %q, 8: Long
+        %c2 = load %t, 8: Long
+        %s3 = add %s2, %a2: Long
+        %s4 = add %s3, %b2: Long
+        %s5 = add %s4, %c2: Long
+
+        %acc2 = add %acc, %s5: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# Where the window may not begin. The load joins the parallel copy *behind* the instruction before
+# the first read - which is the only slot a copy can occupy that runs after its neighbours and before
+# the read - so a first read standing at a block's first instruction has no such instruction to
+# attach to, and the alternative would be a copy in the previous block's terminator. That is a
+# location change carried by a CFG edge, which is the one thing the segment model does not have.
+#
+# %t is read twice at the top of `tail` and takes no window at all: the run starting at the first of
+# them is refused, and what is left is a single read, which never pays for a load.
+clusterAtBlockStart(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    entry {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %b2 = load %q, 8: Long
+        %s2 = add %s1, %a2: Long
+        %s3 = add %s2, %b2: Long
+        %a3 = load %p, 8: Long
+        %b3 = load %q, 8: Long
+        %s4 = add %s3, %a3: Long
+        %s5 = add %s4, %b3: Long
+        jmp tail
+    }
+
+    tail {
+        %c1 = load %t, 8: Long
+        %c2 = load %t, 8: Long
+        %s6 = add %s5, %c1: Long
+        %s7 = add %s6, %c2: Long
+        ret %s7
+    }
+}
+
+# The same function with one instruction in front of the pair, which is the whole of the difference:
+# there is now somewhere for the load to go, and %t takes the window.
+clusterOneInstructionIn(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    entry {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %b2 = load %q, 8: Long
+        %s2 = add %s1, %a2: Long
+        %s3 = add %s2, %b2: Long
+        %a3 = load %p, 8: Long
+        %b3 = load %q, 8: Long
+        %s4 = add %s3, %a3: Long
+        %s5 = add %s4, %b3: Long
+        jmp tail
+    }
+
+    tail {
+        %z = add %s5, 1L: Long
+        %c1 = load %t, 8: Long
+        %c2 = load %t, 8: Long
+        %s6 = add %z, %c1: Long
+        %s7 = add %s6, %c2: Long
+        ret %s7
+    }
+}
+
+# One read is never a cluster, whatever it costs. There is nothing to amortize a load over: the read
+# out of the frame *is* the load, and putting a register in front of it adds an instruction.
+singleRead(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %c1 = load %t, 8: Long
+        %s1 = add %a1, %b1: Long
+        %s2 = add %s1, %c1: Long
+
+        ret %s2
+    }
+}

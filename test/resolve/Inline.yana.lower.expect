@@ -2,23 +2,28 @@
 
 countDown<complex>(%n: Int): Int {
   b_0 {
-    %v_1 = cmp_ile %n, 0: Int
-    je %v_1, b_2, b_3
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: Int
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ile %v_1, 0: Int
+    je %v_7, b_8, b_9
   }
 
-  b_2 {
-    ret 0
+  b_8 {
+    ret %v_5
+  }
+
+  b_9 {
+    jmp b_3
   }
 
   b_3 {
-    jmp b_4
+    %v_4 = sub %v_1, 1: Int
+    %v_6 = add %v_5, %v_1: Int
+    jmp b_0
   }
 
-  b_4 {
-    %v_5 = sub %n, 1: Int
-    %v_6 = call_complex countDown, %v_5: Int
-    %v_7 = add %n, %v_6: Int
-    ret %v_7
+  b_2 {
+    jmp b_0
   }
 }
 

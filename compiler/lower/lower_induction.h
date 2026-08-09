@@ -90,3 +90,24 @@
 // already `shl %i, 5` and a stride that came from a `strideof` is already a literal. Emits an `Imm`
 // of its own for the step, so the fold and the dead constant sweep run again after it.
 void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun);
+
+/*
+ * A narrow loop counter, carried at the width its addresses are computed in - §14.5 item 1 of
+ * test/bench/findings.md, and the byte loop in `hashOf` that item is written about.
+ *
+ * An index that is `Int` and an address that is not means a sign extension per subscript, inside the
+ * loop, on the critical path of the load. Where the counter provably does not wrap - the same proof
+ * the reduction above needs, and for the same reason - that widening can move to the counter itself:
+ * the phi, its step and the loop's own test go up a width, and every extension in the body stops
+ * existing. Nothing else in the loop changes, so an address that was `base + sext(i)` becomes
+ * `base + i` and still folds whole into the access that reads it.
+ *
+ * The item costed this as a pointer induction variable plus a down-counter, and observed that
+ * neither pays alone: reducing a scale the SIB byte already holds trades the extension for an add,
+ * and the add only goes away once the index has stopped being the loop's counter as well. Widening
+ * is a third answer that needs neither, which is why `isEncodableScale` is unchanged.
+ *
+ * Behind `reduceInductionVariables`, so that an extension that pass is about to delete is not one
+ * this widens a counter for. See `widenLoopCounters`.
+ */
+void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun);

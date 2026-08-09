@@ -439,62 +439,61 @@ forInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
 forDownInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
   b_0 {
     %v_1 = imm 0: Long
-    %v_2 = imm 0: Int
-    %v_3 = cmp_igt %n, %v_2: Int
-    %v_4 = imm 1: Int
-    je %v_3, b_5, b_6
+    %v_2 = cmp_igt %n, 0: Int
+    %v_3 = imm 1: Int
+    je %v_2, b_4, b_5
   }
 
-  b_5 {
-    %v_7 = cmp_ige %n, %v_4: Int
-    je %v_7, b_8, b_6
+  b_4 {
+    %v_6 = cmp_ige %n, %v_3: Int
+    je %v_6, b_7, b_5
   }
 
-  b_8 {
-    %v_9 = sub %n, %v_4: Int
-    %v_10 = bitcast %xs$length: Long
-    %v_11 = sext %v_9: Long
-    %v_12 = mul %v_11, 24: Long
-    %v_13 = add %xs$items, %v_12: Ptr
+  b_7 {
+    %v_8 = sub %n, %v_3: Int
+    %v_9 = bitcast %xs$length: Long
+    %v_10 = sext %v_8: Long
+    %v_11 = mul %v_10, 24: Long
+    %v_12 = add %xs$items, %v_11: Ptr
+    %v_13 = sext %v_8: Long
     jmp b_14
   }
 
   b_14 {
-    %v_15 = phi [b_8, %v_1], [b_16, %v_17]: Long
-    %v_18 = phi [b_8, %v_9], [b_16, %v_19]: Int
-    %v_20 = phi [b_8, %v_13], [b_16, %v_21]: Ptr
-    %v_22 = cmp_ige %v_18, %v_2: Int
-    je %v_22, b_23, b_6
+    %v_15 = phi [b_7, %v_1], [b_16, %v_17]: Long
+    %v_18 = phi [b_7, %v_12], [b_16, %v_19]: Ptr
+    %v_20 = phi [b_7, %v_13], [b_16, %v_21]: Long
+    %v_22 = cmp_ige %v_20, 0: Int
+    je %v_22, b_23, b_5
   }
 
   b_23 {
     %v_24 = imul %v_15, 10: Long
-    %v_25 = sext %v_18: Long
-    %v_26 = bitcast %v_25: Long
-    %v_27 = cmp_ge %v_26, %v_10: Int
-    je %v_27, b_28, b_29
-  }
-
-  b_29 {
-    %v_30 = loads %v_20, 8: Long
-    %v_17 = add %v_24, %v_30: Long
-    %v_31 = cmp_ilt %v_18, %v_4: Int
-    je %v_31, b_6, b_16
-  }
-
-  b_16 {
-    %v_19 = sub %v_18, %v_4: Int
-    %v_21 = add %v_20, 18446744073709551592: Ptr
-    jmp b_14
-  }
-
-  b_6 {
-    %v_32 = phi [b_0, %v_1], [b_5, %v_1], [b_14, %v_15], [b_29, %v_17]: Long
-    ret %v_32
+    %v_25 = bitcast %v_20: Long
+    %v_26 = cmp_ge %v_25, %v_9: Int
+    je %v_26, b_27, b_28
   }
 
   b_28 {
-    %v_33 = syscall 60, 134: Long
+    %v_29 = loads %v_18, 8: Long
+    %v_17 = add %v_24, %v_29: Long
+    %v_30 = cmp_ilt %v_20, 1: Int
+    je %v_30, b_5, b_16
+  }
+
+  b_16 {
+    %v_19 = add %v_18, 18446744073709551592: Ptr
+    %v_21 = add %v_20, 18446744073709551615: Long
+    jmp b_14
+  }
+
+  b_5 {
+    %v_31 = phi [b_0, %v_1], [b_4, %v_1], [b_14, %v_15], [b_28, %v_17]: Long
+    ret %v_31
+  }
+
+  b_27 {
+    %v_32 = syscall 60, 134: Long
     unreachable 
   }
 }

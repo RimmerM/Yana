@@ -196,13 +196,13 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e876ffffff
-  load uses=[rbp] creates=[rax]  => 488b4500
-  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[stack:0->r15]  => 4c8b3c24
-  add uses=[rax, -] creates=[rax]  => 490307
+  load uses=[rbp] creates=[rax] post=[stack:0->rcx]  => 488b4500488b0c24
+  x86_addr scale=1 disp=0 uses=[rcx] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 480301
   x86_addr scale=1 disp=0 uses=[rbp] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 48034500
-  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[stack:0->r15]  => 4c8b3c24
-  add uses=[rax, -] creates=[rax]  => 490307
+  x86_addr scale=1 disp=0 uses=[rcx] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 480301
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: splitAcrossTwoCalls ---
