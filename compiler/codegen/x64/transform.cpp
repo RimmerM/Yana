@@ -1,5 +1,6 @@
 #include "gen.h"
 #include "x64_util.h"
+#include "../../lower/lower_fold.h"
 
 // Whether running this instruction can change the flags register.
 //
@@ -335,67 +336,9 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
  * of them can carry into bit 31, and the whole value of this question is that it never has to reason
  * about how far.
  */
-static bool isNonNegative32(LowerBase base, LowerValue* value, U32 depth = kExtendedDepth) {
-    auto inst = value->inst();
-    if(value->type != LowerType::Int32) return false;
-
-    switch(inst->kind) {
-        case LowerInst::Imm:
-            return (((LowerImm*)inst)->i & 0x80000000ull) == 0;
-
-        // One operand without the bit is enough, since masking cannot set a bit neither side has.
-        case LowerInst::And: {
-            if(depth == 0) return false;
-
-            auto binary = (LowerInstBinary*)inst;
-            return isNonNegative32(base, base[binary->lhs], depth - 1)
-                || isNonNegative32(base, base[binary->rhs], depth - 1);
-        }
-
-        // Where masking can, so both sides have to be clear.
-        case LowerInst::Or: case LowerInst::Xor: {
-            if(depth == 0) return false;
-
-            auto binary = (LowerInstBinary*)inst;
-            return isNonNegative32(base, base[binary->lhs], depth - 1)
-                && isNonNegative32(base, base[binary->rhs], depth - 1);
-        }
-
-        // A logical shift down by a known distance clears exactly that many bits at the top, so any
-        // distance at all clears bit 31. The arithmetic one fills from the sign bit and clears
-        // nothing; the shift up is the carrying case this declines outright.
-        case LowerInst::Shr: {
-            auto count = base[((LowerInstBinary*)inst)->rhs];
-            return count->inst()->kind == LowerInst::Imm && immValue(count) >= 1;
-        }
-
-        case LowerInst::Cmp:
-            return !isImplicit(value);
-
-        // Fewer than four bytes cannot reach bit 31 whichever way the load extends; four bytes can,
-        // and a signed narrow load carries its own sign bit up into it.
-        case LowerInst::Load: {
-            auto load = (LowerInstLoad*)inst;
-            return load->getWidth() < 4 && !load->isSigned();
-        }
-
-        // A widening from something narrower, unsigned: the bits it fills are zeros, and bit 31 is
-        // one of them. A same-width cast is a rename and answers for whatever it renamed.
-        case LowerInst::Cast: {
-            auto cast = (LowerInstCast*)inst;
-            auto source = base[cast->from];
-            if(!isIntLike(source->type)) return false;
-
-            if(source->type == LowerType::Int32) {
-                return depth > 0 && isNonNegative32(base, source, depth - 1);
-            }
-
-            return !cast->isSignedSource();
-        }
-
-        default:
-            return false;
-    }
+static bool isNonNegative32(LowerBase base, LowerValue* value) {
+    return value->type == LowerType::Int32 &&
+           (knownZeroBits(base, value) & (U64(1) << 31));
 }
 
 // Marks a cast whose move would change no bit of its source, so that selection gives it the form
@@ -1888,7 +1831,9 @@ static LowerInst* cloneHeaderInst(Region<LowerRegion>& arena, LowerInst* inst) {
 
     auto created = clone->created();
     for(Size i = 0; i < created.size(); i++) {
+        auto flags = created[i].flags;
         new (&created[i]) LowerValue(clone, created[i].type, StringId());
+        created[i].flags = flags;
     }
 
     return clone;

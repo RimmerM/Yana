@@ -155,58 +155,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -216,8 +215,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -360,20 +359,14 @@ resize(Pad)<complex>(%self: Ptr, %wanted: Int): Int {
 
   b_46 {
     store %self, %fresh, 8
-    %v_47 = cast %wanted: Int
+    %v_47 = bitcast %wanted: Int
     %v_48 = and %v_47, 1073741823: Int
     %v_49 = cast %v_48: Int
     %v_50 = add %self, 8: Ptr
     %v_51 = load %v_50, 4: Long
     %v_52 = cast %v_49: Long
-    %v_53 = and %v_52, 1073741823: Long
-    %v_54 = and %v_51, 18446744072635809792: Long
-    %v_55 = or %v_54, %v_53: Long
-    store %v_50, %v_55, 4
-    %v_56 = load %v_50, 4: Long
-    %v_57 = and %v_56, 18446744070488326143: Long
-    %v_58 = or %v_57, 1073741824: Long
-    store %v_50, %v_58, 4
+    %v_53 = or %v_52, 1073741824: Long
+    store %v_50, %v_53, 4
     ret 1
   }
 }
@@ -497,20 +490,14 @@ resize(Outer)<complex>(%self: Ptr, %wanted: Int): Int {
 
   b_46 {
     store %self, %fresh, 8
-    %v_47 = cast %wanted: Int
+    %v_47 = bitcast %wanted: Int
     %v_48 = and %v_47, 1073741823: Int
     %v_49 = cast %v_48: Int
     %v_50 = add %self, 8: Ptr
     %v_51 = load %v_50, 4: Long
     %v_52 = cast %v_49: Long
-    %v_53 = and %v_52, 1073741823: Long
-    %v_54 = and %v_51, 18446744072635809792: Long
-    %v_55 = or %v_54, %v_53: Long
-    store %v_50, %v_55, 4
-    %v_56 = load %v_50, 4: Long
-    %v_57 = and %v_56, 18446744070488326143: Long
-    %v_58 = or %v_57, 1073741824: Long
-    store %v_50, %v_58, 4
+    %v_53 = or %v_52, 1073741824: Long
+    store %v_50, %v_53, 4
     ret 1
   }
 }
@@ -589,7 +576,7 @@ push(Pad)<complex>(%self: Ptr, %item: Ptr) {
     %v_23 = shl %v_22, 4: Long
     %v_24 = add %v_21, %v_23: Ptr
     copy %v_24, %item, 12
-    %v_25 = cast %v_3: Int
+    %v_25 = bitcast %v_3: Int
     %v_26 = and %v_25, 1073741823: Int
     %v_27 = cast %v_26: Int
     %v_28 = add %self, 12: Ptr
@@ -684,7 +671,7 @@ push(Outer)<complex>(%self: Ptr, %item: Ptr) {
     %v_23 = shl %v_22, 4: Long
     %v_24 = add %v_21, %v_23: Ptr
     copy %v_24, %item, 16
-    %v_25 = cast %v_3: Int
+    %v_25 = bitcast %v_3: Int
     %v_26 = and %v_25, 1073741823: Int
     %v_27 = cast %v_26: Int
     %v_28 = add %self, 12: Ptr

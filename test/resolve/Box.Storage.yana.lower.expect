@@ -155,58 +155,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -216,8 +215,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -286,48 +285,46 @@ outOfLine<complex>(): Int {
     store %v_3, 1, 4
     %v_4 = call_complex allocateHeap, 8: Ptr
     store %c, %v_4, 8
-    %v_5 = load %c, 8: Ptr
-    copy %v_5, %v_1, 8
+    copy %v_4, %v_1, 8
     %owner = bitcast %c: Ptr
-    %v_6 = load %c, 8: Ptr
-    %target = bitcast %v_6: Ptr
-    %v_7 = cmp_lt %target, %owner: Int
-    %v_8 = xor %v_7, 1: Int
-    je %v_8, b_9, b_10
+    %v_5 = load %c, 8: Ptr
+    %target = bitcast %v_5: Ptr
+    %v_6 = cmp_lt %target, %owner: Int
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
-    %v_11 = add %owner, 12: Ptr
-    %v_12 = cmp_lt %target, %v_11: Int
-    je %v_12, b_13, b_14
+  b_8 {
+    %v_9 = add %owner, 12: Ptr
+    %v_10 = cmp_lt %target, %v_9: Int
+    je %v_10, b_11, b_12
   }
 
-  b_10 {
-    jmp b_15
-  }
-
-  b_16 {
-    ret 18446744073709551615
+  b_7 {
+    jmp b_13
   }
 
   b_14 {
-    jmp b_17
+    ret 18446744073709551615
   }
 
-  b_17 {
+  b_12 {
     jmp b_15
   }
 
   b_15 {
-    %v_18 = add %v_6, 4: Ptr
-    %d$level = loads %v_18, 4: Int
+    jmp b_13
+  }
+
+  b_13 {
+    %v_16 = add %v_5, 4: Ptr
+    %d$level = loads %v_16, 4: Int
     call_complex reclaim$Config, %c
     ret %d$level
   }
 
-  b_13 {
+  b_11 {
     call_complex reclaim$Config, %c
-    jmp b_16
+    jmp b_14
   }
 }
 
@@ -342,42 +339,40 @@ writesThrough<complex>(): Int {
     store %v_4, 3, 4
     %v_5 = call_complex allocateHeap, 8: Ptr
     store %v_1, %v_5, 8
+    copy %v_5, %v_2, 8
     %v_6 = load %v_1, 8: Ptr
-    copy %v_6, %v_2, 8
-    %v_7 = load %v_1, 8: Ptr
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 9, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 30, 4
+    %v_7 = alloca 8, 4: Ptr
+    store %v_7, 9, 4
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, 30, 4
+    %v_9 = load %v_1, 8: Ptr
+    copy %v_9, %v_7, 8
     %v_10 = load %v_1, 8: Ptr
-    copy %v_10, %v_8, 8
-    %v_11 = load %v_1, 8: Ptr
-    %v_12 = cmp_eq %v_7, %v_11: Int
-    %v_13 = xor %v_12, 1: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_16 {
-    ret 18446744073709551615
-  }
-
-  b_15 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_18 = loads %v_11, 4: Int
-    %v_19 = imul %v_18, 10: Int
-    %v_20 = add %v_11, 4: Ptr
-    %v_21 = loads %v_20, 4: Int
-    call_complex reclaim$Config, %v_1
-    %v_22 = add %v_19, %v_21: Int
-    ret %v_22
+    %v_11 = cmp_eq %v_6, %v_10: Int
+    je %v_11, b_12, b_13
   }
 
   b_14 {
+    ret 18446744073709551615
+  }
+
+  b_12 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = loads %v_10, 4: Int
+    %v_17 = imul %v_16, 10: Int
+    %v_18 = add %v_10, 4: Ptr
+    %v_19 = loads %v_18, 4: Int
     call_complex reclaim$Config, %v_1
-    jmp b_16
+    %v_20 = add %v_17, %v_19: Int
+    ret %v_20
+  }
+
+  b_13 {
+    call_complex reclaim$Config, %v_1
+    jmp b_14
   }
 }
 

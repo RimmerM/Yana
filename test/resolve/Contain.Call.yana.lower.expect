@@ -29,7 +29,6 @@ mutate<complex>(%f: Ptr): Int {
 main<complex>(): Int {
   b_0 {
     %f = alloca 1, 1: Ptr
-    store %f, 0, 1
     store %f, 1, 1
     %handed = call_complex score, %f: Int
     %again = call_complex score, %f: Int
@@ -37,13 +36,11 @@ main<complex>(): Int {
     %v_2 = add %v_1, %again: Int
     %v_3 = add %v_2, 8: Int
     %f = alloca 1, 1: Ptr
-    store %f, 0, 1
     store %f, 2, 1
     %ignored = call_complex score, %f: Int
     %v_4 = add %ignored, 100: Int
     %v_5 = add %v_3, %v_4: Int
     %v_6 = alloca 1, 1: Ptr
-    store %v_6, 0, 1
     store %v_6, 0, 1
     %zero = call_complex mutate, %v_6: Int
     %v_7 = load %v_6, 1: Int

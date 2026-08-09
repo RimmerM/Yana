@@ -179,6 +179,19 @@ fn signedField(%x: I32) -> I32 {
     ret %v9
 }
 
+fn widenedUnsigned(%x: Int) -> U64 {
+  b0:
+    %v1 = cast %x : I64
+    %v2 = cast %v1 : U64
+    ret %v2
+}
+
+fn normalizedU8(%x: Int) -> U8 {
+  b0:
+    %v1 = cast %x : U8
+    ret %v1
+}
+
 fn main() -> Int {
   b0:
     %v1 = call addSmall, 12 : U32
@@ -241,7 +254,34 @@ fn main() -> Int {
     %v106 = sub 0, 4 : I32
     %v108 = call checkI, %v102, %v106, 8192 : Int
     %v109 = add %v97, %v108 : Int
-    ret %v109
+    %v114 = sub 0, 1 : Int
+    %v115 = call widenedUnsigned, %v114 : U64
+    %v118 = cmp_eq %v115, 18446744073709551615 : Bool
+    je %v118, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v126 = phi [b4, 16384], [b5, 0] : Int
+    %v127 = add %v109, %v126 : Int
+    %v129 = call normalizedU8, 300 : U8
+    %v132 = cmp_eq %v129, 44 : Bool
+    je %v132, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v140 = phi [b7, 32768], [b8, 0] : Int
+    %v141 = add %v127, %v140 : Int
+    ret %v141
 }
 
 fn addU8(%x: U8, %y: U8) -> U8 {

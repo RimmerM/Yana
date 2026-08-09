@@ -134,22 +134,22 @@ fn aliased(%n: Int) -> Int {
     %v7 = alloc *3 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v121 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v126 = and %v121, 18446744072635809792 : U32
-    %v127 = or %v126, 3 : U32
-    %v136 = and %v127, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v136
+    %v105 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v110 = and %v105, 18446744072635809792 : U32
+    %v111 = or %v110, 3 : U32
+    %v120 = and %v111, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v120
     aggregate [%v8][0] = 100, [%v8][1] = 2, [%v8][2] = 3
     init %xs@Array.length, 3
     %v49 = add %v8, 0 : %Int
     %v51 = load [%v49] : Int
-    %v56 = cast %n : U64
+    %v53 = cast %n : I64
+    %v56 = cast %v53 : U64
     %v59 = cmp_ge %v56, 3 : Bool
     je %v59, b2, b1
 
   b1:
-    %v151 = cast %v56 : I64
-    %v63 = mul %v151, 4 : Long
+    %v63 = mul %v53, 4 : Long
     %v64 = add %v8, %v63 : %Int
     %v66 = load [%v64] : Int
     %v71 = load %xs : Array(Int)

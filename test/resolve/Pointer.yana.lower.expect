@@ -16,7 +16,6 @@ throughField<complex>(): Long {
     %v_3 = loads %node, 8: Long
     %v_4 = imul %v_3, 5: Long
     store %node, %v_4, 8
-    %v_5 = loads %node, 8: Long
     ret %v_4
   }
 }
@@ -36,15 +35,14 @@ pointerFields<complex>(): Long {
     store %first, %v_4, 8
     store %v_2, %second, 8
     %v_5 = loads %first, 8: Long
-    %v_6 = load %v_2, 8: Ptr
-    %v_7 = loads %second, 8: Long
-    %v_8 = add %v_7, %v_4: Long
-    store %v_6, %v_8, 8
-    %v_9 = loads %first, 8: Long
-    %v_10 = load %v_2, 8: Ptr
-    %v_11 = loads %v_10, 8: Long
-    %v_12 = add %v_11, 500: Long
-    ret %v_12
+    %v_6 = loads %second, 8: Long
+    %v_7 = add %v_6, %v_4: Long
+    store %second, %v_7, 8
+    %v_8 = loads %first, 8: Long
+    %v_9 = load %v_2, 8: Ptr
+    %v_10 = loads %v_9, 8: Long
+    %v_11 = add %v_10, 500: Long
+    ret %v_11
   }
 }
 
@@ -62,20 +60,18 @@ walkList<complex>(): Long {
     %first = alloca 16, 8: Ptr
     store %first, 1, 8
     %v_4 = add %first, 8: Ptr
-    store %v_4, %v_1, 8
     store %v_4, %second, 8
-    %v_5 = load %v_4, 8: Ptr
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %third, 8
-    %v_7 = loads %first, 8: Long
-    %v_8 = load %v_4, 8: Ptr
-    %v_9 = loads %v_8, 8: Long
-    %v_10 = add %v_7, %v_9: Long
-    %v_11 = add %v_8, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    %v_13 = loads %v_12, 8: Long
-    %v_14 = add %v_10, %v_13: Long
-    ret %v_14
+    %v_5 = add %second, 8: Ptr
+    store %v_5, %third, 8
+    %v_6 = loads %first, 8: Long
+    %v_7 = load %v_4, 8: Ptr
+    %v_8 = loads %v_7, 8: Long
+    %v_9 = add %v_6, %v_8: Long
+    %v_10 = add %v_7, 8: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    %v_12 = loads %v_11, 8: Long
+    %v_13 = add %v_9, %v_12: Long
+    ret %v_13
   }
 }
 
@@ -134,18 +130,17 @@ compareAddresses<complex>(): Long {
     %v_14 = phi [b_6, %v_8], [b_11, %v_13]: Long
     %v_15 = bitcast %node: Long
     %v_16 = cmp_eq %v_15, 0: Int
-    %v_17 = xor %v_16, 1: Int
-    je %v_17, b_18, b_19
+    je %v_16, b_17, b_18
   }
 
   b_18 {
-    %v_20 = add %v_14, 8: Long
-    jmp b_19
+    %v_19 = add %v_14, 8: Long
+    jmp b_17
   }
 
-  b_19 {
-    %v_21 = phi [b_12, %v_14], [b_18, %v_20]: Long
-    ret %v_21
+  b_17 {
+    %v_20 = phi [b_12, %v_14], [b_18, %v_19]: Long
+    ret %v_20
   }
 }
 

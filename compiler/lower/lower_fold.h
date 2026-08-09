@@ -107,3 +107,24 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
  * next one dead.
  */
 void removeDeadConstants(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
+
+/*
+ * The bits of a value that are certainly zero.
+ *
+ * Stated within the value's own type width, and set outside it - a value has no bits there, so
+ * "nothing known" is `~maskOf(width)` rather than zero and two operands' answers can be intersected
+ * without a special case. Always a *subset* of the truth: a shape this does not describe answers
+ * "nothing known" and every caller is a simplification that is declined rather than a fact that is
+ * wrong.
+ *
+ * Answered on demand and to a bounded depth rather than by a fixpoint over the function. Everything
+ * it is asked about is the chain of masks, shifts and extensions between a narrow load and the
+ * operation being simplified, and the front end writes those out in one block. A producer may also
+ * carry an unsigned-width hint for a fact that existed above this IR and cannot be reconstructed
+ * from that graph; the query treats it as one more set of known high zeroes.
+ *
+ * `foldFunctionConstants` uses it to recognise a mask that takes nothing away and to restate one at
+ * the width of what it is read against (see `narrowMask`); `forwardStoredValues` uses it to ask
+ * whether a value is already narrow enough for a load of it to be the value itself.
+ */
+U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth = 0);

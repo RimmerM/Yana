@@ -385,6 +385,27 @@ struct LowerValue {
         Implicit = 1,
     };
 
+    /*
+     * The low bits a producer knows are enough to hold an unsigned value, encoded beside the flag
+     * above so that carrying the hint does not make a LowerValue any larger. Zero means no hint;
+     * widths 1..64 are stored shifted by one and therefore fit in the remaining seven bits.
+     *
+     * This is a range hint rather than a second type. LowerType still says which register class an
+     * operation uses, while this says that bits at and above the returned width are zero. A pass is
+     * free to lose it and every consumer treats its absence as "nothing known". See
+     * knownZeroBits, which combines it with the facts recoverable from the lower instruction graph.
+     */
+    U8 unsignedWidthHint() const { return flags >> 1; }
+
+    void hintUnsignedWidth(U8 width) {
+        assertTrue(width >= 1 && width <= 64);
+
+        auto current = unsignedWidthHint();
+        if(current && current <= width) return;
+
+        flags = U8((flags & Implicit) | (width << 1));
+    }
+
     LowerValue(LowerInst* inst, LowerType type, StringId name): name(name), type(type) {
         // Currently, the size of a value is 24 bytes (on 64 bits).
         // The only instructions that can support large numbers of values are function calls;

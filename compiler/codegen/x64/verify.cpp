@@ -204,6 +204,12 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
 
         // Nothing else may be in the same place at the same time. Compared per value rather than per
         // web, so that two values wrongly merged into one web are caught here as well.
+        //
+        // The exception is the one copy coalescing introduces, and it is stated as a fact about the
+        // *values* rather than as a fact about the web they landed in: two values a chain of copies
+        // proved equal hold the same number wherever both are live, so one register holding it is
+        // right for both. See Placement::copyClassOf - a web that merely put them together does not
+        // say this, which is why the check is not simply "same web".
         for(Size j = 0; j < i; j++) {
             auto other = LiveId(j);
             auto otherAt = placement.homeOf(other);
@@ -211,6 +217,7 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
 
             if(!sharesLocation(at, otherAt)) continue;
             if(!interval.overlaps(live.getInterval(other))) continue;
+            if(placement.sameNumber(id, other)) continue;
 
             fail("%@: %@ and %@ are both live and both placed in %@",
                 funName, name(other), name(id), locationName(at));
@@ -697,7 +704,7 @@ struct Verifier {
             auto held = base[parts[part++]];
             auto at = MachineLocation::physical(PhysicalReg { BankGpr, U16(reg) });
 
-            if(state.get(at) != held->liveId()) {
+            if(state.get(at) != held->liveId() && !regs.placement.sameNumber(state.get(at), held->liveId())) {
                 fail("%@: %@: the folded address's %@ is read from %@, which holds %@ rather than %@",
                     funName, name, role, locationName(at),
                     nameOf(state.get(at)), nameOf(held));
@@ -781,8 +788,12 @@ struct Verifier {
                 continue;
             }
 
+            // What the location holds has to be this operand - or a value a chain of copies proved
+            // is the same number, which is what coalescing across a copy leaves behind: the copy
+            // emits nothing, so the register goes on holding what it held and the simulator below
+            // names it by whichever of the two wrote it last. See Placement::copyClassOf.
             auto found = state.get(at);
-            if(found != v->liveId()) {
+            if(found != v->liveId() && !regs.placement.sameNumber(found, v->liveId())) {
                 fail("%@: %@: operand %@ is read from %@, which holds %@",
                     funName, name, nameOf(v), locationName(at), nameOf(found));
             }
@@ -862,8 +873,13 @@ struct Verifier {
             // anything, so it neither has to arrive here nor can collide with what does.
             if(at.isRemat()) return;
 
+            // Two values in one location on entry is a collision unless a copy proved them the same
+            // number, in which case the register holds the one thing both of them are. The state
+            // keeps whichever arrived first, since every reader of either is now satisfied by it.
             auto existing = state.get(at);
             if(existing != kNullLive) {
+                if(regs.placement.sameNumber(existing, id)) return;
+
                 fail("%@: block %@: %@ and %@ are both live on entry and both allocated to %@",
                     funName, nameOf(block), nameOf(existing), nameOf(id), locationName(at));
                 return;
@@ -940,8 +956,10 @@ struct Verifier {
             if(!at.isValid()) return; // already reported by buildEntryState
             if(at.isRemat()) return;  // carried by nothing, so nothing has to carry it here
 
+            // The same relaxation the operand check makes: a copy that emits nothing leaves the
+            // register holding whichever of the two values wrote it, and both are the same number.
             auto found = state.get(at);
-            if(found != id) {
+            if(found != id && !regs.placement.sameNumber(found, id)) {
                 fail("%@: on the edge from block %@ to block %@: %@ is live and allocated to %@, which holds %@",
                     funName, nameOf(from), nameOf(to), nameOf(id), locationName(at), nameOf(found));
             }
@@ -970,7 +988,7 @@ struct Verifier {
             }
 
             auto found = state.get(at);
-            if(found != value->liveId()) {
+            if(found != value->liveId() && !regs.placement.sameNumber(found, value->liveId())) {
                 fail("%@: on the edge from block %@ to block %@: phi %@ takes %@ from here and lives in %@, which holds %@",
                     funName, nameOf(from), nameOf(to), nameOf(&result), nameOf(value), locationName(at), nameOf(found));
             }

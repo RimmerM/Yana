@@ -34,6 +34,20 @@ I64 signedValue(U64 value, U32 bits) {
     return I64(value << spare) >> spare;
 }
 
+// How many bits a constant needs to survive being written out at that width and read back
+// sign-extended, which is what every immediate field of every encoding does with one. The unit the
+// choice below is made in: two constants that are the same operation on this operand are ranked by
+// how narrow a field each would fit in.
+U32 immediateWidthOf(U64 value, U32 bits) {
+    auto signed64 = signedValue(value, bits);
+
+    for(U32 width = 8; width < 64; width *= 2) {
+        if(signedValue(U64(signed64), width) == signed64) return width;
+    }
+
+    return 64;
+}
+
 /*
  * The top 64 bits of a 64x64 product, out of 32-bit pieces.
  *
@@ -238,9 +252,12 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
             if((knownRhs && b == 0) || (knownLhs && a == 0)) return Folded::value(0);
             break;
 
+        // A mask keeping every bit its operand can have set, which is the identity - the literal
+        // `all` is the case with nothing known, and the rest are the masks a bitfield writes against
+        // a value already narrower than the type it is stated at. See `knownZeroBits`.
         case LowerInst::And:
-            if(knownRhs && b == all) return forward(lhs);
-            if(knownLhs && a == all) return forward(rhs);
+            if(knownRhs && (b | knownZeroBits(base, lhs)) == maxLimit<U64>) return forward(lhs);
+            if(knownLhs && (a | knownZeroBits(base, rhs)) == maxLimit<U64>) return forward(rhs);
             if((knownRhs && b == 0) || (knownLhs && a == 0)) return Folded::value(0);
             break;
 
@@ -492,6 +509,169 @@ bool narrowComparison(LowerBase base, LowerInst* inst, Narrowed& into) {
     return true;
 }
 
+// What a mask is rewritten into: the same `and` over a different operand and a different constant.
+// The operand changes only for the second of the two rules below; the constant for either.
+struct Masked {
+    LowerValue* value;
+    U64 constant;
+};
+
+/*
+ * A mask that says more than it has to.
+ *
+ * A bitfield update reaches here as a four-byte unsigned load into a `Long`, a mask, a merge and a
+ * four-byte store, and the masks the front end writes for it are stated at the full width of the
+ * type rather than at the width of what was loaded:
+ *
+ *   %a = load %p, 4              ; bits 32..63 are zero, by what a four-byte load is
+ *   %b = and %a, 0xffffffff3fffffff
+ *
+ * Every bit that mask clears above bit 31 was already zero, so the constant is free to say anything
+ * at all up there - and `0x3fffffff` is the same operation written in four bytes rather than eight.
+ * The one this backend emitted was the eight-byte one: `movabs` into a register, which in these
+ * conventions is a callee-saved one, and an `and` against it. Its neighbour one line up wants the
+ * *other* direction - `0xc0000000` and `0xffffffffc0000000` are equally correct there and only the
+ * second fits a sign-extended field - which is why both candidates are formed and ranked rather than
+ * the free bits simply being cleared.
+ *
+ * The second rule is what makes the chain collapse rather than only shrink. An `or` or an `xor`
+ * whose one side contributes nothing under the mask is an operand the `and` need not read:
+ *
+ *   `and (or %a, %b), C`   is   `and %b, C`     where every bit of C is known zero in %a
+ *
+ * which is the whole of a read-modify-write of one bitfield once the load it reassembles has been
+ * forwarded. It is gated on the merge having a single reader, for the reason `narrowComparison`
+ * gates its second rewrite: where something else still needs the merge, taking this reader off it
+ * removes no instruction and leaves two values live where there was one.
+ */
+bool narrowMask(LowerBase base, LowerInst* inst, Masked& into) {
+    if(inst->kind != LowerInst::And) return false;
+
+    auto binary = (LowerInstBinary*)inst;
+    auto type = binary->result.type;
+    if(!isInt(type)) return false;
+
+    auto lhs = base[binary->lhs];
+    auto rhs = base[binary->rhs];
+
+    U64 constant, other;
+    LowerValue* value;
+
+    if(lowerConstantOf(base, rhs, constant)) {
+        if(lowerConstantOf(base, lhs, other)) return false; // both constant: the plain fold's business
+        value = lhs;
+    } else if(lowerConstantOf(base, lhs, constant)) {
+        value = rhs;
+    } else {
+        return false;
+    }
+
+    if(value->type != type) return false;
+
+    auto bits = widthOf(type);
+    auto all = maskOf(bits);
+    auto original = value;
+
+    // The merge whose one side the mask discards. Repeated, because a field assembled out of two
+    // merges is two of them - each round takes one off, and the bound is the chain's own length.
+    for(;;) {
+        auto source = value->inst();
+        if(source->kind != LowerInst::Or && source->kind != LowerInst::Xor) break;
+        if(((LowerInstSingle*)source)->result.uses.size() != 1) break;
+
+        auto merge = (LowerInstBinary*)source;
+        auto left = base[merge->lhs];
+        auto right = base[merge->rhs];
+        if(left->type != type || right->type != type) break;
+
+        if((knownZeroBits(base, left) & constant) == constant) value = right;
+        else if((knownZeroBits(base, right) & constant) == constant) value = left;
+        else break;
+    }
+
+    /*
+     * And the constant, once the operand it is read against is settled. The free bits are the ones
+     * that operand is known to have as zero: setting them changes nothing about the answer, so the
+     * two extremes are formed and the narrower field wins. A tie goes to the cleared one, which is
+     * the smaller number and the one a reader recognises as the mask that was meant.
+     */
+    auto free = knownZeroBits(base, value) & all;
+    auto cleared = constant & ~free;
+    auto filled = (constant | free) & all;
+
+    auto chosen = immediateWidthOf(filled, bits) < immediateWidthOf(cleared, bits) ? filled : cleared;
+    if(value == original && chosen == constant) return false;
+
+    into = { value, chosen };
+    return true;
+}
+
+/*
+ * A branch on the negation of a truth value, which is the same branch the other way round.
+ *
+ * `foldBooleanValue` declines the inverses on purpose: `not %b` is a new instruction rather than one
+ * of the operands, and `Folded` may only answer with something already standing there. At a *branch*
+ * it is neither - it is the same terminator with its two arms exchanged, which costs nothing at all
+ * and is what makes the value underneath it dead:
+ *
+ *   %c = cmp_eq %p, 0
+ *   %n = xor %c, 1          ; that is, `not %c`
+ *   je %n, taken, missed    is  je %c, missed, taken
+ *
+ * and what that buys is not the `xor`. It is the *flags*: `%c`'s only reader is now the branch, so
+ * the x64 selector's flag window (§3.5.2 of codegen/x64/README.md) can carry it there and the whole
+ * of `xor r, r; test; sete; xor $1; test; jne` becomes `test; je`. `allocateHeap`'s free-list probe
+ * is that shape, in eight of the ten programs in the corpus.
+ *
+ * Three spellings of the negation, all of which the lowering emits: the explicit `xor %b, 1`, and
+ * the two comparisons against a literal that `foldBooleanValue` recognises as identities the other
+ * way up. Each needs `%b` to be *already* a truth value, since the rewrite reads it as one.
+ */
+bool negatedBranchCondition(LowerBase base, LowerInst* terminator, LowerValue*& into) {
+    if(terminator->kind != LowerInst::Je) return false;
+
+    auto je = (LowerInstJe*)terminator;
+    if(je->getEmbeddedCmp()) return false; // already carried in the flags: not this pass's shape
+
+    auto condition = base[je->cond];
+    auto inst = condition->inst();
+    if(inst->kind != LowerInst::Xor && inst->kind != LowerInst::Cmp) return false;
+
+    // The truth value and the literal it is set against, either way round. Both spellings read one
+    // of each; neither says anything when both sides or neither side is a constant.
+    auto binary = (LowerInstBinary*)inst;
+    auto lhs = base[binary->lhs];
+    auto rhs = base[binary->rhs];
+
+    U64 constant, other;
+    LowerValue* boolean;
+
+    if(lowerConstantOf(base, rhs, constant)) {
+        if(lowerConstantOf(base, lhs, other)) return false;
+        boolean = lhs;
+    } else if(lowerConstantOf(base, lhs, constant)) {
+        boolean = rhs;
+    } else {
+        return false;
+    }
+
+    // Whether this is the negation of `%b` rather than `%b` itself. `%b == 0` and `%b != 1` are the
+    // inverses foldBooleanValue declines; `%b == 1` and `%b != 0` are the identities it has already
+    // had its turn at.
+    auto inverted = [&] {
+        if(inst->kind == LowerInst::Xor) return constant == 1;
+
+        auto kind = ((LowerInstCmp*)inst)->getCmp();
+        return (kind == LowerCmp::eq && constant == 0) || (kind == LowerCmp::neq && constant == 1);
+    };
+
+    if(!inverted()) return false;
+    if(boolean->type != condition->type || !isBooleanValued(base, boolean)) return false;
+
+    into = boolean;
+    return true;
+}
+
 // What an instruction that is already in a block comes to, for the pass below. One switch over the
 // three shapes the folds above cover; everything else answers nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
@@ -545,6 +725,141 @@ LowerInst* materialize(LowerBase base, LowerModule& module, LowerBlock& block, F
 }
 
 } // namespace
+
+// See lower_fold.h. Bounded rather than a fixpoint: every shape this is asked about is the chain of
+// masks, shifts and extensions between a narrow load and the operation being simplified, which the
+// front end writes out in one block - a phi is what a fixpoint would buy and no caller reaches one.
+// The bound is what keeps a query on a long arithmetic chain from walking the whole of it at every
+// instruction a pass visits.
+static constexpr U32 kMaxKnownBitsDepth = 6;
+
+U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth) {
+    if(!isInt(value->type)) return 0;
+
+    auto bits = widthOf(value->type);
+    auto hint = value->unsignedWidthHint();
+    auto outside = ~maskOf(bits);
+    if(hint && hint < bits) outside |= ~maskOf(hint);
+    if(depth >= kMaxKnownBitsDepth) return outside;
+
+    auto inst = value->inst();
+
+    // An operand of the same type as the result, or nothing known. A narrower operand of a wider
+    // operation is a value whose upper half is whatever the register happened to hold, which is a
+    // question about the backend's representation rather than about the IR - so it is declined here
+    // rather than answered from the operand's own width.
+    auto zerosOf = [&](LowerPtr<LowerValue> operand) -> U64 {
+        auto from = base[operand];
+        if(from->type != value->type) return outside;
+
+        return knownZeroBits(base, from, depth + 1);
+    };
+
+    // A shift whose distance is a literal inside the width, which is the only kind that says
+    // anything: a variable distance leaves every bit of the answer in doubt.
+    auto shiftAmount = [&](LowerPtr<LowerValue> operand, U64& into) {
+        return lowerConstantOf(base, base[operand], into) && into < bits;
+    };
+
+    switch(inst->kind) {
+        case LowerInst::Imm: {
+            U64 constant;
+            if(!lowerConstantOf(base, value, constant)) return outside;
+
+            return outside | ~constant;
+        }
+
+        // A narrow unsigned load zeroes everything above what it read, which is where nearly every
+        // answer this analysis gives starts: a bitfield is a four-byte load into a `Long`.
+        case LowerInst::Load: {
+            auto load = (LowerInstLoad*)inst;
+            if(load->isSigned()) return outside;
+
+            auto width = load->getWidth() * 8;
+            return width >= bits ? outside : outside | ~maskOf(width);
+        }
+
+        // The one instruction whose result is defined to be zero or one.
+        case LowerInst::Cmp:
+            return outside | ~U64(1);
+
+        case LowerInst::And: {
+            auto binary = (LowerInstBinary*)inst;
+            return outside | zerosOf(binary->lhs) | zerosOf(binary->rhs);
+        }
+
+        case LowerInst::Or:
+        case LowerInst::Xor: {
+            auto binary = (LowerInstBinary*)inst;
+            return outside | (zerosOf(binary->lhs) & zerosOf(binary->rhs));
+        }
+
+        case LowerInst::Select: {
+            auto select = (LowerInstSelect*)inst;
+            return outside | (zerosOf(select->lhs) & zerosOf(select->rhs));
+        }
+
+        case LowerInst::Shl: {
+            auto binary = (LowerInstBinary*)inst;
+
+            U64 amount;
+            if(!shiftAmount(binary->rhs, amount)) return outside;
+
+            return outside | ((zerosOf(binary->lhs) << amount) & maskOf(bits)) | maskOf(U32(amount));
+        }
+
+        // And the two right shifts, which differ only in whether the bits coming in at the top are
+        // known: a logical one brings in zeroes, and an arithmetic one brings in the sign bit, which
+        // says the same thing only where that bit is itself known to be zero.
+        case LowerInst::Shr:
+        case LowerInst::Sar: {
+            auto binary = (LowerInstBinary*)inst;
+
+            U64 amount;
+            if(!shiftAmount(binary->rhs, amount)) return outside;
+
+            auto inner = zerosOf(binary->lhs) & maskOf(bits);
+            auto arriving = maskOf(bits) & ~maskOf(U32(bits - amount));
+
+            if(inst->kind == LowerInst::Sar && !(inner & (U64(1) << (bits - 1)))) return outside;
+            return outside | (inner >> amount) | arriving;
+        }
+
+        case LowerInst::Cast: {
+            auto cast = (LowerInstCast*)inst;
+            auto from = base[cast->from];
+            if(!isInt(from->type)) return outside;
+
+            auto fromBits = widthOf(from->type);
+            auto inner = knownZeroBits(base, from, depth + 1);
+
+            // A truncation keeps what was known of the bits it kept. A widening extension brings in
+            // zeroes unless the source is signed, in which case it brings in copies of a sign bit
+            // and says nothing unless that bit is known.
+            if(fromBits >= bits) return outside | (inner & maskOf(bits));
+            if(cast->isSignedSource() && !(inner & (U64(1) << (fromBits - 1)))) {
+                return outside | (inner & maskOf(fromBits));
+            }
+
+            return outside | inner;
+        }
+
+        // A copy, and a bitcast that changes nothing about the bits. A bitcast across widths is a
+        // truncation this declines rather than describes; nothing produces one between two integer
+        // types, since that is what `Cast` is for.
+        case LowerInst::Set:
+        case LowerInst::Bitcast: {
+            auto unary = (LowerInstUnary*)inst;
+            auto from = base[unary->from];
+            if(!isInt(from->type) || widthOf(from->type) != bits) return outside;
+
+            return outside | knownZeroBits(base, from, depth + 1);
+        }
+
+        default:
+            return outside;
+    }
+}
 
 LowerInst* foldUnaryArith(LowerBase base, LowerModule& module, LowerBlock& block,
                           LowerInst::Kind kind, LowerValue* arg, LowerType type, StringId name) {
@@ -662,6 +977,24 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                     rewrote = true;
                 }
 
+                // And a mask restated over the operand it is actually read against, the same way and
+                // for the same reason - the answer is another `and`, which `Folded` cannot say. The
+                // fold below then sees whichever of them is the identity, which after this rewrite
+                // is most of them.
+                Masked masked;
+                if(narrowMask(base, inst, masked)) {
+                    auto binary = (LowerInstBinary*)inst;
+                    auto imm = new (module.arena) LowerImm(StringId(), binary->result.type,
+                                                          masked.constant);
+                    imm->block = blockPtr;
+                    imm->source = inst->source;
+                    kept.push(imm - base);
+
+                    setOperand(base, module.arena, inst, binary->lhs, masked.value);
+                    setOperand(base, module.arena, inst, binary->rhs, &imm->result);
+                    rewrote = true;
+                }
+
                 auto folded = foldInstruction(base, inst);
 
                 if(folded.kind == Folded::None) {
@@ -689,6 +1022,25 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                 detach(base, inst);
                 replaceUses(base, module.arena, result - base, replacement - base);
                 rewrote = true;
+            }
+
+            /*
+             * And the terminator, which is not in the list above and is rewritten in place.
+             *
+             * The two arms exchange, so `outgoing` and the edge likelihoods exchange with them -
+             * both are indexed by edge rather than named per block, which is exactly so that a
+             * transform moving the edges around keeps them right by moving the same two entries.
+             * `validateLowerModule` checks that `outgoing` still says what the terminator does.
+             */
+            LowerValue* condition;
+            if(negatedBranchCondition(base, base[block->terminator], condition)) {
+                auto je = (LowerInstJe*)base[block->terminator];
+
+                setOperand(base, module.arena, je, je->cond, condition);
+                ::swap(je->then, je->otherwise);
+                ::swap(je->likelihood[0], je->likelihood[1]);
+                ::swap(block->outgoing[0], block->outgoing[1]);
+                changed = true;
             }
 
             if(!rewrote) continue;

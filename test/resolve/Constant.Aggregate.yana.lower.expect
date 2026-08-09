@@ -51,20 +51,16 @@ freeHeap<complex>(%allocation: Ptr) {
 
 stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   b_1 {
-    %v_2 = cast %length: Int
+    %v_2 = bitcast %length: Int
     %v_3 = and %v_2, 1073741823: Int
     %v_4 = cast %v_3: Int
     store %v_0, %bytes, 8
     %v_5 = add %v_0, 8: Ptr
     %v_6 = load %v_5, 4: Int
     %v_7 = cast %v_4: Int
-    %v_8 = and %v_7, 1073741823: Int
-    %v_9 = and %v_6, 18446744072635809792: Int
-    %v_10 = or %v_9, %v_8: Int
-    %v_11 = and %v_10, 18446744070488326143: Int
-    store %v_5, %v_11, 4
-    %v_12 = add %v_0, 12: Ptr
-    store %v_12, %v_4, 4
+    store %v_5, %v_7, 4
+    %v_8 = add %v_0, 12: Ptr
+    store %v_8, %v_4, 4
     ret 
   }
 }

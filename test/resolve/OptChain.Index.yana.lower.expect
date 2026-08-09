@@ -198,58 +198,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -259,8 +258,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -353,29 +352,25 @@ maybeArr<complex>(%v_0: Ptr, %n: Int) {
     store %v_7, %v_8, 8
     %v_9 = add %v_7, 8: Ptr
     %v_10 = load %v_9, 4: Int
-    %v_11 = and %v_10, 18446744072635809792: Int
-    %v_12 = or %v_11, 3: Int
-    %v_13 = and %v_12, 18446744070488326143: Int
-    %v_14 = or %v_13, 1073741824: Int
-    store %v_9, %v_14, 4
+    store %v_9, 1073741827, 4
     store %v_8, %n, 4
-    %v_15 = add %v_8, 4: Ptr
-    store %v_15, %v_5, 4
-    %v_16 = add %v_8, 8: Ptr
-    store %v_16, %v_6, 4
-    %v_17 = add %v_7, 12: Ptr
-    store %v_17, 3, 4
+    %v_11 = add %v_8, 4: Ptr
+    store %v_11, %v_5, 4
+    %v_12 = add %v_8, 8: Ptr
+    store %v_12, %v_6, 4
+    %v_13 = add %v_7, 12: Ptr
+    store %v_13, 3, 4
     copy %v_0, %v_7, 16
     ret 
   }
 
   b_4 {
-    jmp b_18
+    jmp b_14
   }
 
-  b_18 {
-    %v_19 = add %v_0, 12: Ptr
-    store %v_19, 1073741824, 4
+  b_14 {
+    %v_15 = add %v_0, 12: Ptr
+    store %v_15, 1073741824, 4
     ret 
   }
 }

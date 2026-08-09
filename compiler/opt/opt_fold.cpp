@@ -494,10 +494,15 @@ struct Folder {
      * at each end of an expanded access and one end is often already the storage unit's own type.
      *
      * The second is a pair of conversions where the middle one is no narrower than the last. Every
-     * integer conversion here keeps the low `bits` of its operand and decides the rest from the
-     * result type alone, so where the intermediate keeps at least as many bits as the result does,
-     * the bits the result is built from are the source's own. Signedness needs no case for the same
-     * reason: it decides what is above those bits, and the outer conversion decides that either way.
+     * integer conversion here keeps the low `bits` of its operand, so where the source is already at
+     * least as wide as the result the intermediate cannot affect what survives.
+     *
+     * A narrower source needs one more condition: the inner and collapsed conversions must extend
+     * it the same way. `Int -> I64 -> U64` is the important counterexample. The outer same-width
+     * conversion preserves the inner sign extension, while collapsing the pair to `Int -> U64`
+     * zero-extends; a negative index then becomes 2^32-1 rather than a full-width unsigned value.
+     * Unsigned sources always extend with zero, while signed ones require the middle and result to
+     * agree about signedness.
      *
      * Nothing is required of the inner conversion's other readers. It stays where it is and the
      * dead-value pass collects it if this was the last one.
@@ -511,7 +516,15 @@ struct Folder {
         if(!middle || !result || middle.unwrap() < result.unwrap()) return false;
 
         auto source = ((InstUnary&)*inner).from;
-        if(!conversionBits(opt.local[source]->type)) return false;
+        auto sourceFacts = conversionFacts(opt.local[source]->type);
+        auto middleFacts = conversionFacts(inner->type);
+        auto resultFacts = conversionFacts(instruction.type);
+        if(!sourceFacts || !middleFacts || !resultFacts) return false;
+
+        if(sourceFacts.unwrap().bits < result.unwrap() && sourceFacts.unwrap().isSigned &&
+           middleFacts.unwrap().isSigned != resultFacts.unwrap().isSigned) {
+            return false;
+        }
 
         opt.ir().replaceOperand(pointer, instruction.from, source);
 

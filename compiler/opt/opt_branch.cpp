@@ -214,6 +214,130 @@ bool removeUnreachableBlocks(OptContext& opt) {
 
 namespace {
 
+/*
+ * One incoming value of a boolean phi, and how its edge can be sent to the branch's destination.
+ *
+ * Usually the incoming block ends in `jmp join`, so it can end in `je value, then, else` instead.
+ * The important short-circuit case has one empty block in between: `pred` has already branched on
+ * `value`, one of its edges reaches the empty block, and that block jumps to the join. On that edge
+ * the value is a constant fact, so the predecessor can be pointed straight at the corresponding
+ * destination and the materialized boolean becomes dead.
+ */
+struct BooleanThread {
+    ModulePtr<Block> incoming;
+    ModulePtr<Value> value;
+
+    // Non-null for the second shape: the block whose conditional edge already proves the value.
+    ModulePtr<Block> provingPred = nullptr;
+    bool provedValue = false;
+};
+
+bool planBooleanThread(OptContext& opt, ModulePtr<Block> join, PhiInput input,
+                       BooleanThread& into)
+{
+    auto incoming = opt.local[input.block];
+    if(!incoming->terminator() || opt.local[incoming->terminator()]->kind != Value::Jmp) return false;
+    if(((InstJmp&)*opt.local[incoming->terminator()]).target != join) return false;
+
+    into = BooleanThread { input.block, input.value };
+
+    // A non-empty incoming block simply gets the branch the join used to hold. The value is a phi
+    // alternative from this block, so it dominates the edge by the validity rule for the phi itself.
+    if(incoming->instructionCount() != 0 || incoming->phiCount() != 0 ||
+       incoming->predecessorCount() != 1)
+    {
+        return true;
+    }
+
+    auto predPointer = incoming->predecessorAt(opt.local, 0);
+    auto pred = opt.local[predPointer];
+    if(!pred->terminator() || opt.local[pred->terminator()]->kind != Value::Je) return true;
+
+    auto& branch = (InstJe&)*opt.local[pred->terminator()];
+    if(branch.cond != input.value) return true;
+
+    // Exactly one arm has to be the edge in question. If both arms arrive here, taking the edge says
+    // nothing about the condition and redirectSuccessor would move both of them at once.
+    auto onThen = branch.thenBlock == input.block;
+    auto onElse = branch.elseBlock == input.block;
+    if(onThen == onElse) return true;
+
+    into.provingPred = predPointer;
+    into.provedValue = onThen;
+    return true;
+}
+
+bool threadBooleanBranch(OptContext& opt, ModulePtr<Block> joinPointer) {
+    auto join = opt.local[joinPointer];
+    if(join->instructionCount() != 0 || join->phiCount() != 1) return false;
+    if(!join->terminator() || opt.local[join->terminator()]->kind != Value::Je) return false;
+
+    auto& branch = (InstJe&)*opt.local[join->terminator()];
+    auto phiPointer = join->phiAt(opt.local, 0);
+    auto phi = opt.local[phiPointer];
+    if(branch.cond != (ModulePtr<Value>)phiPointer || phi->useCount() != 1) return false;
+
+    // New edges cannot invent alternatives for a phi in either destination. The useful producer -
+    // short-circuit boolean control - leads to ordinary body blocks, so decline the harder CFG case
+    // rather than growing a second phi-repair mechanism beside IrEditor.
+    if(opt.local[branch.thenBlock]->phiCount() != 0 || opt.local[branch.elseBlock]->phiCount() != 0) {
+        return false;
+    }
+    if(branch.thenBlock == joinPointer || branch.elseBlock == joinPointer) return false;
+
+    SmallArray<BooleanThread, 8> threads;
+    for(auto input: phi->inputs.contents(opt.local)) {
+        BooleanThread thread;
+        if(!planBooleanThread(opt, joinPointer, input, thread)) return false;
+        threads.push(thread);
+    }
+
+    if(threads.size() != join->predecessorCount()) return false;
+
+    for(auto& thread: threads) {
+        if(thread.provingPred) {
+            auto target = thread.provedValue ? branch.thenBlock : branch.elseBlock;
+            auto pred = opt.local[thread.provingPred];
+
+            // The planner established one matching arm, so moving anything other than one edge is a
+            // broken invariant and stopping here is safer than silently changing both arms.
+            if(opt.ir().redirectSuccessor(*pred, thread.incoming, target) != 1) return false;
+            continue;
+        }
+
+        auto incoming = opt.local[thread.incoming];
+        auto oldTerminator = opt.local[incoming->terminator()];
+        auto replacement = createInst<InstJe>(
+            *opt.module, *opt.function, *incoming, oldTerminator->source, StringId(),
+            opt.program.scalar.unit, thread.value, branch.thenBlock, branch.elseBlock);
+
+        opt.ir().setTerminator(*incoming, replacement);
+    }
+
+    return true;
+}
+
+}
+
+bool threadBooleanBranches(OptContext& opt) {
+    SmallArray<ModulePtr<Block>, 64> blocks;
+    for(auto pointer: opt.function->blocks.contents(opt.local)) blocks.push(pointer);
+
+    auto changed = false;
+    for(auto pointer: blocks) changed = threadBooleanBranch(opt, pointer) || changed;
+    if(!changed) return false;
+
+    // Every predecessor of a threaded join now goes to one of its successors, so the join and any
+    // empty relay blocks have no way in. The ordinary CFG cleanup owns removing them and collapsing
+    // whatever single-predecessor boundaries that leaves.
+    removeUnreachableBlocks(opt);
+    mergeBlocks(opt);
+    opt.changed = true;
+    return true;
+}
+
+namespace {
+
 // A phi with one alternative left, which is what a folded branch leaves at every join it stranded an
 // arm of. Iterated, because a phi that reads another one collapses only after that one has.
 void collapseSinglePhis(OptContext& opt) {

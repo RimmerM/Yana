@@ -5,10 +5,10 @@ addressed<complex>(): Int {
     %p = alloca 8, 4: Ptr
     store %p, 1, 4
     %v_1 = add %p, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = loads %p, 4: Int
-    %v_3 = loads %v_1, 4: Int
-    %v_4 = add %v_2, %v_3: Int
+    %v_2 = imm 2: Int
+    store %v_1, %v_2, 4
+    %v_3 = loads %p, 4: Int
+    %v_4 = add %v_3, %v_2: Int
     ret %v_4
   }
 }

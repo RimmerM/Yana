@@ -161,58 +161,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -222,8 +221,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -362,20 +361,14 @@ resize(U8)<complex>(%self: Ptr, %wanted: Int): Int {
 
   b_43 {
     store %self, %v_22, 8
-    %v_44 = cast %wanted: Int
+    %v_44 = bitcast %wanted: Int
     %v_45 = and %v_44, 1073741823: Int
     %v_46 = cast %v_45: Int
     %v_47 = add %self, 8: Ptr
     %v_48 = load %v_47, 4: Long
     %v_49 = cast %v_46: Long
-    %v_50 = and %v_49, 1073741823: Long
-    %v_51 = and %v_48, 18446744072635809792: Long
-    %v_52 = or %v_51, %v_50: Long
-    store %v_47, %v_52, 4
-    %v_53 = load %v_47, 4: Long
-    %v_54 = and %v_53, 18446744070488326143: Long
-    %v_55 = or %v_54, 1073741824: Long
-    store %v_47, %v_55, 4
+    %v_50 = or %v_49, 1073741824: Long
+    store %v_47, %v_50, 4
     ret 1
   }
 }
@@ -498,7 +491,7 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
     %v_13 = sext %count: Long
     %v_14 = add %v_12, %v_13: Ptr
     store %v_14, %item, 1
-    %v_15 = cast %v_3: Int
+    %v_15 = bitcast %v_3: Int
     %v_16 = and %v_15, 1073741823: Int
     %v_17 = cast %v_16: Int
     %v_18 = add %self, 12: Ptr
@@ -514,20 +507,16 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
 
 stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   b_1 {
-    %v_2 = cast %length: Int
+    %v_2 = bitcast %length: Int
     %v_3 = and %v_2, 1073741823: Int
     %v_4 = cast %v_3: Int
     store %v_0, %bytes, 8
     %v_5 = add %v_0, 8: Ptr
     %v_6 = load %v_5, 4: Int
     %v_7 = cast %v_4: Int
-    %v_8 = and %v_7, 1073741823: Int
-    %v_9 = and %v_6, 18446744072635809792: Int
-    %v_10 = or %v_9, %v_8: Int
-    %v_11 = and %v_10, 18446744070488326143: Int
-    store %v_5, %v_11, 4
-    %v_12 = add %v_0, 12: Ptr
-    store %v_12, %v_4, 4
+    store %v_5, %v_7, 4
+    %v_8 = add %v_0, 12: Ptr
+    store %v_8, %v_4, 4
     ret 
   }
 }
@@ -544,14 +533,10 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
     %v_8 = add %v_0, 8: Ptr
     %v_9 = load %v_8, 4: Int
     %v_10 = cast %v_7: Int
-    %v_11 = and %v_10, 1073741823: Int
-    %v_12 = and %v_9, 18446744072635809792: Int
-    %v_13 = or %v_12, %v_11: Int
-    %v_14 = and %v_13, 18446744070488326143: Int
-    %v_15 = or %v_14, 1073741824: Int
-    store %v_8, %v_15, 4
-    %v_16 = add %v_0, 12: Ptr
-    store %v_16, 0, 4
+    %v_11 = or %v_10, 1073741824: Int
+    store %v_8, %v_11, 4
+    %v_12 = add %v_0, 12: Ptr
+    store %v_12, 0, 4
     ret 
   }
 }
@@ -603,7 +588,7 @@ appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
     %v_24 = add %v_22, %v_23: Ptr
     %v_25 = call_complex byteSpan(U8), %from, %v_8: Long
     copy %v_24, %from, %v_25
-    %v_26 = cast %wanted: Int
+    %v_26 = bitcast %wanted: Int
     %v_27 = and %v_26, 1073741823: Int
     %v_28 = cast %v_27: Int
     %v_29 = add %v_10, 12: Ptr
@@ -734,17 +719,18 @@ showSigned<complex>(%value: Long, %to: Ptr) {
     %v_55 = add %digit, 48: Int
     %v_56 = bitcast %digits: Ptr
     %v_57 = cast %v_55: Int
-    call_complex push(U8), %v_56, %v_57
-    %v_58 = imulhi %v_12, 7378697629483820647: Long
-    %v_59 = sar %v_58, 2: Long
-    %v_60 = shr %v_59, 63: Long
-    %v_14 = add %v_59, %v_60: Long
+    %v_58 = and %v_57, 255: Int
+    call_complex push(U8), %v_56, %v_58
+    %v_59 = imulhi %v_12, 7378697629483820647: Long
+    %v_60 = sar %v_59, 2: Long
+    %v_61 = shr %v_60, 63: Long
+    %v_14 = add %v_60, %v_61: Long
     jmp b_11
   }
 
   b_2 {
-    %v_61 = bitcast %to: Ptr
-    call_complex push(U8), %v_61, 48
+    %v_62 = bitcast %to: Ptr
+    call_complex push(U8), %v_62, 48
     ret 
   }
 }

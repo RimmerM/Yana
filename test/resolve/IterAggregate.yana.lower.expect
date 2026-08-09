@@ -184,44 +184,38 @@ main<complex>(): Int {
     store %v_7, %v_8, 8
     %v_9 = add %v_7, 8: Ptr
     %v_10 = load %v_9, 4: Int
-    %v_11 = and %v_10, 18446744072635809792: Int
-    %v_12 = or %v_11, 3: Int
-    %v_13 = and %v_12, 18446744070488326143: Int
-    store %v_9, %v_13, 4
+    store %v_9, 3, 4
     copy %v_8, %v_1, 8
-    %v_14 = add %v_8, 8: Ptr
-    copy %v_14, %v_3, 8
-    %v_15 = add %v_8, 16: Ptr
-    copy %v_15, %v_5, 8
-    %v_16 = add %v_7, 12: Ptr
-    store %v_16, 3, 4
-    %v_17 = alloca 16, 8: Ptr
-    %v_18 = alloca 16, 4: Ptr
-    store %v_17, %v_18, 8
-    %v_19 = add %v_17, 8: Ptr
-    %v_20 = load %v_19, 4: Int
-    %v_21 = and %v_20, 18446744072635809792: Int
-    %v_22 = or %v_21, 4: Int
-    %v_23 = and %v_22, 18446744070488326143: Int
-    store %v_19, %v_23, 4
-    store %v_18, 1, 4
-    %v_24 = add %v_18, 4: Ptr
-    store %v_24, 2, 4
-    %v_25 = add %v_18, 8: Ptr
-    store %v_25, 3, 4
-    %v_26 = add %v_18, 12: Ptr
-    store %v_26, 4, 4
-    %v_27 = add %v_17, 12: Ptr
-    store %v_27, 4, 4
-    %v_28 = call_complex direct, %v_8, 3: Int
-    %v_29 = call_complex oneLift, %v_8, 3: Int
-    %v_30 = add %v_28, %v_29: Int
-    %v_31 = call_complex twoLifts, %v_8, 3: Int
+    %v_11 = add %v_8, 8: Ptr
+    copy %v_11, %v_3, 8
+    %v_12 = add %v_8, 16: Ptr
+    copy %v_12, %v_5, 8
+    %v_13 = add %v_7, 12: Ptr
+    store %v_13, 3, 4
+    %v_14 = alloca 16, 8: Ptr
+    %v_15 = alloca 16, 4: Ptr
+    store %v_14, %v_15, 8
+    %v_16 = add %v_14, 8: Ptr
+    %v_17 = load %v_16, 4: Int
+    store %v_16, 4, 4
+    store %v_15, 1, 4
+    %v_18 = add %v_15, 4: Ptr
+    store %v_18, 2, 4
+    %v_19 = add %v_15, 8: Ptr
+    store %v_19, 3, 4
+    %v_20 = add %v_15, 12: Ptr
+    store %v_20, 4, 4
+    %v_21 = add %v_14, 12: Ptr
+    store %v_21, 4, 4
+    %v_22 = call_complex direct, %v_8, 3: Int
+    %v_23 = call_complex oneLift, %v_8, 3: Int
+    %v_24 = add %v_22, %v_23: Int
+    %v_25 = call_complex twoLifts, %v_8, 3: Int
     call_complex Reclaim(Array(a)).reclaim(Point), %v_7
-    %v_32 = add %v_30, %v_31: Int
-    %v_33 = call_complex scalar, %v_18, 4: Int
-    %v_34 = add %v_32, %v_33: Int
-    ret %v_34
+    %v_26 = add %v_24, %v_25: Int
+    %v_27 = call_complex scalar, %v_15, 4: Int
+    %v_28 = add %v_26, %v_27: Int
+    ret %v_28
   }
 }
 
@@ -242,7 +236,7 @@ ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr) {
 each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
     %n = cast %xs$length: Int
-    %v_2 = cast %xs$length: Long
+    %v_2 = bitcast %xs$length: Long
     jmp b_3
   }
 
@@ -259,7 +253,7 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
 
   b_8 {
     %v_10 = sext %v_4: Long
-    %v_11 = cast %v_4: Long
+    %v_11 = bitcast %v_10: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
@@ -389,7 +383,7 @@ ResolveTest.continuation$0(Point, ())<complex>(%v_0: Ptr, %env: Ptr, %value: Ptr
 each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
     %n = cast %xs$length: Int
-    %v_2 = cast %xs$length: Long
+    %v_2 = bitcast %xs$length: Long
     jmp b_3
   }
 
@@ -406,7 +400,7 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
 
   b_8 {
     %v_10 = sext %v_4: Long
-    %v_11 = cast %v_4: Long
+    %v_11 = bitcast %v_10: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
@@ -593,7 +587,7 @@ ResolveTest.continuation$0(Point, Outcome((), ()))<complex>(%v_0: Ptr, %env: Ptr
 each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
     %n = cast %xs$length: Int
-    %v_2 = cast %xs$length: Long
+    %v_2 = bitcast %xs$length: Long
     jmp b_3
   }
 
@@ -610,7 +604,7 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
 
   b_8 {
     %v_10 = sext %v_4: Long
-    %v_11 = cast %v_4: Long
+    %v_11 = bitcast %v_10: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }
@@ -659,7 +653,7 @@ ResolveTest.continuation$5<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
 each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
     %n = cast %xs$length: Int
-    %v_2 = cast %xs$length: Long
+    %v_2 = bitcast %xs$length: Long
     jmp b_3
   }
 
@@ -676,7 +670,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
 
   b_8 {
     %v_10 = sext %v_4: Long
-    %v_11 = cast %v_4: Long
+    %v_11 = bitcast %v_10: Long
     %v_12 = cmp_ge %v_11, %v_2: Int
     je %v_12, b_13, b_14
   }

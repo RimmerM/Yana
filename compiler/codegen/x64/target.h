@@ -550,8 +550,26 @@ struct TemporaryReserve {
     // Every register this reserve holds back.
     RegSet regs() const;
 
-    // Raises every count to the larger of the two, and answers whether anything grew. Monotone on
-    // purpose: it is what bounds the placement loop, since each growth is a strict increase in a
-    // count the register file bounds from above.
+    // Raises every count to the larger of the two, and answers whether anything grew. Each growth is
+    // a strict increase in a count the register file bounds from above, which is what makes the
+    // growing half of the placement loop finite whatever the function looks like.
     bool growTo(const TemporaryReserve& other);
+
+    /*
+     * And the other direction: every count lowered to what the last placement actually asked for.
+     * Answers whether anything shrank.
+     *
+     * The growth above stops as soon as one pass's demand *fits*, which is not the same as its being
+     * the demand. A first pass holds nothing back and spills whatever the pressure makes it spill;
+     * the reserve measured against that placement is then held back from the *next* one, which
+     * therefore has fewer registers and - the point - often spills less and asks for less. The count
+     * that came out of the crowded pass is left standing over a placement that no longer needs it,
+     * and every one of those registers is r15 downwards: callee-saved, so the function pays a `push`
+     * and a `pop` for a scratch nothing asks for.
+     *
+     * Not monotone, so it cannot be what bounds the loop, and the loop bounds it instead: see
+     * kMaxReserveShrinks in register.cpp. Nothing about *correctness* rests on the direction - the
+     * loop only ever ends on a pass whose demand the reserve covers, whichever way it last moved.
+     */
+    bool shrinkTo(const TemporaryReserve& other);
 };

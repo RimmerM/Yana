@@ -130,27 +130,24 @@ main<complex>(): Int {
     store %xs, %v_5, 8
     %v_6 = add %xs, 8: Ptr
     %v_7 = load %v_6, 4: Int
-    %v_8 = and %v_7, 18446744072635809792: Int
-    %v_9 = or %v_8, 3: Int
-    %v_10 = and %v_9, 18446744070488326143: Int
-    store %v_6, %v_10, 4
+    store %v_6, 3, 4
     store %v_5, 10, 4
-    %v_11 = add %v_5, 4: Ptr
-    store %v_11, 20, 4
-    %v_12 = add %v_5, 8: Ptr
-    store %v_12, 30, 4
-    %v_13 = add %xs, 12: Ptr
-    store %v_13, 3, 4
-    %v_14 = alloca 8, 8: Ptr
-    store %v_14, %total, 8
-    %v_15 = alloca 16, 8: Ptr
-    store %v_15, ResolveTest.continuation$1, 8
-    %v_16 = add %v_15, 8: Ptr
-    store %v_16, %v_14, 8
-    %v_17 = alloca 1, 1: Ptr
-    call_complex Chunked(Array(a), a).chunks(Int, ()), %v_17, %xs, %v_15
-    %v_18 = loads %total, 4: Int
-    ret %v_18
+    %v_8 = add %v_5, 4: Ptr
+    store %v_8, 20, 4
+    %v_9 = add %v_5, 8: Ptr
+    store %v_9, 30, 4
+    %v_10 = add %xs, 12: Ptr
+    store %v_10, 3, 4
+    %v_11 = alloca 8, 8: Ptr
+    store %v_11, %total, 8
+    %v_12 = alloca 16, 8: Ptr
+    store %v_12, ResolveTest.continuation$1, 8
+    %v_13 = add %v_12, 8: Ptr
+    store %v_13, %v_11, 8
+    %v_14 = alloca 1, 1: Ptr
+    call_complex Chunked(Array(a), a).chunks(Int, ()), %v_14, %xs, %v_12
+    %v_15 = loads %total, 4: Int
+    ret %v_15
   }
 }
 

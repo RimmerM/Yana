@@ -124,21 +124,20 @@ block #0:
 block #1:
   bitcast uses=[rdi] creates=[rdi]  => 
   bitcast uses=[rsi] creates=[rsi]  => 
-  bitcast uses=[rsi] creates=[rax]  => 488bc6
-  add uses=[rsi, rax] creates=[rsi]  => 4801c6
-  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+  bitcast uses=[rsi] creates=[rsi]  => 
+  add uses=[rax, rsi] creates=[rax] pre=[rsi->rax]  => 488bc64801f0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: immCast ---
-  prologue  => 4157
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  imm uses=[] creates=[remat:0]  => 
-  cast uses=[r15] creates=[rax] pre=[remat:0->r15]  => 49bf0000000001000000498bc7
+  imm uses=[] creates=[rax]  => 48b80000000001000000
+  cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rcx]  => 48c7c1ffffffff
   add uses=[rax, rcx] creates=[rax]  => 4801c8
-  ret uses=[rax] creates=[]  => 415fc3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: skipComputed ---
 block #0:

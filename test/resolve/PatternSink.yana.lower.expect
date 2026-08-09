@@ -174,58 +174,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -235,8 +234,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -331,33 +330,31 @@ main<complex>(): Long {
     %v_11 = add %b, 8: Ptr
     store %v_11, %v_10, 8
     %before = loads @live, 8: Long
-    %v_12 = load %v_11, 8: Ptr
-    call_complex freeHeap, %v_12
+    call_complex freeHeap, %v_10
     call_complex -=(I64), @live, 1
-    %v_13 = imul %before, 10: Long
-    %v_14 = loads @live, 8: Long
-    %v_15 = add %v_13, %v_14: Long
+    %v_12 = imul %before, 10: Long
+    %v_13 = loads @live, 8: Long
+    %v_14 = add %v_12, %v_13: Long
     %b = alloca 24, 8: Ptr
     call_complex +=(I64), @live, 1
-    %v_16 = call_complex allocateHeap, 16: Ptr
+    %v_15 = call_complex allocateHeap, 16: Ptr
     store %b, 1, 4
-    %v_17 = add %b, 8: Ptr
-    store %v_17, %v_16, 8
-    %v_18 = load %v_17, 8: Ptr
-    %v_19 = loads @live, 8: Long
-    call_complex freeHeap, %v_18
+    %v_16 = add %b, 8: Ptr
+    store %v_16, %v_15, 8
+    %v_17 = loads @live, 8: Long
+    call_complex freeHeap, %v_15
     call_complex -=(I64), @live, 1
-    %v_20 = imul %inside, 100000: Long
-    %v_21 = imul %inside, 10000: Long
+    %v_18 = imul %inside, 100000: Long
+    %v_19 = imul %inside, 10000: Long
+    %v_20 = add %v_18, %v_19: Long
+    %v_21 = imul %v_9, 1000: Long
     %v_22 = add %v_20, %v_21: Long
-    %v_23 = imul %v_9, 1000: Long
+    %v_23 = imul %v_14, 10: Long
     %v_24 = add %v_22, %v_23: Long
-    %v_25 = imul %v_15, 10: Long
-    %v_26 = add %v_24, %v_25: Long
-    %v_27 = add %v_26, %v_19: Long
-    %v_28 = loads @live, 8: Long
-    %v_29 = add %v_27, %v_28: Long
-    ret %v_29
+    %v_25 = add %v_24, %v_17: Long
+    %v_26 = loads @live, 8: Long
+    %v_27 = add %v_25, %v_26: Long
+    ret %v_27
   }
 }
 

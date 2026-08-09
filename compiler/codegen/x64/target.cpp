@@ -214,3 +214,14 @@ bool TemporaryReserve::growTo(const TemporaryReserve& other) {
 
     return grew;
 }
+
+bool TemporaryReserve::shrinkTo(const TemporaryReserve& other) {
+    auto shrank = false;
+
+    for(Size i = 0; i < kRegisterBankCount; i++) {
+        if(other.operandTemps[i] < operandTemps[i]) { operandTemps[i] = other.operandTemps[i]; shrank = true; }
+        if(other.moveTemps[i] < moveTemps[i]) { moveTemps[i] = other.moveTemps[i]; shrank = true; }
+    }
+
+    return shrank;
+}

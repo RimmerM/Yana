@@ -383,6 +383,12 @@ bool mergeBlocks(OptContext& opt);
 bool removeUnreachableBlocks(OptContext& opt);
 
 /*
+ * A boolean phi used only by a branch, threaded back onto the edges that supplied it - see
+ * opt_branch.cpp. Answers whether a join went away.
+ */
+bool threadBooleanBranches(OptContext& opt);
+
+/*
  * The blocks a call that does not come back ends - see opt_branch.cpp, and §10 item 2 of
  * test/bench/findings.md for what the edge it removes was costing. Answers whether anything changed.
  */

@@ -94,6 +94,13 @@ struct MoveTemps {
 // A transfer with a slot at both ends - two spilled webs feeding the same phi - is expanded
 // afterwards, since x86 has no memory-to-memory move. So is one out of a recipe and into a slot,
 // for the same reason: the value has to exist in a register before anything can store it.
+//
+// The two want *different* registers only where both actually happen: the cycle's scratch holds a
+// value the transfers after it still read, so an expansion sequenced in between cannot borrow it.
+// Where a set has no cycle to break - which is nearly all of them - the expansion takes the pool's
+// first register rather than its second, and the reserve measured for the function is one register
+// smaller. That is a whole callee-saved register in `loopCallN`, whose parallel copy is eight
+// stack-to-stack transfers and no cycle at all.
 static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMove>& out,
     IndexSet& done)
 {
@@ -101,6 +108,10 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
     for(Size i = 0; i < pending.size(); i++) done.set(i, pending[i].from == pending[i].to);
 
     auto begin = out.size();
+
+    // Per bank, since the two pools are per bank: a cycle in the vector file says nothing about
+    // which register a general-register expansion may use.
+    bool brokeCycle[kRegisterBankCount] = {};
 
     for(;;) {
         bool progress = false;
@@ -152,6 +163,7 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
             } else {
                 // No exchange to reach for - a slot at one end, or a class the machine has no
                 // exchange instruction for: park the destination somewhere first.
+                brokeCycle[targetRegisters().regClass(move.regClass).bank] = true;
                 auto scratch = temps.take(move.regClass, 0);
                 out.push(RegMove { move.to, scratch, move.regClass });
                 out.push(RegMove { move.from, move.to, move.regClass });
@@ -172,7 +184,8 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
         if(out[i].from.isPhysical() || !out[i].to.isStack()) continue;
 
         auto regClass = out[i].regClass;
-        auto scratch = temps.take(regClass, 1);
+        auto bank = targetRegisters().regClass(regClass).bank;
+        auto scratch = temps.take(regClass, brokeCycle[bank] ? 1 : 0);
         auto to = out[i].to;
 
         out[i].to = scratch;

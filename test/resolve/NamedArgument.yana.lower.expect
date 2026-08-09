@@ -64,34 +64,31 @@ main<complex>(): Int {
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
     %v_4 = load %v_1, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, 103: Int
-    %v_7 = add %v_6, 906: Int
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.continuation$2, 8
-    %v_9 = bitcast 0: Ptr
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, %v_9, 8
-    %v_11 = load %v_8, 8: Ptr
-    %v_12 = load %v_10, 8: Ptr
-    %v_13 = call_complex %v_11, %v_12, 201: Int
-    %v_14 = add %v_7, %v_13: Int
-    %v_15 = call_complex loops: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = add %v_16, 13: Int
+    %v_5 = call_complex %v_4, %v_2, 103: Int
+    %v_6 = add %v_5, 906: Int
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, ResolveTest.continuation$2, 8
+    %v_8 = bitcast 0: Ptr
+    %v_9 = add %v_7, 8: Ptr
+    store %v_9, %v_8, 8
+    %v_10 = load %v_7, 8: Ptr
+    %v_11 = call_complex %v_10, %v_8, 201: Int
+    %v_12 = add %v_6, %v_11: Int
+    %v_13 = call_complex loops: Int
+    %v_14 = add %v_12, %v_13: Int
+    %v_15 = add %v_14, 13: Int
     %f = alloca 16, 8: Ptr
     store %f, ResolveTest.lambda$5, 8
-    %v_18 = bitcast 0: Ptr
-    %v_19 = add %f, 8: Ptr
-    store %v_19, %v_18, 8
-    %v_20 = load %f, 8: Ptr
-    %v_21 = load %v_19, 8: Ptr
-    %v_22 = call_complex %v_20, %v_21, 30, 4: Int
-    %v_23 = add %v_17, %v_22: Int
-    %v_24 = add %v_23, 14: Int
-    %v_25 = call_complex lazyNamed: Int
-    %v_26 = add %v_24, %v_25: Int
-    ret %v_26
+    %v_16 = bitcast 0: Ptr
+    %v_17 = add %f, 8: Ptr
+    store %v_17, %v_16, 8
+    %v_18 = load %f, 8: Ptr
+    %v_19 = call_complex %v_18, %v_16, 30, 4: Int
+    %v_20 = add %v_15, %v_19: Int
+    %v_21 = add %v_20, 14: Int
+    %v_22 = call_complex lazyNamed: Int
+    %v_23 = add %v_21, %v_22: Int
+    ret %v_23
   }
 }
 

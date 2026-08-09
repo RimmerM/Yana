@@ -174,58 +174,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -235,8 +234,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -298,26 +297,25 @@ sum<complex>(%xs: Ptr): Int {
   b_0 {
     %v_1 = load %xs, 8: Long
     %v_2 = cmp_neq %v_1, 0: Int
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
+    je %v_2, b_3, b_4
   }
 
-  b_5 {
-    %v_6 = add %xs, 8: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = load %xs, 8: Ptr
-    %v_9 = call_complex sum, %v_8: Int
-    %v_10 = add %v_7, %v_9: Int
-    jmp b_11
+  b_3 {
+    %v_5 = add %xs, 8: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = load %xs, 8: Ptr
+    %v_8 = call_complex sum, %v_7: Int
+    %v_9 = add %v_6, %v_8: Int
+    jmp b_10
   }
 
   b_4 {
-    jmp b_11
+    jmp b_10
   }
 
-  b_11 {
-    %v_12 = phi [b_4, 0], [b_5, %v_10]: Int
-    ret %v_12
+  b_10 {
+    %v_11 = phi [b_4, 0], [b_3, %v_9]: Int
+    ret %v_11
   }
 }
 
@@ -356,23 +354,22 @@ totalOf<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = load %m, 8: Long
     %v_2 = cmp_neq %v_1, 0: Int
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
+    je %v_2, b_3, b_4
   }
 
-  b_5 {
-    %v_6 = load %m, 8: Ptr
-    %v_7 = call_complex total, %v_6: Int
-    jmp b_8
+  b_3 {
+    %v_5 = load %m, 8: Ptr
+    %v_6 = call_complex total, %v_5: Int
+    jmp b_7
   }
 
   b_4 {
-    jmp b_8
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_4, 0], [b_5, %v_7]: Int
-    ret %v_9
+  b_7 {
+    %v_8 = phi [b_4, 0], [b_3, %v_6]: Int
+    ret %v_8
   }
 }
 
@@ -425,24 +422,21 @@ buildList<complex>(): Int {
     store %v_4, 39, 4
     %v_5 = call_complex allocateHeap, 12: Ptr
     store %v_2, %v_5, 8
-    %v_6 = load %v_2, 8: Ptr
-    copy %v_6, %v_3, 12
-    %v_7 = add %v_1, 8: Ptr
-    store %v_7, 2, 4
-    %v_8 = call_complex allocateHeap, 12: Ptr
-    store %v_1, %v_8, 8
-    %v_9 = load %v_1, 8: Ptr
-    copy %v_9, %v_2, 12
-    %v_10 = add %xs, 8: Ptr
-    store %v_10, 1, 4
-    %v_11 = call_complex allocateHeap, 12: Ptr
-    store %xs, %v_11, 8
-    %v_12 = load %xs, 8: Ptr
-    copy %v_12, %v_1, 12
-    %v_13 = call_complex sum, %xs: Int
+    copy %v_5, %v_3, 12
+    %v_6 = add %v_1, 8: Ptr
+    store %v_6, 2, 4
+    %v_7 = call_complex allocateHeap, 12: Ptr
+    store %v_1, %v_7, 8
+    copy %v_7, %v_2, 12
+    %v_8 = add %xs, 8: Ptr
+    store %v_8, 1, 4
+    %v_9 = call_complex allocateHeap, 12: Ptr
+    store %xs, %v_9, 8
+    copy %v_9, %v_1, 12
+    %v_10 = call_complex sum, %xs: Int
     call_complex drop$List, %xs
     call_complex reclaim$List, %xs
-    ret %v_13
+    ret %v_10
   }
 }
 
@@ -491,26 +485,25 @@ idsOf<complex>(%c: Ptr): Int {
   b_0 {
     %v_1 = load %c, 8: Long
     %v_2 = cmp_neq %v_1, 0: Int
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
+    je %v_2, b_3, b_4
   }
 
-  b_5 {
-    %v_6 = add %c, 8: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = load %c, 8: Ptr
-    %v_9 = call_complex idsOf, %v_8: Int
-    %v_10 = add %v_7, %v_9: Int
-    jmp b_11
+  b_3 {
+    %v_5 = add %c, 8: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = load %c, 8: Ptr
+    %v_8 = call_complex idsOf, %v_7: Int
+    %v_9 = add %v_6, %v_8: Int
+    jmp b_10
   }
 
   b_4 {
-    jmp b_11
+    jmp b_10
   }
 
-  b_11 {
-    %v_12 = phi [b_4, 0], [b_5, %v_10]: Int
-    ret %v_12
+  b_10 {
+    %v_11 = phi [b_4, 0], [b_3, %v_9]: Int
+    ret %v_11
   }
 }
 
@@ -526,18 +519,16 @@ buildChain<complex>(): Int {
     store %v_3, 5, 4
     %v_4 = call_complex allocateHeap, 12: Ptr
     store %v_1, %v_4, 8
-    %v_5 = load %v_1, 8: Ptr
-    copy %v_5, %v_2, 12
-    %v_6 = add %c, 8: Ptr
-    store %v_6, 4, 4
-    %v_7 = call_complex allocateHeap, 12: Ptr
-    store %c, %v_7, 8
-    %v_8 = load %c, 8: Ptr
-    copy %v_8, %v_1, 12
-    %v_9 = call_complex idsOf, %c: Int
+    copy %v_4, %v_2, 12
+    %v_5 = add %c, 8: Ptr
+    store %v_5, 4, 4
+    %v_6 = call_complex allocateHeap, 12: Ptr
+    store %c, %v_6, 8
+    copy %v_6, %v_1, 12
+    %v_7 = call_complex idsOf, %c: Int
     call_complex drop$Chain, %c
     call_complex reclaim$Chain, %c
-    ret %v_9
+    ret %v_7
   }
 }
 
@@ -570,22 +561,21 @@ unwrapOr(Tree)<complex>(%m: Ptr, %fallback: Ptr): Ptr {
   b_0 {
     %v_1 = load %m, 8: Long
     %v_2 = cmp_neq %v_1, 0: Int
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
+    je %v_2, b_3, b_4
   }
 
-  b_5 {
-    %v_6 = load %m, 8: Ptr
-    jmp b_7
+  b_3 {
+    %v_5 = load %m, 8: Ptr
+    jmp b_6
   }
 
   b_4 {
-    jmp b_7
+    jmp b_6
   }
 
-  b_7 {
-    %v_8 = phi [b_4, %fallback], [b_5, %v_6]: Ptr
-    ret %v_8
+  b_6 {
+    %v_7 = phi [b_4, %fallback], [b_3, %v_5]: Ptr
+    ret %v_7
   }
 }
 

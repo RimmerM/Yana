@@ -152,6 +152,29 @@ chain<complex>(%x: Int, %c: Int): Int {
   }
 }
 
+copiedThenPhi<complex>(%p: Ptr, %n: Int): Long {
+  start {
+    %b = bitcast %p: Long
+    %c = bitcast %b: Long
+    %d = add %b, %c: Long
+    je %n, hot, cold
+  }
+
+  hot {
+    %e = add %d, 7: Long
+    jmp end
+  }
+
+  cold {
+    jmp end
+  }
+
+  end {
+    %z = phi [hot, %e], [cold, %d]: Long
+    ret %z
+  }
+}
+
 
 --- codegen: sourceUsedLater ---
 block #0:
@@ -272,6 +295,21 @@ block r2:
 block l2:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 83c003
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: copiedThenPhi ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  bitcast uses=[rdi] creates=[rdi]  => 
+  bitcast uses=[rdi] creates=[rdi]  => 
+  add uses=[rax, rdi] creates=[rax] pre=[rdi->rax]  => 488bc74801f8
+  je uses=[rsi] creates=[]  => 85f67404
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 4883c007
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[]  => c3

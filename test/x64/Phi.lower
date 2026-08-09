@@ -190,3 +190,33 @@ chain(%x: Int, %c: Int): Int {
         ret %z
     }
 }
+
+# A copy whose source is read again afterwards, and a phi over both ends of it.
+#
+# `%c` is a bitcast of `%b` and `%b` is added to it, so the two are live together and hold one
+# number: buildWebs' copy phase merges them whatever the intervals say, and the bitcast emits
+# nothing. What the phi at `end` then asks is the ordinary question - is the *whole* copy web dead
+# wherever `%z` is live - which is why the copies are done first and the phis after. `%d` is read on
+# the far side of the branch so that the web outlives the block it was built in.
+copiedThenPhi(%p: Ptr, %n: Int): Long {
+    start {
+        %b = bitcast %p: Long
+        %c = bitcast %b: Long
+        %d = add %b, %c: Long
+        je %n, hot, cold
+    }
+
+    hot {
+        %e = add %d, 7L: Long
+        jmp end
+    }
+
+    cold {
+        jmp end
+    }
+
+    end {
+        %z = phi [hot, %e], [cold, %d]: Long
+        ret %z
+    }
+}

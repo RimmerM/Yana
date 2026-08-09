@@ -86,6 +86,15 @@ void optimizeRounds(OptContext& opt) {
          */
         runPass(convertSelects);
 
+        /*
+         * A short-circuit condition left after if-conversion is a boolean phi followed by a branch.
+         * Put that branch back on the incoming edges so a comparison which already decided an edge
+         * can stay in its flags. This is deliberately *behind* convertSelects: a diamond that can be
+         * one expression is better left to the JS structurizer as one select, while the joins that
+         * survive it are control flow on every backend. See opt_branch.cpp.
+         */
+        runPass(threadBooleanBranches);
+
         // After forwarding rather than before it: a read the block-local pass already answered is
         // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead
         // of CSE for the same reason in the other direction - two hoisted copies of one computation

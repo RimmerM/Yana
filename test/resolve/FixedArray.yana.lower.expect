@@ -70,7 +70,7 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
 
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %v_1 = cast %xs$length: Long
+    %v_1 = bitcast %xs$length: Long
     jmp b_2
   }
 
@@ -88,7 +88,7 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
 
   b_10 {
     %v_12 = sext %v_6: Long
-    %v_13 = cast %v_6: Long
+    %v_13 = bitcast %v_12: Long
     %v_14 = cmp_ge %v_13, %v_1: Int
     je %v_14, b_15, b_4
   }
@@ -128,8 +128,8 @@ double<complex>(%xs: Ptr) {
 
   b_9 {
     %v_11 = sext %v_2: Long
-    %v_12 = cast %v_2: Long
-    %v_13 = cast %v_6: Long
+    %v_12 = bitcast %v_11: Long
+    %v_13 = bitcast %v_6: Long
     %v_14 = cmp_ge %v_12, %v_13: Int
     je %v_14, b_15, b_16
   }
@@ -232,37 +232,34 @@ main<complex>(): Int {
     store %v_23, %v_24, 8
     %v_25 = add %v_23, 8: Ptr
     %v_26 = load %v_25, 4: Int
-    %v_27 = and %v_26, 18446744072635809792: Int
-    %v_28 = or %v_27, 2: Int
-    %v_29 = and %v_28, 18446744070488326143: Int
-    store %v_25, %v_29, 4
+    store %v_25, 2, 4
     store %v_24, 7, 4
-    %v_30 = add %v_24, 4: Ptr
-    store %v_30, 8, 4
-    %v_31 = add %v_23, 12: Ptr
-    store %v_31, 2, 4
-    %v_32 = call_complex total, %v_24, 2: Int
-    %v_33 = cmp_neq %v_32, 15: Int
-    je %v_33, b_34, b_35
+    %v_27 = add %v_24, 4: Ptr
+    store %v_27, 8, 4
+    %v_28 = add %v_23, 12: Ptr
+    store %v_28, 2, 4
+    %v_29 = call_complex total, %v_24, 2: Int
+    %v_30 = cmp_neq %v_29, 15: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    %v_33 = call_complex padRead: Long
+    %v_34 = cmp_neq %v_33, 60: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %none = alloca 1, 1: Ptr
+    %v_37 = call_complex total, %v_1, 4: Int
+    ret %v_37
   }
 
   b_35 {
-    %v_36 = call_complex padRead: Long
-    %v_37 = cmp_neq %v_36, 60: Int
-    je %v_37, b_38, b_39
-  }
-
-  b_39 {
-    %none = alloca 1, 1: Ptr
-    %v_40 = call_complex total, %v_1, 4: Int
-    ret %v_40
-  }
-
-  b_38 {
     ret 18446744073709551608
   }
 
-  b_34 {
+  b_31 {
     ret 18446744073709551610
   }
 

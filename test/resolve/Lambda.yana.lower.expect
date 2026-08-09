@@ -155,58 +155,57 @@ allocateHeap<complex>(%size: Long): Ptr {
     %v_41 = load %v_40, 8: Ptr
     %v_42 = bitcast %v_41: Long
     %v_43 = cmp_eq %v_42, 0: Int
-    %v_44 = xor %v_43, 1: Int
-    je %v_44, b_45, b_46
+    je %v_43, b_44, b_45
   }
 
-  b_46 {
-    %v_47 = shl 16, %v_31: Long
-    %v_48 = load @heapNext, 8: Ptr
-    %v_49 = add %v_48, %v_47: Ptr
-    %v_50 = load @heapLimit, 8: Ptr
-    %v_51 = cmp_gt %v_49, %v_50: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_46 = shl 16, %v_31: Long
+    %v_47 = load @heapNext, 8: Ptr
+    %v_48 = add %v_47, %v_46: Ptr
+    %v_49 = load @heapLimit, 8: Ptr
+    %v_50 = cmp_gt %v_48, %v_49: Int
+    je %v_50, b_51, b_52
   }
 
   b_52 {
-    %v_55 = call_complex growHeap, %v_47: Int
-    %v_56 = xor %v_55, 1: Int
-    je %v_56, b_57, b_58
+    jmp b_53
   }
 
-  b_58 {
-    jmp b_54
-  }
-
-  b_54 {
-    %block = load @heapNext, 8: Ptr
-    %v_59 = add %block, %v_47: Ptr
-    store @heapNext, %v_59, 8
-    %v_60 = bitcast %block: Ptr
-    store %v_60, %v_31, 8
-    %v_61 = add %block, 8: Ptr
-    ret %v_61
+  b_51 {
+    %v_54 = call_complex growHeap, %v_46: Int
+    %v_55 = xor %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
   b_57 {
-    %v_62 = bitcast 0: Ptr
-    ret %v_62
+    jmp b_53
+  }
+
+  b_53 {
+    %block = load @heapNext, 8: Ptr
+    %v_58 = add %block, %v_46: Ptr
+    store @heapNext, %v_58, 8
+    %v_59 = bitcast %block: Ptr
+    store %v_59, %v_31, 8
+    %v_60 = add %block, 8: Ptr
+    ret %v_60
+  }
+
+  b_56 {
+    %v_61 = bitcast 0: Ptr
+    ret %v_61
   }
 
   b_45 {
-    %v_63 = bitcast %v_41: Ptr
-    %v_64 = load %v_63, 8: Ptr
-    store %v_40, %v_64, 8
+    %v_62 = bitcast %v_41: Ptr
+    %v_63 = load %v_62, 8: Ptr
+    store %v_40, %v_63, 8
     ret %v_41
   }
 
   b_36 {
-    %v_65 = bitcast 0: Ptr
-    ret %v_65
+    %v_64 = bitcast 0: Ptr
+    ret %v_64
   }
 
   b_29 {
@@ -216,8 +215,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_24 {
-    %v_66 = bitcast 0: Ptr
-    ret %v_66
+    %v_65 = bitcast 0: Ptr
+    ret %v_65
   }
 }
 
@@ -306,23 +305,19 @@ run<complex>(%f: Ptr): Int {
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
     %v_4 = load %v_3, 4: Int
-    %v_5 = and %v_4, 18446744072635809792: Int
-    %v_6 = or %v_5, 3: Int
-    %v_7 = and %v_6, 18446744070488326143: Int
-    %v_8 = or %v_7, 1073741824: Int
-    store %v_3, %v_8, 4
+    store %v_3, 1073741827, 4
     store %v_2, 1, 4
-    %v_9 = add %v_2, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = add %v_2, 8: Ptr
-    store %v_10, 3, 4
-    %v_11 = add %v_1, 12: Ptr
-    store %v_11, 3, 4
-    %v_12 = add %f, 8: Ptr
-    %v_13 = load %f, 8: Ptr
-    %v_14 = load %v_12, 8: Ptr
-    %v_15 = call_complex %v_13, %v_14, %v_1: Int
-    ret %v_15
+    %v_5 = add %v_2, 4: Ptr
+    store %v_5, 2, 4
+    %v_6 = add %v_2, 8: Ptr
+    store %v_6, 3, 4
+    %v_7 = add %v_1, 12: Ptr
+    store %v_7, 3, 4
+    %v_8 = add %f, 8: Ptr
+    %v_9 = load %f, 8: Ptr
+    %v_10 = load %v_8, 8: Ptr
+    %v_11 = call_complex %v_9, %v_10, %v_1: Int
+    ret %v_11
   }
 }
 
@@ -334,98 +329,91 @@ main<complex>(): Int {
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
     %v_4 = load %v_1, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, 10: Int
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, funvalue$double, 8
-    %v_8 = bitcast 0: Ptr
-    %v_9 = add %v_7, 8: Ptr
-    store %v_9, %v_8, 8
-    %v_10 = load %v_7, 8: Ptr
-    %v_11 = load %v_9, 8: Ptr
-    %v_12 = call_complex %v_10, %v_11, 20: Int
+    %v_5 = call_complex %v_4, %v_2, 10: Int
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, funvalue$double, 8
+    %v_7 = bitcast 0: Ptr
+    %v_8 = add %v_6, 8: Ptr
+    store %v_8, %v_7, 8
+    %v_9 = load %v_6, 8: Ptr
+    %v_10 = call_complex %v_9, %v_7, 20: Int
     %f = alloca 16, 8: Ptr
     store %f, ResolveTest.lambda$1, 8
-    %v_13 = bitcast 0: Ptr
-    %v_14 = add %f, 8: Ptr
-    store %v_14, %v_13, 8
-    %v_15 = load %f, 8: Ptr
-    %v_16 = load %v_14, 8: Ptr
-    %c = call_complex %v_15, %v_16, 5: Int
-    %v_17 = alloca 16, 8: Ptr
-    store %v_17, ResolveTest.lambda$2, 8
-    %v_18 = bitcast 0: Ptr
-    %v_19 = add %v_17, 8: Ptr
-    store %v_19, %v_18, 8
-    %v_20 = load %v_17, 8: Ptr
+    %v_11 = bitcast 0: Ptr
+    %v_12 = add %f, 8: Ptr
+    store %v_12, %v_11, 8
+    %v_13 = load %f, 8: Ptr
+    %c = call_complex %v_13, %v_11, 5: Int
+    %v_14 = alloca 16, 8: Ptr
+    store %v_14, ResolveTest.lambda$2, 8
+    %v_15 = bitcast 0: Ptr
+    %v_16 = add %v_14, 8: Ptr
+    store %v_16, %v_15, 8
+    %v_17 = load %v_14, 8: Ptr
+    %v_18 = call_complex %v_17, %v_15, 1: Int
+    %v_19 = add %v_14, 8: Ptr
+    %v_20 = load %v_14, 8: Ptr
     %v_21 = load %v_19, 8: Ptr
-    %v_22 = call_complex %v_20, %v_21, 1: Int
-    %v_23 = add %v_17, 8: Ptr
-    %v_24 = load %v_17, 8: Ptr
-    %v_25 = load %v_23, 8: Ptr
-    %v_26 = call_complex %v_24, %v_25, %v_22: Int
+    %v_22 = call_complex %v_20, %v_21, %v_18: Int
     %g = alloca 16, 8: Ptr
     store %g, ResolveTest.lambda$3, 8
-    %v_27 = bitcast 0: Ptr
-    %v_28 = add %g, 8: Ptr
-    store %v_28, %v_27, 8
-    %v_29 = load %g, 8: Ptr
-    %v_30 = load %v_28, 8: Ptr
-    %e = call_complex %v_29, %v_30, 4: Int
+    %v_23 = bitcast 0: Ptr
+    %v_24 = add %g, 8: Ptr
+    store %v_24, %v_23, 8
+    %v_25 = load %g, 8: Ptr
+    %e = call_complex %v_25, %v_23, 4: Int
     %step = alloca 20, 8: Ptr
-    %v_31 = alloca 16, 8: Ptr
-    store %v_31, ResolveTest.lambda$4, 8
-    %v_32 = bitcast 0: Ptr
-    %v_33 = add %v_31, 8: Ptr
-    store %v_33, %v_32, 8
-    %v_34 = add %step, 16: Ptr
-    store %v_34, 2, 4
-    copy %step, %v_31, 16
-    %v_35 = add %step, 8: Ptr
-    %v_36 = load %step, 8: Ptr
-    %v_37 = load %v_35, 8: Ptr
-    %v_38 = call_complex %v_36, %v_37, 6: Int
-    %v_39 = shl %v_38, 1: Int
-    %v_40 = alloca 16, 8: Ptr
-    store %v_40, ResolveTest.lambda$5, 8
-    %v_41 = bitcast 0: Ptr
-    %v_42 = add %v_40, 8: Ptr
-    store %v_42, %v_41, 8
-    %v_43 = load %v_40, 8: Ptr
-    %v_44 = load %v_42, 8: Ptr
-    %v_45 = call_complex %v_43, %v_44, 1: Int
-    %v_46 = add %v_40, 8: Ptr
-    %v_47 = load %v_40, 8: Ptr
-    %v_48 = load %v_46, 8: Ptr
-    %v_49 = call_complex %v_47, %v_48, %v_45: Int
-    %v_50 = alloca 16, 8: Ptr
-    store %v_50, funvalue$consume, 8
-    %v_51 = bitcast 0: Ptr
-    %v_52 = add %v_50, 8: Ptr
-    store %v_52, %v_51, 8
-    %j = call_complex run, %v_50: Int
+    %v_26 = alloca 16, 8: Ptr
+    store %v_26, ResolveTest.lambda$4, 8
+    %v_27 = bitcast 0: Ptr
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = add %step, 16: Ptr
+    store %v_29, 2, 4
+    copy %step, %v_26, 16
+    %v_30 = add %step, 8: Ptr
+    %v_31 = load %step, 8: Ptr
+    %v_32 = load %v_30, 8: Ptr
+    %v_33 = call_complex %v_31, %v_32, 6: Int
+    %v_34 = shl %v_33, 1: Int
+    %v_35 = alloca 16, 8: Ptr
+    store %v_35, ResolveTest.lambda$5, 8
+    %v_36 = bitcast 0: Ptr
+    %v_37 = add %v_35, 8: Ptr
+    store %v_37, %v_36, 8
+    %v_38 = load %v_35, 8: Ptr
+    %v_39 = call_complex %v_38, %v_36, 1: Int
+    %v_40 = add %v_35, 8: Ptr
+    %v_41 = load %v_35, 8: Ptr
+    %v_42 = load %v_40, 8: Ptr
+    %v_43 = call_complex %v_41, %v_42, %v_39: Int
+    %v_44 = alloca 16, 8: Ptr
+    store %v_44, funvalue$consume, 8
+    %v_45 = bitcast 0: Ptr
+    %v_46 = add %v_44, 8: Ptr
+    store %v_46, %v_45, 8
+    %j = call_complex run, %v_44: Int
     %counter = call_complex allocateHeap, 4: Ptr
     store %counter, 100, 4
-    %v_53 = alloca 16, 8: Ptr
-    store %v_53, ResolveTest.lambda$6, 8
-    %v_54 = bitcast 0: Ptr
-    %v_55 = add %v_53, 8: Ptr
-    store %v_55, %v_54, 8
-    %v_56 = load %v_53, 8: Ptr
-    %v_57 = load %v_55, 8: Ptr
-    call_complex %v_56, %v_57, %counter
-    %v_58 = add %v_6, %v_12: Int
-    %v_59 = add %v_58, %c: Int
-    %v_60 = add %v_59, %v_26: Int
-    %v_61 = add %v_60, %e: Int
-    %v_62 = add %v_61, %v_39: Int
-    %v_63 = add %v_62, %v_49: Int
-    %v_64 = add %v_63, %j: Int
-    %v_65 = loads %counter, 4: Int
-    %v_66 = bitcast %counter: Ptr
-    call_complex freeHeap, %v_66
-    %v_67 = add %v_64, %v_65: Int
-    ret %v_67
+    %v_47 = alloca 16, 8: Ptr
+    store %v_47, ResolveTest.lambda$6, 8
+    %v_48 = bitcast 0: Ptr
+    %v_49 = add %v_47, 8: Ptr
+    store %v_49, %v_48, 8
+    %v_50 = load %v_47, 8: Ptr
+    call_complex %v_50, %v_48, %counter
+    %v_51 = add %v_5, %v_10: Int
+    %v_52 = add %v_51, %c: Int
+    %v_53 = add %v_52, %v_22: Int
+    %v_54 = add %v_53, %e: Int
+    %v_55 = add %v_54, %v_34: Int
+    %v_56 = add %v_55, %v_43: Int
+    %v_57 = add %v_56, %j: Int
+    %v_58 = loads %counter, 4: Int
+    %v_59 = bitcast %counter: Ptr
+    call_complex freeHeap, %v_59
+    %v_60 = add %v_57, %v_58: Int
+    ret %v_60
   }
 }
 

@@ -246,14 +246,14 @@ block #1:
 --- codegen: foldedSet ---
   prologue  => 535541544155415641574883ec08
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 8bee891424
+  jmp uses=[] creates=[] pre=[rsi->stack:0, rdx->rbp]  => 8934248bea
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e8f8feffff
-  set uses=[stack:0] creates=[rcx]  => 8b0c24
-  add uses=[rcx, rbp] creates=[rcx]  => 01e9
-  add uses=[rcx, rax] creates=[rcx]  => 01c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc14883c408415f415e415d415c5d5bc3
+  set uses=[rbp] creates=[rbp]  => 
+  add uses=[rbp, stack:0] creates=[rbp]  => 032c24
+  add uses=[rbp, rax] creates=[rbp]  => 01c5
+  ret uses=[rax] creates=[] pre=[rbp->rax]  => 8bc54883c408415f415e415d415c5d5bc3
 
 --- codegen: spilledFirstOperand ---
   prologue  => 535541544155415641574883ec08

@@ -10,6 +10,7 @@
 #include "../opt/opt.h"
 #include "../lower/lower_forward.h"
 #include "../lower/lower_promote.h"
+#include "../lower/lower_store.h"
 #include "../lower/lower_cse.h"
 #include "../lower/lower_licm.h"
 #include "../lower/lower_strength.h"
@@ -200,6 +201,50 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
 
     lower.values.add((ModulePtr<Value>)pointer, result->created().ptr - lower.lower);
     return result;
+}
+
+/*
+ * Facts a resolve type knew and LowerType deliberately does not.
+ *
+ * `@bits(30) U64`, `U8` and `U64` are three different resolve types, but the first and the last are
+ * both Int64 below this boundary and the first two may both arrive in wider registers than their
+ * values need. Reconstructing the lost distinction later means walking backwards to a load or a
+ * mask, and cannot work for an argument or a phi at all. Preserve the useful half instead: an
+ * unsigned value of an n-bit type has every bit above n clear.
+ *
+ * This is run after the function has been translated, so it covers every path that maps a resolve
+ * value to a lower value without turning the forty individual `lower.values.add` sites into range
+ * machinery. Several resolve values may map to one lower value; taking the narrowest hint is safe,
+ * since each mapping is a claim that the shared value is in that source type's normal form.
+ */
+static void hintUnsignedRanges(LowerContext& lower, Function& function) {
+    auto hint = [&](ModulePtr<Value> pointer) {
+        if(!pointer) return;
+
+        auto source = lower.local[pointer];
+        if(!source->type || lower.global[source->type]->kind != Type::Int) return;
+
+        auto integer = (IntType*)lower.global[source->type];
+        if(integer->isSigned || integer->bits == 0) return;
+
+        auto found = lower.values.get(pointer);
+        if(!found) return;
+
+        auto value = lower.lower[found.unwrap()];
+        auto registerBits = value->type == LowerType::Int32 ? 32u
+                          : value->type == LowerType::Int64 ? 64u : 0u;
+        if(!registerBits || integer->bits >= registerBits) return;
+
+        value->hintUnsignedWidth(U8(integer->bits));
+    };
+
+    for(auto argument: function.args.contents(lower.local)) hint((ModulePtr<Value>)argument);
+
+    for(auto blockPointer: function.blocks.contents(lower.local)) {
+        auto block = lower.local[blockPointer];
+        for(auto phi: block->phis(lower.local)) hint((ModulePtr<Value>)phi);
+        for(auto instruction: block->instructions(lower.local)) hint((ModulePtr<Value>)instruction);
+    }
 }
 
 static void fillPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> pointer,
@@ -586,6 +631,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             }
         }
 
+        // Preserve value-range information whose type-class erasure at this boundary would
+        // otherwise make the lower passes reconstruct it from instructions. See the helper above.
+        hintUnsignedRanges(lower, *function);
+
         Size phiIndex = 0;
         for(auto blockPointer: function->blocks.contents(lower.local)) {
             auto targetBlock = lower.lower[lower.blocks.getValue(blockPointer).unwrap()];
@@ -627,6 +676,14 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // it can see, and in front of the loop pass so that what that pass is shown is one multiply
         // rather than three.
         eliminateCommonValues(lower.lower, lower.to, *target);
+
+        // Then the loads that read back a word the store above them still has in a register, and the
+        // stores nothing between the two can have observed - which is what writing two `@bits` fields
+        // of one word is written as. See lower_store.h. Behind the CSE, and that is the whole of why
+        // it is here rather than beside the promotion: the two accesses of one field are written as
+        // two `add %self, 8`, so "the same pointer" is only true of them once those are one value.
+        // What reads the value it forwards is the mask folding in the last fold below.
+        forwardStoredValues(lower.lower, lower.to, *target);
 
         // And the reads a loop repeats because its address does not change and nothing in it writes
         // - see lower_licm.h, and §10 item 1 of test/bench/findings.md for why the resolve-tier

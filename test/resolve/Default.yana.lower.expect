@@ -9,13 +9,10 @@ teardown$none<complex>(%value: Ptr) {
 flags<complex>(): Int {
   b_0 {
     %rw = alloca 1, 1: Ptr
-    store %rw, 0, 1
     store %rw, 3, 1
     %r = alloca 1, 1: Ptr
-    store %r, 0, 1
     store %r, 1, 1
     %v_1 = alloca 1, 1: Ptr
-    store %v_1, 0, 1
     store %v_1, 2, 1
     %v_2 = alloca 1, 1: Ptr
     store %v_2, 0, 1
@@ -25,82 +22,76 @@ flags<complex>(): Int {
     %v_4 = add %v_3, 8: Ptr
     store %v_4, %v_2, 8
     %v_5 = load %v_3, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
+    %v_6 = alloca 1, 1: Ptr
+    call_complex %v_5, %v_6, %v_2
     %v_7 = alloca 1, 1: Ptr
-    call_complex %v_5, %v_7, %v_6
-    %v_8 = alloca 1, 1: Ptr
-    store %v_8, 0, 1
-    %v_9 = load %v_7, 1: Int
-    %v_10 = and %v_9, 1: Int
-    %v_11 = cast %v_10: Int
-    %v_12 = shr %v_9, 1: Int
-    %v_13 = and %v_12, 1: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = cast %v_11: Int
-    %v_16 = and %v_15, 1: Int
-    %v_17 = cast %v_14: Int
-    %v_18 = and %v_17, 1: Int
-    %v_19 = shl %v_18, 1: Int
-    %v_20 = or %v_16, %v_19: Int
-    store %v_8, %v_20, 1
-    %v_21 = call_complex Eq(Flags).==, %v_8, %r: Int
-    je %v_21, b_22, b_23
+    store %v_7, 0, 1
+    %v_8 = load %v_6, 1: Int
+    %v_9 = and %v_8, 1: Int
+    %v_10 = cast %v_9: Int
+    %v_11 = shr %v_8, 1: Int
+    %v_12 = and %v_11, 1: Int
+    %v_13 = cast %v_12: Int
+    %v_14 = cast %v_10: Int
+    %v_15 = cast %v_13: Int
+    %v_16 = shl %v_15, 1: Int
+    %v_17 = or %v_14, %v_16: Int
+    store %v_7, %v_17, 1
+    %v_18 = call_complex Eq(Flags).==, %v_7, %r: Int
+    je %v_18, b_19, b_20
   }
 
-  b_22 {
-    jmp b_23
+  b_19 {
+    jmp b_20
   }
 
-  b_23 {
-    %v_24 = phi [b_0, 0], [b_22, 256]: Int
-    %v_25 = alloca 1, 1: Ptr
-    store %v_25, 0, 1
-    copy %v_25, %rw, 1
-    %v_26 = alloca 16, 8: Ptr
-    store %v_26, ResolveTest.deferred$1, 8
-    %v_27 = add %v_26, 8: Ptr
-    store %v_27, %v_25, 8
-    %v_28 = load %v_26, 8: Ptr
-    %v_29 = load %v_27, 8: Ptr
-    %v_30 = alloca 1, 1: Ptr
-    call_complex %v_28, %v_30, %v_29
-    %v_31 = alloca 1, 1: Ptr
-    store %v_31, 0, 1
-    %v_32 = load %v_30, 1: Int
-    %v_33 = shr %v_32, 1: Int
-    %v_34 = and %v_33, 1: Int
-    %v_35 = cast %v_34: Int
-    %v_36 = cast %v_35: Int
-    %v_37 = and %v_36, 1: Int
-    %v_38 = shl %v_37, 1: Int
-    %v_39 = or %v_38, 1: Int
-    store %v_31, %v_39, 1
-    %v_40 = call_complex Eq(Flags).==, %v_31, %rw: Int
-    je %v_40, b_41, b_42
+  b_20 {
+    %v_21 = phi [b_0, 0], [b_19, 256]: Int
+    %v_22 = alloca 1, 1: Ptr
+    store %v_22, 0, 1
+    copy %v_22, %rw, 1
+    %v_23 = alloca 16, 8: Ptr
+    store %v_23, ResolveTest.deferred$1, 8
+    %v_24 = add %v_23, 8: Ptr
+    store %v_24, %v_22, 8
+    %v_25 = load %v_23, 8: Ptr
+    %v_26 = alloca 1, 1: Ptr
+    call_complex %v_25, %v_26, %v_22
+    %v_27 = alloca 1, 1: Ptr
+    store %v_27, 0, 1
+    %v_28 = load %v_26, 1: Int
+    %v_29 = shr %v_28, 1: Int
+    %v_30 = and %v_29, 1: Int
+    %v_31 = cast %v_30: Int
+    %v_32 = cast %v_31: Int
+    %v_33 = shl %v_32, 1: Int
+    %v_34 = or %v_33, 1: Int
+    store %v_27, %v_34, 1
+    %v_35 = call_complex Eq(Flags).==, %v_27, %rw: Int
+    je %v_35, b_36, b_37
   }
 
-  b_41 {
-    %v_43 = add %v_24, 512: Int
-    jmp b_42
+  b_36 {
+    %v_38 = add %v_21, 512: Int
+    jmp b_37
+  }
+
+  b_37 {
+    %v_39 = phi [b_20, %v_21], [b_36, %v_38]: Int
+    %v_40 = alloca 1, 1: Ptr
+    store %v_40, 2, 1
+    %v_41 = call_complex Eq(Flags).==, %v_1, %v_40: Int
+    je %v_41, b_42, b_43
   }
 
   b_42 {
-    %v_44 = phi [b_23, %v_24], [b_41, %v_43]: Int
-    %v_45 = alloca 1, 1: Ptr
-    store %v_45, 0, 1
-    store %v_45, 2, 1
-    %v_46 = call_complex Eq(Flags).==, %v_1, %v_45: Int
-    je %v_46, b_47, b_48
+    %v_44 = add %v_39, 1024: Int
+    jmp b_43
   }
 
-  b_47 {
-    %v_49 = add %v_44, 1024: Int
-    jmp b_48
-  }
-
-  b_48 {
-    %v_50 = phi [b_42, %v_44], [b_47, %v_49]: Int
-    ret %v_50
+  b_43 {
+    %v_45 = phi [b_37, %v_39], [b_42, %v_44]: Int
+    ret %v_45
   }
 }
 

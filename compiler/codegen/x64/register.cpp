@@ -23,10 +23,10 @@
  *     occupant was placed earlier in the same walk, and everything after it has been decided
  *     against that, so it is left homeless from the start of the next pass instead.
  *
- * Neither can fail to converge: the reserve only ever grows and is bounded by the register file, and
- * the forced-homeless set only grows and is bounded twice over - by kMaxDisplacements and by there
- * being finitely many webs. Whatever no longer fits in a register goes to the frame, and the frame
- * has no limit.
+ * None can fail to converge. The reserve's growth is bounded by the register file and its shrinking
+ * by kMaxReserveShrinks; the forced-homeless set only grows and is bounded twice over - by
+ * kMaxDisplacements and by there being finitely many webs. Whatever no longer fits in a register goes
+ * to the frame, and the frame has no limit.
  *
  * The first pass is the answer for a function that fitted in its registers, which is most of them,
  * and which pays nothing for any of the above.
@@ -37,6 +37,22 @@
 // pathological function can spend. Reaching it costs code quality and nothing else: a pass is a
 // complete, correct placement whether or not another one would have been better.
 static constexpr Size kMaxDisplacements = 16;
+
+/*
+ * How many times an allocation may lower its scratch reserve.
+ *
+ * The reserve is measured against a placement and then held back from the *next* one, so the two
+ * questions are not the same question: a pass that had every register spilled things a pass with two
+ * held back does not, and asks for scratch the later pass does not need. Left at the high-water mark,
+ * those registers are r15 downwards - callee-saved, so the function pushes and pops them for nothing.
+ *
+ * Lowering it is therefore worth a pass, and it is bounded here rather than by the arithmetic because
+ * it can oscillate: fewer registers held back can mean more spilling, which asks for more scratch,
+ * which holds more back. Two attempts is what settles the shapes this compiler produces, and hitting
+ * the bound costs code quality and nothing else - every pass is a complete, correct placement, and
+ * the loop only ever *ends* on one whose demand the reserve covers.
+ */
+static constexpr Size kMaxReserveShrinks = 2;
 
 /*
  * The record arena - see RecordArena in gen.h.
@@ -117,8 +133,9 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     Size displacements = 0;
 
     // Nothing held back to begin with, which is the answer for a function that fitted in its
-    // registers. The reserve below only ever grows, which is half of what makes this loop terminate.
+    // registers.
     TemporaryReserve temporaries;
+    Size shrinks = 0;
 
     for(;;) {
         computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
@@ -130,12 +147,26 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
         // function but of this placement of it - so it is measured against this placement rather than
         // guessed at, and the measurement is the pass that will spend the answer.
         //
-        // The reserve is raised rather than replaced: holding more back changes where the next pass
-        // puts things, so the next measurement is a different question and not a correction of this
-        // one. Taking the larger of the two can over-reserve slightly and can never under-reserve.
+        // Raising it first, and only ever lowering it once nothing wants raising: holding more back
+        // changes where the next pass puts things, so each measurement is a fresh question rather
+        // than a correction of the last one, and the loop must not chase both directions at once.
+        // Whichever way it last moved, it ends on a pass whose demand the reserve covers.
+        //
+        // A placement that could not need a scratch register at all answers zero without being
+        // measured - `requiresLegalizationTemps` is what makes the common case cost nothing - and
+        // that is the shape the lowering matters most for: a reserve measured against a crowded pass
+        // and left standing over one that spills nothing is two callee-saved registers pushed and
+        // popped for a temporary no instruction asks for. See kMaxReserveShrinks.
+        TemporaryReserve demand;
         if(placement.requiresLegalizationTemps) {
-            auto demand = measureTemporaryReserve(base, fun, machine, constraints, placement, scratch);
-            if(temporaries.growTo(demand)) again = true;
+            demand = measureTemporaryReserve(base, fun, machine, constraints, placement, scratch);
+        }
+
+        if(temporaries.growTo(demand)) {
+            again = true;
+        } else if(shrinks < kMaxReserveShrinks && temporaries.shrinkTo(demand)) {
+            shrinks++;
+            again = true;
         }
 
         // A repeat is dropped rather than counted: the register is already out of that web's reach,

@@ -2,30 +2,14 @@
 
 writeHigh<complex>(%v_0: Ptr) {
   b_1 {
-    store %v_0, 0, 8
-    %v_2 = load %v_0, 8: Long
-    %v_3 = and %v_2, 18446744073708503040: Long
-    %v_4 = or %v_3, 1000: Long
-    store %v_0, %v_4, 8
-    %v_5 = load %v_0, 8: Long
-    %v_6 = and %v_5, 18442240478377148415: Long
-    %v_7 = or %v_6, 4503595332403200: Long
-    store %v_0, %v_7, 8
+    store %v_0, 4503595332404200, 8
     ret 
   }
 }
 
 writeLow<complex>(%v_0: Ptr) {
   b_1 {
-    store %v_0, 0, 8
-    %v_2 = load %v_0, 8: Long
-    %v_3 = and %v_2, 18442240478377148415: Long
-    %v_4 = or %v_3, 4294963001032704: Long
-    store %v_0, %v_4, 8
-    %v_5 = load %v_0, 8: Long
-    %v_6 = and %v_5, 18446744073708503040: Long
-    %v_7 = or %v_6, 1048575: Long
-    store %v_0, %v_7, 8
+    store %v_0, 4294963002081279, 8
     ret 
   }
 }
@@ -45,14 +29,12 @@ nudge<complex>(%x: Ptr) {
     %v_11 = and %v_10, 1048575: Int
     %v_12 = cast %v_11: Int
     %v_13 = cast %v_12: Long
-    %v_14 = imm 1048575: Long
-    %v_15 = and %v_13, %v_14: Long
-    %v_16 = shl %v_15, %v_4: Long
-    %v_17 = shl %v_14, %v_4: Long
-    %v_18 = not %v_17: Long
-    %v_19 = and %v_5, %v_18: Long
-    %v_20 = or %v_19, %v_16: Long
-    store %v_3, %v_20, 4
+    %v_14 = shl %v_13, %v_4: Long
+    %v_15 = shl 1048575, %v_4: Long
+    %v_16 = not %v_15: Long
+    %v_17 = and %v_5, %v_16: Long
+    %v_18 = or %v_17, %v_14: Long
+    store %v_3, %v_18, 4
     ret 
   }
 }
@@ -60,17 +42,9 @@ nudge<complex>(%x: Ptr) {
 bumpedHigh<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = alloca 8, 8: Ptr
-    store %v_2, 0, 8
-    %v_3 = load %v_2, 8: Long
-    %v_4 = and %v_3, 18446744073708503040: Long
-    %v_5 = or %v_4, 1000: Long
-    store %v_2, %v_5, 8
-    %v_6 = load %v_2, 8: Long
-    %v_7 = and %v_6, 18442240478377148415: Long
-    %v_8 = or %v_7, 4294963001032704: Long
-    store %v_2, %v_8, 8
-    %v_9 = add %v_2, 4: Ptr
-    call_complex nudge, %v_9
+    store %v_2, 4294963001033704, 8
+    %v_3 = add %v_2, 4: Ptr
+    call_complex nudge, %v_3
     copy %v_0, %v_2, 8
     ret 
   }
@@ -78,53 +52,30 @@ bumpedHigh<complex>(%v_0: Ptr) {
 
 marked<complex>(%v_0: Ptr) {
   b_1 {
-    store %v_0, 0, 8
-    %v_2 = load %v_0, 8: Long
-    %v_3 = and %v_2, 18446744073708503040: Long
-    %v_4 = or %v_3, 5: Long
-    store %v_0, %v_4, 8
-    %v_5 = load %v_0, 8: Long
-    %v_6 = and %v_5, 18442240478377148415: Long
-    %v_7 = or %v_6, 4503586742468608: Long
-    store %v_0, %v_7, 8
+    store %v_0, 4503586742468613, 8
     ret 
   }
 }
 
 retagged<complex>(%v_0: Ptr) {
   b_1 {
-    store %v_0, 0, 8
-    %v_2 = load %v_0, 8: Long
-    %v_3 = and %v_2, 18446727581035134975: Long
-    %v_4 = or %v_3, 9895604649984: Long
-    store %v_0, %v_4, 8
-    %v_5 = load %v_0, 8: Long
-    %v_6 = and %v_5, 18446742974197923840: Long
-    %v_7 = or %v_6, 1099511627774: Long
-    store %v_0, %v_7, 8
+    store %v_0, 10995116277758, 8
     ret 
   }
 }
 
 stored<complex>(%v_0: Ptr, %x: Long) {
   b_1 {
-    store %v_0, 0, 8
-    %v_2 = load %v_0, 8: Long
-    %v_3 = and %v_2, 18446727581035134975: Long
-    %v_4 = or %v_3, 1099511627776: Long
-    store %v_0, %v_4, 8
-    %v_5 = shl %x, 13: Long
-    %v_6 = imm 11: Long
-    %v_7 = shl %v_5, %v_6: Long
-    %v_8 = sar %v_7, %v_6: Long
-    %v_9 = sar %v_8, 13: Long
-    %x = cast %v_9: Long
-    %v_10 = load %v_0, 8: Long
-    %v_11 = cast %x: Long
-    %v_12 = and %v_11, 1099511627775: Long
-    %v_13 = and %v_10, 18446742974197923840: Long
-    %v_14 = or %v_13, %v_12: Long
-    store %v_0, %v_14, 8
+    %v_2 = shl %x, 13: Long
+    %v_3 = imm 11: Long
+    %v_4 = shl %v_2, %v_3: Long
+    %v_5 = sar %v_4, %v_3: Long
+    %v_6 = sar %v_5, 13: Long
+    %x = cast %v_6: Long
+    %v_7 = cast %x: Long
+    %v_8 = and %v_7, 1099511627775: Long
+    %v_9 = or 1099511627776, %v_8: Long
+    store %v_0, %v_9, 8
     ret 
   }
 }
@@ -144,14 +95,12 @@ nudge12<complex>(%x: Ptr) {
     %v_11 = and %v_10, 4095: Int
     %v_12 = cast %v_11: Int
     %v_13 = cast %v_12: Long
-    %v_14 = imm 4095: Long
-    %v_15 = and %v_13, %v_14: Long
-    %v_16 = shl %v_15, %v_4: Long
-    %v_17 = shl %v_14, %v_4: Long
-    %v_18 = not %v_17: Long
-    %v_19 = and %v_5, %v_18: Long
-    %v_20 = or %v_19, %v_16: Long
-    store %v_3, %v_20, 2
+    %v_14 = shl %v_13, %v_4: Long
+    %v_15 = shl 4095, %v_4: Long
+    %v_16 = not %v_15: Long
+    %v_17 = and %v_5, %v_16: Long
+    %v_18 = or %v_17, %v_14: Long
+    store %v_3, %v_18, 2
     ret 
   }
 }
@@ -162,16 +111,12 @@ boxed<complex>(%v_0: Ptr) {
     store %v_2, 7, 4
     %v_3 = add %v_2, 4: Ptr
     %v_4 = load %v_3, 4: Int
-    %v_5 = and %v_4, 18446744073708503040: Int
-    %v_6 = or %v_5, 1: Int
-    %v_7 = and %v_6, 18446744069415632895: Int
-    %v_8 = or %v_7, 4293918720: Int
-    store %v_3, %v_8, 4
-    %v_9 = add %v_3, 2: Ptr
-    %v_10 = bitcast %v_9: Long
-    %v_11 = or %v_10, 1125899906842624: Long
-    %v_12 = bitcast %v_11: Ptr
-    call_complex nudge12, %v_12
+    store %v_3, 4293918721, 4
+    %v_5 = add %v_3, 2: Ptr
+    %v_6 = bitcast %v_5: Long
+    %v_7 = or %v_6, 1125899906842624: Long
+    %v_8 = bitcast %v_7: Ptr
+    call_complex nudge12, %v_8
     copy %v_0, %v_2, 8
     ret 
   }
@@ -254,48 +199,57 @@ main<complex>(): Int {
     %v_65 = sar %v_64, 24: Long
     %v_66 = sext %v_65: Long
     %v_67 = cast %v_66: Long
-    %v_68 = cmp_eq %v_67, 18446744073709551614: Int
-    %v_69 = select 1024, 0, %v_68: Int
-    %v_70 = add %v_61, %v_69: Int
-    %v_71 = alloca 8, 8: Ptr
-    call_complex retagged, %v_71
-    %v_72 = load %v_71, 8: Long
-    %v_73 = shr %v_72, 40: Long
-    %v_74 = and %v_73, 15: Long
-    %v_75 = cast %v_74: Int
-    %v_76 = cast %v_75: Int
-    %v_77 = cmp_eq %v_76, 9: Int
-    %v_78 = select 2048, 0, %v_77: Int
-    %v_79 = add %v_70, %v_78: Int
-    %v_80 = alloca 8, 4: Ptr
-    call_complex boxed, %v_80
-    %v_81 = add %v_80, 4: Ptr
-    %v_82 = load %v_81, 4: Int
-    %v_83 = shr %v_82, 20: Int
-    %v_84 = cmp_eq %v_83, 0: Int
-    %v_85 = select 4096, 0, %v_84: Int
-    %v_86 = add %v_79, %v_85: Int
-    %v_87 = alloca 8, 8: Ptr
-    call_complex stored, %v_87, 549755813887
-    %v_88 = load %v_87, 8: Long
-    %v_89 = shl %v_88, 24: Long
-    %v_90 = sar %v_89, 24: Long
-    %v_91 = sext %v_90: Long
-    %v_92 = cast %v_91: Long
-    %v_93 = cmp_eq %v_92, 549755813887: Int
-    %v_94 = select 8192, 0, %v_93: Int
-    %v_95 = add %v_86, %v_94: Int
-    %v_96 = alloca 8, 8: Ptr
-    call_complex stored, %v_96, 18446743523953737728
-    %v_97 = load %v_96, 8: Long
-    %v_98 = shl %v_97, 24: Long
-    %v_99 = sar %v_98, 24: Long
-    %v_100 = sext %v_99: Long
-    %v_101 = cast %v_100: Long
-    %v_102 = cmp_eq %v_101, 18446743523953737728: Int
-    %v_103 = select 16384, 0, %v_102: Int
-    %v_104 = add %v_95, %v_103: Int
-    ret %v_104
+    %v_68 = imm 11: Long
+    %v_69 = shl %v_67, %v_68: Long
+    %v_70 = sar %v_69, %v_68: Long
+    %v_71 = cmp_eq %v_70, 18446744073709551614: Int
+    %v_72 = select 1024, 0, %v_71: Int
+    %v_73 = add %v_61, %v_72: Int
+    %v_74 = alloca 8, 8: Ptr
+    call_complex retagged, %v_74
+    %v_75 = load %v_74, 8: Long
+    %v_76 = shr %v_75, 40: Long
+    %v_77 = and %v_76, 15: Long
+    %v_78 = cast %v_77: Int
+    %v_79 = cast %v_78: Int
+    %v_80 = cmp_eq %v_79, 9: Int
+    %v_81 = select 2048, 0, %v_80: Int
+    %v_82 = add %v_73, %v_81: Int
+    %v_83 = alloca 8, 4: Ptr
+    call_complex boxed, %v_83
+    %v_84 = add %v_83, 4: Ptr
+    %v_85 = load %v_84, 4: Int
+    %v_86 = shr %v_85, 20: Int
+    %v_87 = cmp_eq %v_86, 0: Int
+    %v_88 = select 4096, 0, %v_87: Int
+    %v_89 = add %v_82, %v_88: Int
+    %v_90 = alloca 8, 8: Ptr
+    call_complex stored, %v_90, 549755813887
+    %v_91 = load %v_90, 8: Long
+    %v_92 = shl %v_91, 24: Long
+    %v_93 = sar %v_92, 24: Long
+    %v_94 = sext %v_93: Long
+    %v_95 = cast %v_94: Long
+    %v_96 = imm 11: Long
+    %v_97 = shl %v_95, %v_96: Long
+    %v_98 = sar %v_97, %v_96: Long
+    %v_99 = cmp_eq %v_98, 549755813887: Int
+    %v_100 = select 8192, 0, %v_99: Int
+    %v_101 = add %v_89, %v_100: Int
+    %v_102 = alloca 8, 8: Ptr
+    call_complex stored, %v_102, 18446743523953737728
+    %v_103 = load %v_102, 8: Long
+    %v_104 = shl %v_103, 24: Long
+    %v_105 = sar %v_104, 24: Long
+    %v_106 = sext %v_105: Long
+    %v_107 = cast %v_106: Long
+    %v_108 = imm 11: Long
+    %v_109 = shl %v_107, %v_108: Long
+    %v_110 = sar %v_109, %v_108: Long
+    %v_111 = cmp_eq %v_110, 18446743523953737728: Int
+    %v_112 = select 16384, 0, %v_111: Int
+    %v_113 = add %v_101, %v_112: Int
+    ret %v_113
   }
 }
 

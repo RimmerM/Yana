@@ -1,6 +1,14 @@
 "use strict";
 // ResolveTest
+function widenedUnsigned(x) {
+  return BigInt.asUintN(64, BigInt.asIntN(64, BigInt(x)));
+}
+
+function normalizedU8(x) {
+  return x & 255;
+}
+
 function main() {
-  return 16383;
+  return (widenedUnsigned(-1) === 18446744073709551615n ? 16384 : 0) + 16383 + (normalizedU8(300) === 44 ? 32768 : 0);
 }
 main();

@@ -808,6 +808,20 @@ struct Placement {
     Array<LiveId> webOf;
     PooledList<WebAllocation> webs;
 
+    /*
+     * Which values a copy has proved hold the same number, as one label per value: two values are
+     * one number exactly when their labels agree.
+     *
+     * A web is normally a set of quantities that never coexist, which is what lets one location
+     * serve all of them. Copy coalescing widens that: the two ends of a `mov` may be live at once
+     * and still share a register, because what is in it is right for both. Nothing in placement
+     * needs to tell the two kinds apart - a web is a web - but the *verifier* does, since "two
+     * overlapping values in one location" is otherwise exactly the mistake it exists to catch.
+     *
+     * See buildWebs, which fills it before the phi merges can widen a web past what a copy proved.
+     */
+    Array<LiveId> copyClassOf;
+
     // Everything the function needs stack space for - see FrameObjects.
     FrameObjects frame;
 
@@ -867,6 +881,11 @@ struct Placement {
 
     Size valueCount() const { return webOf.size(); }
 
+    // Whether a chain of copies proved these two values hold the same number - see `copyClassOf`.
+    bool sameNumber(LiveId a, LiveId b) const {
+        return a < copyClassOf.size() && b < copyClassOf.size() && copyClassOf[a] == copyClassOf[b];
+    }
+
     // The location holding `id` at program point `point`, invalid for a value that never needed
     // one.
     MachineLocation locationOf(LiveId id, U32 point) const {
@@ -890,6 +909,7 @@ struct Placement {
     // and emptying a list it is about to resize would be work done twice.
     void clear() {
         webOf.clear();
+        copyClassOf.clear();
         frame.clear();
         remats.clear();
         incomingArgs.clear();

@@ -138,18 +138,58 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 break;
             }
 
-            auto integerWiden = isInteger(lower.global, sourceType) &&
-                                isInteger(lower.global, instruction.type) &&
+            auto integerCast = isInteger(lower.global, sourceType) &&
+                               isInteger(lower.global, instruction.type);
+
+            auto sourceSigned = signedType(lower.global, sourceType);
+            auto targetSigned = signedType(lower.global, instruction.type);
+
+            /*
+             * Reading a full-register signed integer as its unsigned counterpart does not convert
+             * bits. In particular, the bounds-check view of a Size index is I64 -> U64 after the
+             * Int -> I64 sign extension used by the address. Lowering that outer reading as a
+             * bitcast lets both consumers share the sign-extended SSA value; spelling it as another
+             * numeric cast let the chain fold into a separate Int -> U64 zero-extension instead.
+             *
+             * Keep ordinary same-register conversions as casts. Besides making this rule state the
+             * exact case it exists for, that preserves their useful type-changing spelling in lower
+             * IR and avoids turning every Int/I32 alias conversion into a bitcast.
+             */
+            if(integerCast && sourceLower == targetLower && sourceSigned && !targetSigned &&
+               !narrowerThanRegister(lower.global, sourceType) &&
+               !narrowerThanRegister(lower.global, instruction.type)) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
+                    LowerInst::Bitcast, instruction.name, targetLower, from));
+            }
+
+            auto integerWiden = integerCast &&
                                 sourceLower == LowerType::Int32 &&
                                 targetLower == LowerType::Int64;
 
-            auto signedSource = signedType(lower.global, sourceType) &&
+            auto signedSource = sourceSigned &&
                                 (integerWiden || isFloat(lower.global, instruction.type));
 
-            auto signedResult = signedType(lower.global, instruction.type) &&
+            auto signedResult = targetSigned &&
                                 (integerWiden || isFloat(lower.global, sourceType));
 
-            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCast(instruction.name, targetLower, from, signedSource, signedResult));
+            if(!result) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCast(
+                    instruction.name, targetLower, from, signedSource, signedResult));
+            }
+
+            /*
+             * A primitive narrower than its register has to become a value of that width here, not
+             * merely acquire its name. Arithmetic already calls truncateToWidth for the operations
+             * that can escape the range; a conversion is another such producer. Without this,
+             * `300 :: U8` retained 300 on native while JS masked it to 44.
+             *
+             * The known-bits fold removes this mask when the source already fits, so truthful type
+             * semantics do not charge conversions that are already known to be in range.
+             */
+            if(result && narrowerThanRegister(lower.global, instruction.type)) {
+                result = truncateToWidth(lower, block, result, instruction.type, targetLower,
+                                         instruction.name);
+            }
             break;
         }
         case Value::Neg:

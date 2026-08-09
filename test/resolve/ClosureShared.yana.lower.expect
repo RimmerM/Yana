@@ -17,30 +17,27 @@ main<complex>(): Int {
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = load %v_2, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    call_complex %v_4, %v_5
-    %v_6 = alloca 8, 8: Ptr
-    store %v_6, %total, 8
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, ResolveTest.lambda$1, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_6, 8
-    %v_9 = load %v_7, 8: Ptr
-    %v_10 = load %v_8, 8: Ptr
-    call_complex %v_9, %v_10
+    call_complex %v_4, %v_1
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %total, 8
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, ResolveTest.lambda$1, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_5, 8
+    %v_8 = load %v_6, 8: Ptr
+    call_complex %v_8, %v_5
     %seen = loads %total, 4: Int
-    %v_11 = alloca 8, 8: Ptr
-    store %v_11, %total, 8
-    %v_12 = alloca 16, 8: Ptr
-    store %v_12, ResolveTest.lambda$2, 8
-    %v_13 = add %v_12, 8: Ptr
-    store %v_13, %v_11, 8
-    %v_14 = load %v_12, 8: Ptr
-    %v_15 = load %v_13, 8: Ptr
-    call_complex %v_14, %v_15
-    %v_16 = loads %total, 4: Int
-    %v_17 = add %v_16, %seen: Int
-    ret %v_17
+    %v_9 = alloca 8, 8: Ptr
+    store %v_9, %total, 8
+    %v_10 = alloca 16, 8: Ptr
+    store %v_10, ResolveTest.lambda$2, 8
+    %v_11 = add %v_10, 8: Ptr
+    store %v_11, %v_9, 8
+    %v_12 = load %v_10, 8: Ptr
+    call_complex %v_12, %v_9
+    %v_13 = loads %total, 4: Int
+    %v_14 = add %v_13, %seen: Int
+    ret %v_14
   }
 }
 

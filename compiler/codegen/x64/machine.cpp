@@ -474,10 +474,16 @@ MachineTarget::MachineTarget() {
     {
         // MOV r, r/m: a source still in the frame is read in place rather than reloaded into a
         // register the copy would then read again.
+        //
+        // Both ends are one type, so a register source needs no clearing and a copy between one
+        // register and itself is nothing at all - which is what `omitWhenSame` says, and what lets
+        // buildWebs coalesce across a `Set` rather than only across a bitcast. The cast that cannot
+        // omit itself is `FormCastMov`, whose two ends are *not* one type.
         auto& form = add(FormMove, OpMove, "mov r, r/m"_v);
         form.uses.push(regOrMem(MemoryAccessKind::Read));
         form.defs.push(def());
         form.encoding = regRm(0x8b, defRef(0), useRef(0));
+        form.encoding.omitWhenSame = true;
     }
 
     // MOVSS/MOVSD xmm, xmm/m: the same shape one bank over. A register source merges into the

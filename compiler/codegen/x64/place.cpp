@@ -1152,6 +1152,31 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
     }
 }
 
+/*
+ * Whether this instruction is a plain copy: one value in, the same number out, and an encoding that
+ * writes no bytes at all once the two are in one place.
+ *
+ * Asked of the *form* rather than of the instruction's kind, because that is where the property
+ * lives. `omitWhenSame` is the encoder's statement that source and destination in one register make
+ * this instruction nothing - a bitcast between two integer classes, a cast the peephole proved
+ * changes no bit, a move - and a form that has to emit something anyway is one whose two ends are
+ * not the same number: `FormCastMov` clears the upper half of its destination, and that clearing is
+ * the whole reason it exists.
+ *
+ * The class has to match at both ends as well. Two views of one register file are the same storage,
+ * but a web is placed and copied as one class, and `verifyPlacement` checks exactly that.
+ */
+static bool isRegisterCopy(Placer& a, LowerInst* inst) {
+    if(!a.machine.formOf(inst).encoding.omitWhenSame) return false;
+    if(inst->createdCount != 1 || inst->usedCount != 1) return false;
+
+    auto& result = inst->created()[0];
+    auto source = a.base[inst->used()[0]];
+    if(isImplicit(&result) || isImplicit(source)) return false;
+
+    return classForType(result.type) == classForType(source->type);
+}
+
 static void buildWebs(Placer& a) {
     // Union-find over values, with the web's merged interval kept on the representative so that the
     // interference test is against everything already merged into it rather than against one member.
@@ -1183,6 +1208,19 @@ static void buildWebs(Placer& a) {
         return false;
     };
 
+    // One web's ranges and conflicts taken over by another. Both phases below do exactly this and
+    // differ only in what they ask first.
+    auto merge = [&](LiveId left, LiveId right) {
+        mergeRanges(a.webs[left].ranges, a.webs[right].ranges.pointer(), a.webs[right].ranges.size(),
+            a.scratch.merged);
+        a.webs[right].ranges.clear();
+
+        for(auto id: tieConflicts[right]) tieConflicts[left].push(id);
+        tieConflicts[right].clear();
+
+        parent[right] = left;
+    };
+
     // Hottest block first, because a merge can fail: two phis may each want to join a web, and only
     // the first of them to ask can, since the second then overlaps what the first merged in. The one
     // in the hotter block is the copy worth removing - a move in a loop body costs a multiple of the
@@ -1212,6 +1250,49 @@ static void buildWebs(Placer& a) {
         blockOrder[j] = v;
     }
 
+    /*
+     * The copies, first, and with no interference test at all - which is the whole of the
+     * difference between this phase and the one below it.
+     *
+     * A copy's two ends hold *the same number*. Whether their lives overlap is therefore not a
+     * question about whether one location can serve both: it can, for the same reason `omitWhenSame`
+     * exists, and the copy then emits nothing. The interval test the phi merges make is what a web
+     * needs when its members are different quantities that merely happen not to coexist, and asking
+     * it of a copy is what left `mov rdx, rcx` standing wherever `rcx` was read again afterwards -
+     * §16's ninth list, thirteen of them in `Sort.sort` alone.
+     *
+     * Doing them all before any phi merge is what keeps that sound, and it is not a preference. The
+     * relation "holds the same number" is transitive over copy edges and nothing else: a web built
+     * out of copies alone may have any number of its members live at once, and a phi merge on top of
+     * it still asks that the *whole* web be dead wherever the phi's web is live. Interleaving the
+     * two would let a copy merge put a value alongside a phi that was admitted only because the
+     * ranges were disjoint, and those two are not one number.
+     */
+    for(auto position: blockOrder) {
+        auto block = a.base[blockList[position]];
+
+        for(auto i: block->instructions.contents(a.base)) {
+            auto inst = a.base[i];
+            if(!isRegisterCopy(a, inst)) continue;
+
+            auto left = find(inst->created()[0].liveId());
+            auto right = find(a.base[inst->used()[0]]->liveId());
+            if(left == right) continue;
+
+            // The one thing that still has to be asked, and for the reason it always did: a
+            // destructive result and a sibling operand of its instruction are read and written in an
+            // order the intervals do not describe, so being the same number would not save them.
+            if(tiesConflict(left, right)) continue;
+
+            merge(left, right);
+        }
+    }
+
+    // Which values a copy has proved equal, before the phi merges below can widen a web past that.
+    // Placement itself never asks - a web is a web - but the verifier does: two overlapping values
+    // in one location are a mistake unless this says they are one number. See verifyPlacement.
+    for(Size i = 0; i < a.out.webOf.size(); i++) a.out.copyClassOf.push(find(LiveId(i)));
+
     for(auto position: blockOrder) {
         auto block = a.base[blockList[position]];
 
@@ -1228,21 +1309,15 @@ static void buildWebs(Placer& a) {
                 auto right = find(value->liveId());
                 if(left == right) continue;
 
-                // The one thing that has to hold: a web is a single location, so no two values in
-                // it may ever be live at once.
+                // The one thing that has to hold: a phi and an incoming value are two quantities
+                // rather than one, so no member of either web may be live where a member of the
+                // other is.
                 if(a.webs[left].interval().overlaps(a.webs[right].interval())) continue;
 
                 // And the one thing that does not follow from it - see collectTieConflicts.
                 if(tiesConflict(left, right)) continue;
 
-                mergeRanges(a.webs[left].ranges, a.webs[right].ranges.pointer(), a.webs[right].ranges.size(),
-                    a.scratch.merged);
-                a.webs[right].ranges.clear();
-
-                for(auto id: tieConflicts[right]) tieConflicts[left].push(id);
-                tieConflicts[right].clear();
-
-                parent[right] = left;
+                merge(left, right);
             }
         }
     }

@@ -14,7 +14,7 @@
    is deliberately restricted to *primitives*: a `@bits` refinement must never reach it, or the first
    half of the rule above would be false. `U32` and `I64` fill their registers and are untouched.
 
-   Each case contributes a distinct power of two, so `main` is 16383 when they all pass and any other
+   Each case contributes a distinct power of two, so `main` is 65535 when they all pass and any other
    number names the failures in binary. Four of them - `dirtyHigh` through `signedField` - are the
    cases where the two targets used to *disagree*, each found by running both rather than by reading
    the emitted code; they are ordinary assertions now, and the comment on each says what the wrong
@@ -129,6 +129,14 @@ fn signedField(x: I32) -> I32:
     let b = SignedBox { value: x }
     return b.value
 
+-- A same-width signed-to-unsigned outer cast preserves the sign extension before it. Collapsing
+-- this pair straight from Int would zero-extend and answer 2^32-1 instead.
+@noinline fn widenedUnsigned(x: Int) -> U64 = (x :: I64) :: U64
+
+-- A conversion into a primitive narrower than its physical register must normalize the value just
+-- as arithmetic at that type does. Native used to leave 300 in a value whose type can hold only 44.
+@noinline fn normalizedU8(x: Int) -> U8 = x :: U8
+
 fn main() -> Int =
     checkU(addSmall(12), 24, 1) +
     checkU(addSmallNarrow(12) :: U32, 8, 2) +
@@ -143,7 +151,9 @@ fn main() -> Int =
     (if dirtyHigh() == 44 then 1024 else 0) +
     checkW(shrNegative(), 4503599627370495, 2048) +
     checkU(foldedStore(), 4, 4096) +
-    checkI(signedField((0 :: I32) - 4), (0 :: I32) - 4, 8192)
+    checkI(signedField((0 :: I32) - 4), (0 :: I32) - 4, 8192) +
+    (if widenedUnsigned(0 - 1) == 18446744073709551615 then 16384 else 0) +
+    (if normalizedU8(300) == 44 then 32768 else 0)
 
 {-
    The rest exists for the goldens rather than for `main`, because which operations get a truncation
@@ -177,4 +187,3 @@ fn addI64(x: I64, y: I64) -> I64 = x + y
 fn addWide(x: WideInt, y: WideInt) -> WideInt = x + y
 
 fn tickBits(x: @bits(3) U32) -> @bits(3) U32 = x + 1
-
