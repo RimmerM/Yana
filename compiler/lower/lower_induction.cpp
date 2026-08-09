@@ -966,7 +966,253 @@ void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, 
     }
 }
 
+/*
+ * §28 A bounds check the loop's own test has already made - see the header.
+ */
+
+// A value read past the bitcasts standing in front of it, where each of them keeps every bit: the
+// lowering writes one wherever a `Size` meets an `I64` or a pointer meets an integer, so a length
+// and the counter compared against it usually arrive here through one each. Bounded rather than
+// followed to the end, for the reason `allocationBase` in lower_forward.cpp gives.
+LowerValue* throughBitcasts(LowerBase base, LowerValue* value) {
+    for(auto steps = 0; steps < 4; steps++) {
+        auto inst = value->inst();
+        if(inst->kind != LowerInst::Bitcast) return value;
+
+        auto from = base[((LowerInstUnary*)inst)->from];
+        if(!isIntLike(from->type) || !isIntLike(value->type)) return value;
+        if(widthOf(from->type) != widthOf(value->type)) return value;
+
+        value = from;
+    }
+
+    return value;
+}
+
+/*
+ * §28 Whether the loop's bound is at or below the length the check reads, as unsigned patterns.
+ *
+ * Two shapes, and the second is the one every subscript of a borrowed array has. `length(xs) :: Int`
+ * truncates a `Size` to 32 bits and the counter is then widened back, so the bound the header
+ * compares against is `sext(trunc(%L))` while the check compares against `%L` itself:
+ *
+ *  - `%L mod 2^32 <=u %L` for every unsigned `%L`, since taking the low half of a number never
+ *    raises it;
+ *  - and `sext` either reproduces that value, when the truncation's top bit is clear, or produces a
+ *    negative one - which the header's *signed* test then fails against a counter that starts at
+ *    zero, so the body never runs and there is nothing to have proved.
+ *
+ * The truncation is required to be a real narrowing and the extension a real widening; a cast
+ * between two 64-bit types is not this argument, and neither is one whose source is signed.
+ */
+bool boundWithinLength(LowerBase base, LowerValue* bound, LowerValue* length) {
+    bound = throughBitcasts(base, bound);
+    length = throughBitcasts(base, length);
+
+    if(bound == length) return true;
+
+    auto widen = bound->inst();
+    if(widen->kind != LowerInst::Cast) return false;
+
+    auto extend = (LowerInstCast*)widen;
+    if(!extend->isSignedSource() || !extend->isSignedResult()) return false;
+
+    auto narrow = throughBitcasts(base, base[extend->from]);
+    if(widthOf(narrow->type) >= widthOf(bound->type)) return false;
+
+    auto truncate = narrow->inst();
+    if(truncate->kind != LowerInst::Cast) return false;
+
+    // A truncation and nothing else. `isSignedSource` would make it a sign-preserving narrowing,
+    // which is a different value for exactly the patterns this is about.
+    auto cut = (LowerInstCast*)truncate;
+    if(cut->isSignedSource() || cut->isSignedResult()) return false;
+
+    auto source = throughBitcasts(base, base[cut->from]);
+    if(widthOf(source->type) <= widthOf(narrow->type)) return false;
+
+    return source == length;
+}
+
+// The header's own test, where it is one that bounds `%i` from above on the arm that stays inside
+// the loop. Null for a header that branches on anything else, or that keeps both arms in the loop -
+// in which case a block it dominates is not one the test decided.
+LowerValue* loopUpperBound(LowerBase base, const LoopInfo& loops, const ReducibleLoop& loop,
+                           LowerInstPhi* phi)
+{
+    auto headerJe = base[loop.header->terminator];
+    if(headerJe->kind != LowerInst::Je) return nullptr;
+
+    auto branch = (LowerInstJe*)headerJe;
+    if(!loops.contains(loop.header->index, base[branch->then]->index)) return nullptr;
+    if(loops.contains(loop.header->index, base[branch->otherwise]->index)) return nullptr;
+
+    auto test = comparisonOf(base, base[branch->cond]);
+    auto bound = comparedAgainst(base, test, &phi->result);
+    if(!bound || bound == &phi->result) return nullptr;
+
+    auto kind = test->getCmp();
+    if(kind != LowerCmp::ilt && kind != LowerCmp::ile) return nullptr;
+
+    return bound;
+}
+
+/*
+ * §28 One counter of one loop, and every check inside it the counter's own bounds answer.
+ *
+ * The counter has to start non-negative and ascend without wrapping, which together with the header
+ * test gives `0 <= %i <= %B` in every block the header dominates. `stepCannotOverflow` is the
+ * no-wrap half and is the same one the two passes above use.
+ */
+void removeCheckedBounds(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopInfo& loops,
+                         const DominatorTree& dominators, const ReducibleLoop& loop,
+                         SmallArray<LowerBlock*, 8>& dropped)
+{
+    for(auto phiPtr: loop.header->phis.contents(base)) {
+        auto phi = base[phiPtr];
+        auto counter = &phi->result;
+
+        auto initial = phiValueFrom(base, phi, loop.pre);
+        auto stepped = phiValueFrom(base, phi, loop.latch);
+        if(!initial || !stepped) continue;
+
+        auto start = immediateOf(base, initial);
+        if(!start || I64(signedValue(start.unwrap(), widthOf(counter->type))) < 0) continue;
+
+        auto stepInst = stepped->inst();
+        if(stepInst->kind != LowerInst::Add) continue;
+
+        auto binary = (LowerInstBinary*)stepInst;
+        if(base[binary->lhs] != counter) continue;
+        if(!stepCannotOverflow(base, loops, loop, phi, stepInst, base[binary->rhs], true)) continue;
+
+        auto bound = loopUpperBound(base, loops, loop, phi);
+        if(!bound) continue;
+
+        /*
+         * Every comparison that names the counter, which is where a check names it. The walk is over
+         * the uses rather than over the loop's blocks because a check is a use of the index and
+         * there are a handful of those against however many instructions the body has.
+         *
+         * The bitcasts are walked with it. A check compares the index as a `Size` and the counter is
+         * an `I64`, so what the comparison names is a bitcast of the phi and never the phi - and a
+         * bitcast between two 64-bit integers is the same bits under another name, which is what
+         * makes its result the counter for every purpose here.
+         */
+        SmallArray<LowerValue*, 4> aliases;
+        aliases.push(counter);
+
+        for(Size i = 0; i < aliases.size(); i++) {
+            for(auto aliasPtr: aliases[i]->uses.contents(base)) {
+                auto user = base[aliasPtr];
+                if(user->kind != LowerInst::Bitcast) continue;
+
+                auto produced = user->created().ptr;
+                if(throughBitcasts(base, produced) != counter) continue;
+                if(!aliases.containsValue(produced)) aliases.push(produced);
+            }
+        }
+
+        // The comparison itself is left where it is, with nothing reading it; `removeDeadValues` at
+        // the end of the pipeline takes it and the bitcast in front of it. That is also what makes
+        // continuing this walk safe - what the rewrite changes is the *branch's* use of the
+        // comparison, and no list being iterated here is one of those.
+        for(Size i = 0; i < aliases.size(); i++) {
+        for(auto userPtr: aliases[i]->uses.contents(base)) {
+            auto compare = base[userPtr];
+            if(compare->kind != LowerInst::Cmp) continue;
+
+            auto cmp = (LowerInstCmp*)compare;
+            if(throughBitcasts(base, base[cmp->lhs]) != counter) continue;
+
+            auto kind = cmp->getCmp();
+            if(kind != LowerCmp::ge && kind != LowerCmp::lt) continue;  // unsigned, against a length
+            if(!boundWithinLength(base, bound, base[cmp->rhs])) continue;
+
+            // The one reader has to be the branch ending the block the comparison is in, and that
+            // block has to be one the header's decision covers.
+            if(cmp->result.uses.size() != 1) continue;
+
+            auto block = base[compare->block];
+            if(!loops.contains(loop.header->index, block->index)) continue;
+            if(!headerDominates(loop, dominators, block)) continue;
+            if(!block->terminator || base[block->terminator]->kind != LowerInst::Je) continue;
+
+            auto je = (LowerInstJe*)base[block->terminator];
+            if(base[je->cond] != &cmp->result) continue;
+
+            // `%i >=u %L` aborts on the taken arm and `%i <u %L` on the other, so which arm has to
+            // be unreachable follows the comparison. Both are refused unless that arm actually is
+            // one: an arm this cannot see the end of is a live path, and the check stays.
+            auto abortArm = kind == LowerCmp::ge ? base[je->then] : base[je->otherwise];
+            auto keptArm = kind == LowerCmp::ge ? base[je->otherwise] : base[je->then];
+            if(abortArm == keptArm) continue;
+            if(!abortArm->terminator || base[abortArm->terminator]->kind != LowerInst::Unreachable) continue;
+            if(abortArm->phis.isNotEmpty()) continue;
+
+            // The rewrite: the block stops branching and the abort arm loses its one edge from here.
+            detach(base, (LowerInst*)je);
+
+            auto jmp = (LowerInst*)new (module.arena) LowerInstJmp(keptArm - base);
+            jmp->block = block - base;
+            block->terminator = jmp - base;
+            block->outgoing[0] = keptArm - base;
+            block->outgoing[1] = nullptr;
+
+            for(Size i = 0; i < abortArm->incoming.size(); i++) {
+                if(abortArm->incoming.get(base, i) != block - base) continue;
+
+                abortArm->incoming.remove(base, i);
+                break;
+            }
+
+            if(abortArm->incoming.isEmpty() && !dropped.containsValue(abortArm)) dropped.push(abortArm);
+        }
+        }
+    }
+}
+
+// Taking a block nothing reaches any more out of the function - the same routine lower_merge.cpp
+// keeps, and needed here for the same reason: the x64 block ordering asserts that no such block
+// exists rather than skipping one. Its instructions stop reading what they read, which is what
+// leaves the sweeps below something to collect.
+void dropUnreachedBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
+    for(auto instPtr: block->instructions.contents(base)) detach(base, base[instPtr]);
+    if(block->terminator) detach(base, base[block->terminator]);
+
+    for(Size i = 0; i < fun.blocks.size(); i++) {
+        if(fun.blocks.get(base, i) != block - base) continue;
+
+        fun.blocks.remove(base, i);
+        break;
+    }
+
+    for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
+}
+
 } // namespace
+
+void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    if(fun.blocks.size() < 2) return;
+
+    auto loops = fun.buildLoops(base);
+    auto dominators = fun.buildDominatorTree(base);
+
+    // Collected rather than removed in place: dropping a block renumbers every one of them, which is
+    // what `loops` and the dominator tree are indexed by.
+    SmallArray<LowerBlock*, 8> dropped;
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+        if(!loops.isHeader(block->index)) continue;
+
+        if(auto loop = reducibleLoop(base, loops, dominators, block)) {
+            removeCheckedBounds(base, module, fun, loops, dominators, loop.unwrap(), dropped);
+        }
+    }
+
+    for(auto block: dropped) dropUnreachedBlock(base, fun, block);
+}
 
 void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun) {
     if(fun.blocks.size() < 2) return;

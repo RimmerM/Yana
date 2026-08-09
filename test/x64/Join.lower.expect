@@ -105,7 +105,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8d4701
   jmp uses=[] creates=[]  => 
 block b:
   imm uses=[] creates=[-]  => 
@@ -121,15 +121,15 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcf83c107
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8d4f07
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 85d2
-  je uses=[-] creates=[]  => 7416
+  je uses=[-] creates=[]  => 7415
 block slow:
   idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->r8]  => 8bc799f7fe448bc0
   irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 8bc799f7fe
   add uses=[r8, rdx] creates=[r8]  => 4101d0
-  add uses=[rax, rcx] creates=[rax] pre=[r8->rax]  => 418bc001c8
+  add uses=[rax, rcx] creates=[rax] pre=[r8->rax]  => 418d0408
   ret uses=[rax] creates=[]  => c3
 block quick:
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3

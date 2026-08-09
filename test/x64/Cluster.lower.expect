@@ -208,7 +208,7 @@ block tail:
   load uses=[r15] creates=[rax] pre=[stack:1->r15]  => 4c8b7c2408498b07
   load uses=[r15] creates=[rdx] pre=[stack:1->r15]  => 4c8b7c2408498b17
   add uses=[rcx, rax] creates=[rcx]  => 4801c1
-  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488bc14801d0
+  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488d0411
   ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3
 
 --- codegen: clusterOneInstructionIn ---
@@ -217,7 +217,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->rax, rcx->stack:1]  => 488bee488bc248894c2408
 block entry:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e83efeffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e84efeffff8bc8488b0424
   load uses=[rbp] creates=[rcx]  => 488b4d00
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => 480308
@@ -236,7 +236,7 @@ block tail:
   load uses=[rdx] creates=[rax]  => 488b02
   load uses=[rdx] creates=[rdx]  => 488b12
   add uses=[rcx, rax] creates=[rcx]  => 4801c1
-  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488bc14801d0
+  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488d0411
   ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3
 
 --- codegen: singleRead ---
@@ -245,10 +245,10 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1]  => 488bee4889142448894c2408
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8d1fdffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e8e1fdffff
   load uses=[rbp] creates=[rbp]  => 488b6d00
   load uses=[r15] creates=[rax] pre=[stack:0->r15]  => 4c8b3c24498b07
   load uses=[r15] creates=[rcx] pre=[stack:1->r15]  => 4c8b7c2408498b0f
   add uses=[rbp, rax] creates=[rbp]  => 4801c5
-  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 488bc54801c8
+  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 488d440d00
   ret uses=[rax] creates=[]  => 4883c410415f415e415d415c5d5bc3

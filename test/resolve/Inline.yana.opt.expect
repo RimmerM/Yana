@@ -122,35 +122,65 @@ fn countDown(%n: Int) -> Int {
 fn evenLength(%n: Int) -> Int {
   b0:
     %v3 = cmp_le %n, 0 : Bool
-    je %v3, b1, b2
+    je %v3, b5, b1
 
   b1:
-    ret 1
+    %v10 = sub %n, 1 : Int
+    %v14 = cmp_le %v10, 0 : Bool
+    je %v14, b3, b2
 
   b2:
-    jmp b3
+    %v18 = sub %v10, 1 : Int
+    %v19 = call evenLength, %v18 : Int
+    jmp b4
 
   b3:
-    %v10 = sub %n, 1 : Int
-    %v11 = call oddLength, %v10 : Int
-    ret %v11
+    jmp b4
+
+  b4:
+    %v23 = phi [b2, %v19], [b3, 0] : Int
+    ret %v23
+
+  b5:
+    ret 1
 }
 
 fn oddLength(%n: Int) -> Int {
   b0:
     %v3 = cmp_le %n, 0 : Bool
-    je %v3, b1, b2
+    je %v3, b8, b1
 
   b1:
-    ret 0
+    %v10 = sub %n, 1 : Int
+    %v15 = cmp_le %v10, 0 : Bool
+    je %v15, b6, b2
 
   b2:
-    jmp b3
+    %v18 = sub %v10, 1 : Int
+    %v20 = cmp_le %v18, 0 : Bool
+    je %v20, b4, b3
 
   b3:
-    %v10 = sub %n, 1 : Int
-    %v11 = call evenLength, %v10 : Int
-    ret %v11
+    %v23 = sub %v18, 1 : Int
+    %v24 = call evenLength, %v23 : Int
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v13 = phi [b3, %v24], [b4, 0] : Int
+    jmp b7
+
+  b6:
+    jmp b7
+
+  b7:
+    %v31 = phi [b5, %v13], [b6, 1] : Int
+    ret %v31
+
+  b8:
+    ret 0
 }
 
 fn constants() -> Int {

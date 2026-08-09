@@ -82,8 +82,16 @@ fn countDown(n: Int) -> Int:
         return 0
     return n + countDown(n - 1)
 
--- The same rule from the side that needs a call graph to see it. Neither of these calls itself, so
--- nothing about either body says recursive; what says it is that the two are one component.
+-- The one shape of recursion that is taken, and the side that needs a call graph to see it at all.
+-- Neither of these calls itself, so nothing about either body says recursive; what says it is that
+-- the two are one component.
+--
+-- A mutual pair is not the case the rule above is about: copying one member into the other leaves
+-- the copy's calls pointing back at the caller, so what comes out is *one* self-recursive function
+-- rather than a body with the recursion still ahead of it. Both take one here, so each ends up
+-- holding one copy of the other - and each is then refused a second, since every site it could take
+-- is one this pass wrote. See collapsesCycle in opt_inline.cpp; the shape it exists for is a
+-- recursive data type's derived teardown, which is one function per type in the cycle.
 fn evenLength(n: Int) -> Int:
     if n <= 0:
         return 1
@@ -138,7 +146,8 @@ fn stepped() -> Int = stepsTo(20)
 
 fn soleBranch() -> Int = onceBranching(9)
 
--- The mutual pair, kept as calls at every site.
+-- The mutual pair, kept as calls here: both are recursive after the collapse as well as before it,
+-- so what changed is what is inside them rather than whether this site is one.
 fn alternating() -> Int = evenLength(6) + oddLength(6)
 
 fn pinned() -> Int = measured(1) + measured(2)

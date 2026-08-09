@@ -487,6 +487,9 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // the one it was resolved under - see LowerModule::entry.
         if(functionPointer == program.entry) result->entry = target->name;
 
+        // And which of them hands out heap storage, for the reason LowerModule::allocator gives.
+        if(functionPointer == program.allocateHeap) result->allocator = target - lower.lower;
+
         if(!isUnit(lower.global, function->returnType) && !isMemoryType(lower.global, function->returnType)) {
             target->returnTypes.push(result->arena, lowerType(lower.global, function->returnType));
         }
@@ -660,6 +663,15 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // forwarding has already removed.
         promoteStackSlots(lower.lower, *target);
 
+        // And then the forwarding once more, because promotion is what makes the *destination* of a
+        // copy readable. `Just(build(..))` puts the pointer the record is going into through a slot
+        // of its own - stored and loaded back a line later - so the copy's destination arrives here
+        // as a load and is a value only after the slot is gone. §27 of test/bench/findings.md is the
+        // shape; the second run is a per-block scan over a function most of whose copies the first
+        // run already took, and it is what the first run cannot be moved behind, since promotion has
+        // strictly less to do for every copy that has already gone.
+        forwardCopyDestinations(lower.lower, *target);
+
         // Then the calls this function makes to itself with nothing left to do afterwards, which
         // become a loop round its own body - see lower_tail.h. Behind the promotion, because what
         // it threads through the loop is the accumulator that pass has just turned into a value,
@@ -712,6 +724,11 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // because the widened start of a counter that began at zero is a cast of a literal.
         widenInductionVariables(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the bounds check a counted loop's own test has already made - see lower_induction.h,
+        // and §28 of test/bench/findings.md. Behind the widening, because after it the counter is
+        // already the width the check compares at and the two tests name one value.
+        eliminateBoundedChecks(lower.lower, lower.to, *target);
 
         // And the exits inlining brought several copies of - see lower_merge.h. Last, because two
         // copies of one arm are only identical once everything above has folded them the same way,

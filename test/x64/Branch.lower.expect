@@ -277,6 +277,54 @@ callee2<complex>(%x: Int, %y: Int): Int {
   }
 }
 
+signAfterLogical<complex>(%v: Int, %w: Int): Int {
+  start {
+    %x = xor %v, %w: Int
+    %v_0 = cmp_ilt %x, 0: Int
+    je %v_0, negative, positive
+  }
+
+  negative {
+    ret %v
+  }
+
+  positive {
+    ret %w
+  }
+}
+
+signAfterArithmetic<complex>(%v: Int, %w: Int): Int {
+  start {
+    %x = sub %v, %w: Int
+    %v_0 = cmp_ilt %x, 0: Int
+    je %v_0, negative, positive
+  }
+
+  negative {
+    ret %v
+  }
+
+  positive {
+    ret %w
+  }
+}
+
+flagsAfterCopiedAdd<complex>(%v: Int, %w: Int): Int {
+  start {
+    %s = add %v, %w: Int
+    %v_0 = cmp_eq %s, 0: Int
+    je %v_0, zero, nonzero
+  }
+
+  zero {
+    ret %v
+  }
+
+  nonzero {
+    ret %w
+  }
+}
+
 
 --- codegen: branch ---
   prologue  => 4157
@@ -303,7 +351,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcfffc1
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8d4f01
   imm uses=[] creates=[remat:0]  => 
   mul uses=[rax, r15] creates=[rax] pre=[rsi->rax, remat:0->r15]  => 8bc641bf0300000041f7e7
   cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
@@ -341,7 +389,7 @@ block b:
   ret uses=[rax] creates=[]  => c3
 block a:
   add uses=[rdi, rax] creates=[rdi]  => 01c7
-  add uses=[rax, rdx] creates=[rax] pre=[rdi->rax]  => 8bc701d0
+  add uses=[rax, rdx] creates=[rax] pre=[rdi->rax]  => 8d0417
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: liveBranch ---
@@ -373,14 +421,14 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
 block start:
   cmp_ilt uses=[rdi, rax] creates=[-]  => 4839c7
-  je uses=[-] creates=[]  => 7c0d
+  je uses=[-] creates=[]  => 7c0b
 block b:
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 4885c0
-  je uses=[-] creates=[]  => 7c07
+  je uses=[-] creates=[]  => 7c05
 block d:
   imm uses=[] creates=[-]  => 
-  sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748ffc8
+  sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d47ff
   ret uses=[rax] creates=[]  => c3
 block c:
   ret uses=[rax] creates=[]  => c3
@@ -452,9 +500,9 @@ block start:
   add uses=[r13, r14] creates=[r13]  => 4501f5
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 85c0
-  je uses=[-] creates=[]  => 7c18
+  je uses=[-] creates=[]  => 7c16
 block rest:
-  add uses=[rax, r13] creates=[rax] pre=[r12->rax]  => 418bc44401e8
+  add uses=[rax, r13] creates=[rax] pre=[r12->rax]  => 438d042c
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 83f864
   je uses=[-] creates=[]  => 7c08
@@ -530,4 +578,43 @@ block deep:
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: signAfterLogical ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block start:
+  xor uses=[rcx, rsi] creates=[rcx] pre=[rax->rcx]  => 8bc831f1
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rcx, -] creates=[-]  => 
+  je uses=[-] creates=[]  => 7c03
+block positive:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
+block negative:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: signAfterArithmetic ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block start:
+  sub uses=[rcx, rsi] creates=[rcx] pre=[rax->rcx]  => 8bc829f1
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7c03
+block positive:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
+block negative:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: flagsAfterCopiedAdd ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block start:
+  add uses=[rcx, rsi] creates=[rcx] pre=[rax->rcx]  => 8bc801f1
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rcx, -] creates=[-]  => 
+  je uses=[-] creates=[]  => 7403
+block nonzero:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
+block zero:
   ret uses=[rax] creates=[]  => c3

@@ -1077,6 +1077,11 @@ struct Program {
      */
     bool declarationsComplete = false;
 
+    // The working state of ownershipOf's fixpoint over recursive types - see OwnershipSolve, which
+    // says why it is here and not on the Type. Held across queries so that the window above, in
+    // which no answer may be remembered, does not reallocate a map per query.
+    OwnershipSolve ownershipSolve;
+
     /*
      * Whether any function value in this program can carry a teardown at all - see
      * markClosureHeaders, which is the only thing that ever clears it.

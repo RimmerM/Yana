@@ -1,0 +1,165 @@
+{-
+   **A bounds check the loop's own test has already made.**
+
+   `compiler/lower/lower_induction.h`'s `eliminateBoundedChecks`, and §28 of
+   `test/bench/findings.md`. A counted loop over `0 ..< length(xs)` tests the index against the
+   length to decide whether to run the body, and then the subscript inside it tests the same index
+   against the same length to decide whether to abort. The second test is the first one asked again,
+   so it is removed - along with the abort block behind it, once nothing else reaches that block.
+
+   The `.lower.expect` beside this file is what records which loops lost their check and which kept
+   it, since that is the whole of what the pass does. This file's job is the part a golden cannot
+   check: that every one of them still computes what it computed, including the loops that are
+   entered zero times and the one whose index genuinely can leave the array.
+
+   **What has to hold**, and there is a function below for each way of failing it:
+
+   - the index is the loop's own counter, starting non-negative and ascending by one;
+   - the header's test bounds it, on the arm that stays inside the loop;
+   - and the loop's bound is within the length the check reads - either the same value, or the
+     `sext(trunc(length))` that `length(xs) :: Int` is.
+
+   Each check contributes 1, so `main` is the number of checks when they all pass.
+-}
+
+import Native
+
+-- The shape the item is about. The bound *is* the length, so the subscript's check cannot fail.
+fn sumWords(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i]
+        i = i + 1
+
+    return acc
+
+{-
+   The same loop with the bound taken through `Int`, which is what every `iter fn` over a borrowed
+   array does: `length(xs) :: Int` truncates a `Size` to 32 bits and the counter is widened back, so
+   the header compares against `sext(trunc(n))` where the check compares against `n`. Removed for
+   the reason the header gives - the low half of a number is never larger than the number.
+-}
+fn sumNarrow(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: Int
+    let n = length(xs) :: Int
+
+    while i < n:
+        acc = acc + xs[i]
+        i = i + 1
+
+    return acc
+
+{-
+   Two arrays, one counter, and a bound that is only one of the two lengths. The subscript into `ys`
+   can fail whenever `ys` is shorter, so its check stays; `xs`'s goes. This is the negative case that
+   matters most, and the golden is where it is asserted - `main` below only reaches it with a `ys`
+   that is long enough, because a program that reached it with a short one would stop there.
+-}
+fn dot(xs: [I64], ys: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i] * ys[i]
+        i = i + 1
+
+    return acc
+
+-- Two steps at a time, so `i + 2` is not provably clear of the type's top and the counter is not one
+-- this pass will read. The check stays.
+fn sumEven(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i]
+        i = i + 2
+
+    return acc
+
+-- A counter that starts inside the array rather than at zero. The start is still a non-negative
+-- constant, so this one goes: what the proof needs is `0 <= i`, not `i == 0`.
+fn sumTail(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = 1 :: I64
+
+    while i < length(xs):
+        acc = acc + xs[i]
+        i = i + 1
+
+    return acc
+
+{-
+   Descending, which this pass declines. The counter is bounded from *below* by the header, so the
+   header says nothing about how large it is - and `length(xs) - 1` is where it starts, which is a
+   value rather than a constant. The check stays.
+-}
+fn sumDown(xs: [I64]) -> I64:
+    let &acc = 0 :: I64
+    let &i = length(xs) - 1 :: I64
+
+    while i >= 0:
+        acc = acc + xs[i]
+        i = i - 1
+
+    return acc
+
+-- An index the loop computes rather than carries. `i * 2` is not the counter, so nothing here says
+-- it is inside the array, and the check stays.
+fn sumStrided(xs: [I64], n: I64) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < n:
+        acc = acc + xs[i * 2]
+        i = i + 1
+
+    return acc
+
+fn main() -> Int:
+    let &words = [1, 2, 3, 4, 5, 6] :: [I64]
+    let &short = [2, 2, 2, 2, 2, 2] :: [I64]
+    let &empty = [] :: [I64]
+
+    let &total = 0 :: Int
+
+    -- 1 + 2 + 3 + 4 + 5 + 6 = 21
+    if sumWords(words) == 21 then total = total + 1
+    if sumNarrow(words) == 21 then total = total + 1
+
+    -- 2 * (1 + .. + 6) = 42, with `ys` exactly as long as `xs`.
+    if dot(words, short) == 42 then total = total + 1
+
+    -- 1 + 3 + 5 = 9
+    if sumEven(words) == 9 then total = total + 1
+
+    -- 21 - 1 = 20
+    if sumTail(words) == 20 then total = total + 1
+
+    -- The same sum reached from the far end.
+    if sumDown(words) == 21 then total = total + 1
+
+    -- Indices 0, 2, 4 of six elements: 1 + 3 + 5 = 9.
+    if sumStrided(words, 3) == 9 then total = total + 1
+
+    {-
+       Every one of them entered zero times, which is the case the removal has to leave alone: the
+       header test is false on the first try, so the body never runs and the accumulator's start is
+       the answer. `sumTail` on a one-element array is the same statement for a counter that does
+       not begin at zero, and `sumDown` on an empty one starts at -1.
+    -}
+    if sumWords(empty) == 0 then total = total + 1
+    if sumNarrow(empty) == 0 then total = total + 1
+    if sumEven(empty) == 0 then total = total + 1
+    if sumTail(empty) == 0 then total = total + 1
+    if sumDown(empty) == 0 then total = total + 1
+    if sumStrided(words, 0) == 0 then total = total + 1
+
+    -- And a one-element array, where the tail loop's counter starts at its bound.
+    let &one = [9] :: [I64]
+    if sumTail(one) == 0 then total = total + 1
+
+    return total

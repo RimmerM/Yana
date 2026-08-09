@@ -24,35 +24,36 @@ function sum(xs) {
 }
 
 function total(t) {
+  var v18;
+  var v29;
   var v16;
   if (t.$tag === 0) {
     v16 = t.$p;
   } else {
-    v16 = (t.label + totalOf(t.left) | 0) + totalOf(t.right) | 0;
+    var v7 = t.label;
+    if (t.left === null) {
+      v18 = 0;
+    } else {
+      v18 = total(t.left);
+    }
+    var v10 = v7 + v18 | 0;
+    if (t.right === null) {
+      v29 = 0;
+    } else {
+      v29 = total(t.right);
+    }
+    v16 = v10 + v29 | 0;
   }
   return v16;
-}
-
-function totalOf(m) {
-  var v10;
-  if (m === null) {
-    v10 = 0;
-  } else {
-    v10 = total(m);
-  }
-  return v10;
 }
 
 function leftOf(t) {
   var v19;
   var absent = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
   if (t.$tag === 0) {
-    drop$Tree(absent);
     v19 = t.$p;
   } else {
-    var v16 = total(unwrapOr_Tree({ $v: t.left }, absent));
-    drop$Tree(absent);
-    v19 = v16;
+    v19 = total(unwrapOr_Tree({ $v: t.left }, absent));
   }
   return v19;
 }
@@ -64,17 +65,12 @@ function buildList() {
   v6.tail.$v = null;
   v3.tail.$v = v6;
   xs.tail.$v = v3;
-  var v30 = sum(xs);
-  drop$List(xs);
-  return v30;
+  return sum(xs);
 }
 
 function buildTree() {
   var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
-  var v40 = total(t);
-  var v41 = leftOf(t);
-  drop$Tree(t);
-  return v40 + v41 | 0;
+  return total(t) + leftOf(t) | 0;
 }
 
 function idsOf(c) {
@@ -117,28 +113,6 @@ function unwrapOr_Tree(m, fallback) {
     v2 = m.$v;
   }
   return v2;
-}
-
-function drop$Tree(value) {
-  if (value.$tag === 1) {
-    drop$Maybe_Tree(value.left);
-    drop$Maybe_Tree(value.right);
-  }
-  return;
-}
-
-function drop$Maybe_Tree(value) {
-  if (!(value === null)) {
-    drop$Tree(value);
-  }
-  return;
-}
-
-function drop$List(value) {
-  if (!(value === null)) {
-    drop$List(value.tail.$v);
-  }
-  return;
 }
 
 function drop$Chain(value) {

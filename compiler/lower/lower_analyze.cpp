@@ -68,15 +68,32 @@ DominatorTree LowerFunction::buildDominatorTree(LowerBase base) {
             auto block = base[blocks.get(base, postorder[i])];
             assertTrue(block->incoming.size() > 0);
 
-            auto idiom = base[block->incoming.get(base, 0)]->postIndex;
-            assertTrue(idiom >= 0);
+            /*
+             * The seed is the first predecessor that has an answer already, and it has to be asked
+             * for rather than assumed to be the first one listed. The paper's walk is in reverse
+             * postorder precisely so that every block has one such predecessor, but *which* of its
+             * predecessors that is depends on the shape of the loop and not on the order the edges
+             * were recorded in - a header entered from its latch first, which is what a rotated loop
+             * leaves behind, lists the one edge whose answer is still missing at position zero.
+             *
+             * Seeding from it walks `intersect` into the -1 that stands for "not yet computed",
+             * which is not a block index and not a fixpoint: it is an out-of-bounds read and a loop
+             * that does not end. A predecessor no walk has reached at all is skipped for the same
+             * reason, its postorder index being kNullBlock rather than a position in these lists.
+             */
+            BlockIndex idiom = -1;
 
-            for(Size j = 1; j < block->incoming.size(); j++) {
-                auto p = base[block->incoming.get(base, j)]->postIndex;
-                assertTrue(p >= 0);
+            for(auto in: block->incoming.contents(base)) {
+                auto p = base[in]->postIndex;
+                if(p == kNullBlock || dominators[p] < 0) continue;
 
-                if(dominators[p] >= 0) idiom = intersect(dominators, p, idiom);
+                idiom = idiom < 0 ? p : intersect(dominators, p, idiom);
             }
+
+            // Every block below the start node is reached from one that precedes it in reverse
+            // postorder, so an answerless one is a block this walk should not have been given.
+            assertTrue(idiom >= 0);
+            if(idiom < 0) continue;
 
             if(dominators[i] != idiom) {
                 dominators[i] = idiom;

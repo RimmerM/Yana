@@ -111,3 +111,50 @@ void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction
  * this widens a counter for. See `widenLoopCounters`.
  */
 void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun);
+
+/*
+ * §28 A bounds check the loop's own test has already made.
+ *
+ * `for x in each(xs)` compiles to a counted loop over `0 ..< length(xs)` with a subscript inside it,
+ * and the subscript carries a check of its own - so the hot loop tests the same index against the
+ * same length twice, once to decide whether to run the body and once to decide whether to abort:
+ *
+ *     head:  %i = phi [pre, 0], [latch, %i2]     head:  %i = phi [pre, 0], [latch, %i2]
+ *            %c = cmp_ilt %i, %n                        %c = cmp_ilt %i, %n
+ *            je %c, body, exit                          je %c, body, exit
+ *     body:  %d = cmp_ge %i, %len            ->   body:  %v = load %items + %i*4
+ *            je %d, abort, load                          ..
+ *     load:  %v = load %items + %i*4
+ *
+ * What makes this a *proof* rather than the unswitch item 5 of the seventeenth list described is
+ * that the two tests read the same length. Duplicating the loop under a guard would cost a copy of
+ * the body; establishing that the check cannot fail costs nothing and removes a branch, an
+ * abort block and - once nothing else reaches it - the exit sequence at the end of it.
+ *
+ * Three things have to hold, and each is checked rather than assumed:
+ *
+ *  - **the index is the loop's own counter**, a header phi starting at a non-negative constant and
+ *    advanced by a positive constant on the latch edge, whose addition provably does not wrap. That
+ *    last is `stepCannotOverflow`, unchanged and shared with the two passes above: without it the
+ *    counter is a sequence that usually ascends rather than one that does, and "it started at zero
+ *    and only goes up" says nothing.
+ *  - **the header's test bounds it**, `%i <s %B` or `%i <=s %B` on the arm that stays in the loop,
+ *    with the other arm leaving. So every block the header dominates inside the loop runs with
+ *    `0 <= %i` and `%i <= %B`, and the counter is a header phi, so nothing between the two changed
+ *    it.
+ *  - **the loop's bound is within the length**, which is `%B <=u %L`. Two shapes answer it. The
+ *    same value is the easy one. The other is `%B = sext(trunc(%L))`, which is what `length(xs) ::
+ *    Int` is: for an unsigned `%L`, `%L mod 2^32 <=u %L` always, and the sign extension either
+ *    reproduces that or produces something negative - in which case the header test is false and
+ *    the body never runs.
+ *
+ * The check is then a branch whose abort arm cannot be taken, and the rewrite is to stop naming it.
+ * Only an arm ending in `Unreachable` is removed this way: that is what a check's abort arm is (see
+ * §11 of test/bench/findings.md), it has no successors of its own, so dropping it is local, and it
+ * is the one shape where being wrong is a program that would have stopped rather than a value.
+ *
+ * Behind `widenInductionVariables`, and that is load-bearing rather than tidy: before it the counter
+ * is an `Int` phi and the check compares `sext(%i)` against a `Size`, which is two more steps of
+ * reasoning for the same conclusion. After it the phi is already the width the check reads.
+ */
+void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun);

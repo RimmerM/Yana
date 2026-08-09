@@ -107,6 +107,71 @@ struct Ownership {
     TeardownKind drop = TeardownKind::None;
 
     bool needsTeardown() const { return reclaim != TeardownKind::None || drop != TeardownKind::None; }
+
+    // Whether a round of the fixpoint below moved anything, which is the whole of its termination
+    // test - so it compares every field rather than the three a caller usually reads.
+    bool operator == (const Ownership& o) const {
+        return trivialCopy == o.trivialCopy && trivialSink == o.trivialSink
+            && authoredCopy == o.authoredCopy && authoredSink == o.authoredSink
+            && reclaim == o.reclaim && drop == o.drop;
+    }
+
+    bool operator != (const Ownership& o) const { return !(*this == o); }
+};
+
+/*
+ * The state of one ownership classification - see ownershipOf, which is the only thing that touches
+ * it.
+ *
+ * A recursive data type reaches itself through its own members, so the fold that classifies it asks
+ * for an answer that is still being computed. Cutting the cycle with a conservative constant is the
+ * obvious thing to do and it is wrong in the direction that costs code: every legitimately recursive
+ * type - every one whose cycle runs through a box, which is every one that has a finite value - came
+ * out with a derived `Drop` it does not need, and a `drop` is never elided on any target. A binary
+ * tree therefore carried a second complete traversal of itself that executed nothing.
+ *
+ * So the cycle is *solved* rather than cut: assume the least a member could owe, fold, and repeat
+ * until a round moves nothing. The assumption is the optimistic end of the lattice and every fold in
+ * type_own.cpp is monotone downwards from it, so the iteration descends and terminates.
+ *
+ * On the Program rather than in a static, because the types of two programs resolved at once are two
+ * different regions and this is state over one of them. Not on the `Type`, because a Type's size is
+ * emitted output - see the note on `exported` - and there is no spare byte in one.
+ */
+struct OwnershipSolve {
+    struct Answer {
+        // The current assumption, or - once `round` names the round in progress - what that round
+        // folded out of it.
+        Ownership value;
+
+        // Which classification this entry belongs to. Entries outlive the solve that made them so
+        // that the map keeps its buckets; one whose generation is stale is not there.
+        U32 generation = 0;
+
+        // The round `value` was last recomputed in, which is what stops a shared member from being
+        // folded once per path through it.
+        U32 round = 0;
+    };
+
+    // Keyed by TypePtr::offset. Kept across classifications rather than cleared, because before
+    // Program::declarationsComplete nothing may be remembered on the type itself and every query
+    // therefore runs a fresh solve.
+    HashMap<U32, Answer> answers;
+
+    // The types this solve gave a provisional answer to, in the order it reached them. The walk
+    // visits the same set every round - which member is folded is structural and does not depend on
+    // any answer - so this is what there is to write back when the rounds are done.
+    Array<TypePtr> reached;
+
+    U32 generation = 0;
+    U32 round = 0;
+    bool running = false;
+
+    // Whether any query this round read an assumption, and whether any answer moved. A round that
+    // read no assumption saw no cycle and is already the answer; a round that moved nothing is the
+    // fixpoint.
+    bool usedAssumption = false;
+    bool changed = false;
 };
 
 /*
@@ -206,6 +271,11 @@ struct Type {
     // because an `instance Reclaim(T)` read later is exactly a statement that this answer was wrong.
     Ownership ownership;
     bool ownershipReady = false;
+
+    // Whether the fold that classifies this type is on the stack right now, which is exactly the
+    // question "is a member of it reaching back at it". The answer a re-entrant query gets is the
+    // current assumption rather than a constant - see OwnershipSolve. Here rather than in the solve's
+    // own map because it is asked of every member of every type and a Type has the byte.
     bool resolvingOwnership = false;
 };
 

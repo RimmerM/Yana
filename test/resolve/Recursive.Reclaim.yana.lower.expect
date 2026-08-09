@@ -305,7 +305,6 @@ buildAndDrop<complex>(): Int {
     store %xs, %v_9, 8
     copy %v_9, %v_1, 12
     %v_10 = call_complex sum, %xs: Int
-    call_complex drop$List, %xs
     call_complex reclaim$List, %xs
     ret %v_10
   }
@@ -347,28 +346,6 @@ main<complex>(): Int {
   }
 }
 
-drop$List<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Long
-    %v_2 = cmp_neq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_5 {
-    ret 
-  }
-
-  b_3 {
-    %v_6 = load %value, 8: Ptr
-    call_complex drop$List, %v_6
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-}
-
 reclaim$List<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Long
@@ -381,7 +358,7 @@ reclaim$List<complex>(%value: Ptr) {
   }
 
   b_3 {
-    %v_6 = load %value, 8: Ptr
+    %v_6 = bitcast %v_1: Ptr
     call_complex reclaim$List, %v_6
     %v_7 = load %value, 8: Ptr
     %v_8 = bitcast %v_7: Ptr

@@ -684,6 +684,128 @@ static bool tryBranchOnLiveCompare(LowerBase base, LowerInstCmp* cmp, Size index
     return true;
 }
 
+/*
+ * §3.5.2.2 The comparison the instruction above it already performed.
+ *
+ * `while i != 0: i = i - 1` compiles to `dec` and then `test`, where LLVM spends only the `dec`:
+ * every group-1 operation sets ZF from its own result, so a comparison of that result against zero
+ * is asking a question that is standing there answered. The fold above carries a comparison to where
+ * it is read; this one removes it outright.
+ *
+ * Three things decide it, and the third is the one that has to be asked here rather than earlier.
+ *
+ *  - **the comparison is against zero, and its code is one the flags left behind can answer.**
+ *    `== 0` and `!= 0` read ZF alone and every form below answers them. A *signed* comparison reads
+ *    SF against OF as well, and an addition that overflowed sets OF to say something about the
+ *    operation rather than about the result - `sub a, b; jl` is `a < b` and not `a - b < 0`. The
+ *    logical operations clear OF outright, so after one of those `jl` is the sign bit of the result
+ *    and the whole signed family is answered too. That is the second table, and it is one field
+ *    rather than a table: see `MachineForm::signInFlags`.
+ *  - **the left-hand side is produced in this block by a form that leaves its result in ZF.**
+ *    `MachineForm::resultInFlags` is that claim, and it is much narrower than writing the flags at
+ *    all: `imul`, `mul` and the divisions leave ZF undefined, and a shift by a count of zero leaves
+ *    the flags of whatever ran before it.
+ *  - **nothing between the two writes the flags.** Asked *after* the merge rather than before it,
+ *    because `clearFlagsWindow` lifts instructions out of the window below the comparison and puts
+ *    them directly above it - which is inside this window. A comparison whose window had to be
+ *    cleared has usually lost this, and that is the right answer rather than a missed one.
+ *
+ * The instructions in between are also the reason this is not a peephole on the pair: the definition
+ * and the comparison are adjacent in the shapes that matter, but a `mov` or a load between them
+ * costs nothing and is common, so what is walked is the stretch rather than the one slot above.
+ */
+// Whether a comparison against zero is one the flags a form leaves behind can answer. `eq`/`neq` are
+// ZF and need only the coarser claim; the four signed codes read ZF, SF and OF, which is the whole of
+// what a logical operation defines and none of what an arithmetic one leaves meaning the same thing.
+static bool answeredByFlags(LowerCmp kind, const MachineForm& form) {
+    if(kind == LowerCmp::eq || kind == LowerCmp::neq) return form.resultInFlags;
+
+    auto signed_ = kind == LowerCmp::ilt || kind == LowerCmp::ile ||
+                   kind == LowerCmp::igt || kind == LowerCmp::ige;
+    return signed_ && form.signInFlags;
+}
+
+static void tryElideCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
+    auto kind = cmp->getCmp();
+
+    // The embedded constant zero, and nothing else. A zero that is still in a register is one the
+    // `xor` materializing it wrote the flags for, so the window below would refuse it anyway - and
+    // FormCmpNone declares the immediate operand FormCmpImm declares, so this is also what keeps the
+    // two forms interchangeable at the point the choice is made.
+    if(!isImplicit(base[cmp->rhs])) return;
+
+    auto rhs = base[cmp->rhs]->inst();
+    if(rhs->kind != LowerInst::Imm || ((LowerImm*)rhs)->i != 0) return;
+
+    auto lhs = base[cmp->lhs];
+    auto definition = lhs->inst();
+    if(definition->block != cmp->block) return;
+
+    // A float compared against a zero *bit pattern* is not this: `ucomisd` is what answers it, and
+    // no float operation writes the integer flags at all.
+    if(!isIntLike(lhs->type)) return;
+    if(!answeredByFlags(kind, machineTarget().form(selectForm(base, definition)))) return;
+
+    // Backwards from the comparison to the definition, which is the direction that stops soonest:
+    // the definition is usually the instruction directly above, and a clobber usually is too.
+    auto block = base[cmp->block];
+    auto list = block->instructions.contents(base);
+
+    for(auto i = index; i-- > 0;) {
+        auto inst = base[list[i]];
+        if(inst == definition) {
+            cmp->setFlagsLive();
+            return;
+        }
+
+        if(modifiesFlags(base, inst)) return;
+    }
+}
+
+/*
+ * §3.5.2.2 And the same finding where there is no comparison at all to elide.
+ *
+ * `if !growHeap(n) then ..` reaches this backend as `%c = xor %r, 1` and a branch on `%c` - the
+ * negation is arithmetic, and the branch tests a register because that is what a branch on a value
+ * does. `FormJccReg` then emits `test %eax, %eax` in front of the `jcc`, re-deriving from a register
+ * the answer the `xor` above it left in ZF.
+ *
+ * The fold is the same one, and it needs no form of its own: a branch on a value is a branch on
+ * `value != 0`, so saying so is `setEmbeddedCmp(neq)`, and `FormJccLive` is already the form for a
+ * branch that reads the flags while its condition stays an ordinary operand. The condition keeps its
+ * register and keeps every other use it has; what goes away is the two bytes that recomputed it.
+ *
+ * The conditions are `tryElideCompare`'s, minus the one about the comparison kind - there is no
+ * comparison, and `!= 0` is the only thing a branch on a value ever asks.
+ */
+static void tryElideBranchTest(LowerBase base, LowerBlock* block) {
+    auto terminator = base[block->terminator];
+    if(terminator->kind != LowerInst::Je) return;
+
+    auto je = (LowerInstJe*)terminator;
+    if(je->getEmbeddedCmp()) return;   // already reading the flags
+
+    auto condition = base[je->cond];
+    auto definition = condition->inst();
+    if(definition->block != block - base) return;
+    if(!isIntLike(condition->type)) return;
+    if(!machineTarget().form(selectForm(base, definition)).resultInFlags) return;
+
+    // From the end of the block back to the definition. The window is measured to the terminator
+    // because that is what reads the flags, and the terminator is not in the list.
+    auto list = block->instructions.contents(base);
+
+    for(auto i = list.size(); i-- > 0;) {
+        auto inst = base[list[i]];
+        if(inst == definition) {
+            je->setEmbeddedCmp(Just(LowerCmp::neq));
+            return;
+        }
+
+        if(modifiesFlags(base, inst)) return;
+    }
+}
+
 // Carries a comparison into the branches and selects that read it, so that its answer stays in the
 // flags rather than being materialized. Returns how many instructions were lifted above it to make
 // that possible, which is how far its own position in the block moved down.
@@ -715,6 +837,12 @@ static Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
     // The only uses are instructions that can use flags directly, and nothing writes them in
     // between any more, so the result can stay as flags.
     cmp->result.flags |= LowerValue::Implicit;
+
+    // And then whether the comparison needs to happen at all, which is only worth asking of one
+    // that got this far: a comparison still materializing a value emits a `setcc` the flags this
+    // would remove are read by, so there would be nothing to elide. The position it is asked at is
+    // the one it now has - `clearFlagsWindow` moved it down by `hoisted`.
+    tryElideCompare(base, cmp, index + hoisted);
 
     for(auto offset: uses.contents(base)) {
         auto use = base[offset];
@@ -2310,7 +2438,76 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
     }
 }
 
+/*
+ * §30.4 A preheader made rather than found.
+ *
+ * The rotation puts the header's copy of its own test at the end of the preheader, and there is one
+ * block in a function that may not receive an instruction: the implicit entry. `runLegalizer` emits
+ * the argument-home copies at index 0 and asserts nothing else is there, and `buildRanges` gives an
+ * argument its range from outside every block - so an instruction placed there is a read in a block
+ * that neither defines the argument nor has it live-in, which is a range that does not exist.
+ *
+ * A loop whose header the entry block enters directly is therefore unrotatable for a reason that has
+ * nothing to do with the loop, and the answer is to stop finding the preheader and make one: an empty
+ * block on the edge, which is the shape every other loop the lowering produces already has. It costs
+ * nothing where the rotation then declines the loop anyway - `computeBypass` skips a block with no
+ * instructions, no moves and an unconditional jump, and this is one until the rotation fills it.
+ *
+ * The rule is exact rather than a guess about which successor is a header. The entry block has one
+ * successor and every block is reached through it, so a second predecessor of that successor is a
+ * block the successor reaches: a back edge, and the successor a loop header.
+ */
+static LowerBlock* insertJumpPreheader(LowerBase base, LowerFunction& fun, LowerBlock* pred) {
+    auto& arena = fun.arena;
+    auto succ = base[pred->outgoing[0]];
+    auto predOffset = pred - base;
+
+    auto split = new (arena) LowerBlock(pred->fun, StringId(), BlockIndex(fun.blocks.size()));
+    fun.blocks.push(arena, split - base);
+
+    // Wired up by hand for the reason splitEdge gives: addInst would append the new block to `succ`'s
+    // incoming list rather than replacing the entry the phis still name.
+    auto jmp = (LowerInst*)new (arena) LowerInstJmp(succ - base);
+    jmp->block = split - base;
+    split->terminator = jmp - base;
+    split->outgoing[0] = succ - base;
+    split->incoming.push(arena, predOffset);
+
+    auto old = (LowerInstJmp*)base[pred->terminator];
+    assertTrue(old->kind == LowerInst::Jmp);
+    old->then = split - base;
+    pred->outgoing[0] = split - base;
+
+    for(Size i = 0; i < succ->incoming.size(); i++) {
+        if(succ->incoming.get(base, i) == predOffset) {
+            succ->incoming.set(base, i, split - base);
+            break;
+        }
+    }
+
+    for(auto p: succ->phis.contents(base)) {
+        auto sources = base[p]->sources();
+        for(Size i = 0; i < sources.size(); i++) {
+            if(sources.ptr[i] == predOffset) sources.ptr[i] = split - base;
+        }
+    }
+
+    return split;
+}
+
+// Ahead of the loop analysis rather than inside it, because a block created afterwards is one the
+// LoopInfo the rotation reads is not indexed for.
+static void insertEntryPreheader(LowerBase base, LowerFunction& fun) {
+    auto entry = base[fun.blocks.get(base, 0)];
+    if(!entry->terminator || base[entry->terminator]->kind != LowerInst::Jmp) return;
+    if(base[entry->outgoing[0]]->incoming.size() < 2) return;
+
+    insertJumpPreheader(base, fun, entry);
+}
+
 static void rotateFunctionLoops(LowerBase base, LowerFunction& fun) {
+    insertEntryPreheader(base, fun);
+
     auto loops = fun.buildLoops(base);
 
     // Snapshotted, because rotating one loop is what stops its header from being one. Which blocks a
@@ -2586,6 +2783,11 @@ static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
 
             i += tryMergeCompare(base, (LowerInstCmp*)inst, i);
         }
+
+        // Behind the loop, because a comparison this block ends on is the branch's condition and the
+        // fold above is the better answer for it: that one removes the materialization as well.
+        // What is left here is a branch on a value nothing compared.
+        tryElideBranchTest(base, block);
     }
 }
 

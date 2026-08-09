@@ -671,6 +671,22 @@ struct LowerModule {
      */
     StringId entry {};
 
+    /*
+     * The heap allocator, where this program has one - the function `Native.allocateHeap` lowered,
+     * which is what an `InstAlloc` the escape analysis placed on the heap becomes a call to.
+     *
+     * A pointer rather than a name, because unlike `entry` this is asked about a *callee* a pass is
+     * holding: "is this call the one that hands out fresh storage". It is recorded for the reason
+     * `Program::allocateHeap` is - the compiler emits the call, so no source name reaches it - and
+     * it is the one callee a lower pass is entitled to reason about, since the placement that made
+     * the call was the compiler's own decision. See §27 of test/bench/findings.md, and
+     * `isAllocatorCall` in lower_forward.cpp for the only thing that reads it.
+     *
+     * Null for a library, for a program that allocates nothing, and on a target whose storage the
+     * host manages.
+     */
+    LowerPtr<LowerFunction> allocator = nullptr;
+
     U16 errorCount = 0;
     U16 warningCount = 0;
 };

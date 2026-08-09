@@ -97,14 +97,20 @@
  * front of the declared arguments - is one only the *value* form spells, and one codegen/js does not
  * spell at all. So the splice leaves a body, never a call to one.
  *
- * A **recursive** callee is declined outright, and that is a rule the straight-line half never had
- * to state: a body that calls itself almost always branches on something first, so refusing branches
- * refused recursion as a side effect. It does not any more. Copying a recursive body into a caller
- * copies the recursive call with it, and the copy is *unrolling* rather than inlining - a different
+ * A **recursive** callee is declined, and that is a rule the straight-line half never had to state:
+ * a body that calls itself almost always branches on something first, so refusing branches refused
+ * recursion as a side effect. It does not any more. Copying a recursive body into a caller copies the
+ * recursive call with it, and the copy is *unrolling* rather than inlining - a different
  * transformation, with a cost model this table does not have and a growth rate the round budget
- * bounds only by accident. So the call graph's cycles are found once and every function in one is
- * refused, which covers a self-call and a mutual pair with the same rule. What remains bounded by
- * the round budget is only the honest case: a chain of callees each of which calls the next.
+ * bounds only by accident. So the call graph's cycles are found once and a function in one is
+ * refused. What remains bounded by the round budget is only the honest case: a chain of callees each
+ * of which calls the next.
+ *
+ * The one exception is `collapsesCycle`, and it is the case where the argument above does not hold:
+ * a *different* member of the caller's own cycle, taken once. That is a collapse rather than an
+ * unrolling - the copy's calls come back to the caller, so a mutual pair becomes one self-recursive
+ * function - and the compiler writes such pairs itself, one per type in a recursive type's derived
+ * teardown.
  */
 
 namespace {
@@ -222,6 +228,28 @@ struct InlinePolicy {
      */
     U32 leafCaller = 0;
 
+    /*
+     * Where the copy collapses a cycle in the call graph - see `collapsesCycle`.
+     *
+     * The fourth term priced against what the copy makes possible, and the one furthest from what
+     * the table otherwise measures: every other row prices a call that goes away *once*, and this
+     * one prices a call that goes away once per level of a recursion whose depth nothing here knows.
+     * `reclaim$Tree` and `reclaim$Maybe(Tree)` in `test/bench/programs/Tree.yana` are two frames per
+     * node of a sixteen-thousand-node structure; the copy makes them one, and what the ordinary
+     * arithmetic sees is a five-instruction body against a limit of three - the base budget, less the
+     * repeat penalty for two sites, less three blocks of graft. Refused, for a body whose call is
+     * executed 16383 times.
+     *
+     * So the term is large and its gate is narrow: only `collapsesCycle` admits a recursive callee at
+     * all, only one member of the caller's own cycle is ever taken, and the ceiling still applies -
+     * which is what keeps a large mutual pair out. What it costs where it fires is one copy of a
+     * small body; the cycle is what is being removed, not the call.
+     *
+     * Zero at `InlineLevel::Size`, where the trade is the wrong way round: the copy is growth in
+     * every body that takes one, and the frames it saves are time rather than bytes.
+     */
+    U32 cycleCollapse = 0;
+
     // Subtracted where the callee is called from more than one place, and again where it is called
     // from many. What this prices is code growth, which is paid once per call site.
     U32 repeatedPenalty = 0;
@@ -316,6 +344,11 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             // size argument as well - see the term. It is declined anyway: what the level pays for
             // is a body that moves, and a body with one call site moves already.
             policy.leafCaller = 0;
+
+            // And zero here on the same terms: a collapse is a copy of a body, and this level pays
+            // for a body that moves rather than for one that runs fewer times.
+            policy.cycleCollapse = 0;
+
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
@@ -335,6 +368,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.accessor = 6;
             policy.closureArgument = 28;
             policy.leafCaller = managed ? 0 : 8;
+            policy.cycleCollapse = 16;
 
             // Two and four rather than one and two on the native side, and what moved them is
             // `settleCallee` rather than anything about growth. A size measured before the callee
@@ -368,6 +402,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.accessor = 12;
             policy.closureArgument = 36;
             policy.leafCaller = managed ? 0 : 12;
+            policy.cycleCollapse = 24;
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
@@ -512,7 +547,7 @@ struct Candidate {
  * the graph is for is deciding whether a *body* is recursive, and a body that reaches itself only
  * through a class dispatch is as recursive as one that does not.
  */
-void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
+void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive, HashMap<U32, U32>& cycle) {
     Array<ModulePtr<Function>> nodes;
     HashMap<U32, U32> index;
 
@@ -524,6 +559,7 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 
     index.reserve(functionCount);
     recursive.reserve(functionCount);
+    cycle.reserve(functionCount);
     nodes.reserve(U32(functionCount));
 
     for(auto module: opt.program.modules) {
@@ -607,6 +643,11 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
     Array<U32> members;
     U32 counter = 1;
 
+    // Which cycle a function is in, numbered from one so that "not in one" and "component zero" are
+    // different answers. Only a component that is a cycle is numbered - the ordinary one-member ones
+    // are the whole program and naming them would be a map the size of it.
+    U32 cycleCounter = 1;
+
     for(Size root = 0; root < count; root++) {
         if(number[root]) continue;
 
@@ -653,7 +694,11 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
                 // case the component numbering cannot report - a cycle of length one.
                 if(members.size() == 1 && !callsItself(node)) continue;
 
-                for(auto member: members) recursive.add(U32(nodes[member]), true);
+                auto id = cycleCounter++;
+                for(auto member: members) {
+                    recursive.add(U32(nodes[member]), true);
+                    cycle.add(U32(nodes[member]), id);
+                }
             }
 
             if(pending.size() && lowlink[node] < lowlink[pending[pending.size() - 1]]) {
@@ -676,6 +721,25 @@ struct Inliner {
     HashMap<U32, bool> taken;
     HashMap<U32, bool> recursive;
     HashMap<U32, U32> callSites;
+
+    /*
+     * The three tables `collapsesCycle` is about, and they bound it between them.
+     *
+     * `cycle` is which cycle of the call graph a recursive function is in, so that "a member of the
+     * caller's own" is a question rather than a guess. `absorbed` is which member each caller has
+     * taken - the callee rather than a flag, because every *site* of the same one is the rest of the
+     * same collapse while a second callee is a second cycle. `collapsed` is every call site this pass
+     * has written, which is what makes the whole thing terminate: a copy of a cycle member brings the
+     * cycle's calls in with it, and taking one of *those* is the second level of an unrolling that
+     * has no end - `B` calling itself, or `B` copied into `A` and the enlarged `A` then copied back.
+     */
+    HashMap<U32, U32> cycle;
+    HashMap<U32, U32> absorbed;
+    HashMap<U32, bool> collapsed;
+
+    // Which site is being considered, for the one rule that is about the site rather than about
+    // either body. Set by each of the three site functions in front of `describe`.
+    ModulePtr<Inst> site = nullptr;
 
     // Which callees have been folded to a fixed point once - see `settleCallee`. Kept across the
     // rounds rather than per round: a body nothing was spliced into is unchanged between them, and
@@ -999,6 +1063,57 @@ struct Inliner {
         return false;
     }
 
+    // The function being inlined into, which several of the rules below are about rather than about
+    // the callee. Spelled the same way the self-call refusals spell it.
+    ModulePtr<Function> currentFunction() const {
+        return (ModulePtr<Function>)(opt.function - opt.local);
+    }
+
+    /*
+     * The one recursive callee that is taken: a *different* member of the caller's own cycle.
+     *
+     * The header's rule is that a recursive body copied into a caller carries its recursive call
+     * with it, so the copy is unrolling. That is true of a *self*-call and it is not true of a mutual
+     * pair. `A` calls `B` calls `A`: copying `B` into `A` leaves `A` calling `A`, which is one
+     * function where there were two and a call per level of the structure where there were two. The
+     * cycle is not unrolled by it - it is *collapsed*, and the body that comes out is the shape a
+     * self-recursive function would have been written as in the first place.
+     *
+     * What made this worth relaxing is that the compiler writes such pairs itself. A recursive data
+     * type's derived teardown is one function per type in the cycle - `reclaim$Tree` calls
+     * `reclaim$Maybe(Tree)` calls `reclaim$Tree` - so `test/bench/programs/Tree.yana` spent four
+     * frames per node where `llc -Os` spends one, and the refusal was the cycle in the call graph
+     * rather than anything about the size. §30.5 of test/bench/findings.md is the measurement.
+     *
+     * **One level, and it takes two bounds to say so.**
+     *
+     * Every site of the *same* callee is taken, because taking all of them is what finishes the
+     * collapse: `reclaim$Tree` calls `reclaim$Maybe(Tree)` once per child, and leaving the second a
+     * call leaves half the structure walked two frames deep. A *second* member of the cycle is
+     * refused, which is what stops a cycle of `k` from becoming `k` bodies each holding all `k`.
+     *
+     * And a site this pass wrote is refused whatever it names, which is the bound that makes the
+     * thing terminate rather than the one that keeps it small. Every other rule here is about which
+     * bodies are involved, and neither of them is enough on its own: a callee that also calls itself
+     * puts a fresh site of itself into its caller with every copy, and a caller that has already
+     * collapsed is a *callee* full of self-calls for the next one to copy. Both are the second level
+     * of an unrolling, and both are unbounded. `collapsed` is the set of sites one level produced,
+     * and refusing them is the definition of "one".
+     */
+    bool collapsesCycle(ModulePtr<Function> pointer) {
+        auto caller = currentFunction();
+        if(pointer == caller) return false;
+        if(site && collapsed.get(U32(site))) return false;
+
+        auto callerCycle = cycle.getValue(U32(caller));
+        auto calleeCycle = cycle.getValue(U32(pointer));
+        if(!callerCycle || !calleeCycle) return false;
+        if(callerCycle.unwrap() != calleeCycle.unwrap()) return false;
+
+        auto taken = absorbed.getValue(U32(caller));
+        return !taken || taken.unwrap() == U32(pointer);
+    }
+
     /*
      * One callee, checked once and described for whatever site is about to copy it.
      *
@@ -1041,8 +1156,9 @@ struct Inliner {
          */
         if(!sink && !env && taken.get(U32(pointer))) return Nothing();
 
-        // A body that can reach itself, which is unrolling rather than inlining - see the header.
-        if(recursive.get(U32(pointer))) return Nothing();
+        // A body that can reach itself, which is unrolling rather than inlining - see the header and
+        // `collapsesCycle`, which is the one shape of it that is neither.
+        if(recursive.get(U32(pointer)) && !collapsesCycle(pointer)) return Nothing();
 
         // And the body as anything would emit it rather than as the resolver wrote it - see
         // `settleCallee`, which is the same statement `settle` makes about a caller.
@@ -1489,6 +1605,11 @@ struct Inliner {
         // it was walking every instruction, and only a call-free one is worth the walk that counts
         // the caller's own calls.
         if(policy.leafCaller && candidate.callFree && callerHasOneCall()) limit += policy.leafCaller;
+
+        // A recursive callee is one `describe` only admits through `collapsesCycle`, so reaching
+        // here at all is the collapse - see the term, which is priced against a call per level of
+        // the recursion rather than against this one.
+        if(recursive.get(U32(candidate.pointer))) limit += policy.cycleCollapse;
 
         if(candidate.callee->inlineHint) limit += policy.requested;
 
@@ -2171,6 +2292,7 @@ struct Inliner {
         if(!call.callee) return false;
         if(call.callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
 
+        site = pointer;
         auto described = describe(call.callee);
         if(!described) return false;
 
@@ -2189,6 +2311,27 @@ struct Inliner {
      * what lets the two call forms share it: a `calldyn` this pass resolved passes the environment
      * word in front of the declared arguments, and a direct call passes its list unchanged.
      */
+    /*
+     * A collapse, recorded once the copy exists - see `collapsesCycle`, which is where both halves
+     * of this are read. Called from every commit rather than from the description, because a
+     * description is speculative and this is the point there is something to record.
+     *
+     * A recursive candidate is one only `collapsesCycle` admits, so reaching here with one *is* the
+     * collapse: the caller has spent its one member, and every call the copy brought with it is a
+     * site the next level would take.
+     */
+    void recordCollapse(Candidate& candidate) {
+        if(!recursive.get(U32(candidate.pointer))) return;
+
+        absorbed.add(U32(currentFunction()), U32(candidate.pointer));
+
+        for(auto entry: cloneScratch.values.entries()) {
+            if(performsCall(opt.local[ModulePtr<Value>(entry.value)]->kind)) {
+                collapsed.add(entry.value, true);
+            }
+        }
+    }
+
     bool inlineSite(Candidate& candidate, Block& block, Size index, ModulePtr<Inst> pointer,
                     bool& grafted) {
         auto& call = *opt.local[pointer];
@@ -2273,6 +2416,8 @@ struct Inliner {
 
         if(!worthInlining(candidate)) return false;
         if(!graft(candidate, block, index, pointer, grafted)) return false;
+
+        recordCollapse(candidate);
 
         // `removeInstruction` rather than `eraseInstruction`, which asserts that nothing reads the
         // instruction - true of a call whose result the graft replaced and not of one returning
@@ -2479,6 +2624,7 @@ struct Inliner {
         auto target = resolved.unwrap();
         if(target.callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
 
+        site = pointer;
         auto described = describe(target.callee, false, true);
         if(!described) return false;
 
@@ -2542,6 +2688,7 @@ struct Inliner {
         if(!callee) return false;
         if(callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
 
+        site = pointer;
         auto described = describe(callee, true);
         if(!described) return false;
 
@@ -2558,6 +2705,7 @@ struct Inliner {
         candidate.parameters[0].storage = dropped.place;
 
         if(!graft(candidate, block, index, pointer, grafted)) return false;
+        recordCollapse(candidate);
 
         // The drop's own reads go with it: the storage its place was rooted in, and any index in the
         // path. Both are recorded on the values rather than in an operand slot, which is why this
@@ -2870,8 +3018,9 @@ struct Inliner {
      * afterwards anyway, and starting from a fixed point is where its own rounds now start.
      *
      * `opt.function` and `opt.module` are the caller's and have to be given back. The callee is a
-     * different function by construction - recursion is refused above this - so nothing being walked
-     * is what this rewrites.
+     * different function by construction - every site refuses a call to the function it is in - so
+     * nothing being walked is what this rewrites. That still holds of the one recursive callee
+     * `collapsesCycle` admits, which is a member of the caller's cycle and not the caller.
      */
     void settleCallee(ModulePtr<Function> pointer, Function& callee) {
         if(settled.get(U32(pointer))) return;
@@ -2905,7 +3054,7 @@ void inlineCalls(OptContext& opt) {
 
     Inliner inliner { opt, policy };
     addressTaken(opt, inliner.taken);
-    findRecursion(opt, inliner.recursive);
+    findRecursion(opt, inliner.recursive, inliner.cycle);
 
     for(Size round = 0; round < kMaxInlineRounds; round++) {
         inliner.countCallSites();

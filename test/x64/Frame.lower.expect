@@ -202,7 +202,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc701f0
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8d0437
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: saveSeveral ---
@@ -355,7 +355,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[rax, r9] creates=[rax] pre=[rdi->rax]  => 8bc74401c8
+  add uses=[rax, r9] creates=[rax] pre=[rdi->rax]  => 428d040f
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: sysvCaller ---
@@ -384,19 +384,19 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 8bdfffc3
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 8d5f01
   imm uses=[] creates=[-]  => 
-  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 448be74183c402
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 448d6702
   imm uses=[] creates=[-]  => 
-  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 448bef4183c503
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 448d6f03
   imm uses=[] creates=[-]  => 
-  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 448bf74183c604
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 448d7704
   imm uses=[] creates=[-]  => 
   add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 448bff4183c70544893c24
   imm uses=[] creates=[-]  => 
   add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 448bff4183c70644897c2404
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe84affffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe854ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rax, r12] creates=[rax]  => 4401e0
   add uses=[rax, r13] creates=[rax]  => 4401e8
@@ -411,15 +411,15 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7ffc0
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8d4701
   x86_pusharg uses=[rax] creates=[-]  => 4889442408
   x86_pusharg uses=[rax] creates=[-]  => 48890424
   imm uses=[] creates=[-]  => 
-  add uses=[rsi, -] creates=[rsi] pre=[rdi->rsi]  => 8bf783c602
+  add uses=[rsi, -] creates=[rsi] pre=[rdi->rsi]  => 8d7702
   imm uses=[] creates=[-]  => 
-  add uses=[rdx, -] creates=[rdx] pre=[rsi->rdx]  => 8bd683c203
+  add uses=[rdx, -] creates=[rdx] pre=[rsi->rdx]  => 8d5603
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdx->rcx]  => 8bca83c104
+  add uses=[rcx, -] creates=[rcx] pre=[rdx->rcx]  => 8d4a04
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->r8, rsi->r9, rdx->r10, rcx->r11]  => 448bc7448bce448bd2448bd9e86ffeffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->r8, rsi->r9, rdx->r10, rcx->r11]  => 448bc7448bce448bd2448bd9e886feffff
   ret uses=[rax] creates=[]  => 4883c410c3

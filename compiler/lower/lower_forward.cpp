@@ -308,6 +308,30 @@ LowerValue* allocationBase(LowerBase base, LowerPtr<LowerValue> pointer) {
 }
 
 /*
+ * §27 Whether this instruction is a call to the program's own heap allocator.
+ *
+ * The one callee a pass at this tier is entitled to know anything about, and it knows it because the
+ * compiler wrote the call: an `InstAlloc` the escape analysis placed on the heap is lowered to a
+ * call to `Native.allocateHeap` and to nothing else, so the callee is `LowerModule::allocator`
+ * exactly when the storage it hands back is storage this compilation chose to put there.
+ *
+ * The callee is `used()[0]`, and only a direct one counts - a pointer through a variable names a
+ * function this cannot see, and the same name reached by an indirect call is not the same fact.
+ */
+bool isAllocatorCall(LowerBase base, LowerFunction& fun, LowerInst* inst) {
+    auto allocator = fun.module->allocator;
+    if(!allocator || inst->kind != LowerInst::Call) return false;
+
+    auto used = inst->used();
+    if(used.length == 0) return false;
+
+    auto callee = base[used.ptr[0]]->inst();
+    if(callee->kind != LowerInst::Fun) return false;
+
+    return ((LowerInstFun*)callee)->target == allocator;
+}
+
+/*
  * Whether anything outside this function could hold a pointer into this allocation.
  *
  * The other half of the aliasing argument, and the half only one destination needs. An allocation
@@ -437,29 +461,65 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      *
      * A dynamic allocation is excluded by needing a constant size, and has to be: that one moves the
      * stack pointer, and where it does so is the whole of what it says.
+     *
+     * §27 The second thing that may move is a call to the heap allocator, and it is not free: it
+     * exchanges the order of two calls. `isAllocatorCall` is what recognizes one and lower_forward.h
+     * is the whole of what makes the exchange admissible; note that the two cases meet here rather
+     * than anywhere lower down, because what has to hold about the *position* is one statement.
      */
-    auto hoist = maxLimit<Size>;
-    auto hoistCount = maxLimit<Size>;
+    // Ascending, and every entry at or below `first`, so that the rewrite can lift them in order.
+    SmallArray<Size, 4> lift;
+    auto definition = destination->inst();
+    auto movesAllocator = false;
 
-    if(destination->inst()->kind != LowerInst::Arg) {
-        auto definition = destination->inst();
+    if(definition->kind != LowerInst::Arg) {
         auto defined = position.getValue(U32(definition - base));
         if(!defined || definition->block != &block - base) return false;
 
         if(Size(defined.unwrap()) >= first) {
-            if(definition->kind != LowerInst::Alloca) return false;
+            movesAllocator = isAllocatorCall(base, fun, definition);
 
-            auto bytes = ((LowerInstAlloca*)definition)->byteCount;
-            if(constantOf(base, bytes).isNothing()) return false;
+            if(definition->kind == LowerInst::Alloca) {
+                if(constantOf(base, ((LowerInstAlloca*)definition)->byteCount).isNothing()) return false;
+            } else if(!movesAllocator) {
+                return false;
+            }
 
-            // The size it reads has to be available where it is going, and where it is not it travels
-            // with the allocation. A constant reads nothing, so moving it up cannot cross a
-            // definition it depends on, and every use of it is below where it already was. One in
-            // another block already dominates this one and needs nothing.
-            auto counted = position.getValue(U32(base[bytes]->inst() - base));
-            if(counted && Size(counted.unwrap()) >= first) hoistCount = Size(counted.unwrap());
+            /*
+             * What it reads has to be available where it is going, and where it is not it travels
+             * with it. Only an operand that performs nothing and reads nothing may travel - a
+             * constant, a function's address, a global's - so moving it up cannot cross a definition
+             * it depends on, and every use of it is below where it already was. One in another block
+             * already dominates this one and needs nothing.
+             *
+             * The allocator call is why this is a list rather than the single byte count it was:
+             * lowering writes the `Fun` naming the callee directly in front of the call, so a call
+             * being lifted always has at least one operand standing between it and where it is
+             * going.
+             */
+            for(auto use: definition->used()) {
+                auto operand = base[use]->inst();
+                auto at = position.getValue(U32(operand - base));
+                if(!at || Size(at.unwrap()) < first) continue;
 
-            hoist = Size(defined.unwrap());
+                auto kind = operand->kind;
+                if(kind != LowerInst::Imm && kind != LowerInst::Fun && kind != LowerInst::Global) {
+                    return false;
+                }
+
+                // Kept ascending as it is built, which for a handful of operands is one comparison
+                // each and saves the rewrite below having to sort anything.
+                auto entry = Size(at.unwrap());
+                if(lift.containsValue(entry)) continue;
+
+                lift.push(entry);
+                for(auto i = lift.size() - 1; i > 0 && lift[i - 1] > lift[i]; i--) {
+                    ::swap(lift[i - 1], lift[i]);
+                }
+            }
+
+            // Last, and correctly so: an operand is always defined above the instruction reading it.
+            lift.push(Size(defined.unwrap()));
         }
     }
 
@@ -481,8 +541,24 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      * moved.
      */
     auto destinationBase = allocationBase(base, copy.to);
-    auto destinationKind = destination->inst()->kind;
+    auto destinationKind = definition->kind;
     auto destinationOutside = destinationKind == LowerInst::Arg || destinationKind == LowerInst::Global;
+
+    /*
+     * §27 A heap block this function has just been handed is an allocation in exactly the sense the
+     * paragraph above uses the word, and stating that is what lets the destination be one.
+     *
+     * It is fresh: the allocator either takes it off a free list or cuts it out of the bump area, and
+     * either way nothing that is live holds a pointer into it. So no access in the stretch can reach
+     * it - which is the same conclusion "two distinct allocations are disjoint" reaches for two
+     * `alloca`s, arrived at from the allocator's contract rather than from the frame's layout.
+     *
+     * Only where it is the destination. The reverse - admitting one as the `owner` of some unrelated
+     * access below - is *not* sound, and the difference is worth stating: two `alloca`s are distinct
+     * storage for the whole of a frame, while two heap blocks are only distinct while both are live,
+     * and nothing here establishes that the first was not freed before the second was taken.
+     */
+    if(!destinationBase && isAllocatorCall(base, fun, definition)) destinationBase = destination;
 
     /*
      * §7.4 And where the writes being moved are a call's, the same question asked of the callee.
@@ -511,6 +587,10 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
         // that could reach the destination - which is what the check above has just established for
         // every one of them.
         if(inst->kind == LowerInst::Call && handedTo.containsValue(inst)) continue;
+
+        // §27 And the destination's own definition is not in this stretch once the rewrite has run,
+        // since lifting it above `first` is the rewrite. It is the only call that leaves this way.
+        if(movesAllocator && inst == definition) continue;
 
         auto known = false;
         for(Size which = 0;; which++) {
@@ -542,16 +622,12 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      * write into the write the copy was going to perform and each offset into the same offset from
      * the other address; the copy then has nothing left to move, and the allocation nothing in it.
      */
-    // Every index moved is below the copy's - the allocation defines what the copy writes into, its
-    // byte count is above the allocation, and the first write is at or above both - so the rotations
-    // leave the copy where it was. The count goes first and the allocation lands behind it: moving
-    // the count only shifts what lies between it and `first`, which the allocation is not among.
-    if(hoistCount != maxLimit<Size>) {
-        moveInstUp(base, block, hoistCount, first);
-        if(hoist != maxLimit<Size>) moveInstUp(base, block, hoist, first + 1);
-    } else if(hoist != maxLimit<Size>) {
-        moveInstUp(base, block, hoist, first);
-    }
+    // Every index moved is below the copy's - the definition produces what the copy writes into, what
+    // that definition reads is above it, and the first write is at or above all of them - so the
+    // rotations leave the copy where it was. Taken in ascending order and landing in that same order
+    // just above `first`, each move shifts only what lies between its own source and destination, so
+    // the entries still to come keep the positions they were collected at.
+    for(Size i = 0; i < lift.size(); i++) moveInstUp(base, block, lift[i], first + i);
 
     detach(base, (LowerInst*)&copy);
     block.instructions.remove(base, Size(here.unwrap()));

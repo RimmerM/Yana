@@ -529,6 +529,37 @@ struct MachineForm {
     RegSet clobbers;
 
     FlagsEffect flagsEffect = FlagsEffect::None;
+
+    /*
+     * §3.5.2.2 Whether ZF answers "is the result zero" after this form has run.
+     *
+     * A much narrower claim than `flagsEffect`, and it has to be its own field because most of what
+     * writes the flags does not support it. `imul` sets CF and OF and leaves SF and ZF *undefined*;
+     * `mul`, `div` and `idiv` do the same; a shift by a count of zero leaves every flag exactly as it
+     * found it, so `shl r/m, cl` answers about whatever ran before it. Each of those has
+     * `flagsEffect = Def` and would be read as an answer about its result by anything that asked the
+     * coarser question.
+     *
+     * What it is for is the comparison a form like this has already performed - see
+     * `tryElideCompare` in transform.cpp, which is the only reader.
+     */
+    bool resultInFlags = false;
+
+    /*
+     * §3.5.2.2 And whether SF against OF answers "is the result negative" as well.
+     *
+     * The second table the field above refers to, and it is a strictly smaller set. Every form with
+     * this has `resultInFlags` too, because both are statements that the flags describe the result -
+     * but a signed comparison reads SF against OF where an equality reads ZF alone, and an addition
+     * that overflowed sets OF to say something about the *operation*: `sub a, b; jl` is `a < b` and
+     * not `a - b < 0`.
+     *
+     * `and`, `or` and `xor` clear OF outright, so on their result `jl` is SF and `jl` is exactly the
+     * sign bit. `neg`, `inc`, `dec` and the group-1 arithmetic all set OF from the operation and
+     * carry only the coarser claim.
+     */
+    bool signInFlags = false;
+
     FeatureSet requiredFeatures = kFeatureBaseline;
     EncodingDescriptor encoding;
     TemporaryDemand temporaries;

@@ -108,6 +108,50 @@
  * a parameter or a global is refused outright: those are the two the argument above needs nothing
  * for, and the two this one can have nothing about.
  *
+ * ## §27 The destination a call produced, and the one reordering this pass performs
+ *
+ * `Tree.build` is the shape above with the destination on the far side of the writes as well:
+ *
+ *      %10 = alloca 20                      %11 = call allocateHeap, 20
+ *      call build, %10, %8, %9        ->    call build, %11, %8, %9
+ *      %11 = call allocateHeap, 20
+ *      copy %11, %10, 20
+ *
+ * The destination has to exist where the first write is, since that is where it starts being written,
+ * and here it does not. An `alloca` in that position is simply *moved* above, which costs nothing: a
+ * fixed frame object exists for the whole of a function wherever the instruction naming its address
+ * was written. A call cannot be moved on that argument, and this one is the only call this pass will
+ * move at all.
+ *
+ * **The allocator is the one callee a pass at this tier may know something about**, and it knows it
+ * because the compiler wrote the call: storage the escape analysis placed on the heap is lowered to a
+ * call to `Native.allocateHeap` and to nothing else, so `LowerModule::allocator` names it exactly.
+ * What the move exchanges is the order of that call and the calls the temporary is handed to - and
+ * nothing else, because the stretch between them is already required to hold nothing but accesses
+ * that resolve to allocations of this frame.
+ *
+ * So the whole of the argument is about those two calls, and it is three statements:
+ *
+ *  - **a fresh block is fresh whenever it is taken.** The allocator cuts one out of the bump area or
+ *    takes it off a free list, and either way nothing live holds a pointer into it. Taking it earlier
+ *    cannot collide with anything the intervening call allocates, because that call's own allocations
+ *    are then taken after this one rather than before it.
+ *  - **which address comes back is not something a program may depend on.** The intervening call
+ *    allocates and frees as it pleases, so the two orders return different addresses; that is the
+ *    entire observable difference, and the placement that produced the call was the compiler's own
+ *    decision rather than anything written in the program.
+ *  - **an allocation taken and not used is a leak and not a fault.** If the intervening call does not
+ *    return - an abort, an exit - the block is one the program had not taken before. Nothing reads it
+ *    and nothing frees it, which on a path that is ending is not a difference.
+ *
+ * What is *not* claimed is the reverse: a heap block is only distinct from another while both are
+ * live, so one is admitted as the destination and never as the `owner` of an unrelated access. Two
+ * `alloca`s are distinct storage for the whole of a frame and two heap blocks are not.
+ *
+ * The obligation §7.4 states is unchanged and is what the aliasing half rests on - `addressHiddenBefore`
+ * is asked about the block the same way it is asked about a frame slot, and the answer is easier: a
+ * pointer the allocator has just returned has reached nothing at all.
+ *
  * ## Order
  *
  * Before `promoteStackSlots`, and the direction of the dependency is that way round: forwarding

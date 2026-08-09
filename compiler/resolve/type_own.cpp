@@ -89,23 +89,11 @@ static void includeMember(Module& module, TypePtr member, Ownership& target, boo
     }
 }
 
-Ownership ownershipOf(Module& module, TypePtr type) {
+// The fold itself: one type's classification from its members', with whatever answers the round in
+// progress has for them. Split out from ownershipOf so that the fixpoint can drive it round by round.
+static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
     auto base = *module.types;
-    if(!type) return Ownership {};
-
-    auto value = base[type];
-    if(value->ownershipReady) return value->ownership;
-
-    // A type reached from inside its own classification can only be a declaration that contains
-    // itself without an indirection, which has no finite value. Answering conservatively rather
-    // than recursing leaves the diagnostic to whoever computes its Repr, which is where an
-    // infinitely large type is already reported.
-    if(value->resolvingOwnership) {
-        return Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
-    }
-
     Ownership result;
-    value->resolvingOwnership = true;
 
     switch(value->kind) {
         case Type::Error:
@@ -283,7 +271,91 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     // source and a type left in both classes would never take the move path its instance is for.
     if(!result.trivialSink) result.trivialCopy = false;
 
+    return result;
+}
+
+/*
+ * One query made from inside a running fixpoint.
+ *
+ * Three answers, in the order they are asked for: the assumption, if the fold for this type is on
+ * the stack and the query is therefore a cycle; what this round already folded, if the type is
+ * shared and has been reached by another path; and otherwise the fold, run now.
+ */
+static Ownership ownershipInSolve(Module& module, TypePtr type, Type* value) {
+    auto& solve = module.program.ownershipSolve;
+
+    auto entry = solve.answers.add(type.offset);
+    if(!entry.existed) new (entry.value) OwnershipSolve::Answer();
+
+    if(entry.value->generation != solve.generation) {
+        // The first time this solve reaches the type. It is assumed to owe nothing - the optimistic
+        // end of the lattice - and the rounds below take away whatever it turns out to owe.
+        *entry.value = OwnershipSolve::Answer { Ownership {}, solve.generation, 0 };
+        solve.reached.push(type);
+    } else if(value->resolvingOwnership) {
+        solve.usedAssumption = true;
+        return entry.value->value;
+    } else if(entry.value->round == solve.round) {
+        return entry.value->value;
+    }
+
+    value->resolvingOwnership = true;
+    auto result = foldOwnership(module, type, value);
     value->resolvingOwnership = false;
+
+    // The fold recursed, and a member reached along the way may have rehashed the map - so the entry
+    // is looked up again rather than held across it.
+    auto answer = solve.answers.get(type.offset).get();
+    if(result != answer->value) {
+        answer->value = result;
+        solve.changed = true;
+    }
+
+    answer->round = solve.round;
+    return result;
+}
+
+Ownership ownershipOf(Module& module, TypePtr type) {
+    auto base = *module.types;
+    if(!type) return Ownership {};
+
+    auto value = base[type];
+    if(value->ownershipReady) return value->ownership;
+
+    auto& solve = module.program.ownershipSolve;
+    if(solve.running) return ownershipInSolve(module, type, value);
+
+    solve.running = true;
+    solve.generation++;
+    solve.reached.clear();
+
+    /*
+     * The fixpoint, and the two ways out of it.
+     *
+     * A round that read no assumption saw no cycle: the fold it ran is the ordinary structural one
+     * and there is nothing to iterate, which is what every non-recursive type takes. A round that
+     * read one and moved nothing is the fixpoint. The first round always moves something - every
+     * answer starts at the assumption and almost none of them stay there - so a recursive type costs
+     * at least two.
+     *
+     * It terminates because every fold above is monotone downwards from the assumption: TrivialCopy
+     * and TrivialSink are only ever cleared, a teardown half is only ever raised, and neither can be
+     * put back. `kRoundLimit` is a guard against a fold added later that is not, rather than a bound
+     * anything real approaches - the deepest cycle in the corpus converges in two.
+     */
+    const U32 kRoundLimit = 64;
+    Ownership result;
+
+    for(solve.round = 1; solve.round <= kRoundLimit; solve.round++) {
+        solve.usedAssumption = false;
+        solve.changed = false;
+
+        result = ownershipInSolve(module, type, value);
+        if(!solve.usedAssumption || !solve.changed) break;
+    }
+
+    assertTrue(solve.round <= kRoundLimit);
+    solve.running = false;
 
     /*
      * Remembered only once no further instance can appear - see Program::declarationsComplete.
@@ -297,10 +369,16 @@ Ownership ownershipOf(Module& module, TypePtr type) {
      * Recomputing until then costs a walk over the members of whatever built-in bodies mention, and
      * that is the whole of the cost: the first query after this point caches, and every query the
      * ownership pass makes is after it.
+     *
+     * Every type the solve reached is written back, not just the one asked for: they were folded
+     * together and a member's answer is as settled as the answer that used it.
      */
     if(module.program.declarationsComplete) {
-        value->ownership = result;
-        value->ownershipReady = true;
+        for(auto reached: solve.reached) {
+            auto member = base[reached];
+            member->ownership = solve.answers.get(reached.offset).unwrap().value;
+            member->ownershipReady = true;
+        }
     }
 
     return result;

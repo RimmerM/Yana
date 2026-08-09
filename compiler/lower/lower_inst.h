@@ -296,14 +296,40 @@ struct LowerInstCmp: LowerInstBinary {
     }
 
     LowerCmp getCmp() const {
-        return (LowerCmp)flags;
+        return (LowerCmp)(flags & kCmpMask);
     }
 
     // Rewrites the comparison in place, for a target that answers it the other way round: the x64
     // backend turns `a < b` into `b > a` because only one of the two reads correctly for a NaN.
     void setCmp(LowerCmp cmp) {
-        flags = (U8)cmp;
+        flags = U8((flags & ~kCmpMask) | (U8)cmp);
     }
+
+    /*
+     * Whether the answer to this comparison is already in the machine's flags where it stands, so
+     * that it is carried rather than performed.
+     *
+     * `a - 1 != 0` is the shape: the subtraction set the zero flag from its own result, and the
+     * comparison below it recomputes what is standing right there. Set by the x64 compare folding
+     * (`tryElideCompare` in codegen/x64/transform.cpp) and read by its form selection; nothing
+     * outside that backend writes it, and nothing anywhere reads it to mean anything else.
+     *
+     * It lives here for the same reason `LowerInstJe::setEmbeddedCmp` and `LowerValue::Implicit` do:
+     * what it records is which instruction ends up producing a value, and the instructions are where
+     * the backends write that down. It is deliberately *not* printed - a fold that changes no
+     * operand and no edge has nothing to say in the IR text.
+     */
+    bool getFlagsLive() const {
+        return (flags & kFlagsLive) != 0;
+    }
+
+    void setFlagsLive() {
+        flags |= kFlagsLive;
+    }
+
+private:
+    static constexpr U8 kCmpMask = 0x0f;   // ten comparison kinds, so four bits hold them
+    static constexpr U8 kFlagsLive = 0x80;
 };
 
 inline Maybe<LowerCmp> decodeOptionalCmp(U8 flags) {

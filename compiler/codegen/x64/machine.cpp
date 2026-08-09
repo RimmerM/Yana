@@ -84,6 +84,7 @@ enum: MachineFormId {
     FormCmpMemSet,
     FormCmpImm,
     FormCmpImmSet,
+    FormCmpNone,
 
     FormFAdd32, FormFAdd64,
     FormFSub32, FormFSub64,
@@ -260,7 +261,12 @@ MachineTarget::MachineTarget() {
     name(OpAnd, "and"_v);
     name(OpOr, "or"_v);
     name(OpXor, "xor"_v);
-    name(OpCmp, "cmp"_v);
+    // A comparison against zero whose answer the arithmetic above it already put in ZF emits
+    // nothing and writes no flags, where every other form of this opcode writes them - so the two
+    // do differ. Unlike the four selective opcodes above, which a *peephole* decides, this one is
+    // decided by the compare folding itself, in the second sweep, after the last question anything
+    // asks about a form's flags effect. See §3.5.2.2 of the README.
+    name(OpCmp, "cmp"_v, true);
 
     name(OpFAdd, "fadd"_v);
     name(OpFSub, "fsub"_v);
@@ -727,6 +733,10 @@ MachineTarget::MachineTarget() {
     unaryArith(FormNeg, OpNeg, "neg r/m"_v, 3, FlagsEffect::Def);
     unaryArith(FormNot, OpNot, "not r/m"_v, 2, FlagsEffect::None);
 
+    // `neg` sets ZF from the result the way the group-1 operations do; `not` writes no flag at all,
+    // which is why a comparison of its result against zero is a comparison and not a redundancy.
+    forms[FormNeg].resultInFlags = true;
+
     /*
      * The group-1 ALU operations.
      *
@@ -738,13 +748,15 @@ MachineTarget::MachineTarget() {
 
     auto binaryAlu = [&](MachineFormId regId, MachineFormId immId, MachineFormId memId, MachineOpcodeId opcode,
                          StringView regName, StringView immName, StringView memName,
-                         U8 rmRegOp, U8 regRmOp, U8 extension)
+                         U8 rmRegOp, U8 regRmOp, U8 extension, bool logical)
     {
         auto& regForm = add(regId, opcode, regName);
         regForm.uses.push(regOrMem(MemoryAccessKind::ReadWrite));
         regForm.uses.push(regOrMem(MemoryAccessKind::Read));
         regForm.defs.push(tiedDef(0));
         regForm.flagsEffect = FlagsEffect::Def;
+        regForm.resultInFlags = true;
+        regForm.signInFlags = logical;
         regForm.encoding = regRm(rmRegOp, useRef(1), useRef(0), regRmOp);
 
         auto& immForm = add(immId, opcode, immName);
@@ -752,21 +764,29 @@ MachineTarget::MachineTarget() {
         immForm.uses.push(immediate(ImmediateWidth::Imm8OrImm32));
         immForm.defs.push(tiedDef(0));
         immForm.flagsEffect = FlagsEffect::Def;
+        immForm.resultInFlags = true;
+        immForm.signInFlags = logical;
         immForm.encoding = rmExtImm(0x83, 0x81, extension, useRef(0), useRef(1));
 
+        // The twin is a copy of the register form, so it carries both flag claims with it - which is
+        // right: reading an operand out of memory changes where the operands come from and nothing
+        // about what the operation leaves in the flags.
         memoryTwin(memId, regId, memName);
     };
 
+    // `logical` is the second claim: `and`, `or` and `xor` clear OF, so SF against OF is the sign of
+    // their result and a signed comparison of it against zero is answered too. `add` and `sub` set OF
+    // from the operation and are not that - see MachineForm::signInFlags.
     binaryAlu(FormAddReg, FormAddImm, FormAddMem, OpAdd,
-        "add r/m, r"_v, "add r/m, imm"_v, "add r, [address]"_v, 0x01, 0x03, 0);
+        "add r/m, r"_v, "add r/m, imm"_v, "add r, [address]"_v, 0x01, 0x03, 0, false);
     binaryAlu(FormSubReg, FormSubImm, FormSubMem, OpSub,
-        "sub r/m, r"_v, "sub r/m, imm"_v, "sub r, [address]"_v, 0x29, 0x2b, 5);
+        "sub r/m, r"_v, "sub r/m, imm"_v, "sub r, [address]"_v, 0x29, 0x2b, 5, false);
     binaryAlu(FormAndReg, FormAndImm, FormAndMem, OpAnd,
-        "and r/m, r"_v, "and r/m, imm"_v, "and r, [address]"_v, 0x21, 0x23, 4);
+        "and r/m, r"_v, "and r/m, imm"_v, "and r, [address]"_v, 0x21, 0x23, 4, true);
     binaryAlu(FormOrReg, FormOrImm, FormOrMem, OpOr,
-        "or r/m, r"_v, "or r/m, imm"_v, "or r, [address]"_v, 0x09, 0x0b, 1);
+        "or r/m, r"_v, "or r/m, imm"_v, "or r, [address]"_v, 0x09, 0x0b, 1, true);
     binaryAlu(FormXorReg, FormXorImm, FormXorMem, OpXor,
-        "xor r/m, r"_v, "xor r/m, imm"_v, "xor r, [address]"_v, 0x31, 0x33, 6);
+        "xor r/m, r"_v, "xor r/m, imm"_v, "xor r, [address]"_v, 0x31, 0x33, 6, true);
 
     /*
      * Increment and decrement.
@@ -783,6 +803,7 @@ MachineTarget::MachineTarget() {
         form.uses.push(immediate(ImmediateWidth::Imm8OrImm32));
         form.defs.push(tiedDef(0));
         form.flagsEffect = FlagsEffect::Def;
+        form.resultInFlags = true;
         form.encoding = rmExt(0xff, extension, useRef(0));
     };
 
@@ -947,6 +968,31 @@ MachineTarget::MachineTarget() {
 
     compare(FormCmpImm, FormCmpImmSet, "cmp r/m, imm"_v, "cmp r/m, imm; setcc r"_v,
         immediate(ImmediateWidth::Imm8OrImm32), cmpImm);
+
+    {
+        /*
+         * §3.5.2.2 And the comparison that emits nothing, because the instruction that produced its
+         * left-hand side already left the answer in ZF.
+         *
+         * The operands stay ordinary operands. Nothing is folded and nothing is declared implicit:
+         * the value being compared is one some other instruction computed and some other instruction
+         * reads, and saying that this one no longer names it would shorten a live range for no gain
+         * and leave the arithmetic looking like a definition nothing wants. What changes is the
+         * encoding and the flags effect, and those are the whole of the difference.
+         *
+         * The operands are declared exactly as FormCmpImm's are, which is what makes the choice
+         * between the two free: the elision is decided after every allocation question has been
+         * asked, so a form demanding anything different would be a demand nothing could still meet.
+         * The right-hand side is the embedded constant zero, always - `tryElideCompare` admits no
+         * other - and the left-hand side wants a register there for the same reason it wants one in
+         * FormCmpImm, which is that a comparison against an immediate has no memory form.
+         */
+        auto& form = add(FormCmpNone, OpCmp, "cmp (already in flags)"_v);
+        form.uses.push(anyReg());
+        form.uses.push(immediate(ImmediateWidth::Imm8OrImm32));
+        form.defs.push(noDef());
+        form.flagsEffect = FlagsEffect::None;
+    }
 
     /*
      * Scalar floating-point arithmetic.
@@ -2217,6 +2263,13 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             }
 
             requireIntLike(type);
+
+            // §3.5.2.2 The elided one is asked for first, because it is the one answer that is not
+            // about how the operands arrived: nothing is emitted, so nothing about the encoding is
+            // left to decide. The folding only ever sets it on a comparison it also merged, so
+            // `materialize` is false wherever this is true.
+            if(((LowerInstCmp*)inst)->getFlagsLive()) return FormCmpNone;
+
             if(hasEmbeddedRhs(base, inst)) return materialize ? FormCmpImmSet : FormCmpImm;
             return materialize ? FormCmpRegSet : FormCmpReg;
         }

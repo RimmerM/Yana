@@ -218,19 +218,24 @@ reverseInto<complex>(%xs: Ptr, %lo: Int, %hi: Int) {
     je %v_1, b_2, b_3
   }
 
-  b_2 {
-    ret 
-  }
-
   b_3 {
-    jmp b_4
+    call_complex swapAt, %xs, %lo, %hi
+    %v_4 = add %lo, 1: Int
+    %v_5 = sub %hi, 1: Int
+    %v_6 = cmp_ige %v_4, %v_5: Int
+    je %v_6, b_7, b_8
   }
 
-  b_4 {
-    call_complex swapAt, %xs, %lo, %hi
-    %v_5 = add %lo, 1: Int
-    %v_6 = sub %hi, 1: Int
-    call_complex sortDescending, %xs, %v_5, %v_6
+  b_8 {
+    call_complex reverseInto, %xs, %v_4, %v_5
+    jmp b_2
+  }
+
+  b_7 {
+    jmp b_2
+  }
+
+  b_2 {
     ret 
   }
 }
@@ -241,16 +246,37 @@ sortDescending<complex>(%xs: Ptr, %lo: Int, %hi: Int) {
     je %v_1, b_2, b_3
   }
 
-  b_2 {
-    ret 
-  }
-
   b_3 {
-    jmp b_4
+    %v_4 = cmp_ige %lo, %hi: Int
+    je %v_4, b_5, b_6
   }
 
-  b_4 {
-    call_complex reverseInto, %xs, %lo, %hi
+  b_6 {
+    call_complex swapAt, %xs, %lo, %hi
+    %v_7 = add %lo, 1: Int
+    %v_8 = sub %hi, 1: Int
+    %v_9 = cmp_ige %v_7, %v_8: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    call_complex reverseInto, %xs, %v_7, %v_8
+    jmp b_12
+  }
+
+  b_10 {
+    jmp b_12
+  }
+
+  b_12 {
+    jmp b_2
+  }
+
+  b_5 {
+    jmp b_2
+  }
+
+  b_2 {
     ret 
   }
 }

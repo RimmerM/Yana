@@ -87,12 +87,43 @@ bool isCommutative(LowerInst* inst) {
  * produce two different numbers. `skipsExtend` is deliberately *not* compared - it is the backend's
  * note to itself about an encoding and is zero everywhere this pass can be reached from.
  */
+/*
+ * §31.5 Whether two instructions producing these types produce the same *bytes*.
+ *
+ * Ordinarily that is type equality, and for everything but a load it is exactly that: an operation's
+ * type is what it computes in, so an `add` of two `Int32`s and an `add` of two `Int64`s are two
+ * different numbers even where their operands agree.
+ *
+ * A load computes nothing. Its width and its signedness say which bytes arrive and how they are
+ * extended, and its type says only which register class they arrive in - so two loads of one address
+ * at one width differ in nothing when their types are the two that share a class. `Int64` and
+ * `Pointer` are that pair and the only one: `Int32` against `Int64` is a different register view of
+ * a different number of bits, and an integer against a float is a different bank.
+ *
+ * Which matters because a niche-encoded option is read twice. `Maybe(Tree)` is one word - a null
+ * pointer for `Nothing` and the payload otherwise - so `if node.left is Just(l)` is a load of the
+ * discriminant against zero and then a load of the payload, at one address and one width, typed
+ * `Int64` and `Pointer`. Every match on one paid a second load of a word it had just read, in
+ * `depthOf` and `total` in `test/bench/programs/Tree.yana` and in every `is Just` in the language.
+ *
+ * The identity is a fact about the *Repr* - it holds because the niche put the discriminant in the
+ * payload's own bits - and neither reader knows that. What they agree on is the address, which is
+ * what this reads it off.
+ */
+static bool sameLoadedClass(LowerInst::Kind kind, LowerType a, LowerType b) {
+    if(a == b) return true;
+    if(kind != LowerInst::Load) return false;
+
+    auto wordClass = [](LowerType t) { return t == LowerType::Int64 || t == LowerType::Pointer; };
+    return wordClass(a) && wordClass(b);
+}
+
 bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0) {
     if(a->kind != b->kind) return false;
 
     auto left = ((LowerInstSingle*)a)->created().ptr;
     auto right = ((LowerInstSingle*)b)->created().ptr;
-    if(left->type != right->type) return false;
+    if(!sameLoadedClass(a->kind, left->type, right->type)) return false;
 
     auto same = [&](LowerPtr<LowerValue> x, LowerPtr<LowerValue> y) {
         return sameOperand(base, x, y, depth);
@@ -434,9 +465,41 @@ struct Eliminator {
                 continue;
             }
 
+            auto removed = ((LowerInstSingle*)inst)->created().ptr;
+            auto survivor = ((LowerInstSingle*)base[existing])->created().ptr;
+
             detach(base, inst);
-            replaceUses(base, module.arena, ((LowerInstSingle*)inst)->created().ptr - base,
-                        ((LowerInstSingle*)base[existing])->created().ptr - base);
+
+            /*
+             * §31.5 The two 64-bit classes, reconciled - see sameLoadedClass, which is what let a
+             * `Pointer` load and an `Int64` one unify in the first place.
+             *
+             * The bytes are the same and the *declared type* is not, and later passes read that
+             * type: `peelAddress` folds arithmetic on a `Pointer` and declines it on an `Int64`,
+             * and the verifier requires an argument to match its parameter. So the load is replaced
+             * by a bitcast of the survivor rather than by the survivor itself, which says the same
+             * thing at the type the readers were written against.
+             *
+             * It costs nothing. `FormBitcast` between two integer classes is `mov r, r` with
+             * `omitWhenSame`, and the two values are a copy apart - so coalescing gives them one
+             * register and the instruction emits no bytes at all.
+             *
+             * Built and threaded by hand rather than through addInst, because the block's list is
+             * being rebuilt from `kept` underneath this loop and an append would be discarded.
+             */
+            if(removed->type != survivor->type) {
+                auto cast = new (module.arena) LowerInstUnary(
+                    LowerInst::Bitcast, removed->name, removed->type, survivor - base
+                );
+
+                cast->block = block - base;
+                survivor->uses.push(module.arena, LowerPtr<LowerInst>((LowerInst*)cast - base));
+
+                survivor = ((LowerInstSingle*)cast)->created().ptr;
+                kept.push(cast - base);
+            }
+
+            replaceUses(base, module.arena, removed - base, survivor - base);
 
             rewrote = true;
             changed = true;

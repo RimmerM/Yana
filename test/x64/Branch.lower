@@ -324,3 +324,63 @@ sharedReturnTail(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
 callee2(%x: Int, %y: Int): Int {
     { ret %x }
 }
+
+# §3.5.2.2, the signed half. `(a xor b) < 0` is "do these differ in sign", and `xor` clears OF - so
+# `jl` on its result reads SF against a zero OF, which is the sign bit of the result itself. The
+# branch therefore reads the flags the `xor` left and no `test` is emitted in front of it.
+signAfterLogical(%v: Int, %w: Int): Int {
+    start {
+        %x = xor %v, %w: Int
+        je (cmp_ilt %x, 0), negative, positive
+    }
+
+    negative {
+        ret %v
+    }
+
+    positive {
+        ret %w
+    }
+}
+
+# And the refusal it is stated against. `sub` sets OF from the *operation*, so `sub a, b ; jl` is
+# `a < b` and not `a - b < 0` - the two differ exactly when the subtraction overflowed. The compare
+# stays, which is what the `test` below the `sub` is.
+signAfterArithmetic(%v: Int, %w: Int): Int {
+    start {
+        %x = sub %v, %w: Int
+        je (cmp_ilt %x, 0), negative, positive
+    }
+
+    negative {
+        ret %v
+    }
+
+    positive {
+        ret %w
+    }
+}
+
+# §31, and the case where getting the `lea` fold wrong is silent.
+#
+# `%s = add %v, %w` writes the flags and `%s == 0` is answered by the ZF it left, so §3.5.2.2 removes
+# the comparison and the branch reads the addition's own flags. `%v` and `%w` are both returned, so
+# neither may be written over and the addition is preceded by a copy - which is exactly the pair §31
+# folds into one `lea`. It must not fold this one: `lea` writes no flag, and the branch below would
+# read whatever ran before the function instead.
+#
+# The addition stays `mov`/`add` and the `je` stays a `jcc` with no `test` in front of it.
+flagsAfterCopiedAdd(%v: Int, %w: Int): Int {
+    start {
+        %s = add %v, %w: Int
+        je (cmp_eq %s, 0), zero, nonzero
+    }
+
+    zero {
+        ret %v
+    }
+
+    nonzero {
+        ret %w
+    }
+}

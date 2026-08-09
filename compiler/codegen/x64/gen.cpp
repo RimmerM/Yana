@@ -868,6 +868,10 @@ struct Emitter {
     // block whose whole content is a return the shared epilogue has taken over (§7.2).
     Buffer<LowerBlock*> bypass;
 
+    // How often each block runs, which decides only one thing here: which arm of a branch whose
+    // neither successor is the fallthrough gets the conditional. See emitBranch.
+    const FunctionFrequencyInfo* frequency = nullptr;
+
     LowerBlock* branchTarget(LowerPtr<LowerBlock> block) {
         return bypass[base[block]->index];
     }
@@ -1346,8 +1350,31 @@ struct Emitter {
         } else if(whenTrue == next) {
             emitJumpIf(negateCmp(condition), whenFalse);
         } else {
-            emitJumpIf(condition, whenTrue);
-            emitJump(whenFalse);
+            /*
+             * §3.2.4 Which arm the conditional branch names, where neither is the fallthrough.
+             *
+             * The pair is the same size either way round and does not execute the same. The arm the
+             * conditional names is reached by one taken branch; the other is reached by a branch not
+             * taken *and* the jump behind it, so it pays two. Naming the arm that runs more often is
+             * therefore one executed instruction per iteration of whatever loop this sits in.
+             *
+             * The rotated loop of `Hash.insertMasked` is the shape it is for. Its header is the
+             * bounds check, whose arms are the loop's body and an abort - and neither is the block
+             * laid out next, because the body is *above* the header once the loop is rotated and the
+             * abort is at the end of the function. Written the other way round the back edge is a
+             * `jae` past a `jmp`, which is the one instruction per probe §29 attributed the gap to.
+             */
+            auto otherwiseIsHotter = frequency &&
+                frequency->frequencyOf(base[je->otherwise]->index) >
+                frequency->frequencyOf(base[je->then]->index);
+
+            if(otherwiseIsHotter) {
+                emitJumpIf(negateCmp(condition), whenFalse);
+                emitJump(whenTrue);
+            } else {
+                emitJumpIf(condition, whenTrue);
+                emitJump(whenFalse);
+            }
         }
     }
 
@@ -1572,6 +1599,126 @@ struct Emitter {
         }
     }
 
+    /*
+     * §31.3 The copy an ALU operation pays for writing over its own operand.
+     *
+     * Every group-1 operation and every shift is two-address: the destination *is* the first
+     * operand, so an operation whose answer has to land anywhere else is preceded by a copy that puts
+     * the operand there. `Tree.build` computes `value * 2` as `mov %r12d,%r14d ; shl %r14d` because
+     * `value` is stored into the node afterwards, and `depth - 1` as `mov %esi,%r13d ; dec %r13d`
+     * because the difference has to survive a call and `esi` does not. `llc` spends one `lea` on each
+     * and no copy at all: the addressing unit reads two registers and writes a third, which is the
+     * three-operand form the ALU does not have.
+     *
+     * So this is a peephole and it is here rather than in transform.cpp, because the fact it reads is
+     * one only register allocation knows: *whether there is a copy*. Asked before the allocator runs
+     * it would be a guess about liveness - the same guess `isLeaProfitable` makes for pointer
+     * arithmetic, and one that has to be conservative in the direction that spends bytes. Asked here
+     * it is exact, and the trade disappears with it: what is emitted is one instruction where two
+     * were about to be, or nothing changes at all.
+     *
+     * Three things have to hold, and the third is the one that is easy to forget.
+     *
+     *  - **The operation is one `lea` can express.** `add r, r`, `add r, imm` and `sub r, imm` -
+     *    `inc` and `dec` among them, which are that with the immediate already decided - and `shl r,
+     *    1`, which is `[r + r]`. A shift by two or three is `[r*4]` and `[r*8]`, which the SIB byte
+     *    holds only in its no-base form and therefore only with a four-byte displacement of zero: one
+     *    fewer instruction for two more bytes, and left out on those terms. `sub r, r` is not here at
+     *    all, since the addressing unit adds and does not subtract.
+     *  - **Every operand is a register**, which the two-address forms do not require: their first
+     *    operand is `regOrMem`, so a value the allocator left in the frame is added to in place. An
+     *    address operand there is the memory twin, which is a different form and is not this.
+     *  - **Nothing reads the flags it writes.** `lea` writes none, and the group-1 operations are
+     *    exactly the ones §3.5.2.2's fold leaves a comparison reading - so the instruction most worth
+     *    folding is the one most likely to have a reader. `flagsRead` is the block's own answer; see
+     *    computeFlagsRead.
+     *
+     * ## And why it is refused in a loop
+     *
+     * The fold is a size win everywhere and a *speed* win only outside one, which is not what the
+     * instruction count says and is what the corpus says. Applied to every block it is 64 bytes off
+     * the ten programs and **+12.7 ms**, and all of the time is `Matrix`: 154.6 → 168.9 ms for nine
+     * bytes, with every other program flat or slightly better.
+     *
+     * `multiply`'s innermost loop is why, and the reason is that the two instructions this replaces
+     * are not both executed. A register-to-register `mov` is resolved at rename on this machine - no
+     * port, no latency - so `mov ; add` issues one operation that any of four ALU ports can run,
+     * while the `lea` replacing it issues one that only two of them can. That loop already holds an
+     * `imul`, which is port 1 only, so a copy that cost nothing becomes contention for the port the
+     * multiply is waiting on. Outside a loop there is nothing to contend with, and the instruction
+     * and its bytes are simply gone.
+     *
+     * So the gate is the block's frequency and `kEntryFrequency` is the line: a block that runs no
+     * more often than the function is entered pays for its bytes once, and a loop body does not. That
+     * keeps `Tree.build`'s copies - a recursive function with no loop in it - and declines `Matrix`'s.
+     */
+    bool emitAsLea(LowerInst* inst, const InstRegs& regs, bool flagsRead) {
+        if(flagsRead) return false;
+        if(frequency && frequency->frequencyOf(base[inst->block]->index) > kEntryFrequency) return false;
+
+        // Exactly the copy this is about: one register-to-register move in front of the instruction,
+        // and nothing behind it. Anything else is an operand placement this does not replace.
+        if(regs.moves.size() != 1 || regs.postMoves.size() != 0) return false;
+
+        auto& move = regs.moves[0];
+        if(move.swap || !move.from.isPhysical() || !move.to.isPhysical()) return false;
+        if(move.from.bank != BankGpr || move.to.bank != BankGpr) return false;
+
+        auto& selected = machine[inst];
+        auto& form = machineTarget().form(selected.form);
+
+        if(regs.hasAddress) return false;
+        if(regs.uses.size() != 2 || regs.creates.size() != 1) return false;
+        if(!regs.uses[0].at.isPhysical() || !regs.creates[0].at.isPhysical()) return false;
+
+        // The tie, as placement resolved it: the first operand was brought into the destination, and
+        // the move is what brought it. Both halves are asked rather than assumed, because a form
+        // whose operand already sat in the destination has no move and is not this.
+        if(regs.creates[0].at != regs.uses[0].at) return false;
+        if(move.to != regs.creates[0].at) return false;
+
+        auto source = reg(move.from, regs.uses[0].regClass);
+        auto dest = reg(regs.creates[0]);
+        auto is64 = is64Bit(operationType(base, form, inst));
+
+        MachineAddress address;
+        auto& rhs = regs.uses[1];
+
+        if(form.opcode == OpShl) {
+            // `x << 1` is `x + x`, which is the base-plus-index form and costs three bytes. The
+            // wider shifts are the no-base form and cost seven; see the header.
+            if(!rhs.isImmediate || rhs.immediate != 1) return false;
+
+            address = MachineAddress { .hasBase = true, .hasIndex = true, .base = source, .index = source, .scale = 1 };
+        } else if(form.opcode != OpAdd && form.opcode != OpSub) {
+            return false;
+        } else if(rhs.isImmediate) {
+            auto amount = I64(rhs.immediate);
+            auto displacement = form.opcode == OpSub ? -amount : amount;
+            if(displacement < I64(minLimit<I32>) || displacement > I64(maxLimit<I32>)) return false;
+
+            address = MachineAddress::atOffset(source, I32(displacement));
+        } else if(form.opcode == OpAdd && rhs.at.isPhysical() && rhs.at.bank == BankGpr) {
+            // rsp is not an index - the SIB field that would name it means "no index" - so where the
+            // right-hand side is the one in it, the two are exchanged. Addition is commutative and
+            // the addressing unit reads both operands the same way.
+            auto other = reg(rhs);
+            auto swapped = other == U8(IntRegister::rsp);
+
+            address = MachineAddress {
+                .hasBase = true, .hasIndex = true,
+                .base = swapped ? other : source, .index = swapped ? source : other, .scale = 1,
+            };
+
+            if(address.index == U8(IntRegister::rsp)) return false;
+        } else {
+            return false;
+        }
+
+        genMemory(to, address, dest, MemForm { .opCode = 0x8d, .is64 = is64 });
+        return true;
+    }
+
     void emitInst(LowerInst* inst, const InstRegs& regs) {
         auto& selected = machine[inst];
         auto& form = machineTarget().form(selected.form);
@@ -1720,6 +1867,51 @@ static bool fallenInto(LowerBase base, Blocks blocks, SmallArray<bool, 64>& skip
     }
 
     return false;
+}
+
+/*
+ * Which instructions in a block have their flags read - the one thing `emitAsLea` needs that a form
+ * does not say.
+ *
+ * A backward walk, because that is the direction the question is asked in: what the flags an
+ * instruction leaves are worth depends on what comes after it, and the answer resets at every
+ * instruction that writes them. `Use` sets it whether or not the same form also writes - `cmov`
+ * reads the flags it was given, and a `Jcc` that tests a register writes its own on top of ones it
+ * still had to read.
+ *
+ * The walk starts at the terminator with the flags **dead**, which is a claim about the whole
+ * backend rather than a simplification here: a comparison is never answered across a block, because
+ * its result is the flags and nothing carries them over an edge - see §3.5.2 and `flagsWindowEnd`,
+ * which refuses a reader outside the comparison's own block. So a block ending in a `jmp` leaves
+ * nothing for its successor to read.
+ *
+ * Indexed the way BlockRegs is: the instructions in order, then one entry for the terminator.
+ */
+static void computeFlagsRead(LowerBase base, const MachineFunction& machine, LowerBlock* block,
+                             SmallArray<bool, 24>& into)
+{
+    auto list = block->instructions.contents(base);
+    into.clear();
+    for(Size i = 0; i <= list.size(); i++) into.push(false);
+
+    auto usesFlags = [&](LowerInst* inst) {
+        auto effect = machineTarget().form(machine[inst].form).flagsEffect;
+        return effect == FlagsEffect::Use || effect == FlagsEffect::UseDef;
+    };
+
+    auto terminator = base[block->terminator];
+    into[list.size()] = false;
+    auto read = usesFlags(terminator);
+
+    for(auto i = list.size(); i-- > 0;) {
+        into[i] = read;
+
+        auto inst = base[list[i]];
+        auto effect = machineTarget().form(machine[inst].form).flagsEffect;
+
+        if(effect == FlagsEffect::Use || effect == FlagsEffect::UseDef) read = true;
+        else if(writesFlags(effect)) read = false;
+    }
 }
 
 // Whether any block is emitted after this one. Where none is, the epilogue is what a fallthrough
@@ -2066,6 +2258,10 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
      * than assumed: a return that declines to jump is not a user, and a function whose only other
      * return declines has one user and therefore no epilogue to share.
      */
+    // Whose flags are read, per instruction of the block being emitted - see computeFlagsRead. One
+    // list reused across the blocks, on the terms every other working list here is on.
+    SmallArray<bool, 24> flagsRead;
+
     SmallArray<bool, 64> skipped;
     SmallArray<LowerBlock*, 64> bypass;
     SmallArray<bool, 64> ownEpilogue;
@@ -2114,6 +2310,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     Emitter emitter { to, base, machine, frame, objects };
     emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };
     emitter.sharedEpilogue = sharedEpilogue;
+    emitter.frequency = &regs.frequency;
 
     // Held rather than reported as they are emitted: relaxation below rewrites the function, so an
     // offset is only final once it has run. The prologue and the shared epilogue belong to the
@@ -2174,14 +2371,20 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 
         // Operand placement, the instruction itself, then result placement - uniform for every
         // instruction, so nothing that emits code has to remember to handle its own moves.
+        computeFlagsRead(base, machine, b, flagsRead);
+
         for(Size j = 0; j < insts.size(); j++) {
             auto inst = base[insts[j]];
             auto& instRegs = blockRegs.insts[j];
             auto start = U32(to.buffer.offset());
 
-            genMoves(to, frame, objects, remats, instRegs.moves);
-            emitter.emitInst(inst, instRegs);
-            genMoves(to, frame, objects, remats, instRegs.postMoves);
+            // §31.3: the copy and the operation as one `lea`, where the operation is one the addressing
+            // unit can perform and the copy is the only thing in front of it.
+            if(!emitter.emitAsLea(inst, instRegs, flagsRead[j])) {
+                genMoves(to, frame, objects, remats, instRegs.moves);
+                emitter.emitInst(inst, instRegs);
+                genMoves(to, frame, objects, remats, instRegs.postMoves);
+            }
 
             if(onInst) ranges.push(EmittedRange { inst, &instRegs, start, U32(to.buffer.offset()) });
         }

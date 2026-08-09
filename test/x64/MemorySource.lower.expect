@@ -269,7 +269,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   load uses=[rdi] creates=[rdi]  => 0fb63f
-  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 8bc601f8
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 8d043e
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: twoReadersStay ---
@@ -278,7 +278,7 @@ block #0:
 block #1:
   load uses=[rdi] creates=[rdi]  => 488b3f
   add uses=[rsi, rdi] creates=[rsi]  => 4801fe
-  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc64801f8
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488d043e
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: notAdjacentStays ---
@@ -320,7 +320,7 @@ block #1:
   call_complex uses=[-, rdi] creates=[rax]  => e8e7feffff
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rbx->rcx]  => 488bcb480308
-  add uses=[rax, rbx] creates=[rax] pre=[rcx->rax]  => 488bc14801d8
+  add uses=[rax, rbx] creates=[rax] pre=[rcx->rax]  => 488d0419
   ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: twoLoadsOneFolds ---

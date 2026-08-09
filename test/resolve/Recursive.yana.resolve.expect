@@ -446,7 +446,7 @@ fn leftOf(%t: Tree) -> Int {
     %v14 = call unwrapOr(Tree), %v12, %v13 : &Tree
     %v15 = load [%v14] : Tree
     %v16 = call total, %v15 : Int
-    drop_derived %local1 via drop$Tree reclaim reclaim$Tree
+    drop_derived %local1 reclaim reclaim$Tree
     jmp b3
 
   b2:
@@ -458,7 +458,7 @@ fn leftOf(%t: Tree) -> Int {
     ret %v19
 
   b4:
-    drop_derived %local1 via drop$Tree reclaim reclaim$Tree
+    drop_derived %local1 reclaim reclaim$Tree
     jmp b2
 }
 
@@ -488,7 +488,7 @@ fn buildList() -> Int {
     init %local0@Cons.tail, %v27
     init %local0@Cons.tail.*, %v3
     %v30 = call sum, %xs : Int
-    drop_derived %local0 via drop$List reclaim reclaim$List
+    drop_derived %local0 reclaim reclaim$List
     ret %v30
 }
 
@@ -524,7 +524,7 @@ fn buildTree() -> Int {
     aggregate %local5.discriminant = 1, %local5@Branch.left = %v20, %local5@Branch.right = %v31, %local5@Branch.label = 7
     %v40 = call total, %t : Int
     %v41 = call leftOf, %t : Int
-    drop_derived %local5 via drop$Tree reclaim reclaim$Tree
+    drop_derived %local5 reclaim reclaim$Tree
     %v42 = add %v40, %v41 : Int
     ret %v42
 }
@@ -637,41 +637,6 @@ fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> &Tree {
     ret %v2
 }
 
-fn drop$Tree(%value: Tree) -> () {
-  b0:
-    %v1 = load %value.discriminant : Int
-    %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b3
-
-  b1:
-    ret
-
-  b2:
-    drop_derived %value@Branch.left via drop$Maybe(Tree)
-    drop_derived %value@Branch.right via drop$Maybe(Tree)
-    jmp b1
-
-  b3:
-    jmp b1
-}
-
-fn drop$Maybe(Tree)(%value: Maybe(Tree)) -> () {
-  b0:
-    %v1 = load %value.discriminant : Int
-    %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b3
-
-  b1:
-    ret
-
-  b2:
-    drop_derived %value@Just.* via drop$Tree
-    jmp b1
-
-  b3:
-    jmp b1
-}
-
 fn reclaim$Tree(%value: Tree) -> () {
   b0:
     %v1 = load %value.discriminant : Int
@@ -701,23 +666,6 @@ fn reclaim$Maybe(Tree)(%value: Maybe(Tree)) -> () {
 
   b2:
     drop_derived %value@Just.* reclaim reclaim$Tree release
-    jmp b1
-
-  b3:
-    jmp b1
-}
-
-fn drop$List(%value: List) -> () {
-  b0:
-    %v1 = load %value.discriminant : Int
-    %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b3
-
-  b1:
-    ret
-
-  b2:
-    drop_derived %value@Cons.tail.* via drop$List
     jmp b1
 
   b3:
