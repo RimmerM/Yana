@@ -198,6 +198,30 @@ struct InlinePolicy {
      */
     U32 closureArgument = 0;
 
+    /*
+     * Where the copy removes the *last* call from the caller: the callee performs none, and this
+     * site is the only one the caller has.
+     *
+     * The third term priced against what the copy makes possible rather than against what the callee
+     * contains, and the only one that is about neither body - it is about the caller's frame. A
+     * function containing a call has to hold every value live across it somewhere the call cannot
+     * clobber, which on this target means a callee-saved register pushed in the prologue and popped
+     * in the epilogue, plus the moves that get the arguments into place. A function containing none
+     * has no prologue at all: `insertMasked` in `test/bench/programs/Hash.yana` spends five pushes,
+     * five moves and five pops on a call to eight instructions of arithmetic, and loses all fifteen
+     * when the eight are copied in. That is why the program gets *smaller* here rather than larger,
+     * which is not something any other term on this table can say.
+     *
+     * Both halves are checked and neither is a heuristic. A callee that calls anything brings the
+     * frame back with it, and a caller with a second call keeps its prologue for that one - so what
+     * this admits is exactly the case where the last call goes away, and nothing near it.
+     *
+     * **Native only**, on the same grounds that split `mutableBorrow` and `borrowResult` the other
+     * way: what it prices is a register allocator's frame, and a managed host has neither. On JS a
+     * call is a call whatever else the function contains, so the term would be paying for nothing.
+     */
+    U32 leafCaller = 0;
+
     // Subtracted where the callee is called from more than one place, and again where it is called
     // from many. What this prices is code growth, which is paid once per call site.
     U32 repeatedPenalty = 0;
@@ -287,6 +311,11 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             // to hear one.
             policy.accessor = 0;
             policy.closureArgument = 0;
+
+            // Zero here for the reason every speed argument is at this level, and this one has a
+            // size argument as well - see the term. It is declined anyway: what the level pays for
+            // is a body that moves, and a body with one call site moves already.
+            policy.leafCaller = 0;
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
@@ -305,9 +334,18 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.borrowResult = managed ? 12 : 0;
             policy.accessor = 6;
             policy.closureArgument = 28;
-            policy.repeatedPenalty = managed ? 3 : 1;
+            policy.leafCaller = managed ? 0 : 8;
+
+            // Two and four rather than one and two on the native side, and what moved them is
+            // `settleCallee` rather than anything about growth. A size measured before the callee
+            // was folded was two to three times the truth, so a penalty of one was being subtracted
+            // from a limit weighed against an inflated number and did most of its work by accident;
+            // with the sizes honest the old pair let repeated bodies through that nobody wanted
+            // copied. Measured, the two of them are 938 fewer bytes over the 152 `test/resolve`
+            // executables and 259 over the ten programs, for nothing on the clock.
+            policy.repeatedPenalty = managed ? 3 : 2;
             policy.manyCallSites = managed ? 4 : 8;
-            policy.manyPenalty = managed ? 6 : 2;
+            policy.manyPenalty = managed ? 6 : 4;
             policy.blockCost = managed ? 3 : 1;
 
             // Sixteen rather than eight, which is `Speed`'s own value. Eight was under the shape
@@ -329,6 +367,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.borrowResult = managed ? 20 : 0;
             policy.accessor = 12;
             policy.closureArgument = 36;
+            policy.leafCaller = managed ? 0 : 12;
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
@@ -446,6 +485,10 @@ struct Candidate {
     // like everything else here, so it is computed with the rest of the description rather than per
     // call site.
     bool accessor = false;
+
+    // Whether the body performs no call of its own, which is half of what `policy.leafCaller`
+    // prices. The other half is the site's, and is asked there.
+    bool callFree = true;
 
     bool isStraightLine() const { return blocks.size() == 1; }
 
@@ -634,6 +677,11 @@ struct Inliner {
     HashMap<U32, bool> recursive;
     HashMap<U32, U32> callSites;
 
+    // Which callees have been folded to a fixed point once - see `settleCallee`. Kept across the
+    // rounds rather than per round: a body nothing was spliced into is unchanged between them, and
+    // one something was spliced into is settled by `runFunction` where that happened.
+    HashMap<U32, bool> settled;
+
     /*
      * Whether cloning this instruction into another function is something this pass knows how to do.
      *
@@ -691,6 +739,24 @@ struct Inliner {
             // select is an ordinary pure computation with no decision copied along with it.
             case Value::Select:
             case Value::Call: case Value::Native: case Value::CallDyn:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /*
+     * Whether an instruction of this kind is a call at run time, which is what decides whether the
+     * function containing it needs a frame - see `InlinePolicy::leafCaller`.
+     *
+     * `Drop` is on the list and is the one that does not look like a call: it runs a teardown, which
+     * is a function, and a caller holding one is no more a leaf than one holding a `call`. `Native`
+     * is not on it - a host node lowers to an instruction on this target and to an operator on the
+     * other - and neither is anything else in `clonableKind`, all of which are computation.
+     */
+    static bool performsCall(Value::Kind kind) {
+        switch(kind) {
+            case Value::Call: case Value::CallDyn: case Value::GenCall: case Value::Drop:
                 return true;
             default:
                 return false;
@@ -978,6 +1044,10 @@ struct Inliner {
         // A body that can reach itself, which is unrolling rather than inlining - see the header.
         if(recursive.get(U32(pointer))) return Nothing();
 
+        // And the body as anything would emit it rather than as the resolver wrote it - see
+        // `settleCallee`, which is the same statement `settle` makes about a caller.
+        settleCallee(pointer, *callee);
+
         Candidate candidate;
         candidate.pointer = pointer;
         candidate.callee = callee;
@@ -1017,6 +1087,10 @@ struct Inliner {
                     auto callable = ((InstCallDyn&)instruction).callable;
                     if(callable) called.push(callable);
                 }
+
+                // Whether the copy brings a call in with it - see `InlinePolicy::leafCaller`, which
+                // is the one term that is about the caller's frame rather than about either body.
+                if(performsCall(instruction.kind)) candidate.callFree = false;
 
                 candidate.size++;
             }
@@ -1342,6 +1416,29 @@ struct Inliner {
     }
 
     /*
+     * Whether the caller performs exactly one call, which is the site's half of `policy.leafCaller`.
+     *
+     * The site being judged is that call - `inlineCall` reached this from an instruction it found in
+     * this function - so "one" is what makes the copy leave none. Counted rather than cached because
+     * the answer changes under this pass's own grafts, and stopped at two because that is the whole
+     * of what the question needs.
+     */
+    bool callerHasOneCall() {
+        U32 calls = 0;
+
+        for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+            auto block = opt.local[blockPointer];
+
+            for(auto pointer: block->instructions(opt.local)) {
+                if(!performsCall(opt.local[pointer]->kind)) continue;
+                if(++calls > 1) return false;
+            }
+        }
+
+        return calls == 1;
+    }
+
+    /*
      * Whether this call site is worth what the copy costs.
      *
      * The budget is the callee's size against a limit built from what the *call* looks like, and
@@ -1387,6 +1484,11 @@ struct Inliner {
         }
 
         if(candidate.accessor) limit += policy.accessor;
+
+        // Both halves, asked in the cheap order: the callee's is a flag `describe` already set while
+        // it was walking every instruction, and only a call-free one is worth the walk that counts
+        // the caller's own calls.
+        if(policy.leafCaller && candidate.callFree && callerHasOneCall()) limit += policy.leafCaller;
 
         if(candidate.callee->inlineHint) limit += policy.requested;
 
@@ -2745,6 +2847,44 @@ struct Inliner {
     void settle(Function& function) {
         opt.function = &function;
         optimizeRounds(opt);
+    }
+
+    /*
+     * The same statement `settle` makes about a caller, made about a callee before any site is
+     * measured against it - and it is the half that was missing.
+     *
+     * `settle` reaches a body only where something was spliced *into* it, so a leaf is judged in the
+     * form the resolver wrote rather than in the form a backend would emit. The two are not close.
+     * A mutable local is an `alloc`, a store per assignment and a load per read in that form, and
+     * every one of those is gone by the time anything emits it - `mix` in
+     * `test/bench/programs/Hash.yana` is twenty-four instructions here and eight afterwards, because
+     * five statements over one `let &h` are fifteen instructions of storage traffic that
+     * `forwardPlaces`, `promotePlaces` and `scalarizeLocals` remove between them. Judging a body
+     * three times its own size is not a conservatism; it is measuring the wrong body.
+     *
+     * Lazily and once, which is what keeps it from being the driver's loop run twice. The pass walks
+     * every function in every module - Core, Native and Collections included, which is around 490
+     * bodies a program reaches between one and thirty of - and this reaches only the ones something
+     * actually calls, since a callee is settled where a site is being described rather than where
+     * the walk arrives. What it costs on top is nothing: the driver optimizes each of those bodies
+     * afterwards anyway, and starting from a fixed point is where its own rounds now start.
+     *
+     * `opt.function` and `opt.module` are the caller's and have to be given back. The callee is a
+     * different function by construction - recursion is refused above this - so nothing being walked
+     * is what this rewrites.
+     */
+    void settleCallee(ModulePtr<Function> pointer, Function& callee) {
+        if(settled.get(U32(pointer))) return;
+        settled.add(U32(pointer), true);
+
+        auto function = opt.function;
+        auto module = opt.module;
+
+        opt.module = callee.module;
+        settle(callee);
+
+        opt.function = function;
+        opt.module = module;
     }
 };
 

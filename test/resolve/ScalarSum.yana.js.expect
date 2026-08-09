@@ -43,16 +43,14 @@ function fiveOf(f) {
   return v44;
 }
 
-function flagsValue(f) {
-  return (f & 1) + (f >>> 1 & 1 ? 2 : 0);
-}
-
 function taggedOf(t) {
   var v14;
   if (t.$tag === 0) {
-    v14 = flagsValue(t.$p);
+    var v44 = t.$p;
+    v14 = (v44 & 1) + (v44 >>> 1 & 1 ? 2 : 0);
   } else {
-    v14 = flagsValue(t.$p) + 100 | 0;
+    var v34 = t.$p;
+    v14 = (v34 & 1) + (v34 >>> 1 & 1 ? 2 : 0) + 100;
   }
   return v14;
 }
@@ -72,12 +70,6 @@ function bump(x$o, x$k, x$s) {
   return;
 }
 
-function mutated() {
-  var v0 = { $tag: 0, $p: 41 };
-  bump(v0, "$p", 1);
-  return payloadOf(v0);
-}
-
 function maybeOf(m) {
   var v10;
   if (m === null) {
@@ -89,6 +81,9 @@ function maybeOf(m) {
 }
 
 function main() {
-  return (((((((payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0) + (colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0) | 0) + (fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0) | 0) + (taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0) | 0) + mutated() | 0) + taggedOf({ $tag: 1, $p: 1 }) | 0) + ((maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0) | 0) + (widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0) | 0;
+  var v6 = (((payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0) + (colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0) | 0) + (fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0) | 0) + (taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0) | 0;
+  var v72 = { $tag: 0, $p: 41 };
+  bump(v72, "$p", 1);
+  return (((v6 + payloadOf(v72) | 0) + taggedOf({ $tag: 1, $p: 1 }) | 0) + ((maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0) | 0) + (widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0) | 0;
 }
 main();

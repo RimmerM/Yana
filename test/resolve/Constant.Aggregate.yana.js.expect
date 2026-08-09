@@ -14,10 +14,6 @@ var packed = { $tag: 0, $p0: 99, $p: 0 };
 var wrapped = { $tag: 1, $p0: 0, $p: 40 };
 
 // ResolveTest
-function sum(p$x, p$y) {
-  return p$x + p$y | 0;
-}
-
 function area(s) {
   var v12;
   if (s.$tag === 0) {
@@ -56,12 +52,12 @@ function boxedValue(b) {
 
 function main() {
   var score = 1;
-  if (sum(corner.x, corner.y) === 11) {
+  if ((corner.x + corner.y | 0) === 11) {
     score = score + 2 | 0;
   }
   var v37 = cursor.x + 1 | 0;
   cursor.x = v37;
-  if (sum(v37, cursor.y) === 31) {
+  if ((v37 + cursor.y | 0) === 31) {
     score = score + 4 | 0;
   }
   score = score + 24 | 0;
@@ -80,7 +76,7 @@ function main() {
   if ((table[0] + table[2] | 0) === 26) {
     score = score + 512 | 0;
   }
-  if (sum(corners[1].x, corners[1].y) === 6) {
+  if ((corners[1].x + corners[1].y | 0) === 6) {
     score = score + 1024 | 0;
   }
   if (greeting.length === 5) {

@@ -10,18 +10,6 @@ function flip(b$o, b$k, b$s) {
   return;
 }
 
-function direct() {
-  return 924000;
-}
-
-function together() {
-  var v0 = { $v: 0 };
-  flip(v0, "$v", 1);
-  flip(v0, "$v", 2);
-  var v57 = v0.$v;
-  return (v57 & 1) + (v57 >>> 1 & 1 ? 2 : 0);
-}
-
 function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
   var v10;
   if (flag) {
@@ -32,26 +20,11 @@ function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
   return v10;
 }
 
-function loaned() {
-  var v0 = { $v: 3 };
-  var v12 = pick(1, v0, "$v", 1, v0, "$v", 2);
-  v12.$o[v12.$k] = $b1u$set(v12.$o[v12.$k], v12.$s, 0);
-  var v59 = v0.$v;
-  return (v59 & 1) + (v59 >>> 1 & 1 ? 2 : 0);
-}
-
 function swapBools(a$o, a$k, a$s, b$o, b$k, b$s) {
   var t = $b1u$get(a$o[a$k], a$s);
   a$o[a$k] = $b1u$set(a$o[a$k], a$s, $b1u$get(b$o[b$k], b$s));
   b$o[b$k] = $b1u$set(b$o[b$k], b$s, t);
   return;
-}
-
-function interleaved() {
-  var v0 = { $v: 1 };
-  swapBools(v0, "$v", 1, v0, "$v", 2);
-  var v56 = v0.$v;
-  return (v56 & 1) + (v56 >>> 1 & 1 ? 2 : 0);
 }
 
 function nudgeTwice(x$o, x$k, x$s) {
@@ -79,26 +52,32 @@ function wide() {
   return (v174 & 1) + (v174 >>> 4 & 1 ? 20 : 0) + (v174 >>> 8 & 1 ? 300 : 0);
 }
 
-function tally() {
-  var v0 = { $p4: 2, count: 7 };
-  flip(v0, "$p4", 8);
-  tick(v0, "$p4", 1);
-  var v19 = v0.count + 1 | 0;
-  v0.count = v19;
-  var v66 = v0.$p4;
-  return ((v66 >>> 3 & 1) + Math.imul(v66 & 7, 10) | 0) + Math.imul(v19, 100) | 0;
-}
-
-function dispatch() {
-  return 80;
-}
-
 function main() {
-  var v14 = (((((direct() + 2504 | 0) + together() | 0) + 85 | 0) + loaned() | 0) + 3 | 0) + interleaved() | 0;
-  var v30 = { $v: 2162788 };
-  nudgeTwice(v30, "$v", 1);
-  var v82 = v30.$v;
-  return ((((v14 + (Math.imul(v82 & 8191, 10) + (v82 >>> 16 & 15) | 0) | 0) + wide() | 0) + tally() | 0) + 211 | 0) + dispatch() | 0;
+  var v29 = { $v: 0 };
+  flip(v29, "$v", 1);
+  flip(v29, "$v", 2);
+  var v153 = v29.$v;
+  var v8 = (v153 & 1) + (v153 >>> 1 & 1 ? 2 : 0) + 926589;
+  var v48 = { $v: 3 };
+  var v55 = pick(1, v48, "$v", 1, v48, "$v", 2);
+  v55.$o[v55.$k] = $b1u$set(v55.$o[v55.$k], v55.$s, 0);
+  var v181 = v48.$v;
+  var v12 = v8 + ((v181 & 1) + (v181 >>> 1 & 1 ? 2 : 0)) + 3;
+  var v69 = { $v: 1 };
+  swapBools(v69, "$v", 1, v69, "$v", 2);
+  var v209 = v69.$v;
+  var v14 = v12 + ((v209 & 1) + (v209 >>> 1 & 1 ? 2 : 0));
+  var v86 = { $v: 2162788 };
+  nudgeTwice(v86, "$v", 1);
+  var v247 = v86.$v;
+  var v18 = (v14 + (Math.imul(v247 & 8191, 10) + (v247 >>> 16 & 15) | 0) | 0) + wide() | 0;
+  var v102 = { $p4: 2, count: 7 };
+  flip(v102, "$p4", 8);
+  tick(v102, "$p4", 1);
+  var v115 = v102.count + 1 | 0;
+  v102.count = v115;
+  var v273 = v102.$p4;
+  return (v18 + (((v273 >>> 3 & 1) + Math.imul(v273 & 7, 10) | 0) + Math.imul(v115, 100) | 0) | 0) + 291 | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

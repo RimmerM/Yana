@@ -218,23 +218,27 @@ firstOrRest<complex>(%m: Ptr): Int {
     je %v_2, b_3, b_4
   }
 
-  b_3 {
-    %v_5 = load %m, 1: Int
-    %v_6 = cast %v_5: Int
-    %v_7 = cmp_eq %v_6, 0: Int
-    je %v_7, b_8, b_4
+  b_4 {
+    %v_5 = cmp_le %v_1, 2: Int
+    je %v_5, b_6, b_7
   }
 
-  b_4 {
-    %v_9 = cmp_le %v_1, 2: Int
-    je %v_9, b_10, b_11
+  b_3 {
+    %v_8 = load %m, 1: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_4
   }
 
   b_11 {
     jmp b_12
   }
 
-  b_10 {
+  b_7 {
+    jmp b_12
+  }
+
+  b_6 {
     %rest = load %m, 1: Int
     %v_13 = cast %rest: Int
     %v_14 = cmp_eq %v_13, 0: Int
@@ -244,25 +248,9 @@ firstOrRest<complex>(%m: Ptr): Int {
     jmp b_12
   }
 
-  b_8 {
-    jmp b_12
-  }
-
   b_12 {
-    %v_18 = phi [b_8, 10], [b_10, %v_17], [b_11, 0]: Int
+    %v_18 = phi [b_11, 10], [b_6, %v_17], [b_7, 0]: Int
     ret %v_18
-  }
-}
-
-signed<complex>(%value: Long): Int {
-  b_0 {
-    %v_1 = cmp_eq %value, 9223372036854775808: Int
-    %v_2 = cmp_eq %value, 18446744073709551615: Int
-    %v_3 = cmp_eq %value, 0: Int
-    %v_4 = select 3, 4, %v_3: Int
-    %v_5 = select 2, %v_4, %v_2: Int
-    %v_6 = select 1, %v_5, %v_1: Int
-    ret %v_6
   }
 }
 
@@ -368,15 +356,25 @@ main<complex>(): Int {
     %v_69 = add %v_66, %v_68: Int
     %v_70 = add %v_69, 3: Int
     %v_71 = loads @least, 8: Long
-    %v_72 = call_complex signed, %v_71: Int
-    %v_73 = imul %v_72, 1000: Int
-    %v_74 = add %v_70, %v_73: Int
-    %v_75 = loads @minusOne, 8: Long
-    %v_76 = call_complex signed, %v_75: Int
-    %v_77 = imul %v_76, 100: Int
-    %v_78 = add %v_74, %v_77: Int
-    %v_79 = add %v_78, 34: Int
-    ret %v_79
+    %v_72 = cmp_eq %v_71, 9223372036854775808: Int
+    %v_73 = cmp_eq %v_71, 18446744073709551615: Int
+    %v_74 = cmp_eq %v_71, 0: Int
+    %v_75 = select 3, 4, %v_74: Int
+    %v_76 = select 2, %v_75, %v_73: Int
+    %v_77 = select 1, %v_76, %v_72: Int
+    %v_78 = imul %v_77, 1000: Int
+    %v_79 = add %v_70, %v_78: Int
+    %v_80 = loads @minusOne, 8: Long
+    %v_81 = cmp_eq %v_80, 9223372036854775808: Int
+    %v_82 = cmp_eq %v_80, 18446744073709551615: Int
+    %v_83 = cmp_eq %v_80, 0: Int
+    %v_84 = select 3, 4, %v_83: Int
+    %v_85 = select 2, %v_84, %v_82: Int
+    %v_86 = select 1, %v_85, %v_81: Int
+    %v_87 = imul %v_86, 100: Int
+    %v_88 = add %v_79, %v_87: Int
+    %v_89 = add %v_88, 34: Int
+    ret %v_89
   }
 }
 

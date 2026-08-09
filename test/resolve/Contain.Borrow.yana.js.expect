@@ -14,11 +14,6 @@ function mutate(f) {
   return 0;
 }
 
-function around() {
-  var v0 = { $v: 2 };
-  return (mutate({ $o: v0, $k: "$v", $s: 1 }) + 10 | 0) + (v0.$v & 1 ? 100 : 200) | 0;
-}
-
 function fill(n) {
   var v2 = [];
   var i = 0;
@@ -50,7 +45,8 @@ function fill(n) {
 }
 
 function main() {
-  return around() + fill(3) | 0;
+  var v5 = { $v: 2 };
+  return ((mutate({ $o: v5, $k: "$v", $s: 1 }) + 10 | 0) + (v5.$v & 1 ? 100 : 200) | 0) + fill(3) | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

@@ -133,21 +133,6 @@ fiveOf<complex>(%f: Ptr): Int {
   }
 }
 
-flagsValue<complex>(%f: Ptr): Int {
-  b_0 {
-    %v_1 = load %f, 1: Int
-    %v_2 = and %v_1, 1: Int
-    %v_3 = cast %v_2: Int
-    %v_4 = select 1, 0, %v_3: Int
-    %v_5 = shr %v_1, 1: Int
-    %v_6 = and %v_5, 1: Int
-    %v_7 = cast %v_6: Int
-    %v_8 = select 2, 0, %v_7: Int
-    %v_9 = add %v_4, %v_8: Int
-    ret %v_9
-  }
-}
-
 taggedOf<complex>(%t: Ptr): Int {
   b_0 {
     %v_1 = load %t, 2: Long
@@ -159,19 +144,35 @@ taggedOf<complex>(%t: Ptr): Int {
   }
 
   b_7 {
-    %v_8 = call_complex flagsValue, %t: Int
-    %v_9 = add %v_8, 100: Int
-    jmp b_10
+    %v_8 = load %t, 1: Int
+    %v_9 = and %v_8, 1: Int
+    %v_10 = cast %v_9: Int
+    %v_11 = select 1, 0, %v_10: Int
+    %v_12 = shr %v_8, 1: Int
+    %v_13 = and %v_12, 1: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = select 2, 0, %v_14: Int
+    %v_16 = add %v_11, %v_15: Int
+    %v_17 = add %v_16, 100: Int
+    jmp b_18
   }
 
   b_6 {
-    %v_11 = call_complex flagsValue, %t: Int
-    jmp b_10
+    %v_19 = load %t, 1: Int
+    %v_20 = and %v_19, 1: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = select 1, 0, %v_21: Int
+    %v_23 = shr %v_19, 1: Int
+    %v_24 = and %v_23, 1: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = select 2, 0, %v_25: Int
+    %v_27 = add %v_22, %v_26: Int
+    jmp b_18
   }
 
-  b_10 {
-    %v_12 = phi [b_6, %v_11], [b_7, %v_9]: Int
-    ret %v_12
+  b_18 {
+    %v_28 = phi [b_6, %v_27], [b_7, %v_17]: Int
+    ret %v_28
   }
 }
 
@@ -221,17 +222,38 @@ maybeOf<complex>(%m: Ptr): Int {
   }
 
   b_3 {
-    %v_5 = call_complex payloadOf, %m: Int
-    jmp b_6
+    %v_5 = shr %v_1, 8: Long
+    %v_6 = and %v_5, 1: Long
+    %v_7 = cast %v_6: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    %x = load %m, 1: Int
+    %v_11 = cast %x: Int
+    %v_12 = add %v_11, 1000: Int
+    jmp b_13
+  }
+
+  b_9 {
+    %x = load %m, 1: Int
+    %v_14 = cast %x: Int
+    jmp b_13
+  }
+
+  b_13 {
+    %v_15 = phi [b_9, %v_14], [b_10, %v_12]: Int
+    jmp b_16
   }
 
   b_4 {
-    jmp b_6
+    jmp b_16
   }
 
-  b_6 {
-    %v_7 = phi [b_4, 500], [b_3, %v_5]: Int
-    ret %v_7
+  b_16 {
+    %v_17 = phi [b_4, 500], [b_13, %v_15]: Int
+    ret %v_17
   }
 }
 

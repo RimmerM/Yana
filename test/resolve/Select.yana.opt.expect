@@ -82,12 +82,12 @@ fn magnitude(%value: Float) -> Float {
 fn positive() -> Int {
   b0:
     %v0 = call lowered : Float
-    %v14 = cmp_gt %v0, 0 : Bool
-    %v17 = sub 0, %v0 : Float
-    %v21 = select %v14 ? %v0 : %v17 : Float
-    %v4 = cmp_gt %v21, 2.5 : Bool
-    %v23 = select %v4 ? 5 : 0 : Int
-    ret %v23
+    %v13 = cmp_gt %v0, 0 : Bool
+    %v15 = sub 0, %v0 : Float
+    %v16 = select %v13 ? %v0 : %v15 : Float
+    %v4 = cmp_gt %v16, 2.5 : Bool
+    %v17 = select %v4 ? 5 : 0 : Int
+    ret %v17
 }
 
 fn smallest(%limit: Int) -> Int {
@@ -168,35 +168,59 @@ fn guarded(%value: Int) -> Int {
 fn main() -> Int {
   b0:
     assign calls, 1
-    %v166 = call lowered : Float
-    %v168 = cmp_gt %v166, 0 : Bool
-    %v170 = sub 0, %v166 : Float
-    %v171 = select %v168 ? %v166 : %v170 : Float
-    %v173 = cmp_gt %v171, 2.5 : Bool
-    %v176 = select %v173 ? 5 : 0 : Int
-    %v51 = mul %v176, 256 : Int
+    %v137 = call lowered : Float
+    %v139 = cmp_gt %v137, 0 : Bool
+    %v141 = sub 0, %v137 : Float
+    %v142 = select %v139 ? %v137 : %v141 : Float
+    %v144 = cmp_gt %v142, 2.5 : Bool
+    %v147 = select %v144 ? 5 : 0 : Int
+    %v51 = mul %v147, 256 : Int
     %v52 = add %v51, 1310 : Int
-    %v54 = call smallest, 5 : Int
-    %v57 = mul %v54, 512 : Int
-    %v58 = add %v52, %v57 : Int
-    %v60 = call zero : Int
-    %v179 = cmp_ne %v60, 0 : Bool
-    je %v179, b2, b1
+    %best = alloc : Int
+    init %best, 100
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
 
   b1:
-    jmp b3
+    %v155 = load %i : Int
+    %v156 = cmp_lt %v155, 5 : Bool
+    je %v156, b6, b2
 
   b2:
-    %v182 = div 10, %v60 : Int
-    jmp b3
+    %v158 = load %best : Int
+    %v57 = mul %v158, 512 : Int
+    %v58 = add %v52, %v57 : Int
+    %v60 = call zero : Int
+    %v175 = cmp_ne %v60, 0 : Bool
+    je %v175, b4, b3
 
   b3:
-    %v177 = phi [b2, %v182], [b1, 0] : Int
-    %v64 = mul %v177, 1024 : Int
+    jmp b5
+
+  b4:
+    %v178 = div 10, %v60 : Int
+    jmp b5
+
+  b5:
+    %v173 = phi [b4, %v178], [b3, 0] : Int
+    %v64 = mul %v173, 1024 : Int
     %v65 = add %v58, %v64 : Int
     %v72 = add %v65, 10240 : Int
-    %v200 = call doubled, 3 : Int
-    %v77 = mul %v200, 4096 : Int
+    %v196 = call doubled, 3 : Int
+    %v77 = mul %v196, 4096 : Int
     %v78 = add %v72, %v77 : Int
     ret %v78
+
+  b6:
+    %v160 = load %i : Int
+    %v162 = mul %v160, 3 : Int
+    %candidate = sub 40, %v162 : Int
+    %v165 = load %best : Int
+    %v166 = cmp_lt %candidate, %v165 : Bool
+    %v167 = select %v166 ? %candidate : %v165 : Int
+    assign %best, %v167
+    %v170 = add %v160, 1 : Int
+    assign %i, %v170
+    jmp b1
 }

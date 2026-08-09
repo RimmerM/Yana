@@ -69,8 +69,8 @@ fn sunk() -> Int {
     %v2 = alloc : Counter
     aggregate %local1@Counter.value = 36
     aggregate %local0@Owning.tag = 1, %local0@Owning.held = %v2
-    %v16 = borrow_mut released : &mut Int
-    call +=(Int), %v16, 1
+    %v15 = borrow_mut released : &mut Int
+    call +=(Int), %v15, 1
     ret 36
 }
 
@@ -101,7 +101,7 @@ fn Drop(Counter).drop(%value: Counter) -> () {
 
 fn drop$Owning(%value: Owning) -> () {
   b0:
-    %v6 = borrow_mut released : &mut Int
-    call +=(Int), %v6, 1
+    %v5 = borrow_mut released : &mut Int
+    call +=(Int), %v5, 1
     ret
 }

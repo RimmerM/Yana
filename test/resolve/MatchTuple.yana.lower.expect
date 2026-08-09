@@ -1,61 +1,6 @@
 @image$base = []
 @drops = [0, 0, 0, 0]
 
-ordered<complex>(%a: Ptr, %b: Ptr, %c: Int): Int {
-  b_0 {
-    %v_1 = loads %a, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = cmp_eq %v_1, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_3 {
-    %v_8 = loads %b, 4: Int
-    %v_9 = cmp_eq %v_8, 1: Int
-    je %v_9, b_10, b_4
-  }
-
-  b_10 {
-    %v_11 = cmp_eq %c, 0: Int
-    je %v_11, b_12, b_4
-  }
-
-  b_12 {
-    %v_13 = add %a, 4: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = add %b, 4: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_17 = add %v_14, %v_16: Int
-    jmp b_18
-  }
-
-  b_7 {
-    jmp b_18
-  }
-
-  b_6 {
-    %v_19 = loads %b, 4: Int
-    %v_20 = cmp_eq %v_19, 0: Int
-    je %v_20, b_21, b_7
-  }
-
-  b_21 {
-    %v_22 = add %a, 4: Ptr
-    %v_23 = loads %v_22, 4: Int
-    %v_24 = add %v_23, %c: Int
-    jmp b_18
-  }
-
-  b_18 {
-    %v_25 = phi [b_12, %v_17], [b_21, %v_24], [b_7, 0]: Int
-    ret %v_25
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %a = alloca 8, 4: Ptr
@@ -66,14 +11,35 @@ main<complex>(): Int {
     store %b, 1, 4
     %v_2 = add %b, 4: Ptr
     store %v_2, 4, 4
-    %v_3 = call_complex ordered, %a, %b, 0: Int
-    %v_4 = loads @drops, 4: Int
-    %v_5 = add %v_4, 2: Int
-    store @drops, %v_5, 4
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = add %v_7, 7: Int
-    ret %v_8
+    call_complex drop$Maybe(Held), %a
+    call_complex drop$Maybe(Held), %b
+    %v_3 = loads @drops, 4: Int
+    %v_4 = imul %v_3, 10: Int
+    %v_5 = add %v_4, 14: Int
+    ret %v_5
+  }
+}
+
+drop$Maybe(Held)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = loads @drops, 4: Int
+    %v_7 = add %v_6, 1: Int
+    store @drops, %v_7, 4
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
   }
 }
 

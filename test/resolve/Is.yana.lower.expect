@@ -1,5 +1,28 @@
 @image$base = []
 
+orZero<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v = loads %v_6, 4: Int
+    %v_7 = add %v, 1: Int
+    ret %v_7
+  }
+
+  b_5 {
+    ret 0
+  }
+}
+
 either<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -120,12 +143,26 @@ area<complex>(%s: Ptr): Int {
   }
 }
 
-present<complex>(%m: Ptr): Int {
+firstOf<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    %v_3 = select 2, 1, %v_2: Int
-    ret %v_3
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads %m, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 4: Ptr
+    %item = loads %v_6, 4: Int
+    %v_7 = add %item, 10: Int
+    ret %v_7
   }
 }
 
@@ -161,121 +198,131 @@ main<complex>(): Int {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
-    store %v_2, 2, 4
-    %v_3 = call_complex either, %v_1: Int
-    %v_4 = add %v_3, 2: Int
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 0, 4
-    %v_6 = call_complex either, %v_5: Int
-    %v_7 = imul %v_6, 100: Int
-    %v_8 = add %v_4, %v_7: Int
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 1, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, 0, 4
-    %v_11 = call_complex isZero, %v_9: Int
-    %v_12 = shl %v_11, 3: Int
-    %v_13 = add %v_8, %v_12: Int
-    %v_14 = alloca 8, 4: Ptr
-    store %v_14, 1, 4
-    %v_15 = add %v_14, 4: Ptr
-    store %v_15, 1, 4
-    %v_16 = call_complex isZero, %v_14: Int
-    %v_17 = imul %v_16, 100: Int
-    %v_18 = add %v_13, %v_17: Int
-    %v_19 = alloca 12, 4: Ptr
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, 16, 4
-    store %v_19, 1, 4
-    %v_22 = add %v_19, 4: Ptr
-    copy %v_22, %v_20, 8
-    %v_23 = call_complex deep, %v_19: Int
-    %v_24 = add %v_18, %v_23: Int
-    %v_25 = alloca 12, 4: Ptr
-    %v_26 = alloca 8, 4: Ptr
-    store %v_26, 0, 4
-    store %v_25, 1, 4
-    %v_27 = add %v_25, 4: Ptr
-    copy %v_27, %v_26, 8
-    %v_28 = call_complex deep, %v_25: Int
-    %v_29 = imul %v_28, 100: Int
-    %v_30 = add %v_24, %v_29: Int
-    %v_31 = alloca 12, 4: Ptr
-    store %v_31, 0, 4
-    %v_32 = call_complex deep, %v_31: Int
-    %v_33 = imul %v_32, 100: Int
-    %v_34 = add %v_30, %v_33: Int
-    %v_35 = alloca 12, 4: Ptr
-    store %v_35, 0, 4
-    %v_36 = add %v_35, 4: Ptr
-    store %v_36, 5, 4
-    %v_37 = call_complex area, %v_35: Int
-    %v_38 = add %v_34, %v_37: Int
-    %v_39 = alloca 12, 4: Ptr
-    store %v_39, 1, 4
-    %v_40 = add %v_39, 4: Ptr
-    store %v_40, 3, 4
-    %v_41 = add %v_39, 8: Ptr
-    store %v_41, 4, 4
-    %v_42 = call_complex area, %v_39: Int
-    %v_43 = add %v_38, %v_42: Int
-    %v_44 = add %v_43, 50: Int
-    %v_45 = alloca 8, 4: Ptr
-    store %v_45, 1, 4
-    %v_46 = add %v_45, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = call_complex orZero, %v_1: Int
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = call_complex orZero, %v_4: Int
+    %v_6 = imul %v_5, 100: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = call_complex either, %v_8: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = alloca 8, 4: Ptr
+    store %v_12, 0, 4
+    %v_13 = call_complex either, %v_12: Int
+    %v_14 = imul %v_13, 100: Int
+    %v_15 = add %v_11, %v_14: Int
+    %v_16 = alloca 8, 4: Ptr
+    store %v_16, 1, 4
+    %v_17 = add %v_16, 4: Ptr
+    store %v_17, 0, 4
+    %v_18 = call_complex isZero, %v_16: Int
+    %v_19 = shl %v_18, 3: Int
+    %v_20 = add %v_15, %v_19: Int
+    %v_21 = alloca 8, 4: Ptr
+    store %v_21, 1, 4
+    %v_22 = add %v_21, 4: Ptr
+    store %v_22, 1, 4
+    %v_23 = call_complex isZero, %v_21: Int
+    %v_24 = imul %v_23, 100: Int
+    %v_25 = add %v_20, %v_24: Int
+    %v_26 = alloca 12, 4: Ptr
+    %v_27 = alloca 8, 4: Ptr
+    store %v_27, 1, 4
+    %v_28 = add %v_27, 4: Ptr
+    store %v_28, 16, 4
+    store %v_26, 1, 4
+    %v_29 = add %v_26, 4: Ptr
+    copy %v_29, %v_27, 8
+    %v_30 = call_complex deep, %v_26: Int
+    %v_31 = add %v_25, %v_30: Int
+    %v_32 = alloca 12, 4: Ptr
+    %v_33 = alloca 8, 4: Ptr
+    store %v_33, 0, 4
+    store %v_32, 1, 4
+    %v_34 = add %v_32, 4: Ptr
+    copy %v_34, %v_33, 8
+    %v_35 = call_complex deep, %v_32: Int
+    %v_36 = imul %v_35, 100: Int
+    %v_37 = add %v_31, %v_36: Int
+    %v_38 = alloca 12, 4: Ptr
+    store %v_38, 0, 4
+    %v_39 = call_complex deep, %v_38: Int
+    %v_40 = imul %v_39, 100: Int
+    %v_41 = add %v_37, %v_40: Int
+    %v_42 = alloca 12, 4: Ptr
+    store %v_42, 0, 4
+    %v_43 = add %v_42, 4: Ptr
+    store %v_43, 5, 4
+    %v_44 = call_complex area, %v_42: Int
+    %v_45 = add %v_41, %v_44: Int
+    %v_46 = alloca 12, 4: Ptr
     store %v_46, 1, 4
-    %v_47 = call_complex present, %v_45: Int
-    %v_48 = shl %v_47, 6: Int
-    %v_49 = add %v_44, %v_48: Int
-    %v_50 = alloca 8, 4: Ptr
-    store %v_50, 0, 4
-    %v_51 = call_complex present, %v_50: Int
-    %v_52 = shl %v_51, 7: Int
-    %v_53 = add %v_49, %v_52: Int
-    %v_54 = alloca 8, 4: Ptr
-    call_complex wrap, %v_54, 128
-    %v_55 = loads %v_54, 4: Int
-    %v_56 = cmp_eq %v_55, 1: Int
-    je %v_56, b_57, b_58
+    %v_47 = add %v_46, 4: Ptr
+    store %v_47, 3, 4
+    %v_48 = add %v_46, 8: Ptr
+    store %v_48, 4, 4
+    %v_49 = call_complex area, %v_46: Int
+    %v_50 = add %v_45, %v_49: Int
+    %v_51 = add %v_50, 8: Int
+    %v_52 = alloca 8, 4: Ptr
+    store %v_52, 1, 4
+    %v_53 = add %v_52, 4: Ptr
+    store %v_53, 32, 4
+    %v_54 = call_complex firstOf, %v_52: Int
+    %v_55 = add %v_51, %v_54: Int
+    %v_56 = alloca 8, 4: Ptr
+    store %v_56, 0, 4
+    %v_57 = call_complex firstOf, %v_56: Int
+    %v_58 = imul %v_57, 100: Int
+    %v_59 = add %v_55, %v_58: Int
+    %v_60 = add %v_59, 256: Int
+    %v_61 = alloca 8, 4: Ptr
+    call_complex wrap, %v_61, 128
+    %v_62 = loads %v_61, 4: Int
+    %v_63 = cmp_eq %v_62, 1: Int
+    je %v_63, b_64, b_65
   }
 
-  b_58 {
-    jmp b_59
+  b_65 {
+    jmp b_66
   }
 
-  b_57 {
-    %v_60 = add %v_54, 4: Ptr
-    %v = loads %v_60, 4: Int
-    jmp b_59
-  }
-
-  b_59 {
-    %v_61 = phi [b_57, %v], [b_58, 0]: Int
-    %v_62 = add %v_53, %v_61: Int
-    %v_63 = alloca 8, 4: Ptr
-    call_complex wrap, %v_63, 0
-    %v_64 = loads %v_63, 4: Int
-    %v_65 = cmp_eq %v_64, 1: Int
-    je %v_65, b_66, b_67
-  }
-
-  b_67 {
-    jmp b_68
+  b_64 {
+    %v_67 = add %v_61, 4: Ptr
+    %v = loads %v_67, 4: Int
+    jmp b_66
   }
 
   b_66 {
-    %v_69 = add %v_63, 4: Ptr
-    %v = loads %v_69, 4: Int
-    jmp b_68
+    %v_68 = phi [b_64, %v], [b_65, 0]: Int
+    %v_69 = add %v_60, %v_68: Int
+    %v_70 = alloca 8, 4: Ptr
+    call_complex wrap, %v_70, 0
+    %v_71 = loads %v_70, 4: Int
+    %v_72 = cmp_eq %v_71, 1: Int
+    je %v_72, b_73, b_74
   }
 
-  b_68 {
-    %v_70 = phi [b_66, %v], [b_67, 0]: Int
-    %v_71 = imul %v_70, 100: Int
-    %v_72 = add %v_62, %v_71: Int
-    ret %v_72
+  b_74 {
+    jmp b_75
+  }
+
+  b_73 {
+    %v_76 = add %v_70, 4: Ptr
+    %v = loads %v_76, 4: Int
+    jmp b_75
+  }
+
+  b_75 {
+    %v_77 = phi [b_73, %v], [b_74, 0]: Int
+    %v_78 = imul %v_77, 100: Int
+    %v_79 = add %v_69, %v_78: Int
+    ret %v_79
   }
 }
 

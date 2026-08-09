@@ -291,11 +291,16 @@ small<complex>(): Long {
     %v_8 = loads %v_7, 8: Long
     %v_9 = bitcast %v_3: Ptr
     %v_10 = loads %v_9, 8: Long
-    call_complex Drop(Handle).drop, %hs
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveHandles, 1
+    call_complex +=(I64), @releases, 1
     %v_11 = add %hs, 8: Ptr
-    call_complex Drop(Handle).drop, %v_11
-    %v_12 = add %v_8, %v_10: Long
-    ret %v_12
+    %v_12 = load %v_11, 8: Ptr
+    call_complex freeHeap, %v_12
+    call_complex -=(I64), @liveHandles, 1
+    call_complex +=(I64), @releases, 1
+    %v_13 = add %v_8, %v_10: Long
+    ret %v_13
   }
 }
 
@@ -359,7 +364,10 @@ large<complex>(): Long {
   b_25 {
     %v_30 = shl %v_24, 3: Long
     %v_31 = add %hs, %v_30: Ptr
-    call_complex Drop(Handle).drop, %v_31
+    %v_32 = load %v_31, 8: Ptr
+    call_complex freeHeap, %v_32
+    call_complex -=(I64), @liveHandles, 1
+    call_complex +=(I64), @releases, 1
     %v_26 = add %v_24, 1: Long
     jmp b_23
   }
@@ -385,11 +393,17 @@ nested<complex>(): Long {
     %v_8 = load %v_5, 8: Ptr
     %v_9 = bitcast %v_8: Ptr
     %v_10 = loads %v_9, 8: Long
-    call_complex Drop(Handle).drop, %p
-    %v_11 = add %p, 8: Ptr
-    call_complex Drop(Handle).drop, %v_11
-    %v_12 = add %v_10, %v_7: Long
-    ret %v_12
+    %v_11 = load %p, 8: Ptr
+    call_complex freeHeap, %v_11
+    call_complex -=(I64), @liveHandles, 1
+    call_complex +=(I64), @releases, 1
+    %v_12 = add %p, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    call_complex freeHeap, %v_13
+    call_complex -=(I64), @liveHandles, 1
+    call_complex +=(I64), @releases, 1
+    %v_14 = add %v_10, %v_7: Long
+    ret %v_14
   }
 }
 
@@ -485,16 +499,6 @@ main<complex>(): Long {
     %v_31 = add %a, %b: Long
     %v_32 = add %v_31, %c: Long
     ret %v_32
-  }
-}
-
-Drop(Handle).drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    call_complex freeHeap, %v_1
-    call_complex -=(I64), @liveHandles, 1
-    call_complex +=(I64), @releases, 1
-    ret 
   }
 }
 

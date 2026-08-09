@@ -10,17 +10,9 @@ var minimum = -9223372036854775808n;
 var mask = 18446744073709551615n;
 
 // ResolveTest
-function directionValue(d) {
-  var v1 = d | 0;
-  return v1 === 0 ? 1 : v1 === 1 ? 2 : v1 === 2 ? 4 : 8;
-}
-
-function stateValue(s) {
-  return (s | 0) === 0 ? 0 : 1;
-}
-
 function main() {
-  var score = directionValue(heading) + Math.imul(directionValue(2), 16) | 0;
+  var v429 = heading | 0;
+  var score = (v429 === 0 ? 1 : v429 === 1 ? 2 : v429 === 2 ? 4 : 8) + 64;
   if (ready) {
     score = score + 1024 | 0;
   }
@@ -41,7 +33,7 @@ function main() {
   if (-1 === fell) {
     score = score + 1048576 | 0;
   }
-  if (stateValue(state) === stateValue(1)) {
+  if (!((state | 0) === 0)) {
     score = score + 131072 | 0;
   }
   if (minimum < 0n) {

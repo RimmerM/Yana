@@ -26,24 +26,6 @@ function total(xs$items, xs$length, xs$offset) {
   return sum;
 }
 
-function double(xs) {
-  var i = 0;
-  L0: for (;;) {
-    var v7 = xs.length;
-    if (i < v7) {
-      var v14 = xs.offset + i | 0;
-      checkCondition(i >>> 0 >= v7 >>> 0);
-      var v20 = xs.items;
-      var value = v20[v14];
-      v20[v14] = value + value | 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return;
-}
-
 function middle(xs$items, xs$length, xs$offset) {
   var start = 1;
   if (1 > xs$length) {
@@ -72,7 +54,17 @@ function main() {
     if (middle(v24, 4, 0) !== 5) {
       return -4;
     } else {
-      double({ items: v24, length: 4, offset: 0 });
+      var i = 0;
+      L0: for (;;) {
+        if (i < 4) {
+          checkCondition(i >>> 0 >= 4);
+          var value = v24[i];
+          v24[i] = value + value | 0;
+          i = i + 1 | 0;
+          continue L0;
+        }
+        break L0;
+      }
       if (total(v24, 4, 0) !== 20) {
         return -5;
       } else {

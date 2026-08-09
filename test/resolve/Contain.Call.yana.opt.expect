@@ -56,23 +56,23 @@ fn main() -> Int {
     init %local0@Flags.read:unit8, 1
     %handed = call score, %f : Int
     %again = call score, %f : Int
-    %v23 = add %handed, 1 : Int
-    %v24 = add %v23, %again : Int
-    %v25 = add %v24, 8 : Int
+    %v14 = add %handed, 1 : Int
+    %v15 = add %v14, %again : Int
+    %v17 = add %v15, 8 : Int
     %f = alloc : Flags
     init %local1@Flags.read:unit8, 2
     %ignored = call score, %f : Int
-    %v42 = add %ignored, 100 : Int
-    %v2 = add %v25, %v42 : Int
-    %v46 = alloc : Flags
+    %v25 = add %ignored, 100 : Int
+    %v2 = add %v17, %v25 : Int
+    %v26 = alloc : Flags
     init %f@Flags.read:unit8, 0
-    %v52 = borrow %f : &Flags
-    %zero = call mutate, %v52 : Int
-    %v152 = load %f@Flags.read:unit8 : U32
-    %v154 = and %v152, 1 : U32
-    %v155 = cast %v154 : Bool
-    %v96 = select %v155 ? 1000 : 2000 : Int
-    %v59 = add %v96, %zero : Int
-    %v4 = add %v2, %v59 : Int
+    %v31 = borrow %f : &Flags
+    %zero = call mutate, %v31 : Int
+    %v92 = load %f@Flags.read:unit8 : U32
+    %v94 = and %v92, 1 : U32
+    %v95 = cast %v94 : Bool
+    %v36 = select %v95 ? 1000 : 2000 : Int
+    %v37 = add %v36, %zero : Int
+    %v4 = add %v2, %v37 : Int
     ret %v4
 }

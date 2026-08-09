@@ -48,6 +48,14 @@ function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
 }
 
 // ResolveTest
+function leafFor(n) {
+  if (n > 5) {
+    return Math.imul(n, 3);
+  } else {
+    return null;
+  }
+}
+
 function node(n) {
   log = log + 1 | 0;
   if (n <= 0) {
@@ -55,36 +63,11 @@ function node(n) {
   } else {
     var v17 = { inner: 0, leaf: null, id: 0 };
     var v18 = Math.imul(n, 2);
-    var v29 = null;
-    if (n > 5) {
-      v29 = Math.imul(n, 3);
-    } else {
-      v29 = null;
-    }
+    var v25 = leafFor(n);
     v17.inner = v18;
-    v17.leaf = v29;
+    v17.leaf = v25;
     v17.id = n;
     return v17;
-  }
-}
-
-function checked(n) {
-  log = log + 10 | 0;
-  if (n <= 0) {
-    return { $tag: 0, $p: n };
-  } else {
-    var v17 = { inner: 0, leaf: null, id: 0 };
-    var v18 = Math.imul(n, 4);
-    var v29 = null;
-    if (n > 5) {
-      v29 = Math.imul(n, 3);
-    } else {
-      v29 = null;
-    }
-    v17.inner = v18;
-    v17.leaf = v29;
-    v17.id = n;
-    return { $tag: 1, $p: v17 };
   }
 }
 
@@ -123,7 +106,20 @@ function twoChecks(n) {
 
 function viaResult(n) {
   var v15;
-  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Node(checked(n));
+  var v23 = { $tag: 0, $p: null };
+  log = log + 10 | 0;
+  if (n <= 0) {
+    v23 = { $tag: 0, $p: n };
+  } else {
+    var v33 = { inner: 0, leaf: null, id: 0 };
+    var v34 = Math.imul(n, 4);
+    var v40 = leafFor(n);
+    v33.inner = v34;
+    v33.leaf = v40;
+    v33.id = n;
+    v23 = { $tag: 1, $p: v33 };
+  }
+  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Node(v23);
   if (v3.$tag === 1) {
     var v8 = v3.$p;
     drop$Outcome_Node_Int(v3);
@@ -203,12 +199,9 @@ function called(n) {
   }
   var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(v25);
   if (v3 === null) {
-    drop$Outcome_Int_sub_gt_Int(v3);
     v16 = null;
   } else {
-    var v10 = v3.$c(v3.$e, 21);
-    drop$Outcome_Int_sub_gt_Int(v3);
-    v16 = v10;
+    v16 = v3.$c(v3.$e, 21);
   }
   return v16;
 }
@@ -254,10 +247,6 @@ function drop$Outcome_Node_Int(value) {
   if (value.$tag === 0) {
     dropped = dropped + 1 | 0;
   }
-  return;
-}
-
-function drop$Outcome_Int_sub_gt_Int(value) {
   return;
 }
 main();

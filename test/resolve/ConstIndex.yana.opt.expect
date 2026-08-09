@@ -32,15 +32,15 @@ fn freeHeap(%allocation: %U8) -> () {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v45 = load %value@Array.run@Run.capacity:unit32 : U32
-    %v47 = shr %v45, 30 : U32
-    %v33 = cmp_eq %v47, 1 : Bool
-    je %v33, b1, b2
+    %v43 = load %value@Array.run@Run.capacity:unit32 : U32
+    %v45 = shr %v43, 30 : U32
+    %v32 = cmp_eq %v45, 1 : Bool
+    je %v32, b1, b2
 
   b1:
-    %v36 = load %value@Array.run@Run.items : %Int
-    %v37 = cast %v36 : %U8
-    call freeHeap, %v37
+    %v35 = load %value@Array.run@Run.items : %Int
+    %v36 = cast %v35 : %U8
+    call freeHeap, %v36
     jmp b2
 
   b2:

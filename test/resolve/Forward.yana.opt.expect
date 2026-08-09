@@ -114,9 +114,9 @@ fn nested(%a: Int) -> Int {
 fn escaped(%a: Int) -> Int {
   b0:
     %v6 = cmp_gt %a, 0 : Bool
-    %v22 = add %a, 1 : Int
-    %v30 = select %v6 ? %v22 : %a : Int
-    %v17 = add %v30, 1 : Int
+    %v21 = add %a, 1 : Int
+    %v29 = select %v6 ? %v21 : %a : Int
+    %v17 = add %v29, 1 : Int
     ret %v17
 }
 
@@ -129,41 +129,41 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v88 = load %i : Int
-    %v89 = cmp_lt %v88, 3 : Bool
-    je %v89, b6, b2
+    %v56 = load %i : Int
+    %v57 = cmp_lt %v56, 3 : Bool
+    je %v57, b6, b2
 
   b2:
-    %v91 = load %total : Int
-    %v10 = add %v91, 53 : Int
+    %v59 = load %total : Int
+    %v10 = add %v59, 53 : Int
     %i = alloc : Int
     init %i, 0
     jmp b3
 
   b3:
-    %v250 = phi [b2, 0], [b5, %v122] : Int
-    %v112 = load %i : Int
-    %v113 = cmp_lt %v112, 4 : Bool
-    je %v113, b5, b4
+    %v70 = phi [b2, 0], [b5, %v80] : Int
+    %v75 = load %i : Int
+    %v76 = cmp_lt %v75, 4 : Bool
+    je %v76, b5, b4
 
   b4:
-    %v13 = add %v10, %v250 : Int
+    %v13 = add %v10, %v70 : Int
     %v19 = add %v13, 17 : Int
     ret %v19
 
   b5:
-    %v122 = add %v250, 5 : Int
-    %v124 = load %i : Int
-    %v126 = add %v124, 1 : Int
-    assign %i, %v126
+    %v80 = add %v70, 5 : Int
+    %v81 = load %i : Int
+    %v83 = add %v81, 1 : Int
+    assign %i, %v83
     jmp b3
 
   b6:
-    %v93 = load %total : Int
-    %v97 = add %v93, 12 : Int
-    assign %total, %v97
-    %v99 = load %i : Int
-    %v101 = add %v99, 1 : Int
-    assign %i, %v101
+    %v61 = load %total : Int
+    %v63 = add %v61, 12 : Int
+    assign %total, %v63
+    %v65 = load %i : Int
+    %v67 = add %v65, 1 : Int
+    assign %i, %v67
     jmp b1
 }
