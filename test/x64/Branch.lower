@@ -88,6 +88,45 @@ flagWindowLive(%v: Int, %w: Int, %p: Ptr): Int {
     }
 }
 
+# §3.5.2.1 - the third `Jcc` form. The comparison is read by the branch *and* by the taken arm, so it
+# cannot be folded away: a use in another block is one the window walk cannot answer for, and the
+# result therefore keeps a register. The flags are still the comparison's where the branch reads
+# them - `setcc` writes a byte and `movzx` extends it, neither of them touching the flags - so the
+# branch is a bare `jcc` and not the `test r, r` in front of one that `flagWindowLoad` above emits.
+liveBranch(%v: Int, %w: Int): Int {
+    start {
+        %cmp = cmp_ilt %v, %w
+        je %cmp, a, b
+    }
+
+    a {
+        ret %cmp
+    }
+
+    b {
+        ret %w
+    }
+}
+
+# The same shape with a flag writer between the comparison and the branch, which is the half that
+# must decline: the `and` sets the flags the branch would read, and it cannot be lifted above the
+# comparison because it reads the comparison's own result. `test r, r` comes back.
+liveBranchClobbered(%v: Int, %w: Int): Int {
+    start {
+        %cmp = cmp_ilt %v, %w
+        %m = and %cmp, 1: Int
+        je %cmp, a, b
+    }
+
+    a {
+        ret %m
+    }
+
+    b {
+        ret %w
+    }
+}
+
 # A comparison works at the width of what it compares, not at the width of what it produces: the
 # result of every comparison is an Int, so taking the operand size from it would compare two 64-bit
 # values by their low halves alone. Both comparisons here have to carry a REX.W prefix - the

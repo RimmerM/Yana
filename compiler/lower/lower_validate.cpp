@@ -439,7 +439,12 @@ static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSe
         return false;
     }
 
-    if(!(isInt(base[inst->lhs]->type) || isFloat(base[inst->lhs]->type))) {
+    // Anything that lives in a register, which here is every lower type there is: an integer or a
+    // pointer is a `cmov`, a float is the branch-over-a-move expansion, and all three are one
+    // `select` on LLVM and one ternary on JS. What decides whether a *resolve* value may become one
+    // is `selectableType` in opt/opt_select.cpp, and it is stricter than this on purpose - a memory
+    // type also lowers to `Pointer`, and its value is the address of storage rather than a value.
+    if(!(isIntLike(base[inst->lhs]->type) || isFloat(base[inst->lhs]->type))) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
         return false;
     }

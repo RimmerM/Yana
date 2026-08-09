@@ -96,7 +96,7 @@ Access accessAt(LowerBase base, LowerInst* inst, Size which) {
  * is the one thing that would put a redirected write outside the bytes the copy was going to move.
  */
 template<class Visit>
-bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, Visit&& visit) {
+bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, bool allowCalls, Visit&& visit) {
     auto self = address - base;
 
     for(auto userPtr: address->uses.contents(base)) {
@@ -114,10 +114,31 @@ bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, Visi
             if(step.isNothing() || step.unwrap() >= size - offset) return false;
             if(!visit(user, offset)) return false;
 
-            if(!walkAddress(base, add->created().ptr, size, offset + step.unwrap(), visit)) {
+            if(!walkAddress(base, add->created().ptr, size, offset + step.unwrap(), allowCalls, visit)) {
                 return false;
             }
 
+            continue;
+        }
+
+        /*
+         * §7.4 A call the storage is *handed to*, which is the one use that is not an access and is
+         * still one this pass can redirect.
+         *
+         * A record filled by a call rather than by writes is the shape §16.2 of
+         * `test/bench/findings.md` declined - `newStringOfCapacity` is given somewhere to build a
+         * string and the result is then copied where it was wanted. The call is as redirectable as a
+         * store: it writes through the pointer it was given, and giving it the destination instead
+         * writes the same bytes in the same place. What it is *not* is analysable, so the caller
+         * takes on an obligation the access cases do not have - see `addressHiddenBefore`.
+         *
+         * Only the argument positions. A pointer used as the callee is an address this pass has no
+         * business rewriting, and `used()[0]` is where a call names it.
+         */
+        if(allowCalls && user->kind == LowerInst::Call) {
+            auto used = user->used();
+            if(used.length > 0 && used.ptr[0] == self) return false;
+            if(!visit(user, offset)) return false;
             continue;
         }
 
@@ -143,6 +164,111 @@ bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, Visi
 
         if(named == 0 || named != positions) return false;
         if(!visit(user, offset)) return false;
+    }
+
+    return true;
+}
+
+/*
+ * §7.4.1 Every block an execution can be in and still have `target` ahead of it.
+ *
+ * One backward walk over the incoming lists, which answers "can this block reach `target`" for every
+ * block at once - and the question is asked of many uses against one call, so that is the direction
+ * to walk it in. Reachability rather than dominance, and by *at least one edge*: a block inside a
+ * loop reaches itself, which is exactly the case a position comparison inside one block gets wrong.
+ *
+ * Over-approximate on purpose. A path this finds may be infeasible, and the answer is then a refusal
+ * rather than a miscompile.
+ */
+void blocksReaching(LowerBase base, LowerBlock& target, HashMap<U32, U32>& into) {
+    into.clear();
+
+    SmallArray<LowerPtr<LowerBlock>, 32> pending;
+
+    auto walk = [&](LowerBlock& from) {
+        for(auto predecessor: from.incoming.contents(base)) {
+            if(into.getValue(U32(predecessor))) continue;
+
+            into.add(U32(predecessor), 1);
+            pending.push(predecessor);
+        }
+    };
+
+    walk(target);
+    while(pending.size()) walk(*base[pending.pop().unwrap()]);
+}
+
+/*
+ * §7.4 Whether a callee could hold the destination's address by any route but the one being
+ * redirected into it.
+ *
+ * This is what replaces the aliasing argument where the writes being moved are a call's rather than
+ * this function's. The destination stops being written at the copy and starts being written during
+ * the call, so what has to hold is that the call cannot see it: an allocation of this frame whose
+ * address has reached nothing but plain accesses by the time the call runs is one the callee has no
+ * name for, whatever it does with the memory it can reach.
+ *
+ * "By the time" is the whole of it, and the question each use is asked is therefore **can this run
+ * before the call**, not where it is written. Two things answer it, and they are the same question
+ * over the two orderings a function has:
+ *
+ *  - a use in the call's own block runs before it exactly when it is written above it, *and* the
+ *    block is not one that reaches itself. A block inside a loop reaches itself, so a use written
+ *    below the call there is a use above it on the next time round.
+ *  - a use anywhere else runs before the call exactly when its block can reach the call's - which is
+ *    `reaching`, and is what lets `Text.showSigned` forward at all: its destination is read in five
+ *    later blocks, none of which leads back to the one that builds it.
+ *
+ * A use is only asked at all when it could *pass the address on*; a plain access reads or writes the
+ * storage and tells nobody where it is. Nor is anything downstream of a refused-or-allowed use asked
+ * separately: a use of a value is reachable from that value's definition, so a block that cannot
+ * reach the call has no successor that can.
+ */
+bool addressHiddenBefore(LowerBase base, LowerBlock& block, HashMap<U32, U32>& position,
+                         HashMap<U32, U32>& reaching, LowerValue* address, Size limit) {
+    auto self = address - base;
+    auto here = &block - base;
+
+    for(auto userPtr: address->uses.contents(base)) {
+        auto user = base[userPtr];
+
+        if(user->kind == LowerInst::Add) {
+            // The arithmetic itself passes nothing on; what it produces is followed. An offset that
+            // is not a constant is followed all the same - it still cannot leave the allocation.
+            if(!addressHiddenBefore(base, block, position, reaching, user->created().ptr, limit)) {
+                return false;
+            }
+
+            continue;
+        }
+
+        auto used = user->used();
+        auto named = Size(0);
+
+        for(Size which = 0;; which++) {
+            auto access = accessAt(base, user, which);
+            if(!access.address) break;
+            if(access.address == self) named++;
+        }
+
+        auto positions = Size(0);
+        for(Size i = 0; i < used.length; i++) {
+            if(used.ptr[i] == self) positions++;
+        }
+
+        // A plain access reads or writes the storage and tells nobody where it is, so it is allowed
+        // wherever it stands - including in another block, where it reads either the bytes the call
+        // was going to be given or the ones it wrote, and the copy made those the same bytes.
+        if(named > 0 && named == positions) continue;
+
+        if(user->block != here) {
+            if(reaching.getValue(U32(user->block))) return false;
+            continue;
+        }
+
+        auto at = position.getValue(U32(user - base));
+        if(!at || Size(at.unwrap()) <= limit) return false;
+        if(reaching.getValue(U32(here))) return false;
     }
 
     return true;
@@ -193,7 +319,7 @@ bool allocationEscapes(LowerBase base, LowerValue* allocation) {
     auto size = constantOf(base, ((LowerInstAlloca*)allocation->inst())->byteCount);
     if(size.isNothing()) return true;
 
-    return !walkAddress(base, allocation, size.unwrap(), 0, [](LowerInst*, U64) { return true; });
+    return !walkAddress(base, allocation, size.unwrap(), 0, false, [](LowerInst*, U64) { return true; });
 }
 
 // Where each instruction of a block sits in it, so that "before the copy" is a comparison rather than
@@ -239,7 +365,7 @@ void eraseInst(LowerBase base, LowerInst* inst) {
  * the copy. The last is the only part that walks instructions the copy does not name.
  */
 bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
-                LowerInstCopy& copy) {
+                HashMap<U32, U32>& reaching, LowerInstCopy& copy) {
     auto source = base[copy.from];
     auto destination = base[copy.to];
     if(source == destination) return false;
@@ -268,7 +394,13 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
     auto last = Size(0);
     auto local = true;
 
-    auto contained = walkAddress(base, source, size.unwrap(), 0, [&](LowerInst* user, U64) {
+    // The calls the storage is handed to, in no order. Empty where it is written directly, which is
+    // §16.2's original shape; where it is not, this is what §7.4's obligation is measured against
+    // and what tells the stretch scan below which calls in it are the writes being moved.
+    SmallArray<LowerInst*, 8> handedTo;
+    auto lastCall = maxLimit<Size>;
+
+    auto contained = walkAddress(base, source, size.unwrap(), 0, true, [&](LowerInst* user, U64) {
         auto at = position.getValue(U32(user - base));
 
         // A use in another block, or in this one's terminator or phis, is one the straight-line
@@ -280,6 +412,12 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
 
         first = min(first, Size(at.unwrap()));
         last = max(last, Size(at.unwrap()));
+
+        if(user->kind == LowerInst::Call) {
+            if(!handedTo.containsValue(user)) handedTo.push(user);
+            lastCall = lastCall == maxLimit<Size> ? Size(at.unwrap()) : max(lastCall, Size(at.unwrap()));
+        }
+
         return true;
     });
 
@@ -301,6 +439,7 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      * stack pointer, and where it does so is the whole of what it says.
      */
     auto hoist = maxLimit<Size>;
+    auto hoistCount = maxLimit<Size>;
 
     if(destination->inst()->kind != LowerInst::Arg) {
         auto definition = destination->inst();
@@ -313,10 +452,12 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
             auto bytes = ((LowerInstAlloca*)definition)->byteCount;
             if(constantOf(base, bytes).isNothing()) return false;
 
-            // The size it reads has to be available where it is going. A constant defined in another
-            // block already dominates this one, so only one in this block can be in the way.
+            // The size it reads has to be available where it is going, and where it is not it travels
+            // with the allocation. A constant reads nothing, so moving it up cannot cross a
+            // definition it depends on, and every use of it is below where it already was. One in
+            // another block already dominates this one and needs nothing.
             auto counted = position.getValue(U32(base[bytes]->inst() - base));
-            if(counted && Size(counted.unwrap()) >= first) return false;
+            if(counted && Size(counted.unwrap()) >= first) hoistCount = Size(counted.unwrap());
 
             hoist = Size(defined.unwrap());
         }
@@ -343,9 +484,33 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
     auto destinationKind = destination->inst()->kind;
     auto destinationOutside = destinationKind == LowerInst::Arg || destinationKind == LowerInst::Global;
 
+    /*
+     * §7.4 And where the writes being moved are a call's, the same question asked of the callee.
+     *
+     * It cannot be answered by looking at what the call does, so it is answered by what the call can
+     * name: the destination has to be storage of this frame whose address has reached nothing but
+     * plain accesses by the time the call runs. A parameter or a global is refused outright here -
+     * they are exactly the destinations the escape argument above needs nothing for, and exactly the
+     * ones this needs something it cannot have.
+     */
+    if(lastCall != maxLimit<Size>) {
+        if(!destinationBase) return false;
+
+        // Built here rather than once per function: it is one walk of the CFG, and it is wanted only
+        // by the shape that gets this far - a copy whose temporary a call filled, which is a handful
+        // of sites in a program and none at all in most functions.
+        blocksReaching(base, block, reaching);
+        if(!addressHiddenBefore(base, block, position, reaching, destinationBase, lastCall)) return false;
+    }
+
     for(auto i = first; i < Size(here.unwrap()); i++) {
         auto inst = base[block.instructions.get(base, i)];
         if(!touchesMemory(inst)) continue;
+
+        // A call the temporary is handed to is one of the writes being moved rather than something
+        // that could reach the destination - which is what the check above has just established for
+        // every one of them.
+        if(inst->kind == LowerInst::Call && handedTo.containsValue(inst)) continue;
 
         auto known = false;
         for(Size which = 0;; which++) {
@@ -377,9 +542,16 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      * write into the write the copy was going to perform and each offset into the same offset from
      * the other address; the copy then has nothing left to move, and the allocation nothing in it.
      */
-    // Both indices are below the copy's - the allocation defines what the copy writes into, and the
-    // first write is at or above it - so the rotation leaves the copy where it was.
-    if(hoist != maxLimit<Size>) moveInstUp(base, block, hoist, first);
+    // Every index moved is below the copy's - the allocation defines what the copy writes into, its
+    // byte count is above the allocation, and the first write is at or above both - so the rotations
+    // leave the copy where it was. The count goes first and the allocation lands behind it: moving
+    // the count only shifts what lies between it and `first`, which the allocation is not among.
+    if(hoistCount != maxLimit<Size>) {
+        moveInstUp(base, block, hoistCount, first);
+        if(hoist != maxLimit<Size>) moveInstUp(base, block, hoist, first + 1);
+    } else if(hoist != maxLimit<Size>) {
+        moveInstUp(base, block, hoist, first);
+    }
 
     detach(base, (LowerInst*)&copy);
     block.instructions.remove(base, Size(here.unwrap()));
@@ -402,6 +574,7 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
 
 void forwardCopyDestinations(LowerBase base, LowerFunction& fun) {
     HashMap<U32, U32> position;
+    HashMap<U32, U32> reaching;
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
@@ -425,7 +598,7 @@ void forwardCopyDestinations(LowerBase base, LowerFunction& fun) {
                 auto inst = base[block->instructions.get(base, i)];
                 if(inst->kind != LowerInst::Copy) continue;
 
-                if(tryForward(base, fun, *block, position, *(LowerInstCopy*)inst)) {
+                if(tryForward(base, fun, *block, position, reaching, *(LowerInstCopy*)inst)) {
                     changed = true;
                     break;
                 }

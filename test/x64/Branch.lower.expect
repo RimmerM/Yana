@@ -74,6 +74,37 @@ flagWindowLive<complex>(%v: Int, %w: Int, %p: Ptr): Int {
   }
 }
 
+liveBranch<complex>(%v: Int, %w: Int): Int {
+  start {
+    %cmp = cmp_ilt %v, %w: Int
+    je %cmp, a, b
+  }
+
+  a {
+    ret %cmp
+  }
+
+  b {
+    ret %w
+  }
+}
+
+liveBranchClobbered<complex>(%v: Int, %w: Int): Int {
+  start {
+    %cmp = cmp_ilt %v, %w: Int
+    %m = and %cmp, 1: Int
+    je %cmp, a, b
+  }
+
+  a {
+    ret %m
+  }
+
+  b {
+    ret %w
+  }
+}
+
 wideBranch<complex>(%v: Long, %w: Long): Long {
   start {
     %v_0 = cmp_ilt %v, %w: Int
@@ -312,6 +343,30 @@ block a:
   add uses=[rdi, rax] creates=[rdi]  => 01c7
   add uses=[rax, rdx] creates=[rax] pre=[rdi->rax]  => 8bc701d0
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: liveBranch ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
+block start:
+  cmp_ilt uses=[rdi, rax] creates=[rdi]  => 39c7400f9cc7400fb6ff
+  je uses=[rdi] creates=[]  => 7c01
+block b:
+  ret uses=[rax] creates=[]  => c3
+block a:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 8bc7c3
+
+--- codegen: liveBranchClobbered ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
+block start:
+  cmp_ilt uses=[rdi, rax] creates=[rdi]  => 39c7400f9cc7400fb6ff
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8bcf83e101
+  je uses=[rdi] creates=[]  => 85ff7501
+block b:
+  ret uses=[rax] creates=[]  => c3
+block a:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: wideBranch ---
 block #0:

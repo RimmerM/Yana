@@ -78,130 +78,121 @@ fn allocateHeap(%size: I64) -> %U8 {
     je %v4, b2, b1
 
   b1:
-    jmp b10
+    jmp b7
 
   b2:
     %result = syscall 9, 0, 4194304, 3, 34, -1, 0 : I64
-    %v82 = cmp_lt %result, 0 : Bool
-    je %v82, b4, b3
+    %v81 = cmp_lt %result, 0 : Bool
+    %v83 = cast 0 : %U8
+    %v84 = cast %result : %U8
+    %region = select %v81 ? %v83 : %v84 : %U8
+    %v86 = cast %region : Long
+    %v88 = cmp_eq %v86, 0 : Bool
+    je %v88, b4, b3
 
   b3:
-    %v84 = cast %result : %U8
+    setmemory %region, 0, 256
+    %v93 = cast %region : %%U8
+    assign heapFree, %v93
+    %v96 = add %region, 256 : %U8
+    assign heapNext, %v96
+    %v99 = add %region, 4194304 : %U8
+    assign heapLimit, %v99
+    assign heapRegionNext, 8388608
     jmp b5
 
   b4:
-    %v87 = cast 0 : %U8
     jmp b5
 
   b5:
-    %region = phi [b3, %v84], [b4, %v87] : %U8
-    %v89 = cast %region : Long
-    %v91 = cmp_eq %v89, 0 : Bool
-    je %v91, b7, b6
-
-  b6:
-    setmemory %region, 0, 256
-    %v96 = cast %region : %%U8
-    assign heapFree, %v96
-    %v99 = add %region, 256 : %U8
-    assign heapNext, %v99
-    %v102 = add %region, 4194304 : %U8
-    assign heapLimit, %v102
-    assign heapRegionNext, 8388608
-    jmp b8
-
-  b7:
-    jmp b8
-
-  b8:
     %v7 = load heapFree : %%U8
     %v8 = cast %v7 : Long
     %v10 = cmp_eq %v8, 0 : Bool
-    je %v10, b23, b9
+    je %v10, b20, b6
 
-  b9:
-    jmp b10
+  b6:
+    jmp b7
 
-  b10:
+  b7:
     %v20 = add %size, 8 : I64
     %size = alloc : I64
     init %size, 16
     %sizeClass = alloc : I64
     init %sizeClass, 0
-    jmp b11
+    jmp b8
 
-  b11:
-    %v115 = load %size : I64
-    %v116 = cmp_lt %v115, %v20 : Bool
-    je %v116, b22, b12
+  b8:
+    %v112 = load %size : I64
+    %v113 = cmp_lt %v112, %v20 : Bool
+    je %v113, b19, b9
 
-  b12:
-    %v118 = load %sizeClass : I64
-    %v23 = cmp_ge %v118, 32 : Bool
-    je %v23, b21, b13
+  b9:
+    %v115 = load %sizeClass : I64
+    %v23 = cmp_ge %v115, 32 : Bool
+    je %v23, b18, b10
 
-  b13:
-    %v129 = load heapFree : %%U8
-    %v131 = mul %v118, 8 : I64
-    %v132 = add %v129, %v131 : %%U8
-    %v133 = load [%v132] : %U8
-    %v30 = cast %v133 : Long
+  b10:
+    %v126 = load heapFree : %%U8
+    %v128 = mul %v115, 8 : I64
+    %v129 = add %v126, %v128 : %%U8
+    %v130 = load [%v129] : %U8
+    %v30 = cast %v130 : Long
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
-    je %v34, b20, b14
+    je %v34, b17, b11
 
-  b14:
-    %v140 = shl 16, %v118 : I64
+  b11:
+    %v137 = shl 16, %v115 : I64
     %v42 = load heapNext : %U8
-    %v45 = add %v42, %v140 : %U8
+    %v45 = add %v42, %v137 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
-    je %v47, b16, b15
+    je %v47, b13, b12
+
+  b12:
+    jmp b15
+
+  b13:
+    %v49 = call growHeap, %v137 : Bool
+    %v51 = xor %v49, True : Bool
+    je %v51, b16, b14
+
+  b14:
+    jmp b15
 
   b15:
-    jmp b18
-
-  b16:
-    %v49 = call growHeap, %v140 : Bool
-    %v51 = xor %v49, True : Bool
-    je %v51, b19, b17
-
-  b17:
-    jmp b18
-
-  b18:
     %block = load heapNext : %U8
-    %v62 = add %block, %v140 : %U8
+    %v62 = add %block, %v137 : %U8
     assign heapNext, %v62
     %v64 = cast %block : %I64
-    assign [%v64], %v118
+    assign [%v64], %v115
     %v70 = add %block, 8 : %U8
     ret %v70
 
-  b19:
+  b16:
     %v54 = cast 0 : %U8
     ret %v54
 
-  b20:
-    %v36 = cast %v133 : %%U8
+  b17:
+    %v36 = cast %v130 : %%U8
     %v37 = load [%v36] : %U8
-    assign [%v132], %v37
-    ret %v133
+    assign [%v129], %v37
+    ret %v130
 
-  b21:
+  b18:
     %v26 = cast 0 : %U8
     ret %v26
 
-  b22:
-    %v120 = load %size : I64
-    %v122 = add %v120, %v120 : I64
-    assign %size, %v122
-    %v124 = load %sizeClass : I64
-    %v126 = add %v124, 1 : I64
-    assign %sizeClass, %v126
-    jmp b11
+  b19:
+    %v117 = load %size : I64
+    %v119 = add %v117, %v117 : I64
+    assign %size, %v119
+    %v121 = load %sizeClass : I64
+    %v123 = add %v121, 1 : I64
+    assign %sizeClass, %v123
+    jmp b8
 
-  b23:
+  b20:
     %v13 = cast 0 : %U8
     ret %v13
 }

@@ -1,0 +1,91 @@
+import Native
+
+-- §7.4 of `lower_forward.h`: a temporary a *call* fills, copied into where it was wanted.
+--
+-- `tagged` is given somewhere to build a string and the caller then copies the result into the local
+-- it meant all along, so the call could have been handed that local to begin with. Redirecting it
+-- moves the writes earlier, which is only sound where the callee cannot see the destination by any
+-- other route.
+--
+-- The three functions below hold four halves of that between them, and the `.lower.expect` beside
+-- this file is where to read each of them:
+--
+--  * `built`: `call tagged, %text, %n` - forwarded. The local is fresh where the call runs, nothing
+--    else has its address, and both the temporary and the sixteen-byte copy stop existing.
+--  * `built`: `call Append(String).+, %v, %text, ..` followed by `copy %text, %v, 16` - declined,
+--    and by the oldest of the rules: the release of the old string stands between the call and the
+--    copy, and a call in that stretch is something this pass cannot say is unable to reach the
+--    destination.
+--  * `inLaterBlock`: forwarded, and it is §7.4.1's widening - the destination is passed on only in
+--    blocks the call's own block cannot be reached from, so the call still cannot have the address.
+--  * `inLoop`: declined, and it is the clause that costs bytes rather than saving them. The append
+--    is written *below* the call, which in a straight line would put it out of reach - but the block
+--    is a loop body, so on the second time round it is above it.
+--
+-- The assertion is against the *allocator* as well as the length, because that is what a wrong
+-- redirect shows up in - a call writing a destination it also reads would build the wrong bytes or
+-- release a run twice, and `heapNext` is the only witness to the second. Native only, for the reason
+-- `StringReclaim.yana` gives.
+
+let &tags = 0 :: Int
+
+fn tagged(n: Int) -> String:
+    tags = tags + 1
+    return "n={n}"
+
+fn built(n: Int) -> Int:
+    let &text = tagged(n)
+    text = text + "!"
+    return length(text) :: Int
+
+-- §7.4.1's widening, and `Text.showSigned`'s shape written small: the destination is only ever
+-- passed on in a *later* block, and no path from that block leads back to the one holding the call,
+-- so the call still cannot have the address and `tagged` writes `%text` directly.
+fn inLaterBlock(n: Int) -> Int:
+    let &text = tagged(n)
+
+    if n > 0:
+        text = text + "!"
+
+    return length(text) :: Int
+
+-- And the half a position comparison alone gets wrong. The append is written *below* the call, which
+-- in a straight line would put it out of the call's reach - but the block is a loop body, so on the
+-- second time round it is above it. The block reaches itself, and this declines.
+fn inLoop(n: Int) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        let &text = tagged(i)
+        text = text + "!"
+        total = total + (length(text) :: Int)
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    -- Once first, so every size class these strings reach has been mapped and the free lists are
+    -- warm. Everything measured after this is reuse rather than growth.
+    let warm = built(7)
+    let settled = heapNext
+
+    -- The length, which is what a redirect that wrote the wrong bytes changes, and the heap pointer,
+    -- which is what a redirect that lost a release changes.
+    if built(7) != warm then return -1
+    if !(heapNext == settled) then return -2
+
+    -- The two blocks above, held to the same two assertions.
+    if inLaterBlock(7) != 4 then return -3
+    if inLaterBlock(0 - 1) != 4 then return -4
+    if !(heapNext == settled) then return -5
+
+    if inLoop(3) != 12 then return -6
+    if !(heapNext == settled) then return -7
+
+    -- And that the calls really ran rather than being folded away: two from `built`, two from
+    -- `inLaterBlock` and three from `inLoop`.
+    if tags != 7 then return -8
+
+    -- "n=7!" is four units.
+    return warm

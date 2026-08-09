@@ -113,7 +113,7 @@ main<complex>(): Int {
     store %v_6, 40, 4
     %v_7 = add %v_1, 12: Ptr
     store %v_7, 3, 4
-    %v_8 = alloca 8, 4: Ptr
+    %v_8 = alloca 16, 4: Ptr
     store %v_8, 1, 4
     %v_9 = add %v_8, 4: Ptr
     store %v_9, 2, 4
@@ -122,75 +122,72 @@ main<complex>(): Int {
     %v_11 = add %v_10, 4: Ptr
     store %v_11, 4, 4
     %v_12 = alloca 16, 8: Ptr
-    %v_13 = alloca 16, 4: Ptr
-    store %v_12, %v_13, 8
-    %v_14 = add %v_12, 8: Ptr
-    %v_15 = load %v_14, 4: Int
-    store %v_14, 2, 4
-    copy %v_13, %v_8, 8
-    %v_16 = add %v_13, 8: Ptr
-    copy %v_16, %v_10, 8
-    %v_17 = add %v_12, 12: Ptr
-    store %v_17, 2, 4
-    store %v_13, 7, 4
-    %v_18 = add %v_13, 4: Ptr
-    store %v_18, 8, 4
-    store %v_16, 9, 4
-    %v_19 = alloca 16, 8: Ptr
-    %v_20 = alloca 12, 4: Ptr
-    store %v_19, %v_20, 8
-    %v_21 = add %v_19, 8: Ptr
-    %v_22 = load %v_21, 4: Int
-    store %v_21, 3, 4
-    store %v_20, 0, 4
-    %v_23 = add %v_20, 4: Ptr
-    store %v_23, 0, 4
-    %v_24 = add %v_20, 8: Ptr
-    store %v_24, 0, 4
-    %v_25 = add %v_19, 12: Ptr
-    store %v_25, 3, 4
-    %v_26 = loads %v_2, 4: Int
-    %v_27 = loads %v_6, 4: Int
+    store %v_12, %v_8, 8
+    %v_13 = add %v_12, 8: Ptr
+    %v_14 = load %v_13, 4: Int
+    store %v_13, 2, 4
+    %v_15 = add %v_8, 8: Ptr
+    copy %v_15, %v_10, 8
+    %v_16 = add %v_12, 12: Ptr
+    store %v_16, 2, 4
+    store %v_8, 7, 4
+    store %v_9, 8, 4
+    store %v_15, 9, 4
+    %v_17 = alloca 16, 8: Ptr
+    %v_18 = alloca 12, 4: Ptr
+    store %v_17, %v_18, 8
+    %v_19 = add %v_17, 8: Ptr
+    %v_20 = load %v_19, 4: Int
+    store %v_19, 3, 4
+    store %v_18, 0, 4
+    %v_21 = add %v_18, 4: Ptr
+    store %v_21, 0, 4
+    %v_22 = add %v_18, 8: Ptr
+    store %v_22, 0, 4
+    %v_23 = add %v_17, 12: Ptr
+    store %v_23, 3, 4
+    %v_24 = loads %v_2, 4: Int
+    %v_25 = loads %v_6, 4: Int
+    %v_26 = add %v_24, %v_25: Int
+    %v_27 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
     %v_28 = add %v_26, %v_27: Int
-    %v_29 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
-    %v_30 = add %v_28, %v_29: Int
-    %v_31 = loads %v_13, 4: Int
-    %v_32 = add %v_16, 4: Ptr
-    %v_33 = loads %v_32, 4: Int
-    %v_34 = add %v_31, %v_33: Int
+    %v_29 = loads %v_8, 4: Int
+    %v_30 = add %v_15, 4: Ptr
+    %v_31 = loads %v_30, 4: Int
+    %v_32 = add %v_29, %v_31: Int
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_12
-    %v_35 = add %v_30, %v_34: Int
-    %v_36 = add %v_20, 8: Ptr
-    %v_37 = imm 5: Int
-    store %v_36, %v_37, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_19
-    %v_38 = add %v_35, %v_37: Int
-    %v_39 = alloca 12, 4: Ptr
-    store %v_39, 1, 4
-    %v_40 = add %v_39, 4: Ptr
-    store %v_40, 2, 4
-    %v_41 = add %v_39, 8: Ptr
-    store %v_41, 3, 4
-    %v_42 = loads %v_40, 4: Int
-    %v_43 = add %v_38, %v_42: Int
-    %v_44 = load %v_1, 8: Ptr
-    %v_45 = add %v_1, 12: Ptr
-    %v_46 = load %v_45, 4: Int
-    %v_47 = cast %v_46: Int
-    %v_48 = cast %v_47: Long
-    %v_49 = cmp_eq %v_48, 0: Int
-    je %v_49, b_50, b_51
+    %v_33 = add %v_28, %v_32: Int
+    %v_34 = add %v_18, 8: Ptr
+    %v_35 = imm 5: Int
+    store %v_34, %v_35, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_17
+    %v_36 = add %v_33, %v_35: Int
+    %v_37 = alloca 12, 4: Ptr
+    store %v_37, 1, 4
+    %v_38 = add %v_37, 4: Ptr
+    store %v_38, 2, 4
+    %v_39 = add %v_37, 8: Ptr
+    store %v_39, 3, 4
+    %v_40 = loads %v_38, 4: Int
+    %v_41 = add %v_36, %v_40: Int
+    %v_42 = load %v_1, 8: Ptr
+    %v_43 = add %v_1, 12: Ptr
+    %v_44 = load %v_43, 4: Int
+    %v_45 = cast %v_44: Int
+    %v_46 = cast %v_45: Long
+    %v_47 = cmp_eq %v_46, 0: Int
+    je %v_47, b_48, b_49
   }
 
-  b_51 {
-    %v_52 = loads %v_44, 4: Int
+  b_49 {
+    %v_50 = loads %v_42, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_53 = add %v_43, %v_52: Int
-    ret %v_53
+    %v_51 = add %v_41, %v_50: Int
+    ret %v_51
   }
 
-  b_50 {
-    %v_54 = syscall 60, 134: Long
+  b_48 {
+    %v_52 = syscall 60, 134: Long
     unreachable 
   }
 }

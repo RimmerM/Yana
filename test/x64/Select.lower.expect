@@ -47,6 +47,15 @@ crossBlock<complex>(%v: Int, %a: Int, %b: Int): Int {
   }
 }
 
+pointerArm<complex>(%raw: Long, %p: Ptr): Ptr {
+  b_0 {
+    %c = cmp_ilt %raw, 0: Int
+    %zero = bitcast 0: Ptr
+    %r = select %zero, %p, %c: Ptr
+    ret %r
+  }
+}
+
 
 --- codegen: merged ---
 block #0:
@@ -100,4 +109,15 @@ block start:
   jmp uses=[] creates=[]  => 
 block next:
   select uses=[rax, rdx, rdi] creates=[rax] pre=[rsi->rax]  => 8bc685ff0f44c2
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: pointerArm ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[-] creates=[rax]  => 31c0
+  cmp_ilt uses=[rdi, -] creates=[-]  => 4885ff
+  select uses=[rax, rsi, -] creates=[rax]  => 480f4dc6
   ret uses=[rax] creates=[]  => c3

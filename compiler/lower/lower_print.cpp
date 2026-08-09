@@ -463,8 +463,12 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
         writer.writeString(", "_v);
         printEdge(writer, context, *base[je.otherwise], je.likelihood[1], stated, print);
 
+        // A branch reading the flags, and whether the comparison that set them went nowhere else.
+        // "implicit" is the merged case, where the condition has no register at all; "flags" is the
+        // one where it is materialized for some other reader and the branch simply does not use it.
         if(auto cmp = je.getEmbeddedCmp()) {
-            writer.writeString("    # implicit "_v);
+            auto folded = (base[je.cond]->flags & LowerValue::Implicit) != 0;
+            writer.writeString(folded ? "    # implicit "_v : "    # flags "_v);
             writer.writeString(nameForCmp(cmp.unwrap()));
         }
     } else {

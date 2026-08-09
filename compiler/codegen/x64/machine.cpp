@@ -138,6 +138,7 @@ enum: MachineFormId {
 
     FormJmp,
     FormJccFlags,
+    FormJccLive,
     FormJccReg,
     FormRet,
     FormNoReturn,
@@ -1506,6 +1507,19 @@ MachineTarget::MachineTarget() {
     }
 
     {
+        // The same branch, where the comparison that set the flags was materialized as well and so
+        // still holds a register - see §3.5.2.1 of the README. The condition is a real operand rather
+        // than a folded one, because the value is genuinely live; it is simply not what the branch
+        // reads. Two bytes cheaper than the form below, which re-derives the flags from it.
+        auto& form = add(FormJccLive, OpJcc, "jcc rel32 (condition live)"_v);
+        form.uses.push(anyReg(ClassGpr32));
+        form.flagsEffect = FlagsEffect::Use;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::Branch,
+        };
+    }
+
+    {
         auto& form = add(FormJccReg, OpJcc, "test r, r; jcc rel32"_v);
         form.uses.push(anyReg(ClassGpr32));
         form.flagsEffect = FlagsEffect::UseDef;
@@ -2378,8 +2392,17 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             return callee->inst()->kind == LowerInst::Fun ? FormCallDirect : FormCallIndirect;
         }
 
-        case LowerInst::Je:
-            return ((LowerInstJe*)inst)->getEmbeddedCmp() ? FormJccFlags : FormJccReg;
+        /*
+         * Three forms rather than two. A branch reading the flags is the merged one where the
+         * comparison went nowhere else and the folded one where it did: `Implicit` on the condition
+         * is what distinguishes them, and it is the same question every other folded operand is
+         * asked, so the verifier's rule about a folded operand needing no location keeps holding.
+         */
+        case LowerInst::Je: {
+            auto je = (LowerInstJe*)inst;
+            if(!je->getEmbeddedCmp()) return FormJccReg;
+            return isImplicit(base[je->cond]) ? FormJccFlags : FormJccLive;
+        }
         case LowerInst::Jmp: return FormJmp;
         case LowerInst::Ret: return FormRet;
         case LowerInst::Unreachable: return FormNoReturn;

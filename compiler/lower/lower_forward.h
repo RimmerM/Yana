@@ -67,6 +67,47 @@
  * The last one is why a call in that stretch stops the rewrite: a call may touch anything, and the
  * destination is exactly the thing it must not touch.
  *
+ * ## §7.4 The temporary a call fills
+ *
+ * The four above describe a temporary this function *writes*. A record filled by a call is the same
+ * shape with the writes on the other side of a call boundary - `newStringOfCapacity` is handed
+ * somewhere to build a string, and the result is copied into the local that wanted it:
+ *
+ *      %2 = alloca 16                       %3 = alloca 16
+ *      call newStringOfCapacity, %2, 37     call newStringOfCapacity, %3, 37
+ *      %3 = alloca 16                ->     call pushString, %3, ..
+ *      copy %3, %2, 16                      ..
+ *      call pushString, %3, ..
+ *
+ * The call is as redirectable as a store: it writes through the pointer it is given, and giving it
+ * the destination writes the same bytes in the same place. So a call is admitted as a use of the
+ * temporary, and the ordinary rewrite - every use of the temporary becomes a use of the destination -
+ * covers it with nothing added.
+ *
+ * What is added is one obligation, and it is what the aliasing argument above becomes when the
+ * writes are a callee's. The destination stops being written *at* the copy and starts being written
+ * *during* the call, so a callee that could reach the destination by some other route would see it
+ * half-written where before it saw it untouched. Nothing can be proved about what a callee does, so
+ * what is proved instead is what it can name: the destination has to be storage of this frame whose
+ * address has reached nothing but plain accesses by the time the call runs.
+ *
+ * "By the time" is the whole of it. The destination in `Text.line` is handed to four *later* calls
+ * and is still invisible to the first one, because an address passed on below a call cannot be an
+ * address that call already had. So what each use is asked is **can this run before the call**, and
+ * a position is only one of the two orderings a function has:
+ *
+ *  - a use in the call's own block runs before it exactly when it is written above it, *and* the
+ *    block is not one that reaches itself. A block inside a loop does, so a use written below the
+ *    call there is a use written above it on the next time round;
+ *  - a use anywhere else runs before the call exactly when its block can reach the call's, which is
+ *    what `blocksReaching` answers for every block at once. `Text.showSigned` reads its destination
+ *    in five later blocks and none of them leads back to the one that builds it.
+ *
+ * Nothing downstream of a use is asked separately: a use of a value is reachable from that value's
+ * definition, so a block that cannot reach the call has no successor that can. A destination that is
+ * a parameter or a global is refused outright: those are the two the argument above needs nothing
+ * for, and the two this one can have nothing about.
+ *
  * ## Order
  *
  * Before `promoteStackSlots`, and the direction of the dependency is that way round: forwarding

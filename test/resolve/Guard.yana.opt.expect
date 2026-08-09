@@ -168,20 +168,10 @@ fn scan(%c: Color) -> Int {
   b0:
     %v4 = cast %c : Int
     %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b2
-
-  b1:
-    ret 9
-
-  b2:
     %v11 = cmp_eq %v4, 1 : Bool
-    je %v11, b4, b3
-
-  b3:
-    ret 8
-
-  b4:
-    ret 7
+    %v20 = select %v11 ? 7 : 8 : Int
+    %v22 = select %v6 ? 9 : %v20 : Int
+    ret %v22
 }
 
 fn main() -> Int {

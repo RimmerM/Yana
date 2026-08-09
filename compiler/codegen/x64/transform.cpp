@@ -635,6 +635,55 @@ static bool clearFlagsWindow(LowerBase base, LowerInstCmp* cmp, Size index, Size
     return true;
 }
 
+/*
+ * §3.5.2.1 A comparison that is materialized *and* branched on.
+ *
+ * The fold above is all or nothing: it needs every use of the comparison to be one that can read the
+ * flags, and it needs them all in the comparison's own block. A comparison read by anything else -
+ * a store, a call argument, a phi in a successor - therefore keeps its register, and the branch that
+ * reads it as well goes back to `test r, r; jcc`, re-deriving from a register the flags it is
+ * standing next to. `setcc` and the `movzx` behind it write no flags, so those flags are still the
+ * comparison's where the branch reads them.
+ *
+ * That is the third `Jcc` form: a branch on the flags whose condition operand is still an ordinary
+ * register operand, because the value it names is genuinely live. It emits the `jcc` and not the
+ * `test`, which is the two bytes, and nothing about the materialization changes.
+ *
+ * What it needs is exactly the window the fold above needs, measured to the terminator rather than
+ * to the last use - the other uses read a register and do not care what the flags hold. Nothing is
+ * hoisted for it: lifting an instruction out of the window is worth doing for six instructions and
+ * not for two, and a window this cannot have is one the fold above already tried to clear.
+ */
+static bool tryBranchOnLiveCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
+    // The same shapes the fold above refuses, and for the same reason: a float equality is not a
+    // condition code, and its materialization corrects the NaN case with an instruction that writes
+    // the flags (genFloatFlagsToReg) - so there is nothing here for a branch to read.
+    if(isFloat(base[cmp->lhs]->type)) {
+        auto kind = cmp->getCmp();
+        if(kind == LowerCmp::eq || kind == LowerCmp::neq) return false;
+    }
+
+    auto block = base[cmp->block];
+    auto branch = base[block->terminator];
+    if(branch->kind != LowerInst::Je) return false;
+
+    auto je = (LowerInstJe*)branch;
+    if(je->getEmbeddedCmp()) return false;   // already reading the flags
+    if(base[je->cond] != &cmp->result) return false;
+
+    // Everything between the comparison and the terminator has to leave the flags alone. The
+    // materialization itself is not in the list and does not: `setcc` writes a byte and `movzx`
+    // extends it, and the `xor` that clears the register ahead of the comparison is emitted in front
+    // of it rather than behind it (see genSetCc).
+    auto list = block->instructions.contents(base);
+    for(Size i = index + 1; i < list.size(); i++) {
+        if(modifiesFlags(base, base[list[i]])) return false;
+    }
+
+    je->setEmbeddedCmp(Just(cmp->getCmp()));
+    return true;
+}
+
 // Carries a comparison into the branches and selects that read it, so that its answer stays in the
 // flags rather than being materialized. Returns how many instructions were lifted above it to make
 // that possible, which is how far its own position in the block moved down.
@@ -646,11 +695,20 @@ static Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
         return 0;
     }
 
-    if(!canCarryInFlags(base, cmp)) return 0;
+    if(!canCarryInFlags(base, cmp)) {
+        tryBranchOnLiveCompare(base, cmp, index);
+        return 0;
+    }
 
     auto end = flagsWindowEnd(base, cmp, index);
-    if(end.isNothing()) return 0;
 
+    if(end.isNothing()) {
+        tryBranchOnLiveCompare(base, cmp, index);
+        return 0;
+    }
+
+    // Nothing to fall back to here: this is the one refusal that means a flag writer stands between
+    // the comparison and something that reads it, which is exactly what the form above cannot have.
     Size hoisted = 0;
     if(!clearFlagsWindow(base, cmp, index, end.unwrap(), hoisted)) return 0;
 

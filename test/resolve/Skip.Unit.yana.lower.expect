@@ -105,34 +105,32 @@ statementTail<complex>(%n: Int): Int {
     %v_7 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_7, %n, %v_5
     %v_8 = alloca 1, 1: Ptr
-    copy %v_8, %v_7, 1
-    %v_9 = alloca 1, 1: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_9, %v_8
-    %v_10 = loads %v_9, 1: Int
-    %v_11 = cmp_eq %v_10, 1: Int
-    je %v_11, b_12, b_13
+    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_8, %v_7
+    %v_9 = loads %v_8, 1: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
   }
 
   b_3 {
+    jmp b_13
+  }
+
+  b_11 {
+    store %seen, 18446744073709551615, 4
     jmp b_14
   }
 
   b_12 {
-    store %seen, 18446744073709551615, 4
-    jmp b_15
-  }
-
-  b_13 {
-    jmp b_15
-  }
-
-  b_15 {
     jmp b_14
   }
 
   b_14 {
-    %v_16 = loads %seen, 4: Int
-    ret %v_16
+    jmp b_13
+  }
+
+  b_13 {
+    %v_15 = loads %seen, 4: Int
+    ret %v_15
   }
 }
 
@@ -146,23 +144,21 @@ returningNothing<complex>(%n: Int) {
     %v_4 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_4, %n, %v_1
     %v_5 = alloca 1, 1: Ptr
-    copy %v_5, %v_4, 1
-    %v_6 = alloca 1, 1: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
-    %v_7 = loads %v_6, 1: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
+    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_5, %v_4
+    %v_6 = loads %v_5, 1: Int
+    %v_7 = cmp_eq %v_6, 1: Int
+    je %v_7, b_8, b_9
   }
 
-  b_9 {
+  b_8 {
     ret 
   }
 
-  b_10 {
-    jmp b_11
+  b_9 {
+    jmp b_10
   }
 
-  b_11 {
+  b_10 {
     ret 
   }
 }
@@ -177,19 +173,7 @@ leavingWithNothing<complex>(%n: Int) {
     %v_4 = alloca 1, 1: Ptr
     call_complex findFirst(()), %v_4, %n, %v_1
     %v_5 = alloca 1, 1: Ptr
-    copy %v_5, %v_4, 1
-    %v_6 = alloca 1, 1: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_6, %v_5
-    %v_7 = loads %v_6, 1: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    ret 
-  }
-
-  b_10 {
+    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_5, %v_4
     ret 
   }
 }

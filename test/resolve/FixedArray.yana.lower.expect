@@ -157,7 +157,7 @@ double<complex>(%xs: Ptr) {
 
 padRead<complex>(): Long {
   b_0 {
-    %v_1 = alloca 9, 8: Ptr
+    %v_1 = alloca 48, 8: Ptr
     store %v_1, 10, 8
     %v_2 = add %v_1, 8: Ptr
     store %v_2, 1, 1
@@ -169,18 +169,16 @@ padRead<complex>(): Long {
     store %v_5, 30, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, 3, 1
-    %v_7 = alloca 48, 8: Ptr
-    copy %v_7, %v_1, 9
-    %v_8 = add %v_7, 16: Ptr
-    copy %v_8, %v_3, 9
-    %v_9 = add %v_7, 32: Ptr
-    copy %v_9, %v_5, 9
+    %v_7 = add %v_1, 16: Ptr
+    copy %v_7, %v_3, 9
+    %v_8 = add %v_1, 32: Ptr
+    copy %v_8, %v_5, 9
+    %v_9 = loads %v_1, 8: Long
     %v_10 = loads %v_7, 8: Long
-    %v_11 = loads %v_8, 8: Long
-    %v_12 = add %v_10, %v_11: Long
-    %v_13 = loads %v_9, 8: Long
-    %v_14 = add %v_12, %v_13: Long
-    ret %v_14
+    %v_11 = add %v_9, %v_10: Long
+    %v_12 = loads %v_8, 8: Long
+    %v_13 = add %v_11, %v_12: Long
+    ret %v_13
   }
 }
 

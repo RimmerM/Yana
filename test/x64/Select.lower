@@ -60,3 +60,20 @@ crossBlock(%v: Int, %a: Int, %b: Int): Int {
         ret %r
     }
 }
+
+# A pointer is a value a select can hold, and it is the same CMOV at the other width: `mapMemory`
+# answers zero on a failed `mmap` and the region otherwise, which is one `cmovs` where it used to be
+# a branch, two blocks and a phi. The REX.W is the whole difference from `merged` above - a pointer
+# is 64 bits, so the operand size is the one an `Int` select does not take.
+#
+# What this fixture is really pinning is that a pointer *reaches* here at all: opt_select.cpp's
+# `selectableType` admits `Ptr` and `Borrow` and still declines a record, whose value is the address
+# of its storage rather than a value, so nothing above builds one of those for this to encode.
+pointerArm(%raw: Long, %p: Ptr): Ptr {
+    {
+        %c = cmp_ilt %raw, 0L
+        %zero = bitcast 0L: Ptr
+        %r = select %c, %zero, %p: Ptr
+        ret %r
+    }
+}

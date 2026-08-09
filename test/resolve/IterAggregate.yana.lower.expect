@@ -167,7 +167,7 @@ scalar<complex>(%ns$items: Ptr, %ns$length: Long): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
+    %v_1 = alloca 24, 4: Ptr
     store %v_1, 0, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 0, 4
@@ -180,42 +180,40 @@ main<complex>(): Int {
     %v_6 = add %v_5, 4: Ptr
     store %v_6, 5, 4
     %v_7 = alloca 16, 8: Ptr
-    %v_8 = alloca 24, 4: Ptr
-    store %v_7, %v_8, 8
-    %v_9 = add %v_7, 8: Ptr
-    %v_10 = load %v_9, 4: Int
-    store %v_9, 3, 4
-    copy %v_8, %v_1, 8
-    %v_11 = add %v_8, 8: Ptr
-    copy %v_11, %v_3, 8
-    %v_12 = add %v_8, 16: Ptr
-    copy %v_12, %v_5, 8
-    %v_13 = add %v_7, 12: Ptr
-    store %v_13, 3, 4
-    %v_14 = alloca 16, 8: Ptr
-    %v_15 = alloca 16, 4: Ptr
-    store %v_14, %v_15, 8
-    %v_16 = add %v_14, 8: Ptr
-    %v_17 = load %v_16, 4: Int
-    store %v_16, 4, 4
-    store %v_15, 1, 4
-    %v_18 = add %v_15, 4: Ptr
-    store %v_18, 2, 4
-    %v_19 = add %v_15, 8: Ptr
-    store %v_19, 3, 4
-    %v_20 = add %v_15, 12: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = add %v_7, 8: Ptr
+    %v_9 = load %v_8, 4: Int
+    store %v_8, 3, 4
+    %v_10 = add %v_1, 8: Ptr
+    copy %v_10, %v_3, 8
+    %v_11 = add %v_1, 16: Ptr
+    copy %v_11, %v_5, 8
+    %v_12 = add %v_7, 12: Ptr
+    store %v_12, 3, 4
+    %v_13 = alloca 16, 8: Ptr
+    %v_14 = alloca 16, 4: Ptr
+    store %v_13, %v_14, 8
+    %v_15 = add %v_13, 8: Ptr
+    %v_16 = load %v_15, 4: Int
+    store %v_15, 4, 4
+    store %v_14, 1, 4
+    %v_17 = add %v_14, 4: Ptr
+    store %v_17, 2, 4
+    %v_18 = add %v_14, 8: Ptr
+    store %v_18, 3, 4
+    %v_19 = add %v_14, 12: Ptr
+    store %v_19, 4, 4
+    %v_20 = add %v_13, 12: Ptr
     store %v_20, 4, 4
-    %v_21 = add %v_14, 12: Ptr
-    store %v_21, 4, 4
-    %v_22 = call_complex direct, %v_8, 3: Int
-    %v_23 = call_complex oneLift, %v_8, 3: Int
-    %v_24 = add %v_22, %v_23: Int
-    %v_25 = call_complex twoLifts, %v_8, 3: Int
+    %v_21 = call_complex direct, %v_1, 3: Int
+    %v_22 = call_complex oneLift, %v_1, 3: Int
+    %v_23 = add %v_21, %v_22: Int
+    %v_24 = call_complex twoLifts, %v_1, 3: Int
     call_complex Reclaim(Array(a)).reclaim(Point), %v_7
-    %v_26 = add %v_24, %v_25: Int
-    %v_27 = call_complex scalar, %v_15, 4: Int
-    %v_28 = add %v_26, %v_27: Int
-    ret %v_28
+    %v_25 = add %v_23, %v_24: Int
+    %v_26 = call_complex scalar, %v_14, 4: Int
+    %v_27 = add %v_25, %v_26: Int
+    ret %v_27
   }
 }
 

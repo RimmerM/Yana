@@ -112,20 +112,39 @@ bool speculatable(OptContext& opt, Value& value) {
 /*
  * Whether a value of this type is one a select can hold.
  *
- * Read off what the *lower* IR will accept, which is `validateSelect`'s list: an integer or a float,
- * both of which are a register. An enum record is one too - `lowerType` answers `Int32` for one, and
- * a `Bool` is the enum this is asked about most - and everything else is either a memory type,
- * whose phi is an address rather than a value, or unit, which merges nothing.
+ * An integer, a float and a pointer are the three things that live in a register, which is
+ * `validateSelect`'s list in the lower IR. An enum record is one too - `lowerType` answers `Int32`
+ * for one, and a `Bool` is the enum this is asked about most - and unit merges nothing.
  *
- * A pointer is deliberately not here. The machine could select one and the JS target could not care
- * less, but the lower IR's validator declines it today, and widening that is a change to what the
- * IR means rather than to what this pass decides.
+ * **A pointer is a value here and a memory type is not**, and that distinction is the whole of why
+ * this is stricter than the lower IR's own test. `lowerType` answers `Pointer` for both: a `Ptr` or
+ * a `Borrow` *is* an address, so selecting between two of them is selecting a value, while a record
+ * is a value the IR names by the address of its storage, and a phi of two of those is a phi of
+ * addresses that the passes below read as one aggregate. Selecting those addresses would be
+ * mechanically fine and would mean something else - so the line is drawn where the address is the
+ * value rather than where the register is wide enough.
+ *
+ * The pointer case is not reached until ownership has been discharged, which is what makes it a
+ * plain value join: `dischargeOwnership` runs before any function is optimized, so a drop is an
+ * ordinary call by the time a diamond gets here and there is no transfer left for a select to be
+ * ambiguous about. `speculatable` still declines everything that writes storage, so neither arm can
+ * be what *produced* the storage its address names. The two analyses that reason about where an
+ * address went are unaffected for two different reasons, and both were checked rather than assumed:
+ * `analyze_provenance.cpp` runs in `runProgramOwnership`, which is before this stage entirely, and
+ * `computeContainment`/`borrowEndsAtItsCalls` decline any reader they do not recognize - so a local
+ * whose borrow reached a select is simply not contained.
+ *
+ * `Ptr` is what the corpus reaches: `mapMemory` answering zero on a failed `mmap` is 46 sites across
+ * `test/resolve`, and it is the case §15.5 asked for. `Borrow` is here because it is the same
+ * statement - an address that is the value - and not because anything builds one today; there is no
+ * surface syntax whose two arms produce borrows rather than the storage behind them.
  */
 bool selectableType(OptContext& opt, TypePtr type) {
     if(!type) return false;
 
     auto value = opt.global[type];
     if(value->kind == Type::Int || value->kind == Type::Float) return true;
+    if(value->kind == Type::Ptr || value->kind == Type::Borrow) return true;
 
     return value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum;
 }
@@ -232,6 +251,115 @@ bool findDiamond(OptContext& opt, ModulePtr<Block> head, InstJe& branch, Diamond
     // A join that is the head is a loop, and turning its branch into a jump would be an infinite
     // one. Nothing above rules it out: an arm whose one predecessor is the head may jump back to it.
     return result.join != head;
+}
+
+/*
+ * §Return unification, which is this pass's shape with the join left implicit.
+ *
+ * A conditional whose two arms both *return* has no join block for `findDiamond` to find - the two
+ * values merge at the function's exit rather than at a block:
+ *
+ *     b0: %c = cmp_ilt %r, 0       b0: %c = cmp_ilt %r, 0
+ *         je %c, b1, b2       ->       %v = select %c ? 0 : %r
+ *     b1: ret 0                        ret %v
+ *     b2: ret %r
+ *
+ * §15.5 of `test/bench/findings.md` is where this came from, and it asked for the general transform:
+ * every return merged into one block with a phi, which would give the diamond above a join like any
+ * other. That is the wrong shape to build. Unifying returns everywhere costs a jump per return and
+ * is only ever wanted where something then reads the join - and the only thing that reads it is this
+ * pass. Two returns that stay two returns are what §7.2 of `codegen/x64/README.md` shares an epilogue
+ * between, and it does that better than a phi would.
+ *
+ * So the unification is *local to the conversion*: the exit is treated as the join it already is,
+ * and where the conversion does not apply nothing is merged at all. Everything else - what an arm
+ * may hold, what it may cost, what a select may carry - is the rule above unchanged.
+ */
+
+// One arm of such a branch: a block reached only from the head, computing a little and returning.
+// The returned value comes back through `value`, and is null for a function returning unit.
+Maybe<Size> returnArm(OptContext& opt, ModulePtr<Block> head, ModulePtr<Block> pointer,
+                      ModulePtr<Value>& value)
+{
+    if(pointer == head) return Nothing();
+
+    auto block = opt.local[pointer];
+
+    // The same three the arm of a diamond has to satisfy, for the same three reasons - see
+    // `armTarget`. The fourth differs: this arm leaves the function rather than joining.
+    if(block->index == 0) return Nothing();
+    if(block->phiCount() != 0) return Nothing();
+    if(block->predecessorCount() != 1 || block->predecessorAt(opt.local, 0) != head) return Nothing();
+
+    auto terminator = block->terminator();
+    if(!terminator || opt.local[terminator]->kind != Value::Ret) return Nothing();
+
+    value = ((InstRet&)*opt.local[terminator]).value;
+    return armCost(opt, pointer);
+}
+
+bool convertReturnBranch(OptContext& opt, ModulePtr<Block> pointer) {
+    auto head = opt.local[pointer];
+    if(!head->terminator()) return false;
+
+    auto terminator = opt.local[head->terminator()];
+    if(terminator->kind != Value::Je) return false;
+
+    // Read out before anything is rewritten: the branch is the instruction being replaced, so
+    // nothing below may go on asking it what its arms were.
+    auto& branch = (InstJe&)*terminator;
+    auto condition = branch.cond;
+    auto source = terminator->source;
+    auto arms = { branch.thenBlock, branch.elseBlock };
+
+    if(branch.thenBlock == branch.elseBlock) return false;
+
+    ModulePtr<Value> whenTrue = nullptr;
+    ModulePtr<Value> whenFalse = nullptr;
+
+    auto trueCost = returnArm(opt, pointer, branch.thenBlock, whenTrue);
+    if(!trueCost) return false;
+
+    auto falseCost = returnArm(opt, pointer, branch.elseBlock, whenFalse);
+    if(!falseCost) return false;
+
+    if(trueCost.unwrap() + falseCost.unwrap() > kMaxSpeculated) return false;
+
+    /*
+     * Two returns of one value need no select, which is also how a function returning unit converts:
+     * both arms return nothing, the two nothings are equal, and what the conversion removes is the
+     * branch alone. Otherwise the value has to be one a select can hold.
+     */
+    if(whenTrue != whenFalse) {
+        if(!whenTrue || !whenFalse) return false;
+        if(!selectableType(opt, opt.local[whenTrue]->type)) return false;
+        if(!selectableType(opt, opt.local[whenFalse]->type)) return false;
+    }
+
+    // The arms move up first, so that a value one of them computed is defined before the select that
+    // reads it - the same order, and the same argument, as the diamond above.
+    for(auto arm: arms) opt.ir().moveInstructions(*opt.local[arm], *head);
+
+    auto selected = whenTrue;
+
+    if(whenTrue != whenFalse) {
+        auto instruction = addInst<InstSelect>(*opt.module, *opt.function, *head, source, StringId(),
+                                               opt.local[whenTrue]->type, condition, whenTrue,
+                                               whenFalse);
+
+        selected = (ModulePtr<Value>)((Value*)instruction - opt.local);
+    }
+
+    // The branch becomes the return, which takes both edges with it; the arms are then unreachable
+    // and hold nothing, exactly as a converted diamond's are.
+    auto ret = createInst<InstRet>(*opt.module, *opt.function, *head, source, StringId(),
+                                   opt.program.scalar.unit, selected);
+
+    opt.ir().setTerminator(*head, ret);
+    for(auto arm: arms) opt.ir().clearTerminator(*opt.local[arm]);
+
+    opt.changed = true;
+    return true;
 }
 
 bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
@@ -378,7 +506,9 @@ void convertSelects(OptContext& opt) {
     SmallArray<ModulePtr<Block>, 64> blocks;
     for(auto pointer: opt.function->blocks.contents(opt.local)) blocks.push(pointer);
 
-    for(auto pointer: blocks) converted = convertBranch(opt, pointer) || converted;
+    for(auto pointer: blocks) {
+        converted = convertBranch(opt, pointer) || convertReturnBranch(opt, pointer) || converted;
+    }
 
     if(!converted) return;
 
