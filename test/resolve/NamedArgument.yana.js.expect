@@ -1,33 +1,30 @@
 "use strict";
-// Core
-function teardown$none(value) {
-  return;
-}
-
 // ResolveTest
-function counted(counter$o, counter$k, counter$s) {
-  counter$o[counter$k] = counter$o[counter$k] + 1 | 0;
-  return 5;
-}
-
-function lazyNamed() {
-  return { $v: 0 }.$v + 10 | 0;
-}
-
 function loops() {
-  var total = { $v: 0 };
-  var v13 = upTo(4, 0, ResolveTest_continuation$3, { $v: { $o: total, $k: "$v", $s: 1 } });
-  var v24 = upTo(13, 10, ResolveTest_continuation$4, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < 4) {
+      total = total + i | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var i$1 = 10;
+  L1: for (;;) {
+    if (i$1 < 13) {
+      total = total + i$1 | 0;
+      i$1 = i$1 + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  return total;
 }
 
 function main() {
-  return ((((((ResolveTest_continuation$1(null, 103) + 906 | 0) + ResolveTest_continuation$2(null, 201) | 0) + loops() | 0) + 13 | 0) + ResolveTest_lambda$5(null, 30, 4) | 0) + 14 | 0) + lazyNamed() | 0;
-}
-
-function ResolveTest_deferred$0(env) {
-  var v1 = env.$v;
-  return counted(v1.$o, v1.$k, v1.$s);
+  return ((((((ResolveTest_continuation$1(null, 103) + 906 | 0) + ResolveTest_continuation$2(null, 201) | 0) + loops() | 0) + 13 | 0) + ResolveTest_lambda$5(null, 30, 4) | 0) + 14 | 0) + ({ $v: 0 }.$v + 10 | 0) | 0;
 }
 
 function ResolveTest_continuation$1(env, value) {
@@ -36,36 +33,6 @@ function ResolveTest_continuation$1(env, value) {
 
 function ResolveTest_continuation$2(env, value) {
   return value;
-}
-
-function ResolveTest_continuation$3(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return 0;
-}
-
-function upTo(limit, from, body$c, body$e) {
-  var i = from;
-  L0: for (;;) {
-    if (i < limit) {
-      var v14 = body$c(body$e, i);
-      if (v14 === 1) {
-        return v14;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return 0;
-    }
-    break L0;
-  }
-}
-
-function ResolveTest_continuation$4(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return 0;
 }
 
 function ResolveTest_lambda$5(env, from, take) {

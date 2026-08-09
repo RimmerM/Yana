@@ -7,12 +7,12 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function alwaysLeaves(x) {
-  return scope_Int(ResolveTest_continuation$0, { $v: x });
-}
-
 function sometimesLeaves(x) {
-  return scope_Int(ResolveTest_continuation$1, { $v: x });
+  var v1 = { $v: x };
+  log = log + 1 | 0;
+  var v14 = ResolveTest_continuation$1(v1);
+  log = log + 100 | 0;
+  return v14;
 }
 
 function insideArm(x) {
@@ -34,24 +34,17 @@ function leavesWithValue(x) {
   return v15;
 }
 
-function twoDeep(x) {
-  return scope_Int(ResolveTest_continuation$4, { $v: x });
-}
-
 function main() {
-  log = 0;
-  return (((((((alwaysLeaves(1) + sometimesLeaves(5) | 0) + sometimesLeaves(200) | 0) + insideArm(3) | 0) + insideArm(-1) | 0) + leavesWithValue(9) | 0) + leavesWithValue(2) | 0) + twoDeep(4) | 0) + log | 0;
-}
-
-function ResolveTest_continuation$0(env) {
-  return env.$v + 1 | 0;
-}
-
-function scope_Int(body$c, body$e) {
-  log = log + 1 | 0;
-  var v5 = body$c(body$e);
-  log = log + 100 | 0;
-  return v5;
+  log = 101;
+  var b = sometimesLeaves(5);
+  var c = sometimesLeaves(200);
+  var d = insideArm(3);
+  var e = insideArm(-1);
+  var f = leavesWithValue(9);
+  var g = leavesWithValue(2);
+  var v40 = log + 202 | 0;
+  log = v40;
+  return (((((((b + 2 | 0) + c | 0) + d | 0) + e | 0) + f | 0) + g | 0) + 7 | 0) + v40 | 0;
 }
 
 function ResolveTest_continuation$1(env) {
@@ -85,13 +78,5 @@ function ResolveTest_continuation$3(env, value) {
   } else {
     return 0;
   }
-}
-
-function ResolveTest_continuation$4(env) {
-  return scope_Int(ResolveTest_continuation$5, { $v: env.$v });
-}
-
-function ResolveTest_continuation$5(env) {
-  return env.$v + 3 | 0;
 }
 main();

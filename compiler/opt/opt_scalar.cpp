@@ -247,14 +247,41 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
     if(!slot.value || !slot.type) return false;
     if(opt.local[slot.value]->kind != Value::Alloc) return false;
 
-    // A parameter's storage belongs to the caller, and a closure's environment to the function value
-    // built out of it. Neither is this frame's to remove, however little this frame does with it.
-    if(slot.borrowed || slot.closureEnv) return false;
+    /*
+     * A parameter's storage belongs to the caller and is not this frame's to remove, however little
+     * this frame does with it.
+     *
+     * A *closure environment* stood beside it on the reading that the storage belongs to the
+     * function value built out of it. What makes that true is the environment word - an `addressof`
+     * of this local, which is a user and not a write, so the walk below refuses such a local anyway
+     * and the flag adds nothing while the closure exists. Once the last call through the closure has
+     * been resolved and the function value has gone, the address goes with it and what is left is a
+     * record of this frame's that nothing reads. See inlineDynamicCall and computeContainment, which
+     * is the same statement asked about aliasing rather than about removal.
+     */
+    if(slot.borrowed) return false;
 
-    // Removing the writes would drop whatever was written on the floor. A local of such a type has a
-    // `Drop` naming it, so this is belt and braces - but the rule the removal rests on is this one
-    // rather than the absence of an instruction.
-    if(needsTeardown(*opt.module, slot.type)) return false;
+    /*
+     * A *function value*, which is the one type owing a teardown that is left alone here.
+     *
+     * The rule the removal rests on is that nothing may drop what the writes put there, and the walk
+     * below is what states it: every ownership instruction is a user, and by the time this pass runs
+     * a drop is a `Drop` or the call `dischargeOwnership` turned one into - so a local anything tears
+     * down has a use that is not a write and is refused two paragraphs down whatever its type.
+     *
+     * `needsTeardown` stood in front of that as a belt and its own comment said so. What it was
+     * *also* doing was keeping a dead closure alive: a function value over borrowed captures has a
+     * `teardown$none` header, so the ownership passes emit no drop for it at all, and the type-level
+     * answer then said "owes a teardown" about a local that owes nothing and nothing reads. That is
+     * exactly the local an inlined `calldyn` leaves behind - see inlineDynamicCall - and keeping it
+     * keeps the `addressof` of its environment alive, which is what stops the environment's fields
+     * from being forwarded and so stops the next call from resolving.
+     *
+     * Narrowed to function values rather than removed, because for every other type owing a teardown
+     * the belt costs nothing: a `String` or a container local that reaches here has its drop in the
+     * use list, so the two answers agree and only the second one is load-bearing.
+     */
+    if(needsTeardown(*opt.module, slot.type) && !isFunction(opt.global, slot.type)) return false;
 
     SmallArray<ModulePtr<Inst>, 8> writes;
 

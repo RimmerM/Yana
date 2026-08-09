@@ -8,16 +8,6 @@ function checkCondition(failed) {
   }
 }
 
-function remove_Int(self, index) {
-  if (index >>> 0 >= self.length >>> 0) {
-    return null;
-  } else {
-    var v16 = self[index];
-    self.splice(index, 1);
-    return v16;
-  }
-}
-
 // ResolveTest
 function sliceEdges() {
   var v7 = [1, 2, 3, 4, 5, 6];
@@ -26,11 +16,11 @@ function sliceEdges() {
 
 function main() {
   var v18 = [10, 20, 30, 40];
-  var v32 = remove_Int(v18, 3);
-  var v36 = v18.length >>> 0;
-  checkCondition(0 >= v36);
-  var v41 = v18[0];
-  checkCondition(2 >= v36);
-  return (Math.imul(v41 + v18[2] | 0, 1000) + Math.imul(sliceEdges(), 100) | 0) + 202 | 0;
+  v18.splice(3, 1);
+  var v37 = v18.length >>> 0;
+  checkCondition(0 >= v37);
+  var v42 = v18[0];
+  checkCondition(2 >= v37);
+  return (Math.imul(v42 + v18[2] | 0, 1000) + Math.imul(sliceEdges(), 100) | 0) + 202 | 0;
 }
 main();

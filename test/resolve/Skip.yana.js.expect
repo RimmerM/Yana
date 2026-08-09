@@ -12,10 +12,6 @@ function Try_Maybe_a_a_toOutcome_Int(value) {
   return v1;
 }
 
-function teardown$none(value) {
-  return;
-}
-
 function Try_Maybe_a_a_toOutcome_Outcome_Int(value) {
   var v1;
   if (value.$tag === 1) {
@@ -38,7 +34,16 @@ function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
 
 // ResolveTest
 function always(n) {
-  var v9 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(n, ResolveTest_continuation$0, null));
+  var v18 = null;
+  log = log + 1 | 0;
+  if (n > 0) {
+    var carried = ResolveTest_continuation$0(null, Math.imul(n, 2));
+    log = log + 100 | 0;
+    v18 = carried;
+  } else {
+    v18 = null;
+  }
+  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
   if (v9 === null) {
     return 0;
   } else {
@@ -50,7 +55,16 @@ function valued(n) {
   var v23;
   var v27;
   if (n < 100) {
-    var v13 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(n, ResolveTest_continuation$1, null));
+    var v29 = null;
+    log = log + 1 | 0;
+    if (n > 0) {
+      var carried = ResolveTest_continuation$1(null, Math.imul(n, 2));
+      log = log + 100 | 0;
+      v29 = carried;
+    } else {
+      v29 = null;
+    }
+    var v13 = Try_Maybe_a_a_toOutcome_Int(v29);
     if (v13 === null) {
       v23 = 7;
     } else {
@@ -65,10 +79,25 @@ function valued(n) {
 
 function mixed(n) {
   B0: {
-    var total = { $v: 0 };
+    var total = 0;
     if (n !== 0) {
-      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2, { $v: { $o: total, $k: "$v", $s: 1 } });
-      var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v16.$tag, $p: v16.$p });
+      var v40 = { $tag: 0, $p: null };
+      log = log + 1 | 0;
+      if (n > 0) {
+        var v54 = Math.imul(n, 2);
+        var carried = null;
+        if (v54 > 100) {
+          carried = v54;
+        } else {
+          total = total + v54 | 0;
+          carried = null;
+        }
+        log = log + 100 | 0;
+        v40 = { $tag: 1, $p: carried };
+      } else {
+        v40 = { $tag: 0, $p: null };
+      }
+      var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v40.$tag, $p: v40.$p });
       if (v18.$tag === 1) {
         return 5;
       } else {
@@ -78,12 +107,21 @@ function mixed(n) {
       }
     }
   }
-  return total.$v + 1 | 0;
+  return total + 1 | 0;
 }
 
 function reasoned(n) {
-  var v7 = checked_Int(n, ResolveTest_continuation$3, null);
-  var v9 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v7.$tag, $p: v7.$p });
+  var v21 = { $tag: 0, $p: 0 };
+  if (n > 9) {
+    v21 = { $tag: 0, $p: 1 };
+  } else {
+    if (n < 0) {
+      v21 = { $tag: 0, $p: 2 };
+    } else {
+      v21 = { $tag: 1, $p: ResolveTest_continuation$3(null, n) };
+    }
+  }
+  var v9 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v21.$tag, $p: v21.$p });
   if (v9.$tag === 1) {
     return Math.imul(v9.$p, 10);
   } else {
@@ -92,7 +130,14 @@ function reasoned(n) {
 }
 
 function guarded(open) {
-  var v9 = Try_Maybe_a_a_toOutcome_Int(attempt_Int(open, ResolveTest_continuation$4, null));
+  var v18 = null;
+  if (open ^ 1) {
+    v18 = null;
+  } else {
+    log = log + 1000 | 0;
+    v18 = ResolveTest_continuation$4(null);
+  }
+  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
   if (v9 === null) {
     return 0;
   } else {
@@ -107,109 +152,62 @@ function nested(n) {
   return v15;
 }
 
-function main() {
-  var v56;
-  log = 0;
-  var a = always(3);
-  var b = always(-1);
-  var c = valued(4);
-  var d = valued(-2);
-  var e = mixed(2);
-  var f = mixed(-3);
-  var g = reasoned(4);
-  var h = reasoned(20);
-  var i = reasoned(-1);
-  var j = guarded(1);
-  var k = guarded(0);
-  var v63 = findFirst_Int(6, ResolveTest_lambda$7, null);
-  if (!(v63 === null)) {
-    v56 = v63;
+function written(n) {
+  var v16;
+  var v18 = null;
+  log = log + 1 | 0;
+  if (n > 0) {
+    var carried = ResolveTest_lambda$7(null, Math.imul(n, 2));
+    log = log + 100 | 0;
+    v18 = carried;
   } else {
-    v56 = 0;
+    v18 = null;
   }
-  return (((((((((((((a + b | 0) + c | 0) + d | 0) + e | 0) + f | 0) + g | 0) + h | 0) + i | 0) + j | 0) + k | 0) + v56 | 0) + nested(3) | 0) + nested(-1) | 0) + log | 0;
+  if (!(v18 === null)) {
+    v16 = v18;
+  } else {
+    v16 = 0;
+  }
+  return v16;
+}
+
+function main() {
+  log = 0;
+  return (((((((((((((always(3) + always(-1) | 0) + valued(4) | 0) + valued(-2) | 0) + mixed(2) | 0) + mixed(-3) | 0) + reasoned(4) | 0) + reasoned(20) | 0) + reasoned(-1) | 0) + guarded(1) | 0) + guarded(0) | 0) + written(6) | 0) + nested(3) | 0) + nested(-1) | 0) + log | 0;
 }
 
 function ResolveTest_continuation$0(env, found) {
   return found + 1 | 0;
 }
 
-function findFirst_Int(n, body$c, body$e) {
-  log = log + 1 | 0;
-  if (n > 0) {
-    var carried = body$c(body$e, Math.imul(n, 2));
-    log = log + 100 | 0;
-    return carried;
-  } else {
-    return null;
-  }
-}
-
 function ResolveTest_continuation$1(env, found) {
   return Math.imul(found, 3);
-}
-
-function ResolveTest_continuation$2(env, found) {
-  if (found > 100) {
-    return found;
-  } else {
-    var v7 = env.$v;
-    v7.$o[v7.$k] = v7.$o[v7.$k] + found | 0;
-    return null;
-  }
-}
-
-function findFirst_Outcome_Int(n, body$c, body$e) {
-  log = log + 1 | 0;
-  if (n > 0) {
-    var carried = body$c(body$e, Math.imul(n, 2));
-    log = log + 100 | 0;
-    return { $tag: 1, $p: carried };
-  } else {
-    return { $tag: 0, $p: null };
-  }
 }
 
 function ResolveTest_continuation$3(env, value) {
   return value + 1 | 0;
 }
 
-function checked_Int(n, body$c, body$e) {
-  if (n > 9) {
-    return { $tag: 0, $p: 1 };
-  } else {
-    if (n < 0) {
-      return { $tag: 0, $p: 2 };
-    } else {
-      return { $tag: 1, $p: body$c(body$e, n) };
-    }
-  }
-}
-
 function ResolveTest_continuation$4(env) {
   return 3;
 }
 
-function attempt_Int(open, body$c, body$e) {
-  if (open ^ 1) {
-    return null;
-  } else {
-    log = log + 1000 | 0;
-    return body$c(body$e);
-  }
-}
-
 function ResolveTest_continuation$5(env, value) {
-  var v11 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(value, ResolveTest_continuation$6, { $v: value }));
+  var v20 = null;
+  log = log + 1 | 0;
+  if (value > 0) {
+    var v47 = Math.imul(value, 2) + value | 0;
+    log = log + 100 | 0;
+    v20 = v47;
+  } else {
+    v20 = null;
+  }
+  var v11 = Try_Maybe_a_a_toOutcome_Int(v20);
   if (v11 === null) {
     return 0;
   } else {
     return v11;
   }
-}
-
-function ResolveTest_continuation$6(env, found) {
-  return found + env.$v | 0;
 }
 
 function ResolveTest_lambda$7(env, found) {

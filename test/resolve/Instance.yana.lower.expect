@@ -96,21 +96,14 @@ pointers<complex>(): Long {
   }
 }
 
-nested<complex>(): Long {
-  b_0 {
-    ret 16
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex maybes: Long
     %v_2 = call_complex pointers: Long
     %v_3 = add %v_1, %v_2: Long
-    %v_4 = call_complex nested: Long
-    %v_5 = add %v_3, %v_4: Long
-    %v_6 = cast %v_5: Int
-    ret %v_6
+    %v_4 = add %v_3, 16: Long
+    %v_5 = cast %v_4: Int
+    ret %v_5
   }
 }
 

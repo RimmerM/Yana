@@ -5,25 +5,14 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function makeAdder(amount) {
-  return { $c: ResolveTest_lambda$0, $e: { $v: amount } };
-}
-
-function makeScaler(scale, offset) {
-  return { $c: ResolveTest_lambda$1, $e: { scale: scale, offset: offset } };
-}
-
 function main() {
-  var v43 = ResolveTest_lambda$2({ $v: 10 }, 1);
-  var total = { $v: 0 };
-  ResolveTest_lambda$3({ $v: { $o: total, $k: "$v", $s: 1 } });
-  var add5 = makeAdder(5);
-  var b = add5.$c(add5.$e, 20);
-  drop$_Int_sub_gt_Int(add5.$c, add5.$e);
-  var scale = makeScaler(3, 4);
-  var c = scale.$c(scale.$e, 10);
-  drop$_Int_sub_gt_Int(scale.$c, scale.$e);
-  return ((v43 + total.$v | 0) + b | 0) + c | 0;
+  var v53 = { $v: 5 };
+  var b = ResolveTest_lambda$0(v53, 20);
+  drop$_Int_sub_gt_Int(ResolveTest_lambda$0, v53);
+  var v60 = { scale: 3, offset: 4 };
+  var c = ResolveTest_lambda$1(v60, 10);
+  drop$_Int_sub_gt_Int(ResolveTest_lambda$1, v60);
+  return (b + 18 | 0) + c | 0;
 }
 
 function ResolveTest_lambda$0(env, x) {
@@ -32,16 +21,6 @@ function ResolveTest_lambda$0(env, x) {
 
 function ResolveTest_lambda$1(env, x) {
   return Math.imul(x, env.scale) + env.offset | 0;
-}
-
-function ResolveTest_lambda$2(env, x) {
-  return x + env.$v | 0;
-}
-
-function ResolveTest_lambda$3(env) {
-  var v1 = env.$v;
-  v1.$o[v1.$k] = v1.$o[v1.$k] + 7 | 0;
-  return;
 }
 
 function drop$_Int_sub_gt_Int(value$c, value$e) {

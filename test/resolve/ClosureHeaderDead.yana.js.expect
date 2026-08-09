@@ -14,23 +14,10 @@ function consume(f$c, f$e) {
   return v2;
 }
 
-function inFrame(id) {
-  var v12 = ResolveTest_lambda$0({ $v: id }, 10);
-  dropCalls = dropCalls + 1 | 0;
-  return v12;
-}
-
-function handedOff(id) {
-  var v11 = { $c: ResolveTest_lambda$1, $e: { $v: id } };
-  return consume(v11.$c, v11.$e);
-}
-
 function main() {
-  return (inFrame(3) + handedOff(5) | 0) + dropCalls | 0;
-}
-
-function ResolveTest_lambda$0(env, x) {
-  return x + env.$v | 0;
+  dropCalls = dropCalls + 1 | 0;
+  var v30 = { $c: ResolveTest_lambda$1, $e: { $v: 5 } };
+  return (13 + consume(v30.$c, v30.$e) | 0) + dropCalls | 0;
 }
 
 function ResolveTest_lambda$1(env, x) {

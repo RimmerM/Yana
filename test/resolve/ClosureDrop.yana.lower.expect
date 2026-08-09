@@ -262,67 +262,58 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-guarded<complex>(%v_0: Ptr, %id: Int) {
-  b_1 {
-    %v_2 = call_complex allocateHeap, 4: Ptr
-    store %v_2, %id, 4
-    store %v_0, ResolveTest.lambda$0, 8
-    %v_3 = add %v_0, 8: Ptr
-    store %v_3, %v_2, 8
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
-    %f = alloca 16, 8: Ptr
-    call_complex guarded, %f, 7
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %a = call_complex %v_2, %v_3: Int
-    call_complex drop$() -> Int, %f
-    call_complex reclaim$() -> Int, %f
-    %v_4 = loads @dropCalls, 4: Int
-    %v_5 = cmp_neq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    ret 18446744073709551615
+    %v_1 = call_complex allocateHeap, 4: Ptr
+    store %v_1, 7, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = load %v_2, 8: Ptr
+    %a = call_complex %v_4, %v_1: Int
+    call_complex drop$() -> Int, %v_2
+    call_complex reclaim$() -> Int, %v_2
+    %v_5 = loads @dropCalls, 4: Int
+    %v_6 = cmp_neq %v_5, 1: Int
+    je %v_6, b_7, b_8
   }
 
   b_7 {
-    jmp b_8
+    ret 18446744073709551615
   }
 
   b_8 {
-    %v_9 = alloca 16, 8: Ptr
-    store %v_9, ResolveTest.lambda$1, 8
-    %v_10 = bitcast 0: Ptr
-    %v_11 = add %v_9, 8: Ptr
-    store %v_11, %v_10, 8
-    %v_12 = load %v_9, 8: Ptr
-    %b = call_complex %v_12, %v_10: Int
-    call_complex drop$() -> Int, %v_9
-    call_complex reclaim$() -> Int, %v_9
-    %v_13 = loads @dropCalls, 4: Int
-    %v_14 = cmp_neq %v_13, 1: Int
-    je %v_14, b_15, b_16
+    jmp b_9
   }
 
-  b_15 {
-    ret 18446744073709551614
+  b_9 {
+    %v_10 = alloca 16, 8: Ptr
+    store %v_10, ResolveTest.lambda$1, 8
+    %v_11 = bitcast 0: Ptr
+    %v_12 = add %v_10, 8: Ptr
+    store %v_12, %v_11, 8
+    %v_13 = load %v_10, 8: Ptr
+    %b = call_complex %v_13, %v_11: Int
+    call_complex drop$() -> Int, %v_10
+    call_complex reclaim$() -> Int, %v_10
+    %v_14 = loads @dropCalls, 4: Int
+    %v_15 = cmp_neq %v_14, 1: Int
+    je %v_15, b_16, b_17
   }
 
   b_16 {
-    jmp b_17
+    ret 18446744073709551614
   }
 
   b_17 {
-    %v_18 = add %a, %b: Int
-    %v_19 = add %v_18, %v_13: Int
-    ret %v_19
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = add %a, %b: Int
+    %v_20 = add %v_19, %v_14: Int
+    ret %v_20
   }
 }
 

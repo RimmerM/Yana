@@ -25,31 +25,6 @@ note<complex>(%n: Int): Int {
   }
 }
 
-elementCrossesEffect<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, 2, 4
-    store %v_2, 0, 4
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, 7, 4
-    %v_6 = add %v_1, 12: Ptr
-    store %v_6, 2, 4
-    %first = call_complex note, 4: Int
-    %v_7 = call_complex note, 5: Int
-    store %v_2, %v_7, 4
-    %v_8 = imul %v_7, 10: Int
-    %v_9 = add %v_2, 4: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = add %v_8, %v_10: Int
-    %v_12 = add %v_11, %first: Int
-    ret %v_12
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %first = call_complex note, 1: Int
@@ -62,12 +37,30 @@ main<complex>(): Int {
     %v_6 = imul %v_5, 10: Int
     %v_7 = add %v_6, 8: Int
     %v_8 = add %v_4, %v_7: Int
-    %v_9 = call_complex elementCrossesEffect: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = add %v_10, 56: Int
-    %v_12 = loads @log, 4: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
+    %v_9 = alloca 16, 8: Ptr
+    %v_10 = alloca 8, 4: Ptr
+    store %v_9, %v_10, 8
+    %v_11 = add %v_9, 8: Ptr
+    %v_12 = load %v_11, 4: Int
+    store %v_11, 2, 4
+    store %v_10, 0, 4
+    %v_13 = add %v_10, 4: Ptr
+    store %v_13, 7, 4
+    %v_14 = add %v_9, 12: Ptr
+    store %v_14, 2, 4
+    %first = call_complex note, 4: Int
+    %v_15 = call_complex note, 5: Int
+    store %v_10, %v_15, 4
+    %v_16 = imul %v_15, 10: Int
+    %v_17 = add %v_10, 4: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = add %v_16, %v_18: Int
+    %v_20 = add %v_19, %first: Int
+    %v_21 = add %v_8, %v_20: Int
+    %v_22 = add %v_21, 56: Int
+    %v_23 = loads @log, 4: Int
+    %v_24 = add %v_22, %v_23: Int
+    ret %v_24
   }
 }
 

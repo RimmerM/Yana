@@ -396,10 +396,24 @@ void computeContainment(OptContext& opt, IndexSet& contained) {
     for(U32 i = 0; i < opt.function->localCount(); i++) {
         auto slot = opt.function->localAt(opt.local, i);
 
-        // A `&` parameter's slot is the caller's storage and a closure environment is the function
-        // value's; neither is contained by this frame whatever this frame does.
-        auto ok = slot.value && opt.local[slot.value]->kind == Value::Alloc &&
-                  !slot.borrowed && !slot.closureEnv;
+        /*
+         * A `&` parameter's slot is the caller's storage, and is not contained by this frame
+         * whatever this frame does.
+         *
+         * A *closure environment* used to be refused beside it on the reading that the storage is
+         * the function value's. That is a statement about who frees it - see Local::closureEnv and
+         * eliminateDeadLocal, which still asks it - and containment is a question about who can
+         * *reach* it, which the walk below already answers correctly and more precisely. A live
+         * closure reaches its captures through the environment word, and that word is an `addressof`
+         * of this local: `Value::Address` is not in the switch below, so a closure anything can still
+         * call is refused there and the flag adds nothing.
+         *
+         * What it did add was the case where the address is gone. A `calldyn` this stage resolved
+         * takes the function value with it, and the environment left behind is an ordinary record of
+         * this frame's that nothing outside can name - which is exactly the storage the captures
+         * have to be forwarded out of for the *next* call to resolve. See inlineDynamicCall.
+         */
+        auto ok = slot.value && opt.local[slot.value]->kind == Value::Alloc && !slot.borrowed;
 
         if(ok) {
             for(auto user: opt.local[slot.value]->uses(opt.local)) {

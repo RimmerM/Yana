@@ -2,20 +2,6 @@
 @counter = [0, 0, 0, 0, 0, 0, 0, 0]
 @slot = [0, 0, 0, 0, 0, 0, 0, 0]
 
-addressOfConstant<complex>(): Long {
-  b_0 {
-    ret 1
-  }
-}
-
-addressOfStorage<complex>(): Long {
-  b_0 {
-    store @slot, 7, 8
-    %v_1 = loads @slot, 8: Long
-    ret %v_1
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = bitcast 0: Ptr
@@ -23,16 +9,16 @@ main<complex>(): Int {
     %v_3 = cmp_eq %v_2, 0: Int
     %v_4 = select 10, 0, %v_3: Long
     %v_5 = add %v_4, 262145: Long
-    %v_6 = call_complex addressOfConstant: Long
-    %v_7 = add %v_5, %v_6: Long
-    %v_8 = call_complex addressOfStorage: Long
-    %v_9 = add %v_7, %v_8: Long
-    %v_10 = loads @counter, 8: Long
-    %v_11 = add %v_10, 5: Long
-    store @counter, %v_11, 8
-    %total = add %v_9, %v_11: Long
-    %v_12 = cast %total: Int
-    ret %v_12
+    %v_6 = add %v_5, 1: Long
+    store @slot, 7, 8
+    %v_7 = loads @slot, 8: Long
+    %v_8 = add %v_6, %v_7: Long
+    %v_9 = loads @counter, 8: Long
+    %v_10 = add %v_9, 5: Long
+    store @counter, %v_10, 8
+    %total = add %v_8, %v_10: Long
+    %v_11 = cast %total: Int
+    ret %v_11
   }
 }
 

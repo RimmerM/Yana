@@ -83,6 +83,20 @@
  * `releaseRun(self: Run(a))` is one comparison and `length(self: Flat(a))` is one load, and both of
  * them were permanent calls - which is what Implementation-Containers.md §13.2 is about.
  *
+ * ## The dynamic form, and why there is no direct-call form beside it
+ *
+ * A `calldyn` through a function value this frame built is inlined too - `inlineDynamicCall`, which
+ * reads the code word and the environment word out of the storage and binds the environment as the
+ * callee's first parameter. It is what flattens an adaptor chain, because the chain is a loop in one
+ * function calling a continuation in another *through a value*: nothing sees into that call until it
+ * is resolved, and once the body is spliced the captures it reads are the caller's own locals, which
+ * is what the next round then resolves in turn.
+ *
+ * What it deliberately does not do is produce a direct `Call` to the lifted lambda. Such a call does
+ * not exist in this IR (see opt_closure.cpp) and the convention it would need - the environment in
+ * front of the declared arguments - is one only the *value* form spells, and one codegen/js does not
+ * spell at all. So the splice leaves a body, never a call to one.
+ *
  * A **recursive** callee is declined outright, and that is a rule the straight-line half never had
  * to state: a body that calls itself almost always branches on something first, so refusing branches
  * refused recursion as a side effect. It does not any more. Copying a recursive body into a caller
@@ -162,6 +176,27 @@ struct InlinePolicy {
      * makes them differ.
      */
     U32 accessor = 0;
+
+    /*
+     * Per argument that is a function value this frame built and that the callee *calls*.
+     *
+     * The second term the table prices against what the copy makes possible rather than against
+     * what the callee contains, and it is the one that flattens an adaptor chain. A closure is
+     * `{code, env}` in the frame that built it and an address in every frame below; a callee holding
+     * a `calldyn` on one it was handed is an indirect call per iteration that no pass can see into,
+     * and the *same* body copied into the frame that built the closure is a call this pass then
+     * resolves and splices - see `inlineDynamicCall`. So what the bonus buys is not the call it
+     * removes but the two below it.
+     *
+     * Large, because what it has to reach is a whole loop rather than a small body: `each` in
+     * `test/bench/programs/Pipeline.yana` is thirty instructions over eight blocks, and it is the
+     * function every `for x in mapped(xs, f)` in the program is. Narrow enough to afford it - both
+     * halves have to hold, so a callee that merely takes a function parameter without calling it
+     * gets nothing, and a site passing a closure whose code word merges gets nothing either.
+     *
+     * The ceiling still applies, which is what keeps this a budget rather than a decision.
+     */
+    U32 closureArgument = 0;
 
     // Subtracted where the callee is called from more than one place, and again where it is called
     // from many. What this prices is code growth, which is paid once per call site.
@@ -251,6 +286,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             // moves. The argument for the bonus is a speed one and this is the level that declines
             // to hear one.
             policy.accessor = 0;
+            policy.closureArgument = 0;
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
@@ -268,6 +304,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.memoryResult = managed ? 12 : 4;
             policy.borrowResult = managed ? 12 : 0;
             policy.accessor = 6;
+            policy.closureArgument = 28;
             policy.repeatedPenalty = managed ? 3 : 1;
             policy.manyCallSites = managed ? 4 : 8;
             policy.manyPenalty = managed ? 6 : 2;
@@ -291,6 +328,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.memoryResult = managed ? 20 : 8;
             policy.borrowResult = managed ? 20 : 0;
             policy.accessor = 12;
+            policy.closureArgument = 36;
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
@@ -325,13 +363,35 @@ enum class Binding: U8 {
      * in per call rather than by `describe`.
      */
     Memory,
+
+    /*
+     * A raw pointer parameter whose place the caller knows, which is what a lifted lambda's
+     * environment is - see `inlineDynamicCall`.
+     *
+     * The callee reads its captures through `[%env].f`, a place at a *pointer* root, and the site
+     * holds `addressof %local` - so the caller knows both the storage and its type. Re-rooting at
+     * that place is what makes the copy type-check: the environment word is `%()` in a function
+     * value, and a `%()` root with a field step on it is a place the verifier is right to refuse.
+     *
+     * Kept apart from `Memory` because the root it rewrites is a different one. A memory parameter's
+     * places are rooted in the callee's *local*, and this one's are rooted in the parameter value
+     * itself, so the two match on different things and neither could stand in for the other.
+     */
+    Pointer,
 };
 
 struct Parameter {
     Binding binding = Binding::Value;
 
+    // Whether the body calls this parameter through a `calldyn`, which is what makes a closure
+    // passed here worth a budget of its own - see `InlinePolicy::closureArgument`.
+    bool called = false;
+
     // The callee local the two re-rooted cases rewrite away, and `kNone` for the value case.
     U32 local = maxLimit<U32>;
+
+    // The callee's `Arg` for this position, which `Binding::Pointer` matches a place's root against.
+    ModulePtr<Value> arg = nullptr;
 
     // Where the caller keeps what it passed, for `Memory`. Empty in the other two cases.
     Place storage;
@@ -369,6 +429,16 @@ struct Candidate {
     // The callee local holding what a memory-typed result is returned out of, and `kNone` where the
     // result is a register value or nothing at all.
     U32 resultLocal = maxLimit<U32>;
+
+    /*
+     * A memory-typed result several `ret`s produce, which is one slot in the caller written on
+     * whichever path runs rather than one callee local renamed - see `describe`.
+     *
+     * `callerResultSlot` is that slot, filled in by `graft` once the site is known, and it is the
+     * value the call becomes.
+     */
+    bool copiedResult = false;
+    U32 callerResultSlot = maxLimit<U32>;
 
     U32 size = 0;
 
@@ -610,6 +680,7 @@ struct Inliner {
             // which is how `Array.escaping` stopped folding to its constant.
             case Value::Aggregate:
             case Value::Borrow: case Value::Copy: case Value::Move:
+            case Value::Address:
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Neg: case Value::Not:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
@@ -869,14 +940,27 @@ struct Inliner {
      * convention rule below: a `->` parameter is ownership transferred at the site, which is exactly
      * what a `drop` performs and never what a call does - see `inlineTeardown`.
      */
-    Maybe<Candidate> describe(ModulePtr<Function> pointer, bool sink = false) {
+    Maybe<Candidate> describe(ModulePtr<Function> pointer, bool sink = false, bool env = false) {
         auto callee = opt.local[pointer];
 
         // `@noinline`, which is a directive rather than a weight: declining to inline is always
         // possible, so this is the one input to the decision that nothing below can outvote.
         if(callee->noInline) return Nothing();
 
-        if(callee->signature || callee->intrinsic || callee->gen || callee->takesEnv) return Nothing();
+        /*
+         * `takesEnv` is the code-word convention - the environment arrives in front of the declared
+         * arguments, whatever the signature says - and it is refused everywhere the site cannot
+         * supply one. `env` is set where the site can: `inlineDynamicCall` resolved the code word
+         * *and* the environment beside it out of one function value, so the two together are the
+         * ordinary argument list this pass already knows how to bind.
+         *
+         * The relaxation is deliberately not "a direct call to a lifted lambda is fine". No such
+         * call exists in this IR - see opt_closure.cpp - and none is created here either: what the
+         * splice leaves behind is the body, not a call to it, so the convention never has to be
+         * spelled by a target that does not have it.
+         */
+        if(callee->signature || callee->intrinsic || callee->gen) return Nothing();
+        if(callee->takesEnv && !env) return Nothing();
         if(callee->blocks.isEmpty()) return Nothing();
 
         /*
@@ -889,7 +973,7 @@ struct Inliner {
          * ways of reaching it - a witness slot, a descriptor - since the function itself stays, and
          * whether anything still needs it is `markProgramReachable`'s answer at the end of the stage.
          */
-        if(!sink && taken.get(U32(pointer))) return Nothing();
+        if(!sink && !env && taken.get(U32(pointer))) return Nothing();
 
         // A body that can reach itself, which is unrolling rather than inlining - see the header.
         if(recursive.get(U32(pointer))) return Nothing();
@@ -898,6 +982,9 @@ struct Inliner {
         candidate.pointer = pointer;
         candidate.callee = callee;
         orderBlocks(*callee, candidate.blocks);
+
+        // Inline: the callables of one body, held for the length of this description.
+        SmallArray<ModulePtr<Value>, 4> called;
 
         if(candidate.blocks.size() > policy.maxBlocks) return Nothing();
 
@@ -922,6 +1009,14 @@ struct Inliner {
             for(auto instructionPointer: block->instructions(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
                 if(!clonableKind(instruction.kind)) return Nothing();
+
+                // Which values the body calls *through*, which the parameter walk below reads back
+                // - see `InlinePolicy::closureArgument`. Collected here rather than walked for,
+                // because this is already the walk of every instruction.
+                if(instruction.kind == Value::CallDyn) {
+                    auto callable = ((InstCallDyn&)instruction).callable;
+                    if(callable) called.push(callable);
+                }
 
                 candidate.size++;
             }
@@ -985,6 +1080,8 @@ struct Inliner {
 
             Parameter parameter;
             parameter.binding = Binding::Value;
+            parameter.arg = (ModulePtr<Value>)argPointer;
+            parameter.called = called.containsValue((ModulePtr<Value>)argPointer);
 
             for(U32 local = 0; local < callee->localCount(); local++) {
                 auto slot = callee->localAt(opt.local, local);
@@ -1032,8 +1129,17 @@ struct Inliner {
 
         for(U32 local = 0; local < callee->localCount(); local++) {
             auto slot = callee->localAt(opt.local, local);
-            if(slot.closureEnv) return Nothing();
 
+            /*
+             * A **closure environment** used to be refused here, and the rule was one of placement
+             * rather than of copying: the storage is the function value's rather than this frame's -
+             * see Local::closureEnv - so the flag travels with the local, which the graft now does.
+             * `InstAlloc::storage` and `releasedHere` already travelled, which is the same statement
+             * about the same allocation; the flag was the half of it that was being dropped.
+             *
+             * What the refusal cost is every function that builds a closure, which is every adaptor
+             * in the program: `mapped` is a closure and a call and nothing else.
+             */
             /*
              * A local of a type owing a teardown used to be refused outright here, exempting only a
              * parameter whose storage is the caller's. The rule was a *belt*, and its own comment
@@ -1074,13 +1180,27 @@ struct Inliner {
              * has to *become* the caller's, which needs the returned value to be an allocation this
              * body made - a returned parameter or global has no such correspondence.
              *
-             * And it needs there to be exactly one of them. Two `ret`s of two allocations are two
-             * callee locals that would both have to be the caller's one slot, and a slot holds the
-             * single value its storage came from - so the phi that answers this for a register
-             * result has no counterpart here. A callee shaped that way is left as a call.
+             * That rename is only available where there is one `ret`. Two of them are two callee
+             * locals that would both have to be the caller's one slot, and a slot holds the single
+             * value its storage came from - so the phi that answers this for a register result has
+             * no counterpart here.
+             *
+             * What answers it instead is the thing a `ret` of a memory value already *is*: lowering
+             * emits a copy of the bytes into the return place the caller passed - see lower_call.cpp
+             * - so the graft writes each returning path's value into one slot of the caller's and
+             * hands that slot back. `copiedResult` is that shape, and the only thing it asks of a
+             * returned value is that there is one, since any value of the type can be copied.
+             *
+             * The rename is kept for the single-`ret` case rather than folded into this, because it
+             * is strictly better: the callee builds the result in the caller's storage directly and
+             * no copy is emitted at all. This is what an adaptor's `Outcome` needs, and every one of
+             * them has a `ret` per arm.
              */
             if(type && isMemoryType(opt.global, type)) {
-                if(candidate.returns.size() != 1) return Nothing();
+                if(candidate.returns.size() != 1) {
+                    candidate.copiedResult = true;
+                    continue;
+                }
 
                 auto returned = opt.local[ret.value];
                 if(returned->kind != Value::Alloc) return Nothing();
@@ -1246,11 +1366,22 @@ struct Inliner {
 
         limit += I64(min(constants, policy.constantCap)) * policy.constantArgument;
 
-        for(auto& parameter: candidate.parameters) {
+        for(Size i = 0; i < candidate.parameters.size(); i++) {
+            auto& parameter = candidate.parameters[i];
             if(parameter.binding == Binding::Borrowed) limit += policy.mutableBorrow;
+
+            // Both halves, asked in the cheap order: the callee has to call the parameter, which is
+            // a flag `describe` already set, and only then is the argument worth the walk that says
+            // which lambda it is.
+            if(policy.closureArgument && parameter.called &&
+               knownCallee(candidate.arguments[i], false)) {
+                limit += policy.closureArgument;
+            }
         }
 
-        if(candidate.resultLocal != Candidate::kNone) limit += policy.memoryResult;
+        if(candidate.resultLocal != Candidate::kNone || candidate.copiedResult) {
+            limit += policy.memoryResult;
+        }
         if(policy.borrowResult && returnsReifiedReference(*candidate.callee)) {
             limit += policy.borrowResult;
         }
@@ -1408,12 +1539,32 @@ struct Inliner {
         result.local = place.local;
         result.pointer = mapValue(clone, place.pointer);
 
+        if(place.root == PlaceRoot::Pointer && place.pointer) {
+            for(auto& parameter: candidate.parameters) {
+                if(parameter.binding != Binding::Pointer) continue;
+                if(parameter.arg != place.pointer) continue;
+
+                auto& storage = parameter.storage;
+                result.root = storage.root;
+                result.local = storage.local;
+                result.global = storage.global;
+                result.pointer = storage.pointer;
+
+                for(Size p = 0; p < storage.projections.size(); p++) {
+                    result.projections.push(opt.program.arena, storage.projections.get(opt.local, p));
+                }
+
+                break;
+            }
+        }
+
         if(place.root == PlaceRoot::Local) {
             auto rewritten = false;
 
             for(Size i = 0; i < candidate.parameters.size(); i++) {
                 auto& parameter = candidate.parameters[i];
-                if(parameter.binding == Binding::Value || parameter.local != place.local) continue;
+                if(parameter.binding == Binding::Value || parameter.binding == Binding::Pointer ||
+                   parameter.local != place.local) continue;
 
                 if(parameter.binding == Binding::Borrowed) {
                     result.root = PlaceRoot::Borrow;
@@ -1525,6 +1676,9 @@ struct Inliner {
                 return (Inst*)createInst<InstBorrow>(module, function, into, source, name, type,
                                                      place(borrow.place), borrow.mut);
             }
+            case Value::Address:
+                return (Inst*)createInst<InstAddress>(module, function, into, source, name, type,
+                                                      place(((InstAddress&)instruction).place));
             case Value::Copy: {
                 auto& copy = (InstCopy&)instruction;
                 auto cloned = createInst<InstCopy>(module, function, into, source, name, type,
@@ -1747,6 +1901,20 @@ struct Inliner {
         auto continuation = opt.ir().splitBlock(block, index);
         auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
 
+        /*
+         * The storage a copied result is written into - see `describe`.
+         *
+         * In the caller's own block and ahead of everything the graft emits, which is the whole of
+         * what it needs: that block dominates every cloned one, so each returning path has the slot
+         * to write into and the continuation has it to read out of.
+         */
+        InstAlloc* resultStorage = nullptr;
+        if(candidate.copiedResult) {
+            resultStorage = createInst<InstAlloc>(module, function, block, site.source, site.name,
+                                                  site.type, candidate.callerResultSlot);
+            opt.ir().append(block, resultStorage);
+        }
+
         // Inline: the blocks of one callee, at one call site. Nothing points into it - the entries
         // hold the two block pointers rather than being pointed at - so growth past 16 is safe.
         SmallArray<ClonedBlock, 16> cloned;
@@ -1825,6 +1993,26 @@ struct Inliner {
             }
         }
 
+        /*
+         * And each returning path's copy into it, which is the `ret` itself: lowering emits exactly
+         * this write into the return place the caller passed, so what the graft does is name the
+         * caller's slot in place of that hidden one.
+         */
+        if(candidate.copiedResult) {
+            for(auto& target: cloned) {
+                auto& terminator = *opt.local[opt.local[target.from]->terminator()];
+                if(terminator.kind != Value::Ret) continue;
+
+                auto returned = ((InstRet&)terminator).value;
+                if(!returned) continue;
+
+                target.instructions.push((Inst*)createInst<InstInit>(
+                    module, function, *target.to, terminator.source, StringId(),
+                    module.scalar.unit, Place::inLocal(candidate.callerResultSlot),
+                    mapValue(clone, returned), Value::Init));
+            }
+        }
+
         bindLocals(clone, candidate);
 
         for(auto& target: cloned) {
@@ -1840,7 +2028,12 @@ struct Inliner {
          * answer. Several do not - that is the definition of a join - and the phi is what says so.
          * It is built after the terminators rather than with them because its inputs are the blocks
          * those terminators created the edges from.
+         *
+         * A copied result is neither: every path wrote into the storage above, so there is one
+         * value already and no join to build.
          */
+        if(resultStorage) return Just((ModulePtr<Value>)((Value*)resultStorage - opt.local));
+
         Array<PhiInput> results;
         for(auto blockPointer: candidate.returns) {
             auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator()];
@@ -1884,6 +2077,20 @@ struct Inliner {
 
         for(auto argument: call.args.contents(opt.local)) candidate.arguments.push(argument);
 
+        return inlineSite(candidate, block, index, pointer, grafted);
+    }
+
+    /*
+     * A site whose callee is settled and whose arguments are collected, spliced.
+     *
+     * Written against `candidate.arguments` rather than against any instruction's own list, which is
+     * what lets the two call forms share it: a `calldyn` this pass resolved passes the environment
+     * word in front of the declared arguments, and a direct call passes its list unchanged.
+     */
+    bool inlineSite(Candidate& candidate, Block& block, Size index, ModulePtr<Inst> pointer,
+                    bool& grafted) {
+        auto& call = *opt.local[pointer];
+
         /*
          * The `&` arguments, which have to be borrows of storage that exists rather than of storage
          * a target stood in for.
@@ -1907,7 +2114,7 @@ struct Inliner {
         for(Size i = 0; i < candidate.parameters.size(); i++) {
             if(candidate.parameters[i].binding != Binding::Borrowed) continue;
 
-            auto argument = call.args.get(opt.local, i);
+            auto argument = candidate.arguments[i];
             if(!argument || opt.local[argument]->kind != Value::Borrow) continue;
 
             auto& borrow = (InstBorrow&)*opt.local[argument];
@@ -1973,6 +2180,230 @@ struct Inliner {
 
         opt.changed = true;
         return true;
+    }
+
+    /*
+     * Which function a `calldyn` reaches, where the value it is reached through was built here.
+     *
+     * A function value is `{code, env}` and nothing else, so this is one question about its storage:
+     * which symbol filled the code word, and what filled the environment word beside it. Both have
+     * to be answered together - the body being copied reads its captures out of the environment,
+     * and a code word without the environment that goes with it names a body with nothing to read.
+     *
+     * The walk is over the *uses of the storage*, which is what makes it a reaching-definition
+     * answer rather than a guess: a place rooted in a local is recorded as a use of that local's
+     * value, so anything that could write either word is in this list. One write of each word and
+     * nothing this does not recognize is the whole of what it takes; a second write of the code word
+     * - `let f = if c then A else B` - is exactly the merge that makes the callee a run-time fact,
+     * and it answers nothing here.
+     *
+     * The same shape `HeaderReach::contained` in opt_closure.cpp walks, asked for the callee rather
+     * than for the teardown. It is not shared with it because the two want opposite things from the
+     * `CallDyn` case: that pass needs the value never to be *called with* rather than called, and
+     * this one is standing at the call.
+     */
+    struct DynamicCallee {
+        ModulePtr<Function> callee = nullptr;
+        ModulePtr<Value> env = nullptr;
+    };
+
+    /*
+     * Which local's storage a function value is, in the two spellings a call site has of it.
+     *
+     * The value the site names is the allocation itself where the closure was built in this block,
+     * and a read of the whole local where it was built further up and a `load` fetched it back -
+     * which is what an inlined `load [%env].f` collapses to once the borrow it went through has
+     * been forwarded. Both name one slot, and the slot is what the walk below is about.
+     */
+    Maybe<U32> functionValueLocal(ModulePtr<Value> callable) {
+        auto value = opt.local[callable];
+
+        if(value->kind == Value::Alloc) return Just(((InstAlloc*)value)->local);
+
+        if(value->kind == Value::LoadPlace) {
+            auto& place = ((InstLoadPlace*)value)->place;
+            if(place.root != PlaceRoot::Local) return Nothing();
+            if(const_cast<Place&>(place).projections.isNotEmpty()) return Nothing();
+
+            return Just(place.local);
+        }
+
+        return Nothing();
+    }
+
+    /*
+     * `strict` is what tells the rewrite from the estimate.
+     *
+     * `inlineDynamicCall` is about to *replace* a call, so nothing it cannot account for may name
+     * the storage: a use this does not recognize is a way the two words could have been changed
+     * between the write it found and the call it is standing at.
+     *
+     * `worthInlining` is asking a budget question about a call site that hands the closure to the
+     * callee being weighed, and that hand-over is itself a use no strict walk admits - so the strict
+     * form answers "no" for every site the bonus exists for. What the relaxed form drops is only
+     * that: the writes are still the whole of what decides the answer, and the use that made it
+     * relaxed is the one the graft removes.
+     */
+    Maybe<DynamicCallee> knownCallee(ModulePtr<Value> callable, bool strict = true) {
+        if(!callable) return Nothing();
+
+        auto found = functionValueLocal(callable);
+        if(!found) return Nothing();
+
+        auto local = found.unwrap();
+        if(local >= opt.function->localCount()) return Nothing();
+
+        auto storageValue = opt.function->localAt(opt.local, local).value;
+        if(!storageValue || opt.local[storageValue]->kind != Value::Alloc) return Nothing();
+
+        auto storage = opt.local[storageValue];
+
+        ModulePtr<Value> code = nullptr;
+        ModulePtr<Value> env = nullptr;
+
+        for(auto user: storage->uses(opt.local)) {
+            auto& instruction = *opt.local[user];
+
+            auto word = [&](const Place& place) -> Maybe<U32> {
+                if(place.root != PlaceRoot::Local || place.local != local) return Nothing();
+
+                auto& projections = const_cast<Place&>(place).projections;
+                if(projections.size() != 1) return Nothing();
+
+                auto projection = projections.get(opt.local, 0);
+                if(projection.kind != ProjectionKind::Field) return Nothing();
+                if(projection.index != FunValueLayout::kCode &&
+                   projection.index != FunValueLayout::kEnv) return Nothing();
+
+                return Just(U32(projection.index));
+            };
+
+            switch(instruction.kind) {
+                case Value::Init: case Value::Assign: {
+                    auto& write = (InstInit&)instruction;
+                    auto index = word(write.place);
+                    if(!index) return Nothing();
+
+                    // One write of each word. A second is a merge, which is the case with no
+                    // compile-time answer at all.
+                    auto& slot = index.unwrap() == FunValueLayout::kCode ? code : env;
+                    if(slot) return Nothing();
+
+                    slot = write.value;
+                    break;
+                }
+
+                /*
+                 * Reading a word where it lies, which moves nothing - and reading the *whole* value,
+                 * which is the shape a resolved capture leaves behind: `load %local` of a function
+                 * value stands for the storage rather than for a copy of it, so it is admitted only
+                 * where every reader of it is a call through it.
+                 */
+                case Value::LoadPlace: {
+                    if(!strict) break;
+
+                    auto& read = (InstLoadPlace&)instruction;
+                    if(word(read.place)) break;
+
+                    if(read.place.root != PlaceRoot::Local || read.place.local != local) {
+                        return Nothing();
+                    }
+
+                    if(const_cast<Place&>(read.place).projections.isNotEmpty()) return Nothing();
+
+                    auto readPointer = (ModulePtr<Value>)(&read - opt.local);
+                    for(auto reader: read.uses(opt.local)) {
+                        auto& through = *opt.local[reader];
+                        if(through.kind != Value::CallDyn) return Nothing();
+                        if(((InstCallDyn&)through).callable != readPointer) return Nothing();
+                    }
+
+                    break;
+                }
+
+                /*
+                 * Calling it, and lending it. Neither can change either word: a call reads them, and
+                 * a shared borrow is the one thing the borrow checker guarantees nothing writes
+                 * through. Both are how a closure reaches the loop that runs it.
+                 *
+                 * A `calldyn` naming the value as an *argument* rather than as its callee is a
+                 * different statement and is not admitted - it hands the closure to a body this does
+                 * not have, which is the same reason `Address` and a mutable borrow are refused by
+                 * falling through.
+                 */
+                case Value::CallDyn:
+                    if(strict && ((InstCallDyn&)instruction).callable != callable) return Nothing();
+                    break;
+
+                case Value::Borrow:
+                    if(strict && ((InstBorrow&)instruction).mut) return Nothing();
+                    break;
+
+                default:
+                    if(strict) return Nothing();
+                    break;
+            }
+        }
+
+        if(!code || !env) return Nothing();
+        if(opt.local[code]->kind != Value::Symbol) return Nothing();
+
+        auto callee = ((InstSymbol*)opt.local[code])->callee;
+        if(!callee) return Nothing();
+
+        return Just(DynamicCallee { callee, env });
+    }
+
+    /*
+     * One call through a function value this frame built, replaced by the body it reaches.
+     *
+     * This is the transformation an adaptor chain needs and the only one that flattens it. `for x in
+     * mapped(xs, f)` is a loop in one function calling a continuation in another through a value,
+     * and every link of the chain is one of these: until the call is resolved, the loop body is an
+     * indirect call the passes below cannot see into, and once it is spliced the captures it reads
+     * are the caller's own locals - which is what the next round then folds.
+     *
+     * There is no direct-call form in between. The code word names a `takesEnv` body, whose
+     * convention only the value form spells, so what this leaves behind is the body itself and never
+     * a call to it - see `describe`.
+     */
+    bool inlineDynamicCall(Block& block, Size index, ModulePtr<Inst> pointer, bool& grafted) {
+        auto& call = (InstCallDyn&)*opt.local[pointer];
+        if(!call.callable) return false;
+
+        auto resolved = knownCallee(call.callable);
+        if(!resolved) return false;
+
+        auto target = resolved.unwrap();
+        if(target.callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
+
+        auto described = describe(target.callee, false, true);
+        if(!described) return false;
+
+        auto candidate = described.unwrap();
+
+        // The environment in front of the declared arguments, which is what `takesEnv` says the
+        // callee's parameter list is.
+        if(candidate.callee->args.size() != call.args.size() + 1) return false;
+
+        /*
+         * And the storage the environment word names, which the body's every read of a capture is a
+         * place in. Without it the copy is `%()` with a field step on it - see `Binding::Pointer`.
+         *
+         * The word is `addressof %local` for every closure this pass can resolve at all, because
+         * that is what `knownCallee` walked to find the code word beside it. Anything else is an
+         * environment whose storage this frame cannot name, and the call stays a call.
+         */
+        auto environment = opt.local[target.env];
+        if(environment->kind != Value::Address) return false;
+
+        candidate.parameters[0].binding = Binding::Pointer;
+        candidate.parameters[0].storage = ((InstAddress*)environment)->place;
+
+        candidate.arguments.push(target.env);
+        for(auto argument: call.args.contents(opt.local)) candidate.arguments.push(argument);
+
+        return inlineSite(candidate, block, index, pointer, grafted);
     }
 
     /*
@@ -2072,11 +2503,29 @@ struct Inliner {
 
         // A slot holds the one value its storage came from, and a phi over several `ret`s is not
         // one - see the memory-result reasoning in `describe`, which is the same argument from the
-        // callee's side. A call whose result is storage the caller named is left alone here.
-        if(resultSlots.isNotEmpty() && candidate.returns.size() > 1) return false;
+        // callee's side. `copiedResult` is that case answered rather than declined: the graft makes
+        // the storage itself and every returning path writes into it, so there is one value and the
+        // slot holds it.
+        if(resultSlots.isNotEmpty() && candidate.returns.size() > 1 && !candidate.copiedResult) {
+            return false;
+        }
 
         auto resultSlot = resultSlots.size() ? resultSlots[0]
             : site.kind == Value::Call ? ((InstCall&)site).local : maxLimit<U32>;
+
+        /*
+         * And the slot a copied result is written into, which is the one thing this shape needs
+         * that the site may not already have: a call whose memory-typed answer nothing reads is
+         * given no local, and the copy still needs somewhere to land.
+         */
+        if(candidate.copiedResult) {
+            if(resultSlot == maxLimit<U32>) {
+                resultSlot = opt.function->addLocal(module, site.type, site.name, nullptr,
+                                                    ast::BindType::Borrow);
+            }
+
+            candidate.callerResultSlot = resultSlot;
+        }
 
         for(U32 local = 0; local < candidate.callee->localCount(); local++) {
             auto slot = candidate.callee->localAt(opt.local, local);
@@ -2095,7 +2544,7 @@ struct Inliner {
             }
 
             clone.locals.push(opt.function->addLocal(module, slot.type, slot.name, nullptr,
-                                                     slot.convention));
+                                                     slot.convention, false, slot.closureEnv));
         }
 
         // The callee's arguments, as the values the site passed. A re-rooted parameter's `Arg` is
@@ -2127,6 +2576,11 @@ struct Inliner {
         // both used to read the first match and only one of the two directions can win.
         for(Size i = resultSlots.size(); i-- > 0;) {
             opt.ir().setLocalValue(resultSlots[i], result);
+        }
+
+        // And the slot the graft made for a copied result, where the site had none of its own.
+        if(candidate.copiedResult && resultSlots.isEmpty()) {
+            opt.ir().setLocalValue(candidate.callerResultSlot, result);
         }
 
         return true;
@@ -2227,14 +2681,14 @@ struct Inliner {
                 auto pointer = block->instructionAt(opt.local, i);
                 auto kind = opt.local[pointer]->kind;
 
-                if(kind != Value::Call && kind != Value::Drop) {
+                if(kind != Value::Call && kind != Value::Drop && kind != Value::CallDyn) {
                     i++;
                     continue;
                 }
 
-                auto replaced = kind == Value::Call
-                    ? inlineCall(*block, i, pointer, grafted)
-                    : inlineTeardown(*block, i, pointer, grafted);
+                auto replaced = kind == Value::Call ? inlineCall(*block, i, pointer, grafted)
+                              : kind == Value::CallDyn ? inlineDynamicCall(*block, i, pointer, grafted)
+                              : inlineTeardown(*block, i, pointer, grafted);
 
                 if(replaced) inlined = true;
                 else i++;

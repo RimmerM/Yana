@@ -267,71 +267,33 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-makeAdder<complex>(%v_0: Ptr, %amount: Int) {
-  b_1 {
-    %v_2 = call_complex allocateHeap, 4: Ptr
-    store %v_2, %amount, 4
-    store %v_0, ResolveTest.lambda$0, 8
-    %v_3 = add %v_0, 8: Ptr
-    store %v_3, %v_2, 8
-    ret 
-  }
-}
-
-makeScaler<complex>(%v_0: Ptr, %scale: Int, %offset: Int) {
-  b_1 {
-    %v_2 = call_complex allocateHeap, 8: Ptr
-    store %v_2, %scale, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, %offset, 4
-    store %v_0, ResolveTest.lambda$1, 8
-    %v_4 = add %v_0, 8: Ptr
-    store %v_4, %v_2, 8
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 10, 4
+    %v_1 = call_complex allocateHeap, 4: Ptr
+    store %v_1, 5, 4
     %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$2, 8
+    store %v_2, ResolveTest.lambda$0, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = load %v_2, 8: Ptr
-    %v_5 = call_complex %v_4, %v_1, 1: Int
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %v_6 = alloca 8, 8: Ptr
-    store %v_6, %total, 8
+    %b = call_complex %v_4, %v_1, 20: Int
+    call_complex drop$(Int) -> Int, %v_2
+    call_complex reclaim$(Int) -> Int, %v_2
+    %v_5 = call_complex allocateHeap, 8: Ptr
+    store %v_5, 3, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 4, 4
     %v_7 = alloca 16, 8: Ptr
-    store %v_7, ResolveTest.lambda$3, 8
+    store %v_7, ResolveTest.lambda$1, 8
     %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_6, 8
+    store %v_8, %v_5, 8
     %v_9 = load %v_7, 8: Ptr
-    call_complex %v_9, %v_6
-    %add5 = alloca 16, 8: Ptr
-    call_complex makeAdder, %add5, 5
-    %v_10 = add %add5, 8: Ptr
-    %v_11 = load %add5, 8: Ptr
-    %v_12 = load %v_10, 8: Ptr
-    %b = call_complex %v_11, %v_12, 20: Int
-    call_complex drop$(Int) -> Int, %add5
-    call_complex reclaim$(Int) -> Int, %add5
-    %scale = alloca 16, 8: Ptr
-    call_complex makeScaler, %scale, 3, 4
-    %v_13 = add %scale, 8: Ptr
-    %v_14 = load %scale, 8: Ptr
-    %v_15 = load %v_13, 8: Ptr
-    %c = call_complex %v_14, %v_15, 10: Int
-    call_complex drop$(Int) -> Int, %scale
-    call_complex reclaim$(Int) -> Int, %scale
-    %v_16 = loads %total, 4: Int
-    %v_17 = add %v_5, %v_16: Int
-    %v_18 = add %v_17, %b: Int
-    %v_19 = add %v_18, %c: Int
-    ret %v_19
+    %c = call_complex %v_9, %v_5, 10: Int
+    call_complex drop$(Int) -> Int, %v_7
+    call_complex reclaim$(Int) -> Int, %v_7
+    %v_10 = add %b, 18: Int
+    %v_11 = add %v_10, %c: Int
+    ret %v_11
   }
 }
 
@@ -353,26 +315,6 @@ ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
     %v_4 = loads %v_3, 4: Int
     %v_5 = add %v_2, %v_4: Int
     ret %v_5
-  }
-}
-
-@closure$ResolveTest.lambda$2 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$2<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %x, %v_1: Int
-    ret %v_2
-  }
-}
-
-@closure$ResolveTest.lambda$3 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$3<complex>(%env: Ptr) {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = add %v_2, 7: Int
-    store %v_1, %v_3, 4
-    ret 
   }
 }
 

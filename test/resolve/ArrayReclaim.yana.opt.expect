@@ -522,10 +522,39 @@ fn boundMutable() -> Int {
 
 fn main() -> Int {
   b0:
-    %v0 = call frameOnly : Int
+    %xs = alloc : Array(Int)
+    %v7 = alloc *3 : Int
+    %v10 = addressof %local1 : %Int
+    init %local0@Array.run@Run.items, %v10
+    %v55 = load %local0@Array.run@Run.capacity:unit32 : U32
+    %v60 = and %v55, 18446744072635809792 : U32
+    %v61 = or %v60, 3 : U32
+    %v70 = and %v61, 18446744070488326143 : U32
+    init %local0@Array.run@Run.capacity:unit32, %v70
+    aggregate [%v10][0] = 10, [%v10][1] = 20, [%v10][2] = 30
+    init %local0@Array.length, 3
+    %v24 = add %v10, 0 : %Int
+    %v25 = load [%v24] : Int
+    %v27 = add %v10, 8 : %Int
+    %v28 = load [%v27] : Int
+    %v29 = load %local0 : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v29
     %v1 = call grown : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call boundMutable : Int
-    %v4 = add %v2, %v3 : Int
+    %v32 = alloc : Array(Int)
+    %v33 = alloc *3 : Int
+    %v36 = addressof %local3 : %Int
+    init %xs@Array.run@Run.items, %v36
+    %v73 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v78 = and %v73, 18446744072635809792 : U32
+    %v79 = or %v78, 3 : U32
+    %v88 = and %v79, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v88
+    aggregate [%v36][0] = 4, [%v36][1] = 5, [%v36][2] = 6
+    init %xs@Array.length, 3
+    %v50 = add %v36, 4 : %Int
+    %v51 = load [%v50] : Int
+    %v52 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v52
+    %v4 = add %v1, 45 : Int
     ret %v4
 }

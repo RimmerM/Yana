@@ -48,14 +48,6 @@ function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
 }
 
 // ResolveTest
-function leafFor(n) {
-  if (n > 5) {
-    return Math.imul(n, 3);
-  } else {
-    return null;
-  }
-}
-
 function node(n) {
   log = log + 1 | 0;
   if (n <= 0) {
@@ -63,9 +55,14 @@ function node(n) {
   } else {
     var v17 = { inner: 0, leaf: null, id: 0 };
     var v18 = Math.imul(n, 2);
-    var v25 = leafFor(n);
+    var v29 = null;
+    if (n > 5) {
+      v29 = Math.imul(n, 3);
+    } else {
+      v29 = null;
+    }
     v17.inner = v18;
-    v17.leaf = v25;
+    v17.leaf = v29;
     v17.id = n;
     return v17;
   }
@@ -78,9 +75,14 @@ function checked(n) {
   } else {
     var v17 = { inner: 0, leaf: null, id: 0 };
     var v18 = Math.imul(n, 4);
-    var v25 = leafFor(n);
+    var v29 = null;
+    if (n > 5) {
+      v29 = Math.imul(n, 3);
+    } else {
+      v29 = null;
+    }
     v17.inner = v18;
-    v17.leaf = v25;
+    v17.leaf = v29;
     v17.id = n;
     return { $tag: 1, $p: v17 };
   }
@@ -191,17 +193,15 @@ function parenthesized(n) {
   }
 }
 
-function maybeFn(n) {
-  if (n > 0) {
-    return { $c: funvalue$twice, $e: null };
-  } else {
-    return null;
-  }
-}
-
 function called(n) {
   var v16;
-  var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(maybeFn(n));
+  var v25 = { $c: null, $e: null };
+  if (n > 0) {
+    v25 = { $c: funvalue$twice, $e: null };
+  } else {
+    v25 = null;
+  }
+  var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(v25);
   if (v3 === null) {
     drop$Outcome_Int_sub_gt_Int(v3);
     v16 = null;

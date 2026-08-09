@@ -1,58 +1,42 @@
 @image$base = []
 
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
-counted<complex>(%counter: Ptr): Int {
-  b_0 {
-    %v_1 = loads %counter, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store %counter, %v_2, 4
-    ret 5
-  }
-}
-
-lazyNamed<complex>(): Int {
-  b_0 {
-    %ran = alloca 4, 4: Ptr
-    store %ran, 0, 4
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %ran, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.deferred$0, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = loads %ran, 4: Int
-    %v_5 = add %v_4, 10: Int
-    ret %v_5
-  }
-}
-
 loops<complex>(): Int {
   b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %total, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$3, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex upTo(()), %v_4, 4, 0, %v_2
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %total, 8
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, ResolveTest.continuation$4, 8
-    %v_7 = add %v_6, 8: Ptr
-    store %v_7, %v_5, 8
-    %v_8 = alloca 1, 1: Ptr
-    call_complex upTo(()), %v_8, 13, 10, %v_6
-    %v_9 = loads %total, 4: Int
-    ret %v_9
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, 4: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_3 {
+    %v_4 = add %v_2, %v_5: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, %v_2], [b_11, %v_12]: Int
+    %v_13 = phi [b_8, 10], [b_11, %v_14]: Int
+    %v_15 = cmp_ilt %v_13, 13: Int
+    je %v_15, b_11, b_16
+  }
+
+  b_11 {
+    %v_12 = add %v_10, %v_13: Int
+    %v_14 = add %v_13, 1: Int
+    jmp b_9
+  }
+
+  b_16 {
+    ret %v_10
   }
 }
 
@@ -86,19 +70,8 @@ main<complex>(): Int {
     %v_19 = call_complex %v_18, %v_16, 30, 4: Int
     %v_20 = add %v_15, %v_19: Int
     %v_21 = add %v_20, 14: Int
-    %v_22 = call_complex lazyNamed: Int
-    %v_23 = add %v_21, %v_22: Int
-    ret %v_23
-  }
-}
-
-@closure$ResolveTest.deferred$0 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.deferred$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = call_complex counted, %v_1: Int
-    ret %v_3
+    %v_22 = add %v_21, 10: Int
+    ret %v_22
   }
 }
 
@@ -111,68 +84,6 @@ ResolveTest.continuation$1<complex>(%env: Ptr, %value: Int): Int {
 ResolveTest.continuation$2<complex>(%env: Ptr, %value: Int): Int {
   b_0 {
     ret %value
-  }
-}
-
-@closure$ResolveTest.continuation$3 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$3<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_3, %value: Int
-    store %v_2, %v_4, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-upTo(())<complex>(%v_0: Ptr, %limit: Int, %from: Int, %body: Ptr) {
-  b_1 {
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_1, %from], [b_4, %v_5]: Int
-    %v_6 = cmp_ilt %v_3, %limit: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    store %v_0, 0, 1
-    ret 
-  }
-
-  b_7 {
-    %v_9 = add %body, 8: Ptr
-    %v_10 = load %body, 8: Ptr
-    %v_11 = load %v_9, 8: Ptr
-    %v_12 = alloca 1, 1: Ptr
-    call_complex %v_10, %v_12, %v_11, %v_3
-    %v_13 = loads %v_12, 1: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_4
-  }
-
-  b_15 {
-    copy %v_0, %v_12, 1
-    ret 
-  }
-
-  b_4 {
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
-  }
-}
-
-@closure$ResolveTest.continuation$4 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$4<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_3, %value: Int
-    store %v_2, %v_4, 4
-    store %v_0, 0, 1
-    ret 
   }
 }
 

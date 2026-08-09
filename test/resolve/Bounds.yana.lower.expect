@@ -731,8 +731,10 @@ sliceEdges<complex>(): Int {
   }
 }
 
-genericEdges<complex>(): Int {
+main<complex>(): Int {
   b_0 {
+    %owner = call_complex ownerEdges: Int
+    %window = call_complex sliceEdges: Int
     %xs = alloca 16, 8: Ptr
     %v_1 = alloca 12, 4: Ptr
     store %xs, %v_1, 8
@@ -749,41 +751,22 @@ genericEdges<complex>(): Int {
     %v_7 = loads %v_1, 4: Int
     %v_8 = loads %v_5, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    ret 16
-  }
-}
-
-oneElement<complex>(): Int {
-  b_0 {
     %xs = alloca 16, 8: Ptr
-    %v_1 = alloca 4, 4: Ptr
-    store %xs, %v_1, 8
-    %v_2 = add %xs, 8: Ptr
-    %v_3 = load %v_2, 4: Int
-    store %v_2, 1, 4
-    %v_4 = imm 42: Int
-    store %v_1, %v_4, 4
-    %v_5 = add %xs, 12: Ptr
-    store %v_5, 1, 4
-    %v_6 = loads %v_1, 4: Int
+    %v_9 = alloca 4, 4: Ptr
+    store %xs, %v_9, 8
+    %v_10 = add %xs, 8: Ptr
+    %v_11 = load %v_10, 4: Int
+    store %v_10, 1, 4
+    store %v_9, 42, 4
+    %v_12 = add %xs, 12: Ptr
+    store %v_12, 1, 4
+    %v_13 = loads %v_9, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    ret %v_4
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %owner = call_complex ownerEdges: Int
-    %window = call_complex sliceEdges: Int
-    %generic = call_complex genericEdges: Int
-    %single = call_complex oneElement: Int
-    %v_1 = imul %owner, 1000: Int
-    %v_2 = imul %window, 100: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = imul %generic, 10: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = add %v_5, %single: Int
-    ret %v_6
+    %v_14 = imul %owner, 1000: Int
+    %v_15 = imul %window, 100: Int
+    %v_16 = add %v_14, %v_15: Int
+    %v_17 = add %v_16, 202: Int
+    ret %v_17
   }
 }
 

@@ -5,49 +5,30 @@ function add_eq_Int(target$o, target$k, target$s, amount) {
   return;
 }
 
-function teardown$none(value) {
-  return;
-}
-
 // ResolveTest
 function raise(d) {
   add_eq_Int(d, "count", 1, 1);
   return;
 }
 
-function mutated() {
-  var v0 = { hot: 3, cold: { count: 1, level: 20 } };
-  raise(v0.cold);
-  var v20 = v0.cold.level + 1 | 0;
-  v0.cold.level = v20;
-  return (Math.imul(v0.hot, 1000) + Math.imul(v0.cold.count, 100) | 0) + v20 | 0;
-}
-
-function pinnedValue() {
-  var p = { tag: 5, detail: { count: 2, level: 3 } };
-  return (Math.imul(p.detail.count, 10) + 500 | 0) + p.detail.level | 0;
-}
-
-function throughLens() {
-  var v0 = { hot: 3, cold: { count: 6, level: 40 } };
-  return ResolveTest_continuation$0({ $v: v0 }, v0.cold.level);
-}
-
 function main() {
-  var m = mutated();
-  if (m !== 3221) {
+  var v24 = { hot: 3, cold: { count: 1, level: 20 } };
+  raise(v24.cold);
+  var v39 = v24.cold.level + 1 | 0;
+  v24.cold.level = v39;
+  var v48 = (Math.imul(v24.hot, 1000) + Math.imul(v24.cold.count, 100) | 0) + v39 | 0;
+  if (v48 !== 3221) {
     return -2;
   } else {
-    var l = throughLens();
-    if (l !== 46) {
+    var v49 = { hot: 3, cold: { count: 6, level: 40 } };
+    var v62 = v49.cold.level + v49.cold.count | 0;
+    if (v62 !== 46) {
       return -3;
     } else {
-      return (m + l | 0) + pinnedValue() | 0;
+      var v20 = v48 + v62 | 0;
+      var p = { tag: 5, detail: { count: 2, level: 3 } };
+      return v20 + ((Math.imul(p.detail.count, 10) + 500 | 0) + p.detail.level | 0) | 0;
     }
   }
-}
-
-function ResolveTest_continuation$0(env, value) {
-  return value + env.$v.cold.count | 0;
 }
 main();

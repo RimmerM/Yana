@@ -8,40 +8,107 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function sum(n) {
-  var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$0, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
-}
-
 function odds(n) {
-  var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$1, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v27 = i;
+      var v41 = 0;
+      if ((v27 % 2 | 0) === 0) {
+        v41 = 0;
+      } else {
+        total = total + v27 | 0;
+        v41 = 0;
+      }
+      if (v41 === 1) {
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
 }
 
 function upToFive(n) {
-  var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$2, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v27 = i;
+      var v41 = 0;
+      if (v27 > 5) {
+        v41 = 1;
+      } else {
+        total = total + v27 | 0;
+        v41 = 0;
+      }
+      if (v41 === 1) {
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
 }
 
 function firstOver(n, bound) {
-  var v9 = upTo_Int(n, ResolveTest_continuation$3, { $v: bound });
-  if (!(v9 === null)) {
-    return v9;
+  var v20 = null;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v32 = i;
+      var v46 = null;
+      if (v32 > bound) {
+        v46 = v32;
+      } else {
+        v46 = null;
+      }
+      if (!(v46 === null)) {
+        v20 = v46;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v20 = null;
+    }
+    break L0;
+  }
+  if (!(v20 === null)) {
+    return v20;
   } else {
     return -1;
   }
 }
 
 function firstOverOrCount(n, bound) {
-  B0: {
-    var seen = { $v: 0 };
-    var v14 = upTo_Outcome_Int(n, ResolveTest_continuation$4, { bound: bound, seen: { $o: seen, $k: "$v", $s: 1 } });
-    if (v14.$tag === 1) {
-      if (!(v14.$p === null)) {
-        return v14.$p;
+  var seen = { $v: 0 };
+  var v5 = { bound: bound, seen: { $o: seen, $k: "$v", $s: 1 } };
+  var v30 = { $tag: 0, $p: null };
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v43 = ResolveTest_continuation$4(v5, i);
+      if (v43.$tag === 1) {
+        v30 = v43;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v30 = { $tag: 0, $p: null };
+    }
+    break L0;
+  }
+  B1: {
+    if (v30.$tag === 1) {
+      if (!(v30.$p === null)) {
+        return v30.$p;
       }
     }
   }
@@ -49,132 +116,158 @@ function firstOverOrCount(n, bound) {
 }
 
 function grid(rows, columns) {
-  var total = { $v: 0 };
-  var v14 = upTo(rows, ResolveTest_continuation$5, { columns: columns, total: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < rows) {
+      var i$1 = 0;
+      var v89 = Math.imul(i, 10);
+      L1: for (;;) {
+        if (i$1 < columns) {
+          total = (total + v89 | 0) + i$1 | 0;
+          i$1 = i$1 + 1 | 0;
+          continue L1;
+        }
+        break L1;
+      }
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
 }
 
 function corners(n) {
-  var total = { $v: 0 };
-  var v12 = corners$1(n, ResolveTest_continuation$7, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
-}
-
-function generic() {
-  var total = { $v: 0 };
-  var v13 = twice_Int(7, ResolveTest_continuation$8, { $v: { $o: total, $k: "$v", $s: 1 } });
-  var v23 = twice_Bool(1, ResolveTest_continuation$9, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      total = (total + i | 0) + Math.imul(i, 2) | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
 }
 
 function firstOddOver(n, bound) {
-  var v9 = upTo_Int(n, ResolveTest_continuation$10, { $v: bound });
-  if (!(v9 === null)) {
-    return v9;
+  var v20 = null;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v32 = i;
+      var v46 = null;
+      if ((v32 % 2 | 0) === 0) {
+        v46 = null;
+      } else {
+        if (v32 > bound) {
+          v46 = v32;
+        } else {
+          v46 = null;
+        }
+      }
+      if (!(v46 === null)) {
+        v20 = v46;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v20 = null;
+    }
+    break L0;
+  }
+  if (!(v20 === null)) {
+    return v20;
   } else {
     return -1;
   }
 }
 
 function firstPairOver(n, bound) {
-  var v9 = upTo_Pair(n, ResolveTest_continuation$11, { $v: bound });
-  if (!(v9 === null)) {
-    return v9;
+  var v25 = { a: 0, b: 0 };
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v37 = i;
+      var v51 = { a: 0, b: 0 };
+      if (v37 > bound) {
+        v51 = { a: v37, b: Math.imul(v37, 2) };
+      } else {
+        v51 = null;
+      }
+      if (!(v51 === null)) {
+        v25 = v51;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v25 = null;
+    }
+    break L0;
+  }
+  if (!(v25 === null)) {
+    return v25;
   } else {
     return { a: -1, b: -1 };
   }
 }
 
 function withLens(n) {
-  var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$12, { $v: { $o: total, $k: "$v", $s: 1 } });
-  return total.$v;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v55 = log;
+      total = (total + (v55 + 1 | 0) | 0) + i | 0;
+      log = v55 + 11 | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
 }
 
-function loopInLens(n) {
-  var v1 = { $v: n };
-  var v12 = log + 1 | 0;
-  log = v12;
-  var v15 = ResolveTest_continuation$14(v1, v12);
-  log = log + 10 | 0;
-  return v15;
+function stopAt(n) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      if (ResolveTest_continuation$16(null, i) === 1) {
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return;
 }
 
 function main() {
-  var v39 = ((((((((((sum(5) + odds(6) | 0) + upToFive(20) | 0) + firstOver(10, 6) | 0) + firstOverOrCount(10, 20) | 0) + grid(3, 2) | 0) + corners(3) | 0) + generic() | 0) + firstOddOver(10, 4) | 0) + firstPairOver(10, 6).b | 0) + withLens(3) | 0) + loopInLens(5) | 0;
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < 5) {
+      total = total + i | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var v36 = (((((((((total + odds(6) | 0) + upToFive(20) | 0) + firstOver(10, 6) | 0) + firstOverOrCount(10, 20) | 0) + grid(3, 2) | 0) + corners(3) | 0) + 16 | 0) + firstOddOver(10, 4) | 0) + firstPairOver(10, 6).b | 0) + withLens(3) | 0;
+  var v64 = { $v: 5 };
+  var v73 = log + 1 | 0;
+  log = v73;
+  var v75 = ResolveTest_continuation$14(v64, v73);
+  log = log + 10 | 0;
+  var v39 = v36 + v75 | 0;
   visited = 0;
-  var v54 = upTo(10, ResolveTest_continuation$16, null);
+  stopAt(10);
   return v39 + visited | 0;
-}
-
-function ResolveTest_continuation$0(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return 0;
-}
-
-function upTo(limit, body$c, body$e) {
-  var i = 0;
-  L0: for (;;) {
-    if (i < limit) {
-      var v14 = body$c(body$e, i);
-      if (v14 === 1) {
-        return v14;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return 0;
-    }
-    break L0;
-  }
-}
-
-function ResolveTest_continuation$1(env, value) {
-  if ((value % 2 | 0) === 0) {
-    return 0;
-  } else {
-    var v10 = env.$v;
-    v10.$o[v10.$k] = v10.$o[v10.$k] + value | 0;
-    return 0;
-  }
-}
-
-function ResolveTest_continuation$2(env, value) {
-  if (value > 5) {
-    return 1;
-  } else {
-    var v7 = env.$v;
-    v7.$o[v7.$k] = v7.$o[v7.$k] + value | 0;
-    return 0;
-  }
-}
-
-function ResolveTest_continuation$3(env, value) {
-  if (value > env.$v) {
-    return value;
-  } else {
-    return null;
-  }
-}
-
-function upTo_Int(limit, body$c, body$e) {
-  var i = 0;
-  L0: for (;;) {
-    if (i < limit) {
-      var v14 = body$c(body$e, i);
-      if (!(v14 === null)) {
-        return v14;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return null;
-    }
-    break L0;
-  }
 }
 
 function ResolveTest_continuation$4(env, value) {
@@ -191,170 +284,35 @@ function ResolveTest_continuation$4(env, value) {
   }
 }
 
-function upTo_Outcome_Int(limit, body$c, body$e) {
-  var i = 0;
-  L0: for (;;) {
-    if (i < limit) {
-      var v14 = body$c(body$e, i);
-      if (v14.$tag === 1) {
-        return v14;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return { $tag: 0, $p: null };
-    }
-    break L0;
-  }
-}
-
-function ResolveTest_continuation$5(env, value) {
-  var v13 = upTo(env.columns, ResolveTest_continuation$6, { total: env.total, r: value });
-  return 0;
-}
-
-function ResolveTest_continuation$6(env, value) {
-  var v2 = env.total;
-  v2.$o[v2.$k] = (v2.$o[v2.$k] + Math.imul(env.r, 10) | 0) + value | 0;
-  return 0;
-}
-
-function ResolveTest_continuation$7(env, value) {
-  var x = value.x;
-  var y = value.y;
-  var v4 = env.$v;
-  v4.$o[v4.$k] = (v4.$o[v4.$k] + x | 0) + y | 0;
-  return 0;
-}
-
-function corners$1(n, body$c, body$e) {
-  var i = 0;
-  L0: for (;;) {
-    if (i < n) {
-      var v19 = body$c(body$e, { x: i, y: Math.imul(i, 2) });
-      if (v19 === 1) {
-        return v19;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return 0;
-    }
-    break L0;
-  }
-}
-
-function ResolveTest_continuation$8(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return 0;
-}
-
-function twice_Int(value, body$c, body$e) {
-  var v2 = body$c(body$e, value);
-  if (v2 === 1) {
-    return v2;
-  } else {
-    var v8 = body$c(body$e, value);
-    if (v8 === 1) {
-      return v8;
-    } else {
-      return 0;
-    }
-  }
-}
-
-function ResolveTest_continuation$9(env, value) {
-  if (value) {
-    var v3 = env.$v;
-    v3.$o[v3.$k] = v3.$o[v3.$k] + 1 | 0;
-  }
-  return 0;
-}
-
-function twice_Bool(value, body$c, body$e) {
-  var v2 = body$c(body$e, value);
-  if (v2 === 1) {
-    return v2;
-  } else {
-    var v8 = body$c(body$e, value);
-    if (v8 === 1) {
-      return v8;
-    } else {
-      return 0;
-    }
-  }
-}
-
-function ResolveTest_continuation$10(env, value) {
-  if ((value % 2 | 0) === 0) {
-    return null;
-  } else {
-    if (value > env.$v) {
-      return value;
-    } else {
-      return null;
-    }
-  }
-}
-
-function ResolveTest_continuation$11(env, value) {
-  if (value > env.$v) {
-    return { a: value, b: Math.imul(value, 2) };
-  } else {
-    return null;
-  }
-}
-
-function upTo_Pair(limit, body$c, body$e) {
-  var i = 0;
-  L0: for (;;) {
-    if (i < limit) {
-      var v14 = body$c(body$e, i);
-      if (!(v14 === null)) {
-        return v14;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      return null;
-    }
-    break L0;
-  }
-}
-
-function ResolveTest_continuation$12(env, value) {
-  var v2 = { total: env.$v, x: value };
-  var v19 = log + 1 | 0;
-  log = v19;
-  ResolveTest_continuation$13(v2, v19);
-  log = log + 10 | 0;
-  return 0;
-}
-
-function ResolveTest_continuation$13(env, value) {
-  var v2 = env.total;
-  v2.$o[v2.$k] = (v2.$o[v2.$k] + value | 0) + env.x | 0;
-  return;
-}
-
 function ResolveTest_continuation$14(env, value) {
-  var v10 = upTo_Int(env.$v, ResolveTest_continuation$15, { $v: value });
-  if (!(v10 === null)) {
-    return v10;
+  var v2 = env.$v;
+  var v18 = null;
+  var i = 0;
+  var v55 = Math.imul(value, 1000);
+  L0: for (;;) {
+    if (i < v2) {
+      var v30 = i;
+      var v44 = null;
+      if (v30 === 2) {
+        v44 = v55 + v30 | 0;
+      } else {
+        v44 = null;
+      }
+      if (!(v44 === null)) {
+        v18 = v44;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v18 = null;
+    }
+    break L0;
+  }
+  if (!(v18 === null)) {
+    return v18;
   } else {
     return value;
-  }
-}
-
-function ResolveTest_continuation$15(env, value) {
-  if (value === 2) {
-    return Math.imul(env.$v, 1000) + value | 0;
-  } else {
-    return null;
   }
 }
 

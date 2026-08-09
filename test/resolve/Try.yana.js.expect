@@ -47,28 +47,6 @@ function parse(n) {
   }
 }
 
-function checked(n) {
-  log = log + 10 | 0;
-  if (n > 9) {
-    return { $tag: 0, $p: 1 };
-  } else {
-    if (n < 0) {
-      return { $tag: 0, $p: 2 };
-    } else {
-      return { $tag: 1, $p: n };
-    }
-  }
-}
-
-function oneStep(n) {
-  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
-  if (v3 === null) {
-    return null;
-  } else {
-    return v3 + 1 | 0;
-  }
-}
-
 function twoSteps(n) {
   var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
   if (v3 === null) {
@@ -99,14 +77,6 @@ function valuePosition(x, y) {
   }
 }
 
-function token(n) {
-  if (n > 0) {
-    return n;
-  } else {
-    return null;
-  }
-}
-
 function combine(x, y) {
   Drop_Token_drop(x);
   Drop_Token_drop(y);
@@ -115,12 +85,24 @@ function combine(x, y) {
 
 function paired(a, b) {
   var v2 = null;
-  var v6 = Try_Maybe_a_a_toOutcome_Token(token(a));
+  var v42 = null;
+  if (a > 0) {
+    v42 = a;
+  } else {
+    v42 = null;
+  }
+  var v6 = Try_Maybe_a_a_toOutcome_Token(v42);
   if (v6 === null) {
     drop$Outcome_Token(v6);
     return null;
   } else {
-    var v17 = Try_Maybe_a_a_toOutcome_Token(token(b));
+    var v62 = null;
+    if (b > 0) {
+      v62 = b;
+    } else {
+      v62 = null;
+    }
+    var v17 = Try_Maybe_a_a_toOutcome_Token(v62);
     if (v17 === null) {
       drop$Outcome_Token(v6);
       drop$Outcome_Token(v17);
@@ -128,55 +110,6 @@ function paired(a, b) {
     } else {
       v2 = combine(v6, v17);
       return v2;
-    }
-  }
-}
-
-function operands(x, y) {
-  var v2 = null;
-  var v6 = Try_Maybe_a_a_toOutcome_Int(parse(x));
-  if (v6 === null) {
-    return null;
-  } else {
-    var v17 = Try_Maybe_a_a_toOutcome_Int(parse(y));
-    if (v17 === null) {
-      return null;
-    } else {
-      v2 = v6 + v17 | 0;
-      return v2;
-    }
-  }
-}
-
-function reasoned(n) {
-  var v1 = checked(n);
-  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
-  if (v3.$tag === 1) {
-    return { $tag: 0, $p: v3.$p };
-  } else {
-    return { $tag: 1, $p: v3.$p + 100 | 0 };
-  }
-}
-
-function viaHelper(n) {
-  var v1 = checked(n);
-  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
-  if (v3.$tag === 1) {
-    return { $tag: 0, $p: v3.$p };
-  } else {
-    return { $tag: 1, $p: v3.$p > 5 };
-  }
-}
-
-function conditional(n) {
-  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
-  if (v3 === null) {
-    return null;
-  } else {
-    if (v3 > 10) {
-      return 1;
-    } else {
-      return 0;
     }
   }
 }
@@ -213,7 +146,14 @@ function throughLens(n) {
 }
 
 function viaSkipping(n) {
-  var v9 = Try_Maybe_a_a_toOutcome_Int(firstPositive_Int(n, ResolveTest_continuation$1, null));
+  var v18 = null;
+  var v22 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  if (v22 === null) {
+    v18 = null;
+  } else {
+    v18 = ResolveTest_continuation$1(null, v22);
+  }
+  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
   if (v9 === null) {
     return 0;
   } else {
@@ -222,19 +162,82 @@ function viaSkipping(n) {
 }
 
 function main() {
-  var v120;
-  log = 0;
-  var a = oneStep(3);
-  var b = oneStep(-1);
+  var v418;
+  var a = null;
+  log = 1;
+  var v123 = Try_Maybe_a_a_toOutcome_Int(6);
+  if (v123 === null) {
+    a = null;
+  } else {
+    a = v123 + 1 | 0;
+  }
+  var b = null;
+  log = log + 1 | 0;
+  var v511 = Try_Maybe_a_a_toOutcome_Int(null);
+  if (v511 === null) {
+    b = null;
+  } else {
+    b = v511 + 1 | 0;
+  }
   var c = twoSteps(11);
   var d = twoSteps(3);
   var e = valuePosition(1, 2);
   var f = valuePosition(1, -2);
-  var g = operands(2, 3);
-  var h = reasoned(4);
-  var i = reasoned(20);
-  var j = viaHelper(-1);
-  var k = conditional(6);
+  var g = null;
+  var v164 = null;
+  log = log + 1 | 0;
+  var v167 = Try_Maybe_a_a_toOutcome_Int(4);
+  if (v167 === null) {
+    g = null;
+  } else {
+    log = log + 1 | 0;
+    var v175 = Try_Maybe_a_a_toOutcome_Int(6);
+    if (v175 === null) {
+      g = null;
+    } else {
+      v164 = v167 + v175 | 0;
+      g = v164;
+    }
+  }
+  var h = { $tag: 0, $p: 0 };
+  log = log + 10 | 0;
+  var v241 = { $tag: 1, $p: 4 };
+  var v222 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v241.$tag, $p: v241.$p });
+  if (v222.$tag === 1) {
+    h = { $tag: 0, $p: v222.$p };
+  } else {
+    h = { $tag: 1, $p: v222.$p + 100 | 0 };
+  }
+  var i = { $tag: 0, $p: 0 };
+  log = log + 10 | 0;
+  var v314 = { $tag: 0, $p: 1 };
+  var v295 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v314.$tag, $p: v314.$p });
+  if (v295.$tag === 1) {
+    i = { $tag: 0, $p: v295.$p };
+  } else {
+    i = { $tag: 1, $p: v295.$p + 100 | 0 };
+  }
+  var j = { $tag: 0, $p: null };
+  log = log + 10 | 0;
+  var v551 = { $tag: 0, $p: 2 };
+  var v347 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v551.$tag, $p: v551.$p });
+  if (v347.$tag === 1) {
+    j = { $tag: 0, $p: v347.$p };
+  } else {
+    j = { $tag: 1, $p: v347.$p > 5 };
+  }
+  var k = null;
+  log = log + 1 | 0;
+  var v369 = Try_Maybe_a_a_toOutcome_Int(12);
+  if (v369 === null) {
+    k = null;
+  } else {
+    if (v369 > 10) {
+      k = 1;
+    } else {
+      k = 0;
+    }
+  }
   var l = looped(4);
   var m = looped(1);
   var n = throughLens(6);
@@ -251,11 +254,11 @@ function main() {
   var afterEarly = dropped;
   var v73 = ((unwrap(a) + unwrap(c) | 0) + unwrap(e) | 0) + unwrap(g) | 0;
   if (h.$tag === 1) {
-    v120 = h.$p;
+    v418 = h.$p;
   } else {
-    v120 = 0;
+    v418 = 0;
   }
-  return (((((((((((v73 + v120 | 0) + unwrap(k) | 0) + unwrap(l) | 0) + unwrap(n) | 0) + o | 0) + p | 0) + unwrap(q) | 0) + Math.imul(((((((empty(b) + empty(d) | 0) + empty(f) | 0) + empty(m) | 0) + (i.$tag === 1 ? 0 : 1) | 0) + (j.$tag === 1 ? 0 : 1) | 0) + empty(r) | 0) + empty(s) | 0, 1000) | 0) + Math.imul(afterBoth, 100000) | 0) + Math.imul(afterExit, 10000000) | 0) + Math.imul(afterEarly, 1000000000) | 0) + log | 0;
+  return (((((((((((v73 + v418 | 0) + unwrap(k) | 0) + unwrap(l) | 0) + unwrap(n) | 0) + o | 0) + p | 0) + unwrap(q) | 0) + Math.imul(((((((empty(b) + empty(d) | 0) + empty(f) | 0) + empty(m) | 0) + (i.$tag === 1 ? 0 : 1) | 0) + (j.$tag === 1 ? 0 : 1) | 0) + empty(r) | 0) + empty(s) | 0, 1000) | 0) + Math.imul(afterBoth, 100000) | 0) + Math.imul(afterExit, 10000000) | 0) + Math.imul(afterEarly, 1000000000) | 0) + log | 0;
 }
 
 function unwrap(m) {
@@ -295,15 +298,6 @@ function doubled_Maybe_Int(x, body$c, body$e) {
 
 function ResolveTest_continuation$1(env, found) {
   return found + 1 | 0;
-}
-
-function firstPositive_Int(n, body$c, body$e) {
-  var v5 = Try_Maybe_a_a_toOutcome_Int(parse(n));
-  if (v5 === null) {
-    return null;
-  } else {
-    return body$c(body$e, v5);
-  }
 }
 
 function drop$Outcome_Token(value) {

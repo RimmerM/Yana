@@ -620,164 +620,265 @@ main<complex>(): Int {
     %v_23 = bitcast 0: Ptr
     %v_24 = add %v_21, 8: Ptr
     store %v_24, %v_23, 8
-    call_complex collectMappedInto(Int, Int), %v_9, %v_2, 4, %v_21
-    %sum = alloca 4, 4: Ptr
-    store %sum, 0, 4
-    %v_25 = alloca 16, 8: Ptr
-    %v_26 = fun funvalue$isBig: Ptr
-    store %v_25, %v_26, 8
-    %v_27 = bitcast 0: Ptr
-    %v_28 = add %v_25, 8: Ptr
-    store %v_28, %v_27, 8
-    %v_29 = alloca 8, 8: Ptr
-    store %v_29, %sum, 8
-    %v_30 = alloca 16, 8: Ptr
-    store %v_30, ResolveTest.continuation$8, 8
-    %v_31 = add %v_30, 8: Ptr
-    store %v_31, %v_29, 8
-    %v_32 = alloca 1, 1: Ptr
-    call_complex filtered(Int, ()), %v_32, %v_2, 4, %v_25, %v_30
-    %big = alloca 4, 4: Ptr
-    store %big, 0, 4
-    %v_33 = alloca 16, 8: Ptr
-    store %v_33, %v_26, 8
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = phi [b_0, 0], [b_27, %v_28]: Long
+    %v_29 = cmp_ilt %v_26, 4: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_31 {
+    %v_32 = alloca 16, 8: Ptr
+    %v_33 = fun funvalue$isBig: Ptr
+    store %v_32, %v_33, 8
     %v_34 = bitcast 0: Ptr
-    %v_35 = add %v_33, 8: Ptr
+    %v_35 = add %v_32, 8: Ptr
     store %v_35, %v_34, 8
-    %v_36 = alloca 16, 8: Ptr
-    store %v_36, %v_22, 8
-    %v_37 = add %v_36, 8: Ptr
-    store %v_37, %v_34, 8
-    %v_38 = alloca 8, 8: Ptr
-    store %v_38, %big, 8
-    %v_39 = alloca 16, 8: Ptr
-    store %v_39, ResolveTest.continuation$9, 8
-    %v_40 = add %v_39, 8: Ptr
-    store %v_40, %v_38, 8
-    %v_41 = alloca 1, 1: Ptr
-    call_complex over(Int, ()), %v_41, %v_2, 4, %v_33, %v_36, %v_39
-    %v_42 = add %v_9, 12: Ptr
-    %v_43 = load %v_42, 4: Int
-    %v_44 = cast %v_43: Int
-    %v_45 = cast %v_44: Long
-    %v_46 = cmp_eq %v_45, 0: Int
-    je %v_46, b_47, b_48
+    %v_36 = load %v_1, 8: Ptr
+    %v_37 = add %v_1, 12: Ptr
+    %v_38 = load %v_37, 4: Int
+    %v_39 = cast %v_38: Int
+    %v_40 = cast %v_39: Long
+    %v_41 = sext %v_39: Long
+    jmp b_42
   }
 
-  b_48 {
-    %v_49 = load %v_9, 8: Ptr
-    %v_50 = loads %v_49, 4: Int
-    %v_51 = cmp_ge 1, %v_45: Int
-    je %v_51, b_52, b_53
+  b_30 {
+    %v_43 = bitcast %v_26: Long
+    %v_44 = cmp_ge %v_43, 4: Int
+    je %v_44, b_45, b_27
   }
 
-  b_53 {
-    %v_54 = add %v_49, 4: Ptr
-    %v_55 = loads %v_54, 4: Int
-    %v_56 = add %v_50, %v_55: Int
-    %v_57 = cmp_ge 2, %v_45: Int
-    je %v_57, b_58, b_59
+  b_27 {
+    %v_46 = shl %v_26, 2: Long
+    %v_47 = add %v_2, %v_46: Ptr
+    %v_48 = loads %v_47, 4: Int
+    %v_49 = add %v_21, 8: Ptr
+    %v_50 = load %v_21, 8: Ptr
+    %v_51 = load %v_49, 8: Ptr
+    %v_52 = call_complex %v_50, %v_51, %v_48: Int
+    call_complex push(Int), %v_9, %v_52
+    %v_28 = add %v_26, 1: Long
+    jmp b_25
+  }
+
+  b_42 {
+    %v_53 = phi [b_31, 0], [b_54, %v_55]: Int
+    %v_56 = phi [b_31, 0], [b_54, %v_57]: Long
+    %v_58 = cmp_ilt %v_56, %v_41: Int
+    je %v_58, b_59, b_60
+  }
+
+  b_60 {
+    %v_61 = alloca 16, 8: Ptr
+    store %v_61, %v_33, 8
+    %v_62 = bitcast 0: Ptr
+    %v_63 = add %v_61, 8: Ptr
+    store %v_63, %v_62, 8
+    %v_64 = alloca 16, 8: Ptr
+    store %v_64, %v_22, 8
+    %v_65 = add %v_64, 8: Ptr
+    store %v_65, %v_62, 8
+    %v_66 = load %v_1, 8: Ptr
+    %v_67 = add %v_1, 12: Ptr
+    %v_68 = load %v_67, 4: Int
+    %v_69 = cast %v_68: Int
+    %v_70 = cast %v_69: Long
+    %v_71 = sext %v_69: Long
+    jmp b_72
   }
 
   b_59 {
-    %v_60 = add %v_49, 8: Ptr
-    %v_61 = loads %v_60, 4: Int
-    %v_62 = add %v_56, %v_61: Int
-    %v_63 = cmp_ge 3, %v_45: Int
-    je %v_63, b_64, b_65
+    %v_73 = bitcast %v_56: Long
+    %v_74 = cmp_ge %v_73, %v_40: Int
+    je %v_74, b_75, b_76
   }
 
-  b_65 {
-    %v_66 = add %v_49, 12: Ptr
-    %v_67 = loads %v_66, 4: Int
+  b_76 {
+    %v_77 = shl %v_56, 2: Long
+    %v_78 = add %v_36, %v_77: Ptr
+    %v_79 = loads %v_78, 4: Int
+    %v_80 = add %v_32, 8: Ptr
+    %v_81 = load %v_32, 8: Ptr
+    %v_82 = load %v_80, 8: Ptr
+    %v_83 = call_complex %v_81, %v_82, %v_79: Int
+    je %v_83, b_84, b_54
+  }
+
+  b_84 {
+    %v_85 = add %v_53, %v_79: Int
+    jmp b_54
+  }
+
+  b_54 {
+    %v_55 = phi [b_76, %v_53], [b_84, %v_85]: Int
+    %v_57 = add %v_56, 1: Long
+    jmp b_42
+  }
+
+  b_72 {
+    %v_86 = phi [b_60, 0], [b_87, %v_88]: Int
+    %v_89 = phi [b_60, 0], [b_87, %v_90]: Long
+    %v_91 = cmp_ilt %v_89, %v_71: Int
+    je %v_91, b_92, b_93
+  }
+
+  b_93 {
+    %v_94 = add %v_9, 12: Ptr
+    %v_95 = load %v_94, 4: Int
+    %v_96 = cast %v_95: Int
+    %v_97 = cast %v_96: Long
+    %v_98 = cmp_eq %v_97, 0: Int
+    je %v_98, b_99, b_100
+  }
+
+  b_92 {
+    %v_101 = bitcast %v_89: Long
+    %v_102 = cmp_ge %v_101, %v_70: Int
+    je %v_102, b_103, b_104
+  }
+
+  b_104 {
+    %v_105 = shl %v_89, 2: Long
+    %v_106 = add %v_66, %v_105: Ptr
+    %v_107 = loads %v_106, 4: Int
+    %v_108 = add %v_61, 8: Ptr
+    %v_109 = load %v_61, 8: Ptr
+    %v_110 = load %v_108, 8: Ptr
+    %v_111 = call_complex %v_109, %v_110, %v_107: Int
+    je %v_111, b_112, b_87
+  }
+
+  b_112 {
+    %v_113 = add %v_64, 8: Ptr
+    %v_114 = load %v_64, 8: Ptr
+    %v_115 = load %v_113, 8: Ptr
+    %v_116 = call_complex %v_114, %v_115, %v_107: Int
+    %v_117 = add %v_86, %v_116: Int
+    jmp b_87
+  }
+
+  b_87 {
+    %v_88 = phi [b_104, %v_86], [b_112, %v_117]: Int
+    %v_90 = add %v_89, 1: Long
+    jmp b_72
+  }
+
+  b_100 {
+    %v_118 = load %v_9, 8: Ptr
+    %v_119 = loads %v_118, 4: Int
+    %v_120 = cmp_ge 1, %v_97: Int
+    je %v_120, b_121, b_122
+  }
+
+  b_122 {
+    %v_123 = add %v_118, 4: Ptr
+    %v_124 = loads %v_123, 4: Int
+    %v_125 = add %v_119, %v_124: Int
+    %v_126 = cmp_ge 2, %v_97: Int
+    je %v_126, b_127, b_128
+  }
+
+  b_128 {
+    %v_129 = add %v_118, 8: Ptr
+    %v_130 = loads %v_129, 4: Int
+    %v_131 = add %v_125, %v_130: Int
+    %v_132 = cmp_ge 3, %v_97: Int
+    je %v_132, b_133, b_134
+  }
+
+  b_134 {
+    %v_135 = add %v_118, 12: Ptr
+    %v_136 = loads %v_135, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_9
-    %v_68 = add %v_62, %v_67: Int
-    %v_69 = loads %sum, 4: Int
-    %v_70 = add %v_68, %v_69: Int
-    %v_71 = loads %big, 4: Int
-    %v_72 = add %v_70, %v_71: Int
-    %v_73 = call_complex countUp(Bool), 3, 1: Int
-    %v_74 = add %v_72, %v_73: Int
-    %v_75 = call_complex firstOver(Bool), %v_2, 4, 4, 1: Int
+    %v_137 = add %v_131, %v_136: Int
+    %v_138 = add %v_137, %v_53: Int
+    %v_139 = add %v_138, %v_86: Int
+    %v_140 = call_complex countUp(Bool), 3, 1: Int
+    %v_141 = add %v_139, %v_140: Int
+    %v_142 = load %v_1, 8: Ptr
+    %v_143 = add %v_1, 12: Ptr
+    %v_144 = load %v_143, 4: Int
+    %v_145 = cast %v_144: Int
+    %v_146 = cast %v_145: Long
+    %v_147 = alloca 16, 8: Ptr
+    store %v_147, %v_22, 8
+    %v_148 = bitcast 0: Ptr
+    %v_149 = add %v_147, 8: Ptr
+    store %v_149, %v_148, 8
+    %v_150 = alloca 4, 4: Ptr
+    store %v_150, 4, 4
+    %v_151 = alloca 16, 8: Ptr
+    store %v_151, ResolveTest.continuation$5(Bool), 8
+    %v_152 = add %v_151, 8: Ptr
+    store %v_152, %v_150, 8
+    %v_153 = alloca 8, 4: Ptr
+    call_complex mapped(Int, Int, Int), %v_153, %v_142, %v_146, %v_147, %v_151
+    %v_154 = loads %v_153, 4: Int
+    %v_155 = cmp_eq %v_154, 1: Int
+    je %v_155, b_156, b_157
+  }
+
+  b_157 {
+    jmp b_158
+  }
+
+  b_156 {
+    %v_159 = add %v_153, 4: Ptr
+    %v_160 = loads %v_159, 4: Int
+    jmp b_158
+  }
+
+  b_158 {
+    %v_161 = phi [b_157, 0], [b_156, %v_160]: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_76 = add %v_74, %v_75: Int
-    %v_77 = call_complex throughLens(Bool), 1, 1: Int
-    %v_78 = add %v_76, %v_77: Int
-    ret %v_78
+    %v_162 = add %v_141, %v_161: Int
+    %v_163 = alloca 4, 4: Ptr
+    store %v_163, 1, 4
+    %v_164 = alloca 16, 8: Ptr
+    store %v_164, ResolveTest.continuation$6(Bool), 8
+    %v_165 = add %v_164, 8: Ptr
+    store %v_165, %v_163, 8
+    %v_166 = load %v_164, 8: Ptr
+    %v_167 = call_complex %v_166, %v_163: Int
+    %v_168 = add %v_162, %v_167: Int
+    ret %v_168
   }
 
-  b_64 {
-    %v_79 = syscall 60, 134: Long
+  b_133 {
+    %v_169 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_58 {
-    %v_80 = syscall 60, 134: Long
+  b_127 {
+    %v_170 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_52 {
-    %v_81 = syscall 60, 134: Long
+  b_121 {
+    %v_171 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_47 {
-    %v_82 = syscall 60, 134: Long
+  b_99 {
+    %v_172 = syscall 60, 134: Long
     unreachable 
   }
-}
 
-each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
-  b_1 {
-    %n = cast %xs$length: Int
-    %v_2 = bitcast %xs$length: Long
-    %v_3 = sext %n: Long
-    jmp b_4
+  b_103 {
+    %v_173 = syscall 60, 134: Long
+    unreachable 
   }
 
-  b_4 {
-    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
-    %v_8 = cmp_ilt %v_5, %v_3: Int
-    je %v_8, b_9, b_10
+  b_75 {
+    %v_174 = syscall 60, 134: Long
+    unreachable 
   }
 
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-
-  b_9 {
-    %v_11 = bitcast %v_5: Long
-    %v_12 = cmp_ge %v_11, %v_2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = shl %v_5, 2: Long
-    %v_16 = add %xs$items, %v_15: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %body, 8: Ptr
-    %v_19 = load %body, 8: Ptr
-    %v_20 = load %v_18, 8: Ptr
-    %v_21 = alloca 1, 1: Ptr
-    call_complex %v_19, %v_21, %v_20, %v_17
-    %v_22 = loads %v_21, 1: Int
-    %v_23 = cmp_eq %v_22, 1: Int
-    je %v_23, b_24, b_6
-  }
-
-  b_6 {
-    %v_7 = add %v_5, 1: Long
-    jmp b_4
-  }
-
-  b_24 {
-    copy %v_0, %v_21, 1
-    ret 
-  }
-
-  b_13 {
-    %v_25 = syscall 60, 134: Long
+  b_45 {
+    %v_175 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -791,255 +892,102 @@ funvalue$double<complex>(%env: Ptr, %v: Int): Int {
 
 mapped(Int, Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %f: Ptr, %body: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %body, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %f, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$0(Int, Int, Int), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = alloca 12, 4: Ptr
-    call_complex each(Int, Outcome((), Int)), %v_6, %xs$items, %xs$length, %v_4
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    %v_11 = add %v_6, 4: Ptr
-    copy %v_0, %v_11, 8
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 0, 4
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$0(Int, Int, Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0(Int, Int, Int)<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = add %env, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = add %v_4, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7, %value: Int
-    %v_9 = add %v_2, 8: Ptr
-    %v_10 = load %v_2, 8: Ptr
-    %v_11 = load %v_9, 8: Ptr
-    %v_12 = alloca 8, 4: Ptr
-    call_complex %v_10, %v_12, %v_11, %v_8
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    store %v_0, 1, 4
-    %v_17 = add %v_0, 4: Ptr
-    copy %v_17, %v_12, 8
-    ret 
-  }
-
-  b_16 {
-    store %v_0, 0, 4
-    ret 
-  }
-}
-
-each(Int, Outcome((), Int))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
-  b_1 {
+    %v_2 = alloca 12, 4: Ptr
     %n = cast %xs$length: Int
-    %v_2 = bitcast %xs$length: Long
-    %v_3 = sext %n: Long
-    jmp b_4
+    %v_3 = bitcast %xs$length: Long
+    %v_4 = sext %n: Long
+    jmp b_5
   }
 
-  b_4 {
-    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
-    %v_8 = cmp_ilt %v_5, %v_3: Int
-    je %v_8, b_9, b_10
+  b_5 {
+    %v_6 = phi [b_1, 0], [b_7, %v_8]: Long
+    %v_9 = cmp_ilt %v_6, %v_4: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = alloca 12, 4: Ptr
+    store %v_12, 0, 4
+    copy %v_2, %v_12, 12
+    jmp b_13
   }
 
   b_10 {
-    store %v_0, 0, 4
-    ret 
+    %v_14 = bitcast %v_6: Long
+    %v_15 = cmp_ge %v_14, %v_3: Int
+    je %v_15, b_16, b_17
   }
 
-  b_9 {
-    %v_11 = bitcast %v_5: Long
-    %v_12 = cmp_ge %v_11, %v_2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = shl %v_5, 2: Long
-    %v_16 = add %xs$items, %v_15: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %body, 8: Ptr
-    %v_19 = load %body, 8: Ptr
-    %v_20 = load %v_18, 8: Ptr
+  b_17 {
+    %v_18 = shl %v_6, 2: Long
+    %v_19 = add %xs$items, %v_18: Ptr
+    %v_20 = loads %v_19, 4: Int
     %v_21 = alloca 12, 4: Ptr
-    call_complex %v_19, %v_21, %v_20, %v_17
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = cmp_eq %v_22, 1: Int
-    je %v_23, b_24, b_6
+    %v_22 = add %f, 8: Ptr
+    %v_23 = load %f, 8: Ptr
+    %v_24 = load %v_22, 8: Ptr
+    %v_25 = call_complex %v_23, %v_24, %v_20: Int
+    %v_26 = add %body, 8: Ptr
+    %v_27 = load %body, 8: Ptr
+    %v_28 = load %v_26, 8: Ptr
+    %v_29 = alloca 8, 4: Ptr
+    call_complex %v_27, %v_29, %v_28, %v_25
+    %v_30 = loads %v_29, 4: Int
+    %v_31 = cmp_eq %v_30, 1: Int
+    je %v_31, b_32, b_33
   }
 
-  b_6 {
-    %v_7 = add %v_5, 1: Long
-    jmp b_4
+  b_33 {
+    %v_34 = alloca 12, 4: Ptr
+    store %v_34, 0, 4
+    copy %v_21, %v_34, 12
+    jmp b_35
   }
 
-  b_24 {
-    copy %v_0, %v_21, 12
-    ret 
+  b_32 {
+    %v_36 = alloca 12, 4: Ptr
+    store %v_36, 1, 4
+    %v_37 = add %v_36, 4: Ptr
+    copy %v_37, %v_29, 8
+    copy %v_21, %v_36, 12
+    jmp b_35
+  }
+
+  b_35 {
+    %v_38 = loads %v_21, 4: Int
+    %v_39 = cmp_eq %v_38, 1: Int
+    je %v_39, b_40, b_7
+  }
+
+  b_7 {
+    %v_8 = add %v_6, 1: Long
+    jmp b_5
+  }
+
+  b_40 {
+    copy %v_2, %v_21, 12
+    jmp b_13
   }
 
   b_13 {
-    %v_25 = syscall 60, 134: Long
-    unreachable 
-  }
-}
-
-collectMappedInto(Int, Int)<complex>(%out: Ptr, %xs$items: Ptr, %xs$length: Long, %f: Ptr) {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %out, 8
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$3(Int, Int), 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = alloca 1, 1: Ptr
-    call_complex mapped(Int, Int, ()), %v_4, %xs$items, %xs$length, %f, %v_2
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$3(Int, Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$3(Int, Int)<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    call_complex push(Int), %v_2, %value
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-mapped(Int, Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %f: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %body, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %f, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$0(Int, Int, ()), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = alloca 1, 1: Ptr
-    call_complex each(Int, Outcome((), ())), %v_6, %xs$items, %xs$length, %v_4
-    %v_7 = load %v_6, 1: Long
-    %v_8 = cmp_le %v_7, 1: Int
-    je %v_8, b_9, b_10
+    %v_41 = loads %v_2, 4: Int
+    %v_42 = cmp_eq %v_41, 1: Int
+    je %v_42, b_43, b_44
   }
 
-  b_9 {
-    copy %v_0, %v_6, 1
+  b_44 {
+    store %v_0, 0, 4
     ret 
   }
 
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$0(Int, Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0(Int, Int, ())<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = add %env, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = add %v_4, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7, %value: Int
-    %v_9 = add %v_2, 8: Ptr
-    %v_10 = load %v_2, 8: Ptr
-    %v_11 = load %v_9, 8: Ptr
-    %v_12 = alloca 1, 1: Ptr
-    call_complex %v_10, %v_12, %v_11, %v_8
-    %v_13 = loads %v_12, 1: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    copy %v_0, %v_12, 1
+  b_43 {
+    %v_45 = add %v_2, 4: Ptr
+    copy %v_0, %v_45, 8
     ret 
   }
 
   b_16 {
-    store %v_0, 2, 1
-    ret 
-  }
-}
-
-each(Int, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
-  b_1 {
-    %n = cast %xs$length: Int
-    %v_2 = bitcast %xs$length: Long
-    %v_3 = sext %n: Long
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
-    %v_8 = cmp_ilt %v_5, %v_3: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    store %v_0, 2, 1
-    ret 
-  }
-
-  b_9 {
-    %v_11 = bitcast %v_5: Long
-    %v_12 = cmp_ge %v_11, %v_2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = shl %v_5, 2: Long
-    %v_16 = add %xs$items, %v_15: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %body, 8: Ptr
-    %v_19 = load %body, 8: Ptr
-    %v_20 = load %v_18, 8: Ptr
-    %v_21 = alloca 1, 1: Ptr
-    call_complex %v_19, %v_21, %v_20, %v_17
-    %v_22 = load %v_21, 1: Long
-    %v_23 = cmp_le %v_22, 1: Int
-    je %v_23, b_24, b_6
-  }
-
-  b_6 {
-    %v_7 = add %v_5, 1: Long
-    jmp b_4
-  }
-
-  b_24 {
-    copy %v_0, %v_21, 1
-    ret 
-  }
-
-  b_13 {
-    %v_25 = syscall 60, 134: Long
+    %v_46 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -1051,290 +999,8 @@ funvalue$isBig<complex>(%env: Ptr, %v: Int): Int {
   }
 }
 
-@closure$ResolveTest.continuation$8 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$8<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_3, %value: Int
-    store %v_2, %v_4, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-filtered(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %keep: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %keep, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %body, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$1(Int, ()), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = alloca 1, 1: Ptr
-    call_complex each(Int, Outcome((), ())), %v_6, %xs$items, %xs$length, %v_4
-    %v_7 = load %v_6, 1: Long
-    %v_8 = cmp_le %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    copy %v_0, %v_6, 1
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$1(Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1(Int, ())<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = add %v_2, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %value: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    %v_9 = add %env, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = add %v_10, 8: Ptr
-    %v_12 = load %v_10, 8: Ptr
-    %v_13 = load %v_11, 8: Ptr
-    %v_14 = alloca 1, 1: Ptr
-    call_complex %v_12, %v_14, %v_13, %value
-    %v_15 = loads %v_14, 1: Int
-    %v_16 = cmp_eq %v_15, 1: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_8 {
-    jmp b_19
-  }
-
-  b_17 {
-    copy %v_0, %v_14, 1
-    ret 
-  }
-
-  b_18 {
-    jmp b_19
-  }
-
-  b_19 {
-    store %v_0, 2, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$9 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$9<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_3, %value: Int
-    store %v_2, %v_4, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-over(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %keep: Ptr, %f: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %body, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %f, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$2(Int, ()), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = alloca 1, 1: Ptr
-    call_complex filtered(Int, Outcome((), ())), %v_6, %xs$items, %xs$length, %keep, %v_4
-    %v_7 = load %v_6, 1: Long
-    %v_8 = cmp_le %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    copy %v_0, %v_6, 1
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$2(Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$2(Int, ())<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = add %env, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = add %v_4, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7, %value: Int
-    %v_9 = add %v_2, 8: Ptr
-    %v_10 = load %v_2, 8: Ptr
-    %v_11 = load %v_9, 8: Ptr
-    %v_12 = alloca 1, 1: Ptr
-    call_complex %v_10, %v_12, %v_11, %v_8
-    %v_13 = loads %v_12, 1: Int
-    %v_14 = cmp_eq %v_13, 1: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    copy %v_0, %v_12, 1
-    ret 
-  }
-
-  b_16 {
-    store %v_0, 2, 1
-    ret 
-  }
-}
-
-filtered(Int, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %keep: Ptr, %body: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %keep, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %body, 8
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, ResolveTest.continuation$1(Int, Outcome((), ())), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = alloca 1, 1: Ptr
-    call_complex each(Int, Outcome((), Outcome((), ()))), %v_6, %xs$items, %xs$length, %v_4
-    %v_7 = load %v_6, 1: Long
-    %v_8 = cmp_le %v_7, 2: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    copy %v_0, %v_6, 1
-    ret 
-  }
-
-  b_10 {
-    store %v_0, 2, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$1(Int, Outcome((), ())) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1(Int, Outcome((), ()))<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = add %v_2, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = call_complex %v_4, %v_5, %value: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    %v_9 = add %env, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = add %v_10, 8: Ptr
-    %v_12 = load %v_10, 8: Ptr
-    %v_13 = load %v_11, 8: Ptr
-    %v_14 = alloca 1, 1: Ptr
-    call_complex %v_12, %v_14, %v_13, %value
-    %v_15 = load %v_14, 1: Long
-    %v_16 = cmp_le %v_15, 1: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_8 {
-    jmp b_19
-  }
-
-  b_17 {
-    copy %v_0, %v_14, 1
-    ret 
-  }
-
-  b_18 {
-    jmp b_19
-  }
-
-  b_19 {
-    store %v_0, 3, 1
-    ret 
-  }
-}
-
-each(Int, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
-  b_1 {
-    %n = cast %xs$length: Int
-    %v_2 = bitcast %xs$length: Long
-    %v_3 = sext %n: Long
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_1, 0], [b_6, %v_7]: Long
-    %v_8 = cmp_ilt %v_5, %v_3: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    store %v_0, 3, 1
-    ret 
-  }
-
-  b_9 {
-    %v_11 = bitcast %v_5: Long
-    %v_12 = cmp_ge %v_11, %v_2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = shl %v_5, 2: Long
-    %v_16 = add %xs$items, %v_15: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %body, 8: Ptr
-    %v_19 = load %body, 8: Ptr
-    %v_20 = load %v_18, 8: Ptr
-    %v_21 = alloca 1, 1: Ptr
-    call_complex %v_19, %v_21, %v_20, %v_17
-    %v_22 = load %v_21, 1: Long
-    %v_23 = cmp_le %v_22, 2: Int
-    je %v_23, b_24, b_6
-  }
-
-  b_6 {
-    %v_7 = add %v_5, 1: Long
-    jmp b_4
-  }
-
-  b_24 {
-    copy %v_0, %v_21, 1
-    ret 
-  }
-
-  b_13 {
-    %v_25 = syscall 60, 134: Long
-    unreachable 
-  }
-}
-
 countUp(Bool)<complex>(%limit: Int, %marker: Int): Int {
   b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 4: Ptr
     store %v_1, %v_2, 8
@@ -1350,78 +1016,71 @@ countUp(Bool)<complex>(%limit: Int, %marker: Int): Int {
     store %v_7, 4, 4
     %v_8 = add %v_1, 12: Ptr
     store %v_8, 4, 4
-    %v_9 = alloca 12, 8: Ptr
-    %v_10 = add %v_9, 8: Ptr
-    store %v_10, %limit, 4
-    store %v_9, %total, 8
-    %v_11 = alloca 16, 8: Ptr
-    store %v_11, ResolveTest.continuation$4(Bool), 8
-    %v_12 = add %v_11, 8: Ptr
-    store %v_12, %v_9, 8
-    %v_13 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_13, %v_2, 4, %v_11
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_14 = loads %total, 4: Int
-    ret %v_14
-  }
-}
-
-@closure$ResolveTest.continuation$4(Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$4(Bool)<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = add %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = cmp_igt %value, %v_3: Int
-    je %v_4, b_5, b_6
+    jmp b_9
   }
 
-  b_5 {
-    store %v_0, 0, 1
-    ret 
+  b_9 {
+    %v_10 = phi [b_0, 0], [b_11, %v_12]: Int
+    %v_13 = phi [b_0, 0], [b_11, %v_14]: Long
+    %v_15 = cmp_ilt %v_13, 4: Int
+    je %v_15, b_16, b_17
   }
 
-  b_6 {
-    jmp b_7
+  b_17 {
+    jmp b_18
   }
 
-  b_7 {
-    %v_8 = load %env, 8: Ptr
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = add %v_9, %value: Int
-    store %v_8, %v_10, 4
-    store %v_0, 0, 1
-    ret 
-  }
-}
-
-firstOver(Bool)<complex>(%xs$items: Ptr, %xs$length: Long, %bound: Int, %marker: Int): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, funvalue$double, 8
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, %v_2, 8
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %bound, 4
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, ResolveTest.continuation$5(Bool), 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %v_4, 8
-    %v_7 = alloca 8, 4: Ptr
-    call_complex mapped(Int, Int, Int), %v_7, %xs$items, %xs$length, %v_1, %v_5
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = cmp_eq %v_8, 1: Int
-    je %v_9, b_10, b_11
+  b_16 {
+    %v_19 = bitcast %v_13: Long
+    %v_20 = cmp_ge %v_19, 4: Int
+    je %v_20, b_21, b_22
   }
 
-  b_10 {
-    %v_12 = add %v_7, 4: Ptr
-    %v_13 = loads %v_12, 4: Int
-    ret %v_13
+  b_22 {
+    %v_23 = shl %v_13, 2: Long
+    %v_24 = add %v_2, %v_23: Ptr
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = cmp_igt %v_25, %limit: Int
+    je %v_26, b_27, b_28
+  }
+
+  b_28 {
+    %v_29 = add %v_10, %v_25: Int
+    jmp b_30
+  }
+
+  b_27 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_12 = phi [b_28, %v_29], [b_27, %v_10]: Int
+    %v_31 = phi [b_28, 0], [b_27, 0]: Int
+    %v_32 = imm 24: Int
+    %v_33 = shl %v_31, %v_32: Int
+    %v_34 = sar %v_33, %v_32: Int
+    %v_35 = cmp_eq %v_34, 1: Int
+    je %v_35, b_36, b_11
   }
 
   b_11 {
-    ret 0
+    %v_14 = add %v_13, 1: Long
+    jmp b_9
+  }
+
+  b_36 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_37 = phi [b_17, %v_10], [b_36, %v_12]: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret %v_37
+  }
+
+  b_21 {
+    %v_38 = syscall 60, 134: Long
+    unreachable 
   }
 }
 
@@ -1450,25 +1109,9 @@ ResolveTest.continuation$5(Bool)<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 }
 
-throughLens(Bool)<complex>(%value: Int, %n: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$6(Bool), 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = call_complex %v_4, %v_1: Int
-    ret %v_5
-  }
-}
-
 @closure$ResolveTest.continuation$6(Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$6(Bool)<complex>(%env: Ptr): Int {
   b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 12, 4: Ptr
     store %v_1, %v_2, 8
@@ -1482,35 +1125,41 @@ ResolveTest.continuation$6(Bool)<complex>(%env: Ptr): Int {
     store %v_6, 3, 4
     %v_7 = add %v_1, 12: Ptr
     store %v_7, 3, 4
-    %v_8 = alloca 12, 8: Ptr
-    store %v_8, %total, 8
-    %v_9 = loads %env, 4: Int
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, %v_9, 4
-    %v_11 = alloca 16, 8: Ptr
-    store %v_11, ResolveTest.continuation$7(Bool), 8
-    %v_12 = add %v_11, 8: Ptr
-    store %v_12, %v_8, 8
-    %v_13 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_13, %v_2, 3, %v_11
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_14 = loads %total, 4: Int
-    ret %v_14
+    %v_8 = loads %env, 4: Int
+    jmp b_9
   }
-}
 
-@closure$ResolveTest.continuation$7(Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$7(Bool)<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = load %env, 8: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_3, %value: Int
-    %v_5 = add %env, 8: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = add %v_4, %v_6: Int
-    store %v_2, %v_7, 4
-    store %v_0, 0, 1
-    ret 
+  b_9 {
+    %v_10 = phi [b_0, 0], [b_11, %v_12]: Int
+    %v_13 = phi [b_0, 0], [b_11, %v_14]: Long
+    %v_15 = cmp_ilt %v_13, 3: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = bitcast %v_13: Long
+    %v_19 = cmp_ge %v_18, 3: Int
+    je %v_19, b_20, b_11
+  }
+
+  b_11 {
+    %v_21 = shl %v_13, 2: Long
+    %v_22 = add %v_2, %v_21: Ptr
+    %v_23 = loads %v_22, 4: Int
+    %v_24 = add %v_10, %v_23: Int
+    %v_12 = add %v_24, %v_8: Int
+    %v_14 = add %v_13, 1: Long
+    jmp b_9
+  }
+
+  b_17 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret %v_10
+  }
+
+  b_20 {
+    %v_25 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

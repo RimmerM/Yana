@@ -267,19 +267,6 @@ borrowed<complex>(%p: Ptr): Ptr {
   }
 }
 
-placed<complex>(): Long {
-  b_0 {
-    %v_1 = call_complex allocateHeap, 16: Ptr
-    store %v_1, 10, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 20, 8
-    store %v_1, 12, 8
-    %v_3 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_3
-    ret 32
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -290,11 +277,16 @@ main<complex>(): Int {
     store %v_2, 4, 8
     %v_3 = call_complex borrowed, %v_1: Ptr
     %v_4 = loads %v_3, 8: Long
-    %v_5 = call_complex placed: Long
-    %v_6 = add %v_4, %v_5: Long
-    %v_7 = add %v_6, 8: Long
-    %v_8 = cast %v_7: Int
-    ret %v_8
+    %v_5 = call_complex allocateHeap, 16: Ptr
+    store %v_5, 10, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 20, 8
+    store %v_5, 12, 8
+    %v_7 = bitcast %v_5: Ptr
+    call_complex freeHeap, %v_7
+    %v_8 = add %v_4, 40: Long
+    %v_9 = cast %v_8: Int
+    ret %v_9
   }
 }
 

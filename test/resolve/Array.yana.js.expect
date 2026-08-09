@@ -8,16 +8,6 @@ function checkCondition(failed) {
   }
 }
 
-function remove_Int(self, index) {
-  if (index >>> 0 >= self.length >>> 0) {
-    return null;
-  } else {
-    var v16 = self[index];
-    self.splice(index, 1);
-    return v16;
-  }
-}
-
 // ResolveTest
 function sum(xs$items, xs$length, xs$offset) {
   var total = 0;
@@ -37,12 +27,16 @@ function sum(xs$items, xs$length, xs$offset) {
 }
 
 function main() {
-  var v4 = [10, 2, 3];
-  v4[v4.length] = 4;
-  v4[v4.length] = 5;
-  var v38 = remove_Int(v4, 1);
-  var v43 = remove_Int(v4, 99);
-  var v51 = remove_Int(v4, -1);
+  var v4 = [10, 2, 3, 4, 5];
+  v4.splice(1, 1);
+  if (99 >= v4.length >>> 0) {
+  } else {
+    v4.splice(99, 1);
+  }
+  if (4294967295 >= v4.length >>> 0) {
+  } else {
+    v4.splice(-1, 1);
+  }
   return (sum(v4, v4.length, 0) + v4.length | 0) + 24 | 0;
 }
 main();

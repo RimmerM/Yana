@@ -4,32 +4,18 @@
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.deferred$0, 8
-    %v_3 = bitcast 0: Ptr
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, %v_3, 8
-    %v_5 = alloca 1, 1: Ptr
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, ResolveTest.deferred$1, 8
-    %v_7 = add %v_6, 8: Ptr
-    store %v_7, %v_3, 8
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = call_complex %v_8, %v_3: Int
-    %v_10 = add %v_9, 38: Int
-    %v_11 = loads @effects, 4: Int
-    %v_12 = add %v_10, %v_11: Int
-    ret %v_12
-  }
-}
-
-ResolveTest.deferred$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = imm 1: Int
-    %v_3 = add %v_1, %v_2: Int
-    store @effects, %v_3, 4
-    ret %v_2
+    %v_2 = alloca 1, 1: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, ResolveTest.deferred$1, 8
+    %v_4 = bitcast 0: Ptr
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = load %v_3, 8: Ptr
+    %v_7 = call_complex %v_6, %v_4: Int
+    %v_8 = add %v_7, 38: Int
+    %v_9 = loads @effects, 4: Int
+    %v_10 = add %v_8, %v_9: Int
+    ret %v_10
   }
 }
 

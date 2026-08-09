@@ -2,10 +2,6 @@
 var effects = 0;
 
 // Core
-function teardown$none(value) {
-  return;
-}
-
 function q_q_Int(value, fallback$c, fallback$e) {
   var v2;
   if (!(value === null)) {
@@ -17,14 +13,6 @@ function q_q_Int(value, fallback$c, fallback$e) {
 }
 
 // ResolveTest
-function capturing() {
-  return ResolveTest_deferred$0({ $v: 5 });
-}
-
-function mutableCapture() {
-  return ResolveTest_deferred$1({ $v: { $o: { $v: 41 }, $k: "$v", $s: 1 } });
-}
-
 function main() {
   var score = 1;
   if (ResolveTest_deferred$3(null) === 2) {
@@ -42,13 +30,8 @@ function main() {
   if (orDefault_Bool(0, ResolveTest_deferred$8, null) === 0) {
     score = score + 32 | 0;
   }
-  if (capturing() === 37) {
-    score = score + 64 | 0;
-  }
-  if (mutableCapture() === 82) {
-    score = score + 128 | 0;
-  }
-  score = score + 256 | 0;
+  effects = effects + 32 | 0;
+  score = score + 448 | 0;
   if (ResolveTest_deferred$10(null) === 640) {
     score = score + 512 | 0;
   }
@@ -79,22 +62,6 @@ function main() {
   return score;
 }
 
-function ResolveTest_deferred$0(env) {
-  var v1 = env.$v;
-  effects = effects + 32 | 0;
-  return v1 + 32 | 0;
-}
-
-function ResolveTest_deferred$1(env) {
-  var v1 = env.$v;
-  return Math.imul(v1.$o[v1.$k], 2);
-}
-
-function ResolveTest_deferred$2(env) {
-  effects = effects + 1 | 0;
-  return 1;
-}
-
 function ResolveTest_deferred$3(env) {
   effects = effects + 2 | 0;
   return 2;
@@ -103,11 +70,6 @@ function ResolveTest_deferred$3(env) {
 function ResolveTest_deferred$4(env) {
   effects = effects + 4 | 0;
   return 4;
-}
-
-function ResolveTest_deferred$5(env) {
-  effects = effects + 8 | 0;
-  return 8;
 }
 
 function orDefault_Int(m, fallback$c, fallback$e) {
@@ -145,29 +107,14 @@ function ResolveTest_deferred$8(env) {
   return 1;
 }
 
-function ResolveTest_deferred$9(env) {
-  effects = effects + 64 | 0;
-  return 64;
-}
-
 function ResolveTest_deferred$10(env) {
   effects = effects + 384 | 0;
   return 640;
 }
 
-function ResolveTest_deferred$11(env) {
-  effects = effects + 1024 | 0;
-  return { x: 2, y: 3 };
-}
-
 function ResolveTest_deferred$12(env) {
   effects = effects + 2048 | 0;
   return { x: 2, y: 3 };
-}
-
-function ResolveTest_deferred$13(env) {
-  effects = effects + 4096 | 0;
-  return 1;
 }
 
 function ResolveTest_deferred$14(env) {

@@ -7,27 +7,6 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-alwaysLeaves<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$0, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = loads @log, 4: Int
-    %v_5 = add %v_4, 1: Int
-    store @log, %v_5, 4
-    %v_6 = load %v_2, 8: Ptr
-    %v_7 = load %v_3, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7: Int
-    %v_9 = loads @log, 4: Int
-    %v_10 = add %v_9, 100: Int
-    store @log, %v_10, 4
-    ret %v_8
-  }
-}
-
 sometimesLeaves<complex>(%x: Int): Int {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -109,57 +88,27 @@ leavesWithValue<complex>(%x: Int): Int {
   }
 }
 
-twoDeep<complex>(%x: Int): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$4, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = loads @log, 4: Int
-    %v_5 = add %v_4, 1: Int
-    store @log, %v_5, 4
-    %v_6 = load %v_2, 8: Ptr
-    %v_7 = load %v_3, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7: Int
-    %v_9 = loads @log, 4: Int
-    %v_10 = add %v_9, 100: Int
-    store @log, %v_10, 4
-    ret %v_8
-  }
-}
-
 main<complex>(): Int {
   b_0 {
-    store @log, 0, 4
-    %a = call_complex alwaysLeaves, 1: Int
+    store @log, 101, 4
     %b = call_complex sometimesLeaves, 5: Int
     %c = call_complex sometimesLeaves, 200: Int
     %d = call_complex insideArm, 3: Int
     %e = call_complex insideArm, 18446744073709551615: Int
     %f = call_complex leavesWithValue, 9: Int
     %g = call_complex leavesWithValue, 2: Int
-    %h = call_complex twoDeep, 4: Int
-    %v_1 = add %a, %b: Int
-    %v_2 = add %v_1, %c: Int
-    %v_3 = add %v_2, %d: Int
-    %v_4 = add %v_3, %e: Int
-    %v_5 = add %v_4, %f: Int
-    %v_6 = add %v_5, %g: Int
-    %v_7 = add %v_6, %h: Int
-    %v_8 = loads @log, 4: Int
-    %v_9 = add %v_7, %v_8: Int
-    ret %v_9
-  }
-}
-
-@closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %v_1, 1: Int
-    ret %v_2
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 202: Int
+    store @log, %v_2, 4
+    %v_3 = add %b, 2: Int
+    %v_4 = add %v_3, %c: Int
+    %v_5 = add %v_4, %d: Int
+    %v_6 = add %v_5, %e: Int
+    %v_7 = add %v_6, %f: Int
+    %v_8 = add %v_7, %g: Int
+    %v_9 = add %v_8, 7: Int
+    %v_10 = add %v_9, %v_2: Int
+    ret %v_10
   }
 }
 
@@ -247,38 +196,6 @@ ResolveTest.continuation$3<complex>(%env: Ptr, %value: Int): Int {
 
   b_4 {
     ret 0
-  }
-}
-
-@closure$ResolveTest.continuation$4 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$4<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = loads %env, 4: Int
-    store %v_1, %v_2, 4
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.continuation$5, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, %v_1, 8
-    %v_5 = loads @log, 4: Int
-    %v_6 = add %v_5, 1: Int
-    store @log, %v_6, 4
-    %v_7 = load %v_3, 8: Ptr
-    %v_8 = load %v_4, 8: Ptr
-    %v_9 = call_complex %v_7, %v_8: Int
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
-    store @log, %v_11, 4
-    ret %v_9
-  }
-}
-
-@closure$ResolveTest.continuation$5 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$5<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %v_1, 3: Int
-    ret %v_2
   }
 }
 

@@ -93,98 +93,58 @@ spanned<complex>(): Int {
   }
 }
 
-overwritten<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, 3, 4
-    store %v_2, 1, 4
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, 2, 4
-    %v_6 = add %v_2, 8: Ptr
-    %v_7 = imm 30: Int
-    store %v_6, %v_7, 4
-    %v_8 = add %v_1, 12: Ptr
-    store %v_8, 3, 4
-    %v_9 = loads %v_6, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_7
-  }
-}
-
-computed<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, 3, 4
-    store %v_2, 4, 4
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, 5, 4
-    %v_6 = add %v_2, 8: Ptr
-    store %v_6, 60, 4
-    %v_7 = add %v_1, 12: Ptr
-    store %v_7, 3, 4
-    %v_8 = loads %v_6, 4: Int
-    %v_9 = loads %v_5, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret 65
-  }
-}
-
-aliased<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    store %v_1, %v_2, 8
-    %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, 3, 4
-    %v_5 = imm 100: Int
-    store %v_2, %v_5, 4
-    %v_6 = add %v_2, 4: Ptr
-    store %v_6, 2, 4
-    %v_7 = add %v_2, 8: Ptr
-    store %v_7, 3, 4
-    %v_8 = add %v_1, 12: Ptr
-    store %v_8, 3, 4
-    %v_9 = loads %v_2, 4: Int
-    %v_10 = sext %n: Long
-    %v_11 = bitcast %v_10: Long
-    %v_12 = cmp_ge %v_11, 3: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = shl %v_10, 2: Long
-    %v_16 = add %v_2, %v_15: Ptr
-    %v_17 = loads %v_16, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_18 = add %v_17, %v_5: Int
-    ret %v_18
-  }
-
-  b_13 {
-    %v_19 = syscall 60, 134: Long
-    unreachable 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex spanned: Int
-    %v_2 = call_complex overwritten: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex computed: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex aliased, 1: Int
-    %v_7 = add %v_5, %v_6: Int
-    ret %v_7
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 12, 4: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = add %v_2, 8: Ptr
+    %v_5 = load %v_4, 4: Int
+    store %v_4, 3, 4
+    store %v_3, 1, 4
+    %v_6 = add %v_3, 4: Ptr
+    store %v_6, 2, 4
+    %v_7 = add %v_3, 8: Ptr
+    store %v_7, 30, 4
+    %v_8 = add %v_2, 12: Ptr
+    store %v_8, 3, 4
+    %v_9 = loads %v_7, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_2
+    %v_10 = alloca 16, 8: Ptr
+    %v_11 = alloca 12, 4: Ptr
+    store %v_10, %v_11, 8
+    %v_12 = add %v_10, 8: Ptr
+    %v_13 = load %v_12, 4: Int
+    store %v_12, 3, 4
+    store %v_11, 4, 4
+    %v_14 = add %v_11, 4: Ptr
+    store %v_14, 5, 4
+    %v_15 = add %v_11, 8: Ptr
+    store %v_15, 60, 4
+    %v_16 = add %v_10, 12: Ptr
+    store %v_16, 3, 4
+    %v_17 = loads %v_15, 4: Int
+    %v_18 = loads %v_14, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_10
+    %v_19 = alloca 16, 8: Ptr
+    %v_20 = alloca 12, 4: Ptr
+    store %v_19, %v_20, 8
+    %v_21 = add %v_19, 8: Ptr
+    %v_22 = load %v_21, 4: Int
+    store %v_21, 3, 4
+    store %v_20, 100, 4
+    %v_23 = add %v_20, 4: Ptr
+    store %v_23, 2, 4
+    %v_24 = add %v_20, 8: Ptr
+    store %v_24, 3, 4
+    %v_25 = add %v_19, 12: Ptr
+    store %v_25, 3, 4
+    %v_26 = loads %v_20, 4: Int
+    %v_27 = loads %v_23, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_19
+    %v_28 = add %v_1, 197: Int
+    ret %v_28
   }
 }
 

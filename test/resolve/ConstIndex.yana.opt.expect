@@ -165,11 +165,55 @@ fn aliased(%n: Int) -> Int {
 fn main() -> Int {
   b0:
     %v0 = call spanned : Int
-    %v1 = call overwritten : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call computed : Int
-    %v4 = add %v2, %v3 : Int
-    %v6 = call aliased, 1 : Int
-    %v7 = add %v4, %v6 : Int
+    %v9 = alloc : Array(Int)
+    %v10 = alloc *3 : Int
+    %v13 = addressof %local1 : %Int
+    init %xs@Array.run@Run.items, %v13
+    %v102 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v107 = and %v102, 18446744072635809792 : U32
+    %v108 = or %v107, 3 : U32
+    %v117 = and %v108, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v117
+    aggregate [%v13][0] = 1, [%v13][1] = 2, [%v13][2] = 30
+    init %xs@Array.length, 3
+    %v27 = add %v13, 8 : %Int
+    %v28 = load [%v27] : Int
+    %v29 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v29
+    %v31 = alloc : Array(Int)
+    %v32 = alloc *3 : Int
+    %v35 = addressof %local3 : %Int
+    init %xs@Array.run@Run.items, %v35
+    %v120 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v125 = and %v120, 18446744072635809792 : U32
+    %v126 = or %v125, 3 : U32
+    %v135 = and %v126, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v135
+    aggregate [%v35][0] = 4, [%v35][1] = 5, [%v35][2] = 60
+    init %xs@Array.length, 3
+    %v49 = add %v35, 8 : %Int
+    %v50 = load [%v49] : Int
+    %v52 = add %v35, 4 : %Int
+    %v53 = load [%v52] : Int
+    %v54 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v54
+    %v57 = alloc : Array(Int)
+    %v58 = alloc *3 : Int
+    %v61 = addressof %local5 : %Int
+    init %xs@Array.run@Run.items, %v61
+    %v138 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v143 = and %v138, 18446744072635809792 : U32
+    %v144 = or %v143, 3 : U32
+    %v153 = and %v144, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v153
+    aggregate [%v61][0] = 100, [%v61][1] = 2, [%v61][2] = 3
+    init %xs@Array.length, 3
+    %v75 = add %v61, 0 : %Int
+    %v76 = load [%v75] : Int
+    %v84 = add %v61, 4 : %Int
+    %v85 = load [%v84] : Int
+    %v86 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v86
+    %v7 = add %v0, 197 : Int
     ret %v7
 }

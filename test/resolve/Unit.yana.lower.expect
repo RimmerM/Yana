@@ -6,19 +6,6 @@ unitValue<complex>() {
   }
 }
 
-capturing<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %f = alloca 16, 8: Ptr
-    store %f, ResolveTest.lambda$0, 8
-    %v_2 = add %f, 8: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = load %f, 8: Ptr
-    %v_4 = call_complex %v_3, %v_1, %n: Int
-    ret %v_4
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -41,24 +28,15 @@ main<complex>(): Int {
     %v_12 = load %v_8, 8: Ptr
     %v_13 = load %v_11, 8: Ptr
     %v_14 = call_complex %v_12, %v_13: Int
-    call_complex unitValue
-    %k = call_complex capturing, 8: Int
-    %inner = alloca 1, 1: Ptr
     %v_15 = alloca 1, 1: Ptr
     %v_16 = alloca 1, 1: Ptr
-    %v_17 = add %v_7, 34: Int
-    %v_18 = add %v_17, %v_14: Int
-    %v_19 = add %v_18, %k: Int
-    %v_20 = add %v_19, 28: Int
-    ret %v_20
-  }
-}
-
-ResolveTest.lambda$0<complex>(%env: Ptr, %extra: Int): Int {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = add %extra, 1: Int
-    ret %v_2
+    %inner = alloca 1, 1: Ptr
+    %v_17 = alloca 1, 1: Ptr
+    %v_18 = alloca 1, 1: Ptr
+    %v_19 = add %v_7, 34: Int
+    %v_20 = add %v_19, %v_14: Int
+    %v_21 = add %v_20, 37: Int
+    ret %v_21
   }
 }
 

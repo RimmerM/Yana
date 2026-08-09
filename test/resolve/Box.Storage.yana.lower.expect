@@ -305,12 +305,12 @@ outOfLine<complex>(): Int {
   b_13 {
     %v_16 = add %v_5, 4: Ptr
     %d$level = loads %v_16, 4: Int
-    call_complex reclaim$Config, %c
+    call_complex freeHeap, %target
     ret %d$level
   }
 
   b_11 {
-    call_complex reclaim$Config, %c
+    call_complex freeHeap, %target
     jmp b_14
   }
 }
@@ -352,13 +352,15 @@ writesThrough<complex>(): Int {
     %v_17 = imul %v_16, 10: Int
     %v_18 = add %v_10, 4: Ptr
     %v_19 = loads %v_18, 4: Int
-    call_complex reclaim$Config, %v_1
-    %v_20 = add %v_17, %v_19: Int
-    ret %v_20
+    %v_20 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_20
+    %v_21 = add %v_17, %v_19: Int
+    ret %v_21
   }
 
   b_13 {
-    call_complex reclaim$Config, %v_1
+    %v_22 = bitcast %v_10: Ptr
+    call_complex freeHeap, %v_22
     jmp b_14
   }
 }
@@ -382,15 +384,6 @@ main<complex>(): Int {
     %v_5 = call_complex writesThrough: Int
     %v_6 = add %o, %v_5: Int
     ret %v_6
-  }
-}
-
-reclaim$Config<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = bitcast %v_1: Ptr
-    call_complex freeHeap, %v_2
-    ret 
   }
 }
 

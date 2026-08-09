@@ -5,10 +5,6 @@ function teardown$none(value) {
 }
 
 // ResolveTest
-function direct(base) {
-  return ResolveTest_lambda$0({ $v: base }, 1);
-}
-
 function either(pick, a, b) {
   var f;
   if (pick < 1) {
@@ -19,22 +15,13 @@ function either(pick, a, b) {
   return f.$c(f.$e, 10);
 }
 
-function escaping(amount) {
-  return { $c: ResolveTest_lambda$3, $e: { $v: amount } };
-}
-
 function main() {
-  var a = direct(5);
   var b = either(0, 3, 7);
   var c = either(2, 3, 7);
-  var f = escaping(100);
-  var d = f.$c(f.$e, 1);
-  drop$_Int_sub_gt_Int(f.$c, f.$e);
-  return ((a + b | 0) + c | 0) + d | 0;
-}
-
-function ResolveTest_lambda$0(env, x) {
-  return x + env.$v | 0;
+  var v23 = { $v: 100 };
+  var d = ResolveTest_lambda$3(v23, 1);
+  drop$_Int_sub_gt_Int(ResolveTest_lambda$3, v23);
+  return ((b + 6 | 0) + c | 0) + d | 0;
 }
 
 function ResolveTest_lambda$1(env, x) {

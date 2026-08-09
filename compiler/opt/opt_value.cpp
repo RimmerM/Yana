@@ -618,6 +618,25 @@ void eliminateCommonValues(OptContext& opt) {
  * nothing has ever read one.
  */
 static bool isDeadRead(OptContext& opt, Value& instruction) {
+    /*
+     * And an `addressof` nothing reads, on the same two roots and for a reason that reads the same
+     * way from the other side.
+     *
+     * Taking an address performs nothing and cannot fail. The reason the kind is not `kInstPure` is
+     * that it is a *promise about placement* rather than a computation - a value it is applied to
+     * cannot stay in a register - and a promise nothing reads is no promise at all. So a dead one
+     * goes, and the storage it was pinning is free to be whatever the passes below decide.
+     *
+     * Which is what makes it worth having: a closure whose call this stage resolved leaves the
+     * address of its environment behind, and an environment with its address taken is one
+     * `forwardPlaces` will not answer a read of - so the captures stay behind a load and the *next*
+     * call through one of them stays a `calldyn`. See inlineDynamicCall.
+     */
+    if(instruction.kind == Value::Address) {
+        auto& place = ((InstAddress&)instruction).place;
+        return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
+    }
+
     if(instruction.kind != Value::LoadPlace) return false;
 
     auto& place = ((InstLoadPlace&)instruction).place;

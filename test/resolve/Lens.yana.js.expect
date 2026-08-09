@@ -1,58 +1,43 @@
 "use strict";
 var log = 0;
 
-// Core
-function teardown$none(value) {
-  return;
-}
-
 // ResolveTest
 function inLoop(n) {
   var i = 0;
-  var total = { $v: 0 };
+  var total = 0;
   L0: for (;;) {
     if (i < n) {
       i = i + 1 | 0;
-      var v16 = { $v: { $o: total, $k: "$v", $s: 1 } };
-      var v30 = log + 1 | 0;
-      log = v30;
-      ResolveTest_continuation$10(v16, v30);
-      log = log + 10 | 0;
+      var v28 = log;
+      total = total + (v28 + 1 | 0) | 0;
+      log = v28 + 11 | 0;
       continue L0;
     }
     break L0;
   }
-  return total.$v;
+  return total;
 }
 
 function main() {
-  log = 0;
-  var v35 = logged_Int(ResolveTest_continuation$0, null) + log | 0;
+  log = 1;
+  var v42 = ResolveTest_continuation$0(null, 1) + (log + 10 | 0) | 0;
   log = 6;
-  var v44 = ResolveTest_continuation$1(null);
+  var v51 = ResolveTest_continuation$1(null);
   log = log + 100 | 0;
-  var v55 = ResolveTest_continuation$2(null, 10);
-  var v63 = ResolveTest_continuation$3(null, 7, 3);
-  var v72 = ResolveTest_continuation$6(null, 6);
+  var v62 = ResolveTest_continuation$2(null, 10);
+  var v70 = ResolveTest_continuation$3(null, 7, 3);
+  var v79 = ResolveTest_continuation$6(null, 6);
   log = log + 1 | 0;
-  var v84 = ResolveTest_continuation$4(null, 4);
-  var v92 = ResolveTest_lambda$7(null, 5);
+  var v91 = ResolveTest_continuation$4(null, 4);
+  var v99 = ResolveTest_lambda$7(null, 5);
+  log = 1;
+  var v111 = ResolveTest_continuation$8(null, 1);
   log = 0;
-  var v100 = logged_Int(ResolveTest_continuation$8, null);
-  log = 0;
-  return (((((((v35 + v44 | 0) + v55 | 0) + v63 | 0) + v72 | 0) + v92 | 0) + v100 | 0) + inLoop(3) | 0) + v84 | 0;
+  return (((((((v42 + v51 | 0) + v62 | 0) + v70 | 0) + v79 | 0) + v99 | 0) + v111 | 0) + inLoop(3) | 0) + v91 | 0;
 }
 
 function ResolveTest_continuation$0(env, value) {
   return value;
-}
-
-function logged_Int(body$c, body$e) {
-  var v3 = log + 1 | 0;
-  log = v3;
-  var v6 = body$c(body$e, v3);
-  log = log + 10 | 0;
-  return v6;
 }
 
 function ResolveTest_continuation$1(env) {
@@ -70,19 +55,8 @@ function ResolveTest_continuation$3(env, low, high) {
 }
 
 function ResolveTest_continuation$4(env, value) {
-  var v3 = { $v: value };
   log = log + 1 | 0;
-  return ResolveTest_continuation$5(v3, 1);
-}
-
-function ResolveTest_continuation$5(env, value) {
-  var v10;
-  if (value) {
-    v10 = Math.imul(env.$v, 2);
-  } else {
-    v10 = 0;
-  }
-  return v10;
+  return Math.imul(value, 2);
 }
 
 function ResolveTest_continuation$6(env, value) {
@@ -99,11 +73,5 @@ function ResolveTest_continuation$8(env, value) {
 
 function ResolveTest_continuation$9(env, b) {
   return b;
-}
-
-function ResolveTest_continuation$10(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
-  return;
 }
 main();
