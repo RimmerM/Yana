@@ -98,25 +98,20 @@ swapAt<complex>(%xs: Ptr, %a: Int, %b: Int) {
     %v_12 = sext %b: Long
     %v_13 = bitcast %v_12: Long
     %v_14 = cmp_ge %v_13, %v_5: Int
-    je %v_14, b_15, b_16
+    je %v_14, b_7, b_15
   }
 
-  b_16 {
-    %v_17 = shl %v_12, 2: Long
-    %v_18 = add %v_9, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    call_complex writeAt, %xs, %a, %v_19
+  b_15 {
+    %v_16 = shl %v_12, 2: Long
+    %v_17 = add %v_9, %v_16: Ptr
+    %v_18 = loads %v_17, 4: Int
+    call_complex writeAt, %xs, %a, %v_18
     call_complex writeAt, %xs, %b, %old
     ret 
   }
 
-  b_15 {
-    %v_20 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_7 {
-    %v_21 = syscall 60, 134: Long
+    %v_19 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -159,41 +154,36 @@ partition<complex>(%xs: Ptr, %lo: Int, %hi: Int): Int {
     %v_24 = bitcast %v_21: Long
     %v_25 = bitcast %v_23: Long
     %v_26 = cmp_ge %v_24, %v_25: Int
-    je %v_26, b_27, b_28
+    je %v_26, b_7, b_27
   }
 
-  b_28 {
-    %v_29 = load %xs, 8: Ptr
-    %v_30 = shl %v_21, 2: Long
-    %v_31 = add %v_29, %v_30: Ptr
-    %v_32 = loads %v_31, 4: Int
-    %v_33 = cmp_ile %v_32, %pivot: Int
-    je %v_33, b_34, b_35
-  }
-
-  b_35 {
-    jmp b_14
+  b_27 {
+    %v_28 = load %xs, 8: Ptr
+    %v_29 = shl %v_21, 2: Long
+    %v_30 = add %v_28, %v_29: Ptr
+    %v_31 = loads %v_30, 4: Int
+    %v_32 = cmp_ile %v_31, %pivot: Int
+    je %v_32, b_33, b_34
   }
 
   b_34 {
+    jmp b_14
+  }
+
+  b_33 {
     call_complex swapAt, %xs, %v_16, %v_13
-    %v_36 = add %v_13, 1: Int
+    %v_35 = add %v_13, 1: Int
     jmp b_14
   }
 
   b_14 {
-    %v_15 = phi [b_35, %v_13], [b_34, %v_36]: Int
+    %v_15 = phi [b_34, %v_13], [b_33, %v_35]: Int
     %v_17 = add %v_16, 1: Int
     jmp b_12
   }
 
-  b_27 {
-    %v_37 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_7 {
-    %v_38 = syscall 60, 134: Long
+    %v_36 = syscall 60, 134: Long
     unreachable 
   }
 }

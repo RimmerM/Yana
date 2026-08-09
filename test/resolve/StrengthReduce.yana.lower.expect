@@ -505,78 +505,63 @@ main<complex>(): Int {
   b_57 {
     %v_76 = bitcast %v_54: Long
     %v_77 = cmp_ge %v_76, 8: Int
-    je %v_77, b_78, b_52
+    je %v_77, b_70, b_52
   }
 
   b_52 {
-    %v_79 = shl %v_54, 3: Long
-    %v_80 = add %ulongs, %v_79: Ptr
-    %v_81 = load %v_80, 8: Long
-    %v_82 = call_complex unsignedLong, %v_81: Int
-    %v_53 = add %v_51, %v_82: Int
+    %v_78 = shl %v_54, 3: Long
+    %v_79 = add %ulongs, %v_78: Ptr
+    %v_80 = load %v_79, 8: Long
+    %v_81 = call_complex unsignedLong, %v_80: Int
+    %v_53 = add %v_51, %v_81: Int
     %v_55 = add %v_54, 1: Long
     jmp b_50
   }
 
-  b_78 {
-    %v_83 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_48 {
-    %v_84 = bitcast %v_45: Long
-    %v_85 = cmp_ge %v_84, 9: Int
-    je %v_85, b_86, b_43
+    %v_82 = bitcast %v_45: Long
+    %v_83 = cmp_ge %v_82, 9: Int
+    je %v_83, b_70, b_43
   }
 
   b_43 {
-    %v_87 = shl %v_45, 2: Long
-    %v_88 = add %ints, %v_87: Ptr
-    %v_89 = loads %v_88, 4: Int
-    %v_90 = call_complex signedInt, %v_89: Int
-    %v_44 = add %v_42, %v_90: Int
+    %v_84 = shl %v_45, 2: Long
+    %v_85 = add %ints, %v_84: Ptr
+    %v_86 = loads %v_85, 4: Int
+    %v_87 = call_complex signedInt, %v_86: Int
+    %v_44 = add %v_42, %v_87: Int
     %v_46 = add %v_45, 1: Long
     jmp b_41
   }
 
-  b_86 {
-    %v_91 = syscall 60, 134: Long
-    unreachable 
-  }
-
   b_39 {
-    %v_92 = bitcast %v_36: Long
-    %v_93 = cmp_ge %v_92, 12: Int
-    je %v_93, b_94, b_95
+    %v_88 = bitcast %v_36: Long
+    %v_89 = cmp_ge %v_88, 12: Int
+    je %v_89, b_70, b_90
   }
 
-  b_95 {
-    %v_96 = shl %v_36, 3: Long
-    %v_97 = add %longs, %v_96: Ptr
-    %v_98 = loads %v_97, 8: Long
-    %v_99 = call_complex signedLong, %v_98: Int
-    %v_100 = add %v_33, %v_99: Int
+  b_90 {
+    %v_91 = shl %v_36, 3: Long
+    %v_92 = add %longs, %v_91: Ptr
+    %v_93 = loads %v_92, 8: Long
+    %v_94 = call_complex signedLong, %v_93: Int
+    %v_95 = add %v_33, %v_94: Int
     jmp b_34
   }
 
   b_34 {
-    %v_101 = shl %v_36, 3: Long
-    %v_102 = add %longs, %v_101: Ptr
-    %v_103 = loads %v_102, 8: Long
-    %v_104 = shl %v_103, 3: Long
-    %v_105 = cmp_eq %v_104, %v_104: Int
-    %v_106 = shl %v_103, 10: Long
-    %v_107 = cmp_eq %v_106, %v_106: Int
-    %v_108 = select %v_107, %v_105, %v_105: Int
-    %v_109 = select 1, 0, %v_108: Int
-    %v_35 = add %v_100, %v_109: Int
+    %v_96 = shl %v_36, 3: Long
+    %v_97 = add %longs, %v_96: Ptr
+    %v_98 = loads %v_97, 8: Long
+    %v_99 = shl %v_98, 3: Long
+    %v_100 = cmp_eq %v_99, %v_99: Int
+    %v_101 = shl %v_98, 10: Long
+    %v_102 = cmp_eq %v_101, %v_101: Int
+    %v_103 = select %v_102, %v_100, %v_100: Int
+    %v_104 = select 1, 0, %v_103: Int
+    %v_35 = add %v_95, %v_104: Int
     %v_37 = add %v_36, 1: Long
     jmp b_32
-  }
-
-  b_94 {
-    %v_110 = syscall 60, 134: Long
-    unreachable 
   }
 }
 

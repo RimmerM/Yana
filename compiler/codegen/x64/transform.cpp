@@ -2037,15 +2037,45 @@ struct RotatedPhi {
  * checked loop multi-exit); an early `return` out of a `while` is one that reads the induction
  * variable, and `Float.escape` in the corpus is a loop that pays an unconditional jump per iteration
  * for having one.
+ *
+ * **Or the block reads nothing the loop defines**, which is the same conclusion reached without the
+ * first condition. What the two together establish is where a *reader* of a header phi can be
+ * pointed; a block with no such reader has nothing to point anywhere, and having no successors it
+ * cannot hand one on either. So the predecessors stop mattering, and that is not a corner: it is the
+ * abort arm again, once `mergeIdenticalExits` has made the program's copies of it one block. Sharing
+ * one exit between two nested loops gives the inner one's arm a predecessor from the outer, and
+ * without this every one of Matrix's three loops stopped rotating and its innermost paid a jump per
+ * iteration for it.
  */
+static bool readsLoopValue(LowerBase base, const LoopInfo& loops, U32 headerIndex, LowerInst* inst) {
+    for(auto used: inst->used()) {
+        auto from = base[used]->inst()->block;
+        if(from && loops.contains(headerIndex, base[from]->index)) return true;
+    }
+
+    return false;
+}
+
 static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex, LowerBlock* block) {
     if(block->outgoing[0] || block->outgoing[1]) return false;
 
+    auto entered = true;
     for(auto p: block->incoming.contents(base)) {
-        if(!loops.contains(headerIndex, base[p]->index)) return false;
+        if(!loops.contains(headerIndex, base[p]->index)) { entered = false; break; }
     }
 
-    return true;
+    if(entered) return true;
+
+    // A phi is a reader on an *edge* rather than in a block, so one here is refused outright rather
+    // than asked about - the alternative it takes from a loop predecessor is a loop value read on a
+    // path this has just decided not to reason about.
+    if(block->phis.size()) return false;
+
+    for(auto i: block->instructions.contents(base)) {
+        if(readsLoopValue(base, loops, headerIndex, base[i])) return false;
+    }
+
+    return !readsLoopValue(base, loops, headerIndex, base[block->terminator]);
 }
 
 static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,

@@ -1360,9 +1360,30 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
             define(g, value, callWith(g, field(g, receiver, member()), rest));
             break;
         }
-        case NativeOp::HostField:
-            define(g, value, field(g, useValue(g, args.get(g.local, 0)), member()));
+        case NativeOp::HostField: {
+            auto read = field(g, useValue(g, args.get(g.local, 0)), member());
+
+            /*
+             * The one host property whose *range* is specified, recorded on the node - see
+             * FieldExpr::hostLength.
+             *
+             * `hostLength` and `hostStringLength` are the whole of `HostField` today, and both
+             * answer a `uint32` by the host's own definition. That fact exists nowhere else: it is
+             * not in the Yana type, which is `Size` and therefore `Int`, and the peephole cannot
+             * recover it from a property read. Without it every `xs[i]`'s bounds check emitted
+             * `xs.length >>> 0` for a coercion that can never do anything.
+             *
+             * Matched on the member `Host` declared rather than on a second enum, on the same terms
+             * as `HostBinary`'s operator table below: the set of host members is closed - they are
+             * attached by `attachIntrinsic` in resolve/host.cpp and nothing a program writes can add
+             * one - so a member not in it is a missing line there rather than something reachable.
+             */
+            auto text = stringView(g.context.findName(native.method));
+            if(text == "length"_v) asHostLength(g, read);
+
+            define(g, value, read);
             break;
+        }
         case NativeOp::HostArray: {
             auto elements = make<ArrayExpr>(g);
             for(auto arg: args.contents(g.local)) {

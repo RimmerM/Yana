@@ -1482,6 +1482,12 @@ Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
         }
         case Expr::Var:
             return ranges.of(((VarExpr*)expr)->name);
+        case Expr::Field:
+            // A host array's or host string's `.length`, which the host specifies as a `uint32` -
+            // see FieldExpr::hostLength. Every other property read is a value the program put there
+            // and has no range; the flag is set on nothing else.
+            if(!((FieldExpr*)expr)->hostLength) return unknownRange();
+            return integerRange(0, kUint32Max);
         case Expr::Unary: {
             auto& unary = *(UnaryExpr*)expr;
             auto value = rangeOf(g, unary.value, ranges);
@@ -1705,6 +1711,96 @@ bool simplifyCondition(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     }
 
     return false;
+}
+
+/*
+ * The comparison that answers the opposite of this one, and whether saying so needs both operands to
+ * be numbers.
+ *
+ * The four **equality** operators are exact complements by definition, for every value either side
+ * can hold: the language specifies `!==` as the negation of `===` and `!=` as the negation of `==`.
+ * So they need no range, and NaN - which is where the relational ones fail - agrees rather than being
+ * an exception: `NaN === NaN` is false and `NaN !== NaN` is true.
+ *
+ * The four **relational** ones are not complements. `!(a < b)` is `a >= b` only when neither operand
+ * is a NaN; against one, every relational test is false, so a test and its inverse both answer false
+ * and the pair is not a partition. `Range::known` is what rules that out - a range here says the
+ * value is a mathematical integer between two bounds, which nothing that could be NaN ever gets - so
+ * a float comparison, the one place a NaN reaches this backend, has no range and is declined.
+ */
+struct Inversion {
+    BinaryOp op;
+    bool needsNumbers;
+};
+
+Maybe<Inversion> invertedComparison(BinaryOp op) {
+    switch(op) {
+        case BinaryOp::Lt: return Just(Inversion { BinaryOp::Ge, true });
+        case BinaryOp::Le: return Just(Inversion { BinaryOp::Gt, true });
+        case BinaryOp::Gt: return Just(Inversion { BinaryOp::Le, true });
+        case BinaryOp::Ge: return Just(Inversion { BinaryOp::Lt, true });
+        case BinaryOp::Eq: return Just(Inversion { BinaryOp::Ne, false });
+        case BinaryOp::Ne: return Just(Inversion { BinaryOp::Eq, false });
+        case BinaryOp::LooseEq: return Just(Inversion { BinaryOp::LooseNe, false });
+        case BinaryOp::LooseNe: return Just(Inversion { BinaryOp::LooseEq, false });
+        default: return Nothing();
+    }
+}
+
+// The condition that holds exactly where `slot` does not. A comparison is inverted in place wherever
+// it may be - see `invertedComparison` - a `!` is taken back off, and anything else is wrapped in one.
+JsPtr<Expr> negatedCondition(Gen& g, JsPtr<Expr> slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Unary && ((UnaryExpr*)expr)->op == UnaryOp::Not) {
+        return ((UnaryExpr*)expr)->value;
+    }
+
+    if(expr->kind == Expr::Binary) {
+        auto& test = *(BinaryExpr*)expr;
+
+        if(auto found = invertedComparison(test.op)) {
+            auto inversion = found.unwrap();
+            auto numbers = rangeOf(g, test.lhs, ranges).known && rangeOf(g, test.rhs, ranges).known;
+
+            if(numbers || !inversion.needsNumbers) {
+                return asExpr(g, make<BinaryExpr>(g, inversion.op, test.lhs, test.rhs));
+            }
+        }
+    }
+
+    return asExpr(g, make<UnaryExpr>(g, UnaryOp::Not, slot));
+}
+
+/*
+ * `if (c) {} else { S }` -> `if (!c) { S }`.
+ *
+ * An arm the emitter had nothing to put in, which is not a shape anything writes and is what the
+ * structural recovery *leaves*. A check whose failure path was inlined is the everyday case: `remove`
+ * tests `index >= length`, and the arm that holds is `return`, which is the end of the function and
+ * so emits no statement at all. What is left is an `if` with an empty consequent and the whole body
+ * in the alternative - two braces, an `else`, and a reader who has to work out that the first arm is
+ * the one that does nothing.
+ *
+ * Here rather than in `flow.cpp` for the reason `foldEmptyIf` above is: the recovery builds one
+ * statement per edge and cannot know which of them will still hold anything once the arms have been
+ * emitted, folded and had their dead bindings removed. This is stated over what that leaves.
+ *
+ * `foldEmptyIf` is the case where *both* arms are empty and comes first, so what reaches here always
+ * has something in the alternative. The condition is the same one either way round - `negatedCondition`
+ * preserves it rather than the value - and the arms are moved rather than rebuilt.
+ */
+bool flipEmptyThen(Gen& g, StmtList& list, Size index, Ranges& ranges) {
+    auto stmt = g.base[list.get(g.base, index)];
+    if(stmt->kind != Stmt::If) return false;
+
+    auto& branch = *(IfStmt*)stmt;
+    if(branch.then.isNotEmpty() || branch.otherwise.isEmpty()) return false;
+
+    branch.cond = negatedCondition(g, branch.cond, ranges);
+    branch.then = branch.otherwise;
+    branch.otherwise = StmtList();
+    return true;
 }
 
 /*
@@ -2412,7 +2508,11 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
         // An `if`'s header *is* a condition, which `foldExprs` has no way to know: it is handed a
         // slot and every rule in it preserves a value. This is the third condition slot in the tree
         // and the only one outside an expression - see `foldConditions` for the other two.
+        //
+        // The empty arm is turned round first, so the condition the simplification is then shown is
+        // the one that will actually be emitted rather than the one it was written as.
         if(stmt->kind == Stmt::If) {
+            if(flipEmptyThen(g, list, index, ranges)) changed = true;
             while(simplifyCondition(g, ((IfStmt*)stmt)->cond, ranges)) changed = true;
         }
 

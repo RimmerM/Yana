@@ -746,6 +746,12 @@ inline JsPtr<Expr> asPureCall(Gen& g, JsPtr<Expr> value) {
     return value;
 }
 
+// A property read that is a host container's `.length` - see FieldExpr::hostLength.
+inline JsPtr<Expr> asHostLength(Gen& g, JsPtr<Expr> value) {
+    ((FieldExpr*)g.base[value])->hostLength = true;
+    return value;
+}
+
 // `Namespace.member(...)` for the handful of host intrinsics the integer tower needs - `Math.imul`,
 // `BigInt.asIntN`. Nothing else in the emitted code reaches for the host.
 template<class... A>

@@ -62,25 +62,21 @@ growHeap<complex>(%needed: Long): Int {
     %v_17 = call_complex mapMemory, %least: Ptr
     %v_18 = bitcast %v_17: Long
     %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_20, b_21
+    je %v_19, b_14, b_20
   }
 
   b_20 {
-    ret 0
-  }
-
-  b_21 {
     jmp b_16
   }
 
   b_16 {
-    %v_22 = phi [b_11, %v_6], [b_21, %least]: Long
-    %v_23 = phi [b_11, %v_7], [b_21, %v_17]: Ptr
-    store @heapNext, %v_23, 8
-    %v_24 = add %v_23, %v_22: Ptr
-    store @heapLimit, %v_24, 8
-    %v_25 = add %v_22, %v_22: Long
-    store @heapRegionNext, %v_25, 8
+    %v_21 = phi [b_11, %v_6], [b_20, %least]: Long
+    %v_22 = phi [b_11, %v_7], [b_20, %v_17]: Ptr
+    store @heapNext, %v_22, 8
+    %v_23 = add %v_22, %v_21: Ptr
+    store @heapLimit, %v_23, 8
+    %v_24 = add %v_21, %v_21: Long
+    store @heapRegionNext, %v_24, 8
     ret 1
   }
 }
@@ -178,38 +174,33 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_48 {
     %v_51 = call_complex growHeap, %v_43: Int
     %v_52 = xor %v_51, 1: Int
-    je %v_52, b_53, b_54
+    je %v_52, b_33, b_53
   }
 
-  b_54 {
+  b_53 {
     jmp b_50
   }
 
   b_50 {
     %block = load @heapNext, 8: Ptr
-    %v_55 = add %block, %v_43: Ptr
-    store @heapNext, %v_55, 8
-    %v_56 = bitcast %block: Ptr
-    store %v_56, %v_28, 8
-    %v_57 = add %block, 8: Ptr
-    ret %v_57
-  }
-
-  b_53 {
-    %v_58 = bitcast 0: Ptr
-    ret %v_58
-  }
-
-  b_42 {
-    %v_59 = bitcast %v_38: Ptr
-    %v_60 = load %v_59, 8: Ptr
-    store %v_37, %v_60, 8
-    ret %v_38
+    %v_54 = add %block, %v_43: Ptr
+    store @heapNext, %v_54, 8
+    %v_55 = bitcast %block: Ptr
+    store %v_55, %v_28, 8
+    %v_56 = add %block, 8: Ptr
+    ret %v_56
   }
 
   b_33 {
-    %v_61 = bitcast 0: Ptr
-    ret %v_61
+    %v_57 = bitcast 0: Ptr
+    ret %v_57
+  }
+
+  b_42 {
+    %v_58 = bitcast %v_38: Ptr
+    %v_59 = load %v_58, 8: Ptr
+    store %v_37, %v_59, 8
+    ret %v_38
   }
 
   b_26 {

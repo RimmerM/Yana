@@ -155,6 +155,20 @@ struct FieldExpr: Expr {
     FieldExpr(JsPtr<Expr> object, Name field): Expr(Field), object(object), field(field) {}
     JsPtr<Expr> object;
     Name field;
+
+    /*
+     * Set for the `.length` of a host array or a host string, and for nothing else.
+     *
+     * A property read has no range in general - the emitter's own record fields hold whatever the
+     * program put in them, and an `Int` field is signed - so the peephole cannot ask what a `.`
+     * produces. This one it can: the host specifies both lengths as a `uint32`, which makes
+     * `length >>> 0` and `length | 0`'s guard the identity rather than a coercion.
+     *
+     * A flag on the node for the reason `CallExpr::pure` is one: what a property *means* is known
+     * where it is built - `inst.cpp` is looking at the `hostLength` intrinsic - and matching on the
+     * spelling afterwards would be matching on a name `propertyName` is entitled to change.
+     */
+    bool hostLength = false;
 };
 
 // `array[index]` - the one computed access this tree can express, for the compiler-built constant

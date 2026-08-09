@@ -208,6 +208,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_strength.cpp
     lower/lower_induction.h
     lower/lower_induction.cpp
+    lower/lower_merge.h
+    lower/lower_merge.cpp
 )
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})

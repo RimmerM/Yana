@@ -16,6 +16,7 @@
 #include "../lower/lower_licm.h"
 #include "../lower/lower_strength.h"
 #include "../lower/lower_induction.h"
+#include "../lower/lower_merge.h"
 
 /*
  * Aggregates that evaporate.
@@ -711,6 +712,17 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // because the widened start of a counter that began at zero is a cast of a literal.
         widenInductionVariables(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the exits inlining brought several copies of - see lower_merge.h. Last, because two
+        // copies of one arm are only identical once everything above has folded them the same way,
+        // and because what it removes are whole blocks rather than instructions: nothing here gains
+        // from being shown one exit instead of four, and every one of them gains from having run.
+        //
+        // In front of the two sweeps rather than behind them, since a block that goes takes the last
+        // reader of whatever it read with it - the `0` three copies of `ret 0` shared is dead once
+        // one of them is left.
+        mergeIdenticalExits(lower.lower, lower.to, *target);
+        removeDeadValues(lower.lower, lower.to.arena, *target);
         removeDeadConstants(lower.lower, lower.to.arena, *target);
     }
 
