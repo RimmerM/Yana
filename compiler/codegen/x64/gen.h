@@ -1113,9 +1113,20 @@ struct AsmBlock {
 // Used for jump/call targets and RIP-relative global/function address loads.
 struct AsmRelocation {
     // Offset in the buffer of the 4-byte rel32 field to patch.
-    // The patched value is `symbolOffset - (siteOffset + 4)`, i.e. relative to the byte
-    // immediately following the field (matching how the CPU computes RIP-relative offsets).
+    // The patched value is `symbolOffset - (siteOffset + 4 + trailing)`, i.e. relative to the end of
+    // the instruction (matching how the CPU computes RIP-relative offsets).
     U32 siteOffset;
+
+    /*
+     * Bytes of this instruction that follow the displacement field.
+     *
+     * Zero for every site but one, because a rel32 and a `lea` both end at the field - which is why
+     * this did not exist while a RIP-relative address was only ever materialized. A memory access
+     * that carries an immediate does not: `mov dword [rip + g], 7` writes the constant after the
+     * displacement, and the processor measures the displacement from the *end of the instruction*,
+     * so those four bytes have to be subtracted here or the store lands four bytes past the global.
+     */
+    U8 trailing = 0;
 
     /*
      * Data sites only, and ignored for a code site.
@@ -1324,14 +1335,19 @@ struct AsmModule {
 
     // Records a placeholder relocation at the rel32 field about to be written at the buffer's
     // current offset, then writes a placeholder 0 in its place. Call resolveRelocations() once
-    // all functions referenced by any relocation have been emitted.
-    void addRelocation(LowerFunction* target) {
-        relocations.push(AsmRelocation { .siteOffset = U32(buffer.offset()), .function = target });
+    // all functions referenced by any relocation have been emitted. `trailing` is how many bytes of
+    // the instruction still follow the field - see AsmRelocation.
+    void addRelocation(LowerFunction* target, U8 trailing = 0) {
+        relocations.push(AsmRelocation {
+            .siteOffset = U32(buffer.offset()), .trailing = trailing, .function = target,
+        });
         buffer.writeInt<LittleEndian>(0);
     }
 
-    void addRelocation(LowerGlobal* target) {
-        relocations.push(AsmRelocation { .siteOffset = U32(buffer.offset()), .global = target });
+    void addRelocation(LowerGlobal* target, U8 trailing = 0) {
+        relocations.push(AsmRelocation {
+            .siteOffset = U32(buffer.offset()), .trailing = trailing, .global = target,
+        });
         buffer.writeInt<LittleEndian>(0);
     }
 

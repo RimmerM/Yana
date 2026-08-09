@@ -138,71 +138,69 @@ main<complex>(): Int {
     copy %v_22, %v_13, 8
     %v_23 = add %v_15, 12: Ptr
     store %v_23, 2, 4
-    %v_24 = alloca 8, 4: Ptr
-    store %v_24, 7, 4
-    %v_25 = add %v_24, 4: Ptr
-    store %v_25, 8, 4
-    copy %v_16, %v_24, 8
+    store %v_16, 7, 4
+    %v_24 = add %v_16, 4: Ptr
+    store %v_24, 8, 4
     store %v_22, 9, 4
-    %v_26 = alloca 16, 8: Ptr
-    %v_27 = alloca 12, 4: Ptr
-    store %v_26, %v_27, 8
-    %v_28 = add %v_26, 8: Ptr
-    %v_29 = load %v_28, 4: Int
-    %v_30 = and %v_29, 18446744072635809792: Int
-    %v_31 = or %v_30, 3: Int
-    %v_32 = and %v_31, 18446744070488326143: Int
-    store %v_28, %v_32, 4
-    store %v_27, 0, 4
-    %v_33 = add %v_27, 4: Ptr
+    %v_25 = alloca 16, 8: Ptr
+    %v_26 = alloca 12, 4: Ptr
+    store %v_25, %v_26, 8
+    %v_27 = add %v_25, 8: Ptr
+    %v_28 = load %v_27, 4: Int
+    %v_29 = and %v_28, 18446744072635809792: Int
+    %v_30 = or %v_29, 3: Int
+    %v_31 = and %v_30, 18446744070488326143: Int
+    store %v_27, %v_31, 4
+    store %v_26, 0, 4
+    %v_32 = add %v_26, 4: Ptr
+    store %v_32, 0, 4
+    %v_33 = add %v_26, 8: Ptr
     store %v_33, 0, 4
-    %v_34 = add %v_27, 8: Ptr
-    store %v_34, 0, 4
-    %v_35 = add %v_26, 12: Ptr
-    store %v_35, 3, 4
-    %v_36 = loads %v_2, 4: Int
-    %v_37 = loads %v_9, 4: Int
-    %v_38 = add %v_36, %v_37: Int
-    %v_39 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
-    %v_40 = add %v_38, %v_39: Int
-    %v_41 = loads %v_16, 4: Int
-    %v_42 = add %v_22, 4: Ptr
-    %v_43 = loads %v_42, 4: Int
-    %v_44 = add %v_41, %v_43: Int
+    %v_34 = add %v_25, 12: Ptr
+    store %v_34, 3, 4
+    %v_35 = loads %v_2, 4: Int
+    %v_36 = loads %v_9, 4: Int
+    %v_37 = add %v_35, %v_36: Int
+    %v_38 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
+    %v_39 = add %v_37, %v_38: Int
+    %v_40 = loads %v_16, 4: Int
+    %v_41 = add %v_22, 4: Ptr
+    %v_42 = loads %v_41, 4: Int
+    %v_43 = add %v_40, %v_42: Int
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_15
-    %v_45 = add %v_40, %v_44: Int
-    %v_46 = add %v_27, 8: Ptr
-    %v_47 = imm 5: Int
-    store %v_46, %v_47, 4
-    %v_48 = loads %v_46, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_26
-    %v_49 = add %v_45, %v_47: Int
-    %v_50 = alloca 12, 4: Ptr
-    store %v_50, 1, 4
-    %v_51 = add %v_50, 4: Ptr
-    store %v_51, 2, 4
-    %v_52 = add %v_50, 8: Ptr
-    store %v_52, 3, 4
-    %v_53 = loads %v_51, 4: Int
-    %v_54 = add %v_49, %v_53: Int
-    %v_55 = load %v_1, 8: Ptr
-    %v_56 = add %v_1, 12: Ptr
-    %v_57 = load %v_56, 4: Int
-    %v_58 = cast %v_57: Int
-    %v_59 = cast %v_58: Long
-    %v_60 = cmp_eq %v_59, 0: Int
-    je %v_60, b_61, b_62
-  }
-
-  b_62 {
-    %v_63 = loads %v_55, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_64 = add %v_54, %v_63: Int
-    ret %v_64
+    %v_44 = add %v_39, %v_43: Int
+    %v_45 = add %v_26, 8: Ptr
+    %v_46 = imm 5: Int
+    store %v_45, %v_46, 4
+    %v_47 = loads %v_45, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_25
+    %v_48 = add %v_44, %v_46: Int
+    %v_49 = alloca 12, 4: Ptr
+    store %v_49, 1, 4
+    %v_50 = add %v_49, 4: Ptr
+    store %v_50, 2, 4
+    %v_51 = add %v_49, 8: Ptr
+    store %v_51, 3, 4
+    %v_52 = loads %v_50, 4: Int
+    %v_53 = add %v_48, %v_52: Int
+    %v_54 = load %v_1, 8: Ptr
+    %v_55 = add %v_1, 12: Ptr
+    %v_56 = load %v_55, 4: Int
+    %v_57 = cast %v_56: Int
+    %v_58 = cast %v_57: Long
+    %v_59 = cmp_eq %v_58, 0: Int
+    je %v_59, b_60, b_61
   }
 
   b_61 {
-    %v_65 = syscall 60, 134: Long
+    %v_62 = loads %v_54, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_63 = add %v_53, %v_62: Int
+    ret %v_63
+  }
+
+  b_60 {
+    %v_64 = syscall 60, 134: Long
     unreachable 
   }
 }

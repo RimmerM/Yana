@@ -8,6 +8,7 @@
 #include "lower_internal.h"
 #include "../compiler/stage.h"
 #include "../opt/opt.h"
+#include "../lower/lower_forward.h"
 #include "../lower/lower_promote.h"
 #include "../lower/lower_cse.h"
 #include "../lower/lower_licm.h"
@@ -594,10 +595,18 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             }
         }
 
-        // Every local got storage on the way here, because a place is an address and that is the only
-        // shape this translation has. Which of those slots actually needed memory is a question about
-        // the finished IR rather than about the source, so it is asked now - see lower_promote.h, and
-        // isDirectType in resolve/type.h for why it is not asked any earlier.
+        // Every value a place names got storage of its own, because a place is an address and that
+        // is the only shape this translation has - so a record built for somewhere else was built in
+        // a temporary and copied there. Which of those temporaries the value could have been built
+        // in directly is a question about storage rather than about ownership, which is why it is
+        // asked here rather than in opt_scalar.cpp. See lower_forward.h.
+        forwardCopyDestinations(lower.lower, *target);
+
+        // Then which of the slots that are left actually needed memory, which is a question about
+        // the finished IR rather than about the source - see lower_promote.h, and isDirectType in
+        // resolve/type.h for why it is not asked any earlier. Behind the forwarding, so that a copy
+        // of a whole slot promotion would have had to reproduce as a load or a store is one the
+        // forwarding has already removed.
         promoteStackSlots(lower.lower, *target);
 
         // What promotion turned into arithmetic over literals - a local's whole initial value is

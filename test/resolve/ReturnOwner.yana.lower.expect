@@ -538,50 +538,48 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 collect<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    %v_4 = bitcast 0: Ptr
-    store %v_3, %v_4, 8
-    %v_5 = add %v_3, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = add %v_2, 8: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_2, 12: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_3, 12
-    %v_6 = add %v_2, 12: Ptr
-    store %v_6, 0, 4
     %out = alloca 16, 8: Ptr
     copy %out, %v_2, 16
-    %v_7 = cast %xs$length: Long
-    jmp b_8
+    %v_6 = cast %xs$length: Long
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_1, 0], [b_10, %v_11]: Int
-    %v_12 = sext %v_9: Long
-    %v_13 = cmp_ilt %v_12, %xs$length: Int
-    je %v_13, b_14, b_15
+  b_7 {
+    %v_8 = phi [b_1, 0], [b_9, %v_10]: Int
+    %v_11 = sext %v_8: Long
+    %v_12 = cmp_ilt %v_11, %xs$length: Int
+    je %v_12, b_13, b_14
   }
 
-  b_15 {
+  b_14 {
     copy %v_0, %out, 16
     ret 
   }
 
-  b_14 {
-    %v_16 = sext %v_9: Long
-    %v_17 = cast %v_9: Long
-    %v_18 = cmp_ge %v_17, %v_7: Int
-    je %v_18, b_19, b_10
+  b_13 {
+    %v_15 = sext %v_8: Long
+    %v_16 = cast %v_8: Long
+    %v_17 = cmp_ge %v_16, %v_6: Int
+    je %v_17, b_18, b_9
   }
 
-  b_10 {
-    %v_20 = shl %v_16, 2: Long
-    %v_21 = add %xs$items, %v_20: Ptr
-    %v_22 = loads %v_21, 4: Int
-    call_complex push(Int), %out, %v_22
-    %v_11 = add %v_9, 1: Int
-    jmp b_8
+  b_9 {
+    %v_19 = shl %v_15, 2: Long
+    %v_20 = add %xs$items, %v_19: Ptr
+    %v_21 = loads %v_20, 4: Int
+    call_complex push(Int), %out, %v_21
+    %v_10 = add %v_8, 1: Int
+    jmp b_7
   }
 
-  b_19 {
-    %v_23 = syscall 60, 134: Long
+  b_18 {
+    %v_22 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -589,24 +587,22 @@ collect<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
 collectFor<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    %v_4 = bitcast 0: Ptr
-    store %v_3, %v_4, 8
-    %v_5 = add %v_3, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = add %v_2, 8: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_2, 12: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_3, 12
-    %v_6 = add %v_2, 12: Ptr
-    store %v_6, 0, 4
     %out = alloca 16, 8: Ptr
     copy %out, %v_2, 16
-    %v_7 = alloca 8, 8: Ptr
-    store %v_7, %out, 8
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.continuation$1, 8
-    %v_9 = add %v_8, 8: Ptr
-    store %v_9, %v_7, 8
-    %v_10 = alloca 1, 1: Ptr
-    call_complex each(Int, ()), %v_10, %xs$items, %xs$length, %v_8
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, %out, 8
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, ResolveTest.continuation$1, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_6, 8
+    %v_9 = alloca 1, 1: Ptr
+    call_complex each(Int, ()), %v_9, %xs$items, %xs$length, %v_7
     copy %v_0, %out, 16
     ret 
   }
@@ -1049,24 +1045,22 @@ funvalue$double<complex>(%env: Ptr, %v: Int): Int {
 collectMapped(Int, Int)<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %f: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    %v_4 = bitcast 0: Ptr
-    store %v_3, %v_4, 8
-    %v_5 = add %v_3, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = add %v_2, 8: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_2, 12: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_3, 12
-    %v_6 = add %v_2, 12: Ptr
-    store %v_6, 0, 4
     %out = alloca 16, 8: Ptr
     copy %out, %v_2, 16
-    %v_7 = alloca 8, 8: Ptr
-    store %v_7, %out, 8
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.continuation$2(Int, Int), 8
-    %v_9 = add %v_8, 8: Ptr
-    store %v_9, %v_7, 8
-    %v_10 = alloca 1, 1: Ptr
-    call_complex mapped(Int, Int, ()), %v_10, %xs$items, %xs$length, %f, %v_8
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, %out, 8
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, ResolveTest.continuation$2(Int, Int), 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_6, 8
+    %v_9 = alloca 1, 1: Ptr
+    call_complex mapped(Int, Int, ()), %v_9, %xs$items, %xs$length, %f, %v_7
     copy %v_0, %out, 16
     ret 
   }
@@ -1131,9 +1125,7 @@ ResolveTest.continuation$0(Int, Int, ())<complex>(%v_0: Ptr, %env: Ptr, %value: 
   }
 
   b_15 {
-    %v_17 = alloca 1, 1: Ptr
-    copy %v_17, %v_12, 1
-    copy %v_0, %v_17, 1
+    copy %v_0, %v_12, 1
     ret 
   }
 

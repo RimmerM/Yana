@@ -607,74 +607,68 @@ main<complex>(): Int {
     %v_56 = add %v_54, %v_55: Int
     %p = alloca 2, 1: Ptr
     store %p, 0, 2
+    store %p, 0, 1
+    store %p, 1, 1
     %v_57 = alloca 1, 1: Ptr
     store %v_57, 0, 1
-    store %v_57, 1, 1
-    %v_58 = alloca 1, 1: Ptr
-    store %v_58, 0, 1
-    store %v_58, 2, 1
-    copy %p, %v_57, 1
-    %v_59 = add %p, 1: Ptr
-    copy %v_59, %v_58, 1
+    store %v_57, 2, 1
+    %v_58 = add %p, 1: Ptr
+    copy %v_58, %v_57, 1
     call_complex Drop(Owned).drop, %p
-    %v_60 = add %p, 1: Ptr
-    call_complex Drop(Owned).drop, %v_60
-    %v_61 = loads @dropped, 8: Long
-    %v_62 = cast %v_61: Int
-    %v_63 = add %v_56, %v_62: Int
+    %v_59 = add %p, 1: Ptr
+    call_complex Drop(Owned).drop, %v_59
+    %v_60 = loads @dropped, 8: Long
+    %v_61 = cast %v_60: Int
+    %v_62 = add %v_56, %v_61: Int
+    %v_63 = alloca 1, 1: Ptr
+    store %v_63, 0, 1
+    store %v_63, 4, 1
+    %empty = call_complex tagOf, %v_63: Int
     %v_64 = alloca 1, 1: Ptr
     store %v_64, 0, 1
-    store %v_64, 4, 1
-    %empty = call_complex tagOf, %v_64: Int
+    store %v_64, 0, 1
+    store %v_64, 3, 1
+    %both = call_complex tagOf, %v_64: Int
     %v_65 = alloca 1, 1: Ptr
     store %v_65, 0, 1
-    %v_66 = alloca 1, 1: Ptr
-    store %v_66, 0, 1
-    store %v_66, 3, 1
-    copy %v_65, %v_66, 1
-    %both = call_complex tagOf, %v_65: Int
-    %v_67 = alloca 1, 1: Ptr
-    store %v_67, 0, 1
-    %v_68 = alloca 1, 1: Ptr
-    store %v_68, 0, 1
-    store %v_68, 2, 1
-    copy %v_67, %v_68, 1
-    %one = call_complex tagOf, %v_67: Int
-    %v_69 = imul %both, 10: Int
-    %v_70 = add %empty, %v_69: Int
-    %v_71 = imul %one, 100: Int
-    %v_72 = add %v_70, %v_71: Int
-    %v_73 = add %v_63, %v_72: Int
+    store %v_65, 0, 1
+    store %v_65, 2, 1
+    %one = call_complex tagOf, %v_65: Int
+    %v_66 = imul %both, 10: Int
+    %v_67 = add %empty, %v_66: Int
+    %v_68 = imul %one, 100: Int
+    %v_69 = add %v_67, %v_68: Int
+    %v_70 = add %v_62, %v_69: Int
+    %v_71 = alloca 8, 4: Ptr
+    store %v_71, 0, 8
+    store %v_71, 0, 4
+    %v_72 = add %v_71, 4: Ptr
+    store %v_72, 1, 1
+    %v_73 = call_complex heldValue, %v_71: Int
     %v_74 = alloca 8, 4: Ptr
     store %v_74, 0, 8
-    store %v_74, 0, 4
+    store %v_74, 1, 4
     %v_75 = add %v_74, 4: Ptr
-    store %v_75, 1, 1
+    store %v_75, 5, 4
     %v_76 = call_complex heldValue, %v_74: Int
-    %v_77 = alloca 8, 4: Ptr
-    store %v_77, 0, 8
-    store %v_77, 1, 4
-    %v_78 = add %v_77, 4: Ptr
-    store %v_78, 5, 4
-    %v_79 = call_complex heldValue, %v_77: Int
-    %v_80 = imul %v_79, 100: Int
-    %v_81 = add %v_76, %v_80: Int
-    %v_82 = alloca 8, 4: Ptr
-    store %v_82, 0, 8
-    store %v_82, 2, 4
-    %v_83 = call_complex heldValue, %v_82: Int
-    %v_84 = imul %v_83, 10000: Int
-    %v_85 = add %v_81, %v_84: Int
-    %v_86 = add %v_73, %v_85: Int
-    %v_87 = call_complex reordered: Int
-    %v_88 = add %v_86, %v_87: Int
-    %v_89 = call_complex pinned: Int
-    %v_90 = add %v_88, %v_89: Int
-    %v_91 = call_complex hostShaped: Int
-    %v_92 = add %v_90, %v_91: Int
-    %v_93 = call_complex hostBorrowed: Int
-    %v_94 = add %v_92, %v_93: Int
-    ret %v_94
+    %v_77 = imul %v_76, 100: Int
+    %v_78 = add %v_73, %v_77: Int
+    %v_79 = alloca 8, 4: Ptr
+    store %v_79, 0, 8
+    store %v_79, 2, 4
+    %v_80 = call_complex heldValue, %v_79: Int
+    %v_81 = imul %v_80, 10000: Int
+    %v_82 = add %v_78, %v_81: Int
+    %v_83 = add %v_70, %v_82: Int
+    %v_84 = call_complex reordered: Int
+    %v_85 = add %v_83, %v_84: Int
+    %v_86 = call_complex pinned: Int
+    %v_87 = add %v_85, %v_86: Int
+    %v_88 = call_complex hostShaped: Int
+    %v_89 = add %v_87, %v_88: Int
+    %v_90 = call_complex hostBorrowed: Int
+    %v_91 = add %v_89, %v_90: Int
+    ret %v_91
   }
 }
 

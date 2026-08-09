@@ -299,22 +299,20 @@ main<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = call_complex allocateHeap, 32: Ptr
     %cells = bitcast %v_2: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    store %v_3, %cells, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 4, 4
-    copy %v_1, %v_3, 12
-    %v_5 = add %v_1, 12: Ptr
-    store %v_5, 7, 4
+    store %v_1, %cells, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 4, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 7, 4
     %session = alloca 16, 8: Ptr
     copy %session, %v_1, 16
     %used = call_complex useSession, %session: Int
-    %v_6 = add %used, 35: Int
-    %v_7 = loads @effects, 4: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = loads @released, 4: Int
-    %v_10 = sub %v_8, %v_9: Int
-    ret %v_10
+    %v_5 = add %used, 35: Int
+    %v_6 = loads @effects, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = loads @released, 4: Int
+    %v_9 = sub %v_7, %v_8: Int
+    ret %v_9
   }
 }
 

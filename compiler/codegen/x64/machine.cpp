@@ -27,6 +27,7 @@ enum: MachineFormId {
     FormImmFloat32,
     FormImmFloat64,
     FormGlobalAddress,
+    FormGlobalImplicit,
     FormFunctionAddress,
     FormFunctionImplicit,
 
@@ -120,8 +121,10 @@ enum: MachineFormId {
 
     FormBlockCopyRep,
     FormBlockCopyUnrolled,
+    FormBlockCopyUnrolledCount,
     FormBlockSetRep,
     FormBlockSetUnrolled,
+    FormBlockSetUnrolledCount,
 
     FormCallDirect,
     FormCallIndirect,
@@ -454,11 +457,14 @@ MachineTarget::MachineTarget() {
         };
     };
 
+    // The elided twin of each: a direct call encodes its target as a rel32 and never reads the
+    // address out of a register, and a global read or written through its own address is the same
+    // case - `[rip + g]` is an addressing mode, so the access carries the symbol itself and there is
+    // nothing left for a register to hold. Both emit no bytes at all.
     symbolAddress(FormGlobalAddress, OpGlobalAddress, "lea r, [rip + global]"_v);
-    symbolAddress(FormFunctionAddress, OpFunctionAddress, "lea r, [rip + fun]"_v);
+    add(FormGlobalImplicit, OpGlobalAddress, "globaddr (folded)"_v).defs.push(noDef());
 
-    // A direct call encodes its target as a rel32 and never reads the address out of a register, so
-    // the address is not materialized at all.
+    symbolAddress(FormFunctionAddress, OpFunctionAddress, "lea r, [rip + fun]"_v);
     add(FormFunctionImplicit, OpFunctionAddress, "funaddr (elided)"_v).defs.push(noDef());
 
     /*
@@ -1329,19 +1335,35 @@ MachineTarget::MachineTarget() {
         };
     }
 
-    {
-        // The unrolled form needs one general register to carry each word through, and states it as a
-        // clobber of a fixed register rather than as a declared temporary (MachineForm::temporaries).
-        // The two would reserve it at different scopes: a clobber keeps a live value out of r11 at
-        // this one instruction, where a declared temporary is held back from the whole function.
-        auto& form = add(FormBlockCopyUnrolled, OpBlockCopy, "mov (unrolled)"_v);
+    /*
+     * The unrolled form needs one general register to carry each word through, and states it as a
+     * clobber of a fixed register rather than as a declared temporary (MachineForm::temporaries).
+     * The two would reserve it at different scopes: a clobber keeps a live value out of r11 at this
+     * one instruction, where a declared temporary is held back from the whole function.
+     *
+     * It comes in two, and the pair is what the count operand costs. The unrolling reads the byte
+     * count out of the IR and writes that many `mov`s: the operand appears in none of them, so it
+     * needs no location and the ordinary form says so with `folded()`. But being folded is a
+     * property of the *value* - `Implicit` is set on the constant, not on this use of it - so a
+     * count that some other instruction still needs in a register cannot be folded here either. The
+     * second form is that case, and it differs in the one operand.
+     *
+     * Two forms rather than a fallback to `rep movsb`, which is the other way to be correct: a rep
+     * copy of twelve bytes is thirty cycles of startup to avoid materializing a constant.
+     */
+    auto blockCopyUnrolled = [&](MachineFormId id, bool countInRegister) {
+        auto& form = add(id, OpBlockCopy, "mov (unrolled)"_v);
         form.uses.push(anyReg());
         form.uses.push(anyReg());
+        form.uses.push(countInRegister ? anyReg() : folded());
         form.clobbers.add(gpr(IntRegister::r11));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockCopyUnrolled,
         };
-    }
+    };
+
+    blockCopyUnrolled(FormBlockCopyUnrolled, false);
+    blockCopyUnrolled(FormBlockCopyUnrolledCount, true);
 
     {
         // Positional, matching the instruction's own operand order (to, count, pattern) rather than
@@ -1359,15 +1381,20 @@ MachineTarget::MachineTarget() {
         };
     }
 
-    {
-        auto& form = add(FormBlockSetUnrolled, OpBlockSet, "mov (unrolled)"_v);
+    // The same pair, for the same reason - see the copy above. The pattern stays in a register in
+    // both: it is what every store the unrolling writes reads from.
+    auto blockSetUnrolled = [&](MachineFormId id, bool countInRegister) {
+        auto& form = add(id, OpBlockSet, "mov (unrolled)"_v);
         form.uses.push(anyReg());
-        form.uses.push(anyReg());
+        form.uses.push(countInRegister ? anyReg() : folded());
         form.uses.push(anyReg());
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockSetUnrolled,
         };
-    }
+    };
+
+    blockSetUnrolled(FormBlockSetUnrolled, false);
+    blockSetUnrolled(FormBlockSetUnrolledCount, true);
 
     /*
      * Calls.
@@ -2019,7 +2046,8 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             return desc.form;
         }
 
-        case LowerInst::Global:     return FormGlobalAddress;
+        case LowerInst::Global:
+            return isImplicit(&((LowerInstGlobal*)inst)->result) ? FormGlobalImplicit : FormGlobalAddress;
 
         case LowerInst::X86PushArg: {
             auto arg = base[((LowerInstX86PushArg*)inst)->arg];
@@ -2316,10 +2344,23 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             }
         }
 
-        case LowerInst::Copy:
-            return ((LowerInstCopy*)inst)->isUnrolled() ? FormBlockCopyUnrolled : FormBlockCopyRep;
-        case LowerInst::SetPattern:
-            return ((LowerInstSetPattern*)inst)->isUnrolled() ? FormBlockSetUnrolled : FormBlockSetRep;
+        /*
+         * Which of the two unrolled forms is the one question left to the value rather than to the
+         * instruction: the count is folded into the unrolling wherever it is implicit, and implicit
+         * is something a constant is or is not - a count some other instruction still reads out of a
+         * register is neither. See the pair in the table above.
+         */
+        case LowerInst::Copy: {
+            auto copy = (LowerInstCopy*)inst;
+            if(!copy->isUnrolled()) return FormBlockCopyRep;
+            return isImplicit(base[copy->count]) ? FormBlockCopyUnrolled : FormBlockCopyUnrolledCount;
+        }
+
+        case LowerInst::SetPattern: {
+            auto set = (LowerInstSetPattern*)inst;
+            if(!set->isUnrolled()) return FormBlockSetRep;
+            return isImplicit(base[set->count]) ? FormBlockSetUnrolled : FormBlockSetUnrolledCount;
+        }
 
         case LowerInst::Call: {
             auto call = (LowerInstCall*)inst;

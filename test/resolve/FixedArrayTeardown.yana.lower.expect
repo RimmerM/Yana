@@ -401,23 +401,20 @@ nested<complex>(): Long {
     %v_3 = call_complex allocateHeap, 16: Ptr
     %v_4 = bitcast %v_3: Ptr
     store %v_4, 8, 8
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, %v_1, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %v_3, 8
-    copy %p, %v_5, 16
-    %v_7 = add %p, 16: Ptr
-    %v_8 = imm 100: Long
-    store %v_7, %v_8, 8
-    %v_9 = add %p, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = bitcast %v_10: Ptr
-    %v_12 = loads %v_11, 8: Long
+    store %p, %v_1, 8
+    %v_5 = add %p, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %p, 16: Ptr
+    %v_7 = imm 100: Long
+    store %v_6, %v_7, 8
+    %v_8 = load %v_5, 8: Ptr
+    %v_9 = bitcast %v_8: Ptr
+    %v_10 = loads %v_9, 8: Long
     call_complex Drop(Handle).drop, %p
-    %v_13 = add %p, 8: Ptr
-    call_complex Drop(Handle).drop, %v_13
-    %v_14 = add %v_12, %v_8: Long
-    ret %v_14
+    %v_11 = add %p, 8: Ptr
+    call_complex Drop(Handle).drop, %v_11
+    %v_12 = add %v_10, %v_7: Long
+    ret %v_12
   }
 }
 

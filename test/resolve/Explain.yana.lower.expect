@@ -300,20 +300,15 @@ main<complex>(): Int {
     store %v_1, 1, 8
     %v_2 = add %v_1, 8: Ptr
     store %v_2, 2, 8
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, 3, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 4, 8
-    %v_5 = alloca 16, 8: Ptr
-    copy %v_5, %v_3, 16
-    copy %v_1, %v_5, 16
-    %v_6 = call_complex borrowed, %v_1: Ptr
-    %v_7 = loads %v_6, 8: Long
-    %v_8 = call_complex placed: Long
-    %v_9 = add %v_7, %v_8: Long
-    %v_10 = add %v_9, 8: Long
-    %v_11 = cast %v_10: Int
-    ret %v_11
+    store %v_1, 3, 8
+    store %v_2, 4, 8
+    %v_3 = call_complex borrowed, %v_1: Ptr
+    %v_4 = loads %v_3, 8: Long
+    %v_5 = call_complex placed: Long
+    %v_6 = add %v_4, %v_5: Long
+    %v_7 = add %v_6, 8: Long
+    %v_8 = cast %v_7: Int
+    ret %v_8
   }
 }
 

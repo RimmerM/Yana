@@ -32,6 +32,35 @@ static bool isEmbeddableImm(LowerImm* imm) {
     return fitsImmediate(ImmediateWidth::Imm32, imm->i) && imm->result.uses.size() <= 2;
 }
 
+// Whether a block operation with this byte count takes the unrolled encoding rather than the
+// rep-prefixed string instruction. The unrolled form is only viable for a compile-time count small
+// enough to be worth straight-lining; everything else takes `rep movsb`/`rep stosb`, which needs its
+// operands in fixed registers - the count in rcx among them.
+//
+// Stated here rather than beside selectBlockOpEncoding because two things ask it and the order they
+// are asked in must not matter: the peephole below, which reaches the count's `Imm` *before* the
+// operation that reads it, and the encoding choice itself. Both derive the answer from the constant
+// rather than from the flag, so neither can be told something the other will contradict.
+//
+// It says nothing about whether the count ends up in a register, which is a different question with
+// a different answer - the constant may be shared with an instruction that needs one. That is what
+// the pair of unrolled forms in machine.cpp is for.
+static bool isUnrolledCount(LowerBase base, LowerPtr<LowerValue> count) {
+    auto value = base[count];
+    if(value->inst()->kind != LowerInst::Imm) return false;
+
+    return ((LowerImm*)value->inst())->i <= kMaxUnrolledMemOp;
+}
+
+// Which operand of an instruction is a block operation's byte count, or -1 where it is not one. The
+// two kinds declare their operands in different orders - `copy to, from, count` against
+// `setpattern to, count, pattern` - and both encoders read the count out of the IR.
+static Size blockOpCountOperand(LowerInst* inst) {
+    if(inst->kind == LowerInst::Copy) return 2;
+    if(inst->kind == LowerInst::SetPattern) return 1;
+    return Size(-1);
+}
+
 // Checks if this specific instruction can embed the provided embeddable immediate operand.
 //
 // Which operands can swallow which constant is the form table's answer - every operand position the
@@ -51,8 +80,32 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     auto used = inst->used();
     bool found = false;
 
+    auto countOperand = blockOpCountOperand(inst);
+
     for(Size i = 0; i < used.size(); i++) {
         if(base[used[i]] != op) continue;
+
+        /*
+         * The byte count of a block operation that will be unrolled, which is the one operand no
+         * form table entry can answer for. It is not carried in the encoding's bytes - there is no
+         * immediate field, since the count is what decides how many `mov`s are written rather than
+         * what any one of them says - so it is `folded()` rather than an `Immediate`, and
+         * opcodeCanEmbedImmediate looks only at immediates.
+         *
+         * Asked of the count rather than of the opcode because the forms of one opcode disagree
+         * about it and the disagreement is the point: `rep movsb` reads the same operand out of rcx.
+         *
+         * Answering "yes" here is a request rather than a decision - what settles it is whether
+         * every *other* use of the constant agrees, since Implicit is set on the value. selectForm
+         * reads the flag back and picks the unrolled form that matches, so a count this could not
+         * take out of allocation is one that stays in a register at an encoding that ignores it.
+         */
+        if(Size(i) == countOperand) {
+            if(!isUnrolledCount(base, used[i])) return false;
+            found = true;
+            continue;
+        }
+
         if(!opcodeCanEmbedImmediate(opcode, i, value)) return false;
         found = true;
     }
@@ -92,6 +145,44 @@ static bool tryElideDirectCallee(LowerBase base, LowerInstFun* fun) {
     }
 
     fun->result.flags |= LowerValue::Implicit;
+    return true;
+}
+
+/*
+ * A global read or written through its own address, which needs no register either.
+ *
+ * `[rip + g]` is an addressing mode, so an access whose address *is* a global carries the symbol in
+ * its own displacement and never loads the address at all. Materializing it costs a seven-byte `lea`
+ * in front of every access, a register to hold the answer - which in this backend's conventions is
+ * usually a callee-saved one, so it costs a push and a pop as well - and, because the address is
+ * rematerializable rather than kept live, the same `lea` again at the next access. `allocateHeap`
+ * carried five of them for four globals.
+ *
+ * The condition is that every use is *the* address operand of its instruction. Which operand that is
+ * comes from the opcode rather than the selected form, for the reason opcodeAddressOperand states:
+ * selection has not run yet. A use anywhere else - the value of a store, a call argument, an operand
+ * of arithmetic - is the address wanted as a number, and a number lives in a register.
+ *
+ * The one shape this deliberately does not reach is a global folded into an addressing mode with a
+ * base or an index: `[rip + disp]` has neither field, so a global that reached an `X86Address` is
+ * already committed to a register and its use is not an address operand here. That is the same
+ * answer for the same reason, arrived at without a case.
+ */
+static bool tryFoldGlobalAddress(LowerBase base, LowerInstGlobal* global) {
+    for(auto offset: global->result.uses.contents(base)) {
+        auto use = base[offset];
+        auto operand = opcodeAddressOperand(opcodeFor(base, use));
+        if(operand < 0) return false;
+
+        auto used = use->used();
+        for(Size i = 0; i < used.size(); i++) {
+            if(base[used[i]] == &global->result && I32(i) != operand) return false;
+        }
+
+        if(base[used[operand]] != &global->result) return false;
+    }
+
+    global->result.flags |= LowerValue::Implicit;
     return true;
 }
 
@@ -639,16 +730,8 @@ static Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
 
 // Records, once, which of the two encodings a Copy/SetPattern will take, so that the register
 // constraints (the selected form) and the encoder (genCopy/genSetPattern) read one field instead of
-// each re-deriving the choice and risking disagreement. The unrolled form is only viable for a
-// compile-time byte count small enough to be worth straight-lining; everything else takes the
-// rep-prefixed string instruction, which needs its operands in fixed registers.
-static bool isUnrolledCount(LowerBase base, LowerPtr<LowerValue> count) {
-    auto value = base[count];
-    if(value->inst()->kind != LowerInst::Imm) return false;
-
-    return ((LowerImm*)value->inst())->i <= kMaxUnrolledMemOp;
-}
-
+// each re-deriving the choice and risking disagreement. See isUnrolledCount above for the choice
+// itself, which the immediate peephole has to agree with.
 static void selectBlockOpEncoding(LowerBase base, LowerInst* inst) {
     if(inst->kind == LowerInst::Copy) {
         auto copy = (LowerInstCopy*)inst;
@@ -2442,6 +2525,10 @@ static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
 
         if(inst->kind == LowerInst::Fun) {
             tryElideDirectCallee(base, (LowerInstFun*)inst);
+        }
+
+        if(inst->kind == LowerInst::Global) {
+            tryFoldGlobalAddress(base, (LowerInstGlobal*)inst);
         }
 
         // After tryEmbedImm rather than in a sweep of its own: whether a constant source has been

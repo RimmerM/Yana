@@ -464,55 +464,51 @@ remove(Int)<complex>(%v_0: Ptr, %self: Ptr, %index: Int) {
   }
 
   b_7 {
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 0, 4
-    copy %v_0, %v_9, 8
+    store %v_0, 0, 4
     ret 
   }
 
   b_8 {
-    jmp b_10
+    jmp b_9
   }
 
-  b_10 {
-    %v_11 = load %self, 8: Ptr
-    %v_12 = sext %index: Long
-    %v_13 = shl %v_12, 2: Long
-    %v_14 = add %v_11, %v_13: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = sub %v_5, %index: Int
-    %rest = sub %v_16, 1: Int
-    %v_17 = cmp_igt %rest, 0: Int
-    je %v_17, b_18, b_19
+  b_9 {
+    %v_10 = load %self, 8: Ptr
+    %v_11 = sext %index: Long
+    %v_12 = shl %v_11, 2: Long
+    %v_13 = add %v_10, %v_12: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = sub %v_5, %index: Int
+    %rest = sub %v_15, 1: Int
+    %v_16 = cmp_igt %rest, 0: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = bitcast %v_13: Ptr
+    %v_20 = add %v_13, 4: Ptr
+    %v_21 = bitcast %v_20: Ptr
+    %v_22 = call_complex byteSpan(Int), %v_10, %rest: Long
+    copy %v_19, %v_21, %v_22
+    jmp b_23
   }
 
   b_18 {
-    %v_20 = bitcast %v_14: Ptr
-    %v_21 = add %v_14, 4: Ptr
-    %v_22 = bitcast %v_21: Ptr
-    %v_23 = call_complex byteSpan(Int), %v_11, %rest: Long
-    copy %v_20, %v_22, %v_23
-    jmp b_24
+    jmp b_23
   }
 
-  b_19 {
-    jmp b_24
-  }
-
-  b_24 {
-    %v_25 = add %self, 12: Ptr
-    %v_26 = load %v_25, 4: Int
-    %v_27 = cast %v_26: Int
-    %v_28 = sub %v_27, 1: Int
-    %v_29 = cast %v_28: Int
-    %v_30 = and %v_29, 1073741823: Int
-    %v_31 = cast %v_30: Int
-    store %v_25, %v_31, 4
-    %v_32 = alloca 8, 4: Ptr
-    store %v_32, 1, 4
-    %v_33 = add %v_32, 4: Ptr
-    store %v_33, %v_15, 4
-    copy %v_0, %v_32, 8
+  b_23 {
+    %v_24 = add %self, 12: Ptr
+    %v_25 = load %v_24, 4: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = sub %v_26, 1: Int
+    %v_28 = cast %v_27: Int
+    %v_29 = and %v_28, 1073741823: Int
+    %v_30 = cast %v_29: Int
+    store %v_24, %v_30, 4
+    store %v_0, 1, 4
+    %v_31 = add %v_0, 4: Ptr
+    store %v_31, %v_14, 4
     ret 
   }
 }
@@ -575,14 +571,12 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
 
   b_20 {
     %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
-    %v_22 = alloca 16, 8: Ptr
-    %v_23 = shl %v_11, 2: Long
-    %v_24 = add %self$items, %v_23: Ptr
-    %v_25 = sub %v_21, %v_11: Long
-    store %v_22, %v_24, 8
-    %v_26 = add %v_22, 8: Ptr
-    store %v_26, %v_25, 8
-    copy %v_0, %v_22, 16
+    %v_22 = shl %v_11, 2: Long
+    %v_23 = add %self$items, %v_22: Ptr
+    %v_24 = sub %v_21, %v_11: Long
+    store %v_0, %v_23, 8
+    %v_25 = add %v_0, 8: Ptr
+    store %v_25, %v_24, 8
     ret 
   }
 }

@@ -153,23 +153,19 @@ leafFor<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_3 {
-    %v_5 = alloca 8, 4: Ptr
-    %v_6 = imul %n, 3: Int
-    store %v_5, 1, 4
-    %v_7 = add %v_5, 4: Ptr
-    store %v_7, %v_6, 4
-    copy %v_0, %v_5, 8
+    %v_5 = imul %n, 3: Int
+    store %v_0, 1, 4
+    %v_6 = add %v_0, 4: Ptr
+    store %v_6, %v_5, 4
     ret 
   }
 
   b_4 {
-    jmp b_8
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 0, 4
-    copy %v_0, %v_9, 8
+  b_7 {
+    store %v_0, 0, 4
     ret 
   }
 }
@@ -184,33 +180,27 @@ node<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_5 {
-    %v_7 = alloca 20, 4: Ptr
-    store %v_7, 0, 4
-    copy %v_0, %v_7, 20
+    store %v_0, 0, 4
     ret 
   }
 
   b_6 {
-    jmp b_8
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = alloca 20, 4: Ptr
-    %v_10 = alloca 16, 4: Ptr
-    %v_11 = alloca 4, 4: Ptr
-    %v_12 = shl %n, 1: Int
-    store %v_11, %v_12, 4
-    %v_13 = alloca 8, 4: Ptr
-    call_complex leafFor, %v_13, %n
-    %v_14 = add %v_10, 8: Ptr
-    copy %v_14, %v_11, 4
-    copy %v_10, %v_13, 8
-    %v_15 = add %v_10, 12: Ptr
-    store %v_15, %n, 4
-    store %v_9, 1, 4
-    %v_16 = add %v_9, 4: Ptr
-    copy %v_16, %v_10, 16
-    copy %v_0, %v_9, 20
+  b_7 {
+    %v_8 = alloca 16, 4: Ptr
+    %v_9 = shl %n, 1: Int
+    %v_10 = alloca 8, 4: Ptr
+    call_complex leafFor, %v_10, %n
+    %v_11 = add %v_8, 8: Ptr
+    store %v_11, %v_9, 4
+    copy %v_8, %v_10, 8
+    %v_12 = add %v_8, 12: Ptr
+    store %v_12, %n, 4
+    store %v_0, 1, 4
+    %v_13 = add %v_0, 4: Ptr
+    copy %v_13, %v_8, 16
     ret 
   }
 }
@@ -225,35 +215,29 @@ checked<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_5 {
-    %v_7 = alloca 20, 4: Ptr
-    store %v_7, 0, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, %n, 4
-    copy %v_0, %v_7, 20
+    store %v_0, 0, 4
+    %v_7 = add %v_0, 4: Ptr
+    store %v_7, %n, 4
     ret 
   }
 
   b_6 {
-    jmp b_9
+    jmp b_8
   }
 
-  b_9 {
-    %v_10 = alloca 20, 4: Ptr
-    %v_11 = alloca 16, 4: Ptr
-    %v_12 = alloca 4, 4: Ptr
-    %v_13 = shl %n, 2: Int
-    store %v_12, %v_13, 4
-    %v_14 = alloca 8, 4: Ptr
-    call_complex leafFor, %v_14, %n
-    %v_15 = add %v_11, 8: Ptr
-    copy %v_15, %v_12, 4
-    copy %v_11, %v_14, 8
-    %v_16 = add %v_11, 12: Ptr
-    store %v_16, %n, 4
-    store %v_10, 1, 4
-    %v_17 = add %v_10, 4: Ptr
-    copy %v_17, %v_11, 16
-    copy %v_0, %v_10, 20
+  b_8 {
+    %v_9 = alloca 16, 4: Ptr
+    %v_10 = shl %n, 2: Int
+    %v_11 = alloca 8, 4: Ptr
+    call_complex leafFor, %v_11, %n
+    %v_12 = add %v_9, 8: Ptr
+    store %v_12, %v_10, 4
+    copy %v_9, %v_11, 8
+    %v_13 = add %v_9, 12: Ptr
+    store %v_13, %n, 4
+    store %v_0, 1, 4
+    %v_14 = add %v_0, 4: Ptr
+    copy %v_14, %v_9, 16
     ret 
   }
 }
@@ -543,44 +527,42 @@ both<complex>(%v_0: Ptr, %n: Int) {
 
   b_8 {
     %v_9 = alloca 1, 1: Ptr
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 0, 4
-    copy %v_0, %v_10, 8
+    store %v_0, 0, 4
     ret 
   }
 
   b_7 {
-    %v_11 = add %v_3, 4: Ptr
-    %v_12 = alloca 8, 4: Ptr
-    copy %v_12, %v_11, 8
+    %v_10 = add %v_3, 4: Ptr
+    %v_11 = alloca 8, 4: Ptr
+    copy %v_11, %v_10, 8
     call_complex drop$Outcome(Node, ()), %v_3
-    %v_13 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Leaf), %v_13, %v_12
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = cmp_eq %v_14, 1: Int
-    je %v_15, b_16, b_17
+    %v_12 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Leaf), %v_12, %v_11
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = cmp_eq %v_13, 1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    %v_17 = alloca 1, 1: Ptr
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 0, 4
+    jmp b_19
   }
 
   b_16 {
-    %v_18 = alloca 1, 1: Ptr
-    %v_19 = alloca 8, 4: Ptr
-    store %v_19, 0, 4
-    jmp b_20
+    %v_20 = add %v_12, 4: Ptr
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = alloca 8, 4: Ptr
+    store %v_22, 1, 4
+    %v_23 = add %v_22, 4: Ptr
+    store %v_23, %v_21, 4
+    jmp b_19
   }
 
-  b_17 {
-    %v_21 = add %v_13, 4: Ptr
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = alloca 8, 4: Ptr
-    store %v_23, 1, 4
-    %v_24 = add %v_23, 4: Ptr
-    store %v_24, %v_22, 4
-    jmp b_20
-  }
-
-  b_20 {
-    %v_25 = phi [b_17, %v_23], [b_16, %v_19]: Ptr
-    copy %v_0, %v_25, 8
+  b_19 {
+    %v_24 = phi [b_16, %v_22], [b_15, %v_18]: Ptr
+    copy %v_0, %v_24, 8
     ret 
   }
 
@@ -592,38 +574,34 @@ both<complex>(%v_0: Ptr, %n: Int) {
 
 parenthesized<complex>(%v_0: Ptr, %n: Int) {
   b_1 {
-    %v_2 = alloca 8, 4: Ptr
+    %v_2 = alloca 20, 4: Ptr
+    call_complex node, %v_2, %n
     %v_3 = alloca 20, 4: Ptr
-    call_complex node, %v_3, %n
-    %v_4 = alloca 20, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_4, %v_3
-    %v_5 = loads %v_4, 4: Int
-    %v_6 = cmp_eq %v_5, 1: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_9 {
-    %v_10 = alloca 1, 1: Ptr
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 0, 4
-    copy %v_0, %v_11, 8
-    ret 
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
   }
 
   b_8 {
-    %v_12 = add %v_4, 16: Ptr
-    %v_13 = loads %v_12, 4: Int
-    call_complex drop$Outcome(Node, ()), %v_4
-    store %v_2, 1, 4
-    %v_14 = add %v_2, 4: Ptr
-    store %v_14, %v_13, 4
-    copy %v_0, %v_2, 8
+    %v_9 = alloca 1, 1: Ptr
+    store %v_0, 0, 4
     ret 
   }
 
   b_7 {
-    call_complex drop$Outcome(Node, ()), %v_4
-    jmp b_9
+    %v_10 = add %v_3, 16: Ptr
+    %v_11 = loads %v_10, 4: Int
+    call_complex drop$Outcome(Node, ()), %v_3
+    store %v_0, 1, 4
+    %v_12 = add %v_0, 4: Ptr
+    store %v_12, %v_11, 4
+    ret 
+  }
+
+  b_6 {
+    call_complex drop$Outcome(Node, ()), %v_3
+    jmp b_8
   }
 }
 
@@ -634,27 +612,23 @@ maybeFn<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_3 {
-    %v_5 = alloca 24, 8: Ptr
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, funvalue$twice, 8
-    %v_7 = bitcast 0: Ptr
-    %v_8 = add %v_6, 8: Ptr
-    store %v_8, %v_7, 8
-    store %v_5, 1, 4
-    %v_9 = add %v_5, 8: Ptr
-    copy %v_9, %v_6, 16
-    copy %v_0, %v_5, 24
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, funvalue$twice, 8
+    %v_6 = bitcast 0: Ptr
+    %v_7 = add %v_5, 8: Ptr
+    store %v_7, %v_6, 8
+    store %v_0, 1, 4
+    %v_8 = add %v_0, 8: Ptr
+    copy %v_8, %v_5, 16
     ret 
   }
 
   b_4 {
-    jmp b_10
+    jmp b_9
   }
 
-  b_10 {
-    %v_11 = alloca 24, 8: Ptr
-    store %v_11, 0, 4
-    copy %v_0, %v_11, 24
+  b_9 {
+    store %v_0, 0, 4
     ret 
   }
 }

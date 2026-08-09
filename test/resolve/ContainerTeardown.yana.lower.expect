@@ -675,60 +675,56 @@ remove(Handle)<complex>(%v_0: Ptr, %self: Ptr, %index: Int) {
   }
 
   b_7 {
-    %v_9 = alloca 16, 8: Ptr
-    store %v_9, 0, 4
-    copy %v_0, %v_9, 16
+    store %v_0, 0, 4
     ret 
   }
 
   b_8 {
-    jmp b_10
+    jmp b_9
   }
 
-  b_10 {
-    %v_11 = load %self, 8: Ptr
-    %v_12 = sext %index: Long
-    %v_13 = shl %v_12, 3: Long
-    %v_14 = add %v_11, %v_13: Ptr
+  b_9 {
+    %v_10 = load %self, 8: Ptr
+    %v_11 = sext %index: Long
+    %v_12 = shl %v_11, 3: Long
+    %v_13 = add %v_10, %v_12: Ptr
     %doomed = alloca 8, 8: Ptr
-    copy %doomed, %v_14, 8
-    %v_15 = load %v_3, 4: Int
-    %v_16 = cast %v_15: Int
-    %v_17 = sub %v_16, %index: Int
-    %rest = sub %v_17, 1: Int
-    %v_18 = cmp_igt %rest, 0: Int
-    je %v_18, b_19, b_20
+    copy %doomed, %v_13, 8
+    %v_14 = load %v_3, 4: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = sub %v_15, %index: Int
+    %rest = sub %v_16, 1: Int
+    %v_17 = cmp_igt %rest, 0: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    %v_20 = load %self, 8: Ptr
+    %v_21 = add %v_20, %v_12: Ptr
+    %v_22 = bitcast %v_21: Ptr
+    %v_23 = add %v_21, 8: Ptr
+    %v_24 = bitcast %v_23: Ptr
+    %v_25 = call_complex byteSpan(Handle), %v_20, %rest: Long
+    copy %v_22, %v_24, %v_25
+    jmp b_26
   }
 
   b_19 {
-    %v_21 = load %self, 8: Ptr
-    %v_22 = add %v_21, %v_13: Ptr
-    %v_23 = bitcast %v_22: Ptr
-    %v_24 = add %v_22, 8: Ptr
-    %v_25 = bitcast %v_24: Ptr
-    %v_26 = call_complex byteSpan(Handle), %v_21, %rest: Long
-    copy %v_23, %v_25, %v_26
-    jmp b_27
+    jmp b_26
   }
 
-  b_20 {
-    jmp b_27
-  }
-
-  b_27 {
-    %v_28 = add %self, 12: Ptr
-    %v_29 = load %v_28, 4: Int
-    %v_30 = cast %v_29: Int
-    %v_31 = sub %v_30, 1: Int
-    %v_32 = cast %v_31: Int
-    %v_33 = and %v_32, 1073741823: Int
-    %v_34 = cast %v_33: Int
-    store %v_28, %v_34, 4
-    %v_35 = alloca 16, 8: Ptr
-    store %v_35, 1, 4
-    %v_36 = add %v_35, 8: Ptr
-    copy %v_36, %doomed, 8
-    copy %v_0, %v_35, 16
+  b_26 {
+    %v_27 = add %self, 12: Ptr
+    %v_28 = load %v_27, 4: Int
+    %v_29 = cast %v_28: Int
+    %v_30 = sub %v_29, 1: Int
+    %v_31 = cast %v_30: Int
+    %v_32 = and %v_31, 1073741823: Int
+    %v_33 = cast %v_32: Int
+    store %v_27, %v_33, 4
+    store %v_0, 1, 4
+    %v_34 = add %v_0, 8: Ptr
+    copy %v_34, %doomed, 8
     ret 
   }
 }
@@ -917,64 +913,62 @@ buildLiteral<complex>(): Long {
 buildPushed<complex>(): Long {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    store %v_2, %v_3, 8
-    %v_4 = add %v_2, 8: Ptr
+    %v_2 = bitcast 0: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 0, 4
+    %v_4 = add %v_1, 12: Ptr
     store %v_4, 0, 4
-    copy %v_1, %v_2, 12
-    %v_5 = add %v_1, 12: Ptr
-    store %v_5, 0, 4
     %handles = alloca 16, 8: Ptr
     copy %handles, %v_1, 16
     call_complex +=(I64), @liveHandles, 1
     %handle = alloca 8, 8: Ptr
-    %v_6 = call_complex allocateHeap, 16: Ptr
-    store %handle, %v_6, 8
-    %v_7 = bitcast %v_6: Ptr
-    store %v_7, 3, 8
+    %v_5 = call_complex allocateHeap, 16: Ptr
+    store %handle, %v_5, 8
+    %v_6 = bitcast %v_5: Ptr
+    store %v_6, 3, 8
     call_complex push(Handle), %handles, %handle
     call_complex +=(I64), @liveHandles, 1
     %handle = alloca 8, 8: Ptr
-    %v_8 = call_complex allocateHeap, 16: Ptr
-    store %handle, %v_8, 8
-    %v_9 = bitcast %v_8: Ptr
-    store %v_9, 4, 8
+    %v_7 = call_complex allocateHeap, 16: Ptr
+    store %handle, %v_7, 8
+    %v_8 = bitcast %v_7: Ptr
+    store %v_8, 4, 8
     call_complex push(Handle), %handles, %handle
-    %v_10 = add %handles, 12: Ptr
-    %v_11 = load %v_10, 4: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    %v_17 = load %handles, 8: Ptr
-    %v_18 = load %v_17, 8: Ptr
-    %v_19 = bitcast %v_18: Ptr
-    %v_20 = loads %v_19, 8: Long
-    %v_21 = cmp_ge 1, %v_13: Int
-    je %v_21, b_22, b_23
-  }
-
-  b_23 {
-    %v_24 = add %v_17, 8: Ptr
-    %v_25 = load %v_24, 8: Ptr
-    %v_26 = bitcast %v_25: Ptr
-    %v_27 = loads %v_26, 8: Long
-    call_complex Reclaim(Array(a)).reclaim(Handle), %handles
-    %v_28 = add %v_20, %v_27: Long
-    ret %v_28
-  }
-
-  b_22 {
-    %v_29 = syscall 60, 134: Long
-    unreachable 
+    %v_9 = add %handles, 12: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = cast %v_10: Int
+    %v_12 = cast %v_11: Long
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_15
   }
 
   b_15 {
-    %v_30 = syscall 60, 134: Long
+    %v_16 = load %handles, 8: Ptr
+    %v_17 = load %v_16, 8: Ptr
+    %v_18 = bitcast %v_17: Ptr
+    %v_19 = loads %v_18, 8: Long
+    %v_20 = cmp_ge 1, %v_12: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = add %v_16, 8: Ptr
+    %v_24 = load %v_23, 8: Ptr
+    %v_25 = bitcast %v_24: Ptr
+    %v_26 = loads %v_25, 8: Long
+    call_complex Reclaim(Array(a)).reclaim(Handle), %handles
+    %v_27 = add %v_19, %v_26: Long
+    ret %v_27
+  }
+
+  b_21 {
+    %v_28 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_14 {
+    %v_29 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -1017,139 +1011,131 @@ main<complex>(): Long {
   }
 
   b_24 {
-    %v_25 = alloca 16, 8: Ptr
-    %v_26 = alloca 12, 8: Ptr
-    %v_27 = bitcast 0: Ptr
-    store %v_26, %v_27, 8
-    %v_28 = add %v_26, 8: Ptr
-    store %v_28, 0, 4
-    copy %v_25, %v_26, 12
-    %v_29 = add %v_25, 12: Ptr
-    store %v_29, 0, 4
+    %v_25 = bitcast 0: Ptr
     %rest = alloca 16, 8: Ptr
-    copy %rest, %v_25, 16
+    store %rest, %v_25, 8
+    %v_26 = add %rest, 8: Ptr
+    store %v_26, 0, 4
+    %v_27 = add %rest, 12: Ptr
+    store %v_27, 0, 4
+    call_complex +=(I64), @liveHandles, 1
+    %handle = alloca 8, 8: Ptr
+    %v_28 = call_complex allocateHeap, 16: Ptr
+    store %handle, %v_28, 8
+    %v_29 = bitcast %v_28: Ptr
+    store %v_29, 5, 8
+    call_complex push(Handle), %rest, %handle
     call_complex +=(I64), @liveHandles, 1
     %handle = alloca 8, 8: Ptr
     %v_30 = call_complex allocateHeap, 16: Ptr
     store %handle, %v_30, 8
     %v_31 = bitcast %v_30: Ptr
-    store %v_31, 5, 8
+    store %v_31, 6, 8
     call_complex push(Handle), %rest, %handle
-    call_complex +=(I64), @liveHandles, 1
-    %handle = alloca 8, 8: Ptr
-    %v_32 = call_complex allocateHeap, 16: Ptr
-    store %handle, %v_32, 8
-    %v_33 = bitcast %v_32: Ptr
-    store %v_33, 6, 8
-    call_complex push(Handle), %rest, %handle
-    %v_34 = alloca 16, 8: Ptr
-    call_complex remove(Handle), %v_34, %rest, 0
-    %v_35 = loads %v_34, 4: Int
-    %v_36 = cmp_eq %v_35, 1: Int
-    je %v_36, b_37, b_38
+    %v_32 = alloca 16, 8: Ptr
+    call_complex remove(Handle), %v_32, %rest, 0
+    %v_33 = loads %v_32, 4: Int
+    %v_34 = cmp_eq %v_33, 1: Int
+    je %v_34, b_35, b_36
   }
 
-  b_38 {
-    jmp b_39
+  b_36 {
+    jmp b_37
+  }
+
+  b_35 {
+    %v_38 = add %v_32, 8: Ptr
+    call_complex Drop(Handle).drop, %v_38
+    jmp b_37
   }
 
   b_37 {
-    %v_40 = add %v_34, 8: Ptr
-    call_complex Drop(Handle).drop, %v_40
-    jmp b_39
+    %v_39 = loads @liveHandles, 8: Long
+    %v_40 = cmp_neq %v_39, 1: Int
+    je %v_40, b_41, b_42
   }
 
-  b_39 {
-    %v_41 = loads @liveHandles, 8: Long
-    %v_42 = cmp_neq %v_41, 1: Int
-    je %v_42, b_43, b_44
+  b_42 {
+    %v_43 = loads @releases, 8: Long
+    %v_44 = cmp_neq %v_43, 5: Int
+    je %v_44, b_45, b_46
   }
 
-  b_44 {
-    %v_45 = loads @releases, 8: Long
-    %v_46 = cmp_neq %v_45, 5: Int
-    je %v_46, b_47, b_48
+  b_46 {
+    %v_47 = add %rest, 12: Ptr
+    %v_48 = load %v_47, 4: Int
+    %v_49 = cast %v_48: Int
+    %v_50 = cast %v_49: Long
+    %v_51 = cmp_eq %v_50, 0: Int
+    je %v_51, b_52, b_53
   }
 
-  b_48 {
-    %v_49 = add %rest, 12: Ptr
-    %v_50 = load %v_49, 4: Int
-    %v_51 = cast %v_50: Int
-    %v_52 = cast %v_51: Long
-    %v_53 = cmp_eq %v_52, 0: Int
-    je %v_53, b_54, b_55
-  }
-
-  b_55 {
-    %v_56 = load %rest, 8: Ptr
-    %v_57 = load %v_56, 8: Ptr
-    %v_58 = bitcast %v_57: Ptr
-    %v_59 = loads %v_58, 8: Long
+  b_53 {
+    %v_54 = load %rest, 8: Ptr
+    %v_55 = load %v_54, 8: Ptr
+    %v_56 = bitcast %v_55: Ptr
+    %v_57 = loads %v_56, 8: Long
     call_complex Reclaim(Array(a)).reclaim(Handle), %rest
-    %v_60 = cmp_neq %v_59, 6: Int
-    je %v_60, b_61, b_62
+    %v_58 = cmp_neq %v_57, 6: Int
+    je %v_58, b_59, b_60
   }
 
-  b_62 {
-    %v_63 = alloca 16, 8: Ptr
-    %v_64 = alloca 12, 8: Ptr
-    %v_65 = bitcast 0: Ptr
-    store %v_64, %v_65, 8
-    %v_66 = add %v_64, 8: Ptr
-    store %v_66, 0, 4
-    copy %v_63, %v_64, 12
-    %v_67 = add %v_63, 12: Ptr
-    store %v_67, 0, 4
+  b_60 {
+    %v_61 = bitcast 0: Ptr
     %plain = alloca 16, 8: Ptr
-    copy %plain, %v_63, 16
+    store %plain, %v_61, 8
+    %v_62 = add %plain, 8: Ptr
+    store %v_62, 0, 4
+    %v_63 = add %plain, 12: Ptr
+    store %v_63, 0, 4
     call_complex push(Int), %plain, 10
     call_complex push(Int), %plain, 20
-    %v_68 = add %plain, 12: Ptr
-    %v_69 = load %v_68, 4: Int
-    %v_70 = add %plain, 8: Ptr
-    %v_71 = load %v_70, 4: Int
-    %v_72 = shr %v_71, 30: Int
-    %v_73 = cmp_eq %v_72, 1: Int
-    je %v_73, b_74, b_75
+    %v_64 = add %plain, 12: Ptr
+    %v_65 = load %v_64, 4: Int
+    %v_66 = add %plain, 8: Ptr
+    %v_67 = load %v_66, 4: Int
+    %v_68 = shr %v_67, 30: Int
+    %v_69 = cmp_eq %v_68, 1: Int
+    je %v_69, b_70, b_71
   }
 
-  b_74 {
-    %v_76 = load %plain, 8: Ptr
-    %v_77 = bitcast %v_76: Ptr
-    call_complex freeHeap, %v_77
-    jmp b_75
+  b_70 {
+    %v_72 = load %plain, 8: Ptr
+    %v_73 = bitcast %v_72: Ptr
+    call_complex freeHeap, %v_73
+    jmp b_71
   }
 
-  b_75 {
-    %v_78 = cast %v_69: Int
-    %v_79 = cast %v_78: Long
-    %v_80 = cmp_neq %v_79, 2: Int
-    je %v_80, b_81, b_82
+  b_71 {
+    %v_74 = cast %v_65: Int
+    %v_75 = cast %v_74: Long
+    %v_76 = cmp_neq %v_75, 2: Int
+    je %v_76, b_77, b_78
   }
 
-  b_82 {
+  b_78 {
     ret 1
   }
 
-  b_81 {
+  b_77 {
     ret 18446744073709551606
   }
 
-  b_61 {
+  b_59 {
     ret 18446744073709551607
   }
 
-  b_54 {
-    %v_83 = syscall 60, 134: Long
+  b_52 {
+    %v_79 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_47 {
+  b_45 {
     call_complex Reclaim(Array(a)).reclaim(Handle), %rest
     ret 18446744073709551608
   }
 
-  b_43 {
+  b_41 {
     call_complex Reclaim(Array(a)).reclaim(Handle), %rest
     ret 18446744073709551609
   }

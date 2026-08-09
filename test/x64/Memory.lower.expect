@@ -33,6 +33,20 @@ globalLoad<complex>(): Int {
   }
 }
 
+globalStoreImm<complex>() {
+  b_0 {
+    store @g, 7, 4
+    ret 
+  }
+}
+
+globalEscapes<complex>(%v: Int): Int {
+  b_0 {
+    %r = call_complex loadStore, @g, %v: Int
+    ret %r
+  }
+}
+
 blockOps<complex>(%dst: Ptr, %src: Ptr) {
   b_0 {
     copy %dst, %src, 12
@@ -77,25 +91,42 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: globalLoad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b057a000000
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: globalStoreImm ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  store uses=[-, -] creates=[]  => c7056600000007000000
+  ret uses=[] creates=[]  => c3
+
+--- codegen: globalEscapes ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rsi]  => 8bf7
+block #1:
+  global uses=[] creates=[remat:0]  => 
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3d57000000e8a2ffffff
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: blockOps ---
   prologue  => 4157
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[remat:0]  => 
-  load uses=[r15] creates=[rax] pre=[remat:0->r15]  => 4c8d3d67000000418b07
-  ret uses=[rax] creates=[]  => 415fc3
-
---- codegen: blockOps ---
-  prologue  => 41564157
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
+  imm uses=[] creates=[-]  => 
+  copy uses=[rdi, rsi, -] creates=[]  => 4c8b1e4c891f448b5e0844895f08
+  imm uses=[] creates=[-]  => 
   imm uses=[] creates=[remat:0]  => 
-  copy uses=[rdi, rsi, r15] creates=[] pre=[remat:0->r15]  => 41bf0c0000004c8b1e4c891f448b5e0844895f08
-  imm uses=[] creates=[remat:1]  => 
-  imm uses=[] creates=[remat:2]  => 
-  setpattern uses=[rdi, r15, r14] creates=[] pre=[remat:1->r15, remat:2->r14]  => 41bf0600000041be000000004489376644897704
-  ret uses=[] creates=[]  => 415f415ec3
+  setpattern uses=[rdi, -, r15] creates=[] pre=[remat:0->r15]  => 41bf0000000044893f6644897f04
+  ret uses=[] creates=[]  => 415fc3
 
 --- codegen: blockOpsDynamic ---
 block #0:

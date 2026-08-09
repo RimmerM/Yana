@@ -103,14 +103,12 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
 
   b_20 {
     %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
-    %v_22 = alloca 16, 8: Ptr
-    %v_23 = shl %v_11, 2: Long
-    %v_24 = add %self$items, %v_23: Ptr
-    %v_25 = sub %v_21, %v_11: Long
-    store %v_22, %v_24, 8
-    %v_26 = add %v_22, 8: Ptr
-    store %v_26, %v_25, 8
-    copy %v_0, %v_22, 16
+    %v_22 = shl %v_11, 2: Long
+    %v_23 = add %self$items, %v_22: Ptr
+    %v_24 = sub %v_21, %v_11: Long
+    store %v_0, %v_23, 8
+    %v_25 = add %v_0, 8: Ptr
+    store %v_25, %v_24, 8
     ret 
   }
 }

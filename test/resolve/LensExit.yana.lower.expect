@@ -194,25 +194,21 @@ ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr) {
   }
 
   b_4 {
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 1, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 0, 4
-    copy %v_0, %v_6, 8
+    store %v_0, 1, 4
+    %v_6 = add %v_0, 4: Ptr
+    store %v_6, 0, 4
     ret 
   }
 
   b_5 {
-    jmp b_8
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = loads @log, 4: Int
-    %v_10 = add %v_9, 1000: Int
-    store @log, %v_10, 4
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 0, 4
-    copy %v_0, %v_11, 8
+  b_7 {
+    %v_8 = loads @log, 4: Int
+    %v_9 = add %v_8, 1000: Int
+    store @log, %v_9, 4
+    store %v_0, 0, 4
     ret 
   }
 }

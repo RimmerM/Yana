@@ -192,6 +192,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_builder.h
     lower/lower_fold.h
     lower/lower_fold.cpp
+    lower/lower_forward.h
+    lower/lower_forward.cpp
     lower/lower_promote.h
     lower/lower_promote.cpp
     lower/lower_cse.h

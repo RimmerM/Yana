@@ -242,15 +242,16 @@ static void writeAddressPrefix(AsmModule& to, bool is64, U8 regField, const Enco
 
 // Writes the ModRM byte, and the SIB/displacement bytes the addressing mode calls for, that
 // follow an opcode operating on `a`. Every memory-operand instruction ends the same way.
-static void writeAddressOperand(AsmModule& to, U8 regField, const EncodedAddress& a) {
+static void writeAddressOperand(AsmModule& to, U8 regField, const EncodedAddress& a, U8 trailing = 0) {
     to.buffer.writeByte(makeMod(a.mod, a.rm, regField));
     if(a.hasSib) to.buffer.writeByte(a.sib);
 
     if(a.hasDisp) {
         // A symbolic displacement writes a placeholder and records where to patch it, which is the
-        // same four bytes a disp32 would have occupied.
-        if(a.relocFunction) to.addRelocation(a.relocFunction);
-        else if(a.relocGlobal) to.addRelocation(a.relocGlobal);
+        // same four bytes a disp32 would have occupied. `trailing` is what the instruction still has
+        // to write after it, which a RIP-relative displacement is measured past - see AsmRelocation.
+        if(a.relocFunction) to.addRelocation(a.relocFunction, trailing);
+        else if(a.relocGlobal) to.addRelocation(a.relocGlobal, trailing);
         else if(a.disp32) to.buffer.writeInt<LittleEndian>(a.disp);
         else to.buffer.writeByte(U8(a.disp));
     }
@@ -263,6 +264,7 @@ struct MemForm {
     U8 prefix = 0;             // a mandatory prefix (0x66, 0xf3), which has to come *before* REX
     bool is64 = false;         // REX.W
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
+    U8 trailing = 0;           // immediate bytes written after the address - see AsmRelocation
 };
 
 // The whole tail of a memory-operand instruction: prefixes, opcode, ModRM, SIB, displacement.
@@ -273,7 +275,7 @@ static void genMemory(AsmModule& to, const MachineAddress& address, U8 regField,
     writeAddressPrefix(to, form.is64, regField, a, form.byteRegField && (regField & 7) >= 4);
     if(form.escape) to.buffer.writeByte(form.escape);
     to.buffer.writeByte(form.opCode);
-    writeAddressOperand(to, regField, a);
+    writeAddressOperand(to, regField, a, form.trailing);
 }
 
 /*
@@ -1054,6 +1056,7 @@ struct Emitter {
         genMemory(to, regs.address, regField, MemForm {
             .opCode = e.opcode, .escape = e.escape, .prefix = e.prefix,
             .is64 = is64, .byteRegField = e.byteRegField,
+            .trailing = e.immField.isNone() ? U8(0) : e.immediateBytes,
         });
 
         if(!e.immField.isNone()) {
@@ -2330,7 +2333,7 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
             target = o.unwrap();
         }
 
-        auto rel = I32(target) - I32(r.siteOffset + 4);
+        auto rel = I32(target) - I32(r.siteOffset + 4 + r.trailing);
         auto savedOffset = buffer.offset();
 
         buffer.offset(r.siteOffset);

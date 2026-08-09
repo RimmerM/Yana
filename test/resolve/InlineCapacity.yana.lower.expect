@@ -642,15 +642,13 @@ plainSize<complex>(): Long {
 nestedSize<complex>(): Long {
   b_0 {
     %b = alloca 24, 4: Ptr
-    %v_1 = alloca 20, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
+    store %b, 1, 4
+    %v_1 = add %b, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %b, 16: Ptr
     store %v_2, 2, 4
-    %v_3 = add %v_1, 16: Ptr
-    store %v_3, 2, 4
-    copy %b, %v_1, 20
-    %v_4 = add %b, 20: Ptr
-    store %v_4, 7, 4
+    %v_3 = add %b, 20: Ptr
+    store %v_3, 7, 4
     call_complex reclaim$@inline(4) @capacity(4) Array(Int), %b
     ret 20
   }
@@ -781,16 +779,14 @@ holdInRecord<complex>(): Int {
     %h = alloca 24, 8: Ptr
     call_complex +=(I64), @liveHandles, 1
     %v_1 = call_complex allocateHeap, 16: Ptr
-    %v_2 = alloca 20, 8: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = add %v_2, 16: Ptr
-    store %v_3, 1, 4
-    copy %h, %v_2, 20
-    %v_4 = add %h, 20: Ptr
-    %v_5 = imm 5: Int
-    store %v_4, %v_5, 4
+    store %h, %v_1, 8
+    %v_2 = add %h, 16: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %h, 20: Ptr
+    %v_4 = imm 5: Int
+    store %v_3, %v_4, 4
     call_complex drop$@inline(2) @capacity(2) Array(Handle), %h
-    ret %v_5
+    ret %v_4
   }
 }
 

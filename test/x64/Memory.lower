@@ -34,6 +34,29 @@ globalLoad(): Int {
     }
 }
 
+# A global written with a constant, which is the one RIP-relative access whose displacement is not
+# the last thing in the instruction: the immediate follows it, and the processor measures the
+# displacement from the end of the instruction. See AsmRelocation::trailing - without it the store
+# lands four bytes past @g, which is silent.
+globalStoreImm() {
+    {
+        %gp = global @g
+        store %gp, 7, 4
+        ret
+    }
+}
+
+# The same address wanted as a number rather than as a place, which is what keeps the `lea`: a
+# pointer handed to a call has to be in a register, so the whole use is declined rather than the one
+# position - the value is either implicit or it is not.
+globalEscapes(%v: Int): Int {
+    {
+        %gp = global @g
+        %r = call_complex loadStore, %gp, %v: Int
+        ret %r
+    }
+}
+
 blockOps(%dst: Ptr, %src: Ptr) {
     {
         copy %dst, %src, 12

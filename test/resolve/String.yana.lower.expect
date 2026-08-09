@@ -492,28 +492,20 @@ growArray(U8)<complex>(%self: Ptr, %wanted: Int) {
 
 stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = alloca 12, 8: Ptr
-    %v_5 = cast %length: Int
-    %v_6 = and %v_5, 1073741823: Int
-    %v_7 = cast %v_6: Int
-    store %v_4, %bytes, 8
-    %v_8 = add %v_4, 8: Ptr
-    %v_9 = load %v_8, 4: Int
-    %v_10 = cast %v_7: Int
-    %v_11 = and %v_10, 1073741823: Int
-    %v_12 = and %v_9, 18446744072635809792: Int
-    %v_13 = or %v_12, %v_11: Int
-    %v_14 = and %v_13, 18446744070488326143: Int
-    store %v_8, %v_14, 4
-    copy %v_3, %v_4, 12
-    %v_15 = add %v_3, 12: Ptr
-    store %v_15, %v_7, 4
-    copy %v_2, %v_3, 16
-    %v_16 = alloca 16, 8: Ptr
-    copy %v_16, %v_2, 16
-    copy %v_0, %v_16, 16
+    %v_2 = cast %length: Int
+    %v_3 = and %v_2, 1073741823: Int
+    %v_4 = cast %v_3: Int
+    store %v_0, %bytes, 8
+    %v_5 = add %v_0, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = cast %v_4: Int
+    %v_8 = and %v_7, 1073741823: Int
+    %v_9 = and %v_6, 18446744072635809792: Int
+    %v_10 = or %v_9, %v_8: Int
+    %v_11 = and %v_10, 18446744070488326143: Int
+    store %v_5, %v_11, 4
+    %v_12 = add %v_0, 12: Ptr
+    store %v_12, %v_4, 4
     ret 
   }
 }
@@ -531,32 +523,24 @@ stringUnit<complex>(%self: Ptr, %index: Long): Int {
 
 newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = cast %capacity: Int
-    %v_5 = alloca 12, 8: Ptr
-    %v_6 = sext %v_4: Long
-    %v_7 = call_complex allocateHeap, %v_6: Ptr
-    %v_8 = cast %capacity: Int
-    %v_9 = and %v_8, 1073741823: Int
-    %v_10 = cast %v_9: Int
-    store %v_5, %v_7, 8
-    %v_11 = add %v_5, 8: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = cast %v_10: Int
-    %v_14 = and %v_13, 1073741823: Int
-    %v_15 = and %v_12, 18446744072635809792: Int
-    %v_16 = or %v_15, %v_14: Int
-    %v_17 = and %v_16, 18446744070488326143: Int
-    %v_18 = or %v_17, 1073741824: Int
-    store %v_11, %v_18, 4
-    copy %v_3, %v_5, 12
-    %v_19 = add %v_3, 12: Ptr
-    store %v_19, 0, 4
-    copy %v_2, %v_3, 16
-    %v_20 = alloca 16, 8: Ptr
-    copy %v_20, %v_2, 16
-    copy %v_0, %v_20, 16
+    %v_2 = cast %capacity: Int
+    %v_3 = sext %v_2: Long
+    %v_4 = call_complex allocateHeap, %v_3: Ptr
+    %v_5 = cast %capacity: Int
+    %v_6 = and %v_5, 1073741823: Int
+    %v_7 = cast %v_6: Int
+    store %v_0, %v_4, 8
+    %v_8 = add %v_0, 8: Ptr
+    %v_9 = load %v_8, 4: Int
+    %v_10 = cast %v_7: Int
+    %v_11 = and %v_10, 1073741823: Int
+    %v_12 = and %v_9, 18446744072635809792: Int
+    %v_13 = or %v_12, %v_11: Int
+    %v_14 = and %v_13, 18446744070488326143: Int
+    %v_15 = or %v_14, 1073741824: Int
+    store %v_8, %v_15, 4
+    %v_16 = add %v_0, 12: Ptr
+    store %v_16, 0, 4
     ret 
   }
 }
