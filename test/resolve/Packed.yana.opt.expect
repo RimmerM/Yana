@@ -53,19 +53,16 @@ fn neighbours() -> Int {
 fn together() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %f@Flags.optionA:unit8, 0
+    init %f@Flags.optionA, False
+    init %f@Flags.optionB, False
     %v7 = borrow_mut %f@Flags.optionA : &mut Bool
     call flip, %v7
     %v11 = borrow_mut %f@Flags.optionB : &mut Bool
     call flip, %v11
-    %v57 = load %f@Flags.optionA:unit8 : U32
-    %v59 = and %v57, 1 : U32
-    %v60 = cast %v59 : Bool
-    %v35 = select %v60 ? 1 : 0 : Int
-    %v63 = shr %v57, 1 : U32
-    %v65 = and %v63, 1 : U32
-    %v66 = cast %v65 : Bool
-    %v37 = select %v66 ? 2 : 0 : Int
+    %v14 = load %f@Flags.optionA : Bool
+    %v35 = select %v14 ? 1 : 0 : Int
+    %v24 = load %f@Flags.optionB : Bool
+    %v37 = select %v24 ? 2 : 0 : Int
     %v33 = add %v35, %v37 : Int
     ret %v33
 }
@@ -95,19 +92,16 @@ fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
 fn loaned() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %f@Flags.optionA:unit8, 3
+    init %f@Flags.optionA, True
+    init %f@Flags.optionB, True
     %v10 = borrow_mut %f@Flags.optionA : &mut Bool
     %v11 = borrow_mut %f@Flags.optionB : &mut Bool
     %v12 = call pick, True, %v10, %v11 : &mut Bool
     assign [%v12], False
-    %v59 = load %f@Flags.optionA:unit8 : U32
-    %v61 = and %v59, 1 : U32
-    %v62 = cast %v61 : Bool
-    %v37 = select %v62 ? 1 : 0 : Int
-    %v65 = shr %v59, 1 : U32
-    %v67 = and %v65, 1 : U32
-    %v68 = cast %v67 : Bool
-    %v39 = select %v68 ? 2 : 0 : Int
+    %v16 = load %f@Flags.optionA : Bool
+    %v37 = select %v16 ? 1 : 0 : Int
+    %v26 = load %f@Flags.optionB : Bool
+    %v39 = select %v26 ? 2 : 0 : Int
     %v35 = add %v37, %v39 : Int
     ret %v35
 }
@@ -135,18 +129,15 @@ fn swapBools(%a: Bool, %b: Bool) -> () {
 fn interleaved() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %g@Flags.optionA:unit8, 1
+    init %g@Flags.optionA, True
+    init %g@Flags.optionB, False
     %v9 = borrow_mut %g@Flags.optionA : &mut Bool
     %v10 = borrow_mut %g@Flags.optionB : &mut Bool
     call swapBools, %v9, %v10
-    %v56 = load %g@Flags.optionA:unit8 : U32
-    %v58 = and %v56, 1 : U32
-    %v59 = cast %v58 : Bool
-    %v34 = select %v59 ? 1 : 0 : Int
-    %v62 = shr %v56, 1 : U32
-    %v64 = and %v62, 1 : U32
-    %v65 = cast %v64 : Bool
-    %v36 = select %v65 ? 2 : 0 : Int
+    %v13 = load %g@Flags.optionA : Bool
+    %v34 = select %v13 ? 1 : 0 : Int
+    %v23 = load %g@Flags.optionB : Bool
+    %v36 = select %v23 ? 2 : 0 : Int
     %v32 = add %v34, %v36 : Int
     ret %v32
 }
@@ -180,16 +171,16 @@ fn nudgeTwice(%x: @bits(13) U32) -> () {
 fn threaded() -> Int {
   b0:
     %v0 = alloc : Header
-    init %h@Header.version:unit32, 2162788
+    init %h@Header.version, 1
+    init %h@Header.flags, 2
+    init %h@Header.length, 100
     %v9 = borrow_mut %h@Header.length : &mut @bits(13) U32
     call nudgeTwice, %v9
-    %v52 = load %h@Header.version:unit32 : U32
-    %v54 = and %v52, 8191 : U32
-    %v14 = cast %v54 : Int
+    %v12 = load %h@Header.length : @bits(13) U32
+    %v14 = cast %v12 : Int
     %v17 = mul %v14, 10 : Int
-    %v57 = shr %v52, 16 : U32
-    %v59 = and %v57, 15 : U32
-    %v21 = cast %v59 : Int
+    %v19 = load %h@Header.version : @bits(4) U32
+    %v21 = cast %v19 : Int
     %v22 = add %v17, %v21 : Int
     ret %v22
 }
@@ -242,7 +233,8 @@ fn wide() -> Int {
 fn tally() -> Int {
   b0:
     %v0 = alloc : Entry
-    init %e@Entry.live:unit8, 2
+    init %e@Entry.live, False
+    init %e@Entry.kind, 2
     init %e@Entry.count, 7
     %v9 = borrow_mut %e@Entry.live : &mut Bool
     call flip, %v9
@@ -251,13 +243,10 @@ fn tally() -> Int {
     %v16 = load %e@Entry.count : Int
     %v19 = add %v16, 1 : Int
     assign %e@Entry.count, %v19
-    %v66 = load %e@Entry.live:unit8 : U32
-    %v68 = shr %v66, 3 : U32
-    %v70 = and %v68, 1 : U32
-    %v71 = cast %v70 : Bool
-    %v46 = select %v71 ? 1 : 0 : Int
-    %v74 = and %v66, 7 : U32
-    %v34 = cast %v74 : Int
+    %v22 = load %e@Entry.live : Bool
+    %v46 = select %v22 ? 1 : 0 : Int
+    %v32 = load %e@Entry.kind : @bits(3) U32
+    %v34 = cast %v32 : Int
     %v37 = mul %v34, 10 : Int
     %v38 = add %v46, %v37 : Int
     %v43 = mul %v19, 100 : Int

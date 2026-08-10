@@ -394,12 +394,6 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     markClosureHeaders(opt);
     verifyIrProgram(program, VerifyStage::Ownership, "after markClosureHeaders"_v);
 
-    // Before anything else here, because everything else here is written under the constraint it
-    // removes - see dischargeOwnership. What it leaves behind is ordinary calls, which the passes
-    // below are entitled to move, fold and copy like any other.
-    dischargeOwnership(opt);
-    verifyIrProgram(program, VerifyStage::Ownership, "after dischargeOwnership"_v);
-
     // Over the whole program at once: it changes signatures, so it is the one thing here that a
     // single function's optimization cannot contain. What it leaves behind - a record rebuilt in
     // the callee, taken apart at the caller - is what the passes below remove.
@@ -446,6 +440,50 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
 
     inlineCalls(opt);
     verifyIrProgram(program, VerifyStage::Optimized, "after inlineCalls"_v);
+
+    /*
+     * Now the ownership instructions become the calls they stand for - see dischargeOwnership.
+     *
+     * This used to be the first thing in the stage, because `clonableKind` refused a body holding
+     * one and the discharge was what made those bodies inlinable. That is the wrong way round: the
+     * inliner copies a whole body, so a drop copied with it runs once per call exactly as it did,
+     * and admitting the three to `clonableKind` costs less than rewriting every body in front of a
+     * pass that could have taken them as they were.
+     *
+     * What moving it buys is `reselectStorage`, which the inliner runs over each body it changed:
+     * that re-derives where every allocation lives now that the call graph is the one that ships,
+     * and it has to see a drop as a drop. The analysis has no case for `Drop` at all - which is
+     * exactly why a literal built and dropped in one frame is frame-placed today - while a
+     * discharged one is a call to a teardown that hands the pointer to `freeHeap`, and no summary
+     * can tell that from a retention. Run in the old order it would decide nothing.
+     *
+     * Still before every per-function pass below, which is the constraint that was always the real
+     * one: opt_select.cpp and the rest are written against a body whose teardowns are ordinary calls
+     * they may move, fold and copy.
+     */
+    dischargeOwnership(opt);
+    verifyIrProgram(program, VerifyStage::Optimized, "after dischargeOwnership"_v);
+
+    /*
+     * And the inliner again, over the teardowns that have just become ordinary calls.
+     *
+     * Not a second helping of the same pass: the two runs see different programs. The first sees
+     * `Drop`, which it can copy but whose cost it can only estimate, and reaches it through
+     * `inlineTeardown` - a path that was unreachable for non-generic bodies until the discharge
+     * moved, and so has never been weighed against anything. The second sees the calls that drop
+     * stands for, in the folded form `settle` leaves them in, and judges them through `inlineCall`
+     * against a budget that ten programs' worth of measurement has already been spent on.
+     *
+     * Which is what the ordering costs and what this gives back. `Tree`'s teardown is a walk over a
+     * recursive type and wants its two halves collapsed into one body; `Matrix`'s is a call in a
+     * loop that wants to stay a call. The two are seven instructions and six, so no size rule tells
+     * them apart - and the existing budget, handed the discharged forms, already gets both right.
+     *
+     * `reselectStorage` has run by now, so what this copies carries the storage classes the collapsed
+     * call graph settled on rather than the ones the ownership stage guessed.
+     */
+    inlineCalls(opt);
+    verifyIrProgram(program, VerifyStage::Optimized, "after the second inlineCalls"_v);
 
     for(auto module: program.modules) {
         opt.module = module;

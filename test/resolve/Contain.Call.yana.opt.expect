@@ -12,7 +12,8 @@ fn score(%f: Flags) -> Int {
 fn straight() -> Int {
   b0:
     %f = alloc : Flags
-    init %local0@Flags.read:unit8, 1
+    init %local0@Flags.read, True
+    init %local0@Flags.write, False
     %handed = call score, %f : Int
     %again = call score, %f : Int
     %v25 = add %handed, 1 : Int
@@ -24,7 +25,8 @@ fn straight() -> Int {
 fn branching() -> Int {
   b0:
     %f = alloc : Flags
-    init %local0@Flags.read:unit8, 2
+    init %local0@Flags.read, False
+    init %local0@Flags.write, True
     %ignored = call score, %f : Int
     %v10 = add %ignored, 100 : Int
     ret %v10
@@ -39,13 +41,12 @@ fn mutate(%f: &Flags) -> Int {
 fn borrowed() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %f@Flags.read:unit8, 0
+    init %f@Flags.read, False
+    init %f@Flags.write, False
     %v6 = borrow %f : &Flags
     %zero = call mutate, %v6 : Int
-    %v40 = load %f@Flags.read:unit8 : U32
-    %v42 = and %v40, 1 : U32
-    %v43 = cast %v42 : Bool
-    %v20 = select %v43 ? 1000 : 2000 : Int
+    %v9 = load %f@Flags.read : Bool
+    %v20 = select %v9 ? 1000 : 2000 : Int
     %v18 = add %v20, %zero : Int
     ret %v18
 }

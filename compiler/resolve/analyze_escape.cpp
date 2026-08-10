@@ -1,4 +1,5 @@
 #include "analyze_pass.h"
+#include "edit.h"
 
 /*
  * What has to outlive the frame, and where that puts it.
@@ -335,6 +336,68 @@ void computeOutliving(Analysis& analysis) {
  * instruction that produced it creates, and if one of those escapes it escapes as a raw pointer,
  * which the language already says nothing about - see the note at the end of analyze.cpp.
  */
+/*
+ * One allocation, moved from the heap to the frame - see Analysis::demoteOnly.
+ *
+ * Three things say "heap" about an allocation and all three have to stop saying it together, which
+ * is why this is one function rather than three lines at the decision:
+ *
+ *  - the **instruction**, which is what `lower_mem.cpp` reads to emit `allocateHeap` or an `alloca`;
+ *  - the **flag the program reads at run time**, where something asked for one. A run carries a bit
+ *    saying whether the allocator owns its storage, and `releaseRun` tests it - so a frame-placed
+ *    run whose bit still says heap is a frame address handed to `freeHeap`. See InstAlloc::storageFlag;
+ *  - the **drop this frame owes**, where the frame was the owner. `releaseStorage` is the ownership
+ *    stage's answer to "who hands this back", and the frame returning is what hands back a frame
+ *    slot, so the flag comes off and a drop left with nothing else to do goes with it.
+ *
+ * The third is the half that only exists here. Before this pass the drop is still an `InstDrop` with
+ * a flag on it; after `dischargeOwnership` it is an emitted call to `freeHeap` that would have to be
+ * found and deleted instead. That ordering is why the re-run sits where it does, and it is what lets
+ * an allocation this frame *releases* be demoted at all rather than only one it handed over.
+ */
+static void demoteToStack(Analysis& analysis, InstAlloc& allocation, Local& slot) {
+    auto& module = analysis.module;
+
+    allocation.storage = StorageClass::Stack;
+    allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag &&
+                              !allocation.ownedElsewhere;
+
+    if(allocation.storageFlag && analysis.local[allocation.storageFlag]->kind == Value::ConstInt) {
+        ((ConstInt*)analysis.local[allocation.storageFlag])->value = 0;
+    }
+
+    // The drops that were handing this storage back. Rooted in the local rather than merely naming
+    // it, because that is what `insertDrops` built - one drop per local per departure point - and a
+    // projection of it is a member's teardown, which is not this storage's release.
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Drop) continue;
+
+        auto& drop = (InstDrop&)instruction;
+        if(!drop.releaseStorage) continue;
+        if(drop.place.root != PlaceRoot::Local || drop.place.local != allocation.local) continue;
+        if(drop.place.projections.size() != 0) continue;
+
+        drop.releaseStorage = false;
+
+        /*
+         * And the drop itself where handing the storage back was all it did.
+         *
+         * Left in place it would be the one shape `dischargeDrop` declines - it returns for an empty
+         * drop rather than expanding it - so the instruction would survive into a stage whose whole
+         * postcondition is that a non-generic body holds none. `insertDrops` never builds one
+         * either, which makes an empty drop a thing no other path produces.
+         */
+        if(drop.isEmpty()) {
+            IrEditor(module, analysis.function)
+                .eraseInstruction((ModulePtr<Inst>)(&instruction - analysis.local));
+        }
+    }
+
+    slot.storage = StorageClass::Stack;
+    analysis.function.locals.set(analysis.local, allocation.local, slot);
+}
+
 void selectStorage(Analysis& analysis, OwnershipResult& result) {
     analysis.releasesStorage.reset(analysis.localCount);
 
@@ -371,6 +434,31 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
          */
         if(allocation.extent && analysis.local[allocation.extent]->kind != Value::ConstInt) {
             storage = StorageClass::Heap;
+        }
+
+        /*
+         * The re-run's one rule, and it is here rather than earlier so that it is downstream of
+         * every reason above - see Analysis::demoteOnly.
+         *
+         * Placing it after the overrides is the whole of what keeps them: `@heap` asked for the
+         * heap, a box is out of line whatever anything proved, and a run whose length is not a
+         * constant has no frame answer at all. Each of those forces `storage` back to Heap before
+         * this reads it, so none of them can be undone by an escape that stopped existing.
+         *
+         * A **closure environment** is left out, and not because the decision would be wrong: the
+         * release is the function value's rather than this frame's, and which release it gets was
+         * written into the lambda's closure header by the run that chose Heap. Undoing that means
+         * pointing the header back at the teardown that does not hand storage back, which is a
+         * rewrite of a generated function rather than a field on an instruction. Until that is
+         * worth doing, an environment keeps the answer it was given.
+         */
+        if(analysis.demoteOnly) {
+            if(!slot.closureEnv && storage == StorageClass::Stack &&
+               allocation.storage == StorageClass::Heap) {
+                demoteToStack(analysis, allocation, slot);
+            }
+
+            continue;
         }
 
         /*

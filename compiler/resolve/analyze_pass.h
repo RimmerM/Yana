@@ -397,6 +397,21 @@ struct Analysis {
     // glue those drops name. A silent round computes the same facts and keeps them to itself.
     bool rewriting = true;
 
+    /*
+     * Set for `reselectStorage`'s run, which is this analysis asked one question a second time.
+     *
+     * `selectStorage` is the only pass it changes, and it changes it to a single rule: an allocation
+     * the ownership stage put on the heap, which this run finds does not escape, moves to the frame.
+     * Nothing else is written - not the drops, not the summary, not the demand - because everything
+     * else was decided on facts inlining cannot have changed.
+     *
+     * The direction is the whole of what makes the re-run safe. Inlining removes escape reasons and
+     * never adds them, since a callee's summary was already a conservative over-approximation of its
+     * body, so this run's answer is a subset of the first one's. A promotion would mean the first
+     * answer was wrong; a demotion this run *misses* is a heap allocation that stays one.
+     */
+    bool demoteOnly = false;
+
     Block* blockAt(Size index) { return local[function.blocks.get(local, index)]; }
     Size blockCount() { return function.blocks.size(); }
 };

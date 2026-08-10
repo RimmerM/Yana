@@ -766,23 +766,30 @@ struct Inliner {
      * missing feature. It only ever appears in a generic body, so what would have to be checked
      * first is that both schemas agree.
      *
-     * ## `Move` is in, and it is the one of the ownership four that belongs here
+     * ## The ownership four are all in
      *
      * The header's rule is that copying an ownership instruction asserts the decision travels. A
      * graft is what *makes* it travel: the whole body is copied, drops and all, and the copy runs
      * once per call exactly as the callee did. What the rule is really about is a decision copied
      * away from the rest of the decision it belongs to, and that is not this.
      *
-     * `Move` is additionally not a decision at all by the time this runs. It is the relocation
-     * itself - `codegen/js` emits nothing for one but the name, and reads its kind to alias rather
-     * than deep-clone - so there is no lower form to discharge it into and nothing left in it to
-     * spend. `Drop`, `Swap` and `Exchange` are the ones that still expand into something.
+     * `Move` was admitted first, on the additional ground that it is not a decision at all by the
+     * time this runs - it is the relocation itself, with no lower form to discharge it into. The
+     * other three do still expand into something, and that used to be the reason they were out:
+     * `dischargeOwnership` ran in front of this pass and removed them, so admitting them here would
+     * have been admitting a shape that never arrived.
      *
-     * The hazard is re-rooting rather than the instruction: a cloned `Move` whose place was rewritten
-     * to name the *caller's* storage would empty a slot the caller's ownership state knows nothing
-     * about. Two guards already exclude it - the borrow check rejects a move out of a `&` parameter
-     * before this stage runs, and a `->` parameter is declined at the site below - and `movesLocal`
-     * is the belt that says so in this pass rather than in two others.
+     * That ordering is now the other way round - the discharge runs *after* this pass, so that the
+     * escape analysis can be re-run over the collapsed call graph while a drop is still the
+     * instruction it ignores (see reselectStorage, and opt.cpp). Which makes these three the
+     * ordinary case rather than an absent one, and the paragraph above is the whole of what makes
+     * copying them sound: the body is copied entire, so each runs once per call exactly as it did.
+     *
+     * The hazard is re-rooting rather than the instruction: a cloned `Move` or `Drop` whose place
+     * was rewritten to name the *caller's* storage would empty or release a slot the caller's
+     * ownership state knows nothing about. Two guards already exclude it - the borrow check rejects
+     * a move out of a `&` parameter before this stage runs, and a `->` parameter is declined at the
+     * site below - and `movesLocal` is the belt that says so in this pass rather than in two others.
      */
     bool clonableKind(Value::Kind kind) {
         switch(kind) {
@@ -792,6 +799,7 @@ struct Inliner {
             // which is how `Array.escaping` stopped folding to its constant.
             case Value::Aggregate:
             case Value::Borrow: case Value::Copy: case Value::Move:
+            case Value::Drop: case Value::Swap: case Value::Exchange:
             case Value::Address:
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Neg: case Value::Not:
@@ -806,6 +814,52 @@ struct Inliner {
                 return true;
             default:
                 return false;
+        }
+    }
+
+    /*
+     * What one instruction costs the caller, in instructions it will eventually hold.
+     *
+     * One, for everything whose lower form is itself. The three ownership instructions admitted to
+     * `clonableKind` are the exception, and pricing them at one would be the same dishonesty §26
+     * found in the resolver's form: `dischargeOwnership` runs *after* this pass now, so a `Drop` a
+     * candidate holds is a load and up to three calls by the time anything emits it, and a `Swap` is
+     * an allocation and six instructions. A body of four drops would be judged a body of four.
+     *
+     * The counts are read off `opt_discharge.cpp` rather than guessed, and each is what that pass
+     * emits for the shape in hand: an empty drop is elided there and so is free here, a reclaim
+     * naming the same function as the drop is one traversal serving both, and `releaseStorage` is
+     * the address, the cast and the call to `freeHeap`.
+     *
+     * An over-estimate is the safe direction for a budget - it declines a copy rather than making
+     * one - which is why the storage half is priced at its cast-bearing maximum.
+     */
+    U32 dischargedSize(Value& instruction) {
+        switch(instruction.kind) {
+            case Value::Drop: {
+                auto& drop = (InstDrop&)instruction;
+                if(drop.isEmpty()) return 0;
+
+                U32 size = 1;
+                if(drop.drop) size++;
+                if(drop.reclaim && drop.reclaim != drop.drop) size++;
+                if(drop.releaseStorage) size += 3;
+
+                return size;
+            }
+
+            // The temporary, three relocations and three writes - and the temporary is not
+            // removable, which dischargeSwap explains.
+            case Value::Swap:
+                return 7;
+
+            // A relocation out and a write in, with the read costing a load or an allocation and a
+            // move depending on whether the result is a register.
+            case Value::Exchange:
+                return 3;
+
+            default:
+                return 1;
         }
     }
 
@@ -858,15 +912,37 @@ struct Inliner {
      * told about, and no later pass would notice - a relocated aggregate and a live one are the
      * same bytes.
      *
-     * Both departure points are asked about, because both name a place: `Move` is the relocation and
-     * `Exchange` writes a new value over one it takes out. Neither is reachable today for a
-     * re-rooted parameter - the borrow check refuses the `&` case and `describe` refuses the sink
-     * case - so this is the statement that they stay unreachable, made where the copy happens rather
-     * than in the two passes that currently imply it.
+     * Three departure points are asked about, because each names a place: `Move` is the relocation,
+     * `Exchange` writes a new value over one it takes out, and `Drop` ends the value that is there.
+     * None is reachable today for a re-rooted parameter - the borrow check refuses the `&` case and
+     * `describe` refuses the sink case - so this is the statement that they stay unreachable, made
+     * where the copy happens rather than in the two passes that currently imply it.
+     *
+     * `Drop` joined the list with `clonableKind`'s other two admissions, and it closes the hole the
+     * `->` walk below names: that walk says a body owing a drop of its sink parameter "is refused by
+     * `clonableKind` before this", which stopped being true the moment `Drop` was admitted.
+     *
+     * It asks a narrower question than the other two, and the difference is the whole of why a
+     * teardown can still be inlined. **Only a drop of the slot itself counts.** A drop of a
+     * *projection* of it is a member's teardown, which is what every derived reclaim is made of:
+     * `reclaim$Tree` drops `value.left` and `value.right`, and re-rooting those at the caller's
+     * place is the statement the site already made - `drop p reclaim f` says the value at `p` is
+     * `f`'s now, so a copy of `f` rooted at `p` is that with the call boundary taken out. Matching
+     * the root and ignoring the path refused every teardown in the program, which measured as a 27%
+     * regression on `test/bench/programs/Tree.yana` and nothing else.
+     *
+     * `Swap` is deliberately not here at all: it names two places and relocates out of neither, so a
+     * re-rooted parameter on either side is left holding a value of the same type.
      */
     bool movesLocal(Candidate& candidate, U32 local) {
         auto rootedHere = [&](const Place& place) {
             return place.root == PlaceRoot::Local && place.local == local;
+        };
+
+        // `const_cast` for the same reason clonePlace does it: reading a projection list's length
+        // is a non-const call on the list, and a place arrives here by const reference.
+        auto isLocalItself = [&](const Place& place) {
+            return rootedHere(place) && const_cast<Place&>(place).projections.size() == 0;
         };
 
         for(auto blockPointer: candidate.blocks) {
@@ -880,6 +956,9 @@ struct Inliner {
 
                 if(instruction.kind == Value::Exchange &&
                    rootedHere(((InstExchange&)instruction).place)) return true;
+
+                if(instruction.kind == Value::Drop &&
+                   isLocalItself(((InstDrop&)instruction).place)) return true;
             }
         }
 
@@ -1208,7 +1287,7 @@ struct Inliner {
                 // is the one term that is about the caller's frame rather than about either body.
                 if(performsCall(instruction.kind)) candidate.callFree = false;
 
-                candidate.size++;
+                candidate.size += dischargedSize(instruction);
             }
 
             // A phi is an instruction the caller pays for like any other, and on a managed target it
@@ -1852,6 +1931,19 @@ struct Inliner {
                 cloned->closure = alloc.closure;
 
                 /*
+                 * And *why* it went there, where the reason outranks the analysis.
+                 *
+                 * `ownedElsewhere` is the target of a box, which is out of line whatever anything
+                 * proved - the owner's derived `Reclaim` is what frees it, and that function is
+                 * interned per type, so it has one answer for every value of that type. Dropping it
+                 * here left a clone that looked like an ordinary heap allocation with no reason of
+                 * its own, which was invisible while nothing re-asked the question and became a
+                 * frame address handed to `freeHeap` the moment `reselectStorage` did. Box.yana is
+                 * the fixture that says so, and it says it by segfaulting.
+                 */
+                cloned->ownedElsewhere = alloc.ownedElsewhere;
+
+                /*
                  * How many slots, which is an *operand* and therefore has to be remapped -
                  * InstAlloc::extent, and the one field of an allocation this had been dropping.
                  *
@@ -1917,6 +2009,48 @@ struct Inliner {
                 auto cloned = createInst<InstMove>(module, function, into, source, name, type,
                                                    place(move.place));
                 cloned->sink = move.sink;
+                return (Inst*)cloned;
+            }
+            case Value::Drop: {
+                /*
+                 * A teardown, copied whole - see clonableKind.
+                 *
+                 * Both halves and both kinds travel unchanged, for the same reason `InstMove::sink`
+                 * does: which function tears a type down is a property of the type, and the type did
+                 * not move. `releaseStorage` travels for the reason `InstAlloc::storage` does - it is
+                 * the other half of one statement about one allocation, and splitting them is how a
+                 * frame-placed run gets handed to `freeHeap`.
+                 *
+                 * The place is the only thing rebuilt, and `movesLocal` is what keeps that safe: a
+                 * drop re-rooted at the caller's storage would run the caller's teardown here and
+                 * again where the caller's own drop sits.
+                 */
+                auto& drop = (InstDrop&)instruction;
+                auto cloned = createInst<InstDrop>(module, function, into, source, name, type,
+                                                   place(drop.place), drop.dropKind, drop.reclaimKind);
+                cloned->drop = drop.drop;
+                cloned->reclaim = drop.reclaim;
+                cloned->releaseStorage = drop.releaseStorage;
+                return (Inst*)cloned;
+            }
+            case Value::Swap: {
+                // Two places and a content type. The type is a global handle, so it means the same
+                // thing in either function, and the sink travels as `Move`'s does.
+                auto& swap = (InstSwap&)instruction;
+                auto cloned = createInst<InstSwap>(module, function, into, source, name, type,
+                                                   place(swap.a), place(swap.b), swap.content);
+                cloned->sink = swap.sink;
+                return (Inst*)cloned;
+            }
+            case Value::Exchange: {
+                // A write over a value taken out, so it has both a place and an operand - and a
+                // result slot, which is a *local* and therefore renumbered like `Copy`'s.
+                auto& exchange = (InstExchange&)instruction;
+                auto cloned = createInst<InstExchange>(module, function, into, source, name, type,
+                                                       place(exchange.place), value(exchange.value));
+                cloned->sink = exchange.sink;
+                cloned->local = exchange.local == maxLimit<U32> ? maxLimit<U32>
+                                                                : clone.locals[exchange.local];
                 return (Inst*)cloned;
             }
             case Value::TypeMetric: {
@@ -2704,6 +2838,21 @@ struct Inliner {
         if(candidate.parameters[0].binding != Binding::Memory) return false;
         candidate.parameters[0].storage = dropped.place;
 
+        /*
+         * And the budget, which this site used to be exempt from by accident.
+         *
+         * `dischargeOwnership` ran in front of this pass, so every non-generic `Drop` had already
+         * become the calls it stands for and the only ones reaching here were the erased ones -
+         * which `describe` refuses anyway. This path was therefore unreachable for the bodies it was
+         * written for, and never having asked cost nothing.
+         *
+         * With the discharge behind the inliner it is live for every drop in the program, and
+         * exempting it means copying a teardown into a site whatever it costs: `Matrix`'s inner loop
+         * took a twelve-instruction `Reclaim` with a branch in it where it had held a two-instruction
+         * call, and measured 0.933x for it. A teardown is a callee like any other - the site is a
+         * call by the time anything emits it, which is exactly what the budget is denominated in.
+         */
+        if(!worthInlining(candidate)) return false;
         if(!graft(candidate, block, index, pointer, grafted)) return false;
         recordCollapse(candidate);
 
@@ -2876,6 +3025,19 @@ struct Inliner {
      * either backend sees it, and `soleCallSite` would otherwise say a teardown reached from one
      * drop and nothing else has *no* sites - which is the largest bonus in the table handed to a
      * body on the strength of a count that is wrong.
+     *
+     * **And only sites the program can still reach**, which is `markProgramReachable`'s answer as of
+     * this round rather than `resolveProgram`'s - see the call in `inlineCalls`. The stale answer is
+     * a superset everywhere else in this stage, where it costs work on a body nothing emits; here it
+     * costs a *decision*, because what this count feeds is a threshold. A function this pass has
+     * just emptied of callers still holds every call and every `drop` it was written with, and each
+     * of those is counted against a callee that no longer has them.
+     *
+     * `Drop(Node).drop` in test/resolve/OptChain.yana is what that looks like: `drop$Maybe(Node)` is
+     * inlined into its one caller, the copy brings the `drop … via Drop(Node).drop` with it, and the
+     * original stays behind in a body nothing can reach. Three sites become four, four is exactly
+     * `manyCallSites` on a managed target, and a three-instruction teardown is refused by a budget
+     * of two that should have been five.
      */
     void countCallSites() {
         callSites.clear();
@@ -2889,6 +3051,8 @@ struct Inliner {
 
         for(auto module: opt.program.modules) {
             for(auto pointer: module->functionOrder.contents(opt.local)) {
+                if(!opt.local[pointer]->used) continue;
+
                 for(auto blockPointer: opt.local[pointer]->blocks.contents(opt.local)) {
                     for(auto instructionPointer: opt.local[blockPointer]->instructions(opt.local)) {
                         auto& instruction = *opt.local[instructionPointer];
@@ -2958,6 +3122,27 @@ struct Inliner {
             reorderBlocks();
         }
 
+        /*
+         * And where every allocation lives, re-decided before anything reads the answer.
+         *
+         * `selectStorage` ran in the ownership stage and inlining is what makes it stale: an
+         * allocation is on the heap because the analysis proved it outlives the frame, and the
+         * commonest proof is that the function *returns* it. Copying the body into its caller
+         * removes the reason, and nothing went back to ask.
+         *
+         * Not compositional - it re-derives the answer from the collapsed body - so a chain of any
+         * depth is one call rather than one rule applied per level. See reselectStorage.
+         *
+         * **In front of `settle`, and that is the whole of why it is here** rather than once at the
+         * end of the stage. The heap answer is a constant the program reads at run time: a run
+         * carries a bit saying whether the allocator owns its storage, and the teardown tests it.
+         * `settle` is the full optimizer, so it folds that test against whatever the bit says at
+         * that moment - and a `releaseRun` folded while the bit still says heap becomes an
+         * unconditional `freeHeap` that no later patch of the constant can take back. Demoting
+         * first means the fold sees a frame-placed run and removes the teardown entirely, which is
+         * what native.cpp's `releaseRun` has claimed all along.
+         */
+        if(inlined) reselectStorage(*opt.module, function);
         if(inlined) settle(function);
         return inlined;
     }
@@ -3057,7 +3242,23 @@ void inlineCalls(OptContext& opt) {
     findRecursion(opt, inliner.recursive, inliner.cycle);
 
     for(Size round = 0; round < kMaxInlineRounds; round++) {
+        /*
+         * Which functions the program can still reach, asked again before anything is counted
+         * against them - see `countCallSites`, which is the one reader that needs the fresh answer
+         * rather than the safe one.
+         *
+         * Once per round rather than once per stage because a round is what makes it stale: the
+         * previous one's grafts are exactly the references that went away, and this pass runs twice
+         * over the program - so the second call's first round starts from an answer the first call
+         * spent three rounds invalidating.
+         *
+         * Cheaper than it reads. It walks what the program reaches while the two loops below walk
+         * every function there is, and the `used` test it writes is what then keeps both of them off
+         * the bodies it just found nothing can run.
+         */
+        markProgramReachable(opt.program);
         inliner.countCallSites();
+
         auto inlined = false;
 
         for(auto module: opt.program.modules) {
@@ -3066,6 +3267,10 @@ void inlineCalls(OptContext& opt) {
             for(auto pointer: module->functionOrder.contents(opt.local)) {
                 auto function = opt.local[pointer];
                 if(function->signature || function->blocks.isEmpty()) continue;
+
+                // A body nothing can reach is not one to copy anything into: it is not emitted, and
+                // the call sites inside it have just stopped being counted - see countCallSites.
+                if(!function->used) continue;
 
                 inlined = inliner.runFunction(*function) || inlined;
             }

@@ -240,47 +240,6 @@ reverseInto<complex>(%xs: Ptr, %lo: Int, %hi: Int) {
   }
 }
 
-sortDescending<complex>(%xs: Ptr, %lo: Int, %hi: Int) {
-  b_0 {
-    %v_1 = cmp_ige %lo, %hi: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_ige %lo, %hi: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    call_complex swapAt, %xs, %lo, %hi
-    %v_7 = add %lo, 1: Int
-    %v_8 = sub %hi, 1: Int
-    %v_9 = cmp_ige %v_7, %v_8: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    call_complex reverseInto, %xs, %v_7, %v_8
-    jmp b_12
-  }
-
-  b_10 {
-    jmp b_12
-  }
-
-  b_12 {
-    jmp b_2
-  }
-
-  b_5 {
-    jmp b_2
-  }
-
-  b_2 {
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -333,7 +292,8 @@ main<complex>(): Int {
     store %v_28, %v_2, 8
     %v_29 = add %v_28, 8: Ptr
     store %v_29, 7, 8
-    call_complex sortDescending, %v_28, 0, 6
+    call_complex swapAt, %v_28, 0, 6
+    call_complex reverseInto, %v_28, 1, 5
     %v_30 = loads %v_2, 4: Int
     %v_31 = cmp_neq %v_30, 9: Int
     je %v_31, b_32, b_33

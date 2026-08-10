@@ -166,6 +166,27 @@ bool runOwnership(Module& module, Function& function, OwnershipResult& result);
 // specializations, not the generic body, that get drops.
 bool runProgramOwnership(Program& program);
 
+/*
+ * Storage placement decided again, over the call graph inlining left behind.
+ *
+ * `runProgramOwnership` chooses a storage class per allocation, and the commonest reason for the
+ * heap is that the function returns what it allocated. Inlining removes that reason without
+ * removing the decision, so a factory returning an array keeps its `allocateHeap` in a caller the
+ * array never leaves. This re-derives the answer and moves what no longer escapes onto the frame.
+ *
+ * **Demote only.** Inlining removes escape reasons and never adds them, so this answer is a subset
+ * of the one the ownership stage reached; nothing here can promote, and a demotion it misses is a
+ * heap allocation that stays one.
+ *
+ * Called by `inlineCalls` over each body it changed, before that body is folded, and it has to be
+ * both sides of that: inlining is what makes the answer stale, and the heap answer is a constant
+ * the program reads at run time - so a teardown folded against the old constant is an unconditional
+ * `freeHeap` no later patch can take back. It also has to precede `dischargeOwnership`, which turns
+ * the drop this analysis ignores into a call that hands the pointer to `freeHeap` - and no summary
+ * can tell that from a retention.
+ */
+void reselectStorage(Module& module, Function& function);
+
 // Which half of a teardown a request is about - see Design-Memory §4. The two are elidable under
 // different conditions, so nothing may ask for "the teardown" without saying which.
 enum class Teardown: U8 {

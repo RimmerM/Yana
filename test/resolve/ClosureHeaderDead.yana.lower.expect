@@ -21,29 +21,20 @@ consume<complex>(%f: Ptr): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 3, 4
-    call_complex drop${g: Guard}, %v_1
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 5, 4
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.lambda$1, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, %v_2, 8
-    %v_5 = call_complex consume, %v_3: Int
-    %v_6 = add 13, %v_5: Int
-    %v_7 = loads @dropCalls, 4: Int
-    %v_8 = add %v_6, %v_7: Int
-    ret %v_8
-  }
-}
-
-drop${g: Guard}<complex>(%value: Ptr) {
-  b_0 {
     %v_1 = loads @dropCalls, 4: Int
     %v_2 = add %v_1, 1: Int
     store @dropCalls, %v_2, 4
-    ret 
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 5, 4
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, ResolveTest.lambda$1, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex consume, %v_4: Int
+    %v_7 = add 13, %v_6: Int
+    %v_8 = loads @dropCalls, 4: Int
+    %v_9 = add %v_7, %v_8: Int
+    ret %v_9
   }
 }
 
@@ -56,7 +47,7 @@ ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
   }
 }
 
-drop${g: Guard}$1<complex>(%value: Ptr) {
+drop${g: Guard}<complex>(%value: Ptr) {
   b_0 {
     %v_1 = loads @dropCalls, 4: Int
     %v_2 = add %v_1, 1: Int

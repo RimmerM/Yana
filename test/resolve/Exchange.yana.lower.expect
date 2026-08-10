@@ -273,30 +273,6 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-scalars<complex>(): Long {
-  b_0 {
-    ret 21
-  }
-}
-
-exchangeScalar<complex>(): Long {
-  b_0 {
-    ret 19
-  }
-}
-
-globalExchange<complex>(): Long {
-  b_0 {
-    %counter = global @counter: Ptr
-    %old = loads %counter, 8: Long
-    store %counter, 7, 8
-    %v_1 = imul %old, 10: Long
-    %v_2 = loads @counter, 8: Long
-    %v_3 = add %v_1, %v_2: Long
-    ret %v_3
-  }
-}
-
 sinkSwap<complex>(): Long {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
@@ -412,35 +388,38 @@ borrowed<complex>(): Long {
 
 main<complex>(): Long {
   b_0 {
-    %v_1 = call_complex scalars: Long
-    %v_2 = cmp_neq %v_1, 21: Int
-    je %v_2, b_3, b_4
+    %v_1 = cmp_neq 21, 21: Int
+    je %v_1, b_2, b_3
   }
 
-  b_3 {
+  b_2 {
     ret 18446744073709551615
   }
 
+  b_3 {
+    jmp b_4
+  }
+
   b_4 {
-    jmp b_5
+    %v_5 = cmp_neq 19, 19: Int
+    je %v_5, b_6, b_7
   }
 
-  b_5 {
-    %v_6 = call_complex exchangeScalar: Long
-    %v_7 = cmp_neq %v_6, 19: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
+  b_6 {
     ret 18446744073709551614
   }
 
-  b_9 {
-    jmp b_10
+  b_7 {
+    jmp b_8
   }
 
-  b_10 {
-    %v_11 = call_complex globalExchange: Long
+  b_8 {
+    %counter = global @counter: Ptr
+    %old = loads %counter, 8: Long
+    store %counter, 7, 8
+    %v_9 = imul %old, 10: Long
+    %v_10 = loads @counter, 8: Long
+    %v_11 = add %v_9, %v_10: Long
     %v_12 = cmp_neq %v_11, 57: Int
     je %v_12, b_13, b_14
   }

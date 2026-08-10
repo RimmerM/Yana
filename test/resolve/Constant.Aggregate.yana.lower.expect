@@ -49,49 +49,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = bitcast %length: Int
-    %v_3 = and %v_2, 1073741823: Int
-    %v_4 = cast %v_3: Int
-    store %v_0, %bytes, 8
-    %v_5 = add %v_0, 8: Ptr
-    %v_6 = load %v_5, 4: Int
-    %v_7 = cast %v_4: Int
-    store %v_5, %v_7, 4
-    %v_8 = add %v_0, 12: Ptr
-    store %v_8, %v_4, 4
-    ret 
-  }
-}
-
-Reclaim(String).reclaim<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = bitcast %value: Ptr
-    %v_2 = add %v_1, 8: Ptr
-    %v_3 = load %v_2, 4: Long
-    %v_4 = shr %v_3, 30: Long
-    %v_5 = cast %v_4: Int
-    %v_6 = cast %v_5: Int
-    %v_7 = cmp_eq %v_6, 1: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_8 {
-    %v_11 = load %v_1, 8: Ptr
-    call_complex freeHeap, %v_11
-    jmp b_10
-  }
-
-  b_10 {
-    ret 
-  }
-}
-
 area<complex>(%s: Ptr): Int {
   b_0 {
     %v_1 = loads %s, 4: Int
@@ -379,68 +336,89 @@ main<complex>(): Int {
     %v_112 = add %v_111, 4: Ptr
     store %v_112, 3, 4
     %v_113 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_113, @string$2, 2
-    %v_114 = alloca 12, 4: Ptr
-    store %v_114, 1, 4
-    %v_115 = add %v_114, 4: Ptr
-    store %v_115, 2, 4
-    %v_116 = add %v_114, 8: Ptr
-    store %v_116, 5, 4
-    %v_117 = alloca 8, 4: Ptr
+    store %v_113, @string$2, 8
+    %v_114 = add %v_113, 8: Ptr
+    %v_115 = load %v_114, 4: Int
+    store %v_114, 2, 4
+    %v_116 = add %v_113, 12: Ptr
+    store %v_116, 2, 4
+    %v_117 = alloca 12, 4: Ptr
     store %v_117, 1, 4
     %v_118 = add %v_117, 4: Ptr
-    store %v_118, 4, 4
-    %v_119 = add %s, 28: Ptr
-    copy %v_119, %v_111, 8
+    store %v_118, 2, 4
+    %v_119 = add %v_117, 8: Ptr
+    store %v_119, 5, 4
+    %v_120 = alloca 8, 4: Ptr
+    store %v_120, 1, 4
+    %v_121 = add %v_120, 4: Ptr
+    store %v_121, 4, 4
+    %v_122 = add %s, 28: Ptr
+    copy %v_122, %v_111, 8
     copy %s, %v_113, 16
-    %v_120 = add %s, 16: Ptr
-    copy %v_120, %v_114, 12
-    %v_121 = add %s, 36: Ptr
-    copy %v_121, %v_117, 8
-    %p$x = loads %v_119, 4: Int
-    %v_122 = add %s, 32: Ptr
-    %p$y = loads %v_122, 4: Int
-    %v_123 = add %p$x, %p$y: Int
-    %v_124 = bitcast %s: Ptr
-    %v_125 = add %v_124, 12: Ptr
-    %v_126 = load %v_125, 4: Int
-    %units = cast %v_126: Int
-    %v_127 = add %v_123, %units: Int
-    %v_128 = call_complex area, %v_114: Int
-    %v_129 = add %v_127, %v_128: Int
-    %v_130 = add %s, 36: Ptr
-    %v_131 = loads %v_130, 4: Int
-    %v_132 = cmp_eq %v_131, 1: Int
-    je %v_132, b_133, b_134
+    %v_123 = add %s, 16: Ptr
+    copy %v_123, %v_117, 12
+    %v_124 = add %s, 36: Ptr
+    copy %v_124, %v_120, 8
+    %p$x = loads %v_122, 4: Int
+    %v_125 = add %s, 32: Ptr
+    %p$y = loads %v_125, 4: Int
+    %v_126 = add %p$x, %p$y: Int
+    %v_127 = bitcast %s: Ptr
+    %v_128 = add %v_127, 12: Ptr
+    %v_129 = load %v_128, 4: Int
+    %units = cast %v_129: Int
+    %v_130 = add %v_126, %units: Int
+    %v_131 = call_complex area, %v_117: Int
+    %v_132 = add %v_130, %v_131: Int
+    %v_133 = add %s, 36: Ptr
+    %v_134 = loads %v_133, 4: Int
+    %v_135 = cmp_eq %v_134, 1: Int
+    je %v_135, b_136, b_137
   }
 
-  b_134 {
-    jmp b_135
+  b_137 {
+    jmp b_138
   }
 
-  b_133 {
-    %v_136 = add %s, 40: Ptr
-    %v = loads %v_136, 4: Int
-    jmp b_135
+  b_136 {
+    %v_139 = add %s, 40: Ptr
+    %v = loads %v_139, 4: Int
+    jmp b_138
   }
 
-  b_135 {
-    %v_137 = phi [b_133, %v], [b_134, 0]: Int
-    call_complex Reclaim(String).reclaim, %s
-    %defaults = add %v_129, %v_137: Int
-    %v_138 = cmp_eq %defaults, 21: Int
-    je %v_138, b_139, b_140
+  b_138 {
+    %v_140 = phi [b_136, %v], [b_137, 0]: Int
+    %v_141 = bitcast %s: Ptr
+    %v_142 = add %v_141, 8: Ptr
+    %v_143 = load %v_142, 4: Long
+    %v_144 = shr %v_143, 30: Long
+    %v_145 = cast %v_144: Int
+    %v_146 = cast %v_145: Int
+    %v_147 = cmp_eq %v_146, 1: Int
+    je %v_147, b_148, b_149
   }
 
-  b_139 {
-    %v_141 = add %v_110, 16384: Int
-    jmp b_140
+  b_148 {
+    %v_150 = load %v_141, 8: Ptr
+    call_complex freeHeap, %v_150
+    jmp b_149
   }
 
-  b_140 {
-    %v_142 = phi [b_135, %v_110], [b_139, %v_141]: Int
-    %v_143 = add %v_142, 32768: Int
-    ret %v_143
+  b_149 {
+    %defaults = add %v_132, %v_140: Int
+    %v_151 = cmp_eq %defaults, 21: Int
+    je %v_151, b_152, b_153
+  }
+
+  b_152 {
+    %v_154 = add %v_110, 16384: Int
+    jmp b_153
+  }
+
+  b_153 {
+    %v_155 = phi [b_149, %v_110], [b_152, %v_154]: Int
+    %v_156 = add %v_155, 32768: Int
+    ret %v_156
   }
 }
 

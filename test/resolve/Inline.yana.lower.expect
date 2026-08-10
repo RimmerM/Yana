@@ -58,53 +58,6 @@ evenLength<complex>(%n: Int): Int {
   }
 }
 
-oddLength<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = cmp_ile %n, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = sub %n, 1: Int
-    %v_5 = cmp_ile %v_4, 0: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = sub %v_4, 1: Int
-    %v_9 = cmp_ile %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    %v_12 = sub %v_8, 1: Int
-    %v_13 = call_complex evenLength, %v_12: Int
-    jmp b_14
-  }
-
-  b_10 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_11, %v_13], [b_10, 0]: Int
-    jmp b_16
-  }
-
-  b_6 {
-    jmp b_16
-  }
-
-  b_16 {
-    %v_17 = phi [b_14, %v_15], [b_6, 1]: Int
-    ret %v_17
-  }
-
-  b_2 {
-    ret 0
-  }
-}
-
 measured<complex>(%v: Int): Int {
   b_0 {
     %v_1 = add %v, 1: Int
@@ -135,7 +88,7 @@ main<complex>(): Int {
     %v_16 = add %v_7, %v_12: Int
     %v_17 = add %v_16, 18: Int
     %v_18 = call_complex evenLength, 6: Int
-    %v_19 = call_complex oddLength, 6: Int
+    %v_19 = call_complex evenLength, 3: Int
     %v_20 = add %v_18, %v_19: Int
     %v_21 = add %v_17, %v_20: Int
     ret %v_21

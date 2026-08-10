@@ -428,13 +428,12 @@ fn mutate(%f: &Flags) -> Int {
 fn around() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %f@Flags.read:unit8, 2
+    init %f@Flags.read, False
+    init %f@Flags.write, True
     %v16 = borrow %f : &Flags
     %handed = call mutate, %v16 : Int
-    %v52 = load %f@Flags.read:unit8 : U32
-    %v54 = and %v52, 1 : U32
-    %v55 = cast %v54 : Bool
-    %after = select %v55 ? 100 : 200 : Int
+    %v19 = load %f@Flags.read : Bool
+    %after = select %v19 ? 100 : 200 : Int
     %v28 = add %handed, 10 : Int
     %v29 = add %v28, %after : Int
     ret %v29
@@ -474,15 +473,15 @@ fn fill(%n: Int) -> Int {
     je %v36, b7, b4
 
   b4:
-    %v153 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v155 = shr %v153, 30 : U32
-    %v113 = cmp_eq %v155, 1 : Bool
-    je %v113, b5, b6
+    %v151 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v153 = shr %v151, 30 : U32
+    %v111 = cmp_eq %v153, 1 : Bool
+    je %v111, b5, b6
 
   b5:
-    %v115 = load %xs@Array.run@Run.items : %Int
-    %v116 = cast %v115 : %U8
-    call freeHeap, %v116
+    %v113 = load %xs@Array.run@Run.items : %Int
+    %v114 = cast %v113 : %U8
+    call freeHeap, %v114
     jmp b6
 
   b6:
@@ -530,15 +529,15 @@ fn fill(%n: Int) -> Int {
     jmp b3
 
   b11:
-    %v128 = syscall 60, 134 : I64
+    %v126 = syscall 60, 134 : I64
     unreachable
 
   b12:
-    %v122 = syscall 60, 134 : I64
+    %v120 = syscall 60, 134 : I64
     unreachable
 
   b13:
-    %v106 = syscall 60, 134 : I64
+    %v104 = syscall 60, 134 : I64
     unreachable
 
   b14:

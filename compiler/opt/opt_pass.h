@@ -4,6 +4,7 @@
 #include "../resolve/builder.h"
 #include "../resolve/place.h"
 #include "../resolve/verify.h"
+#include "../resolve/analyze.h"
 
 /*
  * What the passes share: the state one function is optimized against, and the questions about types

@@ -16,12 +16,7 @@ function either(pick, a, b) {
 }
 
 function main() {
-  var b = either(0, 3, 7);
-  var c = either(2, 3, 7);
-  var v23 = { $v: 100 };
-  var d = ResolveTest_lambda$3(v23, 1);
-  drop$_Int_sub_gt_Int(ResolveTest_lambda$3, v23);
-  return ((b + 6 | 0) + c | 0) + d | 0;
+  return ((either(0, 3, 7) + 6 | 0) + either(2, 3, 7) | 0) + 101 | 0;
 }
 
 function ResolveTest_lambda$1(env, x) {
@@ -30,17 +25,5 @@ function ResolveTest_lambda$1(env, x) {
 
 function ResolveTest_lambda$2(env, x) {
   return Math.imul(x, env.$v);
-}
-
-function ResolveTest_lambda$3(env, x) {
-  return x + env.$v | 0;
-}
-
-function drop$_Int_sub_gt_Int(value$c, value$e) {
-  var v4 = value$c.$h;
-  if (v4 != null) {
-    v4[0](value$e);
-  }
-  return;
 }
 main();

@@ -203,6 +203,77 @@ bool runOwnership(Module& module, Function& function, OwnershipResult& result) {
     return analyzeFunction(module, function, result, true, true, nullptr);
 }
 
+/*
+ * Storage placement, asked a second time - see Analysis::demoteOnly and compiler/opt's caller.
+ *
+ * Three passes out of the dozen `analyzeFunction` runs, which is exactly what the one question
+ * needs: where the instructions are, what refers to what, and what has to outlive the frame.
+ * Liveness, the ownership lattice, the demand analysis, the checks and the summary are all absent
+ * because none of them can have changed - inlining copies a body into a caller, and every one of
+ * those is either a fact about a body that still says what it said, or a fact about a call that is
+ * no longer being made.
+ *
+ * `computeEffects` is absent for a sharper reason: nothing here reads it. It exists for liveness,
+ * and liveness is what says where a drop goes - a question settled long before this.
+ *
+ * The summaries this reads are the ownership stage's, and they are still true. `flattenArguments`
+ * rewrites signatures before the inliner runs and keeps each summary the same length and order as
+ * the signature it belongs to (see opt_arg.cpp), so an argument index still means what it meant.
+ */
+void reselectStorage(Module& module, Function& function) {
+    if(function.signature || function.intrinsic || function.blocks.isEmpty()) return;
+
+    // A generic body's allocations are placed through its specializations, and those are ordinary
+    // functions this is called for in their own right. Asking here would read a `genSlot` extent
+    // that has no value in this IR.
+    if(function.gen) return;
+
+    /*
+     * And nothing at all where there is no heap allocation to move, which is most functions.
+     *
+     * The pass below is two fixpoints - provenance and outliving - and the second closes over
+     * containment, so it is quadratic in the frame's locals. Paying that for a body whose answer
+     * cannot change is the whole cost of running this per graft rather than once. One walk of the
+     * instruction list is what tells the two apart, and it is the same walk `selectStorage` opens
+     * with.
+     *
+     * Demote-only is what makes the test this cheap: the only allocation this can rewrite is one
+     * already on the heap, so a body with none is one with nothing to decide.
+     */
+    ModuleBase local = *module.arena;
+    auto placeable = false;
+
+    for(auto blockPointer: function.blocks.contents(local)) {
+        for(auto pointer: local[blockPointer]->instructions(local)) {
+            auto& instruction = *local[pointer];
+            if(instruction.kind != Value::Alloc) continue;
+            if(((InstAlloc&)instruction).storage != StorageClass::Heap) continue;
+
+            placeable = true;
+            break;
+        }
+
+        if(placeable) break;
+    }
+
+    if(!placeable) return;
+
+    Analysis analysis(module, function);
+    analysis.localCount = function.localCount();
+    analysis.reporting = false;
+    analysis.rewriting = false;
+    analysis.demoteOnly = true;
+
+    numberFunction(analysis);
+    computeProvenance(analysis);
+    computeOutliving(analysis);
+
+    // `selectStorage` writes into this where it records a decision; the demote-only path returns
+    // before every one of those, so what it wants is somewhere to not write rather than a result.
+    OwnershipResult unused;
+    selectStorage(analysis, unused);
+}
+
 // Which functions the passes run over. A signature has no body, an intrinsic is generated at each
 // call site rather than being one function, and a generic body is checked but never given drops -
 // what reaches the backend is its specializations, and those are ordinary functions that get their

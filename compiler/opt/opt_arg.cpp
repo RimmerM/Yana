@@ -265,6 +265,17 @@ void addressTaken(OptContext& opt, HashMap<U32, bool>& taken) {
                             hold(((InstDrop&)instruction).drop);
                             hold(((InstDrop&)instruction).reclaim);
                             break;
+                        // The other two relocations, on the same terms as `Move` - and they reach
+                        // this pass now that `dischargeOwnership` runs behind the inliner rather
+                        // than in front of it. Before that they had always been expanded into
+                        // `Move`s by the time anything here looked, so their sinks were held
+                        // through the case above and never through these.
+                        case Value::Swap:
+                            hold(((InstSwap&)instruction).sink);
+                            break;
+                        case Value::Exchange:
+                            hold(((InstExchange&)instruction).sink);
+                            break;
                         default:
                             break;
                     }

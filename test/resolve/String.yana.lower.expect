@@ -475,26 +475,6 @@ stringUnit<complex>(%self: Ptr, %index: Long): Int {
   }
 }
 
-newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
-  b_1 {
-    %v_2 = cast %capacity: Int
-    %v_3 = sext %v_2: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    %v_5 = cast %capacity: Int
-    %v_6 = and %v_5, 1073741823: Int
-    %v_7 = cast %v_6: Int
-    store %v_0, %v_4, 8
-    %v_8 = add %v_0, 8: Ptr
-    %v_9 = load %v_8, 4: Int
-    %v_10 = cast %v_7: Int
-    %v_11 = or %v_10, 1073741824: Int
-    store %v_8, %v_11, 4
-    %v_12 = add %v_0, 12: Ptr
-    store %v_12, 0, 4
-    ret 
-  }
-}
-
 pushString<complex>(%self: Ptr, %other: Ptr) {
   b_0 {
     %v_1 = bitcast %other: Ptr
@@ -585,14 +565,27 @@ Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
     %units = cast %v_8: Int
     %v_9 = sext %units: Long
     %v_10 = add %v_5, %v_9: Long
+    %v_11 = cast %v_10: Int
+    %v_12 = sext %v_11: Long
+    %v_13 = call_complex allocateHeap, %v_12: Ptr
+    %v_14 = cast %v_10: Int
+    %v_15 = and %v_14, 1073741823: Int
+    %v_16 = cast %v_15: Int
     %fresh = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %fresh, %v_10
-    %v_11 = bitcast %lhs: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    call_complex appendUnits, %fresh, %v_12, %v_5
-    %v_13 = bitcast %rhs: Ptr
-    %v_14 = load %v_13, 8: Ptr
-    call_complex appendUnits, %fresh, %v_14, %v_9
+    store %fresh, %v_13, 8
+    %v_17 = add %fresh, 8: Ptr
+    %v_18 = load %v_17, 4: Int
+    %v_19 = cast %v_16: Int
+    %v_20 = or %v_19, 1073741824: Int
+    store %v_17, %v_20, 4
+    %v_21 = add %fresh, 12: Ptr
+    store %v_21, 0, 4
+    %v_22 = bitcast %lhs: Ptr
+    %v_23 = load %v_22, 8: Ptr
+    call_complex appendUnits, %fresh, %v_23, %v_5
+    %v_24 = bitcast %rhs: Ptr
+    %v_25 = load %v_24, 8: Ptr
+    call_complex appendUnits, %fresh, %v_25, %v_9
     copy %v_0, %fresh, 16
     ret 
   }
