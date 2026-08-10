@@ -96,15 +96,31 @@ static bool sameExitOperand(LowerBase base, LowerBlock* left, LowerBlock* right,
  * block operation's chosen encoding. Every one of those is a way two instructions of one kind
  * produce different numbers out of the same operands.
  *
- * The four kinds that carry something else - `Imm`, `Fun`, `Global`, `Alloca` - are refused here and
- * three of them are compared by `sameExitOperand` instead, which is where they are actually reached
- * from: all three are built in the constant block rather than in an arm. **`Alloca` is the refusal
- * that is a decision rather than an omission.** Two copies of an exit that each allocate are two
- * distinct pieces of storage and only one of them ever runs, so unifying them would be sound - but a
- * frame slot is the one thing here whose identity outlives the block, and no exit block allocates in
- * any program this compiler emits.
+ * Three kinds carry something `flags` does not, and each of them is compared by that field outright:
+ * an `Imm`'s stored word, and the target of a `Fun` or a `Global`. All three are usually reached
+ * through `sameExitOperand` instead, since a constant lowered from the resolve IR is built in the
+ * entry block rather than in an arm - but a `Fun` is *not*: the address of a called function is
+ * materialized in the block that calls it, so an exit block whose whole content is a teardown call
+ * holds one, and refusing the kind refused every such block.
+ *
+ * **`Alloca` is the refusal that is a decision rather than an omission.** Two copies of an exit that
+ * each allocate are two distinct pieces of storage and only one of them ever runs, so unifying them
+ * would be sound - but a frame slot is the one thing here whose identity outlives the block, and no
+ * exit block allocates in any program this compiler emits.
  */
-static bool comparableByFlags(LowerInst* inst) {
+static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
+    switch(inst->kind) {
+        case LowerInst::Imm:
+            // The stored word, so a float is compared as its bits and `-0.0` never reads as `0.0`.
+            return ((LowerImm*)inst)->i == ((LowerImm*)other)->i;
+        case LowerInst::Fun:
+            return ((LowerInstFun*)inst)->target == ((LowerInstFun*)other)->target;
+        case LowerInst::Global:
+            return ((LowerInstGlobal*)inst)->target == ((LowerInstGlobal*)other)->target;
+        default:
+            break;
+    }
+
     switch(inst->kind) {
         case LowerInst::Nop:
         case LowerInst::Set:
@@ -143,25 +159,50 @@ static bool comparableByFlags(LowerInst* inst) {
     }
 }
 
-static bool sameExitInstruction(LowerBase base, LowerBlock* left, LowerBlock* right,
-                                LowerInst* a, LowerInst* b)
+/*
+ * One operand of one instruction, named by where it sits rather than by what it is.
+ *
+ * The same pair addresses the same slot in every copy of a block, which is what lets a disagreement
+ * found by comparing two copies be read back out of a third. `instruction` indexes the block's
+ * instruction list, or is its size for the terminator.
+ */
+struct Slot {
+    U32 instruction;
+    U32 operand;
+};
+
+static LowerInst* instructionAt(LowerBase base, LowerBlock* block, U32 index) {
+    if(index >= block->instructions.size()) return base[block->terminator];
+    return base[block->instructions.get(base, index)];
+}
+
+static bool holdsSlot(const SmallArray<Slot, 4>& slots, Slot slot) {
+    for(auto& have: slots) {
+        if(have.instruction == slot.instruction && have.operand == slot.operand) return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether two operands that are *not* the same value may be carried by a phi in the block the copies
+ * become, rather than refusing the merge outright. See lower_merge.h for the argument; this is the
+ * two conditions it states.
+ */
+static bool carriableByPhi(LowerBase base, LowerBlock* left, LowerBlock* right, LowerInst* inst,
+                           U32 operand, LowerPtr<LowerValue> a, LowerPtr<LowerValue> b)
 {
-    if(a->kind != b->kind) return false;
-    if(a->flags != b->flags) return false;
-    if(a->createdCount != b->createdCount || a->usedCount != b->usedCount) return false;
-    if(!comparableByFlags(a)) return false;
+    if(!a || !b) return false;
+    if(base[a]->type != base[b]->type) return false;
 
-    auto madeA = a->created();
-    auto madeB = b->created();
-    for(U32 i = 0; i < madeA.length; i++) {
-        if(madeA.ptr[i].type != madeB.ptr[i].type) return false;
-    }
+    // Defined outside the copy on both sides, which is what makes the value available on the edge.
+    // A value the block computes for itself is one the merge deletes.
+    if(positionIn(base, left, a) != kNotLocal) return false;
+    if(positionIn(base, right, b) != kNotLocal) return false;
 
-    auto usedA = a->used();
-    auto usedB = b->used();
-    for(U32 i = 0; i < usedA.length; i++) {
-        if(!sameExitOperand(base, left, right, usedA.ptr[i], usedB.ptr[i])) return false;
-    }
+    // The function a call calls, which includes a syscall's number. Merging two of these would turn
+    // two direct calls into one indirect one.
+    if(inst->kind == LowerInst::Call && operand == 0) return false;
 
     return true;
 }
@@ -177,7 +218,11 @@ static bool isExit(LowerBase base, LowerBlock* block) {
 }
 
 /*
- * Whether one block may stand in for the other.
+ * Whether one block may stand in for the other, and where the two disagree.
+ *
+ * `differences` is written only when the answer is yes, and it is the block's *own* disagreements
+ * rather than a running set - the caller unions it, because the gate has to price the union before
+ * committing to it.
  *
  * The belt at the end is the one thing here that is not a comparison. A block with no successors
  * dominates nothing, so no value it defines can be read outside it - that is the argument the whole
@@ -185,21 +230,43 @@ static bool isExit(LowerBase base, LowerBlock* block) {
  * file established. Asking the use lists directly costs one walk of a two-instruction block and
  * turns a broken invariant somewhere else into a merge that does not happen.
  */
-static bool interchangeable(LowerBase base, LowerBlock* a, LowerBlock* b) {
+static bool interchangeable(LowerBase base, LowerBlock* a, LowerBlock* b,
+                            SmallArray<Slot, 4>& differences)
+{
     if(a->phis.size() || b->phis.size()) return false;
     if(a->instructions.size() != b->instructions.size()) return false;
     if(a->instructions.size() > kMaxExitSize) return false;
 
-    auto instsA = a->instructions.contents(base);
-    auto instsB = b->instructions.contents(base);
+    SmallArray<Slot, 4> found;
 
-    for(U32 i = 0; i < instsA.size(); i++) {
-        if(!sameExitInstruction(base, a, b, base[instsA[i]], base[instsB[i]])) return false;
+    // One past the instruction list, which is the terminator - compared by the same rules as
+    // everything in front of it, since a `ret` differing only in what it returns is the whole point.
+    for(U32 i = 0; i <= a->instructions.size(); i++) {
+        auto x = instructionAt(base, a, i);
+        auto y = instructionAt(base, b, i);
+
+        if(x->kind != y->kind) return false;
+        if(x->flags != y->flags) return false;
+        if(x->createdCount != y->createdCount || x->usedCount != y->usedCount) return false;
+        if(!sameCarriedData(x, y)) return false;
+
+        auto madeX = x->created();
+        auto madeY = y->created();
+        for(U32 j = 0; j < madeX.length; j++) {
+            if(madeX.ptr[j].type != madeY.ptr[j].type) return false;
+        }
+
+        auto usedX = x->used();
+        auto usedY = y->used();
+        for(U32 j = 0; j < usedX.length; j++) {
+            if(sameExitOperand(base, a, b, usedX.ptr[j], usedY.ptr[j])) continue;
+            if(!carriableByPhi(base, a, b, x, j, usedX.ptr[j], usedY.ptr[j])) return false;
+
+            found.push(Slot { i, j });
+        }
     }
 
-    if(!sameExitInstruction(base, a, b, base[a->terminator], base[b->terminator])) return false;
-
-    for(auto instPtr: instsB) {
+    for(auto instPtr: b->instructions.contents(base)) {
         for(auto& value: base[instPtr]->created()) {
             for(auto user: value.uses.contents(base)) {
                 if(base[base[user]->block] != b) return false;
@@ -207,7 +274,28 @@ static bool interchangeable(LowerBase base, LowerBlock* a, LowerBlock* b) {
         }
     }
 
+    replaceContents(differences, found);
     return true;
+}
+
+/*
+ * Whether a group of copies is worth collapsing, counted in instructions.
+ *
+ * What the merge removes is every copy but one, which is `size` instructions each. What it adds is
+ * one phi per slot the copies disagree on, and a phi is a copy on every edge reaching the block - so
+ * a group that disagrees in as many places as it has instructions pays for the merge with the merge.
+ *
+ * Two blocks that are nothing but `ret 0` and `ret 1` are the case this refuses, and it is the one
+ * that matters: they would become one `ret`, two jumps and a phi, which is longer than what it
+ * replaced. Four copies of `call reclaim, %xs ; ret <n>` are the case it takes - six instructions
+ * removed against four copies added, and the four were already there as the materialization of the
+ * constant each `ret` was about to hand back.
+ *
+ * A group that fails is declined whole rather than searched for a profitable subset. The identical
+ * case cannot fail - no disagreement is no phi - so nothing that used to merge stops merging.
+ */
+static bool worthMerging(Size copies, Size size, Size differences, Size edges) {
+    return (copies - 1) * size > differences * edges;
 }
 
 // Whether any one predecessor branches to both of these, which is the shape the edge rewrite below
@@ -284,9 +372,88 @@ static void dropBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
     for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
 }
 
+// An unattached phi with room for a stated number of alternatives, filled in and added to a block by
+// the caller - the same shape lower_induction.cpp builds one in, because adding it is what registers
+// its reads. A phi's alternatives are allocated with it, which is why the whole group has to be
+// settled before the first one is built.
+static LowerInstPhi* makePhi(Region<LowerRegion>& arena, LowerType type, U32 alternatives) {
+    auto storage = arena.alloc(
+        sizeof(LowerInstPhi) +
+        sizeof(LowerPtr<LowerValue>) * alternatives +
+        sizeof(LowerPtr<LowerBlock>) * alternatives);
+
+    auto phi = new (storage) LowerInstPhi(StringId(), type);
+    phi->usedCount = alternatives;
+    return phi;
+}
+
+/*
+ * One group of copies, collapsed into the first of them.
+ *
+ * The phis are built before anything moves, because each of them needs the operand every copy still
+ * holds - including the surviving one's, which becomes the alternative on its own edges and would
+ * otherwise be overwritten by the phi that is meant to select it.
+ */
+static void applyMerge(LowerBase base, LowerModule& module, LowerFunction& fun, LowerBlock* into,
+                       SmallArray<LowerBlock*, 8>& from, SmallArray<Slot, 4>& differences)
+{
+    auto& arena = fun.arena;
+
+    // Every edge the merged block will have, and which copy each one arrives from. `redirectEdges`
+    // moves them below; what is collected here is the multiset it will produce, which is what the
+    // phis are filled against.
+    SmallArray<LowerPtr<LowerBlock>, 8> sources;
+    SmallArray<LowerBlock*, 8> owners;
+
+    for(auto source: into->incoming.contents(base)) {
+        sources.push(source);
+        owners.push(into);
+    }
+
+    for(auto block: from) {
+        for(auto source: block->incoming.contents(base)) {
+            sources.push(source);
+            owners.push(block);
+        }
+    }
+
+    SmallArray<LowerInstPhi*, 4> carried;
+
+    for(auto& slot: differences) {
+        auto at = instructionAt(base, into, slot.instruction);
+        auto phi = makePhi(arena, base[at->used().ptr[slot.operand]]->type, sources.size());
+        phi->source = at->source;
+
+        auto used = phi->used();
+        auto blocks = phi->sources();
+
+        for(U32 i = 0; i < sources.size(); i++) {
+            used[i] = instructionAt(base, owners[i], slot.instruction)->used().ptr[slot.operand];
+            blocks[i] = sources[i];
+        }
+
+        carried.push(phi);
+    }
+
+    // Attached one at a time and read back one at a time: `addInst` is what registers a phi's own
+    // reads, and the operand rewrite behind it is what makes the instruction read the phi instead of
+    // the value it was holding.
+    for(U32 i = 0; i < carried.size(); i++) {
+        into->addInst(base, carried[i]);
+
+        auto at = instructionAt(base, into, differences[i].instruction);
+        setOperand(base, arena, at, at->used().ptr[differences[i].operand], &carried[i]->result);
+    }
+
+    for(auto block: from) {
+        redirectEdges(base, arena, block, into);
+        dropBlock(base, fun, block);
+    }
+}
+
 } // namespace
 
-void mergeIdenticalExits(LowerBase base, LowerModule& module, LowerFunction& fun) {
+void mergeDuplicatedExits(LowerBase base, LowerModule& module, LowerFunction& fun) {
     // Two exits and something to branch to them with. Below that there is nothing to merge, and the
     // check is here so that the common single-block function costs one comparison.
     if(fun.blocks.size() < 3) return;
@@ -308,20 +475,88 @@ void mergeIdenticalExits(LowerBase base, LowerModule& module, LowerFunction& fun
 
     if(exits.size() < 2) return;
 
-    // Applied as they are found rather than collected first, so that every question below is asked of
-    // the edges as the merges above it left them - `sharesAPredecessor` in particular, which is about
-    // the predecessor list of a block two earlier merges may already have moved edges onto.
+    /*
+     * A group at a time rather than a pair at a time, and that is what the phis cost: a phi's
+     * alternatives are allocated with it, so the number of edges the merged block will have has to
+     * be known before the first one is built. So the whole group is settled first and applied after.
+     *
+     * Which is also why the gate cannot be asked pairwise. Four copies of `call reclaim ; ret <n>`
+     * are worth merging and any *two* of them are not - two instructions saved against a phi on two
+     * edges is a wash, and it is only the third and fourth copies that make it pay. Asked one
+     * candidate at a time, the group would be turned down at the first and never reach the fourth.
+     *
+     * So the copies that agree about everything are taken first and unconditionally - no
+     * disagreement is no phi, and those merges are the ones this pass has always made - and the ones
+     * that disagree are then priced as a single batch. All of them or none: a profitable subset of a
+     * batch that is not profitable whole is a search, and what it would buy over declining is one
+     * block in a shape nothing has produced.
+     */
     for(Size i = 0; i < exits.size(); i++) {
-        for(Size j = 0; j < i; j++) {
-            auto into = exits[j];
-            if(!into) continue;
-            if(sharesAPredecessor(base, into, exits[i])) continue;
-            if(!interchangeable(base, into, exits[i])) continue;
+        auto into = exits[i];
+        if(!into) continue;
 
-            redirectEdges(base, module.arena, exits[i], into);
-            dropBlock(base, fun, exits[i]);
-            exits[i] = nullptr;
-            break;
+        SmallArray<LowerBlock*, 8> group;   // the copies that agree about everything
+        SmallArray<Size, 8> differing;      // and the positions of the ones a phi would have to carry
+        SmallArray<Slot, 4> differences;
+
+        auto size = into->instructions.size() + 1;
+        auto edges = into->incoming.size();
+
+        for(Size j = i + 1; j < exits.size(); j++) {
+            auto candidate = exits[j];
+            if(!candidate) continue;
+
+            // No predecessor may branch to two members of the group: retargeting would leave a `je`
+            // whose two arms name one block, which `addInst` asserts against and which is a second
+            // rewrite besides. Asked of everything collected, including the batch that may yet be
+            // declined - which only ever refuses a merge that would otherwise have been legal.
+            if(sharesAPredecessor(base, into, candidate)) continue;
+
+            auto shared = false;
+            for(auto member: group) {
+                if(sharesAPredecessor(base, member, candidate)) { shared = true; break; }
+            }
+
+            for(auto position: differing) {
+                if(shared) break;
+                if(sharesAPredecessor(base, exits[position], candidate)) shared = true;
+            }
+
+            if(shared) continue;
+
+            SmallArray<Slot, 4> found;
+            if(!interchangeable(base, into, candidate, found)) continue;
+
+            edges += candidate->incoming.size();
+
+            if(found.isEmpty()) {
+                // Taken out of the pool as it is accepted, which is what the identical case has
+                // always done. The disagreeing ones stay in it until the batch is priced.
+                group.push(candidate);
+                exits[j] = nullptr;
+                continue;
+            }
+
+            differing.push(j);
+            for(auto& slot: found) {
+                if(!holdsSlot(differences, slot)) differences.push(slot);
+            }
         }
+
+        if(differing.isNotEmpty() &&
+           worthMerging(group.size() + differing.size() + 1, size, differences.size(), edges))
+        {
+            for(auto position: differing) {
+                group.push(exits[position]);
+                exits[position] = nullptr;
+            }
+        } else {
+            // Left in the pool, so a later representative may still find a group they pay for.
+            differences.clear();
+        }
+
+        if(group.isEmpty()) continue;
+
+        applyMerge(base, module, fun, into, group, differences);
     }
 }

@@ -1,0 +1,68 @@
+{-
+   A loop whose counter advances by a value rather than by a number.
+
+   `reduceInductionVariables` carries the address of the element a walk is on and adds the stride to
+   it, instead of rebuilding `base + i*stride` every iteration. The amount to add used to have to be
+   a literal, because it was written as one in the latch; here it is `by`, which the loop does not
+   compute, so the product is multiplied out in the preheader instead and the latch adds the value
+   it left there.
+
+   `Cell` is 24 bytes on purpose. An address whose scale is 1, 2, 4 or 8 goes into the SIB byte for
+   nothing, and reducing one would buy a live pointer register in exchange for an addressing mode
+   that was already free - so the pass declines those and this fixture would assert nothing about it.
+
+   Two fields are read per element, which is the other half of the shape: `xs[i].a` and `xs[i].e` are
+   one pointer and two displacements rather than two of each.
+
+   The counter is `I64` because that is what makes the sequence reducible at all. A narrower one
+   reaches an address through a sign extension, and `sext(i + by) == sext(i) + by` is only true where
+   the narrow addition cannot wrap - which `stepCannotOverflow` proves by reading the stride as a
+   number, so it has no answer for a stride that is a value. See lower_induction.h.
+-}
+
+import Native
+
+data Cell {a: Int, b: Int, c: Int, d: Int, e: Int, f: Int}
+
+fn strided(xs: [Cell], by: I64) -> Int:
+    let &i = 0 :: I64
+    let &total = 0 :: Int
+
+    while i < 6:
+        total = total + xs[i].a + xs[i].e
+        i = i + by
+
+    return total
+
+-- The literal stride beside it, which is the case that already reduced. Both loops walk the same
+-- array, so a pointer that advanced by the wrong amount is a different answer rather than a
+-- different instruction count.
+fn everyOther(xs: [Cell]) -> Int:
+    let &i = 0 :: I64
+    let &total = 0 :: Int
+
+    while i < 6:
+        total = total + xs[i].a + xs[i].e
+        i = i + 2
+
+    return total
+
+fn main() -> Int:
+    let &xs = [] :: [Cell]
+    let &n = 0 :: Int
+
+    while n < 6:
+        push(xs, Cell {a: n, b: 0, c: 0, d: 0, e: n * 10, f: 0})
+        n = n + 1
+
+    -- 0, 2 and 4, each contributing `n + n*10`: 0 + 22 + 44.
+    if strided(xs, 2) != 66 then return -1
+    if everyOther(xs) != 66 then return -2
+
+    -- Every element, so all six: 0 + 11 + 22 + 33 + 44 + 55.
+    if strided(xs, 1) != 165 then return -3
+
+    -- A stride past the end runs exactly once.
+    if strided(xs, 9) != 0 then return -4
+
+    return strided(xs, 2) + strided(xs, 3)

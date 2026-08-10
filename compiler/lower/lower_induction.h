@@ -57,8 +57,21 @@
  *
  * ## What one has to look like
  *
- * A loop with one preheader and one latch, a phi `%i` in its header advanced by a constant on the
- * latch edge, and an address `add %base, (%i << k)` whose base is loop-invariant.
+ * A loop with one preheader and one latch, a phi `%i` in its header advanced by the same amount on
+ * the latch edge, and an address `add %base, (%i << k)` whose base is loop-invariant.
+ *
+ * **The amount need not be a number.** §32 - `m = m + p` in the marking loop of
+ * test/bench/programs/Sieve.yana advances by the prime being sieved, which is a value the loop does
+ * not compute, and that is still one address per iteration apart. What changes is only where the
+ * amount the *pointer* advances by is written: a literal step is an immediate in the latch, and a
+ * step that is a value is that value times the scale, multiplied out in the preheader where it is
+ * computed once. So the requirement on the step is loop-invariance and not literalness.
+ *
+ * A step that is a value is nonetheless only ever taken at the address unit's own width, and that
+ * falls out of the no-wrap proof below rather than being a rule beside it: the proof reads the
+ * stride as a number, so a *narrow* counter advanced by a value has no proof available and is
+ * declined. Sieve's `m` is an `Int`, which is why the loop that motivated this is not yet one the
+ * pass reaches - see `stepCannotOverflow` for what would have to be shown.
  *
  * `%i` may be narrower than the address unit, in which case it reaches the shift through a `sext`
  * and the recurrence is that widening rather than the counter. That is only an induction variable

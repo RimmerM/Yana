@@ -79,17 +79,29 @@ bool headerDominates(const ReducibleLoop& loop, const DominatorTree& dominators,
 }
 
 /*
- * A basic induction variable: a header phi advanced by a constant on the latch edge.
+ * A basic induction variable: a header phi advanced by the same amount on every latch edge.
  *
  * `step` is what the latch adds, at 64 bits and read as an unsigned pattern - the pointer arithmetic
  * this builds is modular there, so a descending walk needs no case of its own.
+ *
+ * `variable` is the other kind of step, and it is null for the ordinary one: a value the loop does
+ * not compute, added to the counter every iteration. §32 - `m = m + p` in the marking loop of
+ * test/bench/programs/Sieve.yana, where `p` is the prime being sieved. It is still an induction
+ * variable and the address it drives is still a pointer the loop can carry; what changes is that the
+ * amount the pointer advances by has to be multiplied out in the preheader rather than written as an
+ * immediate in the latch.
+ *
+ * A variable step is only ever taken at the address unit's own width, and that falls out of the
+ * proof rather than being a rule of its own: a narrow counter needs `stepCannotOverflow`, which reads
+ * the stride as a number, so a narrow counter with a runtime step is refused before it gets here.
  *
  * `widened` says the phi is *narrower* than the address unit and reaches it through a `sext`, which
  * is only an induction variable at all once the narrow addition has been proved not to wrap. See
  * `stepCannotOverflow`.
  */
 struct Induction {
-    LowerValue* initial;  // what the preheader hands over, at the phi's own width
+    LowerValue* initial;   // what the preheader hands over, at the phi's own width
+    LowerValue* variable;  // the step, where it is a value rather than a number
     U64 step;
     bool widened;
 };
@@ -99,9 +111,10 @@ struct Candidate {
     LowerValue* address;  // the `add %base, %scaled` being replaced
     LowerValue* basePtr;
     LowerValue* initial;
+    LowerValue* variable; // the step, where the loop adds a value rather than a number
     bool widened;         // whether the pointer's start has to sign-extend `initial` first
     U64 scale;
-    U64 stride;
+    U64 stride;           // what the pointer advances by, where the step is a number
 };
 
 Maybe<ReducibleLoop> reducibleLoop(LowerBase base, const LoopInfo& loops,
@@ -316,17 +329,22 @@ bool stepCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLo
 }
 
 /*
- * Whether a header phi counts by a constant.
+ * Whether a header phi counts by the same amount every iteration.
  *
- * The value it takes on the latch edge has to be `%phi + C`. Nothing has to be checked about *where*
- * that addition sits: it is not a phi and it is live on the latch's outgoing edge, so its block
- * dominates the latch and it therefore runs exactly once per iteration - which is the whole of what
- * "advanced by a constant" needs.
+ * The value it takes on the latch edge has to be `%phi + C`, or `%phi + %s` for an `%s` the loop does
+ * not compute. Nothing has to be checked about *where* that addition sits: it is not a phi and it is
+ * live on the latch's outgoing edge, so its block dominates the latch and it therefore runs exactly
+ * once per iteration - which is the whole of what "advanced by a fixed amount" needs.
  *
  * A counter narrower than the address unit is admitted only where `stepCannotOverflow` proves the
  * narrow addition cannot wrap, since that is exactly what makes `sext(%i + C) == sext(%i) + C` - and
  * so what makes the widened sequence an induction variable rather than a different sequence that
- * usually agrees.
+ * usually agrees. That proof reads the stride as a number, so a *narrow* counter with a runtime step
+ * never gets past it - which is also the reason a variable step needs no width case of its own.
+ *
+ * `sub %phi, %s` is declined for a runtime `%s` while `sub %phi, C` is taken. The difference is only
+ * that a negative amount is spelled by the constant itself in one case and would need a negation
+ * emitted in the preheader in the other, and nothing this compiler emits counts down by a value.
  */
 Maybe<Induction> inductionOf(LowerBase base, const LoopInfo& loops, const ReducibleLoop& loop,
                              LowerInstPhi* phi)
@@ -352,36 +370,40 @@ Maybe<Induction> inductionOf(LowerBase base, const LoopInfo& loops, const Reduci
     LowerValue* stride = nullptr;
     U64 step;
 
+    // `add C, %i` as well as `add %i, C`: the operand canonicalization that settles which side a
+    // literal is on belongs to the x64 backend, and has not run.
     if(lhs == &phi->result) {
-        auto constant = immediateOf(base, rhs);
-        if(!constant) return Nothing();
-
-        // Sign-extended out of its own width before anything multiplies it: a `-1` stored at `Int32`
-        // is `0xffffffff`, and a stride of four billion is not a stride of minus one.
-        auto signedStep = signedValue(constant.unwrap(), bits);
-        step = inst->kind == LowerInst::Sub ? U64(0) - U64(signedStep) : U64(signedStep);
         stride = rhs;
     } else if(rhs == &phi->result && inst->kind == LowerInst::Add) {
-        // `add C, %i` as well as `add %i, C`: the operand canonicalization that settles which side a
-        // literal is on belongs to the x64 backend, and has not run.
-        auto constant = immediateOf(base, lhs);
-        if(!constant) return Nothing();
-
-        step = U64(signedValue(constant.unwrap(), bits));
         stride = lhs;
     } else {
         return Nothing();
     }
 
-    if(step == 0) return Nothing();
+    if(auto constant = immediateOf(base, stride)) {
+        // Sign-extended out of its own width before anything multiplies it: a `-1` stored at `Int32`
+        // is `0xffffffff`, and a stride of four billion is not a stride of minus one.
+        auto signedStep = signedValue(constant.unwrap(), bits);
+        step = inst->kind == LowerInst::Sub ? U64(0) - U64(signedStep) : U64(signedStep);
 
-    if(narrow && !stepCannotOverflow(base, loops, loop, phi, inst, stride,
-                                     inst->kind == LowerInst::Add))
-    {
-        return Nothing();
+        if(step == 0) return Nothing();
+
+        if(narrow && !stepCannotOverflow(base, loops, loop, phi, inst, stride,
+                                         inst->kind == LowerInst::Add))
+        {
+            return Nothing();
+        }
+
+        return Just(Induction { initial, nullptr, step, narrow });
     }
 
-    return Just(Induction { initial, step, narrow });
+    // §32 A step the loop does not compute. Refused at a narrow width for want of the proof above,
+    // and refused where the addition is a subtraction - see the header comment.
+    if(narrow || inst->kind != LowerInst::Add) return Nothing();
+    if(stride->type != phi->result.type) return Nothing();
+    if(!outsideLoop(base, loops, loop.header->index, stride)) return Nothing();
+
+    return Just(Induction { initial, stride, 0, false });
 }
 
 // The factor a value scales `of` by, where it is `%of << k` or `%of * f` at a literal - the two
@@ -594,8 +616,20 @@ void reduceGroup(LowerBase base, LowerModule& module, LowerFunction& fun, const 
     auto phi = makeInductionPhi(arena, LowerType::Pointer);
     phi->source = shape.address->inst()->source;
 
-    auto strideImm = immediate(base, module, *loop.latch, LowerType::Int64, shape.stride);
-    auto advanced = binary<LowerInst::Add>(base, module, *loop.latch, &phi->result, strideImm,
+    /*
+     * What the pointer advances by. A step that is a number is an immediate in the latch, where the
+     * addition is; a step that is a value is that value times the scale, multiplied out in the
+     * *preheader* - it is the same product on every iteration, and putting it in the latch would be
+     * a multiply per iteration in exchange for the shift this pass is removing.
+     */
+    auto stride = shape.variable
+        ? resultOf(binary<LowerInst::Mul>(base, module, *loop.pre, shape.variable,
+                                          immediate(base, module, *loop.pre, LowerType::Int64,
+                                                    shape.scale),
+                                          LowerType::Int64, StringId()))
+        : immediate(base, module, *loop.latch, LowerType::Int64, shape.stride);
+
+    auto advanced = binary<LowerInst::Add>(base, module, *loop.latch, &phi->result, stride,
                                            LowerType::Pointer, StringId());
 
     auto used = phi->used();
@@ -611,6 +645,7 @@ void reduceGroup(LowerBase base, LowerModule& module, LowerFunction& fun, const 
     for(auto& candidate: candidates) {
         if(candidate.basePtr != shape.basePtr) continue;
         if(candidate.initial != shape.initial || candidate.widened != shape.widened) continue;
+        if(candidate.variable != shape.variable) continue;
         if(candidate.scale != shape.scale || candidate.stride != shape.stride) continue;
 
         replaceUses(base, arena, candidate.address - base, &phi->result - base);
@@ -650,8 +685,8 @@ bool collectScaledAddresses(LowerBase base, const LoopInfo& loops, const Reducib
         if(!base[pointer->inst()->block]->dominates(loop.pre, dominators)) return false;
         if(!readOnlyInsideLoop(base, loops, loop, dominators, address)) return false;
 
-        into.push(Candidate { address, pointer, counter.initial, counter.widened, scale,
-                              counter.step * scale });
+        into.push(Candidate { address, pointer, counter.initial, counter.variable, counter.widened,
+                              scale, counter.step * scale });
     }
 
     // A shift read twice by the same address is not two addresses, and `addressBaseOf` has already
@@ -681,6 +716,16 @@ void reduceLoop(LowerBase base, LowerModule& module, LowerFunction& fun, const L
         // does by construction - it is the alternative the preheader edge carries - but the check
         // states it, since a value defined inside the loop is one the setup cannot read.
         if(!outsideLoop(base, loops, header, counter.initial)) continue;
+
+        // §32 And so does a step that is a value, which is multiplied out there. Being outside the
+        // loop implies it wherever the graph is reducible, and is asked outright for the reason
+        // `collectScaledAddresses` asks it of the base: that is exactly what LoopInfo does not
+        // promise.
+        if(counter.variable &&
+           !base[counter.variable->inst()->block]->dominates(loop.pre, dominators))
+        {
+            continue;
+        }
 
         /*
          * What an address scales. A counter already at the address unit's width is that value; a
@@ -740,7 +785,7 @@ void reduceLoop(LowerBase base, LowerModule& module, LowerFunction& fun, const L
         auto already = false;
         for(auto& done: reduced) {
             if(done.basePtr == candidate.basePtr && done.initial == candidate.initial &&
-               done.widened == candidate.widened &&
+               done.variable == candidate.variable && done.widened == candidate.widened &&
                done.scale == candidate.scale && done.stride == candidate.stride)
             {
                 already = true;
@@ -895,6 +940,7 @@ void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, 
 
         auto& found = induction.unwrap();
         if(!found.widened) continue;   // already at the address unit's width
+        if(found.variable) continue;   // and so is every counter stepped by a value - see Induction
         if(!outsideLoop(base, loops, header, found.initial)) continue;
 
         NarrowCounter counter;

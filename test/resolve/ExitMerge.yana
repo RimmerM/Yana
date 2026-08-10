@@ -1,0 +1,47 @@
+{-
+   Several ways out of one function, each of which owes the same teardown on the way.
+
+   `classify` has four returns and a local array, so every one of them reclaims `xs` before handing
+   a value back. Three of the four are otherwise identical - a call and a `ret` of a different
+   number - which is the shape `mergeDuplicatedExits` collapses into one block with a phi over the
+   three constants. The fourth reads the array first, so it is a different block and stays one.
+
+   The numbers are returned rather than only checked, which is the point of the fixture: a phi that
+   selected the wrong alternative, or one whose edges were paired with the wrong predecessors, is a
+   different answer here rather than a different instruction count. `test/resolve/FoldedAddress.yana`
+   holds the same shape four wide, but its early returns are failure codes nothing reaches.
+
+   `parity` is the refusal beside it, and it is `@noinline` so that there is a second function to
+   look at rather than a `select` in `main`. Its exits are nothing but a constant: merging them
+   would produce one `ret`, three jumps and a phi against the three `mov`s they already are, so the
+   profitability gate declines them and the blocks stay.
+-}
+
+import Native
+
+fn classify(n: Int) -> Int:
+    let &xs = [10, 20, 30] :: [Int]
+
+    if n == 0 then return -1
+    if n == 1 then return -2
+    if n == 2 then return -3
+
+    return xs[0] + n
+
+@noinline
+fn parity(n: Int, salt: Int) -> Int:
+    if n `and` 1 == 0 then return 7
+    if salt > 90 then return 5
+    return 9
+
+fn main() -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    -- classify: -1, -2, -3, 13, 14 - which is 21.
+    -- parity:    7,  9,  7,  9,  7 - which is 39.
+    while i < 5:
+        total = total + classify(i) + parity(i, i)
+        i = i + 1
+
+    return total

@@ -747,15 +747,17 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // the block set, and so is what ends the analysis above.
         eliminateBoundedChecks(lower.lower, lower.to, *target, analysis);
 
-        // And the exits inlining brought several copies of - see lower_merge.h. Last, because two
-        // copies of one arm are only identical once everything above has folded them the same way,
-        // and because what it removes are whole blocks rather than instructions: nothing here gains
-        // from being shown one exit instead of four, and every one of them gains from having run.
+        // And the exits inlining brought several copies of, along with the teardown every early
+        // return of one function writes out again - see lower_merge.h, and §32 of
+        // test/bench/findings.md. Last, because two copies of one arm only agree once everything
+        // above has folded them the same way, and because what it removes are whole blocks rather
+        // than instructions: nothing here gains from being shown one exit instead of four, and every
+        // one of them gains from having run.
         //
         // In front of the two sweeps rather than behind them, since a block that goes takes the last
         // reader of whatever it read with it - the `0` three copies of `ret 0` shared is dead once
         // one of them is left.
-        mergeIdenticalExits(lower.lower, lower.to, *target);
+        mergeDuplicatedExits(lower.lower, lower.to, *target);
         removeDeadValues(lower.lower, lower.to.arena, *target);
         removeDeadConstants(lower.lower, lower.to.arena, *target);
     }
