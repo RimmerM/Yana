@@ -84,10 +84,21 @@ static void writeSigned(Net::Writer& w, I64 v) {
 // The parts of an address that live in the instruction rather than in a register. The base and index
 // are already visible in the operand list, but the scale and displacement are encoded straight into
 // the ModRM/SIB bytes of whatever folds this address in, and would otherwise only be readable as hex.
-static void writeAddressDetail(Net::Writer& w, LowerInst& inst) {
+static void writeAddressDetail(Net::Writer& w, Context& context, LowerBase base, LowerInst& inst) {
     if(inst.kind != LowerInst::X86Address && inst.kind != LowerInst::X86Lea) return;
 
     auto& address = (LowerInstX86Address&)inst;
+
+    // A rip-relative address is the symbol and nothing else - no base, no index, no displacement to
+    // print - so it is named rather than described. Without this a pooled constant folded into an
+    // arithmetic operand reads as `scale=1 disp=0`, which says nothing about which constant it is.
+    if(address.symbol) {
+        w.writeString(" [rip + "_v);
+        w.writeString(context.findName(base[address.symbol]->name));
+        w.writeString("]"_v);
+        return;
+    }
+
     w.writeString(" scale="_v);
     writeInt(w, address.scale);
     w.writeString(" disp="_v);
@@ -259,7 +270,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
 
             writer.writeString("  "_v);
             writer.writeString(nameForInst(base, *e.inst));
-            writeAddressDetail(writer, *e.inst);
+            writeAddressDetail(writer, context, base, *e.inst);
             writer.writeString(" uses="_v);
             writeRegList(writer, e.regs.uses);
             writer.writeString(" creates="_v);

@@ -1,0 +1,42 @@
+{-
+   Floating-point negation, which is one instruction against a sixteen-byte constant.
+
+   AMD64 has no scalar float negate, so `-x` is an exclusive-or against a mask holding nothing but
+   the sign bit. The mask does not fit a general register, which is why this backend did not do it
+   that way until the constant pool existed: the sign bit used to be toggled in r11 - two bank
+   crossings, three instructions, and a `btc` that wrote the carry flag, so a negation could never
+   sit inside a comparison's fold window. See §13.8 of
+   Implementation-RegisterAllocation-Generalized-C4.md, and `poolSignMasks` for what replaced it.
+
+   What has to be asserted is the *sign*, and the case that says the mask is a mask rather than a
+   subtraction is zero. `0 - 0.0` is `0.0`, but `-0.0` is a different number with the same value:
+   the two compare equal, and dividing into them gives infinities of opposite sign. So the last case
+   below is the one an implementation that quietly wrote `0 - x` would fail while passing every
+   other line here.
+
+   Every operand comes through `@noinline`, because the point is what the *emitters* do. A negation
+   whose operand is a literal folds, which is worth a line of its own and is not this.
+-}
+
+@noinline fn opaque(x: Double) -> Double = x
+@noinline fn opaqueF(x: Float) -> Float = x
+
+fn main() -> Int:
+    let &score = 0
+
+    if -opaque(2.5) == 0.0 - 2.5 then score = score + 1
+    if -opaqueF(1.5) == 0.0 - 1.5 then score = score + 2
+
+    -- Twice is the identity, at both widths. A mask that reached the wrong lane would still round
+    -- trip, which is why this is not the only case.
+    if -(-opaque(3.25)) == 3.25 then score = score + 4
+    if -(-opaqueF(7.5)) == 7.5 then score = score + 8
+
+    -- Negative zero: equal to zero and not the same number. `1 / -0.0` is the negative infinity
+    -- that says so, and `0 - x` would answer the positive one.
+    if (1.0 :: Double) / -opaque(0.0) < 0.0 then score = score + 16
+
+    -- And a constant, which never reaches an instruction at all.
+    if -(2.5 :: Double) == 0.0 - 2.5 then score = score + 32
+
+    return score

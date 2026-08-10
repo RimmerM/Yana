@@ -396,6 +396,13 @@ void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerF
 
 void printGlobal(Net::Writer& writer, Context& context, LowerBase base, LowerGlobal& global, PrintContext& print) {
     printIndentation(writer, print);
+
+    // The one thing about a global that is not in its bytes, and the one an emitter acts on:
+    // `mut` clear is a promise that nothing writes the storage, which is what lets a load of it
+    // be folded into its reader or rematerialized. It used to be printed nowhere and parsed
+    // nowhere, so every global in a round-tripped module claimed to be immutable.
+    if(global.mut) writer.writeString("mut "_v);
+
     writer.writeByte('@');
     writer.writeString(context.findName(global.name));
     writer.writeString(" = ["_v);

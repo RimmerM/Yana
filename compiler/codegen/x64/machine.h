@@ -780,6 +780,18 @@ struct MachineFunction {
     HashMap<LowerInst*, MachineInst> insts;
 
     /*
+     * The sixteen-byte sign masks a float negation exclusive-ors against, at each width, or null
+     * where this function negates nothing of that width.
+     *
+     * Here rather than on the instruction because a mask is not an operand: `xorps xmm, [rip + m]`
+     * names it in the encoding, so nothing about it reaches the allocator and there is no value for
+     * the IR to carry. Interned into the module's pool by `poolSignMasks`, which is the one place
+     * that has both the context to name a global and the machine record to write it on.
+     */
+    LowerGlobal* signMask32 = nullptr;
+    LowerGlobal* signMask64 = nullptr;
+
+    /*
      * Empties this one for the next function, keeping the table it grew into.
      *
      * The map is one entry per instruction, so building a fresh one per function is an allocation
@@ -789,6 +801,8 @@ struct MachineFunction {
      */
     void reset() {
         insts.reset();
+        signMask32 = nullptr;
+        signMask64 = nullptr;
     }
 
     void select(LowerInst* inst, MachineOpcodeId opcode, MachineFormId form, Maybe<LowerCmp> condition) {

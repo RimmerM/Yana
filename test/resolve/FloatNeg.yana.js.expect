@@ -1,0 +1,32 @@
+"use strict";
+// ResolveTest
+function opaque(x) {
+  return x;
+}
+
+function opaqueF(x) {
+  return x;
+}
+
+function main() {
+  var score = 0;
+  if (-opaque(2.5) === -2.5) {
+    score = score + 1 | 0;
+  }
+  if (Math.fround(-opaqueF(1.5)) === -1.5) {
+    score = score + 2 | 0;
+  }
+  if (- -opaque(3.25) === 3.25) {
+    score = score + 4 | 0;
+  }
+  if (Math.fround(-Math.fround(-opaqueF(7.5))) === 7.5) {
+    score = score + 8 | 0;
+  }
+  if (1 / -opaque(0) < 0) {
+    score = score + 16 | 0;
+  }
+  var v98 = score + 32 | 0;
+  score = v98;
+  return v98;
+}
+main();

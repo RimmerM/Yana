@@ -82,7 +82,7 @@ struct LowerParser: BasicParser<LowerLexer, LowerToken> {
 
     bool parseModule();
     bool resolveModule();
-    void parseGlobal();
+    void parseGlobal(bool mut);
     void parseDecl();
     void parseBlock(LowerFunction* fun);
     LowerInstAst* parseInst(LowerBlockAst& to, bool implicitResult);
@@ -107,6 +107,7 @@ struct LowerParser: BasicParser<LowerLexer, LowerToken> {
     LowerModule& module;
     Region<LowerParserRegion> buffer;
 
+    StringId mutId;
     StringId i32Id;
     StringId i64Id;
     StringId ptrId;

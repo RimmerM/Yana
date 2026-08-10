@@ -836,6 +836,40 @@ bool validateLowerFunction(Diagnostics* diagnostics, LowerBase base, LowerFuncti
     return true;
 }
 
+/*
+ * A store into a global that says nothing writes it.
+ *
+ * `mut` clear is a promise: it becomes LLVM's `constant`, and this backend folds a load of such a
+ * global into its reader and rematerializes it rather than spilling. A module that breaks the
+ * promise does not fail loudly - the reads keep answering the initializer and the store is dropped
+ * as dead - so it is worth one walk to say so.
+ *
+ * The *direct* case only, which is a store whose target is the global's own address. A store through
+ * a pointer the program computed is an escape question rather than a check, and this is a validator.
+ * That is enough for what it exists to catch: a hand-written `.lower` fixture that stores into a
+ * global and forgot to write `mut` in front of it, which is exactly what every fixture did while the
+ * parser had no syntax for it.
+ */
+static bool validateGlobalWrites(Diagnostics* diagnostics, LowerBase base, LowerFunction* function) {
+    for(auto b: function->blocks.contents(base)) {
+        for(auto i: base[b]->instructions.contents(base)) {
+            auto inst = base[i];
+            if(inst->kind != LowerInst::Store) continue;
+
+            auto target = base[((LowerInstStore*)inst)->to];
+            if(target->inst()->kind != LowerInst::Global) continue;
+
+            auto global = base[((LowerInstGlobal*)target->inst())->target];
+            if(!global->mut) {
+                diagnostics->error("store into a global that is not declared mut"_v, inst->source);
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool validateLowerModule(Diagnostics* diagnostics, LowerModule* module) {
     auto base = *module->arena;
 
@@ -845,6 +879,7 @@ bool validateLowerModule(Diagnostics* diagnostics, LowerModule* module) {
 
     for(auto f: module->functionOrder) {
         if(!validateLowerFunction(diagnostics, base, base[f])) return false;
+        if(!validateGlobalWrites(diagnostics, base, base[f])) return false;
     }
 
     return true;

@@ -8,6 +8,7 @@ LowerParser::LowerParser(Context& context, LowerModule& module, LowerLexer& lexe
     module(module),
     buffer(4 * 1024 * 1024)
 {
+    mutId = Context::nameHash("mut", 3);
     ptrId = Context::nameHash("Ptr", 3);
     i32Id = Context::nameHash("Int", 3);
     i64Id = Context::nameHash("Long", 4);
@@ -23,7 +24,14 @@ bool LowerParser::parseModule() {
 
     sepBy([&] {
         if(token.type == LowerToken::GlobalID) {
-            parseGlobal();
+            parseGlobal(false);
+        } else if(token.type == LowerToken::LabelID && token.data.id == mutId) {
+            // `mut @g = [...]`. The keyword is a bare word and so lexes as a label, which is
+            // what a function name is too - so this is decided here, where the token after it
+            // settles which of the two it is, rather than by giving the lexer a keyword it
+            // would then have to reserve everywhere.
+            eat();
+            parseGlobal(true);
         } else if(token.type == LowerToken::LabelID) {
             parseDecl();
         } else if(token.type == LowerToken::EndOfStmt) {
@@ -54,11 +62,12 @@ bool LowerParser::resolveModule() {
     return resolveLowerModule(resolve, *module.arena, *buffer, module);
 }
 
-void LowerParser::parseGlobal() {
+void LowerParser::parseGlobal(bool mut) {
     auto name = tryMaybe(expectNode(LowerToken::GlobalID, "expected global identifier"_v), return);
     tryMaybe(expect(LowerToken::Equals, "expected '='"_v), return);
 
     auto g = new (module.arena) LowerGlobal(name.payload.id);
+    g->mut = mut;
     g->source = name.node;
 
     if(token.type == LowerToken::BracketL) {

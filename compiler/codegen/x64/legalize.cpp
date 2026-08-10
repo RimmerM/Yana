@@ -326,7 +326,12 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
 
 // The address an X86Address or X86Lea computes, with its operands resolved. The base and index each
 // occupy one operand slot, in that order, and either may be absent.
-static MachineAddress computedAddress(LowerInstX86Address& addr, const Array<ResolvedOperand>& uses) {
+static MachineAddress computedAddress(LowerBase base, LowerInstX86Address& addr, const Array<ResolvedOperand>& uses) {
+    // A symbol is the whole address rather than a part of one: `[rip + g]` has no base, index or
+    // scale field to combine it with, which is why the fold that builds one requires the other two
+    // to be absent.
+    if(addr.symbol) return MachineAddress::atSymbol(nullptr, base[addr.symbol]);
+
     MachineAddress out;
     Size operand = 0;
 
@@ -644,11 +649,11 @@ struct Legalizer {
             case LowerInst::X86Address:
                 // Emits nothing itself: it is resolved so that whichever access folds it in can name
                 // the answer rather than working it out again.
-                addresses.add(inst, computedAddress(*(LowerInstX86Address*)inst, out.uses));
+                addresses.add(inst, computedAddress(base, *(LowerInstX86Address*)inst, out.uses));
                 break;
 
             case LowerInst::X86Lea:
-                set(computedAddress(*(LowerInstX86Address*)inst, out.uses));
+                set(computedAddress(base, *(LowerInstX86Address*)inst, out.uses));
                 break;
 
             case LowerInst::X86PushArg:

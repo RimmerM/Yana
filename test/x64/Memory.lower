@@ -1,4 +1,7 @@
-@g = 42
+# `mut`, because `globalStoreImm` below writes it. Without the keyword the backend is entitled to
+# fold a load of it into its reader and to rematerialize one rather than spill it, which would be a
+# read moved across the store - see LowerGlobal::mut and validateGlobalWrites.
+mut @g = 42
 
 loadStore(%p: Ptr, %v: Int): Int {
     {

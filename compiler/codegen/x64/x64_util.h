@@ -28,6 +28,14 @@ inline bool needsRex(U8 reg) {
     return reg & 8;
 }
 
+// The bytes a value of this type occupies, which is the access a load performs when it extends
+// nothing. Every scalar the lowering produces is four bytes or eight, which is exactly the
+// distinction a slot class already makes. Shared because two passes ask the same question of the
+// same load: whether it may be folded into its reader, and whether it may be a recipe.
+inline U32 accessWidthOf(LowerType type) {
+    return stackSlotClassFor(type) == StackSlotClass::Slot32 ? 4 : 8;
+}
+
 inline bool is64Bit(LowerType type) {
     return type == LowerType::Int64 || type == LowerType::Float64 || type == LowerType::Pointer;
 }

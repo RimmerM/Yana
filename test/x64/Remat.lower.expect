@@ -172,7 +172,6 @@ block #1:
 block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->rax]  => 488bee488bc2
 block #1:
-  global uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e853ffffff8bc8488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
@@ -181,8 +180,8 @@ block #1:
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
   add uses=[rax, rbp] creates=[rax]  => 4801e8
-  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[remat:0->r15]  => 4c8d3dee010000
-  add uses=[rax, -] creates=[rax]  => 490307
+  x86_addr [rip + table] uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 480305ee010000
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: functionAcrossCall ---

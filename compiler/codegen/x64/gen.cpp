@@ -833,6 +833,17 @@ static void genLoadAddress(AsmModule& to, MachineLocation destReg, RegisterClass
     });
 }
 
+// The contents of a global at `[rip + g]`, at the width of the value being recreated: `movss` or
+// `movsd` into the vector bank and a plain `mov` into the general one. Whichever it is, it is one
+// instruction of the same length the definition it stands in for was.
+static void genLoadConstant(AsmModule& to, MachineLocation dest, RegisterClassId regClass, LowerGlobal* global, LowerType type) {
+    auto form = isFloat(type)
+        ? MemForm { .opCode = 0x10, .escape = 0x0f, .prefix = U8(type == LowerType::Float64 ? 0xf2 : 0xf3) }
+        : MemForm { .opCode = 0x8b, .is64 = is64Bit(type) };
+
+    genMemory(to, MachineAddress::atSymbol(nullptr, global), reg(dest, regClass), form);
+}
+
 // Recreates a rematerialized value in `dest`. This is the whole of what a recipe costs at the point
 // it is needed, and it stands in for two instructions rather than one: the definition that no longer
 // emits anything and the reload that a frame home would have needed here.
@@ -849,6 +860,9 @@ static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, Ma
             break;
         case Remat::FrameAddress:
             genLeaFrame(to, reg(dest, regClass), reg(frame.baseOf(r.frame)), frame.offsetOf(r.frame));
+            break;
+        case Remat::ConstantLoad:
+            genLoadConstant(to, dest, regClass, r.global, r.type);
             break;
     }
 }
@@ -1261,20 +1275,17 @@ struct Emitter {
         emitMoveAcrossBanks(destination, scratch, is64, true);
     }
 
-    // Negation. The sign bit is toggled in a general register rather than exclusive-ored against a
-    // vector sign mask, which would need either a constant pool or a second vector register - see
-    // the form table. r11 is the form's declared clobber.
+    // Negation: the sign bit exclusive-ored against a pooled mask, in place. `xorps` for singles and
+    // `xorpd` for doubles - the two do the same thing to the same bits, and using each on its own
+    // type is what keeps the value out of the wrong execution domain. The mask is sixteen bytes and
+    // sixteen-byte aligned, which is what these encodings require of a memory operand.
     void emitFloatNeg(const InstRegs& regs, bool is64) {
-        auto value = reg(regs.creates[0]);
-        auto scratch = U8(IntRegister::r11);
+        auto mask = is64 ? machine.signMask64 : machine.signMask32;
+        assertTrue(mask != nullptr); // a negation whose mask poolSignMasks did not intern
 
-        emitMoveAcrossBanks(value, scratch, is64, false);
-
-        // BTC r/m, imm8 (0f ba /7 ib): complement one bit and leave the rest alone.
-        genRegExt(to, is64, scratch, 0xba, 7, 0x0f);
-        to.buffer.writeByte(is64 ? 63 : 31);
-
-        emitMoveAcrossBanks(value, scratch, is64, true);
+        genMemory(to, MachineAddress::atSymbol(nullptr, mask), reg(regs.creates[0]), MemForm {
+            .opCode = 0x57, .escape = 0x0f, .prefix = U8(is64 ? 0x66 : 0),
+        });
     }
 
     // A select between two vector registers, for want of a CMOVcc that can name one. The tie has

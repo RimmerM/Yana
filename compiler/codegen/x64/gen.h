@@ -682,6 +682,13 @@ struct Remat {
         GlobalAddress,   // lea r, [rip + global]
         FunctionAddress, // lea r, [rip + function]
         FrameAddress,    // lea r, [base + slot]
+
+        // mov/movss/movsd r, [rip + global] - the *contents* of an immutable global rather than its
+        // address, which is the one load that reproduces. `mut` clear is a promise that nothing
+        // writes the storage, so the value does not depend on where in the program this lands. It
+        // is what a pooled float constant is placed as: recreating it costs the same eight bytes
+        // the definition did, where a frame home would cost a store and a reload of the same width.
+        ConstantLoad,
     };
 
     Kind kind = Immediate;
@@ -1425,6 +1432,20 @@ struct LowerInstX86Address: LowerInstSingle {
     // the first slot: a hole where the absent base would have been is a null operand that every
     // consumer walking used() would dereference. Read them through base() and index() below.
     LowerPtr<LowerValue> first, second;
+
+    /*
+     * `[rip + g]` instead of a computed address: a global named in the encoding rather than a
+     * pointer held in a register.
+     *
+     * A field rather than an operand because that is exactly what it is not - the form has nothing
+     * to place, and a `Global` instruction feeding this would be a value the allocator had to find a
+     * register for. Set only where base and index are both absent, since the rip-relative form has
+     * neither field.
+     *
+     * What it buys is one instruction where there were two: a pooled constant read once becomes
+     * `addsd xmm, [rip + k]` rather than a load into a register and an add of it.
+     */
+    LowerPtr<LowerGlobal> symbol = nullptr;
 
     U32 displacement;
     U8 scale;

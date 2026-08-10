@@ -1286,7 +1286,7 @@ static LowerValue* expandFloatToUnsigned(Expansion& e, LowerValue* value, LowerT
     return e.select(LowerType::Int64, isHuge, maximum, low, name);
 }
 
-static void expandBankConversions(LowerBase base, LowerFunction& fun) {
+static void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -1847,13 +1847,6 @@ static bool isCommutativeInt(LowerInst* inst) {
     }
 }
 
-// The bytes a value of this type occupies, which is the access a load performs when it extends
-// nothing. Every scalar the lowering produces is four bytes or eight, which is exactly the
-// distinction a slot class already makes.
-static U32 accessWidthOf(LowerType type) {
-    return stackSlotClassFor(type) == StackSlotClass::Slot32 ? 4 : 8;
-}
-
 // Whether this form requires an operand in a particular register, which is the copy a folded address
 // cannot survive - see the third bound above.
 static bool hasFixedOperands(const MachineForm& form) {
@@ -1909,7 +1902,30 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
 
     auto address = base[load->from];
 
-    if(isMem(address)) {
+    /*
+     * A pooled constant, which becomes the *whole* address rather than something to build one from.
+     *
+     * This is the case the rip-relative form of `LowerInstX86Address` exists for. It is checked
+     * before the two below because the answers differ: the address of a pooled constant is neither
+     * a folded `X86Address` sitting two instructions up nor a pointer in a register, and left to
+     * the general path the global would be committed to a register with a `lea` in front of it -
+     * strictly worse than the load being folded.
+     *
+     * Any global nothing writes, not only a pooled constant: `mut` clear is a promise, derived from
+     * `Global::isWritten` for a real program and written as `mut @g` in a `.lower` fixture. A global
+     * that is written is left to the general path, where nothing is assumed about it.
+     */
+    auto pooledSymbol = LowerPtr<LowerGlobal>(nullptr);
+    if(address->inst()->kind == LowerInst::Global) {
+        auto target = ((LowerInstGlobal*)address->inst())->target;
+        if(base[target]->mut) return Nothing();
+
+        // The load is about to be the only reader gone; anything else reading the address still
+        // needs it in a register, and this fold would leave that reader without a definition.
+        if(address->uses.size() != 1) return Nothing();
+
+        pooledSymbol = target;
+    } else if(isMem(address)) {
         // Where the address fold put it, which is what removing the load turns into "immediately
         // above the consumer". Checked rather than assumed: an address anywhere else would reach the
         // encoder holding whatever the instructions in between had left in its registers.
@@ -1924,6 +1940,33 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
      */
 
     if(exchange) ::swap(((LowerInstBinary*)inst)->lhs, ((LowerInstBinary*)inst)->rhs);
+
+    if(pooledSymbol) {
+        auto producer = address->inst();
+        auto computed = new (fun.arena) LowerInstX86Address(
+            LowerInst::X86Address, StringId(), nullptr, nullptr, 1, 0
+        );
+
+        computed->symbol = pooledSymbol;
+
+        replaceUse(base, value, inst, &computed->result);
+        inst->used()[memory] = &computed->result - base;
+
+        // The load first, because it is the address's last reader and the `global` that produced it
+        // has nothing left to produce once it is gone - the symbol is in the encoding now. Both are
+        // removed here rather than left to a dead-value sweep, because there is none between this
+        // pass and allocation.
+        removeInst(base, load);
+        removeInst(base, producer);
+
+        // Both removals were above the consumer and the address goes back immediately in front of
+        // it, so where everything ended up is asked rather than counted: the `global` need not have
+        // been adjacent to the load it fed.
+        auto at = indexOfInst(base, block, inst);
+        insertInstAt(base, block, at, computed);
+
+        return Just(at + 1);
+    }
 
     if(!isMem(address)) {
         // A pointer that reached the load in a register becomes `[reg]`, so that the operand says
@@ -2744,7 +2787,7 @@ static void forEachInst(LowerBase base, LowerFunction& fun, F&& onInst) {
 // Expects: the lowering's output, unmodified.  Establishes: no loop of the shape described above
 // leaves its test at the top. Mutates: the CFG, the phis of four blocks, and the instruction list of
 // the preheader. Invalidates: loops, dominators and every block-relative position.
-static void rotateLoops(LowerBase base, LowerFunction& fun) {
+static void rotateLoops(Context&, LowerBase base, LowerFunction& fun) {
     rotateFunctionLoops(base, fun);
 }
 
@@ -2756,7 +2799,7 @@ static void rotateLoops(LowerBase base, LowerFunction& fun) {
 // Expects: the lowering's output, unmodified.  Establishes: commutative immediates on the right, and
 // no float comparison below. Mutates: operand order and the comparison an instruction carries.
 // Invalidates: nothing.
-static void canonicalizeOperands(LowerBase base, LowerFunction& fun) {
+static void canonicalizeOperands(Context&, LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         trySwapOperands(base, inst);
         orderFloatCompare(base, inst);
@@ -2774,7 +2817,7 @@ static void canonicalizeOperands(LowerBase base, LowerFunction& fun) {
 // Expects: canonical operands.  Establishes: no memory access reaches allocation with a foldable
 // address computation in front of it. Mutates: the instruction lists and every affected use list.
 // Invalidates: instruction positions within a block.
-static void selectAddressesAndLeas(LowerBase base, LowerFunction& fun) {
+static void selectAddressesAndLeas(Context&, LowerBase base, LowerFunction& fun) {
     foldAddresses(base, fun);
     foldLeas(base, fun);
 }
@@ -2791,8 +2834,178 @@ static void selectAddressesAndLeas(LowerBase base, LowerFunction& fun) {
 // Expects: addresses selected.  Establishes: no load reaches allocation whose only reader could have
 // read it out of memory itself. Mutates: the instruction lists, the operand order of a commutative
 // operation, and the affected use lists. Invalidates: instruction positions within a block.
-static void selectMemorySources(LowerBase base, LowerFunction& fun) {
+static void selectMemorySources(Context&, LowerBase base, LowerFunction& fun) {
     foldLoads(base, fun);
+}
+
+/*
+ * The constant pool: one read-only global per distinct floating-point constant.
+ *
+ * No SSE encoding carries a float as an immediate, so this backend materialized one in a general
+ * register and moved it across the bank boundary - ten or eleven bytes, a general register the form
+ * had to declare as a clobber, and a value the allocator could never rematerialize. `[rip + k]` is
+ * the answer every other x86-64 toolchain gives, and it is eight bytes, no general register at all,
+ * and a load the hardware has a whole cache for.
+ *
+ * §0.2 of Implementation-Vector.md asks for it as a *prerequisite* rather than as an optimization,
+ * and that is the part worth writing down: a vector constant cannot be materialized the old way at
+ * all. Sixteen bytes do not fit a general register, so there is no register to move across - which
+ * makes the pool the thing that has to exist before a single vector literal can be emitted.
+ *
+ * ## One global per constant rather than one pool with offsets
+ *
+ * Because a relocation names a global and carries no addend, so an offset into a shared pool would
+ * need a field on `AsmRelocation` and a second way of resolving one. A global of its own costs the
+ * padding `addGlobal` puts in front of it - up to twelve bytes for a `Float32` - and buys 16-byte
+ * alignment on every entry, which is what a vector load will require anyway.
+ *
+ * The interning is `LowerModule::globals` itself: the name *is* the bit pattern, so two functions
+ * that mention `1.0` reach one global without this pass holding a map of its own.
+ *
+ * ## Where it sits
+ *
+ * Before `selectMemorySources`, so that `foldLoads` *does* see the loads this creates: a constant
+ * read once by the instruction below it becomes `addsd xmm, [rip + k]` rather than a load into a
+ * register and an add of it. That fold needs the rip-relative form of `LowerInstX86Address`, which
+ * is why this pass ran after it until that existed - without a symbol field the global would have
+ * been committed to a register with a `lea` in front of it, worse than the load it replaced.
+ *
+ * Before `selectMachineInstructions`, because `tryFoldGlobalAddress` is what turns the address of a
+ * constant that was *not* folded into the addressing mode of its own load. Without that sweep the
+ * global would be a `lea` of its own.
+ *
+ * After `selectAddressesAndLeas`, which has nothing to say about either.
+ */
+static LowerGlobal* pooledConstant(Context& ctx, LowerModule& module, U64 bits, Size size) {
+    // `$f032$0000000000000001`. Written out rather than formatted so that the name is exactly the
+    // bit pattern at a fixed width - two constants of different widths that happen to share a
+    // pattern are two entries, and neither can be a prefix of the other.
+    static const char digits[] = "0123456789abcdef";
+    char text[] = "$f000$0000000000000000";
+    auto width = size * 8;
+
+    text[2] = digits[(width / 100) % 10];
+    text[3] = digits[(width / 10) % 10];
+    text[4] = digits[width % 10];
+    for(Size i = 0; i < 16; i++) text[21 - i] = digits[(bits >> (i * 4)) & 0xf];
+
+    // The hash rather than the interning call, because the interning has to happen exactly once -
+    // see below - and this is the same number `addUnqualifiedName` would answer with.
+    auto length = sizeof(text) - 1;
+    auto name = Context::nameHash(text, length);
+
+    auto entry = module.globals.add(name);
+    if(entry.existed) return (*module.arena)[*entry.value];
+
+    /*
+     * **`addUnqualifiedName` keeps the pointer it is handed rather than a copy of it**, which
+     * `addQualifiedName` beside it does not - so a name built on the stack is a dangling one the
+     * moment this returns, and what a dump or an ELF symbol table prints is whatever is there now.
+     * That is not a crash: the five constants of `Float.yana` all appeared in `readelf` under one
+     * four-byte name made of whatever the next call left on the stack.
+     *
+     * So the text is copied into the arena that outlives the compilation, and only on the branch
+     * where the name is new - a repeat would intern to the same id and leave the copy unread.
+     */
+    auto stored = (char*)module.arena.alloc(length);
+    copyMem(text, stored, length);
+    ctx.addUnqualifiedName(stored, length);
+
+    auto global = new (module.arena) LowerGlobal(name);
+    auto contents = (U8*)module.arena.alloc(size);
+
+    // Repeated to fill the entry, which is what makes a sixteen-byte one the *broadcast* of its
+    // pattern: the sign mask a negation exclusive-ors against has to hold the bit in every lane it
+    // might reach, and a vector constant will want the same shape for the same reason.
+    for(Size at = 0; at < size; at += 8) copyMem(&bits, contents + at, min(Size(8), size - at));
+
+    global->initialContents = { contents, size };
+    *entry.value = global - *module.arena;
+    module.globalOrder.push(global - *module.arena);
+
+    return global;
+}
+
+static void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
+    auto& module = *fun.module;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Imm) continue;
+
+            auto imm = (LowerImm*)inst;
+            if(!isFloat(imm->result.type)) continue;
+
+            // The IR keeps every float constant as a double, so a single-precision one is rounded to
+            // what it will actually be before its bits are taken - the same two lines `emitFloatImm`
+            // ran, moved to where the answer is now stored rather than encoded.
+            auto is64 = imm->result.type == LowerType::Float64;
+            auto size = Size(is64 ? 8 : 4);
+            auto bits = U64(0);
+
+            if(is64) {
+                auto value = imm->f;
+                copyMem(&value, &bits, sizeof(value));
+            } else {
+                auto value = float(imm->f);
+                U32 narrow = 0;
+                copyMem(&value, &narrow, sizeof(value));
+                bits = narrow;
+            }
+
+            /*
+             * **A single-precision constant stays an immediate, and that is a measurement.**
+             *
+             * `mov r32, imm32; movd xmm, r32` is eleven bytes against the load's eight, and on
+             * test/bench/programs the three bytes cost 2% of `Float.yana` - 251 ms against 255,
+             * reproduced at five different function alignments, so it is the load and not where the
+             * loop landed. `escape` is the shape that finds it: a Mandelbrot point usually escapes
+             * after a couple of iterations, so the constant is materialized on the entry path far
+             * more often than it is used, and a load's latency sits on that path where two ALU
+             * operations do not.
+             *
+             * A double is the same program with one word changed and it comes out the other way:
+             * 354 bytes to 329 and no measurable time either way. The immediate form needs
+             * `mov r64, imm64` there - ten bytes rather than six - and the four bytes of instruction
+             * fetch it saves at the top of a hot function are worth about what the load costs.
+             *
+             * So the rule is the width, both halves of it measured on one program. It is not the
+             * last word: a vector constant has no immediate form at all, and this pass is what will
+             * hold it.
+             */
+            if(!is64) continue;
+
+            // Positive zero stays an immediate: `xorps xmm, xmm` is two bytes where any load is
+            // eight, and it needs no general register either - so the pseudo has nothing to lose to
+            // here. Negative zero is *not* this, and the bit test rather than a comparison against
+            // 0.0 is what says so.
+            if(bits == 0) continue;
+
+            // Nothing reads it, so there is nothing to point at the pool. Left where it is: a dead
+            // instruction is dropped by the allocator either way, and interning a constant no
+            // instruction mentions would put bytes in the image for it.
+            if(imm->result.uses.isEmpty()) continue;
+
+            auto global = pooledConstant(ctx, module, bits, size);
+            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+            auto load = new (fun.arena) LowerInstLoad(
+                &address->result - base, imm->result.name, imm->result.type, U32(size), false
+            );
+
+            insertInstAt(base, block, i, address);
+            insertInstAt(base, block, i + 1, load);
+
+            replaceAllUses(base, &imm->result, &load->result);
+            removeInst(base, imm);
+
+            // The immediate is gone from the position it held, so the two insertions above net out
+            // to one: the walk resumes at the load, and neither of the two is an `Imm`.
+            i++;
+        }
+    }
 }
 
 // Chooses the shape of each instruction: which immediates are embedded into the encoding, which
@@ -2820,7 +3033,7 @@ static void selectMemorySources(LowerBase base, LowerFunction& fun) {
 // constant is embedded, so a comparison looked at first would be told that an instruction about to
 // start writing the flags does not. Nothing after this pass moves a form's flags effect, which is
 // what makes the window the folding cleared still empty when the bytes are written.
-static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
+static void selectMachineInstructions(Context&, LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         if(inst->kind == LowerInst::Imm) {
             tryEmbedImm(base, (LowerImm*)inst);
@@ -2871,7 +3084,7 @@ static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
 // already implicit when its location is decided.  Establishes: no call operand is passed on the
 // stack; every one of them is an X86PushArg result instead. Mutates: the instruction lists and the
 // affected use lists. Invalidates: instruction positions within a block.
-static void lowerOutgoingStackArguments(LowerBase base, LowerFunction& fun) {
+static void lowerOutgoingStackArguments(Context&, LowerBase base, LowerFunction& fun) {
     insertStackArgs(base, fun, targetConstraints());
 }
 
@@ -2880,7 +3093,7 @@ static void lowerOutgoingStackArguments(LowerBase base, LowerFunction& fun) {
 // Expects: no pass that reasons about instruction positions left to run.  Establishes: no block with
 // two successors has a successor with phis, so a phi copy at the end of a predecessor cannot run on
 // a path that skips the phis. Mutates: the block list and the CFG. Invalidates: block indices.
-static void normalizePhiEdges(LowerBase base, LowerFunction& fun) {
+static void normalizePhiEdges(Context&, LowerBase base, LowerFunction& fun) {
     splitPhiEdges(base, fun);
 }
 
@@ -2891,8 +3104,35 @@ static void normalizePhiEdges(LowerBase base, LowerFunction& fun) {
 // read from it. Establishes: blocks in reverse postorder with the likely successor of each branch
 // immediately behind it, `index` equal to list position, and `loopDepth` set. Mutates: the block
 // list order and block metadata. Invalidates: nothing after it.
-static void analyzeLoopsAndOrderBlocks(LowerBase base, LowerFunction& fun) {
+static void analyzeLoopsAndOrderBlocks(Context&, LowerBase base, LowerFunction& fun) {
     orderBlocks(base, fun);
+}
+
+/*
+ * The sign mask a float negation needs, interned into the pool above.
+ *
+ * `xorps xmm, [rip + m]` is what a negation is on this machine, and it was not writable before the
+ * pool existed: §13.8 records the old form as three instructions, a general register the form had to
+ * declare as a clobber, and a bank crossing in each direction, taken because a sixteen-byte constant
+ * had nowhere to live. That is now one instruction, no general register, and - the part that reaches
+ * further than the negation itself - **no flags effect**, where `btc` clobbered them. A comparison's
+ * fold window may now hold a negation.
+ *
+ * Sixteen bytes rather than four or eight because `xorps` reads its memory operand as a whole
+ * register and faults on an unaligned one. `addGlobal` puts every pooled entry on a sixteen-byte
+ * boundary, so the alignment is already right; the size is what keeps the read inside the entry.
+ */
+static void poolSignMasks(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+    forEachInst(base, fun, [&](LowerInst* inst, Size) {
+        if(inst->kind != LowerInst::Neg) return;
+
+        auto type = ((LowerInstUnary*)inst)->result.type;
+        if(type == LowerType::Float64 && !machine.signMask64) {
+            machine.signMask64 = pooledConstant(ctx, *fun.module, U64(1) << 63, 16);
+        } else if(type == LowerType::Float32 && !machine.signMask32) {
+            machine.signMask32 = pooledConstant(ctx, *fun.module, 0x8000000080000000ull, 16);
+        }
+    });
 }
 
 // Records, for every instruction, the machine opcode and the machine form it was selected into - see
@@ -2946,7 +3186,7 @@ enum TransformInvariant: U32 {
 
 struct TransformPass {
     StringView name;
-    void (*run)(LowerBase base, LowerFunction& fun);
+    void (*run)(Context& ctx, LowerBase base, LowerFunction& fun);
 
     // What holds once this pass has run, and holds for every pass after it.
     U32 establishes;
@@ -2957,6 +3197,7 @@ static const TransformPass kTransformPipeline[] = {
     { "expandBankConversions"_v,   expandBankConversions,   0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
+    { "poolFloatConstants"_v,          poolFloatConstants,          0 },
     { "selectMemorySources"_v,         selectMemorySources,         0 },
     { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },
     { "lowerOutgoingStackArguments"_v, lowerOutgoingStackArguments, 0 },
@@ -3131,7 +3372,7 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     U32 established = 0;
 
     for(auto& pass: kTransformPipeline) {
-        pass.run(base, fun);
+        pass.run(ctx, base, fun);
         established |= pass.establishes;
 
         // Debug builds only - assertTrue compiles away entirely in a release build, taking the call
@@ -3139,6 +3380,11 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
         // pass that broke the invariant rather than the pipeline that ended up violating it.
         assertTrue(verifyTransformInvariants(ctx, base, fun, established | InvariantStructure));
     }
+
+    // Beside the form selection rather than in the pipeline, for the same reason: it writes on the
+    // MachineFunction instead of on the IR. Before it rather than after only so that the two facts a
+    // negation needs - its form and its mask - are settled together.
+    poolSignMasks(ctx, base, fun, machine);
 
     // Writes down what the passes above decided. Separate from the pipeline table because it
     // produces the MachineFunction rather than mutating the IR, and because it has to see every

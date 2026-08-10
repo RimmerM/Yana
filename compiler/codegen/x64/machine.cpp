@@ -1030,31 +1030,32 @@ MachineTarget::MachineTarget() {
     /*
      * Floating-point negation.
      *
-     * AMD64 has no scalar float negate. The usual expansion exclusive-ors against a sign mask held
-     * in a second vector register, which would need either a constant pool this backend has no
-     * section for or a vector scratch register nothing reserves - so the sign bit is toggled in a
-     * general register instead, which needs one scratch this backend already knows how to hold back
-     * at a single instruction: three instructions and one clobber, against three instructions and a
-     * whole-function reservation.
+     * AMD64 has no scalar float negate, so it is an exclusive-or against a sign mask - and the mask
+     * is sixteen bytes, which is why this had to wait for the constant pool. Until it existed the
+     * sign bit was toggled in a general register instead: `movq r, xmm; btc r, 63; movq xmm, r`,
+     * three instructions, a bank crossing in each direction, and r11 declared as a clobber so that
+     * nothing live could be sitting in it.
      *
-     * `btc` writes the carry flag, which is why these declare a flags effect at all where the rest
-     * of the floating-point arithmetic declares none.
+     * That is now `xorps xmm, [rip + m]` - one instruction and no general register. The third gain
+     * is the one that reaches past the negation itself: **these no longer touch the flags**, where
+     * `btc` wrote the carry, so a negation may now sit inside a comparison's fold window.
+     *
+     * The mask is on the MachineFunction rather than in the operand list, because the encoding names
+     * it and the allocator therefore has nothing to place - see `poolSignMasks`.
      */
 
     auto floatNeg = [&](MachineFormId id, StringView formName, RegisterClassId cls, OperationWidth width) {
         auto& form = add(id, OpFNeg, formName);
         form.uses.push(anyReg(cls));
         form.defs.push(tiedDef(0, cls));
-        form.clobbers.add(gpr(IntRegister::r11));
-        form.flagsEffect = FlagsEffect::Clobber;
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::FloatNeg,
             .width = width,
         };
     };
 
-    floatNeg(FormFNeg32, "movd r, xmm; btc r, 31; movd xmm, r"_v, ClassFloat32, OperationWidth::Fixed32);
-    floatNeg(FormFNeg64, "movq r, xmm; btc r, 63; movq xmm, r"_v, ClassFloat64, OperationWidth::Fixed64);
+    floatNeg(FormFNeg32, "xorps xmm, [rip + signmask]"_v, ClassFloat32, OperationWidth::Fixed32);
+    floatNeg(FormFNeg64, "xorpd xmm, [rip + signmask]"_v, ClassFloat64, OperationWidth::Fixed64);
 
     // The memory sources of the four above, in the same order the enum declares them. Scalar SSE has
     // one direction only, so each twin is its source's own encoding with the r/m field addressed.

@@ -1601,11 +1601,41 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
 
     switch(inst->kind) {
         case LowerInst::Imm:
-            // A float constant would have to be loaded from a pool, which nothing builds yet.
+            // A float immediate that survived pooling is one `poolFloatConstants` decided to leave
+            // alone, and recreating it is a general register and a bank crossing rather than the one
+            // `mov` a recipe is priced at. The pooled ones arrive below as a Load instead.
             if(!isIntLike(v->type)) return false;
 
             out = Remat { .kind = Remat::Immediate, .type = v->type, .imm = ((LowerImm*)inst)->i };
             return true;
+
+        case LowerInst::Load: {
+            /*
+             * The one load that reproduces: the contents of a global nothing writes.
+             *
+             * `mut` clear is a promise rather than a hint - it is what becomes LLVM's `constant` -
+             * so no store the program makes can change what this answers, and the load gives the
+             * same value wherever it is placed. That is exactly what a recipe requires: a pooled
+             * `movsd xmm, [rip + k]` costs the same eight bytes where it is read as it did where it
+             * was defined, against a spill's store plus its reload.
+             *
+             * The address has to *be* the global rather than be computed from it - `[rip + g]` has
+             * no base or index field, so anything else would need a register the recipe has no way
+             * to produce. And the load has to be the whole of the value: a narrower one extends,
+             * and the recipe emits a plain move of the value's own width.
+             */
+            auto load = (LowerInstLoad*)inst;
+            auto address = a.base[load->from];
+            if(address->inst()->kind != LowerInst::Global) return false;
+
+            auto global = a.base[((LowerInstGlobal*)address->inst())->target];
+            if(global->mut) return false;
+            if(load->getWidth() != accessWidthOf(v->type)) return false;
+
+            out = Remat { .kind = Remat::ConstantLoad, .type = v->type };
+            out.global = global;
+            return true;
+        }
 
         case LowerInst::Global:
             out = Remat { .kind = Remat::GlobalAddress, .type = v->type };
