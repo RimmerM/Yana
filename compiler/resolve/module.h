@@ -369,6 +369,21 @@ struct Function {
     bool yieldForm = false;
 
     /*
+     * Set on an instance's implementation of a class `iter fn` or `lens fn` - see resolveInstance,
+     * which is where such a signature is desugared.
+     *
+     * What it decides is one rule, and the rule exists because of who cannot check it. A call site
+     * that selected the instance reaches this body and reads its summary, so a continuation this
+     * body kept is reported there like any other retained argument. A call site that *deferred* the
+     * dispatch - a `for` loop in a generic body - names the class signature, which has no body and
+     * no summary, so it has to assume. It assumes the continuation is not retained, which is what
+     * the declaration already promises ("it is called, not stored, and its extent is the call"), and
+     * this flag is what makes the assumption true of every implementation rather than of the ones
+     * some call site happened to look at. See checkContinuationExtent.
+     */
+    bool classContinuation = false;
+
+    /*
      * Set for a *skipping* lens - Analysis-Lens.md §7.1, Design.md's Transparent and skipping
      * lenses. Its result type is not its continuation's, so the continuation runs at most once and
      * the call site has to say where the skip goes.

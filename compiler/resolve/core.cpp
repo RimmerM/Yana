@@ -1042,23 +1042,30 @@ pub fn checkCondition(failed: Bool) -> {}:
 {-
    And the same array on JS - Implementation-Containers.md §14.
 
-   One field, and it is the host array. There is no run because there is no allocation to place, no
-   capacity because the host has none to report, and no count because `arr.length` is the count -
-   which is §1 working exactly as stated: what varies between implementations is the *owner*, and the
-   borrow every reader was compiled against is `Flat(a)` on both targets.
+   The host array, and how many of its slots are live. There is no run because there is no allocation
+   to place and no capacity because the host reports its own - which is §1 working exactly as stated:
+   what varies between implementations is the *owner*, and the borrow every reader was compiled
+   against is `Flat(a)` on both targets.
+
+   `@host` is what keeps the count from costing anything on the row that does not need it. §14 has
+   two rows and the element chooses: a plain host array's `length` *is* its occupancy and assigning
+   it truncates, so the count is a number the host already keeps and the record is the bare array;
+   a `TypedArray`'s is its fixed capacity, so there the field is stored and the record is an object
+   holding both. One declaration, one set of bodies, and the layout follows the element - see
+   `Field::host` and `hostPropertiesElided`.
 
    So every function below has two bodies and one signature, and nothing outside this module and the
    two compiler paths that *build* a container (`resolveArray` and `convertSlice`) knows which target
-   it is on. `push` is `.push`, `remove` is `.splice`, and a teardown is still the authored traversal
-   over the live elements, because whether an element has a teardown is a question about the element
-   rather than about where the container keeps it.
+   it is on. A teardown is still the authored traversal over the live elements, because whether an
+   element has a teardown is a question about the element rather than about where the container keeps
+   it.
 -}
-@platform(js) pub data Array(a) {items: %a}
+@platform(js) pub data Array(a) {items: %a, length: @host Count}
 
 -- An array with room for nothing. The first push allocates natively; on JS `[]` is the allocation
 -- and there is nothing left to defer.
 @platform(native) pub fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
-@platform(js) pub fn emptyArray() -> Array(a) = Array {items: hostArray()}
+@platform(js) pub fn emptyArray() -> Array(a) = Array {items: hostArray(), length: 0}
 
 -- What the container can hold before it has to grow. A host array has no such number to report and
 -- answers what it holds, which is the honest answer for a container that never has to grow.
@@ -1110,10 +1117,34 @@ pub fn checkCondition(failed: Bool) -> {}:
 
     resize(self.run, wide)
 
--- Nothing, and it is not a stub: a host array grows on its own and the engine's own policy is the
--- one that applies, so reserving space in front of it would be asking for a second policy on top of
--- one that is not this module's to see.
-@platform(js) pub fn reserve(&self: Array(a), wanted: Size) -> {}: return
+{-
+   Room for `wanted` elements on JS, which is two answers chosen by the *element* -
+   Implementation-Containers.md §14's two rows.
+
+   A host array grows on its own: writing at its length appends, so the engine's own policy applies
+   and reserving in front of it would be asking for a second policy on top of one that is not this
+   module's to see. A `TypedArray` has a fixed length and cannot, so it doubles exactly as the native
+   run does.
+
+   The row is chosen by `hostFixedCapacity`, which is a constant per element type - so one of the two
+   bodies below is folded away before any call site sees it, and this is one function rather than a
+   `@platform` split that could not have been written: `@platform` chooses by *target*, and both rows
+   are this target.
+-}
+@platform(js) pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+    if hostFixedCapacity(self.items) == False then return
+    if wanted <= hostLength(self.items) then return
+    growJsArray(self, wanted)
+
+-- The doubling, which is the native `growArray` with `hostGrow` where `resize` is. `@noinline` and
+-- not `pub` for the two reasons that one gives.
+@platform(js) @noinline fn growJsArray(&self: Array(a), wanted: Size) -> {}:
+    let room = hostLength(self.items)
+    let &wide = room + room :: Size
+    if wide < wanted then wide = wanted
+    if wide < 4 then wide = 4
+
+    self.items = hostGrow(self.items, wide)
 
 {-
    Appends an element.
@@ -1161,8 +1192,12 @@ pub fn checkCondition(failed: Bool) -> {}:
    passes the element as an *operand*, which is a use - so the frame went on owning a value the array
    was holding and released it. Host's own note says the same thing from the other side.
 -}
-@platform(js) pub fn push(&self: Array(a), ->item: a) -> {} =
-    hostWrite(self.items, hostLength(self.items), item)
+@platform(js) pub fn push(&self: Array(a), ->item: a) -> {}:
+    let count = self.length :: Size
+    reserve(self, count + 1)
+
+    hostWrite(self.items, count, item)
+    self.length = truncate(count + 1) :: Count
 
 {-
    The slice - Implementation-Containers.md §4.
@@ -1266,7 +1301,7 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
     fn elements(return self: Array(a)) -> Flat(a) = slice(self, 0, self.length :: Size)
 
 @platform(js) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> Flat(a) = slice(self, 0, hostLength(self.items))
+    fn elements(return self: Array(a)) -> Flat(a) = slice(self, 0, self.length :: Size)
 
 instance Chunked(Array(a), a):
     iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
@@ -1395,19 +1430,33 @@ instance Chunked(Flat(a), a):
     return Just(doomed)
 
 {-
-   And on JS, where closing the gap is `.splice` rather than a block move.
+   And on JS, where closing the gap is a `copyWithin` rather than a block move.
 
    The element still comes out *before* the gap closes, and for the same reason the native body gives:
-   a splice over a live value is bytes moving over one, which owes its own bookkeeping. So `doomed`
+   a move over a live value is bytes moving over one, which owes its own bookkeeping. So `doomed`
    is where it goes and a `->` binding owns what it holds, exactly as above - and the answer is a
    `Maybe(a)` on both targets because §13.3 is about who gets the element rather than about how the
    container is stored.
+
+   **One body for both of §14's rows**, which is what `@host` on the count bought. `copyWithin` moves
+   and does not shorten, so it leaves the last slot holding a duplicate of an element past the count;
+   on the row whose elements are host objects that is a reference nothing would ever release. What
+   releases it is the line after it. `self.length` on that row *is* `arr.length`, assigning it
+   truncates, and truncating is what drops the duplicate - so recording the new count and freeing the
+   slot are the same statement rather than two operations that have to agree.
+
+   It was written as a `hostFixedCapacity` branch with `.splice` on one side, which is what that row
+   needs when the count is stored somewhere else. Nothing needs it now: `.splice` shortens *and*
+   renumbers, and the only thing this body wanted from it was the shortening.
 -}
 @platform(js) pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
-    if (bitcast(index) :: U32) >= (bitcast(hostLength(self.items)) :: U32) then return Nothing
+    let count = self.length :: Size
+    if (bitcast(index) :: U32) >= (bitcast(count) :: U32) then return Nothing
 
     let ->doomed = hostRead(self.items, index :: Size)
-    hostSplice(self.items, index :: Size, 1)
+
+    hostCopyWithin(self.items, index :: Size, (index :: Size) + 1, count)
+    self.length = truncate(count - 1) :: Count
 
     return Just(doomed)
 
@@ -1452,7 +1501,7 @@ instance Chunked(Flat(a), a):
 -}
 @platform(js) instance Reclaim(Array(a)):
     fn reclaim(->value: Array(a)) -> {}:
-        let count = hostLength(value.items) :: Int
+        let count = value.length :: Int
         let &i = 0 :: Int
 
         while i < count:

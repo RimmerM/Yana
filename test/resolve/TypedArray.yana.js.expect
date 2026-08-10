@@ -1,0 +1,280 @@
+"use strict";
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function push_U8(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_U8(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_U8(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function growJsArray_I8(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function growJsArray_Float(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function growJsArray_Double(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+// ResolveTest
+function sumInts(xs$items, xs$length, xs$offset) {
+  var total = 0;
+  var v9 = 0;
+  var v20 = xs$length >>> 0;
+  L0: for (;;) {
+    var i = v9;
+    if (i < xs$length) {
+      var v17 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v20);
+      total = total + xs$items[v17] | 0;
+      var v28 = v9;
+      if ((xs$length - v28 | 0) > 1) {
+        v9 = v28 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
+}
+
+function ints() {
+  var v3 = { items: new Int32Array([1, 2, 3]), length: 3 };
+  push_Int(v3, 4);
+  push_Int(v3, 5);
+  var count = v3.length;
+  if (0 < count) {
+    v3.items.copyWithin(0, 1, count);
+    v3.length = count - 1 & 1073741823;
+  }
+  var v30 = v3.items;
+  var v33 = v3.length;
+  return (sumInts(v30, v33, 0) + v33 | 0) + v30.length | 0;
+}
+
+function bytes() {
+  var v3 = { items: new Uint8Array([250, 251, 252]), length: 3 };
+  push_U8(v3, 253);
+  push_U8(v3, 254);
+  var total = 0;
+  var v26 = v3.length;
+  var v32 = 0;
+  var v45 = v3.items;
+  L0: for (;;) {
+    var i = v32;
+    if (i < v26) {
+      checkCondition(i >>> 0 >= v26);
+      total = total + v45[i] | 0;
+      var v51 = v32;
+      if ((v26 - v51 | 0) > 1) {
+        v32 = v51 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
+}
+
+function signedBytes() {
+  var v13 = { items: new Int8Array([-1, -128, 127]), length: 3 };
+  growJsArray_I8(v13, 4);
+  v13.items[3] = -2;
+  v13.length = 4;
+  var total = 0;
+  var v41 = 0;
+  var v54 = v13.items;
+  L0: for (;;) {
+    var i = v41;
+    if (i < 4) {
+      checkCondition(i >>> 0 >= 4);
+      total = total + v54[i] | 0;
+      var v60 = v41;
+      if ((4 - v60 | 0) > 1) {
+        v41 = v60 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
+}
+
+function floats() {
+  var v3 = { items: new Float32Array([0.5, 0.25, 0.125]), length: 3 };
+  growJsArray_Float(v3, 4);
+  v3.items[3] = 0.0625;
+  v3.length = 4;
+  var total = 0;
+  var v27 = 0;
+  var v40 = v3.items;
+  L0: for (;;) {
+    var i = v27;
+    if (i < 4) {
+      checkCondition(i >>> 0 >= 4);
+      total = Math.fround(total + v40[i]);
+      var v45 = v27;
+      if ((4 - v45 | 0) > 1) {
+        v27 = v45 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return Math.min(Math.max(Math.trunc(Math.fround(total * 16)), -2.147483648E9), 2.147483647E9) | 0;
+}
+
+function doubles() {
+  var v2 = { items: new Float64Array([1.5, 2.25]), length: 2 };
+  growJsArray_Double(v2, 3);
+  v2.items[2] = 4.125;
+  v2.length = 3;
+  var v95 = v2.items;
+  v95.copyWithin(1, 2, 3);
+  v2.length = 2;
+  var total = 0;
+  var v30 = 0;
+  L0: for (;;) {
+    var i = v30;
+    if (i < 2) {
+      checkCondition(i >>> 0 >= 2);
+      total = total + v95[i];
+      var v48 = v30;
+      if ((2 - v48 | 0) > 1) {
+        v30 = v48 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return Math.min(Math.max(Math.trunc(total * 8), -2.147483648E9), 2.147483647E9) | 0;
+}
+
+function records() {
+  var v8 = [{ a: 1, b: 2 }, { a: 3, b: 4 }];
+  if (v8.length !== 2) {
+    v8.length = 2;
+  }
+  var v17 = { a: 5, b: 6 };
+  v8[2] = { a: v17.a, b: v17.b };
+  if (v8.length !== 3) {
+    v8.length = 3;
+  }
+  v8.copyWithin(0, 1, 3);
+  if (v8.length !== 2) {
+    v8.length = 2;
+  }
+  var total = 0;
+  var v39 = 0;
+  L0: for (;;) {
+    var i = v39;
+    if (i < 2) {
+      checkCondition(i >>> 0 >= 2);
+      total = (total + v8[i].a | 0) + v8[i].b | 0;
+      var v70 = v39;
+      if ((2 - v70 | 0) > 1) {
+        v39 = v70 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return total;
+}
+
+function main() {
+  return ((((ints() + bytes() | 0) + signedBytes() | 0) + floats() | 0) + doubles() | 0) + records() | 0;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main();

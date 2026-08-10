@@ -15,8 +15,50 @@
 #include "index.h"
 
 static bool readBoxAttribute(Module& module, const ast::Type& type);
+static bool readHostAttribute(Module& module, const ast::Type& type);
 
 static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, const char* name, U32 length);
+
+/*
+ * Where the `@host` fields of a tuple may sit, which is after the one field that is stored.
+ *
+ * The elision makes the tuple *be* its remaining field, exactly as a one-field tuple already is on a
+ * target with no layout - so there has to be exactly one such field, and the properties have to hang
+ * off it rather than the other way round. Pinning it to field zero is not a restriction anything
+ * pays for: `{items: %a, @host length: Count}` is the declaration, and it is also the only order a
+ * reader would write. What it buys is that every place that already answers "a transparent tuple is
+ * its first field" keeps answering it - a constant's first component, a build plan's, a place walk's
+ * - instead of each learning to look up which field the stored one is.
+ */
+static void checkHostFields(Module& module, Buffer<Field> fields, LocationId source) {
+    auto elided = false;
+    for(auto field: fields) elided = elided || field.host;
+    if(!elided) return;
+
+    if(fields.length < 2 || fields[0].host) {
+        module.context.diagnostics.error("`@host` names a property of the value the record holds, so it has to follow the one field that holds it - field zero of the record, which may not itself be `@host`"_v,
+                                         source);
+        return;
+    }
+
+    for(Size i = 1; i < fields.length; i++) {
+        if(fields[i].host) continue;
+
+        module.context.diagnostics.error("a record with a `@host` field has exactly one stored field, and this one has more - every field after the first has to be a host property of it"_v,
+                                         source);
+        return;
+    }
+
+    // Named, because the name *is* the property: `length` is elided onto `arr.length`, and a
+    // positional field has nothing for the host to be asked for.
+    for(Size i = 1; i < fields.length; i++) {
+        if(fields[i].name) continue;
+
+        module.context.diagnostics.error("a `@host` field is reached by its own name and so has to have one"_v,
+                                         source);
+        return;
+    }
+}
 
 static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* env) {
     auto parseBase = module.parse;
@@ -25,6 +67,7 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
 
     for(auto astField: astFields.contents(parseBase)) {
         auto boxed = readBoxAttribute(module, astField.type);
+        auto host = readHostAttribute(module, astField.type);
         auto declared = astField.type;
 
         /*
@@ -35,12 +78,17 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
          * pattern binding, a diagnostic - is entitled to see exactly what was written. Stripping
          * the list rather than only the one attribute is safe because readBoxAttribute has already
          * rejected the one combination that could have been in it.
+         *
+         * `@host` is the same shape of thing, is spent the same way, and `readHostAttribute` has
+         * rejected the combinations that could have been in the list beside it.
          */
         if(hasAttribute(module, declared.attributes, "box", 3)) declared.attributes = nullptr;
+        if(host) declared.attributes = nullptr;
 
-        fields.push(Field { resolveType(module, declared, env), astField.name, boxed });
+        fields.push(Field { resolveType(module, declared, env), astField.name, boxed, host });
     }
 
+    checkHostFields(module, toBuffer(fields), type.source);
     return (Type*)resolveTupleType(module, toBuffer(fields), type.source) - *module.types;
 }
 
@@ -331,6 +379,59 @@ static bool readBoxAttribute(Module& module, const ast::Type& type) {
     }
 
     return boxed;
+}
+
+/*
+ * `@host` on a field, which says the field is not stored at all - Implementation-Containers.md §14's
+ * elision, and `Field::host` for what it means.
+ *
+ * Read here beside `@box` because it is the third of the same family: an annotation written on a
+ * field's type that changes the field's physical representation and that generic code sees straight
+ * through. `@bits` narrows the width, `@box` moves the storage out of line, and this one removes the
+ * storage entirely in favour of a property the host value already has.
+ *
+ * Both pairings are refused, and neither refusal is tidiness:
+ *
+ *  - `@bits` narrows a field into a word shared with its neighbours, and this field has no word. A
+ *    host property is whatever the host says it is - a `uint32` for an array's `length` - so there
+ *    is nothing for a written width to be a width *of*.
+ *  - `@box` makes the field an address, and an elided field has no storage to take the address of.
+ *
+ * The one thing this cannot check is whether the claim is *true*, because that is a question about a
+ * host value rather than about a type: see Field::host, and `hostPropertiesElided` for the rule that
+ * decides where it holds.
+ */
+static bool readHostAttribute(Module& module, const ast::Type& type) {
+    auto attributes = type.attributes;
+    if(!attributes) return false;
+
+    auto parse = module.parse;
+    auto wanted = module.context.addUnqualifiedName("host", 4);
+    auto box = module.context.addUnqualifiedName("box", 3);
+    auto bits = module.context.addUnqualifiedName("bits", 4);
+    auto elided = false;
+    auto conflict = false;
+
+    for(auto attribute: parse[attributes]->contents(parse)) {
+        if(attribute.name == bits || attribute.name == box) conflict = true;
+        if(attribute.name != wanted) continue;
+
+        if(attribute.args.size()) {
+            module.context.diagnostics.error("`@host` takes no arguments - the property is the field's own name"_v,
+                                             attribute.source);
+            continue;
+        }
+
+        elided = true;
+    }
+
+    if(elided && conflict) {
+        module.context.diagnostics.error("`@host` cannot combine with `@bits` or `@box` - a field elided onto a host property has no storage of its own, so there is nothing for a written width to narrow and nothing for an indirection to point at"_v,
+                                         type.source);
+        return false;
+    }
+
+    return elided;
 }
 
 /*

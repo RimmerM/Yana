@@ -1,0 +1,107 @@
+-- `Array(a)` as a `TypedArray` on JS - Implementation-Containers.md §14's second row, and
+-- Design-Vector.md §7.3.
+--
+-- The point of this fixture is the *number*, on both targets. Which host constructor a container
+-- picks is a representation choice and the goldens show it; what has to be true is that picking one
+-- does not change a single answer, so every operation below is exercised on an element type that
+-- gets a typed array and on one that does not, and the whole thing is one integer both targets have
+-- to agree about.
+--
+-- What is deliberately here: growth past the literal's capacity, which is the operation the typed
+-- row had to invent (a `TypedArray` cannot be written past its end, so it reallocates and copies);
+-- removal, which closes the gap differently in the two rows; and a read after both, which is where a
+-- bound taken from the host array's length rather than from the container's count would answer with
+-- the slack a doubling left behind.
+
+fn sumInts(xs: [Int]) -> Int:
+    let &total = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + xs[i]
+    return total
+
+-- Int32Array. Grown from three to five, so the capacity doubles to six and two slots of slack sit
+-- past the count - which is what `length` and every bounds check must not see.
+fn ints() -> Int:
+    let &xs = [1, 2, 3]
+    push(xs, 4)
+    push(xs, 5)
+    remove(xs, 0)
+
+    return sumInts(xs) + (truncate(length(xs)) :: Int) + (truncate(capacity(xs)) :: Int)
+
+-- Uint8Array, where the host array's own coercion is the same wrap the language already specifies.
+fn bytes() -> Int:
+    let &xs = [250 :: U8, 251, 252]
+    push(xs, 253)
+    push(xs, 254)
+
+    let &total = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + (xs[i] :: Int)
+
+    return total
+
+-- Int8Array, which reads back sign-extended rather than as the byte pattern.
+fn signedBytes() -> Int:
+    let &xs = [truncate(0 - 1) :: I8, truncate(0 - 128), 127]
+    push(xs, truncate(0 - 2) :: I8)
+
+    let &total = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + (xs[i] :: Int)
+
+    return total
+
+-- Float32Array. `Float` is already a value `Math.fround` made exact, so the array's own narrowing
+-- has nothing left to do - which is the property that makes this row free rather than lossy.
+fn floats() -> Int:
+    let &xs = [0.5 :: Float, 0.25, 0.125]
+    push(xs, 0.0625)
+
+    let &total = 0.0 :: Float
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + xs[i]
+
+    return truncate(total * 16.0) :: Int
+
+-- Float64Array.
+fn doubles() -> Int:
+    let &xs = [1.5 :: Double, 2.25]
+    push(xs, 4.125)
+    remove(xs, 1)
+
+    let &total = 0.0 :: Double
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + xs[i]
+
+    return truncate(total * 8.0) :: Int
+
+-- And the row that is *not* typed: a container of host values, which stays the plain host array and
+-- whose removal still shortens it. Both are here so that a change to the predicate has to move a
+-- number rather than only a golden.
+data Pair {a: Int, b: Int}
+
+fn records() -> Int:
+    let &xs = [Pair {a: 1, b: 2}, Pair {a: 3, b: 4}]
+    push(xs, Pair {a: 5, b: 6})
+    remove(xs, 0)
+
+    let &total = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+    for i in 0 .. n:
+        total = total + xs[i].a + xs[i].b
+
+    return total
+
+fn main() -> Int:
+    return ints() +          -- 14 + 4 + 6 = 24
+           bytes() +         -- 250 + 251 + 252 + 253 + 254 = 1260
+           signedBytes() +   -- -1 + -128 + 127 + -2 = -4
+           floats() +        -- (0.5 + 0.25 + 0.125 + 0.0625) * 16 = 15
+           doubles() +       -- (1.5 + 4.125) * 8 = 45
+           records()         -- 3 + 4 + 5 + 6 = 18

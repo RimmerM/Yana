@@ -471,9 +471,16 @@ struct CallShape {
      */
     Size supplied = 0;
 
-    // Whether an undecided match may be left to a generic dispatch. A loop has none - it needs an
-    // implementation to desugar its body against - so for one an undecided match is a class that
-    // cannot serve the call here rather than one that will serve it later.
+    /*
+     * Whether an undecided match may be left to a generic dispatch.
+     *
+     * A loop was the one call site that said no, on the reading that it needs an implementation to
+     * desugar its body against. It does not: what the body is desugared against is what the
+     * iterator *hands over*, and a class member declares that outright - its written result is the
+     * handed type, because a class member is not desugared (see resolveSignature). So a `for` loop
+     * inside a generic body defers exactly as an ordinary call does, and the continuation it lifts
+     * travels as one argument past the signature. See emitGenericDispatch's `resultType`.
+     */
     bool dispatches = true;
 
     bool isLoop() const { return kind == ast::FunKind::Iter; }
@@ -1292,10 +1299,19 @@ struct ExprResolver {
     ModulePtr<Value> expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
                                      Buffer<ResolvedArg> args, LocationId source, StringId resultName);
 
-    // A class function whose instance cannot be chosen here, because the types it would be chosen
-    // by are this function's own type variables. Records the requirement and emits InstGenCall.
+    /*
+     * A class function whose instance cannot be chosen here, because the types it would be chosen
+     * by are this function's own type variables. Records the requirement and emits InstGenCall.
+     *
+     * `resultType` overrides what the signature says this call produces, and exactly one call site
+     * needs it: a `for` loop over a class `iter fn`. A class member is not desugared (see
+     * resolveSignature), so the signature's written result is what the iterator *hands over* and
+     * what the call returns is the step signal built around the continuation this loop lifted -
+     * which is decided by the loop body and cannot be read off the class at all. The continuation
+     * arrives as one argument past the signature's declared parameters for the same reason.
+     */
     ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ResolvedArg> args, LocationId source,
-                                         StringId resultName);
+                                         StringId resultName, TypePtr resultType = nullptr);
 
     /*
      * Whether one class function can serve this call, and if so which instance it selects.
@@ -1394,9 +1410,17 @@ struct ExprResolver {
     void resolveSkipAlternatives(const ast::VarDecl& declaration, ModulePtr<Value> reason, bool used,
                                  BranchArmList& arms);
 
-    // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
-    // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
-    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ArgList& values);
+    /*
+     * Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
+     * which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
+     *
+     * Null is also the answer when the loop reached a class iterator whose instance this body's
+     * type variables cannot decide, and `dispatch.typeClass` is what tells the two apart: there is
+     * no implementation to name there, so the loop is desugared against the *class signature* and
+     * the call becomes a deferred dispatch. See resolveFor.
+     */
+    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ArgList& values,
+                                         ClassMatch& dispatch);
 
     // The arguments written before the continuation, resolved and settled. Shared by both call
     // sites, which differ in what they do with the rest of the block and in nothing before it.

@@ -198,6 +198,19 @@ bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Fun
     auto declaredArgs = target->args.size() - 1;
     solver.bindArguments(callee, { args.ptr, min(args.length, declaredArgs) }, Unresolved::Skips);
 
+    /*
+     * A variable the callee's own constraints determine is decided by them and not by this call -
+     * the same step solveSignature takes, for the same reason, and it is what an iterator over a
+     * container needs.
+     *
+     * `iter fn (Chunked(c, a)) items(self: c) -> a` mentions `a` in one place only: the type it
+     * hands over. So the arguments decide `c` and nothing decides `a`, and without this the element
+     * type reads as open and the call is rejected for not saying what it yields - when `Chunked(c ->
+     * a)` says exactly that. Which is the shape every bulk operation over a container has, and
+     * therefore the one this had to learn.
+     */
+    if(env) solver.settleDependencies(*env, source);
+
     auto& bindings = solution.types;
 
     /*
@@ -237,6 +250,39 @@ bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Fun
         }
 
         out.push(FunArg { type, declared.name, declared.convention, declared.returnRoot });
+    }
+
+    return true;
+}
+
+/*
+ * The same question for a class member, where there is no continuation parameter to read it off.
+ *
+ * A class declares the *written* shape and stops there - resolveSignature skips the desugaring for
+ * one, because it introduces a type variable for the continuation's result and a class has nowhere
+ * to put one (Implementation-Containers.md §5). So the signature says `iter fn chunks(self: c) ->
+ * &[a]`, and what it returns is what it hands over rather than what a call of it produces.
+ *
+ * That makes this the easier half of the two. There is nothing to infer: the class's type arguments
+ * were decided by selection, so the handed type is the written result read at them, and the shape is
+ * the one resolveLensSignature builds from the same sentence - one parameter, or none where nothing
+ * is handed over.
+ */
+bool classContinuationSignature(ExprResolver& resolver, Module& module, ClassMatch& match,
+                                LocationId source, Array<FunArg>& out) {
+    auto& context = module.context;
+    auto global = resolver.global;
+
+    auto entry = global[match.typeClass]->functions.get(global, match.index);
+    if(!entry.fun) return false;
+
+    auto handed = substituteType(module, resolver.local[entry.fun]->returnType, toBuffer(match.args), source);
+    if(!handed) return false;
+
+    // A unit hand-over gives a nullary continuation rather than one taking `{}`, which is the rule
+    // the desugaring states - there would be nothing at the call site to name.
+    if(!isUnit(global, handed)) {
+        out.push(FunArg { handed, context.addUnqualifiedName("value", 5) });
     }
 
     return true;

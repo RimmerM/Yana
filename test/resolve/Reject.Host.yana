@@ -1,0 +1,27 @@
+-- The five ways of writing `@host` that the resolver refuses - see Field::host, and
+-- Implementation-Containers.md §14's elision for what the attribute claims.
+
+-- `@host` names a property of the value the record holds, so there has to be a value for it to be a
+-- property *of*. A record that is nothing but elided fields is a record with nothing in it.
+data Alone {length: @host Int}
+
+-- The same, said the other way round: the field that holds the value cannot itself be one of the
+-- properties of it.
+data First {length: @host Int, items: Int}
+
+-- One stored field, not two. A record with two of its own has an object either way, and there is
+-- nothing for the elided field to be reached through.
+data Two {items: Int, count: Int, length: @host Int}
+
+-- The name is the property, so a positional field has nothing to ask the host for.
+data Unnamed {items: Int, @host Int}
+
+-- `@bits` narrows a field into a word it shares with its neighbours and an elided field has no word;
+-- `@box` makes a field an address and an elided one has no storage to take the address of.
+data Narrow {items: Int, length: @host @bits(30) Int}
+data Boxed {items: Int, length: @host @box Int}
+
+-- The property is the field's own name, so there is nothing to pass.
+data Argued {items: Int, length: @host(size) Int}
+
+fn main() -> Int = 0

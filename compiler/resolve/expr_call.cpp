@@ -703,20 +703,65 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
         return emitDirectCall(specialized, args, source, target, resultName);
     }
 
-    // A concrete instance's implementation is a function like any other.
-    if(!local[instance]->gen) return emitDirectCall(implementation, args, source, target, resultName);
+    /*
+     * The types the implementation is compiled at, which are not always the ones the head bound.
+     *
+     * An ordinary member is written against the head's variables and nothing else, so the head's
+     * bindings are the whole answer. An **iterator or lens** member declares one more: the
+     * desugaring gives its continuation a result variable, and it lands after the instance's own
+     * because a class has nowhere to put one and the head therefore cannot bind it
+     * (Implementation-Containers.md §5, and resolveInstance). Nothing about the instance answers it
+     * - the *call site* does, through the continuation it passes - so the trailing variables are
+     * solved from the arguments rather than substituted.
+     *
+     * The head's own positions are put back afterwards rather than left to the solve. They are
+     * already decided, and binding them a second time against arguments that may have been widened
+     * or read through a borrow is a second opinion about a question selection has answered.
+     */
+    auto implEnv = functionGen(global, *local[implementation]);
+    auto bound = implEnv ? implEnv->types.size() : 0;
+
+    TypeList typeArgs;
+    for(auto type: instanceArgs) typeArgs.push(type);
+
+    if(bound > typeArgs.size()) {
+        Solution solution;
+        Solver solver(*this, solution, bound);
+
+        for(Size i = 0; i < typeArgs.size(); i++) solution.types[i] = typeArgs[i];
+        solver.bindArguments(implementation, args, Unresolved::Binds);
+
+        if(!solver.settle(typeArgs.size(), bound)) {
+            context.diagnostics.error("cannot infer type argument %@ of %@ here"_v, source,
+                                      context.findName(global[implEnv->types.get(global, solution.position)]->name),
+                                      context.findName(local[implementation]->name));
+            return nullptr;
+        }
+
+        // Seeded above so that a later position reads them, restored here so that a widen the solve
+        // performed on one of them does not become the answer.
+        for(Size i = 0; i < typeArgs.size(); i++) solution.types[i] = typeArgs[i];
+
+        replaceContents(typeArgs, solution.types);
+    }
+
+    // A concrete instance's implementation is a function like any other - unless the desugaring
+    // gave it a variable of its own, which is what the solve above just answered.
+    if(!local[instance]->gen && typeArgs.isEmpty()) {
+        return emitDirectCall(implementation, args, source, target, resultName);
+    }
 
     // A parametric one's is written against the head's variables, so the types the head bound are
     // what makes it a function about something. An intrinsic has no body to specialize and is
     // generated here for those types, exactly as a generic intrinsic is at an ordinary call site.
     ArgList converted;
-    substituteArguments(implementation, args, instanceArgs, source, converted);
+    substituteArguments(implementation, args, toBuffer(typeArgs), source, converted);
 
     if(local[implementation]->intrinsic || local[implementation]->deferredIntrinsic) {
-        return expandIntrinsic(implementation, instanceArgs, toBuffer(converted), source, resultName);
+        return expandIntrinsic(implementation, toBuffer(typeArgs), toBuffer(converted), source, resultName);
     }
 
-    auto specialized = instantiateFunction(site, implementation, instanceArgs, source);
+    auto specialized = instantiateFunction(site, implementation, toBuffer(typeArgs), source);
     if(!specialized) return nullptr;
 
     return emitDirectCall(specialized, toBuffer(converted), source, target, resultName);
@@ -2219,7 +2264,8 @@ ModulePtr<Value> ExprResolver::emitCall(const OverloadSet& set, Buffer<ResolvedA
  */
 
 ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<ResolvedArg> args,
-                                                   LocationId source, StringId resultName) {
+                                                   LocationId source, StringId resultName,
+                                                   TypePtr resultType) {
     auto env = functionGen(global, function);
     if(!env) {
         // Nothing outside a generic body has a type variable to be undecided about.
@@ -2236,7 +2282,7 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Res
     auto typeClass = global[match.typeClass];
     auto entry = typeClass->functions.get(global, match.index);
     auto signature = local[entry.fun];
-    auto resultType = substituteType(module, signature->returnType, toBuffer(match.args), source);
+    if(!resultType) resultType = substituteType(module, signature->returnType, toBuffer(match.args), source);
 
     // The instance is not known here, so there is nothing that can see through a deferred argument:
     // it becomes the thunk whichever implementation is selected will call.
@@ -2274,8 +2320,14 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Res
     ArgList converted;
     substituteArguments(entry.fun, toBuffer(pending), toBuffer(match.args), source, converted);
 
+    /*
+     * An argument past the last declared parameter is the loop's continuation, and it travels as it
+     * stands - `fillDeferred` and `substituteArguments` both leave a position with no parameter
+     * behind it alone, and there is nothing to read a convention or a substitution off anyway. It
+     * is what the desugaring would have declared had a class been able to declare it.
+     */
     for(Size i = 0; i < converted.size(); i++) {
-        if(local[signature->args.get(local, i)]->isLazy()) {
+        if(i < signature->args.size() && local[signature->args.get(local, i)]->isLazy()) {
             call->args.push(module.arena, makeThunk(pending[i].promise, pending[i].promise.type, source));
             continue;
         }

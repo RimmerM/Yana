@@ -1,0 +1,89 @@
+-- Calling `Chunked` from an unspecialized generic body - Implementation-Vector.md §0.2's fourth
+-- prerequisite, and what the `sum`/`fill`/`count` family waits on.
+--
+-- `Chunked.yana` next door loops over a class iterator from a *concrete* body, where selection has
+-- an instance in hand and the loop is desugared against the implementation. What is here is the
+-- other side: a body whose own type variables are what would decide the instance, so there is no
+-- implementation to desugar against and the call has to be deferred like any other.
+--
+-- Three things make that work, and each has a function below that reaches it:
+--
+--  * the continuation is built from the *class signature*. A class member is not desugared - it has
+--    nowhere to put the continuation's result variable - so its written result is what it hands over
+--    and there is nothing to infer;
+--  * the `gencall` returns the step signal rather than the signature's written result, and the
+--    continuation travels as one argument past the signature's parameters;
+--  * the implementation the instance supplies declares one type variable the head does not bind -
+--    that same continuation result - so specialization solves it from the arguments instead of
+--    substituting the head's alone.
+
+data Chunks {a: [Int], b: [Int], used: Int}
+
+instance Chunked(Chunks, Int):
+    iter fn chunks(self: Chunks) -> &[Int]:
+        yield self.a
+        if self.used > 1:
+            yield self.b
+
+iter fn each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+-- The plain case: the loop body neither breaks nor returns, so the step signal carries `{}` and the
+-- call site reads none of it.
+fn (Chunked(c, a)) countAll(xs: c) -> Int:
+    let &n = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            n = n + 1
+
+    return n
+
+-- A `return` out of both frames. The carried value is this function's own result, so the deferred
+-- call's step signal is `Outcome({}, Int)` rather than `Outcome({}, {})` - which is the point of the
+-- result override: nothing about `Chunked` says either of those, and the loop body decides which.
+fn (Chunked(c, a)) countUntil(xs: c, bound: Int) -> Int:
+    let &n = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            if n >= bound:
+                return -n
+
+            n = n + 1
+
+    return n
+
+-- `break` as well as `return`, which is the third shape of the signal and the one that costs a
+-- nested `Outcome`. The break ends the inner loop, so the outer one goes on to the next chunk.
+fn (Chunked(c, a)) countChunks(xs: c, bound: Int) -> Int:
+    let &n = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            if n >= bound:
+                return -n
+
+            n = n + 1
+            break
+
+    return n
+
+fn main() -> Int:
+    let cs = Chunks {a: [1, 2], b: [3, 4], used: 2}
+
+    -- The three over a container of this program's own, and then the same three over the library's
+    -- own array, whose `Chunked` instance is *parametric* - so specializing that one has a head
+    -- binding to substitute as well as a continuation result to solve for, where `Chunks` has only
+    -- the second.
+    return countAll(cs) +                -- 4
+           countUntil(cs, 100) +         -- 4
+           countChunks(cs, 100) +        -- 2, one element per chunk
+           countAll([7, 8, 9]) +         -- 3
+           countUntil([7, 8, 9], 2) +    -- -2
+           countChunks([7, 8, 9], 100)   -- 1, an array is one chunk

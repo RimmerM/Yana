@@ -704,6 +704,32 @@ void checkMaterializedBorrows(Analysis& analysis) {
     }
 }
 
+/*
+ * A class iterator's continuation, which may not outlive the call.
+ *
+ * The one rule a deferred dispatch cannot check for itself, checked instead everywhere it has to
+ * hold - see Function::classContinuation. Every other retained argument is a fact a caller reads
+ * off this body's summary; this one is a fact the *class* promises on behalf of implementations no
+ * caller can see, so it is a rule about the implementation rather than a report about a call.
+ *
+ * The continuation is the last parameter, always: the desugaring appends it, so an implementation
+ * cannot have written one of its own after it.
+ */
+void checkContinuationExtent(Analysis& analysis) {
+    auto& function = analysis.function;
+    if(!function.classContinuation || function.args.size() == 0) return;
+
+    auto index = function.args.size() - 1;
+    auto argument = function.args.get(analysis.local, index);
+    auto slot = backingLocal(analysis, (ModulePtr<Value>)argument);
+
+    if(slot == maxLimit<U32> || !analysis.escaped[slot]) return;
+
+    report(analysis, "this implements a class %@, so its continuation cannot outlive the call - a `for` loop in a generic body cannot see which implementation runs, and takes the declaration's word that the continuation is called rather than stored"_v,
+           analysis.local[argument]->source,
+           function.funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v);
+}
+
 void checkClosureEnvironments(Analysis& analysis) {
     auto global = analysis.global;
 

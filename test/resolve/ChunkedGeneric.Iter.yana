@@ -1,0 +1,56 @@
+-- The shape the whole prerequisite exists for: an `iter fn` over `Chunked`, which is what
+-- `iter fn (Chunked(c, a)) vectors(self: c) -> Vec(a)` is going to be.
+--
+-- Both loops are inside a generic body - the outer one deferred to a dispatch, the inner one over a
+-- plain iterator - and what it yields is the element type, which nothing in the call decides. That
+-- last part needed the call's own constraints to be consulted where a continuation's shape is
+-- inferred: `a` appears nowhere but in what this hands over, so the arguments decide `c` and the
+-- functional dependency `Chunked(c -> a)` decides the rest. Without it the element type read as
+-- undecided and every adaptor over a container was rejected for not saying what it yields.
+--
+-- **No `.js.expect`, and the reason is not this fixture's.** An `iter fn` that yields from inside a
+-- `for` captures the continuation it was handed, and a reference to a function value the JS backend
+-- flattened into two variables has no object to name - so the unoptimized JS build refuses it. That
+-- is a pre-existing gap for *any* adaptor, reproducible with no class and no generic in sight, and it
+-- has nothing to do with `Chunked`. `ChunkedGeneric.yana` next door asserts the two targets agree
+-- about the deferred dispatch itself; this one asserts the shape compiles and runs natively.
+
+data Chunks {a: [Int], b: [Int], used: Int}
+
+instance Chunked(Chunks, Int):
+    iter fn chunks(self: Chunks) -> &[Int]:
+        yield self.a
+        if self.used > 1:
+            yield self.b
+
+iter fn each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+iter fn (Chunked(c, a)) items(self: c) -> a:
+    for chunk in chunks(self):
+        for x in each(chunk):
+            yield x
+
+fn sumItems(xs: Chunks) -> Int:
+    let &total = 0 :: Int
+
+    for x in items(xs):
+        total = total + x
+
+    return total
+
+-- And over the library's own array, whose instance is parametric.
+fn sumArray(xs: [Int]) -> Int:
+    let &total = 0 :: Int
+
+    for x in items(xs):
+        total = total + x
+
+    return total
+
+fn main() -> Int = sumItems(Chunks {a: [1, 2], b: [3, 4], used: 2}) + sumArray([10, 20])

@@ -679,19 +679,30 @@ ModulePtr<Value> emitHostSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>
                              name, mode == Receiver::Mutable);
 }
 
-// `instance Index(Array(a), Size, a)` on JS - `hostAt(self.items, index)`. The host array *is* the
-// container here, so its own `length` is the bound and there is no stored count to read.
+/*
+ * `instance Index(Array(a), Size, a)` on JS - `hostAt(self.items, index)`.
+ *
+ * The bound is the container's **stored count** and not the host array's own length, which is its
+ * capacity - Implementation-Containers.md §14's typed row, where the two stopped being the same
+ * number. Reading the host length here would have let an index into the slack a doubling left behind
+ * through the check and hand back an `undefined` the program then treats as an element.
+ */
 template<Receiver mode>
 ModulePtr<Value> emitHostArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                  LocationId source, StringId name) {
-    auto items = selfFieldValue<mode>(resolver, args[0], "items"_v, source);
+    auto self = receiverPlace<mode>(resolver, args[0], source);
+    if(!self) return nullptr;
 
-    if(resolver.checksEnabled() && items) {
-        auto length = emitHostLengthOf(resolver, items, resolver.module.scalar.size, source, StringId());
-        checkIndexInBounds(resolver, args[1], length, source);
+    auto items = containerField(resolver, self.unwrap(), "items"_v, source);
+    if(!items) return nullptr;
+
+    if(resolver.checksEnabled()) {
+        auto length = containerField(resolver, self.unwrap(), "length"_v, source);
+        if(length) checkIndexInBounds(resolver, args[1], resolver.load(length.unwrap(), source), source);
     }
 
-    return borrowHostElement(resolver, items, args[1], type, source, name, mode == Receiver::Mutable);
+    return borrowHostElement(resolver, resolver.load(items.unwrap(), source), args[1], type, source,
+                             name, mode == Receiver::Mutable);
 }
 
 // `instance Length(Flat(a))` - `self.length`, on both targets, and `instance Length(Array(a))`
@@ -705,16 +716,6 @@ ModulePtr<Value> emitStoredLength(ExprResolver& resolver, Buffer<ModulePtr<Value
     // Explicitly, because a `Count` is narrower than a `Size` and the source says `::` for that
     // reason. An implicit conversion would report the precision it is deliberately not losing.
     return resolver.convert(length, type, source, false);
-}
-
-// `instance Length(Array(a))` on JS - `hostLength(self.items)`, which is the count because the host
-// array is the container.
-ModulePtr<Value> emitHostArrayLength(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                     LocationId source, StringId name) {
-    auto items = selfFieldValue<Receiver::Read>(resolver, args[0], "items"_v, source);
-    if(!items) return nullptr;
-
-    return emitHostLengthOf(resolver, items, type, source, name);
 }
 
 /*
@@ -794,8 +795,9 @@ void defineContainerInstances(Module& collections) {
                 js ? emitHostArrayAt<Receiver::Loaned> : emitArrayAt<Receiver::Loaned>,
                 js ? emitHostArrayAt<Receiver::Mutable> : emitArrayAt<Receiver::Mutable>);
 
-    // The owner's count and the slice's, each kept where that target keeps it: a field natively on
-    // both, and the host array's own `length` for the JS owner - which is why the owner needs an
+    // The owner's count and the slice's. Both are a stored field on both targets now - the JS owner
+    // used to answer the host array's own length, and stopped when a capacity larger than the count
+    // became possible (Implementation-Containers.md §14's typed row). The owner still needs an
     // instance of its own rather than reaching the slice's, since selection does not convert.
     auto sliceEnv = headEnvironment(collections);
     auto sliceElement = headVariable(collections, sliceEnv);
@@ -809,5 +811,5 @@ void defineContainerInstances(Module& collections) {
 
     defineLength(collections, instantiateRecord(collections, collections.program.arrayType,
                                                 { &ownerElement, 1 }, kNullLocation),
-                 ownerEnv, js ? emitHostArrayLength : emitStoredLength);
+                 ownerEnv, emitStoredLength);
 }

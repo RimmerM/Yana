@@ -23,7 +23,7 @@
  * say which shape was reached is a message that teaches nothing.
  */
 ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call,
-                                                   ArgList& values) {
+                                                   ArgList& values, ClassMatch& dispatch) {
     auto& source = unwrapNested(loop.from);
 
     if(source.kind != ast::Expr::App) {
@@ -63,7 +63,6 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     shape.kind = ast::FunKind::Iter;
     shape.requiresKind = true;
     shape.supplied = 1;
-    shape.dispatches = false;
 
     ArgNames names;
     collectArgNames(application.args, names);
@@ -115,9 +114,14 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
         }
 
         case ResolvedCallee::Kind::Dispatch:
-            // `shape.dispatches` is false, so selection never answers this.
-            context.diagnostics.error("internal: a `for` loop was given a deferred class dispatch"_v,
-                                      loop.from.source);
+            /*
+             * The class is known and the instance is not, because the types that would decide it
+             * are this body's own variables. There is no implementation to hand back, so the loop
+             * is desugared against the class signature and the call is deferred - which is what
+             * the match carries out of here in place of a function.
+             */
+            call = &application;
+            adopt(dispatch, selected.match);
             return nullptr;
     }
 
@@ -157,14 +161,29 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     // them a second time would run whatever they do a second time too.
     ArgList values;
 
-    auto callee = findLoopIterator(loop, application, values);
-    if(!callee) return;
+    // Set in place of a callee where the loop reached a class iterator this body cannot select an
+    // instance for. The two are exclusive and one of them is always set on success.
+    ClassMatch dispatch;
 
-    auto target = local[callee];
+    auto callee = findLoopIterator(loop, application, values, dispatch);
+    if(!callee && !dispatch.typeClass) return;
+
     auto source = expr.source;
 
+    /*
+     * What the loop's body binds, from whichever half answered.
+     *
+     * A named `iter fn` has been desugared, so its continuation parameter states the shape and the
+     * written arguments decide the types in it. A class member has not, so its written result *is*
+     * the handed type and selection has already decided the class's arguments - see
+     * classContinuationSignature.
+     */
     Array<FunArg> params;
-    if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return;
+    auto shaped = dispatch.typeClass
+        ? classContinuationSignature(*this, module, dispatch, source, params)
+        : continuationSignature(*this, module, callee, toBuffer(values), source, params);
+
+    if(!shaped) return;
 
     ContinuationShape shape;
     auto continuation = makeContinuation(toBuffer(params), nullptr, {}, 0, source, shape, false, &loop);
@@ -172,7 +191,12 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
 
     values.push(continuation);
 
-    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
+    // The deferred half is told what this call produces, because the class signature does not say:
+    // its result is what the iterator hands over, and the step signal is the shape the continuation
+    // just settled. See emitGenericDispatch.
+    auto call_ = dispatch.typeClass
+        ? emitGenericDispatch(dispatch, toBuffer(values), source, StringId(), shape.outcome)
+        : emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
 
     if(!call_ || !current) return;
 

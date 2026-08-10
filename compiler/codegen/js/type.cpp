@@ -179,6 +179,23 @@ bool isJsObject(Gen& g, TypePtr type) {
 FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
     auto entry = ((TupType*)g.global[type])->fields.get(g.global, index);
 
+    /*
+     * A field elided onto a property the host value already has - `arr.length`, see
+     * `isHostProperty`.
+     *
+     * Ahead of the Repr, and that is the point rather than an ordering convenience: what this
+     * property is called, how wide it is and whether it shares a word with anything are the host's
+     * answers and not this compiler's. A layout that co-packed a count into `$p0` beside a neighbour
+     * would be describing a word that does not exist, and one that minified the name would be
+     * reading a property nothing ever wrote.
+     */
+    if(isHostProperty(g, type, index)) {
+        FieldProperty property;
+        property.name = fieldName(g, entry.name, index);
+        property.type = entry.type;
+        return property;
+    }
+
     if(auto placed = g.repr.fieldOf(type, index)) {
         if(placed->isPacked()) {
             FieldProperty property;
@@ -216,6 +233,56 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
 }
 
 /*
+ * Whether this tuple's fields after the first are properties the host value already has - `@host`,
+ * `Field::host`, and Implementation-Containers.md §14's elision.
+ *
+ * Two halves, and only the second is this target's:
+ *
+ *  - the *declaration* says the fields may be elided, which resolve has already checked the shape of
+ *    - one stored field at index zero, every field after it named and `@host`;
+ *  - `hostPropertiesElided` says whether the claim holds for the value field zero actually holds,
+ *    which is a question about the host and lives beside the rule that answers it.
+ *
+ * The second is why this is asked of the *instantiation* rather than decided once per declaration.
+ * `Array(Handle)` holds a plain host array whose `length` is its occupancy, so the record is that
+ * array and nothing else; `Array(Int)` holds an `Int32Array` whose `length` is its capacity, so the
+ * same declaration keeps its stored count and its object. One declaration, two layouts, and which
+ * one a value has is settled by the same predicate that chose which array to allocate.
+ */
+bool hostFieldsElided(Gen& g, TypePtr type) {
+    if(!type || g.global[type]->kind != Type::Tup) return false;
+
+    auto& tuple = *(TupType*)g.global[type];
+    if(tuple.fields.size() < 2) return false;
+
+    // The flag on field one first, because it is one bool and it is what every *other* tuple in the
+    // program fails on - this is asked at each field access and at each step of a place walk, so
+    // what it costs on a record that has never heard of the host is what it costs.
+    for(Size i = 1; i < tuple.fields.size(); i++) {
+        if(!tuple.fields.get(g.global, i).host) return false;
+    }
+
+    auto stored = tuple.fields.get(g.global, 0);
+    return !stored.host && hostPropertiesElided(g.global, stored.type);
+}
+
+/*
+ * Whether one field of a tuple is reached as a property of the value rather than of an object
+ * holding it.
+ *
+ * The reader's half of the rule above, and it has to carry the whole of it rather than the flag
+ * alone: the flag is on the declaration and is therefore present on both rows, so a `fieldProperty`
+ * or a place walk that read only the flag would elide `Array(Int)`'s count as well and hand back an
+ * `Int32Array`'s capacity where the program asked how many elements it holds.
+ */
+bool isHostProperty(Gen& g, TypePtr type, U16 index) {
+    if(!index || !type || g.global[type]->kind != Type::Tup) return false;
+    if(!((TupType*)g.global[type])->fields.get(g.global, index).host) return false;
+
+    return hostFieldsElided(g, type);
+}
+
+/*
  * A tuple with one field, which on this target is that field.
  *
  * The reason it is here and not in `compiler/repr` is that it is only true where an aggregate has no
@@ -224,6 +291,12 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
  * property, so the wrapper is real, costs an allocation and a hidden class per value, and shows up in
  * exactly the place Analysis-JS.md's contract is about - `data Array(a) {items: %a}` made every array
  * `{items: hostArray}` rather than the host array.
+ *
+ * A tuple whose fields after the first are `@host` is the same statement one step further out - see
+ * `hostFieldsElided`. There the wrapper is not merely an object around one value, it is an object
+ * around one value and a *copy of a number that value already keeps*, which is why the elision is
+ * worth having twice over: `Array(Handle)` is the host array again, and `remove` closing the gap and
+ * writing the count is `copyWithin` plus the length assignment that truncates.
  *
  * Four exclusions, each of which is a case where the field is not the whole of the value:
  *
@@ -248,7 +321,7 @@ static bool isTransparentTuple(Gen& g, TypePtr type, TypePtr& content) {
     if(!type || g.global[type]->kind != Type::Tup) return false;
 
     auto& tuple = *(TupType*)g.global[type];
-    if(tuple.fields.size() != 1) return false;
+    if(tuple.fields.size() != 1 && !hostFieldsElided(g, type)) return false;
 
     // Read off the Repr rather than through `isJsObject`, which asks this question on the way to
     // answering its own.

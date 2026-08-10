@@ -511,6 +511,9 @@ void checkMaterializedBorrows(Analysis& analysis);
 void checkEscapingViews(Analysis& analysis);
 void checkClosureEnvironments(Analysis& analysis);
 
+// The rule a deferred class dispatch takes on trust - see Function::classContinuation.
+void checkContinuationExtent(Analysis& analysis);
+
 /*
  * Drop placement and the rewrite (analyze_drop.cpp).
  */

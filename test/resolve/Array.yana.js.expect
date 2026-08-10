@@ -1,4 +1,30 @@
 "use strict";
+// Collections
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
 // ResolveTest
 function sum(xs$items, xs$length, xs$offset) {
   var total = 0;
@@ -24,14 +50,35 @@ function sum(xs$items, xs$length, xs$offset) {
 }
 
 function main() {
-  var v4 = [10, 2, 3, 4, 5];
-  v4.splice(1, 1);
-  if (99 < v4.length) {
-    v4.splice(99, 1);
+  var v4 = new Int32Array([1, 2, 3]);
+  var v3 = { items: v4, length: 3 };
+  v4[0] = 10;
+  push_Int(v3, 4);
+  push_Int(v3, 5);
+  var count = v3.length;
+  if (1 < count) {
+    v3.items.copyWithin(1, 2, count);
+    v3.length = count - 1 & 1073741823;
   }
-  if (4294967295 < v4.length) {
-    v4.splice(-1, 1);
+  var count$1 = v3.length;
+  if (99 < count$1) {
+    v3.items.copyWithin(99, 100, count$1);
+    v3.length = count$1 - 1 & 1073741823;
   }
-  return (sum(v4, v4.length, 0) + v4.length | 0) + 24 | 0;
+  var count$2 = v3.length;
+  if (4294967295 < count$2) {
+    v3.items.copyWithin(-1, 0, count$2);
+    v3.length = count$2 - 1 & 1073741823;
+  }
+  var v56 = v3.items;
+  var v59 = v3.length;
+  return (sum(v56, v59, 0) + v59 | 0) + 24 | 0;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
 }
 main();

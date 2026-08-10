@@ -1166,13 +1166,27 @@ enum class NativeOp: U8 {
      * around it that this backend would have to be able to construct.
      */
     HostThrow,
+
+    /*
+     * `yana$grow(args[0], args[1])` - a wider typed array with this one's contents copied into it.
+     *
+     * Its own operation rather than a `HostGlobalCall`, because what it names is not the host's: it
+     * is a helper this backend emits, and it is a helper rather than an expression because building
+     * the new array and filling it are two statements and JavaScript has no expression form of a
+     * sequence that this emitter would rather write.
+     *
+     * Reached only where `typedArrayFor` said the element has a typed array - the host-array row
+     * grows by being written past its end and never asks for this.
+     */
+    HostGrow,
 };
 
 // Whether an operation's meaning belongs to the host rather than to the machine. The JS emitter
 // asks it to pick its arm; `expressibleInJs` asks it to let one through at all.
 inline bool isHostOp(NativeOp op) {
     return op == NativeOp::HostCall || op == NativeOp::HostField || op == NativeOp::HostArray ||
-           op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall || op == NativeOp::HostThrow;
+           op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall || op == NativeOp::HostThrow ||
+           op == NativeOp::HostGrow;
 }
 
 struct InstNative: Inst {

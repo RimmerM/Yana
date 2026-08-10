@@ -200,6 +200,32 @@ bool assignPlace(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> value) {
     return true;
 }
 
+/*
+ * Writing a field that is a property the host value already has - `arr.length`, see isHostProperty.
+ *
+ * Guarded rather than written straight, and the guard is not a heuristic: assigning an array's
+ * `length` the number it already holds is a no-op by definition, so testing first can only skip a
+ * store that would have done nothing. What makes it worth emitting is that the host's `length` is
+ * not an ordinary property - the setter has to consider truncating, and it pays for that whether or
+ * not the value changed.
+ *
+ * **Measured, and it is the difference between the elision paying and costing.** A build-and-read
+ * loop over a 200k `Array(Node)` under Node 24: 160 ms with the count stored in a wrapper object,
+ * 290 ms with the count elided and written straight, 115 ms with it elided and written through this.
+ * The whole of the regression was one statement per `push`, since appending at the array's own
+ * length has already moved it and the store that follows is writing a number that is already there.
+ *
+ * It is *this* rather than eliding the store in the container's source for one reason: the IR's
+ * `length` field is what every pass above this one reads, so a `push` that stopped writing it would
+ * leave a value the store-to-load forwarding could hand back after the array had grown past it. The
+ * write stays in the IR and stops costing anything here, which keeps the two models the same.
+ */
+void storeHostProperty(Gen& g, JsPtr<Expr> target, JsPtr<Expr> value) {
+    emit(g, make<IfStmt>(g, binary(g, BinaryOp::Ne, target, value), collect(g, [&] {
+        emitExpr(g, assign(g, target, value));
+    }), StmtList {}));
+}
+
 void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value) {
     auto& produced = *g.local[value];
 
@@ -225,7 +251,8 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
 
     if(assignPlace(g, place, type, useValue(g, value))) return;
 
-    auto target = placeExpr(g, place);
+    auto elided = false;
+    auto target = placeTarget(g, place, elided);
 
     auto moved = produced.kind == Value::Move;
     ModulePtr<Function> sink = moved ? ((InstMove&)produced).sink : nullptr;
@@ -284,6 +311,11 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
                 emitExpr(g, assign(g, field(g, target, key), field(g, source, key)));
             });
 
+            return;
+        }
+
+        if(elided) {
+            storeHostProperty(g, target, written);
             return;
         }
 
@@ -450,6 +482,40 @@ static void ensureFloatBits(Gen& g) {
 
     g.floatBitsBuffer = uniqueName(g, "$bcf"_v, false);
     g.floatBitsInts = uniqueName(g, "$bci"_v, false);
+}
+
+/*
+ * A host array holding `elements`, in whichever of §14's two rows this element type belongs to.
+ *
+ * `[a, b, c]` for an element the host boxes, and `new Int32Array([a, b, c])` for one it does not -
+ * which is the whole of the difference between the two rows, and the reason it is one function is
+ * that both producers of a host array (the empty one and the literal) have to make the same choice.
+ * `typedArrayFor` is the choice; nothing here decides anything.
+ *
+ * `type` is the array *reference*, so the element is its pointee - the same question the resolver
+ * asked when it folded `hostFixedCapacity`, asked of the same type.
+ */
+static JsPtr<Expr> hostArrayOf(Gen& g, TypePtr type, JsPtr<Expr> elements) {
+    auto typed = typedArrayFor(g.global, pointeeType(g.global, type));
+    if(!typed.length) return elements;
+
+    auto node = make<CallExpr>(g, variable(g, literalName(g, typed)));
+    node->args.push(g.file.arena, elements);
+    node->construct = true;
+
+    /*
+     * `pure` in the sense the flag means - reads nothing, writes nothing. A typed array's
+     * constructor allocates, which no other expression can observe, and copies out of an argument
+     * whose own effects the walk still visits.
+     *
+     * It is load-bearing rather than tidy. The empty array a literal is built into is overwritten by
+     * the literal in the next statement, and `foldInitialValue` is what makes the two one - but only
+     * for an initializer nothing has to be ordered against. Without this, every array literal of a
+     * numeric element allocated a `new Int32Array([])` that nothing ever read.
+     */
+    node->pure = true;
+
+    return asExpr(g, node);
 }
 
 static JsPtr<Expr> construct(Gen& g, StringView type, JsPtr<Expr> argument) {
@@ -1479,7 +1545,12 @@ void genAggregate(Gen& g, InstAggregate& aggregate) {
                 elements->values.push(g.file.arena, useValue(g, component.value));
             });
 
-            emitExpr(g, assign(g, useValue(g, aggregate.place.pointer), asExpr(g, elements)));
+            // Through the same choice the empty array made, and this is the second reader §14's
+            // note means: a literal that wrote `[1, 2, 3]` over storage the other path had made a
+            // `new Int32Array([])` is a plain host array in a variable the rest of the program grows
+            // as a typed one, and nothing anywhere would have said so.
+            emitExpr(g, assign(g, useValue(g, aggregate.place.pointer),
+                               hostArrayOf(g, base->type, asExpr(g, elements))));
             return;
         }
     }
@@ -1543,7 +1614,21 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
                 elements->values.push(g.file.arena, useValue(g, arg));
             }
 
-            define(g, value, asExpr(g, elements));
+            define(g, value, hostArrayOf(g, native.type, asExpr(g, elements)));
+            break;
+        }
+        case NativeOp::HostGrow: {
+            /*
+             * The typed row's growth. `a.constructor` is what makes one helper serve every element
+             * type - the array knows which one it is, and asking it is cheaper than carrying the
+             * name to a place that would then have to agree with `typedArrayFor` about it.
+             */
+            if(!g.growHelper.text) g.growHelper = uniqueName(g, "$grow"_v, false);
+
+            auto call = make<CallExpr>(g, variable(g, g.growHelper));
+            for(auto arg: args.contents(g.local)) call->args.push(g.file.arena, useValue(g, arg));
+
+            define(g, value, asExpr(g, call));
             break;
         }
         case NativeOp::HostBinary: {
@@ -1719,6 +1804,44 @@ void emitFloatBitsHelpers(Gen& g) {
     }
 }
 
+/*
+ * `function $grow(a, n) { var b = new a.constructor(n); b.set(a); return b; }`
+ *
+ * One helper for every element type, because the array carries its own constructor. `.set` is the
+ * typed array's own bulk copy and is what the engine has a memcpy behind; writing the loop here
+ * would be the same operation spelled so that it cannot be recognised.
+ */
+void emitGrowHelper(Gen& g) {
+    if(!g.growHelper.text) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "a typed array's growth - see Implementation-Containers.md, section 14"_v)));
+
+    auto function = make<FunStmt>(g, g.growHelper);
+    auto array = literalName(g, "a"_v);
+    auto capacity = literalName(g, "n"_v);
+    auto grown = literalName(g, "b"_v);
+
+    function->args.push(g.file.arena, array);
+    function->args.push(g.file.arena, capacity);
+
+    function->body = collect(g, [&] {
+        auto made = make<CallExpr>(g, field(g, variable(g, array), literalName(g, "constructor"_v)));
+        made->args.push(g.file.arena, variable(g, capacity));
+        made->construct = true;
+
+        emit(g, make<DeclStmt>(g, grown, asExpr(g, made), true));
+
+        auto copy = make<CallExpr>(g, field(g, variable(g, grown), literalName(g, "set"_v)));
+        copy->args.push(g.file.arena, variable(g, array));
+        emitExpr(g, asExpr(g, copy));
+
+        emit(g, make<ReturnStmt>(g, variable(g, grown)));
+    });
+
+    emit(g, function);
+}
+
 // Declared in build.h, which is where the reasoning lives: two callers read this and they must
 // not disagree. At js scope rather than in the anonymous namespace above because gen.cpp is the
 // other one.
@@ -1753,6 +1876,20 @@ AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
     }
 
     if(!isJsObject(g, type)) return plan;
+
+    /*
+     * A newtype has no object of its own to build - it *is* the value it wraps (see isNewtype), so
+     * its one component is the whole answer and the ordinary per-component write says exactly that:
+     * the place walk elides the `Field` step and assigns the local.
+     *
+     * Declined here rather than handled, because the plan below assembles a literal out of the
+     * *type's* properties by name - and a newtype's properties are the wrapped type's. `data Ring
+     * {items: [Int]}` filled `Array(a)`'s `items` with the whole array and zero-filled its `length`,
+     * which is a container of three elements reporting that it holds none. It read as if it worked
+     * because the two field names agree, and it was invisible while `Array(a)` was a newtype itself
+     * on this target: the wrapped type had no properties at all, so there was no literal to build.
+     */
+    if(TypePtr wrapped = nullptr; isNewtype(g, type, wrapped)) return plan;
 
     auto record = recordType(g, type);
 

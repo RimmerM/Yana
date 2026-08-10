@@ -109,6 +109,29 @@ struct Expr {
 
     explicit Expr(Kind kind): kind(kind) {}
     Kind kind;
+
+    /*
+     * The integer type of the value this produces, where the emitter knew one - `valueBits` is its
+     * width and zero where nothing is claimed, `valueSigned` how those bits are read.
+     *
+     * The peephole reasons over a tree that has no types in it, so a range is normally recovered
+     * from the *shape* of an expression: a literal, a coercion, an operator over two operands whose
+     * ranges are known. A property read and an element read have no shape to recover anything from,
+     * and they are exactly where a container's count and its elements arrive - so every coercion
+     * around one survived, and `xs.length`'s reader paid a `>>> 0` that can never do anything.
+     *
+     * What makes this sound is the contract `coerce` exists to keep (see type.cpp): a value of an
+     * integer type is *inside* that type's range, which is why a coercion is emitted after every
+     * operation in the first place. So the declared type of a place is a statement about its
+     * contents, and this is that statement carried to the one pass that can use it.
+     *
+     * Set by `noteValueType` on a read of a place, and by `asHostLength` for the one property whose
+     * range is the host's specification rather than a Yana type's. Nothing else may set it: what a
+     * property *means* is known where it is built, and matching on the spelling afterwards would be
+     * matching on a name `propertyName` is entitled to change.
+     */
+    U8 valueBits = 0;
+    bool valueSigned = false;
 };
 
 // A `number` literal. `integral` is set for a value that has to print without an exponent or a
@@ -155,20 +178,6 @@ struct FieldExpr: Expr {
     FieldExpr(JsPtr<Expr> object, Name field): Expr(Field), object(object), field(field) {}
     JsPtr<Expr> object;
     Name field;
-
-    /*
-     * Set for the `.length` of a host array or a host string, and for nothing else.
-     *
-     * A property read has no range in general - the emitter's own record fields hold whatever the
-     * program put in them, and an `Int` field is signed - so the peephole cannot ask what a `.`
-     * produces. This one it can: the host specifies both lengths as a `uint32`, which makes
-     * `length >>> 0` and `length | 0`'s guard the identity rather than a coercion.
-     *
-     * A flag on the node for the reason `CallExpr::pure` is one: what a property *means* is known
-     * where it is built - `inst.cpp` is looking at the `hostLength` intrinsic - and matching on the
-     * spelling afterwards would be matching on a name `propertyName` is entitled to change.
-     */
-    bool hostLength = false;
 };
 
 // `array[index]` - the one computed access this tree can express, for the compiler-built constant

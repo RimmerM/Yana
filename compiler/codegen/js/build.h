@@ -6,6 +6,7 @@
 #include "../../resolve/witness.h"
 #include "../../repr/table.h"
 #include "../../resolve/const.h"
+#include "../../resolve/host.h"
 
 /*
  * The JS backend's internal interface - the generator state, the AST construction helpers, and the
@@ -314,6 +315,16 @@ struct Gen {
     Name floatBitsInts;
     Name floatToBitsHelper;
     Name bitsToFloatHelper;
+
+    /*
+     * The one helper the typed row of Implementation-Containers.md §14 needs - see NativeOp::HostGrow.
+     *
+     * Named lazily and once per program, on the same terms as the two above: a program with no typed
+     * array that ever grows emits nothing. It is written over `a.constructor` rather than over a
+     * constructor name, so one function serves every element type - which is also why the element
+     * predicate is not consulted here at all.
+     */
+    Name growHelper;
 
     // The heading each family of helpers is emitted under, so that a family the peephole emptied
     // takes its own comment with it - see removeDeadHelpers.
@@ -773,9 +784,17 @@ inline JsPtr<Expr> asPureCall(Gen& g, JsPtr<Expr> value) {
     return value;
 }
 
-// A property read that is a host container's `.length` - see FieldExpr::hostLength.
+/*
+ * A property read that is a host container's `.length` - see `Expr::valueBits`.
+ *
+ * The one range that is the *host's* specification rather than a Yana type's, which is why it is
+ * said here rather than left to `noteValueType`: `hostLength` answers a `Size`, so the type would
+ * claim a signed 32-bit number, and what the host guarantees is an unsigned one.
+ */
 inline JsPtr<Expr> asHostLength(Gen& g, JsPtr<Expr> value) {
-    ((FieldExpr*)g.base[value])->hostLength = true;
+    auto expr = g.base[value];
+    expr->valueBits = 32;
+    expr->valueSigned = false;
     return value;
 }
 
@@ -892,6 +911,9 @@ void emitSaturationHelpers(Gen& g);
 // asked for one. See genBitcast in inst.cpp.
 void emitFloatBitsHelpers(Gen& g);
 
+// The typed array's growth, where a program asked for one. See NativeOp::HostGrow in inst.cpp.
+void emitGrowHelper(Gen& g);
+
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.
 bool isJsObject(Gen& g, TypePtr type);
@@ -927,6 +949,18 @@ struct FieldProperty {
 };
 
 FieldProperty fieldProperty(Gen& g, TypePtr tuple, U16 index);
+
+/*
+ * The `@host` elision - Implementation-Containers.md §14, `Field::host`, and type.cpp for the two
+ * halves of the question.
+ *
+ * `hostFieldsElided` is asked of the tuple: are its fields after the first properties the value in
+ * field zero already has, so that the tuple *is* that value? `isHostProperty` is the same question
+ * about one field, and every reader of a field asks that one - the flag alone is not enough, because
+ * the declaration carries it on both of §14's rows and only one of them may act on it.
+ */
+bool hostFieldsElided(Gen& g, TypePtr tuple);
+bool isHostProperty(Gen& g, TypePtr tuple, U16 index);
 
 /*
  * Whether a `&` of this type is the (object, property) pair Design.md's tier 2 becomes here.
@@ -1472,6 +1506,18 @@ JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 TypePtr placeType(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 
 /*
+ * Record on a property or element read what its declared type says about its range - see
+ * `Expr::valueBits`, which is where the argument for it is.
+ *
+ * A no-op for everything else, deliberately: what this adds is a fact the peephole could not have
+ * recovered from the tree, and every other kind of expression *has* a shape it can be recovered
+ * from. Announcing the type of an operator's result as well would be a second answer to a question
+ * that already has one, and a worse one - the emitter knows `Int`, the peephole often knows
+ * `[0, 3]`.
+ */
+void noteValueType(Gen& g, JsPtr<Expr> value, TypePtr type);
+
+/*
  * The place as an owner plus a bit range, for the two callers that have to tell them apart.
  *
  * `placeExpr` above answers with the decode already applied, which is what every *reader* wants. A
@@ -1481,6 +1527,11 @@ TypePtr placeType(Gen& g, const Place& place, Size limit = maxLimit<Size>);
  * scalarizes something.
  */
 JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit = maxLimit<Size>);
+
+// The chain a *write* lands on, plus whether its last step was a field elided onto a host property -
+// see `isHostProperty`, and `storeInto` for why writing one is not the same statement as writing an
+// ordinary property.
+JsPtr<Expr> placeTarget(Gen& g, const Place& place, bool& hostProperty);
 
 // The argument a teardown or a relocation takes: those are written against a raw pointer, so a
 // value that is not an object has to arrive in a box the way any other reference does.

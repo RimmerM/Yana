@@ -742,19 +742,55 @@ bool foldInitializers(Gen& g, StmtList& list, Size index) {
          * corrected - so this is the argument being made to match the code rather than a bug being
          * fixed. See foldArrayElements, where the same two checks are load-bearing.
          */
-        // And the bindings the walk stepped over, which the value would be moved in front of.
-        auto reachesBack = false;
-        for(auto name: declared) reachesBack = reachesBack || mentions(g, value, name);
-        if(reachesBack) break;
-
         auto effects = effectsOf(g, value);
         if(!crosses(effects, prefix)) break;
+
+        /*
+         * A value the walk stepped over the *declaration* of, which the value cannot be moved in
+         * front of - so what moves instead is the declaration of the object, downwards.
+         *
+         * The everyday shape rather than a corner, and it is the shape a container has: the owner's
+         * slot is declared first and the thing that goes in it second, so `var v = {items: null,
+         * length: 0}; var w = new Int32Array([1, 2, 3]); v.items = w;` is what an array literal is
+         * before anything folds it. Stopping here left the object built empty and then filled
+         * property by property, which is three statements where the literal is one - and the same
+         * shape is every constructor whose fields are computed, so `node(n)` above was seven
+         * statements rather than a `return`.
+         *
+         * Safe on exactly the terms foldInitialValue's move is, and on the conditions the walk has
+         * already established: `var` is function-scoped, so the binding exists from the top of the
+         * function either way and all that changes is whether it holds the emitter's zeros over a
+         * stretch where **nothing names it** - which is what `mentionsStmt` has been checking at
+         * every step. The one thing left to ask is that the literal's own values may be delayed past
+         * what the crossed statements do, which is `crosses` again in the other direction.
+         *
+         * Rotated rather than inserted, because a `StmtList` has no insert - and rotating is the
+         * same statement anyway: everything between shifts up by one and the declaration lands where
+         * it is needed. It happens after the last of the fold's own guards, so a move only ever
+         * accompanies a fold: a rotation on its own reorders the emitted source to no purpose.
+         */
+        auto reachesBack = false;
+        for(auto name: declared) reachesBack = reachesBack || mentions(g, value, name);
+
+        if(reachesBack && !crosses(effectsOf(g, decl.value), prefix)) break;
 
         Effects tail;
         for(Size i = slot + 1; i < size; i++) addEffects(g, properties[i].value, tail);
         if(!crosses(effects, tail)) break;
 
         if(!effectsOf(g, properties[slot].value).inert()) break;
+
+        if(reachesBack) {
+            auto moved = list.get(g.base, index);
+            for(Size i = index; i + 1 < at; i++) list.set(g.base, i, list.get(g.base, i + 1));
+            list.set(g.base, at - 1, moved);
+
+            // The declaration lives here now, so nothing before it has been crossed and nothing
+            // between it and the write is left to reach back to.
+            index = at - 1;
+            declared.clear();
+            prefix = Effects();
+        }
 
         properties[slot].value = value;
         list.remove(g.base, at);
@@ -1416,6 +1452,18 @@ Range integerRange(F64 low, F64 high) {
     return Range { low, high, true };
 }
 
+// The range an integer type of this width denotes - see `Expr::valueBits`, which is set only where
+// the values really are inside it.
+Range declaredRange(Expr& expr) {
+    auto bits = expr.valueBits;
+    if(!bits || bits > 32) return unknownRange();
+
+    if(!expr.valueSigned) return integerRange(0, F64((U64(1) << bits) - 1));
+
+    auto bound = F64(U64(1) << (bits - 1));
+    return integerRange(-bound, bound - 1);
+}
+
 /*
  * The ranges of the bindings one function reads.
  *
@@ -1562,11 +1610,10 @@ Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
         case Expr::Var:
             return ranges.of(((VarExpr*)expr)->name);
         case Expr::Field:
-            // A host array's or host string's `.length`, which the host specifies as a `uint32` -
-            // see FieldExpr::hostLength. Every other property read is a value the program put there
-            // and has no range; the flag is set on nothing else.
-            if(!((FieldExpr*)expr)->hostLength) return unknownRange();
-            return integerRange(0, kUint32Max);
+        case Expr::Index:
+            // What the place's declared type says its contents are - see `Expr::valueBits`. The one
+            // fact about a read that is not in the tree, and the only one either of these has.
+            return declaredRange(*expr);
         case Expr::Unary: {
             auto& unary = *(UnaryExpr*)expr;
             auto value = rangeOf(g, unary.value, ranges);
@@ -1690,6 +1737,66 @@ bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
 
     slot = value;
     return true;
+}
+
+/*
+ * `(x >>> 0) & m` is `x & m`, and every other coercion standing under a bitwise operator.
+ *
+ * The one fold here that needs no range at all. A bitwise operator reads its operands through
+ * ToInt32 - ToUint32 for the left of `>>>`, which is the same thirty-two bits read the other way -
+ * and both of the coercions `coerce` emits at 32 bits *are* those conversions. So an inner `| 0` or
+ * `>>> 0` under any of them cannot change what the outer one sees, whatever the value is: not a
+ * number, not an integer, out of range in either direction. `ToInt32(ToUint32(x)) === ToInt32(x)`
+ * is total.
+ *
+ * That totality is why this is separate from `foldCoercion` rather than another case of it. That one
+ * asks whether a coercion is the identity *on the values that reach it*, which needs a range and
+ * fails here for a real reason: `x >>> 0` produces `[0, 2^32-1]` and a 30-bit mask does not contain
+ * it. The question this asks is whether the coercion is the identity *as far as its reader is
+ * concerned*, and the reader is what makes it so.
+ *
+ * `truncate(count + 1) :: Count` is the shape it exists for - a cast to `U32` and then the
+ * refinement's own mask, which is `(count + 1 | 0) >>> 0 & 1073741823` and is two coercions where
+ * the outer one subsumes both.
+ *
+ * The shift *count* is folded on the same terms and for a smaller reason: only its low five bits are
+ * read, so anything preserving the low thirty-two preserves those.
+ */
+bool foldBitwiseOperand(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Binary) return false;
+
+    auto& outer = *(BinaryExpr*)expr;
+    switch(outer.op) {
+        case BinaryOp::And:
+        case BinaryOp::Or:
+        case BinaryOp::Xor:
+        case BinaryOp::Shl:
+        case BinaryOp::Shr:
+        case BinaryOp::Sar:
+            break;
+        default:
+            return false;
+    }
+
+    auto strip = [&](JsPtr<Expr>& operand) {
+        auto inner = g.base[operand];
+        if(inner->kind != Expr::Binary) return false;
+
+        auto& coercion = *(BinaryExpr*)inner;
+        if(coercion.op != BinaryOp::Or && coercion.op != BinaryOp::Shr) return false;
+
+        auto amount = g.base[coercion.rhs];
+        if(amount->kind != Expr::Number || ((NumberExpr*)amount)->value != 0) return false;
+
+        operand = coercion.lhs;
+        return true;
+    };
+
+    // Both, and not one or the other: `(a | 0) & (b >>> 0)` is two independent applications of one
+    // rule, and stopping at the first would need a second pass to reach the second.
+    auto folded = strip(outer.lhs);
+    return strip(outer.rhs) || folded;
 }
 
 /*
@@ -2360,7 +2467,8 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     // whose range it can see, and `(x & 7) >>> 0 | 0` is three of them in a row. Evaluation joins
     // them because each feeds the other - a removed mask leaves a literal to evaluate, and an
     // evaluated operand is a range the next coercion can see.
-    while(foldSignExtend(g, slot, ranges) || foldCoercion(g, slot, ranges) ||
+    while(foldSignExtend(g, slot, ranges) || foldBitwiseOperand(g, slot) ||
+          foldCoercion(g, slot, ranges) ||
           foldConstantOp(g, slot) || foldNumericIdentity(g, slot) ||
           foldConditions(g, slot, ranges) || foldBooleanWidening(g, slot, ranges)) {
         folded = true;

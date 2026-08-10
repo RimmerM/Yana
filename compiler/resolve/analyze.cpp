@@ -174,6 +174,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     checkMaterializedBorrows(analysis);
     checkEscapingViews(analysis);
     checkClosureEnvironments(analysis);
+    checkContinuationExtent(analysis);
 
     replaceContents(result.locals, analysis.tracked);
     for(Size l = 0; l < analysis.localCount; l++) {

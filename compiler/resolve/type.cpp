@@ -254,9 +254,10 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
             for(Size i = 0; i < tuple->fields.size(); i++) {
                 auto field = tuple->fields.get(global, i);
                 // The indirection survives substitution: it is a property of the field rather than
-                // of what the field holds, exactly as the pinned layout below is.
+                // of what the field holds, exactly as the pinned layout below is. So does the host
+                // elision, which is a statement about the declaration and not about the element.
                 fields.push(Field { substituteType(module, field.type, args, source), field.name,
-                                    field.boxed });
+                                    field.boxed, field.host });
             }
 
             // The layout the tuple was pinned to survives substitution: `@layout(c)` on a generic
@@ -633,9 +634,10 @@ TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId sourc
 
             // `boxed` is part of the identity, not a decoration on it: `{@box Tree}` and `{Tree}`
             // have different layouts, different ownership classes and different access paths, and
-            // the Repr cache is keyed on the type alone. See Field.
+            // the Repr cache is keyed on the type alone. `host` is there for the stronger version
+            // of the same reason - two values of them do not have the same properties. See Field.
             if(existing.type != requested[i].type || existing.name != requested[i].name ||
-               existing.boxed != requested[i].boxed) {
+               existing.boxed != requested[i].boxed || existing.host != requested[i].host) {
                 equal = false;
                 break;
             }

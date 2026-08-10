@@ -262,9 +262,23 @@ static bool escapeRound(Analysis& analysis) {
                 auto summary = summaryOf(analysis, call.callee);
                 U16 index = 0;
 
+                /*
+                 * How many positions the callee declares. Every position is one for an erased call;
+                 * a deferred class dispatch has one more, because a `for` loop over a class `iter
+                 * fn` appends its continuation to a signature that could not declare one - see
+                 * emitGenericDispatch.
+                 *
+                 * That trailing position is *not* retained, and the promise is the declaration's
+                 * rather than this call's guess: checkContinuationExtent holds every implementation
+                 * of a class iterator to it, which is what makes it safe to assume where there is no
+                 * body to consult.
+                 */
+                auto declared = call.callee ? analysis.local[call.callee]->args.size() : 0;
+
                 for(auto arg: call.args.contents(analysis.local)) {
-                    auto retained = !summary || index >= summary->args.size() ||
-                                    summary->args.get(analysis.local, index).retained;
+                    auto retained = index < declared &&
+                                    (!summary || index >= summary->args.size() ||
+                                     summary->args.get(analysis.local, index).retained);
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);

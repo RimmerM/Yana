@@ -61,13 +61,7 @@ function node(n) {
   if (n <= 0) {
     return null;
   } else {
-    var v17 = { inner: 0, leaf: null, id: 0 };
-    var v18 = Math.imul(n, 2);
-    var v25 = leafFor(n);
-    v17.inner = v18;
-    v17.leaf = v25;
-    v17.id = n;
-    return v17;
+    return { inner: Math.imul(n, 2), leaf: leafFor(n), id: n };
   }
 }
 
@@ -111,13 +105,7 @@ function viaResult(n) {
   if (n <= 0) {
     v19 = { $tag: 0, $p: n };
   } else {
-    var v29 = { inner: 0, leaf: null, id: 0 };
-    var v30 = Math.imul(n, 4);
-    var v36 = leafFor(n);
-    v29.inner = v30;
-    v29.leaf = v36;
-    v29.id = n;
-    v19 = { $tag: 1, $p: v29 };
+    v19 = { $tag: 1, $p: { inner: Math.imul(n, 4), leaf: leafFor(n), id: n } };
   }
   var v3 = Try_Result_e_a_a_e_toOutcome_Int_Node(v19);
   if (v3.$tag === 1) {

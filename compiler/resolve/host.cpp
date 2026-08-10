@@ -9,9 +9,9 @@
  * Two shapes, and the difference between them is the whole of what a host node had to be able to
  * say:
  *
- *   A **member** operation - `length`, `splice` - is an `InstNative` carrying the member's name. The
+ *   A **member** operation - `length`, `copyWithin` - is an `InstNative` carrying the member's name. The
  *   emitter prints the name and knows nothing else about it, which is what Analysis-JS.md §2.4 asks
- *   for when it rules host knowledge out of codegen: a declaration below says `.splice` and the
+ *   for when it rules host knowledge out of codegen: a declaration below says `.copyWithin` and the
  *   backend says nothing.
  *
  *   An **element** operation - reading, writing and borrowing `a[i]` - is not a node at all. It is a
@@ -64,9 +64,39 @@ import Native
 -- by specification, so there is nothing wider to describe (§4.4).
 @platform(js) pub fn hostLength(self: %a) -> Size
 
--- `self.splice(index, count)` - removing a range and closing the gap, which is what the host does
--- instead of the `copyMemory` the native side writes.
-@platform(js) pub fn hostSplice(self: %a, index: Size, count: Size) -> {}
+{-
+   Closing a gap - `self.copyWithin(to, from, end)`, the move without the shortening.
+
+   The counterpart of the native build's `copyMemory`, and it is deliberately the *only* one here.
+   A `.splice` was declared beside it and removed: it shortens as well as moves, which is what a
+   container wants when the slot at the end has to stop existing, and no container needs that asked
+   for separately any more. `Array(a)`'s count is `@host` on the row whose elements are host objects,
+   so writing the new count *is* the truncation and the duplicate this leaves behind is released by
+   the statement that records the removal (see `remove` in Collections). On the typed row the
+   elements are numbers, the stale slot is as inert as the bytes `copyMemory` leaves, and the stored
+   count is what says how many are live.
+-}
+@platform(js) pub fn hostCopyWithin(self: %a, to: Size, from: Size, end: Size) -> {}
+
+{-
+   Whether this element's array has a capacity that has to be managed - see typedArrayFor.
+
+   A compile-time constant with an argument, and the argument is what carries the question: an
+   intrinsic is handed its result type rather than its type arguments, so the element is read off the
+   array reference it is asked about. `opt_fold` then removes the branch it guards, in both
+   directions, which is what lets `reserve` be one body over two representations rather than a
+   `@platform` split that this target cannot spell - the row is chosen by the *element*, and
+   `@platform` chooses by target.
+-}
+@platform(js) pub fn hostFixedCapacity(self: %a) -> Bool
+
+{-
+   A new array of `capacity` elements with this one's contents copied into it.
+
+   Only ever reached where `hostFixedCapacity` said yes, so it is the typed row's growth and nothing
+   else - a host array grows by being written past its end and never calls this.
+-}
+@platform(js) pub fn hostGrow(self: %a, capacity: Size) -> %a
 
 {-
    The element - `self[index]`, in the four positions an element is reached from.
@@ -140,6 +170,45 @@ import Native
 @platform(js) pub fn hostFail() -> {}
 )HOST";
 
+// Declared in host.h, which is where the rule and its two readers are argued. At file scope
+// rather than in the anonymous namespace below because the JS emitter is the other reader.
+StringView typedArrayFor(GlobalBase global, TypePtr element) {
+    if(!element) return ""_v;
+
+    // A `@bits` refinement dispatches as the type it refines - repr.md's rule, and it is the right
+    // one here too: `@bits(30) U32` is a `U32` in a `Uint32Array`, at the width the array has.
+    auto type = global[canonicalType(global, element)];
+
+    if(type->kind == Type::Float) {
+        return ((FloatType*)type)->width == FloatType::Float ? "Float32Array"_v : "Float64Array"_v;
+    }
+
+    if(type->kind != Type::Int) return ""_v;
+
+    auto& integer = *(IntType*)type;
+
+    // `Bool` is an `Int` of one bit here and is deliberately not one of these - see typedArrayFor's
+    // declaration. So is every width the machine does not have.
+    switch(integer.bits) {
+        case 8:  return integer.isSigned ? "Int8Array"_v : "Uint8Array"_v;
+        case 16: return integer.isSigned ? "Int16Array"_v : "Uint16Array"_v;
+        case 32: return integer.isSigned ? "Int32Array"_v : "Uint32Array"_v;
+        default: return ""_v;
+    }
+}
+
+// Declared in host.h with the argument for it. The pointee rather than the pointer, because what a
+// `%a` is on this target is a reference to storage holding `a`s and the row is chosen by the `a`.
+bool hostPropertiesElided(GlobalBase global, TypePtr pointer) {
+    if(!pointer || global[pointer]->kind != Type::Ptr) return false;
+
+    auto element = pointeeType(global, pointer);
+    if(!element || isGeneric(global, element)) return false;
+
+    return typedArrayFor(global, element).length == 0;
+}
+
+
 namespace {
 
 /*
@@ -152,7 +221,7 @@ namespace {
  */
 enum class HostMember: U8 {
     Length,
-    Splice,
+    CopyWithin,
     CharCodeAt,
 
     // The operators, whose "member name" is the operator's own spelling - see NativeOp::HostBinary.
@@ -176,7 +245,7 @@ enum class HostMember: U8 {
 StringView hostMemberName(HostMember member) {
     switch(member) {
         case HostMember::Length: return "length"_v;
-        case HostMember::Splice: return "splice"_v;
+        case HostMember::CopyWithin: return "copyWithin"_v;
         case HostMember::CharCodeAt: return "charCodeAt"_v;
         case HostMember::Concat: return "+"_v;
         case HostMember::Equal: return "==="_v;
@@ -200,6 +269,33 @@ static ModulePtr<Value> emitHostMember(ExprResolver& resolver, Buffer<ModulePtr<
 
     resolver.append(instruction);
     return isUnit(resolver.global, type) ? nullptr : resolver.ref(instruction);
+}
+
+/*
+ * The typed row of §14, as a constant this call site can be folded against.
+ *
+ * The element comes out of the argument's *declared* type rather than out of anything the value
+ * knows: `%a` at this call is a pointer to whatever `a` was substituted with, and a pointer's
+ * pointee is exactly the question typedArrayFor asks.
+ */
+static ModulePtr<Value> emitFixedCapacity(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                          LocationId source, StringId name) {
+    auto global = resolver.global;
+    auto element = pointeeType(global, resolver.valueType(args[0]));
+
+    return resolver.makeInt(source, type, typedArrayFor(global, element).length != 0);
+}
+
+
+// `yana$grow(self, capacity)` - a new typed array of that capacity with this one's contents in it.
+// A helper rather than an expression because it is two statements; see the JS emitter.
+static ModulePtr<Value> emitHostGrow(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto instruction = resolver.create<InstNative>(source, name, type, NativeOp::HostGrow);
+    for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
+
+    resolver.append(instruction);
+    return resolver.ref(instruction);
 }
 
 // `[]`. The variadic form - a literal with its elements already in it - is built by `resolveArray`
@@ -291,7 +387,9 @@ void defineHost(Program& program) {
 
     attachIntrinsic(*module, "hostArray"_v, emitHostArray);
     attachIntrinsic(*module, "hostLength"_v, emitHostMember<NativeOp::HostField, HostMember::Length>);
-    attachIntrinsic(*module, "hostSplice"_v, emitHostMember<NativeOp::HostCall, HostMember::Splice>);
+    attachIntrinsic(*module, "hostCopyWithin"_v, emitHostMember<NativeOp::HostCall, HostMember::CopyWithin>);
+    attachIntrinsic(*module, "hostFixedCapacity"_v, emitFixedCapacity);
+    attachIntrinsic(*module, "hostGrow"_v, emitHostGrow);
 
     attachIntrinsic(*module, "hostRead"_v, emitHostRead);
     attachIntrinsic(*module, "hostWrite"_v, emitHostWrite);

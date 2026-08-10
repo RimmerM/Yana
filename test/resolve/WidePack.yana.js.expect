@@ -9,7 +9,7 @@ function writeLow() {
 }
 
 function nudge(x$o, x$k, x$s) {
-  x$o[x$k] = $b20u$set(x$o[x$k], x$s, ($b20u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 1048575);
+  x$o[x$k] = $b20u$set(x$o[x$k], x$s, ($b20u$get(x$o[x$k], x$s) >>> 0) + 1 & 1048575);
 }
 
 function bumpedHigh() {
@@ -33,12 +33,12 @@ function stored(x) {
 }
 
 function nudge12(x$o, x$k, x$s) {
-  x$o[x$k] = $b12u$set(x$o[x$k], x$s, ($b12u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 4095);
+  x$o[x$k] = $b12u$set(x$o[x$k], x$s, ($b12u$get(x$o[x$k], x$s) >>> 0) + 1 & 4095);
 }
 
 function boxed() {
   var v0 = { k: 7, $p4: 0 };
-  v0.$p4 = (((v0.$p4 & 4293918720) >>> 0 | 1) >>> 0 & 1048575 | 4293918720) >>> 0;
+  v0.$p4 = ((v0.$p4 & 4293918720 | 1) & 1048575 | 4293918720) >>> 0;
   nudge12(v0, "$p4", 1048576);
   return v0;
 }
@@ -93,12 +93,12 @@ function $w40u$wrap(a) {
 }
 
 function $w53i$shl(a, b) {
-  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
+  var s = b >= 32 ? (a << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 32 - b) & 2097151) * 4294967296 + (a << b >>> 0);
   return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
 }
 
 function $w53i$sar(a, b) {
-  var s = b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> 0 >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
+  var s = b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
   return b === 0 ? a : a >= 0 ? s : s - 9007199254740992 / Math.pow(2, b);
 }
 

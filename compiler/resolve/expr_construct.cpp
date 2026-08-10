@@ -2018,8 +2018,9 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
             return nullptr;
         }
 
-        if(fields->fields.size() != 1) return nullptr;
+        if(fields->fields.size() != 2) return nullptr;
         auto itemsField = fields->fields.get(global, 0).type;
+        auto jsCountField = fields->fields.get(global, 1).type;
 
         auto storage = allocate(arrayType, source, StringId());
         auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
@@ -2042,6 +2043,14 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         buildAggregate(Place::atPointer(items), element, toBuffer(values), module.scalar.size, source);
 
         initialize(project(place, ProjectionKind::Field, 0), items, source);
+
+        // The count, which this target now stores for the same reason the native one does: a typed
+        // array's own length is its *capacity*, and once a capacity larger than the occupancy is
+        // possible the container has to carry the occupancy itself. See Implementation-Containers.md
+        // §14's typed row.
+        initialize(project(place, ProjectionKind::Field, 1),
+                   makeInt(source, jsCountField, values.size()), source);
+
         return storage;
     }
 

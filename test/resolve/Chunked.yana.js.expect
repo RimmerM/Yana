@@ -12,6 +12,7 @@ function checkCondition(failed) {
 
 function Contiguous_Array_a_a_elements_Int(self) {
   var v2 = self.length;
+  var v4 = self.items;
   var start = 0;
   if (0 > v2) {
     start = v2;
@@ -23,7 +24,7 @@ function Contiguous_Array_a_a_elements_Int(self) {
   if (end > v2) {
     end = v2;
   }
-  return { items: self, length: end - start | 0, offset: start };
+  return { items: v4, length: end - start | 0, offset: start };
 }
 
 // ResolveTest
@@ -87,25 +88,25 @@ function total(xs$items, xs$length, xs$offset) {
 }
 
 function main() {
-  var v118;
-  var v53 = { a: [1, 2], b: [3, 4], c: [5, 6], used: 3 };
-  var ring = [10, 20, 30];
-  var arr = [4, 5, 6];
+  var v124;
+  var v57 = { a: { items: new Int32Array([1, 2]), length: 2 }, b: { items: new Int32Array([3, 4]), length: 2 }, c: { items: new Int32Array([5, 6]), length: 2 }, used: 3 };
+  var ring = { items: new Int32Array([10, 20, 30]), length: 3 };
+  var arr = { items: new Int32Array([4, 5, 6]), length: 3 };
   var total$1 = { $v: 0 };
-  var v95 = Chunked_Chunks_Int_chunks(v53, ResolveTest_continuation$0, { $v: { $o: total$1, $k: "$v", $s: 1 } });
-  var v29 = (total$1.$v + sumContiguous(ring) | 0) + sumArray(arr) | 0;
-  var v31 = Contiguous_Ring_Int_elements(ring);
-  var v37 = (v29 + total(v31.items, v31.length, v31.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0;
-  var v109 = Chunked_Chunks_Int_chunks_Int(v53, ResolveTest_continuation$7, { $v: 3 });
-  if (!(v109 === null)) {
-    v118 = v109;
+  var v105 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$0, { $v: { $o: total$1, $k: "$v", $s: 1 } });
+  var v33 = (total$1.$v + sumContiguous(ring) | 0) + sumArray(arr) | 0;
+  var v35 = Contiguous_Ring_Int_elements(ring);
+  var v41 = (v33 + total(v35.items, v35.length, v35.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0;
+  var v115 = Chunked_Chunks_Int_chunks_Int(v57, ResolveTest_continuation$7, { $v: 3 });
+  if (!(v115 === null)) {
+    v124 = v115;
   } else {
-    v118 = -1;
+    v124 = -1;
   }
-  var v40 = v37 + v118 | 0;
+  var v44 = v41 + v124 | 0;
   var total$2 = { $v: 0 };
-  var v130 = Chunked_Chunks_Int_chunks(v53, ResolveTest_continuation$9, { $v: { $o: total$2, $k: "$v", $s: 1 } });
-  return v40 + total$2.$v | 0;
+  var v136 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$9, { $v: { $o: total$2, $k: "$v", $s: 1 } });
+  return v44 + total$2.$v | 0;
 }
 
 function Contiguous_Ring_Int_elements(self) {
@@ -133,26 +134,23 @@ function ResolveTest_continuation$0(env, value) {
 }
 
 function Chunked_Chunks_Int_chunks(self, body$c, body$e) {
-  var v4 = self.a;
-  var v11 = body$c(body$e, { items: v4, length: v4.length, offset: 0 });
-  if (v11 === 1) {
-    return v11;
+  var v12 = body$c(body$e, { items: self.a.items, length: self.a.length, offset: 0 });
+  if (v12 === 1) {
+    return v12;
   } else {
     B0: {
       if (self.used > 1) {
-        var v23 = self.b;
-        var v30 = body$c(body$e, { items: v23, length: v23.length, offset: 0 });
-        if (v30 === 1) {
-          return v30;
+        var v32 = body$c(body$e, { items: self.b.items, length: self.b.length, offset: 0 });
+        if (v32 === 1) {
+          return v32;
         }
       }
     }
     B1: {
       if (self.used > 2) {
-        var v44 = self.c;
-        var v51 = body$c(body$e, { items: v44, length: v44.length, offset: 0 });
-        if (v51 === 1) {
-          return v51;
+        var v54 = body$c(body$e, { items: self.c.items, length: self.c.length, offset: 0 });
+        if (v54 === 1) {
+          return v54;
         }
       }
     }
@@ -198,26 +196,23 @@ function ResolveTest_continuation$7(env, value) {
 }
 
 function Chunked_Chunks_Int_chunks_Int(self, body$c, body$e) {
-  var v4 = self.a;
-  var v11 = body$c(body$e, { items: v4, length: v4.length, offset: 0 });
-  if (!(v11 === null)) {
-    return v11;
+  var v12 = body$c(body$e, { items: self.a.items, length: self.a.length, offset: 0 });
+  if (!(v12 === null)) {
+    return v12;
   } else {
     B0: {
       if (self.used > 1) {
-        var v23 = self.b;
-        var v30 = body$c(body$e, { items: v23, length: v23.length, offset: 0 });
-        if (!(v30 === null)) {
-          return v30;
+        var v32 = body$c(body$e, { items: self.b.items, length: self.b.length, offset: 0 });
+        if (!(v32 === null)) {
+          return v32;
         }
       }
     }
     B1: {
       if (self.used > 2) {
-        var v44 = self.c;
-        var v51 = body$c(body$e, { items: v44, length: v44.length, offset: 0 });
-        if (!(v51 === null)) {
-          return v51;
+        var v54 = body$c(body$e, { items: self.c.items, length: self.c.length, offset: 0 });
+        if (!(v54 === null)) {
+          return v54;
         }
       }
     }
@@ -233,7 +228,7 @@ function ResolveTest_continuation$9(env, value) {
   var i = 0;
   var v23 = xs$length >>> 0;
   if (0 < xs$length) {
-    var v33 = xs$offset + i | 0;
+    var v33 = xs$offset + i;
     checkCondition(i >= v23);
     v3.$o[v3.$k] = v3.$o[v3.$k] + xs$items[v33] | 0;
   }

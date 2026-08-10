@@ -39,6 +39,65 @@
 void defineHost(Program& program);
 
 /*
+ * Whether `Array(element)` is a `TypedArray` on this target rather than the plain host array -
+ * Implementation-Containers.md §14's second row, and Design-Vector.md §7.3.
+ *
+ * One rule with two readers, which is why it is here rather than in either of them: `hostFixedCapacity`
+ * reads it during resolution to decide whether `reserve` has anything to do, and the JS emitter reads
+ * it to decide what `[]` is. If the two disagreed, an array would be grown as one kind and built as
+ * the other.
+ *
+ * **The element set is the primitive numbers of known width**, which is the same set Design-Vector
+ * §2.2 gives a vector lane and for the same reason - a `TypedArray` element is a machine number and
+ * nothing else. `Long`/`I64`/`U64` are deliberately *out*: `BigInt64Array` holds `BigInt`s, and a
+ * `BigInt` lane is no more a lane here than it is in a vector (§7.3), so those arrays stay the host's
+ * own and keep whatever this target already represents a wide integer as.
+ *
+ * `Bool` is out for a different reason, and it is worth stating because `Uint8Array` would hold one
+ * perfectly well: a host array of booleans holds `true`/`false` and a `Uint8Array` holds 1/0, so the
+ * two would compare and print differently, and this is a representation change rather than a
+ * semantics one. §11's bitset is where a `[Bool]` gets its own answer.
+ *
+ * Answers the constructor's name as well as the question, because the two are one lookup and a caller
+ * that had to ask twice is a caller that could get two answers. Empty when the element is not one.
+ */
+StringView typedArrayFor(GlobalBase global, TypePtr element);
+
+/*
+ * Whether a record holding this `%a` may drop its `@host` fields onto the host value's own
+ * properties - Implementation-Containers.md §14's elision, and `Field::host` for what the flag
+ * claims.
+ *
+ * The third reader of the rule above, and the reason it is written here rather than in the code
+ * generator is the same one: what the two rows *are* is one question, and a container whose count
+ * is elided on one row and stored on the other is a container two passes could disagree about.
+ *
+ *  - a plain host array's `length` is its occupancy, and assigning it **truncates** - which is the
+ *    whole of what closing a gap means, so a count field over one is a second copy of a number the
+ *    host already keeps;
+ *  - a `TypedArray`'s `length` is its fixed capacity, is not assignable at all, and says nothing
+ *    about how many of the slots are live. The record keeps its stored field there.
+ *
+ * **The typed row was tried as a bare array too and is blocked on a reference form, not on a name.**
+ * `class V extends Int32Array { constructor(n) { super(n); this.$n = 0; } }` gives the count an
+ * in-object slot for eight bytes where the wrapper costs forty (measured under Node 24 at every
+ * width from 8 to 64 elements, and an assigned `a.$n = n` costs the full forty - a typed array has
+ * no in-object room, so the first named property allocates a store beside it). What stops it is
+ * `growJsArray`: that row's growth *replaces* the array, and with the count elided field zero is the
+ * whole container - so `self.items = hostGrow(...)` asks a callee to rebind its caller's binding,
+ * which an object-is-its-own-reference `&` cannot express. Making `isJsObject` answer no for that row
+ * gets the box and the write-back, and then disagrees with the *erased* boundary, where a generic
+ * parameter's callee is compiled against `Array(a)` and boxes on one side only.
+ *
+ * A generic element answers **no**, and that is a deliberate refusal rather than a gap. The row is
+ * chosen per element type, so a body compiled without one has no way to know which layout its caller
+ * built - and getting that wrong is not a slow value but a wrong one, since the two do not have the
+ * same properties. The erased path keeps the stored field, which is the layout that is correct for
+ * both rows.
+ */
+bool hostPropertiesElided(GlobalBase global, TypePtr pointer);
+
+/*
  * The two host operations a built-in container's own intrinsic reaches.
  *
  * Collections' `Index(Array(a))` and `Length(Array(a))` are `hostAt` and `hostLength` in source, and

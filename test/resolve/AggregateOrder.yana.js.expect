@@ -1,13 +1,6 @@
 "use strict";
 var log = 0;
 
-// Collections
-function checkCondition(failed) {
-  if (failed) {
-    throw "yana: a runtime check failed";
-  }
-}
-
 // ResolveTest
 function note(n) {
   var v5 = Math.imul(log, 10) + n | 0;
@@ -19,21 +12,13 @@ function note(n) {
   }
 }
 
-function elementCrossesEffect() {
-  var v3 = [0, 7];
-  var first = note(4);
-  checkCondition(0 >= v3.length);
-  var v23 = note(5);
-  v3[0] = v23;
-  var v32 = v3.length;
-  checkCondition(0 >= v32);
-  var v39 = Math.imul(v23, 10);
-  checkCondition(1 >= v32);
-  return (v39 + v3[1] | 0) + first | 0;
-}
-
 function main() {
   var first = note(1);
-  return (((((Math.imul(note(2), 10) + 9 | 0) + first | 0) + (Math.imul(note(3) + 1 | 0, 10) + 8 | 0) | 0) + elementCrossesEffect() | 0) + 56 | 0) + log | 0;
+  var v2 = ((Math.imul(note(2), 10) + 9 | 0) + first | 0) + (Math.imul(note(3) + 1 | 0, 10) + 8 | 0) | 0;
+  var v29 = new Int32Array([0, 7]);
+  var first$1 = note(4);
+  var v40 = note(5);
+  v29[0] = v40;
+  return ((v2 + ((Math.imul(v40, 10) + v29[1] | 0) + first$1 | 0) | 0) + 56 | 0) + log | 0;
 }
 main();

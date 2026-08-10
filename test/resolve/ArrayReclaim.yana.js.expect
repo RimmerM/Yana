@@ -1,6 +1,47 @@
 "use strict";
+// Collections
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
 // ResolveTest
 function main() {
-  return 51;
+  var v24 = { items: new Int32Array([1, 2, 3]), length: 3 };
+  push_Int(v24, 4);
+  push_Int(v24, 5);
+  var v42 = v24.length;
+  if (0 >= v42) {
+    throw "yana: a runtime check failed";
+  } else {
+    return (v24.items[0] + v42 | 0) + 45 | 0;
+  }
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
 }
 main();

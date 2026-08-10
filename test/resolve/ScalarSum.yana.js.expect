@@ -3,9 +3,9 @@
 function payloadOf(s) {
   var v14;
   if (s.$tag === 0) {
-    v14 = s.$p | 0;
+    v14 = s.$p;
   } else {
-    v14 = (s.$p | 0) + 1000 | 0;
+    v14 = s.$p + 1000;
   }
   return v14;
 }
@@ -13,9 +13,9 @@ function payloadOf(s) {
 function colourOf(c) {
   var v27;
   if (c.$tag === 0) {
-    v27 = ((c.r | 0) + Math.imul(c.g | 0, 10) | 0) + Math.imul(c.b | 0, 100) | 0;
+    v27 = (c.r + Math.imul(c.g, 10) | 0) + Math.imul(c.b, 100) | 0;
   } else {
-    v27 = Math.imul(c.$p | 0, 1000);
+    v27 = Math.imul(c.$p, 1000);
   }
   return v27;
 }
@@ -24,18 +24,18 @@ function fiveOf(f) {
   var v44;
   var v1 = f.$tag;
   if (v1 === 0) {
-    v44 = f.$p | 0;
+    v44 = f.$p;
   } else {
     if (v1 === 1) {
-      v44 = Math.imul(f.$p | 0, 10);
+      v44 = Math.imul(f.$p, 10);
     } else {
       if (v1 === 2) {
-        v44 = Math.imul(f.$p | 0, 100);
+        v44 = Math.imul(f.$p, 100);
       } else {
         if (v1 === 3) {
-          v44 = Math.imul(f.$p | 0, 1000);
+          v44 = Math.imul(f.$p, 1000);
         } else {
-          v44 = Math.imul(f.$p | 0, 10000);
+          v44 = Math.imul(f.$p, 10000);
         }
       }
     }

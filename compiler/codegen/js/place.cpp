@@ -192,9 +192,21 @@ JsPtr<Expr> materializeRef(Gen& g, RefParts parts) {
 namespace {
 
 TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
-                  PlaceBits* bits = nullptr, FunParts* funParts = nullptr) {
+                  PlaceBits* bits = nullptr, FunParts* funParts = nullptr,
+                  bool* hostProperty = nullptr, bool* packedWord = nullptr) {
     TypePtr type = nullptr;
     PlaceBits within;
+
+    // Whether the step just taken landed on a `@host` field, which only the *last* one decides -
+    // reset at every step so that `xs.length.something` could never inherit it. See storeInto,
+    // which is the one caller that asks and the one place the answer changes what is emitted.
+    auto elided = false;
+
+    // And whether it landed on the *word* a packed field lives in rather than on the field - see
+    // ProjectionKind::Unit. Reset per step on the same terms, though that projection is always the
+    // last one: what makes it worth reporting is that `type` stays the packed field's here while
+    // the expression becomes something wider, which is the one place the two come apart.
+    auto whole = false;
 
     // The two words of the root, where the root is a function value held as two variables. Valid
     // only for that root, and consumed by the first `Type::Fun` field step - see the local case.
@@ -375,6 +387,8 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
      */
     ::walkPlace(*g.program.core, *g.function, place, [&](const PlaceStep& step) {
         type = step.type;
+        elided = false;
+        whole = false;
         if(step.broken) return false;
 
         switch(step.kind) {
@@ -494,6 +508,25 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                 }
 
                 /*
+                 * A field elided onto a property the host value already has - `self.length` of
+                 * `data Array(a) {items: %a, length: @host Count}`, which is `arr.length`.
+                 *
+                 * The ordinary property step, on the value the walk is already holding, which is
+                 * what makes this a *place* rather than two operations: reading it is the count and
+                 * writing it truncates the array, so `remove` closing the gap and recording the new
+                 * count is one assignment through here rather than a `.splice` with a rule of its
+                 * own. See isHostProperty for why the flag alone does not decide it.
+                 */
+                if(isHostProperty(g, owner, step.index)) {
+                    auto property = ((TupType*)g.global[owner])->fields.get(g.global, step.index);
+                    if(expr) *expr = field(g, *expr, fieldName(g, property.name, step.index));
+
+                    within = PlaceBits {};
+                    elided = true;
+                    break;
+                }
+
+                /*
                  * The one field of a tuple that is that field here - `data Array(a) {items: %a}`,
                  * whose value is the host array rather than an object holding one. There is no
                  * property to descend into and the walk stays exactly where it is.
@@ -606,6 +639,7 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                  * the arithmetic the expansion emitted is what carries the shift and the mask.
                  */
                 within = PlaceBits {};
+                whole = true;
                 break;
             case ProjectionKind::Property:
                 break;
@@ -633,6 +667,8 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
     }
 
     if(bits) *bits = within;
+    if(hostProperty) *hostProperty = elided;
+    if(packedWord) *packedWord = whole;
     return type;
 }
 
@@ -1183,21 +1219,68 @@ Maybe<FunParts> destinationFunParts(Gen& g, const Place& place) {
     return Nothing();
 }
 
+/*
+ * Declared in build.h, which is where the argument for it lives.
+ *
+ * Four exclusions, and each of them is a type whose values are *not* inside what a width would say:
+ *
+ *  - `Bool`, which `coerce` leaves alone - the host boundary hands one in as `? 1 : 0` and nothing
+ *    reduces it afterwards, so a width here would be a claim nothing maintains;
+ *  - a `Long`, which is a `bigint` and has no `number` range at all;
+ *  - a wide `number` of 33 to 53 bits, whose reductions are wide.cpp's rather than `coerce`'s;
+ *  - anything past 32 bits, which no fold below asks about.
+ */
+void noteValueType(Gen& g, JsPtr<Expr> value, TypePtr type) {
+    if(!value) return;
+
+    auto expr = g.base[value];
+    if(expr->kind != Expr::Field && expr->kind != Expr::Index) return;
+
+    auto integer = intType(g, type);
+    if(!integer || integer->width == IntType::Bool || integer->bits > 32) return;
+    if(isLong(g, type) || isWideNumber(g, type)) return;
+
+    expr->valueBits = U8(integer->bits);
+    expr->valueSigned = integer->isSigned;
+}
+
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
     PlaceBits bits;
-    auto type = walkJsPlace(g, place, &expr, limit, &bits);
+    auto packedWord = false;
+    auto type = walkJsPlace(g, place, &expr, limit, &bits, nullptr, nullptr, &packedWord);
 
     // Every reader wants the value rather than the word it sits in, so the decode is applied here and
     // the one caller that cannot use it - the store below - asks placeOwner instead.
     if(bits.foldedTag) return decodeNicheTag(g, expr, bits.foldedTag);
     if(bits.valid()) return decodeBits(g, expr, bits, type);
+
+    /*
+     * Two exclusions, and both are places whose *range is already in the tree*.
+     *
+     * A bit range has returned above carrying `decodeBits`'s own mask. A packed word reaches here
+     * with `type` naming the field the path asked for and the expression holding the whole word it
+     * sits in - so the type is a statement about thirteen of the bits of a value that has more of
+     * them, and taking it for the value's own is how `x.count & 8191` lost its mask and read a
+     * neighbour along with it.
+     */
+    if(!packedWord) noteValueType(g, expr, type);
     return expr;
 }
 
 JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit) {
     JsPtr<Expr> expr = nullptr;
     walkJsPlace(g, place, &expr, limit, &bits);
+    return expr;
+}
+
+// The chain, and whether the last step of it landed on a `@host` field - the one thing a *write*
+// needs that a read does not. Answered by the same walk rather than by a second one, on the same
+// terms as everything else here: a place that is a host property to one of the two and not to the
+// other is a store that lands somewhere nothing reads.
+JsPtr<Expr> placeTarget(Gen& g, const Place& place, bool& hostProperty) {
+    JsPtr<Expr> expr = nullptr;
+    walkJsPlace(g, place, &expr, maxLimit<Size>, nullptr, nullptr, &hostProperty);
     return expr;
 }
 

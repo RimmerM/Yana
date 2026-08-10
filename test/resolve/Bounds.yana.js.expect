@@ -1,21 +1,38 @@
 "use strict";
 // Collections
-function checkCondition(failed) {
-  if (failed) {
-    throw "yana: a runtime check failed";
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
   }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
 }
 
 // ResolveTest
 function main() {
-  var v18 = [10, 20, 30, 40];
-  v18.splice(3, 1);
-  var v37 = v18.length;
-  checkCondition(0 >= v37);
-  var v42 = v18[0];
-  checkCondition(2 >= v37);
-  var v50 = v42 + v18[2] | 0;
-  var v52 = [1, 2, 3, 4, 5, 6];
-  return (Math.imul(v50, 1000) + Math.imul(v52[2] + v52[4] | 0, 100) | 0) + 202 | 0;
+  var v77 = { items: new Int32Array([10, 20, 30]), length: 3 };
+  growJsArray_Int(v77, 4);
+  v77.items[3] = 40;
+  v77.length = 4;
+  var v99 = v77.items;
+  v99.copyWithin(3, 4, 4);
+  v77.length = 3;
+  var v111 = v99[0] + v99[2] | 0;
+  var v18 = new Int32Array([1, 2, 3, 4, 5, 6]);
+  return (Math.imul(v111, 1000) + Math.imul(v18[2] + v18[4] | 0, 100) | 0) + 202 | 0;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
 }
 main();

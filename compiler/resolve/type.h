@@ -673,11 +673,34 @@ struct LiteralType: Type {
  * It is part of the tuple's interned identity for the same reason `TypeLayout` is: content tuples
  * are interned structurally and the Repr cache is keyed on the type, so `{Tree}` boxed and `{Tree}`
  * unboxed have to be two types or one of them gets the other's layout.
+ *
+ * ## `host`
+ *
+ * The field is not stored: it is the host property of the same name on the value field zero holds -
+ * `@host`, and Implementation-Containers.md §14's elision. So a tuple that has one of these has
+ * exactly one field of its own, which makes it the wrapped value the way a one-field tuple is, and
+ * every field after that one is reached as a property of it.
+ *
+ * `@platform(js) data Array(a) {items: %a, length: @host Count}` is the declaration it exists for.
+ * A host array's `length` *is* its occupancy and assigning it truncates - which is exactly what
+ * `remove` means - so a container over one needs no count of its own, and the object that carried
+ * one was a wrapper both rows paid for and only the typed row needed.
+ *
+ * **It is a claim a target may refuse**, and that is the difference from `boxed`. What a host value's
+ * property means is not something this stage can check: a `TypedArray`'s `length` is its fixed
+ * capacity rather than its occupancy and cannot be assigned at all, so the same declaration must
+ * keep its stored field there. The flag says the elision is *available*; `hostPropertiesElided` in
+ * resolve/host.h is the one rule that says where it holds, and the JS code generator is its reader.
+ * Every other target ignores the flag and stores the field.
+ *
+ * Interned like `boxed`, and for the stronger version of its reason: two tuples that differ in this
+ * differ in how many properties a value of them has.
  */
 struct Field {
     TypePtr type = nullptr;
     StringId name {};
     bool boxed = false;
+    bool host = false;
 };
 
 /*

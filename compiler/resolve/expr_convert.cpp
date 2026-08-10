@@ -479,10 +479,15 @@ ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Plac
         count = makeInt(source, module.scalar.size, ((ArrayType*)global[from])->length);
     } else {
         auto held = projectField(array, context.addUnqualifiedName("items", 5), source, source);
-        if(!held) return nullptr;
+        auto stored = projectField(array, context.addUnqualifiedName("length", 6), source, source);
+        if(!held || !stored) return nullptr;
 
         items = load(held.unwrap(), source);
-        count = hostArrayLength(items, source);
+
+        // The container's own count and not the host array's length, which is its capacity - see
+        // Implementation-Containers.md §14's typed row. A slice is a window on what the container
+        // holds, and what it holds is what it says it holds on both targets.
+        count = load(stored.unwrap(), source);
     }
 
     auto storage = allocate(target, source, local[value]->name,

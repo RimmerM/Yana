@@ -68,6 +68,11 @@ TypePtr stepType(Module& module, TypePtr carried, LocationId source);
 bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Function> callee,
                            Buffer<ResolvedArg> args, LocationId source, Array<FunArg>& out);
 
+// The same, for a class member, which is not desugared and so has no continuation parameter to read
+// the shape off. False after reporting a written result these type arguments cannot make concrete.
+bool classContinuationSignature(ExprResolver& resolver, Module& module, ClassMatch& match,
+                                LocationId source, Array<FunArg>& out);
+
 // -- expr_try.cpp ------------------------------------------------------------------------------
 
 bool selectTry(Module& module, Function& function, TypePtr carrier, TrySelection& out);

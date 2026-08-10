@@ -510,6 +510,10 @@ void resolveInstance(Module& module, ast::Decl& decl) {
             resolveLensSignature(module, *function, memberEnv, member);
             memberEnv->open = false;
             function->gen = memberEnv - *module.types;
+
+            // The continuation this desugaring just synthesized is one a deferred dispatch has to
+            // assume the extent of, because it has no body to read - see Function::classContinuation.
+            function->classContinuation = function->yieldForm;
         }
 
         function->ast = memberPointer;

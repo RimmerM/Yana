@@ -57,11 +57,11 @@ function leftOf(t) {
 }
 
 function buildList() {
-  var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
-  var v3 = { head: 2, tail: { $v: { head: 0, tail: null } } };
   var v6 = { head: 39, tail: { $v: { head: 0, tail: null } } };
   v6.tail.$v = null;
+  var v3 = { head: 2, tail: { $v: { head: 0, tail: null } } };
   v3.tail.$v = v6;
+  var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
   xs.tail.$v = v3;
   return sum(xs);
 }
@@ -82,11 +82,11 @@ function idsOf(c) {
 }
 
 function buildChain() {
-  var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
+  add_eq_Int(liveNodes, "$v", 1, 1);
   add_eq_Int(liveNodes, "$v", 1, 1);
   var v4 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
-  add_eq_Int(liveNodes, "$v", 1, 1);
   v4.rest.$v = null;
+  var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
   c.rest.$v = v4;
   var v23 = idsOf(c);
   drop$Chain(c);
@@ -96,7 +96,7 @@ function buildChain() {
 function main() {
   var values = buildList() + buildTree() | 0;
   var chained = buildChain();
-  if (liveNodes.$v !== 0) {
+  if (liveNodes.$v) {
     return -1;
   } else {
     return values + chained | 0;
