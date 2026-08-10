@@ -1,12 +1,14 @@
 #include "edit.h"
 #include "builder.h"
 
-IrEditor::IrEditor(Module& module, Function& function, bool* changed):
-    module(module), function(function), base(*module.arena), changed(changed) {}
+IrEditor::IrEditor(Module& module, Function& function, bool* changed, IrVersion* version):
+    module(module), function(function), base(*module.arena), changed(changed), version(version) {}
 
 void IrEditor::recordUse(ModulePtr<Value> value, ModulePtr<Inst> user) {
     if(!value) return;
+
     base[value]->useList.push(module.arena, user);
+    markValues();
 }
 
 void IrEditor::addUse(ModulePtr<Value> value, Inst* user) {
@@ -187,9 +189,11 @@ void IrEditor::replaceValue(ModulePtr<Value> from, ModulePtr<Value> to) {
     }
 
     markChanged();
+    markValues();
 }
 
 void IrEditor::forgetLocalValue(ModulePtr<Value> value) {
+    markValues();
     for(U32 local = 0; local < function.localCount(); local++) {
         if(function.localAt(base, local).value != value) continue;
 
@@ -198,10 +202,12 @@ void IrEditor::forgetLocalValue(ModulePtr<Value> value) {
 }
 
 void IrEditor::setLocalValue(U32 index, ModulePtr<Value> value) {
+    markValues();
     function.setLocalValue(base, index, value);
 }
 
 void IrEditor::repointLocalValue(ModulePtr<Value> from, ModulePtr<Value> to) {
+    markValues();
     for(U32 local = U32(function.localCount()); local-- > 0;) {
         if(function.localAt(base, local).value != from) continue;
 
@@ -249,6 +255,11 @@ Inst* IrEditor::append(Block& block, Inst* inst) {
     }
 
     recordUses(inst);
+
+    // A terminator is the one kind whose arrival is a CFG edit: `recordEdges` above just created
+    // this block's outgoing edges out of it.
+    if(isTerminator(*inst)) markBlocks(); else markValues();
+
     return inst;
 }
 
@@ -282,6 +293,8 @@ void IrEditor::reorder(Block& block, Buffer<ModulePtr<Inst>> order) {
 
     block.instructionList.clear();
     for(auto instruction: order) block.instructionList.push(module.arena, instruction);
+
+    markValues();
 }
 
 void IrEditor::insert(Block& block, Size index, InstList& instructions) {
@@ -313,9 +326,11 @@ void IrEditor::insert(Block& block, Size index, InstList& instructions) {
 
     reorder(block, Buffer<ModulePtr<Inst>>(ordered.pointer(), ordered.size()));
     markChanged();
+    markValues();
 }
 
 void IrEditor::removeInstruction(ModulePtr<Inst> instruction) {
+    markValues();
     auto value = base[instruction];
 
     dropUses(instruction);
@@ -339,9 +354,11 @@ void IrEditor::eraseInstruction(ModulePtr<Inst> instruction) {
 
     removeInstruction(instruction);
     markChanged();
+    markValues();
 }
 
 void IrEditor::erasePhi(ModulePtr<InstPhi> pointer) {
+    markValues();
     auto phi = base[pointer];
     auto instruction = (ModulePtr<Inst>)pointer;
 
@@ -374,9 +391,11 @@ void IrEditor::moveInstruction(ModulePtr<Inst> instruction, Block& target) {
     value->block = targetPointer;
 
     markChanged();
+    markValues();
 }
 
 void IrEditor::moveInstructions(Block& source, Block& target) {
+    markValues();
     auto targetPointer = (ModulePtr<Block>)(&target - base);
 
     for(auto instruction: source.instructions(base)) {
@@ -388,11 +407,13 @@ void IrEditor::moveInstructions(Block& source, Block& target) {
 }
 
 void IrEditor::addPhiInput(ModulePtr<InstPhi> pointer, PhiInput input) {
+    markValues();
     base[pointer]->inputs.push(module.arena, input);
     recordUse(input.value, (ModulePtr<Inst>)pointer);
 }
 
 void IrEditor::removePhiInput(ModulePtr<InstPhi> pointer, Size index) {
+    markValues();
     auto phi = base[pointer];
 
     dropUse(phi->inputs.get(base, index).value, (ModulePtr<Inst>)pointer);
@@ -400,6 +421,7 @@ void IrEditor::removePhiInput(ModulePtr<InstPhi> pointer, Size index) {
 }
 
 void IrEditor::removeEdge(ModulePtr<Block> into, ModulePtr<Block> from) {
+    markBlocks();
     auto block = base[into];
 
     for(Size i = 0; i < block->predecessorCount(); i++) {
@@ -422,6 +444,7 @@ void IrEditor::removeEdge(ModulePtr<Block> into, ModulePtr<Block> from) {
 }
 
 void IrEditor::retargetEdge(Block& target, ModulePtr<Block> from, ModulePtr<Block> to) {
+    markBlocks();
     for(Size i = 0; i < target.predecessorCount(); i++) {
         if(target.predecessorAt(base, i) != from) continue;
 
@@ -442,6 +465,7 @@ void IrEditor::retargetEdge(Block& target, ModulePtr<Block> from, ModulePtr<Bloc
 }
 
 void IrEditor::retargetEdgeOnce(Block& target, ModulePtr<Block> from, ModulePtr<Block> to) {
+    markBlocks();
     for(Size i = 0; i < target.predecessorCount(); i++) {
         if(target.predecessorAt(base, i) != from) continue;
 
@@ -472,6 +496,7 @@ void IrEditor::retargetEdgeOnce(Block& target, ModulePtr<Block> from, ModulePtr<
  * edges now leave from somewhere else.
  */
 void IrEditor::transferTerminator(Block& from, Block& to) {
+    markBlocks();
     auto fromPointer = (ModulePtr<Block>)(&from - base);
     auto toPointer = (ModulePtr<Block>)(&to - base);
 
@@ -542,9 +567,11 @@ void IrEditor::setTerminator(Block& block, Inst* inst) {
 
     recordUses(inst);
     markChanged();
+    markBlocks();
 }
 
 void IrEditor::clearTerminator(Block& block) {
+    markBlocks();
     auto blockPointer = (ModulePtr<Block>)(&block - base);
 
     if(block.terminatorInst) dropUses(block.terminatorInst);
@@ -588,6 +615,7 @@ Size IrEditor::redirectSuccessor(Block& from, ModulePtr<Block> oldTarget, Module
         base[newTarget]->incomingList.push(module.arena, fromPointer);
     }
 
+    markBlocks();
     return redirected;
 }
 
@@ -595,6 +623,8 @@ void IrEditor::clearPredecessors(Block& block) {
     // By removal rather than by a clear, because an embedded list has no such operation - see
     // SmallList, where an entry is present exactly when its high bit is set.
     while(block.incomingList.size()) block.incomingList.remove(base, block.incomingList.size() - 1);
+
+    markBlocks();
 }
 
 Block* IrEditor::splitBlock(Block& block, Size index) {
@@ -620,6 +650,8 @@ Block* IrEditor::splitBlock(Block& block, Size index) {
     }
 
     transferTerminator(block, *continuation);
+
+    markBlocks();
     return continuation;
 }
 
@@ -662,6 +694,7 @@ Block* IrEditor::splitEdge(Block& from, Size successor) {
     split->terminatorInst = (ModulePtr<Inst>)((Inst*)jump - base);
     successorsOf(*jump, split->outgoingBlocks);
 
+    markBlocks();
     return split;
 }
 
@@ -678,9 +711,11 @@ void IrEditor::spliceInto(Block& into, Block& block) {
     transferTerminator(block, into);
     clearPredecessors(block);
     markChanged();
+    markBlocks();
 }
 
 void IrEditor::discardBlock(Block& block) {
+    markBlocks();
     for(auto phi: block.phis(base)) {
         dropUses((ModulePtr<Inst>)phi);
         forgetLocalValue((ModulePtr<Value>)phi);
@@ -720,6 +755,7 @@ static void eachFunctionValue(ModuleBase base, Function& function, F&& f) {
 
 // Two passes, because a list may only be cleared before anything is pushed into it.
 void IrEditor::rebuildUses() {
+    markValues();
     auto forget = [&](ModulePtr<Value> value) {
         if(value) base[value]->useList.clear();
     };
@@ -744,6 +780,7 @@ void IrEditor::rebuildUses() {
 }
 
 void IrEditor::setBlockOrder(Buffer<ModulePtr<Block>> order) {
+    markBlocks();
     function.blocks.clear();
 
     U16 index = 0;

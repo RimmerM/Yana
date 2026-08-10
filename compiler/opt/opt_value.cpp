@@ -294,11 +294,15 @@ struct BlockEffects {
 };
 
 struct Effects {
-    Array<BlockEffects> blocks;
+    // Most functions in the optimizer have only a handful of blocks. Keeping those rows beside the
+    // analysis avoids a heap allocation on every fixed-point visit; larger functions spill to the
+    // ordinary backing store without changing the indexing below.
+    SmallArray<BlockEffects, 8> blocks;
 
     // One list for the whole function, indexed into per block, rather than a list per block: a
-    // block writes a handful of places and there is no reason to allocate per row for that.
-    Array<Place> writes;
+    // block writes a handful of places and there is no reason to allocate per row for that. Sixteen
+    // also covers the whole list for the common small-function case.
+    SmallArray<Place, 16> writes;
 };
 
 void computeEffects(OptContext& opt, Effects& effects) {
@@ -357,9 +361,30 @@ struct Eliminator {
     Dominance& dominance;
     Effects effects;
 
-    // Per local, whether a callee could reach its storage - see `computeContainment`. What decides
-    // whether a fact survives a block that may have written anything.
-    IndexSet contained;
+    // Per local, whether a callee could reach its storage - see `containmentOf`. What decides
+    // whether a fact survives a block that may have written anything. A pointer rather than a
+    // reference because it is taken lazily - see `ensureStorageAnalysis` - and null until then.
+    const IndexSet* contained = nullptr;
+
+    /*
+     * The storage analysis is wanted only if this walk finds a load worth remembering.
+     *
+     * CSE also handles pure expressions, and most of the small functions reached on each optimizer
+     * round contain only those. Building `effects` and `contained` for every one of them allocated
+     * two growing arrays per visit and then never read either. Delaying the work until the first
+     * load keeps the analysis exactly as function-wide as it was -- in particular, `killBetween`
+     * can still inspect blocks visited before the load -- without charging expression-only CSE for
+     * storage facts it has no entry to invalidate.
+     */
+    bool storageReady = false;
+
+    void ensureStorageAnalysis() {
+        if(storageReady) return;
+
+        computeEffects(opt, effects);
+        contained = &containmentOf(opt);
+        storageReady = true;
+    }
 
     // The repeatable results in scope, which nothing invalidates, and the loads, which anything
     // that writes their storage does.
@@ -382,10 +407,16 @@ struct Eliminator {
     // same exemption `forwardPlaces` makes and for the same reason - and it does not extend to a
     // host value, which `contained` has nothing to say about.
     void killExposed() {
+        // A load in the list is a load that was remembered, and remembering one is what takes the
+        // storage analysis - so an entry here means `contained` was taken. Asserted rather than
+        // guarded, because the alternative reading would be a load kept across a call on the
+        // strength of a set nothing filled in.
+        assertTrue(loads.isEmpty() || storageReady);
+
         for(Size i = loads.size(); i-- > 0;) {
             if(loads[i].killedAt != AvailableLoad::kAlive) continue;
 
-            auto safe = !loads[i].host && staysInFrame(opt, contained, loads[i].place);
+            auto safe = !loads[i].host && staysInFrame(opt, *contained, loads[i].place);
             if(!safe) loads[i].killedAt = depth;
         }
     }
@@ -407,6 +438,10 @@ struct Eliminator {
      * header rather than surviving into a body that overwrites it.
      */
     void killBetween(U32 index) {
+        // There is no fact to invalidate before the first tracked load. `forwardRead` initializes
+        // the tables when it adds that first fact, so every later visit that reaches below has them.
+        if(loads.isEmpty()) return;
+
         auto stop = dominance.immediate[index];
 
         ScratchSet seen(opt.sets, dominance.blocks.size());
@@ -470,6 +505,11 @@ struct Eliminator {
             opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
             return true;
         }
+
+        // From this point on a write may have to invalidate the entry being added, including one
+        // later in this same block. Have the containment facts ready before that can happen; the
+        // effect table is built beside them so a dominated block can inspect every intervening path.
+        ensureStorageAnalysis();
 
         AvailableLoad entry;
         entry.value = (ModulePtr<Value>)pointer;
@@ -594,14 +634,10 @@ void eliminateCommonValues(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
     // The stage's, not this pass's: the loop pass asks for the same thing on the same function a
-    // few lines later, and neither wants the rows rebuilt.
-    auto& dominance = opt.dominance;
-    computeDominance(opt, dominance);
+    // few lines later, and neither wants the rows rebuilt - nor, now, recomputed.
+    auto& dominance = dominanceOf(opt);
 
     Eliminator eliminator { opt, dominance };
-    computeEffects(opt, eliminator.effects);
-    computeContainment(opt, eliminator.contained);
-
     eliminator.run(0);
 }
 

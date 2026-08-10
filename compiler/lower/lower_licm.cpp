@@ -131,11 +131,16 @@ LowerBlock* preheaderOf(LowerBase base, const LoopInfo& loops, LowerBlock* heade
 
 } // namespace
 
-void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun) {
+void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
+                    const LoopAnalysis& analysis)
+{
     if(fun.blocks.size() < 2) return;
 
-    auto loops = fun.buildLoops(base);
-    auto dominators = fun.buildDominatorTree(base);
+    // The caller's, and valid for the whole walk: everything below moves instructions between
+    // blocks that already exist, so neither the loop structure nor the dominance relation moves
+    // with them. See LoopAnalysis.
+    auto& loops = analysis.loops;
+    auto& dominators = analysis.dominators;
 
     /*
      * Innermost first, and repeated until nothing moves. A load leaving an inner loop lands in that

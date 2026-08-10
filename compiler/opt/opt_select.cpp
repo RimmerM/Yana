@@ -343,9 +343,12 @@ bool convertReturnBranch(OptContext& opt, ModulePtr<Block> pointer) {
     auto selected = whenTrue;
 
     if(whenTrue != whenFalse) {
-        auto instruction = addInst<InstSelect>(*opt.module, *opt.function, *head, source, StringId(),
-                                               opt.local[whenTrue]->type, condition, whenTrue,
-                                               whenFalse);
+        // Through the stage's own editor rather than `addInst`, which builds one of its own with no
+        // way to report what it wrote - see IrVersion, and the cached analyses that read it.
+        auto instruction = createInst<InstSelect>(*opt.module, *opt.function, *head, source,
+                                                  StringId(), opt.local[whenTrue]->type, condition,
+                                                  whenTrue, whenFalse);
+        opt.ir().append(*head, instruction);
 
         selected = (ModulePtr<Value>)((Value*)instruction - opt.local);
     }
@@ -440,9 +443,10 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
          */
         auto selected = whenTrue;
         if(whenTrue != whenFalse) {
-            auto instruction = addInst<InstSelect>(*opt.module, *opt.function, *head, phi.source,
-                                                   phi.name, phi.type, branch.cond, whenTrue,
-                                                   whenFalse);
+            auto instruction = createInst<InstSelect>(*opt.module, *opt.function, *head, phi.source,
+                                                      phi.name, phi.type, branch.cond, whenTrue,
+                                                      whenFalse);
+            opt.ir().append(*head, instruction);
 
             selected = (ModulePtr<Value>)((Value*)instruction - opt.local);
         }

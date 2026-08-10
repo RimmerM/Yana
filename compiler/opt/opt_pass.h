@@ -43,6 +43,87 @@ struct Dominance {
     static constexpr U32 kNone = maxLimit<U32>;
 };
 
+/*
+ * One natural loop: the header every iteration passes through, the blocks that reach the back edge,
+ * and the single block outside that leads into it.
+ *
+ * `preheader` is `kNone` where there is no such block, and a loop with none is one nothing may be
+ * hoisted out of - there is nowhere to put it that runs exactly once per entry.
+ */
+struct Loop {
+    U32 header = 0;
+    U32 preheader = kNone;
+    IndexSet contains;
+
+    // Inline: a loop in an ordinary function is a handful of blocks, and this list is rebuilt from
+    // `contains` every round of every pass that asks for the loops.
+    SmallArray<U32, 16> blocks;
+
+    Loop() = default;
+    Loop(Loop&&) = default;
+
+    /*
+     * Written out because the loop list is *sorted* - innermost first - and a sort assigns.
+     *
+     * Neither member can take the default: an IndexSet is move-only, and a SmallArray deletes
+     * assignment because the inherited one would append rather than replace. So the two are said
+     * here by their own names, which is also the only place the copy is: `contains` hands its
+     * storage over, and `blocks` is copied into whatever storage the destination already had.
+     */
+    Loop& operator = (Loop&& other) {
+        if(this == &other) return *this;
+
+        header = other.header;
+        preheader = other.preheader;
+        contains = ::move(other.contains);
+        replaceContents(blocks, other.blocks);
+        return *this;
+    }
+
+    static constexpr U32 kNone = maxLimit<U32>;
+};
+
+/*
+ * When one cached analysis was computed, and from what.
+ *
+ * `OptContext` holds the three answers every pass here asks for - the dominator tree, the loops and
+ * the storage a callee can reach - and each of them used to be recomputed by each pass that wanted
+ * it. That is between two and five walks of a function per round of a fixed point that runs the
+ * round up to eight times, for an answer that in most of those rounds nothing has invalidated: the
+ * later rounds of the loop exist to discover that there is nothing left to do.
+ *
+ * So each is stamped with the function it was read from and the `IrVersion` the IR was at, and is
+ * handed back rather than recomputed while both still hold. `overValues` is which structure the
+ * analysis is over - see IrVersion. A dominator tree and the loops derived from it are statements
+ * about the block graph alone, so folding an operand or deleting an instruction leaves them
+ * standing; containment is a statement about instructions and use lists, so it does not.
+ *
+ * The function is compared as well as the version, because `opt.function` is assigned in eight
+ * places - the inliner settles a callee in the middle of describing a call site, and gives the
+ * caller back afterwards - and a stamp naming another function is not an answer about this one
+ * whatever the IR has done since.
+ */
+struct AnalysisStamp {
+    Function* function = nullptr;
+
+    // 64 bits for the reason the counters are: a stamp is only wrong if a counter wraps exactly
+    // onto the value it holds, and a width no compilation can exhaust is cheaper than the argument
+    // that no compilation can exhaust a narrower one.
+    U64 values = 0;
+    U64 blocks = 0;
+
+    bool holds(Function* current, const IrVersion& now, bool overValues) const {
+        if(function != current || blocks != now.blocks) return false;
+        return !overValues || values == now.values;
+    }
+
+    void take(Function* current, const IrVersion& now) {
+        function = current;
+        values = now.values;
+        blocks = now.blocks;
+    }
+};
+
 struct OptContext {
     Context& context;
     Program& program;
@@ -58,15 +139,32 @@ struct OptContext {
      *
      * There is one OptContext per program and one call of each pass per function per round, so a
      * set built inside a pass is built a few thousand times over a compilation and holds a handful
-     * of bits each time. `sets` hands out the per-pass ones by scope - see ScratchSet - and the
-     * dominator tree is named because two passes ask for it and neither wants the other's.
+     * of bits each time. `sets` hands out the per-pass ones by scope - see ScratchSet.
+     *
+     * The four below it are not scratch: they are the cached analyses, held here rather than in the
+     * pass that asked because the point of them is that the *next* pass gets the same answer. See
+     * AnalysisStamp, and `dominanceOf` and its three neighbours, which are the only way to read one.
      */
     IndexSetPool sets;
+
     Dominance dominance;
+    Array<Loop> loops;
+    IndexSet contained;
+    IndexSet reachable;
+
+    AnalysisStamp dominanceStamp;
+    AnalysisStamp loopStamp;
+    AnalysisStamp containedStamp;
+    AnalysisStamp reachableStamp;
 
     // Set by any rewrite. The driver runs the passes to a fixed point over one function, because
     // folding exposes identities and identities expose more folding.
     bool changed = false;
+
+    // What has been written, for the four stamps above - see IrVersion. Not the same question as
+    // `changed`: a rewrite the fixed point has no reason to run another round over is still one a
+    // cached answer has every reason to notice.
+    IrVersion version;
 
     /*
      * The one way this directory edits the IR - see resolve/edit.h.
@@ -75,7 +173,7 @@ struct OptContext {
      * outlives every function it visits: three references and a flag, so a pass asking for one in a
      * loop costs nothing worth arranging around.
      */
-    IrEditor ir() { return IrEditor(*module, *function, &changed); }
+    IrEditor ir() { return IrEditor(*module, *function, &changed, &version); }
 };
 
 // The storage roots one instruction names - see eachPlaceRootValue in resolve/module.h, which is
@@ -271,46 +369,6 @@ Place fieldPlace(OptContext& opt, Place base, const Fields& fields, U16 index);
 // outlives every function.
 void computeDominance(OptContext& opt, Dominance& result);
 
-/*
- * One natural loop: the header every iteration passes through, the blocks that reach the back edge,
- * and the single block outside that leads into it.
- *
- * `preheader` is `kNone` where there is no such block, and a loop with none is one nothing may be
- * hoisted out of - there is nowhere to put it that runs exactly once per entry.
- */
-struct Loop {
-    U32 header = 0;
-    U32 preheader = kNone;
-    IndexSet contains;
-
-    // Inline: a loop in an ordinary function is a handful of blocks, and this list is rebuilt from
-    // `contains` every round of every pass that asks for the loops.
-    SmallArray<U32, 16> blocks;
-
-    Loop() = default;
-    Loop(Loop&&) = default;
-
-    /*
-     * Written out because the loop list is *sorted* - innermost first - and a sort assigns.
-     *
-     * Neither member can take the default: an IndexSet is move-only, and a SmallArray deletes
-     * assignment because the inherited one would append rather than replace. So the two are said
-     * here by their own names, which is also the only place the copy is: `contains` hands its
-     * storage over, and `blocks` is copied into whatever storage the destination already had.
-     */
-    Loop& operator = (Loop&& other) {
-        if(this == &other) return *this;
-
-        header = other.header;
-        preheader = other.preheader;
-        contains = ::move(other.contains);
-        replaceContents(blocks, other.blocks);
-        return *this;
-    }
-
-    static constexpr U32 kNone = maxLimit<U32>;
-};
-
 // Innermost first, so a value hoisted out of an inner loop lands where the next round can hoist it
 // out of the one containing it.
 void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops);
@@ -322,6 +380,22 @@ void computeReachable(OptContext& opt, IndexSet& reachable);
 // Per local, whether a callee could reach its storage: indexed by local, and false for anything the
 // function handed an address of.
 void computeContainment(OptContext& opt, IndexSet& contained);
+
+/*
+ * The four above, asked of the stage rather than computed - and this is the form every pass should
+ * use. See AnalysisStamp: the answer is computed on the first ask and handed back on every ask after
+ * it until something writes the structure it is stated over.
+ *
+ * A pass reads one of these *once*, at the top, and holds the reference across its own rewrites -
+ * which is what the four already did with their private copies and is the same staleness they always
+ * had. What is new is only that asking again after a rewrite gets a fresh answer rather than the
+ * same one, so a pass that wants the stale reading has to keep holding its reference rather than
+ * re-asking. None does.
+ */
+Dominance& dominanceOf(OptContext& opt);
+Array<Loop>& loopsOf(OptContext& opt);
+const IndexSet& containmentOf(OptContext& opt);
+const IndexSet& reachableOf(OptContext& opt);
 
 // Whether this place is storage inside a local a callee cannot reach - a contained root, and a path
 // that stays inside the allocation rather than leaving through a pointer, an element or a witness.

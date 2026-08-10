@@ -183,6 +183,44 @@ struct LoopInfo {
     }
 };
 
+/*
+ * The two answers above, built once for a run of passes rather than once per pass.
+ *
+ * Five passes in the lower pipeline are stated against "which blocks head loops" and "which block
+ * dominates which", and each of them used to rebuild both from the CFG: five postorder walks, five
+ * dominator solves and five back-edge searches over one function, for one answer. They are
+ * consecutive, and nothing between them changes the block set - `foldFunctionConstants` runs twice
+ * in the middle of them and the only thing it does to the CFG is exchange a `Je`'s two arms, which
+ * reorders a postorder walk and leaves both the loop structure and the dominance relation exactly
+ * as they were. So `lowerProgram` builds one of these and hands it to all five.
+ *
+ * One of the five *does* change the block graph, at the end and conditionally: `eliminateCommonValues`
+ * takes the decided arm of a bounds check it has proved redundant, which removes an edge and usually
+ * a block. It answers whether it did, and the caller rebuilds before the four passes behind it - see
+ * `rebuild`, which is the whole reason this is a type rather than two locals.
+ *
+ * Built in place rather than returned from a factory: both members are `SmallArray`s, whose
+ * assignment appends rather than replaces (see compiler/util/container.h), and a member initialized
+ * from a prvalue is constructed where it stands. Out of line for the ordinary reason - the function
+ * it is built from is declared further down this file.
+ */
+struct LoopAnalysis {
+    LoopAnalysis(LowerBase base, LowerFunction& fun);
+
+    /*
+     * The same pair over the CFG as it now is, into the buffers this one already has.
+     *
+     * Member by member, because the two structures cannot be assigned for the reason above and
+     * `replaceContents` is what the codebase says instead. That does couple this to the fields of
+     * the two types - which is why it sits directly below them, so that a field added to either is
+     * a field added five lines from the code that has to copy it.
+     */
+    void rebuild(LowerBase base, LowerFunction& fun);
+
+    LoopInfo loops;
+    DominatorTree dominators;
+};
+
 // The relative weights of a block's two outgoing edges, as edgeWeightsOf answers them. Index 0 is
 // the block's `outgoing[0]`, index 1 its `outgoing[1]`; a block with fewer than two successors has
 // nothing to weigh and answers with the neutral pair.

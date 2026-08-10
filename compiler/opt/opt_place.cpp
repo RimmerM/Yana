@@ -550,15 +550,17 @@ struct HostArrayLength {
 
 struct Forwarder {
     OptContext& opt;
+
+    // Per local, whether a callee could reach its storage - see `containmentOf`. The stage's rather
+    // than this pass's, and held by reference because nothing here writes it: three other passes ask
+    // the same question of the same function in the same round.
+    const IndexSet& contained;
+
     SmallArray<Known, 16> known;
 
     // The host arrays created in this block, and how long each is known to be - see
     // HostArrayLength. Always empty on a native target, where nothing emits a `hostarray` at all.
     SmallArray<HostArrayLength, 4> arrays;
-
-    // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
-    // local, and empty until one function has been walked.
-    IndexSet contained;
 
     // Per local, whether nothing in this function ever computed its address - see `pointerSafe`,
     // which is the only thing that reads it.
@@ -1534,8 +1536,7 @@ static void computeUnaddressed(OptContext& opt, IndexSet& unaddressed) {
 }
 
 void forwardPlaces(OptContext& opt) {
-    Forwarder forwarder { opt };
-    computeContainment(opt, forwarder.contained);
+    Forwarder forwarder { opt, containmentOf(opt) };
     computeUnaddressed(opt, forwarder.unaddressed);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {

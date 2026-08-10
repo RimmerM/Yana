@@ -1192,11 +1192,13 @@ void dropUnreachedBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
 
 } // namespace
 
-void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun) {
+void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun,
+                            const LoopAnalysis& analysis)
+{
     if(fun.blocks.size() < 2) return;
 
-    auto loops = fun.buildLoops(base);
-    auto dominators = fun.buildDominatorTree(base);
+    auto& loops = analysis.loops;
+    auto& dominators = analysis.dominators;
 
     // Collected rather than removed in place: dropping a block renumbers every one of them, which is
     // what `loops` and the dominator tree are indexed by.
@@ -1214,14 +1216,17 @@ void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& 
     for(auto block: dropped) dropUnreachedBlock(base, fun, block);
 }
 
-void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun) {
+void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun,
+                              const LoopAnalysis& analysis)
+{
     if(fun.blocks.size() < 2) return;
 
     // Both valid for the whole walk: nothing below creates, removes or renumbers a block, so the loop
-    // structure and the dominator tree the first two lines find are the ones the last line reduces
-    // against - which is also what keeps `postIndex`, the tree's index, standing.
-    auto loops = fun.buildLoops(base);
-    auto dominators = fun.buildDominatorTree(base);
+    // structure and the dominator tree the caller found are the ones the last line reduces against -
+    // which is also what keeps `postIndex`, the tree's index, standing. See LoopAnalysis for why the
+    // two passes behind this one are handed the same pair rather than rebuilding it.
+    auto& loops = analysis.loops;
+    auto& dominators = analysis.dominators;
     DeadSweep sweep { base, module, {} };
 
     for(auto blockPtr: fun.blocks.contents(base)) {
@@ -1236,13 +1241,15 @@ void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction
     sweep.sweep(fun);
 }
 
-void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun) {
+void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun,
+                             const LoopAnalysis& analysis)
+{
     if(fun.blocks.size() < 2) return;
 
-    // The same two answers the reduction above reads, and valid for the same reason: nothing here
-    // creates, removes or renumbers a block either.
-    auto loops = fun.buildLoops(base);
-    auto dominators = fun.buildDominatorTree(base);
+    // The same two answers the reduction above read, and valid for the same reason: nothing there,
+    // nothing in the fold between the two, and nothing here creates, removes or renumbers a block.
+    auto& loops = analysis.loops;
+    auto& dominators = analysis.dominators;
     DeadSweep sweep { base, module, {} };
 
     for(auto blockPtr: fun.blocks.contents(base)) {

@@ -284,8 +284,8 @@ struct Eliminator {
     LowerBase base;
     LowerModule& module;
     LowerFunction& fun;
-    LoopInfo loops;
-    DominatorTree dominance;
+    const LoopInfo& loops;
+    const DominatorTree& dominance;
 
     // The dominator tree's edges, indexed by postorder offset as everything derived from
     // `DominatorTree` is - `tree` holds each block's immediate dominator and this is that read the
@@ -615,14 +615,17 @@ bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& f
 
 } // namespace
 
-void eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun) {
-    if(fun.blocks.size() < 2) return;
+bool eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun,
+                           const LoopAnalysis& analysis)
+{
+    if(fun.blocks.size() < 2) return false;
 
-    // The loops before the dominator tree, because both rebuild the postorder and the tree's copy
-    // of it is the one every index below is read against.
-    Eliminator eliminator { base, module, fun, fun.buildLoops(base), fun.buildDominatorTree(base) };
+    // The caller's pair, built loops-first for the reason this line used to give itself: both walks
+    // rebuild the postorder, and the tree's copy of it is the one every index below is read against.
+    // See LoopAnalysis, where that ordering now lives.
+    Eliminator eliminator { base, module, fun, analysis.loops, analysis.dominators };
     auto count = eliminator.dominance.postorder.size();
-    if(!count) return;
+    if(!count) return false;
 
     eliminator.children.reset(count);
 
@@ -647,11 +650,23 @@ void eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& f
 
     eliminator.run(eliminator.dominance.startIndex);
 
+    /*
+     * And the arms, last - which is where the analysis above stops being the answer. Every one of
+     * these removes an edge and most of them remove the block it led to, which renumbers the rest;
+     * `loops` and `dominance` are indexed by exactly that numbering, and nothing below reads either.
+     *
+     * Counted rather than assumed, because a decided branch whose arm has successors of its own is
+     * declined - see `takeDecidedArm` - and a function where every one of them was is one whose CFG
+     * did not move.
+     */
+    auto rewired = false;
     for(auto& branch: eliminator.decided) {
         if(takeDecidedArm(base, module.arena, fun, base[branch.block], branch.takesThen)) {
             eliminator.changed = true;
+            rewired = true;
         }
     }
 
     if(eliminator.changed) removeDeadValues(base, module.arena, fun);
+    return rewired;
 }

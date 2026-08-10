@@ -689,13 +689,22 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         strengthReduceFunction(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
 
-        // Then the computation this translation wrote down twice - an address assembled once per
-        // read of a field, a promoted local's arithmetic repeated in each block that indexes with
-        // it, the quotient sequence a program asking for both `x / d` and `x % d` gets twice. See
+        /*
+         * And the five passes that read the loop structure and the dominator tree, which is one
+         * loop structure and one dominator tree - see LoopAnalysis in lower.h, which is where the
+         * argument that they may share them lives. Built here rather than in each of them because
+         * two of the things between them are folds: nothing in the run changes the block set, apart
+         * from the one place below that says it did.
+         */
+        LoopAnalysis analysis { lower.lower, *target };
+
+        // The computation this translation wrote down twice - an address assembled once per read of
+        // a field, a promoted local's arithmetic repeated in each block that indexes with it, the
+        // quotient sequence a program asking for both `x / d` and `x % d` gets twice. See
         // lower_cse.h. Behind the strength reduction so that the last of those is one of the shapes
         // it can see, and in front of the loop pass so that what that pass is shown is one multiply
         // rather than three.
-        eliminateCommonValues(lower.lower, lower.to, *target);
+        auto rewired = eliminateCommonValues(lower.lower, lower.to, *target, analysis);
 
         // Then the loads that read back a word the store above them still has in a register, and the
         // stores nothing between the two can have observed - which is what writing two `@bits` fields
@@ -705,30 +714,38 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // What reads the value it forwards is the mask folding in the last fold below.
         forwardStoredValues(lower.lower, lower.to, *target);
 
+        // And the pair again where the CSE took a decided arm, which is the one thing in this run
+        // that removes an edge and renumbers the blocks the two are indexed by. Conditional rather
+        // than unconditional because most functions have no such branch in them, and the four passes
+        // below are the ones paying for the answer being right.
+        if(rewired) analysis.rebuild(lower.lower, *target);
+
         // And the reads a loop repeats because its address does not change and nothing in it writes
         // - see lower_licm.h, and §10 item 1 of test/bench/findings.md for why the resolve-tier
         // hoister above cannot reach these. Behind the CSE so that a loop reading one address twice
         // is shown one load.
-        hoistLoopLoads(lower.lower, lower.to, *target);
+        hoistLoopLoads(lower.lower, lower.to, *target, analysis);
 
-        // And the multiply that is left because its other operand is the loop's own counter, which
-        // is not a strength reduction of one operation into another but of a whole recurrence - see
+        // The multiply that is left because its other operand is the loop's own counter, which is
+        // not a strength reduction of one operation into another but of a whole recurrence - see
         // lower_induction.h. After the fold above, since what it needs to read is the stride as a
         // number; it emits an immediate of its own, so the fold and the sweep run behind it.
-        reduceInductionVariables(lower.lower, lower.to, *target);
+        reduceInductionVariables(lower.lower, lower.to, *target, analysis);
         foldFunctionConstants(lower.lower, lower.to, *target);
 
         // And the sign extension that is left because the counter driving it is narrower than the
         // address it feeds, which the pass above only removes where it replaced the address outright
         // - see lower_induction.h. Behind it for exactly that reason, and in front of one more fold
         // because the widened start of a counter that began at zero is a cast of a literal.
-        widenInductionVariables(lower.lower, lower.to, *target);
+        widenInductionVariables(lower.lower, lower.to, *target, analysis);
         foldFunctionConstants(lower.lower, lower.to, *target);
 
         // And the bounds check a counted loop's own test has already made - see lower_induction.h,
         // and §28 of test/bench/findings.md. Behind the widening, because after it the counter is
-        // already the width the check compares at and the two tests name one value.
-        eliminateBoundedChecks(lower.lower, lower.to, *target);
+        // already the width the check compares at and the two tests name one value. Last of the
+        // three, because dropping the abort blocks it strands is the first thing here that changes
+        // the block set, and so is what ends the analysis above.
+        eliminateBoundedChecks(lower.lower, lower.to, *target, analysis);
 
         // And the exits inlining brought several copies of - see lower_merge.h. Last, because two
         // copies of one arm are only identical once everything above has folded them the same way,

@@ -156,6 +156,13 @@ void computeDominance(OptContext& opt, Dominance& result) {
  * having to know how deeply anything is nested.
  */
 void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
+    // Emptied rather than assumed empty, which is what `computeDominance` above already does with the
+    // structure it fills. Both callers used to hand over a list built one line earlier; the one that
+    // does now is `loopsOf`, whose whole point is that the list is the stage's and outlives the
+    // function. `clear` destroys each entry and keeps the storage - see compiler/util/README.md -
+    // so a loop's IndexSet is freed and the array itself is reused.
+    loops.clear();
+
     auto count = dominance.blocks.size();
 
     // Emptied per back edge rather than built per back edge. Inline, because the walk backwards from
@@ -515,4 +522,66 @@ bool staysInFrame(OptContext& opt, const IndexSet& contained, const Place& place
     }
 
     return true;
+}
+
+/*
+ * The cached forms - see AnalysisStamp, which is where the argument for them lives.
+ *
+ * Each is the same two lines: hand back what is there if the stamp still holds, otherwise recompute
+ * and stamp it. The buffers are the stage's, so a recompute reuses whatever the last function left
+ * allocated and only the answer is rebuilt.
+ */
+Dominance& dominanceOf(OptContext& opt) {
+    if(!opt.dominanceStamp.holds(opt.function, opt.version, false)) {
+        computeDominance(opt, opt.dominance);
+        opt.dominanceStamp.take(opt.function, opt.version);
+    }
+
+    return opt.dominance;
+}
+
+Array<Loop>& loopsOf(OptContext& opt) {
+    if(!opt.loopStamp.holds(opt.function, opt.version, false)) {
+        // Through the cached tree rather than a fresh one: the loops are derived from it, so a
+        // reading of the two that disagreed would be a loop whose header does not dominate it.
+        computeLoops(opt, dominanceOf(opt), opt.loops);
+        opt.loopStamp.take(opt.function, opt.version);
+    }
+
+    return opt.loops;
+}
+
+/*
+ * Over the values as well as the blocks, which is what the `true` says: what this reads is the use
+ * list of every local's `Alloc`, so an instruction removed anywhere in the function can be the one
+ * that was holding a local's address.
+ *
+ * The local count is compared as well, and that is not redundant with the version. A pass that adds
+ * a local - `scalarizeLocals` gives each field of a taken-apart record one - does so through the
+ * function rather than through the editor, and every such pass rewrites instructions too, so the
+ * version has always moved by the time it matters. The comparison is what makes that an argument
+ * about this file rather than about the four passes that add locals.
+ */
+const IndexSet& containmentOf(OptContext& opt) {
+    auto stale = !opt.containedStamp.holds(opt.function, opt.version, true)
+              || opt.contained.size() != opt.function->localCount();
+
+    if(stale) {
+        computeContainment(opt, opt.contained);
+        opt.containedStamp.take(opt.function, opt.version);
+    }
+
+    return opt.contained;
+}
+
+const IndexSet& reachableOf(OptContext& opt) {
+    auto stale = !opt.reachableStamp.holds(opt.function, opt.version, false)
+              || opt.reachable.size() != opt.function->blocks.size();
+
+    if(stale) {
+        computeReachable(opt, opt.reachable);
+        opt.reachableStamp.take(opt.function, opt.version);
+    }
+
+    return opt.reachable;
 }

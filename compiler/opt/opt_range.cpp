@@ -194,8 +194,7 @@ ModulePtr<Block> armBelow(OptContext& opt, InstCmp& compare, InstJe& branch) {
 void narrowCheckedIndexes(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    auto& dominance = opt.dominance;
-    computeDominance(opt, dominance);
+    auto& dominance = dominanceOf(opt);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];

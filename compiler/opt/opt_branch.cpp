@@ -181,12 +181,11 @@ bool foldBranch(OptContext& opt, Block& block) {
 // Outside the anonymous namespace because it is the cleanup every CFG rewrite in this directory
 // owes: folding a branch strands an arm, and if-conversion splices two of them out at once.
 bool removeUnreachableBlocks(OptContext& opt) {
-    ScratchSet reachable(opt.sets, 0);
-    computeReachable(opt, *reachable);
+    auto& reachable = reachableOf(opt);
 
     SmallArray<ModulePtr<Block>, 16> kept;
     for(auto pointer: opt.function->blocks.contents(opt.local)) {
-        if((*reachable)[opt.local[pointer]->index]) kept.push(pointer);
+        if(reachable[opt.local[pointer]->index]) kept.push(pointer);
     }
 
     if(kept.size() == opt.function->blocks.size()) return false;
@@ -201,7 +200,7 @@ bool removeUnreachableBlocks(OptContext& opt) {
      * no longer is: this is where a block stops existing, so this is where it stops counting.
      */
     for(auto pointer: opt.function->blocks.contents(opt.local)) {
-        if((*reachable)[opt.local[pointer]->index]) continue;
+        if(reachable[opt.local[pointer]->index]) continue;
 
         opt.ir().discardBlock(*opt.local[pointer]);
     }

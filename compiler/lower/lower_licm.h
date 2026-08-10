@@ -55,4 +55,5 @@
  * than two, and before `reduceInductionVariables`, which is where the induction pass expects the
  * loop's invariant parts to have stopped moving.
  */
-void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun);
+void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
+                    const LoopAnalysis& analysis);

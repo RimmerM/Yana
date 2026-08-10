@@ -63,4 +63,14 @@
  * §9.1 of findings.md states about promotion: recomputing a value costs an instruction, and keeping
  * one alive costs a register, and the second is the larger number more often than it looks.
  */
-void eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun);
+/*
+ * Handed the loop structure and the dominator tree rather than building them - see LoopAnalysis in
+ * lower.h, which is the run of five passes this opens.
+ *
+ * Answers whether it changed the block graph, which is what `takeDecidedArm` does when it proves a
+ * bounds check redundant: an edge goes, and with it the abort arm nothing reaches any more. That
+ * makes it the one pass in the run that leaves the pair it was given stale, and the answer is what
+ * tells the caller to rebuild before handing the same pair to the four behind it.
+ */
+bool eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun,
+                           const LoopAnalysis& analysis);

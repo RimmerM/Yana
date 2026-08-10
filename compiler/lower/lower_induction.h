@@ -89,7 +89,8 @@
 // Run over a function after `strengthReduceFunction` and the fold behind it, so that `mul %i, 32` is
 // already `shl %i, 5` and a stride that came from a `strideof` is already a literal. Emits an `Imm`
 // of its own for the step, so the fold and the dead constant sweep run again after it.
-void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun);
+void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun,
+                              const LoopAnalysis& analysis);
 
 /*
  * A narrow loop counter, carried at the width its addresses are computed in - §14.5 item 1 of
@@ -110,7 +111,8 @@ void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction
  * Behind `reduceInductionVariables`, so that an extension that pass is about to delete is not one
  * this widens a counter for. See `widenLoopCounters`.
  */
-void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun);
+void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction& fun,
+                             const LoopAnalysis& analysis);
 
 /*
  * §28 A bounds check the loop's own test has already made.
@@ -157,4 +159,5 @@ void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction&
  * is an `Int` phi and the check compares `sext(%i)` against a `Size`, which is two more steps of
  * reasoning for the same conclusion. After it the phi is already the width the check reads.
  */
-void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun);
+void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun,
+                            const LoopAnalysis& analysis);

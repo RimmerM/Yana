@@ -338,17 +338,12 @@ struct Hoister {
 void hoistLoopValues(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    auto& dominance = opt.dominance;
-    computeDominance(opt, dominance);
+    auto& dominance = dominanceOf(opt);
 
-    Array<Loop> loops;
-    computeLoops(opt, dominance, loops);
+    auto& loops = loopsOf(opt);
     if(loops.isEmpty()) return;
 
-    ScratchSet contained(opt.sets, 0);
-    computeContainment(opt, *contained);
-
-    Hoister hoister { opt, dominance, *contained };
+    Hoister hoister { opt, dominance, containmentOf(opt) };
 
     // Innermost first, which `computeLoops` sorted for. A value hoisted out of an inner loop lands
     // in a block the outer one contains, so the outer loop's own walk - or the next driver round,
@@ -596,11 +591,9 @@ struct LoopKiller {
 void eliminateDeadLoops(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    auto& dominance = opt.dominance;
-    computeDominance(opt, dominance);
+    auto& dominance = dominanceOf(opt);
 
-    Array<Loop> loops;
-    computeLoops(opt, dominance, loops);
+    auto& loops = loopsOf(opt);
     if(loops.isEmpty()) return;
 
     LoopKiller killer { opt, dominance };

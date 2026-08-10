@@ -62,6 +62,35 @@
 // expansion in a pass rather than by anything about the program being compiled.
 using InstList = SmallArray<Inst*, 8>;
 
+/*
+ * How many times each of the IR's two structures has been written, for whoever is caching an answer
+ * derived from one of them.
+ *
+ * An analysis over a function is a function of the IR, so it stops being the answer exactly when the
+ * IR it was read from changes - and "changed" is not one question. A dominator tree is a statement
+ * about the blocks and the edges between them, and no amount of rewriting *inside* a block can make
+ * it wrong; the storage a callee can reach is a statement about instructions and use lists, and no
+ * amount of moving blocks around can. The optimizer's fixed point runs a dozen passes over a
+ * function up to eight times and most of the later rounds change nothing at all, so the two facts
+ * above are the difference between computing each analysis once and computing it thirty times.
+ *
+ * A counter rather than a flag, because there is no point at which a reader may clear one: two
+ * analyses over the same structure are cached independently and would each clear the other's notice.
+ * A cache holds the counter it was built at and compares.
+ *
+ * A CFG edit bumps both, deliberately. Every operation below that moves an edge also moves the phi
+ * alternative arriving over it or the terminator owning it, both of which are uses - and the two
+ * that arguably do not, `setBlockOrder` and `redirectSuccessor`, are rare enough that distinguishing
+ * them would buy nothing but a second rule to get wrong.
+ */
+struct IrVersion {
+    // Instructions, their operands, the use lists, and the `Local::value` / `Value::slot` pairing.
+    U64 values = 1;
+
+    // The block set, the block order, and the edges between blocks.
+    U64 blocks = 1;
+};
+
 struct IrEditor {
     /*
      * One function's worth of editing.
@@ -70,13 +99,20 @@ struct IrEditor {
      * an IR rather than rewriting one, so there is nothing there for a round to be repeated over.
      * Only the operations that are a *rewrite* set it, which is the same set of them that set it
      * before this type existed.
+     *
+     * `version` is null in the same places and is *not* the same question - see IrVersion. Every
+     * operation here that writes anything bumps it, including the ones that deliberately leave
+     * `changed` alone: appending an instruction is not on its own a reason to run the fixed point
+     * again, and it is absolutely a reason to stop believing a cached use-list analysis.
      */
-    IrEditor(Module& module, Function& function, bool* changed = nullptr);
+    IrEditor(Module& module, Function& function, bool* changed = nullptr,
+             IrVersion* version = nullptr);
 
     Module& module;
     Function& function;
     ModuleBase base;
     bool* changed;
+    IrVersion* version;
 
     // ---- uses -------------------------------------------------------------------------------
 
@@ -117,6 +153,7 @@ struct IrEditor {
         dropUses(user);
         f(*base[user]);
         recordUses(base[user]);
+        markValues();
     }
 
     /*
@@ -391,4 +428,9 @@ private:
     static Size successorsOf(const Value& terminator, ModulePtr<Block>* target);
 
     void markChanged() { if(changed) *changed = true; }
+
+    // The two halves of IrVersion. A CFG edit is a value edit as well - see the type, where the
+    // reason the coarser of the two answers is the right one is written down.
+    void markValues() { if(version) version->values++; }
+    void markBlocks() { if(version) { version->blocks++; version->values++; } }
 };

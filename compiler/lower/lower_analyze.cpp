@@ -190,6 +190,28 @@ bool LoopInfo::contains(BlockIndex loop, BlockIndex block) const {
     return false;
 }
 
+/*
+ * The pair of them, for the run of passes that share one - see LoopAnalysis in lower.h.
+ *
+ * The loops first, because `buildLoops` renumbers `LowerBlock::index` and the dominator tree's
+ * `postIndex` is written against the numbering it leaves. Both orders happen to agree today; saying
+ * it here is what keeps them agreeing.
+ */
+LoopAnalysis::LoopAnalysis(LowerBase base, LowerFunction& fun):
+    loops(fun.buildLoops(base)), dominators(fun.buildDominatorTree(base)) {}
+
+void LoopAnalysis::rebuild(LowerBase base, LowerFunction& fun) {
+    auto freshLoops = fun.buildLoops(base);
+    replaceContents(loops.header, freshLoops.header);
+    replaceContents(loops.parent, freshLoops.parent);
+    replaceContents(loops.depth, freshLoops.depth);
+
+    auto freshTree = fun.buildDominatorTree(base);
+    replaceContents(dominators.postorder, freshTree.postorder);
+    replaceContents(dominators.tree, freshTree.tree);
+    dominators.startIndex = freshTree.startIndex;
+}
+
 LoopInfo LowerFunction::buildLoops(LowerBase base) {
     auto blockList = blocks.contents(base);
 

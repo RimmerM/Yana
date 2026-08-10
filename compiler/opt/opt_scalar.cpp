@@ -379,8 +379,7 @@ bool splitAggregate(OptContext& opt, Block& block, Size index, InstAggregate& ag
 }
 
 void scalarizeLocals(OptContext& opt) {
-    ScratchSet contained(opt.sets, 0);
-    computeContainment(opt, *contained);
+    auto& contained = containmentOf(opt);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
@@ -400,7 +399,7 @@ void scalarizeLocals(OptContext& opt) {
             if(instruction->kind != Value::Init && instruction->kind != Value::Assign) continue;
 
             auto& write = (InstInit&)*instruction;
-            if(!splittableDestination(opt, *contained, write.place)) continue;
+            if(!splittableDestination(opt, contained, write.place)) continue;
 
             /*
              * The replacements land in front of the write and the write goes away, so the walk

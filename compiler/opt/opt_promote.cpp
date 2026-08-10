@@ -458,22 +458,19 @@ void removeTrivialPhis(OptContext& opt, Array<ModulePtr<InstPhi>>& phis) {
 void promotePlaces(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    ScratchSet contained(opt.sets, 0);
-    computeContainment(opt, *contained);
-
-    ScratchSet reachable(opt.sets, 0);
-    computeReachable(opt, *reachable);
+    auto& contained = containmentOf(opt);
+    auto& reachable = reachableOf(opt);
 
     Array<Candidate> found;
-    collectCandidates(opt, *contained, found);
+    collectCandidates(opt, contained, found);
     if(found.isEmpty()) return;
 
     Array<Candidate> candidates;
     for(auto& candidate: found) {
         if(!surveyCandidate(opt, candidate)) continue;
 
-        computeAvailability(opt, candidate, *reachable);
-        if(!readsAreWritten(opt, candidate, *reachable)) continue;
+        computeAvailability(opt, candidate, reachable);
+        if(!readsAreWritten(opt, candidate, reachable)) continue;
 
         candidates.push(::move(candidate));
     }
@@ -514,7 +511,7 @@ void promotePlaces(OptContext& opt) {
     // reads alive, which is the right outcome for storage only dead code names.
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
-        if((*reachable)[block->index]) rewriteBlock(opt, *block, candidates);
+        if(reachable[block->index]) rewriteBlock(opt, *block, candidates);
     }
 
     // The alternatives, now that every block has said what it leaves the place holding. One per
