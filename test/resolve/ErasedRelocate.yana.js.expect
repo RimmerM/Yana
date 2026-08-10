@@ -7,7 +7,6 @@ const genEnv$relocate_Pair = [typeDesc$Pair];
 
 // Core
 function teardown$none(value) {
-  return;
 }
 
 // ResolveTest
@@ -35,13 +34,11 @@ function main() {
 function Sink_Handle_sink(to, from) {
   sinkCalls = BigInt.asIntN(64, sinkCalls + 1n);
   to.value = from.value;
-  return;
 }
 
 function moveInit$Pair(to, from) {
   to.left = { value: from.left.value };
   to.right = from.right;
   Sink_Handle_sink(to.left, from.left);
-  return;
 }
 main();

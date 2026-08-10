@@ -3,12 +3,10 @@ var sinkCalls = { $v: 0n };
 
 // Core
 function teardown$none(value) {
-  return;
 }
 
 function add_eq_I64(target$o, target$k, target$s, amount) {
   target$o[target$k] = BigInt.asIntN(64, target$o[target$k] + amount);
-  return;
 }
 
 // ResolveTest
@@ -123,21 +121,18 @@ function main() {
 function Sink_Handle_sink(to, from) {
   add_eq_I64(sinkCalls, "$v", 1, 1n);
   to.value = from.value;
-  return;
 }
 
 function moveInit$Pair(to, from) {
   to.left = { value: from.left.value };
   to.right = from.right;
   Sink_Handle_sink(to.left, from.left);
-  return;
 }
 
 function moveInit$Nest(to, from) {
   to.inner = { left: { value: from.inner.left.value }, right: from.inner.right };
   to.tag = from.tag;
   moveInit$Pair(to.inner, from.inner);
-  return;
 }
 
 function moveInit$Either(to, from) {
@@ -146,7 +141,6 @@ function moveInit$Either(to, from) {
   if (from.$tag === 1) {
     Sink_Handle_sink(to.$p, from.$p);
   }
-  return;
 }
 
 function ResolveTest_lambda$0(env) {
@@ -170,6 +164,5 @@ function drop$_sub_gt_I64(value$c, value$e) {
   if (v4 != null) {
     v4[0](value$e);
   }
-  return;
 }
 main();

@@ -4,30 +4,25 @@ var dropped = { $v: 0n };
 // Core
 function add_eq_I64(target$o, target$k, target$s, amount) {
   target$o[target$k] = BigInt.asIntN(64, target$o[target$k] + amount);
-  return;
 }
 
 // ResolveTest
 function flip(x$o, x$k, x$s) {
   x$o[x$k] = $b1u$set(x$o[x$k], x$s, $b1u$get(x$o[x$k], x$s) ^ 1);
-  return;
 }
 
 function bump(x$o, x$k, x$s) {
   x$o[x$k] = $b4u$set(x$o[x$k], x$s, (($b4i$get(x$o[x$k], x$s) | 0) + 1 | 0) << 28 >> 28);
-  return;
 }
 
 function clear(f$o, f$k, f$s) {
   f$o[f$k] = $b1u$set(f$o[f$k], f$s, 0);
   f$o[f$k] = $b1u$set(f$o[f$k], f$s * 2, 0);
-  return;
 }
 
 function setBoth(f$o, f$k, f$s) {
   f$o[f$k] = $b1u$set(f$o[f$k], f$s, 1);
   f$o[f$k] = $b1u$set(f$o[f$k], f$s * 2, 1);
-  return;
 }
 
 function coPacked() {

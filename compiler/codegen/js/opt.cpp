@@ -2491,6 +2491,59 @@ bool propagateConstants(Gen& g, StmtList& list) {
     return changed;
 }
 
+/*
+ * `return;` where control was about to leave the function anyway.
+ *
+ * The emitter writes a `Ret` for every resolve block that ends with one, and a function returning
+ * nothing ends *every* path that way - so the ordinary shape is a body whose last statement returns
+ * with nothing to return. Falling off the end of a JavaScript function does exactly that, so the
+ * statement can simply go.
+ *
+ * Tail position is the whole of the rule, and it is more than the last statement of the body. An
+ * `if` in tail position leaves both of its arms in one, and a labelled block leaves its own body in
+ * one - `break L` and falling out of the block arrive at the same place. A loop body is deliberately
+ * not tail position: falling off the end of it goes round again rather than out.
+ *
+ * Removing the statement puts whatever preceded it in tail position, which is why this walks the end
+ * of the list repeatedly rather than looking at it once - `if(c) { return; } return;` is two
+ * removals, and the second is only in tail position because the first happened.
+ *
+ * Run inside the round rather than after it: an arm this empties is one `foldEmptyIf` collapses and
+ * `flipEmptyThen` turns round, which is where most of what it is worth actually shows up.
+ */
+bool trimTailReturns(Gen& g, StmtList& list) {
+    auto changed = false;
+
+    while(list.isNotEmpty()) {
+        auto stmt = g.base[list.get(g.base, list.size() - 1)];
+
+        if(stmt->kind == Stmt::Return && !((ReturnStmt*)stmt)->value) {
+            list.remove(g.base, list.size() - 1);
+            changed = true;
+            continue;
+        }
+
+        if(stmt->kind == Stmt::Block) {
+            changed = trimTailReturns(g, ((BlockStmt*)stmt)->body) || changed;
+        } else if(stmt->kind == Stmt::If) {
+            auto& branch = *(IfStmt*)stmt;
+            changed = trimTailReturns(g, branch.then) || changed;
+            changed = trimTailReturns(g, branch.otherwise) || changed;
+        } else if(stmt->kind == Stmt::Labelled) {
+            // Only the block form. A label on a `for(;;)` names the loop, and the end of its body is
+            // the back edge rather than the way out.
+            auto content = g.base[((LabelledStmt*)stmt)->content];
+            if(content->kind == Stmt::Block) {
+                changed = trimTailReturns(g, ((BlockStmt*)content)->body) || changed;
+            }
+        }
+
+        break;
+    }
+
+    return changed;
+}
+
 bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
     // First, because it is what turns an operand into a literal for every rule below to work on -
     // and it reads the list rather than editing it, so nothing it sees can have moved.
@@ -2586,7 +2639,11 @@ void optimizeFunction(Gen& g, FunStmt& function) {
             ranges.reset();
             collectRanges(g, function.body, names, ranges);
 
-            if(!optimizeList(g, function.body, names, ranges)) break;
+            // Before the rewrites rather than after them, so the arms it empties are collapsed in
+            // this round. It removes no expression, so the counts and ranges just taken still hold.
+            auto trimmed = trimTailReturns(g, function.body);
+
+            if(!optimizeList(g, function.body, names, ranges) && !trimmed) break;
         }
 
         if(!fuseList(g, function.body)) return;
