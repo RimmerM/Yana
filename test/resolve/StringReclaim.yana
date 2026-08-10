@@ -15,21 +15,21 @@ fn line(row: Row) -> String = "row {row.id}: score {row.score} ok"
 
 fn buildInCallee() -> Int:
     let text = line(Row {id: 7, score: 9})
-    return length(text) :: Int
+    return truncate(length(text)) :: Int
 
 -- The same interpolation, written where it is used.
 fn buildHere() -> Int:
     let id = 7 :: Int
     let text = "row {id}: score {id} ok"
-    return length(text) :: Int
+    return truncate(length(text)) :: Int
 
 -- A concatenation, whose result owns its bytes where neither operand did.
 fn concatHere() -> Int:
     let joined = "ab" + "cde"
-    return length(joined) :: Int
+    return truncate(length(joined)) :: Int
 
 -- An interpolation that is never named at all.
-fn buildUnnamed() -> Int = length("row {7}: score {9} ok") :: Int
+fn buildUnnamed() -> Int = truncate(length("row {7}: score {9} ok")) :: Int
 
 fn main() -> Int:
     -- Once each first, so the region is mapped and every size class these strings fall into has been

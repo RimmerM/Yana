@@ -19,7 +19,7 @@ fn incLong() -> Long = inc(40) :: Long
 fn defaulted() -> Int:
     let i = 7
     let f = 2.5
-    return i + (narrow(f) :: Int)
+    return i + (truncate(f) :: Int)
 
 -- Two literal variables of different classes meet in one call. Int has no FromDecimal instance
 -- and Float has a FromInt instance, so Float is the type that answers both.
@@ -30,7 +30,7 @@ fn mixedLiterals() -> Float = 1 + 2.5
 data Metres {value: Int}
 
 instance FromInt(Metres):
-  fn fromInt(value: Long) = Metres {value: narrow(value)}
+  fn fromInt(value: Long) = Metres {value: truncate(value)}
 
 instance Eq(Metres):
   fn ==(lhs: Metres, rhs: Metres) = lhs.value == rhs.value
@@ -47,11 +47,11 @@ fn isFive(distance: Metres) -> Bool = distance == 5
 
 fn main() -> Int =
     inc(10) +
-    (inc(1.5) :: Int) +
+    (truncate(inc(1.5)) :: Int) +
     (two() :: Int) +
     defaulted() +
-    (narrow(mixedLiterals()) :: Int) +
+    (truncate(mixedLiterals()) :: Int) +
     measure(oneMetre()) +
     measure(4) +
     (if isFive(Metres {value: 5}) then 1 else 0) +
-    (narrow(incLong()) :: Int)
+    (truncate(incLong()) :: Int)

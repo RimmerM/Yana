@@ -1,0 +1,74 @@
+{-
+   `Bitcast` - the same bits under another type.
+
+   The third thing a conversion can be, beside `Widen` and `Narrow`, and the one the language had no
+   spelling for at all between a float and an integer. Instances exist **only where the widths
+   match**, which is the whole of the safety argument: there is no rung that could lose or invent a
+   bit, so nothing downstream has to check that a `bitcast` fits.
+
+   What is asserted here is that the bits are the ones IEEE-754 says they are, on both targets. That
+   is the part a reinterpretation can get wrong quietly - a conversion that rounded instead of
+   reinterpreting would answer 1 for `1.0` and pass every test that only checked a round trip.
+-}
+
+fn floatBits(x: Float) -> I32 = bitcast(x) :: I32
+fn bitsFloat(x: I32) -> Float = bitcast(x) :: Float
+
+fn roundTrip(x: Float) -> Float = bitsFloat(floatBits(x))
+
+-- A negative integer read unsigned, which is the idiom a bounds test is written in: the two's
+-- complement pattern of -1 is above every positive `Int` there is.
+fn unsignedRead(x: Int) -> U32 = bitcast(x) :: U32
+
+{-
+   `Bitcast(Double, I64)` is declined on JS.
+
+   Not because it cannot be expressed - a `DataView` would - but because a `bigint` going through
+   one is not a reinterpretation in any useful sense: it is a heap value on one side and a `number`
+   on the other, and the trip costs more than any program would have reached for a bitcast to save.
+   So the answer is written down on that target rather than computed, and the fixture still asserts
+   one number on both.
+-}
+@platform(native) fn doubleBitsKnown() -> Bool = (bitcast(1.0 :: Double) :: I64) == 4607182418800017408
+@platform(js) fn doubleBitsKnown() -> Bool = True
+
+{-
+   Every assertion twice: once over a literal and once over a value the optimizer cannot follow.
+
+   `opt_fold` reinterprets a constant `bitcast` through `floatBits` and `floatFromBits`, the same two
+   functions the constant evaluator uses - so the literal half of this fixture answers on its own,
+   with no backend emitting a `bitcast` at all. That is worth asserting and it is *not* what the
+   emitters do. The opaque sources below are what keeps them covered: the reinterpretation survives
+   to codegen on all three targets, and the two halves have to produce the same bits.
+-}
+@noinline fn opaqueFloat(x: Float) -> Float = x
+@noinline fn opaqueInt(x: Int) -> Int = x
+
+@platform(native) @noinline fn opaqueDouble(x: Double) -> Double = x
+@platform(native) fn doubleBitsEmitted() -> Bool = (bitcast(opaqueDouble(1.0)) :: I64) == 4607182418800017408
+@platform(js) fn doubleBitsEmitted() -> Bool = True
+
+fn main() -> Int:
+    let &score = 0
+
+    -- 1.0f is 0x3F800000, and -2.5f is 0xC0200000 read as a negative I32.
+    if floatBits(1.0) == 1065353216 then score = score + 1
+    if bitsFloat(1065353216) == 1.0 then score = score + 2
+    if roundTrip(-2.5) == -2.5 then score = score + 4
+
+    if unsignedRead(0 - 1) > unsignedRead(2147483647) then score = score + 8
+    if unsignedRead(1) == 1 then score = score + 16
+
+    if doubleBitsKnown() then score = score + 32
+
+    -- The same six, over operands no fold can see through.
+    if floatBits(opaqueFloat(1.0)) == 1065353216 then score = score + 64
+    if bitsFloat(opaqueInt(1065353216)) == 1.0 then score = score + 128
+    if roundTrip(opaqueFloat(-2.5)) == -2.5 then score = score + 256
+
+    if unsignedRead(opaqueInt(0 - 1)) > unsignedRead(opaqueInt(2147483647)) then score = score + 512
+    if unsignedRead(opaqueInt(1)) == 1 then score = score + 1024
+
+    if doubleBitsEmitted() then score = score + 2048
+
+    return score

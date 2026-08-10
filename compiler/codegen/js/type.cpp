@@ -925,7 +925,8 @@ TypePtr blockCopyShape(Gen& g, InstNative& instruction) {
 
     auto traced = [&](ModulePtr<Value> pointer) -> TypePtr {
         auto& value = *g.local[pointer];
-        auto source = value.kind == Value::Cast ? g.local[((InstUnary&)value).from]->type : value.type;
+        auto reinterpreted = value.kind == Value::Cast || value.kind == Value::Bitcast;
+        auto source = reinterpreted ? g.local[((InstUnary&)value).from]->type : value.type;
 
         return pointeeType(g.global, source);
     };

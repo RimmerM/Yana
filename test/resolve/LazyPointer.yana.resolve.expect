@@ -4,7 +4,7 @@ let nowhere: %Int = 0
 
 fn guarded(%p: %Int) -> Int {
   b0:
-    %v1 = cast %p : Long
+    %v1 = bitcast %p : Long
     %v3 = cmp_eq %v1, 0 : Bool
     %v5 = xor %v3, True : Bool
     je %v5, b1, b2
@@ -35,7 +35,7 @@ fn guarded(%p: %Int) -> Int {
 
 fn defaulted(%p: %Int) -> Int {
   b0:
-    %v1 = cast %p : Long
+    %v1 = bitcast %p : Long
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 

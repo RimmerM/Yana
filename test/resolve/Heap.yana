@@ -13,8 +13,8 @@ fn distinctBlocks() -> I64:
 
 -- Allocated memory is writable, and two allocations do not overlap.
 fn writeAndRead() -> I64:
-    let a = cast(allocateHeap(8)) :: Ptr(I64)
-    let b = cast(allocateHeap(8)) :: Ptr(I64)
+    let a = bitcast(allocateHeap(8)) :: Ptr(I64)
+    let b = bitcast(allocateHeap(8)) :: Ptr(I64)
 
     if isNull(a) || isNull(b) then return 0
 
@@ -48,4 +48,4 @@ fn main() -> Int:
     let total = distinctBlocks() * 1000 + writeAndRead() * 10 +
                 reuseAfterFree() * 5 + classesAreSeparate()
 
-    return total :: Int
+    return truncate(total) :: Int

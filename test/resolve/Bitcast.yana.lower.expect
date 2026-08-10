@@ -1,0 +1,107 @@
+@image$base = []
+
+opaqueFloat<complex>(%x: Float): Float {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueInt<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueDouble<complex>(%x: Double): Double {
+  b_0 {
+    ret %x
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex opaqueFloat, 1: Float
+    %v_2 = bitcast %v_1: Int
+    %v_3 = cmp_eq %v_2, 1065353216: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_0, 63], [b_4, 127]: Int
+    %v_7 = call_complex opaqueInt, 1065353216: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = bitcast %v_8: Float
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_6, 128: Int
+    jmp b_12
+  }
+
+  b_12 {
+    %v_14 = phi [b_5, %v_6], [b_11, %v_13]: Int
+    %v_15 = call_complex opaqueFloat, -2.5: Float
+    %v_16 = bitcast %v_15: Int
+    %v_17 = bitcast %v_16: Float
+    %v_18 = cmp_eq %v_17, -2.5: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = add %v_14, 256: Int
+    jmp b_20
+  }
+
+  b_20 {
+    %v_22 = phi [b_12, %v_14], [b_19, %v_21]: Int
+    %v_23 = call_complex opaqueInt, 18446744073709551615: Int
+    %v_24 = bitcast %v_23: Int
+    %v_25 = call_complex opaqueInt, 2147483647: Int
+    %v_26 = bitcast %v_25: Int
+    %v_27 = cmp_gt %v_24, %v_26: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = add %v_22, 512: Int
+    jmp b_29
+  }
+
+  b_29 {
+    %v_31 = phi [b_20, %v_22], [b_28, %v_30]: Int
+    %v_32 = call_complex opaqueInt, 1: Int
+    %v_33 = bitcast %v_32: Int
+    %v_34 = cmp_eq %v_33, 1: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    %v_37 = add %v_31, 1024: Int
+    jmp b_36
+  }
+
+  b_36 {
+    %v_38 = phi [b_29, %v_31], [b_35, %v_37]: Int
+    %v_39 = call_complex opaqueDouble, 1: Double
+    %v_40 = bitcast %v_39: Long
+    %v_41 = cmp_eq %v_40, 4607182418800017408: Int
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    %v_44 = add %v_38, 2048: Int
+    jmp b_43
+  }
+
+  b_43 {
+    %v_45 = phi [b_36, %v_38], [b_42, %v_44]: Int
+    ret %v_45
+  }
+}
+

@@ -20,7 +20,7 @@ fn useWrapped(%it: Wrapped) -> @bits(53) U64 {
 fn useRaw(%it: Raw) -> Bool {
   b0:
     %v1 = load %it@Raw.at : %U8
-    %v2 = cast %v1 : Long
+    %v2 = bitcast %v1 : Long
     %v4 = cmp_eq %v2, 0 : Bool
     ret %v4
 }

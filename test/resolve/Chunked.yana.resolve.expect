@@ -71,7 +71,7 @@ fn teardown$none(%value: %()) -> () {
 fn initHeap() -> () {
   b0:
     %region = call mapMemory, 4194304 : %U8
-    %v2 = cast %region : Long
+    %v2 = bitcast %region : Long
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
@@ -84,7 +84,7 @@ fn initHeap() -> () {
   b3:
     %table = mul 32, 8 : I64
     setmemory %region, 0, %table
-    %v14 = cast %region : %%U8
+    %v14 = bitcast %region : %%U8
     assign heapFree, %v14
     %v16 = strideof U8 : I64
     %v17 = mul %table, %v16 : I64
@@ -121,7 +121,7 @@ fn growHeap(%needed: I64) -> Bool {
     %region = alloc : %U8
     init %region, %v11
     %v14 = load %region : %U8
-    %v15 = cast %v14 : Long
+    %v15 = bitcast %v14 : Long
     %v17 = cmp_eq %v15, 0 : Bool
     je %v17, b4, b5
 
@@ -156,7 +156,7 @@ fn growHeap(%needed: I64) -> Bool {
     %v34 = call mapMemory, %v33 : %U8
     assign %region, %v34
     %v36 = load %region : %U8
-    %v37 = cast %v36 : Long
+    %v37 = bitcast %v36 : Long
     %v39 = cmp_eq %v37, 0 : Bool
     je %v39, b12, b13
 
@@ -242,14 +242,14 @@ fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
 fn allocateHeap(%size: I64) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = cast %v1 : Long
+    %v2 = bitcast %v1 : Long
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = cast %v7 : Long
+    %v8 = bitcast %v7 : Long
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -257,7 +257,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b6
 
   b3:
-    %v13 = cast 0 : %U8
+    %v13 = bitcast 0 : %U8
     ret %v13
 
   b4:
@@ -273,7 +273,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     je %v23, b7, b8
 
   b7:
-    %v26 = cast 0 : %U8
+    %v26 = bitcast 0 : %U8
     ret %v26
 
   b8:
@@ -281,13 +281,13 @@ fn allocateHeap(%size: I64) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = cast %reused : Long
+    %v30 = bitcast %reused : Long
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
 
   b10:
-    %v36 = cast %reused : %%U8
+    %v36 = bitcast %reused : %%U8
     %v37 = load [%v36] : %U8
     call setFreeListHead, %sizeClass, %v37
     ret %reused
@@ -314,7 +314,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b18
 
   b15:
-    %v54 = cast 0 : %U8
+    %v54 = bitcast 0 : %U8
     ret %v54
 
   b16:
@@ -329,7 +329,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     %v61 = mul %blockSize, %v60 : I64
     %v62 = add %block, %v61 : %U8
     assign heapNext, %v62
-    %v64 = cast %block : %I64
+    %v64 = bitcast %block : %I64
     assign [%v64], %sizeClass
     %v68 = strideof U8 : I64
     %v69 = mul 8, %v68 : I64
@@ -339,7 +339,7 @@ fn allocateHeap(%size: I64) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = cast %allocation : Long
+    %v1 = bitcast %allocation : Long
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -353,9 +353,9 @@ fn freeHeap(%allocation: %U8) -> () {
     %v9 = strideof U8 : I64
     %v10 = mul 8, %v9 : I64
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = cast %v11 : %I64
+    %v12 = bitcast %v11 : %I64
     %sizeClass = load [%v12] : I64
-    %v14 = cast %allocation : %%U8
+    %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
@@ -378,7 +378,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
   b1:
     %v7 = load %self@Run.items : %Int
-    %v8 = cast %v7 : %U8
+    %v8 = bitcast %v7 : %U8
     call freeHeap, %v8
     jmp b3
 
@@ -397,14 +397,14 @@ fn mapMemory(%size: I64) -> %U8 {
     je %v12, b1, b2
 
   b1:
-    %v15 = cast 0 : %U8
+    %v15 = bitcast 0 : %U8
     ret %v15
 
   b2:
     jmp b3
 
   b3:
-    %v18 = cast %result : %U8
+    %v18 = bitcast %result : %U8
     ret %v18
 }
 
@@ -456,18 +456,16 @@ fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value: Flat(I
 fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
-    %v2 = cast %v1 : U32
-    %v3 = cast %v2 : I64
-    %v4 = borrow %self : &Array(Int)
+    %v2 = cast %v1 : I64
+    %v3 = borrow %self : &Array(Int)
     %self = alloc : Flat(Int)
-    %v6 = load [%v4]@Array.run@Run.items : %Int
-    init %self@Flat.items, %v6
-    %v8 = load [%v4]@Array.length : @bits(30) U32
-    %v9 = cast %v8 : U32
-    %v10 = cast %v9 : I64
-    init %self@Flat.length, %v10
-    %v13 = call slice(Int), %self, 0, %v3 : Flat(Int)
-    ret %v13
+    %v5 = load [%v3]@Array.run@Run.items : %Int
+    init %self@Flat.items, %v5
+    %v7 = load [%v3]@Array.length : @bits(30) U32
+    %v8 = cast %v7 : I64
+    init %self@Flat.length, %v8
+    %v11 = call slice(Int), %self, 0, %v2 : Flat(Int)
+    ret %v11
 }
 
 fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
@@ -546,36 +544,35 @@ fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %v2 = cast %v1 : U32
-    %count = cast %v2 : Int
+    %count = cast %v1 : Int
     %i = alloc : Int
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
-    %v9 = cmp_lt %v8, %count : Bool
-    je %v9, b3, b2
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
 
   b2:
-    %v11 = load %value@Array.run : Run(Int)
-    call releaseRun(Int), %v11
+    %v10 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v10
     ret
 
   b3:
-    %v14 = load %value@Array.run : Run(Int)
-    %v15 = load %value@Array.run@Run.items : %Int
-    %v16 = load %i : Int
-    %v17 = cast %v16 : I64
-    %v18 = strideof Int : I64
-    %v19 = mul %v17, %v18 : I64
-    %v20 = add %v15, %v19 : %Int
-    %v21 = load [%v20] : Int
+    %v13 = load %value@Array.run : Run(Int)
+    %v14 = load %value@Array.run@Run.items : %Int
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof Int : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %Int
+    %v20 = load [%v19] : Int
     %doomed = alloc : Int
-    init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
-    assign %i, %v26
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
     jmp b1
 }
 
@@ -838,79 +835,76 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value: Flat(Int)) -> Outco
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
-    %v8 = cast %v7 : U32
-    %v9 = cast %v8 : I64
-    init %local2@Flat.length, %v9
-    %v11 = calldyn %body, %v4 : Outcome((), $r)
-    %v12 = load %local3.discriminant : Int
-    %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b1, b2
+    %v8 = cast %v7 : I64
+    init %local2@Flat.length, %v8
+    %v10 = calldyn %body, %v4 : Outcome((), $r)
+    %v11 = load %local3.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
 
   b1:
-    ret %v11
+    ret %v10
 
   b2:
-    %v17 = load %self@Chunks.used : Int
-    %v20 = cmp_gt %v17, 1 : Bool
-    je %v20, b3, b4
+    %v16 = load %self@Chunks.used : Int
+    %v19 = cmp_gt %v16, 1 : Bool
+    je %v19, b3, b4
 
   b3:
-    %v22 = load %self@Chunks.b : Array(Int)
-    %v23 = borrow %self@Chunks.b : &Array(Int)
-    %v24 = alloc : Flat(Int)
-    %v25 = load [%v23]@Array.run@Run.items : %Int
-    init %local4@Flat.items, %v25
-    %v27 = load [%v23]@Array.length : @bits(30) U32
-    %v28 = cast %v27 : U32
-    %v29 = cast %v28 : I64
-    init %local4@Flat.length, %v29
-    %v31 = calldyn %body, %v24 : Outcome((), $r)
-    %v32 = load %local5.discriminant : Int
-    %v34 = cmp_eq %v32, 1 : Bool
-    je %v34, b5, b6
+    %v21 = load %self@Chunks.b : Array(Int)
+    %v22 = borrow %self@Chunks.b : &Array(Int)
+    %v23 = alloc : Flat(Int)
+    %v24 = load [%v22]@Array.run@Run.items : %Int
+    init %local4@Flat.items, %v24
+    %v26 = load [%v22]@Array.length : @bits(30) U32
+    %v27 = cast %v26 : I64
+    init %local4@Flat.length, %v27
+    %v29 = calldyn %body, %v23 : Outcome((), $r)
+    %v30 = load %local5.discriminant : Int
+    %v32 = cmp_eq %v30, 1 : Bool
+    je %v32, b5, b6
 
   b4:
     jmp b7
 
   b5:
-    ret %v31
+    ret %v29
 
   b6:
     jmp b7
 
   b7:
-    %v39 = load %self@Chunks.used : Int
-    %v42 = cmp_gt %v39, 2 : Bool
-    je %v42, b8, b9
+    %v37 = load %self@Chunks.used : Int
+    %v40 = cmp_gt %v37, 2 : Bool
+    je %v40, b8, b9
 
   b8:
-    %v44 = load %self@Chunks.c : Array(Int)
-    %v45 = borrow %self@Chunks.c : &Array(Int)
-    %v46 = alloc : Flat(Int)
-    %v47 = load [%v45]@Array.run@Run.items : %Int
-    init %local6@Flat.items, %v47
-    %v49 = load [%v45]@Array.length : @bits(30) U32
-    %v50 = cast %v49 : U32
-    %v51 = cast %v50 : I64
-    init %local6@Flat.length, %v51
-    %v53 = calldyn %body, %v46 : Outcome((), $r)
-    %v54 = load %local7.discriminant : Int
-    %v56 = cmp_eq %v54, 1 : Bool
-    je %v56, b10, b11
+    %v42 = load %self@Chunks.c : Array(Int)
+    %v43 = borrow %self@Chunks.c : &Array(Int)
+    %v44 = alloc : Flat(Int)
+    %v45 = load [%v43]@Array.run@Run.items : %Int
+    init %local6@Flat.items, %v45
+    %v47 = load [%v43]@Array.length : @bits(30) U32
+    %v48 = cast %v47 : I64
+    init %local6@Flat.length, %v48
+    %v50 = calldyn %body, %v44 : Outcome((), $r)
+    %v51 = load %local7.discriminant : Int
+    %v53 = cmp_eq %v51, 1 : Bool
+    je %v53, b10, b11
 
   b9:
     jmp b12
 
   b10:
-    ret %v53
+    ret %v50
 
   b11:
     jmp b12
 
   b12:
-    %v61 = alloc : Outcome((), $r)
+    %v58 = alloc : Outcome((), $r)
     init %local8.discriminant, 0
-    ret %v61
+    ret %v58
 }
 
 fn Contiguous(Ring, Int).elements(%self: Ring) -> Flat(Int) {
@@ -1029,79 +1023,76 @@ fn Chunked(Chunks, Int).chunks(())(%self: Chunks, %body: (value: Flat(Int)) -> O
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
-    %v8 = cast %v7 : U32
-    %v9 = cast %v8 : I64
-    init %local2@Flat.length, %v9
-    %v11 = calldyn %body, %v4 : Outcome((), ())
-    %v12 = load %local3.discriminant : Int
-    %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b1, b2
+    %v8 = cast %v7 : I64
+    init %local2@Flat.length, %v8
+    %v10 = calldyn %body, %v4 : Outcome((), ())
+    %v11 = load %local3.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
 
   b1:
-    ret %v11
+    ret %v10
 
   b2:
-    %v17 = load %self@Chunks.used : Int
-    %v19 = cmp_gt %v17, 1 : Bool
-    je %v19, b3, b4
+    %v16 = load %self@Chunks.used : Int
+    %v18 = cmp_gt %v16, 1 : Bool
+    je %v18, b3, b4
 
   b3:
-    %v21 = load %self@Chunks.b : Array(Int)
-    %v22 = borrow %self@Chunks.b : &Array(Int)
-    %v23 = alloc : Flat(Int)
-    %v24 = load [%v22]@Array.run@Run.items : %Int
-    init %local4@Flat.items, %v24
-    %v26 = load [%v22]@Array.length : @bits(30) U32
-    %v27 = cast %v26 : U32
-    %v28 = cast %v27 : I64
-    init %local4@Flat.length, %v28
-    %v30 = calldyn %body, %v23 : Outcome((), ())
-    %v31 = load %local5.discriminant : Int
-    %v33 = cmp_eq %v31, 1 : Bool
-    je %v33, b5, b6
+    %v20 = load %self@Chunks.b : Array(Int)
+    %v21 = borrow %self@Chunks.b : &Array(Int)
+    %v22 = alloc : Flat(Int)
+    %v23 = load [%v21]@Array.run@Run.items : %Int
+    init %local4@Flat.items, %v23
+    %v25 = load [%v21]@Array.length : @bits(30) U32
+    %v26 = cast %v25 : I64
+    init %local4@Flat.length, %v26
+    %v28 = calldyn %body, %v22 : Outcome((), ())
+    %v29 = load %local5.discriminant : Int
+    %v31 = cmp_eq %v29, 1 : Bool
+    je %v31, b5, b6
 
   b4:
     jmp b7
 
   b5:
-    ret %v30
+    ret %v28
 
   b6:
     jmp b7
 
   b7:
-    %v38 = load %self@Chunks.used : Int
-    %v40 = cmp_gt %v38, 2 : Bool
-    je %v40, b8, b9
+    %v36 = load %self@Chunks.used : Int
+    %v38 = cmp_gt %v36, 2 : Bool
+    je %v38, b8, b9
 
   b8:
-    %v42 = load %self@Chunks.c : Array(Int)
-    %v43 = borrow %self@Chunks.c : &Array(Int)
-    %v44 = alloc : Flat(Int)
-    %v45 = load [%v43]@Array.run@Run.items : %Int
-    init %local6@Flat.items, %v45
-    %v47 = load [%v43]@Array.length : @bits(30) U32
-    %v48 = cast %v47 : U32
-    %v49 = cast %v48 : I64
-    init %local6@Flat.length, %v49
-    %v51 = calldyn %body, %v44 : Outcome((), ())
-    %v52 = load %local7.discriminant : Int
-    %v54 = cmp_eq %v52, 1 : Bool
-    je %v54, b10, b11
+    %v40 = load %self@Chunks.c : Array(Int)
+    %v41 = borrow %self@Chunks.c : &Array(Int)
+    %v42 = alloc : Flat(Int)
+    %v43 = load [%v41]@Array.run@Run.items : %Int
+    init %local6@Flat.items, %v43
+    %v45 = load [%v41]@Array.length : @bits(30) U32
+    %v46 = cast %v45 : I64
+    init %local6@Flat.length, %v46
+    %v48 = calldyn %body, %v42 : Outcome((), ())
+    %v49 = load %local7.discriminant : Int
+    %v51 = cmp_eq %v49, 1 : Bool
+    je %v51, b10, b11
 
   b9:
     jmp b12
 
   b10:
-    ret %v51
+    ret %v48
 
   b11:
     jmp b12
 
   b12:
-    %v59 = alloc : Outcome((), ())
+    %v56 = alloc : Outcome((), ())
     init %local8.discriminant, 0
-    ret %v59
+    ret %v56
 }
 
 fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %value: Flat(Int)) -> Outcome((), ()) {
@@ -1299,79 +1290,76 @@ fn Chunked(Chunks, Int).chunks(Int)(%self: Chunks, %body: (value: Flat(Int)) -> 
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
-    %v8 = cast %v7 : U32
-    %v9 = cast %v8 : I64
-    init %local2@Flat.length, %v9
-    %v11 = calldyn %body, %v4 : Outcome((), Int)
-    %v12 = load %local3.discriminant : Int
-    %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b1, b2
+    %v8 = cast %v7 : I64
+    init %local2@Flat.length, %v8
+    %v10 = calldyn %body, %v4 : Outcome((), Int)
+    %v11 = load %local3.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
 
   b1:
-    ret %v11
+    ret %v10
 
   b2:
-    %v17 = load %self@Chunks.used : Int
-    %v19 = cmp_gt %v17, 1 : Bool
-    je %v19, b3, b4
+    %v16 = load %self@Chunks.used : Int
+    %v18 = cmp_gt %v16, 1 : Bool
+    je %v18, b3, b4
 
   b3:
-    %v21 = load %self@Chunks.b : Array(Int)
-    %v22 = borrow %self@Chunks.b : &Array(Int)
-    %v23 = alloc : Flat(Int)
-    %v24 = load [%v22]@Array.run@Run.items : %Int
-    init %local4@Flat.items, %v24
-    %v26 = load [%v22]@Array.length : @bits(30) U32
-    %v27 = cast %v26 : U32
-    %v28 = cast %v27 : I64
-    init %local4@Flat.length, %v28
-    %v30 = calldyn %body, %v23 : Outcome((), Int)
-    %v31 = load %local5.discriminant : Int
-    %v33 = cmp_eq %v31, 1 : Bool
-    je %v33, b5, b6
+    %v20 = load %self@Chunks.b : Array(Int)
+    %v21 = borrow %self@Chunks.b : &Array(Int)
+    %v22 = alloc : Flat(Int)
+    %v23 = load [%v21]@Array.run@Run.items : %Int
+    init %local4@Flat.items, %v23
+    %v25 = load [%v21]@Array.length : @bits(30) U32
+    %v26 = cast %v25 : I64
+    init %local4@Flat.length, %v26
+    %v28 = calldyn %body, %v22 : Outcome((), Int)
+    %v29 = load %local5.discriminant : Int
+    %v31 = cmp_eq %v29, 1 : Bool
+    je %v31, b5, b6
 
   b4:
     jmp b7
 
   b5:
-    ret %v30
+    ret %v28
 
   b6:
     jmp b7
 
   b7:
-    %v38 = load %self@Chunks.used : Int
-    %v40 = cmp_gt %v38, 2 : Bool
-    je %v40, b8, b9
+    %v36 = load %self@Chunks.used : Int
+    %v38 = cmp_gt %v36, 2 : Bool
+    je %v38, b8, b9
 
   b8:
-    %v42 = load %self@Chunks.c : Array(Int)
-    %v43 = borrow %self@Chunks.c : &Array(Int)
-    %v44 = alloc : Flat(Int)
-    %v45 = load [%v43]@Array.run@Run.items : %Int
-    init %local6@Flat.items, %v45
-    %v47 = load [%v43]@Array.length : @bits(30) U32
-    %v48 = cast %v47 : U32
-    %v49 = cast %v48 : I64
-    init %local6@Flat.length, %v49
-    %v51 = calldyn %body, %v44 : Outcome((), Int)
-    %v52 = load %local7.discriminant : Int
-    %v54 = cmp_eq %v52, 1 : Bool
-    je %v54, b10, b11
+    %v40 = load %self@Chunks.c : Array(Int)
+    %v41 = borrow %self@Chunks.c : &Array(Int)
+    %v42 = alloc : Flat(Int)
+    %v43 = load [%v41]@Array.run@Run.items : %Int
+    init %local6@Flat.items, %v43
+    %v45 = load [%v41]@Array.length : @bits(30) U32
+    %v46 = cast %v45 : I64
+    init %local6@Flat.length, %v46
+    %v48 = calldyn %body, %v42 : Outcome((), Int)
+    %v49 = load %local7.discriminant : Int
+    %v51 = cmp_eq %v49, 1 : Bool
+    je %v51, b10, b11
 
   b9:
     jmp b12
 
   b10:
-    ret %v51
+    ret %v48
 
   b11:
     jmp b12
 
   b12:
-    %v59 = alloc : Outcome((), Int)
+    %v56 = alloc : Outcome((), Int)
     init %local8.discriminant, 0
-    ret %v59
+    ret %v56
 }
 
 fn ResolveTest.continuation$9(%env: %{total: &mut Int}, %value: Flat(Int)) -> Outcome((), ()) {

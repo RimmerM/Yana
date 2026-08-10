@@ -122,6 +122,11 @@ void defineTruth(Module& module, TypePtr type, Emit emit);
 // is a cast.
 void defineConversion(Module& module, StringView className, StringView method, TypePtr from, TypePtr to);
 
+// One rung of the reinterpretation ladder. Only ever called for a same-width pair - the class's
+// whole safety argument is that no other instance exists - and `gen` is for the pointer rungs,
+// which are written over a type variable rather than over a type.
+void defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen = nullptr);
+
 // Attaches a hook to a signature the module declared in source but gave no body. This is how a
 // generic intrinsic is written: the declaration says what it means to the type checker, and the
 // hook says what it generates. Reports if no such function was declared.

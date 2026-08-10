@@ -126,9 +126,9 @@ fn castMatch(c: Bool) -> WideInt = (match c:
 -- that has to be *asked for*: carrying the target inward as an implicit one makes it "implicit
 -- conversion from I64 to Int would lose precision" and the program stops compiling. 4294967301 is
 -- 2^32 + 5, so a truncation that happened at the wrong width answers something other than 5.
-fn narrowParen(x: I64) -> Int = (x) :: Int
+fn narrowParen(x: I64) -> Int = truncate((x)) :: Int
 
-fn narrowIf(c: Bool, x: I64) -> Int = (if c then x else 0) :: Int
+fn narrowIf(c: Bool, x: I64) -> Int = truncate((if c then x else 0)) :: Int
 
 fn main() -> Int =
     checkW(adoptOr(), 34359738623, 1) +

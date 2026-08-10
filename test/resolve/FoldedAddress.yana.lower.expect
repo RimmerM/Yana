@@ -246,57 +246,55 @@ main<complex>(): Int {
   b_27 {
     %v_28 = add %v_16, 12: Ptr
     %v_29 = load %v_28, 4: Int
-    %v_30 = cast %v_29: Int
-    %v_31 = cast %v_30: Long
-    %v_32 = call_complex middle, %v_17, %v_31: Int
-    %v_33 = cmp_neq %v_32, 5: Int
-    je %v_33, b_26, b_34
+    %v_30 = cast %v_29: Long
+    %v_31 = call_complex middle, %v_17, %v_30: Int
+    %v_32 = cmp_neq %v_31, 5: Int
+    je %v_32, b_26, b_33
   }
 
-  b_34 {
-    %v_35 = alloca 16, 8: Ptr
-    store %v_35, %v_17, 8
-    %v_36 = add %v_35, 8: Ptr
-    store %v_36, %v_31, 8
-    call_complex double, %v_35
-    %v_37 = call_complex total, %v_17, %v_31: Int
-    %v_38 = cmp_neq %v_37, 20: Int
-    je %v_38, b_26, b_39
+  b_33 {
+    %v_34 = alloca 16, 8: Ptr
+    store %v_34, %v_17, 8
+    %v_35 = add %v_34, 8: Ptr
+    store %v_35, %v_30, 8
+    call_complex double, %v_34
+    %v_36 = call_complex total, %v_17, %v_30: Int
+    %v_37 = cmp_neq %v_36, 20: Int
+    je %v_37, b_26, b_38
   }
 
-  b_39 {
-    %v_40 = alloca 16, 8: Ptr
-    %v_41 = alloca 8, 4: Ptr
-    store %v_40, %v_41, 8
-    %v_42 = add %v_40, 8: Ptr
-    %v_43 = load %v_42, 4: Int
-    store %v_42, 2, 4
-    store %v_41, 7, 4
-    %v_44 = add %v_41, 4: Ptr
-    store %v_44, 8, 4
-    %v_45 = add %v_40, 12: Ptr
-    store %v_45, 2, 4
-    %v_46 = call_complex total, %v_41, 2: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_40
-    %v_47 = cmp_neq %v_46, 15: Int
-    je %v_47, b_26, b_48
+  b_38 {
+    %v_39 = alloca 16, 8: Ptr
+    %v_40 = alloca 8, 4: Ptr
+    store %v_39, %v_40, 8
+    %v_41 = add %v_39, 8: Ptr
+    %v_42 = load %v_41, 4: Int
+    store %v_41, 2, 4
+    store %v_40, 7, 4
+    %v_43 = add %v_40, 4: Ptr
+    store %v_43, 8, 4
+    %v_44 = add %v_39, 12: Ptr
+    store %v_44, 2, 4
+    %v_45 = call_complex total, %v_40, 2: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_39
+    %v_46 = cmp_neq %v_45, 15: Int
+    je %v_46, b_26, b_47
   }
 
-  b_48 {
-    %v_49 = load %v_16, 8: Ptr
-    %v_50 = add %v_16, 12: Ptr
-    %v_51 = load %v_50, 4: Int
-    %v_52 = cast %v_51: Int
-    %v_53 = cast %v_52: Long
-    %v_54 = call_complex total, %v_49, %v_53: Int
+  b_47 {
+    %v_48 = load %v_16, 8: Ptr
+    %v_49 = add %v_16, 12: Ptr
+    %v_50 = load %v_49, 4: Int
+    %v_51 = cast %v_50: Long
+    %v_52 = call_complex total, %v_48, %v_51: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_16
-    ret %v_54
+    ret %v_52
   }
 
   b_26 {
-    %v_55 = phi [b_0, 18446744073709551613], [b_27, 18446744073709551612], [b_34, 18446744073709551611], [b_39, 18446744073709551610]: Int
+    %v_53 = phi [b_0, 18446744073709551613], [b_27, 18446744073709551612], [b_33, 18446744073709551611], [b_38, 18446744073709551610]: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_16
-    ret %v_55
+    ret %v_53
   }
 }
 

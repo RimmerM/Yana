@@ -104,6 +104,10 @@ static StringView nameForCmp(LowerCmp cmp) {
             return "cmp_eq"_v;
         case LowerCmp::neq:
             return "cmp_neq"_v;
+        case LowerCmp::uno:
+            return "cmp_uno"_v;
+        case LowerCmp::ord:
+            return "cmp_ord"_v;
         case LowerCmp::gt:
             return "cmp_gt"_v;
         case LowerCmp::ge:

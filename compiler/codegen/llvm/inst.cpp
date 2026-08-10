@@ -83,8 +83,20 @@ static void genCast(FunGen& f, LowerInstCast& inst) {
     if(isFloat(source) && isFloat(target)) {
         value = f.builder.CreateFPCast(from, type, nameOf(f, inst.result));
     } else if(isFloat(source)) {
-        value = inst.isSignedResult() ? f.builder.CreateFPToSI(from, type, nameOf(f, inst.result))
-                                      : f.builder.CreateFPToUI(from, type, nameOf(f, inst.result));
+        /*
+         * Saturating, per the ruling in `saturationRange`: out of range clamps to the nearest end
+         * and NaN becomes zero.
+         *
+         * `fptosi` and `fptoui` are *poison* outside the range, which is the plain conversion and
+         * not this one - LLVM has the saturating form as an intrinsic precisely because the plain
+         * one cannot express it. Using the intrinsic rather than expanding the clamp here is also
+         * what keeps this backend's answer identical to the local one without either having to know
+         * how the other spells it: both are asked for the same three cases and both produce them.
+         */
+        auto id = inst.isSignedResult() ? llvm::Intrinsic::fptosi_sat : llvm::Intrinsic::fptoui_sat;
+        llvm::Type* overloads[] = { type, from->getType() };
+
+        value = f.builder.CreateIntrinsic(id, overloads, { from }, nullptr, nameOf(f, inst.result));
     } else if(isFloat(target)) {
         value = inst.isSignedSource() ? f.builder.CreateSIToFP(from, type, nameOf(f, inst.result))
                                       : f.builder.CreateUIToFP(from, type, nameOf(f, inst.result));
@@ -211,6 +223,10 @@ static llvm::CmpInst::Predicate intPredicate(LowerCmp cmp) {
         case LowerCmp::ige: return llvm::CmpInst::ICMP_SGE;
         case LowerCmp::ilt: return llvm::CmpInst::ICMP_SLT;
         case LowerCmp::ile: return llvm::CmpInst::ICMP_SLE;
+
+        // Float operands only, so neither has an integer reading and neither can reach here.
+        // Answered rather than left to the fallthrough so that the switch stays exhaustive.
+        case LowerCmp::uno: case LowerCmp::ord: break;
     }
 
     return llvm::CmpInst::ICMP_EQ;
@@ -231,6 +247,8 @@ static llvm::CmpInst::Predicate floatPredicate(LowerCmp cmp) {
     switch(cmp) {
         case LowerCmp::eq:  return llvm::CmpInst::FCMP_OEQ;
         case LowerCmp::neq: return llvm::CmpInst::FCMP_UNE;
+        case LowerCmp::uno: return llvm::CmpInst::FCMP_UNO;
+        case LowerCmp::ord: return llvm::CmpInst::FCMP_ORD;
         case LowerCmp::gt:
         case LowerCmp::igt: return llvm::CmpInst::FCMP_OGT;
         case LowerCmp::ge:

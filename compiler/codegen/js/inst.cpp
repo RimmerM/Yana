@@ -429,6 +429,153 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
     }
 }
 
+void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction);
+
+/*
+ * The scratch pair a `Float`/`I32` bitcast goes through, and the two helpers that use it.
+ *
+ * A `Float` on this target is a `number` that `Math.fround` has made exactly representable as a
+ * binary32, so its thirty-two bits are perfectly well defined and completely unreachable: no host
+ * operator sees them. Two views over one `ArrayBuffer` is the only way, and one buffer per program
+ * is enough, because the write and the read after it are the whole of the operation and nothing
+ * runs between them.
+ *
+ * A helper *function* and not two statements at the call site, and that is a correctness matter
+ * rather than a size one: the read of `$bci[0]` is not pure, so a binding holding one would be
+ * eligible for the one-use inlining in opt.cpp and could be carried across the next bitcast's
+ * write. An ordinary call is the form this backend already cannot move.
+ */
+static void ensureFloatBits(Gen& g) {
+    if(g.floatBitsBuffer.text) return;
+
+    g.floatBitsBuffer = uniqueName(g, "$bcf"_v, false);
+    g.floatBitsInts = uniqueName(g, "$bci"_v, false);
+}
+
+static JsPtr<Expr> construct(Gen& g, StringView type, JsPtr<Expr> argument) {
+    auto node = make<CallExpr>(g, variable(g, literalName(g, type)));
+    node->args.push(g.file.arena, argument);
+    node->construct = true;
+    return asExpr(g, node);
+}
+
+// `toBits` says which direction: a float in and its bits out, or the reverse.
+static Name floatBitsHelper(Gen& g, bool toBits) {
+    auto& into = toBits ? g.floatToBitsHelper : g.bitsToFloatHelper;
+    if(into.text) return into;
+
+    ensureFloatBits(g);
+    into = uniqueName(g, toBits ? "$bc$f2i"_v : "$bc$i2f"_v, false);
+    return into;
+}
+
+
+/*
+ * `bitcast(x)` - the same bits under another type.
+ *
+ * Three shapes, and only the last of them needs anything emitted. A reference reinterpreted is the
+ * same host object; two integer types of one width are the same host value in two normal forms, so
+ * the ordinary coercion is exactly the reinterpretation - `Int` to `U32` is `>>> 0`, which is what
+ * the two's complement pattern of a negative number *is* read as unsigned. What is left is a float
+ * meeting an integer, which no operator here expresses.
+ *
+ * The sixty-four bit float pairs never arrive: `defineBitcastLadder` declines to generate them on
+ * this target, because a `bigint` going through a `DataView` costs more than any program would have
+ * reached for a bitcast to save.
+ */
+void genBitcast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
+    auto from = g.local[instruction.from]->type;
+    auto to = instruction.type;
+    auto value = useValue(g, instruction.from);
+
+    if(isPointer(g.global, from) || isPointer(g.global, to)) {
+        // A pointer constant is the one case with anything to say - the IR has no pointer immediate,
+        // so `null()` arrives here as a zero being reinterpreted. genCast argues the rest.
+        genCast(g, pointer, instruction);
+        return;
+    }
+
+    auto fromFloat = isFloat(g.global, from);
+    auto toFloat = isFloat(g.global, to);
+
+    if(fromFloat != toFloat) {
+        auto helper = floatBitsHelper(g, fromFloat);
+        auto node = make<CallExpr>(g, variable(g, helper));
+        node->args.push(g.file.arena, value);
+
+        // Deliberately not `pure`: the buffer it writes is shared, so two of these may not be
+        // reordered against each other.
+        define(g, pointer, coerce(g, to, asExpr(g, node)));
+        return;
+    }
+
+    define(g, pointer, coerce(g, to, value));
+}
+
+/*
+ * A float truncated into an integer, saturating - see `saturationRange`, which is where the rule is
+ * argued and where the two bounds come from.
+ *
+ * `Math.min(Math.max(trunc(v), lo), hi)` and nothing else, which is short for two reasons that only
+ * hold on a target whose numbers are doubles. Every bound of a type that fits in a `number` is
+ * exactly representable, so clamping in the float domain lands on the integer the rule asks for
+ * rather than near it; and `Math.min`/`Math.max` *propagate* NaN rather than ordering it, so NaN
+ * reaches the coercion untouched and `NaN | 0` is the zero the rule asks for. Both are why `v` is
+ * read once and no temporary is needed.
+ */
+static JsPtr<Expr> saturatingToNumber(Gen& g, TypePtr to, JsPtr<Expr> value) {
+    auto truncated = hostCall(g, "Math"_v, "trunc"_v, value);
+
+    auto integer = intType(g, to);
+    if(!integer) return truncated;
+
+    auto range = saturationRange(*integer);
+    if(!range.highIsExact) return truncated;
+
+    return hostCall(g, "Math"_v, "min"_v,
+                    hostCall(g, "Math"_v, "max"_v, truncated, number(g, range.low, false)),
+                    number(g, range.high, false));
+}
+
+/*
+ * The same into a `bigint`, which needs a helper where the number case needed none.
+ *
+ * Neither shortcut above survives at sixty-four bits. `2^63 - 1` is not a double, so a clamp in the
+ * float domain would answer `2^63 - 1024` for everything past the end; and `BigInt(NaN)` throws
+ * rather than producing anything to coerce. So the three cases are written out, once per target
+ * type, in a function - which is also what keeps `v` read once.
+ */
+static Name saturatingLongHelper(Gen& g, IntType& integer) {
+    auto key = (U32(integer.bits) << 1) | U32(integer.isSigned);
+    if(auto found = g.satHelpers.get(key)) return found.unwrap();
+
+    char buffer[32];
+    Size length = 0;
+    buffer[length++] = '$';
+    buffer[length++] = 's';
+    buffer[length++] = 'a';
+    buffer[length++] = 't';
+    length += show(U64(integer.bits), buffer + length, sizeof(buffer) - length);
+    buffer[length++] = integer.isSigned ? 'i' : 'u';
+
+    auto name = uniqueName(g, StringView { buffer, length }, false);
+    g.satHelpers.add(key, name);
+    g.satHelperOrder.push(SatHelper { name, U16(integer.bits), integer.isSigned });
+    return name;
+}
+
+static JsPtr<Expr> saturatingToLong(Gen& g, TypePtr to, JsPtr<Expr> value) {
+    auto integer = intType(g, to);
+    if(!integer) return coerce(g, to, globalCall(g, "BigInt"_v, hostCall(g, "Math"_v, "trunc"_v, value)));
+
+    auto node = make<CallExpr>(g, variable(g, saturatingLongHelper(g, *integer)));
+    node->args.push(g.file.arena, value);
+    node->pure = true;
+
+    return asExpr(g, node);
+}
+
+
 void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     auto from = g.local[instruction.from]->type;
     auto to = instruction.type;
@@ -482,7 +629,13 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     // conversion rather than a widening (§2.1). Truncation toward zero happens on the number side,
     // because `BigInt()` rejects a non-integral double rather than rounding it.
     if(toLong && !fromLong) {
-        if(isFloat(g.global, from)) value = hostCall(g, "Math"_v, "trunc"_v, value);
+        // And a float source saturates, which on this side of the conversion is not optional in the
+        // way it is elsewhere: `BigInt(NaN)` and `BigInt(Infinity)` *throw*, so the unsaturated form
+        // was not merely disagreeing with native, it was a crash.
+        if(isFloat(g.global, from)) {
+            define(g, pointer, saturatingToLong(g, to, value));
+            return;
+        }
 
         define(g, pointer, coerce(g, to, globalCall(g, "BigInt"_v, value)));
         return;
@@ -495,7 +648,7 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     }
 
     if(isInteger(g.global, to) && isFloat(g.global, from)) {
-        define(g, pointer, coerce(g, to, hostCall(g, "Math"_v, "trunc"_v, value)));
+        define(g, pointer, coerce(g, to, saturatingToNumber(g, to, value)));
         return;
     }
 
@@ -1487,6 +1640,85 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
 
 } // namespace
 
+void emitSaturationHelpers(Gen& g) {
+    if(g.satHelperOrder.size() == 0) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "float to integer saturates, and `BigInt` throws rather than clamping - see codegen/js/inst.cpp"_v)));
+
+    for(Size i = 0; i < g.satHelperOrder.size(); i++) {
+        auto helper = g.satHelperOrder[i];
+        auto function = make<FunStmt>(g, helper.name);
+        auto argument = literalName(g, "v"_v);
+        auto value = variable(g, argument);
+        function->args.push(g.file.arena, argument);
+
+        IntType integer(helper.bits, IntType::widthFor(helper.bits), helper.isSigned);
+        auto range = saturationRange(integer);
+
+        auto low = integer.isSigned ? -(U64(1) << (helper.bits - 1)) : U64(0);
+        auto high = integer.isSigned ? (U64(1) << (helper.bits - 1)) - 1 : ~U64(0) >> (64 - helper.bits);
+
+        function->body = collect(g, [&] {
+            // NaN first, since it answers neither comparison below and is the one input `BigInt`
+            // refuses outright.
+            auto isNaN = binary(g, BinaryOp::Ne, value, value);
+            emit(g, make<IfStmt>(g, isNaN, collect(g, [&] {
+                emit(g, make<ReturnStmt>(g, bigInt(g, 0, integer.isSigned)));
+            }), StmtList {}));
+
+            emit(g, make<IfStmt>(g, binary(g, BinaryOp::Le, value, number(g, range.low, false)),
+                                 collect(g, [&] {
+                emit(g, make<ReturnStmt>(g, bigInt(g, low, integer.isSigned)));
+            }), StmtList {}));
+
+            emit(g, make<IfStmt>(g, binary(g, BinaryOp::Ge, value, number(g, range.high, false)),
+                                 collect(g, [&] {
+                emit(g, make<ReturnStmt>(g, bigInt(g, high, integer.isSigned)));
+            }), StmtList {}));
+
+            emit(g, make<ReturnStmt>(g, globalCall(g, "BigInt"_v, hostCall(g, "Math"_v, "trunc"_v, value))));
+        });
+
+        emit(g, function);
+    }
+}
+
+void emitFloatBitsHelpers(Gen& g) {
+    if(!g.floatBitsBuffer.text) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "a float's bits, which no host operator reaches - see codegen/js/inst.cpp"_v)));
+
+    // `Float32Array` first and the integer view over its buffer second, which is the whole of what
+    // makes the two names one storage location.
+    emit(g, make<DeclStmt>(g, g.floatBitsBuffer, construct(g, "Float32Array"_v, number(g, 1)), true));
+    emit(g, make<DeclStmt>(g, g.floatBitsInts,
+                           construct(g, "Int32Array"_v,
+                                     field(g, variable(g, g.floatBitsBuffer), literalName(g, "buffer"_v))),
+                           true));
+
+    for(auto toBits: { true, false }) {
+        auto name = toBits ? g.floatToBitsHelper : g.bitsToFloatHelper;
+        if(!name.text) continue;
+
+        auto written = toBits ? g.floatBitsBuffer : g.floatBitsInts;
+        auto read = toBits ? g.floatBitsInts : g.floatBitsBuffer;
+
+        auto function = make<FunStmt>(g, name);
+        auto argument = literalName(g, "v"_v);
+        auto value = variable(g, argument);
+        function->args.push(g.file.arena, argument);
+
+        function->body = collect(g, [&] {
+            emitExpr(g, assign(g, index(g, variable(g, written), 0), value));
+            emit(g, make<ReturnStmt>(g, index(g, variable(g, read), 0)));
+        });
+
+        emit(g, function);
+    }
+}
+
 // Declared in build.h, which is where the reasoning lives: two callers read this and they must
 // not disagree. At js scope rather than in the anonymous namespace above because gen.cpp is the
 // other one.
@@ -1865,6 +2097,9 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             break;
         case Value::Cast:
             genCast(g, value, (InstUnary&)instruction);
+            break;
+        case Value::Bitcast:
+            genBitcast(g, value, (InstUnary&)instruction);
             break;
         case Value::Neg: {
             auto from = useValue(g, ((InstUnary&)instruction).from);

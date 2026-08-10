@@ -49,7 +49,7 @@ fn overridden() -> Int:
 data Cents {value: Int}
 
 instance FromInt(Cents):
-    fn fromInt(value: Long) -> Cents = Cents {value: narrow(value)}
+    fn fromInt(value: Long) -> Cents = Cents {value: truncate(value)}
 
 instance Eq(Cents):
     fn ==(lhs: Cents, rhs: Cents) -> Bool = lhs.value == rhs.value

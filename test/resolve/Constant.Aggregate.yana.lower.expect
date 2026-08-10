@@ -94,26 +94,26 @@ boxedValue<complex>(%b: Ptr): Int {
     %v_9 = load %v_8, 1: Int
     %v_10 = and %v_9, 15: Int
     %v_11 = shr %v_9, 4: Int
-    %v_12 = cast %v_10: Int
-    %v_13 = cast %v_11: Int
-    %v_14 = shl %v_13, 4: Int
-    %v_15 = add %v_12, %v_14: Int
-    jmp b_16
+    %lo = cast %v_10: Int
+    %hi = cast %v_11: Int
+    %v_12 = shl %hi, 4: Int
+    %v_13 = add %lo, %v_12: Int
+    jmp b_14
   }
 
   b_7 {
-    jmp b_16
+    jmp b_14
   }
 
   b_6 {
-    %v_17 = add %b, 4: Ptr
-    %v = loads %v_17, 4: Int
-    jmp b_16
+    %v_15 = add %b, 4: Ptr
+    %v = loads %v_15, 4: Int
+    jmp b_14
   }
 
-  b_16 {
-    %v_18 = phi [b_3, %v_15], [b_6, %v], [b_7, 0]: Int
-    ret %v_18
+  b_14 {
+    %v_16 = phi [b_3, %v_13], [b_6, %v], [b_7, 0]: Int
+    ret %v_16
   }
 }
 

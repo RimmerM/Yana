@@ -447,6 +447,12 @@ static U8 conditionCode(LowerCmp cmp) {
         case LowerCmp::ige: return 0xd;
         case LowerCmp::ilt: return 0xc;
         case LowerCmp::ile: return 0xe;
+
+        // P - the parity flag, which UCOMISS and UCOMISD set for an unordered comparison and for
+        // nothing else. This is the whole of the NaN test, where an equality against the same value
+        // would have needed ZF as well and the correction genFloatFlagsToReg emits.
+        case LowerCmp::uno: return 0xa;
+        case LowerCmp::ord: return 0xb;
     }
 
     assertTrue(false);
@@ -465,6 +471,9 @@ static LowerCmp negateCmp(LowerCmp cmp) {
         case LowerCmp::ige: return LowerCmp::ilt;
         case LowerCmp::ilt: return LowerCmp::ige;
         case LowerCmp::ile: return LowerCmp::igt;
+
+        case LowerCmp::uno: return LowerCmp::ord;
+        case LowerCmp::ord: return LowerCmp::uno;
     }
 
     assertTrue(false);

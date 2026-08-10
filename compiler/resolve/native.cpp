@@ -58,11 +58,25 @@ pub fn store(to: %a, value: a) -> {}
 -- forces storage to exist for something that would otherwise have had none.
 pub fn addressOf(it: a) -> %a
 
--- Reinterprets what a pointer points at, and the two conversions between a pointer and the
--- integer holding the same address. None of the three moves any bits.
-pub fn cast(it: %a) -> %b
-pub fn asInt(it: %a) -> I64
-pub fn asPtr(it: I64) -> %a
+{-
+   Reinterpreting a pointer - which is `Core.bitcast` and no longer three functions of this
+   module's own.
+
+   `cast(p)`, `asInt(p)` and `asPtr(n)` were three spellings of one operation, and none of them was
+   the spelling anything else in the language used. What replaces them is the instances below:
+   `bitcast(p) :: %b` between two pointer types, and `bitcast(p) :: I64` and `bitcast(n) :: %a`
+   between an address and the integer holding it.
+
+   The one thing this loses is the qualifier. Instance visibility is program-wide, so these three
+   rungs make `bitcast` reach a pointer from every module of a program in which *any* module
+   imported Native, where `Native.cast` had to be named through the module and so said "unsafe" at
+   the call site. That weakening was taken deliberately: reinterpretation is one idea, and having
+   one name for it was judged worth more than a qualifier that only some of the reinterpretations
+   ever carried.
+
+   Declared here as generated instances rather than in source, because each is one instruction and
+   `%a` is a type variable - `definePointerInstances` is where they are, alongside `Eq` and `Ord`.
+-}
 
 -- The null pointer, and the test for it. `null` needs its type from context - an assignment, a
 -- return, or an ascription - which is why the test exists separately: `isNull(p)` needs nothing.
@@ -102,7 +116,7 @@ pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
 
 -- The system call intrinsic, at each arity a call needs. Design.md's "Interfacing the OS" builds
 -- the OS interface as a thin template over exactly this; the arguments and the result are plain
--- integers because that is what the kernel ABI passes, and a pointer reaches one through asInt.
+-- integers because that is what the kernel ABI passes, and a pointer reaches one through `bitcast`.
 pub fn syscall0(number: I64) -> I64
 pub fn syscall1(number: I64, a: I64) -> I64
 pub fn syscall2(number: I64, a: I64, b: I64) -> I64
@@ -171,7 +185,7 @@ fn initHeap() -> {}:
     let table = heapClassCount * 8
     setMemory(region, 0, table)
 
-    heapFree = cast(region) :: Ptr(Ptr(U8))
+    heapFree = bitcast(region) :: Ptr(Ptr(U8))
     heapNext = region + table
     heapLimit = region + heapRegionSize
     heapRegionNext = heapRegionSize + heapRegionSize
@@ -244,7 +258,7 @@ pub fn allocateHeap(size: I64) -> %U8:
     -- A reused block already has its header; only the free list changes.
     let reused = freeListHead(sizeClass)
     if !isNull(reused):
-        setFreeListHead(sizeClass, *(cast(reused) :: Ptr(%U8)))
+        setFreeListHead(sizeClass, *(bitcast(reused) :: Ptr(%U8)))
         return reused
 
     let blockSize = heapBlockSize(sizeClass)
@@ -256,7 +270,7 @@ pub fn allocateHeap(size: I64) -> %U8:
 
     let block = heapNext
     heapNext = block + blockSize
-    store(cast(block) :: Ptr(I64), sizeClass)
+    store(bitcast(block) :: Ptr(I64), sizeClass)
 
     return block + 8
 
@@ -265,9 +279,9 @@ pub fn allocateHeap(size: I64) -> %U8:
 pub fn freeHeap(allocation: %U8) -> {}:
     if isNull(allocation) then return
 
-    let sizeClass = *(cast(allocation - 8) :: Ptr(I64))
+    let sizeClass = *(bitcast(allocation - 8) :: Ptr(I64))
 
-    store(cast(allocation) :: Ptr(%U8), freeListHead(sizeClass))
+    store(bitcast(allocation) :: Ptr(%U8), freeListHead(sizeClass))
     setFreeListHead(sizeClass, allocation)
 
 {-
@@ -336,19 +350,20 @@ pub alias HeapFlag = @bits(2) U32
 -- The largest count either field can hold, as the number a caller is checked against rather than as
 -- a mask applied behind its back. `@bits` stores truncate silently, which is tolerable for an
 -- integer and corrupts a container for a length - Implementation-Containers.md §7.1.
-pub let maxCount = 1073741823 :: Int
+pub let maxCount = 1073741823 :: Size
 
 {-
    How many bytes `count` elements occupy.
 
    Written as a pointer difference rather than with `sizeOf`, because what is wanted is the size of
    a *type* and pointer arithmetic already scales by exactly that - `from` is never read, only
-   measured against. Counts are `Int` and byte quantities are `I64`, which is the split the two
+   measured against. Counts are `Size` and byte quantities are `I64`, which is the split the two
    sides of this function have: an index is a number of elements the program wrote, and a size is
-   what the allocator and the block operations take.
+   what the allocator and the block operations take. They coincide natively and do not on JS, which
+   is why the two are named separately rather than both written `I64`.
 -}
-pub fn byteSpan(from: %a, count: Int) -> I64 =
-    difference(cast(from) :: %U8, cast(from + count) :: %U8)
+pub fn byteSpan(from: %a, count: Size) -> I64 =
+    difference(bitcast(from) :: %U8, bitcast(from + count) :: %U8)
 
 {-
    An owned, uninitialized run of slots, plus where it came from.
@@ -393,9 +408,9 @@ pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorr
    slots live is decided by the same escape analysis that places every other allocation and the bit
    it writes into `ownsHeap` is that decision reduced to what a run acts on.
 -}
-pub fn newRun(capacity: Int) -> Run(a)
+pub fn newRun(capacity: Size) -> Run(a)
 
-pub fn capacity(self: Run(a)) -> Int = self.capacity :: Int
+pub fn capacity(self: Run(a)) -> Size = self.capacity :: Size
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
 -- anything, because a run does not know.
@@ -418,8 +433,8 @@ pub fn slots(self: Run(a)) -> %a = self.items
    capacity field disagreed with the storage behind it, and every later `resize` would read the
    masked number back and believe it.
 -}
-pub fn resize(&self: Run(a), wanted: Int) -> Bool:
-    let room = self.capacity :: Int
+pub fn resize(&self: Run(a), wanted: Size) -> Bool:
+    let room = self.capacity :: Size
     if wanted <= room then return True
 
     -- Refused one line before the allocator is asked, and for a different reason than a refusal from
@@ -433,16 +448,16 @@ pub fn resize(&self: Run(a), wanted: Int) -> Bool:
 
     if wanted > maxCount then return False
 
-    let fresh = cast(allocateHeap(byteSpan(self.items, wanted))) :: %a
+    let fresh = bitcast(allocateHeap(byteSpan(self.items, wanted))) :: %a
     if isNull(fresh) then return False
 
     if room > 0:
-        copyMemory(cast(fresh) :: %U8, cast(self.items) :: %U8, byteSpan(self.items, room))
+        copyMemory(bitcast(fresh) :: %U8, bitcast(self.items) :: %U8, byteSpan(self.items, room))
 
-    if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
 
     self.items = fresh
-    self.capacity = wanted :: Count
+    self.capacity = truncate(wanted) :: Count
     self.ownsHeap = runFromHeap
 
     return True
@@ -480,7 +495,7 @@ pub fn resize(&self: Run(a), wanted: Int) -> Bool:
    something wrote through a borrow, and a grown one - where the question is real.
 -}
 pub fn releaseRun(self: Run(a)) -> {}:
-    if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
 
 instance Reclaim(Run(a)):
     fn reclaim(->value: Run(a)) -> {} = releaseRun(value)
@@ -626,11 +641,11 @@ pub fn mapMemory(size: I64) -> %U8:
     let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
     if result < 0 then return null()
 
-    return asPtr(result)
+    return bitcast(result) :: %U8
 
-pub fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, asInt(from), size)
+pub fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, bitcast(from) :: I64, size)
 
-pub fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, asInt(from), count)
+pub fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, bitcast(from) :: I64, count)
 
 pub fn exitProcess(status: I64) -> {}:
     syscall1(sysExit, status)
@@ -669,27 +684,19 @@ static ModulePtr<Value> emitAddressOf(ExprResolver& resolver, Buffer<ModulePtr<V
     return resolver.addressOf(resolver.materialize(args[0], source), source, name);
 }
 
-// One machine word reinterpreted as another. The three signatures that reach here - pointer to
-// pointer, pointer to integer, integer to pointer - are the same instruction, which lowering
-// turns into a bitcast because nothing about the bits changes.
-static ModulePtr<Value> emitReinterpret(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                        LocationId source, StringId name) {
-    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Cast, args[0]));
-}
-
 // The lower IR has no pointer immediates on purpose, so a null pointer is the integer zero
-// reinterpreted - which is what `asPtr(0)` says anyway.
+// reinterpreted - which is what `bitcast(0) :: %a` says anyway.
 static ModulePtr<Value> emitNull(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
                                  LocationId source, StringId name) {
     auto zero = resolver.makeInt(source, resolver.module.scalar.long_, 0);
-    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Cast, zero));
+    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Bitcast, zero));
 }
 
 // And the test for one goes the other way: the address as a number, against zero.
 static ModulePtr<Value> emitIsNull(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                    LocationId source, StringId name) {
     auto address = resolver.module.scalar.long_;
-    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Cast, args[0]));
+    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Bitcast, args[0]));
     auto zero = resolver.makeInt(source, address, 0);
 
     return resolver.ref(resolver.emit<InstCmp>(source, name, type, number, zero, CompareOp::Eq));
@@ -710,7 +717,7 @@ static ModulePtr<Value> emitBorrowAt(ExprResolver& resolver, Buffer<ModulePtr<Va
  * A **retype and not a read**. The argument is a borrow of a `String` and the result is a borrow of
  * `Native.StringData`, and `computeString` is what makes those the same bytes: a string's Repr *is*
  * that record's, so the address is unchanged and there is nothing to emit but the change of type.
- * That is the same instruction `cast(p: %a) -> %b` is, for the same reason, and it is why this is an
+ * That is the same instruction `bitcast(p) :: %b` is, for the same reason, and it is why this is an
  * intrinsic at all rather than a library function - there is no way to write "these two types occupy
  * one place" in the language, and no reason for a program to be able to.
  *
@@ -872,15 +879,39 @@ static void definePointerInstances(Module& module) {
 
     defineEq(module, pointer, envPointer);
     defineOrd(module, pointer, envPointer);
+
+    /*
+     * And the reinterpretation rungs, which is what `cast`, `asInt` and `asPtr` became.
+     *
+     * Pointer-to-pointer needs a context of its own holding *two* variables: the two sides are
+     * unrelated, which is the whole content of the operation, so the one-variable context above
+     * cannot express its head. The other two reuse that context, since one side is a concrete
+     * address-width integer.
+     *
+     * `I64` and not `Size`, which is the same choice the three functions made: an address is
+     * sixty-four bits on the targets this module compiles for, and `Size` is `Int` on one that it
+     * does not.
+     */
+    auto pairEnv = new (module.types) GenEnv(GenEnv::Instance);
+    auto pairPointer = pairEnv - global;
+
+    auto fromVariable = new (module.types) GenType(pairPointer, module.context.addQualifiedName("a", 1, 1), 0);
+    auto toVariable = new (module.types) GenType(pairPointer, module.context.addQualifiedName("b", 1, 1), 1);
+    pairEnv->types.push(module.types, fromVariable - global);
+    pairEnv->types.push(module.types, toVariable - global);
+
+    defineBitcast(module, resolvePointerType(module, (Type*)fromVariable - global),
+                  resolvePointerType(module, (Type*)toVariable - global), pairPointer);
+
+    auto address = findType(module, Context::nameHash("I64"_v), kNullLocation);
+    defineBitcast(module, pointer, address, envPointer);
+    defineBitcast(module, address, pointer, envPointer);
 }
 
 static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "*"_v, emitDeref);
     attachIntrinsic(module, "store"_v, emitStore);
     attachIntrinsic(module, "addressOf"_v, emitAddressOf);
-    attachIntrinsic(module, "cast"_v, emitReinterpret);
-    attachIntrinsic(module, "asInt"_v, emitReinterpret);
-    attachIntrinsic(module, "asPtr"_v, emitReinterpret);
     attachIntrinsic(module, "null"_v, emitNull);
     attachIntrinsic(module, "isNull"_v, emitIsNull);
     attachIntrinsic(module, "borrow"_v, emitBorrowAt<false>);
@@ -1085,8 +1116,8 @@ import Native
 -}
 @platform(native) pub fn stringLiteral(bytes: %U8, length: Int) -> String =
     stringFromData(StringData {bytes: Array {
-        run: Run {items: bytes, capacity: length :: Count, ownsHeap: runBorrowed},
-        length: length :: Count
+        run: Run {items: bytes, capacity: truncate(length) :: Count, ownsHeap: runBorrowed},
+        length: truncate(length) :: Count
     }})
 
 )NATIVETEXT";

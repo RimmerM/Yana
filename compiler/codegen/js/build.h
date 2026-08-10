@@ -43,6 +43,13 @@ struct WideHelper {
     bool isSigned;
 };
 
+// One saturating float-to-`bigint` conversion, per target type - see genCast in inst.cpp.
+struct SatHelper {
+    Name name;
+    U16 bits;
+    bool isSigned;
+};
+
 /*
  * One accessor for a bit range whose position is only known at run time - see place.cpp.
  *
@@ -287,6 +294,26 @@ struct Gen {
     // direction). See place.cpp.
     HashMap<U32, Name> bitHelpers;
     Array<BitHelper> bitHelperOrder;
+
+    // The saturating float-to-`bigint` conversions, interned per (width, signedness). The number
+    // case needs no helper; inst.cpp says why.
+    HashMap<U32, Name> satHelpers;
+    Array<SatHelper> satHelperOrder;
+
+    /*
+     * The scratch pair a `Float`/`I32` bitcast goes through - see genBitcast in inst.cpp.
+     *
+     * A `Float` here is a `number` that `Math.fround` has made exactly representable, so its
+     * thirty-two bits are well defined and completely unreachable: this target has no operator that
+     * sees them. Two views over one buffer is the only way, and one buffer per program is enough
+     * because the write and the read that follows it are the whole of the operation.
+     *
+     * Named lazily, so a program that never reinterprets a float emits neither declaration.
+     */
+    Name floatBitsBuffer;
+    Name floatBitsInts;
+    Name floatToBitsHelper;
+    Name bitsToFloatHelper;
 
     // The heading each family of helpers is emitted under, so that a family the peephole emptied
     // takes its own comment with it - see removeDeadHelpers.
@@ -857,6 +884,13 @@ void emitWideHelpers(Gen& g);
 // The same for the dynamic bit-range accessors. Emitted *before* the wide helpers, since a body
 // here may ask for one of those and the list it would be appended to is already being walked.
 void emitBitHelpers(Gen& g);
+
+// The saturating float-to-`bigint` conversions a program asked for. See genCast in inst.cpp.
+void emitSaturationHelpers(Gen& g);
+
+// The typed-array pair and the two functions a `Float`/`I32` bitcast goes through, where a program
+// asked for one. See genBitcast in inst.cpp.
+void emitFloatBitsHelpers(Gen& g);
 
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.

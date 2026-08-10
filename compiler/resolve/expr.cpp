@@ -622,7 +622,7 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
 
     // Step 3's constant half. Runtime bounds are added to it below, and where there are none this is
     // the whole extent and folds straight into the allocation.
-    auto total = makeInt(expr.source, module.scalar.int_, literalUnits);
+    auto total = makeInt(expr.source, module.scalar.size, literalUnits);
 
     for(auto& hole: holes) {
         if(!hole.value) continue;
@@ -638,12 +638,12 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
         measure->args.push(module.arena, hole.value);
         append(measure);
 
-        auto units = create<InstCall>(expr.source, StringId(), module.scalar.int_, program.formatBound);
+        auto units = create<InstCall>(expr.source, StringId(), module.scalar.size, program.formatBound);
         units->args.push(module.arena, ref(measure));
         append(units);
         (*module.arena)[program.formatBound]->used = true;
 
-        total = ref(emit<InstBinary>(expr.source, StringId(), module.scalar.int_, Value::Add, total, ref(units)));
+        total = ref(emit<InstBinary>(expr.source, StringId(), module.scalar.size, Value::Add, total, ref(units)));
     }
 
     // The sink. One allocation, whose extent is whatever the sum turned out to be - see above.

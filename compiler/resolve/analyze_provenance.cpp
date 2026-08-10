@@ -244,8 +244,10 @@ static bool flowRound(Analysis& analysis) {
                     break;
 
                 case Value::Cast:
-                    // A cast of a pointer is the same address written differently, and asInt/asPtr
-                    // are casts. Losing the root here is exactly how an escape would go unnoticed.
+                case Value::Bitcast:
+                    // A cast of a pointer is the same address written differently, and reading one
+                    // as an integer or back is a `Bitcast`. Losing the root here is exactly how an
+                    // escape would go unnoticed.
                     joinProvenance(*produced, provenanceOf(analysis, ((InstUnary&)instruction).from));
                     break;
 

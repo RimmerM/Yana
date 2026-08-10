@@ -351,6 +351,14 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
  * `Widen(Id, U64)` somebody would have to write one per refinement and the feature would cost more
  * than it saves.
  *
+ * The same reasoning reaches one type further, and §0.1.1 is what made it necessary rather than
+ * merely true: a refinement whose range fits inside an integer of *another* canonical type widens
+ * into it. Without this the library cannot be written at all once `::` stops narrowing - every
+ * `self.length :: Int` over a `Count` is a lossless conversion the ladder calls lossy, and retyping
+ * those lengths as `Size` does not help, since `Size` is `Int` on JS and `Count` does not widen into
+ * that either. The cast it emits is the same no-op the same-canonical case emits, and for the same
+ * reason: a value in a register is already in its type's normal form.
+ *
  * Widening is free. The two types have the same `width`, so the value is already the right bits in
  * the right register and only the *type* of the IR value changes - which is what the cast says, and
  * lowering emits nothing for a same-width one.
@@ -375,11 +383,15 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
                                                  LocationId source) {
     if(global[from]->kind != Type::Int || global[target]->kind != Type::Int) return nullptr;
 
-    auto canonical = canonicalType(global, from);
-    if(canonical != canonicalType(global, target)) return nullptr;
-
     auto& wanted = *(IntType*)global[target];
     auto& held = *(IntType*)global[from];
+
+    auto canonical = canonicalType(global, from);
+
+    if(canonical != canonicalType(global, target)) {
+        if(!held.canonical || !integerRangeFits(held, wanted)) return nullptr;
+        return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, value));
+    }
 
     // Widening, including a refinement to a narrower one that already fits inside the target.
     if(held.bits <= wanted.bits) {
@@ -719,19 +731,36 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
         return widened;
     }
 
-    // A narrowing conversion exists but has to be asked for. Asking the instance table rather
-    // than building the conversion first keeps the diagnostic about precision instead of about an
-    // instance the author never mentioned, and leaves no half-built conversion behind.
+    /*
+     * A narrowing conversion exists, and neither an implicit position nor an ascription may take
+     * it: `::` selects a target type or widens, and nothing else. A conversion that loses
+     * information has to be written as a call.
+     *
+     * This is where the two arms used to differ. `::` passed `implicit == false` and took the
+     * `Narrow` instance, which made an ascription the one construct in the language that could
+     * silently remove data - `length(xs) :: Int` truncating a 64-bit length to 32 on one target and
+     * being free on the other. The rest of what `::` does is untouched, because none of it comes
+     * through here: pushing the ascribed type into a literal, a constructor, an array literal or a
+     * lambda resolves *against* the type, and a call keeps its own result so that return-type
+     * overloading still selects by ascription.
+     *
+     * Asking the instance table rather than building the conversion first keeps the diagnostic
+     * about precision instead of about an instance the author never mentioned, and leaves no
+     * half-built conversion behind.
+     */
     TypePtr pair[] = { from, target };
 
     if(findInstance(module, module.coreClasses.narrow, { pair, 2 })) {
-        if(!implicit) {
-            return emitConversion(module.coreClasses.narrow, context.addUnqualifiedName("narrow", 6),
-                                  value, target, source);
+        if(implicit) {
+            context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
+                                      describeType(context, global, from),
+                                      describeType(context, global, target));
+        } else {
+            context.diagnostics.error("cannot ascribe %@ to %@: the conversion loses precision. `::` may widen but not narrow - write `truncate(x)` for the low bits, or `bitcast(x)` to reinterpret them"_v,
+                                      source, describeType(context, global, from),
+                                      describeType(context, global, target));
         }
 
-        context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
-                                  describeType(context, global, from), describeType(context, global, target));
         return value;
     }
 
@@ -798,9 +827,13 @@ bool ExprResolver::convertibleType(TypePtr from, TypePtr target) {
     // A `@bits` refinement converts to and from what it refines without an instance - see
     // convertRefinement. Overload selection has to agree with convert() about that, or a candidate
     // taking a `U64` would be rejected for an `Id` argument convert() would have accepted.
-    if(canonicalType(global, from) == canonicalType(global, target) &&
-       global[from]->kind == Type::Int) {
-        return true;
+    if(global[from]->kind == Type::Int && global[target]->kind == Type::Int) {
+        if(canonicalType(global, from) == canonicalType(global, target)) return true;
+
+        // And the same about a refinement whose range fits an integer of another canonical type,
+        // which convertRefinement widens.
+        auto& held = *(IntType*)global[from];
+        if(held.canonical && integerRangeFits(held, *(IntType*)global[target])) return true;
     }
 
     TypePtr args[] = { from, target };

@@ -354,6 +354,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     instructionSet.add(Context::nameHash("cmp_eq"_v), handleCmp<LowerCmp::eq>());
     instructionSet.add(Context::nameHash("cmp_neq"_v), handleCmp<LowerCmp::neq>());
+    instructionSet.add(Context::nameHash("cmp_uno"_v), handleCmp<LowerCmp::uno>());
+    instructionSet.add(Context::nameHash("cmp_ord"_v), handleCmp<LowerCmp::ord>());
     instructionSet.add(Context::nameHash("cmp_gt"_v), handleCmp<LowerCmp::gt>());
     instructionSet.add(Context::nameHash("cmp_ge"_v), handleCmp<LowerCmp::ge>());
     instructionSet.add(Context::nameHash("cmp_lt"_v), handleCmp<LowerCmp::lt>());

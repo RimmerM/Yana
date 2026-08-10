@@ -366,40 +366,39 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
 
   b_10 {
     %v_11 = load %v_4, 4: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = cmp_ge 1, %v_13: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    %v_17 = load %v_3, 8: Ptr
-    %v_18 = add %v_17, 4: Ptr
-    %v_19 = loads %v_18, 4: Int
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, %v_19, 4
-    jmp b_22
+    %v_12 = cast %v_11: Long
+    %v_13 = cmp_ge 1, %v_12: Int
+    je %v_13, b_14, b_15
   }
 
   b_15 {
-    %v_23 = syscall 60, 134: Long
+    %v_16 = load %v_3, 8: Ptr
+    %v_17 = add %v_16, 4: Ptr
+    %v_18 = loads %v_17, 4: Int
+    call_complex reclaim$Outcome(Array(Int), ()), %v_3
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, %v_18, 4
+    jmp b_21
+  }
+
+  b_14 {
+    %v_22 = syscall 60, 134: Long
     unreachable 
   }
 
   b_9 {
     call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_24 = alloca 1, 1: Ptr
-    %v_25 = alloca 8, 4: Ptr
-    store %v_25, 0, 4
-    jmp b_22
+    %v_23 = alloca 1, 1: Ptr
+    %v_24 = alloca 8, 4: Ptr
+    store %v_24, 0, 4
+    jmp b_21
   }
 
-  b_22 {
-    %v_26 = phi [b_16, %v_20], [b_9, %v_25]: Ptr
-    copy %v_0, %v_26, 8
+  b_21 {
+    %v_25 = phi [b_15, %v_19], [b_9, %v_24]: Ptr
+    copy %v_0, %v_25, 8
     ret 
   }
 }
@@ -420,39 +419,38 @@ sum<complex>(%v_0: Ptr, %n: Int) {
 
   b_10 {
     %v_11 = load %v_4, 4: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    %v_17 = load %v_3, 8: Ptr
-    %v_18 = loads %v_17, 4: Int
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_19 = alloca 8, 4: Ptr
-    store %v_19, 1, 4
-    %v_20 = add %v_19, 4: Ptr
-    store %v_20, %v_18, 4
-    jmp b_21
+    %v_12 = cast %v_11: Long
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_15
   }
 
   b_15 {
-    %v_22 = syscall 60, 134: Long
+    %v_16 = load %v_3, 8: Ptr
+    %v_17 = loads %v_16, 4: Int
+    call_complex reclaim$Outcome(Array(Int), ()), %v_3
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 1, 4
+    %v_19 = add %v_18, 4: Ptr
+    store %v_19, %v_17, 4
+    jmp b_20
+  }
+
+  b_14 {
+    %v_21 = syscall 60, 134: Long
     unreachable 
   }
 
   b_9 {
     call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_23 = alloca 1, 1: Ptr
-    %v_24 = alloca 8, 4: Ptr
-    store %v_24, 0, 4
-    jmp b_21
+    %v_22 = alloca 1, 1: Ptr
+    %v_23 = alloca 8, 4: Ptr
+    store %v_23, 0, 4
+    jmp b_20
   }
 
-  b_21 {
-    %v_25 = phi [b_16, %v_19], [b_9, %v_24]: Ptr
-    copy %v_0, %v_25, 8
+  b_20 {
+    %v_24 = phi [b_15, %v_18], [b_9, %v_23]: Ptr
+    copy %v_0, %v_24, 8
     ret 
   }
 }

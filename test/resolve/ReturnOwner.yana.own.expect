@@ -50,7 +50,7 @@ fn emptyRun(Int) {
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 14) [15, 18) [19, 28) [29, 60)
+  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn byteSpan(Int) {
@@ -87,29 +87,29 @@ fn emptyArray(Int) {
 fn push(Int) {
   arg self writable addressed resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 28)
-  %item: Int readonly live [0, 23)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
+  %item: Int readonly live [0, 20)
 }
 
 fn reserve(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 7) [8, 12)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
-  %wide: Int writable live [6, 23)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 24)
+  %wide: I64 writable live [5, 22)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
-  %i: Int writable live [3, 9) [12, 26)
-  %local2: Int readonly live [19, 22)
-  %local3: Int readonly live [20, 22)
+  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: Int readonly live [18, 21)
+  %local3: Int readonly live [19, 21)
 }
 
 fn double {
@@ -142,21 +142,21 @@ fn wrap {
 }
 
 fn main {
-  %xs: Array(Int) droppable readonly live [0, 300) [302, 313)
+  %xs: Array(Int) droppable readonly live [0, 281) [283, 293)
   %local1: Int writable addressed live [1, 7)
-  %local2: Flat(Int) readonly live [10, 18)
-  %local3: Array(Int) droppable readonly live [17, 74)
-  %total: Int writable live [76, 300) [302, 316) [318, 352)
-  %local5: Flat(Int) readonly live [80, 88)
-  %local6: Array(Int) droppable readonly live [87, 146)
-  %local7: (v: Int) -> Int droppable readonly live [150, 164)
-  %local8: Flat(Int) readonly live [156, 164)
-  %local9: Array(Int) droppable readonly live [163, 222)
-  %handed: Array(Int) droppable readonly live [225, 235)
-  %local11: Int writable addressed live [226, 232)
-  %local12: Array(Int) droppable readonly live [235, 294)
-  %local13: Flat(Int) readonly live [305, 313)
-  %local14: Cell droppable readonly live [312, 316) [318, 349)
+  %local2: Flat(Int) readonly live [10, 17)
+  %local3: Array(Int) droppable readonly live [16, 69)
+  %total: Int writable live [71, 281) [283, 296) [298, 330)
+  %local5: Flat(Int) readonly live [75, 82)
+  %local6: Array(Int) droppable readonly live [81, 136)
+  %local7: (v: Int) -> Int droppable readonly live [140, 153)
+  %local8: Flat(Int) readonly live [146, 153)
+  %local9: Array(Int) droppable readonly live [152, 207)
+  %handed: Array(Int) droppable readonly live [210, 220)
+  %local11: Int writable addressed live [211, 217)
+  %local12: Array(Int) droppable readonly live [220, 275)
+  %local13: Flat(Int) readonly live [286, 293)
+  %local14: Cell droppable readonly live [292, 296) [298, 327)
 }
 
 fn Drop(Cell).drop {

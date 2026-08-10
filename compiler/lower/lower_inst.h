@@ -4,7 +4,23 @@
 
 enum class LowerCmp {
     eq, neq, gt, ge, lt, le,
-    igt, ige, ilt, ile
+    igt, ige, ilt, ile,
+
+    /*
+     * "either operand is a NaN", which is not one of the six and cannot be built out of them.
+     *
+     * Every ordered comparison of a NaN is false, so no pair of them separates a NaN from a value
+     * below the range: both answer false to `x >= lo`. That is exactly the question a saturating
+     * float-to-integer conversion has to ask, since one of the two wants zero and the other wants
+     * the minimum - see `saturationRange` and expandFloatToSigned.
+     *
+     * Float operands only. It is one condition code on x86 (parity) and `fcmp uno` on LLVM, so it is
+     * cheaper on both than the equality it replaces, which needs two flags and a correction.
+     *
+     * `ord` is its negation and exists only to be one: nothing produces an ordered test directly,
+     * and `negateCmp` has to have an answer for every code it is handed.
+     */
+    uno, ord
 };
 
 // A single operation that can be performed inside a function block.

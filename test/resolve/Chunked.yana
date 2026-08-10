@@ -49,7 +49,7 @@ instance Chunked(Ring, Int):
 -- which is what a chunk is.
 iter fn each(xs: [a]) -> a:
     let &i = 0 :: Int
-    let n = length(xs) :: Int
+    let n = truncate(length(xs)) :: Int
 
     while i < n:
         yield xs[i]
@@ -106,7 +106,7 @@ fn total(xs: [Int]) -> Int:
 -- The same, through a signature written over a type variable, since the two bind differently: a
 -- concrete `[Int]` parameter reaches the conversion at the argument, and a `[a]` one has to bind `a`
 -- from the container before there is anything to convert.
-fn count(xs: [a]) -> Int = length(xs) :: Int
+fn count(xs: [a]) -> Int = truncate(length(xs)) :: Int
 
 -- A loop that leaves through both frames. The `return` travels out of the inner iterator's step
 -- signal and then out of the outer one's, which is the same path a nested `for` over two plain

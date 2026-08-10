@@ -1,0 +1,245 @@
+let image$base: () = <none>
+
+fn floatBits(%x: Float) -> I32 {
+  b0:
+    %v1 = bitcast %x : I32
+    ret %v1
+}
+
+fn bitsFloat(%x: I32) -> Float {
+  b0:
+    %v1 = bitcast %x : Float
+    ret %v1
+}
+
+fn roundTrip(%x: Float) -> Float {
+  b0:
+    %v1 = call floatBits, %x : I32
+    %v2 = call bitsFloat, %v1 : Float
+    ret %v2
+}
+
+fn unsignedRead(%x: Int) -> U32 {
+  b0:
+    %v1 = bitcast %x : U32
+    ret %v1
+}
+
+fn doubleBitsKnown() -> Bool {
+  b0:
+    %v1 = bitcast 1 : I64
+    %v4 = cmp_eq %v1, 4607182418800017408 : Bool
+    ret %v4
+}
+
+fn opaqueFloat(%x: Float) -> Float {
+  b0:
+    ret %x
+}
+
+fn opaqueInt(%x: Int) -> Int {
+  b0:
+    ret %x
+}
+
+fn opaqueDouble(%x: Double) -> Double {
+  b0:
+    ret %x
+}
+
+fn doubleBitsEmitted() -> Bool {
+  b0:
+    %v1 = call opaqueDouble, 1 : Double
+    %v2 = bitcast %v1 : I64
+    %v5 = cmp_eq %v2, 4607182418800017408 : Bool
+    ret %v5
+}
+
+fn main() -> Int {
+  b0:
+    %score = alloc : Int
+    init %score, 0
+    %v5 = call floatBits, 1 : I32
+    %v8 = cmp_eq %v5, 1065353216 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = load %score : Int
+    %v13 = add %v10, 1 : Int
+    assign %score, %v13
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = call bitsFloat, 1065353216 : Float
+    %v21 = cmp_eq %v18, 1 : Bool
+    je %v21, b4, b5
+
+  b4:
+    %v23 = load %score : Int
+    %v26 = add %v23, 2 : Int
+    assign %score, %v26
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v32 = neg 2.5 : Float
+    %v33 = call roundTrip, %v32 : Float
+    %v36 = neg 2.5 : Float
+    %v37 = cmp_eq %v33, %v36 : Bool
+    je %v37, b7, b8
+
+  b7:
+    %v39 = load %score : Int
+    %v42 = add %v39, 4 : Int
+    assign %score, %v42
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v50 = sub 0, 1 : Int
+    %v51 = call unsignedRead, %v50 : U32
+    %v53 = call unsignedRead, 2147483647 : U32
+    %v54 = cmp_gt %v51, %v53 : Bool
+    je %v54, b10, b11
+
+  b10:
+    %v56 = load %score : Int
+    %v59 = add %v56, 8 : Int
+    assign %score, %v59
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v64 = call unsignedRead, 1 : U32
+    %v67 = cmp_eq %v64, 1 : Bool
+    je %v67, b13, b14
+
+  b13:
+    %v69 = load %score : Int
+    %v72 = add %v69, 16 : Int
+    assign %score, %v72
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v76 = call doubleBitsKnown : Bool
+    je %v76, b16, b17
+
+  b16:
+    %v78 = load %score : Int
+    %v81 = add %v78, 32 : Int
+    assign %score, %v81
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v86 = call opaqueFloat, 1 : Float
+    %v87 = call floatBits, %v86 : I32
+    %v90 = cmp_eq %v87, 1065353216 : Bool
+    je %v90, b19, b20
+
+  b19:
+    %v92 = load %score : Int
+    %v95 = add %v92, 64 : Int
+    assign %score, %v95
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v100 = call opaqueInt, 1065353216 : Int
+    %v101 = cast %v100 : I32
+    %v102 = call bitsFloat, %v101 : Float
+    %v105 = cmp_eq %v102, 1 : Bool
+    je %v105, b22, b23
+
+  b22:
+    %v107 = load %score : Int
+    %v110 = add %v107, 128 : Int
+    assign %score, %v110
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v116 = neg 2.5 : Float
+    %v117 = call opaqueFloat, %v116 : Float
+    %v118 = call roundTrip, %v117 : Float
+    %v121 = neg 2.5 : Float
+    %v122 = cmp_eq %v118, %v121 : Bool
+    je %v122, b25, b26
+
+  b25:
+    %v124 = load %score : Int
+    %v127 = add %v124, 256 : Int
+    assign %score, %v127
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v135 = sub 0, 1 : Int
+    %v136 = call opaqueInt, %v135 : Int
+    %v137 = call unsignedRead, %v136 : U32
+    %v139 = call opaqueInt, 2147483647 : Int
+    %v140 = call unsignedRead, %v139 : U32
+    %v141 = cmp_gt %v137, %v140 : Bool
+    je %v141, b28, b29
+
+  b28:
+    %v143 = load %score : Int
+    %v146 = add %v143, 512 : Int
+    assign %score, %v146
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v151 = call opaqueInt, 1 : Int
+    %v152 = call unsignedRead, %v151 : U32
+    %v155 = cmp_eq %v152, 1 : Bool
+    je %v155, b31, b32
+
+  b31:
+    %v157 = load %score : Int
+    %v160 = add %v157, 1024 : Int
+    assign %score, %v160
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v164 = call doubleBitsEmitted : Bool
+    je %v164, b34, b35
+
+  b34:
+    %v166 = load %score : Int
+    %v169 = add %v166, 2048 : Int
+    assign %score, %v169
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v173 = load %score : Int
+    ret %v173
+}

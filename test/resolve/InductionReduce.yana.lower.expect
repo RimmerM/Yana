@@ -682,181 +682,179 @@ main<complex>(): Int {
     %v_59 = load %v_39, 8: Ptr
     %v_60 = add %v_39, 12: Ptr
     %v_61 = load %v_60, 4: Int
-    %v_62 = cast %v_61: Int
-    %v_63 = cast %v_62: Long
-    %v_64 = call_complex sumQuads, %v_59, %v_63: Long
+    %v_62 = cast %v_61: Long
+    %v_63 = call_complex sumQuads, %v_59, %v_62: Long
     call_complex Reclaim(Array(a)).reclaim(Quad), %v_39
-    %v_65 = cmp_eq %v_64, 55: Int
-    je %v_65, b_66, b_67
+    %v_64 = cmp_eq %v_63, 55: Int
+    je %v_64, b_65, b_66
+  }
+
+  b_65 {
+    %v_67 = add %v_58, 1: Int
+    jmp b_66
   }
 
   b_66 {
-    %v_68 = add %v_58, 1: Int
-    jmp b_67
-  }
-
-  b_67 {
-    %v_69 = phi [b_57, %v_58], [b_66, %v_68]: Int
-    %v_70 = load %v_25, 8: Ptr
-    %v_71 = add %v_25, 12: Ptr
-    %v_72 = load %v_71, 4: Int
-    %v_73 = cast %v_72: Int
-    %v_74 = cast %v_73: Long
-    %v_75 = call_complex dotCells, %v_1, %v_55, %v_70, %v_74: Long
+    %v_68 = phi [b_57, %v_58], [b_65, %v_67]: Int
+    %v_69 = load %v_25, 8: Ptr
+    %v_70 = add %v_25, 12: Ptr
+    %v_71 = load %v_70, 4: Int
+    %v_72 = cast %v_71: Long
+    %v_73 = call_complex dotCells, %v_1, %v_55, %v_69, %v_72: Long
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_25
-    %v_76 = cmp_eq %v_75, 555: Int
-    je %v_76, b_77, b_78
+    %v_74 = cmp_eq %v_73, 555: Int
+    je %v_74, b_75, b_76
   }
 
-  b_77 {
-    %v_79 = add %v_69, 1: Int
-    jmp b_78
+  b_75 {
+    %v_77 = add %v_68, 1: Int
+    jmp b_76
   }
 
-  b_78 {
-    %v_80 = phi [b_67, %v_69], [b_77, %v_79]: Int
-    %v_81 = call_complex sumDown, %v_1, %v_55: Long
-    %v_82 = cmp_eq %v_81, 222: Int
-    je %v_82, b_83, b_84
+  b_76 {
+    %v_78 = phi [b_66, %v_68], [b_75, %v_77]: Int
+    %v_79 = call_complex sumDown, %v_1, %v_55: Long
+    %v_80 = cmp_eq %v_79, 222: Int
+    je %v_80, b_81, b_82
   }
 
-  b_83 {
-    %v_85 = add %v_80, 1: Int
-    jmp b_84
+  b_81 {
+    %v_83 = add %v_78, 1: Int
+    jmp b_82
   }
 
-  b_84 {
-    %v_86 = phi [b_78, %v_80], [b_83, %v_85]: Int
-    %v_87 = call_complex sumWords, %v_45, 5: Long
-    %v_88 = cmp_eq %v_87, 15: Int
-    je %v_88, b_89, b_90
+  b_82 {
+    %v_84 = phi [b_76, %v_78], [b_81, %v_83]: Int
+    %v_85 = call_complex sumWords, %v_45, 5: Long
+    %v_86 = cmp_eq %v_85, 15: Int
+    je %v_86, b_87, b_88
   }
 
-  b_89 {
-    %v_91 = add %v_86, 1: Int
-    jmp b_90
+  b_87 {
+    %v_89 = add %v_84, 1: Int
+    jmp b_88
   }
 
-  b_90 {
-    %v_92 = phi [b_84, %v_86], [b_89, %v_91]: Int
-    %v_93 = call_complex sumInt, %v_1, %v_55: Long
-    %v_94 = cmp_eq %v_93, 333: Int
-    je %v_94, b_95, b_96
+  b_88 {
+    %v_90 = phi [b_82, %v_84], [b_87, %v_89]: Int
+    %v_91 = call_complex sumInt, %v_1, %v_55: Long
+    %v_92 = cmp_eq %v_91, 333: Int
+    je %v_92, b_93, b_94
   }
 
-  b_95 {
-    %v_97 = add %v_92, 1: Int
-    jmp b_96
+  b_93 {
+    %v_95 = add %v_90, 1: Int
+    jmp b_94
   }
 
-  b_96 {
-    %v_98 = phi [b_90, %v_92], [b_95, %v_97]: Int
-    %v_99 = call_complex forInt, %v_1, %v_55, 3: Long
-    %v_100 = cmp_eq %v_99, 333: Int
-    je %v_100, b_101, b_102
+  b_94 {
+    %v_96 = phi [b_88, %v_90], [b_93, %v_95]: Int
+    %v_97 = call_complex forInt, %v_1, %v_55, 3: Long
+    %v_98 = cmp_eq %v_97, 333: Int
+    je %v_98, b_99, b_100
   }
 
-  b_101 {
-    %v_103 = add %v_98, 1: Int
-    jmp b_102
+  b_99 {
+    %v_101 = add %v_96, 1: Int
+    jmp b_100
   }
 
-  b_102 {
-    %v_104 = phi [b_96, %v_98], [b_101, %v_103]: Int
-    %v_105 = call_complex forDownInt, %v_1, %v_55, 3: Long
-    %v_106 = cmp_eq %v_105, 10101: Int
-    je %v_106, b_107, b_108
+  b_100 {
+    %v_102 = phi [b_94, %v_96], [b_99, %v_101]: Int
+    %v_103 = call_complex forDownInt, %v_1, %v_55, 3: Long
+    %v_104 = cmp_eq %v_103, 10101: Int
+    je %v_104, b_105, b_106
   }
 
-  b_107 {
-    %v_109 = add %v_104, 1: Int
-    jmp b_108
+  b_105 {
+    %v_107 = add %v_102, 1: Int
+    jmp b_106
   }
 
-  b_108 {
-    %v_110 = phi [b_102, %v_104], [b_107, %v_109]: Int
-    %v_111 = call_complex forStepInt, %v_1, %v_55, 3: Long
-    %v_112 = cmp_eq %v_111, 110: Int
-    je %v_112, b_113, b_114
+  b_106 {
+    %v_108 = phi [b_100, %v_102], [b_105, %v_107]: Int
+    %v_109 = call_complex forStepInt, %v_1, %v_55, 3: Long
+    %v_110 = cmp_eq %v_109, 110: Int
+    je %v_110, b_111, b_112
   }
 
-  b_113 {
-    %v_115 = add %v_110, 1: Int
-    jmp b_114
+  b_111 {
+    %v_113 = add %v_108, 1: Int
+    jmp b_112
   }
 
-  b_114 {
-    %v_116 = phi [b_108, %v_110], [b_113, %v_115]: Int
-    %v_117 = call_complex forInclusiveInt, %v_1, %v_55, 2: Long
-    %v_118 = cmp_eq %v_117, 300: Int
-    je %v_118, b_119, b_120
+  b_112 {
+    %v_114 = phi [b_106, %v_108], [b_111, %v_113]: Int
+    %v_115 = call_complex forInclusiveInt, %v_1, %v_55, 2: Long
+    %v_116 = cmp_eq %v_115, 300: Int
+    je %v_116, b_117, b_118
   }
 
-  b_119 {
-    %v_121 = add %v_116, 1: Int
-    jmp b_120
+  b_117 {
+    %v_119 = add %v_114, 1: Int
+    jmp b_118
   }
 
-  b_120 {
-    %v_122 = phi [b_114, %v_116], [b_119, %v_121]: Int
-    %v_123 = alloca 16, 8: Ptr
-    %v_124 = alloca 1, 8: Ptr
-    store %v_123, %v_124, 8
-    %v_125 = add %v_123, 8: Ptr
-    store %v_125, 0, 4
-    %v_126 = add %v_123, 12: Ptr
-    store %v_126, 0, 4
-    %v_127 = call_complex sumCells, %v_124, 0: Long
-    call_complex Reclaim(Array(a)).reclaim(Cell), %v_123
-    %v_128 = cmp_eq %v_127, 0: Int
-    je %v_128, b_129, b_130
+  b_118 {
+    %v_120 = phi [b_112, %v_114], [b_117, %v_119]: Int
+    %v_121 = alloca 16, 8: Ptr
+    %v_122 = alloca 1, 8: Ptr
+    store %v_121, %v_122, 8
+    %v_123 = add %v_121, 8: Ptr
+    store %v_123, 0, 4
+    %v_124 = add %v_121, 12: Ptr
+    store %v_124, 0, 4
+    %v_125 = call_complex sumCells, %v_122, 0: Long
+    call_complex Reclaim(Array(a)).reclaim(Cell), %v_121
+    %v_126 = cmp_eq %v_125, 0: Int
+    je %v_126, b_127, b_128
   }
 
-  b_129 {
-    %v_131 = add %v_122, 1: Int
-    jmp b_130
+  b_127 {
+    %v_129 = add %v_120, 1: Int
+    jmp b_128
   }
 
-  b_130 {
-    %v_132 = phi [b_120, %v_122], [b_129, %v_131]: Int
-    %v_133 = call_complex forInt, %v_1, %v_55, 0: Long
-    %v_134 = cmp_eq %v_133, 0: Int
-    je %v_134, b_135, b_136
+  b_128 {
+    %v_130 = phi [b_118, %v_120], [b_127, %v_129]: Int
+    %v_131 = call_complex forInt, %v_1, %v_55, 0: Long
+    %v_132 = cmp_eq %v_131, 0: Int
+    je %v_132, b_133, b_134
   }
 
-  b_135 {
-    %v_137 = add %v_132, 1: Int
-    jmp b_136
+  b_133 {
+    %v_135 = add %v_130, 1: Int
+    jmp b_134
   }
 
-  b_136 {
-    %v_138 = phi [b_130, %v_132], [b_135, %v_137]: Int
-    %v_139 = call_complex forDownInt, %v_1, %v_55, 0: Long
-    %v_140 = cmp_eq %v_139, 0: Int
-    je %v_140, b_141, b_142
+  b_134 {
+    %v_136 = phi [b_128, %v_130], [b_133, %v_135]: Int
+    %v_137 = call_complex forDownInt, %v_1, %v_55, 0: Long
+    %v_138 = cmp_eq %v_137, 0: Int
+    je %v_138, b_139, b_140
   }
 
-  b_141 {
-    %v_143 = add %v_138, 1: Int
-    jmp b_142
+  b_139 {
+    %v_141 = add %v_136, 1: Int
+    jmp b_140
   }
 
-  b_142 {
-    %v_144 = phi [b_136, %v_138], [b_141, %v_143]: Int
-    %v_145 = call_complex forStepInt, %v_1, %v_55, 0: Long
+  b_140 {
+    %v_142 = phi [b_134, %v_136], [b_139, %v_141]: Int
+    %v_143 = call_complex forStepInt, %v_1, %v_55, 0: Long
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_10
-    %v_146 = cmp_eq %v_145, 0: Int
-    je %v_146, b_147, b_148
+    %v_144 = cmp_eq %v_143, 0: Int
+    je %v_144, b_145, b_146
   }
 
-  b_147 {
-    %v_149 = add %v_144, 1: Int
-    jmp b_148
+  b_145 {
+    %v_147 = add %v_142, 1: Int
+    jmp b_146
   }
 
-  b_148 {
-    %v_150 = phi [b_142, %v_144], [b_147, %v_149]: Int
-    ret %v_150
+  b_146 {
+    %v_148 = phi [b_140, %v_142], [b_145, %v_147]: Int
+    ret %v_148
   }
 }
 

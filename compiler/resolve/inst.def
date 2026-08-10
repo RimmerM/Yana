@@ -57,6 +57,10 @@ YANA_INST(TypeMetric,   InstTypeMetric,  "sizeof"_v,      kInstResult | kInstPur
 YANA_INST(TableSlot,    InstTableSlot,   "tableslot"_v,   kInstResult | kInstPure)
 YANA_INST(Native,       InstNative,      "native"_v,      kInstResult)
 YANA_INST(Cast,         InstUnary,       "cast"_v,        kInstResult | kInstPure)
+// The same bits read as another type, which `Cast` cannot say for every pair it relates: a `Cast`
+// from `Float` to `I32` is a numeric conversion and this is the reinterpretation, and nothing but
+// the kind distinguishes them. The lower IR has drawn the same distinction all along.
+YANA_INST(Bitcast,      InstUnary,       "bitcast"_v,     kInstResult | kInstPure)
 YANA_INST(Neg,          InstUnary,       "neg"_v,         kInstResult | kInstPure)
 YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPure)
 YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)

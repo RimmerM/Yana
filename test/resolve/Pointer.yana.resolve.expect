@@ -15,7 +15,7 @@ fn roundTrip() -> I64 {
 fn throughField() -> I64 {
   b0:
     %node = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 3, %local0@Node.next = %v3
     %p = addressof %local0 : %Node
     %v6 = load [%p] : Node
@@ -30,10 +30,10 @@ fn throughField() -> I64 {
 fn pointerFields() -> I64 {
   b0:
     %first = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 1, %local0@Node.next = %v3
     %second = alloc : Node
-    %v8 = cast 0 : %Node
+    %v8 = bitcast 0 : %Node
     aggregate %local1@Node.value = 2, %local1@Node.next = %v8
     %n = addressof %local0 : %Node
     %m = addressof %local1 : %Node
@@ -68,13 +68,13 @@ fn total(%node: %Node) -> I64 {
 fn walkList() -> I64 {
   b0:
     %third = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 3, %local0@Node.next = %v3
     %second = alloc : Node
-    %v8 = cast 0 : %Node
+    %v8 = bitcast 0 : %Node
     aggregate %local1@Node.value = 2, %local1@Node.next = %v8
     %first = alloc : Node
-    %v13 = cast 0 : %Node
+    %v13 = bitcast 0 : %Node
     aggregate %local2@Node.value = 1, %local2@Node.next = %v13
     %a = addressof %local2 : %Node
     %v16 = addressof %local1 : %Node
@@ -88,7 +88,7 @@ fn walkList() -> I64 {
 fn elementStride() -> I64 {
   b0:
     %node = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 0, %local0@Node.next = %v3
     %base = addressof %local0 : %Node
     %v8 = strideof Node : I64
@@ -98,8 +98,8 @@ fn elementStride() -> I64 {
     %v12 = strideof Node : I64
     %v13 = div %v11, %v12 : I64
     %v16 = mul %v13, 100 : I64
-    %v17 = cast %base : %U8
-    %v18 = cast %next : %U8
+    %v17 = bitcast %base : %U8
+    %v18 = bitcast %next : %U8
     %v19 = sub %v18, %v17 : I64
     %v20 = strideof U8 : I64
     %v21 = div %v19, %v20 : I64
@@ -110,7 +110,7 @@ fn elementStride() -> I64 {
 fn compareAddresses() -> I64 {
   b0:
     %node = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 0, %local0@Node.next = %v3
     %base = addressof %local0 : %Node
     %score = alloc : I64
@@ -144,8 +144,8 @@ fn compareAddresses() -> I64 {
     jmp b6
 
   b6:
-    %v33 = cast 0 : %Node
-    %v34 = cast %v33 : Long
+    %v33 = bitcast 0 : %Node
+    %v34 = bitcast %v33 : Long
     %v36 = cmp_eq %v34, 0 : Bool
     je %v36, b7, b8
 
@@ -159,7 +159,7 @@ fn compareAddresses() -> I64 {
     jmp b9
 
   b9:
-    %v45 = cast %base : Long
+    %v45 = bitcast %base : Long
     %v47 = cmp_eq %v45, 0 : Bool
     %v49 = xor %v47, True : Bool
     je %v49, b10, b11
@@ -181,20 +181,20 @@ fn compareAddresses() -> I64 {
 fn blockOperations() -> I64 {
   b0:
     %source = alloc : Node
-    %v3 = cast 0 : %Node
+    %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 9, %local0@Node.next = %v3
     %target = alloc : Node
-    %v8 = cast 0 : %Node
+    %v8 = bitcast 0 : %Node
     aggregate %local1@Node.value = 0, %local1@Node.next = %v8
     %v10 = addressof %local1 : %Node
-    %v11 = cast %v10 : %U8
+    %v11 = bitcast %v10 : %U8
     %v12 = addressof %local0 : %Node
-    %v13 = cast %v12 : %U8
+    %v13 = bitcast %v12 : %U8
     %v14 = sizeof Node : I64
     copymemory %v11, %v13, %v14
     %copied = load %local1@Node.value : I64
     %v17 = addressof %local1 : %Node
-    %v18 = cast %v17 : %U8
+    %v18 = bitcast %v17 : %U8
     %v20 = sizeof Node : I64
     setmemory %v18, 0, %v20
     %v24 = mul %copied, 10 : I64
@@ -242,7 +242,7 @@ fn unwrapPointer(%value: Maybe(%U8)) -> I64 {
 
   b2:
     %p = load %value@Just : %U8
-    %v6 = cast %p : Long
+    %v6 = bitcast %p : Long
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b3, b4
 

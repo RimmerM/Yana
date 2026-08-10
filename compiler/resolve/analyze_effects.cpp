@@ -393,6 +393,7 @@ static void deriveEffects(Analysis& analysis) {
                 break;
 
             case Value::Cast:
+            case Value::Bitcast:
             case Value::Neg:
             case Value::Not:
                 useValue(analysis, effects, ((InstUnary&)instruction).from);

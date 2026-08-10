@@ -29,7 +29,7 @@ fn makeBuffer(mark: I64) -> Buffer:
 
     -- A marker, so that "the right element was removed" is a question this file can ask rather than
     -- only "the right number of them".
-    store(cast(buffer.bytes) :: %I64, mark)
+    store(bitcast(buffer.bytes) :: %I64, mark)
     return buffer
 
 instance Drop(Buffer):
@@ -37,7 +37,7 @@ instance Drop(Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 
-fn marker(it: Buffer) -> I64 = *(cast(it.bytes) :: %I64)
+fn marker(it: Buffer) -> I64 = *(bitcast(it.bytes) :: %I64)
 
 fn main() -> I64:
     let &xs = emptyArray() :: [Buffer]

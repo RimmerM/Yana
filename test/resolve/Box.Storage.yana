@@ -17,8 +17,8 @@ fn levelOf(d: Diagnostics) -> Int = d.level
 
 fn outOfLine() -> Int:
     let c = Config {hot: 1, cold: Diagnostics {count: 7, level: 8}}
-    let owner = cast(addressOf(c)) :: %U8
-    let target = cast(addressOf(c.cold)) :: %U8
+    let owner = bitcast(addressOf(c)) :: %U8
+    let target = bitcast(addressOf(c.cold)) :: %U8
 
     if !(target < owner) then
         if target < owner + sizeOf(c) then return -1

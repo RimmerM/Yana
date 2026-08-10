@@ -253,7 +253,7 @@ pub class Append(a):
    An abstraction over sinks - formatting straight to a file descriptor - is a later addition and
    deliberately not something every type in the standard library has to implement against.
 
-   **`showBound` is a `Maybe(Int)`, and its constant-ness is not in the type.** `Just(11)` for `Int`
+   **`showBound` is a `Maybe(Size)`, and its constant-ness is not in the type.** `Just(11)` for `Int`
    is an ordinary expression that folds to `11` once the instance method is inlined at a concrete
    call site; `Just(length(s))` for `String` is an ordinary expression that does not. The compiler
    learns "this is a compile-time constant" from the folder rather than from a second type-level
@@ -269,7 +269,7 @@ pub class Append(a):
 -}
 pub class Show(a):
   fn show(value: a, &to: String) -> {}
-  fn showBound(value: a) -> Maybe(Int) = Nothing
+  fn showBound(value: a) -> Maybe(Size) = Nothing
 
 -- The compound assignments are ordinary functions, not syntax. `=` is the one reserved token, so
 -- `+=` lexes as an operator like `==` does and needs only a fixity and a declaration - which is
@@ -433,8 +433,32 @@ pub class TrivialSink(a)
 pub class Widen(a, b):
   fn widen(from: a) -> b
 
+-- The lossy direction, and the only way to spell it: `::` widens and selects, it does not remove
+-- data. The method is `truncate` rather than `narrow` because "narrow" says the type got smaller
+-- and "truncate" says what happened to the value, which is the part a reader needs. The class keeps
+-- its name so that the pair reads as one rule.
 pub class Narrow(a, b):
-  fn narrow(from: a) -> b
+  fn truncate(from: a) -> b
+
+{-
+   The third thing a conversion can be: the same bits, read as another type.
+
+   Two parameters and no functional dependency, which is `Widen`/`Narrow`'s shape exactly - so
+   selection from context and `bitcast(x) :: Float` both work with no machinery of their own.
+
+   **Instances only where the widths match**, which is what makes this a class rather than a second
+   `cast`: every rung is generated over a same-width pair, so there are about thirty of them against
+   the ladder's ninety and none of them can lose or invent a bit. It replaces four unrelated
+   spellings - `Native.cast` between pointers, `asInt` and `asPtr` between a pointer and an integer,
+   and nothing at all between `Float` and `I32`.
+
+   The pointer rungs are declared in `Native` and are the one deliberate weakening this took:
+   instance visibility is program-wide, so `bitcast` reaches a pointer from any module in a program
+   where any module imported Native, where `Native.cast` had to be named through the module. Taken
+   knowingly - one spelling for reinterpretation was judged worth more than the qualifier.
+-}
+pub class Bitcast(a, b):
+  fn bitcast(from: a) -> b
 
 {-
    Exchanging the contents of storage.
@@ -598,14 +622,7 @@ static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSign
 // without a sign to lose. This decides which of the two conversion ladders a pair joins, which
 // is the whole of the rule for whether a conversion happens on its own or has to be written.
 static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
-    auto source = (IntType*)global[from];
-    auto target = (IntType*)global[to];
-
-    if(source->isSigned && !target->isSigned) return false;
-    if(source->isSigned == target->isSigned) return target->bits > source->bits;
-
-    // Unsigned into signed needs a bit to spare for the sign.
-    return target->bits > source->bits;
+    return integerRangeFits(*(IntType*)global[from], *(IntType*)global[to]);
 }
 
 static void defineIntegerTypes(Module& module, TypeList& types) {
@@ -642,6 +659,63 @@ static void defineIntegerTypes(Module& module, TypeList& types) {
     for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));
 }
 
+/*
+ * How wide a primitive is for the purpose of reinterpreting it, or zero where the question does not
+ * apply.
+ *
+ * The type's *own* bits and not its register's, because that is what decides whether two types hold
+ * the same value: `WideInt` is 53 bits in a 64-bit register, so nothing else has its shape and it
+ * gets no rung. `Bool` is excluded by the same rule for a better reason - it is one bit, and a
+ * reinterpretation of one bit is a question about the other seven that nothing here can answer.
+ */
+static U16 reinterpretWidth(GlobalBase global, TypePtr type) {
+    if(global[type]->kind == Type::Float) {
+        return ((FloatType*)global[type])->width == FloatType::Float ? 32 : 64;
+    }
+
+    if(global[type]->kind != Type::Int) return 0;
+
+    auto& integer = *(IntType*)global[type];
+    return integer.canonical || integer.bits <= 1 ? 0 : integer.bits;
+}
+
+/*
+ * The reinterpretation ladder - one `Bitcast` rung per ordered pair of distinct primitives of one
+ * width, which is about thirty against the conversion ladder's ninety.
+ *
+ * Same width is the whole of the safety argument, so there is no test anywhere else: nothing
+ * downstream has to ask whether a `bitcast` fits, because no instance relating a pair that does not
+ * was ever generated.
+ *
+ * **JS declines the pairs that cross between a 64-bit integer and a `Double`.** Not because they
+ * cannot be expressed - a `DataView` round trip would - but because a `bigint` going through one is
+ * not a reinterpretation in any useful sense: it is a heap value on one side and a `number` on the
+ * other, and the cost of the trip is larger than anything a program would have reached for a
+ * bitcast to save. The 32-bit `Float`/`I32` pairs *are* generated on both targets, through the
+ * scratch typed-array pair codegen/js/inst.cpp emits, because there a bitcast is the only way to
+ * see a float's bits at all.
+ */
+static void defineBitcastLadder(Module& module, TypeList& types) {
+    GlobalBase global = *module.types;
+    auto onJs = isJsMode(module.context.settings.mode);
+
+    for(Size from = 0; from < types.size(); from++) {
+        auto fromWidth = reinterpretWidth(global, types[from]);
+        if(!fromWidth) continue;
+
+        for(Size to = 0; to < types.size(); to++) {
+            if(from == to || reinterpretWidth(global, types[to]) != fromWidth) continue;
+
+            auto crossesFloat = (global[types[from]]->kind == Type::Float) !=
+                                (global[types[to]]->kind == Type::Float);
+
+            if(onJs && fromWidth == 64 && crossesFloat) continue;
+
+            defineBitcast(module, types[from], types[to]);
+        }
+    }
+}
+
 static void defineIntegerInstances(Module& module, TypeList& types) {
     GlobalBase global = *module.types;
 
@@ -671,7 +745,7 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
             if(widens(global, types[from], types[to])) {
                 defineConversion(module, "Widen"_v, "widen"_v, types[from], types[to]);
             } else {
-                defineConversion(module, "Narrow"_v, "narrow"_v, types[from], types[to]);
+                defineConversion(module, "Narrow"_v, "truncate"_v, types[from], types[to]);
             }
         }
     }
@@ -810,7 +884,7 @@ void defineCore(Program& program) {
             if(from < to) {
                 defineConversion(*module, "Widen"_v, "widen"_v, numeric[from], numeric[to]);
             } else {
-                defineConversion(*module, "Narrow"_v, "narrow"_v, numeric[from], numeric[to]);
+                defineConversion(*module, "Narrow"_v, "truncate"_v, numeric[from], numeric[to]);
             }
         }
     }
@@ -819,6 +893,30 @@ void defineCore(Program& program) {
     // own ladder reaches `Int` and `Long`, and skips that one pair on the grounds that it has just
     // been declared here.
     defineIntegerInstances(*module, widthTypes);
+
+    /*
+     * And the identity rung of the narrowing ladder, one per type, which exists so that `truncate`
+     * is *total* over the types it relates.
+     *
+     * Taking the low bits of a value at its own width is the identity, so each of these emits
+     * nothing - and none of them is ever selected implicitly or by `::`, both of which answer
+     * `sameType` and return before any instance is looked for. What they are for is portable source.
+     *
+     * `Size` is `I64` natively and `Int` on JS, so `truncate(length(xs)) :: Int` is a real
+     * truncation on one target and the identity on the other. Without a rung for the second case
+     * there is *no* spelling of "this length is an `Int` now" that compiles on both, and the program
+     * would have to be split by `@platform` over a conversion. §0.1.1 is what made that visible:
+     * while `::` narrowed, the identity case went through `sameType` and the question never arose.
+     */
+    widthTypes.push(program.scalar.float_);
+    widthTypes.push(program.scalar.double_);
+
+    for(auto type: widthTypes) defineConversion(*module, "Narrow"_v, "truncate"_v, type, type);
+
+    // And the reinterpretation ladder over everything both ladders cover, which is why it runs last:
+    // `defineIntegerInstances` appended `Int` and `Long` to this list, and the two floating types
+    // have just joined it, so this is the whole of what `Bitcast` is generated over.
+    defineBitcastLadder(*module, widthTypes);
 
     // The classes the language's own syntax is written in terms of - a literal, an implicit
     // conversion, a condition, and the three points a binding convention compiles to. Looked up by
@@ -964,8 +1062,8 @@ pub fn checkCondition(failed: Bool) -> {}:
 
 -- What the container can hold before it has to grow. A host array has no such number to report and
 -- answers what it holds, which is the honest answer for a container that never has to grow.
-@platform(native) pub fn capacity(self: Array(a)) -> Int = self.run.capacity :: Int
-@platform(js) pub fn capacity(self: Array(a)) -> Int = hostLength(self.items) :: Int
+@platform(native) pub fn capacity(self: Array(a)) -> Size = self.run.capacity :: Size
+@platform(js) pub fn capacity(self: Array(a)) -> Size = hostLength(self.items) :: Size
 
 {-
    Room for `wanted` elements.
@@ -983,8 +1081,8 @@ pub fn checkCondition(failed: Bool) -> {}:
    the *compiler* is not: inlining the whole body carries the growth into the caller's hot loop, and
    the two cancel.
 -}
-@platform(native) pub fn reserve(&self: Array(a), wanted: Int) -> {}:
-    if wanted <= (self.run.capacity :: Int) then return
+@platform(native) pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+    if wanted <= (self.run.capacity :: Size) then return
     growArray(self, wanted)
 
 {-
@@ -1004,9 +1102,9 @@ pub fn checkCondition(failed: Bool) -> {}:
    is a size win and a speed loss - what it moves is a doubling and a `resize` call, into the loop the
    push sits in - so the attribute says which of the two this function is for.
 -}
-@platform(native) @noinline fn growArray(&self: Array(a), wanted: Int) -> {}:
-    let room = self.run.capacity :: Int
-    let &wide = room + room :: Int
+@platform(native) @noinline fn growArray(&self: Array(a), wanted: Size) -> {}:
+    let room = self.run.capacity :: Size
+    let &wide = room + room :: Size
     if wide < wanted then wide = wanted
     if wide < 4 then wide = 4
 
@@ -1015,7 +1113,7 @@ pub fn checkCondition(failed: Bool) -> {}:
 -- Nothing, and it is not a stub: a host array grows on its own and the engine's own policy is the
 -- one that applies, so reserving space in front of it would be asking for a second policy on top of
 -- one that is not this module's to see.
-@platform(js) pub fn reserve(&self: Array(a), wanted: Int) -> {}: return
+@platform(js) pub fn reserve(&self: Array(a), wanted: Size) -> {}: return
 
 {-
    Appends an element.
@@ -1046,12 +1144,12 @@ pub fn checkCondition(failed: Bool) -> {}:
    `item` is handed over on the path that continues and `checkFailed` does not return.
 -}
 @platform(native) pub fn push(&self: Array(a), ->item: a) -> {}:
-    let count = self.length :: Int
+    let count = self.length :: Size
     reserve(self, count + 1)
-    checkCondition(count >= (self.run.capacity :: Int))
+    checkCondition(count >= (self.run.capacity :: Size))
 
     store(self.run.items + count, item)
-    self.length = count + 1 :: Count
+    self.length = truncate(count + 1) :: Count
 
 {-
    The same transfer, and the same *kind* of transfer - which is the whole reason this is a write
@@ -1276,22 +1374,24 @@ instance Chunked(Flat(a), a):
    why the collection is the thing written against Native rather than the caller.
 -}
 @platform(native) pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
-    -- One comparison and not two. `index` reaches this type unsigned, so a negative one arrives as a
-    -- number above every length there is and fails the same test the too-large case fails - which is
-    -- the whole reason `Count` is unsigned, and the shape `checkBounds` (§15) will have.
+    -- One comparison and not two. `index` is *reinterpreted* unsigned rather than converted, so a
+    -- negative one arrives as a number above every length there is and fails the same test the
+    -- too-large case fails - which is the whole reason `Count` is unsigned, and the shape
+    -- `checkBounds` (§15) will have. `bitcast` and not `truncate`: the two are the same bits at this
+    -- width, and only one of them says that reading them differently is the point.
     --
     -- The length needs no ascription of its own: a `@bits` refinement dispatches as the type it
     -- refines, so this is the ordinary `U32` comparison.
-    if (index :: U32) >= self.length then return Nothing
+    if (bitcast(index) :: U32) >= self.length then return Nothing
 
     let ->doomed = *(self.run.items + index)
 
-    let rest = (self.length :: Int) - index - 1
+    let rest = (self.length :: Size) - index - 1
     if rest > 0:
-        copyMemory(cast(self.run.items + index) :: %U8, cast(self.run.items + index + 1) :: %U8,
+        copyMemory(bitcast(self.run.items + index) :: %U8, bitcast(self.run.items + index + 1) :: %U8,
                    byteSpan(self.run.items, rest))
 
-    self.length = (self.length :: Int) - 1 :: Count
+    self.length = truncate((self.length :: Int) - 1) :: Count
     return Just(doomed)
 
 {-
@@ -1304,7 +1404,7 @@ instance Chunked(Flat(a), a):
    container is stored.
 -}
 @platform(js) pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
-    if (index :: U32) >= (hostLength(self.items) :: U32) then return Nothing
+    if (bitcast(index) :: U32) >= (bitcast(hostLength(self.items)) :: U32) then return Nothing
 
     let ->doomed = hostRead(self.items, index :: Size)
     hostSplice(self.items, index :: Size, 1)
@@ -1651,7 +1751,7 @@ import Host
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
 @platform(native) pub fn newStringOfCapacity(capacity: Size) -> String =
-    stringFromData(StringData {bytes: Array {run: newRun(capacity :: Int), length: (0 :: Count)}})
+    stringFromData(StringData {bytes: Array {run: newRun(capacity), length: (0 :: Count)}})
 
 @platform(js) pub fn newStringOfCapacity(capacity: Size) -> String = ""
 
@@ -1668,7 +1768,7 @@ import Host
     -- the capacity to reach and this takes the amount to add, which is the only difference between
     -- the two and the only thing left here.
     let target = stringDataMut(self)
-    reserve(target.bytes, (target.bytes.length :: Int) + (wanted :: Int))
+    reserve(target.bytes, (target.bytes.length :: Size) + wanted)
 
 @platform(js) pub fn reserveString(&self: String, wanted: Size) -> {} = {}
 
@@ -1683,7 +1783,7 @@ import Host
 @platform(native) pub fn pushUnit(&self: String, unit: Int) -> {}:
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(U8)`.
-    push(stringDataMut(self).bytes, unit :: U8)
+    push(stringDataMut(self).bytes, truncate(unit) :: U8)
 
 @platform(js) pub fn pushUnit(&self: String, unit: Int) -> {}:
     self = hostConcat(self, hostFromCharCode(unit))
@@ -1715,11 +1815,11 @@ import Host
     reserveString(self, count)
 
     let target = stringDataMut(self)
-    let wanted = (target.bytes.length :: Int) + (count :: Int)
-    checkCondition((target.bytes.run.capacity :: Int) < wanted)
+    let wanted = (target.bytes.length :: Size) + count
+    checkCondition((target.bytes.run.capacity :: Size) < wanted)
 
-    copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count :: Int))
-    target.bytes.length = wanted :: Count
+    copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count))
+    target.bytes.length = truncate(wanted) :: Count
 
 {-
    ==========================================================================================
@@ -1737,7 +1837,7 @@ instance Show(Bool):
         if value then pushString(to, "True")
         else pushString(to, "False")
 
-    fn showBound(value: Bool) -> Maybe(Int) = Just(5)
+    fn showBound(value: Bool) -> Maybe(Size) = Just(5)
 
 {-
    The integers, written once over the widest signed type they all widen into.
@@ -1772,14 +1872,14 @@ fn showSigned(value: Long, &to: String) -> {}:
 
     let &digits = newStringOfCapacity(20 :: Size)
     while remaining < 0:
-        let digit = (0 - (remaining `rem` 10)) :: Int
+        let digit = truncate(0 - (remaining `rem` 10)) :: Int
         pushUnit(digits, 48 + digit)
         remaining = remaining / 10
 
     if value < 0 then pushUnit(to, 45)
 
     -- Reversed, because the loop above produced them backwards.
-    let &i = length(digits) :: Int
+    let &i = length(digits)
     while i > 0:
         i = i - 1
         pushUnit(to, stringUnit(digits, i :: Size))
@@ -1787,12 +1887,12 @@ fn showSigned(value: Long, &to: String) -> {}:
 -- `-2147483648` is eleven units, which is the widest an `Int` gets.
 instance Show(Int):
     fn show(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
-    fn showBound(value: Int) -> Maybe(Int) = Just(11)
+    fn showBound(value: Int) -> Maybe(Size) = Just(11)
 
 -- `-9223372036854775808` is twenty.
 instance Show(Long):
     fn show(value: Long, &to: String) -> {} = showSigned(value, to)
-    fn showBound(value: Long) -> Maybe(Int) = Just(20)
+    fn showBound(value: Long) -> Maybe(Size) = Just(20)
 
 {-
    A string shows as itself, and its bound is a *runtime* value - which is the row that makes the
@@ -1804,7 +1904,7 @@ instance Show(Long):
 -}
 instance Show(String):
     fn show(value: String, &to: String) -> {} = pushString(to, value)
-    fn showBound(value: String) -> Maybe(Int) = Just(length(value) :: Int)
+    fn showBound(value: String) -> Maybe(Size) = Just(length(value))
 
 {-
    What one hole contributes to a format's size - Implementation-Storage.md part 8, step 2.
@@ -1819,7 +1919,7 @@ instance Show(String):
    Zero and not one, and not a guess at a typical size. A seed is a promise about nothing: too small
    costs one growth, and inventing a number here would cost every bounded format the difference.
 -}
-fn formatBound(bound: Maybe(Int)) -> Int = match bound:
+fn formatBound(bound: Maybe(Size)) -> Size = match bound:
     Just(units) -> units
     Nothing -> 0
 

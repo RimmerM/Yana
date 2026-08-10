@@ -493,7 +493,9 @@ static ClosureTeardown closureTeardown(Analysis& analysis, U32 localIndex) {
 
     // Through the cast, because the resolve IR has no pointer immediate: a null address is the
     // integer reinterpreted, which is what constantBits builds and what `null()` expands to.
-    while(value->kind == Value::Cast) value = analysis.local[((InstUnary*)value)->from];
+    while(value->kind == Value::Cast || value->kind == Value::Bitcast) {
+        value = analysis.local[((InstUnary*)value)->from];
+    }
 
     // No environment at all. That bit pattern is what makeFunValue writes for a lambda that captured
     // nothing, and it is the one case where the generic teardown provably does nothing.

@@ -10,7 +10,7 @@ instance Drop(Buffer):
 
 data Pair {left: Buffer, right: Buffer}
 
-fn take(->it: Buffer) -> I64 = asInt(it.bytes)
+fn take(->it: Buffer) -> I64 = bitcast(it.bytes) :: I64
 
 -- Use after move: the second read reaches storage the first handed away.
 fn useAfterMove() -> I64:

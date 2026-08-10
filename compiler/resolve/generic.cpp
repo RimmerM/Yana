@@ -970,6 +970,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             break;
         }
         case Value::Cast:
+        case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
             result = resolver.emit<InstUnary>(inst.source, inst.name, type, inst.kind,

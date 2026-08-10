@@ -90,6 +90,7 @@ void IrEditor::recordUses(Inst* inst) {
             break;
         }
         case Value::Cast:
+        case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
             addUse(((InstUnary*)inst)->from, inst);

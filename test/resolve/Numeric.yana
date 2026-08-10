@@ -34,17 +34,17 @@ fn divergingArm(c: Bool, a: Int) -> Int:
     return v
 
 fn main() -> Int =
-    (floatDefault() :: Int) +
-    (doubleFromContext() :: Int) +
-    (floatFromInteger() :: Int) +
-    (doubleFromInteger() :: Int) +
-    (ascribedDouble() :: Int) +
-    (ascribedFloat() :: Int) +
-    (mixedIf(True, 3, 4.5) :: Int) +
-    (mixedIf(False, 3, 4.5) :: Int) +
-    (mixedMultiIf(True, 5, 6) :: Int) +
-    (mixedMultiIf(False, 5, 6) :: Int) +
-    (mixedMatch(True, 8, 9.25) :: Int) +
-    (mixedMatch(False, 8, 9.25) :: Int) +
+    (truncate(floatDefault()) :: Int) +
+    (truncate(doubleFromContext()) :: Int) +
+    (truncate(floatFromInteger()) :: Int) +
+    (truncate(doubleFromInteger()) :: Int) +
+    (truncate(ascribedDouble()) :: Int) +
+    (truncate(ascribedFloat()) :: Int) +
+    (truncate(mixedIf(True, 3, 4.5)) :: Int) +
+    (truncate(mixedIf(False, 3, 4.5)) :: Int) +
+    (truncate(mixedMultiIf(True, 5, 6)) :: Int) +
+    (truncate(mixedMultiIf(False, 5, 6)) :: Int) +
+    (truncate(mixedMatch(True, 8, 9.25)) :: Int) +
+    (truncate(mixedMatch(False, 8, 9.25)) :: Int) +
     divergingArm(True, 1) +
     divergingArm(False, 2)

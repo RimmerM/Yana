@@ -68,22 +68,84 @@ fn outOfRange() -> Int {
     ret %v1
 }
 
-fn declined() -> Int {
+fn outOfRangeLow() -> Int {
+  b0:
+    %v2 = neg 1E30 : Double
+    %v3 = cast %v2 : Int
+    ret %v3
+}
+
+fn saturatedConstants() -> Int {
   b0:
     %v0 = call outOfRange : Int
-    %v1 = call outOfRange : Int
-    %v2 = cmp_eq %v0, %v1 : Bool
-    je %v2, b1, b2
+    %v3 = cmp_eq %v0, 2147483647 : Bool
+    je %v3, b1, b2
 
   b1:
+    %v5 = call outOfRangeLow : Int
+    %v10 = sub 0, 2147483647 : Int
+    %v11 = cmp_lt %v5, %v10 : Bool
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v8 = phi [b1, 40], [b2, 0] : Int
-    ret %v8
+    %v14 = phi [b1, %v11], [b2, %v3] : Bool
+    je %v14, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = phi [b4, 40], [b5, 0] : Int
+    ret %v20
+}
+
+fn notANumber() -> Double {
+  b0:
+    %v4 = div 0, 0 : Double
+    ret %v4
+}
+
+fn infinite() -> Double {
+  b0:
+    %v4 = div 1, 0 : Double
+    ret %v4
+}
+
+fn saturatedAtRuntime() -> Int {
+  b0:
+    %v0 = call notANumber : Double
+    %v1 = cast %v0 : Int
+    %v4 = cmp_eq %v1, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = call infinite : Double
+    %v7 = cast %v6 : Int
+    %v10 = cmp_eq %v7, 2147483647 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v10], [b2, %v4] : Bool
+    je %v13, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v19 = phi [b4, 50], [b5, 0] : Int
+    ret %v19
 }
 
 fn nonFinite() -> Int {
@@ -123,9 +185,11 @@ fn main() -> Int {
     %v15 = add %v13, %v14 : Int
     %v16 = call compared : Int
     %v17 = add %v15, %v16 : Int
-    %v18 = call declined : Int
+    %v18 = call saturatedConstants : Int
     %v19 = add %v17, %v18 : Int
-    %v20 = call nonFinite : Int
+    %v20 = call saturatedAtRuntime : Int
     %v21 = add %v19, %v20 : Int
-    ret %v21
+    %v22 = call nonFinite : Int
+    %v23 = add %v21, %v22 : Int
+    ret %v23
 }

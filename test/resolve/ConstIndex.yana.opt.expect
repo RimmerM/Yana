@@ -4,7 +4,7 @@ let &heapFree: %%U8 = 0
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = cast %allocation : Long
+    %v1 = bitcast %allocation : Long
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -16,9 +16,9 @@ fn freeHeap(%allocation: %U8) -> () {
 
   b3:
     %v11 = sub %allocation, 8 : %U8
-    %v12 = cast %v11 : %I64
+    %v12 = bitcast %v11 : %I64
     %sizeClass = load [%v12] : I64
-    %v14 = cast %allocation : %%U8
+    %v14 = bitcast %allocation : %%U8
     %v19 = load heapFree : %%U8
     %v21 = mul %sizeClass, 8 : I64
     %v22 = add %v19, %v21 : %%U8
@@ -32,15 +32,15 @@ fn freeHeap(%allocation: %U8) -> () {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v43 = load %value@Array.run@Run.capacity:unit32 : U32
-    %v45 = shr %v43, 30 : U32
-    %v32 = cmp_eq %v45, 1 : Bool
-    je %v32, b1, b2
+    %v42 = load %value@Array.run@Run.capacity:unit32 : U32
+    %v44 = shr %v42, 30 : U32
+    %v31 = cmp_eq %v44, 1 : Bool
+    je %v31, b1, b2
 
   b1:
-    %v35 = load %value@Array.run@Run.items : %Int
-    %v36 = cast %v35 : %U8
-    call freeHeap, %v36
+    %v34 = load %value@Array.run@Run.items : %Int
+    %v35 = bitcast %v34 : %U8
+    call freeHeap, %v35
     jmp b2
 
   b2:
@@ -53,37 +53,37 @@ fn spanned() -> Int {
     %v7 = alloc *4 : Int
     %v8 = addressof %local1 : %Int
     init %xs@Array.run@Run.items, %v8
-    %v191 = load %xs@Array.run@Run.capacity:unit32 : U32
-    %v196 = and %v191, 18446744072635809792 : U32
-    %v197 = or %v196, 4 : U32
-    %v206 = and %v197, 18446744070488326143 : U32
-    init %xs@Array.run@Run.capacity:unit32, %v206
+    %v182 = load %xs@Array.run@Run.capacity:unit32 : U32
+    %v187 = and %v182, 18446744072635809792 : U32
+    %v188 = or %v187, 4 : U32
+    %v197 = and %v188, 18446744070488326143 : U32
+    init %xs@Array.run@Run.capacity:unit32, %v197
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
     %v22 = alloc : Array(Int)
     %v25 = alloc *2 : Int
     %v26 = addressof %local3 : %Int
     init %ys@Array.run@Run.items, %v26
-    %v209 = load %ys@Array.run@Run.capacity:unit32 : U32
-    %v214 = and %v209, 18446744072635809792 : U32
-    %v215 = or %v214, 2 : U32
-    %v224 = and %v215, 18446744070488326143 : U32
-    init %ys@Array.run@Run.capacity:unit32, %v224
+    %v200 = load %ys@Array.run@Run.capacity:unit32 : U32
+    %v205 = and %v200, 18446744072635809792 : U32
+    %v206 = or %v205, 2 : U32
+    %v215 = and %v206, 18446744070488326143 : U32
+    init %ys@Array.run@Run.capacity:unit32, %v215
     aggregate [%v26][0] = 5, [%v26][1] = 9
     init %ys@Array.length, 2
-    %v49 = add %v8, 4 : %Int
-    assign [%v49], 20
-    %v85 = load [%v49] : Int
-    %v99 = add %v26, 0 : %Int
-    %v101 = load [%v99] : Int
-    %v169 = load %ys : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v169
-    %v116 = add %v8, 12 : %Int
-    %v118 = load [%v116] : Int
-    %v171 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v171
-    %v119 = add %v118, 25 : Int
-    ret %v119
+    %v48 = add %v8, 4 : %Int
+    assign [%v48], 20
+    %v82 = load [%v48] : Int
+    %v95 = add %v26, 0 : %Int
+    %v97 = load [%v95] : Int
+    %v164 = load %ys : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v164
+    %v111 = add %v8, 12 : %Int
+    %v113 = load [%v111] : Int
+    %v166 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v166
+    %v114 = add %v113, 25 : Int
+    ret %v114
 }
 
 fn overwritten() -> Int {
@@ -96,10 +96,10 @@ fn overwritten() -> Int {
     init %xs@Array.run@Run.ownsHeap, 0
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 30
     init %xs@Array.length, 3
-    %v65 = add %v7, 8 : %Int
-    %v67 = load [%v65] : Int
-    %v102 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v102
+    %v62 = add %v7, 8 : %Int
+    %v64 = load [%v62] : Int
+    %v98 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v98
     ret 30
 }
 
@@ -113,12 +113,12 @@ fn computed() -> Int {
     init %xs@Array.run@Run.ownsHeap, 0
     aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 60
     init %xs@Array.length, 3
-    %v53 = add %v7, 8 : %Int
-    %v55 = load [%v53] : Int
-    %v68 = add %v7, 4 : %Int
-    %v70 = load [%v68] : Int
-    %v111 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v111
+    %v51 = add %v7, 8 : %Int
+    %v53 = load [%v51] : Int
+    %v65 = add %v7, 4 : %Int
+    %v67 = load [%v65] : Int
+    %v107 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v107
     ret 65
 }
 
@@ -132,24 +132,24 @@ fn aliased(%n: Int) -> Int {
     init %xs@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = 100, [%v8][1] = 2, [%v8][2] = 3
     init %xs@Array.length, 3
-    %v49 = add %v8, 0 : %Int
-    %v51 = load [%v49] : Int
-    %v53 = cast %n : I64
-    %v56 = cast %v53 : U64
-    %v59 = cmp_ge %v56, 3 : Bool
-    je %v59, b2, b1
+    %v47 = add %v8, 0 : %Int
+    %v49 = load [%v47] : Int
+    %v51 = cast %n : I64
+    %v54 = cast %v51 : U64
+    %v56 = cmp_ge %v54, 3 : Bool
+    je %v56, b2, b1
 
   b1:
-    %v63 = mul %v53, 4 : Long
-    %v64 = add %v8, %v63 : %Int
-    %v66 = load [%v64] : Int
-    %v100 = load %xs : Array(Int)
-    call Reclaim(Array(a)).reclaim(Int), %v100
-    %v67 = add %v66, 100 : Int
-    ret %v67
+    %v60 = mul %v51, 4 : Long
+    %v61 = add %v8, %v60 : %Int
+    %v63 = load [%v61] : Int
+    %v96 = load %xs : Array(Int)
+    call Reclaim(Array(a)).reclaim(Int), %v96
+    %v64 = add %v63, 100 : Int
+    ret %v64
 
   b2:
-    %v84 = syscall 60, 134 : I64
+    %v81 = syscall 60, 134 : I64
     unreachable
 }
 

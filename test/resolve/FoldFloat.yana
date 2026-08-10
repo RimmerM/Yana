@@ -12,41 +12,61 @@
 -- which for a negative value means *up* and is the half of the rule an implementation gets wrong.
 fn wideningInt() -> Double = 7 :: Double
 
-fn narrowing() -> Float = (2.5 :: Double) :: Float
+fn narrowing() -> Float = truncate((2.5 :: Double)) :: Float
 
 fn widening() -> Double = (2.5 :: Float) :: Double
 
-fn truncating() -> Int = (9.75 :: Double) :: Int
+fn truncating() -> Int = truncate((9.75 :: Double)) :: Int
 
-fn truncatingNegative() -> Int = (-9.75 :: Double) :: Int
+fn truncatingNegative() -> Int = truncate((-9.75 :: Double)) :: Int
 
 -- Arithmetic first, conversion second, and the whole chain is one number. `Float` is the interesting
 -- width: natively this is single-precision throughout and on JS it is a double rounded by
 -- `Math.fround` at each step, and the two agree because rounding a double result to single is the
 -- same value as computing in single.
-fn arithmetic() -> Int = ((1.5 :: Float) * 4.0 + 3.0 - 1.0) :: Int
+fn arithmetic() -> Int = truncate(((1.5 :: Float) * 4.0 + 3.0 - 1.0)) :: Int
 
-fn divided() -> Int = ((45.0 :: Double) / 4.0) :: Int
+fn divided() -> Int = truncate(((45.0 :: Double) / 4.0)) :: Int
 
 -- IEEE ordering over two constants, which is specified exactly and identical on both targets.
 fn compared() -> Int = if (2.5 :: Double) > 2.0 then 30 else 0
 
 {-
-   The first decline: a value the integer type cannot hold.
+   Out of range, which used to be the first decline and is now a value.
 
-   Truncating `1e30` is not a number any `Int` has, and that is exactly where the two targets stop
-   agreeing - natively the conversion produces the integer indefinite value, while `codegen/js` emits
-   `Math.trunc` followed by the coercion the type needs, which is modular. Folding it would be this
-   pass choosing which of them the language means.
+   Truncating `1e30` is not a number any `Int` has, and until this was ruled on it was exactly where
+   the two targets stopped agreeing - natively the conversion produced the integer indefinite value,
+   while `codegen/js` emitted `Math.trunc` and then the coercion the type needs, which is modular.
+   Folding it would have been this pass choosing which of them the language meant.
 
-   So the conversion survives, and `main` asks only whether the target agrees with *itself*. What it
-   actually answers is the target's business until the language says otherwise, and a fixture that
-   pinned a number here would be settling that question by accident.
+   The ruling is saturation, so out of range has one answer on every target and this folds to it. The
+   two ends are asserted separately because they are not one case in any implementation of the rule:
+   on x86 the hardware already produces the low one and only the high one is a fixup.
+-}
+fn outOfRange() -> Int = truncate((1e30 :: Double)) :: Int
+
+fn outOfRangeLow() -> Int = truncate((-1e30 :: Double)) :: Int
+
+fn saturatedConstants() -> Int =
+    if outOfRange() == 2147483647 && outOfRangeLow() < 0 - 2147483647 then 40 else 0
+
+{-
+   And the same rule where the folder cannot see it, which is the half that tests the three backends
+   rather than this pass.
+
+   Both of these produce a value no backend has a literal for - that is what keeps them out of the
+   folder, and it is the same reason `nonFinite` below stays - so what reaches the conversion is a
+   run-time NaN and a run-time infinity. The rule says zero for the first and the maximum for the
+   second, and the two targets have to say so alike.
 -}
 @noinline
-fn outOfRange() -> Int = (1e30 :: Double) :: Int
+fn notANumber() -> Double = 0.0 / 0.0
 
-fn declined() -> Int = if outOfRange() == outOfRange() then 40 else 0
+@noinline
+fn infinite() -> Double = 1.0 / 0.0
+
+fn saturatedAtRuntime() -> Int =
+    if (truncate(notANumber()) :: Int) == 0 && (truncate(infinite()) :: Int) == 2147483647 then 50 else 0
 
 {-
    The second decline: a result neither emitter has a literal for.
@@ -58,13 +78,14 @@ fn declined() -> Int = if outOfRange() == outOfRange() then 40 else 0
 fn nonFinite() -> Int = if (1.0 :: Double) / 0.0 > 1000000.0 then 20 else 0
 
 fn main() -> Int =
-    (wideningInt() :: Int) +
-    (narrowing() :: Int) +
-    (widening() :: Int) +
+    (truncate(wideningInt()) :: Int) +
+    (truncate(narrowing()) :: Int) +
+    (truncate(widening()) :: Int) +
     truncating() +
     truncatingNegative() +
     arithmetic() +
     divided() +
     compared() +
-    declined() +
+    saturatedConstants() +
+    saturatedAtRuntime() +
     nonFinite()

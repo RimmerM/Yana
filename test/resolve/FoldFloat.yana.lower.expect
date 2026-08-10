@@ -1,24 +1,47 @@
 @image$base = []
 
-outOfRange<complex>(): Int {
+notANumber<complex>(): Double {
   b_0 {
-    %v_1 = ftoi 1E30: Int
+    %v_1 = div 0, 0: Double
+    ret %v_1
+  }
+}
+
+infinite<complex>(): Double {
+  b_0 {
+    %v_1 = div 1, 0: Double
     ret %v_1
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex outOfRange: Int
-    %v_2 = call_complex outOfRange: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    %v_4 = select 40, 0, %v_3: Int
-    %v_5 = add %v_4, 60: Int
-    %v_6 = div 1, 0: Double
-    %v_7 = cmp_gt %v_6, 1000000: Int
-    %v_8 = select 20, 0, %v_7: Int
-    %v_9 = add %v_5, %v_8: Int
-    ret %v_9
+    %v_1 = call_complex notANumber: Double
+    %v_2 = ftoi %v_1: Int
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_7 = call_complex infinite: Double
+    %v_8 = ftoi %v_7: Int
+    %v_9 = cmp_eq %v_8, 2147483647: Int
+    jmp b_6
+  }
+
+  b_6 {
+    %v_10 = phi [b_4, %v_9], [b_5, %v_3]: Int
+    %v_11 = select 50, 0, %v_10: Int
+    %v_12 = add %v_11, 100: Int
+    %v_13 = div 1, 0: Double
+    %v_14 = cmp_gt %v_13, 1000000: Int
+    %v_15 = select 20, 0, %v_14: Int
+    %v_16 = add %v_12, %v_15: Int
+    ret %v_16
   }
 }
 

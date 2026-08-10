@@ -457,6 +457,7 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             break;
         }
         case Value::Cast:
+        case Value::Bitcast:
         case Value::Neg:
         case Value::Not: {
             print.writer.writeByte(' ');

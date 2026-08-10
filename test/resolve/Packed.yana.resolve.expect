@@ -45,21 +45,18 @@ fn direct() -> Int {
     assign %h@Header.version, 9
     %v11 = load %h : Header
     %v12 = load %h@Header.version : @bits(4) U32
-    %v13 = cast %v12 : U32
-    %v14 = cast %v13 : Int
-    %v17 = mul %v14, 100000 : Int
-    %v18 = load %h : Header
-    %v19 = load %h@Header.flags : @bits(3) U32
-    %v20 = cast %v19 : U32
-    %v21 = cast %v20 : Int
-    %v24 = mul %v21, 10000 : Int
-    %v25 = add %v17, %v24 : Int
-    %v26 = load %h : Header
-    %v27 = load %h@Header.length : @bits(13) U32
-    %v28 = cast %v27 : U32
-    %v29 = cast %v28 : Int
-    %v30 = add %v25, %v29 : Int
-    ret %v30
+    %v13 = cast %v12 : Int
+    %v16 = mul %v13, 100000 : Int
+    %v17 = load %h : Header
+    %v18 = load %h@Header.flags : @bits(3) U32
+    %v19 = cast %v18 : Int
+    %v22 = mul %v19, 10000 : Int
+    %v23 = add %v16, %v22 : Int
+    %v24 = load %h : Header
+    %v25 = load %h@Header.length : @bits(13) U32
+    %v26 = cast %v25 : Int
+    %v27 = add %v23, %v26 : Int
+    ret %v27
 }
 
 fn borrowed() -> Int {
@@ -94,15 +91,13 @@ fn borrowed() -> Int {
     assign %h@Header.length, %v31
     %v33 = load %h : Header
     %v34 = load %h@Header.version : @bits(4) U32
-    %v35 = cast %v34 : U32
-    %v36 = cast %v35 : Int
-    %v39 = mul %v36, 100 : Int
-    %v40 = load %h : Header
-    %v41 = load %h@Header.length : @bits(13) U32
-    %v42 = cast %v41 : U32
-    %v43 = cast %v42 : Int
-    %v44 = add %v39, %v43 : Int
-    ret %v44
+    %v35 = cast %v34 : Int
+    %v38 = mul %v35, 100 : Int
+    %v39 = load %h : Header
+    %v40 = load %h@Header.length : @bits(13) U32
+    %v41 = cast %v40 : Int
+    %v42 = add %v38, %v41 : Int
+    ret %v42
 }
 
 fn neighbours() -> Int {
@@ -137,15 +132,13 @@ fn neighbours() -> Int {
     assign %h@Header.length, %v32
     %v34 = load %h : Header
     %v35 = load %h@Header.version : @bits(4) U32
-    %v36 = cast %v35 : U32
-    %v37 = cast %v36 : Int
-    %v40 = mul %v37, 1000 : Int
-    %v41 = load %h : Header
-    %v42 = load %h@Header.length : @bits(13) U32
-    %v43 = cast %v42 : U32
-    %v44 = cast %v43 : Int
-    %v45 = add %v40, %v44 : Int
-    ret %v45
+    %v36 = cast %v35 : Int
+    %v39 = mul %v36, 1000 : Int
+    %v40 = load %h : Header
+    %v41 = load %h@Header.length : @bits(13) U32
+    %v42 = cast %v41 : Int
+    %v43 = add %v39, %v42 : Int
+    ret %v43
 }
 
 fn together() -> Int {
@@ -207,13 +200,12 @@ fn unpacked() -> Int {
     assign %m@Mixed.only, %v15
     %v17 = load %m : Mixed
     %v18 = load %m@Mixed.only : @bits(5) U32
-    %v19 = cast %v18 : U32
-    %v20 = cast %v19 : Int
-    %v23 = mul %v20, 10 : Int
-    %v24 = load %m : Mixed
-    %v25 = load %m@Mixed.wide : Int
-    %v26 = add %v23, %v25 : Int
-    ret %v26
+    %v19 = cast %v18 : Int
+    %v22 = mul %v19, 10 : Int
+    %v23 = load %m : Mixed
+    %v24 = load %m@Mixed.wide : Int
+    %v25 = add %v22, %v24 : Int
+    ret %v25
 }
 
 fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
@@ -404,15 +396,13 @@ fn threaded() -> Int {
     call nudgeTwice, %v9
     %v11 = load %h : Header
     %v12 = load %h@Header.length : @bits(13) U32
-    %v13 = cast %v12 : U32
-    %v14 = cast %v13 : Int
-    %v17 = mul %v14, 10 : Int
-    %v18 = load %h : Header
-    %v19 = load %h@Header.version : @bits(4) U32
-    %v20 = cast %v19 : U32
-    %v21 = cast %v20 : Int
-    %v22 = add %v17, %v21 : Int
-    ret %v22
+    %v13 = cast %v12 : Int
+    %v16 = mul %v13, 10 : Int
+    %v17 = load %h : Header
+    %v18 = load %h@Header.version : @bits(4) U32
+    %v19 = cast %v18 : Int
+    %v20 = add %v16, %v19 : Int
+    ret %v20
 }
 
 fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h: Bool, %i: Bool) -> () {
@@ -542,15 +532,14 @@ fn tally() -> Int {
     %v30 = phi [b1, 1], [b2, 0] : Int
     %v31 = load %e : Entry
     %v32 = load %e@Entry.kind : @bits(3) U32
-    %v33 = cast %v32 : U32
-    %v34 = cast %v33 : Int
-    %v37 = mul %v34, 10 : Int
-    %v38 = add %v30, %v37 : Int
-    %v39 = load %e : Entry
-    %v40 = load %e@Entry.count : Int
-    %v43 = mul %v40, 100 : Int
-    %v44 = add %v38, %v43 : Int
-    ret %v44
+    %v33 = cast %v32 : Int
+    %v36 = mul %v33, 10 : Int
+    %v37 = add %v30, %v36 : Int
+    %v38 = load %e : Entry
+    %v39 = load %e@Entry.count : Int
+    %v42 = mul %v39, 100 : Int
+    %v43 = add %v37, %v42 : Int
+    ret %v43
 }
 
 fn liveOf(%e: Entry) -> &mut Bool {
@@ -585,15 +574,14 @@ fn kept() -> Int {
     %v21 = phi [b1, 1], [b2, 0] : Int
     %v22 = load %e : Entry
     %v23 = load %e@Entry.kind : @bits(3) U32
-    %v24 = cast %v23 : U32
-    %v25 = cast %v24 : Int
-    %v28 = mul %v25, 10 : Int
-    %v29 = add %v21, %v28 : Int
-    %v30 = load %e : Entry
-    %v31 = load %e@Entry.count : Int
-    %v34 = mul %v31, 100 : Int
-    %v35 = add %v29, %v34 : Int
-    ret %v35
+    %v24 = cast %v23 : Int
+    %v27 = mul %v24, 10 : Int
+    %v28 = add %v21, %v27 : Int
+    %v29 = load %e : Entry
+    %v30 = load %e@Entry.count : Int
+    %v33 = mul %v30, 100 : Int
+    %v34 = add %v28, %v33 : Int
+    ret %v34
 }
 
 fn dispatch() -> Int {
@@ -680,10 +668,9 @@ fn dispatch() -> Int {
     %v68 = mul %v65, 10 : Int
     %v69 = load %h : Entry
     %v70 = load %h@Entry.kind : @bits(3) U32
-    %v71 = cast %v70 : U32
-    %v72 = cast %v71 : Int
-    %v73 = add %v68, %v72 : Int
-    ret %v73
+    %v71 = cast %v70 : Int
+    %v72 = add %v68, %v71 : Int
+    ret %v72
 }
 
 fn main() -> Int {

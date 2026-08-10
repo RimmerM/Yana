@@ -36,7 +36,7 @@ fn tagged(n: Int) -> String:
 fn built(n: Int) -> Int:
     let &text = tagged(n)
     text = text + "!"
-    return length(text) :: Int
+    return truncate(length(text)) :: Int
 
 -- §7.4.1's widening, and `Text.showSigned`'s shape written small: the destination is only ever
 -- passed on in a *later* block, and no path from that block leads back to the one holding the call,
@@ -47,7 +47,7 @@ fn inLaterBlock(n: Int) -> Int:
     if n > 0:
         text = text + "!"
 
-    return length(text) :: Int
+    return truncate(length(text)) :: Int
 
 -- And the half a position comparison alone gets wrong. The append is written *below* the call, which
 -- in a straight line would put it out of the call's reach - but the block is a loop body, so on the
@@ -59,7 +59,7 @@ fn inLoop(n: Int) -> Int:
     while i < n:
         let &text = tagged(i)
         text = text + "!"
-        total = total + (length(text) :: Int)
+        total = total + (truncate(length(text)) :: Int)
         i = i + 1
 
     return total

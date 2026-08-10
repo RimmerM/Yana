@@ -92,7 +92,7 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
     auto same = [&](ModulePtr<Value> x, ModulePtr<Value> y) { return sameOperand(opt, x, y); };
 
     switch(a.kind) {
-        case Value::Cast: case Value::Neg: case Value::Not:
+        case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             return same(((InstUnary&)a).from, ((InstUnary&)b).from);
         // Commutative, so the operands are compared as a pair rather than in order. The folder
         // already moves a constant to the right, which settles the common case before this is

@@ -169,6 +169,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::TableSlot:
         case Value::Native:
         case Value::Cast:
+        case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
         case Value::Add:

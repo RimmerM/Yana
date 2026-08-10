@@ -42,7 +42,7 @@ fn abortProcess {
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 14) [15, 18) [19, 28) [29, 60)
+  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn byteSpan(Int) {
@@ -73,39 +73,39 @@ fn checkCondition {
 fn push(Int) {
   arg self writable addressed resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 28)
-  %item: Int readonly live [0, 23)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
+  %item: Int readonly live [0, 20)
 }
 
 fn reserve(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 7) [8, 12)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
-  %wide: Int writable live [6, 23)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 24)
+  %wide: I64 writable live [5, 22)
 }
 
 fn remove(Int) {
   arg self writable addressed
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 63)
+  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 62)
   %local1: Maybe(Int) readonly live [6, 9)
   %local2: Int readonly live [17, 20)
-  %local3: Int readonly live [18, 65)
-  %local4: Maybe(Int) readonly live [63, 64) [65, 67)
+  %local3: Int readonly live [18, 64)
+  %local4: Maybe(Int) readonly live [62, 63) [64, 66)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
-  %i: Int writable live [3, 9) [12, 26)
-  %local2: Int readonly live [19, 22)
-  %local3: Int readonly live [20, 22)
+  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: Int readonly live [18, 21)
+  %local3: Int readonly live [19, 21)
 }
 
 fn sum {
@@ -122,14 +122,14 @@ fn make {
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 41)
+  %local0: Array(Int) droppable readonly live [0, 38)
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 50)
+  %small: Array(Int) droppable writable addressed resizable live [0, 48)
   %local1: Int writable addressed live [1, 7)
-  %local2: Maybe(Int) readonly live [30, 31)
-  %local3: Maybe(Int) readonly live [33, 34)
-  %local4: Maybe(Int) readonly live [37, 38)
-  %local5: Flat(Int) readonly live [40, 48)
+  %local2: Maybe(Int) readonly live [29, 30)
+  %local3: Maybe(Int) readonly live [32, 33)
+  %local4: Maybe(Int) readonly live [36, 37)
+  %local5: Flat(Int) readonly live [39, 46)
 }

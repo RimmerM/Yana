@@ -77,7 +77,7 @@ fn main() -> Int:
 
     -- The whole point: a local array, borrowed into a function that borrows it into itself. This
     -- was "this borrow of xs outlives the frame that owns it".
-    quicksort(xs, 0, (length(xs) :: Int) - 1)
+    quicksort(xs, 0, (truncate(length(xs)) :: Int) - 1)
 
     -- 1 2 3 5 7 8 9, checked at both ends and in the middle so that a partial sort is not read as a
     -- whole one.
@@ -86,13 +86,13 @@ fn main() -> Int:
     if xs[6] != 9 then return -3
 
     -- And the same slice through the mutual cycle, which reverses the sorted order.
-    sortDescending(xs, 0, (length(xs) :: Int) - 1)
+    sortDescending(xs, 0, (truncate(length(xs)) :: Int) - 1)
     if xs[0] != 9 then return -4
     if xs[6] != 1 then return -5
 
     let &total = 0 :: Int
     let &i = 0 :: Int
-    while i < (length(xs) :: Int):
+    while i < (truncate(length(xs)) :: Int):
         total = total + xs[i]
         i = i + 1
 

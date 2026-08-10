@@ -375,6 +375,11 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
             auto call = (CallExpr*)expr;
             auto first = true;
 
+            if(call->construct) {
+                f.write("new"_v);
+                f.write(' ');
+            }
+
             writeNested(f, call->callee, kCallPrecedence);
             f.write('(');
             for(auto arg: call->args.contents(f.base)) {

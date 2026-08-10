@@ -6,7 +6,7 @@ fn widened(%value: Int) -> Long {
     ret %v1
 }
 
-fn narrowed(%value: Long) -> Int {
+fn truncated(%value: Long) -> Int {
   b0:
     %v1 = cast %value : Int
     ret %v1
@@ -58,7 +58,7 @@ fn main() -> Int {
   b0:
     %v1 = call widened, 3 : Long
     %v2 = cast %v1 : Int
-    %v4 = call narrowed, 4 : Int
+    %v4 = call truncated, 4 : Int
     %v5 = add %v2, %v4 : Int
     %v7 = call toFloat, 5 : Float
     %v8 = cast %v7 : Int

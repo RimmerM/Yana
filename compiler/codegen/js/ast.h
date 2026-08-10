@@ -250,6 +250,16 @@ struct CallExpr: Expr {
     WideOp wide = WideOp::Wrap;
     U16 wideBits = 0;
     bool wideSigned = false;
+
+    /*
+     * A `new X(...)` rather than an `X(...)`, which is a flag here rather than a kind of its own.
+     *
+     * Everything a construction is - a callee, a list of arguments, an effect nothing may move -
+     * a call already is, and the one thing that differs is three characters in the emitted text.
+     * A kind would have meant an arm in six switches, five of which would have said "same as a
+     * call". The only site that needs one is the typed-array pair a float bitcast goes through.
+     */
+    bool construct = false;
 };
 
 using StmtList = JsList<JsPtr<Stmt>, false>;

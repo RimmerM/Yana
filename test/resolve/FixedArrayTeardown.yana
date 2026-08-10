@@ -23,7 +23,7 @@ data Handle {slot: %U8}
 fn openHandle(mark: I64) -> Handle:
     liveHandles += 1
     let handle = Handle {slot: allocateHeap(16)}
-    store(cast(handle.slot) :: %I64, mark)
+    store(bitcast(handle.slot) :: %I64, mark)
 
     return handle
 
@@ -33,7 +33,7 @@ instance Drop(Handle):
         liveHandles -= 1
         releases += 1
 
-fn marker(it: Handle) -> I64 = *(cast(it.slot) :: %I64)
+fn marker(it: Handle) -> I64 = *(bitcast(it.slot) :: %I64)
 
 -- Two elements, released when the array's lifetime ends here and not at the caller.
 fn small() -> I64:

@@ -256,7 +256,7 @@ fn unwrapped(%w: Wrapper) -> Int {
 fn nullHandle() -> Handle {
   b0:
     %v0 = alloc : Handle
-    %v2 = cast 0 : %U8
+    %v2 = bitcast 0 : %U8
     init %local0@Handle, %v2
     ret %v0
 }
@@ -264,7 +264,7 @@ fn nullHandle() -> Handle {
 fn handleAddress(%h: Handle) -> I64 {
   b0:
     %p = load %h@Handle : %U8
-    %v2 = cast %p : I64
+    %v2 = bitcast %p : I64
     jmp b1
 
   b1:

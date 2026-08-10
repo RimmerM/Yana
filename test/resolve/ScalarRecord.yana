@@ -85,7 +85,7 @@ fn nested() -> Int:
     s.flags.b = True
     s.count = s.count + 1
 
-    return valueOf(s.flags) * 10 + (s.count :: Int)
+    return valueOf(s.flags) * 10 + (truncate(s.count) :: Int)
 
 -- A borrow of the whole scalar record, and a borrow of one bit of it. The second is what tier 2 is
 -- for: `flip` takes a `&Bool` and there is no byte to hand it.
@@ -164,7 +164,7 @@ fn makePair():
 
 fn owned() -> Int:
     makePair()
-    return (dropped :: Int)
+    return (truncate(dropped) :: Int)
 
 -- A scalar record inside a `Maybe`, which is the reason a scalar record is worth having even where it
 -- saved no space: `Flags` reaches four patterns of its byte, so `Nothing` is the fifth and the whole
@@ -213,8 +213,8 @@ fn reordered() -> Int:
     bump(i.f)
     i.b = i.b + 1
 
-    return (if i.a then 1 else 0) + (i.b :: Int) * 10 + (i.c :: Int) * 100 +
-           (i.d :: Int) * 1000 + (i.e :: Int) * 10000 + (i.f :: Int) * 1000000
+    return (if i.a then 1 else 0) + (truncate(i.b) :: Int) * 10 + (i.c :: Int) * 100 +
+           (i.d :: Int) * 1000 + (truncate(i.e) :: Int) * 10000 + (i.f :: Int) * 1000000
 
 -- The same, pinned. The answer has to be identical - a layout decides what a program costs and never
 -- what it computes.
@@ -225,8 +225,8 @@ fn pinned() -> Int:
     bump(p.f)
     p.b = p.b + 1
 
-    return (if p.a then 1 else 0) + (p.b :: Int) * 10 + (p.c :: Int) * 100 +
-           (p.d :: Int) * 1000 + (p.e :: Int) * 10000 + (p.f :: Int) * 1000000
+    return (if p.a then 1 else 0) + (truncate(p.b) :: Int) * 10 + (p.c :: Int) * 100 +
+           (p.d :: Int) * 1000 + (truncate(p.e) :: Int) * 10000 + (p.f :: Int) * 1000000
 
 -- The same again, pinned for the host. This is the equivalence check the JS Repr features are gated
 -- on: `@layout(js)` turns off scalarization, co-packing and niche folding at once, so a program that
@@ -241,8 +241,8 @@ fn hostShaped() -> Int:
     p.f = p.f + 1
     p.b = p.b + 1
 
-    return (if p.a then 1 else 0) + (p.b :: Int) * 10 + (p.c :: Int) * 100 +
-           (p.d :: Int) * 1000 + (p.e :: Int) * 10000 + (p.f :: Int) * 1000000
+    return (if p.a then 1 else 0) + (truncate(p.b) :: Int) * 10 + (p.c :: Int) * 100 +
+           (p.d :: Int) * 1000 + (truncate(p.e) :: Int) * 10000 + (p.f :: Int) * 1000000
 
 -- A pinned record's fields, read and written directly - which is what the pin does allow, and the
 -- half worth asserting since borrowing one is refused (see Reject.HostBorrow.yana). Assignment and

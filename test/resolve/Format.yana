@@ -20,12 +20,12 @@
 
 -- A format with no holes at all, which is the degenerate case and the one where the sum is nothing
 -- but the constant.
-fn plain() -> Int = length("no holes here") :: Int
+fn plain() -> Int = truncate(length("no holes here")) :: Int
 
 -- One integer hole. Every bound is a constant, so the extent folds - strategy (a)'s shape.
 fn oneInt() -> Int:
     let text = "n = {42}"
-    return length(text) :: Int          -- "n = 42"
+    return truncate(length(text)) :: Int          -- "n = 42"
 
 -- The same, read back unit by unit, so that a format producing the right *length* and the wrong
 -- text does not pass.
@@ -33,7 +33,7 @@ fn oneIntText() -> Int:
     let text = "n={7}!"
     let &total = 0 :: Int
 
-    if (length(text) :: Int) != 4 then return 0
+    if (truncate(length(text)) :: Int) != 4 then return 0
     if stringUnit(text, 0) == 110 then total = total + 1        -- `n`
     if stringUnit(text, 1) == 61 then total = total + 1         -- `=`
     if stringUnit(text, 2) == 55 then total = total + 1         -- `7`
@@ -51,26 +51,26 @@ fn oneIntText() -> Int:
 fn oneString() -> Int:
     let inner = "world"
     let text = "hello {inner}"
-    return length(text) :: Int          -- "hello world"
+    return truncate(length(text)) :: Int          -- "hello world"
 
 -- Several holes of both kinds, so the sum is part constant and part computed, and the appends happen
 -- in written order rather than in the order the bounds were taken.
 fn mixed() -> Int:
     let name = "ab"
     let text = "{name}-{12}-{name}-{345}"
-    return length(text) :: Int          -- "ab-12-ab-345"
+    return truncate(length(text)) :: Int          -- "ab-12-ab-345"
 
 -- A negative number in a hole, which is the one place the sign has to be appended before the digits
 -- rather than after them.
 fn negative() -> Int:
     let text = "{-2147483648}"
-    return length(text) :: Int          -- eleven units, and the bound says eleven too
+    return truncate(length(text)) :: Int          -- eleven units, and the bound says eleven too
 
 -- A hole holding a `Bool`, whose two texts have different lengths against one bound. Formatting
 -- `True` into a buffer sized for `False` is the ordinary case of a bound being an upper bound.
 fn boolean() -> Int:
     let text = "{True}/{False}"
-    return length(text) :: Int          -- "True/False"
+    return truncate(length(text)) :: Int          -- "True/False"
 
 {-
    A format inside a loop, run enough times that a leak or a double free would show.
@@ -86,7 +86,7 @@ fn inLoop() -> Int:
 
     while i < 100:
         let text = "iteration {i}"
-        total = total + (length(text) :: Int)
+        total = total + (truncate(length(text)) :: Int)
         i = i + 1
 
     return total

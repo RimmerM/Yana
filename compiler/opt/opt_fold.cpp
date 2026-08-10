@@ -485,6 +485,76 @@ struct Folder {
         return constant(instruction, instruction.type, narrowToWidth(from.unwrap(), facts.unwrap()));
     }
 
+    // The width a `bitcast` moves, for either kind of scalar and 0 for everything else. Both ends of
+    // every rung of the `Bitcast` ladder answer this with the same number - which is what makes the
+    // reinterpretation below a reading of bits rather than a conversion of them.
+    U16 reinterpretedBits(TypePtr type) {
+        if(auto facts = conversionFacts(type)) return facts.unwrap().bits;
+        if(auto width = foldableFloat(opt, type)) {
+            return width.unwrap() == FloatType::Float ? U16(32) : U16(64);
+        }
+
+        return 0;
+    }
+
+    /*
+     * A `bitcast` of a constant: the same bits, read as another type.
+     *
+     * Not `foldConstantCast` under a different name. That one *converts*, and the two agree only
+     * where the widths do - so the width is checked here rather than assumed. `emitNull` in
+     * intrinsic.cpp builds a `Bitcast` at a pointer, and a pointer constant is an integer constant
+     * whose type this must not reinterpret; `reinterpretedBits` answers 0 for one and declines it.
+     *
+     * The integer pair is `narrowToWidth` at the *result's* signedness, which is the whole of what
+     * reinterpretation means between two integers: `0xffffffff` read as an `Int` is stored as `-1`,
+     * and that is the form `constantValueOf` hands back to whatever folds next.
+     *
+     * The float pairs go through `floatBits` and `floatFromBits`, which are the same two functions
+     * the constant evaluator uses, so a literal folded here and one written by `const.cpp` are the
+     * same bits by construction rather than by agreement. One direction can produce a value neither
+     * emitter has a literal for - an integer pattern denoting an infinity or a NaN - and it is
+     * declined by `isFoldableFloat` exactly where `foldNumericCast` declines it.
+     *
+     * Without this a bounds check whose index is a literal survived to both backends: `remove`
+     * reinterprets its index unsigned rather than converting it, so `bitcast(1) >= length` had a
+     * non-constant operand and neither the comparison nor the branch it decided could fold.
+     */
+    ModulePtr<Value> foldBitcast(InstUnary& instruction) {
+        auto sourceType = opt.local[instruction.from]->type;
+        if(sourceType == instruction.type) return instruction.from;
+
+        auto bits = reinterpretedBits(sourceType);
+        if(bits == 0 || bits != reinterpretedBits(instruction.type)) return nullptr;
+
+        if(auto facts = conversionFacts(instruction.type)) {
+            U64 raw;
+
+            if(foldableFloat(opt, sourceType)) {
+                auto source = constantFloatOf(opt, instruction.from);
+                if(!source) return nullptr;
+
+                raw = floatBits(opt.global, sourceType, source.unwrap());
+            } else {
+                auto source = constantValueOf(opt, instruction.from);
+                if(!source) return nullptr;
+
+                raw = source.unwrap();
+            }
+
+            return constant(instruction, instruction.type, narrowToWidth(raw, facts.unwrap()));
+        }
+
+        // A floating result, so the source is an integer: the other three combinations were decided
+        // by the two calls above.
+        auto raw = constantValueOf(opt, instruction.from);
+        if(!raw) return nullptr;
+
+        auto value = floatFromBits(opt.global, instruction.type, raw.unwrap());
+        if(!isFoldableFloat(value)) return nullptr;
+
+        return makeFloatConstant(opt, instruction, instruction.type, value);
+    }
+
     /*
      * The two conversions that are not conversions.
      *
@@ -586,29 +656,36 @@ struct Folder {
         if(!source || !isFoldableFloat(source.unwrap())) return nullptr;
 
         /*
-         * In range for an `I64` first, so that the truncation itself is defined - and then in range
-         * for the type actually being converted to. Two steps rather than one because the bound for
-         * the second is an integer bound, and comparing a double against `2^63 - 1` is comparing it
-         * against `2^63`, which is a different question.
+         * Out of range no longer declines the fold, because out of range now has an answer.
+         *
+         * This is where the ruling in `saturationRange` pays for itself twice over. It used to read
+         * "offered only where the truncated value fits, which is the range on which the two targets
+         * agree" - and outside that range there was nothing to fold *to*, since x86 produced the
+         * integer indefinite value and JS wrapped modulo 2^32. Saturation gives every input a value
+         * both targets produce, so the fold is total: clamp, and NaN is zero.
+         *
+         * Written against the type's own bounds rather than an `I64`'s, which is what the two-step
+         * version was working around: `2^63 - 1` is not a double, so the *comparison* has to be
+         * against `2^63` even though the value produced is one less.
          */
-        constexpr F64 kTwoPow63 = 9223372036854775808.0;
-        auto value = source.unwrap();
-        if(value < -kTwoPow63 || value >= kTwoPow63) return nullptr;
-
-        auto truncated = I64(value);
         auto bits = facts.unwrap().bits;
+        auto isSigned = facts.unwrap().isSigned;
 
-        if(facts.unwrap().isSigned) {
-            if(bits < 64) {
-                auto limit = I64(1) << (bits - 1);
-                if(truncated < -limit || truncated >= limit) return nullptr;
-            }
-        } else {
-            if(truncated < 0) return nullptr;
-            if(bits < 64 && U64(truncated) >= (U64(1) << bits)) return nullptr;
-        }
+        IntType integer(bits, IntType::widthFor(bits), isSigned);
+        auto range = saturationRange(integer);
+        auto value = source.unwrap();
 
-        return constant(instruction, instruction.type, narrowToWidth(U64(truncated), facts.unwrap()));
+        auto lowest = isSigned ? ~((U64(1) << (bits - 1)) - 1) : U64(0);
+        auto highest = isSigned ? (U64(1) << (bits - 1)) - 1
+                                : (bits >= 64 ? ~U64(0) : (U64(1) << bits) - 1);
+
+        // NaN answers neither comparison, which is why it is tested first and not last.
+        auto saturated = value != value ? U64(0)
+                       : value <= range.low ? lowest
+                       : value >= range.high ? highest
+                       : U64(I64(value));
+
+        return constant(instruction, instruction.type, narrowToWidth(saturated, facts.unwrap()));
     }
 
     /*
@@ -808,6 +885,11 @@ struct Folder {
 
             foldCast(pointer, cast);
         }
+
+        // Its own arm and a `return`, because every rule below is about arithmetic and a
+        // reinterpretation is not one: `foldableInt` would admit a `bitcast` to an integer and the
+        // switch would then decline it a second time for a different reason.
+        if(instruction.kind == Value::Bitcast) return foldBitcast((InstUnary&)instruction);
 
         // Ahead of the integer gate for the same reason the identity cast is: a floating result has
         // no `IntFacts` and `foldableInt` would end the walk before the switch is reached.

@@ -111,6 +111,23 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             break;
         }
+        /*
+         * `bitcast(x)` - the same bits under another type, and the one conversion that says so.
+         *
+         * A direct translation with none of the reasoning below it, because there is nothing to
+         * decide: the resolver has already checked that the two types are the same width, so the
+         * only question a `Cast` has to answer - how the value changes on the way - has the answer
+         * "it does not". `truncateToWidth` is deliberately absent for the same reason: both sides
+         * fill the same register and a refinement is not a `Bitcast` target.
+         */
+        case Value::Bitcast: {
+            auto& bitcastInst = (InstUnary&)instruction;
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
+                LowerInst::Bitcast, instruction.name, lowerType(lower.global, instruction.type),
+                mappedValue(lower, bitcastInst.from)));
+            break;
+        }
         case Value::Cast: {
             auto& castInst = (InstUnary&)instruction;
             auto from = mappedValue(lower, castInst.from);

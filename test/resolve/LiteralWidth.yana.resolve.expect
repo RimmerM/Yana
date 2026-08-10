@@ -182,15 +182,15 @@ fn narrowIf(%c: Bool, %x: I64) -> Int {
     je %c, b1, b2
 
   b1:
-    %v3 = cast %x : Int
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v7 = phi [b1, %v3], [b2, 0] : Int
-    ret %v7
+    %v7 = phi [b1, %x], [b2, 0] : I64
+    %v8 = cast %v7 : Int
+    ret %v8
 }
 
 fn main() -> Int {

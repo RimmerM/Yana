@@ -88,7 +88,7 @@ fn wrapped() -> Wrapper = Wrapper(Inner {value: 7})
 fn unwrapped(w: Wrapper) -> Int = match w: Wrapper(i) -> i.value
 
 fn nullHandle() -> Handle = Handle(null())
-fn handleAddress(h: Handle) -> I64 = match h: Handle(p) -> asInt(p)
+fn handleAddress(h: Handle) -> I64 = match h: Handle(p) -> bitcast(p) :: I64
 
 fn boxed(p: %I64) -> Boxed(I64) = Boxed(p)
 fn boxedValue(b: Boxed(I64)) -> I64 = match b: Boxed(p) -> *p
@@ -128,4 +128,4 @@ fn main() -> Int:
         directionValue(South) +
         heldTag(held())
 
-    return scalars + ((handleAddress(nullHandle()) + boxedValue(boxed(addressOf(slot)))) :: Int)
+    return scalars + (truncate((handleAddress(nullHandle()) + boxedValue(boxed(addressOf(slot))))) :: Int)

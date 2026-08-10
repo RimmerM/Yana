@@ -17,7 +17,7 @@ data Buffer {cells: %I64, count: Int}
 instance Reclaim(Buffer):
     fn reclaim(->value: Buffer) -> {}:
         released = released + 1
-        freeHeap(cast(value.cells) :: %U8)
+        freeHeap(bitcast(value.cells) :: %U8)
 
 -- An effect at last use: `Drop`, which is never elided on any target.
 data Handle {id: Int}
@@ -31,7 +31,7 @@ instance Drop(Handle):
 data Session {pages: Buffer, owner: Handle}
 
 fn makeBuffer(count: Int) -> Buffer:
-    let cells = cast(allocateHeap(count * 8)) :: %I64
+    let cells = bitcast(allocateHeap(count * 8)) :: %I64
     return Buffer {cells: cells, count: count}
 
 fn useSession(->s: Session) -> Int = s.owner.id

@@ -15,13 +15,13 @@ instance Chunked(Chunks, Int):
 -- concrete parameter does here and is not this rule's: the parameter type is pushed down as the
 -- argument's expected type and then applied again once the callee is committed to, and both
 -- conversions report. `takesPoint(aBool)` doubles the same way.
-fn total(xs: [Int]) -> Int = length(xs) :: Int
+fn total(xs: [Int]) -> Int = truncate(length(xs)) :: Int
 
 fn passChunked(cs: Chunks) -> Int = total(cs)
 
 -- The same refusal through a signature written over a type variable, where nothing binds `a` at all
 -- rather than the binding failing to convert.
-fn count(xs: [a]) -> Int = length(xs) :: Int
+fn count(xs: [a]) -> Int = truncate(length(xs)) :: Int
 
 fn passChunkedGeneric(cs: Chunks) -> Int = count(cs)
 

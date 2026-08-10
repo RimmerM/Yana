@@ -169,21 +169,44 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   ftoi uses=[xmm0] creates=[rax]  => f30f2cc0
+  imm uses=[] creates=[remat:0]  => 
+  cmp_uno uses=[xmm0, xmm0] creates=[-]  => 0f2ec0
+  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:0->rcx]  => b9000000000f4bc8
+  imm uses=[] creates=[xmm2]  => 41bb0000004f66410f6ed3
+  imm uses=[] creates=[remat:1]  => 
+  cmp_ge uses=[xmm0, xmm2] creates=[-]  => 0f2ec2
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:1->rax]  => b8ffffff7f0f42c1
   ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
+  imm uses=[] creates=[remat:2]  => 
+  cmp_uno uses=[xmm1, xmm1] creates=[-]  => 660f2ec9
+  select uses=[rdx, rcx, -] creates=[rdx] pre=[remat:2->rdx]  => ba00000000480f4bd1
+  imm uses=[] creates=[xmm0]  => 49bb000000000000e04366490f6ec3
+  imm uses=[] creates=[remat:3]  => 
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 660f2ec8
+  select uses=[rcx, rdx, -] creates=[rcx] pre=[remat:3->rcx]  => 48b9ffffffffffffff7f480f42ca
   sext uses=[rax] creates=[rax]  => 4863c0
   add uses=[rax, rcx] creates=[rax]  => 4801c8
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: unsigned32 ---
+  prologue  => 4157
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cast uses=[rdi] creates=[rdi]  => 8bff
   itof uses=[rdi] creates=[xmm1]  => f2480f2acf
   add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
+  imm uses=[] creates=[xmm0]  => 0f57c0
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 660f2ec8
   ftoi uses=[xmm1] creates=[rax]  => f2480f2cc1
   cast uses=[rax] creates=[rax]  => 8bc0
-  ret uses=[rax] creates=[]  => c3
+  select uses=[rax, r15, -] creates=[rax] pre=[remat:0->r15]  => 41bf00000000410f42c7
+  imm uses=[] creates=[xmm0]  => 49bb000000000000f04166490f6ec3
+  imm uses=[] creates=[remat:1]  => 
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 660f2ec8
+  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:1->rcx]  => b9ffffffff0f42c8
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1415fc3
 
 --- codegen: unsigned64 ---
   prologue  => 4157
@@ -201,14 +224,22 @@ block #1:
   cmp_ilt uses=[rdi, -] creates=[-]  => 4885ff
   select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1
   add uses=[xmm2, xmm0] creates=[xmm2]  => f20f58d0
+  imm uses=[] creates=[xmm0]  => 0f57c0
+  cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c0660f2ed00f93c0
   imm uses=[] creates=[xmm0]  => 49bb000000000000e04366490f6ec3
   sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf20f5cc8
-  ftoi uses=[xmm1] creates=[rax]  => f2480f2cc1
+  ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
   imm uses=[] creates=[remat:0]  => 
-  xor uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 49bf00000000000000804c31f8
-  ftoi uses=[xmm2] creates=[rcx]  => f2480f2cca
+  xor uses=[rcx, r15] creates=[rcx] pre=[remat:0->r15]  => 49bf00000000000000804c31f9
+  ftoi uses=[xmm2] creates=[rdx]  => f2480f2cd2
   cmp_ge uses=[xmm2, xmm0] creates=[-]  => 660f2ed0
-  select uses=[rax, rcx, -] creates=[rax]  => 480f42c1
+  select uses=[rcx, rdx, -] creates=[rcx]  => 480f42ca
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rcx, r15, rax] creates=[rcx] pre=[remat:1->r15]  => 41bf0000000085c0490f44cf
+  imm uses=[] creates=[xmm0]  => 49bb000000000000f04366490f6ec3
+  imm uses=[] creates=[remat:2]  => 
+  cmp_ge uses=[xmm2, xmm0] creates=[-]  => 660f2ed0
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:2->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => 415fc3
 
 --- codegen: unsigned64Float ---
@@ -227,14 +258,22 @@ block #1:
   cmp_ilt uses=[rdi, -] creates=[-]  => 4885ff
   select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1
   mul uses=[xmm2, xmm0] creates=[xmm2]  => f30f59d0
+  imm uses=[] creates=[xmm0]  => 0f57c0
+  cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c00f2ed00f93c0
   imm uses=[] creates=[xmm0]  => 41bb0000005f66410f6ec3
   sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf30f5cc8
-  ftoi uses=[xmm1] creates=[rax]  => f3480f2cc1
+  ftoi uses=[xmm1] creates=[rcx]  => f3480f2cc9
   imm uses=[] creates=[remat:0]  => 
-  xor uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 49bf00000000000000804c31f8
-  ftoi uses=[xmm2] creates=[rcx]  => f3480f2cca
+  xor uses=[rcx, r15] creates=[rcx] pre=[remat:0->r15]  => 49bf00000000000000804c31f9
+  ftoi uses=[xmm2] creates=[rdx]  => f3480f2cd2
   cmp_ge uses=[xmm2, xmm0] creates=[-]  => 0f2ed0
-  select uses=[rax, rcx, -] creates=[rax]  => 480f42c1
+  select uses=[rcx, rdx, -] creates=[rcx]  => 480f42ca
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rcx, r15, rax] creates=[rcx] pre=[remat:1->r15]  => 41bf0000000085c0490f44cf
+  imm uses=[] creates=[xmm0]  => 41bb0000805f66410f6ec3
+  imm uses=[] creates=[remat:2]  => 
+  cmp_ge uses=[xmm2, xmm0] creates=[-]  => 0f2ed0
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:2->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => 415fc3
 
 --- codegen: unusedConversion ---

@@ -1195,11 +1195,70 @@ static LowerValue* expandUnsignedToFloat(Expansion& e, LowerValue* value, LowerT
     return e.select(to, negative, doubled, direct, name);
 }
 
-// A float truncated into an unsigned integer.
+/*
+ * A float truncated into a *signed* integer, saturating - see `saturationRange` for the ruling.
+ *
+ * Two comparisons and two selects, and the reason it is only two of each is that `cvttsd2si` has
+ * already answered one of the three cases. Its result for a NaN, for +infinity and for anything
+ * outside the range is the integer indefinite value - which *is* the type's minimum, and therefore
+ * *is* the saturated answer for everything that overflows downwards. So what is left to fix is the
+ * top end and NaN, and each is one comparison the hardware reads directly:
+ *
+ *  - `x >= 2^(n-1)` is an ordered comparison, so a NaN answers false and cannot be caught here. The
+ *    bound is the power of two rather than the type's maximum because the maximum is not a double at
+ *    sixty-four bits, and a comparison against something near it is a comparison against the wrong
+ *    number.
+ *  - `cmp_uno` is the NaN test, and it exists because no pair of ordered comparisons can be one: a
+ *    NaN and a value below the range both answer false to `x >= lo`, and the two want different
+ *    results. On this machine it is the parity flag alone, which is why it is a comparison of its
+ *    own rather than the `x != x` it replaced - that needed ZF as well and the two `setcc`s and a
+ *    combine `genFloatFlagsToReg` emits for a float equality.
+ */
+static LowerValue* expandFloatToSigned(Expansion& e, LowerValue* value, LowerType to, StringId name) {
+    auto bits = to == LowerType::Int32 ? 32 : 64;
+    auto limit = bits == 32 ? 2147483648.0 : 9223372036854775808.0;
+    auto highest = bits == 32 ? U64(0x7FFFFFFF) : U64(0x7FFFFFFFFFFFFFFF);
+
+    auto direct = e.convert(to, value, false, true);
+
+    auto zero = e.integer(to, 0);
+    auto isNaN = e.compare(LowerCmp::uno, value, value);
+    auto ordered = e.select(to, isNaN, zero, direct);
+
+    auto bound = e.floating(value->type, limit);
+    auto maximum = e.integer(to, highest);
+    auto isBig = e.compare(LowerCmp::ge, value, bound);
+
+    return e.select(to, isBig, maximum, ordered, name);
+}
+
+/*
+ * And into an unsigned integer, which saturates on the same terms and gets no help from the
+ * hardware at either end: `cvttsd2si` is a signed conversion, so its answer for a negative input is
+ * a negative number rather than the zero this has to produce.
+ *
+ * Both ends are therefore explicit. `x >= 0` is ordered, so it is false for a NaN as well as for a
+ * negative - and both of those want zero, which is why one comparison covers the two cases that
+ * needed two for the signed form.
+ */
 static LowerValue* expandFloatToUnsigned(Expansion& e, LowerValue* value, LowerType to, StringId name) {
+    auto zeroFloat = e.floating(value->type, 0.0);
+    auto atLeastZero = e.compare(LowerCmp::ge, value, zeroFloat);
+
     if(to == LowerType::Int32) {
+        // Every value of a `U32` converts through a signed 64-bit conversion exactly, so the
+        // in-range arm is what it always was and only the two ends are new.
         auto wide = e.convert(LowerType::Int64, value, false, true);
-        return e.convert(to, wide, false, false, name);
+        auto narrowed = e.convert(to, wide, false, false);
+
+        auto zero = e.integer(to, 0);
+        auto low = e.select(to, atLeastZero, narrowed, zero);
+
+        auto bound = e.floating(value->type, 4294967296.0);
+        auto maximum = e.integer(to, 0xFFFFFFFF);
+        auto isBig = e.compare(LowerCmp::ge, value, bound);
+
+        return e.select(to, isBig, maximum, low, name);
     }
 
     // Everything below 2^63 converts signed exactly. Everything above it is brought into range by
@@ -1215,10 +1274,19 @@ static LowerValue* expandFloatToUnsigned(Expansion& e, LowerValue* value, LowerT
     auto flipped = e.binary(LowerInst::Xor, LowerType::Int64, big, sign);
     auto small = e.convert(LowerType::Int64, value, false, true);
     auto isBig = e.compare(LowerCmp::ge, value, limit);
-    return e.select(LowerType::Int64, isBig, flipped, small, name);
+    auto inRange = e.select(LowerType::Int64, isBig, flipped, small);
+
+    auto zero = e.integer(LowerType::Int64, 0);
+    auto low = e.select(LowerType::Int64, atLeastZero, inRange, zero);
+
+    auto ceiling = e.floating(value->type, 18446744073709551616.0);
+    auto maximum = e.integer(LowerType::Int64, 0xFFFFFFFFFFFFFFFF);
+    auto isHuge = e.compare(LowerCmp::ge, value, ceiling);
+
+    return e.select(LowerType::Int64, isHuge, maximum, low, name);
 }
 
-static void expandUnsignedConversions(LowerBase base, LowerFunction& fun) {
+static void expandBankConversions(LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -1238,10 +1306,14 @@ static void expandUnsignedConversions(LowerBase base, LowerFunction& fun) {
             // bank boundary is not a conversion at all.
             auto toFloat = isFloat(to) && !isFloat(value->type);
             auto fromFloat = isFloat(value->type) && !isFloat(to);
-            auto unsignedConversion = (toFloat && !cast->isSignedSource())
-                || (fromFloat && !cast->isSignedResult());
 
-            if(!unsignedConversion) { i++; continue; }
+            // **Every** float-to-integer conversion is expanded, not only the unsigned ones, because
+            // saturating is what one means and `cvttsd2si` alone does not saturate - see
+            // `saturationRange`. The other direction still only needs the unsigned case, which is
+            // the one the machine has no instruction for.
+            auto expandable = fromFloat || (toFloat && !cast->isSignedSource());
+
+            if(!expandable) { i++; continue; }
 
             // A conversion nothing reads is removed rather than expanded. It is dead either way -
             // every instruction the expansion produces is side-effect free - but expanding it first
@@ -1255,7 +1327,8 @@ static void expandUnsignedConversions(LowerBase base, LowerFunction& fun) {
             Expansion e { base, fun, block, i };
             auto replacement = toFloat
                 ? expandUnsignedToFloat(e, value, to, cast->result.name)
-                : expandFloatToUnsigned(e, value, to, cast->result.name);
+                : cast->isSignedResult() ? expandFloatToSigned(e, value, to, cast->result.name)
+                                         : expandFloatToUnsigned(e, value, to, cast->result.name);
 
             replaceAllUses(base, &cast->result, replacement);
             removeInst(base, cast);
@@ -2881,7 +2954,7 @@ struct TransformPass {
 
 static const TransformPass kTransformPipeline[] = {
     { "rotateLoops"_v,                 rotateLoops,                 0 },
-    { "expandUnsignedConversions"_v,   expandUnsignedConversions,   0 },
+    { "expandBankConversions"_v,   expandBankConversions,   0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
     { "selectMemorySources"_v,         selectMemorySources,         0 },

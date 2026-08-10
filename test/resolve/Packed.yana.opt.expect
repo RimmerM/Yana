@@ -177,12 +177,12 @@ fn threaded() -> Int {
     %v9 = borrow_mut %h@Header.length : &mut @bits(13) U32
     call nudgeTwice, %v9
     %v12 = load %h@Header.length : @bits(13) U32
-    %v14 = cast %v12 : Int
-    %v17 = mul %v14, 10 : Int
-    %v19 = load %h@Header.version : @bits(4) U32
-    %v21 = cast %v19 : Int
-    %v22 = add %v17, %v21 : Int
-    ret %v22
+    %v13 = cast %v12 : Int
+    %v16 = mul %v13, 10 : Int
+    %v18 = load %h@Header.version : @bits(4) U32
+    %v19 = cast %v18 : Int
+    %v20 = add %v16, %v19 : Int
+    ret %v20
 }
 
 fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h: Bool, %i: Bool) -> () {
@@ -244,14 +244,14 @@ fn tally() -> Int {
     %v19 = add %v16, 1 : Int
     assign %e@Entry.count, %v19
     %v22 = load %e@Entry.live : Bool
-    %v46 = select %v22 ? 1 : 0 : Int
+    %v45 = select %v22 ? 1 : 0 : Int
     %v32 = load %e@Entry.kind : @bits(3) U32
-    %v34 = cast %v32 : Int
-    %v37 = mul %v34, 10 : Int
-    %v38 = add %v46, %v37 : Int
-    %v43 = mul %v19, 100 : Int
-    %v44 = add %v38, %v43 : Int
-    ret %v44
+    %v33 = cast %v32 : Int
+    %v36 = mul %v33, 10 : Int
+    %v37 = add %v45, %v36 : Int
+    %v42 = mul %v19, 100 : Int
+    %v43 = add %v37, %v42 : Int
+    ret %v43
 }
 
 fn liveOf(%e: Entry) -> &mut Bool {

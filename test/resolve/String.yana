@@ -23,13 +23,13 @@
 
 -- A literal, read for its length. No allocation on either target: natively the run is borrowed over
 -- the constant, so its teardown is nothing at all.
-fn literalLength() -> Int = length("hello") :: Int
+fn literalLength() -> Int = truncate(length("hello")) :: Int
 
 -- One raw native unit - part 3. ASCII, so this is also the code point, and `a` is 97 on both.
 fn firstUnit() -> Int = stringUnit("abc", 0)
 
 -- The empty literal, which is the one length that cannot come out of a miscounted loop by accident.
-fn emptyLength() -> Int = length("") :: Int
+fn emptyLength() -> Int = truncate(length("")) :: Int
 
 {-
    Concatenation - part 8, and the first place a string's teardown actually runs.
@@ -40,7 +40,7 @@ fn emptyLength() -> Int = length("") :: Int
 -}
 fn concatLength() -> Int:
     let joined = "ab" + "cde"
-    return length(joined) :: Int
+    return truncate(length(joined)) :: Int
 
 {-
    Appending to a literal, which is where copy-on-write happens.
@@ -54,7 +54,7 @@ fn concatLength() -> Int:
 fn appendToLiteral() -> Int:
     let &start = "lit"
     pushString(start, "eral")
-    return length(start) :: Int
+    return truncate(length(start)) :: Int
 
 -- Equality is raw unit-wise on both targets, which part 3 argues is never a place they can disagree:
 -- encoding is an injective function of content.

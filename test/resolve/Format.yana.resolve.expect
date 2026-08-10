@@ -48,7 +48,7 @@ let string$15: String = " times]
 fn initHeap() -> () {
   b0:
     %region = call mapMemory, 4194304 : %U8
-    %v2 = cast %region : Long
+    %v2 = bitcast %region : Long
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
@@ -61,7 +61,7 @@ fn initHeap() -> () {
   b3:
     %table = mul 32, 8 : I64
     setmemory %region, 0, %table
-    %v14 = cast %region : %%U8
+    %v14 = bitcast %region : %%U8
     assign heapFree, %v14
     %v16 = strideof U8 : I64
     %v17 = mul %table, %v16 : I64
@@ -98,7 +98,7 @@ fn growHeap(%needed: I64) -> Bool {
     %region = alloc : %U8
     init %region, %v11
     %v14 = load %region : %U8
-    %v15 = cast %v14 : Long
+    %v15 = bitcast %v14 : Long
     %v17 = cmp_eq %v15, 0 : Bool
     je %v17, b4, b5
 
@@ -133,7 +133,7 @@ fn growHeap(%needed: I64) -> Bool {
     %v34 = call mapMemory, %v33 : %U8
     assign %region, %v34
     %v36 = load %region : %U8
-    %v37 = cast %v36 : Long
+    %v37 = bitcast %v36 : Long
     %v39 = cmp_eq %v37, 0 : Bool
     je %v39, b12, b13
 
@@ -219,14 +219,14 @@ fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
 fn allocateHeap(%size: I64) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = cast %v1 : Long
+    %v2 = bitcast %v1 : Long
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = cast %v7 : Long
+    %v8 = bitcast %v7 : Long
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -234,7 +234,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b6
 
   b3:
-    %v13 = cast 0 : %U8
+    %v13 = bitcast 0 : %U8
     ret %v13
 
   b4:
@@ -250,7 +250,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     je %v23, b7, b8
 
   b7:
-    %v26 = cast 0 : %U8
+    %v26 = bitcast 0 : %U8
     ret %v26
 
   b8:
@@ -258,13 +258,13 @@ fn allocateHeap(%size: I64) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = cast %reused : Long
+    %v30 = bitcast %reused : Long
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
 
   b10:
-    %v36 = cast %reused : %%U8
+    %v36 = bitcast %reused : %%U8
     %v37 = load [%v36] : %U8
     call setFreeListHead, %sizeClass, %v37
     ret %reused
@@ -291,7 +291,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b18
 
   b15:
-    %v54 = cast 0 : %U8
+    %v54 = bitcast 0 : %U8
     ret %v54
 
   b16:
@@ -306,7 +306,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     %v61 = mul %blockSize, %v60 : I64
     %v62 = add %block, %v61 : %U8
     assign heapNext, %v62
-    %v64 = cast %block : %I64
+    %v64 = bitcast %block : %I64
     assign [%v64], %sizeClass
     %v68 = strideof U8 : I64
     %v69 = mul 8, %v68 : I64
@@ -316,7 +316,7 @@ fn allocateHeap(%size: I64) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = cast %allocation : Long
+    %v1 = bitcast %allocation : Long
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -330,9 +330,9 @@ fn freeHeap(%allocation: %U8) -> () {
     %v9 = strideof U8 : I64
     %v10 = mul 8, %v9 : I64
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = cast %v11 : %I64
+    %v12 = bitcast %v11 : %I64
     %sizeClass = load [%v12] : I64
-    %v14 = cast %allocation : %%U8
+    %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
@@ -351,14 +351,13 @@ fn abortProcess() -> () {
     ret
 }
 
-fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
+fn resize(U8)(%self: Run(U8), %wanted: I64) -> Bool {
   b0:
     %v2 = load %self : Run(U8)
     %v3 = load %self@Run.capacity : @bits(30) U32
-    %v4 = cast %v3 : U32
-    %room = cast %v4 : Int
-    %v6 = cmp_le %wanted, %room : Bool
-    je %v6, b1, b2
+    %room = cast %v3 : I64
+    %v5 = cmp_le %wanted, %room : Bool
+    je %v5, b1, b2
 
   b1:
     ret True
@@ -367,12 +366,12 @@ fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
     jmp b3
 
   b3:
-    %v11 = load %self : Run(U8)
-    %v12 = load %self@Run.ownsHeap : @bits(2) U32
-    %v13 = cast %v12 : U32
-    %v15 = cast 2 : U32
-    %v16 = cmp_eq %v13, %v15 : Bool
-    je %v16, b4, b5
+    %v10 = load %self : Run(U8)
+    %v11 = load %self@Run.ownsHeap : @bits(2) U32
+    %v12 = cast %v11 : U32
+    %v14 = cast 2 : U32
+    %v15 = cmp_eq %v12, %v14 : Bool
+    je %v15, b4, b5
 
   b4:
     ret False
@@ -381,8 +380,8 @@ fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
     jmp b6
 
   b6:
-    %v22 = cmp_gt %wanted, 1073741823 : Bool
-    je %v22, b7, b8
+    %v21 = cmp_gt %wanted, 1073741823 : Bool
+    je %v21, b7, b8
 
   b7:
     ret False
@@ -391,14 +390,14 @@ fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
     jmp b9
 
   b9:
-    %v27 = load %self : Run(U8)
-    %v28 = load %self@Run.items : %U8
-    %v29 = call byteSpan(U8), %v28, %wanted : I64
-    %v30 = call allocateHeap, %v29 : %U8
-    %fresh = cast %v30 : %U8
-    %v32 = cast %fresh : Long
-    %v34 = cmp_eq %v32, 0 : Bool
-    je %v34, b10, b11
+    %v26 = load %self : Run(U8)
+    %v27 = load %self@Run.items : %U8
+    %v28 = call byteSpan(U8), %v27, %wanted : I64
+    %v29 = call allocateHeap, %v28 : %U8
+    %fresh = bitcast %v29 : %U8
+    %v31 = bitcast %fresh : Long
+    %v33 = cmp_eq %v31, 0 : Bool
+    je %v33, b10, b11
 
   b10:
     ret False
@@ -407,36 +406,36 @@ fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
     jmp b12
 
   b12:
-    %v40 = cmp_gt %room, 0 : Bool
-    je %v40, b13, b14
+    %v39 = cmp_gt %room, 0 : Bool
+    je %v39, b13, b14
 
   b13:
-    %v42 = cast %fresh : %U8
-    %v43 = load %self : Run(U8)
-    %v44 = load %self@Run.items : %U8
-    %v45 = cast %v44 : %U8
-    %v46 = load %self : Run(U8)
-    %v47 = load %self@Run.items : %U8
-    %v48 = call byteSpan(U8), %v47, %room : I64
-    copymemory %v42, %v45, %v48
+    %v41 = bitcast %fresh : %U8
+    %v42 = load %self : Run(U8)
+    %v43 = load %self@Run.items : %U8
+    %v44 = bitcast %v43 : %U8
+    %v45 = load %self : Run(U8)
+    %v46 = load %self@Run.items : %U8
+    %v47 = call byteSpan(U8), %v46, %room : I64
+    copymemory %v41, %v44, %v47
     jmp b15
 
   b14:
     jmp b15
 
   b15:
-    %v52 = load %self : Run(U8)
-    %v53 = load %self@Run.ownsHeap : @bits(2) U32
-    %v54 = cast %v53 : U32
-    %v56 = cast 1 : U32
-    %v57 = cmp_eq %v54, %v56 : Bool
-    je %v57, b16, b17
+    %v51 = load %self : Run(U8)
+    %v52 = load %self@Run.ownsHeap : @bits(2) U32
+    %v53 = cast %v52 : U32
+    %v55 = cast 1 : U32
+    %v56 = cmp_eq %v53, %v55 : Bool
+    je %v56, b16, b17
 
   b16:
-    %v59 = load %self : Run(U8)
-    %v60 = load %self@Run.items : %U8
-    %v61 = cast %v60 : %U8
-    call freeHeap, %v61
+    %v58 = load %self : Run(U8)
+    %v59 = load %self@Run.items : %U8
+    %v60 = bitcast %v59 : %U8
+    call freeHeap, %v60
     jmp b18
 
   b17:
@@ -444,26 +443,25 @@ fn resize(U8)(%self: Run(U8), %wanted: Int) -> Bool {
 
   b18:
     assign %self@Run.items, %fresh
-    %v66 = cast %wanted : U32
-    %v68 = and %v66, 1073741823 : U32
-    %v69 = cast %v68 : @bits(30) U32
-    assign %self@Run.capacity, %v69
+    %v65 = cast %wanted : U32
+    %v67 = and %v65, 1073741823 : U32
+    %v68 = cast %v67 : @bits(30) U32
+    assign %self@Run.capacity, %v68
     assign %self@Run.ownsHeap, 1
     ret True
 }
 
-fn byteSpan(U8)(%from: %U8, %count: Int) -> I64 {
+fn byteSpan(U8)(%from: %U8, %count: I64) -> I64 {
   b0:
-    %v2 = cast %from : %U8
-    %v3 = cast %count : I64
-    %v4 = strideof U8 : I64
-    %v5 = mul %v3, %v4 : I64
-    %v6 = add %from, %v5 : %U8
-    %v7 = cast %v6 : %U8
-    %v8 = sub %v7, %v2 : I64
-    %v9 = strideof U8 : I64
-    %v10 = div %v8, %v9 : I64
-    ret %v10
+    %v2 = bitcast %from : %U8
+    %v3 = strideof U8 : I64
+    %v4 = mul %count, %v3 : I64
+    %v5 = add %from, %v4 : %U8
+    %v6 = bitcast %v5 : %U8
+    %v7 = sub %v6, %v2 : I64
+    %v8 = strideof U8 : I64
+    %v9 = div %v7, %v8 : I64
+    ret %v9
 }
 
 fn releaseRun(U8)(%self: Run(U8)) -> () {
@@ -476,7 +474,7 @@ fn releaseRun(U8)(%self: Run(U8)) -> () {
 
   b1:
     %v7 = load %self@Run.items : %U8
-    %v8 = cast %v7 : %U8
+    %v8 = bitcast %v7 : %U8
     call freeHeap, %v8
     jmp b3
 
@@ -495,20 +493,20 @@ fn mapMemory(%size: I64) -> %U8 {
     je %v12, b1, b2
 
   b1:
-    %v15 = cast 0 : %U8
+    %v15 = bitcast 0 : %U8
     ret %v15
 
   b2:
     jmp b3
 
   b3:
-    %v18 = cast %result : %U8
+    %v18 = bitcast %result : %U8
     ret %v18
 }
 
 fn writeFile(%handle: I64, %from: %U8, %count: I64) -> I64 {
   b0:
-    %v4 = cast %from : I64
+    %v4 = bitcast %from : I64
     %v5 = syscall 1, %handle, %v4, %count : I64
     ret %v5
 }
@@ -540,15 +538,14 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn reserve(U8)(%self: Array(U8), %wanted: Int) -> () {
+fn reserve(U8)(%self: Array(U8), %wanted: I64) -> () {
   b0:
     %v2 = load %self : Array(U8)
     %v3 = load %self@Array.run : Run(U8)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
-    %v5 = cast %v4 : U32
-    %v6 = cast %v5 : Int
-    %v7 = cmp_le %wanted, %v6 : Bool
-    je %v7, b1, b2
+    %v5 = cast %v4 : I64
+    %v6 = cmp_le %wanted, %v5 : Bool
+    je %v6, b1, b2
 
   b1:
     ret
@@ -557,25 +554,24 @@ fn reserve(U8)(%self: Array(U8), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v11 = load %self : Array(U8)
-    %v12 = borrow_mut %self : &mut Array(U8)
-    call growArray(U8), %v12, %wanted
+    %v10 = load %self : Array(U8)
+    %v11 = borrow_mut %self : &mut Array(U8)
+    call growArray(U8), %v11, %wanted
     ret
 }
 
-fn growArray(U8)(%self: Array(U8), %wanted: Int) -> () {
+fn growArray(U8)(%self: Array(U8), %wanted: I64) -> () {
   b0:
     %v2 = load %self : Array(U8)
     %v3 = load %self@Array.run : Run(U8)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
-    %v5 = cast %v4 : U32
-    %room = cast %v5 : Int
-    %v7 = add %room, %room : Int
-    %wide = alloc : Int
-    init %wide, %v7
-    %v10 = load %wide : Int
-    %v11 = cmp_lt %v10, %wanted : Bool
-    je %v11, b1, b2
+    %room = cast %v4 : I64
+    %v6 = add %room, %room : I64
+    %wide = alloc : I64
+    init %wide, %v6
+    %v9 = load %wide : I64
+    %v10 = cmp_lt %v9, %wanted : Bool
+    je %v10, b1, b2
 
   b1:
     assign %wide, %wanted
@@ -585,9 +581,9 @@ fn growArray(U8)(%self: Array(U8), %wanted: Int) -> () {
     jmp b3
 
   b3:
-    %v16 = load %wide : Int
-    %v18 = cmp_lt %v16, 4 : Bool
-    je %v18, b4, b5
+    %v15 = load %wide : I64
+    %v17 = cmp_lt %v15, 4 : Bool
+    je %v17, b4, b5
 
   b4:
     assign %wide, 4
@@ -597,11 +593,11 @@ fn growArray(U8)(%self: Array(U8), %wanted: Int) -> () {
     jmp b6
 
   b6:
-    %v24 = load %self : Array(U8)
-    %v25 = load %self@Array.run : Run(U8)
-    %v26 = load %wide : Int
-    %v27 = borrow_mut %self@Array.run : &mut Run(U8)
-    %v28 = call resize(U8), %v27, %v26 : Bool
+    %v23 = load %self : Array(U8)
+    %v24 = load %self@Array.run : Run(U8)
+    %v25 = load %wide : I64
+    %v26 = borrow_mut %self@Array.run : &mut Run(U8)
+    %v27 = call resize(U8), %v26, %v25 : Bool
     ret
 }
 
@@ -609,32 +605,29 @@ fn push(U8)(%self: Array(U8), %item: U8) -> () {
   b0:
     %v2 = load %self : Array(U8)
     %v3 = load %self@Array.length : @bits(30) U32
-    %v4 = cast %v3 : U32
-    %count = cast %v4 : Int
-    %v6 = load %self : Array(U8)
-    %v8 = add %count, 1 : Int
-    %v9 = borrow_mut %self : &mut Array(U8)
-    call reserve(U8), %v9, %v8
-    %v11 = load %self : Array(U8)
-    %v12 = load %self@Array.run : Run(U8)
-    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
-    %v14 = cast %v13 : U32
-    %v15 = cast %v14 : Int
-    %v16 = cmp_ge %count, %v15 : Bool
-    call checkCondition, %v16
-    %v18 = load %self : Array(U8)
-    %v19 = load %self@Array.run : Run(U8)
-    %v20 = load %self@Array.run@Run.items : %U8
-    %v21 = cast %count : I64
-    %v22 = strideof U8 : I64
-    %v23 = mul %v21, %v22 : I64
-    %v24 = add %v20, %v23 : %U8
-    assign [%v24], %item
-    %v27 = add %count, 1 : Int
-    %v28 = cast %v27 : U32
-    %v30 = and %v28, 1073741823 : U32
-    %v31 = cast %v30 : @bits(30) U32
-    assign %self@Array.length, %v31
+    %count = cast %v3 : I64
+    %v5 = load %self : Array(U8)
+    %v7 = add %count, 1 : I64
+    %v8 = borrow_mut %self : &mut Array(U8)
+    call reserve(U8), %v8, %v7
+    %v10 = load %self : Array(U8)
+    %v11 = load %self@Array.run : Run(U8)
+    %v12 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v13 = cast %v12 : I64
+    %v14 = cmp_ge %count, %v13 : Bool
+    call checkCondition, %v14
+    %v16 = load %self : Array(U8)
+    %v17 = load %self@Array.run : Run(U8)
+    %v18 = load %self@Array.run@Run.items : %U8
+    %v19 = strideof U8 : I64
+    %v20 = mul %count, %v19 : I64
+    %v21 = add %v18, %v20 : %U8
+    assign [%v21], %item
+    %v24 = add %count, 1 : I64
+    %v25 = cast %v24 : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign %self@Array.length, %v28
     ret
 }
 
@@ -679,23 +672,22 @@ fn newStringOfCapacity(%capacity: I64) -> String {
   b0:
     %v1 = alloc : StringData
     %v2 = alloc : Array(U8)
-    %v3 = cast %capacity : Int
-    %v4 = alloc : Run(U8)
-    %v5 = cast %v3 : Long
-    %v6 = alloc *%v5 heap escaping : U8
-    %v7 = addressof %local3 : %U8
-    %v9 = cast %v3 : U32
-    %v11 = and %v9, 1073741823 : U32
-    %v12 = cast %v11 : @bits(30) U32
-    init %local2@Run.items, %v7
-    init %local2@Run.capacity, %v12
+    %v3 = alloc : Run(U8)
+    %v4 = cast %capacity : Long
+    %v5 = alloc *%v4 heap escaping : U8
+    %v6 = addressof %local3 : %U8
+    %v8 = cast %capacity : U32
+    %v10 = and %v8, 1073741823 : U32
+    %v11 = cast %v10 : @bits(30) U32
+    init %local2@Run.items, %v6
+    init %local2@Run.capacity, %v11
     init %local2@Run.ownsHeap, 1
-    aggregate %local1@Array.run = %v4, %local1@Array.length = 0
+    aggregate %local1@Array.run = %v3, %local1@Array.length = 0
     aggregate %local0@StringData.bytes = %v2
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local4, %v19
-    ret %v20
+    %v18 = move %local0 : StringData
+    %v19 = alloc : String
+    init %local4, %v18
+    ret %v19
 }
 
 fn reserveString(%self: String, %wanted: I64) -> () {
@@ -708,12 +700,10 @@ fn reserveString(%self: String, %wanted: I64) -> () {
     %v7 = load [%v4] : StringData
     %v8 = load [%v4]@StringData.bytes : Array(U8)
     %v9 = load [%v4]@StringData.bytes@Array.length : @bits(30) U32
-    %v10 = cast %v9 : U32
-    %v11 = cast %v10 : Int
-    %v12 = cast %wanted : Int
-    %v13 = add %v11, %v12 : Int
-    %v14 = borrow_mut [%v4]@StringData.bytes : &mut Array(U8)
-    call reserve(U8), %v14, %v13
+    %v10 = cast %v9 : I64
+    %v11 = add %v10, %wanted : I64
+    %v12 = borrow_mut [%v4]@StringData.bytes : &mut Array(U8)
+    call reserve(U8), %v12, %v11
     ret
 }
 
@@ -764,37 +754,32 @@ fn appendUnits(%self: String, %from: %U8, %count: I64) -> () {
     %v15 = load [%v14] : StringData
     %v16 = load [%v14]@StringData.bytes : Array(U8)
     %v17 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v18 = cast %v17 : U32
-    %v19 = cast %v18 : Int
-    %v20 = cast %count : Int
-    %wanted = add %v19, %v20 : Int
-    %v22 = load [%v14] : StringData
-    %v23 = load [%v14]@StringData.bytes : Array(U8)
-    %v24 = load [%v14]@StringData.bytes@Array.run : Run(U8)
-    %v25 = load [%v14]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
-    %v26 = cast %v25 : U32
-    %v27 = cast %v26 : Int
-    %v28 = cmp_lt %v27, %wanted : Bool
-    call checkCondition, %v28
-    %v30 = load [%v14] : StringData
-    %v31 = load [%v14]@StringData.bytes : Array(U8)
-    %v32 = load [%v14]@StringData.bytes@Array.run : Run(U8)
-    %v33 = load [%v14]@StringData.bytes@Array.run@Run.items : %U8
-    %v34 = load [%v14] : StringData
-    %v35 = load [%v14]@StringData.bytes : Array(U8)
-    %v36 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v37 = cast %v36 : U32
-    %v38 = cast %v37 : I64
-    %v39 = strideof U8 : I64
-    %v40 = mul %v38, %v39 : I64
-    %v41 = add %v33, %v40 : %U8
-    %v42 = cast %count : Int
-    %v43 = call byteSpan(U8), %from, %v42 : I64
-    copymemory %v41, %from, %v43
-    %v45 = cast %wanted : U32
-    %v47 = and %v45, 1073741823 : U32
-    %v48 = cast %v47 : @bits(30) U32
-    assign [%v14]@StringData.bytes@Array.length, %v48
+    %v18 = cast %v17 : I64
+    %wanted = add %v18, %count : I64
+    %v20 = load [%v14] : StringData
+    %v21 = load [%v14]@StringData.bytes : Array(U8)
+    %v22 = load [%v14]@StringData.bytes@Array.run : Run(U8)
+    %v23 = load [%v14]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
+    %v24 = cast %v23 : I64
+    %v25 = cmp_lt %v24, %wanted : Bool
+    call checkCondition, %v25
+    %v27 = load [%v14] : StringData
+    %v28 = load [%v14]@StringData.bytes : Array(U8)
+    %v29 = load [%v14]@StringData.bytes@Array.run : Run(U8)
+    %v30 = load [%v14]@StringData.bytes@Array.run@Run.items : %U8
+    %v31 = load [%v14] : StringData
+    %v32 = load [%v14]@StringData.bytes : Array(U8)
+    %v33 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
+    %v34 = cast %v33 : I64
+    %v35 = strideof U8 : I64
+    %v36 = mul %v34, %v35 : I64
+    %v37 = add %v30, %v36 : %U8
+    %v38 = call byteSpan(U8), %from, %count : I64
+    copymemory %v37, %from, %v38
+    %v40 = cast %wanted : U32
+    %v42 = and %v40, 1073741823 : U32
+    %v43 = cast %v42 : @bits(30) U32
+    assign [%v14]@StringData.bytes@Array.length, %v43
     ret
 }
 
@@ -869,30 +854,28 @@ fn showSigned(%value: Long, %to: String) -> () {
   b12:
     %v66 = load %digits : String
     %v67 = call Length(String).length, %v66 : I64
-    %v68 = cast %v67 : Int
-    %i = alloc : Int
-    init %i, %v68
+    %i = alloc : I64
+    init %i, %v67
     jmp b13
 
   b13:
-    %v72 = load %i : Int
-    %v75 = cmp_gt %v72, 0 : Bool
-    je %v75, b15, b16
+    %v71 = load %i : I64
+    %v74 = cmp_gt %v71, 0 : Bool
+    je %v74, b15, b16
 
   b14:
     ret
 
   b15:
-    %v77 = load %i : Int
-    %v80 = sub %v77, 1 : Int
-    assign %i, %v80
-    %v82 = load %to : String
-    %v83 = load %digits : String
-    %v84 = load %i : Int
-    %v85 = cast %v84 : I64
-    %v86 = call stringUnit, %v83, %v85 : Int
-    %v87 = borrow_mut %to : &mut String
-    call pushUnit, %v87, %v86
+    %v76 = load %i : I64
+    %v79 = sub %v76, 1 : I64
+    assign %i, %v79
+    %v81 = load %to : String
+    %v82 = load %digits : String
+    %v83 = load %i : I64
+    %v84 = call stringUnit, %v82, %v83 : Int
+    %v85 = borrow_mut %to : &mut String
+    call pushUnit, %v85, %v84
     jmp b13
 
   b16:
@@ -900,7 +883,7 @@ fn showSigned(%value: Long, %to: String) -> () {
     jmp b14
 }
 
-fn formatBound(%bound: Maybe(Int)) -> Int {
+fn formatBound(%bound: Maybe(I64)) -> I64 {
   b0:
     %v1 = load %bound.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
@@ -910,11 +893,11 @@ fn formatBound(%bound: Maybe(Int)) -> Int {
     jmp b3
 
   b2:
-    %units = load %bound@Just : Int
+    %units = load %bound@Just : I64
     jmp b3
 
   b3:
-    %v9 = phi [b2, %units], [b1, 0] : Int
+    %v9 = phi [b2, %units], [b1, 0] : I64
     ret %v9
 }
 
@@ -937,10 +920,9 @@ fn Length(String).length(%self: String) -> I64 {
     %v2 = cast %v1 : &StringData
     %v3 = load [%v2]@StringData.bytes : Array(U8)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %v5 = cast %v4 : U32
-    %units = cast %v5 : Int
-    %v7 = cast %units : I64
-    ret %v7
+    %units = cast %v4 : Int
+    %v6 = cast %units : I64
+    ret %v6
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
@@ -977,9 +959,9 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
     ret
 }
 
-fn Show(Bool).showBound(%value: Bool) -> Maybe(Int) {
+fn Show(Bool).showBound(%value: Bool) -> Maybe(I64) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I64)
     aggregate %local0.discriminant = 1, %local0@Just = 5
     ret %v1
 }
@@ -993,9 +975,9 @@ fn Show(Int).show(%value: Int, %to: String) -> () {
     ret
 }
 
-fn Show(Int).showBound(%value: Int) -> Maybe(Int) {
+fn Show(Int).showBound(%value: Int) -> Maybe(I64) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I64)
     aggregate %local0.discriminant = 1, %local0@Just = 11
     ret %v1
 }
@@ -1008,12 +990,11 @@ fn Show(String).show(%value: String, %to: String) -> () {
     ret
 }
 
-fn Show(String).showBound(%value: String) -> Maybe(Int) {
+fn Show(String).showBound(%value: String) -> Maybe(I64) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I64)
     %v3 = call Length(String).length, %value : I64
-    %v4 = cast %v3 : Int
-    aggregate %local1.discriminant = 1, %local1@Just = %v4
+    aggregate %local1.discriminant = 1, %local1@Just = %v3
     ret %v1
 }
 
@@ -1028,52 +1009,50 @@ fn plain() -> Int {
 
 fn oneInt() -> Int {
   b0:
-    %v3 = call Show(Int).showBound, 42 : Maybe(Int)
-    %v4 = call formatBound, %v3 : Int
-    %v5 = add 4, %v4 : Int
-    %v6 = cast %v5 : I64
-    %v7 = call newStringOfCapacity, %v6 : String
-    %v8 = alloc : String
-    init %local1, %v7
-    %v10 = symbol string$1 : %U8
-    %v12 = call stringLiteral, %v10, 4 : String
-    %v13 = borrow_mut %local1 : &mut String
-    call pushString, %v13, %v12
-    %v15 = borrow_mut %local1 : &mut String
-    call Show(Int).show, 42, %v15
+    %v3 = call Show(Int).showBound, 42 : Maybe(I64)
+    %v4 = call formatBound, %v3 : I64
+    %v5 = add 4, %v4 : I64
+    %v6 = call newStringOfCapacity, %v5 : String
+    %v7 = alloc : String
+    init %local1, %v6
+    %v9 = symbol string$1 : %U8
+    %v11 = call stringLiteral, %v9, 4 : String
+    %v12 = borrow_mut %local1 : &mut String
+    call pushString, %v12, %v11
+    %v14 = borrow_mut %local1 : &mut String
+    call Show(Int).show, 42, %v14
     %text = load %local1 : String
-    %v18 = call Length(String).length, %text : I64
+    %v17 = call Length(String).length, %text : I64
     drop %local1 reclaim Reclaim(String).reclaim
-    %v19 = cast %v18 : Int
-    ret %v19
+    %v18 = cast %v17 : Int
+    ret %v18
 }
 
 fn oneIntText() -> Int {
   b0:
-    %v3 = call Show(Int).showBound, 7 : Maybe(Int)
-    %v4 = call formatBound, %v3 : Int
-    %v5 = add 3, %v4 : Int
-    %v6 = cast %v5 : I64
-    %v7 = call newStringOfCapacity, %v6 : String
-    %v8 = alloc : String
-    init %local1, %v7
-    %v10 = symbol string$2 : %U8
-    %v12 = call stringLiteral, %v10, 2 : String
-    %v13 = borrow_mut %local1 : &mut String
-    call pushString, %v13, %v12
-    %v15 = borrow_mut %local1 : &mut String
-    call Show(Int).show, 7, %v15
-    %v17 = symbol string$3 : %U8
-    %v19 = call stringLiteral, %v17, 1 : String
-    %v20 = borrow_mut %local1 : &mut String
-    call pushString, %v20, %v19
+    %v3 = call Show(Int).showBound, 7 : Maybe(I64)
+    %v4 = call formatBound, %v3 : I64
+    %v5 = add 3, %v4 : I64
+    %v6 = call newStringOfCapacity, %v5 : String
+    %v7 = alloc : String
+    init %local1, %v6
+    %v9 = symbol string$2 : %U8
+    %v11 = call stringLiteral, %v9, 2 : String
+    %v12 = borrow_mut %local1 : &mut String
+    call pushString, %v12, %v11
+    %v14 = borrow_mut %local1 : &mut String
+    call Show(Int).show, 7, %v14
+    %v16 = symbol string$3 : %U8
+    %v18 = call stringLiteral, %v16, 1 : String
+    %v19 = borrow_mut %local1 : &mut String
+    call pushString, %v19, %v18
     %text = load %local1 : String
     %total = alloc : Int
     init %total, 0
-    %v26 = call Length(String).length, %text : I64
-    %v27 = cast %v26 : Int
-    %v30 = cmp_ne %v27, 4 : Bool
-    je %v30, b16, b2
+    %v25 = call Length(String).length, %text : I64
+    %v26 = cast %v25 : Int
+    %v29 = cmp_ne %v26, 4 : Bool
+    je %v29, b16, b2
 
   b1:
     ret 0
@@ -1082,65 +1061,65 @@ fn oneIntText() -> Int {
     jmp b3
 
   b3:
-    %v36 = call stringUnit, %text, 0 : Int
-    %v39 = cmp_eq %v36, 110 : Bool
-    je %v39, b4, b5
+    %v35 = call stringUnit, %text, 0 : Int
+    %v38 = cmp_eq %v35, 110 : Bool
+    je %v38, b4, b5
 
   b4:
-    %v41 = load %total : Int
-    %v44 = add %v41, 1 : Int
-    assign %total, %v44
+    %v40 = load %total : Int
+    %v43 = add %v40, 1 : Int
+    assign %total, %v43
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v49 = call stringUnit, %text, 1 : Int
-    %v52 = cmp_eq %v49, 61 : Bool
-    je %v52, b7, b8
+    %v48 = call stringUnit, %text, 1 : Int
+    %v51 = cmp_eq %v48, 61 : Bool
+    je %v51, b7, b8
 
   b7:
-    %v54 = load %total : Int
-    %v57 = add %v54, 1 : Int
-    assign %total, %v57
+    %v53 = load %total : Int
+    %v56 = add %v53, 1 : Int
+    assign %total, %v56
     jmp b9
 
   b8:
     jmp b9
 
   b9:
-    %v62 = call stringUnit, %text, 2 : Int
-    %v65 = cmp_eq %v62, 55 : Bool
-    je %v65, b10, b11
+    %v61 = call stringUnit, %text, 2 : Int
+    %v64 = cmp_eq %v61, 55 : Bool
+    je %v64, b10, b11
 
   b10:
-    %v67 = load %total : Int
-    %v70 = add %v67, 1 : Int
-    assign %total, %v70
+    %v66 = load %total : Int
+    %v69 = add %v66, 1 : Int
+    assign %total, %v69
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v75 = call stringUnit, %text, 3 : Int
+    %v74 = call stringUnit, %text, 3 : Int
     drop %local1 reclaim Reclaim(String).reclaim
-    %v78 = cmp_eq %v75, 33 : Bool
-    je %v78, b13, b14
+    %v77 = cmp_eq %v74, 33 : Bool
+    je %v77, b13, b14
 
   b13:
-    %v80 = load %total : Int
-    %v83 = add %v80, 1 : Int
-    assign %total, %v83
+    %v79 = load %total : Int
+    %v82 = add %v79, 1 : Int
+    assign %total, %v82
     jmp b15
 
   b14:
     jmp b15
 
   b15:
-    %v87 = load %total : Int
-    ret %v87
+    %v86 = load %total : Int
+    ret %v86
 
   b16:
     drop %local1 reclaim Reclaim(String).reclaim
@@ -1151,117 +1130,113 @@ fn oneString() -> Int {
   b0:
     %v0 = symbol string$4 : %U8
     %inner = call stringLiteral, %v0, 5 : String
-    %v4 = call Show(String).showBound, %inner : Maybe(Int)
-    %v5 = call formatBound, %v4 : Int
-    %v6 = add 6, %v5 : Int
-    %v7 = cast %v6 : I64
-    %v8 = call newStringOfCapacity, %v7 : String
-    %v9 = alloc : String
-    init %local1, %v8
-    %v11 = symbol string$5 : %U8
-    %v13 = call stringLiteral, %v11, 6 : String
-    %v14 = borrow_mut %local1 : &mut String
-    call pushString, %v14, %v13
-    %v16 = borrow_mut %local1 : &mut String
-    call Show(String).show, %inner, %v16
+    %v4 = call Show(String).showBound, %inner : Maybe(I64)
+    %v5 = call formatBound, %v4 : I64
+    %v6 = add 6, %v5 : I64
+    %v7 = call newStringOfCapacity, %v6 : String
+    %v8 = alloc : String
+    init %local1, %v7
+    %v10 = symbol string$5 : %U8
+    %v12 = call stringLiteral, %v10, 6 : String
+    %v13 = borrow_mut %local1 : &mut String
+    call pushString, %v13, %v12
+    %v15 = borrow_mut %local1 : &mut String
+    call Show(String).show, %inner, %v15
     %text = load %local1 : String
-    %v19 = call Length(String).length, %text : I64
+    %v18 = call Length(String).length, %text : I64
     drop %local1 reclaim Reclaim(String).reclaim
-    %v20 = cast %v19 : Int
-    ret %v20
+    %v19 = cast %v18 : Int
+    ret %v19
 }
 
 fn mixed() -> Int {
   b0:
     %v0 = symbol string$6 : %U8
     %name = call stringLiteral, %v0, 2 : String
-    %v8 = call Show(String).showBound, %name : Maybe(Int)
-    %v9 = call formatBound, %v8 : Int
-    %v10 = add 3, %v9 : Int
-    %v11 = call Show(Int).showBound, 12 : Maybe(Int)
-    %v12 = call formatBound, %v11 : Int
-    %v13 = add %v10, %v12 : Int
-    %v14 = call Show(String).showBound, %name : Maybe(Int)
-    %v15 = call formatBound, %v14 : Int
-    %v16 = add %v13, %v15 : Int
-    %v17 = call Show(Int).showBound, 345 : Maybe(Int)
-    %v18 = call formatBound, %v17 : Int
-    %v19 = add %v16, %v18 : Int
-    %v20 = cast %v19 : I64
-    %v21 = call newStringOfCapacity, %v20 : String
-    %v22 = alloc : String
-    init %local1, %v21
-    %v24 = borrow_mut %local1 : &mut String
-    call Show(String).show, %name, %v24
-    %v26 = symbol string$7 : %U8
-    %v28 = call stringLiteral, %v26, 1 : String
-    %v29 = borrow_mut %local1 : &mut String
-    call pushString, %v29, %v28
-    %v31 = borrow_mut %local1 : &mut String
-    call Show(Int).show, 12, %v31
-    %v33 = symbol string$8 : %U8
-    %v35 = call stringLiteral, %v33, 1 : String
-    %v36 = borrow_mut %local1 : &mut String
-    call pushString, %v36, %v35
-    %v38 = borrow_mut %local1 : &mut String
-    call Show(String).show, %name, %v38
-    %v40 = symbol string$9 : %U8
-    %v42 = call stringLiteral, %v40, 1 : String
-    %v43 = borrow_mut %local1 : &mut String
-    call pushString, %v43, %v42
-    %v45 = borrow_mut %local1 : &mut String
-    call Show(Int).show, 345, %v45
+    %v8 = call Show(String).showBound, %name : Maybe(I64)
+    %v9 = call formatBound, %v8 : I64
+    %v10 = add 3, %v9 : I64
+    %v11 = call Show(Int).showBound, 12 : Maybe(I64)
+    %v12 = call formatBound, %v11 : I64
+    %v13 = add %v10, %v12 : I64
+    %v14 = call Show(String).showBound, %name : Maybe(I64)
+    %v15 = call formatBound, %v14 : I64
+    %v16 = add %v13, %v15 : I64
+    %v17 = call Show(Int).showBound, 345 : Maybe(I64)
+    %v18 = call formatBound, %v17 : I64
+    %v19 = add %v16, %v18 : I64
+    %v20 = call newStringOfCapacity, %v19 : String
+    %v21 = alloc : String
+    init %local1, %v20
+    %v23 = borrow_mut %local1 : &mut String
+    call Show(String).show, %name, %v23
+    %v25 = symbol string$7 : %U8
+    %v27 = call stringLiteral, %v25, 1 : String
+    %v28 = borrow_mut %local1 : &mut String
+    call pushString, %v28, %v27
+    %v30 = borrow_mut %local1 : &mut String
+    call Show(Int).show, 12, %v30
+    %v32 = symbol string$8 : %U8
+    %v34 = call stringLiteral, %v32, 1 : String
+    %v35 = borrow_mut %local1 : &mut String
+    call pushString, %v35, %v34
+    %v37 = borrow_mut %local1 : &mut String
+    call Show(String).show, %name, %v37
+    %v39 = symbol string$9 : %U8
+    %v41 = call stringLiteral, %v39, 1 : String
+    %v42 = borrow_mut %local1 : &mut String
+    call pushString, %v42, %v41
+    %v44 = borrow_mut %local1 : &mut String
+    call Show(Int).show, 345, %v44
     %text = load %local1 : String
-    %v48 = call Length(String).length, %text : I64
+    %v47 = call Length(String).length, %text : I64
     drop %local1 reclaim Reclaim(String).reclaim
-    %v49 = cast %v48 : Int
-    ret %v49
+    %v48 = cast %v47 : Int
+    ret %v48
 }
 
 fn negative() -> Int {
   b0:
     %v2 = neg -2147483648 : Int
-    %v4 = call Show(Int).showBound, %v2 : Maybe(Int)
-    %v5 = call formatBound, %v4 : Int
-    %v6 = add 0, %v5 : Int
-    %v7 = cast %v6 : I64
-    %v8 = call newStringOfCapacity, %v7 : String
-    %v9 = alloc : String
-    init %local1, %v8
-    %v11 = borrow_mut %local1 : &mut String
-    call Show(Int).show, %v2, %v11
+    %v4 = call Show(Int).showBound, %v2 : Maybe(I64)
+    %v5 = call formatBound, %v4 : I64
+    %v6 = add 0, %v5 : I64
+    %v7 = call newStringOfCapacity, %v6 : String
+    %v8 = alloc : String
+    init %local1, %v7
+    %v10 = borrow_mut %local1 : &mut String
+    call Show(Int).show, %v2, %v10
     %text = load %local1 : String
-    %v14 = call Length(String).length, %text : I64
+    %v13 = call Length(String).length, %text : I64
     drop %local1 reclaim Reclaim(String).reclaim
-    %v15 = cast %v14 : Int
-    ret %v15
+    %v14 = cast %v13 : Int
+    ret %v14
 }
 
 fn boolean() -> Int {
   b0:
-    %v3 = call Show(Bool).showBound, True : Maybe(Int)
-    %v4 = call formatBound, %v3 : Int
-    %v5 = add 1, %v4 : Int
-    %v6 = call Show(Bool).showBound, False : Maybe(Int)
-    %v7 = call formatBound, %v6 : Int
-    %v8 = add %v5, %v7 : Int
-    %v9 = cast %v8 : I64
-    %v10 = call newStringOfCapacity, %v9 : String
-    %v11 = alloc : String
-    init %local1, %v10
-    %v13 = borrow_mut %local1 : &mut String
-    call Show(Bool).show, True, %v13
-    %v15 = symbol string$10 : %U8
-    %v17 = call stringLiteral, %v15, 1 : String
-    %v18 = borrow_mut %local1 : &mut String
-    call pushString, %v18, %v17
-    %v20 = borrow_mut %local1 : &mut String
-    call Show(Bool).show, False, %v20
+    %v3 = call Show(Bool).showBound, True : Maybe(I64)
+    %v4 = call formatBound, %v3 : I64
+    %v5 = add 1, %v4 : I64
+    %v6 = call Show(Bool).showBound, False : Maybe(I64)
+    %v7 = call formatBound, %v6 : I64
+    %v8 = add %v5, %v7 : I64
+    %v9 = call newStringOfCapacity, %v8 : String
+    %v10 = alloc : String
+    init %local1, %v9
+    %v12 = borrow_mut %local1 : &mut String
+    call Show(Bool).show, True, %v12
+    %v14 = symbol string$10 : %U8
+    %v16 = call stringLiteral, %v14, 1 : String
+    %v17 = borrow_mut %local1 : &mut String
+    call pushString, %v17, %v16
+    %v19 = borrow_mut %local1 : &mut String
+    call Show(Bool).show, False, %v19
     %text = load %local1 : String
-    %v23 = call Length(String).length, %text : I64
+    %v22 = call Length(String).length, %text : I64
     drop %local1 reclaim Reclaim(String).reclaim
-    %v24 = cast %v23 : Int
-    ret %v24
+    %v23 = cast %v22 : Int
+    ret %v23
 }
 
 fn inLoop() -> Int {
@@ -1278,34 +1253,33 @@ fn inLoop() -> Int {
     je %v10, b3, b2
 
   b2:
-    %v40 = load %total : Int
-    ret %v40
+    %v39 = load %total : Int
+    ret %v39
 
   b3:
     %v12 = load %i : Int
-    %v14 = call Show(Int).showBound, %v12 : Maybe(Int)
-    %v15 = call formatBound, %v14 : Int
-    %v16 = add 10, %v15 : Int
-    %v17 = cast %v16 : I64
-    %v18 = call newStringOfCapacity, %v17 : String
-    %v19 = alloc : String
-    init %local3, %v18
-    %v21 = symbol string$11 : %U8
-    %v23 = call stringLiteral, %v21, 10 : String
-    %v24 = borrow_mut %local3 : &mut String
-    call pushString, %v24, %v23
-    %v26 = borrow_mut %local3 : &mut String
-    call Show(Int).show, %v12, %v26
+    %v14 = call Show(Int).showBound, %v12 : Maybe(I64)
+    %v15 = call formatBound, %v14 : I64
+    %v16 = add 10, %v15 : I64
+    %v17 = call newStringOfCapacity, %v16 : String
+    %v18 = alloc : String
+    init %local3, %v17
+    %v20 = symbol string$11 : %U8
+    %v22 = call stringLiteral, %v20, 10 : String
+    %v23 = borrow_mut %local3 : &mut String
+    call pushString, %v23, %v22
+    %v25 = borrow_mut %local3 : &mut String
+    call Show(Int).show, %v12, %v25
     %text = load %local3 : String
-    %v29 = load %total : Int
-    %v30 = call Length(String).length, %text : I64
+    %v28 = load %total : Int
+    %v29 = call Length(String).length, %text : I64
     drop %local3 reclaim Reclaim(String).reclaim
-    %v31 = cast %v30 : Int
-    %v32 = add %v29, %v31 : Int
-    assign %total, %v32
-    %v34 = load %i : Int
-    %v37 = add %v34, 1 : Int
-    assign %i, %v37
+    %v30 = cast %v29 : Int
+    %v31 = add %v28, %v30 : Int
+    assign %total, %v31
+    %v33 = load %i : Int
+    %v36 = add %v33, 1 : Int
+    assign %i, %v36
     jmp b1
 }
 
@@ -1357,34 +1331,33 @@ fn printed() -> Int {
   b0:
     %v0 = symbol string$12 : %U8
     %name = call stringLiteral, %v0, 6 : String
-    %v6 = call Show(String).showBound, %name : Maybe(Int)
-    %v7 = call formatBound, %v6 : Int
-    %v8 = add 14, %v7 : Int
-    %v9 = call Show(Int).showBound, 2 : Maybe(Int)
-    %v10 = call formatBound, %v9 : Int
-    %v11 = add %v8, %v10 : Int
-    %v12 = cast %v11 : I64
-    %v13 = call newStringOfCapacity, %v12 : String
-    %v14 = alloc : String
-    init %local1, %v13
-    %v16 = symbol string$13 : %U8
-    %v18 = call stringLiteral, %v16, 1 : String
-    %v19 = borrow_mut %local1 : &mut String
-    call pushString, %v19, %v18
-    %v21 = borrow_mut %local1 : &mut String
-    call Show(String).show, %name, %v21
-    %v23 = symbol string$14 : %U8
-    %v25 = call stringLiteral, %v23, 5 : String
-    %v26 = borrow_mut %local1 : &mut String
-    call pushString, %v26, %v25
-    %v28 = borrow_mut %local1 : &mut String
-    call Show(Int).show, 2, %v28
-    %v30 = symbol string$15 : %U8
-    %v32 = call stringLiteral, %v30, 8 : String
-    %v33 = borrow_mut %local1 : &mut String
-    call pushString, %v33, %v32
-    %v35 = load %local1 : String
-    call print, %v35
+    %v6 = call Show(String).showBound, %name : Maybe(I64)
+    %v7 = call formatBound, %v6 : I64
+    %v8 = add 14, %v7 : I64
+    %v9 = call Show(Int).showBound, 2 : Maybe(I64)
+    %v10 = call formatBound, %v9 : I64
+    %v11 = add %v8, %v10 : I64
+    %v12 = call newStringOfCapacity, %v11 : String
+    %v13 = alloc : String
+    init %local1, %v12
+    %v15 = symbol string$13 : %U8
+    %v17 = call stringLiteral, %v15, 1 : String
+    %v18 = borrow_mut %local1 : &mut String
+    call pushString, %v18, %v17
+    %v20 = borrow_mut %local1 : &mut String
+    call Show(String).show, %name, %v20
+    %v22 = symbol string$14 : %U8
+    %v24 = call stringLiteral, %v22, 5 : String
+    %v25 = borrow_mut %local1 : &mut String
+    call pushString, %v25, %v24
+    %v27 = borrow_mut %local1 : &mut String
+    call Show(Int).show, 2, %v27
+    %v29 = symbol string$15 : %U8
+    %v31 = call stringLiteral, %v29, 8 : String
+    %v32 = borrow_mut %local1 : &mut String
+    call pushString, %v32, %v31
+    %v34 = load %local1 : String
+    call print, %v34
     drop %local1 reclaim Reclaim(String).reclaim
     ret 0
 }

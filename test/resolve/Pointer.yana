@@ -61,7 +61,7 @@ fn elementStride() -> I64:
     let base = addressOf(node)
     let next = base + 1
 
-    return difference(base, next) * 100 + difference(cast(base) :: %U8, cast(next) :: %U8)
+    return difference(base, next) * 100 + difference(bitcast(base) :: %U8, bitcast(next) :: %U8)
 
 -- Comparison and the null test, which are plain functions on `%a` rather than Eq/Ord instances.
 fn compareAddresses() -> I64:
@@ -81,10 +81,10 @@ fn blockOperations() -> I64:
     let source = Node {value: 9, next: null()}
     let target = Node {value: 0, next: null()}
 
-    copyMemory(cast(addressOf(target)) :: %U8, cast(addressOf(source)) :: %U8, sizeOf(source))
+    copyMemory(bitcast(addressOf(target)) :: %U8, bitcast(addressOf(source)) :: %U8, sizeOf(source))
     let copied = target.value
 
-    setMemory(cast(addressOf(target)) :: %U8, 0, sizeOf(target))
+    setMemory(bitcast(addressOf(target)) :: %U8, 0, sizeOf(target))
     return copied * 10 + target.value
 
 -- Sizes come from the same Repr the field offsets do.
@@ -108,4 +108,4 @@ fn main() -> Int:
                  elementStride() + compareAddresses() + blockOperations() + sizes() +
                  maybePointer()
 
-    return result :: Int
+    return truncate(result) :: Int

@@ -131,11 +131,11 @@ fn signedField(x: I32) -> I32:
 
 -- A same-width signed-to-unsigned outer cast preserves the sign extension before it. Collapsing
 -- this pair straight from Int would zero-extend and answer 2^32-1 instead.
-@noinline fn widenedUnsigned(x: Int) -> U64 = (x :: I64) :: U64
+@noinline fn widenedUnsigned(x: Int) -> U64 = truncate((x :: I64)) :: U64
 
 -- A conversion into a primitive narrower than its physical register must normalize the value just
 -- as arithmetic at that type does. Native used to leave 300 in a value whose type can hold only 44.
-@noinline fn normalizedU8(x: Int) -> U8 = x :: U8
+@noinline fn normalizedU8(x: Int) -> U8 = truncate(x) :: U8
 
 fn main() -> Int =
     checkU(addSmall(12), 24, 1) +

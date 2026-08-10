@@ -12,6 +12,14 @@ ModulePtr<Value> emitCast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
     return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, args[0]));
 }
 
+// `Bitcast`'s single method, and the reason `Value::Bitcast` exists as a kind: between two types of
+// the same width a `Cast` already moves no bits, but between `Float` and `I32` it is a numeric
+// conversion, and nothing but the kind distinguishes the two questions.
+ModulePtr<Value> emitBitcast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                             LocationId source, StringId resultName) {
+    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Bitcast, args[0]));
+}
+
 // Folding the constant here rather than emitting a cast is what lets every literal go through a
 // class without concrete arithmetic generating anything it did not generate before: `1 :: Double`
 // is still one immediate, not a Long immediate and a conversion.
@@ -391,6 +399,13 @@ void defineConversion(Module& module, StringView className, StringView method, T
     generateInstance(module, classNamed(module, className), { args, 2 }, { methods, 1 });
 }
 
+void defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen) {
+    TypePtr args[] = { from, to };
+    IntrinsicMethod methods[] = { { "bitcast"_v, 1, emitBitcast } };
+
+    generateInstance(module, classNamed(module, "Bitcast"_v), { args, 2 }, { methods, 1 }, gen);
+}
+
 void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic) {
     auto found = module.functions.get(Context::nameHash(name));
 
@@ -527,7 +542,16 @@ void checkIndexInBounds(ExprResolver& resolver, ModulePtr<Value> index, ModulePt
     if(!word) return;
 
     auto unsignedIndex = resolver.ref(resolver.emit<InstUnary>(source, StringId(), word, Value::Cast, index));
-    auto unsignedLength = resolver.convert(length, word, source, false);
+
+    // The length reaches the same type by widening where it can - a stored `Count` is narrower than
+    // an unsigned `Size` - and by reading the same bits where it cannot, which is what happens on JS:
+    // `Size` is `Int` there, so the length and the word it is compared at are one width and there is
+    // nothing to widen. That second case is a conversion the compiler builds for itself and knows the
+    // value of, so it is emitted rather than asked for: `::` may not narrow, and this is not one.
+    auto unsignedLength = resolver.convertibleType(resolver.valueType(length), word)
+        ? resolver.convert(length, word, source)
+        : resolver.ref(resolver.emit<InstUnary>(source, StringId(), word, Value::Cast, length));
+
     if(!unsignedLength) return;
 
     auto failed = resolver.ref(resolver.emit<InstCmp>(source, StringId(), resolver.module.scalar.bool_,

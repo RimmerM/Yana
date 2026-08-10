@@ -78,7 +78,8 @@ bool expressibleInJs(Gen& g, Function& function) {
                 // blockCopyShape. A syscall, a fill, or a copy of anything else is not.
                 if(!blockCopyShape(g, (InstNative&)instruction)) expressible = false;
                 break;
-            case Value::Cast: {
+            case Value::Cast:
+            case Value::Bitcast: {
                 auto& source = *g.local[((InstUnary&)instruction).from];
                 auto fromPointer = isPointer(g.global, source.type);
                 auto toPointer = isPointer(g.global, instruction.type);
@@ -1426,6 +1427,11 @@ Ptr<File> genProgram(Context& context, Program& program) {
     // a list that is allowed to grow underneath it while the reverse is not true.
     emitBitHelpers(g);
     emitWideHelpers(g);
+
+    // Neither of these asks for anything or is asked for by anything, so their position is free;
+    // last keeps the declarations they emit out of the way of everything that hoists.
+    emitSaturationHelpers(g);
+    emitFloatBitsHelpers(g);
 
     genEntryCall(g);
 

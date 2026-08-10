@@ -802,7 +802,7 @@ struct Inliner {
             case Value::Drop: case Value::Swap: case Value::Exchange:
             case Value::Address:
             case Value::TypeMetric: case Value::Symbol:
-            case Value::Cast: case Value::Neg: case Value::Not:
+            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -1518,7 +1518,7 @@ struct Inliner {
         auto answer = isLiteral(instruction);
 
         if(!answer) switch(instruction.kind) {
-            case Value::Cast: case Value::Neg: case Value::Not:
+            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -2063,7 +2063,7 @@ struct Inliner {
                 return (Inst*)createInst<InstSymbol>(module, function, into, source, name, type,
                                                      symbol.callee, symbol.global);
             }
-            case Value::Cast: case Value::Neg: case Value::Not: {
+            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not: {
                 auto& unary = (InstUnary&)instruction;
                 return (Inst*)createInst<InstUnary>(module, function, into, source, name, type,
                                                     instruction.kind, value(unary.from));

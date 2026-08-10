@@ -358,6 +358,59 @@ struct IntType: Type {
     bool isSigned;
 };
 
+/*
+ * Whether every value of one integer type is a value of another - which is the whole of what makes
+ * a conversion between them lossless, and therefore the one question `Widen` is generated from.
+ *
+ * Asked as a range containment and not as "is the target wider", which is what it used to be. Two
+ * primitives of the same width and signedness are two names for one set of values - `Long` and
+ * `I64`, `Int` and `I32` - and a strict `>` on the widths said the conversion between them lost
+ * information. It does not: `let n: I64 = someLong` was rejected, and `someLong :: I64` was accepted
+ * only because `::` used to narrow, which is exactly the accident §0.1.1 removed.
+ *
+ * Unsigned needs its whole width inside the target's positive half; signed needs a signed target at
+ * least as wide, since a signed type of any width holds -1 and no unsigned target does.
+ *
+ * The same predicate answers it for a `@bits` refinement against a type of another canonical family
+ * - see convertRefinement, which is the only other caller and the reason this is not in core.cpp.
+ */
+inline bool integerRangeFits(const IntType& from, const IntType& to) {
+    if(from.isSigned) return to.isSigned && to.bits >= from.bits;
+    return U32(to.bits) - (to.isSigned ? 1u : 0u) >= from.bits;
+}
+
+/*
+ * The range a float-to-integer conversion saturates into - Design-Vector §3.4's ruling, which is a
+ * scalar one and lives here because all three backends need the same two numbers.
+ *
+ * **A value outside the target's range clamps to the nearest end of it, and NaN becomes zero.** The
+ * alternative was three answers from one source: `cvttsd2si` produces the integer indefinite value
+ * on x86, ARM saturates already, and JS wraps modulo 2^32 through `|0`. Saturation is where WASM,
+ * Rust and Swift converged, and it costs a compare and a select.
+ *
+ * The bounds are the type's own, as `F64`. Every one of them is exact except a 64-bit maximum -
+ * `2^63 - 1` and `2^64 - 1` are not doubles - so a backend that clamps in the *float* domain must
+ * use a strict comparison against the returned high bound and produce the integer maximum itself,
+ * rather than converting the clamped float. `highIsExact` says which case it is in.
+ */
+struct SaturationRange {
+    F64 low;
+    F64 high;
+    bool highIsExact;
+};
+
+inline SaturationRange saturationRange(const IntType& integer) {
+    auto bits = integer.bits >= 64 ? 64u : U32(integer.bits);
+
+    if(!integer.isSigned) {
+        auto high = bits >= 64 ? 18446744073709551616.0 : F64((U64(1) << bits) - 1);
+        return SaturationRange { 0.0, high, bits <= 53 };
+    }
+
+    auto magnitude = F64(U64(1) << (bits - 1));
+    return SaturationRange { -magnitude, bits >= 64 ? magnitude : magnitude - 1.0, bits <= 54 };
+}
+
 // A value in the normal form of its type: the type's own bits, sign-extended if it is signed. The
 // same form `convertRefinement` puts a runtime value in, and `truncateToWidth` an arithmetic result.
 inline U64 reduceToWidth(const IntType& integer, U64 value) {

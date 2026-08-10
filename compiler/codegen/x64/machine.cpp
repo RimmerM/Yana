@@ -2153,7 +2153,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
             // Between the banks, where only the signed direction has an encoding. An unsigned
             // conversion never reaches here: it is a sequence rather than an instruction, and
-            // expandUnsignedConversions replaced it with one made of signed ones before selection
+            // expandBankConversions replaced it with one made of signed ones before selection
             // ran. Emitting a signed instruction for it instead would be wrong for exactly the
             // values that motivated asking for unsigned in the first place.
             if(isFloat(from) != isFloat(to)) {

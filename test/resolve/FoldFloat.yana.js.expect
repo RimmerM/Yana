@@ -1,10 +1,21 @@
 "use strict";
 // ResolveTest
-function outOfRange() {
-  return Math.trunc(1E30) | 0;
+function notANumber() {
+  return 0 / 0;
+}
+
+function infinite() {
+  return 1 / 0;
 }
 
 function main() {
-  return (outOfRange() === outOfRange() ? 40 : 0) + 60 + (1 / 0 > 1000000 ? 20 : 0);
+  var v34;
+  var v38 = (Math.min(Math.max(Math.trunc(notANumber()), -2.147483648E9), 2.147483647E9) | 0) === 0;
+  if (v38) {
+    v34 = (Math.min(Math.max(Math.trunc(infinite()), -2.147483648E9), 2.147483647E9) | 0) === 2147483647;
+  } else {
+    v34 = v38;
+  }
+  return (v34 ? 50 : 0) + 100 + (1 / 0 > 1000000 ? 20 : 0);
 }
 main();

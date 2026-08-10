@@ -1003,6 +1003,85 @@ bool foldEmptyIf(Gen& g, StmtList& list, Size index) {
     return true;
 }
 
+/*
+ * Which way a literal condition goes, or nothing where it is not one.
+ *
+ * The two shapes a decided condition arrives in, and they arrive from different places: `boolean` in
+ * build.h is what `foldComparison` answers when both sides of a `<` are numbers, and a bare number
+ * is what a propagated binding leaves where the source tested an integer for truth. JavaScript's own
+ * rule decides the second - zero is false, and so is a `NaN`, which is why the test is written as
+ * `!= 0` on a value that is already known rather than as a range.
+ */
+Maybe<bool> literalTruth(Gen& g, JsPtr<Expr> slot) {
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Bool) return Just(((BoolExpr*)expr)->value);
+    if(expr->kind == Expr::Number) {
+        auto value = ((NumberExpr*)expr)->value;
+        return Just(value == value && value != 0);
+    }
+
+    return Nothing();
+}
+
+/*
+ * `if (false) { A } else { B }` -> `B`.
+ *
+ * A branch whose condition folded to a literal, which is a shape *this file* creates rather than one
+ * the emitter ever writes: `foldComparison` decides `1 >= 5` once both sides have been propagated as
+ * numbers, and this target can decide comparisons the IR could not - a host array's `.length` has a
+ * known range here and no constant anywhere.
+ *
+ * Ahead of `flipEmptyThen` in the round, which is the whole reason it is worth writing down. The
+ * decided branch is usually a check whose failure path was inlined, so the arm that holds is the one
+ * the emitter had nothing to put in - and left to itself `flipEmptyThen` negates the condition and
+ * hands back `if (!false) { B }`, an `if` no reader can act on and no later rule takes apart.
+ *
+ * A literal is inert, so the condition simply goes; there is no `foldEmptyIf` case to mirror here.
+ *
+ * The arm is *hoisted* rather than wrapped in a block. Every binding this emits is a `var` and so is
+ * function-scoped already, and `break`/`continue` name a statement further out that neither arm
+ * contained - so nothing in the arm can tell that the `if` around it is gone.
+ */
+bool foldDecidedIf(Gen& g, StmtList& list, Size index) {
+    auto stmt = g.base[list.get(g.base, index)];
+    if(stmt->kind != Stmt::If) return false;
+
+    auto& branch = *(IfStmt*)stmt;
+    auto decided = literalTruth(g, branch.cond);
+    if(!decided) return false;
+
+    auto& arm = decided.unwrap() ? branch.then : branch.otherwise;
+
+    if(arm.isEmpty()) {
+        list.remove(g.base, index);
+        return true;
+    }
+
+    if(arm.size() == 1) {
+        list.set(g.base, index, arm.get(g.base, 0));
+        return true;
+    }
+
+    /*
+     * More than one, and `StmtList` has no insert: the arm and everything behind the `if` are lifted
+     * out, the list is cut back to the `if`'s own position, and the two are pushed in order. Each
+     * `remove` is at the end and shifts nothing.
+     *
+     * Both are read into offsets *before* the first push, because a push allocates and the region it
+     * allocates from is the one `g.base` points into - so a raw pointer taken across one may be into
+     * a buffer that has moved. A `JsPtr` is an offset and survives it.
+     */
+    SmallArray<JsPtr<Stmt>, 16> hoisted;
+    for(auto inner: arm.contents(g.base)) hoisted.push(inner);
+    for(Size i = index + 1; i < list.size(); i++) hoisted.push(list.get(g.base, i));
+
+    while(list.size() > index) list.remove(g.base, list.size() - 1);
+    for(auto inner: hoisted) list.push(g.file.arena, inner);
+
+    return true;
+}
+
 // Whether one statement has anything at all to do with a name - its own expression, every nested
 // body, and every closure reached from either. The conservative half of the sink below: a statement
 // a declaration moves past has to be one that cannot tell.
@@ -1751,6 +1830,11 @@ Maybe<Inversion> invertedComparison(BinaryOp op) {
 // it may be - see `invertedComparison` - a `!` is taken back off, and anything else is wrapped in one.
 JsPtr<Expr> negatedCondition(Gen& g, JsPtr<Expr> slot, Ranges& ranges) {
     auto expr = g.base[slot];
+
+    // A decided condition answers itself. `foldDecidedIf` removes the `if` wherever one is a
+    // statement's, so what reaches here is the ternary form, where there is no statement to remove
+    // and the negation would otherwise be emitted as written.
+    if(auto decided = literalTruth(g, slot)) return boolean(g, !decided.unwrap());
 
     if(expr->kind == Expr::Unary && ((UnaryExpr*)expr)->op == UnaryOp::Not) {
         return ((UnaryExpr*)expr)->value;
@@ -2565,6 +2649,14 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
         // The empty arm is turned round first, so the condition the simplification is then shown is
         // the one that will actually be emitted rather than the one it was written as.
         if(stmt->kind == Stmt::If) {
+            // Ahead of both, because both are stated over a condition that still has to be emitted
+            // and a decided one does not - see `foldDecidedIf` for what `flipEmptyThen` makes of it
+            // otherwise. The list shortens, so the same position is looked at again.
+            if(foldDecidedIf(g, list, index)) {
+                changed = true;
+                continue;
+            }
+
             if(flipEmptyThen(g, list, index, ranges)) changed = true;
             while(simplifyCondition(g, ((IfStmt*)stmt)->cond, ranges)) changed = true;
         }

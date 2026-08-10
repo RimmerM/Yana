@@ -174,21 +174,20 @@ main<complex>(): Int {
     %v_43 = load %v_1, 8: Ptr
     %v_44 = add %v_1, 12: Ptr
     %v_45 = load %v_44, 4: Int
-    %v_46 = cast %v_45: Int
-    %v_47 = cast %v_46: Long
-    %v_48 = cmp_eq %v_47, 0: Int
-    je %v_48, b_49, b_50
-  }
-
-  b_50 {
-    %v_51 = loads %v_43, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_52 = add %v_42, %v_51: Int
-    ret %v_52
+    %v_46 = cast %v_45: Long
+    %v_47 = cmp_eq %v_46, 0: Int
+    je %v_47, b_48, b_49
   }
 
   b_49 {
-    %v_53 = syscall 60, 134: Long
+    %v_50 = loads %v_43, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_51 = add %v_42, %v_50: Int
+    ret %v_51
+  }
+
+  b_48 {
+    %v_52 = syscall 60, 134: Long
     unreachable 
   }
 }
