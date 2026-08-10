@@ -2,6 +2,8 @@
 
 #include "../../lower/lower_inst.h"
 
+struct CompileSettings;
+
 /*
  * The target's register description, and what a value can be given.
  *
@@ -64,10 +66,31 @@ static constexpr FeatureSet kFeatureAvx = 1 << 2;
 // EVEX encoding: 512-bit operations, the upper sixteen vector registers, and the mask registers.
 static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
 
-// The features this backend is compiling for. A configurable target description replaces this the
-// moment there is anything to configure; until then every extension the form table names is assumed
-// present, and the point of the check is that adding one that is not cannot be silent.
+/*
+ * The features this backend is compiling for.
+ *
+ * A process-wide value rather than a parameter, for the same reason `targetRegisters()` is one: it
+ * is read by form selection, which is asked the same question from a dozen places that have an
+ * instruction in front of them and no settings - see selectForm and the peepholes in transform.cpp
+ * that ask what a form writes. `setTargetFeatures` is called once per function by transformFunction,
+ * which is the narrowest point every path through this backend passes.
+ *
+ * The default is what this backend claimed when the set was a constant, so a driver that configures
+ * nothing gets exactly the code it got before there was anything to configure.
+ */
 FeatureSet targetFeatures();
+void setTargetFeatures(FeatureSet features);
+
+/*
+ * And what a given set of settings comes to.
+ *
+ * Only the vector extensions are read, and only when they were *named*: see
+ * `CompileSettings::explicitExtensions`. The three baseline bits below are this backend's own claim
+ * about AMD64 rather than a reading of the settings, and are left alone - moving them onto detected
+ * extensions would change the code generated for every existing program according to the machine
+ * that built it, which is the thing the explicit-only rule exists to prevent.
+ */
+FeatureSet x64FeaturesFor(const CompileSettings& settings);
 
 /*
  * Banks.
@@ -117,9 +140,15 @@ static constexpr Size kGprCount = 16;
 // The vector and mask files are the *ISA level's* rather than the target's, which is the whole
 // reason bank sizes are per bank: sixteen vector registers without AVX-512 and thirty-two with it,
 // and no mask registers at all until there are. Both are read from targetFeatures() once, when the
-// register description is built.
+// register description is built - and both are held below what the feature bit allows until every
+// form can name the registers they would add. See the comment in target.cpp.
 Size vectorRegisterCount();
 Size maskRegisterCount();
+
+// The same, for a feature set other than the one in force. Read by setTargetFeatures, which refuses
+// a change that would need a register description that has already been built to be a different one.
+Size vectorRegisterCountFor(FeatureSet features);
+Size maskRegisterCountFor(FeatureSet features);
 
 inline PhysicalReg gpr(IntRegister reg) { return PhysicalReg { BankGpr, U16(reg) }; }
 inline PhysicalReg gpr(Size index) { return PhysicalReg { BankGpr, U16(index) }; }

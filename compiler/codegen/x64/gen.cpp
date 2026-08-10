@@ -230,14 +230,110 @@ static EncodedAddress encodeAddress(const MachineAddress& a) {
     return out;
 }
 
-// The REX prefix an address needs, combined with whatever the operand in the ModRM.reg field needs.
-// `forceRex` is for the 8-bit forms: encoding 4-7 as a byte operand names ah/ch/dh/bh unless *some*
-// REX prefix is present, which switches them to spl/bpl/sil/dil - the registers the allocator's
-// numbering actually means.
-static void writeAddressPrefix(AsmModule& to, bool is64, U8 regField, const EncodedAddress& a, bool forceRex = false) {
-    if(is64 || forceRex || needsRex(regField) || a.rexB || a.rexX) {
-        to.buffer.writeByte(makeRex(is64, a.rexB ? 8 : 0, regField, a.rexX ? 8 : 0));
+/*
+ * Prefixes.
+ *
+ * Everything written in front of an opcode, in one description and one writer. A legacy encoding
+ * spells its three facts as up to three separate bytes - a mandatory prefix, REX for the width and
+ * the register numbers, an escape for the opcode map - and a VEX or EVEX one folds the same three
+ * into a single prefix, plus the two things the legacy shape has nowhere to put: a second source
+ * register and a vector length.
+ *
+ * They are one struct because they answer the same questions. What differs is only the spelling, and
+ * putting the spelling in one place is what stops a form from being described twice.
+ */
+struct InstPrefix {
+    PrefixEncoding kind = PrefixEncoding::Legacy;
+
+    U8 mandatory = 0;   // 0x66 / 0xf3 / 0xf2: a byte under Legacy, two bits of `pp` otherwise
+    U8 escape = 0;      // 0x0f: a byte under Legacy, part of the map otherwise
+    U8 map = kOpcodeMap0F;
+    U8 length = 0;      // VEX.L / EVEX.L'L
+    U8 vvvv = 0;        // the second source register, or zero for a form that has none
+    bool w = false;     // REX.W, VEX.W, EVEX.W - one bit in three places
+    bool forceRex = false; // an 8-bit operand that would otherwise name ah/ch/dh/bh
+
+    static InstPrefix legacy(bool w, U8 escape = 0, U8 mandatory = 0, bool forceRex = false) {
+        return InstPrefix { .mandatory = mandatory, .escape = escape, .w = w, .forceRex = forceRex };
     }
+};
+
+// VEX.pp / EVEX.pp: the two bits that stand in for the mandatory prefix byte.
+static U8 mandatoryPrefixBits(U8 mandatory) {
+    switch(mandatory) {
+        case 0:    return 0;
+        case 0x66: return 1;
+        case 0xf3: return 2;
+        case 0xf2: return 3;
+        default: assertTrue("no vector prefix encodes this mandatory prefix" == nullptr); return 0;
+    }
+}
+
+/*
+ * The vector prefixes.
+ *
+ * `r`, `x` and `b` are the same three bits REX carries and are written *inverted* here, which is
+ * what makes a VEX prefix's first byte impossible to confuse with the `les`/`lds` instructions whose
+ * opcodes it took over: in 64-bit mode those bits are always one, and an operand byte with a
+ * high ModRM mode is what a legacy decoder would have needed.
+ *
+ * `vvvv` is inverted for the same reason and has a second consequence worth knowing: a form with no
+ * second source encodes it as all ones, which is what an unset `vvvv` of zero produces here. The two
+ * are the same bits and cannot be confused, because whether the field names a register is a property
+ * of the opcode rather than of the prefix.
+ */
+static void writeVectorPrefix(AsmModule& to, const InstPrefix& p, bool r, bool x, bool b) {
+    auto pp = mandatoryPrefixBits(p.mandatory);
+    auto vvvv = U8(~p.vvvv & 0xf);
+    assertTrue(p.map >= kOpcodeMap0F && p.map <= kOpcodeMap0F3A); // an opcode map no prefix names
+    assertTrue(p.vvvv < 16); // a second source in the upper sixteen registers, which needs EVEX.V'
+
+    if(p.kind == PrefixEncoding::Evex) {
+        // Four bytes: 0x62, then three payload bytes. R' and V' extend ModRM.reg and vvvv into the
+        // upper sixteen vector registers and are both zero here - the bank has sixteen registers
+        // until every form can name more, see vectorRegisterCountFor - so both are written as the
+        // inverted ones the encoding expects.
+        to.buffer.writeByte(0x62);
+        to.buffer.writeByte(U8((r ? 0 : 0x80) | (x ? 0 : 0x40) | (b ? 0 : 0x20) | 0x10 | p.map));
+        to.buffer.writeByte(U8((p.w ? 0x80 : 0) | (vvvv << 3) | 0x04 | pp));
+
+        // z, L'L, broadcast, V', and the mask register: no masking, no broadcast and no zeroing,
+        // which is every EVEX form this backend writes. Only the length is not fixed.
+        to.buffer.writeByte(U8(((p.length & 3) << 5) | 0x08));
+        return;
+    }
+
+    assertTrue(p.length < 2); // VEX has one length bit; 512 is EVEX only
+
+    // Two bytes wherever the fields the short form drops are all zero, which is the common case for
+    // a scalar operation: it names no index, its r/m operand is one of the low eight registers, and
+    // its width is in the mandatory prefix rather than in W.
+    if(!x && !b && !p.w && p.map == kOpcodeMap0F) {
+        to.buffer.writeByte(0xc5);
+        to.buffer.writeByte(U8((r ? 0 : 0x80) | (vvvv << 3) | (p.length ? 0x04 : 0) | pp));
+        return;
+    }
+
+    to.buffer.writeByte(0xc4);
+    to.buffer.writeByte(U8((r ? 0 : 0x80) | (x ? 0 : 0x40) | (b ? 0 : 0x20) | p.map));
+    to.buffer.writeByte(U8((p.w ? 0x80 : 0) | (vvvv << 3) | (p.length ? 0x04 : 0) | pp));
+}
+
+// The whole of what stands in front of an opcode, for either spelling. `r`, `x` and `b` are the
+// three register-number extension bits; every caller has them, whether from an operand or from an
+// encoded address.
+static void writePrefix(AsmModule& to, const InstPrefix& p, bool r, bool x, bool b) {
+    if(p.kind != PrefixEncoding::Legacy) {
+        writeVectorPrefix(to, p, r, x, b);
+        return;
+    }
+
+    if(p.mandatory) to.buffer.writeByte(p.mandatory);
+    if(p.w || p.forceRex || r || x || b) {
+        to.buffer.writeByte(makeRex(p.w, b ? 8 : 0, r ? 8 : 0, x ? 8 : 0));
+    }
+
+    if(p.escape) to.buffer.writeByte(p.escape);
 }
 
 // Writes the ModRM byte, and the SIB/displacement bytes the addressing mode calls for, that
@@ -265,15 +361,29 @@ struct MemForm {
     bool is64 = false;         // REX.W
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     U8 trailing = 0;           // immediate bytes written after the address - see AsmRelocation
+
+    // A VEX or EVEX form reading its operand from memory. The three fields above that it shares -
+    // the mandatory prefix, the escape and the width - keep their meanings; what changes is only
+    // that they are written folded into the vector prefix rather than as separate bytes.
+    PrefixEncoding kind = PrefixEncoding::Legacy;
+    U8 map = kOpcodeMap0F;
+    U8 length = 0;
+    U8 vvvv = 0;
+
+    InstPrefix prefixOf(U8 regField) const {
+        return InstPrefix {
+            .kind = kind, .mandatory = prefix, .escape = escape, .map = map,
+            .length = length, .vvvv = vvvv, .w = is64,
+            .forceRex = byteRegField && (regField & 7) >= 4,
+        };
+    }
 };
 
 // The whole tail of a memory-operand instruction: prefixes, opcode, ModRM, SIB, displacement.
 static void genMemory(AsmModule& to, const MachineAddress& address, U8 regField, const MemForm& form) {
     auto a = encodeAddress(address);
 
-    if(form.prefix) to.buffer.writeByte(form.prefix);
-    writeAddressPrefix(to, form.is64, regField, a, form.byteRegField && (regField & 7) >= 4);
-    if(form.escape) to.buffer.writeByte(form.escape);
+    writePrefix(to, form.prefixOf(regField), needsRex(regField), a.rexX, a.rexB);
     to.buffer.writeByte(form.opCode);
     writeAddressOperand(to, regField, a, form.trailing);
 }
@@ -287,28 +397,22 @@ static void genMemory(AsmModule& to, const MachineAddress& address, U8 regField,
 
 // `op rm, reg` or `op reg, rm` with both operands in registers: the direction is entirely the
 // caller's choice of opcode, since ModRM does not encode one.
-static void genRegReg(AsmModule& to, bool is64, U8 rm, U8 regField, U8 opCode, U8 escape = 0, U8 prefix = 0) {
-    if(prefix) to.buffer.writeByte(prefix);
-
-    if(is64 || needsRex(rm) || needsRex(regField)) {
-        to.buffer.writeByte(makeRex(is64, rm, regField, 0));
-    }
-
-    if(escape) to.buffer.writeByte(escape);
+static void genRegRegPrefixed(AsmModule& to, const InstPrefix& p, U8 rm, U8 regField, U8 opCode) {
+    writePrefix(to, p, needsRex(regField), false, needsRex(rm));
     to.buffer.writeByte(opCode);
     to.buffer.writeByte(makeMod(3, rm, regField));
+}
+
+static void genRegReg(AsmModule& to, bool is64, U8 rm, U8 regField, U8 opCode, U8 escape = 0, U8 prefix = 0) {
+    genRegRegPrefixed(to, InstPrefix::legacy(is64, escape, prefix), rm, regField, opCode);
 }
 
 // A single-operand instruction where ModRM.reg is a fixed opcode extension rather than a register -
 // NEG/NOT/MUL/DIV/INC r/m, or a shift by one or by cl.
 static void genRegExt(AsmModule& to, bool is64, U8 rm, U8 opCode, U8 ext, U8 escape = 0, U8 prefix = 0) {
-    if(prefix) to.buffer.writeByte(prefix);
-
-    if(is64 || needsRex(rm)) {
-        to.buffer.writeByte(makeRex(is64, rm, ext, 0));
-    }
-
-    if(escape) to.buffer.writeByte(escape);
+    // The extension is not a register, so it never contributes a REX.R bit: `makeMod` takes its low
+    // three bits and the fourth is not one an opcode extension has.
+    writePrefix(to, InstPrefix::legacy(is64, escape, prefix), false, false, needsRex(rm));
     to.buffer.writeByte(opCode);
     to.buffer.writeByte(makeMod(3, rm, ext));
 }
@@ -337,8 +441,12 @@ static MachineAddress slotAddress(const FrameLayout& frame, MachineLocation slot
 // This is the whole of what a direct memory operand costs the encoder. Which operand may be one -
 // and whether the slot is the right width for the access - was settled by the selected form before
 // allocation, so an encoder that reaches here has already been told this form exists.
+static void genSlotOperand(AsmModule& to, const FrameLayout& frame, U8 regField, MachineLocation slot, MemForm form) {
+    genMemory(to, slotAddress(frame, slot), regField, form);
+}
+
 static void genSlotOperand(AsmModule& to, const FrameLayout& frame, bool is64, U8 regField, MachineLocation slot, U8 opCode, U8 escape = 0, U8 prefix = 0) {
-    genMemory(to, slotAddress(frame, slot), regField, MemForm {
+    genSlotOperand(to, frame, regField, slot, MemForm {
         .opCode = opCode, .escape = escape, .prefix = prefix, .is64 = is64,
     });
 }
@@ -963,6 +1071,48 @@ struct Emitter {
      * The encoding families.
      */
 
+    /*
+     * The second source a VEX or EVEX form names, resolved to a register number.
+     *
+     * Zero for a form that has no such operand, which is the same bits an unused field is required
+     * to be written as - see writeVectorPrefix. A legacy form never asks, so this is not on the path
+     * of anything that was here before.
+     */
+    U8 vvvvOf(const EncodingDescriptor& e, const InstRegs& regs) {
+        if(e.prefixEncoding == PrefixEncoding::Legacy || e.vvvvField.isNone()) return 0;
+
+        auto& operand = field(regs, e.vvvvField);
+        assertTrue(operand.isPhysical()); // the second source of a three-operand form left in the frame
+        return reg(operand);
+    }
+
+    /*
+     * EVEX.W, for a form that states its width in the mandatory prefix.
+     *
+     * VEX.W is ignored by these opcodes and EVEX.W is not, which is the one place the two prefixes
+     * disagree about a fact the descriptor already carries. `vaddsd` is `EVEX.F2.0F.W1 58`: with W
+     * left at zero the encoding is not a single-precision add and not an add at all, it is reserved
+     * - and a disassembler says so, which is how this was found.
+     *
+     * So `widthInPrefix` means what it always meant, and an EVEX prefix puts the same fact in the
+     * second place that encoding requires it. F2 and 66 are the double-width prefixes - scalar
+     * double and packed double - and F3 and none are the single ones.
+     */
+    static bool evexWideElement(const EncodingDescriptor& e) {
+        if(e.prefixEncoding != PrefixEncoding::Evex || !e.widthInPrefix) return false;
+        return e.prefix == 0xf2 || e.prefix == 0x66;
+    }
+
+    // Everything the encoders below need to know about how this form's bytes are written, gathered
+    // once. `opCode` is left to the caller: several families choose between two of them.
+    MemForm memFormOf(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
+        return MemForm {
+            .escape = e.escape, .prefix = e.prefix, .is64 = is64 || evexWideElement(e),
+            .kind = e.prefixEncoding, .map = e.opcodeMap,
+            .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
+        };
+    }
+
     // One register in ModRM.reg and one register or frame slot in r/m. An operand left in the frame
     // has to occupy the r/m field, so if the operand this encoding puts *there* is a register and
     // the other one is in the frame, the same operation in its other direction puts them the right
@@ -970,14 +1120,17 @@ struct Emitter {
     void emitRegRm(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         auto& regOp = field(regs, e.regField);
         auto& rmOp = field(regs, e.rmField);
+        auto form = memFormOf(e, regs, is64);
 
         if(regOp.isStack()) {
             assertTrue(e.opcodeAlt != 0); // an operand in the frame in a direction that does not exist
-            genSlotOperand(to, frame, is64, reg(rmOp), regOp.at, e.opcodeAlt, e.escape, e.prefix);
+            form.opCode = e.opcodeAlt;
+            genSlotOperand(to, frame, reg(rmOp), regOp.at, form);
         } else if(rmOp.isStack()) {
-            genSlotOperand(to, frame, is64, reg(regOp), rmOp.at, e.opcode, e.escape, e.prefix);
+            form.opCode = e.opcode;
+            genSlotOperand(to, frame, reg(regOp), rmOp.at, form);
         } else if(!e.omitWhenSame || regOp.at != rmOp.at) {
-            genRegReg(to, is64, reg(rmOp), reg(regOp), e.opcode, e.escape, e.prefix);
+            genRegRegPrefixed(to, form.prefixOf(reg(regOp)), reg(rmOp), reg(regOp), e.opcode);
         }
     }
 
@@ -1080,11 +1233,12 @@ struct Emitter {
 
         auto regField = e.regField.isNone() ? e.extension : reg(field(regs, e.regField));
 
-        genMemory(to, regs.address, regField, MemForm {
-            .opCode = e.opcode, .escape = e.escape, .prefix = e.prefix,
-            .is64 = is64, .byteRegField = e.byteRegField,
-            .trailing = e.immField.isNone() ? U8(0) : e.immediateBytes,
-        });
+        auto memForm = memFormOf(e, regs, is64);
+        memForm.opCode = e.opcode;
+        memForm.byteRegField = e.byteRegField;
+        memForm.trailing = e.immField.isNone() ? U8(0) : e.immediateBytes;
+
+        genMemory(to, regs.address, regField, memForm);
 
         if(!e.immField.isNone()) {
             auto& immOp = field(regs, e.immField);
@@ -1275,16 +1429,25 @@ struct Emitter {
         emitMoveAcrossBanks(destination, scratch, is64, true);
     }
 
-    // Negation: the sign bit exclusive-ored against a pooled mask, in place. `xorps` for singles and
-    // `xorpd` for doubles - the two do the same thing to the same bits, and using each on its own
-    // type is what keeps the value out of the wrong execution domain. The mask is sixteen bytes and
-    // sixteen-byte aligned, which is what these encodings require of a memory operand.
-    void emitFloatNeg(const InstRegs& regs, bool is64) {
+    // Negation: the sign bit exclusive-ored against a pooled mask. `xorps` for singles and `xorpd`
+    // for doubles - the two do the same thing to the same bits, and using each on its own type is
+    // what keeps the value out of the wrong execution domain. The mask is sixteen bytes and
+    // sixteen-byte aligned, which is what the legacy encoding requires of a memory operand.
+    //
+    // In place for the legacy form, whose tie has already put the operand in the destination; under
+    // VEX the operand is named separately and the tie is gone, so the source comes from the field
+    // that holds it.
+    void emitFloatNeg(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         auto mask = is64 ? machine.signMask64 : machine.signMask32;
         assertTrue(mask != nullptr); // a negation whose mask poolSignMasks did not intern
 
+        // `xorps`/`xorpd` are packed forms, so the double one is the 66-prefixed encoding and states
+        // its width in W as well under EVEX - the same rule evexWideElement applies to the described
+        // families, restated here because a pseudo's bytes are its own.
         genMemory(to, MachineAddress::atSymbol(nullptr, mask), reg(regs.creates[0]), MemForm {
             .opCode = 0x57, .escape = 0x0f, .prefix = U8(is64 ? 0x66 : 0),
+            .is64 = is64 && e.prefixEncoding == PrefixEncoding::Evex,
+            .kind = e.prefixEncoding, .map = kOpcodeMap0F, .vvvv = vvvvOf(e, regs),
         });
     }
 
@@ -1538,7 +1701,7 @@ struct Emitter {
                 break;
 
             case PseudoKind::FloatNeg:
-                emitFloatNeg(regs, pseudoIs64());
+                emitFloatNeg(machineTarget().form(selected.form).encoding, regs, pseudoIs64());
                 break;
 
             case PseudoKind::FloatSelect:

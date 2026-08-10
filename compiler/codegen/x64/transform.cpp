@@ -3362,6 +3362,12 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
 }
 
 void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+    // The narrowest point every path through this backend passes, which is why the target's feature
+    // set is established here: form selection is asked about a form from a dozen places that have an
+    // instruction and no settings, so the answer is process-wide rather than carried. See
+    // targetFeatures in target.h.
+    setTargetFeatures(x64FeaturesFor(ctx.settings));
+
     // Asked here because this is the first thing the backend does to a function and the question is
     // about the IR as it arrives - so a frame this backend cannot build is a diagnostic against the
     // program rather than something the frame builder discovers with the code half emitted. See

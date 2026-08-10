@@ -1,0 +1,191 @@
+
+arith64<complex>(%a: Double, %b: Double): Double {
+  b_0 {
+    %s = add %a, %b: Double
+    %d = sub %s, %b: Double
+    %m = mul %d, %a: Double
+    %q = div %m, %b: Double
+    ret %q
+  }
+}
+
+arith32<complex>(%a: Float, %b: Float): Float {
+  b_0 {
+    %s = add %a, %b: Float
+    %d = sub %s, %b: Float
+    %m = mul %d, %a: Float
+    %q = div %m, %b: Float
+    ret %q
+  }
+}
+
+noReuse<complex>(%a: Double, %b: Double): Double {
+  b_0 {
+    %s = add %a, %b: Double
+    %d = sub %a, %b: Double
+    %m = mul %s, %d: Double
+    %q = div %m, %a: Double
+    ret %q
+  }
+}
+
+manyLive<complex>(%a: Double, %b: Double, %c: Double, %d: Double, %e: Double, %f: Double, %g: Double, %h: Double, %i: Double, %j: Double): Double {
+  b_0 {
+    %ab = add %a, %b: Double
+    %cd = add %c, %d: Double
+    %ef = add %e, %f: Double
+    %gh = add %g, %h: Double
+    %ij = add %i, %j: Double
+    %x = mul %ab, %cd: Double
+    %y = mul %ef, %gh: Double
+    %z = mul %x, %y: Double
+    %r = div %z, %ij: Double
+    ret %r
+  }
+}
+
+negate<complex>(%a: Double, %b: Float): Double {
+  b_0 {
+    %n = neg %a: Double
+    %m = neg %b: Float
+    %w = cast %m: Double
+    %r = add %n, %w: Double
+    ret %r
+  }
+}
+
+compare<complex>(%a: Double, %b: Double): Int {
+  b_0 {
+    %c = cmp_gt %a, %b: Int
+    je %c, then, else
+  }
+
+  then {
+    ret 1
+  }
+
+  else {
+    ret 0
+  }
+}
+
+compareValue<complex>(%a: Float, %b: Float): Int {
+  b_0 {
+    %c = cmp_lt %a, %b: Int
+    %d = add %c, %c: Int
+    ret %d
+  }
+}
+
+loadFold<complex>(%p: Ptr, %a: Double): Double {
+  b_0 {
+    %v = load %p, 8: Double
+    %s = add %a, %v: Double
+    %w = load %p, 8: Double
+    %m = mul %s, %w: Double
+    ret %m
+  }
+}
+
+transfer<complex>(%p: Ptr, %q: Ptr): Float {
+  b_0 {
+    %v = load %p, 4: Float
+    store %q, %v, 4
+    ret %v
+  }
+}
+
+
+--- codegen: arith64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fb58d1
+  sub uses=[xmm2, xmm1] creates=[xmm2]  => c5eb5cd1
+  mul uses=[xmm2, xmm0] creates=[xmm2]  => c5eb59d0
+  div uses=[xmm2, xmm1] creates=[xmm0]  => c5eb5ec1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: arith32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fa58d1
+  sub uses=[xmm2, xmm1] creates=[xmm2]  => c5ea5cd1
+  mul uses=[xmm2, xmm0] creates=[xmm2]  => c5ea59d0
+  div uses=[xmm2, xmm1] creates=[xmm0]  => c5ea5ec1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: noReuse ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fb58d1
+  sub uses=[xmm0, xmm1] creates=[xmm1]  => c5fb5cc9
+  mul uses=[xmm2, xmm1] creates=[xmm2]  => c5eb59d1
+  div uses=[xmm2, xmm0] creates=[xmm0]  => c5eb5ec0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: manyLive ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
+  add uses=[xmm2, xmm3] creates=[xmm2]  => c5eb58d3
+  add uses=[xmm4, xmm5] creates=[xmm4]  => c5db58e5
+  add uses=[xmm6, xmm7] creates=[xmm6]  => c5cb58f7
+  add uses=[xmm8, xmm9] creates=[xmm8]  => c4413b58c1
+  mul uses=[xmm0, xmm2] creates=[xmm0]  => c5fb59c2
+  mul uses=[xmm4, xmm6] creates=[xmm4]  => c5db59e6
+  mul uses=[xmm0, xmm4] creates=[xmm0]  => c5fb59c4
+  div uses=[xmm0, xmm8] creates=[xmm0]  => c4c17b5ec0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: negate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  neg uses=[xmm0] creates=[xmm0]  => c5f9570568000000
+  neg uses=[xmm1] creates=[xmm1]  => c5f0570d70000000
+  cast uses=[xmm1] creates=[xmm1]  => f30f5ac9
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: compare ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_gt uses=[xmm0, xmm1] creates=[-]  => c5f92ec1
+  je uses=[-] creates=[]  => 7706
+block else:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+block then:
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b801000000c3
+
+--- codegen: compareValue ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_gt uses=[xmm1, xmm0] creates=[rax]  => 31c0c5f82ec80f97c0
+  add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 8d0c00
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+
+--- codegen: loadFold ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[xmm0, -] creates=[xmm0]  => c5fb5807
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  mul uses=[xmm0, -] creates=[xmm0]  => c5fb5907
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: transfer ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fa1007
+  store uses=[rsi, xmm0] creates=[]  => c5fa1106
+  ret uses=[xmm0] creates=[]  => c3

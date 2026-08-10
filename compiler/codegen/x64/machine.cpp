@@ -102,6 +102,31 @@ enum: MachineFormId {
     FormFCmp32Mem, FormFCmp32MemSet,
     FormFCmp64Mem, FormFCmp64MemSet,
 
+    /*
+     * The same operations written with a VEX prefix, selected in place of the ones above wherever
+     * the target has AVX - see MachineForm::alternative.
+     *
+     * They are listed here rather than beside each original because they are derived from them:
+     * every one is built by `vexTwin` out of the form above it, so the only thing stated twice is a
+     * name. The arithmetic ones are three-operand and so drop the tie; the comparisons and the
+     * transfers have nothing to drop and differ from their originals in the prefix alone.
+     */
+    FormFAdd32Vex, FormFAdd64Vex, FormFAdd32VexMem, FormFAdd64VexMem,
+    FormFAdd32Evex, FormFAdd64Evex, FormFAdd32EvexMem, FormFAdd64EvexMem,
+    FormFSub32Vex, FormFSub64Vex, FormFSub32VexMem, FormFSub64VexMem,
+    FormFSub32Evex, FormFSub64Evex, FormFSub32EvexMem, FormFSub64EvexMem,
+    FormFMul32Vex, FormFMul64Vex, FormFMul32VexMem, FormFMul64VexMem,
+    FormFMul32Evex, FormFMul64Evex, FormFMul32EvexMem, FormFMul64EvexMem,
+    FormFDiv32Vex, FormFDiv64Vex, FormFDiv32VexMem, FormFDiv64VexMem,
+    FormFDiv32Evex, FormFDiv64Evex, FormFDiv32EvexMem, FormFDiv64EvexMem,
+
+    FormFNeg32Vex, FormFNeg64Vex,
+
+    FormFCmp32Vex, FormFCmp32VexSet,
+    FormFCmp64Vex, FormFCmp64VexSet,
+    FormFCmp32VexMem, FormFCmp32VexMemSet,
+    FormFCmp64VexMem, FormFCmp64VexMemSet,
+
     FormSelectFlags,
     FormSelectReg,
     FormSelectFloat32Flags, FormSelectFloat64Flags,
@@ -119,6 +144,12 @@ enum: MachineFormId {
     FormStore8, FormStore16, FormStore32, FormStore64,
     FormStore8Imm, FormStore16Imm, FormStore32Imm, FormStore64Imm,
     FormStoreF32, FormStoreF64,
+
+    // The VEX transfers, beside the forms they are derived from rather than with the arithmetic ones
+    // above, because `add` requires the construction order to be the id order and these are built
+    // where their originals are.
+    FormLoadF32Vex, FormLoadF64Vex,
+    FormStoreF32Vex, FormStoreF64Vex,
 
     FormBlockCopyRep,
     FormBlockCopyUnrolled,
@@ -384,6 +415,94 @@ MachineTarget::MachineTarget() {
 
         forms[sourceId].memorySource = id;
         return form;
+    };
+
+    /*
+     * The VEX form of a form.
+     *
+     * Derived from the legacy one for the reason `memoryTwin` above is derived from the register
+     * one: they are one operation, and stating its opcode, its operands, its flags effect and its
+     * width twice is how the two come to disagree. What the derivation changes is the prefix - the
+     * mandatory byte and the escape become `pp` and a map, which the encoder reads out of the same
+     * two descriptor fields either way - and, for a two-address operation, the tie.
+     *
+     * `threeOperand` is that second half, and it is the reason to prefer these forms at all rather
+     * than merely a longer way to write the same bytes. `addsd xmm1, xmm2` puts its result in one of
+     * its sources, so the allocator inserts a copy wherever the result has to go anywhere else;
+     * `vaddsd xmm1, xmm2, xmm3` names the destination separately, so the tie goes and the copy with
+     * it. The first source moves into VEX.vvvv, which is the field that exists to hold it.
+     *
+     * A form whose destination is not a register in the first place - a comparison, a store - passes
+     * false and differs from its original in the prefix alone.
+     */
+    auto prefixedTwin = [&](MachineFormId id, MachineFormId sourceId, StringView formName, bool threeOperand,
+                            PrefixEncoding encoding, FeatureSet feature) -> MachineForm&
+    {
+        // A copy, taken before `add` below can move the array out from under a reference.
+        auto twin = forms[sourceId];
+        auto& e = twin.encoding;
+
+        // Every scalar form this backend writes is in the two-byte opcode map, which is the map a
+        // VEX prefix names as 1. A three-byte opcode would state its own map instead. A pseudo's
+        // bytes are its own encoder's rather than the descriptor's, so it states neither and the
+        // encoder is the one that has to agree - see emitFloatNeg.
+        assertTrue(e.escape == 0x0f || e.family == EncodingFamily::Pseudo); // a VEX twin outside the 0F map
+        e.prefixEncoding = encoding;
+        e.opcodeMap = kOpcodeMap0F;
+
+        /*
+         * The tie is what is being removed, so the tie is where the second source comes from: the
+         * operand the result was written over is exactly the one VEX.vvvv now names. Taking it from
+         * there rather than from the ModRM.reg field is what lets a pseudo be converted too - its
+         * encoder names its own registers and its descriptor has no fields at all.
+         */
+        // Idempotent, because the tiers are derived from each other: the EVEX form of an operation is
+        // built out of its VEX form, which has already been through this, and asks for the same shape
+        // it already has.
+        if(threeOperand && e.vvvvField.isNone()) {
+            auto tied = twin.tiedResult();
+            assertTrue(tied >= 0); // a three-operand twin of an operation that is not two-address
+
+            e.vvvvField = useRef(U8(tied));
+            if(!e.regField.isNone()) e.regField = defRef(0);
+            twin.defs[0] = def(twin.defs[0].regClass);
+        }
+
+        twin.id = id;
+        twin.name = formName;
+        twin.requiredFeatures |= feature;
+
+        // The links are rebuilt rather than inherited: this form's own memory twin is derived from
+        // *it* and registered below, and its own alternative - the next tier up - is set when that
+        // tier is built out of it.
+        twin.memorySource = 0;
+        twin.memorySourceOf = 0;
+        twin.alternative = 0;
+        twin.alternativeOf = sourceId;
+
+        auto& form = add(id, twin.opcode, formName);
+        form = twin;
+
+        forms[sourceId].alternative = id;
+        return form;
+    };
+
+    auto vexTwin = [&](MachineFormId id, MachineFormId sourceId, StringView formName, bool threeOperand) -> MachineForm& {
+        return prefixedTwin(id, sourceId, formName, threeOperand, PrefixEncoding::Vex, kFeatureAvx);
+    };
+
+    /*
+     * And the EVEX tier, built out of the VEX one rather than out of the legacy form.
+     *
+     * Not because EVEX is better for a scalar operation - it is a byte longer than VEX and does
+     * nothing extra here - but because it is what a target with thirty-two vector registers needs.
+     * A value the allocator puts in xmm16 can only be named by an EVEX-encoded instruction, so every
+     * form a scalar can reach has to have one before `vectorRegisterCountFor` can return more than
+     * sixteen. Building them now, behind a feature nothing selects by default, is what makes the
+     * EVEX writer something the test suite covers rather than something stage 5 discovers.
+     */
+    auto evexTwin = [&](MachineFormId id, MachineFormId sourceId, StringView formName, bool threeOperand) -> MachineForm& {
+        return prefixedTwin(id, sourceId, formName, threeOperand, PrefixEncoding::Evex, kFeatureAvx512f);
     };
 
     /*
@@ -1123,6 +1242,111 @@ MachineTarget::MachineTarget() {
     memoryTwin(FormFCmp64MemSet, FormFCmp64Set, "ucomisd xmm, [address]; setcc r"_v);
 
     /*
+     * And every one of them again with a VEX prefix, for a target that has AVX.
+     *
+     * Selection takes these in place of the forms above wherever the feature is present, and takes
+     * the memory twin of whichever it landed on - see selectForm. Nothing else in the backend knows
+     * they exist: they are the same opcodes with the same operands and the same effects, so every
+     * peephole, every costing and every verifier reads them exactly as it reads the originals.
+     *
+     * The arithmetic is where the win is, and it is not the one byte the prefix costs or saves. A
+     * three-operand encoding needs no copy in front of it to satisfy a tie, which is one instruction
+     * removed from every floating-point operation whose result outlives one of its sources.
+     *
+     * The negation is here too and is the same change made to a pseudo: `vxorps` against the pooled
+     * sign mask names its destination separately, where `xorps` toggled the bit in place.
+     *
+     * What is deliberately *not* here is the rest of the scalar float set - the conversions, the
+     * constant materialization, the select. Each is correct as a legacy encoding and none of them
+     * carries a tie worth removing, and mixing the two spellings costs nothing at all while no
+     * 256-bit instruction is written: the transition penalty this would otherwise invite is a
+     * property of a dirty upper ymm half, and nothing here has one.
+     */
+
+    // One operation, both tiers, at both widths, with and without a folded address: sixteen forms
+    // from one call, and the only thing stated sixteen times is a name.
+    auto vexArith = [&](MachineFormId f32, MachineFormId f64, MachineFormId f32Mem, MachineFormId f64Mem,
+                        MachineFormId e32, MachineFormId e64, MachineFormId e32Mem, MachineFormId e64Mem,
+                        MachineFormId source32, MachineFormId source64, MachineFormId sourceMem32,
+                        MachineFormId sourceMem64, StringView name32, StringView name64,
+                        StringView memName32, StringView memName64,
+                        StringView eName32, StringView eName64, StringView eMemName32, StringView eMemName64)
+    {
+        vexTwin(f32, source32, name32, true);
+        vexTwin(f64, source64, name64, true);
+
+        // The memory twins are built from the *VEX* forms rather than derived from the legacy memory
+        // ones, so that the three-operand shape and the folded address come from one place. Their
+        // legacy counterparts get the link as well, which makes the two swaps commute: whichever of
+        // them selection applies first, the other still finds what it is looking for.
+        memoryTwin(f32Mem, f32, memName32).alternativeOf = sourceMem32;
+        memoryTwin(f64Mem, f64, memName64).alternativeOf = sourceMem64;
+
+        forms[sourceMem32].alternative = f32Mem;
+        forms[sourceMem64].alternative = f64Mem;
+
+        // And the same again one tier up, out of the VEX forms.
+        evexTwin(e32, f32, eName32, true);
+        evexTwin(e64, f64, eName64, true);
+
+        memoryTwin(e32Mem, e32, eMemName32).alternativeOf = f32Mem;
+        memoryTwin(e64Mem, e64, eMemName64).alternativeOf = f64Mem;
+
+        forms[f32Mem].alternative = e32Mem;
+        forms[f64Mem].alternative = e64Mem;
+    };
+
+    vexArith(FormFAdd32Vex, FormFAdd64Vex, FormFAdd32VexMem, FormFAdd64VexMem,
+        FormFAdd32Evex, FormFAdd64Evex, FormFAdd32EvexMem, FormFAdd64EvexMem,
+        FormFAdd32, FormFAdd64, FormFAdd32Mem, FormFAdd64Mem,
+        "vaddss xmm, xmm, xmm/m"_v, "vaddsd xmm, xmm, xmm/m"_v,
+        "vaddss xmm, xmm, [address]"_v, "vaddsd xmm, xmm, [address]"_v,
+        "vaddss (evex) xmm, xmm, xmm/m"_v, "vaddsd (evex) xmm, xmm, xmm/m"_v,
+        "vaddss (evex) xmm, xmm, [address]"_v, "vaddsd (evex) xmm, xmm, [address]"_v);
+
+    vexArith(FormFSub32Vex, FormFSub64Vex, FormFSub32VexMem, FormFSub64VexMem,
+        FormFSub32Evex, FormFSub64Evex, FormFSub32EvexMem, FormFSub64EvexMem,
+        FormFSub32, FormFSub64, FormFSub32Mem, FormFSub64Mem,
+        "vsubss xmm, xmm, xmm/m"_v, "vsubsd xmm, xmm, xmm/m"_v,
+        "vsubss xmm, xmm, [address]"_v, "vsubsd xmm, xmm, [address]"_v,
+        "vsubss (evex) xmm, xmm, xmm/m"_v, "vsubsd (evex) xmm, xmm, xmm/m"_v,
+        "vsubss (evex) xmm, xmm, [address]"_v, "vsubsd (evex) xmm, xmm, [address]"_v);
+
+    vexArith(FormFMul32Vex, FormFMul64Vex, FormFMul32VexMem, FormFMul64VexMem,
+        FormFMul32Evex, FormFMul64Evex, FormFMul32EvexMem, FormFMul64EvexMem,
+        FormFMul32, FormFMul64, FormFMul32Mem, FormFMul64Mem,
+        "vmulss xmm, xmm, xmm/m"_v, "vmulsd xmm, xmm, xmm/m"_v,
+        "vmulss xmm, xmm, [address]"_v, "vmulsd xmm, xmm, [address]"_v,
+        "vmulss (evex) xmm, xmm, xmm/m"_v, "vmulsd (evex) xmm, xmm, xmm/m"_v,
+        "vmulss (evex) xmm, xmm, [address]"_v, "vmulsd (evex) xmm, xmm, [address]"_v);
+
+    vexArith(FormFDiv32Vex, FormFDiv64Vex, FormFDiv32VexMem, FormFDiv64VexMem,
+        FormFDiv32Evex, FormFDiv64Evex, FormFDiv32EvexMem, FormFDiv64EvexMem,
+        FormFDiv32, FormFDiv64, FormFDiv32Mem, FormFDiv64Mem,
+        "vdivss xmm, xmm, xmm/m"_v, "vdivsd xmm, xmm, xmm/m"_v,
+        "vdivss xmm, xmm, [address]"_v, "vdivsd xmm, xmm, [address]"_v,
+        "vdivss (evex) xmm, xmm, xmm/m"_v, "vdivsd (evex) xmm, xmm, xmm/m"_v,
+        "vdivss (evex) xmm, xmm, [address]"_v, "vdivsd (evex) xmm, xmm, [address]"_v);
+
+    vexTwin(FormFNeg32Vex, FormFNeg32, "vxorps xmm, xmm, [rip + signmask]"_v, true);
+    vexTwin(FormFNeg64Vex, FormFNeg64, "vxorpd xmm, xmm, [rip + signmask]"_v, true);
+
+    vexTwin(FormFCmp32Vex, FormFCmp32, "vucomiss xmm, xmm/m"_v, false);
+    vexTwin(FormFCmp32VexSet, FormFCmp32Set, "vucomiss xmm, xmm/m; setcc r"_v, false);
+    vexTwin(FormFCmp64Vex, FormFCmp64, "vucomisd xmm, xmm/m"_v, false);
+    vexTwin(FormFCmp64VexSet, FormFCmp64Set, "vucomisd xmm, xmm/m; setcc r"_v, false);
+
+    memoryTwin(FormFCmp32VexMem, FormFCmp32Vex, "vucomiss xmm, [address]"_v).alternativeOf = FormFCmp32Mem;
+    memoryTwin(FormFCmp32VexMemSet, FormFCmp32VexSet, "vucomiss xmm, [address]; setcc r"_v).alternativeOf = FormFCmp32MemSet;
+    memoryTwin(FormFCmp64VexMem, FormFCmp64Vex, "vucomisd xmm, [address]"_v).alternativeOf = FormFCmp64Mem;
+    memoryTwin(FormFCmp64VexMemSet, FormFCmp64VexSet, "vucomisd xmm, [address]; setcc r"_v).alternativeOf = FormFCmp64MemSet;
+
+    forms[FormFCmp32Mem].alternative = FormFCmp32VexMem;
+    forms[FormFCmp32MemSet].alternative = FormFCmp32VexMemSet;
+    forms[FormFCmp64Mem].alternative = FormFCmp64VexMem;
+    forms[FormFCmp64MemSet].alternative = FormFCmp64VexMemSet;
+
+    /*
      * Select.
      */
 
@@ -1362,6 +1586,14 @@ MachineTarget::MachineTarget() {
 
     floatStore(FormStoreF32, "movss [address], xmm"_v, 0xf3, ClassFloat32, OperationWidth::Fixed32);
     floatStore(FormStoreF64, "movsd [address], xmm"_v, 0xf2, ClassFloat64, OperationWidth::Fixed64);
+
+    // The VEX transfers. Two operands rather than three: a `vmovss` that reads memory has no merge
+    // source - it zeroes the rest of the register, which is what a load of a scalar wants - and a
+    // store has no destination register to name.
+    vexTwin(FormLoadF32Vex, FormLoadF32, "vmovss xmm, [address]"_v, false);
+    vexTwin(FormLoadF64Vex, FormLoadF64, "vmovsd xmm, [address]"_v, false);
+    vexTwin(FormStoreF32Vex, FormStoreF32, "vmovss [address], xmm"_v, false);
+    vexTwin(FormStoreF64Vex, FormStoreF64, "vmovsd [address], xmm"_v, false);
 
     /*
      * Block operations.
@@ -1763,6 +1995,52 @@ bool validateMachineForms(const MachineTarget& target) {
         checkField(encoding.regField, "names a ModRM.reg field that is not an operand of it"_v);
         checkField(encoding.rmField, "names an r/m field that is not an operand of it"_v);
         checkField(encoding.immField, "names an immediate field that is not an operand of it"_v);
+        checkField(encoding.vvvvField, "names a second source that is not an operand of it"_v);
+
+        /*
+         * The vector prefixes.
+         *
+         * Two rules, and both are about a field that would otherwise be written and ignored. Only a
+         * VEX or EVEX prefix has anywhere to put a second source register or a vector length, so a
+         * legacy encoding naming either is a form whose operands are not what its bytes say - the
+         * mistake being fenced off is deriving a VEX form and forgetting to set the encoding.
+         */
+        if(encoding.prefixEncoding == PrefixEncoding::Legacy) {
+            if(!encoding.vvvvField.isNone()) {
+                fail(form, "names a second source register, which only a VEX or EVEX prefix can carry"_v);
+            }
+
+            if(encoding.vectorLength != 0) {
+                fail(form, "states a vector length, which only a VEX or EVEX prefix can carry"_v);
+            }
+        } else {
+            // 512-bit is EVEX's alone: VEX has one length bit and cannot say it.
+            if(encoding.prefixEncoding == PrefixEncoding::Vex && encoding.vectorLength > 1) {
+                fail(form, "asks for a 512-bit operation under a VEX prefix, which has no length for it"_v);
+            }
+
+            if(encoding.opcodeMap < kOpcodeMap0F || encoding.opcodeMap > kOpcodeMap0F3A) {
+                fail(form, "names an opcode map no vector prefix can encode"_v);
+            }
+
+            // A form that can only be written with a prefix the target may not have is a form that
+            // has to say so, or selectForm would pick it on a machine that cannot execute it.
+            if((form.requiredFeatures & (kFeatureAvx | kFeatureAvx512f)) == 0) {
+                fail(form, "is written with a vector prefix without requiring the extension that defines it"_v);
+            }
+        }
+
+        // An alternative and the form it replaces are one operation, so what the rest of the backend
+        // reads off a form before selection has settled - what it does to the flags, what it costs -
+        // has to be the same on both. The operands deliberately are not: dropping the tie is the
+        // point of the VEX arithmetic forms.
+        if(form.alternativeOf != 0) {
+            auto& original = target.forms[form.alternativeOf];
+
+            if(original.opcode != form.opcode) fail(form, "is an alternative to a form of another opcode"_v);
+            if(original.flagsEffect != form.flagsEffect) fail(form, "disagrees with the form it replaces about the flags"_v);
+            if(original.uses.size() != form.uses.size()) fail(form, "takes a different number of operands than the form it replaces"_v);
+        }
 
         // An immediate field has to name an operand the form declared as one, or - for a constant
         // materialization, whose immediate is the value it defines rather than an operand - a
@@ -2078,8 +2356,32 @@ static MachineFormId selectMemorySourceForm(LowerBase base, MachineFormId id, Lo
     return isMem(base[inst->used()[memory]]) ? form.memorySource : id;
 }
 
+// The same operation written with a vector prefix, where this target can encode one - see
+// MachineForm::alternative. A swap made from a fact about the *target* rather than about the
+// instruction, which is what lets it be one line here instead of a feature test in every case of
+// selectFormForTarget below.
+static MachineFormId selectAlternativeForm(MachineFormId id) {
+    // A chain rather than a single step: the legacy form's alternative is the VEX one and the VEX
+    // form's is the EVEX one, so the highest tier the target can encode is the last link that
+    // answers. Walking it is what keeps each tier derived from the one below rather than every tier
+    // having to know about the ones above it.
+    for(;;) {
+        auto alternative = machineTarget().form(id).alternative;
+        if(!alternative) return id;
+
+        auto& form = machineTarget().form(alternative);
+        if((form.requiredFeatures & ~targetFeatures()) != 0) return id;
+
+        id = alternative;
+    }
+}
+
 MachineFormId selectForm(LowerBase base, LowerInst* inst) {
-    auto id = selectMemorySourceForm(base, selectFormForTarget(base, inst), inst);
+    // The alternative first and the memory twin second, because the twin of a VEX form is a VEX form
+    // and the alternative of a memory form is a memory form: applying them the other way round would
+    // reach the same place, and doing it in one order means only one of the two links has to be the
+    // complete one. Both are complete, so that neither order can go wrong.
+    auto id = selectMemorySourceForm(base, selectAlternativeForm(selectFormForTarget(base, inst)), inst);
 
     // A form whose encoding needs an extension this build does not have is not selectable, and the
     // rejection belongs here rather than in the encoder: by then the operands have been allocated

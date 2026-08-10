@@ -1129,11 +1129,13 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
 // comment at the top of frame.cpp.
 bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun);
 
-// Whether this function has to align rsp itself, because something in it needs a stronger boundary
-// than its own entry convention promises. Answered from the IR for the same reason the frame-pointer
-// question is: realigning requires a frame pointer, so the two have to be decided together and before
-// the allocator is told which registers it may hand out.
-bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints& constraints);
+// Whether this function may have to align rsp itself, because something in it could need a stronger
+// boundary than its own entry convention promises. Answered from the IR for the same reason the
+// frame-pointer question is - realigning requires a frame pointer, so both have to be settled before
+// the allocator is told which registers it may hand out - and it is a *may* because a spill slot
+// wider than a word demands the alignment only if the allocator actually creates one. The exact
+// answer belongs to computeFrameLayout, which has the slots in front of it; see FrameLayout.
+bool functionMayRealignStack(LowerBase base, LowerFunction& fun, const Constraints& constraints);
 
 // Whether this backend can build a frame for this function at all, reported if it cannot. Answered
 // from the IR before any backend decision has been taken, and unconditionally rather than as an

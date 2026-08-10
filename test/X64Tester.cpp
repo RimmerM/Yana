@@ -25,30 +25,54 @@ using namespace Tritium;
 // Codegen settings a test file selects for itself, written as a comment on any line:
 //
 //     # frame-pointer: all
+//     # extensions: avx
 //
-// Only the frame-pointer mode is settable so far. Two test files with the same functions and
-// different directives is how the modes are compared, which keeps every golden an ordinary one.
+// Two test files with the same functions and different directives is how the settings are compared,
+// which keeps every golden an ordinary one.
+//
+// `extensions` is what makes the VEX and EVEX encodings testable: a fixture that names one gets the
+// forms that need it, and one that names none gets exactly the bytes it got before those forms
+// existed. It sets `explicitExtensions` for the same reason the command line does - the local
+// backend takes an unnamed extension as absent, so a golden cannot change with the machine that ran
+// it (see CompileSettings::explicitExtensions).
 static void applyDirectives(CompileSettings& settings, StringView content) {
+    auto find = [&](StringView directive, auto&& match) {
+        for(Size i = 0; i + directive.length <= content.length; i++) {
+            if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+            match(content.ptr + i + directive.length, content.length - i - directive.length);
+        }
+    };
+
     static const struct { StringView name; FramePointerMode mode; } modes[] = {
         { "all"_v, FramePointerMode::All },
         { "non-leaf"_v, FramePointerMode::NonLeaf },
         { "needed"_v, FramePointerMode::Needed },
     };
 
-    auto directive = "# frame-pointer: "_v;
-
-    for(Size i = 0; i + directive.length <= content.length; i++) {
-        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
-
-        auto rest = content.ptr + i + directive.length;
-        auto left = content.length - i - directive.length;
-
+    find("# frame-pointer: "_v, [&](const char* rest, Size left) {
         for(auto& m: modes) {
             if(m.name.length <= left && compareMem(rest, m.name.ptr, m.name.length) == 0) {
                 settings.framePointer = m.mode;
             }
         }
-    }
+    });
+
+    // Longest first, so that "avx512" is not read as "avx" with trailing text.
+    static const struct { StringView name; TargetExtensions::SSEMode sse; } levels[] = {
+        { "avx512"_v, TargetExtensions::AVX512 },
+        { "avx2"_v, TargetExtensions::AVX2 },
+        { "avx"_v, TargetExtensions::AVX },
+    };
+
+    find("# extensions: "_v, [&](const char* rest, Size left) {
+        for(auto& level: levels) {
+            if(level.name.length <= left && compareMem(rest, level.name.ptr, level.name.length) == 0) {
+                settings.extensions.sse = level.sse;
+                settings.explicitExtensions = true;
+                return;
+            }
+        }
+    });
 }
 
 struct TestProvider: SourceProvider {

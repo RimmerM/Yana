@@ -1,4 +1,5 @@
 #include "target.h"
+#include "../../compiler/settings.h"
 
 /*
  * The AMD64 register description.
@@ -10,15 +11,50 @@
  * than described differently here.
  */
 
-// The features this backend compiles for. Everything the form table names is assumed present; the
-// value of stating it at all is that a form requiring something else cannot be selected by accident
-// once there is a target description to configure - and that the register file's own size follows
-// from it rather than from a constant that would have to be kept in step by hand.
-//
-// AVX and AVX-512 are absent: their encodings are VEX and EVEX, which this backend does not write
-// yet, so a target claiming them would be a register file no encoder can name.
+// What this backend claims about AMD64 itself, and what a build that configures nothing gets. The
+// three are unconditional because they are older than any target description here: making them
+// depend on detected extensions would change existing programs' code according to the machine that
+// compiled them. See the comment on x64FeaturesFor in target.h.
+static constexpr FeatureSet kBaselineFeatures = kFeaturePopcnt | kFeatureRdtscp | kFeatureXsave;
+
+static FeatureSet gTargetFeatures = kBaselineFeatures;
+
 FeatureSet targetFeatures() {
-    return kFeaturePopcnt | kFeatureRdtscp | kFeatureXsave;
+    return gTargetFeatures;
+}
+
+void setTargetFeatures(FeatureSet features) {
+    // The register description is built once and never rebuilt, so a feature change that would give
+    // the machine a different number of registers has to be refused rather than ignored - a bank
+    // whose size disagrees with the masks already handed out is an allocator writing outside them.
+    // Nothing does this today; the check is what keeps it that way as feature levels are added.
+    assertTrue(vectorRegisterCount() == vectorRegisterCountFor(features));
+    assertTrue(maskRegisterCount() == maskRegisterCountFor(features));
+
+    gTargetFeatures = features;
+}
+
+FeatureSet x64FeaturesFor(const CompileSettings& settings) {
+    auto features = kBaselineFeatures;
+    if(!settings.explicitExtensions) return features;
+
+    if(settings.extensions.sse >= TargetExtensions::AVX) features |= kFeatureAvx;
+
+    /*
+     * AVX-512 is claimed for its *encoding* and not for its register file.
+     *
+     * EVEX is two things at once: a longer prefix, and sixteen more vector registers plus the mask
+     * bank that only that prefix can name. The encoder below writes it, so the first half is here;
+     * the second half is not, because a register the allocator may hand out has to be nameable by
+     * every form that could receive a value in it, and the legacy and VEX forms cannot name xmm16.
+     * Handing out xmm16 while any form is still legacy is an encoding that silently means xmm0.
+     *
+     * So `vectorRegisterCountFor` holds the bank at sixteen whatever the features say, and lifting
+     * it is stage 5's - it comes with the EVEX forms that make the upper half reachable.
+     */
+    if(settings.extensions.sse >= TargetExtensions::AVX512) features |= kFeatureAvx512f;
+
+    return features;
 }
 
 // Every register of a bank, as a mask. Written from the count rather than register by register so
@@ -51,14 +87,28 @@ RegSet allocatableRegs() {
  * EVEX is what makes xmm16-31 nameable at all and what introduces the mask registers, so without it
  * the upper half of the vector bank and the whole of the mask bank are registers this machine does
  * not have - not registers it merely cannot encode.
+ *
+ * Both are capped below what the feature bit allows, and the cap is not about the encoder. It is
+ * that a register the allocator hands out has to be nameable by *every* form a value in it can
+ * reach, and the legacy and VEX forms this backend still selects cannot name xmm16 or a k-register
+ * at all. Lifting the cap is stage 5's, together with the EVEX forms that make the upper half
+ * reachable; see x64FeaturesFor.
  */
 
+Size vectorRegisterCountFor(FeatureSet) {
+    return 16;
+}
+
+Size maskRegisterCountFor(FeatureSet) {
+    return 0;
+}
+
 Size vectorRegisterCount() {
-    return (targetFeatures() & kFeatureAvx512f) ? 32 : 16;
+    return vectorRegisterCountFor(targetFeatures());
 }
 
 Size maskRegisterCount() {
-    return (targetFeatures() & kFeatureAvx512f) ? 8 : 0;
+    return maskRegisterCountFor(targetFeatures());
 }
 
 TargetRegisters::TargetRegisters() {

@@ -1,0 +1,116 @@
+# The scalar float arithmetic once more, at the AVX-512 level.
+#
+# extensions: avx512
+#
+# The tier above FloatVex.lower, and it exists for the encoder rather than for the code: an EVEX
+# prefix is four bytes where the VEX one is two or three, and for a scalar operation it buys nothing
+# at all. What it buys later is the upper sixteen vector registers, which no other prefix can name -
+# so every form a scalar value can reach needs an EVEX spelling before `vectorRegisterCountFor` can
+# hand out xmm16, and this is where those spellings are checked.
+#
+# Only the arithmetic has one so far. The comparisons and transfers here still take their VEX forms,
+# which is why they are in this file too: the mixture is what a target at this level actually emits.
+
+arith64(%a: Double, %b: Double): Double {
+    {
+        %s = add %a, %b: Double
+        %d = sub %s, %b: Double
+        %m = mul %d, %a: Double
+        %q = div %m, %b: Double
+        ret %q
+    }
+}
+
+arith32(%a: Float, %b: Float): Float {
+    {
+        %s = add %a, %b: Float
+        %d = sub %s, %b: Float
+        %m = mul %d, %a: Float
+        %q = div %m, %b: Float
+        ret %q
+    }
+}
+
+# Every source read twice, so that no operand can be written over and the three-operand form is what
+# keeps this to four instructions. Under the legacy forms each of these carries a copy.
+noReuse(%a: Double, %b: Double): Double {
+    {
+        %s = add %a, %b: Double
+        %d = sub %a, %b: Double
+        %m = mul %s, %d: Double
+        %q = div %m, %a: Double
+        ret %q
+    }
+}
+
+# The three-byte prefix: the operand the allocator put in one of the upper eight registers cannot be
+# named by the two-byte form, which has no B bit.
+manyLive(%a: Double, %b: Double, %c: Double, %d: Double, %e: Double, %f: Double, %g: Double, %h: Double, %i: Double, %j: Double): Double {
+    {
+        %ab = add %a, %b: Double
+        %cd = add %c, %d: Double
+        %ef = add %e, %f: Double
+        %gh = add %g, %h: Double
+        %ij = add %i, %j: Double
+        %x = mul %ab, %cd: Double
+        %y = mul %ef, %gh: Double
+        %z = mul %x, %y: Double
+        %r = div %z, %ij: Double
+        ret %r
+    }
+}
+
+# Negation, which is the pseudo that also loses its tie: `vxorps xmm, xmm, [rip + signmask]` names
+# its source separately where `xorps` toggled the bit in the destination.
+negate(%a: Double, %b: Float): Double {
+    {
+        %n = neg %a: Double
+        %m = neg %b: Float
+        %w = cast %m: Double
+        %r = add %n, %w: Double
+        ret %r
+    }
+}
+
+# The comparisons, which have nothing to drop: `vucomisd` is `ucomisd` with a different prefix.
+compare(%a: Double, %b: Double): Int {
+    {
+        %c = cmp_gt %a, %b: Int
+        je %c, then, else
+    }
+  then {
+        ret 1
+    }
+  else {
+        ret 0
+    }
+}
+
+compareValue(%a: Float, %b: Float): Int {
+    {
+        %c = cmp_lt %a, %b: Int
+        %d = add %c, %c: Int
+        ret %d
+    }
+}
+
+# A load folded into the operation that reads it, which is the memory twin of a VEX form: three
+# operands and an address in the r/m field at once.
+loadFold(%p: Ptr, %a: Double): Double {
+    {
+        %v = load %p, 8: Double
+        %s = add %a, %v: Double
+        %w = load %p, 8: Double
+        %m = mul %s, %w: Double
+        ret %m
+    }
+}
+
+# And the transfers on their own, where the address is the whole instruction.
+transfer(%p: Ptr, %q: Ptr): Float {
+    {
+        %v = load %p, 4: Float
+        store %q, %v, 4
+        ret %v
+    }
+}

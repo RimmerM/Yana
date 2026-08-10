@@ -610,6 +610,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
         return Err(error);
     }
 
+    settings.explicitExtensions = hasExtensions;
     applyDefaults(settings, hasArch, hasTarget, hasFormat, hasExtensions);
     return Ok(move(settings));
 }

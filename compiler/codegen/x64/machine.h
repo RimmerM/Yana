@@ -425,6 +425,32 @@ enum class PseudoKind: U8 {
     PortIn8, // a byte read from a port, zero-extended into the whole result
 };
 
+/*
+ * How the bytes in front of an opcode are written.
+ *
+ * `Legacy` is the shape every form had before there was a choice: a mandatory prefix byte, then REX
+ * if the width or a register number needs one, then the opcode's escape byte. The other two fold all
+ * three into one prefix and add what the ModRM byte has no room for - a second source register, so
+ * that the operation stops being two-address, and a vector length.
+ *
+ * It is a property of the *form* rather than of the opcode, which is the whole point: `addsd` and
+ * `vaddsd` do the same thing to the same registers and differ in how they are written and in whether
+ * the destination has to be one of the sources. So they are two forms of one machine opcode, listed
+ * with the feature each needs, and selectForm takes whichever the target can encode.
+ */
+enum class PrefixEncoding: U8 {
+    Legacy,
+    Vex,  // the two- and three-byte forms, chosen by which fields are needed
+    Evex, // the four-byte form, and the only one that can name xmm16-31 or a mask register
+};
+
+// The opcode map a VEX or EVEX prefix names in place of the escape bytes a legacy encoding writes.
+enum : U8 {
+    kOpcodeMap0F = 1,
+    kOpcodeMap0F38 = 2,
+    kOpcodeMap0F3A = 3,
+};
+
 // The width an encoding operates at, which is not always the width of the value it produces: a
 // comparison yields an Int32 whatever it compared, and an unsigned cast moves at the narrower of its
 // two types because a 32-bit move clears the upper half of its destination either way.
@@ -465,6 +491,21 @@ struct EncodingDescriptor {
     OperandRef rmField;   // the operand in ModRM.r/m, which may be a register or a frame slot
     OperandRef immField;  // the operand carrying the immediate
 
+    /*
+     * The second source register, which only a VEX or EVEX prefix has anywhere to put.
+     *
+     * This is the field that makes the difference between `addsd xmm1, xmm2` and
+     * `vaddsd xmm1, xmm2, xmm3` a matter of the descriptor rather than of the encoder: with it, the
+     * three registers an operation names are ModRM.reg, VEX.vvvv and ModRM.r/m, and the destination
+     * no longer has to be one of the sources. The form drops its `tiedDef` accordingly, and the copy
+     * the allocator was inserting to satisfy the tie disappears with it.
+     *
+     * Absent for a form that genuinely has two operands - a compare, a conversion - which is encoded
+     * as vvvv naming register zero, since the field is inverted and every such encoding requires the
+     * inverted value to be all ones.
+     */
+    OperandRef vvvvField;
+
     OperationWidth width = OperationWidth::FromResult;
     EncodingPrelude prelude = EncodingPrelude::None;
 
@@ -477,6 +518,22 @@ struct EncodingDescriptor {
     // unaffected: whether a frame slot is exactly the size of the access that would read it in
     // place, which is a property of the value rather than of the prefix that names it.
     bool widthInPrefix = false;
+
+    /*
+     * Which prefix shape the bytes above are written inside.
+     *
+     * `prefix` and `escape` keep their meanings under all three: a VEX prefix does not write them as
+     * bytes, it carries the same two facts in its `pp` and map fields, so one descriptor describes
+     * both spellings of an operation and the encoder reads the same two fields either way. `map` is
+     * what an escape of more than one byte would otherwise need a second field for, and is ignored
+     * by the legacy shape.
+     *
+     * `vectorLength` is VEX.L and EVEX.L'L: zero for a scalar operation and for a 128-bit packed
+     * one, which are the same encoding and differ only in opcode.
+     */
+    PrefixEncoding prefixEncoding = PrefixEncoding::Legacy;
+    U8 opcodeMap = kOpcodeMap0F;
+    U8 vectorLength = 0;
 
     // How many bytes of the immediate the LoadStore family writes after the address. The other
     // families take the width from the value - one byte or four, according to which opcode was
@@ -575,6 +632,26 @@ struct MachineForm {
     // opcode names the same operand as its address (validateMachineForms).
     MachineFormId memorySource = 0;
     MachineFormId memorySourceOf = 0;
+
+    /*
+     * The same operation written with a vector prefix, where the target can encode one.
+     *
+     * Chosen exactly as `memorySource` is - a swap made by selectForm from a fact that is not the
+     * instruction's - and the two compose: the alternative is taken first and its own memory twin
+     * after it, so a VEX form reading a folded address is one lookup and not a fourth entry.
+     *
+     * It is not merely a shorter spelling. The VEX forms of the scalar operations are
+     * *three-operand*: the destination is named on its own instead of being one of the sources, so
+     * the alternative drops the tie and the copy the allocator was inserting to satisfy it. That is
+     * the whole reason to prefer it, and it is why this is a different form rather than a different
+     * encoding of the same one - the operand constraints differ, and the allocator reads those.
+     *
+     * `alternativeOf` is the back-pointer, and exists for the same reason `memorySourceOf` does:
+     * validateMachineForms has rules about the forms of one opcode agreeing, and an alternative is
+     * the one kind that deliberately does not.
+     */
+    MachineFormId alternative = 0;
+    MachineFormId alternativeOf = 0;
 
     // The operand that may be read directly out of a frame slot, and the one that may be read and
     // written there in place, as indices into `uses`. At most one of the two can be taken at any one

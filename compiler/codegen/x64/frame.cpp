@@ -95,11 +95,60 @@ static U32 requiredStackAlignment(LowerBase base, LowerFunction& fun, const Cons
     return required;
 }
 
-bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints& constraints) {
+/*
+ * And the strongest boundary a *spill slot* could ask for, which is the one part of the answer the
+ * IR does not state outright.
+ *
+ * The allocator decides what spills and it has not run yet, so which slots exist is not knowable
+ * here. What is knowable is how wide each of them could be: a spill slot's class is
+ * `stackSlotClassFor` of the value's type and nothing else (see takeSlot), so the *set* of
+ * alignments a function's slots can be drawn from is a property of its value types alone. Reading
+ * the set rather than the membership is what lets the question be asked this early at all.
+ *
+ * It answers 8 for every function the lowering produces today, since no scalar spills wider than a
+ * word. A packed vector value is the first thing that raises it, and it is the reason this exists:
+ * a slot wanting more alignment than the entry convention promises is a realignment, and a
+ * realignment needs a frame pointer, and whether rbp is a frame pointer has to be settled before
+ * the allocator starts.
+ */
+static U32 spillStackAlignment(LowerBase base, LowerFunction& fun) {
+    U32 required = 8;
+
+    auto raise = [&](LowerType type) {
+        auto alignment = stackSlotSize(stackSlotClassFor(type));
+        if(alignment > required) required = alignment;
+    };
+
+    // Every instruction, arguments included: a `LowerArg` is an instruction of the entry block and
+    // the value it creates is spilled by the same rule as any other.
+    for(auto offset: fun.blocks.contents(base)) {
+        for(auto i: base[offset]->instructions.contents(base)) {
+            auto inst = base[i];
+            for(auto& value: inst->created()) raise(value.type);
+        }
+    }
+
+    return required;
+}
+
+/*
+ * Whether the prologue may have to establish a stronger boundary than it was entered on.
+ *
+ * A *may* rather than a *does*, and the difference is the spill slots: a function holding a value
+ * that would need an over-aligned slot pays for one only if the allocator actually spills it, which
+ * is not known until it has. The exact answer is taken in computeFrameLayout below, once the slots
+ * exist; what this answers is the question that has to be settled before allocation, which is
+ * whether rbp has to be held back as a frame pointer in case the answer turns out to be yes.
+ *
+ * Being conservative here costs a register in a function that turns out not to need it. Being
+ * conservative about the *realignment* would cost a mask, a second base and every local's addressing
+ * mode, which is why the two are separated rather than answered once.
+ */
+bool functionMayRealignStack(LowerBase base, LowerFunction& fun, const Constraints& constraints) {
     // A function is entered with rsp on whatever boundary its own convention promises, and padding
     // can only preserve that - so anything stronger has to be established here.
-    return requiredStackAlignment(base, fun, constraints)
-        > constraints.getConvention(fun.callType).stackAlignment;
+    auto entry = constraints.getConvention(fun.callType).stackAlignment;
+    return requiredStackAlignment(base, fun, constraints) > entry || spillStackAlignment(base, fun) > entry;
 }
 
 /*
@@ -112,16 +161,29 @@ bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints
  * Refused *unconditionally*, which is the whole reason this exists as a function. It used to be an
  * `assertTrue` inside computeFrameLayout, and assertTrue compiles away in a release build: the same
  * program that stopped in a debug build emitted a frame whose locals move under it in a release one,
- * which is the worst of the two possible answers. Both inputs are properties of the IR, so the
- * question can be asked before any of the backend's decisions have been taken - and the answer given
- * as a diagnostic naming the function rather than as a crash inside it.
+ * which is the worst of the two possible answers.
+ */
+static void reportUnsupportedFrame(Context& ctx, LowerFunction& fun) {
+    ctx.diagnostics.error("x64: %@ both allocates at run time and needs a stack alignment stronger than its calling convention promises, and this backend cannot build a frame that does both - the alignment moves the locals below the stack pointer and the allocation moves the stack pointer out from under them"_v,
+                          nullptr, ctx.findName(fun.name));
+}
+
+/*
+ * Asked here of everything the IR states outright, and asked again in computeFrameLayout of the one
+ * thing it does not.
+ *
+ * The split is the same one functionMayRealignStack draws and it is drawn here for a sharper reason:
+ * this is a *refusal*, so answering it conservatively would reject programs that compile. An alloca
+ * that demands an over-aligned address and a call that demands an over-aligned rsp are both written
+ * in the IR and are exact here; a spill slot that demands one is not, and refusing every function
+ * that merely *holds* a wide value would refuse most of them. So the wide-spill half is left to the
+ * layout, which knows whether a slot was actually made - and reports the same diagnostic when it was.
  */
 bool checkFrameSupported(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints) {
     if(!hasDynamicAlloca(base, fun)) return true;
-    if(!functionRealignsStack(base, fun, constraints)) return true;
+    if(requiredStackAlignment(base, fun, constraints) <= constraints.getConvention(fun.callType).stackAlignment) return true;
 
-    ctx.diagnostics.error("x64: %@ both allocates at run time and needs a stack alignment stronger than its calling convention promises, and this backend cannot build a frame that does both - the alignment moves the locals below the stack pointer and the allocation moves the stack pointer out from under them"_v,
-                          nullptr, ctx.findName(fun.name));
+    reportUnsupportedFrame(ctx, fun);
     return false;
 }
 
@@ -130,7 +192,7 @@ bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun)
     // rsp and anything; after a realignment the distance from rsp back to the frame is only known at
     // run time. Both override every mode below.
     if(hasDynamicAlloca(base, fun)) return true;
-    if(functionRealignsStack(base, fun, targetConstraints())) return true;
+    if(functionMayRealignStack(base, fun, targetConstraints())) return true;
 
     switch(ctx.settings.framePointer) {
         case FramePointerMode::All:
@@ -203,10 +265,11 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     }
 
     // The callee-saved vector registers go above the slots, in one region of their own. It is not
-    // aligned to the width it holds and does not ask the frame to be: raising the frame's alignment
-    // here is not possible - the decision was taken before the allocator ran and before anything
-    // knew a vector register would be saved - so the saves use the unaligned encoding instead, which
-    // is correct at any alignment and exactly as long. See kClassMoves in gen.cpp.
+    // aligned to the width it holds and does not ask the frame to be, and that is now a choice
+    // rather than an impossibility: raising `maxAlign` here would work - the layout below reads it
+    // like any other - but it would buy nothing. The unaligned encoding is correct at any alignment
+    // and exactly as long, and Complex is entered on eight, so asking for sixteen here would turn
+    // every function that saves a vector register into a realigning one. See kClassMoves in gen.cpp.
     auto vectorSaveRegion = size;
     size += kVectorSaveSize * U32(layout.savedVectors.count());
 
@@ -216,30 +279,43 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // boundary only lands on that boundary if the base does too.
     auto alignment = frame.callAlignment > maxAlign ? frame.callAlignment : maxAlign;
 
-    // Whether the prologue has to establish that boundary itself. Answered before allocation ran,
-    // because realigning needs a frame pointer and the allocator had to be told; what is checked here
-    // is only that the answer covered everything the frame turned out to need. A spill slot wanting
-    // more than 8 is what would not have been visible from the IR - and cannot happen while every
-    // value the lowering produces is a scalar, since a scalar spills at its own width and no scalar
-    // is wider than eight bytes. A packed vector value would be the first to break that, which is
-    // why the saved vector registers above take unaligned stores rather than raising `maxAlign`.
+    /*
+     * Whether the prologue has to establish that boundary itself - decided here, from the slots the
+     * allocator actually made, rather than from the pre-pass's guess about them.
+     *
+     * The two are separate questions and they are answered at different times on purpose. Whether
+     * rbp is a frame pointer has to be settled *before* allocation, because the allocator either
+     * hands the register out or does not; whether the prologue realigns has to be settled *after*,
+     * because a spill slot wider than a word is the first thing that can demand it and no one knows
+     * what spilled until it has run. functionMayRealignStack answers the first conservatively, which
+     * is what makes the answer here free to be exact.
+     *
+     * So the assertion below is the seam between them: a realignment the pre-pass did not see coming
+     * is a frame with no register to address itself through.
+     */
     auto entryAlignment = constraints.getConvention(fun.callType).stackAlignment;
-    layout.realignsStack = functionRealignsStack(base, fun, constraints);
+    layout.realignsStack = alignment > entryAlignment;
 
-    assertTrue(layout.realignsStack || alignment <= entryAlignment); // an alignment the pre-pass did not see
-    assertTrue(!layout.realignsStack || layout.framePointer);        // realigning loses the distance to rsp
+    assertTrue(!layout.realignsStack || layout.framePointer); // realigning loses the distance to rsp
 
     /*
      * Not supported together: a realigning frame keeps its locals below the mask and addresses them
      * through rsp, and a run-time allocation moves rsp out from under them. Supporting both would
      * take a third base register held for the whole function, which nothing reserves.
      *
-     * checkFrameSupported has already reported it, unconditionally, before any of this ran - so what
-     * is left here is only to build *a* frame rather than an inconsistent one, and the frame that is
-     * still internally consistent is the one that does not realign. It is under-aligned for whatever
-     * asked for the alignment, which is what the diagnostic says; nothing runs it.
+     * checkFrameSupported reported it before any of this ran wherever the IR said so outright. What
+     * it could not see is a realignment demanded by a *spill slot*, since nothing knew what would
+     * spill - so the report is made here as well, and the two are exclusive: whichever of them sees
+     * the combination first is the one that names it.
+     *
+     * What is left after either is only to build *a* frame rather than an inconsistent one, and the
+     * frame that is still internally consistent is the one that does not realign. It is under-aligned
+     * for whatever asked for the alignment, which is what the diagnostic says; nothing runs it.
      */
-    if(layout.realignsStack && frame.hasDynamicAlloca) layout.realignsStack = false;
+    if(layout.realignsStack && frame.hasDynamicAlloca) {
+        if(requiredStackAlignment(base, fun, constraints) <= entryAlignment) reportUnsupportedFrame(ctx, fun);
+        layout.realignsStack = false;
+    }
 
     // Locals and spill slots hang off rsp whenever there is no frame pointer, and also whenever the
     // prologue realigns - that is where the aligned region is. Otherwise they sit directly below the

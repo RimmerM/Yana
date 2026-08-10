@@ -201,6 +201,18 @@ struct CompileSettings {
     TargetExtensions extensions;
 
     /*
+     * Whether `-extensions` was named, in the same sense `explicitBackend` above is.
+     *
+     * `applyDefaults` fills `extensions` in from the host's own CPUID when nothing said otherwise,
+     * which is a *guess* about where the program will run and not a promise about it. The two
+     * backends are entitled to read that guess differently and do: LLVM passes it through as a
+     * feature string, where the local backend takes an unnamed extension as unavailable, because a
+     * compiler whose output depends on which machine built it has no reproducible goldens and no
+     * comparable benchmark numbers. Naming one is the promise; detecting one is not.
+     */
+    bool explicitExtensions = false;
+
+    /*
      * Which native code generator runs - see NativeBackend. Read only by `-mode exe`; `-mode llvm`
      * and the JavaScript modes have exactly one path each and nothing to choose between, and a
      * value left here for one of them is ignored rather than contradicted.
