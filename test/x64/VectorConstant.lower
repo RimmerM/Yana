@@ -1,0 +1,83 @@
+# Vector constants in the pool - Implementation-Vector.md §0.2's prerequisite spent on what it was
+# asked for, and the withdrawal of §5's "turned out not to need to be".
+#
+# There is deliberately no vector constant in the IR (§9.7): a lane pattern is not an immediate on
+# any of these machines, so what the resolver builds is a `vsplat` of a constant and a chain of
+# `vwithlane`s over it. `poolVectorConstants` reads that chain, lays the bytes out, interns them as a
+# `.rodata` global and replaces the whole of it with one rip-relative load.
+#
+# Two things to read out of the bytes below. `iota` at four lanes was five instructions - a zeroed
+# register, a bank crossing, a shuffle and three lane inserts - and is one move. And where the
+# constant has exactly one reader the load does not survive either: `foldLoads` puts it in the
+# addressing mode of the instruction below it, which is what §5.4.1's memory twin opened.
+
+# The chain the resolver builds for `iota()`, written out. One load, and the four constants and the
+# three inserts are gone.
+iota(): i32x4 {
+    {
+        %z = imm 0: Int
+        %v = vsplat %z: i32x4
+        %o = imm 1: Int
+        %a = vwithlane %v, %o, 1: i32x4
+        %t = imm 2: Int
+        %b = vwithlane %a, %t, 2: i32x4
+        %r = imm 3: Int
+        %c = vwithlane %b, %r, 3: i32x4
+        ret %c
+    }
+}
+
+# A splat of a literal, which is the other shape a program writes. Every lane the same byte pattern,
+# so the entry is the broadcast and the name is still the whole of it.
+splat(): i32x4 {
+    {
+        %n = imm 7: Int
+        %v = vsplat %n: i32x4
+        ret %v
+    }
+}
+
+# The fold. The constant has one reader, so it never reaches a register of its own - the add takes it
+# as a memory operand and the load is gone.
+folded(%a: i32x4): i32x4 {
+    {
+        %n = imm 3: Int
+        %v = vsplat %n: i32x4
+        %s = add %a, %v: i32x4
+        ret %s
+    }
+}
+
+# A float lane, whose constant is held as a double in the IR and is rounded to what it will be before
+# its bits are taken - the same two lines the scalar pool already ran.
+floats(): f32x4 {
+    {
+        %h = imm 0.5f: Float
+        %v = vsplat %h: f32x4
+        %q = imm 0.25f: Float
+        %a = vwithlane %v, %q, 2: f32x4
+        ret %a
+    }
+}
+
+# Zero, which the scalar float pool leaves an immediate and this one does not: `xorps` is a form that
+# pass can fall back on and a vector has none, so `vsplat 0` is three instructions and a load is one.
+zero(): i64x2 {
+    {
+        %z = imm 0L: Long
+        %v = vsplat %z: i64x2
+        ret %v
+    }
+}
+
+# All ones, the other constant this machine makes out of nothing: `pcmpeqd r, r` compares a register
+# with itself and every lane of a register equals itself whatever it holds. The lane width does not
+# enter into it - all ones at 32 bits is all ones at any other - which is why one form serves a byte
+# lane and a mask alike.
+ones(): i32x4 {
+    {
+        %n = imm -1: Int
+        %v = vsplat %n: i32x4
+        ret %v
+    }
+}

@@ -1,0 +1,94 @@
+{-
+   A vector at a lane count the target did not choose, and the conversion ladder over two of them -
+   Implementation-Vector.md §9 items 1 and 2, Design-Vector §3.4.
+
+   Two things are asserted here and neither of them is a number.
+
+   **Every lane type at every lane count has the classes.** `Vec(I16, 4)` is the natural form of
+   nothing on any target this compiles for, and `+`, `and`, `shl` and an integer literal all work over
+   one. That is item 1's remaining half, and what makes it affordable is that the instance is
+   generated where it is asked for rather than by a loop over the whole cross product - see simd.cpp.
+
+   **A vector conversion is the ordinary conversion.** `Widen`, `Narrow` and `Bitcast` over vector
+   types under the rules the language already has: `::` widens `Vec(I16, 4)` into `Vec(I32, 4)`
+   because `::` widens `I16` into `I32`, `truncate` is what the other direction is written as, and
+   `bitcast` relates two vectors of one byte width. The ladder is the scalar one lifted, and it is
+   lifted by *asking* the scalar question rather than by a second table - so there is no way for the
+   two to disagree.
+
+   **There is no number, and that is the honest state rather than an omission.** The portable set is
+   declared over `Vec(a)`, which is the *natural* form of its lane type, so `lane` cannot read out of
+   an explicitly sized vector at all: a lane count is not a bindable position in a signature, and
+   making it one is const generics. What an explicitly sized vector supports today is arithmetic and
+   conversion, and the goldens are what assert them. The mutable global is what keeps them there -
+   with nothing observable the whole file folds to the constant `main` returns.
+
+   A bitcast that changes the lane *count* is `VecRegroup.yana`'s: it has no JavaScript form, and this
+   file has to compile for both targets.
+-}
+
+let &sink = 0 :: Vec(I16, 4)
+
+-- The classes, over a lane count no target chose. Each `let` is one instruction in the golden, which
+-- is the whole of what an instance over a vector buys: an `InstBinary` over a vector is an
+-- `InstBinary`.
+--
+-- `FromInt` comes with `Num` and is not optional: `class (FromInt(a)) Num(a)`, so a vector that has
+-- `Num` has to say what an integer literal means as one, and "the literal in every lane" is the only
+-- answer that is not arbitrary.
+@noinline
+fn arithmetic(a: Vec(I16, 4)) -> Vec(I16, 4):
+    let b = 4 :: Vec(I16, 4)
+
+    let sum = a + b
+    let product = a * b
+    let masked = sum `and` product
+    let shifted = masked `shl` b
+
+    return shifted - a
+
+-- The same at two other shapes, so the goldens show that the count and the lane type are what vary
+-- and nothing else. A 64-bit integer lane is deliberately not among them: JS refuses one.
+@noinline
+fn widths(narrow: Vec(U8, 4), middle: Vec(U32, 2)) -> Vec(U8, 4):
+    let doubled = middle + middle
+    return narrow `or` (narrow `shl` narrow)
+
+{-
+   The ladder. Each of these is one `cast` or one `bitcast` in the golden, which is the point: the
+   conversion rules are the type system's rather than the vector library's.
+-}
+@noinline
+fn widening(v: Vec(I16, 4)) -> Vec(I32, 4):
+    return v
+
+@noinline
+fn narrowing(v: Vec(I32, 4)) -> Vec(I16, 4):
+    return truncate(v)
+
+@noinline
+fn reinterpreting(v: Vec(I32, 4)) -> Vec(F32, 4):
+    return bitcast(v)
+
+-- `F32` and `F64` are names for `Float` and `Double` on the terms `Size` is a name for `I64`, so this
+-- is the identity: `sameType` answers before any instance is looked for, and the golden shows no
+-- conversion at all.
+@noinline
+fn aliases(v: Vec(F32, 4)) -> Vec(Float, 4):
+    return v
+
+fn main() -> Int:
+    let sized = arithmetic(sink)
+    let widened = widening(sized)
+    let back = narrowing(widened)
+
+    let bits = aliases(reinterpreting(widened))
+    let narrow = widths(1 :: Vec(U8, 4), 2 :: Vec(U32, 2))
+
+    -- Everything above lands here, which is what keeps it alive: a write to a mutable global is an
+    -- effect, so nothing feeding it may be dropped. The `xor` is over `Vec(I16, 4)`, which every
+    -- operand reaches by the ladder above rather than by a spelling of its own.
+    sink = (back `xor` (truncate(bitcast(bits) :: Vec(I32, 4)) :: Vec(I16, 4)))
+              `xor` (narrow :: Vec(I16, 4))
+
+    return 1

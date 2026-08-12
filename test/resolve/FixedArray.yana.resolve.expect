@@ -373,7 +373,8 @@ fn padRead() -> I64 {
     %v20 = alloc : Flat(Pad)
     %v21 = addressof [%v19] : %Pad
     init %local4@Flat.items, %v21
-    %v24 = cast 3 : I64
+    %v23 = countof 3 : Long
+    %v24 = cast %v23 : I64
     init %local4@Flat.length, %v24
     %v27 = borrow %local4 : &Flat(Pad)
     %v28 = load [%v27]@Flat.length : I64
@@ -393,7 +394,8 @@ fn padRead() -> I64 {
     %v43 = alloc : Flat(Pad)
     %v44 = addressof [%v42] : %Pad
     init %local5@Flat.items, %v44
-    %v47 = cast 3 : I64
+    %v46 = countof 3 : Long
+    %v47 = cast %v46 : I64
     init %local5@Flat.length, %v47
     %v50 = borrow %local5 : &Flat(Pad)
     %v51 = load [%v50]@Flat.length : I64
@@ -414,7 +416,8 @@ fn padRead() -> I64 {
     %v67 = alloc : Flat(Pad)
     %v68 = addressof [%v66] : %Pad
     init %local6@Flat.items, %v68
-    %v71 = cast 3 : I64
+    %v70 = countof 3 : Long
+    %v71 = cast %v70 : I64
     init %local6@Flat.length, %v71
     %v74 = borrow %local6 : &Flat(Pad)
     %v75 = load [%v74]@Flat.length : I64
@@ -473,7 +476,8 @@ fn main() -> Int {
     %v32 = alloc : Flat(Int)
     %v33 = addressof [%v31] : %Int
     init %local1@Flat.items, %v33
-    %v36 = cast 4 : I64
+    %v35 = countof 4 : Long
+    %v36 = cast %v35 : I64
     init %local1@Flat.length, %v36
     %v38 = call total, %v32 : Int
     %v41 = cmp_ne %v38, 10 : Bool
@@ -492,7 +496,8 @@ fn main() -> Int {
     %v50 = alloc : Flat(Int)
     %v51 = addressof [%v49] : %Int
     init %local2@Flat.items, %v51
-    %v54 = cast 4 : I64
+    %v53 = countof 4 : Long
+    %v54 = cast %v53 : I64
     init %local2@Flat.length, %v54
     %v56 = call middle, %v50 : Int
     %v59 = cmp_ne %v56, 5 : Bool
@@ -511,7 +516,8 @@ fn main() -> Int {
     %v68 = alloc : Flat(Int)
     %v69 = addressof [%v67] : %Int
     init %local3@Flat.items, %v69
-    %v72 = cast 4 : I64
+    %v71 = countof 4 : Long
+    %v72 = cast %v71 : I64
     init %local3@Flat.length, %v72
     %v74 = borrow_mut %local3 : &mut Flat(Int)
     call double, %v74
@@ -520,7 +526,8 @@ fn main() -> Int {
     %v78 = alloc : Flat(Int)
     %v79 = addressof [%v77] : %Int
     init %local4@Flat.items, %v79
-    %v82 = cast 4 : I64
+    %v81 = countof 4 : Long
+    %v82 = cast %v81 : I64
     init %local4@Flat.length, %v82
     %v84 = call total, %v78 : Int
     %v87 = cmp_ne %v84, 20 : Bool
@@ -603,7 +610,8 @@ fn main() -> Int {
     %v159 = alloc : Flat(Int)
     %v160 = addressof [%v158] : %Int
     init %local8@Flat.items, %v160
-    %v163 = cast 4 : I64
+    %v162 = countof 4 : Long
+    %v163 = cast %v162 : I64
     init %local8@Flat.length, %v163
     %v165 = call total, %v159 : Int
     ret %v165

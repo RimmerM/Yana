@@ -1,0 +1,71 @@
+{-
+   Writing one lane, on every target - Implementation-Vector.md §5's `VecWithLane`.
+
+   `VecOps.yana` already writes a lane and cannot be *run* natively, because `reductions` needs the
+   `vreduce` this backend has no opcode for and one refusal in a fixture stops the whole of it. So
+   this file is the insert on its own, with a `.run.expect`, which is the only kind of assertion that
+   would catch a lane written at the wrong index or a scalar written at the wrong width: an `.expect`
+   of the emitted IR says a `vwithlane` is there and nothing about what it did.
+
+   It matters most here because the native lowering of one is **four different routes** and three of
+   them are invisible in the IR. A 32-bit integer lane at the baseline is the pair of `pinsrw`s the
+   lane is made of; a 64-bit one is `movsd`/`unpcklpd` over the same bits read as a double; a float
+   lane is `insertps` where SSE4.1 is claimed and `movss` at lane zero without it - and every one of
+   those is one instruction away from writing a neighbouring lane instead.
+
+   Written at the **natural** width, like `VecOps.yana`: no value below depends on how many lanes
+   there are. Lanes 0 and 1 are the only ones named, and every vector this language admits has both.
+-}
+
+-- The integer half, which is the one with a lane-splitting expansion behind it on this target.
+fn integers() -> Int:
+    let v = splat(5) :: Vec(Int)
+    let a = withLane(v, 1, 9)
+    let b = withLane(a, 0, 7)
+
+    -- The original is read after the writes, which is what makes the copy the two-address form needs
+    -- observable: an insert that wrote `v` in place would answer 5 here and 7 above.
+    return lane(b, 0) * 1000 + lane(b, 1) * 100 + lane(v, 0) * 10 + lane(v, 1)
+
+-- The float half, at both widths. `-0.0` is the value worth writing: it is the one float whose bits
+-- a route through the integer registers could lose and whose loss `== 0.0` would not report, so it
+-- is read back through a division rather than through a comparison.
+fn floats() -> Int:
+    let f = splat(1.5) :: Vec(Float)
+    let g = withLane(f, 0, -0.0)
+
+    if lane(g, 1) != 1.5 then return -1
+    if 1.0 / lane(g, 0) > 0.0 then return -2
+
+    let d = splat(1.5 :: Double) :: Vec(Double)
+    let e = withLane(d, 1, 4.25)
+
+    if lane(e, 0) != 1.5 then return -3
+    if lane(e, 1) != 4.25 then return -4
+
+    return 0
+
+{-
+   `iota`, which is what a chain of lane writes is for: it is `lanes - 1` of them over a splat of
+   zero, and it is what `firstSet` and every masked tail are built from. Its answer depends on the
+   lane count, so what is asserted is the two lanes every width has and the fact that they differ -
+   which is the whole of what an insert has to get right.
+-}
+fn indices() -> Int:
+    let v = iota() :: Vec(Int)
+
+    if lane(v, 0) != 0 then return -1
+    if lane(v, 1) != 1 then return -2
+
+    -- Reversed, so that the write reaches a lane the forward read never names. The last lane holds
+    -- `lanes - 1` at every width, and reversing puts it in lane zero.
+    let r = reverse(v)
+    if lane(r, 0) != lanes(v) - 1 then return -3
+
+    return 0
+
+fn main() -> Int:
+    if floats() != 0 then return floats() * 10
+    if indices() != 0 then return indices() * 100
+
+    return integers()

@@ -19,6 +19,9 @@ target_link_libraries(YanaLowerTest YanaLower)
 add_executable(YanaX64Test X64Tester.cpp)
 target_link_libraries(YanaX64Test YanaX64)
 
+add_executable(YanaLlvmTest LlvmTester.cpp)
+target_link_libraries(YanaLlvmTest YanaLLVM)
+
 add_executable(YanaElfTest ElfTester.cpp)
 target_link_libraries(YanaElfTest YanaParse YanaResolve YanaLower YanaX64)
 

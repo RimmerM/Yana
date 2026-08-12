@@ -19,6 +19,7 @@
 #include "../compiler/codegen/x64/gen.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
+#include "directives.h"
 
 using namespace Tritium;
 
@@ -57,22 +58,11 @@ static void applyDirectives(CompileSettings& settings, StringView content) {
         }
     });
 
-    // Longest first, so that "avx512" is not read as "avx" with trailing text.
-    static const struct { StringView name; TargetExtensions::SSEMode sse; } levels[] = {
-        { "avx512"_v, TargetExtensions::AVX512 },
-        { "avx2"_v, TargetExtensions::AVX2 },
-        { "avx"_v, TargetExtensions::AVX },
-    };
-
-    find("# extensions: "_v, [&](const char* rest, Size left) {
-        for(auto& level: levels) {
-            if(level.name.length <= left && compareMem(rest, level.name.ptr, level.name.length) == 0) {
-                settings.extensions.sse = level.sse;
-                settings.explicitExtensions = true;
-                return;
-            }
-        }
-    });
+    // The extension level itself is `directives.h`', shared with the two drivers that compile the
+    // `resolve/` corpus. Shared rather than repeated because those two and this one have to agree:
+    // the level decides what `Vec(Float)` *is*, so a table that drifted would not be a difference of
+    // encoding but a difference of program.
+    applyExtensionDirective(settings, content);
 }
 
 struct TestProvider: SourceProvider {

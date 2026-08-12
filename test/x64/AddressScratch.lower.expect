@@ -1,0 +1,68 @@
+
+sink<clobber>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+scratchAddress<complex>(%arg: Int, %p: Ptr, %i: Long, %p2: Ptr, %i2: Long): Int {
+  b_0 {
+    %r = call_clobber sink, %arg: Int
+    %q = add %p, %i: Ptr
+    %v = load %q, 4: Int
+    %q2 = add %p2, %i2: Ptr
+    %v2 = load %q2, 4: Int
+    %s = call_clobber sink, %r: Int
+    %t = add %v, %v2: Int
+    %u = add %t, %s: Int
+    ret %u
+  }
+}
+
+scratchAddressStore<complex>(%arg: Int, %keep: Int, %p: Ptr, %i: Long, %tail: Int): Int {
+  b_0 {
+    %r = call_clobber sink, %arg: Int
+    %q = add %p, %i: Ptr
+    store %q, %keep, 4
+    %s = add %tail, %r: Int
+    %u = add %s, %tail: Int
+    ret %u
+  }
+}
+
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: scratchAddress ---
+  prologue  => 535541544155415641574883ec20
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1, r8->stack:2]  => 488bee4889142448894c24084c89442410
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] post=[rax->rdi]  => e8ccffffff8bf8
+  x86_addr scale=1 disp=0 uses=[rbp, r15] creates=[-] pre=[stack:0->r15]  => 4c8b3c24
+  load uses=[-] creates=[rbp]  => 428b6c3d00
+  x86_addr scale=1 disp=0 uses=[r15, r14] creates=[-] pre=[stack:1->r15, stack:2->r14]  => 4c8b7c24084c8b742410
+  load uses=[-] creates=[r13] post=[r13->stack:3]  => 478b2c3744896c2418
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax]  => e8a9ffffff
+  add uses=[rbp, stack:3] creates=[rbp]  => 036c2418
+  add uses=[rbp, rax] creates=[rbp]  => 01c5
+  ret uses=[rax] creates=[] pre=[rbp->rax]  => 8bc54883c420415f415e415d415c5d5bc3
+
+--- codegen: scratchAddressStore ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->stack:0, rdx->stack:1, rcx->stack:2, r8->rbp]  => 897424104889142448894c2408418be8
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax]  => e86dffffff
+  x86_addr scale=1 disp=0 uses=[r15, r14] creates=[-] pre=[stack:1->r15, stack:2->r14]  => 4c8b3c244c8b742408
+  store uses=[-, r13] creates=[] pre=[stack:0->r13]  => 448b6c241047892c37
+  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 8d4c0500
+  add uses=[rax, rbp] creates=[rax] pre=[rcx->rax]  => 8d0429
+  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3

@@ -1,0 +1,118 @@
+{-
+   Const generics, the fixed-array half - Implementation-Const-Generics.md.
+
+   A generic parameter that is a *value* rather than a type: the `n` of `[Float *n]`. Four things are
+   asserted here, and only the last of them is about a number.
+
+   **A count is a bindable position.** `[a *n]` in a signature binds `n` from the argument the way
+   `[a]` binds `a`, which is §2.3's "the array arm recurses into the count instead of comparing it".
+   Before this, `n` was matched and never bound because there was no kind for it to be a variable of.
+
+   **The annotation is written where the parameter is introduced, and it is a type** (§1). A head
+   writes it because a head is the declaration's API and `A(4)` is otherwise indistinguishable from a
+   type application; a private function may leave it to the position that uses it, which is §1.5's
+   policy and the reason `unannotated` below compiles.
+
+   **A const parameter is a value in an expression** (§1.6). It needs no expression form of its own -
+   the parameter has a type, so every rule already applies to it - and what it produces is
+   `TypeMetricKind::Count`, which folds to a constant here and is an environment slot in the erased
+   form. That is §3.2, and the `.generic` marker beside this file is what compiles the other half.
+
+   **A `[T *n]` parameter keeps the owner when the count is a variable.** Every other fixed-array
+   parameter becomes a slice, which is exactly "forget the count" - see bindingType. A signature that
+   named the count is saying the opposite, so it is the one case that does not slice.
+-}
+
+import Native
+
+-- §1.1: a `data` head. The annotation is required here, since `Holder(Int, 3)` and `Holder(Int, a)`
+-- are told apart by what the declaration says rather than by their own shape.
+data Holder(a, n: Int) {items: [a *n]}
+
+-- The count used twice in one declaration, which is all §2.5's bare-variable rule allows and all
+-- Implementation-Containers.md §7's deferred `alias Fixed(a, n: Int)` needs.
+data Pair(a, n: Int) {left: [a *n], right: [a *n]}
+
+-- §1.1's third head, and §5's third row: an alias parameterized over a size. It is transparent, so
+-- what a signature written in terms of it resolves to is the array itself - there is no `Fixed` in
+-- the golden anywhere.
+alias Fixed(a, n: Int) = [a *n]
+
+-- §1.2: the context list. This is the declaration a `pub` function writes, and the one this file
+-- reads back through the printed schema.
+pub fn (n: Int) countOf(xs: [Int *n]) -> Int = n
+
+-- §1.5: the same parameter inferred rather than annotated, which a private function may do because
+-- the position that uses it wants a number and no search decides that.
+fn firstOf(xs: [Int *n]) -> Int = xs[0]
+
+-- The count read inside a *loop* rather than as a value, which is §4.1: the counted form of
+-- `eachFixedElement` already compares against a value, so the erased fixed array is the path that
+-- was there for a long array with a different number in it.
+fn (n: Int) sumOf(xs: [Int *n]) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < countOf(xs):
+        total = total + xs[i]
+        i = i + 1
+
+    return total
+
+-- A const argument that reaches through a *record* rather than through an array, so that the
+-- substitution walks an instantiation's arguments and not only the array's own child.
+fn (n: Int) heldFirst(h: Holder(Int, n)) -> Int = firstOf(h.items)
+
+fn (n: Int) aliased(xs: Fixed(Int, n)) -> Int = countOf(xs)
+
+-- Two spellings of one instantiation are one type, which is what interning on the pair buys: this
+-- takes what `three` produces with no conversion anywhere in the golden.
+fn three() -> Holder(Int, 3) = Holder {items: [4, 5, 6]}
+
+fn both(p: Pair(Int, 2)) -> Int = firstOf(p.left) + firstOf(p.right)
+
+{-
+   §3.3: what is new about dispatch.
+
+   A written count in an instance head means that count and nothing else, which is what `matchType`
+   already did and has to keep doing now that the count is a type. What is *new* is that a head may
+   quantify over one - `instance (n: Int) Sized([Int *n], Int)` answers every count - and that the
+   two overlap in exactly the way `instance C(Maybe(a))` and `instance C(Maybe(Int))` already do: the
+   parametric one covers the specific one and not the other way round, so neither is a duplicate and
+   the more specific one is selected. The golden is where that is asserted, one call each.
+-}
+class Sized(c -> a):
+  fn firstItem(xs: c) -> a
+
+instance (n: Int) Sized([Int *n], Int):
+  fn firstItem(xs: [Int *n]) -> Int = xs[0]
+
+instance Sized([Int *2], Int):
+  fn firstItem(xs: [Int *2]) -> Int = 100
+
+{-
+   A class constraint over an *applied* type - Implementation-Const-Generics.md §10.
+
+   This is the row of §10.6 that the const-generic vector is not: a fixed array erases, so the
+   constraint really becomes a witness slot beside the count, and the caller really fills it by
+   substituting `[Int *n]` and looking the instance up. `Vec(I16, n)` in the same position never
+   reaches that code, because `erasedVectorIn` specializes such a body first.
+
+   It is also where the constraint earns its keep rather than being decoration: `firstItem` is a
+   class function this body cannot dispatch, since what `n` will be decides which of the two
+   instances above answers.
+-}
+fn (n: Int, Sized([Int *n], Int)) firstThrough(xs: [Int *n]) -> Int = firstItem(xs)
+
+fn main() -> Int:
+    let xs = [7, 2, 3, 4] :: [Int *4]
+    let p = Pair {left: [10, 0], right: [100, 0]} :: Pair(Int, 2)
+
+    -- 4 + 7 + 16 + 4 + 110 + 100 + 7 + 4 = 252. The middle two are the two instances: `[Int *2]`
+    -- takes the specific one and `[Int *4]` the parametric one.
+    --
+    -- `firstThrough` reaches each of those two through a witness slot rather than directly, so it
+    -- adds 100 and 7 again: 252 + 107 = 359.
+    return countOf(xs) + firstOf(xs) + sumOf(xs) + heldFirst(three()) + both(p)
+             + firstItem(p.left) + firstItem(xs) + aliased(xs)
+             + firstThrough(p.left) + firstThrough(xs)

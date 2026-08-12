@@ -81,8 +81,13 @@ bool findClassRequirement(Module& module, const GenEnv& env, GlobalPtr<TypeClass
  * Repeated until nothing more moves, so a chain of dependencies - `Contiguous(c, a)` deciding `a`
  * and `Elem(a, e)` then deciding `e` - resolves in one call rather than depending on the order the
  * constraints were written in.
+ *
+ * `caller` is the environment of the function this call is being resolved *in*, where there is one.
+ * A deciding position that is one of its type variables has no instance to read the answer off, and
+ * what answers instead is the requirement that function declared - see the comment at the fallback.
  */
-void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source);
+void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source,
+                    const GenEnv* caller = nullptr);
 
 // Whether the requirements in scope prove `typeClass(args)` - directly, or because one of them is
 // a class that declares it as a superclass. This is what makes `fn (Num(a)) inc(x: a) = x + 1`

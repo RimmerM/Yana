@@ -322,6 +322,27 @@ void genPhiCopies(Gen& g, U32 from, U32 to) {
 
     for(auto phiPointer: target->phis(g.local)) {
         auto& phi = *g.local[phiPointer];
+
+        // A vector phi is one assignment per lane, against the variables genBody declared for it.
+        // The lanes are read through vecPartsOf, so an input carried as an array is indexed here
+        // rather than being copied whole - which is what keeps the two forms interchangeable.
+        if(auto vector = g.vecParts.get(U32((ModulePtr<Value>)phiPointer))) {
+            auto parts = vector.unwrap();
+
+            for(auto input: phi.inputs.contents(g.local)) {
+                if(input.block != source) continue;
+
+                auto from = vecPartsOf(g, input.value);
+                for(U32 i = 0; i < parts.count && i < from.count; i++) {
+                    emitExpr(g, assign(g, parts.lanes[i], from.lanes[i]));
+                }
+
+                break;
+            }
+
+            continue;
+        }
+
         auto found = g.phis.get(U32(phiPointer));
         if(!found) continue;
 

@@ -1,0 +1,45 @@
+"use strict";
+// ResolveTest
+function main() {
+  var counted;
+  var v51$0 = $bc$f2i(true) | 0;
+  var v51$1 = $bc$f2i(true) | 0;
+  var v51$2 = $bc$f2i(true) | 0;
+  var v51$3 = $bc$f2i(true) | 0;
+  var v52$0 = v51$0 ? 7 : 3;
+  var v54$0 = Math.fround($bc$i2f(true));
+  var v54$1 = Math.fround($bc$i2f(true));
+  var v54$2 = Math.fround($bc$i2f(true));
+  var v54$3 = Math.fround($bc$i2f(true));
+  var v55$0 = v54$0 ? 1 : 2;
+  var v57$0 = true;
+  var v57$1 = true;
+  var v57$2 = true;
+  var v57$3 = false;
+  var live = [v57$0, v57$1, v57$2, v57$3];
+  var kept$0 = v57$0 ? 0 : 0;
+  var kept$1 = v57$1 ? 1 : 0;
+  var kept$2 = v57$2 ? 2 : 0;
+  var kept$3 = v57$3 ? 3 : 0;
+  if ((v57$0 || v57$1 || (v57$2 || v57$3)) ^ 1) {
+    counted = -1;
+  } else {
+    counted = Math.imul(kept$0 + kept$1 + (kept$2 + kept$3), 10) + ((live[0] ? 1 : 0) + (live[1] ? 1 : 0) + ((live[2] ? 1 : 0) + (live[3] ? 1 : 0))) | 0;
+  }
+  return (Math.imul(v52$0, 100000) + Math.imul(v55$0 === 1 ? 1 : 0, 10000) | 0) + counted | 0;
+}
+
+// a float's bits, which no host operator reaches - see codegen/js/inst.cpp
+const $bcf = new Float32Array(1);
+const $bci = new Int32Array($bcf.buffer);
+
+function $bc$f2i(v) {
+  $bcf[0] = v;
+  return $bci[0];
+}
+
+function $bc$i2f(v) {
+  $bci[0] = v;
+  return $bcf[0];
+}
+main();

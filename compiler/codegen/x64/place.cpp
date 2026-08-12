@@ -1632,6 +1632,12 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
             if(global->mut) return false;
             if(load->getWidth() != accessWidthOf(v->type)) return false;
 
+            // And not a vector, which `genLoadConstant` has no spelling for: it writes `movss`,
+            // `movsd` or a general `mov` and would emit the last of those against a vector register
+            // number. Stated here rather than left to the width check above, which used to decline
+            // this by accident and stopped when accessWidthOf learned what a vector is wide.
+            if(isVectorLike(v->type)) return false;
+
             out = Remat { .kind = Remat::ConstantLoad, .type = v->type };
             out.global = global;
             return true;

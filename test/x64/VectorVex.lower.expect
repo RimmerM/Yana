@@ -1,0 +1,275 @@
+
+select<complex>(%a: i32x4, %b: i32x4, %m: m32x4): i32x4 {
+  b_0 {
+    %r = select %m, %a, %b: i32x4
+    ret %r
+  }
+}
+
+selectFloat<complex>(%a: f32x4, %b: f32x4, %m: m32x4): f32x4 {
+  b_0 {
+    %r = select %m, %a, %b: f32x4
+    ret %r
+  }
+}
+
+complement<complex>(%m: m32x4, %w: i32x4): m32x4 {
+  b_0 {
+    %n = not %m: m32x4
+    %i = not %w: i32x4
+    %c = cmp_eq %i, %w: m32x4
+    %r = and %n, %c: m32x4
+    ret %r
+  }
+}
+
+negate<complex>(%w: i32x4, %f: f32x4, %d: f64x2): i32x4 {
+  b_0 {
+    %nw = neg %w: i32x4
+    %nf = neg %f: f32x4
+    %nd = neg %d: f64x2
+    ret %nw
+  }
+}
+
+inverted<complex>(%a: i32x4, %b: i32x4): m32x4 {
+  b_0 {
+    %n = cmp_neq %a, %b: m32x4
+    %l = cmp_ile %a, %b: m32x4
+    %g = cmp_ige %a, %b: m32x4
+    %x = and %n, %l: m32x4
+    %r = and %x, %g: m32x4
+    ret %r
+  }
+}
+
+product<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = imul %a, %b: i32x4
+    ret %r
+  }
+}
+
+shuffles<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %run = vshuffle %a, %b, 0, 2, 5, 7: i32x4
+    %low = vshuffle %a, %b, 0, 4, 1, 5: i32x4
+    %high = vshuffle %a, %b, 2, 6, 3, 7: i32x4
+    %second = vshuffle %a, %b, 7, 6, 5, 4: i32x4
+    %x = add %run, %low: i32x4
+    %y = add %x, %high: i32x4
+    %r = add %y, %second: i32x4
+    ret %r
+  }
+}
+
+interleaveNarrow<complex>(%a: i8x16, %b: i8x16, %s: i16x8, %t: i16x8): i8x16 {
+  b_0 {
+    %bl = vshuffle %a, %b, 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23: i8x16
+    %sh = vshuffle %s, %t, 4, 12, 5, 13, 6, 14, 7, 15: i16x8
+    ret %bl
+  }
+}
+
+convert<complex>(%w: i32x4, %f: f32x4): f32x4 {
+  b_0 {
+    %tf = cast %w: f32x4
+    %tw = cast %f: i32x4
+    %s = add %tw, %w: i32x4
+    %r = cast %s: f32x4
+    ret %r
+  }
+}
+
+roots<complex>(%f: f32x4, %d: f64x2, %s: Float, %q: Double): f32x4 {
+  b_0 {
+    %rf = sqrt %f: f32x4
+    %rd = sqrt %d: f64x2
+    %rs = sqrt %s: Float
+    %rq = sqrt %q: Double
+    ret %rf
+  }
+}
+
+multiplyAdd<complex>(%a: f32x4, %b: f32x4, %c: f32x4, %x: Double, %y: Double, %z: Double): f32x4 {
+  b_0 {
+    %v = fma %a, %b, %c: f32x4
+    %s = fma %x, %y, %z: Double
+    ret %v
+  }
+}
+
+reduceSum<complex>(%v: f32x4): Float {
+  b_0 {
+    %p0 = vshuffle %v, %v, 1, 0, 3, 2: f32x4
+    %s0 = add %v, %p0: f32x4
+    %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
+    %s1 = add %s0, %p1: f32x4
+    %r = vlane %s1, 0: Float
+    ret %r
+  }
+}
+
+loadFold<complex>(%p: Ptr, %a: i32x4): i32x4 {
+  b_0 {
+    %v = load %p, 16: i32x4
+    %s = add %a, %v: i32x4
+    %w = load %p, 16: i32x4
+    %m = and %s, %w: i32x4
+    ret %m
+  }
+}
+
+loadFoldFloat<complex>(%p: Ptr, %a: f32x4): f32x4 {
+  b_0 {
+    %v = load %p, 16: f32x4
+    %s = add %a, %v: f32x4
+    ret %s
+  }
+}
+
+
+--- codegen: select ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  select uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c57828fac501dff9c5f9dbc2c4c179ebc7
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: selectFloat ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  select uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c57828fac501dff9c5f9dbc2c4c179ebc7
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: complement ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  not uses=[xmm0] creates=[xmm0]  => c4410176ffc4c179efc7
+  not uses=[xmm2] creates=[xmm2] pre=[xmm1->xmm2]  => c5f828d1c4410176ffc4c169efd7
+  cmp_eq uses=[xmm2, xmm1] creates=[xmm2]  => c5e976d1
+  and uses=[xmm0, xmm2] creates=[xmm0]  => c5f9dbc2
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: negate ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  neg uses=[xmm0] creates=[xmm0]  => c44101efffc501faf8c4c17828c7
+  neg uses=[xmm1] creates=[xmm1]  => c4410176ffc4c10172f71fc4c17057cf
+  neg uses=[xmm2] creates=[xmm2]  => c4410176ffc4c10173f73fc4c16957d7
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: inverted ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => c5f828d0c5e976d1c4410176ffc4c169efd7
+  cmp_ile uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => c5f828d8c5e166d9c4410176ffc4c161efdf
+  cmp_ile uses=[xmm1, xmm0] creates=[xmm1]  => c5f166c8c4410176ffc4c171efcf
+  and uses=[xmm2, xmm3] creates=[xmm2]  => c5e9dbd3
+  and uses=[xmm2, xmm1] creates=[xmm0]  => c5e9dbc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: product ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imul uses=[xmm0, xmm1] creates=[xmm0]  => c4e27940c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: shuffles ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm2]  => c5f8c6d1d8
+  vshuffle uses=[xmm0, xmm1] creates=[xmm3]  => c5f962d9
+  vshuffle uses=[xmm0, xmm1] creates=[xmm4]  => c5f96ae1
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c5f970c11b
+  add uses=[xmm2, xmm3] creates=[xmm2]  => c5e9fed3
+  add uses=[xmm2, xmm4] creates=[xmm2]  => c5e9fed4
+  add uses=[xmm2, xmm0] creates=[xmm0]  => c5e9fec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: interleaveNarrow ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c5f960c1
+  vshuffle uses=[xmm2, xmm3] creates=[xmm2]  => c5e969d3
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: convert ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[xmm0] creates=[xmm2]  => c5f85bd0
+  cast uses=[xmm1] creates=[xmm1]  => c5fa5bc9
+  add uses=[xmm1, xmm0] creates=[xmm1]  => c5f1fec8
+  cast uses=[xmm1] creates=[xmm0]  => c5f85bc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: roots ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sqrt uses=[xmm0] creates=[xmm0]  => c5f851c0
+  sqrt uses=[xmm1] creates=[xmm1]  => c5f951c9
+  sqrt uses=[xmm2] creates=[xmm2]  => c5ea51d2
+  sqrt uses=[xmm3] creates=[xmm3]  => c5e351db
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: multiplyAdd ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => c5f859c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => c5f858c2
+  mul uses=[xmm3, xmm4] creates=[xmm3]  => c5e359dc
+  add uses=[xmm3, xmm5] creates=[xmm3]  => c5e358dd
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: reduceSum ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c8b1
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c84e
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  vlane uses=[xmm0] creates=[xmm0]  => c5f970c000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: loadFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[xmm0, -] creates=[xmm0]  => c5f9fe07
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5f9db07
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: loadFoldFloat ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[xmm0, -] creates=[xmm0]  => c5f85807
+  ret uses=[xmm0] creates=[]  => c9c3

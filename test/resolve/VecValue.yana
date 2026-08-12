@@ -1,0 +1,70 @@
+{-
+   A vector that survives to run time - the other half of `VecOps.yana`.
+
+   Everything in that fixture folds: every lane holds a literal, so the constant folder answers the
+   whole program and what the goldens show is the *front* of the pipeline. This one is arranged so
+   that nothing can be folded - the lanes come from a mutable global - and what it therefore exercises
+   is the part of each backend that has to hold a vector as a value: a parameter, a result, and a
+   loop-carried accumulator.
+
+   That matters most on JavaScript, where a vector is `lanes` variables and the array form exists
+   only for the three positions that need one value (Implementation-Vector.md §7). A parameter is one
+   of them, a `return` is another, and a phi is the one that is deliberately *not*: a vector carried
+   around a loop is `lanes` variables, because an accumulator that materialized an array would
+   allocate one per iteration.
+
+   No `.run.expect`, and a `.js.run.expect` instead. The local x64 backend has no machine opcode for
+   the five vector instruction kinds yet - that is the rest of Implementation-Vector.md §5 - so the
+   native half of this fixture is its lowered IR and its LLVM module, and the number is asserted on
+   the target that can currently answer it.
+-}
+
+-- Read rather than written, but mutable, which is what stops the folder from seeing through it: a
+-- mutable global's value is not a constant at any point in the program.
+let &seed = 3 :: Int
+
+fn doubled(v: Vec(Int)) -> Vec(Int) = v + v
+
+fn scaled(v: Vec(Int), by: Int) -> Vec(Int) = v * splat(by)
+
+fn main() -> Int:
+    let base = splat(seed) :: Vec(Int)
+
+    -- A vector across two calls, which is where each target's "one value" form is reached: the
+    -- argument and the result of a function whose body cannot be seen through.
+    let twice = doubled(base)
+    let six = scaled(base, 2)
+
+    if lane(twice, 0) != 6 then return -1
+    if lane(six, 1) != 6 then return -2
+
+    -- One lane different from the others, so that the reduction below folds something that is not
+    -- the same number in every lane and the tree's *shape* is what produces the answer.
+    let mixed = withLane(base, 0, 10)
+    if horizontalMax(mixed) != 10 then return -3
+    if horizontalMin(mixed) != 3 then return -4
+
+    {-
+       A loop-carried vector, which is the shape a vector accumulator has and the reason a vector phi
+       is `lanes` variables rather than an array.
+
+       Four iterations of adding `base` to itself gives five times the seed in every lane, whatever
+       the lane count is - which is what keeps this fixture width-independent.
+    -}
+    let &total = base :: Vec(Int)
+    let &i = 0 :: Int
+
+    while i < 4:
+        total = total + base
+        i = i + 1
+
+    if lane(total, 0) != 15 then return -5
+    if lane(total, 1) != 15 then return -6
+
+    -- And the whole of it folded, which is the lane count times fifteen. Compared against the count
+    -- the reduction of a splat of one reports rather than against a number, for the reason
+    -- `VecOps.yana` gives: the lane count is a property of the target.
+    let lanes = horizontalSum(splat(1) :: Vec(Int))
+    if horizontalSum(total) != lanes * 15 then return -7
+
+    return lane(twice, 1) * 100 + lane(six, 0) + lane(mixed, 0)

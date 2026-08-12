@@ -10,27 +10,27 @@ let &heapRegionNext: I64 = 0
 
 let &reclaims: Int = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$2(Int, Int) before ResolveTest.continuation$2(Int, Int) {
+table closure$ResolveTest.continuation$16(Int, Int) before ResolveTest.continuation$16(Int, Int) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$0(Int, Int, ()) before ResolveTest.continuation$0(Int, Int, ()) {
+table closure$ResolveTest.continuation$14(Int, Int, ()) before ResolveTest.continuation$14(Int, Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -42,10 +42,11 @@ fn teardown$none(%value: %()) -> () {
 
 fn initHeap() -> () {
   b0:
-    %region = call mapMemory, 4194304 : %U8
-    %v2 = bitcast %region : Long
-    %v4 = cmp_eq %v2, 0 : Bool
-    je %v4, b1, b2
+    %v2 = add 4194304, 4096 : I64
+    %region = call mapMemory, %v2 : %U8
+    %v4 = bitcast %region : Long
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b1, b2
 
   b1:
     ret
@@ -56,18 +57,18 @@ fn initHeap() -> () {
   b3:
     %table = mul 32, 8 : I64
     setmemory %region, 0, %table
-    %v14 = bitcast %region : %%U8
-    assign heapFree, %v14
-    %v16 = strideof U8 : I64
-    %v17 = mul %table, %v16 : I64
-    %v18 = add %region, %v17 : %U8
-    assign heapNext, %v18
-    %v21 = strideof U8 : I64
-    %v22 = mul 4194304, %v21 : I64
-    %v23 = add %region, %v22 : %U8
-    assign heapLimit, %v23
-    %v27 = add 4194304, 4194304 : I64
-    assign heapRegionNext, %v27
+    %v16 = bitcast %region : %%U8
+    assign heapFree, %v16
+    %v18 = strideof U8 : I64
+    %v19 = mul %table, %v18 : I64
+    %v20 = add %region, %v19 : %U8
+    assign heapNext, %v20
+    %v23 = strideof U8 : I64
+    %v24 = mul 4194304, %v23 : I64
+    %v25 = add %region, %v24 : %U8
+    assign heapLimit, %v25
+    %v29 = add 4194304, 4194304 : I64
+    assign heapRegionNext, %v29
     ret
 }
 
@@ -89,17 +90,18 @@ fn growHeap(%needed: I64) -> Bool {
 
   b3:
     %v10 = load %size : I64
-    %v11 = call mapMemory, %v10 : %U8
+    %v12 = add %v10, 4096 : I64
+    %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
-    init %region, %v11
-    %v14 = load %region : %U8
-    %v15 = bitcast %v14 : Long
-    %v17 = cmp_eq %v15, 0 : Bool
-    je %v17, b4, b5
+    init %region, %v13
+    %v16 = load %region : %U8
+    %v17 = bitcast %v16 : Long
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b4, b5
 
   b4:
-    %v20 = cmp_gt %needed, 4194304 : Bool
-    je %v20, b6, b7
+    %v22 = cmp_gt %needed, 4194304 : Bool
+    je %v22, b6, b7
 
   b5:
     jmp b15
@@ -112,9 +114,9 @@ fn growHeap(%needed: I64) -> Bool {
 
   b8:
     %least = phi [b6, %needed], [b7, 4194304] : I64
-    %v26 = load %size : I64
-    %v27 = cmp_ge %least, %v26 : Bool
-    je %v27, b9, b10
+    %v28 = load %size : I64
+    %v29 = cmp_ge %least, %v28 : Bool
+    je %v29, b9, b10
 
   b9:
     ret False
@@ -124,13 +126,14 @@ fn growHeap(%needed: I64) -> Bool {
 
   b11:
     assign %size, %least
-    %v33 = load %size : I64
-    %v34 = call mapMemory, %v33 : %U8
-    assign %region, %v34
-    %v36 = load %region : %U8
-    %v37 = bitcast %v36 : Long
-    %v39 = cmp_eq %v37, 0 : Bool
-    je %v39, b12, b13
+    %v35 = load %size : I64
+    %v37 = add %v35, 4096 : I64
+    %v38 = call mapMemory, %v37 : %U8
+    assign %region, %v38
+    %v40 = load %region : %U8
+    %v41 = bitcast %v40 : Long
+    %v43 = cmp_eq %v41, 0 : Bool
+    je %v43, b12, b13
 
   b12:
     ret False
@@ -142,18 +145,18 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b15
 
   b15:
-    %v46 = load %region : %U8
-    assign heapNext, %v46
-    %v48 = load %region : %U8
-    %v49 = load %size : I64
-    %v50 = strideof U8 : I64
-    %v51 = mul %v49, %v50 : I64
-    %v52 = add %v48, %v51 : %U8
-    assign heapLimit, %v52
-    %v54 = load %size : I64
-    %v55 = load %size : I64
-    %v56 = add %v54, %v55 : I64
-    assign heapRegionNext, %v56
+    %v50 = load %region : %U8
+    assign heapNext, %v50
+    %v52 = load %region : %U8
+    %v53 = load %size : I64
+    %v54 = strideof U8 : I64
+    %v55 = mul %v53, %v54 : I64
+    %v56 = add %v52, %v55 : %U8
+    assign heapLimit, %v56
+    %v58 = load %size : I64
+    %v59 = load %size : I64
+    %v60 = add %v58, %v59 : I64
+    assign heapRegionNext, %v60
     ret True
 }
 
@@ -666,7 +669,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -713,14 +716,14 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    #5 type (value: a) -> Outcome((), Outcome((), $r))
+    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
@@ -728,14 +731,14 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   }
 
   b0:
-    %v3 = alloc : {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    %v4 = borrow %body : &(value: b) -> Outcome((), $r)
+    %v3 = alloc : {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    %v4 = borrow %body : &(value$: b) -> Outcome((), $r)
     init %local3.body, %v4
     %v6 = borrow %f : &(a) -> b
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$0 : %()
+    %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
+    %v10 = symbol ResolveTest.continuation$14 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -813,8 +816,8 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     %v5 = borrow_mut %out : &mut Array(Int)
     init %local3.out, %v5
     %v7 = addressof %local3 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$1 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$15 : %()
     init %local4.code, %v9
     init %local4.env, %v7
     %v12 = call each(Int, ()), %xs, %v8 : Outcome((), ())
@@ -829,7 +832,7 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     #1 type b
     #2 type Array(b)
     #3 type {out: &mut Array(b)}
-    #4 type (value: b) -> Outcome((), ())
+    #4 type (value$: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
     #6 class Bitcast(%b, %U8)
     #7 class Bitcast(%U8, %b)
@@ -845,8 +848,8 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     %v6 = borrow_mut %out : &mut Array(b)
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
-    %v9 = alloc : (value: b) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$2 : %()
+    %v9 = alloc : (value$: b) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$16 : %()
     init %local5.code, %v10
     init %local5.env, %v8
     %v13 = gencall mapped(a, b, ()), %xs, %f, %v9 : Outcome((), ())
@@ -1246,14 +1249,14 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$14(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    #5 type (value: a) -> Outcome((), Outcome((), $r))
+    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
@@ -1261,11 +1264,11 @@ fn Drop(Cell).drop(%self: Cell) -> () {
   }
 
   b0:
-    %v2 = load [%env].body : &(value: b) -> Outcome((), $r)
-    %v3 = load [%v2] : (value: b) -> Outcome((), $r)
+    %v2 = load [%env].body : &(value$: b) -> Outcome((), $r)
+    %v3 = load [%v2] : (value$: b) -> Outcome((), $r)
     %v4 = load [%env].f : &(a) -> b
     %v5 = load [%v4] : (a) -> b
-    %v6 = calldyn %v5, %value : b
+    %v6 = calldyn %v5, %value$ : b
     %v7 = calldyn %v3, %v6 : Outcome((), $r)
     %v8 = load %local2.discriminant : Int
     %v10 = cmp_eq %v8, 1 : Bool
@@ -1283,18 +1286,18 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret %v12
 }
 
-fn ResolveTest.continuation$1(%env: %{out: &mut Array(Int)}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{out: &mut Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].out : &mut Array(Int)
     %v3 = load [%v2] : Array(Int)
     %v4 = borrow_mut [%v2] : &mut Array(Int)
-    call push(Int), %v4, %value
+    call push(Int), %v4, %value$
     %v6 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v6
 }
 
-fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -1342,13 +1345,13 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
     jmp b1
 }
 
-(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$2(%env: %{out: &mut Array(b)}, %value: b) -> Outcome((), ()) {
+(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$16(%env: %{out: &mut Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type b
     #2 type Array(b)
     #3 type {out: &mut Array(b)}
-    #4 type (value: b) -> Outcome((), ())
+    #4 type (value$: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
     #6 class Bitcast(%b, %U8)
     #7 class Bitcast(%U8, %b)
@@ -1359,7 +1362,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
   b0:
     %v2 = load [%env].out : &mut Array(b)
     %v3 = load [%v2] : Array(b)
-    gencall push(b), %v3, %value
+    gencall push(b), %v3, %value$
     %v5 = alloc : Outcome((), ())
     init %local1.discriminant, 0
     ret %v5
@@ -1380,8 +1383,8 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     %v6 = borrow_mut %out : &mut Array(Int)
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
-    %v9 = alloc : (value: Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$2(Int, Int) : %()
+    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$16(Int, Int) : %()
     init %local5.code, %v10
     init %local5.env, %v8
     %v13 = call mapped(Int, Int, ()), %xs, %f, %v9 : Outcome((), ())
@@ -1390,27 +1393,27 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     ret %v15
 }
 
-fn ResolveTest.continuation$2(Int, Int)(%env: %{out: &mut Array(Int)}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(Int, Int)(%env: %{out: &mut Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].out : &mut Array(Int)
     %v3 = load [%v2] : Array(Int)
     %v4 = borrow_mut [%v2] : &mut Array(Int)
-    call push(Int), %v4, %value
+    call push(Int), %v4, %value$
     %v6 = alloc : Outcome((), ())
     init %local1.discriminant, 0
     ret %v6
 }
 
-fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = alloc : {body: &(value: Int) -> Outcome((), ()), f: &(v: Int) -> Int}
-    %v4 = borrow %body : &(value: Int) -> Outcome((), ())
+    %v3 = alloc : {body: &(value$: Int) -> Outcome((), ()), f: &(v: Int) -> Int}
+    %v4 = borrow %body : &(value$: Int) -> Outcome((), ())
     init %local3.body, %v4
     %v6 = borrow %f : &(v: Int) -> Int
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value: Int) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$0(Int, Int, ()) : %()
+    %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
+    %v10 = symbol ResolveTest.continuation$14(Int, Int, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -1428,13 +1431,13 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value: Int)
     ret %v20
 }
 
-fn ResolveTest.continuation$0(Int, Int, ())(%env: %{body: &(value: Int) -> Outcome((), ()), f: &(v: Int) -> Int}, %value: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$14(Int, Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ()), f: &(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].body : &(value: Int) -> Outcome((), ())
-    %v3 = load [%v2] : (value: Int) -> Outcome((), ())
+    %v2 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
     %v4 = load [%env].f : &(v: Int) -> Int
     %v5 = load [%v4] : (v: Int) -> Int
-    %v6 = calldyn %v5, %value : Int
+    %v6 = calldyn %v5, %value$ : Int
     %v7 = calldyn %v3, %v6 : Outcome((), ())
     %v8 = load %local2.discriminant : Int
     %v10 = cmp_eq %v8, 1 : Bool
@@ -1452,7 +1455,7 @@ fn ResolveTest.continuation$0(Int, Int, ())(%env: %{body: &(value: Int) -> Outco
     ret %v17
 }
 
-fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %i = alloc : Int
     init %i, 0

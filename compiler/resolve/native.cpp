@@ -95,6 +95,31 @@ pub fn isNull(it: %a) -> Bool
 pub fn borrow(return it: %a) -> &a
 pub fn borrowMut(return it: %a) -> &a
 
+{-
+   Reading and writing a whole vector at an element address - Implementation-Vector.md §12's "a way
+   to read a vector out of a `Flat(a)`", the half of it that has an address to read from.
+
+   The portable set in Core deliberately has no load in it: `splat`, `lane` and the rearrangements
+   are operations on a value, and where the value *comes from* is a question about storage, which is
+   this module's. So these are the three that cross the line, and they are here for the reason every
+   other pointer operation is - what they name is memory nothing has promised anything about, and
+   the promise is made by whoever hands out the pointer.
+
+   `vectorPast` is the same load with §3.3's overread flag on it: it reads a whole vector starting at
+   an address that may be within a vector's width of the end of the object, and the tail-read
+   guarantee (§8) is what says the bytes past the end are readable. It is the *only* thing in the
+   language that sets that flag, so the reasoning about when one is allowed is in one place - and it
+   is why `vectors` is written over `Flat(a)` in Collections rather than over a `%a` here: a slice
+   carries the guarantee and a bare address does not, which is what the verifier's rule says from the
+   other end.
+
+   No store overreads, ever. A write past the end of an object is not a read of unspecified bytes,
+   it is the destruction of whatever follows.
+-}
+@platform(native) pub fn vectorAt(from: %a) -> Vec(a)
+@platform(native) pub fn vectorPast(from: %a) -> Vec(a)
+@platform(native) pub fn setVectorAt(to: %a, value: Vec(a)) -> {}
+
 -- The size and alignment of a value's type, in bytes.
 pub fn sizeOf(it: a) -> I64
 pub fn alignOf(it: a) -> I64
@@ -169,6 +194,22 @@ pub fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> 
 pub let heapRegionSize = 4194304 :: I64
 pub let heapClassCount = 32 :: I64
 
+{-
+   The tail-read guarantee, from the heap's side - Design-Vector §5.4 and Implementation-Vector.md §8.
+
+   A vector loop's last iteration reads a whole register where only part of it is wanted, and what
+   makes that safe is that storage the language allocated has room after it. Inside a region that is
+   free by construction: a block's tail is the next block's header, and the last block before the
+   bump pointer is followed by the rest of the region. What is *not* free is the last block before
+   the limit, so every region is mapped one page longer than it says it is and the limit is set to
+   the size without it.
+
+   A page rather than `kVectorBytes`, because the kernel would round the mapping up to one anyway
+   and because a page is more than any vector width there will ever be. Regions double, so the
+   amortized cost of this over a program's whole heap is zero.
+-}
+pub let heapGuardSize = 4096 :: I64
+
 pub let &heapNext = 0 :: %U8
 pub let &heapLimit = 0 :: %U8
 pub let &heapFree = 0 :: Ptr(Ptr(U8))
@@ -179,7 +220,7 @@ pub let &heapFree = 0 :: Ptr(Ptr(U8))
 pub let &heapRegionNext = 0 :: I64
 
 fn initHeap() -> {}:
-    let region = mapMemory(heapRegionSize)
+    let region = mapMemory(heapRegionSize + heapGuardSize)
     if isNull(region) then return
 
     let table = heapClassCount * 8
@@ -213,14 +254,14 @@ fn growHeap(needed: I64) -> Bool:
     let &size = heapRegionNext :: I64
     if size < needed then size = needed
 
-    let &region = mapMemory(size) :: %U8
+    let &region = mapMemory(size + heapGuardSize) :: %U8
 
     if isNull(region):
         let least = if needed > heapRegionSize then needed else heapRegionSize
         if least >= size then return False
 
         size = least
-        region = mapMemory(size)
+        region = mapMemory(size + heapGuardSize)
         if isNull(region) then return False
 
     heapNext = region
@@ -684,6 +725,71 @@ static ModulePtr<Value> emitAddressOf(ExprResolver& resolver, Buffer<ModulePtr<V
     return resolver.addressOf(resolver.materialize(args[0], source), source, name);
 }
 
+/*
+ * The whole-vector transfers - `vectorAt`, `vectorPast` and `setVectorAt`.
+ *
+ * Each is one address computation and one access, and the address computation is the same one in all
+ * three: the element pointer the caller handed over, named at the vector's type rather than at the
+ * element's. That is a `Bitcast` and nothing else, which is what `pointerAsVector` is - a pointer's
+ * *value* does not depend on what it is said to point at, so there is no arithmetic here and no
+ * alignment claim either. A vector load is unaligned on both of this compiler's backends by
+ * construction (§5.6 records the one place a legacy packed encoding is not, and why every operand
+ * that reaches one is a frame slot).
+ */
+static ModulePtr<Value> pointerAsVector(ExprResolver& resolver, ModulePtr<Value> pointer, TypePtr vector,
+                                        LocationId source) {
+    if(!isVectorType(resolver.global, vector)) {
+        resolver.context.diagnostics.error("a vector transfer needs a vector type, and %@ is not one"_v,
+                                           source, describeType(resolver.context, resolver.global, vector));
+        return nullptr;
+    }
+
+    auto address = resolvePointerType(resolver.module, vector);
+    return resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Bitcast, pointer));
+}
+
+static ModulePtr<Value> emitVectorAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto address = pointerAsVector(resolver, args[0], type, source);
+    if(!address) return nullptr;
+
+    return resolver.load(Place::atPointer(address), source, name);
+}
+
+/*
+ * The overreading load - Implementation-Vector.md §3.3 and §9.7, and the only thing in the language
+ * that sets that flag.
+ *
+ * `vectorAt` with the flag on, and it is the *same place*: rooted in the pointer, because that is
+ * what a slice's storage is rooted in on this target and no arrangement of borrows changes it -
+ * §3.3 asks the verifier to refuse exactly that root, and §9.7 records why the rule could not be
+ * held and what stands in for it. What makes an overread true is the type one layer up:
+ * `Collections.loadVectorTail` takes a `Flat(a)`, which is a window into storage the language
+ * allocated, and nothing else in the tree calls this.
+ */
+static ModulePtr<Value> emitVectorPast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto address = pointerAsVector(resolver, args[0], type, source);
+    if(!address) return nullptr;
+
+    auto load = resolver.emit<InstLoadPlace>(source, name, type, Place::atPointer(address));
+    load->overread = true;
+
+    return resolver.ref(load);
+}
+
+// The store, which never overreads - a write past the end of an object is not a read of unspecified
+// bytes but the destruction of whatever follows. An assignment rather than an initialization for the
+// reason `store` is one: a pointer root is outside the ownership graph, so nothing is dropped.
+static ModulePtr<Value> emitSetVectorAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
+                                        LocationId source, StringId) {
+    auto address = pointerAsVector(resolver, args[0], resolver.valueType(args[1]), source);
+    if(!address) return nullptr;
+
+    resolver.assign(Place::atPointer(address), args[1], source);
+    return nullptr;
+}
+
 // The lower IR has no pointer immediates on purpose, so a null pointer is the integer zero
 // reinterpreted - which is what `bitcast(0) :: %a` says anyway.
 static ModulePtr<Value> emitNull(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
@@ -916,6 +1022,14 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "isNull"_v, emitIsNull);
     attachIntrinsic(module, "borrow"_v, emitBorrowAt<false>);
     attachIntrinsic(module, "borrowMut"_v, emitBorrowAt<true>);
+    // The three vector transfers are `@platform(native)`, so on a JS build they were never declared
+    // and there is nothing to attach - which `attachIntrinsic` reports as an internal error rather
+    // than skipping, and rightly. Host's `hostVector` family is that target's answer.
+    if(!isJsMode(module.context.settings.mode)) {
+        attachIntrinsic(module, "vectorAt"_v, emitVectorAt);
+        attachIntrinsic(module, "vectorPast"_v, emitVectorPast);
+        attachIntrinsic(module, "setVectorAt"_v, emitSetVectorAt);
+    }
 
     // `borrowMut` is declared `-> &a` like its immutable sibling, because the grammar has one
     // spelling for a borrow type; which of the two it is comes from the signature it appears in,

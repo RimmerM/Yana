@@ -441,6 +441,16 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 lowerType(lower.global, instruction.type),
                 instruction.name
             );
+
+            /*
+             * The overread flag, carried across the seam - see InstLoadPlace::overread.
+             *
+             * Only on this path, and that is the whole of its meaning: every path above it produces
+             * something other than a load of the place's own address - a scalarized value, a decoded
+             * tag, a witness call - and none of those reads past anything. A flag that survived into
+             * one of them would be a claim about an instruction that is not there.
+             */
+            if(loadInst.overread) ((LowerInstLoad*)result)->setOverread();
             break;
         }
         case Value::Init:

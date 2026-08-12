@@ -32,3 +32,4 @@
 // bad written type is one diagnostic rather than a cascade - see resolveType, which returns this
 // rather than null for exactly that reason.
 TypePtr errorType(Module& module, LocationId source, StringView message);
+

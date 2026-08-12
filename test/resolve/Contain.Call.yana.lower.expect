@@ -5,7 +5,7 @@ score<complex>(%f: Ptr): Int {
     %v_1 = load %f, 1: Int
     %v_2 = and %v_1, 1: Int
     %v_3 = cast %v_2: Int
-    %v_4 = select 10, 20, %v_3: Int
+    %v_4 = select %v_3, 10, 20: Int
     ret %v_4
   }
 }
@@ -46,7 +46,7 @@ main<complex>(): Int {
     %v_7 = load %v_6, 1: Int
     %v_8 = and %v_7, 1: Int
     %v_9 = cast %v_8: Int
-    %v_10 = select 1000, 2000, %v_9: Int
+    %v_10 = select %v_9, 1000, 2000: Int
     %v_11 = add %v_10, %zero: Int
     %v_12 = add %v_5, %v_11: Int
     ret %v_12

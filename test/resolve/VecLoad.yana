@@ -1,0 +1,117 @@
+{-
+   Reading and writing a vector through a slice - Implementation-Vector.md §12's "a way to read a
+   vector out of a `Flat(a)`", which is what the whole of §9's iteration protocol is built on.
+
+   Three functions in Collections and one signature each: `loadVector` at a whole-width offset,
+   `loadVectorTail` for the last iteration over a chunk, and `storeVector` back. Natively each is one
+   instruction at an element address; on JS each is `lanes` element accesses, because a vector there
+   *is* `lanes` values. Both targets answer the same number, which is the property worth asserting -
+   and it is the first time anything in this tree has read a vector out of storage from source.
+
+   **`loadVectorTail` is the tail-read guarantee being spent**, and it is the only thing in the
+   language that sets §3.3's overread flag. `sumInts` below reads a whole vector starting three
+   elements from the end of an eleven-element array, which is a load of sixteen bytes ending five
+   past the object. `TailRead.yana` is what says that does not fault; this is what says the answer is
+   right anyway, because the lanes past the end are selected away by the mask `maskUpTo` builds.
+
+   Every loop here is written out by hand. The `vectors` iterator that would write them once is §9
+   item 5 and is not built - see the entry there for why it cannot be an ordinary generic function.
+-}
+
+-- The shape every reduction in §4.2 has: full-width iterations while a whole vector fits, then one
+-- masked iteration for the remainder. Not an epilogue and not a second copy of the body - one
+-- iteration, which is the whole of what §8 buys.
+fn sumInts(xs: [Int]) -> Int:
+    let empty = zero() :: Vec(Int)
+    let width = lanes(empty)
+    let n = truncate(length(xs)) :: Int
+
+    let &acc = empty
+    let &i = 0 :: Int
+
+    while i + width <= n:
+        acc = acc + loadVector(xs, i :: Size)
+        i = i + width
+
+    if i < n:
+        let live = maskUpTo(n - i) :: Mask(Int)
+        acc = acc + select(live, loadVectorTail(xs, i :: Size), empty)
+
+    return horizontalSum(acc)
+
+-- Design-Vector §4.1's own worked example, with the loop written out. `fma` is a permission rather
+-- than a promise, so the assertion below is one whose fused and unfused answers agree.
+fn dot(xs: [Float], ys: [Float]) -> Float:
+    let empty = zero() :: Vec(Float)
+    let width = lanes(empty)
+    let n = truncate(length(xs)) :: Int
+
+    let &acc = empty
+    let &i = 0 :: Int
+
+    while i + width <= n:
+        acc = fma(loadVector(xs, i :: Size), loadVector(ys, i :: Size), acc)
+        i = i + width
+
+    if i < n:
+        let live = maskUpTo(n - i) :: Mask(Float)
+        let x = select(live, loadVectorTail(xs, i :: Size), empty)
+        let y = select(live, loadVectorTail(ys, i :: Size), empty)
+        acc = fma(x, y, acc)
+
+    return horizontalSum(acc)
+
+-- The search shape: splat the needle, compare lanes, `any` the mask, `firstSet` it. Width-agnostic
+-- at every step, which is Design-Vector §4.2's correction to an earlier draft that restricted this
+-- family to bytes.
+fn indexOf(xs: [Int], needle: Int) -> Int:
+    let empty = zero() :: Vec(Int)
+    let width = lanes(empty)
+    let n = truncate(length(xs)) :: Int
+    let wanted = splat(needle)
+
+    let &i = 0 :: Int
+
+    while i + width <= n:
+        let hits = loadVector(xs, i :: Size) .== wanted
+        if any(hits) then return i + firstSet(hits)
+        i = i + width
+
+    if i < n:
+        let live = maskUpTo(n - i) :: Mask(Int)
+        let hits = and(loadVectorTail(xs, i :: Size) .== wanted, live)
+        if any(hits) then return i + firstSet(hits)
+
+    return -1
+
+-- The write direction. No store ever overreads, so the tail is written one element at a time - which
+-- is the asymmetry §3.3 states as plainly as it can be stated: a read past the end is unspecified
+-- bytes and a write past it is the destruction of whatever follows.
+fn fill(&xs: [Int], value: Int) -> {}:
+    let width = lanes(zero() :: Vec(Int))
+    let n = truncate(length(xs)) :: Int
+    let block = splat(value)
+
+    let &i = 0 :: Int
+
+    while i + width <= n:
+        storeVector(xs, i :: Size, block)
+        i = i + width
+
+    while i < n:
+        xs[i :: Size] = value
+        i = i + 1
+
+fn main() -> Int:
+    let ints = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    let xs = [1.0, 2.0, 3.0, 4.0, 5.0]
+    let ys = [2.0, 2.0, 2.0, 2.0, 2.0]
+
+    let &target = [0, 0, 0, 0, 0, 0, 0]
+    fill(target, 3)
+
+    return sumInts(ints) * 100000 +          -- 66
+           sumInts([1, 2, 3]) * 10000 +      -- 6
+           (if dot(xs, ys) == 30.0 then 30 else 0) * 100 +
+           indexOf(ints, 8) * 10 +           -- 7
+           sumInts(target)                   -- 21

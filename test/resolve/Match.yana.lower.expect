@@ -187,8 +187,8 @@ pairValue<complex>(%p: Ptr): Int {
     %v_19 = shr %v_1, 2: Int
     %v_20 = and %v_19, 1: Int
     %b = cast %v_20: Int
-    %v_21 = select 3, 4, %b: Int
-    %v_22 = select %v_21, 5, %v_18: Int
+    %v_21 = select %b, 3, 4: Int
+    %v_22 = select %v_18, %v_21, 5: Int
     jmp b_17
   }
 
@@ -243,8 +243,8 @@ firstOrRest<complex>(%m: Ptr): Int {
     %v_13 = cast %rest: Int
     %v_14 = cmp_eq %v_13, 0: Int
     %v_15 = cmp_eq %v_13, 1: Int
-    %v_16 = select 2, 3, %v_15: Int
-    %v_17 = select 1, %v_16, %v_14: Int
+    %v_16 = select %v_15, 2, 3: Int
+    %v_17 = select %v_14, 1, %v_16: Int
     jmp b_12
   }
 
@@ -359,18 +359,18 @@ main<complex>(): Int {
     %v_72 = cmp_eq %v_71, 9223372036854775808: Int
     %v_73 = cmp_eq %v_71, 18446744073709551615: Int
     %v_74 = cmp_eq %v_71, 0: Int
-    %v_75 = select 3, 4, %v_74: Int
-    %v_76 = select 2, %v_75, %v_73: Int
-    %v_77 = select 1, %v_76, %v_72: Int
+    %v_75 = select %v_74, 3, 4: Int
+    %v_76 = select %v_73, 2, %v_75: Int
+    %v_77 = select %v_72, 1, %v_76: Int
     %v_78 = imul %v_77, 1000: Int
     %v_79 = add %v_70, %v_78: Int
     %v_80 = loads @minusOne, 8: Long
     %v_81 = cmp_eq %v_80, 9223372036854775808: Int
     %v_82 = cmp_eq %v_80, 18446744073709551615: Int
     %v_83 = cmp_eq %v_80, 0: Int
-    %v_84 = select 3, 4, %v_83: Int
-    %v_85 = select 2, %v_84, %v_82: Int
-    %v_86 = select 1, %v_85, %v_81: Int
+    %v_84 = select %v_83, 3, 4: Int
+    %v_85 = select %v_82, 2, %v_84: Int
+    %v_86 = select %v_81, 1, %v_85: Int
     %v_87 = imul %v_86, 100: Int
     %v_88 = add %v_79, %v_87: Int
     %v_89 = add %v_88, 34: Int

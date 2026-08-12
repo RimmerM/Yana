@@ -37,6 +37,7 @@ static constexpr U32 kSysExitGroup = 231;
  *
  *   xor ebp, ebp        the outermost frame has no caller - a stack walk stops here
  *   and rsp, -16        the kernel hands over an aligned stack; this keeps it aligned if it did not
+ *   sub rsp, 64         the tail-read guarantee, for the outermost frame only - see below
  *   call <entry>        the program, under its own convention
  *   mov edi, eax        the status it answered, which the convention returns in rax
  *   mov eax, 231        __NR_exit_group
@@ -58,6 +59,23 @@ static U32 genProcessEntry(AsmModule& to, LowerFunction& entry) {
     out.writeByte(0x31); out.writeByte(0xed);                 // xor ebp, ebp
     out.writeByte(0x48); out.writeByte(0x83);
     out.writeByte(0xe4); out.writeByte(0xf0);                 // and rsp, -16
+
+    /*
+     * The stack's half of the tail-read guarantee - Implementation-Vector.md §8.2.
+     *
+     * A local may be read up to a vector's width past its end, and inside the call graph that costs
+     * nothing: every frame has its caller's above it, so the bytes past the highest local are the
+     * caller's own. The outermost frame is the one that has no caller, and the initial stack pointer
+     * can be at the top of the stack's mapping - so this reserves a vector's width above it, once,
+     * and every frame below inherits the property.
+     *
+     * `kMaxVectorBytes` rather than the target's own width: it is the language's ceiling, it is a
+     * multiple of 16 so the alignment just established survives, and 64 bytes of a stack that is
+     * megabytes is not a cost worth being exact about. The LLVM path needs no equivalent, because
+     * there the program is entered from the C startup code and *its* frame is what sits above.
+     */
+    out.writeByte(0x48); out.writeByte(0x83);
+    out.writeByte(0xec); out.writeByte(Byte(kMaxVectorBytes)); // sub rsp, 64
 
     // The relocation writes the placeholder displacement itself, and resolveRelocations patches it
     // once the entry's offset is known - which it already is, but going through the same mechanism

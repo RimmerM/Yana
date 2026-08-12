@@ -2,47 +2,47 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$3 before ResolveTest.continuation$3 {
+table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$0(Point, ()) before ResolveTest.continuation$0(Point, ()) {
+table closure$ResolveTest.continuation$14(Point, ()) before ResolveTest.continuation$14(Point, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$1(Point, Int, ()) before ResolveTest.continuation$1(Point, Int, ()) {
+table closure$ResolveTest.continuation$15(Point, Int, ()) before ResolveTest.continuation$15(Point, Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$0(Point, Outcome((), ())) before ResolveTest.continuation$0(Point, Outcome((), ())) {
+table closure$ResolveTest.continuation$14(Point, Outcome((), ())) before ResolveTest.continuation$14(Point, Outcome((), ())) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$5 before ResolveTest.continuation$5 {
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -243,7 +243,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -290,13 +290,13 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), Outcome((), $r))
-    #3 type {keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}
-    #4 type (value: a) -> Outcome((), Outcome((), $r))
+    #3 type {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
+    #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
     #7 class Length(Flat(a))
@@ -304,14 +304,14 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   }
 
   b0:
-    %v3 = alloc : {keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}
+    %v3 = alloc : {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
     %v4 = borrow %keep : &(a) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value: a) -> Outcome((), $r)
+    %v6 = borrow %body : &(value$: a) -> Outcome((), $r)
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$0 : %()
+    %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
+    %v10 = symbol ResolveTest.continuation$14 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -329,14 +329,14 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     ret %v20
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapFiltered(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapFiltered(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    #5 type (value: a) -> Outcome((), Outcome((), $r))
+    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
@@ -344,14 +344,14 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   }
 
   b0:
-    %v4 = alloc : {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    %v5 = borrow %body : &(value: b) -> Outcome((), $r)
+    %v4 = alloc : {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    %v5 = borrow %body : &(value$: b) -> Outcome((), $r)
     init %local4.body, %v5
     %v7 = borrow %f : &(a) -> b
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
-    %v10 = alloc : (value: a) -> Outcome((), Outcome((), $r))
-    %v11 = symbol ResolveTest.continuation$1 : %()
+    %v10 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
+    %v11 = symbol ResolveTest.continuation$15 : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = gencall filtered(a, Outcome((), $r)), %xs, %keep, %v10 : Outcome((), Outcome((), $r))
@@ -390,8 +390,8 @@ fn direct(%ps: Flat(Point)) -> Int {
     %v5 = borrow_mut %sum : &mut Int
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
-    %v8 = alloc : (value: Point) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$2 : %()
+    %v8 = alloc : (value$: Point) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$16 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call each(Point, ()), %ps, %v8 : Outcome((), ())
@@ -412,8 +412,8 @@ fn oneLift(%ps: Flat(Point)) -> Int {
     %v11 = borrow_mut %sum : &mut Int
     init %local3.sum, %v11
     %v13 = addressof %local3 : %()
-    %v14 = alloc : (value: Point) -> Outcome((), ())
-    %v15 = symbol ResolveTest.continuation$3 : %()
+    %v14 = alloc : (value$: Point) -> Outcome((), ())
+    %v15 = symbol ResolveTest.continuation$17 : %()
     init %local4.code, %v15
     init %local4.env, %v13
     %v18 = call filtered(Point, ()), %ps, %v4, %v14 : Outcome((), ())
@@ -439,8 +439,8 @@ fn twoLifts(%ps: Flat(Point)) -> Int {
     %v17 = borrow_mut %sum : &mut Int
     init %local4.sum, %v17
     %v19 = addressof %local4 : %()
-    %v20 = alloc : (value: Int) -> Outcome((), ())
-    %v21 = symbol ResolveTest.continuation$4 : %()
+    %v20 = alloc : (value$: Int) -> Outcome((), ())
+    %v21 = symbol ResolveTest.continuation$18 : %()
     init %local5.code, %v21
     init %local5.env, %v19
     %v24 = call mapFiltered(Point, Int, ()), %ps, %v4, %v10, %v20 : Outcome((), ())
@@ -456,8 +456,8 @@ fn scalar(%ns: Flat(Int)) -> Int {
     %v5 = borrow_mut %sum : &mut Int
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$5 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$19 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call each(Int, ()), %ns, %v8 : Outcome((), ())
@@ -533,13 +533,13 @@ fn main() -> Int {
     ret %v84
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}, %value: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$14(%env: %{keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), Outcome((), $r))
-    #3 type {keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}
-    #4 type (value: a) -> Outcome((), Outcome((), $r))
+    #3 type {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
+    #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
     #7 class Length(Flat(a))
@@ -549,13 +549,13 @@ fn main() -> Int {
   b0:
     %v2 = load [%env].keep : &(a) -> Bool
     %v3 = load [%v2] : (a) -> Bool
-    %v4 = calldyn %v3, %value : Bool
+    %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value: a) -> Outcome((), $r)
-    %v7 = load [%v6] : (value: a) -> Outcome((), $r)
-    %v8 = calldyn %v7, %value : Outcome((), $r)
+    %v6 = load [%env].body : &(value$: a) -> Outcome((), $r)
+    %v7 = load [%v6] : (value$: a) -> Outcome((), $r)
+    %v8 = calldyn %v7, %value$ : Outcome((), $r)
     %v9 = load %local1.discriminant : Int
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
@@ -578,14 +578,14 @@ fn main() -> Int {
     ret %v15
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$1(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$15(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
-    #5 type (value: a) -> Outcome((), Outcome((), $r))
+    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
@@ -593,11 +593,11 @@ fn main() -> Int {
   }
 
   b0:
-    %v2 = load [%env].body : &(value: b) -> Outcome((), $r)
-    %v3 = load [%v2] : (value: b) -> Outcome((), $r)
+    %v2 = load [%env].body : &(value$: b) -> Outcome((), $r)
+    %v3 = load [%v2] : (value$: b) -> Outcome((), $r)
     %v4 = load [%env].f : &(a) -> b
     %v5 = load [%v4] : (a) -> b
-    %v6 = calldyn %v5, %value : b
+    %v6 = calldyn %v5, %value$ : b
     %v7 = calldyn %v3, %v6 : Outcome((), $r)
     %v8 = load %local2.discriminant : Int
     %v10 = cmp_eq %v8, 1 : Bool
@@ -615,12 +615,12 @@ fn main() -> Int {
     ret %v12
 }
 
-fn ResolveTest.continuation$2(%env: %{sum: &mut Int}, %value: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{sum: &mut Int}, %value$: Point) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &mut Int
     %v3 = load [%env].sum : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = load %value@Point.y : Int
+    %v5 = load %value$@Point.y : Int
     %v6 = add %v4, %v5 : Int
     assign [%v2], %v6
     %v8 = alloc : Outcome((), ())
@@ -628,7 +628,7 @@ fn ResolveTest.continuation$2(%env: %{sum: &mut Int}, %value: Point) -> Outcome(
     ret %v8
 }
 
-fn each(Point, ())(%xs: Flat(Point), %body: (value: Point) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -682,12 +682,12 @@ fn funvalue$positiveX(%env: %(), %v: Point) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.continuation$3(%env: %{sum: &mut Int}, %value: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(%env: %{sum: &mut Int}, %value$: Point) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &mut Int
     %v3 = load [%env].sum : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = load %value@Point.y : Int
+    %v5 = load %value$@Point.y : Int
     %v6 = add %v4, %v5 : Int
     assign [%v2], %v6
     %v8 = alloc : Outcome((), ())
@@ -695,16 +695,16 @@ fn ResolveTest.continuation$3(%env: %{sum: &mut Int}, %value: Point) -> Outcome(
     ret %v8
 }
 
-fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value: Point) -> Outcome((), ())) -> Outcome((), ()) {
+fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), ())}
+    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), ())}
     %v4 = borrow %keep : &(v: Point) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value: Point) -> Outcome((), ())
+    %v6 = borrow %body : &(value$: Point) -> Outcome((), ())
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value: Point) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$0(Point, ()) : %()
+    %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
+    %v10 = symbol ResolveTest.continuation$14(Point, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Point, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -722,17 +722,17 @@ fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (valu
     ret %v20
 }
 
-fn ResolveTest.continuation$0(Point, ())(%env: %{keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), ())}, %value: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$14(Point, ())(%env: %{keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), ())}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].keep : &(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
-    %v4 = calldyn %v3, %value : Bool
+    %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value: Point) -> Outcome((), ())
-    %v7 = load [%v6] : (value: Point) -> Outcome((), ())
-    %v8 = calldyn %v7, %value : Outcome((), ())
+    %v6 = load [%env].body : &(value$: Point) -> Outcome((), ())
+    %v7 = load [%v6] : (value$: Point) -> Outcome((), ())
+    %v8 = calldyn %v7, %value$ : Outcome((), ())
     %v9 = load %local1.discriminant : Int
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
@@ -755,7 +755,7 @@ fn ResolveTest.continuation$0(Point, ())(%env: %{keep: &(v: Point) -> Bool, body
     ret %v20
 }
 
-fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -809,28 +809,28 @@ fn funvalue$yOf(%env: %(), %v: Point) -> Int {
     ret %v2
 }
 
-fn ResolveTest.continuation$4(%env: %{sum: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &mut Int
     %v3 = load [%env].sum : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn mapFiltered(Point, Int, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: (v: Point) -> Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn mapFiltered(Point, Int, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: (v: Point) -> Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v4 = alloc : {body: &(value: Int) -> Outcome((), ()), f: &(v: Point) -> Int}
-    %v5 = borrow %body : &(value: Int) -> Outcome((), ())
+    %v4 = alloc : {body: &(value$: Int) -> Outcome((), ()), f: &(v: Point) -> Int}
+    %v5 = borrow %body : &(value$: Int) -> Outcome((), ())
     init %local4.body, %v5
     %v7 = borrow %f : &(v: Point) -> Int
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
-    %v10 = alloc : (value: Point) -> Outcome((), Outcome((), ()))
-    %v11 = symbol ResolveTest.continuation$1(Point, Int, ()) : %()
+    %v10 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
+    %v11 = symbol ResolveTest.continuation$15(Point, Int, ()) : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = call filtered(Point, Outcome((), ())), %xs, %keep, %v10 : Outcome((), Outcome((), ()))
@@ -848,13 +848,13 @@ fn mapFiltered(Point, Int, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: 
     ret %v21
 }
 
-fn ResolveTest.continuation$1(Point, Int, ())(%env: %{body: &(value: Int) -> Outcome((), ()), f: &(v: Point) -> Int}, %value: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$15(Point, Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ()), f: &(v: Point) -> Int}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].body : &(value: Int) -> Outcome((), ())
-    %v3 = load [%v2] : (value: Int) -> Outcome((), ())
+    %v2 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
     %v4 = load [%env].f : &(v: Point) -> Int
     %v5 = load [%v4] : (v: Point) -> Int
-    %v6 = calldyn %v5, %value : Int
+    %v6 = calldyn %v5, %value$ : Int
     %v7 = calldyn %v3, %v6 : Outcome((), ())
     %v8 = load %local2.discriminant : Int
     %v10 = cmp_eq %v8, 1 : Bool
@@ -872,16 +872,16 @@ fn ResolveTest.continuation$1(Point, Int, ())(%env: %{body: &(value: Int) -> Out
     ret %v17
 }
 
-fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), Outcome((), ()))}
+    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), Outcome((), ()))}
     %v4 = borrow %keep : &(v: Point) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value: Point) -> Outcome((), Outcome((), ()))
+    %v6 = borrow %body : &(value$: Point) -> Outcome((), Outcome((), ()))
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value: Point) -> Outcome((), Outcome((), Outcome((), ())))
-    %v10 = symbol ResolveTest.continuation$0(Point, Outcome((), ())) : %()
+    %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))
+    %v10 = symbol ResolveTest.continuation$14(Point, Outcome((), ())) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Point, Outcome((), Outcome((), ()))), %xs, %v9 : Outcome((), Outcome((), Outcome((), ())))
@@ -899,17 +899,17 @@ fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool,
     ret %v20
 }
 
-fn ResolveTest.continuation$0(Point, Outcome((), ()))(%env: %{keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), Outcome((), ()))}, %value: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn ResolveTest.continuation$14(Point, Outcome((), ()))(%env: %{keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), Outcome((), ()))}, %value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %v2 = load [%env].keep : &(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
-    %v4 = calldyn %v3, %value : Bool
+    %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value: Point) -> Outcome((), Outcome((), ()))
-    %v7 = load [%v6] : (value: Point) -> Outcome((), Outcome((), ()))
-    %v8 = calldyn %v7, %value : Outcome((), Outcome((), ()))
+    %v6 = load [%env].body : &(value$: Point) -> Outcome((), Outcome((), ()))
+    %v7 = load [%v6] : (value$: Point) -> Outcome((), Outcome((), ()))
+    %v8 = calldyn %v7, %value$ : Outcome((), Outcome((), ()))
     %v9 = load %local1.discriminant : Int
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
@@ -932,7 +932,7 @@ fn ResolveTest.continuation$0(Point, Outcome((), ()))(%env: %{keep: &(v: Point) 
     ret %v20
 }
 
-fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value: Point) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -980,19 +980,19 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value: Po
     jmp b1
 }
 
-fn ResolveTest.continuation$5(%env: %{sum: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &mut Int
     %v3 = load [%env].sum : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, 0

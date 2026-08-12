@@ -21,46 +21,48 @@ growHeap<complex>(%needed: Long): Int {
 
   b_5 {
     %v_6 = phi [b_3, %needed], [b_4, %v_1]: Long
-    %v_7 = call_complex mapMemory, %v_6: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = cmp_eq %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    %v_12 = cmp_igt %needed, 4194304: Int
-    %least = select %needed, 4194304, %v_12: Long
-    %v_13 = cmp_ige %least, %v_6: Int
-    je %v_13, b_14, b_15
+    %v_7 = add %v_6, 4096: Long
+    %v_8 = call_complex mapMemory, %v_7: Ptr
+    %v_9 = bitcast %v_8: Long
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_12
   }
 
   b_11 {
-    jmp b_16
+    %v_13 = cmp_igt %needed, 4194304: Int
+    %least = select %v_13, %needed, 4194304: Long
+    %v_14 = cmp_ige %least, %v_6: Int
+    je %v_14, b_15, b_16
   }
 
-  b_14 {
-    ret 0
+  b_12 {
+    jmp b_17
   }
 
   b_15 {
-    %v_17 = call_complex mapMemory, %least: Ptr
-    %v_18 = bitcast %v_17: Long
-    %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_14, b_20
-  }
-
-  b_20 {
-    jmp b_16
+    ret 0
   }
 
   b_16 {
-    %v_21 = phi [b_11, %v_6], [b_20, %least]: Long
-    %v_22 = phi [b_11, %v_7], [b_20, %v_17]: Ptr
-    store @heapNext, %v_22, 8
-    %v_23 = add %v_22, %v_21: Ptr
-    store @heapLimit, %v_23, 8
-    %v_24 = add %v_21, %v_21: Long
-    store @heapRegionNext, %v_24, 8
+    %v_18 = add %least, 4096: Long
+    %v_19 = call_complex mapMemory, %v_18: Ptr
+    %v_20 = bitcast %v_19: Long
+    %v_21 = cmp_eq %v_20, 0: Int
+    je %v_21, b_15, b_22
+  }
+
+  b_22 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_23 = phi [b_12, %v_6], [b_22, %least]: Long
+    %v_24 = phi [b_12, %v_8], [b_22, %v_19]: Ptr
+    store @heapNext, %v_24, 8
+    %v_25 = add %v_24, %v_23: Ptr
+    store @heapLimit, %v_25, 8
+    %v_26 = add %v_23, %v_23: Long
+    store @heapRegionNext, %v_26, 8
     ret 1
   }
 }
@@ -78,11 +80,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_4 {
-    %result = syscall 9, 0, 4194304, 3, 34, 18446744073709551615, 0: Long
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: Long
     %v_7 = cmp_ilt %result, 0: Int
     %v_8 = bitcast 0: Ptr
     %v_9 = bitcast %result: Ptr
-    %region = select %v_8, %v_9, %v_7: Ptr
+    %region = select %v_7, %v_8, %v_9: Ptr
     %v_10 = bitcast %region: Long
     %v_11 = cmp_eq %v_10, 0: Int
     je %v_11, b_12, b_13
@@ -279,7 +281,7 @@ consume<complex>(%xs: Ptr): Int {
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.lambda$0, 8
+    store %v_1, ResolveTest.lambda$14, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -293,14 +295,14 @@ main<complex>(): Int {
     %v_9 = load %v_6, 8: Ptr
     %v_10 = call_complex %v_9, %v_7, 20: Int
     %f = alloca 16, 8: Ptr
-    store %f, ResolveTest.lambda$1, 8
+    store %f, ResolveTest.lambda$15, 8
     %v_11 = bitcast 0: Ptr
     %v_12 = add %f, 8: Ptr
     store %v_12, %v_11, 8
     %v_13 = load %f, 8: Ptr
     %c = call_complex %v_13, %v_11, 5: Int
     %v_14 = alloca 16, 8: Ptr
-    store %v_14, ResolveTest.lambda$2, 8
+    store %v_14, ResolveTest.lambda$16, 8
     %v_15 = bitcast 0: Ptr
     %v_16 = add %v_14, 8: Ptr
     store %v_16, %v_15, 8
@@ -311,7 +313,7 @@ main<complex>(): Int {
     %v_21 = load %v_19, 8: Ptr
     %v_22 = call_complex %v_20, %v_21, %v_18: Int
     %g = alloca 16, 8: Ptr
-    store %g, ResolveTest.lambda$3, 8
+    store %g, ResolveTest.lambda$17, 8
     %v_23 = bitcast 0: Ptr
     %v_24 = add %g, 8: Ptr
     store %v_24, %v_23, 8
@@ -319,7 +321,7 @@ main<complex>(): Int {
     %e = call_complex %v_25, %v_23, 4: Int
     %step = alloca 20, 8: Ptr
     %v_26 = alloca 16, 8: Ptr
-    store %v_26, ResolveTest.lambda$4, 8
+    store %v_26, ResolveTest.lambda$18, 8
     %v_27 = bitcast 0: Ptr
     %v_28 = add %v_26, 8: Ptr
     store %v_28, %v_27, 8
@@ -332,7 +334,7 @@ main<complex>(): Int {
     %v_33 = call_complex %v_31, %v_32, 6: Int
     %v_34 = shl %v_33, 1: Int
     %v_35 = alloca 16, 8: Ptr
-    store %v_35, ResolveTest.lambda$5, 8
+    store %v_35, ResolveTest.lambda$19, 8
     %v_36 = bitcast 0: Ptr
     %v_37 = add %v_35, 8: Ptr
     store %v_37, %v_36, 8
@@ -367,7 +369,7 @@ main<complex>(): Int {
     %counter = call_complex allocateHeap, 4: Ptr
     store %counter, 100, 4
     %v_58 = alloca 16, 8: Ptr
-    store %v_58, ResolveTest.lambda$6, 8
+    store %v_58, ResolveTest.lambda$20, 8
     %v_59 = bitcast 0: Ptr
     %v_60 = add %v_58, 8: Ptr
     store %v_60, %v_59, 8
@@ -388,7 +390,7 @@ main<complex>(): Int {
   }
 }
 
-ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$14<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %x, 1: Int
     ret %v_1
@@ -402,35 +404,35 @@ funvalue$double<complex>(%env: Ptr, %x: Int): Int {
   }
 }
 
-ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$15<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = imul %x, %x: Int
     ret %v_1
   }
 }
 
-ResolveTest.lambda$2<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$16<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %x, 3: Int
     ret %v_1
   }
 }
 
-ResolveTest.lambda$3<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$17<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = imul %x, 3: Int
     ret %v_1
   }
 }
 
-ResolveTest.lambda$4<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$18<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = sub %x, 1: Int
     ret %v_1
   }
 }
 
-ResolveTest.lambda$5<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$19<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %x, 10: Int
     ret %v_1
@@ -444,7 +446,7 @@ funvalue$consume<complex>(%env: Ptr, %xs: Ptr): Int {
   }
 }
 
-ResolveTest.lambda$6<complex>(%env: Ptr, %t: Ptr) {
+ResolveTest.lambda$20<complex>(%env: Ptr, %t: Ptr) {
   b_0 {
     %v_1 = loads %t, 4: Int
     %v_2 = add %v_1, 5: Int

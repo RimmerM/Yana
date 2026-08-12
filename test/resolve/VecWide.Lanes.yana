@@ -1,0 +1,57 @@
+{-
+   # extensions: avx2
+
+   A lane above the low 128 bits, which is the one thing about the wide tier that no
+   width-independent fixture can assert.
+
+   **Separate from `VecWide.yana` because a lane index is checked where it is written.**
+   `constantLane` in simd.cpp rejects `lane(v, 5)` on a four-lane vector during resolution, so the
+   index cannot be guarded behind a run-time `if lanes > 4` - the guard is a branch and the check is
+   not. A fixture naming lane 5 therefore has to be one that is *only* ever compiled at a width where
+   lane 5 exists, which means no JavaScript half: `targetVectorBytes` answers 16 for that target
+   whatever the directive says.
+
+   What it exercises: every lane instruction AMD64 has names a lane inside one 128-bit register,
+   whatever the prefix says the operation's width is. So a lane above the fourth is unreachable until
+   the half holding it has been brought down with `vextracti128` - and a *write* to one has to put
+   that half back with `vinserti128`, because `vpinsrd` is a VEX instruction and zeroes everything
+   above the register it writes. Writing a lane of the low half in place would silently clear the
+   upper half of the vector, which is why both halves go through the same three instructions.
+
+   The reads are asserted against lanes the write did *not* touch as well as the one it did, since a
+   sequence that lost the untouched half would still answer correctly about the lane it wrote. That
+   is the shape the first version of this expansion got wrong: it took its scratch from the register
+   the operand had been reloaded into, and answered a vector whose upper half was zero - which
+   `horizontalMax` could not see and `horizontalMin` could.
+-}
+
+-- Mutable, so the folder cannot see through it and the lanes are built at run time.
+let &seed = 3 :: Int
+
+fn main() -> Int:
+    let base = splat(seed) :: Vec(Int)
+
+    -- A write into the upper half, read back beside the lanes around it.
+    let high = withLane(base, 5, 40)
+    if lane(high, 5) != 40 then return -1
+    if lane(high, 4) != 3 then return -2
+    if lane(high, 7) != 3 then return -3
+    if lane(high, 0) != 3 then return -4
+
+    -- And one into the lower half, which needs the same round trip for the opposite reason: the
+    -- insert would zero the upper half if the half were not put back.
+    let low = withLane(high, 1, 20)
+    if lane(low, 1) != 20 then return -5
+    if lane(low, 5) != 40 then return -6
+    if lane(low, 6) != 3 then return -7
+
+    -- The reductions over a vector whose lanes are genuinely different, which is what makes the
+    -- butterfly's cross-half level answer rather than merely run: 40 is in the upper half and 20 in
+    -- the lower, so a tree that never crossed would answer one of them.
+    if horizontalMax(low) != 40 then return -8
+    if horizontalMin(low) != 3 then return -9
+
+    -- 3*6 + 20 + 40, which reads every lane exactly once.
+    if horizontalSum(low) != 78 then return -10
+
+    return lane(low, 5) * 10 + lane(low, 1)

@@ -267,12 +267,25 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         case Type::Ptr:
             return resolvePointerType(module, substituteType(module, ((PtrType*)global[type])->to, args, source));
         case Type::Array: {
-            // The length is not substituted because there is nothing it could be substituted *by*:
-            // `n` is a literal in every position that mentions it (§6), so a generic `[a *4]` is
-            // generic in exactly one place and the four travels through unchanged.
+            // The count is substituted exactly as the element is - Implementation-Const-Generics.md
+            // §2.3. A written one is a ConstType and substitutes to itself; the `n` of `[a *n]` is a
+            // GenType and takes the argument at its index, which is the whole of the feature here.
             auto array = (ArrayType*)global[type];
             return resolveFixedArrayType(module, substituteType(module, array->content, args, source),
-                                         array->length, source);
+                                         substituteType(module, array->count, args, source), source);
+        }
+        case Type::Vector: {
+            /*
+             * Where the natural form is spent - Design-Vector §2.1.
+             *
+             * A null count is the *request* for a natural one, which `resolveVectorType` answers as
+             * soon as the element it needs the stride of is concrete; a written count and a const
+             * variable both travel through `substituteType` and come back as a number.
+             */
+            auto vector = (VectorType*)global[type];
+            return resolveVectorType(module, substituteType(module, vector->content, args, source),
+                                     substituteType(module, vector->count, args, source),
+                                     vector->isMask, source);
         }
         case Type::Borrow: {
             auto borrow = (BorrowType*)global[type];
@@ -301,8 +314,19 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
     if(!pattern || !concrete) return false;
 
     if(global[pattern]->kind == Type::Gen) {
-        auto index = ((GenType*)global[pattern])->index;
+        auto variable = (GenType*)global[pattern];
+        auto index = variable->index;
         if(index >= bindings.length) return false;
+
+        // A variable binds only what it is a variable *of*. Nothing in a well-formed signature can
+        // put a number where `a` is or a type where `n` is, so this refuses a match rather than
+        // reporting one: it is reached when two candidates are being tried against each other and
+        // one of them is simply not the one - see Implementation-Const-Generics.md §2.2.
+        auto isCount = global[concrete]->kind == Type::Const ||
+                       (global[concrete]->kind == Type::Gen &&
+                        ((GenType*)global[concrete])->kind == GenKind::Const);
+
+        if(isCount != (variable->kind == GenKind::Const)) return false;
 
         // A variable that is already bound constrains rather than rebinds: `fn f(a, a)` called
         // with two different types has no instance.
@@ -374,15 +398,47 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
             return matchType(global, patternBorrow->to, concreteBorrow->to, bindings);
         }
         case Type::Array: {
-            // The length is matched and never bound: there is no kind for it to be a variable of.
-            // §6 is explicit that `[T *n]` never appears in an instance head, so what this serves is
-            // a *member* signature mentioning one - `fn f(xs: [a *4])` inside an instance - where the
-            // element still has to bind and the four still has to agree.
+            // The count is recursed into rather than compared, which is what makes `[a *n]` bind its
+            // count: a written one is a ConstType and matches only the same ConstType, a const
+            // variable binds whatever the concrete type's count is.
             auto patternArray = (ArrayType*)global[pattern];
             auto concreteArray = (ArrayType*)global[concrete];
 
-            if(patternArray->length != concreteArray->length) return false;
+            if(!matchType(global, patternArray->count, concreteArray->count, bindings)) return false;
             return matchType(global, patternArray->content, concreteArray->content, bindings);
+        }
+        case Type::Vector: {
+            auto patternVector = (VectorType*)global[pattern];
+            auto concreteVector = (VectorType*)global[concrete];
+
+            if(patternVector->isMask != concreteVector->isMask) return false;
+
+            /*
+             * A written lane count is matched; the *natural* form matches whatever the element's
+             * natural count turned out to be; a const variable binds it.
+             *
+             * The first asymmetry is what `instance Num(Vec(a))` needs and it is not a weakening: a
+             * pattern with a null count is one written over a type variable, and once `a` is bound
+             * there is exactly one natural count for it - the one the concrete type already has. A
+             * pattern that named a count means that count and nothing else, which is what keeps
+             * `instance Num(Vec(a, 4))` from answering a `Vec(Float, 8)`.
+             *
+             * The third case is Implementation-Const-Generics.md §3.3's new one: an
+             * `instance (n: Int) Num(Vec(Float, n))` does answer both, because a variable there binds
+             * rather than compares. It sits beside the natural form rather than replacing it - a
+             * null count is still "whatever this element's width is" and not "any count at all".
+             *
+             * The natural form is spelled as a zero count as well as as a null one - see
+             * resolveVectorType - and the two are one pattern here. Which of them a type carries is
+             * decided by whether it was interned while its element was still a variable, and no
+             * caller of this should be able to tell.
+             */
+            if(!isNaturalCount(global, patternVector->count) &&
+               !matchType(global, patternVector->count, concreteVector->count, bindings)) {
+                return false;
+            }
+
+            return matchType(global, patternVector->content, concreteVector->content, bindings);
         }
         case Type::Fun: {
             auto patternFun = (FunType*)global[pattern];
@@ -477,36 +533,261 @@ TypePtr resolveBitsType(Module& module, TypePtr base_, U32 bits, LocationId sour
 }
 
 /*
+ * A number written where a type is - Implementation-Const-Generics.md §2.1.
+ *
+ * Interned on the value and the annotation's canonical type together, so that `4 :: Int` and
+ * `4 :: Size` stay two counts. Canonicalizing here rather than at the call sites is what keeps a
+ * `@bits` refinement of the count's type from splitting one parameter into two.
+ */
+TypePtr constType(Module& module, U64 value, TypePtr of) {
+    auto base = *module.types;
+    if(!of || base[of]->kind == Type::Error) return module.scalar.error;
+
+    of = canonicalType(base, of);
+
+    for(auto existing: module.program.constTypes.contents(base)) {
+        if(base[existing]->value == value && base[existing]->type == of) return (Type*)base[existing] - base;
+    }
+
+    auto type = new (module.types) ConstType(value, of);
+    module.program.constTypes.push(module.types, type - base);
+    return (Type*)type - base;
+}
+
+U64 constValue(GlobalBase base, TypePtr count) {
+    assertTrue(count && base[count]->kind == Type::Const);
+    return ((ConstType*)base[count])->value;
+}
+
+Maybe<U64> writtenCount(GlobalBase base, TypePtr count) {
+    if(!count || base[count]->kind != Type::Const) return Nothing();
+    return Just(((ConstType*)base[count])->value);
+}
+
+bool isNaturalCount(GlobalBase base, TypePtr count) {
+    if(!count) return true;
+
+    // A *variable* count is not this: it is a count somebody will supply, and the whole point of the
+    // predicate is to tell the two apart where both may appear.
+    auto written = writtenCount(base, count);
+    return written && written.unwrap() == 0;
+}
+
+/*
  * `[T *n]` - Implementation-Containers.md §6.
  *
- * Interned on the pair the way a pointer is interned on its target, because the length is part of
+ * Interned on the pair the way a pointer is interned on its target, because the count is part of
  * what the type *is* rather than something written about it: `[Int *3]` and `[Int *4]` differ in
  * size, in teardown and in which literals they accept, and every one of those follows from `n`.
  *
  * A zero-length one is legal and is a value occupying nothing, which is what makes `[] :: [Int *0]`
- * an ordinary literal rather than a case. What is refused is a length that will not fit the
+ * an ordinary literal rather than a case. What is refused is a count that will not fit the
  * arithmetic every element access does - the check is against the count rather than against the
  * byte size, since the latter is a target's answer and this type is not.
+ *
+ * This overload is for a caller holding a number; the one below takes the count as the type it now
+ * is, which is what every path that walks or substitutes an existing type uses.
  */
 TypePtr resolveFixedArrayType(Module& module, TypePtr content, U32 length, LocationId source) {
-    auto base = *module.types;
-    if(!content || base[content]->kind == Type::Error) return module.scalar.error;
-
-    // The bound is reported where the length was written - see fixedArrayLength - so what is left
+    // The bound is reported where the count was written - see fixedArrayCount - so what is left
     // here is the backstop for a caller that built one without going through the surface syntax.
     if(length > kMaxFixedArrayLength) return module.scalar.error;
 
+    return resolveFixedArrayType(module, content, constType(module, length, module.scalar.int_), source);
+}
+
+TypePtr resolveFixedArrayType(Module& module, TypePtr content, TypePtr count, LocationId source) {
+    auto base = *module.types;
+    if(!content || base[content]->kind == Type::Error) return module.scalar.error;
+    if(!count || base[count]->kind == Type::Error) return module.scalar.error;
+
+    // A written count reaching here has already been bounded where it was written; a substituted one
+    // has not, since the argument that supplied it is checked against the parameter's *type* rather
+    // than against this type's own limit. See §4.4's list of what an instantiation re-checks.
+    if(auto written = writtenCount(base, count)) {
+        if(written.unwrap() > kMaxFixedArrayLength) {
+            module.context.diagnostics.error("a fixed array may hold at most %@ elements, and this one asks for %@"_v,
+                                             source, U32(kMaxFixedArrayLength), written.unwrap());
+            return module.scalar.error;
+        }
+    }
+
     for(auto array: module.program.fixedArrayTypes.contents(base)) {
-        if(base[array]->content == content && base[array]->length == length) {
+        if(base[array]->content == content && base[array]->count == count) {
             return (Type*)base[array] - base;
         }
     }
 
-    auto type = new (module.types) ArrayType(content, length);
-    type->generic = isGeneric(base, content);
+    auto type = new (module.types) ArrayType(content, count);
+    type->generic = isGeneric(base, content) || isGeneric(base, count);
 
     module.program.fixedArrayTypes.push(module.types, type - base);
     return (Type*)type - base;
+}
+
+/*
+ * `Vec(a, n)` and `Mask(a)` - Design-Vector §2, Implementation-Vector.md §1.2.
+ *
+ * Interned on the triple the fixed array is interned on its pair, so that the `Vec(Float)` two
+ * modules write is one TypePtr and `sameType` stays pointer equality for it too.
+ *
+ * The natural form is *spent here*, which is the whole of Design-Vector §2.1: a lane count of zero
+ * asks for `targetVectorBytes / laneStride`, and what comes back has a concrete count that no pass
+ * downstream ever has to reason about the absence of. It is sound to spend it during resolution
+ * because resolution is already per target - `@platform` selects declarations the same way - so
+ * vector width joins the target and the extension set as something the resolved program is a
+ * function of.
+ *
+ * Over a type variable there is no stride to divide by, so the zero survives and `substituteType`
+ * calls this again once the element is concrete. That is the only deferral, and it mirrors the
+ * fixed array's element exactly.
+ */
+TypePtr resolveVectorType(Module& module, TypePtr content, U32 lanes, bool isMask, LocationId source) {
+    auto count = lanes ? constType(module, lanes, module.scalar.int_) : nullptr;
+    return resolveVectorType(module, content, count, isMask, source);
+}
+
+TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool isMask, LocationId source) {
+    auto base = *module.types;
+    auto& context = module.context;
+    if(!content || base[content]->kind == Type::Error) return module.scalar.error;
+    if(count && base[count]->kind == Type::Error) return module.scalar.error;
+
+    /*
+     * A generic element or a generic count defers everything: the width, the element check and the
+     * mask normalization all need to know what the lane is, and the two bounds below need to know
+     * the count. What is kept is what was written, so that `Vec(a)` and `Vec(a, 4)` inside one body
+     * stay two types.
+     *
+     * A generic *count* over a concrete element is the const-generic case and is deferred for the
+     * same reason rather than a new one: `Vec(Float, n)` has a lane type this stage could check and
+     * a width it could not, so the arm it takes is the one that checks nothing until substitution.
+     */
+    if(isGeneric(base, content) || isGeneric(base, count)) {
+        /*
+         * The natural form is *written down* while it is deferred, as a count of zero.
+         *
+         * A null count and `0` mean the same thing to the arm below - "ask the target" - so this is
+         * the same type either way, and spelling it makes it a thing a const-generic variable can
+         * bind to. Without that, `fn (n: Int) horizontalSum(vector: Vec(a, n))` has nothing to bind
+         * `n` against inside a body generic in `a`, and every counted signature in the portable set
+         * is unreachable from exactly the generic code the iteration protocol is made of
+         * (Implementation-Vector.md §9.8's first item).
+         *
+         * What `n` then holds is "the natural one", which is the only honest answer while the lane
+         * type is a variable - and it settles to the number as soon as the element does, because
+         * substituting a zero count re-spends the natural form the same way a null one does.
+         */
+        if(!count) count = constType(module, 0, module.scalar.int_);
+
+        for(auto existing: module.program.vectorTypes.contents(base)) {
+            auto vector = base[existing];
+            if(vector->content == content && vector->count == count && vector->isMask == isMask) {
+                return (Type*)vector - base;
+            }
+        }
+
+        auto type = new (module.types) VectorType(content, count, isMask);
+        type->generic = true;
+        module.program.vectorTypes.push(module.types, type - base);
+        return (Type*)type - base;
+    }
+
+    auto lanes = count ? U32(constValue(base, count)) : 0;
+    auto stride = laneStride(base, content);
+    if(!stride) {
+        context.diagnostics.error("%@ is not a lane type - a vector holds machine lanes, which are the integer types of 8, 16, 32 and 64 bits and the two floats"_v,
+                                  source, describeType(context, base, content));
+        return module.scalar.error;
+    }
+
+    /*
+     * A 64-bit integer lane on JS, refused rather than scalarized - Design-Vector §7.3.
+     *
+     * A `Long` there is a `bigint`: a heap value, off the ordinary arithmetic path, and four times
+     * the retained size of a number. A vector of them would clear no floor that §7.2's guarantee
+     * asks for - the scalar code the same programmer would have written is the same `bigint`
+     * arithmetic without the shuffling - so what it would buy is a slower program that compiled.
+     */
+    if(isJsMode(context.settings.mode) && base[content]->kind == Type::Int && stride == 8) {
+        context.diagnostics.error("a vector of %@ has no JavaScript form - a 64-bit integer is a `bigint` on this target and a `bigint` is not a lane"_v,
+                                  source, describeType(context, base, content));
+        return module.scalar.error;
+    }
+
+    /*
+     * A mask keeps the element it was made from, and does **not** normalize to the unsigned integer
+     * of the lane's width.
+     *
+     * It used to. `Mask(Float)` and `Mask(I32)` interned as one type, so that
+     * `select(x .< y, ints, others)` - a mask produced by comparing one vector, applied to another
+     * of the same shape - wrote with no conversion in it. What that cost is out of proportion to
+     * what it bought, and both halves are worth stating.
+     *
+     * **It made `Mask` a non-injective type constructor**, and every generic mechanism in this
+     * language assumes a type application binds its arguments: `matchType` binds positionally,
+     * `substituteType` rebuilds structurally, an instance head is matched the same way. So
+     * substituting `a := Int` into `{Vec(a), Mask(a)}` gave `{Vec(Int), Mask(U32)}`, which then
+     * bound `a` to `Int` from the first position and compared it against `U32` in the second - and
+     * the shape an iterator over a container hands over became the one shape it could not declare.
+     * That is not a special case wanting a special arm in the matcher; it is one visible instance of
+     * a constructor that breaks the rule the matcher is built on.
+     *
+     * And what it bought was unused: no `select` anywhere in this tree takes its mask from a vector
+     * of a different type. Where one eventually does, `select(bitcast(x .< y), ints, others)` is the
+     * language's own spelling for reinterpretation at equal widths, the instance for it is generated
+     * beside the vector ones, and it emits nothing.
+     */
+    if(!lanes) {
+        lanes = targetVectorBytes(context.settings) / stride;
+
+        // A lane wider than the register is not a vector of one lane, it is a scalar - and this is
+        // reachable only from a target whose vector width somebody set below a lane's.
+        if(!lanes) {
+            context.diagnostics.error("%@ is wider than this target's vector, so there is no natural vector of it"_v,
+                                      source, describeType(context, base, content));
+            return module.scalar.error;
+        }
+    }
+
+    if(lanes < 2 || lanes > kMaxVectorLanes || (lanes & (lanes - 1)) != 0) {
+        context.diagnostics.error("a vector has a power-of-two lane count between 2 and %@, and this one asks for %@ - one lane is a scalar and is spelled as one"_v,
+                                  source, U32(kMaxVectorLanes), lanes);
+        return module.scalar.error;
+    }
+
+    // The byte width, which the count alone does not bound: `Vec(I64, 64)` is 64 lanes and half a
+    // kilobyte. See kMaxVectorBytes for why this is the language's ceiling rather than the running
+    // target's.
+    if(lanes * stride > kMaxVectorBytes) {
+        context.diagnostics.error("a vector may be at most %@ bytes wide, and %@ lanes of %@ is %@"_v,
+                                  source, U32(kMaxVectorBytes), lanes,
+                                  describeType(context, base, content), lanes * stride);
+        return module.scalar.error;
+    }
+
+    // Whatever came in, the type that goes out names the count it resolved to - so the natural form
+    // interns as the count it turned out to be rather than as a second spelling of it.
+    count = constType(module, lanes, module.scalar.int_);
+
+    for(auto existing: module.program.vectorTypes.contents(base)) {
+        auto vector = base[existing];
+        if(vector->content == content && vector->count == count && vector->isMask == isMask) {
+            return (Type*)vector - base;
+        }
+    }
+
+    auto type = new (module.types) VectorType(content, count, isMask);
+    module.program.vectorTypes.push(module.types, type - base);
+    return (Type*)type - base;
+}
+
+TypePtr maskFor(Module& module, TypePtr type) {
+    auto base = *module.types;
+    if(!isVectorType(base, type)) return nullptr;
+
+    auto vector = (VectorType*)base[type];
+    return resolveVectorType(module, vector->content, vector->count, true, kNullLocation);
 }
 
 // Pointers are interned on their target the way tuples are interned on their fields, so that the

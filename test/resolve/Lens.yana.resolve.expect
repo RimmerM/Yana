@@ -2,12 +2,12 @@ let image$base: () = <none>
 
 let &log: Int = 0
 
-table closure$ResolveTest.continuation$5 before ResolveTest.continuation$5 {
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$10 before ResolveTest.continuation$10 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -17,7 +17,7 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn logged(%body: (value: Int) -> $r) -> $r {
+fn logged(%body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -73,7 +73,7 @@ fn split(%x: Int, %body: (low: Int, high: Int) -> a) -> a {
     ret %v8
 }
 
-fn twiceOver(%value: a, %body: (value: a) -> $r) -> $r {
+fn twiceOver(%value: a, %body: (value$: a) -> $r) -> $r {
   schema {
     #0 type a
     #1 type $r
@@ -87,7 +87,7 @@ fn twiceOver(%value: a, %body: (value: a) -> $r) -> $r {
     ret %v7
 }
 
-fn bumped(%c: Counter, %body: (value: Int) -> $r) -> $r {
+fn bumped(%c: Counter, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -109,8 +109,8 @@ fn bumped(%c: Counter, %body: (value: Int) -> $r) -> $r {
 
 fn bound() -> Int {
   b0:
-    %v0 = alloc : (value: Int) -> Int
-    %v1 = symbol ResolveTest.continuation$0 : %()
+    %v0 = alloc : (value$: Int) -> Int
+    %v1 = symbol ResolveTest.continuation$14 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -130,7 +130,7 @@ fn statement() -> Int {
   b0:
     assign log, 3
     %v2 = alloc : () -> Int
-    %v3 = symbol ResolveTest.continuation$1 : %()
+    %v3 = symbol ResolveTest.continuation$15 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -140,8 +140,8 @@ fn statement() -> Int {
 
 fn explicit() -> Int {
   b0:
-    %v1 = alloc : (value: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$2 : %()
+    %v1 = alloc : (value$: Int) -> Int
+    %v2 = symbol ResolveTest.continuation$16 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -152,7 +152,7 @@ fn explicit() -> Int {
 fn destructured() -> Int {
   b0:
     %v1 = alloc : (low: Int, high: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$3 : %()
+    %v2 = symbol ResolveTest.continuation$17 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -162,8 +162,8 @@ fn destructured() -> Int {
 
 fn generic() -> Int {
   b0:
-    %v2 = alloc : (value: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$4 : %()
+    %v2 = alloc : (value$: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$18 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -176,8 +176,8 @@ fn borrowed() -> Int {
     %v0 = alloc : Counter
     aggregate %c@Counter.value = 5
     %v3 = load %c : Counter
-    %v4 = alloc : (value: Int) -> Int
-    %v5 = symbol ResolveTest.continuation$6 : %()
+    %v4 = alloc : (value$: Int) -> Int
+    %v5 = symbol ResolveTest.continuation$20 : %()
     init %local1.code, %v5
     %v8 = cast 0 : %()
     init %local1.env, %v8
@@ -188,8 +188,8 @@ fn borrowed() -> Int {
 
 fn written() -> Int {
   b0:
-    %v1 = alloc : (value: Int) -> Int
-    %v2 = symbol ResolveTest.lambda$7 : %()
+    %v1 = alloc : (value$: Int) -> Int
+    %v2 = symbol ResolveTest.lambda$21 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -199,8 +199,8 @@ fn written() -> Int {
 
 fn nested() -> Int {
   b0:
-    %v0 = alloc : (value: Int) -> Int
-    %v1 = symbol ResolveTest.continuation$8 : %()
+    %v0 = alloc : (value$: Int) -> Int
+    %v1 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -233,8 +233,8 @@ fn inLoop(%n: Int) -> Int {
     %v17 = borrow_mut %total : &mut Int
     init %local2.total, %v17
     %v19 = addressof %local2 : %()
-    %v20 = alloc : (value: Int) -> ()
-    %v21 = symbol ResolveTest.continuation$10 : %()
+    %v20 = alloc : (value$: Int) -> ()
+    %v21 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v21
     init %local3.env, %v19
     call logged(()), %v20
@@ -267,12 +267,12 @@ fn main() -> Int {
     ret %v25
 }
 
-fn ResolveTest.continuation$0(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$14(%env: %{}, %value$: Int) -> Int {
   b0:
-    ret %value
+    ret %value$
 }
 
-fn logged(Int)(%body: (value: Int) -> Int) -> Int {
+fn logged(Int)(%body: (value$: Int) -> Int) -> Int {
   b0:
     %v1 = load log : Int
     %v3 = add %v1, 1 : Int
@@ -285,7 +285,7 @@ fn logged(Int)(%body: (value: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$1(%env: %{}) -> Int {
+fn ResolveTest.continuation$15(%env: %{}) -> Int {
   b0:
     %v1 = load log : Int
     %v4 = add %v1, 1 : Int
@@ -306,20 +306,20 @@ fn scope(Int)(%body: () -> Int) -> Int {
     ret %v5
 }
 
-fn ResolveTest.continuation$2(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.continuation$16(%env: %{}, %n: Int) -> Int {
   b0:
     %v4 = mul %n, 2 : Int
     ret %v4
 }
 
-fn plusOne(Int)(%x: Int, %body: (value: Int) -> Int) -> Int {
+fn plusOne(Int)(%x: Int, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v3 = add %x, 1 : Int
     %v4 = calldyn %body, %v3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$3(%env: %{}, %low: Int, %high: Int) -> Int {
+fn ResolveTest.continuation$17(%env: %{}, %low: Int, %high: Int) -> Int {
   b0:
     %v3 = alloc : {low: Int, high: Int}
     init %local0.low, %low
@@ -339,22 +339,22 @@ fn split(Int)(%x: Int, %body: (low: Int, high: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$4(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$18(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = alloc : {x: Int}
-    init %local0.x, %value
+    init %local0.x, %value$
     %v5 = addressof %local0 : %()
-    %v6 = alloc : (value: Bool) -> Int
-    %v7 = symbol ResolveTest.continuation$5 : %()
+    %v6 = alloc : (value$: Bool) -> Int
+    %v7 = symbol ResolveTest.continuation$19 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     %v10 = call twiceOver(Bool, Int), True, %v6 : Int
     ret %v10
 }
 
-fn ResolveTest.continuation$5(%env: %{x: Int}, %value: Bool) -> Int {
+fn ResolveTest.continuation$19(%env: %{x: Int}, %value$: Bool) -> Int {
   b0:
-    je %value, b1, b2
+    je %value$, b1, b2
 
   b1:
     %v3 = load [%env].x : Int
@@ -369,7 +369,7 @@ fn ResolveTest.continuation$5(%env: %{x: Int}, %value: Bool) -> Int {
     ret %v10
 }
 
-fn twiceOver(Bool, Int)(%value: Bool, %body: (value: Bool) -> Int) -> Int {
+fn twiceOver(Bool, Int)(%value: Bool, %body: (value$: Bool) -> Int) -> Int {
   b0:
     %v2 = load log : Int
     %v4 = add %v2, 1 : Int
@@ -378,7 +378,7 @@ fn twiceOver(Bool, Int)(%value: Bool, %body: (value: Bool) -> Int) -> Int {
     ret %v6
 }
 
-fn twiceOver(Int, Int)(%value: Int, %body: (value: Int) -> Int) -> Int {
+fn twiceOver(Int, Int)(%value: Int, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v2 = load log : Int
     %v4 = add %v2, 1 : Int
@@ -387,12 +387,12 @@ fn twiceOver(Int, Int)(%value: Int, %body: (value: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$6(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$20(%env: %{}, %value$: Int) -> Int {
   b0:
-    ret %value
+    ret %value$
 }
 
-fn bumped(Int)(%c: Counter, %body: (value: Int) -> Int) -> Int {
+fn bumped(Int)(%c: Counter, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v2 = load %c : Counter
     %v3 = load %c@Counter.value : Int
@@ -408,39 +408,39 @@ fn bumped(Int)(%c: Counter, %body: (value: Int) -> Int) -> Int {
     ret %v9
 }
 
-fn ResolveTest.lambda$7(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.lambda$21(%env: %{}, %n: Int) -> Int {
   b0:
     %v4 = mul %n, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$8(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Int {
   b0:
-    %v2 = alloc : (value: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$9 : %()
+    %v2 = alloc : (value$: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
-    %v8 = call plusOne(Int), %value, %v2 : Int
+    %v8 = call plusOne(Int), %value$, %v2 : Int
     ret %v8
 }
 
-fn ResolveTest.continuation$9(%env: %{}, %b: Int) -> Int {
+fn ResolveTest.continuation$23(%env: %{}, %b: Int) -> Int {
   b0:
     ret %b
 }
 
-fn ResolveTest.continuation$10(%env: %{total: &mut Int}, %value: Int) -> () {
+fn ResolveTest.continuation$24(%env: %{total: &mut Int}, %value$: Int) -> () {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     ret
 }
 
-fn logged(())(%body: (value: Int) -> ()) -> () {
+fn logged(())(%body: (value$: Int) -> ()) -> () {
   b0:
     %v1 = load log : Int
     %v3 = add %v1, 1 : Int

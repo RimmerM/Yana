@@ -428,10 +428,19 @@ void markClosureHeaders(OptContext& opt) {
      * A whole-program fact, and it has to be: a lambda declared in any module can be the one that
      * makes it false. That is the same footing `markProgramReachable` stands on and the same footing
      * this compiler stands on - one program, resolved together.
+     *
+     * **A lambda the program cannot reach is not in it**, which is that same footing read the other
+     * way and is what keeps the fact a property of the program rather than of the standard library.
+     * Without the filter, one `iter fn` added to Collections withdraws the elision from every
+     * program in the language whether or not the program calls it - measured when the vector
+     * iteration protocol landed, as a `drop$`/`reclaim$` pair appearing in four unrelated closure
+     * fixtures. `markProgramReachable` has already run and its answer is what `used` holds.
      */
     for(auto module: opt.program.modules) {
         for(auto pointer: module->functionOrder.contents(opt.local)) {
             auto function = opt.local[pointer];
+            if(!function->used) continue;
+
             if(function->closureHeader && function->closureHeaderRead) {
                 opt.function = nullptr;
                 return;

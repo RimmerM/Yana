@@ -1,0 +1,155 @@
+@image$base = []
+mut @seed = [3, 0, 0, 0]
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = loads @seed, 4: Int
+    %base = vsplat %v_1: i32x8
+    %high = vwithlane %base, 40, 5: i32x8
+    %v_2 = vlane %high, 5: Int
+    %v_3 = cmp_neq %v_2, 40: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = vlane %high, 4: Int
+    %v_8 = cmp_neq %v_7, 3: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    ret 18446744073709551614
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = vlane %high, 7: Int
+    %v_13 = cmp_neq %v_12, 3: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    ret 18446744073709551613
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = vlane %high, 0: Int
+    %v_18 = cmp_neq %v_17, 3: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 18446744073709551612
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_21 {
+    %low = vwithlane %high, 20, 1: i32x8
+    %v_22 = vlane %low, 1: Int
+    %v_23 = cmp_neq %v_22, 20: Int
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    ret 18446744073709551611
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = vlane %low, 5: Int
+    %v_28 = cmp_neq %v_27, 40: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    ret 18446744073709551610
+  }
+
+  b_30 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = vlane %low, 6: Int
+    %v_33 = cmp_neq %v_32, 3: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_34 {
+    ret 18446744073709551609
+  }
+
+  b_35 {
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = vreduce_imax %low: Int
+    %v_38 = cmp_neq %v_37, 40: Int
+    je %v_38, b_39, b_40
+  }
+
+  b_39 {
+    ret 18446744073709551608
+  }
+
+  b_40 {
+    jmp b_41
+  }
+
+  b_41 {
+    %v_42 = vreduce_imin %low: Int
+    %v_43 = cmp_neq %v_42, 3: Int
+    je %v_43, b_44, b_45
+  }
+
+  b_44 {
+    ret 18446744073709551607
+  }
+
+  b_45 {
+    jmp b_46
+  }
+
+  b_46 {
+    %v_47 = vreduce_add %low: Int
+    %v_48 = cmp_neq %v_47, 78: Int
+    je %v_48, b_49, b_50
+  }
+
+  b_49 {
+    ret 18446744073709551606
+  }
+
+  b_50 {
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = imul %v_27, 10: Int
+    %v_53 = add %v_52, %v_22: Int
+    ret %v_53
+  }
+}
+

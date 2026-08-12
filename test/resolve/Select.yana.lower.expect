@@ -26,9 +26,9 @@ main<complex>(): Int {
     %v_1 = call_complex lowered: Float
     %v_2 = cmp_gt %v_1, 0: Int
     %v_3 = sub 0, %v_1: Float
-    %v_4 = select %v_1, %v_3, %v_2: Float
+    %v_4 = select %v_2, %v_1, %v_3: Float
     %v_5 = cmp_gt %v_4, 2.5: Int
-    %v_6 = select 5, 0, %v_5: Int
+    %v_6 = select %v_5, 5, 0: Int
     %v_7 = shl %v_6, 8: Int
     %v_8 = add %v_7, 1310: Int
     jmp b_9
@@ -73,7 +73,7 @@ main<complex>(): Int {
     %v_32 = imul %v_13, 3: Int
     %candidate = sub 40, %v_32: Int
     %v_33 = cmp_ilt %candidate, %v_10: Int
-    %v_12 = select %candidate, %v_10, %v_33: Int
+    %v_12 = select %v_33, %candidate, %v_10: Int
     %v_14 = add %v_13, 1: Int
     jmp b_9
   }

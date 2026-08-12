@@ -188,7 +188,10 @@ static bool hasSinkingMember(Module& module, TypePtr content) {
     // has no member to ask about, whatever its element would have said.
     if(global[content]->kind == Type::Array) {
         auto array = (ArrayType*)global[content];
-        return array->length && !ownershipOf(module, array->content).trivialSink;
+        // A count this stage cannot read is a const variable, and an array of `n` elements is
+        // non-empty for every `n` but zero - so the conservative answer is the element's.
+        return writtenCount(global, array->count).from(1) &&
+               !ownershipOf(module, array->content).trivialSink;
     }
 
     if(global[content]->kind != Type::Tup) return false;
@@ -239,7 +242,7 @@ static void sinkFixedElements(ExprResolver& resolver, Module& module, Place to, 
 
     // `to`'s side is what the walk hands out and `from`'s is the same element of the other array,
     // which is what makes this one body under either shape the walk chooses.
-    resolver.eachFixedElement(to, array.content, array.length, source,
+    resolver.eachFixedElement(to, array.content, array.count, source,
                               [&](Place destination, ModulePtr<Value> index) {
         sinkMember(resolver, module, destination,
                    resolver.project(from, ProjectionKind::Index, 0, index), implementation, source);
@@ -585,14 +588,26 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
         }
 
         /*
+         * `xs[i]` on a `[T *n]` whose *count* is what this body cannot see -
+         * Implementation-Const-Generics.md §4.1.
+         *
+         * The step is `base + i * strideof T`, and neither half of that mentions `n`: the base is
+         * the owner's own address and the stride is the element's, which is a constant here or a
+         * descriptor read. So the count being a variable is not a reason to decline - it is a
+         * reason the *bounds check* reads a slot, which `TypeMetricKind::Count` already does.
+         *
+         * The element is still asked about, and that is the case the general rule below is for: an
+         * `[a *n]` has no stride here either, exactly as `[a *4]` did not.
+         */
+        if(step.kind == ProjectionKind::Index && step.owner && !step.broken &&
+           global[step.owner]->kind == Type::Array &&
+           !isGeneric(global, ((ArrayType*)global[step.owner])->content)) {
+            return true;
+        }
+
+        /*
          * Every other step is an offset read off the owner's declaration, so an owner this body
          * cannot see the shape of has no offset to read.
-         *
-         * An `Index` is the exception the general rule already covers: one element of a `[T *n]` is
-         * reachable from an erased body, because the step is the element's stride and a stride is a
-         * TypeMetric the environment already carries. Declining it would force a specialization at
-         * every call site that touched a fixed array; the generic check here still catches the case
-         * that genuinely has no layout.
          */
         if(!step.owner || step.broken || isGeneric(global, step.owner)) {
             lowerable = false;
@@ -1140,6 +1155,27 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
                 auto result = substituteType(module, slot.result, typeArgs, call.source);
                 entry.constant = propertyWitnessFor(module, owner, slot.name, result, call.source);
             }
+        } else if(slot.kind == GenSlotKind::Const) {
+            /*
+             * A count - Implementation-Const-Generics.md §3.1, and the one slot whose value is not
+             * a pointer.
+             *
+             * The same two cases as every other slot and no third one: the caller either knows the
+             * number, or is passing on a count of its own. What differs is only what goes in the
+             * cell, which is why the forwarded form still reads the caller's slot number.
+             */
+            auto expressed = substituteType(module, slot.type, typeArgs, call.source);
+            entry.count = true;
+
+            if(isGeneric(global, expressed)) {
+                entry.forwarded = callerEnv ? genConstSlot(module, *callerEnv, expressed) : maxLimit<U16>;
+                allConstant = false;
+                if(!entry.isForwarded()) ok = false;
+            } else if(auto written = writtenCount(global, expressed)) {
+                entry.value = written.unwrap();
+            } else {
+                ok = false;
+            }
         } else {
             // A function requirement, which needs a FunctionWitness - a witness kind that does not
             // exist yet. The call site falls back to specializing rather than being given a null
@@ -1147,7 +1183,7 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
             ok = false;
         }
 
-        if(!entry.constant && !entry.isForwarded()) ok = false;
+        if(!entry.count && !entry.constant && !entry.isForwarded()) ok = false;
         call.fill.push(module.arena, entry);
     }
 
@@ -1275,6 +1311,65 @@ bool prepareGenericCalls(Program& program) {
  * `visited` is what makes a recursive generic function terminate - it is on the stack, so assuming
  * it lowerable is exactly the right answer while deciding whether it is.
  */
+/*
+ * A vector whose lane count this body cannot read - Implementation-Const-Generics.md §4.3.
+ *
+ * `Vec(a, n)` is a *register* type by resolve's own ABI decision (isDirectType), and a register class
+ * is chosen from a lane width and a lane count: a body compiled once for every `n` has neither. §4.3
+ * says what the erased form would have to be - a loop over `ceil(count * stride / targetBytes)`
+ * register-fulls with a masked store - and that is the plan's step 7, which is not built.
+ *
+ * So such a body specializes, which is always available for a concrete argument list and is the same
+ * staging every other gap in this walk uses. The fixed array is *not* here: `[a *n]` is a memory type
+ * whose count reaches the IR as `TypeMetricKind::Count`, which is §4.1 and is built.
+ *
+ * **A generic vector of any shape is one of these, and not only one whose count is a variable.** A
+ * `Vec(a)` in a body generic in `a` is the natural form, whose count is the target's vector width
+ * over the lane's stride - and an erased body does not know the stride either, so the count is
+ * exactly as unreadable as a written variable's. It answered "erasable" until the iteration protocol
+ * was the first generic body to hold one.
+ */
+static bool erasedVectorIn(GlobalBase global, TypePtr type) {
+    if(!type || !isGeneric(global, type)) return false;
+
+    switch(global[type]->kind) {
+        case Type::Vector:
+            return true;
+        case Type::Array:
+            return erasedVectorIn(global, ((ArrayType*)global[type])->content);
+        case Type::Ptr:
+            return erasedVectorIn(global, ((PtrType*)global[type])->to);
+        case Type::Borrow:
+            return erasedVectorIn(global, ((BorrowType*)global[type])->to);
+        case Type::Tup: {
+            auto tuple = (TupType*)global[type];
+            for(Size i = 0; i < tuple->fields.size(); i++) {
+                if(erasedVectorIn(global, tuple->fields.get(global, i).type)) return true;
+            }
+
+            return false;
+        }
+        case Type::Record: {
+            auto record = (RecordType*)global[type];
+            for(auto arg: record->instanceArgs.contents(global)) {
+                if(erasedVectorIn(global, arg)) return true;
+            }
+
+            return false;
+        }
+        case Type::Fun: {
+            auto function = (FunType*)global[type];
+            for(auto arg: function->args.contents(global)) {
+                if(erasedVectorIn(global, arg.type)) return true;
+            }
+
+            return erasedVectorIn(global, function->result);
+        }
+        default:
+            return false;
+    }
+}
+
 static bool bodyLowerable(Module& module, ModulePtr<Function> function,
                           SmallArray<ModulePtr<Function>, 16>& visited, U32 depth) {
     auto local = *module.arena;
@@ -1300,6 +1395,15 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
         if(env->functions.isNotEmpty()) return false;
     }
 
+    // A const-generic vector in the signature - see erasedVectorIn. Checked on the signature as well
+    // as on the body below, because a parameter of one has no lower type at all: it would fail while
+    // the function's arguments were being declared, before any instruction was reached.
+    if(erasedVectorIn(global, target->returnType)) return false;
+
+    for(auto argPointer: target->args.contents(local)) {
+        if(erasedVectorIn(global, local[argPointer]->declaredType())) return false;
+    }
+
     for(auto blockPointer: target->blocks.contents(local)) {
         auto block = local[blockPointer];
 
@@ -1310,6 +1414,10 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
             // which does not exist yet - a class witness holds methods, and `Copy` would have to be
             // reached as one rather than through the descriptor's lifecycle slots.
             if(inst.kind == Value::Copy && isGeneric(global, inst.type)) return false;
+
+            // A vector of unknown width computed anywhere in the body, which is the other half of
+            // the signature test above.
+            if(erasedVectorIn(global, inst.type)) return false;
 
             // A projection into a generic aggregate. `Pair(a, b).second` sits at an offset that
             // depends on what `a` turned out to be, and a body compiled once for every `a` has no
@@ -1457,6 +1565,24 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
                 }
 
                 table.putGlobal(cell, witness);
+                break;
+            }
+
+            case GenSlotKind::Const: {
+                // The number itself, in the cell - §3.1. There is no descriptor and nothing to
+                // intern: a count that reached an interned environment is concrete by construction,
+                // since the environment is keyed on the very arguments that supplied it.
+                auto concrete = substituteType(module, slot.type, args, source);
+                auto written = writtenCount(global, concrete);
+
+                if(!written) {
+                    context.diagnostics.error("%@ cannot be passed to generic code - it is not a count this call knows"_v,
+                                              source, describeType(context, global, concrete));
+                    ok = false;
+                    break;
+                }
+
+                table.putU32(cell, U32(written.unwrap()));
                 break;
             }
 

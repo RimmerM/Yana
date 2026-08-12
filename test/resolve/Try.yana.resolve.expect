@@ -529,7 +529,7 @@ fn looped(%n: Int) -> Maybe(Int) {
     ret %v38
 }
 
-fn doubled(%x: Int, %body: (value: Int) -> $r) -> $r {
+fn doubled(%x: Int, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -548,8 +548,8 @@ fn doubled(%x: Int, %body: (value: Int) -> $r) -> $r {
 
 fn throughLens(%n: Int) -> Maybe(Int) {
   b0:
-    %v1 = alloc : (value: Int) -> Maybe(Int)
-    %v2 = symbol ResolveTest.continuation$0 : %()
+    %v1 = alloc : (value$: Int) -> Maybe(Int)
+    %v2 = symbol ResolveTest.continuation$14 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -588,7 +588,7 @@ fn throughLens(%n: Int) -> Maybe(Int) {
 fn viaSkipping(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$1 : %()
+    %v2 = symbol ResolveTest.continuation$15 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -789,9 +789,9 @@ fn Drop(Token).drop(%value: Token) -> () {
     ret
 }
 
-fn ResolveTest.continuation$0(%env: %{}, %value: Int) -> Maybe(Int) {
+fn ResolveTest.continuation$14(%env: %{}, %value$: Int) -> Maybe(Int) {
   b0:
-    %v4 = sub %value, 8 : Int
+    %v4 = sub %value$, 8 : Int
     %v5 = call parse, %v4 : Maybe(Int)
     %v6 = copy %local0 : Maybe(Int)
     %v7 = call Try(Maybe(a), a, ()).toOutcome(Int), %v6 : Outcome(Int, ())
@@ -807,12 +807,12 @@ fn ResolveTest.continuation$0(%env: %{}, %value: Int) -> Maybe(Int) {
   b2:
     %v = load %local2@Proceed : Int
     %v15 = alloc : Maybe(Int)
-    %v17 = add %v, %value : Int
+    %v17 = add %v, %value$ : Int
     aggregate %local5.discriminant = 1, %local5@Just = %v17
     ret %v15
 }
 
-fn doubled(Maybe(Int))(%x: Int, %body: (value: Int) -> Maybe(Int)) -> Maybe(Int) {
+fn doubled(Maybe(Int))(%x: Int, %body: (value$: Int) -> Maybe(Int)) -> Maybe(Int) {
   b0:
     %v2 = load log : Int
     %v4 = add %v2, 1000 : Int
@@ -825,7 +825,7 @@ fn doubled(Maybe(Int))(%x: Int, %body: (value: Int) -> Maybe(Int)) -> Maybe(Int)
     ret %v8
 }
 
-fn ResolveTest.continuation$1(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$15(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = add %found, 1 : Int
     ret %v4

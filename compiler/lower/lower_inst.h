@@ -51,7 +51,12 @@ struct LowerInst {
         FirstUnaryArith,
         Neg = FirstUnaryArith,  // Negates the source: int, float
         Not,                    // Inverts all bits in source: int
-        LastUnaryArith = Not,
+
+        // The square root of a float or of every lane of a vector of them. One kind rather than a
+        // vector one and a scalar one, for the reason the arithmetic above is one kind: what differs
+        // is the operand's type and nothing else.
+        Sqrt,
+        LastUnaryArith = Sqrt,
         LastUnary = LastUnaryArith,
 
         FirstBinary,
@@ -88,6 +93,32 @@ struct LowerInst {
 
         // Select from two values based on a condition, without branching.
         Select,
+
+        // `a * b + c`, at most once rounded. Not a Binary and not a Unary, and the one three-operand
+        // arithmetic kind in this IR - see LowerInstFma.
+        Fma,
+
+        /*
+         * The five vector operations that are not one of the above.
+         *
+         * Everything else a vector does is an instruction that already exists: an add of two
+         * vectors is an `Add`, a comparison is a `Cmp` whose result is a mask, a lane-wise select
+         * is a `Select` whose condition is one, and a lane-count-preserving conversion is a `Cast`
+         * whose result type says what happened. That is most of the operation set, and it is free -
+         * folding, CSE, forwarding and the verifier key on the kind, and an InstBinary over a
+         * vector is an InstBinary. See §3.1 of Implementation-Vector.md.
+         *
+         * The lane index and the shuffle pattern are *fields* rather than operands. Whoever
+         * produced the IR has already rejected a runtime index (Design-Vector §3.3), so nothing
+         * below here has to handle the dynamic case and nothing has to prove an index constant.
+         */
+        FirstVector,
+        VecSplat = FirstVector, // every lane the same scalar
+        VecLane,                // one lane out of a vector
+        VecWithLane,            // a vector with one lane replaced
+        VecShuffle,             // lanes selected from two vectors by a constant pattern
+        VecReduce,              // every lane combined into one scalar
+        LastVector = VecReduce,
 
         Alloca,
         Load,
@@ -181,6 +212,12 @@ inline bool isTerminator(LowerInst* inst) {
 
 inline bool isCall(LowerInst* inst) {
     return inst->kind == LowerInst::Call;
+}
+
+// One of the five that only a vector value can be an operand or a result of. Everything else a
+// vector does is one of the instructions above, with vector operands.
+inline bool isVectorInst(LowerInst* inst) {
+    return inst->kind >= LowerInst::FirstVector && inst->kind <= LowerInst::LastVector;
 }
 
 inline bool isPhi(LowerInst* inst) {
@@ -305,8 +342,12 @@ struct LowerInstBinary: LowerInstSingle {
 };
 
 struct LowerInstCmp: LowerInstBinary {
-    LowerInstCmp(StringId name, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs, LowerCmp cmp):
-        LowerInstBinary(name, LowerType::Int32, lhs, rhs, Cmp)
+    // The result type is a parameter rather than a constant because a comparison of two vectors
+    // answers a mask of their shape where one of two scalars answers a Bool - which is the whole of
+    // what a vector comparison changes about this instruction (§3.1 of Implementation-Vector.md).
+    LowerInstCmp(StringId name, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs, LowerCmp cmp,
+                 LowerType type = LowerType::Int32):
+        LowerInstBinary(name, type, lhs, rhs, Cmp)
     {
         flags = (U8)cmp;
     }
@@ -382,6 +423,151 @@ struct LowerInstSelect: LowerInstSingle {
 };
 
 /*
+ * `a * b + c`, at most once rounded - see the kind's note above.
+ *
+ * Three used values and one type: all three operands and the result are the same float, or the same
+ * vector of floats. There is nothing to embed and nothing optional, which is why this is a struct of
+ * its own rather than a Binary with a third field bolted on.
+ */
+struct LowerInstFma: LowerInstSingle {
+    LowerInstFma(StringId name, LowerType type, LowerPtr<LowerValue> a, LowerPtr<LowerValue> b,
+                 LowerPtr<LowerValue> c):
+        LowerInstSingle(Fma, name, type), a(a), b(b), c(c)
+    {
+        usedCount = 3;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> a, b, c;
+};
+
+/*
+ * Vectors.
+ */
+
+/*
+ * Which reduction a VecReduce performs.
+ *
+ * One kind with a field rather than six kinds, so that `any`, `all`, `horizontalSum` and the rest
+ * are one instruction to fold, to cost and to expand. The signed pair follows the naming the binary
+ * operations already use: `Min` is the unsigned or floating one and `IMin` the signed integer one,
+ * exactly as `Div` and `IDiv` are.
+ *
+ * The order of a floating-point reduction is a stated language property rather than an
+ * implementation detail - see Design-Vector §4.5 - so this says *what* is combined and the
+ * expansion owes the pairwise tree that says in which order.
+ */
+enum class LowerReduce: U8 {
+    Add,
+    Mul,
+    Min,
+    IMin,
+    Max,
+    IMax,
+    And,
+    Or,
+};
+
+// Every lane of the result is the same scalar. The source is the lane type's scalar form - see
+// scalarFormOf, which is what an 8- or 16-bit lane arrives in.
+struct LowerInstVecSplat: LowerInstSingle {
+    LowerInstVecSplat(StringId name, LowerType type, LowerPtr<LowerValue> from):
+        LowerInstSingle(VecSplat, name, type), from(from)
+    {
+        usedCount = 1;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+/*
+ * One lane read out of a vector, and a vector with one lane written into it.
+ *
+ * Two kinds sharing a struct, the way Init and Assign do above: the second is the first plus the
+ * value to write, and every pass that reasons about the lane index reasons about both.
+ */
+struct LowerInstVecLane: LowerInstSingle {
+    // `vlane v, i`: the result is the lane's scalar form.
+    LowerInstVecLane(StringId name, LowerType type, LowerPtr<LowerValue> from, U8 lane):
+        LowerInstSingle(VecLane, name, type), from(from), value(nullptr)
+    {
+        usedCount = 1;
+        flags = lane;
+    }
+
+    // `vwithlane v, i, x`: the result is the vector.
+    LowerInstVecLane(StringId name, LowerType type, LowerPtr<LowerValue> from, U8 lane, LowerPtr<LowerValue> value):
+        LowerInstSingle(VecWithLane, name, type), from(from), value(value)
+    {
+        usedCount = 2;
+        flags = lane;
+    }
+
+    U8 getLane() const { return flags; }
+
+    // Used values must be first after embedded values. `value` is not one of them for a VecLane,
+    // which states usedCount = 1 and leaves it null.
+    LowerPtr<LowerValue> from, value;
+};
+
+/*
+ * Lanes selected from two vectors by a constant pattern.
+ *
+ * The pattern has one entry per lane of the *result*, each naming a lane of the concatenation of the
+ * two sources: `i < lanes` is a lane of the first and `i >= lanes` a lane of the second. A shuffle
+ * within one vector names the same value twice, which is what every backend expects to see and what
+ * keeps the pattern's meaning independent of how many sources were meant.
+ *
+ * The pattern is stored past the used values, the way a phi stores its source blocks: it is as long
+ * as the result has lanes, so it is not a fixed field, and it belongs to the instruction's own
+ * allocation rather than to a list somewhere else.
+ */
+struct LowerInstVecShuffle: LowerInstSingle {
+    LowerInstVecShuffle(StringId name, LowerType type, LowerPtr<LowerValue> left, LowerPtr<LowerValue> right):
+        LowerInstSingle(VecShuffle, name, type), left(left), right(right)
+    {
+        usedCount = 2;
+    }
+
+    // One entry per lane of the result. Written by whoever allocated the instruction, which has to
+    // have reserved `type.lanes()` bytes past the used values for it.
+    Buffer<U8> pattern() {
+        auto u = used();
+        auto p = (U8*)(u.ptr + u.length);
+
+        // The pattern starts where this instruction ends, which is what the allocation reserving
+        // `patternBytes` past the struct assumes. Both halves of that are stated in one place, so a
+        // field added above cannot silently move the pattern into the middle of itself.
+        assertTrue(p == (U8*)this + sizeof(LowerInstVecShuffle));
+        return { p, result.type.lanes() };
+    }
+
+    // How much an allocation of one of these needs beyond the struct itself.
+    static Size patternBytes(LowerType type) { return type.lanes(); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> left, right;
+};
+
+// Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. The result
+// is the lane type's scalar form; for a mask it is an Int32, so `any` is Or, `all` is And and the
+// number of lanes set is Add.
+struct LowerInstVecReduce: LowerInstSingle {
+    LowerInstVecReduce(StringId name, LowerType type, LowerPtr<LowerValue> from, LowerReduce reduce):
+        LowerInstSingle(VecReduce, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = (U8)reduce;
+    }
+
+    LowerReduce getReduce() const { return (LowerReduce)flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+/*
  * Memory.
  */
 
@@ -406,6 +592,27 @@ struct LowerInstAlloca: LowerInstSingle {
 
 inline bool isSignedLoad(U8 memFlags) {
     return memFlags & 8;
+}
+
+/*
+ * That a load reads up to a vector's width past the end of what it names, deliberately.
+ *
+ * A vector loop's last iteration reads a whole register where only part of it is wanted, and the
+ * tail-read guarantee is what makes that safe: storage the language allocated has room after it, so
+ * the bytes past the end are unspecified rather than unmapped (Design-Vector §5.4). This flag is how
+ * an instruction says it is relying on that, and it is load-bearing in three places above the
+ * backend - the range analysis must not keep a bounds check for it, provenance must treat it as
+ * reading the place it names and nothing more, and the verifier checks that the place is rooted in
+ * storage that carries the guarantee.
+ *
+ * Below the backend it means one further thing, which is why it is carried into the lower IR at all:
+ * the legalizer must not narrow such a load, and nothing may conclude anything about the bytes it
+ * read past the end.
+ *
+ * No store ever carries it, which is why this is on the load's flags and not in makeMemoryFlags.
+ */
+inline bool isOverreadLoad(U8 memFlags) {
+    return memFlags & 16;
 }
 
 inline U32 getMemoryWidth(U8 memFlags) {
@@ -435,6 +642,14 @@ struct LowerInstLoad: LowerInstSingle {
 
     bool isSigned() const {
         return isSignedLoad(flags);
+    }
+
+    bool isOverread() const {
+        return isOverreadLoad(flags);
+    }
+
+    void setOverread() {
+        flags |= 16;
     }
 
     // Used values must be first after embedded values.

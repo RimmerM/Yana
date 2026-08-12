@@ -1,0 +1,506 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = shl %sizeClass, 3: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
+    ret 
+  }
+}
+
+Reclaim(Array(a)).reclaim(Float)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+sumInts<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %empty = vsplat 0: i32x4
+    %n = cast %xs$length: Int
+    %acc = alloca 16, 16: Ptr
+    store %acc, %empty, 16
+    %width = imm 4: Int
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = add %v_2, %width: Int
+    %v_6 = cmp_ile %v_5, %n: Int
+    je %v_6, b_3, b_7
+  }
+
+  b_7 {
+    %v_8 = cmp_ilt %v_2, %n: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_3 {
+    %v_11 = load %acc, 16: i32x4
+    %v_12 = sext %v_2: Long
+    %v_13 = shl %v_12, 2: Long
+    %v_14 = add %xs$items, %v_13: Ptr
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = load %v_15, 16: i32x4
+    %v_17 = add %v_11, %v_16: i32x4
+    store %acc, %v_17, 16
+    %v_4 = add %v_2, %width: Int
+    jmp b_1
+  }
+
+  b_9 {
+    %v_18 = sub %n, %v_2: Int
+    %v_19 = vwithlane %empty, 1, 1: i32x4
+    %v_20 = vwithlane %v_19, 2, 2: i32x4
+    %v_21 = vwithlane %v_20, 3, 3: i32x4
+    %v_22 = vsplat %v_18: i32x4
+    %live = cmp_ilt %v_21, %v_22: m32x4
+    %v_23 = load %acc, 16: i32x4
+    %v_24 = sext %v_2: Long
+    %v_25 = shl %v_24, 2: Long
+    %v_26 = add %xs$items, %v_25: Ptr
+    %v_27 = bitcast %v_26: Ptr
+    %v_28 = loadx %v_27, 16: i32x4
+    %v_29 = select %live, %v_28, %empty: i32x4
+    %v_30 = add %v_23, %v_29: i32x4
+    store %acc, %v_30, 16
+    jmp b_31
+  }
+
+  b_10 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = load %acc, 16: i32x4
+    %v_33 = vreduce_add %v_32: Int
+    ret %v_33
+  }
+}
+
+dot<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: Long): Float {
+  b_0 {
+    %empty = vsplat 0: f32x4
+    %n = cast %xs$length: Int
+    %acc = alloca 16, 16: Ptr
+    store %acc, %empty, 16
+    %width = imm 4: Int
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = add %v_2, %width: Int
+    %v_6 = cmp_ile %v_5, %n: Int
+    je %v_6, b_3, b_7
+  }
+
+  b_7 {
+    %v_8 = cmp_ilt %v_2, %n: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_3 {
+    %v_11 = sext %v_2: Long
+    %v_12 = shl %v_11, 2: Long
+    %v_13 = add %xs$items, %v_12: Ptr
+    %v_14 = bitcast %v_13: Ptr
+    %v_15 = load %v_14, 16: f32x4
+    %v_16 = add %ys$items, %v_12: Ptr
+    %v_17 = bitcast %v_16: Ptr
+    %v_18 = load %v_17, 16: f32x4
+    %v_19 = load %acc, 16: f32x4
+    %v_20 = fma %v_15, %v_18, %v_19: f32x4
+    store %acc, %v_20, 16
+    %v_4 = add %v_2, %width: Int
+    jmp b_1
+  }
+
+  b_9 {
+    %v_21 = sub %n, %v_2: Int
+    %v_22 = vwithlane %empty, 1, 1: f32x4
+    %v_23 = vwithlane %v_22, 2, 2: f32x4
+    %v_24 = vwithlane %v_23, 3, 3: f32x4
+    %v_25 = itof %v_21: Float
+    %v_26 = vsplat %v_25: f32x4
+    %live = cmp_lt %v_24, %v_26: m32x4
+    %v_27 = sext %v_2: Long
+    %v_28 = shl %v_27, 2: Long
+    %v_29 = add %xs$items, %v_28: Ptr
+    %v_30 = bitcast %v_29: Ptr
+    %v_31 = loadx %v_30, 16: f32x4
+    %x = select %live, %v_31, %empty: f32x4
+    %v_32 = add %ys$items, %v_28: Ptr
+    %v_33 = bitcast %v_32: Ptr
+    %v_34 = loadx %v_33, 16: f32x4
+    %y = select %live, %v_34, %empty: f32x4
+    %v_35 = load %acc, 16: f32x4
+    %v_36 = fma %x, %y, %v_35: f32x4
+    store %acc, %v_36, 16
+    jmp b_37
+  }
+
+  b_10 {
+    jmp b_37
+  }
+
+  b_37 {
+    %v_38 = load %acc, 16: f32x4
+    %v_39 = vreduce_add %v_38: Float
+    ret %v_39
+  }
+}
+
+indexOf<complex>(%xs$items: Ptr, %xs$length: Long, %needle: Int): Int {
+  b_0 {
+    %n = cast %xs$length: Int
+    %wanted = vsplat %needle: i32x4
+    %width = imm 4: Int
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = add %v_2, %width: Int
+    %v_6 = cmp_ile %v_5, %n: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    %v_9 = cmp_ilt %v_2, %n: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_7 {
+    %v_12 = sext %v_2: Long
+    %v_13 = shl %v_12, 2: Long
+    %v_14 = add %xs$items, %v_13: Ptr
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = load %v_15, 16: i32x4
+    %hits = cmp_eq %v_16, %wanted: m32x4
+    %v_17 = vreduce_or %hits: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    %v_20 = vsplat 0: i32x4
+    %v_21 = vwithlane %v_20, 1, 1: i32x4
+    %v_22 = vwithlane %v_21, 2, 2: i32x4
+    %v_23 = vwithlane %v_22, 3, 3: i32x4
+    %v_24 = vsplat 4: i32x4
+    %v_25 = select %hits, %v_23, %v_24: i32x4
+    %v_26 = vreduce_imin %v_25: Int
+    %v_27 = add %v_2, %v_26: Int
+    ret %v_27
+  }
+
+  b_19 {
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = add %v_2, %width: Int
+    jmp b_1
+  }
+
+  b_10 {
+    %v_28 = sub %n, %v_2: Int
+    %v_29 = vsplat 0: i32x4
+    %v_30 = vwithlane %v_29, 1, 1: i32x4
+    %v_31 = vwithlane %v_30, 2, 2: i32x4
+    %v_32 = vwithlane %v_31, 3, 3: i32x4
+    %v_33 = vsplat %v_28: i32x4
+    %live = cmp_ilt %v_32, %v_33: m32x4
+    %v_34 = sext %v_2: Long
+    %v_35 = shl %v_34, 2: Long
+    %v_36 = add %xs$items, %v_35: Ptr
+    %v_37 = bitcast %v_36: Ptr
+    %v_38 = loadx %v_37, 16: i32x4
+    %v_39 = cmp_eq %v_38, %wanted: m32x4
+    %hits = and %v_39, %live: m32x4
+    %v_40 = vreduce_or %hits: Int
+    je %v_40, b_41, b_42
+  }
+
+  b_11 {
+    jmp b_43
+  }
+
+  b_41 {
+    %v_44 = vsplat 4: i32x4
+    %v_45 = select %hits, %v_32, %v_44: i32x4
+    %v_46 = vreduce_imin %v_45: Int
+    %v_47 = add %v_2, %v_46: Int
+    ret %v_47
+  }
+
+  b_42 {
+    jmp b_48
+  }
+
+  b_48 {
+    jmp b_43
+  }
+
+  b_43 {
+    ret 18446744073709551615
+  }
+}
+
+fill<complex>(%xs: Ptr, %value: Int) {
+  b_0 {
+    %v_1 = add %xs, 8: Ptr
+    %v_2 = loads %v_1, 8: Long
+    %n = cast %v_2: Int
+    %block = vsplat %value: i32x4
+    %width = imm 4: Int
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
+    %v_7 = add %v_4, %width: Int
+    %v_8 = cmp_ile %v_7, %n: Int
+    je %v_8, b_5, b_9
+  }
+
+  b_9 {
+    %v_10 = sext %v_4: Long
+    %v_11 = sext %n: Long
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_9, %v_10], [b_14, %v_15]: Long
+    %v_16 = cmp_ilt %v_13, %v_11: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    ret 
+  }
+
+  b_17 {
+    %v_19 = loads %v_1, 8: Long
+    %v_20 = bitcast %v_13: Long
+    %v_21 = bitcast %v_19: Long
+    %v_22 = cmp_ge %v_20, %v_21: Int
+    je %v_22, b_23, b_14
+  }
+
+  b_14 {
+    %v_24 = load %xs, 8: Ptr
+    %v_25 = shl %v_13, 2: Long
+    %v_26 = add %v_24, %v_25: Ptr
+    store %v_26, %value, 4
+    %v_15 = add %v_13, 1: Long
+    jmp b_12
+  }
+
+  b_23 {
+    %v_27 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_5 {
+    %v_28 = sext %v_4: Long
+    %to$items = load %xs, 8: Ptr
+    %v_29 = shl %v_28, 2: Long
+    %v_30 = add %to$items, %v_29: Ptr
+    %v_31 = bitcast %v_30: Ptr
+    store %v_31, %block, 16
+    %v_6 = add %v_4, %width: Int
+    jmp b_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %ints = alloca 16, 8: Ptr
+    %v_1 = alloca 44, 4: Ptr
+    store %ints, %v_1, 8
+    %v_2 = add %ints, 8: Ptr
+    %v_3 = load %v_2, 4: Int
+    store %v_2, 11, 4
+    store %v_1, 1, 4
+    %v_4 = add %v_1, 4: Ptr
+    store %v_4, 2, 4
+    %v_5 = add %v_1, 8: Ptr
+    store %v_5, 3, 4
+    %v_6 = add %v_1, 12: Ptr
+    store %v_6, 4, 4
+    %v_7 = add %v_1, 16: Ptr
+    store %v_7, 5, 4
+    %v_8 = add %v_1, 20: Ptr
+    store %v_8, 6, 4
+    %v_9 = add %v_1, 24: Ptr
+    store %v_9, 7, 4
+    %v_10 = add %v_1, 28: Ptr
+    store %v_10, 8, 4
+    %v_11 = add %v_1, 32: Ptr
+    store %v_11, 9, 4
+    %v_12 = add %v_1, 36: Ptr
+    store %v_12, 10, 4
+    %v_13 = add %v_1, 40: Ptr
+    store %v_13, 11, 4
+    %v_14 = add %ints, 12: Ptr
+    store %v_14, 11, 4
+    %xs = alloca 16, 8: Ptr
+    %v_15 = alloca 20, 4: Ptr
+    store %xs, %v_15, 8
+    %v_16 = add %xs, 8: Ptr
+    %v_17 = load %v_16, 4: Int
+    store %v_16, 5, 4
+    store %v_15, 1, 4
+    %v_18 = add %v_15, 4: Ptr
+    store %v_18, 2, 4
+    %v_19 = add %v_15, 8: Ptr
+    store %v_19, 3, 4
+    %v_20 = add %v_15, 12: Ptr
+    store %v_20, 4, 4
+    %v_21 = add %v_15, 16: Ptr
+    store %v_21, 5, 4
+    %v_22 = add %xs, 12: Ptr
+    store %v_22, 5, 4
+    %ys = alloca 16, 8: Ptr
+    %v_23 = alloca 20, 4: Ptr
+    store %ys, %v_23, 8
+    %v_24 = add %ys, 8: Ptr
+    %v_25 = load %v_24, 4: Int
+    store %v_24, 5, 4
+    store %v_23, 2, 4
+    %v_26 = add %v_23, 4: Ptr
+    store %v_26, 2, 4
+    %v_27 = add %v_23, 8: Ptr
+    store %v_27, 2, 4
+    %v_28 = add %v_23, 12: Ptr
+    store %v_28, 2, 4
+    %v_29 = add %v_23, 16: Ptr
+    store %v_29, 2, 4
+    %v_30 = add %ys, 12: Ptr
+    store %v_30, 5, 4
+    %v_31 = alloca 16, 8: Ptr
+    %v_32 = alloca 28, 4: Ptr
+    store %v_31, %v_32, 8
+    %v_33 = add %v_31, 8: Ptr
+    %v_34 = load %v_33, 4: Int
+    store %v_33, 7, 4
+    store %v_32, 0, 4
+    %v_35 = add %v_32, 4: Ptr
+    store %v_35, 0, 4
+    %v_36 = add %v_32, 8: Ptr
+    store %v_36, 0, 4
+    %v_37 = add %v_32, 12: Ptr
+    store %v_37, 0, 4
+    %v_38 = add %v_32, 16: Ptr
+    store %v_38, 0, 4
+    %v_39 = add %v_32, 20: Ptr
+    store %v_39, 0, 4
+    %v_40 = add %v_32, 24: Ptr
+    store %v_40, 0, 4
+    %v_41 = add %v_31, 12: Ptr
+    store %v_41, 7, 4
+    %v_42 = alloca 16, 8: Ptr
+    store %v_42, %v_32, 8
+    %v_43 = add %v_42, 8: Ptr
+    store %v_43, 7, 8
+    call_complex fill, %v_42, 3
+    %v_44 = call_complex sumInts, %v_1, 11: Int
+    %v_45 = imul %v_44, 100000: Int
+    %v_46 = alloca 16, 8: Ptr
+    %v_47 = alloca 12, 4: Ptr
+    store %v_46, %v_47, 8
+    %v_48 = add %v_46, 8: Ptr
+    %v_49 = load %v_48, 4: Int
+    store %v_48, 3, 4
+    store %v_47, 1, 4
+    %v_50 = add %v_47, 4: Ptr
+    store %v_50, 2, 4
+    %v_51 = add %v_47, 8: Ptr
+    store %v_51, 3, 4
+    %v_52 = add %v_46, 12: Ptr
+    store %v_52, 3, 4
+    %v_53 = call_complex sumInts, %v_47, 3: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_46
+    %v_54 = imul %v_53, 10000: Int
+    %v_55 = add %v_45, %v_54: Int
+    %v_56 = call_complex dot, %v_15, 5, %v_23, 5: Float
+    call_complex Reclaim(Array(a)).reclaim(Float), %xs
+    call_complex Reclaim(Array(a)).reclaim(Float), %ys
+    %v_57 = cmp_eq %v_56, 30: Int
+    %v_58 = select %v_57, 30, 0: Int
+    %v_59 = imul %v_58, 100: Int
+    %v_60 = add %v_55, %v_59: Int
+    %v_61 = call_complex indexOf, %v_1, 11, 8: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %ints
+    %v_62 = imul %v_61, 10: Int
+    %v_63 = add %v_60, %v_62: Int
+    %v_64 = call_complex sumInts, %v_32, 7: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_31
+    %v_65 = add %v_63, %v_64: Int
+    ret %v_65
+  }
+}
+

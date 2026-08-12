@@ -150,6 +150,21 @@ struct Folder {
          * Floats are excluded, and for the one reason IEEE 754 gives: a NaN is not equal to itself,
          * so none of the six is reflexive over the type as a whole.
          */
+        /*
+         * A vector comparison is excluded, and it is the one exclusion this rule needs that is not
+         * about NaN.
+         *
+         * The answer is right and its *shape* is not: `cmp_eq %v, %v` over an integer vector really
+         * is true of every lane, but what says so is an all-ones mask rather than the number one,
+         * and this arm runs ahead of the type gate precisely so that it can answer without knowing
+         * the width. A `ConstInt` typed as a `Mask` is a value neither backend can hold.
+         *
+         * Nothing produces a vector comparison yet, so this is a guard rather than a fix - which is
+         * exactly the shape Implementation-Vector.md §13 warns about: the sites that keep compiling
+         * and are wrong are the ones nothing will find.
+         */
+        if(isVectorType(opt.global, operandType)) return nullptr;
+
         if(!isFloat && sameOperand(instruction.lhs, instruction.rhs)) {
             return constant(instruction, instruction.type, compareReflexive(instruction.cmp) ? 1 : 0);
         }
@@ -812,10 +827,7 @@ struct Folder {
         auto& metric = (InstTypeMetric&)instruction;
         if(!metric.of || isGeneric(opt.global, metric.of)) return nullptr;
 
-        auto& repr = opt.repr.of(metric.of);
-        auto number = metric.metric == TypeMetricKind::Align ? repr.align
-                    : metric.metric == TypeMetricKind::Stride ? repr.stride
-                    : repr.size;
+        auto number = opt.repr.metric(metric.of, metric.metric);
 
         // At the metric's own type rather than at a word, on rule 1 above: what a backend reads
         // back out of the constant has to be what it would have written into the register.

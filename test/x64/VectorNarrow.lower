@@ -1,0 +1,65 @@
+# The 8- and 16-bit lane, which this backend refused at every feature level until the string tier
+# needed it - Implementation-Vector.md §9.13, and the last item on §12's list.
+#
+# Three operations had no form and one pass each now stands in for them:
+#
+#   `vsplat` - there is no byte or word broadcast below SSSE3, so the *scalar* is replicated instead:
+#   `b * 0x01010101` is the sixteen-lane pattern already, and `pshufd` spreads it. One `imul` and the
+#   broadcast this backend always had. See `expandNarrowSplats`.
+#
+#   `vreduce` - the butterfly needs a shuffle pairing lane `i` with `i ^ s`, and `pshufd` moves
+#   32-bit lanes. So the levels whose partner is a whole 32-bit lane away are that shuffle over the
+#   register read as `i32`, and the one or two levels *inside* a 32-bit lane happen after the `movd`
+#   every reduction ends in anyway. The `and` at the end is not decoration: `count(mask)` answers an
+#   `Int`, so the partial sums the shifts leave above the low lane have to go.
+#
+#   The unsigned comparisons - `biasUnsignedPackedCompares` builds them out of the signed ones by
+#   flipping the top bit of every lane, and the bias is a splat, so it was refused for exactly the
+#   reason above and works for exactly the reason above.
+#
+# What is left refused at a byte lane is the product, and only the product: the pairwise step is a
+# packed multiply and the machine's narrowest is `pmullw`.
+
+# A splat of a runtime byte. A constant one never reaches the expansion - `poolVectorConstants` runs
+# first and makes it a `.rodata` load - so this is the shape a search for one byte has.
+splatByte(%b: Int): i8x16 {
+    {
+        %v = vsplat %b: i8x16
+        ret %v
+    }
+}
+
+# The same at sixteen bits, where the pattern is `0x00010001` and the multiply is the only difference.
+splatWord(%w: Int): i16x8 {
+    {
+        %v = vsplat %w: i16x8
+        ret %v
+    }
+}
+
+# A sum of sixteen byte lanes: two `pshufd`/`paddb` levels, `movd`, and the last two levels as shifts
+# in a general register.
+sumBytes(%v: i8x16): Int {
+    {
+        %r = vreduce_add %v: Int
+        ret %r
+    }
+}
+
+# An unsigned minimum, which is the shape `firstSet` reaches: the vector levels are a comparison and
+# a select, and the scalar finish cuts the word into its four lanes because a comparison reads the
+# whole register.
+minBytes(%v: i8x16): Int {
+    {
+        %r = vreduce_min %v: Int
+        ret %r
+    }
+}
+
+# An unsigned comparison of byte lanes, biased into the signed one the machine has.
+belowByte(%a: i8x16, %b: i8x16): m8x16 {
+    {
+        %m = cmp_lt %a, %b: m8x16
+        ret %m
+    }
+}

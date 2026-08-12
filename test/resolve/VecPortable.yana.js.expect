@@ -1,0 +1,113 @@
+"use strict";
+var seed = 2;
+
+// ResolveTest
+function construction() {
+  return false ? -4 : false ? -6 : 0;
+}
+
+function arithmetic(v) {
+  var v11$0 = v[0] < 0;
+  var v11$1 = v[1] < 1;
+  var lower$0 = v11$0 ? v[0] : 0;
+  var lower$1 = v11$1 ? v[1] : 1;
+  var v13$0 = v[0] > 0;
+  var v13$1 = v[1] > 1;
+  var upper$0 = v13$0 ? v[0] : 0;
+  var upper$1 = v13$1 ? v[1] : 1;
+  if (lower$0 !== 0) {
+    return -1;
+  } else {
+    if (upper$0 !== 2) {
+      return -2;
+    } else {
+      if (lower$1 !== 1) {
+        return -3;
+      } else {
+        if (upper$1 !== 2) {
+          return -4;
+        } else {
+          var negated$0 = 0 - v[0] | 0;
+          if ((negated$0 <= 0 ? 0 - negated$0 | 0 : negated$0) !== 2) {
+            return -5;
+          } else {
+            var v83$1 = v[1] <= 0;
+            var v84$1 = 0 - v[1] | 0;
+            if ((v83$1 ? v84$1 : v[1]) !== 2) {
+              return -6;
+            } else {
+              return 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function floats() {
+  var a$0 = -1.5;
+  var a$1 = -1.5;
+  var zeros$0 = 0;
+  var zeros$1 = 0;
+  if ((a$0 <= 0 ? Math.fround(0 - a$0) : a$0) !== 1.5) {
+    return -1;
+  } else {
+    if ((a$0 < zeros$0 ? a$0 : zeros$0) !== -1.5) {
+      return -2;
+    } else {
+      if ((a$1 > zeros$1 ? a$1 : zeros$1) !== 0) {
+        return -3;
+      } else {
+        if (Math.fround(1 / (zeros$0 <= 0 ? Math.fround(0 - zeros$0) : zeros$0)) < 0) {
+          return -4;
+        } else {
+          return 0;
+        }
+      }
+    }
+  }
+}
+
+function rearrangement() {
+  return 0;
+}
+
+function regrouping(v) {
+  var v6$0 = v[0] << 16 >> 16;
+  var packed$4 = 5;
+  if (v6$0 !== 2) {
+    return -2;
+  } else {
+    if (packed$4 !== 5) {
+      return -3;
+    } else {
+      return v6$0 !== 2 ? -4 : packed$4 !== 5 ? -5 : 0;
+    }
+  }
+}
+
+function main() {
+  if (construction() !== 0) {
+    return construction();
+  } else {
+    if (arithmetic([seed, seed, seed, seed]) !== 0) {
+      return Math.imul(arithmetic([seed, seed, seed, seed]), 10);
+    } else {
+      if (floats() !== 0) {
+        return Math.imul(floats(), 100);
+      } else {
+        if (rearrangement() !== 0) {
+          return Math.imul(rearrangement(), 1000);
+        } else {
+          if (regrouping([seed | 0, seed | 0, seed | 0, seed | 0]) !== 0) {
+            return Math.imul(regrouping([seed | 0, seed | 0, seed | 0, seed | 0]), 10000);
+          } else {
+            return 271;
+          }
+        }
+      }
+    }
+  }
+}
+main();

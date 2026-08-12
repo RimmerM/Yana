@@ -1,0 +1,41 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+@"image$base" = constant [0 x i8] zeroinitializer, align 8
+@sink = global [16 x i8] zeroinitializer, align 8
+
+define fastcc <8 x i16> @regrouping(<4 x i32> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = bitcast <4 x i32> %v to <8 x i16>
+  ret <8 x i16> %2
+}
+
+define fastcc <16 x i8> @bytes(<8 x i16> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = bitcast <8 x i16> %v to <16 x i8>
+  ret <16 x i8> %2
+}
+
+define fastcc <4 x i32> @back(<16 x i8> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = bitcast <16 x i8> %v to <4 x i32>
+  ret <4 x i32> %2
+}
+
+define fastcc i32 @"main$"() {
+  br label %1
+
+1:                                                ; preds = %0
+  store <4 x i32> zeroinitializer, ptr @sink, align 1
+  %2 = call fastcc <8 x i16> @regrouping(<4 x i32> zeroinitializer)
+  %3 = call fastcc <16 x i8> @bytes(<8 x i16> %2)
+  %4 = call fastcc <4 x i32> @back(<16 x i8> %3)
+  store <4 x i32> %4, ptr @sink, align 1
+  ret i32 1
+}

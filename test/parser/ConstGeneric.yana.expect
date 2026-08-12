@@ -1,0 +1,237 @@
+Module 
+|-DataDecl A (width: Int)
+| `-Constructor A
+|   `-TupType 
+|     |-Field l
+|     | `-ConType Int
+|     `-Field v
+|       `-ArrType 
+|         |-ConType Float
+|         `-VarExpr width
+|-DataDecl B (a, n: Int, b)
+| `-Constructor B
+|   `-TupType 
+|     |-Field v
+|     | `-ArrType 
+|     |   |-GenType a
+|     |   `-VarExpr n
+|     `-Field w
+|       `-ArrType 
+|         |-GenType b
+|         `-VarExpr n
+|-AliasDecl Fixed (a, n: Int)
+| `-ArrType 
+|   |-GenType a
+|   `-VarExpr n
+|-TraitDecl C (a, n: Int)
+| `-FunDecl f
+|   |-Arg x
+|   | `-GenType a
+|   `-Result
+|     `-ConType Int
+|-TraitDecl Chunked (c, a, n: Int -> m)
+| `-FunDecl g
+|   |-Arg x
+|   | `-GenType c
+|   `-Result
+|     `-GenType m
+|-FunDecl lane <implicit return> 
+| |-<constraints>
+| | `-ConstConstraint n
+| |   `-ConType Int
+| |-Arg v
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType Float
+| |   `-GenType n
+| |-Arg i
+| | `-ConType Int
+| |-Result
+| | `-ConType Float
+| `-Body
+|   `-LitExpr 0
+|-FunDecl mixed <implicit return> 
+| |-<constraints>
+| | |-ConstConstraint n
+| | | `-ConType Int
+| | |-ClassConstraint Ord
+| | | `-GenType a
+| | |-FieldConstraint a.size
+| | | `-ConType Int
+| | `-FunctionConstraint f
+| |   `-FunType 
+| |     |-Arg <anonymous>
+| |     | `-GenType a
+| |     `-ConType Int
+| |-Arg v
+| | `-ArrType 
+| |   |-GenType a
+| |   `-VarExpr n
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 0
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType C
+| | |-ConType Int
+| | `-GenType n
+| |-<constraints>
+| | `-ConstConstraint n
+| |   `-ConType Int
+| `-FunDecl f <implicit return> 
+|   |-Arg x
+|   | `-ConType Int
+|   |-Result
+|   | `-ConType Int
+|   `-Body
+|     `-LitExpr 0
+|-FunDecl stride <implicit return> 
+| |-<constraints>
+| | `-ConstConstraint n
+| |   `-ConType Int
+| |-Arg v
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType Float
+| |   `-GenType n
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr *
+|     |-VarExpr n
+|     `-LitExpr 4
+|-FunDecl firstOf <implicit return> 
+| |-Arg xs
+| | `-ArrType 
+| |   |-ConType Int
+| |   `-VarExpr n
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-SubExpr 
+|     |-VarExpr xs
+|     `-Field <anonymous>
+|       `-LitExpr 0
+|-FunDecl applied <implicit return> 
+| |-<constraints>
+| | |-ConstConstraint n
+| | | `-ConType Int
+| | `-ClassConstraint Num
+| |   `-AppType 
+| |     |-ConType Vec
+| |     |-ConType I16
+| |     `-GenType n
+| |-Arg v
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType I16
+| |   `-GenType n
+| |-Result
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType I16
+| |   `-GenType n
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr +
+|     |-VarExpr v
+|     `-VarExpr v
+|-FunDecl writtenCount <implicit return> 
+| |-<constraints>
+| | `-ClassConstraint Num
+| |   `-AppType 
+| |     |-ConType Vec
+| |     |-ConType I16
+| |     `-LitType 
+| |       `-LitExpr 4
+| |-Arg v
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType I16
+| |   `-LitType 
+| |     `-LitExpr 4
+| |-Result
+| | `-AppType 
+| |   |-ConType Vec
+| |   |-ConType I16
+| |   `-LitType 
+| |     `-LitExpr 4
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr +
+|     |-VarExpr v
+|     `-VarExpr v
+|-FunDecl overArray <implicit return> 
+| |-<constraints>
+| | |-ConstConstraint n
+| | | `-ConType Int
+| | `-ClassConstraint Sized
+| |   |-ArrType 
+| |   | |-ConType Int
+| |   | `-VarExpr n
+| |   `-ConType Int
+| |-Arg xs
+| | `-ArrType 
+| |   |-ConType Int
+| |   `-VarExpr n
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 0
+|-FunDecl overFunction <implicit return> 
+| |-<constraints>
+| | `-ClassConstraint Callable
+| |   `-FunType 
+| |     |-Arg <anonymous>
+| |     | `-GenType a
+| |     `-ConType Int
+| |-Arg f
+| | `-FunType 
+| |   |-Arg <anonymous>
+| |   | `-GenType a
+| |   `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 0
+|-FunDecl nested <implicit return> 
+| |-<constraints>
+| | `-ClassConstraint Two
+| |   |-AppType 
+| |   | |-ConType Pair
+| |   | |-GenType k
+| |   | `-GenType v
+| |   `-AppType 
+| |     |-ConType Maybe
+| |     `-GenType k
+| |-Arg p
+| | `-AppType 
+| |   |-ConType Pair
+| |   |-GenType k
+| |   `-GenType v
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 0
+|-FunDecl bare <implicit return> 
+| |-<constraints>
+| | `-ClassConstraint Show
+| |   `-GenType a
+| |-Arg x
+| | `-GenType a
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 0
+`-FunDecl unparenthesized <implicit return> 
+  |-<constraints>
+  | `-ClassConstraint Show
+  |   `-GenType a
+  |-Arg x
+  | `-GenType a
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-LitExpr 0

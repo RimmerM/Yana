@@ -108,6 +108,45 @@ LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr
     return genSlot(lower, block, slot);
 }
 
+/*
+ * A const parameter's value - Implementation-Const-Generics.md §3.2.
+ *
+ * One cell of the environment, and no step past it. A type variable's slot holds an *address* that a
+ * metric then indexes into; a const one holds the number, so `descField` straight onto the
+ * environment is the whole read - one load and one widen rather than three loads and an add.
+ *
+ * Null for a count this body already knows, which is the same shape genTypeDesc has and reads as the
+ * same test: "is this one of the things my caller had to tell me".
+ */
+LowerPtr<LowerValue> genConstValue(LowerContext& lower, LowerBlock& block, TypePtr count, LowerType type) {
+    if(!lower.genEnv || !count || !isGeneric(lower.global, count)) return nullptr;
+
+    auto slot = genConstSlot(*lower.genModule, *lower.genContext, count);
+
+    // A const variable with no slot would mean a body reading a count its own context does not
+    // declare, which §2.5 makes unreachable: a count is a bare variable, and every variable of a
+    // context is numbered from the declaration.
+    assertTrue(slot != maxLimit<U16>);
+
+    auto address = addOffset(lower, block, lower.genEnv, tableSlotOffset(GenEnvFields::slot(slot)));
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], kTableCellSize, false,
+                       LowerType::Int32, StringId());
+    auto value = loaded->created().ptr - lower.lower;
+
+    /*
+     * At the metric's own width and not at a machine word, which is the difference between this and
+     * `descField` beside it - a size is always computed at 64 bits, and a count is a value of the
+     * const parameter's *declared* type. A `Count` returning an Int64 where the signature says `Int`
+     * is a lower-IR type error, and the validator says so.
+     *
+     * Unsigned in both directions: a count is a non-negative number, and the cell it came out of is
+     * four bytes of one.
+     */
+    if(type == LowerType::Int32) return value;
+    return cast<false, false>(lower.lower, lower.to, block, lower.lower[value], type,
+                              StringId())->created().ptr - lower.lower;
+}
+
 // One U32 field of a descriptor, widened to the 64-bit form every size and offset is computed in.
 LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
                                       LowerPtr<LowerValue> descriptor, U16 slot) {
@@ -235,6 +274,23 @@ LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, Inst
     U16 index = 0;
 
     for(auto slot: slots.contents(lower.local)) {
+        /*
+         * A count cell holds the number and not an address, so it is neither anchor-relative on the
+         * way in nor decoded on the way out - Implementation-Const-Generics.md §3.1. A forwarded one
+         * is the caller's own cell copied across unchanged, which is what the raw `descField` read
+         * of the environment gives.
+         */
+        if(slot.count) {
+            auto number = slot.isForwarded()
+                ? descField(lower, block, lower.genEnv, GenEnvFields::slot(slot.forwarded))
+                : immediate(lower, slot.value);
+
+            auto cell = addOffset(lower, block, base, tableSlotOffset(GenEnvFields::slot(index)));
+            block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(cell, number, kTableCellSize));
+            index++;
+            continue;
+        }
+
         auto value = slot.isForwarded()
             ? genWitness(lower, block, slot.forwarded, slot.forwardedSupers)
             : tableAddress(lower, block, slot.constant);

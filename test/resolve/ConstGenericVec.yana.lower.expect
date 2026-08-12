@@ -1,0 +1,72 @@
+@image$base = []
+mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
+
+quadWidth<complex>(%v: i16x4): Int {
+  b_0 {
+    %v_1 = call_complex widthOf(4), %v: Int
+    ret %v_1
+  }
+}
+
+main$<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i16x4
+    store @sink, %v_1, 8
+    %v = vwithlane %v_1, 9, 1: i16x4
+    %wide = call_complex doubled(4), %v: i16x4
+    %v_2 = call_complex twice(4), %v: i16x4
+    %v_3 = call_complex sameCount(4), %v, %wide: i16x4
+    %summed = call_complex sameCount(4), %v_2, %v_3: i16x4
+    store @sink, %wide, 8
+    %v_4 = call_complex widthOf(4), %v: Int
+    %v_5 = call_complex quadWidth, %v: Int
+    %v_6 = add %v_4, %v_5: Int
+    %v_7 = call_complex secondLane(4), %wide: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = add %v_6, %v_8: Int
+    %v_10 = call_complex secondLane(4), %summed: Int
+    %v_11 = cast %v_10: Int
+    %v_12 = add %v_9, %v_11: Int
+    %v_13 = vlane %summed, 2: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = add %v_12, %v_14: Int
+    ret %v_15
+  }
+}
+
+widthOf(4)<complex>(%v: i16x4): Int {
+  b_0 {
+    ret 4
+  }
+}
+
+doubled(4)<complex>(%v: i16x4): i16x4 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 3, 2, 1, 0: i16x4
+    %v_2 = cmp_igt %v_1, %v: m16x4
+    %v_3 = select %v_2, %v_1, %v: i16x4
+    ret %v_3
+  }
+}
+
+twice(4)<complex>(%v: i16x4): i16x4 {
+  b_0 {
+    %v_1 = add %v, %v: i16x4
+    ret %v_1
+  }
+}
+
+sameCount(4)<complex>(%v: i16x4, %w: i16x4): i16x4 {
+  b_0 {
+    %v_1 = add %v, %w: i16x4
+    ret %v_1
+  }
+}
+
+secondLane(4)<complex>(%v: i16x4): Int {
+  b_0 {
+    %v_1 = vlane %v, 1: Int
+    ret %v_1
+  }
+}
+

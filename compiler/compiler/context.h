@@ -167,6 +167,10 @@ struct RegionPtr {
     operator U32() const {
         return offset;
     }
+
+    template<class U> explicit operator RegionPtr<Region, U>() const {
+        return RegionPtr<Region, U>(offset);
+    }
 };
 
 template<class Region>

@@ -96,8 +96,12 @@ inline LowerInst* binary(LowerBase base, LowerModule& module, LowerBlock& block,
     return block.addInst(base, new (module.arena) LowerInstBinary(name, type, lhs - base, rhs - base, kind));
 }
 
-inline LowerInst* cmp(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* lhs, LowerValue* rhs, LowerCmp c, StringId name) {
-    return block.addInst(base, new (module.arena) LowerInstCmp(name, lhs - base, rhs - base, c));
+// `type` is the *result*, which is a Bool for two scalars and a mask of their shape for two vectors -
+// see LowerInstCmp, where the parameter is argued. It defaults to the scalar answer rather than being
+// computed from the operands, because a comparison whose operands are vectors is the only caller that
+// has anything else to say and it is the caller that knows the mask.
+inline LowerInst* cmp(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* lhs, LowerValue* rhs, LowerCmp c, StringId name, LowerType type = LowerType::Int32) {
+    return block.addInst(base, new (module.arena) LowerInstCmp(name, lhs - base, rhs - base, c, type));
 }
 
 inline LowerInst* load(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* from, U32 width, bool signExtend, LowerType type, StringId name) {

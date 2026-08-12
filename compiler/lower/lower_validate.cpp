@@ -12,9 +12,55 @@ static bool validateLowerArg(Diagnostics* diagnostics, LowerBase base, LowerBloc
     return true;
 }
 
+/*
+ * What a value's type may be at all, before anything is asked about the instruction holding it.
+ *
+ * Two rules, and both are about the lane types that exist only as lanes. An 8- or 16-bit *scalar*
+ * arrives in a 32-bit register and states its width on the access that reads it, which is the rule
+ * every pass here is written against; a vector of pointers is not something this IR can express, and
+ * a mask of one lane is a Bool, which is an Int32. Each of the three would otherwise be a type that
+ * looks legal and that no backend has a register class for.
+ */
+static bool validateValueType(Diagnostics* diagnostics, LowerType type, LocationId source) {
+    if(!isVectorLike(type)) {
+        if(type.lane == LowerLane::Int8 || type.lane == LowerLane::Int16) {
+            diagnostics->error("an 8- or 16-bit value can only be a vector lane"_v, source);
+            return false;
+        }
+
+        return true;
+    }
+
+    if(type.lane == LowerLane::Pointer) {
+        diagnostics->error("a vector of pointers has no representation"_v, source);
+        return false;
+    }
+
+    if(type.laneShift == 0) {
+        diagnostics->error("a mask of one lane is a Bool"_v, source);
+        return false;
+    }
+
+    // The widest register any described target has. A wider type would have no home, and the
+    // arithmetic that computes a lane count from a byte width would silently produce it.
+    if(type.byteWidth() > 64) {
+        diagnostics->error("a vector wider than 64 bytes has no register"_v, source);
+        return false;
+    }
+
+    return true;
+}
+
 static bool validateImm(Diagnostics* diagnostics, LowerImm* inst) {
     if(isPtr(inst->result.type)) {
         diagnostics->error("cannot create immediate value of pointer type"_v, inst->source);
+        return false;
+    }
+
+    // A vector constant is `lanes` numbers rather than one, and an immediate holds one word. What
+    // produces one is a load of a pooled constant, which is an ordinary load of ordinary data.
+    if(isVectorLike(inst->result.type)) {
+        diagnostics->error("a vector constant is not an immediate"_v, inst->source);
         return false;
     }
 
@@ -42,6 +88,25 @@ static bool validateFun(Diagnostics* diagnostics, LowerInstFun* inst) {
 static bool validateCast(Diagnostics* diagnostics, LowerBase base, LowerInstCast* inst) {
     auto result = inst->result.type;
     auto source = base[inst->from]->type;
+
+    /*
+     * A conversion between two vectors preserves the lane count, and this is where that is said.
+     *
+     * It has to be said, because nothing else distinguishes the two things it could mean: a `cast`
+     * from `f32x8` to `f64x8` is a widening of every lane into a register twice as wide, and one to
+     * `f64x4` is the *low half* widened - which is `unpackLow` and a cast, two instructions with
+     * different operands. Design-Vector §3.4 makes the first one what a conversion is; the second
+     * is spelled as the shuffle it is.
+     */
+    if(isVectorLike(result) || isVectorLike(source)) {
+        if(result.laneShift != source.laneShift || result.isMask() || source.isMask()) {
+            diagnostics->error("a conversion between vectors must preserve the lane count"_v, inst->source);
+            return false;
+        }
+
+        return true;
+    }
+
     auto valid = (isInt(result) || isFloat(result)) && (isInt(source) || isFloat(source));
 
     if(!valid) {
@@ -56,6 +121,38 @@ static bool validateBitcast(Diagnostics* diagnostics, LowerBase base, LowerInstU
     auto result = inst->result.type;
     auto source = base[inst->from]->type;
     bool valid;
+
+    /*
+     * A bitcast is about bits, so a vector one is legal exactly where the two are the same width -
+     * `i8x16` to `i32x4` reinterprets one register, and `i8x16` to `i32x8` names two.
+     *
+     * A **mask** is legal only against another mask of the *same shape*, which is stricter than the
+     * width rule beside it. Since a mask stopped normalizing its element (Design-Vector §2.4),
+     * `Mask(Float)` and `Mask(Int)` are two types over one register and this is what relates them -
+     * so refusing every mask, which is what this did, refused the operation that replaced the
+     * normalization. What it may not do is change the lane shape: an `m8x16` and an `m32x4` are one
+     * register and sixteen truth values against four, so reinterpreting one as the other is a
+     * repacking and not a renaming. `laneShift` is the whole of the test, the width being equal by
+     * construction once the shift and the count are.
+     */
+    if(isVectorLike(source) || isVectorLike(result)) {
+        if(source.isMask() != result.isMask()) {
+            diagnostics->error("incompatible cast types"_v, inst->source);
+            return false;
+        }
+
+        if(source.isMask() && source.laneShift != result.laneShift) {
+            diagnostics->error("a bitcast between masks must preserve the lane shape"_v, inst->source);
+            return false;
+        }
+
+        if(source.byteWidth() != result.byteWidth()) {
+            diagnostics->error("incompatible cast types"_v, inst->source);
+            return false;
+        }
+
+        return true;
+    }
 
     if(isPtr(source)) {
         valid = isPtr(result) || isInt(result);
@@ -77,8 +174,12 @@ static bool validateUnary(Diagnostics* diagnostics, LowerBase base, LowerInstUna
     auto result = inst->result.type;
     auto source = base[inst->from]->type;
 
-    bool valid = isInt(source);
-    if(allowFloat && isFloat(source)) valid = true;
+    // `allowFloat` is what separates the two callers, and it now separates more than it says:
+    // `neg` takes anything arithmetic, and `not` takes anything whose lanes are bits - which is
+    // where a mask comes in, and where a float does not.
+    bool valid = allowFloat
+        ? (isInt(source) || isFloat(source) || isIntVector(source) || isFloatVector(source))
+        : (isInt(source) || isIntVector(source) || source.isMask());
 
     if(!valid) {
         diagnostics->error("invalid type to unary operation"_v, inst->source);
@@ -88,6 +189,52 @@ static bool validateUnary(Diagnostics* diagnostics, LowerBase base, LowerInstUna
     if(source != result) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
         return false;
+    }
+
+    return true;
+}
+
+/*
+ * A square root, and the three-operand multiply-add.
+ *
+ * Both are floats and nothing else, at any width and any lane count: a square root of an integer is
+ * a question about rounding no machine answers, and a fused multiply-add of two is the ordinary two
+ * instructions with nothing fused about them.
+ */
+static bool validateFloatOnly(Diagnostics* diagnostics, LowerType type, LowerInst* inst) {
+    if(isFloat(type) || isFloatVector(type)) return true;
+
+    diagnostics->error("this operation is defined on floating-point values only"_v, inst->source);
+    return false;
+}
+
+static bool validateSqrt(Diagnostics* diagnostics, LowerBase base, LowerInstUnary* inst) {
+    if(!validateFloatOnly(diagnostics, inst->result.type, inst)) return false;
+
+    if(base[inst->from]->type != inst->result.type) {
+        diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
+static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* inst) {
+    if(!validateFloatOnly(diagnostics, inst->result.type, inst)) return false;
+
+    if(inst->usedCount != 3) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    // All three and the result are one type. There is no widening here and no mixed precision: what
+    // the operation promises is a single rounding of one expression, which says nothing useful if
+    // the operands had to be converted to reach each other first.
+    for(auto offset: inst->used()) {
+        if(base[offset]->type != inst->result.type) {
+            diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+            return false;
+        }
     }
 
     return true;
@@ -302,10 +449,15 @@ static bool validateArith(Diagnostics* diagnostics, LowerBase base, LowerInstBin
     auto r = base[inst->rhs]->type;
     auto valid = l == r && l == inst->result.type;
 
+    // A vector is accepted wherever the scalar of its lane type would be, which is most of the
+    // operation set and is what §3.1 of Implementation-Vector.md means by reuse: `add` over two
+    // vectors is an `add`. Integer division and remainder are included even though no machine here
+    // has one - the backend expands them lane by lane (Design-Vector §3.1), which is a lowering
+    // question rather than a typing one.
     if(allowFloat) {
-        valid = valid && (isInt(l) || isFloat(l));
+        valid = valid && (isInt(l) || isFloat(l) || isIntVector(l) || isFloatVector(l));
     } else {
-        valid = valid && isInt(l);
+        valid = valid && (isInt(l) || isIntVector(l));
     }
 
     if(!valid) {
@@ -329,7 +481,7 @@ static bool validateAdd(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
     } else if(isPtr(r)) {
         valid = isPtr(result) && isInt(l);
     } else {
-        valid = l == r && l == result && (isInt(l) || isFloat(l));
+        valid = l == r && l == result && (isInt(l) || isFloat(l) || isIntVector(l) || isFloatVector(l));
     }
 
     if(!valid) {
@@ -353,7 +505,7 @@ static bool validateSub(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
     } else if(isPtr(l)) {
         valid = isPtr(result) && isInt(r);
     } else {
-        valid = l == r && l == result && (isInt(l) || isFloat(l));
+        valid = l == r && l == result && (isInt(l) || isFloat(l) || isIntVector(l) || isFloatVector(l));
     }
 
     if(!valid) {
@@ -372,12 +524,16 @@ static bool validateBit(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
     auto result = inst->result.type;
     bool valid;
 
+    // A mask is one of the two things `and`, `or` and `xor` take beyond an integer, and it is how
+    // two masks are combined: nothing else operates on one, since what a lane holds is a truth value.
+    // A float *vector* is left out for the same reason a scalar float is - bitwise arithmetic on one
+    // goes through a bitcast, so that what the bits are is stated rather than assumed.
     if(isPtr(l)) {
         valid = isPtr(result) && isInt(r);
     } else if(isPtr(r)) {
         valid = isPtr(result) && isInt(l);
     } else {
-        valid = l == r && l == result && isInt(l) && isInt(r);
+        valid = l == r && l == result && (isInt(l) || isIntVector(l) || l.isMask());
     }
 
     if(!valid) {
@@ -393,7 +549,11 @@ static bool validateShift(Diagnostics* diagnostics, LowerBase base, LowerInstBin
 
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
-    auto valid = isInt(l) && isInt(r) && l == inst->result.type;
+
+    // A vector shifts either by a vector of counts, one per lane, or by one count in a general
+    // register that every lane shares - both of which the machine has, and both of which the
+    // resolve IR produces (`x << 3` over a vector is the second).
+    auto valid = (isInt(l) || isIntVector(l)) && (r == l || isInt(r)) && l == inst->result.type;
 
     if(!valid) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
@@ -409,6 +569,26 @@ static bool validateCmp(Diagnostics* diagnostics, LowerBase base, LowerInstCmp* 
         return false;
     }
 
+    auto l = base[inst->lhs]->type;
+    auto r = base[inst->rhs]->type;
+
+    // A comparison of two vectors answers a mask of the same shape rather than a Bool, which is the
+    // one typing rule that makes the existing instruction serve (§3.1): `InstCmp` already carries
+    // its condition and states its result type as a field, so nothing else about it changes.
+    if(isVectorLike(l) || isVectorLike(r)) {
+        if(l != r || !(isIntVector(l) || isFloatVector(l))) {
+            diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+            return false;
+        }
+
+        if(!inst->result.type.isMask() || !sameLaneShape(inst->result.type, l)) {
+            diagnostics->error("a comparison of vectors answers a mask of the same shape"_v, inst->source);
+            return false;
+        }
+
+        return true;
+    }
+
     if(inst->result.type != LowerType::Int32) {
         diagnostics->error("incorrect result type for comparison"_v, inst->source);
         return false;
@@ -418,8 +598,6 @@ static bool validateCmp(Diagnostics* diagnostics, LowerBase base, LowerInstCmp* 
     // - two of the same integer type.
     // - two of the same float type.
     // - two pointers.
-    auto l = base[inst->lhs]->type;
-    auto r = base[inst->rhs]->type;
     if(l != r || !(isInt(l) || isFloat(l) || l == LowerType::Pointer)) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
         return false;
@@ -434,7 +612,18 @@ static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSe
         return false;
     }
 
-    if(base[inst->cmp]->type != LowerType::Int32) {
+    auto cmp = base[inst->cmp]->type;
+    auto lhs = base[inst->lhs]->type;
+
+    // The lane-wise select, which is the same instruction with a wider condition: a mask chooses
+    // per lane where an Int32 chooses the whole value. The mask has to have the shape of what is
+    // being selected, or it would be choosing between lanes that are not there.
+    if(isVectorLike(lhs)) {
+        if(!cmp.isMask() || !sameLaneShape(cmp, lhs)) {
+            diagnostics->error("a select over vectors needs a mask of the same shape"_v, inst->source);
+            return false;
+        }
+    } else if(cmp != LowerType::Int32) {
         diagnostics->error("incorrect type for comparison"_v, inst->source);
         return false;
     }
@@ -444,7 +633,7 @@ static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSe
     // `select` on LLVM and one ternary on JS. What decides whether a *resolve* value may become one
     // is `selectableType` in opt/opt_select.cpp, and it is stricter than this on purpose - a memory
     // type also lowers to `Pointer`, and its value is the address of storage rather than a value.
-    if(!(isIntLike(base[inst->lhs]->type) || isFloat(base[inst->lhs]->type))) {
+    if(!(isIntLike(lhs) || isFloat(lhs) || isVectorLike(lhs))) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
         return false;
     }
@@ -511,6 +700,36 @@ static bool validateLoad(Diagnostics* diagnostics, LowerBase base, LowerInstLoad
 
     if(!Math::isPowerOf2(inst->getWidth())) {
         diagnostics->error("incorrect load size"_v, inst->source);
+        return false;
+    }
+
+    /*
+     * A vector is loaded whole - there is no narrower access to widen from.
+     *
+     * **A mask included, which this used to refuse.** The refusal said "a mask is not held in memory
+     * at all on a target where it is a k-register", and three things were wrong with it. `Repr`
+     * already gives a mask a full layout (`computeVector` never asks `isMask`), and §2 of
+     * Implementation-Vector.md already ruled that the memory form *is* the vector form at every
+     * feature level, precisely so that `Maybe(Mask(Float))` means one thing everywhere - so this
+     * denied that a memory form exists when the layout above it had already chosen one. There was no
+     * matching check on the store side, so the IR let a mask be written and refused to read it back,
+     * which makes a `Mask` local writable and unreadable rather than rejected. And the k-register it
+     * defers to does not exist: `maskRegisterCountFor` answers zero unconditionally, so every mask
+     * on every target this compiles for is already a vector in a vector register.
+     *
+     * If k-registers do land, reloading one becomes `vpmovm2d` and the question is which form a
+     * *spill* takes - which is a register-allocation decision, and is where §2 put it.
+     */
+    if(isVectorLike(inst->result.type)) {
+        if(inst->getWidth() != inst->result.type.byteWidth()) {
+            diagnostics->error("a vector load reads the whole vector"_v, inst->source);
+            return false;
+        }
+    } else if(inst->isOverread()) {
+        // The flag says a *vector* load reads past the end of what it names. On a scalar it would be
+        // an exemption from bounds reasoning that buys nothing and that the verifier above this IR
+        // has no rule for.
+        diagnostics->error("only a vector load can overread"_v, inst->source);
         return false;
     }
 
@@ -584,6 +803,166 @@ static bool validateSetPattern(Diagnostics* diagnostics, LowerBase base, LowerIn
     return true;
 }
 
+/*
+ * The five that only a vector can be an operand or a result of.
+ *
+ * Between them they state what the lane index and the shuffle pattern mean, which nothing else can:
+ * they are fields rather than operands, so no type rule reaches them and no pass can be relied on to
+ * have checked one. A lane index past the end of the vector is the shape of the mistake, and it is
+ * one that would read a neighbouring register or fold into a wrong encoding rather than fault.
+ */
+static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerInst* inst) {
+    if(inst->createdCount != 1) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    switch(inst->kind) {
+        case LowerInst::VecSplat: {
+            auto splat = (LowerInstVecSplat*)inst;
+            auto result = splat->result.type;
+
+            if(inst->usedCount != 1) {
+                diagnostics->error("incorrect arguments to operation"_v, inst->source);
+                return false;
+            }
+
+            if(!isVectorLike(result)) {
+                diagnostics->error("vsplat produces a vector"_v, inst->source);
+                return false;
+            }
+
+            if(base[splat->from]->type != scalarFormOf(result)) {
+                diagnostics->error("vsplat takes the lane's scalar form"_v, inst->source);
+                return false;
+            }
+
+            return true;
+        }
+
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane: {
+            auto lane = (LowerInstVecLane*)inst;
+            auto source = base[lane->from]->type;
+            auto isWrite = inst->kind == LowerInst::VecWithLane;
+
+            if(inst->usedCount != (isWrite ? 2u : 1u)) {
+                diagnostics->error("incorrect arguments to operation"_v, inst->source);
+                return false;
+            }
+
+            if(!isVectorLike(source)) {
+                diagnostics->error("a lane can only be taken from a vector"_v, inst->source);
+                return false;
+            }
+
+            if(lane->getLane() >= source.lanes()) {
+                diagnostics->error("lane index past the end of the vector"_v, inst->source);
+                return false;
+            }
+
+            if(isWrite) {
+                if(lane->result.type != source || base[lane->value]->type != scalarFormOf(source)) {
+                    diagnostics->error("vwithlane writes the lane's scalar form into its own vector"_v, inst->source);
+                    return false;
+                }
+            } else if(lane->result.type != scalarFormOf(source)) {
+                diagnostics->error("vlane produces the lane's scalar form"_v, inst->source);
+                return false;
+            }
+
+            return true;
+        }
+
+        case LowerInst::VecShuffle: {
+            auto shuffle = (LowerInstVecShuffle*)inst;
+            auto left = base[shuffle->left]->type;
+            auto right = base[shuffle->right]->type;
+            auto result = shuffle->result.type;
+
+            if(inst->usedCount != 2) {
+                diagnostics->error("incorrect arguments to operation"_v, inst->source);
+                return false;
+            }
+
+            if(!isVectorLike(left) || left != right) {
+                diagnostics->error("a shuffle selects from two vectors of one type"_v, inst->source);
+                return false;
+            }
+
+            // The lane *type* is what a shuffle moves around, so the result may have a different
+            // number of lanes than the sources - which is what makes `packLanes` and the two
+            // `unpack`s shuffles rather than instructions of their own - but not a different lane.
+            if(result.lane != left.lane || result.isMask() != left.isMask()) {
+                diagnostics->error("a shuffle cannot change the lane type"_v, inst->source);
+                return false;
+            }
+
+            for(auto entry: shuffle->pattern()) {
+                if(entry >= left.lanes() * 2) {
+                    diagnostics->error("shuffle pattern names a lane neither source has"_v, inst->source);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        case LowerInst::VecReduce: {
+            auto reduce = (LowerInstVecReduce*)inst;
+            auto source = base[reduce->from]->type;
+
+            if(inst->usedCount != 1) {
+                diagnostics->error("incorrect arguments to operation"_v, inst->source);
+                return false;
+            }
+
+            if(!isVectorLike(source)) {
+                diagnostics->error("a reduction combines the lanes of a vector"_v, inst->source);
+                return false;
+            }
+
+            if(reduce->result.type != scalarFormOf(source)) {
+                diagnostics->error("a reduction produces the lane's scalar form"_v, inst->source);
+                return false;
+            }
+
+            // A mask holds truth values, so the three that mean something over one are `and` (all),
+            // `or` (any) and `add` (how many). The rest are arithmetic over lanes a mask does not
+            // have.
+            if(source.isMask()) {
+                auto reduction = reduce->getReduce();
+                auto valid = reduction == LowerReduce::And
+                    || reduction == LowerReduce::Or
+                    || reduction == LowerReduce::Add;
+
+                if(!valid) {
+                    diagnostics->error("a mask reduces with and, or or add"_v, inst->source);
+                    return false;
+                }
+            } else if(isFloatVector(source)) {
+                auto reduction = reduce->getReduce();
+
+                if(reduction == LowerReduce::And || reduction == LowerReduce::Or) {
+                    diagnostics->error("a bitwise reduction of a float vector goes through a bitcast"_v, inst->source);
+                    return false;
+                }
+
+                if(reduction == LowerReduce::IMin || reduction == LowerReduce::IMax) {
+                    diagnostics->error("a float vector reduces with min and max, not their signed forms"_v, inst->source);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        default:
+            assertTrue("not a vector instruction" == nullptr);
+            return false;
+    }
+}
+
 bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* block, LowerInst* inst, const DominatorTree& dominators) {
     auto isPhi = inst->kind == LowerInst::Phi;
 
@@ -631,6 +1010,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
     auto created = inst->created();
     for(Size i = 0; i < created.length; i++) {
         auto c = created.ptr + i;
+
+        if(!validateValueType(diagnostics, c->type, inst->source)) return false;
 
         if(c->inst() != inst || base[c->inst()->block] != block) {
             diagnostics->error("instruction creates invalid value"_v, inst->source);
@@ -684,6 +1065,10 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, true);
         case LowerInst::Not:
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, false);
+        case LowerInst::Sqrt:
+            return validateSqrt(diagnostics, base, (LowerInstUnary*)inst);
+        case LowerInst::Fma:
+            return validateFma(diagnostics, base, (LowerInstFma*)inst);
         case LowerInst::Add:
             return validateAdd(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Sub:
@@ -712,6 +1097,12 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateCmp(diagnostics, base, (LowerInstCmp*)inst);
         case LowerInst::Select:
             return validateSelect(diagnostics, base, (LowerInstSelect*)inst);
+        case LowerInst::VecSplat:
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+        case LowerInst::VecShuffle:
+        case LowerInst::VecReduce:
+            return validateVectorInst(diagnostics, base, inst);
         case LowerInst::Alloca:
             return validateAlloca(diagnostics, base, (LowerInstAlloca*)inst);
         case LowerInst::Load:

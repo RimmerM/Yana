@@ -69,6 +69,11 @@ ModulePtr<Value> emitCast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
 ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                  LocationId source, StringId resultName);
 
+// The same over a vector, which is the literal in every lane - `class (FromInt(a)) Num(a)` forces
+// the question and "every lane" is the only answer that is not arbitrary. See intrinsic.cpp.
+ModulePtr<Value> emitVectorFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId resultName);
+
 // `truthy` on a number: non-zero. `truthy` on a Bool: the value itself.
 ModulePtr<Value> emitTruthy(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                             LocationId source, StringId resultName);
@@ -104,8 +109,12 @@ GlobalPtr<TypeClass> classNamed(Module& module, StringView name);
 // `gen` is the head's own generic context, for an instance written over a type variable rather
 // than for one type: `args` are then that context's types (`%a` rather than `%U8`) and every
 // generated function is generic over it, exactly as a source-written parametric instance is.
-void generateInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                      Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen = nullptr);
+//
+// The instance is registered before it is handed back, so every caller that only wants it to exist
+// may ignore the result. simd.cpp is the one that does not: it generates during instance *lookup*
+// and answers with what it built, rather than making the search run a second time.
+ModulePtr<ClassInstance> generateInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                          Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen = nullptr);
 
 // The standard instances of one primitive type. Each is exactly the class's methods mapped onto
 // the machine operations that implement them.
@@ -113,19 +122,20 @@ void defineFromInt(Module& module, TypePtr type);
 void defineFromDecimal(Module& module, TypePtr type);
 void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
 void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
-void defineNum(Module& module, TypePtr type);
-void defineIntegral(Module& module, TypePtr type);
+ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type);
+ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type);
 void defineLogic(Module& module, TypePtr type);
 void defineTruth(Module& module, TypePtr type, Emit emit);
 
 // One rung of the conversion ladder: `Widen(from, to)` or `Narrow(from, to)`, whose single method
 // is a cast.
-void defineConversion(Module& module, StringView className, StringView method, TypePtr from, TypePtr to);
+ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, StringView method,
+                                          TypePtr from, TypePtr to);
 
 // One rung of the reinterpretation ladder. Only ever called for a same-width pair - the class's
 // whole safety argument is that no other instance exists - and `gen` is for the pointer rungs,
 // which are written over a type variable rather than over a type.
-void defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen = nullptr);
+ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen = nullptr);
 
 // Attaches a hook to a signature the module declared in source but gave no body. This is how a
 // generic intrinsic is written: the declaration says what it means to the type checker, and the

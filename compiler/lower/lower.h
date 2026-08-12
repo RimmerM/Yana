@@ -25,7 +25,21 @@ using LowerPtr = RegionPtr<LowerRegion, T>;
 template<class T, bool allowEmbed = true>
 using LowerList = SmallList<LowerRegion, T, allowEmbed>;
 
-enum class LowerType: U8 {
+/*
+ * The type of one lane.
+ *
+ * `Int8` and `Int16` exist here and nowhere above: a scalar of either arrives in a 32-bit register
+ * and states its width on the access that reads or writes it, which is the rule every pass below
+ * this file is written against and is not worth disturbing. They appear only as the lane type of a
+ * vector, where the width is a property of the *register* rather than of the access, and
+ * `validateFunction` says so.
+ *
+ * `Pointer` is likewise a lane type only in the degenerate sense - a vector of pointers is not
+ * something this IR can express, and the same validator rejects one.
+ */
+enum class LowerLane: U8 {
+    Int8,
+    Int16,
     Int32,
     Int64,
     Float32,
@@ -33,20 +47,199 @@ enum class LowerType: U8 {
     Pointer,
 };
 
+// How wide one lane of this kind is. A pointer is the target's word, which this backend fixes at
+// eight bytes everywhere else as well.
+inline U32 laneBytes(LowerLane lane) {
+    switch(lane) {
+        case LowerLane::Int8:    return 1;
+        case LowerLane::Int16:   return 2;
+        case LowerLane::Int32:   return 4;
+        case LowerLane::Int64:   return 8;
+        case LowerLane::Float32: return 4;
+        case LowerLane::Float64: return 8;
+        case LowerLane::Pointer: return 8;
+    }
+
+    return 0;
+}
+
+/*
+ * A lane type and a lane count.
+ *
+ * This used to be the five-value enum the five names below still spell, and the shape of the
+ * replacement is what keeps the change from being 192 edits: `LowerType::Int64` is still an
+ * expression of this type, so every site naming one compiles unchanged. What stops compiling is
+ * `switch(type)`, and that is the point - a switch is exactly the place that owes an answer for
+ * `lanes() > 1`, and the compiler names them all.
+ *
+ * The predicates are the other half of it. `isInt`, `isFloat`, `isPtr` and `isIntLike` all require a
+ * single lane, so a site guarded by one of them answers "not a scalar" for a vector by default: a
+ * pass that has not been told about vectors declines to act on one rather than acting on it wrongly.
+ * Where that is the wrong answer it is found by a test rather than by reading, which is what §13 of
+ * Implementation-Vector.md asks for.
+ *
+ * Bitfields in one byte rather than three fields, because this is a member of every LowerValue and a
+ * LowerValue is packed end to end with the others of its instruction: at two bytes a value is 20
+ * bytes rather than 16, which is not the multiple of eight its own constructor asserts about (see
+ * the static_assert under it).
+ *
+ * A lane count is a power of two by construction - a natural width is `targetVectorBytes / laneBytes`
+ * and an explicit one is a literal this IR rejects unless it is one - so it is held as its logarithm,
+ * and three bits cover the 64 lanes a 512-bit register of bytes has.
+ */
+struct LowerType {
+    LowerLane lane: 3;
+
+    // log2 of the lane count: 0 for a scalar, 2 for a four-lane vector, 6 for `i8x64`.
+    U8 laneShift: 3;
+
+    // Whether this is a *mask* rather than a vector of values: one boolean per lane, whose lane
+    // width is what says which vector it is a mask over. Design-Vector §2.4 makes the lane width and
+    // count a mask's whole identity, which is why this is a flag on the type it already carries
+    // rather than a lane kind of its own.
+    bool mask: 1;
+
+    /*
+     * The eighth bit, which is not part of the type.
+     *
+     * `LowerFunction::returnTypes` is a SmallList of these, and a SmallList embeds its first few
+     * elements into the space its pointer would occupy, marking a present one by setting the *top*
+     * bit of the element itself - `T(Size(value) | mask)` going in, `Size(element) & ~mask` coming
+     * out, and `Size(element) & mask` to count what is there (see container.h). So the round trip
+     * below has to carry a bit that means nothing here, and this is it.
+     *
+     * Nothing else reads it and `operator ==` ignores it, because a value that has been *read* from
+     * such a list always has it clear: it is set only while the element is in the container's hands.
+     */
+    bool listTag: 1;
+
+    constexpr LowerType(): lane(LowerLane::Int32), laneShift(0), mask(false), listTag(false) {}
+
+    constexpr LowerType(LowerLane lane, U8 laneShift, bool mask):
+        lane(lane), laneShift(laneShift), mask(mask), listTag(false) {}
+
+    // The raw bits, and back - the pair the embedding above is written in terms of. The layout is
+    // this pair's own and is not read from the object: what a compiler does with four bitfields is
+    // its business, and only the round trip has to agree.
+    explicit constexpr LowerType(Size bits):
+        lane(LowerLane(bits & 7)), laneShift(U8((bits >> 3) & 7)),
+        mask(((bits >> 6) & 1) != 0), listTag(((bits >> 7) & 1) != 0) {}
+
+    explicit constexpr operator Size() const {
+        return Size(lane) | (Size(laneShift) << 3) | (Size(mask) << 6) | (Size(listTag) << 7);
+    }
+
+    // The five names the enum had, so that every existing site compiles unchanged.
+    static const LowerType Int32;
+    static const LowerType Int64;
+    static const LowerType Float32;
+    static const LowerType Float64;
+    static const LowerType Pointer;
+
+    U32 lanes() const { return 1u << laneShift; }
+
+    // A vector of *values*, which a mask is not: what a mask holds per lane is a truth value, and
+    // the operations over one are a different set. `isVectorLike` below is the two together.
+    bool isVector() const { return laneShift != 0 && !mask; }
+    bool isMask() const { return mask; }
+
+    // The lane type on its own: what one lane of a vector is, and the whole of a scalar.
+    LowerType laneType() const { return LowerType { lane, 0, false }; }
+
+    // How many bytes a value of this type occupies. A mask is measured as the vector it masks, which
+    // is what it is without AVX-512 and what its frame slot has to hold in either case.
+    U32 byteWidth() const { return laneBytes(lane) * lanes(); }
+
+    bool operator == (LowerType o) const {
+        return lane == o.lane && laneShift == o.laneShift && mask == o.mask;
+    }
+
+    bool operator != (LowerType o) const { return !(*this == o); }
+};
+
+// A vector of `lanes` lanes, and a mask over one. `lanes` must be a power of two.
+constexpr U8 laneShiftFor(U32 lanes) {
+    return lanes <= 1 ? 0 : U8(1 + laneShiftFor(lanes >> 1));
+}
+
+inline LowerType vectorType(LowerLane lane, U32 lanes) {
+    return LowerType { lane, laneShiftFor(lanes), false };
+}
+
+inline LowerType maskType(LowerLane lane, U32 lanes) {
+    return LowerType { lane, laneShiftFor(lanes), true };
+}
+
+inline constexpr LowerType LowerType::Int32 { LowerLane::Int32, 0, false };
+inline constexpr LowerType LowerType::Int64 { LowerLane::Int64, 0, false };
+inline constexpr LowerType LowerType::Float32 { LowerLane::Float32, 0, false };
+inline constexpr LowerType LowerType::Float64 { LowerLane::Float64, 0, false };
+inline constexpr LowerType LowerType::Pointer { LowerLane::Pointer, 0, false };
+
+// `Just(LowerType::Int32)` is not what it looks like: the five names above are static constants, and
+// Tritium's `Just` strips the reference from what it is handed but not the const, so it produces a
+// Maybe<const LowerType> that will not assign to a Maybe<LowerType>. This is what to write instead.
+inline Maybe<LowerType> justType(LowerType type) { return Just(type); }
+
+// The four scalar predicates. Each requires a single lane and no mask, for the reason above.
 inline bool isInt(LowerType type) {
-    return type == LowerType::Int32 || type == LowerType::Int64;
+    return !type.isVector() && !type.isMask()
+        && (type.lane == LowerLane::Int32 || type.lane == LowerLane::Int64);
 }
 
 inline bool isFloat(LowerType type) {
-    return type == LowerType::Float32 || type == LowerType::Float64;
+    return !type.isVector() && !type.isMask()
+        && (type.lane == LowerLane::Float32 || type.lane == LowerLane::Float64);
 }
 
 inline bool isPtr(LowerType type) {
-    return type == LowerType::Pointer;
+    return !type.isVector() && !type.isMask() && type.lane == LowerLane::Pointer;
 }
 
 inline bool isIntLike(LowerType type) {
     return isInt(type) || isPtr(type);
+}
+
+// A vector or a mask - anything that is not one of the five scalars above. The one predicate that
+// answers *yes* for the new types, so a site that has to treat them apart says so by naming it.
+inline bool isVectorLike(LowerType type) {
+    return type.laneShift != 0 || type.isMask();
+}
+
+// A vector whose lanes are integers, and one whose lanes are floats. A mask is neither.
+inline bool isIntVector(LowerType type) {
+    return type.isVector()
+        && type.lane != LowerLane::Float32 && type.lane != LowerLane::Float64
+        && type.lane != LowerLane::Pointer;
+}
+
+inline bool isFloatVector(LowerType type) {
+    return type.isVector() && (type.lane == LowerLane::Float32 || type.lane == LowerLane::Float64);
+}
+
+// Whether two types have the same lane width and lane count, which is what a comparison and its mask
+// have to agree about, and what a lane-count-preserving conversion may not change.
+inline bool sameLaneShape(LowerType a, LowerType b) {
+    return a.laneShift == b.laneShift && laneBytes(a.lane) == laneBytes(b.lane);
+}
+
+// The scalar a lane of this type is read into and written from. An 8- or 16-bit lane extracted from
+// a vector arrives in a 32-bit register, on the same rule that keeps those widths out of the scalar
+// type set at all; every other lane is its own scalar.
+inline LowerType scalarFormOf(LowerType type) {
+    if(type.isMask()) return LowerType::Int32;
+
+    switch(type.lane) {
+        case LowerLane::Int8:
+        case LowerLane::Int16:
+        case LowerLane::Int32:   return LowerType::Int32;
+        case LowerLane::Int64:   return LowerType::Int64;
+        case LowerLane::Float32: return LowerType::Float32;
+        case LowerLane::Float64: return LowerType::Float64;
+        case LowerLane::Pointer: return LowerType::Pointer;
+    }
+
+    return LowerType::Int32;
 }
 
 enum class LowerCallType {
@@ -445,7 +638,7 @@ struct LowerValue {
     }
 
     LowerValue(LowerInst* inst, LowerType type, StringId name): name(name), type(type) {
-        // Currently, the size of a value is 24 bytes (on 64 bits).
+        // Currently, the size of a value is 16 bytes (on 64 bits).
         // The only instructions that can support large numbers of values are function calls;
         // a 16-bit offset allows us to embed >20k arguments into an instruction.
         Size offset = (Byte*)this - (Byte*)inst;
@@ -485,6 +678,12 @@ struct LowerValue {
     // Type of the value.
     LowerType type;
 };
+
+// What the constructor above asserts about, stated where it can be checked rather than discovered:
+// values are packed end to end after their instruction's header, so their size has to stay a
+// multiple of the alignment the inset arithmetic assumes. It is also why LowerType is bitfields -
+// two bytes here is 32 rather than 24, on every value of every instruction of every function.
+static_assert(sizeof(LowerValue) == 16, "a LowerValue no longer packs the way inset assumes");
 
 // A sequence of instructions that is executed without interruption.
 struct LowerBlock {

@@ -1,0 +1,233 @@
+@image$base = []
+mut @seed = [3, 0, 0, 0]
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = loads @seed, 4: Int
+    %base = vsplat %v_1: i32x8
+    %v_2 = add %base, %base: i32x8
+    %v_3 = vsplat 2: i32x8
+    %v_4 = imul %base, %v_3: i32x8
+    %v_5 = vlane %v_2, 0: Int
+    %v_6 = cmp_neq %v_5, 6: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 18446744073709551615
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = vlane %v_4, 1: Int
+    %v_11 = cmp_neq %v_10, 6: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    ret 18446744073709551614
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = vsplat 1: i32x8
+    %lanes = vreduce_add %v_15: Int
+    %mixed = vwithlane %base, 10, 0: i32x8
+    %v_16 = vreduce_imax %mixed: Int
+    %v_17 = cmp_neq %v_16, 10: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551613
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = vreduce_imin %mixed: Int
+    %v_22 = cmp_neq %v_21, 3: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551612
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %total = alloca 32, 16: Ptr
+    store %total, %base, 32
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = phi [b_25, 0], [b_28, %v_29]: Int
+    %v_30 = cmp_ilt %v_27, 4: Int
+    je %v_30, b_28, b_31
+  }
+
+  b_31 {
+    %v_32 = load %total, 32: i32x8
+    %v_33 = vlane %v_32, 0: Int
+    %v_34 = cmp_neq %v_33, 15: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_28 {
+    %v_37 = load %total, 32: i32x8
+    %v_38 = add %v_37, %base: i32x8
+    store %total, %v_38, 32
+    %v_29 = add %v_27, 1: Int
+    jmp b_26
+  }
+
+  b_35 {
+    ret 18446744073709551611
+  }
+
+  b_36 {
+    jmp b_39
+  }
+
+  b_39 {
+    %v_40 = vlane %v_32, 1: Int
+    %v_41 = cmp_neq %v_40, 15: Int
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    ret 18446744073709551610
+  }
+
+  b_43 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = vreduce_add %v_32: Int
+    %v_46 = imul %lanes, 15: Int
+    %v_47 = cmp_neq %v_45, %v_46: Int
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    ret 18446744073709551609
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = add %base, %v_2: i32x8
+    %v_52 = vlane %v_51, 0: Int
+    %v_53 = add %v_4, %v_32: i32x8
+    %v_54 = vlane %v_53, 0: Int
+    %v_55 = add %v_52, %v_54: Int
+    %v_56 = cmp_neq %v_55, 30: Int
+    je %v_56, b_57, b_58
+  }
+
+  b_57 {
+    ret 18446744073709551608
+  }
+
+  b_58 {
+    jmp b_59
+  }
+
+  b_59 {
+    %above = cmp_igt %mixed, %base: m32x8
+    %v_60 = vreduce_add %above: Int
+    %v_61 = cmp_neq %v_60, 1: Int
+    je %v_61, b_62, b_63
+  }
+
+  b_62 {
+    ret 18446744073709551607
+  }
+
+  b_63 {
+    jmp b_64
+  }
+
+  b_64 {
+    %v_65 = vreduce_or %above: Int
+    %v_66 = xor %v_65, 1: Int
+    je %v_66, b_67, b_68
+  }
+
+  b_67 {
+    ret 18446744073709551606
+  }
+
+  b_68 {
+    jmp b_69
+  }
+
+  b_69 {
+    %v_70 = vreduce_and %above: Int
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    ret 18446744073709551605
+  }
+
+  b_72 {
+    jmp b_73
+  }
+
+  b_73 {
+    %v_74 = vsplat 7: i32x8
+    %picked = select %above, %v_74, %v_3: i32x8
+    %v_75 = vlane %picked, 0: Int
+    %v_76 = cmp_neq %v_75, 7: Int
+    je %v_76, b_77, b_78
+  }
+
+  b_77 {
+    ret 18446744073709551604
+  }
+
+  b_78 {
+    jmp b_79
+  }
+
+  b_79 {
+    %v_80 = vlane %picked, 1: Int
+    %v_81 = cmp_neq %v_80, 2: Int
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    ret 18446744073709551603
+  }
+
+  b_83 {
+    jmp b_84
+  }
+
+  b_84 {
+    %v_85 = vlane %v_2, 1: Int
+    %v_86 = imul %v_85, 100: Int
+    %v_87 = vlane %v_4, 0: Int
+    %v_88 = add %v_86, %v_87: Int
+    %v_89 = vlane %mixed, 0: Int
+    %v_90 = add %v_88, %v_89: Int
+    ret %v_90
+  }
+}
+

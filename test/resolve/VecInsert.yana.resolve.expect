@@ -1,0 +1,157 @@
+let image$base: () = <none>
+
+fn integers() -> Int {
+  b0:
+    %v = vsplat 5 : Vec(Int)
+    %a = vwithlane %v, 9, 1 : Vec(Int)
+    %b = vwithlane %a, 7, 0 : Vec(Int)
+    %v15 = vlane %b, 0 : Int
+    %v18 = mul %v15, 1000 : Int
+    %v21 = vlane %b, 1 : Int
+    %v24 = mul %v21, 100 : Int
+    %v25 = add %v18, %v24 : Int
+    %v28 = vlane %v, 0 : Int
+    %v31 = mul %v28, 10 : Int
+    %v32 = add %v25, %v31 : Int
+    %v35 = vlane %v, 1 : Int
+    %v36 = add %v32, %v35 : Int
+    ret %v36
+}
+
+fn floats() -> Int {
+  b0:
+    %f = vsplat 1.5 : Vec(Float)
+    %v6 = neg 0 : Float
+    %g = vwithlane %f, %v6, 0 : Vec(Float)
+    %v11 = vlane %g, 1 : Float
+    %v14 = cmp_ne %v11, 1.5 : Bool
+    je %v14, b1, b2
+
+  b1:
+    %v18 = neg 1 : Int
+    ret %v18
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = vlane %g, 0 : Float
+    %v26 = div 1, %v24 : Float
+    %v29 = cmp_gt %v26, 0 : Bool
+    je %v29, b4, b5
+
+  b4:
+    %v33 = neg 2 : Int
+    ret %v33
+
+  b5:
+    jmp b6
+
+  b6:
+    %d = vsplat 1.5 : Vec(Double)
+    %e = vwithlane %d, 4.25, 1 : Vec(Double)
+    %v45 = vlane %e, 0 : Double
+    %v48 = cmp_ne %v45, 1.5 : Bool
+    je %v48, b7, b8
+
+  b7:
+    %v52 = neg 3 : Int
+    ret %v52
+
+  b8:
+    jmp b9
+
+  b9:
+    %v57 = vlane %e, 1 : Double
+    %v60 = cmp_ne %v57, 4.25 : Bool
+    je %v60, b10, b11
+
+  b10:
+    %v64 = neg 4 : Int
+    ret %v64
+
+  b11:
+    jmp b12
+
+  b12:
+    ret 0
+}
+
+fn indices() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(Int)
+    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
+    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
+    %v = vwithlane %v5, 3, 3 : Vec(Int)
+    %v10 = vlane %v, 0 : Int
+    %v13 = cmp_ne %v10, 0 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v17 = neg 1 : Int
+    ret %v17
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = vlane %v, 1 : Int
+    %v25 = cmp_ne %v22, 1 : Bool
+    je %v25, b4, b5
+
+  b4:
+    %v29 = neg 2 : Int
+    ret %v29
+
+  b5:
+    jmp b6
+
+  b6:
+    %r = vshuffle %v, %v, 3, 2, 1, 0 : Vec(Int)
+    %v35 = vlane %r, 0 : Int
+    %v39 = sub 4, 1 : Int
+    %v40 = cmp_ne %v35, %v39 : Bool
+    je %v40, b7, b8
+
+  b7:
+    %v44 = neg 3 : Int
+    ret %v44
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call floats : Int
+    %v3 = cmp_ne %v0, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call floats : Int
+    %v8 = mul %v5, 10 : Int
+    ret %v8
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = call indices : Int
+    %v14 = cmp_ne %v11, 0 : Bool
+    je %v14, b4, b5
+
+  b4:
+    %v16 = call indices : Int
+    %v19 = mul %v16, 100 : Int
+    ret %v19
+
+  b5:
+    jmp b6
+
+  b6:
+    %v22 = call integers : Int
+    ret %v22
+}

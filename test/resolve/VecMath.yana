@@ -1,0 +1,61 @@
+{-
+   `sqrt` and `fma` - Implementation-Vector.md §9.4, which is what was left of §9 item 4.
+
+   These are the two names in Design-Vector §3.3's portable set that needed an *instruction* rather
+   than an arrangement of the ones that were already there, and the reason is worth stating: nothing
+   in this compiler had a square root at any width, so what a vector asks for here is the thing a
+   scalar wanted all along. Both are therefore one declaration over an unconstrained `a`, covering a
+   `Double` and a `Vec(Float)` with the same kind - `sqrt(x)` and `sqrt(v)` are one function.
+
+   **`fma` is checked for its value and not for its rounding.** Design-Vector §3.3 makes fusing a
+   permission rather than a promise: a target with a fused instruction rounds once and a target
+   without rounds twice, and both are correct. So every assertion below is one whose two roundings
+   and one rounding agree - products and sums of small integers, exactly representable - which is
+   what lets this fixture hold the local backend (which fuses only under FMA3), LLVM and Node to one
+   number. A fixture that pinned the *difference* would be pinning a feature level.
+-}
+
+-- Scalars, where the two operations are ordinary arithmetic and the only thing new is that they
+-- exist at all. `sqrt` of a perfect square and `fma` of three small integers are exact on every
+-- target and at either rounding.
+fn scalars() -> Int:
+    if sqrt(16.0 :: Double) != 4.0 then return -1
+    if sqrt(2.25 :: Double) != 1.5 then return -2
+    if fma(2.0 :: Double, 3.0, 4.0) != 10.0 then return -3
+
+    -- The single-precision half, which is a different instruction at every level and the same
+    -- arithmetic. `-0.0` is deliberate: `sqrt(-0.0)` is `-0.0` and not a NaN, which is the one
+    -- special case in the operation and the one a naive expansion gets wrong.
+    if sqrt(6.25 :: Float) != 2.5 then return -4
+    if 1.0 / sqrt(0.0 - 0.0 :: Float) != 1.0 / (0.0 - 0.0) then return -5
+
+    return 0
+
+-- And over lanes, which is the same instruction with a wider operand - `sqrtss` and `sqrtps` differ
+-- in a mandatory prefix, and `vfmadd213sd` and `vfmadd213pd` in one opcode bit.
+fn lanes() -> Int:
+    let squares = splat(6.25) :: Vec(Float)
+    let roots = sqrt(squares)
+
+    if lane(roots, 0) != 2.5 then return -1
+    if horizontalMin(roots) != 2.5 then return -2
+
+    -- Lanes that differ, so that a per-lane operation is distinguishable from one lane broadcast.
+    let counted = iota() :: Vec(Float)
+    let scaled = fma(counted, splat(3.0), splat(1.0))
+
+    if lane(scaled, 0) != 1.0 then return -3
+    if lane(scaled, 1) != 4.0 then return -4
+    if lane(scaled, 2) != 7.0 then return -5
+
+    -- The whole vector at once, which is the shape a dot product is: multiply lanewise, accumulate,
+    -- reduce. `horizontalSum` of `3i + 1` over four lanes is `3*(0+1+2+3) + 4` = 22.
+    if horizontalSum(scaled) != 22.0 then return -6
+
+    return 0
+
+fn main() -> Int:
+    if scalars() != 0 then return scalars()
+    if lanes() != 0 then return lanes() * 10
+
+    return 7

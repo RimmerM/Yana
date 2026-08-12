@@ -144,6 +144,10 @@ bool isScalarPlace(LowerContext& lower, const Place& place);
 
 LowerType lowerType(GlobalBase base, TypePtr type);
 bool signedType(GlobalBase base, TypePtr type);
+
+// Whether arithmetic on this type is the signed instruction, which reads a vector's lane where
+// `signedType` reads the vector. See lower_type.cpp for why the two are different questions.
+bool signedOperand(GlobalBase base, TypePtr type);
 U32 typeSize(LowerContext& lower, TypePtr type);
 U32 typeAlign(LowerContext& lower, TypePtr type);
 U32 typeStride(LowerContext& lower, TypePtr type);
@@ -174,6 +178,9 @@ LowerPtr<LowerValue> reinterpret(LowerContext& lower, LowerBlock& block, LowerPt
 // -- lower_gen.cpp -----------------------------------------------------------------------------
 
 LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr type);
+
+// The value of one const parameter, or null where this body knows the count already. See lower_gen.cpp.
+LowerPtr<LowerValue> genConstValue(LowerContext& lower, LowerBlock& block, TypePtr count, LowerType type);
 LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
                                LowerPtr<LowerValue> descriptor, U16 slot);
 LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr type);

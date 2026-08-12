@@ -1,0 +1,72 @@
+"use strict";
+const genEnv$firstOf_2 = [2];
+const genEnv$countOf_4 = [4];
+const genEnv$firstOf_4 = [4];
+const genEnv$sumOf_4 = [4];
+const genEnv$aliased_4 = [4];
+const witness$Sized_Int_mul2_Int = [thunk$Sized_Int_mul2_Int_firstItem_0];
+const genEnv$firstThrough_2 = [2, witness$Sized_Int_mul2_Int];
+const witness$Sized_Int_mul4_Int = [thunk$Sized_Int_mul4_Int_firstItem_0];
+const genEnv$firstThrough_4 = [4, witness$Sized_Int_mul4_Int];
+
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function countOf(genEnv, xs) {
+  return genEnv[0];
+}
+
+function firstOf(genEnv, xs) {
+  checkCondition(0 >= genEnv[0] >>> 0);
+  return xs[0];
+}
+
+function sumOf(genEnv, xs) {
+  var total = 0;
+  var i = 0;
+  var v28 = genEnv[0] >>> 0;
+  L0: for (;;) {
+    if (i < countOf([genEnv[0]], xs)) {
+      checkCondition(i >>> 0 >= v28);
+      total = total + xs[i] | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function aliased(genEnv, xs) {
+  return countOf([genEnv[0]], xs);
+}
+
+function both(p) {
+  return firstOf(genEnv$firstOf_2, p.left) + firstOf(genEnv$firstOf_2, p.right) | 0;
+}
+
+function firstThrough(genEnv, xs) {
+  var out1 = { $v: 0 };
+  genEnv[1][0](out1, xs);
+  return out1.$v;
+}
+
+function main() {
+  var xs = [7, 2, 3, 4];
+  var p = { left: [10, 0], right: [100, 0] };
+  return ((((((((countOf(genEnv$countOf_4, xs) + firstOf(genEnv$firstOf_4, xs) | 0) + sumOf(genEnv$sumOf_4, xs) | 0) + 4 | 0) + both(p) | 0) + 100 | 0) + xs[0] | 0) + aliased(genEnv$aliased_4, xs) | 0) + firstThrough(genEnv$firstThrough_2, p.left) | 0) + firstThrough(genEnv$firstThrough_4, xs) | 0;
+}
+
+function thunk$Sized_Int_mul2_Int_firstItem_0(result, xs) {
+  result.$v = 100;
+}
+
+function thunk$Sized_Int_mul4_Int_firstItem_0(result, xs) {
+  result.$v = xs[0];
+}
+main();

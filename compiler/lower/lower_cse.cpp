@@ -138,6 +138,12 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0)
 
         if(loadA->getWidth() != loadB->getWidth()) return false;
         if(loadA->isSigned() != loadB->isSigned()) return false;
+
+        // The two read the same bytes when the rest of this agrees, so unifying them would be
+        // sound - but only one of the two carries the statement that it is reading past its object
+        // on purpose, and whichever survived would be carrying the other one's rules. Kept apart,
+        // which costs a load nothing produces today.
+        if(loadA->isOverread() != loadB->isOverread()) return false;
         return same(loadA->from, loadB->from);
     }
 
@@ -167,6 +173,47 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0)
 
         if(cmpA->getCmp() != cmpB->getCmp()) return false;
         return same(cmpA->lhs, cmpB->lhs) && same(cmpA->rhs, cmpB->rhs);
+    }
+
+    if(isVectorInst(a)) {
+        // `flags` is the lane index and which reduction it is, compared as the word for the reason
+        // the select's is: a kind that starts putting something else there cannot be forgotten here.
+        if(a->flags != b->flags) return false;
+
+        // The one thing `flags` does not hold. Two shuffles of one pair of vectors are two different
+        // vectors when they pick different lanes, and nothing else says so.
+        if(a->kind == LowerInst::VecShuffle) {
+            auto left = ((LowerInstVecShuffle*)a)->pattern();
+            auto right = ((LowerInstVecShuffle*)b)->pattern();
+            if(left.length != right.length) return false;
+
+            for(Size i = 0; i < left.length; i++) {
+                if(left[i] != right[i]) return false;
+            }
+        }
+
+        auto usedA = a->used();
+        auto usedB = b->used();
+        if(usedA.length != usedB.length) return false;
+
+        for(Size i = 0; i < usedA.length; i++) {
+            if(!same(usedA[i], usedB[i])) return false;
+        }
+
+        return true;
+    }
+
+    // Three operands and no fields, which no other kind here has - so it is named rather than left
+    // to the fallback, which reads its instruction as a binary one and would compare `b` and `c` as
+    // though they were `lhs` and `rhs`. Not commutative in the sense below either: `a * b` is, and
+    // the addend is not one of the pair.
+    if(a->kind == LowerInst::Fma) {
+        auto fmaA = (LowerInstFma*)a;
+        auto fmaB = (LowerInstFma*)b;
+
+        return same(fmaA->c, fmaB->c)
+            && ((same(fmaA->a, fmaB->a) && same(fmaA->b, fmaB->b))
+             || (same(fmaA->a, fmaB->b) && same(fmaA->b, fmaB->a)));
     }
 
     if(isUnary(a) || isCast(a)) {

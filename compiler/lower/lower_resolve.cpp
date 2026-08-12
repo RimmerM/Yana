@@ -202,11 +202,20 @@ InstResolver handleCmp() {
 
         auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
         auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstCmp(getResultName(ast.results[0]), lhs - base, rhs - base, cmp)));
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+
+        // A comparison of vectors answers a mask of their shape, which the text does not have to
+        // state - there is only one mask it could be - and which it may state anyway.
+        auto type = provided ? provided.unwrap()
+            : isVectorLike(lhs->type) ? maskType(lhs->type.lane, lhs->type.lanes())
+            : LowerType::Int32;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstCmp(getResultName(result), lhs - base, rhs - base, cmp, type)));
     };
 }
 
-template<bool signExtend>
+template<bool signExtend, bool overread>
 InstResolver handleLoad() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
@@ -225,11 +234,150 @@ InstResolver handleLoad() {
 
         if(!type) {
             resolve.diag.error("unknown result type for load"_v, ast.source);
-            type = Just(LowerType::Int32);
+            type = justType(LowerType::Int32);
         }
 
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstLoad(from - base, getResultName(result), type.unwrap(), size.i, signExtend)));
+        auto load = new (resolve.moduleArena) LowerInstLoad(from - base, getResultName(result), type.unwrap(), size.i, signExtend);
+        if(overread) load->setOverread();
+
+        return Just(block.addInst(base, load));
     };
+}
+
+/*
+ * The vector instructions.
+ *
+ * The lane index and the shuffle pattern are fields rather than operands, so they are read out of
+ * the argument list here rather than resolved through findValue - which would turn each of them
+ * into an `imm` instruction and a value the allocator has to place. That is the same thing a load's
+ * byte count and an alloca's alignment already do, and it is why they read as trailing numbers.
+ */
+static Maybe<U8> laneArgument(LowerResolve& resolve, LowerInstAst& ast, const LowerArgAst& arg, U32 lanes) {
+    if(!arg.isInt() || arg.i < 0 || U64(arg.i) >= lanes) {
+        resolve.diag.error("expected a lane index within the vector"_v, ast.source);
+        return Nothing();
+    }
+
+    return Just(U8(arg.i));
+}
+
+template<LowerReduce reduce>
+InstResolver handleReduce() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 1);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+
+        // A reduction of a vector answers in the lane's scalar form, which is the only type it could
+        // answer in - so the text does not have to say so, and says so only where it differs.
+        auto type = provided ? provided.unwrap() : scalarFormOf(from->type);
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecReduce(
+            getResultName(result), type, from - base, reduce)));
+    };
+}
+
+static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSet) {
+    instructionSet.add(Context::nameHash("vsplat"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 1);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto type = getResultType(result);
+
+        // The one vector instruction whose result type cannot be derived from its operand: how many
+        // lanes a scalar is splatted into is exactly what the instruction says and the scalar does
+        // not.
+        if(!type) {
+            resolve.diag.error("unknown result type for vsplat"_v, ast.source);
+            type = justType(LowerType::Int32);
+        }
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecSplat(
+            getResultName(result), type.unwrap(), from - base)));
+    });
+
+    instructionSet.add(Context::nameHash("vlane"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto lane = tryMaybe(laneArgument(resolve, ast, ast.args[1], from->type.lanes()), return Nothing());
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+        auto type = provided ? provided.unwrap() : scalarFormOf(from->type);
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecLane(
+            getResultName(result), type, from - base, lane)));
+    });
+
+    instructionSet.add(Context::nameHash("vwithlane"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 3);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto value = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto lane = tryMaybe(laneArgument(resolve, ast, ast.args[2], from->type.lanes()), return Nothing());
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+        auto type = provided ? provided.unwrap() : from->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecLane(
+            getResultName(result), type, from - base, lane, value - base)));
+    });
+
+    instructionSet.add(Context::nameHash("vshuffle"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+
+        if(ast.args.size() < 3) {
+            resolve.diag.error("expected two vectors and a lane pattern for vshuffle"_v, ast.source);
+            return Nothing();
+        }
+
+        auto left = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto right = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+
+        // The pattern has one entry per lane of the result, so writing a different number of them
+        // than the result has lanes is a mistake rather than a shorthand. Where the result type is
+        // not stated it is the sources' - a shuffle that changes the lane count has to say so.
+        auto type = provided ? provided.unwrap() : left->type;
+        auto pattern = ast.args.size() - 2;
+
+        if(pattern != type.lanes()) {
+            resolve.diag.error("a vshuffle pattern needs one entry per lane of its result"_v, ast.source);
+            return Nothing();
+        }
+
+        auto inst = (LowerInstVecShuffle*)resolve.moduleArena.alloc(
+            sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
+        new (inst) LowerInstVecShuffle(getResultName(result), type, left - base, right - base);
+
+        // A pattern entry names a lane of the two sources concatenated, so it runs to twice the
+        // source's lane count rather than to the result's.
+        auto sourceLanes = left->type.lanes() * 2;
+
+        for(Size i = 0; i < pattern; i++) {
+            auto lane = tryMaybe(laneArgument(resolve, ast, ast.args[i + 2], sourceLanes), return Nothing());
+            inst->pattern()[i] = lane;
+        }
+
+        return Just(block.addInst(base, (LowerInst*)inst));
+    });
+
+    instructionSet.add(Context::nameHash("vreduce_add"_v), handleReduce<LowerReduce::Add>());
+    instructionSet.add(Context::nameHash("vreduce_mul"_v), handleReduce<LowerReduce::Mul>());
+    instructionSet.add(Context::nameHash("vreduce_min"_v), handleReduce<LowerReduce::Min>());
+    instructionSet.add(Context::nameHash("vreduce_imin"_v), handleReduce<LowerReduce::IMin>());
+    instructionSet.add(Context::nameHash("vreduce_max"_v), handleReduce<LowerReduce::Max>());
+    instructionSet.add(Context::nameHash("vreduce_imax"_v), handleReduce<LowerReduce::IMax>());
+    instructionSet.add(Context::nameHash("vreduce_and"_v), handleReduce<LowerReduce::And>());
+    instructionSet.add(Context::nameHash("vreduce_or"_v), handleReduce<LowerReduce::Or>());
 }
 
 static Maybe<LowerInst*> handleIntrinsic(LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) {
@@ -295,7 +443,7 @@ InstResolver handleCall() {
 
             if(!type) {
                 resolve.diag.error("unknown return type for call"_v, ast.source);
-                type = Just(LowerType::Int32);
+                type = justType(LowerType::Int32);
             }
 
             new (inst->created().ptr + currentCreated++) LowerValue(inst, type.unwrap(), getResultName(result));
@@ -334,6 +482,26 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("set"_v), handleUnary<LowerInst::Set>());
     instructionSet.add(Context::nameHash("neg"_v), handleUnary<LowerInst::Neg>());
     instructionSet.add(Context::nameHash("not"_v), handleUnary<LowerInst::Not>());
+    instructionSet.add(Context::nameHash("sqrt"_v), handleUnary<LowerInst::Sqrt>());
+
+    // The one three-operand arithmetic instruction, so the one that cannot borrow a handler. Its
+    // result type is the operands' - all three and the result are one type, which validateFma
+    // checks - so the text does not have to state it and states it only where it differs.
+    instructionSet.add(Context::nameHash("fma"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 3);
+
+        auto a = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto b = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto c = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
+
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+        auto type = provided ? provided.unwrap() : a->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstFma(
+            getResultName(result), type, a - base, b - base, c - base)));
+    });
 
     instructionSet.add(Context::nameHash("add"_v), handleBinary<LowerInst::Add>());
     instructionSet.add(Context::nameHash("sub"_v), handleBinary<LowerInst::Sub>());
@@ -403,8 +571,14 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
             getResultName(ast.results[0]), size - base, alignment)));
     });
 
-    instructionSet.add(Context::nameHash("load"_v), handleLoad<false>());
-    instructionSet.add(Context::nameHash("loads"_v), handleLoad<true>());
+    addVectorInstructions(instructionSet);
+
+    instructionSet.add(Context::nameHash("load"_v), handleLoad<false, false>());
+    instructionSet.add(Context::nameHash("loads"_v), handleLoad<true, false>());
+
+    // A load that deliberately reads past the end of what it names - see isOverreadLoad. Unsigned
+    // only: it is what a vector loop's last iteration does, and a vector load has no sign.
+    instructionSet.add(Context::nameHash("loadx"_v), handleLoad<false, true>());
 
     instructionSet.add(Context::nameHash("store"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
@@ -532,7 +706,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
         if(!type) {
             resolve.diag.error("unknown result type for phi"_v, ast.source);
-            type = Just(LowerType::Int32);
+            type = justType(LowerType::Int32);
         }
 
         // Allocate the node with enough space for all its arguments -

@@ -84,6 +84,11 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer) {
      */
     if(auto parts = g.funParts.get(U32(pointer))) return materializeFun(g, parts.unwrap());
 
+    // And a vector being carried as its lanes, for the same three positions - see VecParts. Built
+    // here rather than beside the lanes for the same reason: a lane is an expression over whatever
+    // its operands hold *there*, and an array built earlier would hold what they held earlier.
+    if(auto parts = g.vecParts.get(U32(pointer))) return materializeVec(g, parts.unwrap());
+
     auto& value = *g.local[pointer];
     if(isConstant(value)) {
         auto result = constantValue(g, value);
@@ -146,6 +151,20 @@ RefParts refPartsOf(Gen& g, ModulePtr<Value> reference) {
     return refPartsOfExpr(g, useValue(g, reference), isFunValue(g, pointee));
 }
 
+/*
+ * The two words of a place's root, where the root is genuinely held as two variables.
+ *
+ * Keyed on the parts existing *and* on the local being one this body holds flat, which is one more
+ * condition than the parts alone. A function-value parameter arrives flat because the calling
+ * convention says so, and `prepareFunLocals` may still have declined to hold it that way - because
+ * something borrows the whole of it, and a reference here is an owner and two keys. genBody
+ * reassembles exactly those into an object at the top, and this is what sends the walk to it.
+ */
+static Maybe<FunParts&> flatFunPartsFor(Gen& g, const Place& place, ModulePtr<Value> value) {
+    if(place.local < g.flatFuns.size() && !g.flatFuns[place.local]) return Nothing();
+    return g.funParts.get(U32(value));
+}
+
 FunParts funPartsOfExpr(Gen& g, JsPtr<Expr> value) {
     FunParts parts;
     parts.code = field(g, value, g.codeField);
@@ -157,6 +176,39 @@ FunParts funPartsOfExpr(Gen& g, JsPtr<Expr> value) {
 FunParts funPartsOf(Gen& g, ModulePtr<Value> value) {
     if(auto found = g.funParts.get(U32(value))) return found.unwrap();
     return funPartsOfExpr(g, useValue(g, value));
+}
+
+VecParts newVecParts(Gen& g, U32 lanes) {
+    VecParts parts;
+    parts.lanes = (JsPtr<Expr>*)g.file.arena.alloc(sizeof(JsPtr<Expr>) * lanes);
+    parts.count = U16(lanes);
+
+    for(U32 i = 0; i < lanes; i++) parts.lanes[i] = nullptr;
+    return parts;
+}
+
+VecParts vecPartsOfExpr(Gen& g, JsPtr<Expr> value, U32 lanes) {
+    auto parts = newVecParts(g, lanes);
+    for(U32 i = 0; i < lanes; i++) parts.lanes[i] = index(g, value, i);
+
+    return parts;
+}
+
+VecParts vecPartsOf(Gen& g, ModulePtr<Value> value) {
+    if(auto found = g.vecParts.get(U32(value))) return found.unwrap();
+    return vecPartsOfExpr(g, useValue(g, value), vectorLanes(g.global, g.local[value]->type));
+}
+
+// The array form, on the same terms as materializeFun below: JS has no multi-value return, so a
+// vector that is returned, stored in a record or handed across an erased boundary has to become one
+// value again. It is a host array rather than a typed one because a mask's lanes are booleans and a
+// `Vec(I8)`'s are numbers a typed view would coerce a second time - the array is a boundary form,
+// not a representation anything computes with.
+JsPtr<Expr> materializeVec(Gen& g, VecParts parts) {
+    auto array = make<ArrayExpr>(g);
+    for(auto lane: parts.contents()) array->values.push(g.file.arena, lane);
+
+    return asExpr(g, array);
 }
 
 // The object form, on the same terms as materializeRef below: JS has no multi-value return, so a
@@ -342,7 +394,7 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                     within.width = narrowWidth(g, type);
                     within.word = maxWordBits(g);
                 }
-            } else if(auto parts = g.funParts.get(U32(root.value))) {
+            } else if(auto parts = flatFunPartsFor(g, place, root.value)) {
                 /*
                  * A function value held as its two words, which is storage with no object behind it.
                  *
@@ -1363,6 +1415,22 @@ JsPtr<Expr> genTypeDesc(Gen& g, TypePtr type) {
     if(!g.genEnv || !type || !isGeneric(g.global, type)) return nullptr;
 
     auto slot = genTypeSlot(*g.genModule, *g.genContext, type);
+    if(slot == maxLimit<U16>) return nullptr;
+
+    return genSlot(g, slot);
+}
+
+/*
+ * A const parameter's value - Implementation-Const-Generics.md §3.2.
+ *
+ * One cell, and no step past it. A type variable's slot holds a descriptor that a metric then
+ * indexes into; a const one holds the number itself, so the erased read of a count is *shorter* than
+ * the erased read of a size rather than longer.
+ */
+JsPtr<Expr> genConstValue(Gen& g, TypePtr count) {
+    if(!g.genEnv || !count || !isGeneric(g.global, count)) return nullptr;
+
+    auto slot = genConstSlot(*g.genModule, *g.genContext, count);
     if(slot == maxLimit<U16>) return nullptr;
 
     return genSlot(g, slot);

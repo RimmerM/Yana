@@ -1894,9 +1894,23 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
     auto element = array->content;
     auto written = U32(items.size());
 
-    if(written != array->length) {
+    /*
+     * A count this body cannot read has nothing a literal could be checked against, and there is no
+     * literal it would be right for: `[1, 2, 3] :: [Int *n]` is three elements for one `n` and wrong
+     * for every other. Reported rather than accepted at the count that happens to be written,
+     * because the alternative is a program that compiles and holds the wrong number of things.
+     */
+    auto length = writtenCount(global, array->count);
+
+    if(!length) {
+        context.diagnostics.error("%@ has a count this body does not know, so a literal cannot be built at it - write the elements at a type whose count is a number"_v,
+                                  source, describeType(context, global, target));
+        return nullptr;
+    }
+
+    if(written != length.unwrap()) {
         context.diagnostics.error("this literal has %@ elements and %@ holds exactly %@"_v, source,
-                                  written, describeType(context, global, target), array->length);
+                                  written, describeType(context, global, target), length.unwrap());
         return nullptr;
     }
 

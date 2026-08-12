@@ -1,0 +1,77 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+@"image$base" = constant [0 x i8] zeroinitializer, align 8
+@sink = global [8 x i8] zeroinitializer, align 8
+
+define fastcc <4 x i16> @arithmetic(<4 x i16> %a) {
+  br label %1
+
+1:                                                ; preds = %0
+  %sum = add <4 x i16> %a, <i16 4, i16 4, i16 4, i16 4>
+  %product = mul <4 x i16> %a, <i16 4, i16 4, i16 4, i16 4>
+  %masked = and <4 x i16> %sum, %product
+  %shifted = shl <4 x i16> %masked, <i16 4, i16 4, i16 4, i16 4>
+  %2 = sub <4 x i16> %shifted, %a
+  ret <4 x i16> %2
+}
+
+define fastcc <4 x i8> @widths(<4 x i8> %narrow, <2 x i32> %middle) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = shl <4 x i8> %narrow, %narrow
+  %3 = or <4 x i8> %narrow, %2
+  ret <4 x i8> %3
+}
+
+define fastcc <4 x i32> @widening(<4 x i16> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = zext <4 x i16> %v to <4 x i32>
+  ret <4 x i32> %2
+}
+
+define fastcc <4 x i16> @narrowing(<4 x i32> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = trunc <4 x i32> %v to <4 x i16>
+  ret <4 x i16> %2
+}
+
+define fastcc <4 x float> @reinterpreting(<4 x i32> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = bitcast <4 x i32> %v to <4 x float>
+  ret <4 x float> %2
+}
+
+define fastcc <4 x float> @aliases(<4 x float> %v) {
+  br label %1
+
+1:                                                ; preds = %0
+  ret <4 x float> %v
+}
+
+define fastcc i32 @"main$"() {
+  br label %1
+
+1:                                                ; preds = %0
+  store <4 x i16> zeroinitializer, ptr @sink, align 1
+  %sized = call fastcc <4 x i16> @arithmetic(<4 x i16> zeroinitializer)
+  %widened = call fastcc <4 x i32> @widening(<4 x i16> %sized)
+  %back = call fastcc <4 x i16> @narrowing(<4 x i32> %widened)
+  %2 = call fastcc <4 x float> @reinterpreting(<4 x i32> %widened)
+  %bits = call fastcc <4 x float> @aliases(<4 x float> %2)
+  %narrow = call fastcc <4 x i8> @widths(<4 x i8> <i8 1, i8 1, i8 1, i8 1>, <2 x i32> <i32 2, i32 2>)
+  %3 = bitcast <4 x float> %bits to <4 x i32>
+  %4 = trunc <4 x i32> %3 to <4 x i16>
+  %5 = xor <4 x i16> %back, %4
+  %6 = zext <4 x i8> %narrow to <4 x i16>
+  %7 = xor <4 x i16> %5, %6
+  store <4 x i16> %7, ptr @sink, align 1
+  ret i32 1
+}

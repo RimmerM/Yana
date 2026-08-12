@@ -1,0 +1,84 @@
+# The lane accesses one feature level up.
+#
+# extensions: sse4.1
+#
+# `Vector.lower`'s `extract` functions again, at every index rather than at zero. This is the one
+# place in the form table where a feature chooses between two forms of different *reach* rather than
+# between two encodings of one operation, so it is not an `alternative` chain: at the baseline
+# `movd`/`movq` move the low element and cannot name another, and reaching a higher one would need a
+# shuffle into a register that is neither operand - which a form cannot declare a temporary for.
+# `pextrd` and `pextrq` take the index as a trailing byte and need none of it.
+#
+# These are also the first legacy encodings here in the three-byte 0F3A opcode map. `InstPrefix`
+# already carried `map` for the vector prefixes; what is new is that `writePrefix` reads it under a
+# legacy prefix too, which is what keeps the two spellings of `66 0F 3A 16` one description.
+
+extract(%w: i32x4): Int {
+    {
+        %a = vlane %w, 3: Int
+        %b = vlane %w, 0: Int
+        %c = add %a, %b: Int
+        ret %c
+    }
+}
+
+extractWide(%q: i64x2): Long {
+    {
+        %a = vlane %q, 1: Long
+        %b = vlane %q, 0: Long
+        %c = add %a, %b: Long
+        ret %c
+    }
+}
+
+# A float lane is unchanged by the feature: it never leaves the vector bank, so the shuffle that
+# serves at the baseline serves here too and the goldens read identically to Vector.lower's.
+extractFloat(%f: f32x4): Float {
+    {
+        %a = vlane %f, 2: Float
+        %b = vlane %f, 0: Float
+        %c = add %a, %b: Float
+        ret %c
+    }
+}
+
+# The lane inserts one level up, where `pinsrd`/`pinsrq` take any index in one instruction and
+# `lowerLaneInserts` therefore has nothing to do - so the word pair and the quadword detour of
+# Vector.lower are both absent from these goldens.
+insert(%w: i32x4, %x: Int): i32x4 {
+    {
+        %a = vwithlane %w, %x, 1: i32x4
+        %b = add %a, %w: i32x4
+        ret %b
+    }
+}
+
+insertWide(%q: i64x2, %l: Long): i64x2 {
+    {
+        %a = vwithlane %q, %l, 1: i64x2
+        %b = add %a, %q: i64x2
+        ret %b
+    }
+}
+
+# `insertps`, whose trailing byte is three fields rather than an index: which lane of the source,
+# which lane of the destination, and which lanes to zero. The source is a scalar, so its lane is
+# zero and nothing is zeroed - what is left is the destination lane shifted into place, which is why
+# lane 2 is 0x20 rather than 0x02.
+insertFloat(%f: f32x4, %s: Float): f32x4 {
+    {
+        %a = vwithlane %f, %s, 2: f32x4
+        %b = add %a, %f: f32x4
+        ret %b
+    }
+}
+
+# A byte lane, which is `pinsrb` and has no baseline route at all - a byte is half a word, so writing
+# one through `pinsrw` would mean reading the word around it back out first.
+insertByte(%b: i8x16, %x: Int): i8x16 {
+    {
+        %a = vwithlane %b, %x, 5: i8x16
+        %c = add %a, %b: i8x16
+        ret %c
+    }
+}

@@ -1,0 +1,201 @@
+# The same operations as `VectorOps.lower`, with AVX present - Implementation-Vector.md §5.4.
+#
+# extensions: avx
+#
+# **The assertion is that not one byte below is a legacy SSE encoding.** Every instruction here
+# carries a `c4` or `c5` in front of it, and the pair of files is what says so: the two hold the same
+# functions and differ in one directive, so a legacy encoding surviving into this one shows up as a
+# line that is identical in both.
+#
+# Why that matters is not the byte the prefix costs. A legacy SSE instruction writes the low 128 bits
+# of its destination and leaves everything above them *unchanged*, so a processor whose upper halves
+# are dirty has to reconcile the two - a save and a restore on the parts §5.4 was written for, and a
+# merging uop with a false dependency on every part since. A VEX-encoded write zeroes those bits, so
+# a program that is VEX throughout is never in the state that costs anything, and `vzeroupper` is
+# owed at foreign boundaries alone rather than anywhere a legacy instruction might run.
+#
+# What to look for, in order:
+#
+#   - **the ties are gone, and with them the copies.** `paddd xmm0, xmm1` writes its answer over one
+#     of its sources, so the allocator puts a `movaps` in front of every one whose result outlives a
+#     source; `vpaddd xmm2, xmm0, xmm1` names the destination separately. Every `0f 28` in the
+#     baseline listing that has no counterpart here was such a copy.
+#   - **the pseudos too.** `select`, the complement and the negation write their own bytes rather
+#     than a form's, and they ask the target directly - see `packedNeedsVex` in gen.h. A pseudo keeps
+#     its tie, because the sequence its emitter writes is the two-address one either way.
+#   - **the moves.** A copy, a spill and a reload are the most frequent vector instructions a
+#     function runs and no form describes any of them, which is what made them the last legacy
+#     encodings standing - see `moveEncoding` in gen.cpp.
+#   - `vmovd`, not `movd`. A bank crossing writes one lane of a vector register and leaves the rest,
+#     which is a partial write like any other.
+
+select(%a: i32x4, %b: i32x4, %m: m32x4): i32x4 {
+    {
+        %r = select %m, %a, %b: i32x4
+        ret %r
+    }
+}
+
+# The same over floats, which is the same three instructions: a bitwise operation has no lane width
+# and no domain worth a second row of the table.
+selectFloat(%a: f32x4, %b: f32x4, %m: m32x4): f32x4 {
+    {
+        %r = select %m, %a, %b: f32x4
+        ret %r
+    }
+}
+
+# A complement, which is an exclusive-or against all ones - and all ones is `pcmpeqd` of a register
+# with itself, whatever that register held. Over a mask, which is what `Logic.not` reaches.
+complement(%m: m32x4, %w: i32x4): m32x4 {
+    {
+        %n = not %m: m32x4
+        %i = not %w: i32x4
+        %c = cmp_eq %i, %w: m32x4
+        %r = and %n, %c: m32x4
+        ret %r
+    }
+}
+
+# A negation, which is two operations wearing one name: an integer lane subtracted from a zero the
+# expansion makes, and a float lane's sign bit toggled against a mask it makes. Neither writes the
+# destination before reading the source, since the allocator may have given them one register.
+negate(%w: i32x4, %f: f32x4, %d: f64x2): i32x4 {
+    {
+        %nw = neg %w: i32x4
+        %nf = neg %f: f32x4
+        %nd = neg %d: f64x2
+        ret %nw
+    }
+}
+
+# The three signed relations the machine has only the complement of: `neq` of `pcmpeq`, and `ile` of
+# `pcmpgt`. `ige` is not among them because canonicalization has already turned it into `ile` with
+# its operands the other way round.
+inverted(%a: i32x4, %b: i32x4): m32x4 {
+    {
+        %n = cmp_neq %a, %b: m32x4
+        %l = cmp_ile %a, %b: m32x4
+        %g = cmp_ige %a, %b: m32x4
+        %x = and %n, %l: m32x4
+        %r = and %x, %g: m32x4
+        ret %r
+    }
+}
+
+# The 32-bit lane product without `pmulld`, which is SSE4.1: `pmuludq` multiplies the even lanes
+# only, so the odd ones are shuffled down, multiplied, and the two sets of low halves interleaved
+# back. Two scratch registers, because both halves are alive at once.
+product(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = imul %a, %b: i32x4
+        ret %r
+    }
+}
+
+# The two-source shuffles. `shufps` takes a run of lanes from each side and the interleaves take one
+# of each - which is the pattern that shape cannot state, and the one a lane-count conversion is
+# built out of. A pattern naming only the *second* source is `pshufd` of the other operand.
+shuffles(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %run = vshuffle %a, %b, 0, 2, 5, 7: i32x4
+        %low = vshuffle %a, %b, 0, 4, 1, 5: i32x4
+        %high = vshuffle %a, %b, 2, 6, 3, 7: i32x4
+        %second = vshuffle %a, %b, 7, 6, 5, 4: i32x4
+        %x = add %run, %low: i32x4
+        %y = add %x, %high: i32x4
+        %r = add %y, %second: i32x4
+        ret %r
+    }
+}
+
+# The interleaves at a byte and a word lane, which are the two widths with no other shuffle at all:
+# interleaving needs no pattern byte, so it needs none of what `pshufb` would have supplied.
+interleaveNarrow(%a: i8x16, %b: i8x16, %s: i16x8, %t: i16x8): i8x16 {
+    {
+        %bl = vshuffle %a, %b, 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23: i8x16
+        %sh = vshuffle %s, %t, 4, 12, 5, 13, 6, 14, 7, 15: i16x8
+        ret %bl
+    }
+}
+
+# A packed conversion between the two lane kinds, which at this register width is the 32-bit pair
+# alone: every other lane-count-preserving conversion changes the register width with it.
+convert(%w: i32x4, %f: f32x4): f32x4 {
+    {
+        %tf = cast %w: f32x4
+        %tw = cast %f: i32x4
+        %s = add %tw, %w: i32x4
+        %r = cast %s: f32x4
+        ret %r
+    }
+}
+
+# The square root, at the scalar and the packed width of both lane kinds - one opcode with four
+# mandatory prefixes, and non-destructive at every one of them.
+roots(%f: f32x4, %d: f64x2, %s: Float, %q: Double): f32x4 {
+    {
+        %rf = sqrt %f: f32x4
+        %rd = sqrt %d: f64x2
+        %rs = sqrt %s: Float
+        %rq = sqrt %q: Double
+        ret %rf
+    }
+}
+
+# A fused multiply-add with no FMA3 to fuse it: the multiply and the add it always meant, which
+# Design-Vector §3.3 permits outright. The VEX-encoded form is in VectorFma.lower.
+multiplyAdd(%a: f32x4, %b: f32x4, %c: f32x4, %x: Double, %y: Double, %z: Double): f32x4 {
+    {
+        %v = fma %a, %b, %c: f32x4
+        %s = fma %x, %y, %z: Double
+        ret %v
+    }
+}
+
+# What a reduction looks like after `lowerVectorReductions` has run: the butterfly, one shuffle and
+# one pairwise operation per level, ending in the lane-zero extract. Written out here because the
+# expansion is what this backend emits and a `vreduce` in a fixture would only assert that the
+# expansion ran.
+reduceSum(%v: f32x4): Float {
+    {
+        %p0 = vshuffle %v, %v, 1, 0, 3, 2: f32x4
+        %s0 = add %v, %p0: f32x4
+        %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
+        %s1 = add %s0, %p1: f32x4
+        %r = vlane %s1, 0: Float
+        ret %r
+    }
+}
+
+# A load folded into the operation that reads it, which is the one thing a packed operation could
+# not do below AVX.
+#
+# A legacy-encoded packed operation faults on a memory operand that is not 16-byte aligned. A frame
+# slot is aligned by construction, so `packed` has always taken one; an address the *program* worked
+# out is not, so `memoryTwin` was never called for any of these and `tryFoldLoad` left a vector load
+# alone. A VEX-encoded packed operation has no alignment requirement at all, which removes the only
+# reason the twin did not exist.
+#
+# Nothing in `tryFoldLoad` was taught about the target for this. It asks the form `selectForm` would
+# choose, and on a target without the extension that is the legacy form with no memory twin - so the
+# fold declines itself. The baseline listing beside this one is the assertion: same two functions,
+# two `movdqu`s and two registers more.
+loadFold(%p: Ptr, %a: i32x4): i32x4 {
+    {
+        %v = load %p, 16: i32x4
+        %s = add %a, %v: i32x4
+        %w = load %p, 16: i32x4
+        %m = and %s, %w: i32x4
+        ret %m
+    }
+}
+
+# The float half, which reaches a different opcode and the same twin.
+loadFoldFloat(%p: Ptr, %a: f32x4): f32x4 {
+    {
+        %v = load %p, 16: f32x4
+        %s = add %a, %v: f32x4
+        ret %s
+    }
+}

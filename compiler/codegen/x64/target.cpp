@@ -38,7 +38,21 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
     auto features = kBaselineFeatures;
     if(!settings.explicitExtensions) return features;
 
+    // Every level from SSE4.1 up has it, AVX included: the VEX forms of these instructions are the
+    // same operations re-encoded, and a target claiming AVX without SSE4.1 is not one that exists.
+    if(settings.extensions.sse >= TargetExtensions::SSE4_1) features |= kFeatureSse41;
+
     if(settings.extensions.sse >= TargetExtensions::AVX) features |= kFeatureAvx;
+
+    // The 256-bit tier, which is AVX2 rather than AVX for the reason `targetVectorBytes` gives:
+    // AVX widened the float operations alone, so the level at which a whole vector of any lane type
+    // fits one register is this one and not the one below it.
+    if(settings.extensions.sse >= TargetExtensions::AVX2) features |= kFeatureAvx2;
+
+    // FMA3 is a flag beside the level rather than a point on it, on both sides: there are parts with
+    // AVX and no FMA, and `applyDefaults` reads the two out of separate CPUID bits. It needs VEX to
+    // be encodable at all, so a target claiming the one without the other gets neither.
+    if(settings.extensions.fma3 && (features & kFeatureAvx)) features |= kFeatureFma3;
 
     /*
      * AVX-512 is claimed for its *encoding* and not for its register file.

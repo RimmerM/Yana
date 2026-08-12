@@ -2,7 +2,7 @@
 merged<complex>(%v: Int, %a: Int, %b: Int): Int {
   b_0 {
     %cmp = cmp_eq %v, 1: Int
-    %r = select %a, %b, %cmp: Int
+    %r = select %cmp, %a, %b: Int
     ret %r
   }
 }
@@ -11,7 +11,7 @@ hoisted<complex>(%v: Int, %a: Int, %b: Int): Int {
   b_0 {
     %cmp = cmp_ilt %v, 0: Int
     %x = add %a, 1: Int
-    %r = select %x, %b, %cmp: Int
+    %r = select %cmp, %x, %b: Int
     ret %r
   }
 }
@@ -20,7 +20,7 @@ zeroArm<complex>(%p: Ptr, %t: Long): Long {
   b_0 {
     %v = load %p, 8: Long
     %c = cmp_igt %v, %t: Int
-    %r = select %v, 0, %c: Long
+    %r = select %c, %v, 0: Long
     ret %r
   }
 }
@@ -30,7 +30,7 @@ materialized<complex>(%v: Int, %p: Ptr, %b: Int): Int {
     %cmp = cmp_ilt %v, 0: Int
     %l = load %p, 4: Int
     %x = add %l, 1: Int
-    %r = select %x, %b, %cmp: Int
+    %r = select %cmp, %x, %b: Int
     ret %r
   }
 }
@@ -42,7 +42,7 @@ crossBlock<complex>(%v: Int, %a: Int, %b: Int): Int {
   }
 
   next {
-    %r = select %a, %b, %cmp: Int
+    %r = select %cmp, %a, %b: Int
     ret %r
   }
 }
@@ -51,7 +51,7 @@ pointerArm<complex>(%raw: Long, %p: Ptr): Ptr {
   b_0 {
     %c = cmp_ilt %raw, 0: Int
     %zero = bitcast 0: Ptr
-    %r = select %zero, %p, %c: Ptr
+    %r = select %c, %zero, %p: Ptr
     ret %r
   }
 }

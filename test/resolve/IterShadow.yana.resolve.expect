@@ -1,0 +1,303 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Int
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Chunked(Flat(a), a).chunks(Int, ())(%self: Flat(Int), %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = borrow %self : &Flat(Int)
+    %v3 = call Contiguous(Flat(a), a).elements(Int), %v2 : Flat(Int)
+    %v4 = calldyn %body, %v3 : Outcome((), ())
+    %v5 = load %local3.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret %v4
+
+  b2:
+    %v10 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v10
+}
+
+fn Contiguous(Flat(a), a).elements(Int)(%self: Flat(Int)) -> Flat(Int) {
+  b0:
+    ret %self
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Int)
+    %v14 = load %value@Array.run@Run.items : %Int
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof Int : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %Int
+    %v20 = load [%v19] : Int
+    %doomed = alloc : Int
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %limit : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v23 = alloc : Outcome((), $r)
+    init %local3.discriminant, 0
+    ret %v23
+
+  b3:
+    %v10 = load %i : Int
+    %v11 = calldyn %body, %v10 : Outcome((), $r)
+    %v12 = load %local2.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b4, b5
+
+  b4:
+    ret %v11
+
+  b5:
+    %v17 = load %i : Int
+    %v20 = add %v17, 1 : Int
+    assign %i, %v20
+    jmp b1
+}
+
+fn named(%value: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v6 = alloc : {total: &mut Int, value: Int}
+    %v7 = borrow_mut %total : &mut Int
+    init %local1.total, %v7
+    init %local1.value, %value
+    %v10 = addressof %local1 : %()
+    %v11 = alloc : (value$: Int) -> Outcome((), ())
+    %v12 = symbol ResolveTest.continuation$14 : %()
+    init %local2.code, %v12
+    init %local2.env, %v10
+    %v15 = call upTo(()), 3, %v11 : Outcome((), ())
+    %v16 = load %total : Int
+    ret %v16
+}
+
+fn classMember(%xs: Flat(Int), %value: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v6 = alloc : {total: &mut Int, value: Int}
+    %v7 = borrow_mut %total : &mut Int
+    init %local2.total, %v7
+    init %local2.value, %value
+    %v10 = addressof %local2 : %()
+    %v11 = alloc : (value$: Flat(Int)) -> Outcome((), ())
+    %v12 = symbol ResolveTest.continuation$15 : %()
+    init %local3.code, %v12
+    init %local3.env, %v10
+    %v15 = call Chunked(Flat(a), a).chunks(Int, ()), %xs, %v11 : Outcome((), ())
+    %v16 = load %total : Int
+    ret %v16
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call named, 5 : Int
+    %v6 = alloc : Array(Int)
+    %v9 = alloc *4 : Int
+    %v10 = addressof %local1 : %Int
+    init %local0@Array.run@Run.items, %v10
+    init %local0@Array.run@Run.capacity, 4
+    init %local0@Array.run@Run.ownsHeap, 0
+    aggregate [%v10][0] = 1, [%v10][1] = 2, [%v10][2] = 3, [%v10][3] = 4
+    init %local0@Array.length, 4
+    %v23 = borrow %local0 : &Array(Int)
+    %v24 = alloc : Flat(Int)
+    %v25 = load [%v23]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v25
+    %v27 = load [%v23]@Array.length : @bits(30) U32
+    %v28 = cast %v27 : I64
+    init %local2@Flat.length, %v28
+    %v30 = call classMember, %v24, 7 : Int
+    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    %v31 = add %v1, %v30 : Int
+    ret %v31
+}
+
+fn ResolveTest.continuation$14(%env: %{total: &mut Int, value: Int}, %value$: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = load [%env].value : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = add %v6, %value$ : Int
+    assign [%v2], %v7
+    %v9 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v9
+}
+
+fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), ())
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), ())
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$15(%env: %{total: &mut Int, value: Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = load [%env].value : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = load %value$@Flat.length : I64
+    %v8 = cast %v7 : Int
+    %v9 = add %v6, %v8 : Int
+    assign [%v2], %v9
+    %v11 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v11
+}

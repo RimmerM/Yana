@@ -803,6 +803,7 @@ struct Inliner {
             case Value::Address:
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
+            case Value::Sqrt: case Value::Fma:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -810,6 +811,17 @@ struct Inliner {
             // before a site is judged against it, so a body reaching here can hold one - and a
             // select is an ordinary pure computation with no decision copied along with it.
             case Value::Select:
+            /*
+             * The vector kinds - Implementation-Vector.md §3.4's third item.
+             *
+             * Admitted so that a vector body can be inlined at all, and each costs one instruction
+             * below like every other pure computation. Costing one by its *byte width* would make
+             * every kernel look expensive and none of them would inline - which is the opposite of
+             * what a vector kernel wants, since they are small and hot and inlining them is most of
+             * the benefit.
+             */
+            case Value::VecSplat: case Value::VecLane: case Value::VecWithLane:
+            case Value::VecShuffle: case Value::VecReduce:
             case Value::Call: case Value::Native: case Value::CallDyn:
                 return true;
             default:
@@ -1519,6 +1531,7 @@ struct Inliner {
 
         if(!answer) switch(instruction.kind) {
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
+            case Value::Sqrt: case Value::Fma:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -1960,9 +1973,18 @@ struct Inliner {
                 cloned->extent = value(alloc.extent);
                 return (Inst*)cloned;
             }
-            case Value::LoadPlace:
-                return (Inst*)createInst<InstLoadPlace>(module, function, into, source, name, type,
+            case Value::LoadPlace: {
+                auto cloned = createInst<InstLoadPlace>(module, function, into, source, name, type,
                                                         place(((InstLoadPlace&)instruction).place));
+
+                // The overread flag, on the same terms `InstAlloc::extent` above is carried: it is
+                // a field rather than an operand, so a clone that rebuilds the instruction from its
+                // constructor arguments loses it silently. Every overreading load in a real program
+                // is inside `loadVectorTail`, which is small enough that the inliner always takes
+                // it - so dropping it here dropped it everywhere.
+                cloned->overread = ((InstLoadPlace&)instruction).overread;
+                return (Inst*)cloned;
+            }
             case Value::Init:
             case Value::Assign: {
                 auto& write = (InstInit&)instruction;
@@ -2063,10 +2085,19 @@ struct Inliner {
                 return (Inst*)createInst<InstSymbol>(module, function, into, source, name, type,
                                                      symbol.callee, symbol.global);
             }
-            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not: {
+            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
+            case Value::Sqrt: {
                 auto& unary = (InstUnary&)instruction;
                 return (Inst*)createInst<InstUnary>(module, function, into, source, name, type,
                                                     instruction.kind, value(unary.from));
+            }
+            // Three operands, so not the arm above: reading it as a Unary would clone the first
+            // operand and drop the other two, which is a use nobody records and two values nothing
+            // reads. The one kind in this switch with an arity of its own.
+            case Value::Fma: {
+                auto& fma = (InstFma&)instruction;
+                return (Inst*)createInst<InstFma>(module, function, into, source, name, type,
+                                                  value(fma.a), value(fma.b), value(fma.c));
             }
             case Value::Select: {
                 auto& select = (InstSelect&)instruction;
@@ -2078,6 +2109,36 @@ struct Inliner {
                 auto& compare = (InstCmp&)instruction;
                 return (Inst*)createInst<InstCmp>(module, function, into, source, name, type,
                                                   value(compare.lhs), value(compare.rhs), compare.cmp);
+            }
+            // The vector kinds, copied into the caller. Admitted to `clonableKind` above, so a body
+            // reaching here can hold one and this is what builds it.
+            case Value::VecSplat: {
+                auto& splat = (InstVecSplat&)instruction;
+                return (Inst*)createInst<InstVecSplat>(module, function, into, source, name, type,
+                                                       value(splat.from));
+            }
+            case Value::VecLane: {
+                auto& lane = (InstVecLane&)instruction;
+                return (Inst*)createInst<InstVecLane>(module, function, into, source, name, type,
+                                                      value(lane.from), lane.lane);
+            }
+            case Value::VecWithLane: {
+                auto& lane = (InstVecLane&)instruction;
+                return (Inst*)createInst<InstVecLane>(module, function, into, source, name, type,
+                                                      value(lane.from), lane.lane, value(lane.value));
+            }
+            case Value::VecShuffle: {
+                auto& shuffle = (InstVecShuffle&)instruction;
+                auto cloned = createInst<InstVecShuffle>(module, function, into, source, name, type,
+                                                         value(shuffle.left), value(shuffle.right));
+
+                for(auto entry: shuffle.pattern) cloned->pattern.push(entry);
+                return (Inst*)cloned;
+            }
+            case Value::VecReduce: {
+                auto& reduce = (InstVecReduce&)instruction;
+                return (Inst*)createInst<InstVecReduce>(module, function, into, source, name, type,
+                                                        value(reduce.from), reduce.reduce);
             }
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:

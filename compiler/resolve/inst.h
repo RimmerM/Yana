@@ -582,6 +582,31 @@ struct InstLoadPlace: Inst {
 
     Place place;
 
+    /*
+     * That this load reads up to a vector's width past the extent of the place it names, and that
+     * the tail-read guarantee says doing so is safe - Design-Vector §5.4, Implementation-Vector.md
+     * §3.3.
+     *
+     * The flag is load-bearing in three places and each of them has to be told, because the default
+     * reading of "reads past the end" is a bug in every one:
+     *
+     *  - `opt_range` must not conclude the access is out of bounds and must not keep a bounds check
+     *    for it. An overreading load *states* that it is deliberately outside;
+     *  - `analyze_escape` and provenance must treat it as reading the place it names and nothing
+     *    else. It does not reach into a neighbouring object in any sense the ownership model can
+     *    see, because the bytes past the end are unspecified and nothing may follow them;
+     *  - the verifier checks that the place is rooted in storage the guarantee covers - owned heap,
+     *    stack, static, or a slice of one - and not in an `Unpadded` container or a raw pointer.
+     *    That is what makes the invariant an invariant rather than a convention, and it is what
+     *    catches a `vectors` implementation that took the fast tail where it owed the safe one.
+     *
+     * **No store ever carries it**, and the *safe* tail needs no flag at all: an overlapping load at
+     * `end - N` and an align-down load at `alignDown(start, N)` are ordinary loads of places wholly
+     * inside the object, which `opt_range` proves in bounds by the reasoning it uses everywhere else.
+     * That asymmetry is the clearest statement of what the guarantee is worth.
+     */
+    bool overread = false;
+
     static constexpr Size kPlaceCount = 1;
     Place* placeAt(Size) { return &place; }
 };
@@ -1035,6 +1060,20 @@ enum class TypeMetricKind: U8 {
 
     // What indexing homogeneous storage advances by, which is not always the size - see Repr.
     Stride,
+
+    /*
+     * The number in a count position - Implementation-Const-Generics.md §3.2.
+     *
+     * `of` is the *count* rather than the type that carries it: the `4` of `[Int *4]` interned as a
+     * ConstType, or the `n` of `[a *n]` as the context's const variable. Both spellings answer the
+     * same question, which is the whole reason this joins the metrics instead of being a form of its
+     * own - it already folds, it already prints, and `kInstPure` already lets CSE and LICM hoist it
+     * out of the loop that reads it once per element.
+     *
+     * The one asymmetry with the other three: a generic one is a *slot* read and not a descriptor
+     * field, so it is one step shorter rather than one longer. A number has nothing to describe.
+     */
+    Count,
 };
 
 struct InstTypeMetric: Inst {
@@ -1281,6 +1320,130 @@ struct InstSelect: Inst {
 };
 
 /*
+ * `a * b + c`, at most once rounded - see inst.def for why that makes it an instruction rather than
+ * two. Three operands and one type, since all three and the result are the same float or the same
+ * vector of floats.
+ */
+struct InstFma: Inst {
+    InstFma(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> a, ModulePtr<Value> b, ModulePtr<Value> c):
+        Inst(Value::Fma, block, type), a(a), b(b), c(c) {}
+
+    ModulePtr<Value> a, b, c;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        a = f(a);
+        b = f(b);
+        c = f(c);
+    }
+};
+
+/*
+ * Vectors - Implementation-Vector.md §3.2. See inst.def for why there are five of these and not
+ * twenty, and for what a vector reuses instead.
+ */
+
+/*
+ * Which reduction a `VecReduce` performs.
+ *
+ * One kind with a field rather than six kinds, so that `any`, `all`, `horizontalSum` and the rest
+ * are one instruction to fold, to cost and to expand. Unlike the lower IR's `LowerReduce` there is
+ * no signed/unsigned split: signedness is in the *type* here and is read off the lane, and the
+ * translation picks the signed opcode from it - which is the same place the binary operations get
+ * their `Div`/`IDiv` split from.
+ *
+ * The *order* a floating-point reduction combines in is a stated language property rather than an
+ * implementation detail (Design-Vector §4.5), so this says what is combined and the expansion owes
+ * the pairwise tree that says in which order.
+ */
+enum class ReduceOp: U8 {
+    Add,
+    Mul,
+    Min,
+    Max,
+    And,
+    Or,
+};
+
+// Every lane of the result is the same scalar. `type` is the vector; the operand is one lane of it.
+struct InstVecSplat: Inst {
+    InstVecSplat(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from):
+        Inst(Value::VecSplat, block, type), from(from) {}
+
+    ModulePtr<Value> from;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
+};
+
+/*
+ * One lane read out of a vector, and a vector with one lane written into it.
+ *
+ * Two kinds sharing a struct, the way `Init` and `Assign` do: the second is the first plus the value
+ * to write, and every pass that reasons about the lane index reasons about both. `value` is null for
+ * a `VecLane`, which is what tells the two apart beside the kind.
+ *
+ * `lane` is a field and not an operand, and that is Design-Vector §3.3 rather than an optimization:
+ * a runtime lane index is `pshufb` on x86 and does not exist at all on some targets, so the resolver
+ * refuses one and nothing below here has a dynamic case to handle.
+ */
+struct InstVecLane: Inst {
+    // `VecLane`: the result is the lane's type.
+    InstVecLane(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, U16 lane):
+        Inst(Value::VecLane, block, type), from(from), lane(lane) {}
+
+    // `VecWithLane`: the result is the vector.
+    InstVecLane(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, U16 lane,
+                ModulePtr<Value> value):
+        Inst(Value::VecWithLane, block, type), from(from), value(value), lane(lane) {}
+
+    ModulePtr<Value> from;
+    ModulePtr<Value> value = nullptr;
+    U16 lane;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        from = f(from);
+        if(value) value = f(value);
+    }
+};
+
+/*
+ * Lanes selected from two vectors by a constant pattern.
+ *
+ * The pattern has one entry per lane of the *result*, each naming a lane of the concatenation of the
+ * two sources: `i < lanes` is a lane of the first and `i >= lanes` a lane of the second. A shuffle
+ * within one vector names the same value twice, which is what keeps the pattern's meaning
+ * independent of how many sources were meant - and is what both backends expect to see.
+ */
+struct InstVecShuffle: Inst {
+    InstVecShuffle(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> left, ModulePtr<Value> right):
+        Inst(Value::VecShuffle, block, type), left(left), right(right) {}
+
+    ModulePtr<Value> left;
+    ModulePtr<Value> right;
+
+    // One entry per lane of the result. A `SmallArray` rather than the trailing allocation the lower
+    // IR's shuffle uses: this IR's instructions are not packed end to end, so there is nothing here
+    // for a variable-length tail to be measured against.
+    SmallArray<U8, 16> pattern;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        left = f(left);
+        right = f(right);
+    }
+};
+
+// Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
+// the lane's; for a mask it is `Int`, so `any` is Or, `all` is And and `count` is Add.
+struct InstVecReduce: Inst {
+    InstVecReduce(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, ReduceOp reduce):
+        Inst(Value::VecReduce, block, type), from(from), reduce(reduce) {}
+
+    ModulePtr<Value> from;
+    ReduceOp reduce;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
+};
+
+/*
  * The address of something the linker names - a function's entry point, or a compiler-built
  * constant table - as a raw pointer.
  *
@@ -1403,6 +1566,18 @@ struct GenSlotFill {
     // offset into a witness per step. Empty for a slot copied across as it stands, and unused by a
     // constant. See genWitnessPath and ClassWitnessLayout.
     ModuleList<U32, false> forwardedSupers;
+
+    /*
+     * A const parameter's slot - Implementation-Const-Generics.md §3.1.
+     *
+     * The cell holds the *number* rather than an address, which is the one thing that makes this a
+     * third case rather than a third source for the same case: nothing is encoded relative to the
+     * image anchor, and a forwarded one is copied across as the raw cell it is. `count` says which
+     * kind of cell this is; `value` is the number when the caller knows it, and zero is a perfectly
+     * ordinary count so it cannot double as "not one of these".
+     */
+    U64 value = 0;
+    bool count = false;
 
     bool isForwarded() const { return forwarded != maxLimit<U16>; }
 };

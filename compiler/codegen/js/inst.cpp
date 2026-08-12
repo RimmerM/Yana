@@ -537,22 +537,38 @@ static Name floatBitsHelper(Gen& g, bool toBits) {
 
 
 /*
- * `bitcast(x)` - the same bits under another type.
+ * One value's bits read as another type of the same width.
  *
- * Three shapes, and only the last of them needs anything emitted. A reference reinterpreted is the
- * same host object; two integer types of one width are the same host value in two normal forms, so
- * the ordinary coercion is exactly the reinterpretation - `Int` to `U32` is `>>> 0`, which is what
- * the two's complement pattern of a negative number *is* read as unsigned. What is left is a float
- * meeting an integer, which no operator here expresses.
+ * Two shapes. Two integer types of one width are the same host value in two normal forms, so the
+ * ordinary coercion is exactly the reinterpretation - `Int` to `U32` is `>>> 0`, which is what the
+ * two's complement pattern of a negative number *is* read as unsigned. What is left is a float
+ * meeting an integer, which no operator here expresses and the scratch typed-array pair does.
  *
  * The sixty-four bit float pairs never arrive: `defineBitcastLadder` declines to generate them on
  * this target, because a `bigint` going through a `DataView` costs more than any program would have
  * reached for a bitcast to save.
+ *
+ * Its own function because a *vector* bitcast is this per lane - see genVecConvert, which is the
+ * second caller and the reason the rule is written once.
  */
+static JsPtr<Expr> bitcastLane(Gen& g, TypePtr from, TypePtr to, JsPtr<Expr> value) {
+    auto fromFloat = isFloat(g.global, from);
+    if(fromFloat == isFloat(g.global, to)) return coerce(g, to, value);
+
+    auto helper = floatBitsHelper(g, fromFloat);
+    auto node = make<CallExpr>(g, variable(g, helper));
+    node->args.push(g.file.arena, value);
+
+    // Deliberately not `pure`: the buffer it writes is shared, so two of these may not be reordered
+    // against each other.
+    return coerce(g, to, asExpr(g, node));
+}
+
+// `bitcast(x)` - the same bits under another type. A reference reinterpreted is the same host
+// object, and everything else is one lane's worth of the rule above.
 void genBitcast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     auto from = g.local[instruction.from]->type;
     auto to = instruction.type;
-    auto value = useValue(g, instruction.from);
 
     if(isPointer(g.global, from) || isPointer(g.global, to)) {
         // A pointer constant is the one case with anything to say - the IR has no pointer immediate,
@@ -561,21 +577,7 @@ void genBitcast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
         return;
     }
 
-    auto fromFloat = isFloat(g.global, from);
-    auto toFloat = isFloat(g.global, to);
-
-    if(fromFloat != toFloat) {
-        auto helper = floatBitsHelper(g, fromFloat);
-        auto node = make<CallExpr>(g, variable(g, helper));
-        node->args.push(g.file.arena, value);
-
-        // Deliberately not `pure`: the buffer it writes is shared, so two of these may not be
-        // reordered against each other.
-        define(g, pointer, coerce(g, to, asExpr(g, node)));
-        return;
-    }
-
-    define(g, pointer, coerce(g, to, value));
+    define(g, pointer, bitcastLane(g, from, to, useValue(g, instruction.from)));
 }
 
 /*
@@ -949,9 +951,13 @@ JsPtr<Expr> genEnvTable(Gen& g, InstGenCall& instruction) {
      * here and none is needed - see repr/table.h.
      */
     for(auto slot: instruction.fill.contents(g.local)) {
-        auto value = slot.isForwarded()
-            ? genWitness(g, slot.forwarded, slot.forwardedSupers)
-            : globalValue(g, slot.constant);
+        // A count slot holds the number - Implementation-Const-Generics.md §3.1 - which here is
+        // simply a host number in an array element. Nothing to encode either way, which is the same
+        // thing this whole table already has to say about addresses.
+        auto value = slot.count
+            ? (slot.isForwarded() ? genSlot(g, slot.forwarded) : number(g, F64(slot.value)))
+            : (slot.isForwarded() ? genWitness(g, slot.forwarded, slot.forwardedSupers)
+                                  : globalValue(g, slot.constant));
 
         table->values.push(g.file.arena, value);
     }
@@ -1861,7 +1867,7 @@ AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
      */
     if(g.global[type]->kind == Type::Array) {
         if(place.projections.isNotEmpty()) return plan;
-        if(aggregate.components.size() != ((ArrayType*)g.global[type])->length) return plan;
+        if(aggregate.components.size() != constValue(g.global, ((ArrayType*)g.global[type])->count)) return plan;
 
         auto stepped = true;
         eachAggregateComponent(g.local, aggregate, [&](const AggregateComponent& component, Size) {
@@ -2031,9 +2037,446 @@ JsPtr<Expr> functionValue(Gen& g, ModulePtr<Function> callee, LocationId where) 
     return variable(g, found.unwrap());
 }
 
+/*
+ * Vectors - Implementation-Vector.md §7.
+ *
+ * A vector is `lanes` values here, so every operation over one is `lanes` operations and the array
+ * form is what does *not* get built. That is the whole of this target's vector story, and it is why
+ * these are written apart from the scalar emitters above rather than by threading a lane index
+ * through them: what a lane needs is an expression, and every emitter above defines a value.
+ *
+ * The lane types are a strict subset of the scalar ones, which is what keeps the arithmetic here to
+ * one function where `genBinary` is thirty. A lane is an integer or a float of 8, 16, 32 or 64 bits
+ * (`resolveVectorType`), a 64-bit integer lane is refused outright on this target (Design-Vector
+ * §7.3), and a `Bool` is not a lane at all - so the three cases `genBinary`'s length is about, the
+ * `bigint`s, the 33-to-53-bit band and `Bool`'s bitwise reading, cannot arise.
+ *
+ * A mask is `lanes` host booleans, per §7. That is a different representation from the lane-width
+ * all-ones the native Repr describes, in the same way and for the same reason LLVM's `<N x i1>` is:
+ * a mask is only ever produced by a comparison, combined by `and`/`or`/`not` and consumed by a
+ * select or a reduction, and a boolean is what each of those is cheapest over here.
+ */
+
+// Where a value's lanes are declared, so that a lane is a variable rather than a repeated
+// expression. `x$0`, `x$1`, ... beside the `x$c`/`x$e` a function value's words already get.
+/*
+ * One lane converted from one lane type to another, as an expression.
+ *
+ * The scalar `genCast` is thirty cases because a scalar can be a `bigint`, a `Bool`, a pointer or a
+ * value in the 33-to-53-bit band. A lane can be none of those, so what is left is the two: a float
+ * narrowed into an integer saturates - the same `Math.trunc`-and-clamp the scalar path emits, from
+ * the same function - and everything else is the coercion the target type needs anyway.
+ */
+static JsPtr<Expr> convertLane(Gen& g, TypePtr from, TypePtr to, JsPtr<Expr> value) {
+    if(isFloat(g.global, from) && !isFloat(g.global, to)) {
+        return coerce(g, to, saturatingToNumber(g, to, value));
+    }
+
+    return coerce(g, to, value);
+}
+
+/*
+ * Declares one value's lanes and records them.
+ *
+ * Every lane gets a `var` rather than being left as the expression that produced it, on exactly the
+ * grounds `define` names one for a scalar: how many readers a lane has is a fact about the rest of
+ * the function, and `opt.cpp` takes the name back where there is one reader. Leaving them unnamed
+ * would duplicate the whole expression tree per use, which for a vector is the one thing that turns
+ * a win into a loss.
+ */
+static void defineVec(Gen& g, ModulePtr<Value> pointer, VecParts parts) {
+    auto& source = *g.local[pointer];
+
+    for(U32 i = 0; i < parts.count; i++) {
+        parts.lanes[i] = declare(g, laneName(g, source, i), parts.lanes[i]);
+    }
+
+    g.vecParts.add(U32(pointer), parts);
+}
+
+// The lane type of a vector or a mask, and how many lanes it has. A mask's lane type is the integer
+// it masks, which nothing here computes with - what a mask lane holds is a host boolean.
+static TypePtr laneType(Gen& g, TypePtr type) { return vectorLane(g.global, type); }
+static U32 laneCount(Gen& g, TypePtr type) { return vectorLanes(g.global, type); }
+
+static bool isMaskType(Gen& g, TypePtr type) {
+    auto value = g.global[type];
+    return value->kind == Type::Vector && ((VectorType*)value)->isMask;
+}
+
+// One lane of an arithmetic or bitwise operation. `coerce` is what narrows the result back into the
+// lane's width, exactly as it does for a scalar of the same type - a `Vec(U8)` lane is a `number`
+// masked to eight bits, and the mask is where the lane width lives on this target.
+static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    auto integer = intType(g, type);
+
+    auto simple = [&](BinaryOp op) { return coerce(g, type, binary(g, op, lhs, rhs)); };
+
+    switch(kind) {
+        case Value::Add: return simple(BinaryOp::Add);
+        case Value::Sub: return simple(BinaryOp::Sub);
+        case Value::Mul:
+            // `Math.imul` for the one width where a double multiply answers different low bits -
+            // §2.1's one unconditional coercion, and the same call the scalar path makes.
+            if(integer && integer->width == IntType::Int) {
+                return coerce(g, type, hostCall(g, "Math"_v, "imul"_v, lhs, rhs));
+            }
+
+            return simple(BinaryOp::Mul);
+        case Value::Div: return simple(BinaryOp::Div);
+        case Value::Rem: return simple(BinaryOp::Rem);
+        case Value::Shl: return simple(BinaryOp::Shl);
+        case Value::Shr: return simple(BinaryOp::Shr);
+        case Value::Sar: return simple(BinaryOp::Sar);
+        case Value::And: return simple(BinaryOp::And);
+        case Value::Or:  return simple(BinaryOp::Or);
+        default:         return simple(BinaryOp::Xor);
+    }
+}
+
+// The same over a mask, whose lanes are booleans: `&`, `|` and `^` over two of those would answer
+// numbers, so the logical operators are what the three bitwise kinds mean here.
+static JsPtr<Expr> maskBinary(Gen& g, Value::Kind kind, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    switch(kind) {
+        case Value::And: return binary(g, BinaryOp::LogicalAnd, lhs, rhs);
+        case Value::Or:  return binary(g, BinaryOp::LogicalOr, lhs, rhs);
+        default:         return binary(g, BinaryOp::Ne, lhs, rhs);   // xor of two booleans
+    }
+}
+
+static void genVecBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
+    auto type = instruction.type;
+    auto lanes = laneCount(g, type);
+    auto lhs = vecPartsOf(g, instruction.lhs);
+    auto rhs = vecPartsOf(g, instruction.rhs);
+    auto parts = newVecParts(g, lanes);
+    auto mask = isMaskType(g, type);
+    auto element = laneType(g, type);
+
+    for(U32 i = 0; i < lanes; i++) {
+        parts.lanes[i] = mask ? maskBinary(g, instruction.kind, lhs.lanes[i], rhs.lanes[i])
+                              : laneBinary(g, instruction.kind, element, lhs.lanes[i], rhs.lanes[i]);
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+static void genVecUnary(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
+    auto type = instruction.type;
+    auto lanes = laneCount(g, type);
+    auto from = vecPartsOf(g, instruction.from);
+    auto parts = newVecParts(g, lanes);
+    auto element = laneType(g, type);
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto lane = from.lanes[i];
+
+        if(isMaskType(g, type)) {
+            // `not` is the only unary a mask takes, and over a boolean it is `!`.
+            parts.lanes[i] = unary(g, UnaryOp::Not, lane);
+        } else if(instruction.kind == Value::Neg) {
+            parts.lanes[i] = coerce(g, element, unary(g, UnaryOp::Neg, lane));
+        } else if(instruction.kind == Value::Sqrt) {
+            parts.lanes[i] = coerce(g, element, hostCall(g, "Math"_v, "sqrt"_v, lane));
+        } else {
+            parts.lanes[i] = coerce(g, element, unary(g, UnaryOp::BitNot, lane));
+        }
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+/*
+ * `a * b + c` per lane, at two roundings.
+ *
+ * There is no fused multiply-add on this target: `Math.fround` rounds and nothing multiplies and
+ * adds without rounding in between. Design-Vector §3.3 makes that a permitted answer rather than a
+ * gap - `fma` is permission to fuse, so a target with no fused instruction spends it as the two
+ * operations - and it is the same answer the x64 backend gives below FMA3.
+ *
+ * The coercion is the lane's own, which for an `f32` lane is the `Math.fround` that makes it one:
+ * without it the product would be computed at double precision and the sum would be too, which is
+ * not two roundings of a float expression but none.
+ */
+static void genVecFma(Gen& g, ModulePtr<Value> pointer, InstFma& instruction) {
+    auto type = instruction.type;
+    auto lanes = laneCount(g, type);
+    auto element = laneType(g, type);
+    auto a = vecPartsOf(g, instruction.a);
+    auto b = vecPartsOf(g, instruction.b);
+    auto c = vecPartsOf(g, instruction.c);
+    auto parts = newVecParts(g, lanes);
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto product = coerce(g, element, binary(g, BinaryOp::Mul, a.lanes[i], b.lanes[i]));
+        parts.lanes[i] = coerce(g, element, binary(g, BinaryOp::Add, product, c.lanes[i]));
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+// A comparison of two vectors answers a mask, which here is `lanes` booleans - so this is the one
+// place the operators are the host's own comparison rather than anything narrowed.
+static void genVecCmp(Gen& g, ModulePtr<Value> pointer, InstCmp& instruction) {
+    auto lanes = laneCount(g, instruction.type);
+    auto lhs = vecPartsOf(g, instruction.lhs);
+    auto rhs = vecPartsOf(g, instruction.rhs);
+    auto parts = newVecParts(g, lanes);
+
+    BinaryOp op;
+    switch(instruction.cmp) {
+        case CompareOp::Eq: op = BinaryOp::Eq; break;
+        case CompareOp::Ne: op = BinaryOp::Ne; break;
+        case CompareOp::Gt: op = BinaryOp::Gt; break;
+        case CompareOp::Ge: op = BinaryOp::Ge; break;
+        case CompareOp::Lt: op = BinaryOp::Lt; break;
+        default: op = BinaryOp::Le; break;
+    }
+
+    for(U32 i = 0; i < lanes; i++) parts.lanes[i] = binary(g, op, lhs.lanes[i], rhs.lanes[i]);
+    defineVec(g, pointer, parts);
+}
+
+// The lane-wise select: `lanes` ternaries over a mask's booleans, which is the same instruction the
+// scalar select is with a condition per lane instead of one for the whole value.
+static void genVecSelect(Gen& g, ModulePtr<Value> pointer, InstSelect& instruction) {
+    auto lanes = laneCount(g, instruction.type);
+    auto cond = vecPartsOf(g, instruction.cond);
+    auto whenTrue = vecPartsOf(g, instruction.whenTrue);
+    auto whenFalse = vecPartsOf(g, instruction.whenFalse);
+    auto parts = newVecParts(g, lanes);
+
+    for(U32 i = 0; i < lanes; i++) {
+        parts.lanes[i] = ternary(g, cond.lanes[i], whenTrue.lanes[i], whenFalse.lanes[i]);
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+/*
+ * The five kinds that only a vector is an operand or a result of.
+ *
+ * Four of them are nothing at all once a vector is its lanes: a splat is one expression named
+ * `lanes` times, a lane read is one of the parts, a lane write is the parts with one replaced, and a
+ * shuffle is the parts permuted. None of them emits an operation - which is the clearest statement
+ * of what this representation buys, since each is a real instruction on the machine.
+ */
+static void genVecSplat(Gen& g, ModulePtr<Value> pointer, InstVecSplat& instruction) {
+    auto lanes = laneCount(g, instruction.type);
+    auto from = useValue(g, instruction.from);
+    auto parts = newVecParts(g, lanes);
+
+    // The same expression in every lane. `defineVec` names each of them, so a source with an effect
+    // or a cost is evaluated `lanes` times unless `opt.cpp` can see that it is a name - which is why
+    // `lower_licm` hoisting a splat out of a loop is worth what §3.4 says it is.
+    for(U32 i = 0; i < lanes; i++) parts.lanes[i] = from;
+    defineVec(g, pointer, parts);
+}
+
+static void genVecLane(Gen& g, ModulePtr<Value> pointer, InstVecLane& instruction) {
+    auto from = vecPartsOf(g, instruction.from);
+    auto lane = instruction.lane < from.count ? instruction.lane : 0;
+
+    if(instruction.kind == Value::VecLane) {
+        define(g, pointer, from.lanes[lane]);
+        return;
+    }
+
+    auto parts = newVecParts(g, from.count);
+    for(U32 i = 0; i < from.count; i++) parts.lanes[i] = from.lanes[i];
+
+    parts.lanes[lane] = useValue(g, instruction.value);
+    defineVec(g, pointer, parts);
+}
+
+static void genVecShuffle(Gen& g, ModulePtr<Value> pointer, InstVecShuffle& instruction) {
+    auto lanes = laneCount(g, instruction.type);
+    auto left = vecPartsOf(g, instruction.left);
+    auto right = vecPartsOf(g, instruction.right);
+    auto parts = newVecParts(g, lanes);
+
+    // A pattern entry names a lane of the two sources concatenated, so anything from `left.count` up
+    // is a lane of the second - the same reading every backend gives it.
+    for(U32 i = 0; i < lanes; i++) {
+        auto entry = i < instruction.pattern.size() ? instruction.pattern[i] : 0;
+        parts.lanes[i] = entry < left.count ? left.lanes[entry]
+                       : (entry - left.count) < right.count ? right.lanes[entry - left.count]
+                       : left.lanes[0];
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+/*
+ * The one that is not free: every lane combined into one scalar.
+ *
+ * An unrolled adjacent-pair tree - `(a0+a1) + (a2+a3)` for four lanes - and not a loop, and not a
+ * left-to-right fold. The order is a stated language property (Design-Vector §4.5), so what this
+ * emits has to be the same tree the other two backends emit or a float sum answers different bits on
+ * different targets. Integer reductions are associative and could be written any way; they are
+ * written this way because two shapes for one operation is how the two drift apart.
+ */
+static JsPtr<Expr> reduceLanes(Gen& g, ReduceOp reduce, TypePtr type, bool mask,
+                               Buffer<JsPtr<Expr>> lanes, U32 from, U32 count) {
+    if(count == 1) return lanes[from];
+
+    auto half = count / 2;
+    auto lhs = reduceLanes(g, reduce, type, mask, lanes, from, half);
+    auto rhs = reduceLanes(g, reduce, type, mask, lanes, from + half, count - half);
+
+    if(mask) {
+        // `any` and `all` over booleans, and `count` as a sum of them - which is where the boolean
+        // representation costs something, since `+` over two of them needs each read as a number.
+        switch(reduce) {
+            case ReduceOp::And: return binary(g, BinaryOp::LogicalAnd, lhs, rhs);
+            case ReduceOp::Or:  return binary(g, BinaryOp::LogicalOr, lhs, rhs);
+            default: break;
+        }
+
+        auto asNumber = [&](JsPtr<Expr> lane) { return ternary(g, lane, number(g, 1), number(g, 0)); };
+        return binary(g, BinaryOp::Add, count == 2 ? asNumber(lhs) : lhs,
+                                        count == 2 ? asNumber(rhs) : rhs);
+    }
+
+    switch(reduce) {
+        case ReduceOp::Add: return coerce(g, type, binary(g, BinaryOp::Add, lhs, rhs));
+        case ReduceOp::Mul: return coerce(g, type, binary(g, BinaryOp::Mul, lhs, rhs));
+        case ReduceOp::Min: return hostCall(g, "Math"_v, "min"_v, lhs, rhs);
+        default:            return hostCall(g, "Math"_v, "max"_v, lhs, rhs);
+    }
+}
+
+static void genVecReduce(Gen& g, ModulePtr<Value> pointer, InstVecReduce& instruction) {
+    auto source = g.local[instruction.from]->type;
+    auto from = vecPartsOf(g, instruction.from);
+
+    define(g, pointer, reduceLanes(g, instruction.reduce, instruction.type,
+                                   isMaskType(g, source), from.contents(), 0, from.count));
+}
+
+/*
+ * A conversion between two vectors is the conversion between their lanes, lane by lane - which is
+ * what the lane count being preserved across a `Cast` is *for*.
+ *
+ * A `Bitcast` is the same statement one step down: where the two lanes are the same *width*, a
+ * reinterpretation of the vector is a reinterpretation of each lane, and `genBitcast` above already
+ * says what that is on this target - the ordinary coercion between two integers, and the scratch
+ * typed-array pair where one side is a float. What has no reading here is a bitcast that changes the
+ * lane width: `i8x16` to `i32x4` is one register read another way natively and is four numbers read
+ * as sixteen here, and this target has no bits for that to mean anything about.
+ *
+ * The test is therefore the lane *stride* and not the lane type, which is what it used to be - so
+ * `Vec(Int)` to `Vec(U32)`, two names for the same thirty-two bits, was refused with a diagnostic
+ * about lane widths that are equal.
+ */
+static void genVecConvert(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
+    auto to = instruction.type;
+    auto source = g.local[instruction.from]->type;
+    auto element = laneType(g, to);
+    auto sourceElement = laneType(g, source);
+    auto reinterprets = instruction.kind == Value::Bitcast;
+
+    if(reinterprets && laneStride(g.global, sourceElement) != laneStride(g.global, element)) {
+        g.context.diagnostics.error("a bitcast between vectors of different lane widths has no JavaScript form - a lane is a number here rather than a run of bits"_v,
+                                    instruction.source);
+        return;
+    }
+
+    auto lanes = laneCount(g, to);
+    auto from = vecPartsOf(g, instruction.from);
+    auto parts = newVecParts(g, lanes);
+
+    for(U32 i = 0; i < lanes; i++) {
+        if(i >= from.count) {
+            parts.lanes[i] = zeroValue(g, element);
+        } else if(reinterprets) {
+            parts.lanes[i] = bitcastLane(g, sourceElement, element, from.lanes[i]);
+        } else {
+            parts.lanes[i] = convertLane(g, sourceElement, element, from.lanes[i]);
+        }
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+/*
+ * Whether this instruction is one of the vector forms, and generating it if so.
+ *
+ * Asked before the scalar switch rather than as arms inside it, because the split is by *type* and
+ * not by kind: `add` over two vectors and `add` over two integers are one instruction kind, and the
+ * lane-count question is what tells them apart. A comparison asks about its operands rather than its
+ * result, since its result is the mask.
+ */
+bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
+    switch(instruction.kind) {
+        case Value::VecSplat:
+            genVecSplat(g, pointer, (InstVecSplat&)instruction);
+            return true;
+        case Value::VecLane:
+        case Value::VecWithLane:
+            genVecLane(g, pointer, (InstVecLane&)instruction);
+            return true;
+        case Value::VecShuffle:
+            genVecShuffle(g, pointer, (InstVecShuffle&)instruction);
+            return true;
+        case Value::VecReduce:
+            genVecReduce(g, pointer, (InstVecReduce&)instruction);
+            return true;
+
+        case Value::Cmp:
+            if(!isVectorType(g.global, g.local[((InstCmp&)instruction).lhs]->type)) return false;
+            genVecCmp(g, pointer, (InstCmp&)instruction);
+            return true;
+
+        default:
+            break;
+    }
+
+    /*
+     * A **mask** is one of these too, and asking `isVectorType` is what left it out.
+     *
+     * `Logic` over a mask is `and`, `or`, `xor` and `not` (Design-Vector §3.2), and the emitters
+     * below have handled a mask operand since they were written - `maskBinary` and `genVecUnary`
+     * both branch on it. What did not was the gate: `isVectorType` answers no for a mask by
+     * definition, so combining two of them fell through to the scalar path and emitted a `&` over
+     * two host booleans. Nothing produced a mask outside a comparison feeding a select until the
+     * class existed, which is why it was invisible.
+     */
+    if(!vectorLanes(g.global, instruction.type)) return false;
+
+    switch(instruction.kind) {
+        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+        case Value::Shl: case Value::Shr: case Value::Sar:
+        case Value::And: case Value::Or: case Value::Xor:
+            genVecBinary(g, pointer, (InstBinary&)instruction);
+            return true;
+        case Value::Neg:
+        case Value::Not:
+        case Value::Sqrt:
+            genVecUnary(g, pointer, (InstUnary&)instruction);
+            return true;
+        case Value::Fma:
+            genVecFma(g, pointer, (InstFma&)instruction);
+            return true;
+        case Value::Select:
+            genVecSelect(g, pointer, (InstSelect&)instruction);
+            return true;
+        case Value::Cast:
+        case Value::Bitcast:
+            genVecConvert(g, pointer, (InstUnary&)instruction);
+            return true;
+        default:
+            return false;
+    }
+}
+
 void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
     auto& instruction = *g.local[pointer];
     auto value = (ModulePtr<Value>)pointer;
+
+    // A vector is `lanes` values here, so every operation over one is `lanes` operations - which is
+    // a different emitter rather than a case inside each of the ones below.
+    if(genVectorInst(g, value, instruction)) return;
 
     switch(instruction.kind) {
         case Value::Alloc: {
@@ -2238,6 +2681,21 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::Bitcast:
             genBitcast(g, value, (InstUnary&)instruction);
             break;
+        // The scalar square root and multiply-add, which are `Math.sqrt` and the two operations -
+        // see genVecFma for why the second is not a gap.
+        case Value::Sqrt:
+            define(g, value, coerce(g, instruction.type,
+                                    hostCall(g, "Math"_v, "sqrt"_v, useValue(g, ((InstUnary&)instruction).from))));
+            break;
+        case Value::Fma: {
+            auto& fma = (InstFma&)instruction;
+            auto product = coerce(g, instruction.type, binary(g, BinaryOp::Mul,
+                                                              useValue(g, fma.a), useValue(g, fma.b)));
+
+            define(g, value, coerce(g, instruction.type,
+                                    binary(g, BinaryOp::Add, product, useValue(g, fma.c))));
+            break;
+        }
         case Value::Neg: {
             auto from = useValue(g, ((InstUnary&)instruction).from);
 
@@ -2360,6 +2818,15 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              */
             auto& metric = (InstTypeMetric&)instruction;
 
+            // A count this body does not know is one cell of the environment and nothing else - see
+            // genConstValue. It comes back as a host number, which is what a count is here.
+            if(metric.metric == TypeMetricKind::Count) {
+                if(auto value_ = genConstValue(g, metric.of)) {
+                    define(g, value, value_);
+                    break;
+                }
+            }
+
             if(auto descriptor = genTypeDesc(g, metric.of)) {
                 // The alignment shares the flags cell and sits above them - see
                 // TypeDescFields::kFlags. Same element, one shift.
@@ -2376,10 +2843,7 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 break;
             }
 
-            auto& repr = g.repr.of(metric.of);
-            auto number_ = metric.metric == TypeMetricKind::Align ? repr.align
-                         : metric.metric == TypeMetricKind::Stride ? repr.stride
-                         : repr.size;
+            auto number_ = g.repr.metric(metric.of, metric.metric);
 
             /*
              * As a literal of the metric's own representation, which for an `I64` is a `bigint`.

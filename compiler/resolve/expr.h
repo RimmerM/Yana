@@ -899,6 +899,26 @@ struct ExprResolver {
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
 
+    /*
+     * The number a count position holds, as a value - Implementation-Const-Generics.md §3.2.
+     *
+     * An `InstTypeMetric` of kind `Count`, whatever the count is. A written one folds to an
+     * immediate at lowering exactly as `sizeOf(Int)` does, so a body that specializes pays nothing
+     * for the indirection and a body that does not reads its caller's slot.
+     */
+    ModulePtr<Value> countOf(TypePtr count, TypePtr type, LocationId source);
+
+    /*
+     * The value of a const parameter named in an expression - §1.6, or null when this name is not
+     * one of them.
+     *
+     * The `Count` metric at the parameter's declared type, which folds to a constant in a
+     * specialized body and reads the environment slot in an erased one. Null rather than a
+     * diagnostic, because this is the last thing the name lookup tries and the report belongs to
+     * the lookup.
+     */
+    ModulePtr<Value> constParameterValue(StringId name, LocationId source);
+
     // What reading a module-level name produces: a constant for an immutable global of direct
     // type, and a load of its place for anything else. See expr.cpp.
     ModulePtr<Value> globalValue(ModulePtr<Global> global_, LocationId source);
@@ -1601,7 +1621,7 @@ struct ExprResolver {
      * four-block loop around one drop is code the optimizer then has to prove things about.
      */
     template<class F>
-    void eachFixedElement(const Place& array, TypePtr element, U32 length, LocationId source, F&& body);
+    void eachFixedElement(const Place& array, TypePtr element, TypePtr count, LocationId source, F&& body);
 
     Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
@@ -1977,17 +1997,28 @@ private:
 constexpr U32 kFixedArrayUnrollLimit = 4;
 
 template<class F>
-void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 length,
+void ExprResolver::eachFixedElement(const Place& array, TypePtr element, TypePtr count,
                                     LocationId source, F&& body) {
-    if(!length) return;
+    /*
+     * A count this body cannot read takes the loop, which is the whole of §4.1's unspecialized fixed
+     * array: `n` is an environment slot rather than a number, and the counted form below already
+     * compares against a value rather than against a constant. Nothing else here changes, and that
+     * is the point - the erased path is the path that was already here for a long array.
+     */
+    auto written = writtenCount(global, count);
 
-    if(length <= kFixedArrayUnrollLimit) {
-        for(U32 i = 0; i < length; i++) {
-            auto index = makeInt(source, module.scalar.size, i);
-            body(project(array, ProjectionKind::Index, 0, index), index);
+    if(written) {
+        auto length = written.unwrap();
+        if(!length) return;
+
+        if(length <= kFixedArrayUnrollLimit) {
+            for(U32 i = 0; i < length; i++) {
+                auto index = makeInt(source, module.scalar.size, i);
+                body(project(array, ProjectionKind::Index, 0, index), index);
+            }
+
+            return;
         }
-
-        return;
     }
 
     /*
@@ -2013,7 +2044,7 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
     current = test;
 
     auto index = load(counterPlace, source);
-    auto limit = makeInt(source, word, length);
+    auto limit = countOf(count, word, source);
     auto more = ref(emit<InstCmp>(source, StringId(), module.scalar.bool_, index, limit, CompareOp::Lt));
     terminate(emit<InstJe>(source, StringId(), module.scalar.unit, more, step, exit));
 

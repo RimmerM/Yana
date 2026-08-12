@@ -1,0 +1,56 @@
+# A folded address that is holding scratch registers of its own.
+#
+# An `x86_addr` produces no register and emits no bytes: it is resolved at its own position, one
+# instruction in front of the access that reads it, and its base and its index are live *into* that
+# access in whatever locations they were resolved to. When either came out of the frame, that
+# location is a scratch register - the operand pool is taken from the top of the register file, and
+# so is the reload the address needed.
+#
+# So the access cannot hand those same registers to its own operands, and `takeTemp` steps past every
+# position the address is still holding. What is pinned below is the arithmetic of that step: the
+# address takes r15 and r14, and the temporary the access wants is r13 rather than either of them. A
+# pool that stopped counting the skipped positions would put the value being loaded, or stored, into
+# the register the address is being read through.
+#
+# The depth this reaches is a property of the form table rather than of these two functions -
+# `operandTempReach` in machine.cpp is what checks it, for every form, against the pool's width.
+#
+# The Clobber convention destroys every register except rbp, so a value that has to survive one of
+# its calls can only be in rbp and everything after the first is in the frame. That is the smallest
+# way to spill something deliberately - see MemoryOperand.lower, which uses it for the same reason.
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+# Two addresses over four values, so at most one of the four keeps a register: the second address has
+# both halves in the frame and takes two scratch registers for them. The value it loads has to
+# survive a second call, so its home is a slot as well - which is what makes the access want a
+# temporary at all, and it is the one that has to come from below the address.
+scratchAddress(%arg: Int, %p: Ptr, %i: Long, %p2: Ptr, %i2: Long): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %q = add %p, %i: Ptr
+        %v = load %q, 4: Int
+        %q2 = add %p2, %i2: Ptr
+        %v2 = load %q2, 4: Int
+        %s = call_clobber sink, %r: Int
+        %t = add %v, %v2: Int
+        %u = add %t, %s: Int
+        ret %u
+    }
+}
+
+# The same skip on the other side of the access: what needs the temporary here is the value being
+# stored rather than a result being produced, and a store has no memory-to-memory form to fall back
+# on. %tail is what takes rbp, which is what leaves the stored value in the frame.
+scratchAddressStore(%arg: Int, %keep: Int, %p: Ptr, %i: Long, %tail: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %q = add %p, %i: Ptr
+        store %q, %keep, 4
+        %s = add %tail, %r: Int
+        %u = add %s, %tail: Int
+        ret %u
+    }
+}

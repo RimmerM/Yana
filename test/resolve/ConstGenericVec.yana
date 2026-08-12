@@ -1,0 +1,86 @@
+{-
+   Const generics over a vector - Implementation-Const-Generics.md §5's first row, and the gap
+   Implementation-Vector.md §9.3 and `VecWidth.yana`'s header both name: *"the portable set is
+   declared over `Vec(a)`, which is the natural form of its lane type, so `lane` cannot read out of
+   an explicitly sized vector at all"*.
+
+   `Vec(I16, 4)` is the natural form of nothing on any target this compiles for, so before this every
+   one of the portable operations was unreachable on one - the count was matched and never bound, and
+   a signature could not quantify over it. What closes it is one const parameter per declaration:
+   `fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a` in Core, and the same shape written here.
+
+   `splat`, `zero` and `iota` keep the natural form deliberately. What decides their count is the
+   *result*, so a const parameter there would be one nothing supplies (§1.7) - an explicitly sized
+   vector is built from an integer literal through `FromInt`, which is what `sink` below does.
+
+   **A const-generic vector body specializes.** `Vec(a, n)` is a register type by resolve's own ABI
+   decision, and a register class needs a lane count, so §4.3's erased form is a loop over
+   register-fulls with a masked store - the plan's step 7, which is not built. `bodyLowerable`
+   declines such a body, which is the same staging every other gap in that walk uses; the goldens
+   here are therefore specializations and there is no `genEnv` anywhere in them.
+
+   Like `VecWidth.yana` this runs under Node and not natively: the x64 opcode list is
+   Implementation-Vector.md stage 5 and nothing here helps with it.
+-}
+
+import Native
+
+let &sink = 0 :: Vec(I16, 4)
+
+-- §1.2, and the whole of §5's first row: a lane read out of a vector whose count the *argument*
+-- states. `n` is bound by `matchType`'s array-and-vector arm recursing into the count.
+@noinline
+fn (n: Int) secondLane(v: Vec(I16, n)) -> I16 = lane(v, 1)
+
+-- §1.6: the count as an ordinary value. It needs no expression form - the parameter has a type - and
+-- what it produces is `countof`, which folds to the count once the call has decided it.
+@noinline
+fn (n: Int) widthOf(v: Vec(I16, n)) -> Int = n
+
+-- The count kept across an operation, which is what `Widen`, `Narrow` and the rearrangements all do:
+-- `n` appears three times in one signature and means one number in all of them.
+@noinline
+fn (n: Int) doubled(v: Vec(I16, n)) -> Vec(I16, n) = max(reverse(v), v)
+
+{-
+   The operators, which needed Implementation-Const-Generics.md §10 and not const generics.
+
+   `v + v` needs `Num(Vec(I16, n))` on the context, and a constraint list used to take bare
+   identifiers - `parseSimpleType` reads a head's parameter list - so a class over an *applied* type
+   could not be written at all. It is written here now, and what makes it work is that nothing behind
+   the grammar had to change: `ClassConstraint::args` was always a list of arbitrary types, and
+   `hasClassRequirement` compares them by pointer against the interned `Vec(I16, n)` the call site
+   left undecided. That is the comparison which settles `+` between `Num` and `Append` - the
+   ambiguity diagnostic's *"or declare which one this function requires"*, now followable here.
+
+   The constraint is written *after* the const parameter it mentions and `sameCount` below writes it
+   before, because §10.3's first pass declares every `Const` entry ahead of the rest. Either order is
+   the same context.
+-}
+@noinline
+fn (n: Int, Num(Vec(I16, n))) twice(v: Vec(I16, n)) -> Vec(I16, n) = v + v
+
+@noinline
+fn (Num(Vec(I16, n)), n: Int) sameCount(v: Vec(I16, n), w: Vec(I16, n)) -> Vec(I16, n) = v + w
+
+-- A count that is *written* rather than a variable still binds against a const-generic signature,
+-- which is what keeps the two spellings one feature rather than two.
+@noinline
+fn quadWidth(v: Vec(I16, 4)) -> Int = widthOf(v)
+
+fn main() -> Int:
+    let v = withLane(sink, 1, 9 :: I16)
+    let wide = doubled(v)
+
+    -- `sink` is four zero lanes, so `v` is `[0, 9, 0, 0]`, its reverse is `[0, 0, 9, 0]`, and the
+    -- lanewise max of the two is `[0, 9, 9, 0]`. So 4 + 4 + 9 = 17. The write to the mutable global
+    -- is what keeps the rest alive - with nothing observable the whole file folds to a constant.
+    --
+    -- `twice(v)` is `[0, 18, 0, 0]` and `sameCount(v, wide)` is `[0, 18, 9, 0]`, so lane 1 of the
+    -- sum of the two is 36 and lane 2 is 9: 17 + 36 + 9 = 62.
+    let summed = sameCount(twice(v), sameCount(v, wide))
+
+    sink = wide
+    return widthOf(v) + quadWidth(v) + ((secondLane(wide) :: I32) :: Int)
+             + ((secondLane(summed) :: I32) :: Int)
+             + ((lane(summed, 2) :: I32) :: Int)

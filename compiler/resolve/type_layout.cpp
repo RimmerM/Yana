@@ -258,7 +258,7 @@ static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, Location
         // contains nothing, so it is finite whatever its element is - which is what makes
         // `data T {kids: [T *0]}` a legal, useless declaration rather than a diagnostic.
         auto array = (ArrayType*)value;
-        if(array->length) ok = checkAcyclic(module, array->content, stack, source) && ok;
+        if(writtenCount(base, array->count).from(1)) ok = checkAcyclic(module, array->content, stack, source) && ok;
     } else {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
             if(constructor.boxed) continue;
@@ -451,6 +451,21 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
             if(constructors[0].boxed) return {};
 
             return valueWidthAt(base, constructors[0].content, depth + 1);
+        }
+        case Type::Vector: {
+            /*
+             * A vector states its width and is never narrow, which is the answer that matters.
+             *
+             * `isNarrow` is what decides whether a value may be co-packed into a word with its
+             * neighbours and whether a `&` of it carries a shift, and a vector is neither: it fills
+             * its own storage by construction and it is not a word at all. Its own arm rather than
+             * the `default` below, because falling through to "no answer" would be the same *result*
+             * arrived at by not having thought about it - and the two look identical until a target
+             * with a wider pack budget raises kMaxPackBits.
+             */
+            auto vector = (VectorType*)value;
+            auto bits = U32(laneStride(base, vector->content) * 8 * constValue(base, vector->count));
+            return ValueWidth { bits, bits };
         }
         default:
             return {};

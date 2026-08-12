@@ -93,8 +93,16 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
+        case Value::Sqrt:
             addUse(((InstUnary*)inst)->from, inst);
             break;
+        case Value::Fma: {
+            auto fma = (InstFma*)inst;
+            addUse(fma->a, inst);
+            addUse(fma->b, inst);
+            addUse(fma->c, inst);
+            break;
+        }
         // The table the slot is read out of. A TypeMetric has no operand at all - it names a type -
         // which is why the two are not one case despite being the same kind of question.
         case Value::TableSlot:
@@ -124,6 +132,27 @@ void IrEditor::recordUses(Inst* inst) {
             addUse(select->whenFalse, inst);
             break;
         }
+        case Value::VecSplat:
+            addUse(((InstVecSplat*)inst)->from, inst);
+            break;
+        case Value::VecLane:
+        case Value::VecWithLane: {
+            // `value` is null for a VecLane, and `addUse` answers null by doing nothing - so the two
+            // kinds share this arm the way they share the struct.
+            auto lane = (InstVecLane*)inst;
+            addUse(lane->from, inst);
+            addUse(lane->value, inst);
+            break;
+        }
+        case Value::VecShuffle: {
+            auto shuffle = (InstVecShuffle*)inst;
+            addUse(shuffle->left, inst);
+            addUse(shuffle->right, inst);
+            break;
+        }
+        case Value::VecReduce:
+            addUse(((InstVecReduce*)inst)->from, inst);
+            break;
         case Value::Call:
             for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(arg, inst);
             break;

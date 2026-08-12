@@ -1,0 +1,52 @@
+{-
+   # extensions: avx
+
+   A vector read out of memory and folded into the operation that reads it - Implementation-Vector.md
+   §5.4.1.
+
+   `xs[1]` is a load of sixteen bytes standing immediately above its only reader, which is the shape
+   `tryFoldLoad` moves onto the twin that reads its operand from an address. `xs[0]` is further up and
+   stays in a register, which is what makes the pair of them a fold rather than a rewrite of both.
+
+   **The point is that this is only possible with the extension.** A legacy-encoded packed operation
+   faults on a memory operand that is not 16-byte aligned, and an address the program computed is not
+   one this backend has promised anything about - so `memoryTwin` was never called for one and below
+   AVX there is no form to fold onto. Nothing in `tryFoldLoad` was taught about the target for it: the
+   pass asks the form `selectForm` would choose, and without the extension that is the legacy form
+   with no memory twin, so the fold declines itself. `test/x64/VectorOps.lower` and `VectorVex.lower`
+   are the byte-level halves of that - the same two functions, one directive apart - and what this
+   file adds is that a program built the folded way computes what the unfolded one did.
+
+   Three things about the shape, each of which is a way the fold does not happen:
+
+     - **a slice element rather than a global.** `tryFoldLoad` leaves a *mutable* global alone,
+       nothing being assumed about what writes it, and a non-mutable one becomes the whole
+       rip-relative address instead of something to fold into. A slice element is neither: the address
+       is a base register and an offset, which is the ordinary case.
+     - **`@noinline`.** Inlined into `main` these two functions sit under the stores that initialize
+       the globals, store-to-load forwarding answers every read, and what is left asserts a constant
+       fold rather than anything about addresses.
+     - **two elements rather than one read twice.** A folded operand has to be the only reader of the
+       load it swallows, and `xs[0] + xs[0]` is one definition with two readers.
+
+   Four lanes rather than eight: `targetVectorBytes` answers 32 only under AVX2, so the directive here
+   exercises the 128-bit tier. The wide tier's own fold is `wideFold` in `test/x64/VectorWide.lower`.
+-}
+
+let &a = 11 :: Vec(Int)
+let &b = 31 :: Vec(Int)
+
+@noinline
+fn sum(xs: [Vec(Int)]) -> Vec(Int) = xs[0] + xs[1]
+
+-- And the bitwise half, which reaches a different opcode through the same twin.
+@noinline
+fn masked(xs: [Vec(Int)]) -> Vec(Int) = xs[0] `and` xs[1]
+
+fn main() -> Int:
+    let xs = [a, b]
+    let s = sum(xs)
+    let m = masked(xs)
+
+    -- 42 in every lane of the sum; 11 & 31 is 11 in every lane of the mask.
+    return lane(s, 0) * 100 + lane(m, 1)

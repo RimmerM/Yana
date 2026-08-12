@@ -114,6 +114,26 @@ import Native
 @platform(js) pub fn hostAtMut(return self: %a, index: Size) -> &a
 
 {-
+   A whole vector out of a host array, and back into one - this target's half of
+   Implementation-Vector.md §12's "a way to read a vector out of a `Flat(a)`".
+
+   There is no memory here and so nothing to load: a vector on this target *is* `lanes` values
+   (Design-Vector §7.2), so a vector read is `lanes` element reads and a vector write is `lanes`
+   element writes. Neither is a loop - the lane count is known where the call is expanded, so each of
+   these is straight-line code of a length the type decided.
+
+   `hostVectorUpTo` is the tail, and it is where the two targets genuinely differ. Natively the tail
+   reads past the end of the object and the guarantee in §8 says that is safe; here there is no
+   guarantee to have, and a read past the end of a host array is `undefined` rather than an
+   unspecified byte - so the index of every lane is held at `limit`, which is the last element that
+   exists. The lanes past the end therefore repeat the last element, which is a value the caller is
+   about to mask off and never a value that is not a number.
+-}
+@platform(js) pub fn hostVector(self: %a, index: Size) -> Vec(a)
+@platform(js) pub fn hostVectorUpTo(self: %a, index: Size, limit: Size) -> Vec(a)
+@platform(js) pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
+
+{-
    The host string - Implementation-String.md part 2's JS column.
 
    `String` here is the host `string` primitive with no wrapper at all, which is what part 2 asks for
@@ -135,6 +155,22 @@ import Native
 -- `self.charCodeAt(index)` - one raw UTF-16 unit, with no decode and no validation that it is a
 -- whole code point. The exact counterpart of the native build's byte read.
 @platform(js) pub fn hostCharCodeAt(self: String, index: Size) -> Int
+
+{-
+   `self.indexOf(needle, from)` - the search this module said it did not have.
+
+   It is here now because the ASCII scanning family is (Implementation-Vector.md §9 item 8), and that
+   family's JS half is the host's own search by ruling rather than by convenience:
+   Implementation-String.md part 5 says lowering it to `String.prototype.indexOf` is "legitimate,
+   encouraged", on the grounds that searching for one fixed unit has no room for cross-engine
+   disagreement the way the grapheme tables do. What it replaces is a `charCodeAt` loop, which clears
+   the §7.2 floor and still loses to the engine's own C++.
+
+   `-1` for "not found" is the host's answer and is what the caller turns into a `Nothing`. Not
+   wrapped here: this module's whole job is to hand over what the host does, and a `Maybe` is a
+   decision the library above it makes.
+-}
+@platform(js) pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
 
 {-
    Concatenation and comparison, as the host's own operators - see NativeOp::HostBinary.
@@ -223,6 +259,7 @@ enum class HostMember: U8 {
     Length,
     CopyWithin,
     CharCodeAt,
+    IndexOf,
 
     // The operators, whose "member name" is the operator's own spelling - see NativeOp::HostBinary.
     // They are in the same enum because they are read the same way: `method` carries the text and
@@ -247,6 +284,7 @@ StringView hostMemberName(HostMember member) {
         case HostMember::Length: return "length"_v;
         case HostMember::CopyWithin: return "copyWithin"_v;
         case HostMember::CharCodeAt: return "charCodeAt"_v;
+        case HostMember::IndexOf: return "indexOf"_v;
         case HostMember::Concat: return "+"_v;
         case HostMember::Equal: return "==="_v;
         case HostMember::Less: return "<"_v;
@@ -339,6 +377,74 @@ static ModulePtr<Value> emitHostAt(ExprResolver& resolver, Buffer<ModulePtr<Valu
     return resolver.ref(resolver.emit<InstBorrow>(source, name, type, hostElement(resolver, args), mut));
 }
 
+/*
+ * The vector transfers - `lanes` element accesses each, and no loop.
+ *
+ * The lane count comes off the vector type, which is settled by the time an intrinsic is expanded, so
+ * what is emitted here is straight-line code whose length the type decided. That is the same shape
+ * `iota` has in simd.cpp and it is the same argument: a vector on this target is `lanes` values, so
+ * writing the lanes out one at a time is not an unrolling of anything - there was never a loop.
+ */
+static ModulePtr<Value> hostLaneIndex(ExprResolver& resolver, ModulePtr<Value> base, U32 lane,
+                                      ModulePtr<Value> limit, LocationId source) {
+    auto size = resolver.module.scalar.size;
+    auto index = base;
+
+    if(lane) {
+        auto step = resolver.makeInt(source, size, lane);
+        index = resolver.ref(resolver.emit<InstBinary>(source, StringId(), size, Value::Add, base, step));
+    }
+
+    if(!limit) return index;
+
+    // The clamp the tail needs, and the whole of what `hostVectorUpTo` is: `min(index, limit)`, so a
+    // lane past the end reads the last element rather than `undefined`.
+    auto over = resolver.ref(resolver.emit<InstCmp>(source, StringId(), resolver.module.scalar.bool_,
+                                                    index, limit, CompareOp::Gt));
+    return resolver.ref(resolver.emit<InstSelect>(source, StringId(), size, over, limit, index));
+}
+
+template<bool clamped>
+static ModulePtr<Value> emitHostVector(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto lanes = vectorLanes(resolver.global, type);
+    if(!lanes) return nullptr;
+
+    auto limit = clamped ? args[2] : nullptr;
+    ModulePtr<Value> value = nullptr;
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto index = hostLaneIndex(resolver, args[1], i, limit, source);
+        auto element = resolver.load(hostElementPlace(resolver, args[0], index), source);
+        auto last = i + 1 == lanes;
+
+        // Lane zero is a splat rather than a write into a zero, which is one instruction fewer and
+        // is what leaves nothing behind when the vector is one lane wide.
+        value = i ? resolver.ref(resolver.emit<InstVecLane>(source, last ? name : StringId(), type,
+                                                            value, U16(i), element))
+                  : resolver.ref(resolver.emit<InstVecSplat>(source, last ? name : StringId(), type, element));
+    }
+
+    return value;
+}
+
+static ModulePtr<Value> emitHostSetVector(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
+                                          LocationId source, StringId) {
+    auto vector = resolver.valueType(args[2]);
+    auto lanes = vectorLanes(resolver.global, vector);
+    auto lane = vectorLane(resolver.global, vector);
+    if(!lanes || !lane) return nullptr;
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto index = hostLaneIndex(resolver, args[1], i, nullptr, source);
+        auto element = resolver.ref(resolver.emit<InstVecLane>(source, StringId(), lane, args[2], U16(i)));
+
+        resolver.assign(hostElementPlace(resolver, args[0], index), element, source);
+    }
+
+    return nullptr;
+}
+
 } // namespace
 
 Place hostElementPlace(ExprResolver& resolver, ModulePtr<Value> array, ModulePtr<Value> index) {
@@ -395,11 +501,15 @@ void defineHost(Program& program) {
     attachIntrinsic(*module, "hostWrite"_v, emitHostWrite);
     attachIntrinsic(*module, "hostAt"_v, emitHostAt<false>);
     attachIntrinsic(*module, "hostAtMut"_v, emitHostAt<true>);
+    attachIntrinsic(*module, "hostVector"_v, emitHostVector<false>);
+    attachIntrinsic(*module, "hostVectorUpTo"_v, emitHostVector<true>);
+    attachIntrinsic(*module, "hostSetVector"_v, emitHostSetVector);
 
     // The host string - Implementation-String.md part 2's JS column. `length` is a field and
     // `charCodeAt` a method, exactly as they are for an array; the last three are operators.
     attachIntrinsic(*module, "hostStringLength"_v, emitHostMember<NativeOp::HostField, HostMember::Length>);
     attachIntrinsic(*module, "hostCharCodeAt"_v, emitHostMember<NativeOp::HostCall, HostMember::CharCodeAt>);
+    attachIntrinsic(*module, "hostIndexOf"_v, emitHostMember<NativeOp::HostCall, HostMember::IndexOf>);
     attachIntrinsic(*module, "hostConcat"_v, emitHostMember<NativeOp::HostBinary, HostMember::Concat>);
     attachIntrinsic(*module, "hostStringEq"_v, emitHostMember<NativeOp::HostBinary, HostMember::Equal>);
     attachIntrinsic(*module, "hostStringLt"_v, emitHostMember<NativeOp::HostBinary, HostMember::Less>);

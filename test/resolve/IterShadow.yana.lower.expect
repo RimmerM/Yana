@@ -1,0 +1,46 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, 3: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    %v_9 = alloca 16, 8: Ptr
+    %v_10 = alloca 16, 4: Ptr
+    store %v_9, %v_10, 8
+    %v_11 = add %v_9, 8: Ptr
+    %v_12 = load %v_11, 4: Int
+    store %v_11, 4, 4
+    store %v_10, 1, 4
+    %v_13 = add %v_10, 4: Ptr
+    store %v_13, 2, 4
+    %v_14 = add %v_10, 8: Ptr
+    store %v_14, 3, 4
+    %v_15 = add %v_10, 12: Ptr
+    store %v_15, 4, 4
+    %v_16 = add %v_9, 12: Ptr
+    store %v_16, 4, 4
+    %self = alloca 16, 8: Ptr
+    store %self, %v_10, 8
+    %v_17 = add %self, 8: Ptr
+    store %v_17, 4, 8
+    %v_18 = add %v_2, 11: Int
+    ret %v_18
+  }
+
+  b_3 {
+    %v_19 = add %v_2, 5: Int
+    %v_4 = add %v_19, %v_5: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+}
+

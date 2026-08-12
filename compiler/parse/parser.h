@@ -68,6 +68,10 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::SimpleType parseSimpleType(bool allowDependency = false);
     ast::Type parseType();
     ast::Type parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
+
+    // One argument of a type application, which is a type or - in the one position a number may be
+    // written where a type is - an integer literal. See ast::Type::Lit.
+    ast::Type parseTypeApplicationArg();
     ast::Type parseTupleType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
     ast::Type parseArrayType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
     void parseCon(ast::ParseList<ast::Con>& list);

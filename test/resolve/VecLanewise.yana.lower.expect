@@ -1,0 +1,446 @@
+@image$base = []
+mut @seed = [3, 0, 0, 0]
+
+comparisons<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %v_1 = cmp_ilt %a, %b: m32x4
+    %v_2 = vreduce_and %v_1: Int
+    %v_3 = xor %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = cmp_ile %a, %b: m32x4
+    %v_8 = vreduce_and %v_7: Int
+    %v_9 = xor %v_8, 1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    ret 18446744073709551614
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = cmp_igt %b, %a: m32x4
+    %v_14 = vreduce_and %v_13: Int
+    %v_15 = xor %v_14, 1: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 18446744073709551613
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = cmp_ige %b, %a: m32x4
+    %v_20 = vreduce_and %v_19: Int
+    %v_21 = xor %v_20, 1: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_22 {
+    ret 18446744073709551612
+  }
+
+  b_23 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = cmp_neq %a, %b: m32x4
+    %v_26 = vreduce_and %v_25: Int
+    %v_27 = xor %v_26, 1: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551611
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = cmp_eq %a, %b: m32x4
+    %v_32 = vreduce_or %v_31: Int
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    ret 18446744073709551610
+  }
+
+  b_34 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = cmp_igt %a, %b: m32x4
+    %v_37 = vreduce_or %v_36: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_38 {
+    ret 18446744073709551609
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_40 {
+    ret 0
+  }
+}
+
+selection<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %v_1 = cmp_ilt %a, %b: m32x4
+    %smaller = select %v_1, %a, %b: i32x4
+    %larger = select %v_1, %b, %a: i32x4
+    %v_2 = vlane %smaller, 0: Int
+    %v_3 = cmp_neq %v_2, 3: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = vlane %larger, 1: Int
+    %v_8 = cmp_neq %v_7, 4: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    ret 18446744073709551614
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    ret 0
+  }
+}
+
+combining<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %below = cmp_ilt %a, %b: m32x4
+    %equal = cmp_eq %a, %b: m32x4
+    %v_1 = or %below, %equal: m32x4
+    %v_2 = vreduce_and %v_1: Int
+    %v_3 = xor %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = and %below, %equal: m32x4
+    %v_8 = vreduce_or %v_7: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    ret 18446744073709551614
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = xor %below, %equal: m32x4
+    %v_13 = vreduce_and %v_12: Int
+    %v_14 = xor %v_13, 1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    ret 18446744073709551613
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_18 = not %equal: m32x4
+    %v_19 = vreduce_and %v_18: Int
+    %v_20 = xor %v_19, 1: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    ret 18446744073709551612
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_23 {
+    ret 0
+  }
+}
+
+counting<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 2, 2: i32x4
+    %indices = vwithlane %v_3, 3, 3: i32x4
+    %v_4 = vsplat 1: i32x4
+    %past = cmp_ige %indices, %v_4: m32x4
+    %v_5 = vreduce_add %past: Int
+    %v_6 = cmp_neq %v_5, 3: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 18446744073709551615
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = vsplat 4: i32x4
+    %v_11 = select %past, %indices, %v_10: i32x4
+    %v_12 = vreduce_imin %v_11: Int
+    %v_13 = cmp_neq %v_12, 1: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    ret 18446744073709551614
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_16 {
+    %never = cmp_ilt %indices, %v_1: m32x4
+    %v_17 = select %never, %indices, %v_10: i32x4
+    %v_18 = vreduce_imin %v_17: Int
+    %v_19 = cmp_neq %v_18, 4: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    ret 18446744073709551613
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = vreduce_add %never: Int
+    %v_24 = cmp_neq %v_23, 0: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 18446744073709551612
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_27 {
+    %always = cmp_ige %indices, %v_1: m32x4
+    %v_28 = select %always, %indices, %v_10: i32x4
+    %v_29 = vreduce_imin %v_28: Int
+    %v_30 = cmp_neq %v_29, 0: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 18446744073709551611
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = vreduce_add %always: Int
+    %v_35 = cmp_neq %v_34, 4: Int
+    je %v_35, b_36, b_37
+  }
+
+  b_36 {
+    ret 18446744073709551610
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_38 {
+    ret 0
+  }
+}
+
+floats<complex>(): Int {
+  b_0 {
+    %a = vsplat 1.5: f32x4
+    %b = vsplat 2.5: f32x4
+    %v_1 = cmp_lt %a, %b: m32x4
+    %v_2 = vreduce_and %v_1: Int
+    %v_3 = xor %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = cmp_lt %a, %b: m32x4
+    %v_8 = select %v_7, %a, %b: f32x4
+    %v_9 = vlane %v_8, 0: Float
+    %v_10 = cmp_neq %v_9, 1.5: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    ret 18446744073709551614
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_13 {
+    ret 0
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = loads @seed, 4: Int
+    %a = vsplat %v_1: i32x4
+    %v_2 = add %v_1, 1: Int
+    %b = vsplat %v_2: i32x4
+    %v_3 = call_complex comparisons, %a, %b: Int
+    %v_4 = cmp_neq %v_3, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = call_complex comparisons, %a, %b: Int
+    ret %v_7
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = call_complex selection, %a, %b: Int
+    %v_10 = cmp_neq %v_9, 0: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = call_complex selection, %a, %b: Int
+    %v_14 = imul %v_13, 10: Int
+    ret %v_14
+  }
+
+  b_12 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = call_complex combining, %a, %b: Int
+    %v_17 = cmp_neq %v_16, 0: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    %v_20 = call_complex combining, %a, %b: Int
+    %v_21 = imul %v_20, 100: Int
+    ret %v_21
+  }
+
+  b_19 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = call_complex counting: Int
+    %v_24 = cmp_neq %v_23, 0: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    %v_27 = call_complex counting: Int
+    %v_28 = imul %v_27, 1000: Int
+    ret %v_28
+  }
+
+  b_26 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = call_complex floats: Int
+    %v_31 = cmp_neq %v_30, 0: Int
+    je %v_31, b_32, b_33
+  }
+
+  b_32 {
+    %v_34 = call_complex floats: Int
+    %v_35 = imul %v_34, 10000: Int
+    ret %v_35
+  }
+
+  b_33 {
+    jmp b_36
+  }
+
+  b_36 {
+    ret 4839
+  }
+}
+

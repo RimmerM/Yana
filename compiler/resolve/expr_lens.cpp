@@ -276,9 +276,11 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
         }
     }
 
+    // The `$` is what keeps this out of the loop body's namespace - see classContinuationSignature,
+    // where the same name is invented for a class member and the same shadowing was silent.
     Array<FunArg> callbackArgs;
     if(!isUnit(global, handed)) {
-        callbackArgs.push(FunArg { handed, context.addUnqualifiedName("value", 5) });
+        callbackArgs.push(FunArg { handed, context.addUnqualifiedName("value$", 6) });
     }
 
     auto callbackType = resolveFunType(module, toBuffer(callbackArgs), result, ast::FunKind::Plain);

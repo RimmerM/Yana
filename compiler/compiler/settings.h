@@ -289,6 +289,58 @@ struct CompileSettings {
 };
 
 /*
+ * How wide one vector is, in bytes - Design-Vector §2.3, and the one number the natural form
+ * `Vec(a)` is spent against: the lane count is this divided by the element's stride.
+ *
+ * A setting derived from the target rather than an annotation, because a program that could ask for
+ * a different width per declaration would make `Vec(Float)` mean two things in one program and every
+ * call between them a conversion. What a program can name is a fixed count, which is `Vec(a, n)`.
+ *
+ * **The extensions are read only where they were named**, which is `x64FeaturesFor`'s rule and is
+ * here for the stronger version of its reason. `applyDefaults` fills the extension set in from the
+ * host's own CPUID when nothing said otherwise, so reading it unconditionally would make the *type*
+ * `Vec(Float)` - its lane count, its Repr, the answers every `.expect` file records - a function of
+ * which machine ran the compiler. A guess about where a program will run may decide which form of an
+ * instruction is selected; it may not decide what the program's types are.
+ *
+ * 256 bits needs AVX2 rather than AVX: AVX widens the float operations only, and a `Vec(I32)` that
+ * had to be split for want of the integer half would not be one vector.
+ */
+/*
+ * The widest vector any target this compiler describes has, which is a 512-bit register, and the
+ * most lanes one may have, which is that register full of bytes.
+ *
+ * Both, because they are two bounds rather than one seen twice: the byte width is what a register
+ * has to hold and what the ABI contract is checked against, and the count is what every walk over
+ * lanes is written in terms of - a shuffle pattern has one entry per lane, and a reduction is a tree
+ * log2 of it deep. `Vec(I64, 64)` violates the first while satisfying the second.
+ *
+ * These are the *language's* ceiling and not the running target's, which is what `targetVectorBytes`
+ * below answers. A vector wider than the target being compiled for is a value that target has no
+ * register for, and the backend that cannot hold one is the one that refuses it - which is where the
+ * refusal can name the register. The two live together because a reader of either wants both, and
+ * because the tail-read guarantee is stated in terms of the ceiling: what has to be reserved after a
+ * heap region, a stack frame or a data segment is the widest read *any* build of this program could
+ * make, not the one this build makes.
+ */
+constexpr U32 kMaxVectorBytes = 64;
+constexpr U32 kMaxVectorLanes = kMaxVectorBytes;
+
+inline U32 targetVectorBytes(const CompileSettings& settings) {
+    // JavaScript's 16 is a decision rather than an observation - Design-Vector §8. There is no
+    // register to read it off, and four lanes is what the scalarized form stays cheap at.
+    if(isJsMode(settings.mode)) return 16;
+
+    if(settings.arch == TargetArch::X64 && settings.explicitExtensions) {
+        if(settings.extensions.sse >= TargetExtensions::AVX512) return 64;
+        if(settings.extensions.sse >= TargetExtensions::AVX2) return 32;
+    }
+
+    // SSE2 on amd64, NEON on ARM, and the width every target this compiler emits for has at least.
+    return 16;
+}
+
+/*
  * Whether the local backend can produce an executable for the target these settings name.
  *
  * One statement of the list, read twice and for two different questions: `applyDefaults` asks it to

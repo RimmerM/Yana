@@ -99,7 +99,7 @@ Try(Result(e, a), a, e).toOutcome(Int, Int)<complex>(%v_0: Ptr, %value: Ptr) {
 always<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$0, 8
+    store %v_1, ResolveTest.continuation$14, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -167,7 +167,7 @@ valued<complex>(%n: Int): Int {
 
   b_2 {
     %v_5 = alloca 16, 8: Ptr
-    store %v_5, ResolveTest.continuation$1, 8
+    store %v_5, ResolveTest.continuation$15, 8
     %v_6 = bitcast 0: Ptr
     %v_7 = add %v_5, 8: Ptr
     store %v_7, %v_6, 8
@@ -338,7 +338,7 @@ mixed<complex>(%n: Int): Int {
 reasoned<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$3, 8
+    store %v_1, ResolveTest.continuation$17, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -409,7 +409,7 @@ reasoned<complex>(%n: Int): Int {
 guarded<complex>(%open: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$4, 8
+    store %v_1, ResolveTest.continuation$18, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -464,7 +464,7 @@ guarded<complex>(%open: Int): Int {
 nested<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$5, 8
+    store %v_1, ResolveTest.continuation$19, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -485,7 +485,7 @@ nested<complex>(%n: Int): Int {
 written<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.lambda$7, 8
+    store %v_1, ResolveTest.lambda$21, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -578,40 +578,40 @@ main<complex>(): Int {
   }
 }
 
-ResolveTest.continuation$0<complex>(%env: Ptr, %found: Int): Int {
+ResolveTest.continuation$14<complex>(%env: Ptr, %found: Int): Int {
   b_0 {
     %v_1 = add %found, 1: Int
     ret %v_1
   }
 }
 
-ResolveTest.continuation$1<complex>(%env: Ptr, %found: Int): Int {
+ResolveTest.continuation$15<complex>(%env: Ptr, %found: Int): Int {
   b_0 {
     %v_1 = imul %found, 3: Int
     ret %v_1
   }
 }
 
-ResolveTest.continuation$3<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$17<complex>(%env: Ptr, %value: Int): Int {
   b_0 {
     %v_1 = add %value, 1: Int
     ret %v_1
   }
 }
 
-ResolveTest.continuation$4<complex>(%env: Ptr): Int {
+ResolveTest.continuation$18<complex>(%env: Ptr): Int {
   b_0 {
     ret 3
   }
 }
 
-ResolveTest.continuation$5<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$19<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     %v_2 = loads @log, 4: Int
     %v_3 = add %v_2, 1: Int
     store @log, %v_3, 4
-    %v_4 = cmp_igt %value, 0: Int
+    %v_4 = cmp_igt %value$, 0: Int
     je %v_4, b_5, b_6
   }
 
@@ -623,8 +623,8 @@ ResolveTest.continuation$5<complex>(%env: Ptr, %value: Int): Int {
   }
 
   b_5 {
-    %v_9 = shl %value, 1: Int
-    %v_10 = add %v_9, %value: Int
+    %v_9 = shl %value$, 1: Int
+    %v_10 = add %v_9, %value$: Int
     %v_11 = loads @log, 4: Int
     %v_12 = add %v_11, 100: Int
     store @log, %v_12, 4
@@ -657,7 +657,7 @@ ResolveTest.continuation$5<complex>(%env: Ptr, %value: Int): Int {
   }
 }
 
-ResolveTest.lambda$7<complex>(%env: Ptr, %found: Int): Int {
+ResolveTest.lambda$21<complex>(%env: Ptr, %found: Int): Int {
   b_0 {
     %v_1 = imul %found, 5: Int
     ret %v_1

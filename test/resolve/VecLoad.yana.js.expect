@@ -1,0 +1,180 @@
+"use strict";
+// Collections
+function loadVector_Int(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
+}
+
+function loadVectorTail_Int(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  var v9 = (from$offset + from$length | 0) - 1 | 0;
+  var v12 = from$items[v4 > v9 ? v9 : v4];
+  var v15 = v4 + 1 | 0;
+  var v18 = from$items[v15 > v9 ? v9 : v15];
+  var v21 = v4 + 2 | 0;
+  var v24 = from$items[v21 > v9 ? v9 : v21];
+  var v27 = v4 + 3 | 0;
+  return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
+}
+
+function loadVector_Float(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
+}
+
+function loadVectorTail_Float(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  var v9 = (from$offset + from$length | 0) - 1 | 0;
+  var v12 = from$items[v4 > v9 ? v9 : v4];
+  var v15 = v4 + 1 | 0;
+  var v18 = from$items[v15 > v9 ? v9 : v15];
+  var v21 = v4 + 2 | 0;
+  var v24 = from$items[v21 > v9 ? v9 : v21];
+  var v27 = v4 + 3 | 0;
+  return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
+}
+
+// ResolveTest
+function sumInts(xs$items, xs$length, xs$offset) {
+  var acc = [0, 0, 0, 0];
+  var i = 0;
+  L0: for (;;) {
+    if ((i + 4 | 0) <= xs$length) {
+      var v18 = loadVector_Int(xs$items, xs$length, xs$offset, i);
+      acc = [acc[0] + v18[0] | 0, acc[1] + v18[1] | 0, acc[2] + v18[2] | 0, acc[3] + v18[3] | 0];
+      i = i + 4 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  if (i < xs$length) {
+    var v29 = xs$length - i | 0;
+    var live$0 = 0 < v29;
+    var live$1 = 1 < v29;
+    var live$2 = 2 < v29;
+    var live$3 = 3 < v29;
+    var v43 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
+    acc = [acc[0] + (live$0 ? v43[0] : 0) | 0, acc[1] + (live$1 ? v43[1] : 0) | 0, acc[2] + (live$2 ? v43[2] : 0) | 0, acc[3] + (live$3 ? v43[3] : 0) | 0];
+  }
+  return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
+}
+
+function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
+  var empty$0 = 0;
+  var empty$1 = 0;
+  var empty$2 = 0;
+  var empty$3 = 0;
+  var acc = [0, 0, 0, 0];
+  var i = 0;
+  L0: for (;;) {
+    if ((i + 4 | 0) <= xs$length) {
+      var v18 = loadVector_Float(xs$items, xs$length, xs$offset, i);
+      var v20 = loadVector_Float(ys$items, ys$length, ys$offset, i);
+      acc = [Math.fround(Math.fround(v18[0] * v20[0]) + acc[0]), Math.fround(Math.fround(v18[1] * v20[1]) + acc[1]), Math.fround(Math.fround(v18[2] * v20[2]) + acc[2]), Math.fround(Math.fround(v18[3] * v20[3]) + acc[3])];
+      i = i + 4 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  if (i < xs$length) {
+    var v41 = Math.fround(xs$length - i | 0);
+    var live$0 = 0 < v41;
+    var live$1 = 1 < v41;
+    var live$2 = 2 < v41;
+    var live$3 = 3 < v41;
+    var v45 = loadVectorTail_Float(xs$items, xs$length, xs$offset, i);
+    var x$0 = live$0 ? v45[0] : empty$0;
+    var x$1 = live$1 ? v45[1] : empty$1;
+    var x$2 = live$2 ? v45[2] : empty$2;
+    var x$3 = live$3 ? v45[3] : empty$3;
+    var v48 = loadVectorTail_Float(ys$items, ys$length, ys$offset, i);
+    acc = [Math.fround(Math.fround(x$0 * (live$0 ? v48[0] : empty$0)) + acc[0]), Math.fround(Math.fround(x$1 * (live$1 ? v48[1] : empty$1)) + acc[1]), Math.fround(Math.fround(x$2 * (live$2 ? v48[2] : empty$2)) + acc[2]), Math.fround(Math.fround(x$3 * (live$3 ? v48[3] : empty$3)) + acc[3])];
+  }
+  return Math.fround(Math.fround(acc[0] + acc[1]) + Math.fround(acc[2] + acc[3]));
+}
+
+function indexOf(xs$items, xs$length, xs$offset, needle) {
+  var i = 0;
+  L0: for (;;) {
+    if ((i + 4 | 0) <= xs$length) {
+      var v17 = loadVector_Int(xs$items, xs$length, xs$offset, i);
+      var hits$0 = v17[0] === needle;
+      var hits$1 = v17[1] === needle;
+      var hits$2 = v17[2] === needle;
+      var hits$3 = v17[3] === needle;
+      if (hits$0 || hits$1 || (hits$2 || hits$3)) {
+        return i + Math.min(Math.min(hits$0 ? 0 : 4, hits$1 ? 1 : 4), Math.min(hits$2 ? 2 : 4, hits$3 ? 3 : 4)) | 0;
+      } else {
+        i = i + 4 | 0;
+        continue L0;
+      }
+    } else {
+      B1: {
+        if (i < xs$length) {
+          var v46 = xs$length - i | 0;
+          var live$0 = 0 < v46;
+          var live$1 = 1 < v46;
+          var live$2 = 2 < v46;
+          var live$3 = 3 < v46;
+          var v59 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
+          var v60$0 = v59[0] === needle;
+          var v60$1 = v59[1] === needle;
+          var v60$2 = v59[2] === needle;
+          var v60$3 = v59[3] === needle;
+          var hits$0$1 = v60$0 && live$0;
+          var hits$1$1 = v60$1 && live$1;
+          var hits$2$1 = v60$2 && live$2;
+          var hits$3$1 = v60$3 && live$3;
+          if (hits$0$1 || hits$1$1 || (hits$2$1 || hits$3$1)) {
+            return i + Math.min(Math.min(hits$0$1 ? 0 : 4, hits$1$1 ? 1 : 4), Math.min(hits$2$1 ? 2 : 4, hits$3$1 ? 3 : 4)) | 0;
+          }
+        }
+      }
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function fill(xs, value) {
+  var v6 = xs.length;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + 4 | 0) <= v6) {
+      var to$items = xs.items;
+      var v51 = xs.offset + i | 0;
+      to$items[v51] = value;
+      to$items[v51 + 1 | 0] = value;
+      to$items[v51 + 2 | 0] = value;
+      to$items[v51 + 3 | 0] = value;
+      i = i + 4 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  L1: for (;;) {
+    if (i < v6) {
+      var v32 = xs.offset + i | 0;
+      if (i >>> 0 >= xs.length >>> 0) {
+        throw "yana: a runtime check failed";
+      } else {
+        xs.items[v32] = value;
+        i = i + 1 | 0;
+        continue L1;
+      }
+    } else {
+      return;
+    }
+    break L1;
+  }
+}
+
+function main() {
+  var v12 = new Int32Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  var v35 = new Float32Array([1, 2, 3, 4, 5]);
+  var v52 = new Float32Array([2, 2, 2, 2, 2]);
+  var v71 = new Int32Array([0, 0, 0, 0, 0, 0, 0]);
+  fill({ items: v71, length: 7, offset: 0 }, 3);
+  return (((Math.imul(sumInts(v12, 11, 0), 100000) + Math.imul(sumInts(new Int32Array([1, 2, 3]), 3, 0), 10000) | 0) + Math.imul(dot(v35, 5, 0, v52, 5, 0) === 30 ? 30 : 0, 100) | 0) + Math.imul(indexOf(v12, 11, 0, 8), 10) | 0) + sumInts(v71, 7, 0) | 0;
+}
+main();

@@ -12,15 +12,7 @@ U32 tableMetricValue(ReprTable& repr, const TableSlot& slot) {
     auto type = slot.metricType();
     if(!type) return 0;
 
-    auto& of = repr.of(type);
-
-    switch(slot.metric) {
-        case TypeMetricKind::Align: return of.align;
-        case TypeMetricKind::Stride: return of.stride;
-        case TypeMetricKind::Size: break;
-    }
-
-    return of.size;
+    return U32(repr.metric(type, slot.metric));
 }
 
 /*

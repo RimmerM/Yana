@@ -1,0 +1,798 @@
+let image$base: () = <none>
+
+table closure$Collections.continuation$12(String, U8) before Collections.continuation$12(String, U8) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Collections.continuation$0(String, U8, Maybe(I64)) before Collections.continuation$0(String, U8, Maybe(I64)) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Collections.continuation$10(String, U8) before Collections.continuation$10(String, U8) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Collections.continuation$0(String, U8, ()) before Collections.continuation$0(String, U8, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+let string$0: String = "name,age,city"
+
+let string$1: String = "hello, world, and hello again"
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn indexOfVectors(String, U8)(%xs: String, %wanted: U8) -> Maybe(I64) {
+  b0:
+    %sought = vsplat %wanted : Vec(U8)
+    %at = alloc : Int
+    init %at, 0
+    %v6 = alloc : {sought: Vec(U8), at: &mut Int}
+    init %local3.sought, %sought
+    %v8 = borrow_mut %at : &mut Int
+    init %local3.at, %v8
+    %v10 = addressof %local3 : %()
+    %v11 = alloc : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v12 = symbol Collections.continuation$12(String, U8) : %()
+    init %local4.code, %v12
+    init %local4.env, %v10
+    %v15 = call vectorsMasked(String, U8, Maybe(I64)), %xs, %v11 : Outcome((), Maybe(I64))
+    %v16 = load %local5.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v20 = load %local5@Exit : Maybe(I64)
+    ret %v20
+
+  b2:
+    %v22 = alloc : Maybe(I64)
+    init %local6.discriminant, 0
+    ret %v22
+}
+
+fn Collections.continuation$12(String, U8)(%env: %{sought: Vec(U8), at: &mut Int}, %value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64)) {
+  b0:
+    %v = load %value$.0 : Vec(U8)
+    %live = load %value$.1 : Int
+    %v4 = load [%env].sought : Vec(U8)
+    %v5 = cmp_eq %v, %v4 : Mask(U8)
+    %v7 = vsplat 0 : Vec(U8)
+    %v9 = vwithlane %v7, 1, 1 : Vec(U8)
+    %v11 = vwithlane %v9, 2, 2 : Vec(U8)
+    %v13 = vwithlane %v11, 3, 3 : Vec(U8)
+    %v15 = vwithlane %v13, 4, 4 : Vec(U8)
+    %v17 = vwithlane %v15, 5, 5 : Vec(U8)
+    %v19 = vwithlane %v17, 6, 6 : Vec(U8)
+    %v21 = vwithlane %v19, 7, 7 : Vec(U8)
+    %v23 = vwithlane %v21, 8, 8 : Vec(U8)
+    %v25 = vwithlane %v23, 9, 9 : Vec(U8)
+    %v27 = vwithlane %v25, 10, 10 : Vec(U8)
+    %v29 = vwithlane %v27, 11, 11 : Vec(U8)
+    %v31 = vwithlane %v29, 12, 12 : Vec(U8)
+    %v33 = vwithlane %v31, 13, 13 : Vec(U8)
+    %v35 = vwithlane %v33, 14, 14 : Vec(U8)
+    %v37 = vwithlane %v35, 15, 15 : Vec(U8)
+    %v38 = cast %live : U8
+    %v39 = vsplat %v38 : Vec(U8)
+    %v40 = cmp_lt %v37, %v39 : Mask(U8)
+    %hits = and %v5, %v40 : Mask(U8)
+    %v42 = vreduce_or %hits : Bool
+    je %v42, b1, b2
+
+  b1:
+    %v44 = alloc : Maybe(I64)
+    %v45 = load [%env].at : &mut Int
+    %v46 = load [%v45] : Int
+    %v48 = vsplat 0 : Vec(U8)
+    %v50 = vwithlane %v48, 1, 1 : Vec(U8)
+    %v52 = vwithlane %v50, 2, 2 : Vec(U8)
+    %v54 = vwithlane %v52, 3, 3 : Vec(U8)
+    %v56 = vwithlane %v54, 4, 4 : Vec(U8)
+    %v58 = vwithlane %v56, 5, 5 : Vec(U8)
+    %v60 = vwithlane %v58, 6, 6 : Vec(U8)
+    %v62 = vwithlane %v60, 7, 7 : Vec(U8)
+    %v64 = vwithlane %v62, 8, 8 : Vec(U8)
+    %v66 = vwithlane %v64, 9, 9 : Vec(U8)
+    %v68 = vwithlane %v66, 10, 10 : Vec(U8)
+    %v70 = vwithlane %v68, 11, 11 : Vec(U8)
+    %v72 = vwithlane %v70, 12, 12 : Vec(U8)
+    %v74 = vwithlane %v72, 13, 13 : Vec(U8)
+    %v76 = vwithlane %v74, 14, 14 : Vec(U8)
+    %v78 = vwithlane %v76, 15, 15 : Vec(U8)
+    %v80 = vsplat 16 : Vec(U8)
+    %v81 = select %hits ? %v78 : %v80 : Vec(U8)
+    %v82 = vreduce_min %v81 : U8
+    %v83 = cast %v82 : Int
+    %v84 = add %v46, %v83 : Int
+    %v85 = cast %v84 : I64
+    aggregate %local1.discriminant = 1, %local1@Just = %v85
+    %v88 = alloc : Outcome((), Maybe(I64))
+    init %local3.discriminant, 1
+    init %local3@Exit, %v44
+    ret %v88
+
+  b2:
+    jmp b3
+
+  b3:
+    %v94 = load [%env].at : &mut Int
+    %v95 = load [%env].at : &mut Int
+    %v96 = load [%v95] : Int
+    %v97 = add %v96, %live : Int
+    assign [%v94], %v97
+    %v99 = alloc : Outcome((), Maybe(I64))
+    init %local2.discriminant, 0
+    ret %v99
+}
+
+fn vectorsMasked(String, U8, Maybe(I64))(%self: String, %body: (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))) -> Outcome((), Maybe(I64)) {
+  b0:
+    %v3 = vsplat 0 : Vec(U8)
+    %v5 = alloc : {width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}
+    init %local2.width, 16
+    %v7 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    init %local2.body, %v7
+    %v9 = addressof %local2 : %()
+    %v10 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64)))
+    %v11 = symbol Collections.continuation$0(String, U8, Maybe(I64)) : %()
+    init %local3.code, %v11
+    init %local3.env, %v9
+    %v14 = call Chunked(String, U8).chunks(Outcome((), Maybe(I64))), %self, %v10 : Outcome((), Outcome((), Maybe(I64)))
+    %v15 = load %local4.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b1, b2
+
+  b1:
+    %v19 = move %local4@Exit : Outcome((), Maybe(I64))
+    ret %v19
+
+  b2:
+    %v21 = alloc : Outcome((), Maybe(I64))
+    init %local5.discriminant, 0
+    ret %v21
+}
+
+fn Collections.continuation$0(String, U8, Maybe(I64))(%env: %{width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}, %value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64))) {
+  b0:
+    %v2 = load %value$@Flat.length : I64
+    %n = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = load [%env].width : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = cmp_le %v10, %n : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v13 = load %i : Int
+    %v14 = cmp_lt %v13, %n : Bool
+    je %v14, b6, b7
+
+  b3:
+    %v16 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v17 = load [%v16] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v18 = alloc : {Vec(U8), Int}
+    %v19 = load %i : Int
+    %v20 = cast %v19 : I64
+    %v21 = call loadVector(U8), %value$, %v20 : Vec(U8)
+    %v22 = load [%env].width : Int
+    aggregate %local2.0 = %v21, %local2.1 = %v22
+    %v24 = calldyn %v17, %v18 : Outcome((), Maybe(I64))
+    %v25 = load %local3.discriminant : Int
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v29 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    init %local7.discriminant, 1
+    init %local7@Exit, %v24
+    ret %v29
+
+  b5:
+    %v34 = load %i : Int
+    %v35 = load [%env].width : Int
+    %v36 = add %v34, %v35 : Int
+    assign %i, %v36
+    jmp b1
+
+  b6:
+    %v39 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v40 = load [%v39] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v41 = alloc : {Vec(U8), Int}
+    %v42 = load %i : Int
+    %v43 = cast %v42 : I64
+    %v44 = call loadVectorTail(U8), %value$, %v43 : Vec(U8)
+    %v45 = load %i : Int
+    %v46 = sub %n, %v45 : Int
+    aggregate %local4.0 = %v44, %local4.1 = %v46
+    %v48 = calldyn %v40, %v41 : Outcome((), Maybe(I64))
+    %v49 = load %local5.discriminant : Int
+    %v51 = cmp_eq %v49, 1 : Bool
+    je %v51, b8, b9
+
+  b7:
+    jmp b10
+
+  b8:
+    %v54 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    init %local8.discriminant, 1
+    init %local8@Exit, %v48
+    ret %v54
+
+  b9:
+    jmp b10
+
+  b10:
+    %v60 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    init %local6.discriminant, 0
+    ret %v60
+}
+
+fn loadVector(U8)(%from: Flat(U8), %at: I64) -> Vec(U8) {
+  b0:
+    %v2 = load %from@Flat.items : %U8
+    %v3 = strideof U8 : I64
+    %v4 = mul %at, %v3 : I64
+    %v5 = add %v2, %v4 : %U8
+    %v6 = bitcast %v5 : %Vec(U8)
+    %v7 = load [%v6] : Vec(U8)
+    ret %v7
+}
+
+fn loadVectorTail(U8)(%from: Flat(U8), %at: I64) -> Vec(U8) {
+  b0:
+    %v2 = load %from@Flat.items : %U8
+    %v3 = strideof U8 : I64
+    %v4 = mul %at, %v3 : I64
+    %v5 = add %v2, %v4 : %U8
+    %v6 = bitcast %v5 : %Vec(U8)
+    %v7 = loadx [%v6] : Vec(U8)
+    ret %v7
+}
+
+fn Contiguous(Array(a), a).elements(U8)(%self: Array(U8)) -> Flat(U8) {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : I64
+    %v3 = borrow %self : &Array(U8)
+    %self = alloc : Flat(U8)
+    %v5 = load [%v3]@Array.run@Run.items : %U8
+    init %self@Flat.items, %v5
+    %v7 = load [%v3]@Array.length : @bits(30) U32
+    %v8 = cast %v7 : I64
+    init %self@Flat.length, %v8
+    %v11 = call slice(U8), %self, 0, %v2 : Flat(U8)
+    ret %v11
+}
+
+fn slice(U8)(%self: Flat(U8), %from: I64, %to: I64) -> Flat(U8) {
+  b0:
+    %start = alloc : I64
+    init %start, %from
+    %v5 = load %start : I64
+    %v7 = cmp_lt %v5, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    assign %start, 0
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = load %start : I64
+    %v14 = load %self@Flat.length : I64
+    %v15 = cmp_gt %v13, %v14 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %self@Flat.length : I64
+    assign %start, %v17
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %end = alloc : I64
+    init %end, %to
+    %v23 = load %end : I64
+    %v24 = load %start : I64
+    %v25 = cmp_lt %v23, %v24 : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v27 = load %start : I64
+    assign %end, %v27
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v31 = load %end : I64
+    %v32 = load %self@Flat.length : I64
+    %v33 = cmp_gt %v31, %v32 : Bool
+    je %v33, b10, b11
+
+  b10:
+    %v35 = load %self@Flat.length : I64
+    assign %end, %v35
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v39 = alloc : Flat(U8)
+    %v40 = load %self@Flat.items : %U8
+    %v41 = load %start : I64
+    %v42 = strideof U8 : I64
+    %v43 = mul %v41, %v42 : I64
+    %v44 = add %v40, %v43 : %U8
+    %v45 = load %end : I64
+    %v46 = load %start : I64
+    %v47 = sub %v45, %v46 : I64
+    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
+    ret %v39
+}
+
+fn occurrencesVectors(String, U8)(%xs: String, %wanted: U8) -> Int {
+  b0:
+    %sought = vsplat %wanted : Vec(U8)
+    %total = alloc : Int
+    init %total, 0
+    %v6 = alloc : {total: &mut Int, sought: Vec(U8)}
+    %v7 = borrow_mut %total : &mut Int
+    init %local3.total, %v7
+    init %local3.sought, %sought
+    %v10 = addressof %local3 : %()
+    %v11 = alloc : (value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v12 = symbol Collections.continuation$10(String, U8) : %()
+    init %local4.code, %v12
+    init %local4.env, %v10
+    %v15 = call vectorsMasked(String, U8, ()), %xs, %v11 : Outcome((), ())
+    %v16 = load %total : Int
+    ret %v16
+}
+
+fn Collections.continuation$10(String, U8)(%env: %{total: &mut Int, sought: Vec(U8)}, %value$: {Vec(U8), Int}) -> Outcome((), ()) {
+  b0:
+    %v = load %value$.0 : Vec(U8)
+    %live = load %value$.1 : Int
+    %v4 = load [%env].total : &mut Int
+    %v5 = load [%env].total : &mut Int
+    %v6 = load [%v5] : Int
+    %v7 = load [%env].sought : Vec(U8)
+    %v8 = cmp_eq %v, %v7 : Mask(U8)
+    %v10 = vsplat 0 : Vec(U8)
+    %v12 = vwithlane %v10, 1, 1 : Vec(U8)
+    %v14 = vwithlane %v12, 2, 2 : Vec(U8)
+    %v16 = vwithlane %v14, 3, 3 : Vec(U8)
+    %v18 = vwithlane %v16, 4, 4 : Vec(U8)
+    %v20 = vwithlane %v18, 5, 5 : Vec(U8)
+    %v22 = vwithlane %v20, 6, 6 : Vec(U8)
+    %v24 = vwithlane %v22, 7, 7 : Vec(U8)
+    %v26 = vwithlane %v24, 8, 8 : Vec(U8)
+    %v28 = vwithlane %v26, 9, 9 : Vec(U8)
+    %v30 = vwithlane %v28, 10, 10 : Vec(U8)
+    %v32 = vwithlane %v30, 11, 11 : Vec(U8)
+    %v34 = vwithlane %v32, 12, 12 : Vec(U8)
+    %v36 = vwithlane %v34, 13, 13 : Vec(U8)
+    %v38 = vwithlane %v36, 14, 14 : Vec(U8)
+    %v40 = vwithlane %v38, 15, 15 : Vec(U8)
+    %v41 = cast %live : U8
+    %v42 = vsplat %v41 : Vec(U8)
+    %v43 = cmp_lt %v40, %v42 : Mask(U8)
+    %v44 = and %v8, %v43 : Mask(U8)
+    %v45 = vreduce_add %v44 : Int
+    %v46 = add %v6, %v45 : Int
+    assign [%v4], %v46
+    %v48 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v48
+}
+
+fn vectorsMasked(String, U8, ())(%self: String, %body: (value$: {Vec(U8), Int}) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v3 = vsplat 0 : Vec(U8)
+    %v5 = alloc : {width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}
+    init %local2.width, 16
+    %v7 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    init %local2.body, %v7
+    %v9 = addressof %local2 : %()
+    %v10 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), ()))
+    %v11 = symbol Collections.continuation$0(String, U8, ()) : %()
+    init %local3.code, %v11
+    init %local3.env, %v9
+    %v14 = call Chunked(String, U8).chunks(Outcome((), ())), %self, %v10 : Outcome((), Outcome((), ()))
+    %v15 = load %local4.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b1, b2
+
+  b1:
+    %v19 = move %local4@Exit : Outcome((), ())
+    ret %v19
+
+  b2:
+    %v21 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v21
+}
+
+fn Collections.continuation$0(String, U8, ())(%env: %{width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}, %value$: Flat(U8)) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = load %value$@Flat.length : I64
+    %n = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = load [%env].width : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = cmp_le %v10, %n : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v13 = load %i : Int
+    %v14 = cmp_lt %v13, %n : Bool
+    je %v14, b6, b7
+
+  b3:
+    %v16 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v17 = load [%v16] : (value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v18 = alloc : {Vec(U8), Int}
+    %v19 = load %i : Int
+    %v20 = cast %v19 : I64
+    %v21 = call loadVector(U8), %value$, %v20 : Vec(U8)
+    %v22 = load [%env].width : Int
+    aggregate %local2.0 = %v21, %local2.1 = %v22
+    %v24 = calldyn %v17, %v18 : Outcome((), ())
+    %v25 = load %local3.discriminant : Int
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v29 = alloc : Outcome((), Outcome((), ()))
+    init %local7.discriminant, 1
+    init %local7@Exit, %v24
+    ret %v29
+
+  b5:
+    %v34 = load %i : Int
+    %v35 = load [%env].width : Int
+    %v36 = add %v34, %v35 : Int
+    assign %i, %v36
+    jmp b1
+
+  b6:
+    %v39 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v40 = load [%v39] : (value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v41 = alloc : {Vec(U8), Int}
+    %v42 = load %i : Int
+    %v43 = cast %v42 : I64
+    %v44 = call loadVectorTail(U8), %value$, %v43 : Vec(U8)
+    %v45 = load %i : Int
+    %v46 = sub %n, %v45 : Int
+    aggregate %local4.0 = %v44, %local4.1 = %v46
+    %v48 = calldyn %v40, %v41 : Outcome((), ())
+    %v49 = load %local5.discriminant : Int
+    %v51 = cmp_eq %v49, 1 : Bool
+    je %v51, b8, b9
+
+  b7:
+    jmp b10
+
+  b8:
+    %v54 = alloc : Outcome((), Outcome((), ()))
+    init %local8.discriminant, 1
+    init %local8@Exit, %v48
+    ret %v54
+
+  b9:
+    jmp b10
+
+  b10:
+    %v60 = alloc : Outcome((), Outcome((), ()))
+    init %local6.discriminant, 0
+    ret %v60
+}
+
+fn stringLiteral(%bytes: %U8, %length: Int) -> String {
+  b0:
+    %v2 = alloc : StringData
+    %v3 = alloc : Array(U8)
+    %v4 = alloc : Run(U8)
+    %v5 = cast %length : U32
+    %v7 = and %v5, 1073741823 : U32
+    %v8 = cast %v7 : @bits(30) U32
+    init %local2@Run.items, %bytes
+    init %local2@Run.capacity, %v8
+    init %local2@Run.ownsHeap, 0
+    %v13 = cast %length : U32
+    %v15 = and %v13, 1073741823 : U32
+    %v16 = cast %v15 : @bits(30) U32
+    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
+    aggregate %local0@StringData.bytes = %v3
+    %v19 = move %local0 : StringData
+    %v20 = alloc : String
+    init %local3, %v19
+    ret %v20
+}
+
+fn findAscii(%self: String, %unit: U8) -> Maybe(I64) {
+  b0:
+    %v2 = call indexOfVectors(String, U8), %self, %unit : Maybe(I64)
+    ret %v2
+}
+
+fn containsAscii(%self: String, %unit: U8) -> Bool {
+  b0:
+    %v2 = call findAscii, %self, %unit : Maybe(I64)
+    %v3 = load %local1.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v7 = load %local1@Just : I64
+    jmp b3
+
+  b3:
+    %v12 = phi [b2, True], [b1, False] : Bool
+    ret %v12
+}
+
+fn countAscii(%self: String, %unit: U8) -> Int {
+  b0:
+    %v2 = call occurrencesVectors(String, U8), %self, %unit : Int
+    ret %v2
+}
+
+fn Chunked(String, U8).chunks(Outcome((), Maybe(I64)))(%self: String, %body: (value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64)))) -> Outcome((), Outcome((), Maybe(I64))) {
+  b0:
+    %v2 = borrow %self : &String
+    %v3 = cast %v2 : &StringData
+    %v4 = load [%v3]@StringData.bytes : Array(U8)
+    %v5 = borrow [%v3]@StringData.bytes : &Array(U8)
+    %v6 = load [%v5] : Array(U8)
+    %v7 = borrow [%v5] : &Array(U8)
+    %v8 = call Contiguous(Array(a), a).elements(U8), %v7 : Flat(U8)
+    %v9 = calldyn %body, %v8 : Outcome((), Outcome((), Maybe(I64)))
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret %v9
+
+  b2:
+    %v15 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    init %local4.discriminant, 0
+    ret %v15
+}
+
+fn Chunked(String, U8).chunks(Outcome((), ()))(%self: String, %body: (value$: Flat(U8)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = borrow %self : &String
+    %v3 = cast %v2 : &StringData
+    %v4 = load [%v3]@StringData.bytes : Array(U8)
+    %v5 = borrow [%v3]@StringData.bytes : &Array(U8)
+    %v6 = load [%v5] : Array(U8)
+    %v7 = borrow [%v5] : &Array(U8)
+    %v8 = call Contiguous(Array(a), a).elements(U8), %v7 : Flat(U8)
+    %v9 = calldyn %body, %v8 : Outcome((), Outcome((), ()))
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret %v9
+
+  b2:
+    %v15 = alloc : Outcome((), Outcome((), ()))
+    init %local4.discriminant, 0
+    ret %v15
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = symbol string$0 : %U8
+    %line = call stringLiteral, %v0, 13 : String
+    %v3 = symbol string$1 : %U8
+    %text = call stringLiteral, %v3, 29 : String
+    %result = alloc : Int
+    init %result, 0
+    %v11 = call findAscii, %line, 44 : Maybe(I64)
+    %v12 = load %local1.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b2, b1
+
+  b1:
+    jmp b6
+
+  b2:
+    %at = load %local1@Just : I64
+    %v19 = cmp_eq %at, 4 : Bool
+    je %v19, b3, b4
+
+  b3:
+    %v21 = load %result : Int
+    %v24 = add %v21, 1 : Int
+    assign %result, %v24
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = call countAscii, %line, 44 : Int
+    %v34 = cmp_eq %v31, 2 : Bool
+    je %v34, b7, b8
+
+  b7:
+    %v36 = load %result : Int
+    %v39 = add %v36, 2 : Int
+    assign %result, %v39
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v44 = call containsAscii, %line, 44 : Bool
+    je %v44, b10, b11
+
+  b10:
+    %v46 = load %result : Int
+    %v49 = add %v46, 4 : Int
+    assign %result, %v49
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v54 = call findAscii, %line, 33 : Maybe(I64)
+    %v55 = load %local2.discriminant : Int
+    %v57 = cmp_eq %v55, 0 : Bool
+    je %v57, b14, b13
+
+  b13:
+    jmp b15
+
+  b14:
+    %v59 = load %result : Int
+    %v62 = add %v59, 8 : Int
+    assign %result, %v62
+    jmp b15
+
+  b15:
+    %v67 = call containsAscii, %line, 33 : Bool
+    je %v67, b16, b17
+
+  b16:
+    %v69 = load %result : Int
+    %v72 = sub %v69, 8 : Int
+    assign %result, %v72
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v77 = call countAscii, %text, 108 : Int
+    %v80 = cmp_eq %v77, 5 : Bool
+    je %v80, b19, b20
+
+  b19:
+    %v82 = load %result : Int
+    %v85 = add %v82, 16 : Int
+    assign %result, %v85
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v90 = call findAscii, %text, 119 : Maybe(I64)
+    %v91 = load %local3.discriminant : Int
+    %v93 = cmp_eq %v91, 1 : Bool
+    je %v93, b23, b22
+
+  b22:
+    jmp b27
+
+  b23:
+    %w = load %local3@Just : I64
+    %v98 = cmp_eq %w, 7 : Bool
+    je %v98, b24, b25
+
+  b24:
+    %v100 = load %result : Int
+    %v103 = add %v100, 32 : Int
+    assign %result, %v103
+    jmp b26
+
+  b25:
+    jmp b26
+
+  b26:
+    jmp b27
+
+  b27:
+    %v110 = call findAscii, %text, 104 : Maybe(I64)
+    %v111 = load %local4.discriminant : Int
+    %v113 = cmp_eq %v111, 1 : Bool
+    je %v113, b29, b28
+
+  b28:
+    jmp b33
+
+  b29:
+    %first = load %local4@Just : I64
+    %v118 = cmp_eq %first, 0 : Bool
+    je %v118, b30, b31
+
+  b30:
+    %v120 = load %result : Int
+    %v123 = add %v120, 64 : Int
+    assign %result, %v123
+    jmp b32
+
+  b31:
+    jmp b32
+
+  b32:
+    jmp b33
+
+  b33:
+    %v130 = call findAscii, %text, 110 : Maybe(I64)
+    %v131 = load %local5.discriminant : Int
+    %v133 = cmp_eq %v131, 1 : Bool
+    je %v133, b35, b34
+
+  b34:
+    jmp b39
+
+  b35:
+    %n = load %local5@Just : I64
+    %v138 = cmp_eq %n, 15 : Bool
+    je %v138, b36, b37
+
+  b36:
+    %v140 = load %result : Int
+    %v143 = add %v140, 128 : Int
+    assign %result, %v143
+    jmp b38
+
+  b37:
+    jmp b38
+
+  b38:
+    jmp b39
+
+  b39:
+    %v149 = load %result : Int
+    ret %v149
+}

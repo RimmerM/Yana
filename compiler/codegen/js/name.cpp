@@ -198,6 +198,23 @@ Name partName(Gen& g, Value& value, StringView suffix) {
     return uniqueName(g, StringView { buffer, length + suffix.length }, true);
 }
 
+/*
+ * One lane of a vector - `x$0`, `x$1`, ... - which is the third of the multi-part representations
+ * and the only one whose part count is a property of the type rather than a constant.
+ *
+ * Beside `partName` because it is the same job with a computed suffix, and here rather than in
+ * inst.cpp because a vector phi's lanes are declared by gen.cpp and assigned by flow.cpp.
+ */
+Name laneName(Gen& g, Value& value, U32 lane) {
+    char suffix[16];
+    Size length = 0;
+
+    suffix[length++] = '$';
+    length += show(U64(lane), suffix + length, sizeof(suffix) - length);
+
+    return partName(g, value, StringView { suffix, length });
+}
+
 Name propertyName(Gen& g, StringView text) {
     char buffer[512];
     auto length = sanitize(text, buffer, sizeof(buffer));

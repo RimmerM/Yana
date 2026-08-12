@@ -583,7 +583,7 @@ main<complex>(): Int {
     %v_44 = alloca 4, 4: Ptr
     store %v_44, 5, 4
     %v_45 = alloca 16, 8: Ptr
-    store %v_45, ResolveTest.continuation$14, 8
+    store %v_45, ResolveTest.continuation$28, 8
     %v_46 = add %v_45, 8: Ptr
     store %v_46, %v_44, 8
     %v_47 = loads @log, 4: Int
@@ -598,7 +598,7 @@ main<complex>(): Int {
     %v_54 = add %v_43, %v_51: Int
     store @visited, 0, 4
     %v_55 = alloca 16, 8: Ptr
-    store %v_55, ResolveTest.continuation$16, 8
+    store %v_55, ResolveTest.continuation$30, 8
     %v_56 = bitcast 0: Ptr
     %v_57 = add %v_55, 8: Ptr
     store %v_57, %v_56, 8
@@ -667,12 +667,12 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.continuation$14 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$14<complex>(%env: Ptr, %value: Int): Int {
+@closure$ResolveTest.continuation$28 = [0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$28<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = alloca 8, 4: Ptr
-    %v_3 = imul %value, 1000: Int
+    %v_3 = imul %value$, 1000: Int
     jmp b_4
   }
 
@@ -735,7 +735,7 @@ ResolveTest.continuation$14<complex>(%env: Ptr, %value: Int): Int {
   }
 
   b_28 {
-    ret %value
+    ret %value$
   }
 
   b_27 {
@@ -745,9 +745,9 @@ ResolveTest.continuation$14<complex>(%env: Ptr, %value: Int): Int {
   }
 }
 
-ResolveTest.continuation$16<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+ResolveTest.continuation$30<complex>(%v_0: Ptr, %env: Ptr, %value$: Int) {
   b_1 {
-    %v_2 = cmp_eq %value, 3: Int
+    %v_2 = cmp_eq %value$, 3: Int
     je %v_2, b_3, b_4
   }
 
@@ -762,7 +762,7 @@ ResolveTest.continuation$16<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
 
   b_5 {
     %v_6 = loads @visited, 4: Int
-    %v_7 = add %v_6, %value: Int
+    %v_7 = add %v_6, %value$: Int
     store @visited, %v_7, 4
     store %v_0, 0, 1
     ret 

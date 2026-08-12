@@ -42,6 +42,29 @@ ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>
     return emitCast(resolver, args, type, source, resultName);
 }
 
+/*
+ * The same for a vector, which is the literal in every lane.
+ *
+ * Not a ruling this work invented and not one it could avoid: `class (FromInt(a)) Num(a)`, so a
+ * vector that has `Num` has to say what an integer literal means as one, and "every lane" is the
+ * only answer that is not arbitrary. What it buys is that `v * 2` and `v + 1` are written the way
+ * they are for a scalar; what it costs is that `1 :: Vec(Int)` is a legal spelling of a splat.
+ *
+ * The literal is built at the *lane* type and splatted, rather than being built at the vector type -
+ * a `ConstInt` typed as a vector is a value neither backend can hold, which is the same shape as the
+ * reflexive-comparison fold `foldCompare` had to be guarded against.
+ */
+ModulePtr<Value> emitVectorFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId resultName) {
+    auto lane = vectorLane(resolver.global, type);
+    if(!lane) return emitFromLiteral(resolver, args, type, source, resultName);
+
+    auto scalar = emitFromLiteral(resolver, args, lane, source, StringId());
+    if(!scalar) return nullptr;
+
+    return resolver.ref(resolver.emit<InstVecSplat>(source, resultName, type, scalar));
+}
+
 // The identity is a real instance rather than a special case in the resolver, so that the
 // condition path has exactly one shape - and because it expands to nothing, `if a > b` produces
 // the IR it always did.
@@ -262,8 +285,8 @@ static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass,
     return function - local;
 }
 
-void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<TypePtr> args,
-                      Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen) {
+ModulePtr<ClassInstance> generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<TypePtr> args,
+                                          Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen) {
     ModuleBase local = *module.arena;
     GlobalBase global = *module.types;
     auto typeClass = global[classPointer];
@@ -308,7 +331,9 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
         instance->functions.set(local, i, generateCompare(module, *typeClass, args[0], gen));
     }
 
-    registerInstance(module, instance - local);
+    auto pointer = instance - local;
+    registerInstance(module, pointer);
+    return pointer;
 }
 
 /*
@@ -316,7 +341,11 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
  */
 
 void defineFromInt(Module& module, TypePtr type) {
-    IntrinsicMethod methods[] = { { "fromInt"_v, 1, emitFromLiteral } };
+    // A vector's literal is the literal in every lane - see emitVectorFromLiteral, and note that
+    // `Num` declaring `FromInt` as a superclass is what forces the question to have an answer.
+    auto emit = isVectorType(*module.types, type) ? emitVectorFromLiteral : emitFromLiteral;
+    IntrinsicMethod methods[] = { { "fromInt"_v, 1, emit } };
+
     generateInstance(module, classNamed(module, "FromInt"_v), { &type, 1 }, { methods, 1 });
 }
 
@@ -345,7 +374,7 @@ void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
     generateInstance(module, classNamed(module, "Ord"_v), { &type, 1 }, { methods, 4 }, gen);
 }
 
-void defineNum(Module& module, TypePtr type) {
+ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type) {
     IntrinsicMethod methods[] = {
         { "+"_v, 2, emitBinary<Value::Add> },
         { "-"_v, 2, emitBinary<Value::Sub> },
@@ -354,10 +383,10 @@ void defineNum(Module& module, TypePtr type) {
         { "-"_v, 1, emitUnary<Value::Neg> },
     };
 
-    generateInstance(module, classNamed(module, "Num"_v), { &type, 1 }, { methods, 5 });
+    return generateInstance(module, classNamed(module, "Num"_v), { &type, 1 }, { methods, 5 });
 }
 
-void defineIntegral(Module& module, TypePtr type) {
+ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
     IntrinsicMethod methods[] = {
         { "rem"_v, 2, emitBinary<Value::Rem> },
         { "%"_v, 2, emitBinary<Value::Rem> },
@@ -370,7 +399,7 @@ void defineIntegral(Module& module, TypePtr type) {
         { "not"_v, 1, emitUnary<Value::Not> },
     };
 
-    generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 9 });
+    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 9 });
 }
 
 void defineLogic(Module& module, TypePtr type) {
@@ -392,18 +421,19 @@ void defineTruth(Module& module, TypePtr type, Emit emit) {
     generateInstance(module, classNamed(module, "Truth"_v), { &type, 1 }, { methods, 1 });
 }
 
-void defineConversion(Module& module, StringView className, StringView method, TypePtr from, TypePtr to) {
+ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, StringView method,
+                                          TypePtr from, TypePtr to) {
     TypePtr args[] = { from, to };
     IntrinsicMethod methods[] = { { method, 1, emitCast } };
 
-    generateInstance(module, classNamed(module, className), { args, 2 }, { methods, 1 });
+    return generateInstance(module, classNamed(module, className), { args, 2 }, { methods, 1 });
 }
 
-void defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen) {
+ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen) {
     TypePtr args[] = { from, to };
     IntrinsicMethod methods[] = { { "bitcast"_v, 1, emitBitcast } };
 
-    generateInstance(module, classNamed(module, "Bitcast"_v), { args, 2 }, { methods, 1 }, gen);
+    return generateInstance(module, classNamed(module, "Bitcast"_v), { args, 2 }, { methods, 1 }, gen);
 }
 
 void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic) {

@@ -1,0 +1,47 @@
+-- What a vector refuses, and where - Design-Vector.md §2.2, §2.5 and §7.3.
+--
+-- Every one of these is reported *at the type*, which is the point of §1.2 putting the rules in
+-- `resolveVectorType` rather than leaving them to Repr: a lane type that has no width would
+-- otherwise fail wherever a size was first asked for, which is a different file, a different stage
+-- and a message about layout.
+
+data Point {x: Int, y: Int}
+
+-- Not a lane. A record has no machine width, and neither does a container.
+fn record(v: Vec(Point)) -> Int = 0
+
+fn container(v: Vec([Int])) -> Int = 0
+
+fn text(v: Vec(String)) -> Int = 0
+
+-- `Bool` is one bit, and one bit is not a lane. What a lane comparison answers is a `Mask`, which is
+-- a type of its own for exactly this reason - §2.4.
+fn booleans(v: Vec(Bool)) -> Int = 0
+
+-- A lane count that is not a power of two, one that is a single lane - which is a scalar and is
+-- spelled as one - and one past the widest register any target here describes.
+fn three(v: Vec(Float, 3)) -> Int = 0
+
+fn one(v: Vec(Float, 1)) -> Int = 0
+
+fn enormous(v: Vec(Float, 128)) -> Int = 0
+
+-- A count of 64 lanes is legal and 64 lanes of `I64` is half a kilobyte, which no register holds.
+fn wide(v: Vec(I64, 64)) -> Int = 0
+
+-- The count has to be a literal or a const parameter - a *type* in that position is neither, which
+-- is what this says. A computed one would need const expressions (§2.5), which do not exist.
+fn computed(v: Vec(Float, Int)) -> Int = 0
+
+-- A number parses where a type argument is written, and is a type nowhere: what makes one meaningful
+-- is a declaration that declared a const parameter in that position (Implementation-Const-Generics.md
+-- §1.1), and `Maybe(a)` declared a type one. Written anywhere other than an argument list it does not
+-- parse at all, which is a parser message and not this one.
+fn number(x: Maybe(4)) -> Int = 0
+
+-- `Mask` takes the lane type it masks and no count - the count follows from the width.
+fn maskCount(m: Mask(Float, 4)) -> Int = 0
+
+-- A vector arrives as a copy, so there is no caller storage for a `return` to root a borrow in -
+-- §2.5's second consequence, and a new diagnostic that follows from `isDirectType` alone.
+fn rooted(return v: Vec(Float)) -> Int = 0

@@ -495,7 +495,7 @@ looped<complex>(%v_0: Ptr, %n: Int) {
 throughLens<complex>(%v_0: Ptr, %n: Int) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$0, 8
+    store %v_2, ResolveTest.continuation$14, 8
     %v_3 = bitcast 0: Ptr
     %v_4 = add %v_2, 8: Ptr
     store %v_4, %v_3, 8
@@ -509,7 +509,7 @@ throughLens<complex>(%v_0: Ptr, %n: Int) {
 viaSkipping<complex>(%n: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$1, 8
+    store %v_1, ResolveTest.continuation$15, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -792,34 +792,34 @@ main<complex>(): Int {
     %sum = add %v_92, %v_93: Int
     %v_94 = loads %b, 4: Int
     %v_95 = cmp_eq %v_94, 1: Int
-    %v_96 = select 0, 1, %v_95: Int
+    %v_96 = select %v_95, 0, 1: Int
     %v_97 = loads %d, 4: Int
     %v_98 = cmp_eq %v_97, 1: Int
-    %v_99 = select 0, 1, %v_98: Int
+    %v_99 = select %v_98, 0, 1: Int
     %v_100 = add %v_96, %v_99: Int
     %v_101 = loads %f, 4: Int
     %v_102 = cmp_eq %v_101, 1: Int
-    %v_103 = select 0, 1, %v_102: Int
+    %v_103 = select %v_102, 0, 1: Int
     %v_104 = add %v_100, %v_103: Int
     %v_105 = loads %m, 4: Int
     %v_106 = cmp_eq %v_105, 1: Int
-    %v_107 = select 0, 1, %v_106: Int
+    %v_107 = select %v_106, 0, 1: Int
     %v_108 = add %v_104, %v_107: Int
     %v_109 = loads %i, 4: Int
     %v_110 = cmp_eq %v_109, 1: Int
-    %v_111 = select 0, 1, %v_110: Int
+    %v_111 = select %v_110, 0, 1: Int
     %v_112 = add %v_108, %v_111: Int
     %v_113 = loads %j, 4: Int
     %v_114 = cmp_eq %v_113, 1: Int
-    %v_115 = select 0, 1, %v_114: Int
+    %v_115 = select %v_114, 0, 1: Int
     %v_116 = add %v_112, %v_115: Int
     %v_117 = loads %r, 4: Int
     %v_118 = cmp_eq %v_117, 1: Int
-    %v_119 = select 0, 1, %v_118: Int
+    %v_119 = select %v_118, 0, 1: Int
     %v_120 = add %v_116, %v_119: Int
     %v_121 = loads %s, 4: Int
     %v_122 = cmp_eq %v_121, 1: Int
-    %v_123 = select 0, 1, %v_122: Int
+    %v_123 = select %v_122, 0, 1: Int
     %failures = add %v_120, %v_123: Int
     %v_124 = imul %failures, 1000: Int
     %v_125 = add %sum, %v_124: Int
@@ -858,9 +858,9 @@ unwrap<complex>(%m: Ptr): Int {
   }
 }
 
-ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
+ResolveTest.continuation$14<complex>(%v_0: Ptr, %env: Ptr, %value$: Int) {
   b_1 {
-    %v_2 = sub %value, 8: Int
+    %v_2 = sub %value$, 8: Int
     %v_3 = alloca 8, 4: Ptr
     call_complex parse, %v_3, %v_2
     %v_4 = alloca 8, 4: Ptr
@@ -879,7 +879,7 @@ ResolveTest.continuation$0<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   b_8 {
     %v_10 = add %v_4, 4: Ptr
     %v = loads %v_10, 4: Int
-    %v_11 = add %v, %value: Int
+    %v_11 = add %v, %value$: Int
     store %v_0, 1, 4
     %v_12 = add %v_0, 4: Ptr
     store %v_12, %v_11, 4
@@ -906,7 +906,7 @@ doubled(Maybe(Int))<complex>(%v_0: Ptr, %x: Int, %body: Ptr) {
   }
 }
 
-ResolveTest.continuation$1<complex>(%env: Ptr, %found: Int): Int {
+ResolveTest.continuation$15<complex>(%env: Ptr, %found: Int): Int {
   b_0 {
     %v_1 = add %found, 1: Int
     ret %v_1

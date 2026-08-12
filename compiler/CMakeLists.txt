@@ -62,6 +62,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/core.cpp
     resolve/native.h
     resolve/native.cpp
+    resolve/simd.h
+    resolve/simd.cpp
     resolve/host.h
     resolve/host.cpp
     resolve/intrinsic.h

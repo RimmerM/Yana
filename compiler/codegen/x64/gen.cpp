@@ -334,6 +334,18 @@ static void writePrefix(AsmModule& to, const InstPrefix& p, bool r, bool x, bool
     }
 
     if(p.escape) to.buffer.writeByte(p.escape);
+
+    /*
+     * The second escape byte of a three-byte opcode.
+     *
+     * `map` is the field a vector prefix packs the same information into, and reading it here as
+     * well is what keeps `InstPrefix` one description rather than two: an SSE4.1 lane extract is
+     * `66 0F 3A 16` as a legacy encoding and `VEX.66.0F3A.W0 16` under a prefix, and those are the
+     * same three facts written twice. A form that leaves `map` at its default says nothing extra and
+     * emits the two-byte opcode it always did.
+     */
+    if(p.map == kOpcodeMap0F38) to.buffer.writeByte(0x38);
+    else if(p.map == kOpcodeMap0F3A) to.buffer.writeByte(0x3a);
 }
 
 // Writes the ModRM byte, and the SIB/displacement bytes the addressing mode calls for, that
@@ -415,6 +427,36 @@ static void genRegExt(AsmModule& to, bool is64, U8 rm, U8 opCode, U8 ext, U8 esc
     writePrefix(to, InstPrefix::legacy(is64, escape, prefix), false, false, needsRex(rm));
     to.buffer.writeByte(opCode);
     to.buffer.writeByte(makeMod(3, rm, ext));
+}
+
+/*
+ * The predicate byte `cmpps` and `cmppd` end in.
+ *
+ * Eight relations in one instruction, where every scalar comparison here says which it is in the
+ * condition code of whatever reads the flags. The four ordered ones are 0-2 and 7; 4-6 are their
+ * *unordered* complements, which is why `neq` is 4 rather than the negation of 0 - a NaN makes the
+ * ordered relations false and this one true, which is exactly IEEE inequality.
+ *
+ * `gt` and `ge` have no predicate: they are `lt` and `le` with the operands the other way round, and
+ * `orderPackedCompare` in transform.cpp is what puts them that way round before this is reached.
+ */
+static U8 packedComparePredicate(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::eq:  return 0;
+        case LowerCmp::lt:  return 1;
+        case LowerCmp::le:  return 2;
+        case LowerCmp::uno: return 3;
+        case LowerCmp::neq: return 4;
+        case LowerCmp::ord: return 7;
+
+        case LowerCmp::gt: case LowerCmp::ge:
+        case LowerCmp::igt: case LowerCmp::ige:
+        case LowerCmp::ilt: case LowerCmp::ile:
+            break;
+    }
+
+    assertTrue("no packed compare predicate for this condition" == nullptr);
+    return 0;
 }
 
 static void genZeroReg(AsmModule& to, U8 reg, bool is64) {
@@ -715,7 +757,27 @@ struct ClassMoveEncoding {
     // and an access of any other width would take a neighbour with it.
     bool widthInPrefix = false;
 
+    /*
+     * How the prefix is spelled, and how much of a register the move touches.
+     *
+     * A 256-bit copy is the *same three opcodes* as a 128-bit one - `movaps` and `movups` are 0x28,
+     * 0x10 and 0x11 at every width - and differs only in being VEX-encoded with L set. So the wide
+     * row states these two fields and repeats nothing else, which is what keeps "which instruction
+     * moves a vector" one answer rather than two that can drift.
+     *
+     * A register copy under VEX names no second source, so `vvvv` stays at zero and the prefix
+     * writer emits the all-ones field an unused one encodes as. That is not a special case here: a
+     * move genuinely has one source, and the field naming a register is a property of the opcode.
+     */
+    PrefixEncoding kind = PrefixEncoding::Legacy;
+    U8 length = 0;
+
     bool defined = false;
+
+    InstPrefix prefixOf(bool wide, U8 mandatory) const {
+        if(kind == PrefixEncoding::Legacy) return InstPrefix::legacy(wide, escape, mandatory);
+        return InstPrefix { .kind = kind, .mandatory = mandatory, .escape = escape, .length = length, .w = wide };
+    }
 };
 
 // One row per class rather than per bank, because two classes over one register file need not move
@@ -756,15 +818,68 @@ static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
         .escape = 0x0f, .widthInPrefix = true, .defined = true,
     },
 
-    // ClassYmm256, ClassZmm512, ClassMask32, ClassMask64. Every one of these moves with a VEX- or
-    // EVEX-encoded instruction, which this backend does not write - so a location in one reaches
-    // genMoves as a loud failure rather than as a legacy encoding with an unnameable register
-    // number in it. No IR type produces one; see the plan's stage C.
-    {}, {}, {}, {},
+    /*
+     * ClassYmm256: the whole of a 256-bit register, VEX-encoded.
+     *
+     * The same three opcodes the row above holds. What makes it a row of its own rather than a
+     * width bit on that one is that the *prefix* differs, and a prefix is what decides whether the
+     * bytes name `xmm3` or `ymm3` - a legacy encoding has no way to say the second, so a wide value
+     * moved by the row above would be a silent half-copy.
+     *
+     * `vmovups` for the frame transfer and not `vmovaps`, for the reason the 128-bit row gives and
+     * one more: a Slot256 raises the frame's alignment to 32 the way a Slot128 raises it to 16, but
+     * the callee-saved region is settled before the allocator knows what will land there. The
+     * unaligned encoding is the same length and faults on nothing.
+     */
+    {
+        .regToReg = 0x28, .load = 0x10, .store = 0x11,
+        .escape = 0x0f, .widthInPrefix = true,
+        .kind = PrefixEncoding::Vex, .length = 1, .defined = true,
+    },
+
+    // ClassZmm512, ClassMask32, ClassMask64. Each of these moves with an EVEX-encoded instruction,
+    // which this backend does not select any form of - so a location in one reaches genMoves as a
+    // loud failure rather than as a legacy encoding with an unnameable register number in it. No IR
+    // type produces one: `targetVectorBytes` answers 64 only under AVX-512, which
+    // `unsupportedVectorReason` refuses before anything is placed.
+    {}, {}, {},
 };
+
+/*
+ * The row above, with the prefix the target can write rather than the one the table states.
+ *
+ * The three vector rows are written as legacy encodings because that is what they are without AVX,
+ * and every one of them becomes VEX where the extension is present: `movaps` and `vmovaps` are the
+ * same opcode and the same operands, and only the prefix differs. This is not an optimization - it
+ * is a *copy*, so there is no tie to remove and nothing to be gained in instructions or bytes.
+ *
+ * What is gained is the invariant. A legacy SSE instruction leaves the upper half of the register it
+ * writes untouched, and a program that executes one while any upper half is dirty pays for it on
+ * every part this backend targets (see the VEX tier in machine.cpp). Vector copies, spills and
+ * reloads are the most frequent vector instructions a function runs, so a table that stayed legacy
+ * here would be the whole of the invariant undone by the one form nothing selects through
+ * `alternative`.
+ *
+ * The ymm row is already VEX and unconditionally so: a legacy encoding has no way to name a 256-bit
+ * register at all, which is a different statement from this one and is why the row says it itself.
+ */
+static ClassMoveEncoding moveEncoding(RegisterClassId regClass) {
+    auto encoding = kClassMoves[regClass];
+
+    if(encoding.kind == PrefixEncoding::Legacy && vectorClassNeedsVex(regClass)) {
+        encoding.kind = PrefixEncoding::Vex;
+        encoding.length = 0;
+    }
+
+    return encoding;
+}
 
 bool classHasExchange(RegisterClassId regClass) {
     return kClassMoves[regClass].exchange != 0;
+}
+
+bool classHasMoves(RegisterClassId regClass) {
+    return kClassMoves[regClass].defined;
 }
 
 // Recreates a rematerialized value in `dest` - see Remat in gen.h. Defined below, next to the
@@ -801,7 +916,7 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
 
         // The move is the class's, not the location's: a slot belongs to the value in it rather than
         // to a register file, so both ends of a transfer are of one class by construction.
-        auto& encoding = kClassMoves[m.regClass];
+        auto encoding = moveEncoding(m.regClass);
         assertTrue(encoding.defined); // a move between locations of a class this backend cannot emit
 
         // Only an exchange can be encoded without somewhere to put a third value, and only where the
@@ -821,20 +936,30 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
             return !encoding.widthInPrefix && objects.slots[slot.stackSlot()].size > 4;
         };
 
+        // The transfer's spelling, which a VEX-encoded class folds its mandatory prefix, its escape
+        // byte and its width into rather than writing them out. `prefixOf` is where the two
+        // spellings meet, so every branch below states the same three facts whichever it is.
+        auto memoryForm = [&](U8 opCode, bool wide) {
+            return MemForm {
+                .opCode = opCode, .escape = encoding.escape, .prefix = encoding.memPrefix,
+                .is64 = wide, .kind = encoding.kind, .length = encoding.length,
+            };
+        };
+
         if(fromSlot) {
-            genSlotOperand(to, frame, slotIs64(m.from), reg(m.to, m.regClass), m.from,
-                encoding.load, encoding.escape, encoding.memPrefix);
+            genSlotOperand(to, frame, reg(m.to, m.regClass), m.from,
+                memoryForm(encoding.load, slotIs64(m.from)));
         } else if(toSlot) {
-            genSlotOperand(to, frame, slotIs64(m.to), reg(m.from, m.regClass), m.to,
-                encoding.store, encoding.escape, encoding.memPrefix);
+            genSlotOperand(to, frame, reg(m.from, m.regClass), m.to,
+                memoryForm(encoding.store, slotIs64(m.to)));
         } else if(m.swap) {
-            genRegReg(to, encoding.wide, reg(m.from, m.regClass), reg(m.to, m.regClass),
-                encoding.exchange, encoding.escape, encoding.copyPrefix);
+            genRegRegPrefixed(to, encoding.prefixOf(encoding.wide, encoding.copyPrefix),
+                reg(m.from, m.regClass), reg(m.to, m.regClass), encoding.exchange);
         } else {
             // A register copy names the destination in ModRM.reg for every class described: MOV and
             // MOVAPS are both `op reg, r/m` with the source in r/m.
-            genRegReg(to, encoding.wide, reg(m.from, m.regClass), reg(m.to, m.regClass),
-                encoding.regToReg, encoding.escape, encoding.copyPrefix);
+            genRegRegPrefixed(to, encoding.prefixOf(encoding.wide, encoding.copyPrefix),
+                reg(m.from, m.regClass), reg(m.to, m.regClass), encoding.regToReg);
         }
     }
 }
@@ -854,7 +979,11 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
 // them: the caller may have been holding a packed value there, and giving back only the low half
 // would be silent corruption of a value nothing in this function ever named.
 static void genVectorSaves(AsmModule& to, const FrameLayout& frame, bool restore) {
-    auto& encoding = kClassMoves[ClassXmm128];
+    // The widest class this target can hold a value in, which is what "the whole register" means
+    // here: preserving the low half of a register a caller was using all of would be corruption of a
+    // value this function never named. `vectorSaveSize` is the same answer in bytes, and the region
+    // the frame reserved was measured with it.
+    auto encoding = moveEncoding(widestVectorClass());
     assertTrue(frame.savedVectors.isEmpty() || encoding.defined); // a bank with no way to preserve it
 
     U32 offset = 0;
@@ -867,9 +996,11 @@ static void genVectorSaves(AsmModule& to, const FrameLayout& frame, bool restore
             .opCode = restore ? encoding.load : encoding.store,
             .escape = encoding.escape,
             .prefix = encoding.memPrefix,
+            .kind = encoding.kind,
+            .length = encoding.length,
         });
 
-        offset += kVectorSaveSize;
+        offset += vectorSaveSize();
     });
 }
 
@@ -896,6 +1027,68 @@ static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     // be pushed, so preserving one is a store into the frame like any other - through the same
     // whole-register encoding a 128-bit spill would take.
     genVectorSaves(to, frame, false);
+}
+
+// Whether a convention is one this compiler is not on both sides of - see
+// Emitter::emitVectorZeroUpper, which is the only reader and where the reasoning is.
+static bool isForeignConvention(LowerCallType type) {
+    return type == LowerCallType::Sysv || type == LowerCallType::Win64;
+}
+
+/*
+ * §5.4 Whether any function in this module can leave the upper half of a `ymm` register dirty.
+ *
+ * **A question about the module, and reading it as a question about the function is the mistake this
+ * replaced.** A `vzeroupper` is owed where control leaves code this compiler generated with the
+ * upper halves dirty - and what dirtied them is whatever ran before that point, which is hardly ever
+ * the function the boundary is in. The common shape has no wide value anywhere near the boundary:
+ * an entry point under a foreign convention calls internal helpers that do the vector work, and a
+ * helper that calls libc has no vector value of its own at all. Asking only the function being
+ * emitted answers "no" at every one of those and emits nothing where it is most owed.
+ *
+ * Read off the *IR* rather than off the placement, which is the one thing lost in the move. Asking
+ * placement is more precise - a program can name a 32-byte type and have every one of them folded
+ * away before a register is handed out - but placement runs per function inside the emission loop,
+ * so the answer for a function not yet emitted does not exist when a boundary in an earlier one
+ * needs it. Answering it from the types is a superset of the placement answer and therefore sound;
+ * what it costs when it is wrong is three bytes at each foreign boundary of a program that mentions
+ * a wide vector and keeps none, which is a rarer program than the one the old rule got wrong.
+ *
+ * Cached on the module, since it is the same answer for every function in it.
+ */
+static bool moduleDirtiesUpperHalves(LowerBase base, AsmModule& to, LowerFunction& fun) {
+    if(to.upperHalves != AsmModule::UpperHalves::Unknown) {
+        return to.upperHalves == AsmModule::UpperHalves::Dirty;
+    }
+
+    auto dirty = [&] {
+        // Nothing can occupy a wide register without the extension that names one, whatever the
+        // types say - so a build without it is answered before a value is looked at.
+        if(!(targetFeatures() & kFeatureAvx2)) return false;
+
+        for(auto functionPointer: fun.module->functionOrder) {
+            auto function = base[functionPointer];
+
+            for(auto type: function->returnTypes.contents(base)) {
+                if(isWideVector(LowerType(type))) return true;
+            }
+
+            for(auto blockPointer: function->blocks.contents(base)) {
+                auto block = base[blockPointer];
+
+                for(auto instPointer: block->instructions.contents(base)) {
+                    for(auto& value: base[instPointer]->created()) {
+                        if(isWideVector(value.type)) return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }();
+
+    to.upperHalves = dirty ? AsmModule::UpperHalves::Dirty : AsmModule::UpperHalves::Clean;
+    return dirty;
 }
 
 static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
@@ -1021,6 +1214,112 @@ struct Emitter {
     // often than the bytes it would save are worth - see §7.2.2. Per block, since the question is
     // about one return path rather than about the function.
     bool ownEpilogue = false;
+
+    /*
+     * §5.4 Whether this function can leave the upper half of a `ymm` register dirty.
+     *
+     * A processor that executes a *legacy-encoded* SSE instruction while any upper half is non-zero
+     * pays a large, part-specific penalty - and it is silent, which is the whole reason this is
+     * written down rather than measured. `vzeroupper` clears the upper halves and is what a function
+     * that dirtied one owes the code it hands control to.
+     *
+     * True exactly where some value of this function occupies a wide vector class, which is a
+     * question about the *placement* rather than about the IR: a program can name a 32-byte type and
+     * have every one of them folded away before a register is handed out.
+     */
+    bool dirtiesUpperHalves = false;
+
+    // The convention this function is entered under, which is what decides whether its *return* owes
+    // a `vzeroupper` - see emitVectorZeroUpper.
+    LowerCallType convention = LowerCallType::Complex;
+
+    /*
+     * `vzeroupper`, where it is owed.
+     *
+     * **Not before every call and every return, which is what a first reading of §5.4 asks for and
+     * is unsafe here.** That rule was written for a world in which the whole vector file is
+     * caller-saved, which is System V's shape and is not `Simple`'s: that convention preserves
+     * xmm3-15, so a return from one of its functions has *just restored* the caller's registers, and
+     * zeroing their upper halves would corrupt a value this function never named. The instruction is
+     * a hint about state nobody owns; where somebody owns it, it is destruction.
+     *
+     * So it is emitted at the two boundaries where the upper halves genuinely belong to nobody:
+     *
+     *  - **before a call under a foreign convention**, whose callee may be legacy SSE code compiled
+     *    by something else entirely. Both foreign conventions this backend describes treat the upper
+     *    halves as volatile - System V treats the whole file as caller-saved, and Win64 preserves
+     *    the low 128 bits of xmm6-15 and nothing above them - so clearing them is free of meaning to
+     *    the callee either way.
+     *  - **before returning from a function that is itself foreign-entered**, by the same rule read
+     *    from the other side: whoever called it is entitled to the low halves it preserved and to
+     *    nothing above them.
+     *
+     * An internal call needs none, and that is a claim about what this backend emits rather than an
+     * assumption: **no instruction inside a program built with AVX is a legacy SSE encoding.** Every
+     * form that touches a vector register has a prefixed alternative selection takes in its place
+     * (the VEX tier in machine.cpp), the copies and spills carry the prefix too (moveEncoding), the
+     * pseudo expansions ask the target directly (packedNeedsVex), and validateMachineForms fails the
+     * build if a form is added that breaks it. Since only a legacy encoding pays for a dirty upper
+     * half, nothing this compiler generates can. What is on the other side of a foreign boundary is
+     * the one thing it cannot see, which is exactly where the instruction is emitted.
+     *
+     * ---
+     *
+     * **And not where the boundary itself carries a 256-bit value.**
+     *
+     * `classifyArgs` and `classifyResults` hand out registers by bank without asking how wide the
+     * value is, so a 32-byte argument or result takes vector register 0 - which *is* ymm0. The moves
+     * that place it run before the call and before the return, so a `vzeroupper` at either site
+     * would clear the top half of the very value being handed across. That is not a hint about state
+     * nobody owns; it is the argument.
+     *
+     * So the instruction is skipped wherever the boundary instruction's own operands occupy a wide
+     * class. Nothing in the IR reaches this yet - no foreign convention is produced from Yana source
+     * and no vector type crosses one - which is exactly why it is worth writing down now: the first
+     * `foreign` declaration naming a vector type would otherwise be a miscompile rather than a
+     * missing feature, and `test/x64/VectorWide.lower` asserts the absence in both directions.
+     */
+    void emitVectorZeroUpper() {
+        // VEX.128.0F.WIG 77, which is `c5 f8 77`. Written directly rather than through a form,
+        // because this is inserted after everything the form table describes has been selected.
+        to.buffer.writeByte(0xc5);
+        to.buffer.writeByte(0xf8);
+        to.buffer.writeByte(0x77);
+    }
+
+    // Whether any register this instruction names is a wide one, which is what makes the boundary
+    // it stands at one the upper halves are crossing rather than one they are dead at.
+    static bool carriesWideValue(const InstRegs& regs) {
+        // The class of an operand that occupies no location says nothing - an immediate carries the
+        // default - so the location is asked first and the class only of the operands that have one.
+        auto wide = [](const ResolvedOperand& operand) {
+            if(operand.isImmediate || !operand.isValid()) return false;
+            return operand.regClass == ClassYmm256 || operand.regClass == ClassZmm512;
+        };
+
+        for(auto& use: regs.uses) if(wide(use)) return true;
+        for(auto& created: regs.creates) if(wide(created)) return true;
+        return false;
+    }
+
+    void zeroUpperBeforeCall(LowerCallType callee, const InstRegs& regs) {
+        if(!dirtiesUpperHalves || !isForeignConvention(callee)) return;
+        if(carriesWideValue(regs)) return;
+
+        emitVectorZeroUpper();
+    }
+
+    // Asked of the function rather than of the return, because every return of one function hands
+    // back the same types in the same registers - and because the shared epilogue (§7.2) is emitted
+    // outside any instruction at all, so there is no operand list there to ask.
+    bool returnsWideValue = false;
+
+    void zeroUpperBeforeReturn() {
+        if(!dirtiesUpperHalves || !isForeignConvention(convention)) return;
+        if(returnsWideValue) return;
+
+        emitVectorZeroUpper();
+    }
 
     /*
      * A jump, written long with its short form recorded beside it.
@@ -1168,10 +1467,29 @@ struct Emitter {
 
         auto opcode = isImm8 ? e.opcode : e.opcodeAlt;
 
+        /*
+         * The destination is in `vvvv` for a vector-prefixed form and in r/m for a legacy one - see
+         * `dropTie` in machine.cpp, which is where the two shapes are described. So this family has
+         * to write the prefix itself rather than through `genRegExt`: the extension in ModRM.reg is
+         * not a register and contributes no R bit, and the operand in r/m is the *source* once the
+         * tie has gone.
+         *
+         * A vector-prefixed form never reads its operand from the frame - every packed shift
+         * declares `anyReg` - which is what keeps the slot path the legacy one it always was.
+         */
         if(rmOp.isStack()) {
+            assertTrue(e.prefixEncoding == PrefixEncoding::Legacy); // a prefixed shift reading the frame
             genSlotOperand(to, frame, is64, e.extension, rmOp.at, opcode, e.escape, e.prefix);
-        } else {
+        } else if(e.prefixEncoding == PrefixEncoding::Legacy) {
             genRegExt(to, is64, reg(rmOp), opcode, e.extension, e.escape, e.prefix);
+        } else {
+            writePrefix(to, InstPrefix {
+                .kind = e.prefixEncoding, .mandatory = e.prefix, .escape = e.escape,
+                .map = e.opcodeMap, .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
+            }, false, false, needsRex(reg(rmOp)));
+
+            to.buffer.writeByte(opcode);
+            to.buffer.writeByte(makeMod(3, reg(rmOp), e.extension));
         }
 
         if(isImm8) to.buffer.writeByte(U8(value));
@@ -1392,7 +1710,500 @@ struct Emitter {
     // opcode is the only thing that differs, since both are `66 [REX.W] 0f xx /r` with the vector
     // register in ModRM.reg and the general one in r/m.
     void emitMoveAcrossBanks(U8 vectorReg, U8 generalReg, bool is64, bool toVector) {
-        genRegReg(to, is64, generalReg, vectorReg, toVector ? 0x6e : 0x7e, 0x0f, 0x66);
+        auto opCode = U8(toVector ? 0x6e : 0x7e);
+
+        // `vmovd`/`vmovq` where the target has them, for the reason every other vector instruction
+        // here carries a prefix: the legacy encoding writes the low lane and leaves the rest of the
+        // register as it found it, which is the partial write that costs. There is no `vvvv` - the
+        // whole destination is written - so the field stays unused.
+        if(!vectorClassNeedsVex(ClassXmm128)) {
+            genRegReg(to, is64, generalReg, vectorReg, opCode, 0x0f, 0x66);
+            return;
+        }
+
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+            .map = kOpcodeMap0F, .w = is64,
+        }, generalReg, vectorReg, opCode);
+    }
+
+    /*
+     * A packed instruction at one of the two register widths this backend holds a vector at.
+     *
+     * The narrow spelling is the legacy encoding these expansions were written in. The wide one is
+     * *the same opcode* with a VEX prefix and `L` set, and - because every one of these sequences is
+     * two-address - with `vvvv` naming the destination, which is what reproduces "reads and writes
+     * the register in ModRM.reg" under a prefix that no longer implies it.
+     *
+     * One rule, applied at every call site below, rather than a second copy of each sequence. That
+     * is worth more than the lines it saves: a wide expansion written out separately could differ
+     * from its narrow twin by an opcode byte, and the result would be an instruction that is nearly
+     * right at one width and silent in the build anybody ships.
+     */
+    void genPacked(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix, U8 vvvv) {
+        // Two questions, and reading them as one is what this used to do: `L` is set by the *width*,
+        // and the prefix is chosen by what the *target* can encode. A 128-bit expansion on a target
+        // with AVX is VEX with L clear - the same instruction, spelled so that it zeroes the upper
+        // half of the register it writes rather than leaving it dirty. See vectorClassNeedsVex.
+        if(!wide && !packedNeedsVex()) {
+            genRegReg(to, false, rm, regField, opCode, escape, prefix);
+            return;
+        }
+
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = prefix, .escape = escape,
+            .map = kOpcodeMap0F, .length = wide ? U8(1) : U8(0), .vvvv = vvvv,
+        }, rm, regField, opCode);
+    }
+
+    // The two-address shape: `op dst, src` reads and writes `dst`, so VEX.vvvv is `dst` itself.
+    void genPackedTwoAddress(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix) {
+        genPacked(wide, rm, regField, opCode, escape, prefix, regField);
+    }
+
+    // And the non-destructive shape - a copy, a shuffle - whose VEX form names no second source at
+    // all. `vvvv` of zero is the all-ones field an unused one encodes as; see writeVectorPrefix.
+    void genPackedCopy(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix) {
+        genPacked(wide, rm, regField, opCode, escape, prefix, 0);
+    }
+
+    // A shift by an immediate, whose count is in ModRM.reg as an opcode extension and whose operand
+    // is therefore the r/m one. VEX names the destination in `vvvv` here rather than in ModRM.reg,
+    // which is the one place the wide spelling moves a register between fields.
+    void genPackedShiftImm(bool wide, U8 rm, U8 opCode, U8 extension, U8 count) {
+        if(!wide && !packedNeedsVex()) {
+            genRegExt(to, false, rm, opCode, extension, 0x0f, 0x66);
+        } else {
+            // `vvvv` is the destination here rather than a second source, the extension having taken
+            // ModRM.reg - and these expansions are two-address, so the destination is `rm` itself.
+            writePrefix(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                .map = kOpcodeMap0F, .length = wide ? U8(1) : U8(0), .vvvv = rm,
+            }, false, false, needsRex(rm));
+            to.buffer.writeByte(opCode);
+            to.buffer.writeByte(makeMod(3, rm, extension));
+        }
+
+        to.buffer.writeByte(count);
+    }
+
+    /*
+     * The 128-bit half of a wide vector, moved down into a register of its own or put back.
+     *
+     * `vextracti128 xmm, ymm, imm8` and `vinserti128 ymm, ymm, xmm, imm8`, which are the only
+     * instructions in this tier that move bytes between the two halves of a register - and are
+     * therefore what every lane access above the low half is built out of. Both are VEX.256 in the
+     * three-byte 0F3A map with a trailing byte naming the half.
+     *
+     * The insert is three-operand: `first` supplies the half that is not written, so the destination
+     * need not be either source and no copy stands in front of it.
+     */
+    void emitExtract128(U8 destination, U8 source, U8 half) {
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+            .map = kOpcodeMap0F3A, .length = 1,
+        }, destination, source, 0x39);
+        to.buffer.writeByte(half);
+    }
+
+    void emitInsert128(U8 destination, U8 first, U8 second, U8 half) {
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+            .map = kOpcodeMap0F3A, .length = 1, .vvvv = first,
+        }, second, destination, 0x38);
+        to.buffer.writeByte(half);
+    }
+
+    /*
+     * Every lane the same scalar - see OpVBroadcast.
+     *
+     * Two shapes decided by the bank the scalar arrived in, and one shuffle either way. A float lane
+     * is already in a vector register, so the shuffle reads it where it stands; an integer lane is in
+     * a general one and crosses first, into the destination itself rather than through a scratch.
+     *
+     * The control byte is the broadcast of lane zero at the *result's* lane width, which is 0x00 for
+     * a 32-bit lane and 0x44 for a 64-bit one - the latter being the pair of 32-bit lanes that make
+     * up the low half, since there is no quadword shuffle here. `packedShufflePattern` states the
+     * same translation for a written pattern; this is that rule with the pattern already known.
+     */
+    void emitVecBroadcast(LowerInst* inst, const InstRegs& regs) {
+        auto type = ((LowerInstVecSplat*)inst)->result.type;
+        auto is64 = laneBytes(type.lane) == 8;
+
+        auto destination = reg(regs.creates[0]);
+        auto source = reg(regs.uses[0]);
+
+        // An integer lane crosses banks first. The move writes the whole destination, so what the
+        // shuffle then reads is its own register and the source register is free from here.
+        if(isIntLike(type.laneType())) {
+            emitMoveAcrossBanks(destination, source, is64, true);
+            source = destination;
+        }
+
+        /*
+         * At 256 bits the shuffle is not the answer, and this is the one expansion here where the
+         * wide route is a different instruction rather than the same one re-encoded.
+         *
+         * `vpshufd ymm` works inside each 128-bit half, so it can put lane zero in all four lanes of
+         * the low half and cannot reach the upper half at all. AVX2's broadcasts exist for exactly
+         * this: `vpbroadcastd`/`vpbroadcastq` take lane zero of an xmm and fill the whole register.
+         * Both are VEX.256 in the three-byte 0F38 map - 58 for the dword, 59 for the quadword - and
+         * neither carries a control byte, the operation having no choices left in it.
+         */
+        if(isWideVector(type)) {
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                .map = kOpcodeMap0F38, .length = 1,
+            }, source, destination, is64 ? 0x59 : 0x58);
+            return;
+        }
+
+        // `pshufd` is 66 0F 70 /r ib whatever the lane, and never REX.W: the width it works at is in
+        // the mandatory prefix, exactly as every other packed form here states with `widthInPrefix`.
+        genRegReg(to, false, source, destination, 0x70, 0x0f, 0x66);
+        to.buffer.writeByte(is64 ? 0x44 : 0x00);
+    }
+
+    /*
+     * A lane-wise select - see OpVBlend.
+     *
+     * `(mask & a) | (~mask & b)`, in the one order that needs a single scratch register and leaves
+     * both of the caller's inputs alone. `pandn` computes `~lhs & rhs`, which is what makes the
+     * second half one instruction rather than a complement and an `and`.
+     *
+     * The destination is `a` by the form's tie, so the third instruction writes it in place. xmm15
+     * is the form's declared clobber, so nothing live is in it here.
+     *
+     * All three are the integer-domain forms whatever the lanes hold. A bitwise operation has no
+     * lane width and the domain crossing costs a forwarding penalty at most, where selecting
+     * `andps`/`andnps`/`orps` for a float vector would be three more rows saying the same thing.
+     */
+    void emitVecSelect(LowerInst* inst, const InstRegs& regs) {
+        auto wide = isWideVector(((LowerInstSelect*)inst)->result.type);
+        auto destination = reg(regs.creates[0]);
+        auto whenFalse = reg(regs.uses[1]);
+        auto mask = reg(regs.uses[2]);
+        auto scratch = U8(15);
+
+        // `~mask & b` into the scratch, which is where the mask's second reader has to be: `pandn`
+        // writes the register it reads the mask out of, so doing this to the mask itself would
+        // destroy a value the caller may still need.
+        genPackedCopy(wide, mask, scratch, 0x28, 0x0f, 0x00);      // movaps scratch, mask
+        genPackedTwoAddress(wide, whenFalse, scratch, 0xdf, 0x0f, 0x66); // pandn scratch, b
+
+        // And `mask & a` into the destination, which the tie has already made `a`.
+        genPackedTwoAddress(wide, mask, destination, 0xdb, 0x0f, 0x66);  // pand dst, mask
+        genPackedTwoAddress(wide, scratch, destination, 0xeb, 0x0f, 0x66); // por dst, scratch
+    }
+
+    /*
+     * An all-ones vector, out of nothing.
+     *
+     * `pcmpeqd r, r` compares a register with itself, and every lane of a register is equal to
+     * itself whatever it holds - so this is the one constant this backend can materialize without a
+     * pool, and it is the reason the complement and the three inverted comparisons are expansions
+     * rather than refusals. The lane width is irrelevant: all ones at 32 bits is all ones at any
+     * other, which is why `pcmpeqd` serves a byte lane and a mask alike.
+     */
+    /*
+     * An all-zero vector, which is the other constant this machine makes out of nothing - §5.7.
+     *
+     * `pxor r, r` rather than a load: one instruction, no `.rodata` entry, no general register on the
+     * way in, and every processor that runs this recognizes it as a zeroing idiom and breaks the
+     * dependency on whatever the register held. It is why `poolVectorConstants` declines an all-zero
+     * pattern, and the reason the *float* pool declines `0.0` for `xorps` is the same one.
+     */
+    void emitVecZero(LowerInst* inst, const InstRegs& regs) {
+        auto wide = isWideVector(((LowerInstVecSplat*)inst)->result.type);
+        auto into = reg(regs.creates[0]);
+
+        genPacked(wide, into, into, 0xef, 0x0f, 0x66, into); // pxor into, into
+    }
+
+    void emitAllOnes(bool wide, U8 into) {
+        genPacked(wide, into, into, 0x76, 0x0f, 0x66, into);
+    }
+
+    // A vector or a mask complemented: an exclusive-or against the above. The destination is the
+    // operand by the form's tie, and xmm15 is its declared clobber.
+    void emitVecNot(LowerInst* inst, const InstRegs& regs) {
+        auto wide = isWideVector(((LowerInstUnary*)inst)->result.type);
+        auto destination = reg(regs.creates[0]);
+        auto scratch = U8(15);
+
+        emitAllOnes(wide, scratch);
+        genPackedTwoAddress(wide, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
+    }
+
+    /*
+     * A packed integer comparison the machine has only the complement of - see
+     * packedCompareIsInverted.
+     *
+     * `neq` is `pcmpeq` inverted and `ile` is `pcmpgt` inverted, at whichever lane width the
+     * operands hold. Three instructions and the same scratch the complement above uses.
+     */
+    void emitVecCompareInverted(LowerInst* inst, const InstRegs& regs) {
+        auto cmp = (LowerInstCmp*)inst;
+        auto lanes = base[cmp->lhs]->type;
+        auto equality = packedCompareRelation(cmp->getCmp()) == LowerCmp::neq;
+
+        // `pcmpeqb/w/d` are 74/75/76 and `pcmpgtb/w/d` are 64/65/66, so the width is the low two
+        // bits of either base and the two families are one table read two ways.
+        auto width = laneBytes(lanes.lane) == 1 ? 0 : laneBytes(lanes.lane) == 2 ? 1 : 2;
+        auto opcode = U8((equality ? 0x74 : 0x64) + width);
+
+        auto wide = isWideVector(lanes);
+        auto destination = reg(regs.creates[0]);
+        auto scratch = U8(15);
+
+        genPackedTwoAddress(wide, reg(regs.uses[1]), destination, opcode, 0x0f, 0x66);
+        emitAllOnes(wide, scratch);
+        genPackedTwoAddress(wide, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
+    }
+
+    /*
+     * A 32-bit lane product without `pmulld` - see PseudoKind::VecMul32.
+     *
+     * `pmuludq` multiplies lanes 0 and 2 of each operand, widening both into quadwords. Two of them
+     * cover the four lanes: one on the operands as they stand, one after each has had its odd lanes
+     * shuffled into the even positions. Then each result's low halves - which are lanes 0 and 2 of
+     * it, the widening having spread them - are brought together and interleaved.
+     *
+     * Only the low half of each product is kept, so the *unsigned* multiply is exact for a signed
+     * lane too: the bottom thirty-two bits of a product are the same bits whichever way the operands
+     * are read. That is the same fact that lets `IMul` share `pmullw` one width down.
+     */
+    void emitVecMul32(const InstRegs& regs) {
+        auto destination = reg(regs.creates[0]);
+        auto rhs = reg(regs.uses[1]);
+        auto even = U8(14);
+        auto odd = U8(15);
+
+        // Lane 1 into lane 0 and lane 3 into lane 2, which is what puts the odd lanes where
+        // `pmuludq` reads: [1, 1, 3, 3].
+        auto kOdd = U8(0xf5);
+
+        // And the two low halves of a widened pair back down into lanes 0 and 1: [0, 2, 0, 0].
+        auto kLows = U8(0x08);
+
+        genRegReg(to, false, destination, even, 0x28, 0x0f, 0x00);  // movaps even, a
+        genRegReg(to, false, rhs, even, 0xf4, 0x0f, 0x66);          // pmuludq even, b
+
+        genRegReg(to, false, rhs, odd, 0x70, 0x0f, 0x66);           // pshufd odd, b, [1,1,3,3]
+        to.buffer.writeByte(kOdd);
+        genRegReg(to, false, destination, destination, 0x70, 0x0f, 0x66); // pshufd a, a, [1,1,3,3]
+        to.buffer.writeByte(kOdd);
+        genRegReg(to, false, odd, destination, 0xf4, 0x0f, 0x66);   // pmuludq a, odd
+
+        genRegReg(to, false, even, even, 0x70, 0x0f, 0x66);         // pshufd even, even, [0,2,-,-]
+        to.buffer.writeByte(kLows);
+        genRegReg(to, false, destination, destination, 0x70, 0x0f, 0x66); // pshufd a, a, [0,2,-,-]
+        to.buffer.writeByte(kLows);
+
+        // `punpckldq even, a` would put the answer in the scratch, so the operands go the other way
+        // round and the destination is written in place - which is why the *even* products are the
+        // ones held in a register the tie already named.
+        genRegReg(to, false, destination, even, 0x62, 0x0f, 0x66);  // punpckldq even, a
+        genRegReg(to, false, even, destination, 0x28, 0x0f, 0x00);  // movaps a, even
+    }
+
+    /*
+     * A vector negated - see PseudoKind::VecNegate.
+     *
+     * An integer lane is `0 - v` and a float lane is its sign bit toggled, and both build the
+     * constant they need out of the scratch: zero is a register exclusive-ored with itself, and one
+     * sign bit per lane is all ones shifted left by the lane's width minus one.
+     *
+     * Neither writes the destination before reading the source. The allocator is entitled to give
+     * the two the same register - a negation whose operand dies at it is the ordinary case - and an
+     * expansion that cleared or overwrote the destination first would then negate whatever it had
+     * just written.
+     */
+    void emitVecNegate(LowerInst* inst, const InstRegs& regs) {
+        auto type = ((LowerInstUnary*)inst)->result.type;
+        auto wide = isWideVector(type);
+        auto destination = reg(regs.creates[0]);
+        auto source = reg(regs.uses[0]);
+        auto scratch = U8(15);
+
+        if(isFloatVector(type)) {
+            auto quad = laneBytes(type.lane) == 8;
+
+            emitAllOnes(wide, scratch);
+
+            // `psllq`/`pslld` by the lane's width minus one, which leaves the sign bit and nothing
+            // else. The shift's opcode carries its direction in ModRM.reg, exactly as the packed
+            // shift forms do.
+            genPackedShiftImm(wide, scratch, quad ? 0x73 : 0x72, 6, quad ? 63 : 31);
+
+            // `xorps`/`xorpd`, in the domain the lanes are already in. The copy is `movaps` and is
+            // written unconditionally: `genRegReg` costs three bytes and the alternative is a branch
+            // on whether the allocator happened to land both ends in one register.
+            if(destination != source) genPackedCopy(wide, source, destination, 0x28, 0x0f, 0x00);
+            genPackedTwoAddress(wide, scratch, destination, 0x57, 0x0f, quad ? 0x66 : 0x00);
+            return;
+        }
+
+        // The integer half. `psubb`, `psubw`, `psubd` and `psubq` are f8..fb in lane order, which is
+        // the same order `laneBytes` counts in.
+        auto width = laneBytes(type.lane);
+        auto opcode = U8(width == 1 ? 0xf8 : width == 2 ? 0xf9 : width == 4 ? 0xfa : 0xfb);
+
+        genPacked(wide, scratch, scratch, 0xef, 0x0f, 0x66, scratch); // pxor scratch, scratch
+        genPackedTwoAddress(wide, source, scratch, opcode, 0x0f, 0x66); // psub scratch, v
+        genPackedCopy(wide, scratch, destination, 0x28, 0x0f, 0x00); // movaps dst, scratch
+    }
+
+    /*
+     * A lane read out of a 256-bit vector - see PseudoKind::VecWideLane.
+     *
+     * Every lane instruction AMD64 has names a lane inside *one* 128-bit register, whatever `L`
+     * says: `vpextrd` reads one of four dwords and `vpshufd` rearranges four in place. So a lane
+     * above the fourth (or the second, at a quadword) is unreachable until the half holding it has
+     * been brought down, which is `vextracti128` and is the whole of what this adds to the narrow
+     * expansion.
+     *
+     * The half is chosen by the index alone. A lane in the low half needs no crossing at all - the
+     * low half of a ymm *is* the xmm - so the sequence is one instruction there and two above it,
+     * and the common case (lane zero, which is what every reduction ends in) pays nothing.
+     */
+    void emitVecWideLane(LowerInst* inst, const InstRegs& regs) {
+        auto lane = (LowerInstVecLane*)inst;
+        auto type = base[lane->from]->type;
+        auto index = lane->getLane();
+
+        auto perHalf = U8(type.lanes() / 2);
+        auto high = index >= perHalf;
+        auto within = U8(index % perHalf);
+
+        auto destination = reg(regs.creates[0]);
+        auto source = reg(regs.uses[0]);
+
+        /*
+         * A float lane stays in the vector bank, so the half comes down into the *destination* and
+         * there is no scratch in it: the shuffle then reads and writes one register, which is what
+         * the narrow form does too.
+         *
+         * The integer route has to go through the declared clobber instead, its destination being a
+         * general register with nowhere to put a vector half.
+         */
+        if(isFloat(type.laneType())) {
+            auto held = source;
+
+            if(high) {
+                emitExtract128(destination, source, 1);
+                held = destination;
+            }
+
+            // `vpshufd`, at VEX.128 - the value is one register wide by now whichever half it came
+            // from, and a 256-bit shuffle would read bytes this lane is not in.
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F,
+            }, held, destination, 0x70);
+            to.buffer.writeByte(broadcastLaneByte(lane->result.type, within));
+            return;
+        }
+
+        auto scratch = U8(15);
+        auto held = source;
+
+        if(high) {
+            emitExtract128(scratch, source, 1);
+            held = scratch;
+        }
+
+        /*
+         * `vpextrd`/`vpextrq r/m, xmm, imm8`, which puts the *vector* in ModRM.reg and the general
+         * register in r/m - the opposite way round from most of this file and what the extract
+         * direction encodes. VEX.128 and W deciding the width, exactly as the legacy `pextrq` states
+         * it in REX.W.
+         */
+        auto quad = laneBytes(type.lane) == 8 && !type.isMask();
+
+        writePrefix(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+            .map = kOpcodeMap0F3A, .w = quad,
+        }, needsRex(held), false, needsRex(destination));
+        to.buffer.writeByte(0x16);
+        to.buffer.writeByte(makeMod(3, destination, held));
+        to.buffer.writeByte(within);
+    }
+
+    /*
+     * A lane written into a 256-bit vector - see PseudoKind::VecWideWithLane.
+     *
+     * The mirror of the read, and one instruction longer because the half has to go back. What makes
+     * that necessary rather than merely tidy is that `vpinsrd` is a 128-bit instruction and a VEX
+     * one: it writes its register and **zeroes everything above it**, so writing a lane of the low
+     * half in place would silently clear the upper half of the vector.
+     *
+     * `vinserti128` is three-operand, so the destination need not be the source and the half that
+     * was not written comes straight from it. That is why this form has no tie where every 128-bit
+     * insert has one - a chain of inserts is shorter here than one tier down.
+     */
+    void emitVecWideWithLane(LowerInst* inst, const InstRegs& regs) {
+        auto insert = (LowerInstVecLane*)inst;
+        auto type = insert->result.type;
+        auto index = insert->getLane();
+
+        auto perHalf = U8(type.lanes() / 2);
+        auto high = index >= perHalf;
+        auto within = U8(index % perHalf);
+
+        auto destination = reg(regs.creates[0]);
+        auto vector = reg(regs.uses[0]);
+        auto value = reg(regs.uses[1]);
+        auto scratch = U8(15);
+
+        // The half being written, brought down whole. Both halves go through this: the low one
+        // needs it as much as the high one, since what follows writes a whole 128-bit register.
+        emitExtract128(scratch, vector, high ? 1 : 0);
+
+        if(isFloat(type.laneType())) {
+            if(laneBytes(type.lane) == 8) {
+                /*
+                 * A quadword lane, of which a 128-bit half holds two - so the two instructions that
+                 * write one nameable half of a two-lane double vector cover it exactly. `vmovsd`
+                 * merges the low quadword and `vunpcklpd` takes the low quadword of each source,
+                 * which places the scalar in the high one.
+                 */
+                if(within == 0) {
+                    genRegRegPrefixed(to, InstPrefix {
+                        .kind = PrefixEncoding::Vex, .mandatory = 0xf2, .escape = 0x0f,
+                        .map = kOpcodeMap0F, .vvvv = scratch,
+                    }, value, scratch, 0x10);
+                } else {
+                    genRegRegPrefixed(to, InstPrefix {
+                        .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                        .map = kOpcodeMap0F, .vvvv = scratch,
+                    }, value, scratch, 0x14);
+                }
+            } else {
+                // `vinsertps`, whose trailing byte is three fields rather than an index: bits 7:6
+                // name the source's lane, 5:4 the destination's and 3:0 which lanes to zero. The
+                // source is a scalar, so the byte is the destination lane shifted into place.
+                genRegRegPrefixed(to, InstPrefix {
+                    .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                    .map = kOpcodeMap0F3A, .vvvv = scratch,
+                }, value, scratch, 0x21);
+                to.buffer.writeByte(U8(within << 4));
+            }
+        } else {
+            // `vpinsrb`/`vpinsrw`/`vpinsrd`/`vpinsrq`, which are the ordinary direction - the vector
+            // is what is written, so it is ModRM.reg - with the trailing byte naming the lane.
+            auto width = laneBytes(type.lane);
+            auto quad = width == 8;
+            auto opcode = U8(width == 2 ? 0xc4 : width == 1 ? 0x20 : 0x22);
+            auto map = width == 2 ? kOpcodeMap0F : kOpcodeMap0F3A;
+
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                .map = map, .vvvv = scratch, .w = quad,
+            }, value, scratch, opcode);
+            to.buffer.writeByte(within);
+        }
+
+        emitInsert128(destination, vector, scratch, high ? 1 : 0);
     }
 
     // A floating-point constant. No SSE encoding carries one and there is no constant pool to load
@@ -1580,6 +2391,7 @@ struct Emitter {
                 // The callee's address is a rel32 in the instruction rather than a value in a
                 // register, which is why the Fun that produced it was elided.
                 auto callee = base[inst->used()[0]];
+                zeroUpperBeforeCall(((LowerInstCall*)inst)->getCallType(), regs);
                 to.buffer.writeByte(0xe8);
                 to.addRelocation(base[((LowerInstFun*)callee->inst())->target]);
                 break;
@@ -1588,6 +2400,7 @@ struct Emitter {
             case PseudoKind::CallIndirect: {
                 // CALL r/m64 (0xff /2). Always 64-bit in long mode, so REX only extends the number.
                 auto r = reg(regs.uses[0]);
+                zeroUpperBeforeCall(((LowerInstCall*)inst)->getCallType(), regs);
                 if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
                 to.buffer.writeByte(0xff);
                 to.buffer.writeByte(makeMod(3, r, 2));
@@ -1621,6 +2434,12 @@ struct Emitter {
                 }
 
                 genEpilogue(to, frame);
+
+                // After the callee-saved vector registers have been given back, and before the
+                // return: what it clears then belongs to nobody. Clearing it *before* the restores
+                // would be undone by them, and doing either under an internal convention would take
+                // the caller's own upper halves with it - see emitVectorZeroUpper.
+                zeroUpperBeforeReturn();
                 to.buffer.writeByte(0xc3);
                 break;
 
@@ -1706,6 +2525,46 @@ struct Emitter {
 
             case PseudoKind::FloatSelect:
                 emitFloatSelect(machineTarget().form(selected.form).encoding, selected, regs);
+                break;
+
+            case PseudoKind::VecBroadcast:
+                emitVecBroadcast(inst, regs);
+                break;
+
+            case PseudoKind::VecZero:
+                emitVecZero(inst, regs);
+                break;
+
+            case PseudoKind::VecOnes:
+                emitAllOnes(isWideVector(((LowerInstVecSplat*)inst)->result.type), reg(regs.creates[0]));
+                break;
+
+            case PseudoKind::VecSelect:
+                emitVecSelect(inst, regs);
+                break;
+
+            case PseudoKind::VecNot:
+                emitVecNot(inst, regs);
+                break;
+
+            case PseudoKind::VecCompareInverted:
+                emitVecCompareInverted(inst, regs);
+                break;
+
+            case PseudoKind::VecMul32:
+                emitVecMul32(regs);
+                break;
+
+            case PseudoKind::VecNegate:
+                emitVecNegate(inst, regs);
+                break;
+
+            case PseudoKind::VecWideLane:
+                emitVecWideLane(inst, regs);
+                break;
+
+            case PseudoKind::VecWideWithLane:
+                emitVecWideWithLane(inst, regs);
                 break;
 
             case PseudoKind::RdTsc:
@@ -1948,6 +2807,18 @@ struct Emitter {
             case EncodingFamily::Conditional: emitConditional(e, selected, regs, is64); break;
             case EncodingFamily::OpcodeReg:   emitOpcodeReg(e, regs, is64); break;
             case EncodingFamily::Pseudo:      emitPseudo(e.pseudo, inst, selected, regs); break;
+        }
+
+        // The trailing predicate byte of a packed comparison - see EncodingDescriptor. It comes
+        // after the whole encoding, address bytes included, which is where an `ib` always goes.
+        if(e.conditionImmediate) {
+            to.buffer.writeByte(packedComparePredicate(selected.condition.unwrap()));
+        }
+
+        // And the trailing byte an instruction supplies - a shuffle's lane pattern or a lane
+        // access's index - in the same position and for the same reason.
+        if(e.patternImmediate) {
+            to.buffer.writeByte(packedTrailingByte(inst));
         }
 
         // And the `setcc` itself, which is all that is left where the register was zeroed above and
@@ -2389,6 +3260,19 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     auto frame = computeFrameLayout(context, base, fun, targetConstraints(), regs);
     assertTrue(verifyFrameLayout(context, fun, objects, frame)); // debug builds only
 
+    // §5.4 Whether the upper halves can be dirty at a foreign boundary in this function, which is a
+    // question about the whole module - see moduleDirtiesUpperHalves.
+    auto dirtiesUpperHalves = moduleDirtiesUpperHalves(base, to, fun);
+
+    // And whether this function's own return is one of the boundaries the upper halves cross rather
+    // than one they are dead at, which is what makes a `vzeroupper` in front of it destruction - see
+    // Emitter::emitVectorZeroUpper. A property of the function: every return hands back the same
+    // types in the same registers, and the shared epilogue below is not a return instruction at all.
+    auto returnsWideValue = false;
+    for(auto type: fun.returnTypes.contents(base)) {
+        if(isWideVector(LowerType(type))) returnsWideValue = true;
+    }
+
     FunctionExtent extent {
         .codeStart = U32(to.buffer.offset()),
         .firstBlock = to.blocks.size(),
@@ -2426,7 +3310,13 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         genEpilogue(to, frame);
         auto size = U32(to.buffer.offset()) - at + 1; // with the `ret` it is followed by
         to.buffer.offset(at);
-        return size;
+
+        // And the `vzeroupper` a foreign-entered function's return owes, which is part of what a
+        // shared epilogue would share - costing it short would make §7.2.2's trade against the
+        // wrong number. The third reader of the rule, and the one that is easiest to leave behind:
+        // it has to answer exactly what zeroUpperBeforeReturn answers.
+        auto owesZeroUpper = dirtiesUpperHalves && isForeignConvention(fun.callType) && !returnsWideValue;
+        return owesZeroUpper ? size + 3 : size;
     }();
 
     /*
@@ -2493,6 +3383,9 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     Emitter emitter { to, base, machine, frame, objects };
     emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };
     emitter.sharedEpilogue = sharedEpilogue;
+    emitter.dirtiesUpperHalves = dirtiesUpperHalves;
+    emitter.returnsWideValue = returnsWideValue;
+    emitter.convention = fun.callType;
     emitter.frequency = &regs.frequency;
 
     // Held rather than reported as they are emitted: relaxation below rewrites the function, so an
@@ -2646,6 +3539,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         if(emitter.epilogueNext) {
             extent.epilogue = U32(to.buffer.offset());
             genEpilogue(to, frame);
+            emitter.zeroUpperBeforeReturn();
             to.buffer.writeByte(0xc3);
 
             if(onInst) ranges.push(EmittedRange { nullptr, &none, extent.epilogue, U32(to.buffer.offset()) });

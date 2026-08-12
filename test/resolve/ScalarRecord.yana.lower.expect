@@ -135,20 +135,20 @@ coPacked<complex>(): Int {
     %v_19 = load %v_1, 1: Long
     %v_20 = and %v_19, 1: Long
     %v_21 = cast %v_20: Int
-    %v_22 = select 1, 0, %v_21: Int
+    %v_22 = select %v_21, 1, 0: Int
     %v_23 = shr %v_19, 1: Long
     %v_24 = and %v_23, 1: Long
     %v_25 = cast %v_24: Int
-    %v_26 = select 2, 0, %v_25: Int
+    %v_26 = select %v_25, 2, 0: Int
     %v_27 = add %v_22, %v_26: Int
     %v_28 = shr %v_19, 2: Long
     %v_29 = and %v_28, 1: Long
     %v_30 = cast %v_29: Int
-    %v_31 = select 1, 0, %v_30: Int
+    %v_31 = select %v_30, 1, 0: Int
     %v_32 = shr %v_19, 3: Long
     %v_33 = and %v_32, 1: Long
     %v_34 = cast %v_33: Int
-    %v_35 = select 2, 0, %v_34: Int
+    %v_35 = select %v_34, 2, 0: Int
     %v_36 = add %v_31, %v_35: Int
     %v_37 = imul %v_36, 10: Int
     %v_38 = add %v_27, %v_37: Int
@@ -213,20 +213,20 @@ reborrowed<complex>(): Int {
     %v_29 = load %v_1, 1: Long
     %v_30 = and %v_29, 1: Long
     %v_31 = cast %v_30: Int
-    %v_32 = select 1, 0, %v_31: Int
+    %v_32 = select %v_31, 1, 0: Int
     %v_33 = shr %v_29, 1: Long
     %v_34 = and %v_33, 1: Long
     %v_35 = cast %v_34: Int
-    %v_36 = select 2, 0, %v_35: Int
+    %v_36 = select %v_35, 2, 0: Int
     %v_37 = add %v_32, %v_36: Int
     %v_38 = shr %v_29, 2: Long
     %v_39 = and %v_38, 1: Long
     %v_40 = cast %v_39: Int
-    %v_41 = select 1, 0, %v_40: Int
+    %v_41 = select %v_40, 1, 0: Int
     %v_42 = shr %v_29, 3: Long
     %v_43 = and %v_42, 1: Long
     %v_44 = cast %v_43: Int
-    %v_45 = select 2, 0, %v_44: Int
+    %v_45 = select %v_44, 2, 0: Int
     %v_46 = add %v_41, %v_45: Int
     %v_47 = imul %v_46, 10: Int
     %v_48 = add %v_37, %v_47: Int
@@ -305,24 +305,24 @@ swapped<complex>(): Int {
     %v_58 = load %v_1, 1: Long
     %v_59 = and %v_58, 1: Long
     %v_60 = cast %v_59: Int
-    %v_61 = select 1, 0, %v_60: Int
+    %v_61 = select %v_60, 1, 0: Int
     %v_62 = shr %v_58, 1: Long
     %v_63 = and %v_62, 1: Long
     %v_64 = cast %v_63: Int
-    %v_65 = select 2, 0, %v_64: Int
+    %v_65 = select %v_64, 2, 0: Int
     %v_66 = add %v_61, %v_65: Int
     %v_67 = shr %v_58, 2: Long
     %v_68 = and %v_67, 1: Long
     %v_69 = cast %v_68: Int
-    %v_70 = select 1, 0, %v_69: Int
+    %v_70 = select %v_69, 1, 0: Int
     %v_71 = shr %v_58, 3: Long
     %v_72 = and %v_71, 1: Long
     %v_73 = cast %v_72: Int
-    %v_74 = select 2, 0, %v_73: Int
+    %v_74 = select %v_73, 2, 0: Int
     %v_75 = add %v_70, %v_74: Int
     %v_76 = imul %v_75, 10: Int
     %v_77 = add %v_66, %v_76: Int
-    %v_78 = select 100, 0, %previous: Int
+    %v_78 = select %previous, 100, 0: Int
     %v_79 = add %v_77, %v_78: Int
     ret %v_79
   }
@@ -339,11 +339,11 @@ tagOf<complex>(%m: Ptr): Int {
     %v_5 = load %m, 1: Int
     %v_6 = and %v_5, 1: Int
     %v_7 = cast %v_6: Int
-    %v_8 = select 1, 0, %v_7: Int
+    %v_8 = select %v_7, 1, 0: Int
     %v_9 = shr %v_5, 1: Int
     %v_10 = and %v_9, 1: Int
     %v_11 = cast %v_10: Int
-    %v_12 = select 2, 0, %v_11: Int
+    %v_12 = select %v_11, 2, 0: Int
     %v_13 = add %v_8, %v_12: Int
     jmp b_14
   }
@@ -397,8 +397,8 @@ heldValue<complex>(%h: Ptr): Int {
     %v_11 = shr %v_9, 1: Int
     %v_12 = and %v_11, 1: Int
     %b = cast %v_12: Int
-    %v_13 = select 1, 0, %a: Int
-    %v_14 = select 2, 0, %b: Int
+    %v_13 = select %a, 1, 0: Int
+    %v_14 = select %b, 2, 0: Int
     %v_15 = add %v_13, %v_14: Int
     jmp b_16
   }
@@ -444,7 +444,7 @@ reordered<complex>(): Int {
     %v_12 = shr %v_11, 8: Int
     %v_13 = and %v_12, 1: Int
     %v_14 = cast %v_13: Int
-    %v_15 = select 1, 0, %v_14: Int
+    %v_15 = select %v_14, 1, 0: Int
     %v_16 = cast %v_9: Int
     %v_17 = imul %v_16, 10: Int
     %v_18 = add %v_15, %v_17: Int
@@ -496,7 +496,7 @@ pinned<complex>(): Int {
     %v_9 = add %v_8, 1: Long
     store %v_7, %v_9, 8
     %v_10 = load %v_1, 1: Int
-    %v_11 = select 1, 0, %v_10: Int
+    %v_11 = select %v_10, 1, 0: Int
     %v_12 = cast %v_9: Int
     %v_13 = imul %v_12, 10: Int
     %v_14 = add %v_11, %v_13: Int
@@ -541,11 +541,11 @@ main<complex>(): Int {
     %v_6 = load %v_5, 1: Int
     %v_7 = and %v_6, 1: Int
     %v_8 = cast %v_7: Int
-    %v_9 = select 1, 0, %v_8: Int
+    %v_9 = select %v_8, 1, 0: Int
     %v_10 = shr %v_6, 1: Int
     %v_11 = and %v_10, 1: Int
     %v_12 = cast %v_11: Int
-    %v_13 = select 2, 0, %v_12: Int
+    %v_13 = select %v_12, 2, 0: Int
     %v_14 = add %v_9, %v_13: Int
     %v_15 = add %v_14, 38: Int
     %v_16 = call_complex coPacked: Int

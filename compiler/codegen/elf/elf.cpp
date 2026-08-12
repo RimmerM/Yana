@@ -261,8 +261,20 @@ bool writeElfExecutable(Context& context, const ElfImage& image, TargetArch arch
                        0, kElfLoadAddress, textEnd, textEnd, kElfPageSize);
 
     if(dataSize) {
+        /*
+         * The data segment is mapped a vector's width longer than the file holds - the static half
+         * of the tail-read guarantee, Implementation-Vector.md §8.3.
+         *
+         * A global is storage the language allocated, so a vector loop over one may read up to a
+         * register past its end. Inside the segment that is free, since something else follows; the
+         * case this closes is a global that ends at the segment's last mapped byte, which is rare
+         * and faults silently when it happens. It costs nothing in the file: the memory size of a
+         * segment may exceed its file size, and the kernel zero-fills the difference, which is what
+         * makes a `.bss` free as well.
+         */
         writeProgramHeader(out, kProgramTypeLoad, kProgramFlagRead | kProgramFlagWrite,
-                           dataOffset, kElfLoadAddress + dataOffset, dataSize, dataSize, kElfPageSize);
+                           dataOffset, kElfLoadAddress + dataOffset, dataSize,
+                           dataSize + kMaxVectorBytes, kElfPageSize);
     } else {
         writeProgramHeader(out, kProgramTypeNull, 0, 0, 0, 0, 0, 0);
     }

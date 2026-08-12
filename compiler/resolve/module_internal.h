@@ -40,7 +40,7 @@ ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index);
 // -- module_decl.cpp ---------------------------------------------------------------------------
 
 GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
-                                ast::ParseList<StringId> variables, ast::ConstraintList constraints,
+                                ast::ParseList<ast::GenParam> variables, ast::ConstraintList constraints,
                                 bool open = false);
 void resolveConstraintClasses(Module& module, GenEnv& env);
 void declareRecordDefaults(Module& module, ast::Decl& decl);

@@ -458,7 +458,7 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
             auto array = (ArrayType*)value;
             auto elements = make<ArrayExpr>(g);
 
-            for(U32 i = 0; i < array->length; i++) {
+            for(U64 i = 0; i < constValue(g.global, array->count); i++) {
                 elements->values.push(g.file.arena, zeroValue(g, array->content));
             }
 
@@ -478,6 +478,26 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
              * convention passes about.
              */
             return asExpr(g, make<ObjectExpr>(g));
+        case Type::Vector: {
+            /*
+             * A vector is `lanes` values here and this is the one place it has to be one value -
+             * Implementation-Vector.md §7, and see VecParts for the pair of forms.
+             *
+             * Storage is what a zero value is for, and storage holds the array form: what a vector
+             * *computes* as is its lanes, and nothing computes with a slot that has not been written.
+             * A mask's lanes are `false` and every other lane's is the lane type's own zero, which
+             * for every lane type this target admits is the number zero.
+             */
+            auto vector = (VectorType*)value;
+            auto lanes = make<ArrayExpr>(g);
+
+            for(U64 i = 0; i < constValue(g.global, vector->count); i++) {
+                lanes->values.push(g.file.arena, vector->isMask ? boolean(g, false)
+                                                                : zeroValue(g, vector->content));
+            }
+
+            return asExpr(g, lanes);
+        }
         default:
             return nullValue(g);
     }

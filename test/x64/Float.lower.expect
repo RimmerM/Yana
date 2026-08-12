@@ -91,7 +91,7 @@ compareUnequal<complex>(%a: Float, %b: Float): Int {
 
 selectFloat<complex>(%c: Int, %a: Double, %b: Double): Double {
   b_0 {
-    %r = select %a, %b, %c: Double
+    %r = select %c, %a, %b: Double
     ret %r
   }
 }
@@ -99,7 +99,7 @@ selectFloat<complex>(%c: Int, %a: Double, %b: Double): Double {
 selectOnCompare<complex>(%x: Float, %y: Float): Float {
   b_0 {
     %c = cmp_ge %x, %y: Int
-    %r = select %x, %y, %c: Float
+    %r = select %c, %x, %y: Float
     ret %r
   }
 }

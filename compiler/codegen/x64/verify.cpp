@@ -122,6 +122,16 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                 fail("%@: %@ is placed in %@, which no encoder implements",
                     funName, name(id), locationName(at));
             }
+
+            // And the same statement about a *class* rather than a bank: a 256- or 512-bit vector
+            // has a register class and no way to be moved into or out of one, because every
+            // transfer of one is VEX- or EVEX-encoded. `classForType` hands the class out from the
+            // type, so this is the boundary at which a wide vector becomes a refusal instead of an
+            // assertion inside genMoves.
+            if(!classHasMoves(classForType(v->type))) {
+                fail("%@: %@ is placed in %@, whose class this backend cannot move",
+                    funName, name(id), locationName(at));
+            }
         } else if(at.isStack()) {
             auto slot = at.stackSlot();
 

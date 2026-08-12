@@ -1,0 +1,353 @@
+let image$base: () = <none>
+
+table genEnv$firstOf(2) {
+  .0 2
+}
+
+table genEnv$countOf(4) {
+  .0 4
+}
+
+table genEnv$firstOf(4) {
+  .0 4
+}
+
+table genEnv$sumOf(4) {
+  .0 4
+}
+
+table genEnv$aliased(4) {
+  .0 4
+}
+
+table witness$Sized([Int *2], Int) {
+  .0 thunk$Sized([Int *2], Int).firstItem#0
+}
+
+table genEnv$firstThrough(2) {
+  .0 2
+  .1 witness$Sized([Int *2], Int)
+}
+
+table witness$Sized([Int *4], Int) {
+  .0 thunk$Sized([Int *4], Int).firstItem#0
+}
+
+table genEnv$firstThrough(4) {
+  .0 4
+  .1 witness$Sized([Int *4], Int)
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn countOf(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = countof n : Int
+    ret %v1
+}
+
+fn firstOf(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v2 = borrow %xs : &[Int *n]
+    %xs = alloc : Flat(Int)
+    %v4 = addressof [%v2] : %Int
+    init %xs@Flat.items, %v4
+    %v6 = countof n : Long
+    %v7 = cast %v6 : I64
+    init %xs@Flat.length, %v7
+    %v10 = borrow %xs : &Flat(Int)
+    %v11 = load [%v10]@Flat.length : I64
+    %v12 = cast 0 : U64
+    %v13 = cast %v11 : U64
+    %v14 = cmp_ge %v12, %v13 : Bool
+    call checkCondition, %v14
+    %v16 = load [%v10]@Flat.items : %Int
+    %v17 = strideof Int : Long
+    %v18 = mul 0, %v17 : Long
+    %v19 = add %v16, %v18 : %Int
+    %v20 = borrow [%v19] : &Int
+    %v21 = load [%v20] : Int
+    ret %v21
+}
+
+fn sumOf(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = gencall countOf(n), %xs : Int
+    %v10 = cmp_lt %v8, %v9 : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v42 = load %total : Int
+    ret %v42
+
+  b3:
+    %v12 = load %total : Int
+    %v13 = load %i : Int
+    %v14 = borrow %xs : &[Int *n]
+    %xs = alloc : Flat(Int)
+    %v16 = addressof [%v14] : %Int
+    init %xs@Flat.items, %v16
+    %v18 = countof n : Long
+    %v19 = cast %v18 : I64
+    init %xs@Flat.length, %v19
+    %v21 = cast %v13 : I64
+    %v22 = borrow %xs : &Flat(Int)
+    %v23 = load [%v22]@Flat.length : I64
+    %v24 = cast %v21 : U64
+    %v25 = cast %v23 : U64
+    %v26 = cmp_ge %v24, %v25 : Bool
+    call checkCondition, %v26
+    %v28 = load [%v22]@Flat.items : %Int
+    %v29 = strideof Int : Long
+    %v30 = mul %v21, %v29 : Long
+    %v31 = add %v28, %v30 : %Int
+    %v32 = borrow [%v31] : &Int
+    %v33 = load [%v32] : Int
+    %v34 = add %v12, %v33 : Int
+    assign %total, %v34
+    %v36 = load %i : Int
+    %v39 = add %v36, 1 : Int
+    assign %i, %v39
+    jmp b1
+}
+
+fn heldFirst(%h: Holder(Int, n)) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = load %h@Holder.items : [Int *n]
+    %v2 = gencall firstOf(n), %v1 : Int
+    ret %v2
+}
+
+fn aliased(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = gencall countOf(n), %xs : Int
+    ret %v1
+}
+
+fn three() -> Holder(Int, 3) {
+  b0:
+    %v0 = alloc : Holder(Int, 3)
+    %v4 = alloc : [Int *3]
+    aggregate %local1[0] = 4, %local1[1] = 5, %local1[2] = 6
+    aggregate %local0@Holder.items = %v4
+    ret %v0
+}
+
+fn both(%p: Pair(Int, 2)) -> Int {
+  b0:
+    %v1 = load %p@Pair.left : [Int *2]
+    %v2 = gencall env genEnv$firstOf(2) firstOf(2), %v1 : Int
+    %v3 = load %p@Pair.right : [Int *2]
+    %v4 = gencall env genEnv$firstOf(2) firstOf(2), %v3 : Int
+    %v5 = add %v2, %v4 : Int
+    ret %v5
+}
+
+(Sized([Int *n], Int)) fn firstThrough(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+    #1 class Sized([Int *n], Int)
+  }
+
+  b0:
+    %v1 = gencall Sized([Int *n], Int).firstItem, %xs : Int
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %xs = alloc : [Int *4]
+    aggregate %local0[0] = 7, %local0[1] = 2, %local0[2] = 3, %local0[3] = 4
+    %p = alloc : Pair(Int, 2)
+    %v13 = alloc : [Int *2]
+    aggregate %local2[0] = 10, %local2[1] = 0
+    %v19 = alloc : [Int *2]
+    aggregate %local3[0] = 100, %local3[1] = 0
+    aggregate %local1@Pair.left = %v13, %local1@Pair.right = %v19
+    %v24 = gencall env genEnv$countOf(4) countOf(4), %xs : Int
+    %v25 = gencall env genEnv$firstOf(4) firstOf(4), %xs : Int
+    %v26 = add %v24, %v25 : Int
+    %v27 = gencall env genEnv$sumOf(4) sumOf(4), %xs : Int
+    %v28 = add %v26, %v27 : Int
+    %v29 = call three : Holder(Int, 3)
+    %v30 = call heldFirst(3), %v29 : Int
+    %v31 = add %v28, %v30 : Int
+    %v32 = call both, %p : Int
+    %v33 = add %v31, %v32 : Int
+    %v34 = load %local1@Pair.left : [Int *2]
+    %v35 = call Sized([Int *2], Int).firstItem, %v34 : Int
+    %v36 = add %v33, %v35 : Int
+    %v37 = call Sized([Int *n], Int).firstItem(4), %xs : Int
+    %v38 = add %v36, %v37 : Int
+    %v39 = gencall env genEnv$aliased(4) aliased(4), %xs : Int
+    %v40 = add %v38, %v39 : Int
+    %v41 = load %local1@Pair.left : [Int *2]
+    %v42 = gencall env genEnv$firstThrough(2) firstThrough(2), %v41 : Int
+    %v43 = add %v40, %v42 : Int
+    %v44 = gencall env genEnv$firstThrough(4) firstThrough(4), %xs : Int
+    %v45 = add %v43, %v44 : Int
+    ret %v45
+}
+
+fn Sized([Int *n], Int).firstItem(%xs: [Int *n]) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v2 = borrow %xs : &[Int *n]
+    %xs = alloc : Flat(Int)
+    %v4 = addressof [%v2] : %Int
+    init %xs@Flat.items, %v4
+    %v6 = countof n : Long
+    %v7 = cast %v6 : I64
+    init %xs@Flat.length, %v7
+    %v10 = borrow %xs : &Flat(Int)
+    %v11 = load [%v10]@Flat.length : I64
+    %v12 = cast 0 : U64
+    %v13 = cast %v11 : U64
+    %v14 = cmp_ge %v12, %v13 : Bool
+    call checkCondition, %v14
+    %v16 = load [%v10]@Flat.items : %Int
+    %v17 = strideof Int : Long
+    %v18 = mul 0, %v17 : Long
+    %v19 = add %v16, %v18 : %Int
+    %v20 = borrow [%v19] : &Int
+    %v21 = load [%v20] : Int
+    ret %v21
+}
+
+fn Sized([Int *2], Int).firstItem(%xs: [Int *2]) -> Int {
+  b0:
+    ret 100
+}
+
+fn heldFirst(3)(%h: Holder(Int, 3)) -> Int {
+  b0:
+    %v1 = load %h@Holder.items : [Int *3]
+    %v2 = call firstOf(3), %v1 : Int
+    ret %v2
+}
+
+fn firstOf(3)(%xs: [Int *3]) -> Int {
+  b0:
+    %v1 = borrow %xs : &[Int *3]
+    %xs = alloc : Flat(Int)
+    %v3 = addressof [%v1] : %Int
+    init %xs@Flat.items, %v3
+    %v5 = countof 3 : Long
+    %v6 = cast %v5 : I64
+    init %xs@Flat.length, %v6
+    %v8 = borrow %xs : &Flat(Int)
+    %v9 = load [%v8]@Flat.length : I64
+    %v11 = cast 0 : U64
+    %v12 = cast %v9 : U64
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v8]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul 0, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : &Int
+    %v20 = load [%v19] : Int
+    ret %v20
+}
+
+fn Sized([Int *n], Int).firstItem(4)(%xs: [Int *4]) -> Int {
+  b0:
+    %v1 = borrow %xs : &[Int *4]
+    %xs = alloc : Flat(Int)
+    %v3 = addressof [%v1] : %Int
+    init %xs@Flat.items, %v3
+    %v5 = countof 4 : Long
+    %v6 = cast %v5 : I64
+    init %xs@Flat.length, %v6
+    %v8 = borrow %xs : &Flat(Int)
+    %v9 = load [%v8]@Flat.length : I64
+    %v11 = cast 0 : U64
+    %v12 = cast %v9 : U64
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v8]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul 0, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : &Int
+    %v20 = load [%v19] : Int
+    ret %v20
+}
+
+fn thunk$Sized([Int *2], Int).firstItem#0(%result: %Int, %xs: %[Int *2]) -> () {
+  b0:
+    %v2 = load [%xs] : [Int *2]
+    %v3 = call Sized([Int *2], Int).firstItem, %v2 : Int
+    init [%result], %v3
+    ret
+}
+
+fn thunk$Sized([Int *4], Int).firstItem#0(%result: %Int, %xs: %[Int *4]) -> () {
+  b0:
+    %v2 = load [%xs] : [Int *4]
+    %v3 = call Sized([Int *n], Int).firstItem(4), %v2 : Int
+    init [%result], %v3
+    ret
+}

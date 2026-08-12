@@ -1,0 +1,46 @@
+{-
+   A local named `value` survives a `for` body.
+
+   The continuation a loop hands its iterator has one parameter per value yielded, and its
+   *parameters are bound into the body's scope by name* - so a parameter this compiler invented and
+   called `value` shadowed a caller's own `value` inside every `for` body in the language. Where the
+   two types disagreed it was an error naming a type the program never wrote ("no class function +
+   accepts (Int, Flat(Int))"); where they agreed it was a wrong number and nothing else, which is
+   what this asserts.
+
+   Both halves are here because the name is invented in two places: `classContinuationSignature` for
+   a class member like `Chunked.chunks`, and the `iter fn` desugaring for a named one. Neither name
+   can be written in source now.
+
+   Found while writing the vector iteration protocol, where a kernel's `value` parameter is the
+   natural name for the thing being counted.
+-}
+
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+-- A named `iter fn`: `value` is 5 on every iteration, so this is 15 + (0 + 1 + 2) and not double
+-- the yielded value.
+fn named(value: Int) -> Int:
+    let &total = 0
+
+    for x in upTo(3):
+        total = total + value + x
+
+    return total
+
+-- A class member, where the handed value is a `Flat(Int)` and the shadowed `value` is an `Int` -
+-- the half that failed loudly.
+fn classMember(xs: [Int], value: Int) -> Int:
+    let &total = 0
+
+    for chunk in chunks(xs):
+        total = total + value + (truncate(length(chunk)) :: Int)
+
+    return total
+
+fn main() -> Int = named(5) + classMember([1, 2, 3, 4], 7)

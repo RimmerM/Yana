@@ -1,0 +1,99 @@
+@image$base = []
+
+wide<complex>(): Int {
+  b_0 {
+    %v = vsplat 1: i64x2
+    %a = vwithlane %v, 20015998348988, 1: i64x2
+    %v_1 = vlane %a, 0: Long
+    %v_2 = cmp_neq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 18446744073709551615
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = vlane %a, 1: Long
+    %v_7 = cmp_neq %v_6, 20015998348988: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %b = vwithlane %a, 18446744073709551613, 0: i64x2
+    %v_11 = vlane %b, 0: Long
+    %v_12 = cmp_neq %v_11, 18446744073709551613: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 18446744073709551613
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = vlane %b, 1: Long
+    %v_17 = cmp_neq %v_16, 20015998348988: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551612
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    ret 0
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex wide: Int
+    %v_2 = cmp_neq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = call_complex wide: Int
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = vsplat 0: i64x2
+    %v = vwithlane %v_7, 20015998348988, 1: i64x2
+    %v_8 = vlane %v, 1: Long
+    %v_9 = imulhi %v_8, 9671377542784405045: Long
+    %v_10 = add %v_9, %v_8: Long
+    %v_11 = sar %v_10, 19: Long
+    %v_12 = shr %v_11, 63: Long
+    %v_13 = add %v_11, %v_12: Long
+    %v_14 = imul %v_13, 1000003: Long
+    %v_15 = sub %v_8, %v_14: Long
+    %v_16 = cast %v_15: Int
+    ret %v_16
+  }
+}
+

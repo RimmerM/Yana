@@ -1,0 +1,244 @@
+# The 256-bit tier - Implementation-Vector.md §5.4 and §12's "the ymm/zmm tier".
+#
+# extensions: avx2
+#
+# `VectorOps.lower` is the same operations at 128 bits and the two read side by side. Every
+# difference between them is one of four things and nothing else: a VEX prefix, `L` set, operands in
+# `ymm` rather than `xmm`, and - for every form the machine had no three-operand spelling of before
+# VEX - the tie gone, and with it the `movaps` the allocator was putting in front of it. That is why
+# the wide forms are *derived* from the narrow ones (MachineForm::wide) rather than written out: one
+# statement of what `paddd` is, and a wide row that cannot disagree with it.
+#
+# A `.lower` file states its own types, so `i32x8` here is thirty-two bytes whatever the resolver
+# would have picked - which is the point of writing the tier's bytes down here rather than only in
+# `test/resolve/VecWide.yana`. That fixture asserts a number; this one asserts the instructions.
+#
+# What to look for, in order:
+#
+#   - `c4`/`c5` in front of everything, and `L` set: a two-byte prefix wherever the fields the short
+#     form drops are all zero, and a three-byte one where a register number needs the extra bits.
+#   - **the shuffles are all in-lane.** `vpshufd ymm` applies one control byte to both 128-bit halves
+#     independently, so an eight-lane pattern is only a `vpshufd` when its two halves ask for the
+#     same thing. `vperm2f128` is the one instruction in the tier that crosses, and it moves whole
+#     halves rather than lanes.
+#   - the reduction butterfly, whose top level is exactly that crossing. `[0,1,2,3]` paired with
+#     `[4,5,6,7]` is the two halves exchanged and nothing else.
+
+# The arithmetic, which is the part that is purely a prefix and a width. Three-operand throughout, so
+# `%a` survives its own multiply with no copy in front of it - which at 128 bits it does not.
+arith(%a: i32x8, %b: i32x8, %c: f32x8, %d: f32x8): i32x8 {
+    {
+        %s = add %a, %b: i32x8
+        %p = mul %s, %a: i32x8
+        %x = and %p, %b: i32x8
+        %f = add %c, %d: f32x8
+        %g = div %f, %c: f32x8
+        %h = sqrt %g: f32x8
+        %i = bitcast %h: i32x8
+        %r = or %x, %i: i32x8
+        ret %r
+    }
+}
+
+# Every lane the same scalar, which is the one operation whose wide form is a different *instruction*
+# rather than the same one re-encoded: `vpshufd` works inside each half and cannot reach the upper
+# one at all, so a 256-bit broadcast is `vpbroadcastd`/`vbroadcastss` and AVX2 is where those arrive.
+# The integer lane crosses banks first; the float lane is already where it needs to be.
+broadcast(%n: Int, %x: Float): i32x8 {
+    {
+        %v = vsplat %n: i32x8
+        %f = vsplat %x: f32x8
+        %i = bitcast %f: i32x8
+        %r = add %v, %i: i32x8
+        ret %r
+    }
+}
+
+# An in-lane shuffle - the same four-lane pattern in both halves, which is the only shape one control
+# byte can state - and the cross-half exchange beside it.
+shuffles(%a: i32x8): i32x8 {
+    {
+        %inLane = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+        %halves = vshuffle %a, %a, 4, 5, 6, 7, 0, 1, 2, 3: i32x8
+        %r = add %inLane, %halves: i32x8
+        ret %r
+    }
+}
+
+# The reduction butterfly at eight lanes, written out as `lowerVectorReductions` expands it: lane `j`
+# paired with lane `j ^ s` at each doubling of `s`. The first two levels are in-lane and the third is
+# the crossing, which is what makes the combining order Design-Vector §4.5 states reachable here -
+# the x86 idiom of folding the upper half down gives a different order and different bits for a float
+# sum.
+reduce(%a: f32x8): Float {
+    {
+        %p0 = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: f32x8
+        %s0 = add %a, %p0: f32x8
+        %p1 = vshuffle %s0, %s0, 2, 3, 0, 1, 6, 7, 4, 5: f32x8
+        %s1 = add %s0, %p1: f32x8
+        %p2 = vshuffle %s1, %s1, 4, 5, 6, 7, 0, 1, 2, 3: f32x8
+        %s2 = add %s1, %p2: f32x8
+        %r = vlane %s2, 0: Float
+        ret %r
+    }
+}
+
+# A lane above the low 128 bits, in both directions.
+#
+# Every lane instruction AMD64 has names a lane inside *one* 128-bit register whatever the prefix
+# says, so lane 5 is unreachable until the half holding it has come down - and a write to one has to
+# put the half back, because `vpinsrd` is a VEX instruction and zeroes everything above the register
+# it writes. Writing a lane of the *low* half in place would therefore clear the upper half of the
+# vector, which is why lane 1 takes the same three instructions lane 5 does.
+lanes(%a: i32x8, %n: Int): Int {
+    {
+        %high = vwithlane %a, %n, 5: i32x8
+        %low = vwithlane %high, %n, 1: i32x8
+        %x = vlane %low, 5: Int
+        %y = vlane %low, 1: Int
+        %r = add %x, %y: Int
+        ret %r
+    }
+}
+
+# §5.4 `vzeroupper`.
+#
+# A processor that runs a *legacy-encoded* SSE instruction while any `ymm` upper half is non-zero
+# pays a large, silent, part-specific penalty. What a function that dirtied one owes is this
+# instruction, and where it owes it is the question worth writing down: **not before every call and
+# every return**, which is what a first reading of §5.4 asks for and is unsafe here - `Simple`
+# preserves xmm3-15, so a return under it has just handed the caller its registers back and zeroing
+# their upper halves would destroy a value this function never named.
+#
+# So it stands at the two boundaries where the upper halves belong to nobody: before a call under a
+# foreign convention, whose callee may be legacy SSE compiled by something else entirely, and before
+# returning from a function that is itself foreign-entered. Both foreign conventions this backend
+# describes treat the upper halves as volatile - System V makes the whole file caller-saved, Win64
+# preserves the low 128 bits of xmm6-15 and nothing above them - so what it clears is free of meaning
+# to the other side either way.
+#
+# `c5 f8 77` twice below: once in front of the call, once in front of the `ret`.
+foreignSink<sysv>(%x: Int): Int {
+    { ret %x }
+}
+
+crossing<sysv>(%a: i32x8, %n: Int): Int {
+    {
+        %v = add %a, %a: i32x8
+        %r = call_sysv foreignSink, %n: Int
+        %l = vlane %v, 0: Int
+        %s = add %r, %l: Int
+        ret %s
+    }
+}
+
+# And the same shape under the compiler's own convention, which owes none: no instruction inside a
+# program built with AVX is a legacy SSE encoding, so nothing this compiler generates can pay for a
+# dirty upper half. `VectorVex.lower` is where that claim is asserted; here it is what the absence
+# below rests on. Nothing between these two functions differs but the convention, which is what makes
+# the pair the assertion rather than either one alone.
+internalSink<complex>(%x: Int): Int {
+    { ret %x }
+}
+
+internal<complex>(%a: i32x8, %n: Int): Int {
+    {
+        %v = add %a, %a: i32x8
+        %r = call_complex internalSink, %n: Int
+        %l = vlane %v, 0: Int
+        %s = add %r, %l: Int
+        ret %s
+    }
+}
+
+# A function with no wide value of its own, under the same foreign convention - **and it owes one
+# anyway.**
+#
+# This is the case the rule used to get wrong, and it is the common one rather than the exotic one:
+# whether the upper halves are dirty at a boundary is decided by whatever ran before it, which is
+# hardly ever the function the boundary is in. `narrow` here has nothing above 128 bits, but the
+# module it belongs to does, and either of its two boundaries may be reached with a `ymm` half still
+# set by `crossing` or by `internal`. Reading the question off this function's own placement answered
+# "no" and emitted nothing at exactly the boundary that owed it - see moduleDirtiesUpperHalves.
+#
+# What it costs when the answer is conservative is three bytes at a boundary that already costs a
+# call. What it cost when it was wrong was silent.
+narrow<sysv>(%a: i32x4, %n: Int): Int {
+    {
+        %v = add %a, %a: i32x4
+        %r = call_sysv foreignSink, %n: Int
+        %l = vlane %v, 0: Int
+        %s = add %r, %l: Int
+        ret %s
+    }
+}
+
+# And the two boundaries that carry a 256-bit value across, which owe **nothing**.
+#
+# `classifyArgs` and `classifyResults` hand out registers by bank without asking how wide the value
+# is, so a 32-byte argument or result takes vector register 0 - which is ymm0. The moves that place
+# it run before the call and before the return, so a `vzeroupper` at either site would clear the top
+# half of the value being handed over rather than state nobody owns.
+#
+# Nothing in the IR reaches this from Yana source yet, no foreign convention being produced from one.
+# It is written down because the first `foreign` declaration naming a vector type is otherwise a
+# miscompile rather than a missing feature, and because the absence is only an assertion beside the
+# presence above it.
+wideResult<sysv>(%a: i32x8): i32x8 {
+    {
+        %v = add %a, %a: i32x8
+        ret %v
+    }
+}
+
+# The argument side of the same rule, and the half of it that is *not* symmetric: the wide value is
+# dead by the time this function returns, so its own `ret` owes one where the call did not.
+wideArgument<sysv>(%a: i32x8, %n: Int): Int {
+    {
+        %v = add %a, %a: i32x8
+        %r = call_sysv wideSink, %v: Int
+        ret %r
+    }
+}
+
+wideSink<sysv>(%a: i32x8): Int {
+    {
+        %l = vlane %a, 0: Int
+        ret %l
+    }
+}
+
+# A shift by a constant, which is the one shape in this tier whose destination is not in ModRM.reg:
+# the extension is there and the register is in r/m, so VEX has nowhere to put the destination but
+# `vvvv` - `vpslld ymm1, ymm0, 3` against `pslld xmm1, 3`. Reading that as the shape everything else
+# has put the tied *source* in `vvvv`, and the destination the tie had just been removed from was
+# encoded nowhere at all: the shift wrote its answer into the register it read, and the answer the
+# allocator went looking for was whatever had been in the destination before. See `dropTie`.
+#
+# `%a` is read again afterwards, which is what stops the allocator from giving the shift its own
+# source back and hiding the whole thing.
+shifts(%a: i32x8): i32x8 {
+    {
+        %l = shl %a, 3: i32x8
+        %r = shr %a, 1: i32x8
+        %s = sar %a, 2: i32x8
+        %x = add %l, %r: i32x8
+        %y = add %s, %a: i32x8
+        %z = add %x, %y: i32x8
+        ret %z
+    }
+}
+
+# A load folded into a 256-bit operation, which is the same opening one tier up.
+#
+# `wideTwin` rebuilds every link rather than inheriting one, so a wide form had no memory twin either
+# - not for the alignment reason the narrow forms had, but because the derivation reset it. Both are
+# built by the sweep at the end of `MachineTarget`'s constructor now, from the form that can encode
+# the address rather than from a form that could not.
+wideFold(%p: Ptr, %a: i32x8): i32x8 {
+    {
+        %v = load %p, 32: i32x8
+        %s = add %a, %v: i32x8
+        ret %s
+    }
+}

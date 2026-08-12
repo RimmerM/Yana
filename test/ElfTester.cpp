@@ -30,6 +30,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/emit.h"
 #include "shard.h"
+#include "directives.h"
 
 #if defined(__linux__) && defined(__x86_64__)
 #include <sys/wait.h>
@@ -208,6 +209,7 @@ static bool runTest(const String& path, StringView source, const String& outputD
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    applyExtensionDirective(context.settings, source);
     provider.context = &context;
 
     // The same settings a `-mode exe -backend local` build runs under. Stated rather than left at

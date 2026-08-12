@@ -396,7 +396,14 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Bitcast:
             case Value::Neg:
             case Value::Not:
+            case Value::Sqrt:
                 useValue(analysis, effects, ((InstUnary&)instruction).from);
+                break;
+
+            case Value::Fma:
+                useValue(analysis, effects, ((InstFma&)instruction).a);
+                useValue(analysis, effects, ((InstFma&)instruction).b);
+                useValue(analysis, effects, ((InstFma&)instruction).c);
                 break;
 
             case Value::Add:
@@ -413,6 +420,28 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Cmp:
                 useValue(analysis, effects, ((InstBinary&)instruction).lhs);
                 useValue(analysis, effects, ((InstBinary&)instruction).rhs);
+                break;
+
+            // The vector kinds, whose operands are lanes and vectors and are read the way every
+            // other computation's are: used, never handed over. A vector is TrivialCopy, so there is
+            // no ownership in one for any of these to move.
+            case Value::VecSplat:
+                useValue(analysis, effects, ((InstVecSplat&)instruction).from);
+                break;
+
+            case Value::VecLane:
+            case Value::VecWithLane:
+                useValue(analysis, effects, ((InstVecLane&)instruction).from);
+                useValue(analysis, effects, ((InstVecLane&)instruction).value);
+                break;
+
+            case Value::VecShuffle:
+                useValue(analysis, effects, ((InstVecShuffle&)instruction).left);
+                useValue(analysis, effects, ((InstVecShuffle&)instruction).right);
+                break;
+
+            case Value::VecReduce:
+                useValue(analysis, effects, ((InstVecReduce&)instruction).from);
                 break;
 
             case Value::Native:

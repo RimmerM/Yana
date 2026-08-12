@@ -141,6 +141,33 @@ struct FunParts {
 };
 
 /*
+ * The lanes of a vector, however this one is being carried - Implementation-Vector.md §7.
+ *
+ * The third of the same arrangement `RefParts` and `FunParts` above are, and for the strongest
+ * version of its reason: a vector is `lanes` independent values here, so a vector that is being
+ * carried as its lanes has each in a variable of its own and there is no array anywhere. One that is
+ * not - a phi at a join, a field of a record, an argument crossing an erased boundary - is a host
+ * array, and the lanes are its elements.
+ *
+ * Where the other two are an optimization, this one is the representation. §2 of
+ * Implementation-Vector.md says a vector is *always* scalarized on this target and never boxed at
+ * any lane count, and what that means concretely is that every operation over one produces lanes
+ * rather than a value: `a + b` is `lanes` additions and the array is what does not get built.
+ *
+ * A raw pointer and a count rather than an `Array`, because these live in a `HashMap` keyed on the
+ * resolve value and `HashMap::reset` does not run destructors - the same trap `AggregateBuildPlan`
+ * is written not to fall into. The lanes are allocated out of the file's own arena, which outlives
+ * every function generated into it.
+ */
+struct VecParts {
+    JsPtr<Expr>* lanes = nullptr;
+    U16 count = 0;
+
+    bool valid() const { return lanes != nullptr; }
+    Buffer<JsPtr<Expr>> contents() const { return { lanes, count }; }
+};
+
+/*
  * Whether an `InstAggregate` builds its local's whole value here, and which property each component
  * fills - the answer to that question and nothing else.
  *
@@ -387,6 +414,11 @@ struct Gen {
     // funPartsOf. A value in here is *not* in `values`: an object for one is built where a use
     // genuinely needs one value, and `useValue` is where that happens.
     HashMap<U32, FunParts> funParts;
+
+    // The vectors currently being carried as their lanes rather than as an array - see vecPartsOf.
+    // A value in here is *not* in `values`, on the same terms as `funParts`: the array is built
+    // where a use genuinely needs one value, and `useValue` is where that happens.
+    HashMap<U32, VecParts> vecParts;
 
     // Which locals of function type are carried that way, by local index - see prepareFunLocals.
     // The place walk reads this to answer `local@Fun.code` with a variable rather than a property.
@@ -854,6 +886,9 @@ Name packedWordName(Gen& g, U32 offset);
 // came from so the emitted source still says which one that was.
 Name partName(Gen& g, Value& value, StringView suffix);
 
+// One lane of a vector - `x$0`, `x$1`. See VecParts, and partName, which this is a suffix of.
+Name laneName(Gen& g, Value& value, U32 lane);
+
 /*
  * type.cpp - what a type is on this target.
  */
@@ -1203,6 +1238,26 @@ FunParts funPartsOfPlace(Gen& g, const Place& place);
 Maybe<FunParts> destinationFunParts(Gen& g, const Place& place);
 JsPtr<Expr> materializeFun(Gen& g, FunParts parts);
 
+/*
+ * The lanes of a vector, from whichever of the two forms it is in - see VecParts.
+ *
+ * `vecPartsOf` is what every operation over a vector reads, so that whether the value it names is
+ * being carried as lanes or as an array is a question none of them asks. The array form is indexed
+ * rather than destructured, which is what makes the fallback one expression per lane instead of a
+ * statement: `opt.cpp` then inlines a lane that is read once wherever it was read.
+ */
+VecParts vecPartsOf(Gen& g, ModulePtr<Value> value);
+VecParts vecPartsOfExpr(Gen& g, JsPtr<Expr> value, U32 lanes);
+
+// Space for `lanes` lane expressions out of the file's arena, which is where a VecParts always
+// points. Written by whoever is building one, since the values differ per instruction.
+VecParts newVecParts(Gen& g, U32 lanes);
+
+// The array form, for the positions lanes cannot cover: JS has no multi-value return, so a vector
+// that is returned, stored in a record or handed across an erased boundary has to become one value
+// again. Every other position reads `vecPartsOf` and builds nothing.
+JsPtr<Expr> materializeVec(Gen& g, VecParts parts);
+
 // Whether some use of a flattened reference needs it to be one value after all - a return, a store,
 // a capture. Defined in gen.cpp beside the other use-list questions.
 bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
@@ -1549,6 +1604,9 @@ JsPtr<Expr> tableCell(Gen& g, JsPtr<Expr> table, U16 slot);
 JsPtr<Expr> genSlot(Gen& g, U16 slot);
 JsPtr<Expr> genWitness(Gen& g, U16 slot, ModuleList<U32, false> path);
 JsPtr<Expr> genTypeDesc(Gen& g, TypePtr type);
+
+// The value of one const parameter, or null where this body knows the count already. See place.cpp.
+JsPtr<Expr> genConstValue(Gen& g, TypePtr count);
 
 /*
  * inst.cpp - instructions.

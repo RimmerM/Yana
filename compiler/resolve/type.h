@@ -234,6 +234,23 @@ struct Type {
          * though a JS string is free to duplicate at the codegen level.
          */
         String,
+
+        // `Vec(a, n)` and `Mask(a)` - Design-Vector §2, and one kind for both. See VectorType.
+        Vector,
+
+        /*
+         * A number in a position a type is written - Implementation-Const-Generics.md §2.1.
+         *
+         * The `4` of `[Int *4]` and of `Vec(Float, 4)`. It is a Type so that a count and a *const
+         * variable* are the same kind of child: `[a *n]` holds a GenType where `[a *4]` holds one
+         * of these, and every substitution, matching and interning rule that already walks a type
+         * child therefore applies to a count with no case of its own.
+         *
+         * A value of one is not a thing that exists. It never appears as the type of a local, an
+         * argument or a field, so nothing asks it for a layout, an ownership class or a Repr - see
+         * ConstType.
+         */
+        Const,
     };
 
     explicit Type(Kind kind): kind(kind), generic(false), exported(false) {}
@@ -529,6 +546,55 @@ struct BorrowType: Type {
 };
 
 /*
+ * `Vec(a, n)` and `Mask(a)` - Design-Vector §2.
+ *
+ * ## One kind, and a flag
+ *
+ * A mask is the same kind with `isMask` set rather than a second kind, so every switch over
+ * `Type::Kind` gains one arm instead of two and the places that genuinely differ - the result type
+ * of a lane comparison, the JS zero value, the AVX-512 register class - test the flag. §2.4 makes a
+ * mask's identity its lane *width* and lane count and not the element it came from, since a mask
+ * produced by comparing `Vec(Float)` is meaningful applied to `Vec(I32)`; so `content` is normalized
+ * to the unsigned integer of the lane's width when the flag is set, and `Mask(Float)` and
+ * `Mask(I32)` intern to one pointer.
+ *
+ * ## The lane count
+ *
+ * `count` is a ConstType for a resolved count and a GenType for the `n` of `Vec(a, n)`, and it is
+ * null for the *natural* form `Vec(a)` written over a type variable, which cannot be resolved until
+ * the element is: `targetVectorBytes / stride` needs a stride, and a variable has none.
+ * `substituteType` spends it exactly as the fixed array's element is substituted, so nothing below
+ * resolution ever sees a null one - which is Design-Vector §2.1's "after type resolution there is
+ * one type constructor with a concrete lane count", and is the single simplification the rest of the
+ * design rides on.
+ *
+ * A const-generic count is the other thing that survives resolution, and it is not an exception to
+ * that: `Vec(Float, n)` is a *generic* type, so it reaches the IR only through a body that was
+ * either specialized (and then the count is concrete) or compiled erased (and then the count is a
+ * slot read - Implementation-Const-Generics.md §3.2). The null and the variable are therefore two
+ * different absences: "not computed yet" and "the caller knows".
+ *
+ * ## What it is not
+ *
+ * Not a container. `contiguousElement` answers null for one, so a `Vec(a)` never silently converts
+ * to `[a]`; there are no fields and no per-lane projection, so no place walk is ever asked about a
+ * lane. Reading one is an instruction (`VecLane`), which is a boundary stage 3 holds.
+ */
+struct VectorType: Type {
+    VectorType(TypePtr content, TypePtr count, bool isMask):
+        Type(Type::Vector), content(content), count(count), isMask(isMask) {}
+
+    // The lane type, normalized to the unsigned integer of the lane's width for a mask.
+    TypePtr content;
+
+    // A ConstType, a const variable, or null for "the target's natural count, not computed yet" -
+    // see above.
+    TypePtr count;
+
+    bool isMask;
+};
+
+/*
  * `[T *n]` - the fixed array (Implementation-Containers.md §6).
  *
  * Exactly `n` elements at a stride and no count anywhere, on any target. Interned on the pair, so
@@ -547,11 +613,36 @@ struct BorrowType: Type {
  * Implementation-Storage.md §3's trap and applies here verbatim.
  */
 struct ArrayType: Type {
-    ArrayType(TypePtr content, U32 length):
-        Type(Type::Array), content(content), length(length) {}
+    ArrayType(TypePtr content, TypePtr count):
+        Type(Type::Array), content(content), count(count) {}
 
     TypePtr content;
-    U32 length;
+
+    // A ConstType, or the const variable of `[a *n]`. Never null: unlike a vector's, a fixed array's
+    // count has no natural form to be waiting for.
+    TypePtr count;
+};
+
+/*
+ * A number written where a type is - Implementation-Const-Generics.md §2.1.
+ *
+ * Interned on the pair, because `4` as an `Int` and `4` as a `Size` are one number and two
+ * parameters: a const parameter's type is what an argument is checked against and what an expression
+ * reading it has, so two counts of different types that happened to agree numerically must not
+ * collapse into one. `canonicalType` is applied to the annotation before interning, so that a
+ * `@bits` refinement of the count's own type does not split it either way.
+ *
+ * `generic` is false. A const *variable* is an ordinary GenType, which is what makes every rule
+ * about generic types apply to one without a word being added to any of them.
+ */
+struct ConstType: Type {
+    ConstType(U64 value, TypePtr type):
+        Type(Type::Const), value(value), type(type) {}
+
+    U64 value;
+
+    // What the value is of - the annotation's type, canonicalized.
+    TypePtr type;
 };
 
 /*
@@ -821,6 +912,18 @@ struct Constructor {
  * declares its variables by using them rather than in a list of its own.
  */
 
+/*
+ * Which sort of thing one variable of a context stands for - Implementation-Const-Generics.md §2.2.
+ *
+ * `Type` is the ordinary `a`; `Const` is the `n` of `fn (n: Int) f(v: Vec(Float, n))`, which stands
+ * for a *number*. A variable is one or the other and never both, and using one at both kinds is
+ * reported at the second occurrence - see genVariableKind.
+ */
+enum class GenKind: U8 {
+    Type,
+    Const,
+};
+
 struct GenType: Type {
     GenType(GlobalPtr<GenEnv> env, StringId name, U16 index):
         Type(Type::Gen), env(env), name(name), index(index) { generic = true; }
@@ -832,13 +935,35 @@ struct GenType: Type {
     // Where the variable was first written, which is its binder: a function declares its variables
     // by using them, so the first occurrence is the declaration. See genVariable.
     LocationId source = kNullLocation;
+
+    GenKind kind = GenKind::Type;
+
+    // A const variable's declared type - the `Int` of `n: Int`. Null for a type variable, and null
+    // for a const variable whose kind was inferred from a use position before its type was known;
+    // `constVariableType` is what fills it in and what a reader should go through.
+    TypePtr constType = nullptr;
 };
 
-// One `Class(a, b)` requirement of a context. `args` are the context's own types (or concrete
-// types, for a partially applied constraint), in the class's argument order.
+/*
+ * One `Class(a, b)` requirement of a context. `args` are the context's own types (or concrete
+ * types, for a partially applied constraint), in the class's argument order.
+ *
+ * An argument is an arbitrary type - `Num(Vec(I16, n))`, `Contiguous(c, Pair(k, v))` - and every
+ * reader here already treated it as one: `fillDetermined` substitutes and matches it,
+ * `superclassPath` expresses a superclass in it, and `internedEnv` substitutes it before asking for
+ * a witness. Implementation-Const-Generics.md §10 is the change that let one be *written*.
+ *
+ * `written` is what the declaration said, kept only while the class is still unknown. A `data` or
+ * `class` head may constrain itself by a class declared further down the file, so its arguments
+ * cannot be resolved where the head is - which positions are counts is read off the class's own
+ * parameter list. Those two contexts are closed, so nothing they mention is introduced by the
+ * constraint and resolving late costs no ordering; `resolveConstraintClasses` finishes them. A
+ * function's or an instance's context resolves in place, since every class is declared by then.
+ */
 struct ClassConstraint {
     GlobalPtr<TypeClass> typeClass = nullptr;
     GlobalList<TypePtr> args;
+    ast::ParseList<ast::Type> written;
     StringId name {};
     LocationId source = kNullLocation;
 };
@@ -892,6 +1017,15 @@ enum class GenSlotKind: U8 {
 
     // A FunctionWitness: one constrained callable.
     Function,
+
+    /*
+     * One number - the `n` of a const parameter, Implementation-Const-Generics.md §3.1.
+     *
+     * The narrowest entry the environment has: not a pointer to anything, just the value the caller
+     * had in its hand. It sits after the type descriptors and before the witnesses so that both
+     * fixed-width groups stay a prefix - see GenSchema::constCount.
+     */
+    Const,
 };
 
 struct GenSlot {
@@ -919,6 +1053,11 @@ struct GenSchema {
     // How many leading slots are type descriptors. Everything else indexes off this, and it is what
     // a caller building an environment fills in first.
     U16 typeCount = 0;
+
+    // How many slots after those are const parameters - Implementation-Const-Generics.md §3.1. The
+    // two fixed-width groups are a prefix together, so a caller fills `typeCount + constCount` slots
+    // before it reaches anything pointer-shaped.
+    U16 constCount = 0;
 };
 
 struct GenEnv {
@@ -999,11 +1138,25 @@ U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signatur
 // happens while the body is being resolved and never after.
 void requireTypeSlot(Module& module, GenEnv& env, TypePtr type);
 
+/*
+ * Where one const parameter sits in the numbering - Implementation-Const-Generics.md §3.1.
+ *
+ * There is no `requireConstSlot` beside it, unlike every other kind of slot, and the reason is
+ * §2.5: a count is a bare variable or a literal and never an expression, so the *only* counts a body
+ * can read are the ones its context already declares. There is nothing for a body to discover, so
+ * every const variable is numbered from the declaration exactly as a type variable is.
+ */
+U16 genConstSlot(Module& module, GenEnv& env, TypePtr variable);
+
 // The type variable of `env` called `name`, adding it if the context is open. Null when the
 // context is closed and has no such variable.
 // `source` is where this occurrence was written, and it is recorded as the variable's binder when
 // this is the occurrence that creates it - see GenType::source.
 GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name, LocationId source = kNullLocation);
+
+// The same lookup without the creation, which is what a caller that needs to know whether an
+// occurrence *introduced* a variable asks first - see §1.5's kind inference.
+GlobalPtr<GenType> findGenVariable(Module& module, GenEnv& env, StringId name);
 
 struct RecordType: Type {
     enum Layout: U8 {
@@ -1146,6 +1299,17 @@ struct ScalarTypes {
      * Null on JS, where a string is one host value and there is nothing to lay out.
      */
     TypePtr stringContent = nullptr;
+
+    /*
+     * `U8`, `U16`, `U32` and `U64`, indexed by the logarithm of their byte width.
+     *
+     * Here for one reader: a mask's identity is its lane width and lane count rather than the
+     * element it was produced from (Design-Vector §2.4), so `resolveVectorType` normalizes a mask's
+     * content to the unsigned integer of that width and `Mask(Float)` and `Mask(I32)` become one
+     * interned type. That normalization can be asked for from any module, and only Core knows these
+     * types by name.
+     */
+    TypePtr unsignedLanes[4] = {};
 };
 
 // The five Core classes the resolver has to know by name rather than by lookup, because the
@@ -1206,6 +1370,23 @@ struct CoreClasses {
     // same reason `Try` is: a hole's `show` and `showBound` are selected by the compiler from the
     // hole's type, and there is no written call for the ordinary overload set to start from.
     GlobalPtr<TypeClass> show = nullptr;
+
+    /*
+     * The classes a *vector* joins on demand - Implementation-Vector.md §9 items 1 to 3.
+     *
+     * Known by name for a reason none of the above has: no instance of any of them over a vector is
+     * declared anywhere, and one is generated the first time it is asked for (see simd.cpp). So the
+     * question "is this the class a vector could join" is asked at every instance lookup that finds
+     * nothing, and asking it by string lookup would put a hash of `"Integral"` on that path.
+     *
+     * `widen`, `narrow` and `fromInt` are up above and are read for this too; these are the five
+     * that had no other reader.
+     */
+    GlobalPtr<TypeClass> num = nullptr;
+    GlobalPtr<TypeClass> integral = nullptr;
+    GlobalPtr<TypeClass> logic = nullptr;
+    GlobalPtr<TypeClass> bitcast = nullptr;
+    GlobalPtr<TypeClass> lanewise = nullptr;
 };
 
 /*
@@ -1216,6 +1397,13 @@ struct CoreClasses {
  * error. A null env means no type variable is in scope.
  */
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
+
+// One argument of a written application, at whichever kind the *declaration's* parameter at that
+// index is: a type, or a count that takes an integer literal or a const parameter. `declared` is the
+// context of whatever is being applied - a record's, an alias's or a class's.
+TypePtr resolveAppArg(Module& module, GlobalPtr<GenEnv> declared, Size index,
+                      const ast::Type& arg, GenEnv* env);
+
 TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source,
                           TypeLayout layout = TypeLayout::Auto, U32 inlineSlots = 0,
                           U32 capacityBound = 0);
@@ -1333,8 +1521,83 @@ TypePtr chunkedElement(Module& module, TypePtr type);
 constexpr U32 kMaxFixedArrayLength = 0xffff;
 
 TypePtr resolveFixedArrayType(Module& module, TypePtr content, U32 length, LocationId source);
+
+// The same, for a caller holding a count that may be a variable - which is every path that walks an
+// existing type rather than reading one that was written.
+TypePtr resolveFixedArrayType(Module& module, TypePtr content, TypePtr count, LocationId source);
+
 TypePtr fixedElement(Module& module, TypePtr type);
 TypePtr ownedElement(Module& module, TypePtr type);
+
+/*
+ * `Vec(a)`, `Vec(a, n)` and `Mask(a)` - Design-Vector §2, Implementation-Vector.md §1.
+ *
+ * `lanes` of zero asks for the natural form, which is `targetVectorBytes(settings) / laneStride`.
+ * Over a type variable there is no stride to divide by, so the zero survives into the type and
+ * `substituteType` resolves it again once the element is concrete - the same deferral the fixed
+ * array's element already has, and the only thing in this design that is not settled by the end of
+ * resolution.
+ *
+ * Two rejections, both reported here so that a bad element names the type it was written on rather
+ * than failing later in Repr:
+ *
+ *  - the element has to be an integer or a float whose storage is 8, 16, 32 or 64 bits;
+ *  - a 64-bit integer element is refused on JS, since a `BigInt64Array` lane is a heap value and not
+ *    a lane at all (Design-Vector §7.3).
+ */
+TypePtr resolveVectorType(Module& module, TypePtr content, U32 lanes, bool isMask, LocationId source);
+
+// The same, for a count that may be a variable. Null is the natural form, exactly as zero is above.
+TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool isMask, LocationId source);
+
+/*
+ * A number in a count position - Implementation-Const-Generics.md §2.1.
+ *
+ * `constType` interns one. `constValue` reads a count back as a number and is only for a position
+ * that has already established the type is concrete: a variable count has no number here, which is
+ * the whole of what makes it a variable, so asking is a compiler bug rather than a program error.
+ * `writtenCount` is the same question asked by a caller that may legitimately get either answer.
+ */
+TypePtr constType(Module& module, U64 value, TypePtr of);
+
+/*
+ * Whether a written annotation is a type a const parameter may have -
+ * Implementation-Const-Generics.md §2.5.
+ *
+ * The integer types and nothing else in this version, which is what every count position that
+ * exists needs. Which types are admissible is a *semantic* rule rather than a syntactic one - the
+ * grammar takes any type - so loosening it is this one predicate and no production. Reported at the
+ * declaration, since that is where the inadmissible type was named.
+ */
+bool admissibleConstType(Module& module, TypePtr type, LocationId source);
+U64 constValue(GlobalBase base, TypePtr count);
+Maybe<U64> writtenCount(GlobalBase base, TypePtr count);
+
+// Whether a vector's count is the request for the target's natural one, which is spelled as a null
+// count where nothing wrote a number and as a zero where a deferred type had to write it down - see
+// resolveVectorType. Nothing outside that function should distinguish the two.
+bool isNaturalCount(GlobalBase base, TypePtr count);
+
+// How many bytes one lane of this type occupies, or zero where it is not a type a lane may be -
+// which is what the rule above is written in terms of. An integer answers its natural storage and
+// so a `@bits` refinement answers the storage it is held in, exactly as a standalone value of it
+// does; Design-Vector §2.2 accepts the refinement precisely so that the lanes keep its range.
+U32 laneStride(GlobalBase base, TypePtr type);
+
+// The lane type of a vector or a mask, or null for anything else - the shape `fixedElement` has, and
+// usable as a test for the same reason.
+TypePtr vectorLane(GlobalBase base, TypePtr type);
+
+// How many lanes a vector or a mask has, or zero for anything that is not one. Zero is also the
+// unresolved natural form, which is only reachable inside a generic body.
+U32 vectorLanes(GlobalBase base, TypePtr type);
+
+bool isVectorType(GlobalBase base, TypePtr type);
+bool isMaskType(GlobalBase base, TypePtr type);
+
+// The mask a comparison of this vector answers - Design-Vector §2.4. Null for anything that is not
+// a vector, so it reads as the test "does a lane comparison of this mean anything".
+TypePtr maskFor(Module& module, TypePtr type);
 
 /*
  * The `@inline(i)` / `@capacity(c)` family - Implementation-Containers.md §7.

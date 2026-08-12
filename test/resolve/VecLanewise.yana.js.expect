@@ -1,0 +1,191 @@
+"use strict";
+var seed = 3;
+
+// ResolveTest
+function comparisons(a, b) {
+  var v2$0 = a[0] < b[0];
+  var v2$1 = a[1] < b[1];
+  var v2$2 = a[2] < b[2];
+  var v2$3 = a[3] < b[3];
+  if ((v2$0 && v2$1 && (v2$2 && v2$3)) ^ 1) {
+    return -1;
+  } else {
+    var v12$0 = a[0] <= b[0];
+    var v12$1 = a[1] <= b[1];
+    var v12$2 = a[2] <= b[2];
+    var v12$3 = a[3] <= b[3];
+    if ((v12$0 && v12$1 && (v12$2 && v12$3)) ^ 1) {
+      return -2;
+    } else {
+      var v22$0 = b[0] > a[0];
+      var v22$1 = b[1] > a[1];
+      var v22$2 = b[2] > a[2];
+      var v22$3 = b[3] > a[3];
+      if ((v22$0 && v22$1 && (v22$2 && v22$3)) ^ 1) {
+        return -3;
+      } else {
+        var v32$0 = b[0] >= a[0];
+        var v32$1 = b[1] >= a[1];
+        var v32$2 = b[2] >= a[2];
+        var v32$3 = b[3] >= a[3];
+        if ((v32$0 && v32$1 && (v32$2 && v32$3)) ^ 1) {
+          return -4;
+        } else {
+          var v42$0 = a[0] !== b[0];
+          var v42$1 = a[1] !== b[1];
+          var v42$2 = a[2] !== b[2];
+          var v42$3 = a[3] !== b[3];
+          if ((v42$0 && v42$1 && (v42$2 && v42$3)) ^ 1) {
+            return -5;
+          } else {
+            var v52$0 = a[0] === b[0];
+            var v52$1 = a[1] === b[1];
+            var v52$2 = a[2] === b[2];
+            var v52$3 = a[3] === b[3];
+            if (v52$0 || v52$1 || (v52$2 || v52$3)) {
+              return -6;
+            } else {
+              var v60$0 = a[0] > b[0];
+              var v60$1 = a[1] > b[1];
+              var v60$2 = a[2] > b[2];
+              var v60$3 = a[3] > b[3];
+              if (v60$0 || v60$1 || (v60$2 || v60$3)) {
+                return -7;
+              } else {
+                return 0;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function selection(a, b) {
+  var v2$0 = a[0] < b[0];
+  var v2$1 = a[1] < b[1];
+  var smaller$0 = v2$0 ? a[0] : b[0];
+  var larger$1 = v2$1 ? b[1] : a[1];
+  if (smaller$0 !== 3) {
+    return -1;
+  } else {
+    if (larger$1 !== 4) {
+      return -2;
+    } else {
+      return 0;
+    }
+  }
+}
+
+function combining(a, b) {
+  var below$0 = a[0] < b[0];
+  var below$1 = a[1] < b[1];
+  var below$2 = a[2] < b[2];
+  var below$3 = a[3] < b[3];
+  var equal$0 = a[0] === b[0];
+  var equal$1 = a[1] === b[1];
+  var equal$2 = a[2] === b[2];
+  var equal$3 = a[3] === b[3];
+  if (((below$0 || equal$0) && (below$1 || equal$1) && ((below$2 || equal$2) && (below$3 || equal$3))) ^ 1) {
+    return -1;
+  } else {
+    if (below$0 && equal$0 || below$1 && equal$1 || (below$2 && equal$2 || below$3 && equal$3)) {
+      return -2;
+    } else {
+      if ((below$0 !== equal$0 && below$1 !== equal$1 && (below$2 !== equal$2 && below$3 !== equal$3)) ^ 1) {
+        return -3;
+      } else {
+        if ((!equal$0 && !equal$1 && (!equal$2 && !equal$3)) ^ 1) {
+          return -4;
+        } else {
+          return 0;
+        }
+      }
+    }
+  }
+}
+
+function counting() {
+  var indices$0 = 0;
+  var indices$1 = 1;
+  var indices$2 = 2;
+  var indices$3 = 3;
+  var past$0 = false;
+  var past$1 = true;
+  var past$2 = true;
+  var past$3 = true;
+  if ((past$0 ? 1 : 0) + (past$1 ? 1 : 0) + ((past$2 ? 1 : 0) + (past$3 ? 1 : 0)) !== 3) {
+    return -1;
+  } else {
+    if (Math.min(Math.min(past$0 ? 0 : 4, past$1 ? 1 : 4), Math.min(past$2 ? 2 : 4, past$3 ? 3 : 4)) !== 1) {
+      return -2;
+    } else {
+      var never$0 = indices$0 < 0;
+      var never$1 = indices$1 < 0;
+      var never$2 = indices$2 < 0;
+      var never$3 = indices$3 < 0;
+      if (Math.min(Math.min(never$0 ? 0 : 4, never$1 ? 1 : 4), Math.min(never$2 ? 2 : 4, never$3 ? 3 : 4)) !== 4) {
+        return -3;
+      } else {
+        if ((never$0 ? 1 : 0) + (never$1 ? 1 : 0) + ((never$2 ? 1 : 0) + (never$3 ? 1 : 0))) {
+          return -4;
+        } else {
+          var always$0 = indices$0 >= 0;
+          var always$1 = indices$1 >= 0;
+          var always$2 = indices$2 >= 0;
+          var always$3 = indices$3 >= 0;
+          if (Math.min(Math.min(always$0 ? 0 : 4, always$1 ? 1 : 4), Math.min(always$2 ? 2 : 4, always$3 ? 3 : 4)) !== 0) {
+            return -5;
+          } else {
+            if ((always$0 ? 1 : 0) + (always$1 ? 1 : 0) + ((always$2 ? 1 : 0) + (always$3 ? 1 : 0)) !== 4) {
+              return -6;
+            } else {
+              return 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function floats() {
+  var a$0 = 1.5;
+  var b$0 = 2.5;
+  if ((a$0 < b$0 && true && (true && true)) ^ 1) {
+    return -1;
+  } else {
+    if ((a$0 < b$0 ? a$0 : b$0) !== 1.5) {
+      return -2;
+    } else {
+      return 0;
+    }
+  }
+}
+
+function main() {
+  var v5 = seed + 1 | 0;
+  if (comparisons([seed, seed, seed, seed], [v5, v5, v5, v5]) !== 0) {
+    return comparisons([seed, seed, seed, seed], [v5, v5, v5, v5]);
+  } else {
+    if (selection([seed, seed, seed, seed], [v5, v5, v5, v5]) !== 0) {
+      return Math.imul(selection([seed, seed, seed, seed], [v5, v5, v5, v5]), 10);
+    } else {
+      if (combining([seed, seed, seed, seed], [v5, v5, v5, v5]) !== 0) {
+        return Math.imul(combining([seed, seed, seed, seed], [v5, v5, v5, v5]), 100);
+      } else {
+        if (counting() !== 0) {
+          return Math.imul(counting(), 1000);
+        } else {
+          if (floats() !== 0) {
+            return Math.imul(floats(), 10000);
+          } else {
+            return 4839;
+          }
+        }
+      }
+    }
+  }
+}
+main();

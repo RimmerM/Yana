@@ -406,7 +406,7 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
          */
         auto array = (ArrayType*)global[type];
 
-        resolver.eachFixedElement(base, array->content, array->length, source,
+        resolver.eachFixedElement(base, array->content, array->count, source,
                                   [&](Place element, ModulePtr<Value>) {
             teardownPlace(resolver, module, element, array->content, false, half, source);
         });

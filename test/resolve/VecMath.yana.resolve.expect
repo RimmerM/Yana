@@ -1,0 +1,186 @@
+let image$base: () = <none>
+
+fn scalars() -> Int {
+  b0:
+    %v1 = sqrt 16 : Double
+    %v4 = cmp_ne %v1, 4 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v8 = neg 1 : Int
+    ret %v8
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = sqrt 2.25 : Double
+    %v15 = cmp_ne %v12, 1.5 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v19 = neg 2 : Int
+    ret %v19
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = fma 2 3 4 : Double
+    %v30 = cmp_ne %v27, 10 : Bool
+    je %v30, b7, b8
+
+  b7:
+    %v34 = neg 3 : Int
+    ret %v34
+
+  b8:
+    jmp b9
+
+  b9:
+    %v38 = sqrt 6.25 : Float
+    %v41 = cmp_ne %v38, 2.5 : Bool
+    je %v41, b10, b11
+
+  b10:
+    %v45 = neg 4 : Int
+    ret %v45
+
+  b11:
+    jmp b12
+
+  b12:
+    %v53 = sub 0, 0 : Float
+    %v54 = sqrt %v53 : Float
+    %v56 = div 1, %v54 : Float
+    %v62 = sub 0, 0 : Float
+    %v64 = div 1, %v62 : Float
+    %v65 = cmp_ne %v56, %v64 : Bool
+    je %v65, b13, b14
+
+  b13:
+    %v69 = neg 5 : Int
+    ret %v69
+
+  b14:
+    jmp b15
+
+  b15:
+    ret 0
+}
+
+fn lanes() -> Int {
+  b0:
+    %squares = vsplat 6.25 : Vec(Float)
+    %roots = sqrt %squares : Vec(Float)
+    %v6 = vlane %roots, 0 : Float
+    %v9 = cmp_ne %v6, 2.5 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = neg 1 : Int
+    ret %v13
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = vreduce_min %roots : Float
+    %v19 = cmp_ne %v16, 2.5 : Bool
+    je %v19, b4, b5
+
+  b4:
+    %v23 = neg 2 : Int
+    ret %v23
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = vsplat 0 : Vec(Float)
+    %v29 = vwithlane %v27, 1, 1 : Vec(Float)
+    %v31 = vwithlane %v29, 2, 2 : Vec(Float)
+    %counted = vwithlane %v31, 3, 3 : Vec(Float)
+    %v36 = vsplat 3 : Vec(Float)
+    %v39 = vsplat 1 : Vec(Float)
+    %scaled = fma %counted %v36 %v39 : Vec(Float)
+    %v43 = vlane %scaled, 0 : Float
+    %v46 = cmp_ne %v43, 1 : Bool
+    je %v46, b7, b8
+
+  b7:
+    %v50 = neg 3 : Int
+    ret %v50
+
+  b8:
+    jmp b9
+
+  b9:
+    %v55 = vlane %scaled, 1 : Float
+    %v58 = cmp_ne %v55, 4 : Bool
+    je %v58, b10, b11
+
+  b10:
+    %v62 = neg 4 : Int
+    ret %v62
+
+  b11:
+    jmp b12
+
+  b12:
+    %v67 = vlane %scaled, 2 : Float
+    %v70 = cmp_ne %v67, 7 : Bool
+    je %v70, b13, b14
+
+  b13:
+    %v74 = neg 5 : Int
+    ret %v74
+
+  b14:
+    jmp b15
+
+  b15:
+    %v77 = vreduce_add %scaled : Float
+    %v80 = cmp_ne %v77, 22 : Bool
+    je %v80, b16, b17
+
+  b16:
+    %v84 = neg 6 : Int
+    ret %v84
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call scalars : Int
+    %v3 = cmp_ne %v0, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call scalars : Int
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = call lanes : Int
+    %v11 = cmp_ne %v8, 0 : Bool
+    je %v11, b4, b5
+
+  b4:
+    %v13 = call lanes : Int
+    %v16 = mul %v13, 10 : Int
+    ret %v16
+
+  b5:
+    jmp b6
+
+  b6:
+    ret 7
+}

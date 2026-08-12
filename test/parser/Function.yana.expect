@@ -464,7 +464,8 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | `-ClassConstraint Show (a)
+| | `-ClassConstraint Show
+| |   `-GenType a
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -475,8 +476,10 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | |-ClassConstraint Show (a)
-| | `-ClassConstraint Show (b)
+| | |-ClassConstraint Show
+| | | `-GenType a
+| | `-ClassConstraint Show
+| |   `-GenType b
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -487,7 +490,8 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | `-ClassConstraint Show (a)
+| | `-ClassConstraint Show
+| |   `-GenType a
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -498,8 +502,10 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | |-ClassConstraint Show (a)
-| | `-ClassConstraint Show (b)
+| | |-ClassConstraint Show
+| | | `-GenType a
+| | `-ClassConstraint Show
+| |   `-GenType b
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -510,7 +516,9 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | `-ClassConstraint Show (a, b)
+| | `-ClassConstraint Show
+| |   |-GenType a
+| |   `-GenType b
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -521,8 +529,11 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | |-ClassConstraint Show (a, b)
-| | `-ClassConstraint Show (b)
+| | |-ClassConstraint Show
+| | | |-GenType a
+| | | `-GenType b
+| | `-ClassConstraint Show
+| |   `-GenType b
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -537,7 +548,8 @@ Module
 | | | `-GenType b
 | | |-FieldConstraint a.y
 | | | `-GenType b
-| | `-ClassConstraint Num (b)
+| | `-ClassConstraint Num
+| |   `-GenType b
 | |-Arg v
 | | `-GenType a
 | `-Body

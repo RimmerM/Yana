@@ -13,16 +13,30 @@ namespace llvmgen {
  */
 
 llvm::Type* typeOf(Gen& gen, LowerType type) {
-    switch(type) {
-        case LowerType::Int32:
+    // A vector is the lane type repeated, and a mask is `<N x i1>` - which is what LLVM's own
+    // comparisons produce and its selects consume, rather than the full-width lanes this compiler's
+    // Repr gives a mask. The two meet at a `sext` on the way out of a compare and a `trunc` on the
+    // way into a select; matching our representation exactly would produce worse code and more of
+    // it. See §6 of Implementation-Vector.md, whose instructions are not built yet.
+    if(isVectorLike(type)) {
+        auto lane = type.isMask() ? llvm::Type::getInt1Ty(gen.llvm) : typeOf(gen, type.laneType());
+        return llvm::FixedVectorType::get(lane, type.lanes());
+    }
+
+    switch(type.lane) {
+        case LowerLane::Int8:
+            return llvm::Type::getInt8Ty(gen.llvm);
+        case LowerLane::Int16:
+            return llvm::Type::getInt16Ty(gen.llvm);
+        case LowerLane::Int32:
             return llvm::Type::getInt32Ty(gen.llvm);
-        case LowerType::Int64:
+        case LowerLane::Int64:
             return llvm::Type::getInt64Ty(gen.llvm);
-        case LowerType::Float32:
+        case LowerLane::Float32:
             return llvm::Type::getFloatTy(gen.llvm);
-        case LowerType::Float64:
+        case LowerLane::Float64:
             return llvm::Type::getDoubleTy(gen.llvm);
-        case LowerType::Pointer:
+        case LowerLane::Pointer:
             // Opaque, which is what makes this backend short: the lower IR has one pointer type and
             // states what memory holds at the access rather than in the type, and since LLVM 15 so
             // does LLVM. Every `bitcast` between pointer types the old backend emitted was work to

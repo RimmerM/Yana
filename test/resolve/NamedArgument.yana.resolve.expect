@@ -1,16 +1,16 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.deferred$0 before ResolveTest.deferred$0 {
+table closure$ResolveTest.deferred$14 before ResolveTest.deferred$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$3 before ResolveTest.continuation$3 {
+table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -110,7 +110,7 @@ fn lazyNamed() -> Int {
     init %local1.ran, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : () -> Int
-    %v9 = symbol ResolveTest.deferred$0 : %()
+    %v9 = symbol ResolveTest.deferred$14 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %picked = call choose, True, %v8 : Int
@@ -131,7 +131,7 @@ fn lazyNamed() -> Int {
     ret %v2
 }
 
-fn withOffset(%base: Int, %offset: Int, %body: (value: Int) -> $r) -> $r {
+fn withOffset(%base: Int, %offset: Int, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -144,8 +144,8 @@ fn withOffset(%base: Int, %offset: Int, %body: (value: Int) -> $r) -> $r {
 
 fn lensed() -> Int {
   b0:
-    %v2 = alloc : (value: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$1 : %()
+    %v2 = alloc : (value$: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$15 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -155,8 +155,8 @@ fn lensed() -> Int {
 
 fn lensNamed() -> Int {
   b0:
-    %v2 = alloc : (value: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$2 : %()
+    %v2 = alloc : (value$: Int) -> Int
+    %v3 = symbol ResolveTest.continuation$16 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -164,7 +164,7 @@ fn lensNamed() -> Int {
     ret %v8
 }
 
-fn upTo(%limit: Int, %from: Int, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn upTo(%limit: Int, %from: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
@@ -210,8 +210,8 @@ fn loops() -> Int {
     %v6 = borrow_mut %total : &mut Int
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
-    %v9 = alloc : (value: Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$3 : %()
+    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$17 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call upTo(()), 4, 0, %v9 : Outcome((), ())
@@ -219,8 +219,8 @@ fn loops() -> Int {
     %v17 = borrow_mut %total : &mut Int
     init %local4.total, %v17
     %v19 = addressof %local4 : %()
-    %v20 = alloc : (value: Int) -> Outcome((), ())
-    %v21 = symbol ResolveTest.continuation$4 : %()
+    %v20 = alloc : (value$: Int) -> Outcome((), ())
+    %v21 = symbol ResolveTest.continuation$18 : %()
     init %local5.code, %v21
     init %local5.env, %v19
     %v24 = call upTo(()), 13, 10, %v20 : Outcome((), ())
@@ -231,7 +231,7 @@ fn loops() -> Int {
 fn throughValue() -> Int {
   b0:
     %f = alloc : (from: Int, take: Int) -> Int
-    %v1 = symbol ResolveTest.lambda$5 : %()
+    %v1 = symbol ResolveTest.lambda$19 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -306,7 +306,7 @@ fn Measure(Bool).measure(%it: Bool, %scale: Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.deferred$0(%env: %{ran: &mut Int}) -> Int {
+fn ResolveTest.deferred$14(%env: %{ran: &mut Int}) -> Int {
   b0:
     %v1 = load [%env].ran : &mut Int
     %v2 = load [%v1] : Int
@@ -315,36 +315,36 @@ fn ResolveTest.deferred$0(%env: %{ran: &mut Int}) -> Int {
     ret %v4
 }
 
-fn ResolveTest.continuation$1(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$15(%env: %{}, %value$: Int) -> Int {
   b0:
-    ret %value
+    ret %value$
 }
 
-fn withOffset(Int)(%base: Int, %offset: Int, %body: (value: Int) -> Int) -> Int {
+fn withOffset(Int)(%base: Int, %offset: Int, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v3 = add %base, %offset : Int
     %v4 = calldyn %body, %v3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$2(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$16(%env: %{}, %value$: Int) -> Int {
   b0:
-    ret %value
+    ret %value$
 }
 
-fn ResolveTest.continuation$3(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn upTo(())(%limit: Int, %from: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn upTo(())(%limit: Int, %from: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, %from
@@ -377,19 +377,19 @@ fn upTo(())(%limit: Int, %from: Int, %body: (value: Int) -> Outcome((), ())) -> 
     jmp b1
 }
 
-fn ResolveTest.continuation$4(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn ResolveTest.lambda$5(%env: %{}, %from: Int, %take: Int) -> Int {
+fn ResolveTest.lambda$19(%env: %{}, %from: Int, %take: Int) -> Int {
   b0:
     %v3 = sub %from, %take : Int
     ret %v3

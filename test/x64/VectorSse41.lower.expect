@@ -1,0 +1,123 @@
+
+extract<complex>(%w: i32x4): Int {
+  b_0 {
+    %a = vlane %w, 3: Int
+    %b = vlane %w, 0: Int
+    %c = add %a, %b: Int
+    ret %c
+  }
+}
+
+extractWide<complex>(%q: i64x2): Long {
+  b_0 {
+    %a = vlane %q, 1: Long
+    %b = vlane %q, 0: Long
+    %c = add %a, %b: Long
+    ret %c
+  }
+}
+
+extractFloat<complex>(%f: f32x4): Float {
+  b_0 {
+    %a = vlane %f, 2: Float
+    %b = vlane %f, 0: Float
+    %c = add %a, %b: Float
+    ret %c
+  }
+}
+
+insert<complex>(%w: i32x4, %x: Int): i32x4 {
+  b_0 {
+    %a = vwithlane %w, %x, 1: i32x4
+    %b = add %a, %w: i32x4
+    ret %b
+  }
+}
+
+insertWide<complex>(%q: i64x2, %l: Long): i64x2 {
+  b_0 {
+    %a = vwithlane %q, %l, 1: i64x2
+    %b = add %a, %q: i64x2
+    ret %b
+  }
+}
+
+insertFloat<complex>(%f: f32x4, %s: Float): f32x4 {
+  b_0 {
+    %a = vwithlane %f, %s, 2: f32x4
+    %b = add %a, %f: f32x4
+    ret %b
+  }
+}
+
+insertByte<complex>(%b: i8x16, %x: Int): i8x16 {
+  b_0 {
+    %a = vwithlane %b, %x, 5: i8x16
+    %c = add %a, %b: i8x16
+    ret %c
+  }
+}
+
+
+--- codegen: extract ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
+  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c100
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: extractWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 66480f3a16c001
+  vlane uses=[xmm0] creates=[rcx]  => 66480f3a16c100
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: extractFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[xmm1]  => 660f70c8aa
+  vlane uses=[xmm0] creates=[xmm0]  => 660f70c000
+  add uses=[xmm1, xmm0] creates=[xmm1]  => f30f58c8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: insert ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a22cf01
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+
+--- codegen: insertWide ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c866480f3a22cf01
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+
+--- codegen: insertFloat ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vwithlane uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a21d120
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: insertByte ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a20cf05
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffcc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3

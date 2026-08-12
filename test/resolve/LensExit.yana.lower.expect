@@ -12,7 +12,7 @@ sometimesLeaves<complex>(%x: Int): Int {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, %x, 4
     %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.continuation$1, 8
+    store %v_2, ResolveTest.continuation$15, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, %v_1, 8
     %v_4 = loads @log, 4: Int
@@ -38,7 +38,7 @@ insideArm<complex>(%x: Int): Int {
     %v_4 = alloca 4, 4: Ptr
     store %v_4, %x, 4
     %v_5 = alloca 16, 8: Ptr
-    store %v_5, ResolveTest.continuation$2, 8
+    store %v_5, ResolveTest.continuation$16, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, %v_4, 8
     %v_7 = alloca 8, 4: Ptr
@@ -70,7 +70,7 @@ insideArm<complex>(%x: Int): Int {
 leavesWithValue<complex>(%x: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$3, 8
+    store %v_1, ResolveTest.continuation$17, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -112,8 +112,8 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.continuation$1 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$1<complex>(%env: Ptr): Int {
+@closure$ResolveTest.continuation$15 = [0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$15<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = cmp_igt %v_1, 100: Int
@@ -134,8 +134,8 @@ ResolveTest.continuation$1<complex>(%env: Ptr): Int {
   }
 }
 
-@closure$ResolveTest.continuation$2 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$2<complex>(%v_0: Ptr, %env: Ptr) {
+@closure$ResolveTest.continuation$16 = [0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$16<complex>(%v_0: Ptr, %env: Ptr) {
   b_1 {
     %v_2 = loads %env, 4: Int
     %v_3 = cmp_igt %v_2, 100: Int
@@ -180,14 +180,14 @@ scope(Outcome((), Int))<complex>(%v_0: Ptr, %body: Ptr) {
   }
 }
 
-ResolveTest.continuation$3<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$17<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
-    %v_1 = cmp_igt %value, 10: Int
+    %v_1 = cmp_igt %value$, 10: Int
     je %v_1, b_2, b_3
   }
 
   b_2 {
-    ret %value
+    ret %value$
   }
 
   b_3 {

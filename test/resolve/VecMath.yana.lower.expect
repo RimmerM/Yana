@@ -1,0 +1,216 @@
+@image$base = []
+
+scalars<complex>(): Int {
+  b_0 {
+    %v_1 = sqrt 16: Double
+    %v_2 = cmp_neq %v_1, 4: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 18446744073709551615
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sqrt 2.25: Double
+    %v_7 = cmp_neq %v_6, 1.5: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = fma 2, 3, 4: Double
+    %v_12 = cmp_neq %v_11, 10: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 18446744073709551613
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = sqrt 6.25: Float
+    %v_17 = cmp_neq %v_16, 2.5: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551612
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = sqrt 0: Float
+    %v_22 = div 1, %v_21: Float
+    %v_23 = div 1, 0: Float
+    %v_24 = cmp_neq %v_22, %v_23: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 18446744073709551611
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_27 {
+    ret 0
+  }
+}
+
+lanes<complex>(): Int {
+  b_0 {
+    %squares = vsplat 6.25: f32x4
+    %roots = sqrt %squares: f32x4
+    %v_1 = vlane %roots, 0: Float
+    %v_2 = cmp_neq %v_1, 2.5: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 18446744073709551615
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = vreduce_min %roots: Float
+    %v_7 = cmp_neq %v_6, 2.5: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = vsplat 0: f32x4
+    %v_12 = vwithlane %v_11, 1, 1: f32x4
+    %v_13 = vwithlane %v_12, 2, 2: f32x4
+    %counted = vwithlane %v_13, 3, 3: f32x4
+    %v_14 = vsplat 3: f32x4
+    %v_15 = vsplat 1: f32x4
+    %scaled = fma %counted, %v_14, %v_15: f32x4
+    %v_16 = vlane %scaled, 0: Float
+    %v_17 = cmp_neq %v_16, 1: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551613
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = vlane %scaled, 1: Float
+    %v_22 = cmp_neq %v_21, 4: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551612
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = vlane %scaled, 2: Float
+    %v_27 = cmp_neq %v_26, 7: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551611
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = vreduce_add %scaled: Float
+    %v_32 = cmp_neq %v_31, 22: Int
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    ret 18446744073709551610
+  }
+
+  b_34 {
+    jmp b_35
+  }
+
+  b_35 {
+    ret 0
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex scalars: Int
+    %v_2 = cmp_neq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = call_complex scalars: Int
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = call_complex lanes: Int
+    %v_8 = cmp_neq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = call_complex lanes: Int
+    %v_12 = imul %v_11, 10: Int
+    ret %v_12
+  }
+
+  b_10 {
+    jmp b_13
+  }
+
+  b_13 {
+    ret 7
+  }
+}
+

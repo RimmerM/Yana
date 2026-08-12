@@ -172,6 +172,23 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
             continue;
         }
 
+        /*
+         * A value parameter with a const parameter's name - Implementation-Const-Generics.md §1.6.
+         *
+         * `fn (n: Int) f(n: Int)` has two things called `n` in one signature and no reading of it is
+         * the obvious one: the body's `n` would be the argument, and the count in `[Int *n]` beside
+         * it would be the parameter, so the same name would mean two numbers a line apart. Reported
+         * at the declaration rather than resolved by shadowing.
+         */
+        if(env && arg.name) {
+            if(auto clash = findGenVariable(module, *env, arg.name)) {
+                if((*module.types)[clash]->kind == GenKind::Const) {
+                    module.context.diagnostics.error("%@ is already a const parameter of this signature, so it cannot also be an argument - the two would be different numbers under one name"_v,
+                                                     arg.source, module.context.findName(arg.name));
+                }
+            }
+        }
+
         auto type = bindingType(module, *module.parse[arg.type], arg.bind, env);
         auto lazy = arg.lazy && checkLazyArgument(module, arg.bind, arg.returnRoot, arg.source);
 

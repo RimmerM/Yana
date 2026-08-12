@@ -1,0 +1,40 @@
+"use strict";
+var sink = [0, 0, 0, 0];
+
+// ResolveTest
+function quadWidth(v) {
+  return widthOf_4(v);
+}
+
+function main$() {
+  sink = [0, 0, 0, 0];
+  var wide = doubled_4([0, 9, 0, 0]);
+  var summed = sameCount_4(twice_4([0, 9, 0, 0]), sameCount_4([0, 9, 0, 0], wide));
+  sink = wide;
+  return (((widthOf_4([0, 9, 0, 0]) + quadWidth([0, 9, 0, 0]) | 0) + (secondLane_4(wide) | 0) | 0) + (secondLane_4(summed) | 0) | 0) + (summed[2] | 0) | 0;
+}
+
+function widthOf_4(v) {
+  return 4;
+}
+
+function doubled_4(v) {
+  var v1$0 = v[3];
+  var v1$1 = v[2];
+  var v1$2 = v[1];
+  var v1$3 = v[0];
+  return [v1$0 > v[0] ? v1$0 : v[0], v1$1 > v[1] ? v1$1 : v[1], v1$2 > v[2] ? v1$2 : v[2], v1$3 > v[3] ? v1$3 : v[3]];
+}
+
+function twice_4(v) {
+  return [v[0] + v[0] << 16 >> 16, v[1] + v[1] << 16 >> 16, v[2] + v[2] << 16 >> 16, v[3] + v[3] << 16 >> 16];
+}
+
+function sameCount_4(v, w) {
+  return [v[0] + w[0] << 16 >> 16, v[1] + w[1] << 16 >> 16, v[2] + w[2] << 16 >> 16, v[3] + w[3] << 16 >> 16];
+}
+
+function secondLane_4(v) {
+  return v[1];
+}
+main$();

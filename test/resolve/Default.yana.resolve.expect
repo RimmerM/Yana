@@ -1,11 +1,11 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.deferred$0 before ResolveTest.deferred$0 {
+table closure$ResolveTest.deferred$14 before ResolveTest.deferred$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.deferred$1 before ResolveTest.deferred$1 {
+table closure$ResolveTest.deferred$15 before ResolveTest.deferred$15 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -27,6 +27,11 @@ fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
 
   b4:
     ret LT
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
 }
 
 fn Eq.!=(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
@@ -82,11 +87,6 @@ fn Logic.&&(Flags)(%lhs: Flags, %rhs: () -> Flags) -> Flags {
     %v2 = calldyn %rhs : Flags
     %v3 = call Logic(Flags).and, %lhs, %v2 : Flags
     ret %v3
-}
-
-fn teardown$none(%value: %()) -> () {
-  b0:
-    ret
 }
 
 fn Logic.||(Flags)(%lhs: Flags, %rhs: () -> Flags) -> Flags {
@@ -262,7 +262,7 @@ fn flags() -> Int {
     init %local4.r, %r
     %v18 = addressof %local4 : %()
     %v19 = alloc : () -> Flags
-    %v20 = symbol ResolveTest.deferred$0 : %()
+    %v20 = symbol ResolveTest.deferred$14 : %()
     init %local6.code, %v20
     init %local6.env, %v18
     %v23 = call Logic.&&(Flags), %rw, %v19 : Flags
@@ -284,7 +284,7 @@ fn flags() -> Int {
     init %local8.rw, %rw
     %v36 = addressof %local8 : %()
     %v37 = alloc : () -> Flags
-    %v38 = symbol ResolveTest.deferred$1 : %()
+    %v38 = symbol ResolveTest.deferred$15 : %()
     init %local10.code, %v38
     init %local10.env, %v36
     %v41 = call Logic.||(Flags), %r, %v37 : Flags
@@ -587,13 +587,13 @@ fn Describe(Metres).size(%value: Metres) -> Int {
     ret %v4
 }
 
-fn ResolveTest.deferred$0(%env: %{r: Flags}) -> Flags {
+fn ResolveTest.deferred$14(%env: %{r: Flags}) -> Flags {
   b0:
     %v1 = load [%env].r : Flags
     ret %v1
 }
 
-fn ResolveTest.deferred$1(%env: %{rw: Flags}) -> Flags {
+fn ResolveTest.deferred$15(%env: %{rw: Flags}) -> Flags {
   b0:
     %v1 = load [%env].rw : Flags
     ret %v1

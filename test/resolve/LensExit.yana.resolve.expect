@@ -2,27 +2,27 @@ let image$base: () = <none>
 
 let &log: Int = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$5 before ResolveTest.continuation$5 {
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -48,7 +48,7 @@ fn scope(%body: () -> $r) -> $r {
     ret %v6
 }
 
-fn handing(%x: Int, %body: (value: Int) -> $r) -> $r {
+fn handing(%x: Int, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -71,7 +71,7 @@ fn alwaysLeaves(%x: Int) -> Int {
     init %local0.x, %x
     %v3 = addressof %local0 : %()
     %v4 = alloc : () -> Int
-    %v5 = symbol ResolveTest.continuation$0 : %()
+    %v5 = symbol ResolveTest.continuation$14 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = call scope(Int), %v4 : Int
@@ -84,7 +84,7 @@ fn sometimesLeaves(%x: Int) -> Int {
     init %local0.x, %x
     %v3 = addressof %local0 : %()
     %v4 = alloc : () -> Int
-    %v5 = symbol ResolveTest.continuation$1 : %()
+    %v5 = symbol ResolveTest.continuation$15 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = call scope(Int), %v4 : Int
@@ -101,7 +101,7 @@ fn insideArm(%x: Int) -> Int {
     init %local0.x, %x
     %v7 = addressof %local0 : %()
     %v8 = alloc : () -> Outcome((), Int)
-    %v9 = symbol ResolveTest.continuation$2 : %()
+    %v9 = symbol ResolveTest.continuation$16 : %()
     init %local1.code, %v9
     init %local1.env, %v7
     %v12 = call scope(Outcome((), Int)), %v8 : Outcome((), Int)
@@ -125,8 +125,8 @@ fn insideArm(%x: Int) -> Int {
 
 fn leavesWithValue(%x: Int) -> Int {
   b0:
-    %v1 = alloc : (value: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$3 : %()
+    %v1 = alloc : (value$: Int) -> Int
+    %v2 = symbol ResolveTest.continuation$17 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -140,7 +140,7 @@ fn twoDeep(%x: Int) -> Int {
     init %local0.x, %x
     %v3 = addressof %local0 : %()
     %v4 = alloc : () -> Int
-    %v5 = symbol ResolveTest.continuation$4 : %()
+    %v5 = symbol ResolveTest.continuation$18 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = call scope(Int), %v4 : Int
@@ -171,7 +171,7 @@ fn main() -> Int {
     ret %v28
 }
 
-fn ResolveTest.continuation$0(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$14(%env: %{x: Int}) -> Int {
   b0:
     %v1 = load [%env].x : Int
     %v4 = add %v1, 1 : Int
@@ -190,7 +190,7 @@ fn scope(Int)(%body: () -> Int) -> Int {
     ret %v5
 }
 
-fn ResolveTest.continuation$1(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$15(%env: %{x: Int}) -> Int {
   b0:
     %v1 = load [%env].x : Int
     %v4 = cmp_gt %v1, 100 : Bool
@@ -208,7 +208,7 @@ fn ResolveTest.continuation$1(%env: %{x: Int}) -> Int {
     ret %v11
 }
 
-fn ResolveTest.continuation$2(%env: %{x: Int}) -> Outcome((), Int) {
+fn ResolveTest.continuation$16(%env: %{x: Int}) -> Outcome((), Int) {
   b0:
     %v1 = load [%env].x : Int
     %v4 = cmp_gt %v1, 100 : Bool
@@ -244,13 +244,13 @@ fn scope(Outcome((), Int))(%body: () -> Outcome((), Int)) -> Outcome((), Int) {
     ret %v5
 }
 
-fn ResolveTest.continuation$3(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$17(%env: %{}, %value$: Int) -> Int {
   b0:
-    %v4 = cmp_gt %value, 10 : Bool
+    %v4 = cmp_gt %value$, 10 : Bool
     je %v4, b1, b2
 
   b1:
-    ret %value
+    ret %value$
 
   b2:
     jmp b3
@@ -259,7 +259,7 @@ fn ResolveTest.continuation$3(%env: %{}, %value: Int) -> Int {
     ret 0
 }
 
-fn handing(Int)(%x: Int, %body: (value: Int) -> Int) -> Int {
+fn handing(Int)(%x: Int, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v2 = load log : Int
     %v4 = add %v2, 1 : Int
@@ -272,21 +272,21 @@ fn handing(Int)(%x: Int, %body: (value: Int) -> Int) -> Int {
     ret %v8
 }
 
-fn ResolveTest.continuation$4(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$18(%env: %{x: Int}) -> Int {
   b0:
     %v1 = alloc : {x: Int}
     %v2 = load [%env].x : Int
     init %local0.x, %v2
     %v4 = addressof %local0 : %()
     %v5 = alloc : () -> Int
-    %v6 = symbol ResolveTest.continuation$5 : %()
+    %v6 = symbol ResolveTest.continuation$19 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call scope(Int), %v5 : Int
     ret %v9
 }
 
-fn ResolveTest.continuation$5(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$19(%env: %{x: Int}) -> Int {
   b0:
     %v1 = load [%env].x : Int
     %v4 = add %v1, 3 : Int

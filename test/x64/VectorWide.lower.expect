@@ -1,0 +1,302 @@
+
+arith<complex>(%a: i32x8, %b: i32x8, %c: f32x8, %d: f32x8): i32x8 {
+  b_0 {
+    %s = add %a, %b: i32x8
+    %p = mul %s, %a: i32x8
+    %x = and %p, %b: i32x8
+    %f = add %c, %d: f32x8
+    %g = div %f, %c: f32x8
+    %h = sqrt %g: f32x8
+    %i = bitcast %h: i32x8
+    %r = or %x, %i: i32x8
+    ret %r
+  }
+}
+
+broadcast<complex>(%n: Int, %x: Float): i32x8 {
+  b_0 {
+    %v = vsplat %n: i32x8
+    %f = vsplat %x: f32x8
+    %i = bitcast %f: i32x8
+    %r = add %v, %i: i32x8
+    ret %r
+  }
+}
+
+shuffles<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %inLane = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+    %halves = vshuffle %a, %a, 4, 5, 6, 7, 0, 1, 2, 3: i32x8
+    %r = add %inLane, %halves: i32x8
+    ret %r
+  }
+}
+
+reduce<complex>(%a: f32x8): Float {
+  b_0 {
+    %p0 = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: f32x8
+    %s0 = add %a, %p0: f32x8
+    %p1 = vshuffle %s0, %s0, 2, 3, 0, 1, 6, 7, 4, 5: f32x8
+    %s1 = add %s0, %p1: f32x8
+    %p2 = vshuffle %s1, %s1, 4, 5, 6, 7, 0, 1, 2, 3: f32x8
+    %s2 = add %s1, %p2: f32x8
+    %r = vlane %s2, 0: Float
+    ret %r
+  }
+}
+
+lanes<complex>(%a: i32x8, %n: Int): Int {
+  b_0 {
+    %high = vwithlane %a, %n, 5: i32x8
+    %low = vwithlane %high, %n, 1: i32x8
+    %x = vlane %low, 5: Int
+    %y = vlane %low, 1: Int
+    %r = add %x, %y: Int
+    ret %r
+  }
+}
+
+foreignSink<sysv>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+crossing<sysv>(%a: i32x8, %n: Int): Int {
+  b_0 {
+    %v = add %a, %a: i32x8
+    %r = call_sysv foreignSink, %n: Int
+    %l = vlane %v, 0: Int
+    %s = add %r, %l: Int
+    ret %s
+  }
+}
+
+internalSink<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+internal<complex>(%a: i32x8, %n: Int): Int {
+  b_0 {
+    %v = add %a, %a: i32x8
+    %r = call_complex internalSink, %n: Int
+    %l = vlane %v, 0: Int
+    %s = add %r, %l: Int
+    ret %s
+  }
+}
+
+narrow<sysv>(%a: i32x4, %n: Int): Int {
+  b_0 {
+    %v = add %a, %a: i32x4
+    %r = call_sysv foreignSink, %n: Int
+    %l = vlane %v, 0: Int
+    %s = add %r, %l: Int
+    ret %s
+  }
+}
+
+wideResult<sysv>(%a: i32x8): i32x8 {
+  b_0 {
+    %v = add %a, %a: i32x8
+    ret %v
+  }
+}
+
+wideArgument<sysv>(%a: i32x8, %n: Int): Int {
+  b_0 {
+    %v = add %a, %a: i32x8
+    %r = call_sysv wideSink, %v: Int
+    ret %r
+  }
+}
+
+wideSink<sysv>(%a: i32x8): Int {
+  b_0 {
+    %l = vlane %a, 0: Int
+    ret %l
+  }
+}
+
+shifts<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %l = shl %a, 3: i32x8
+    %r = shr %a, 1: i32x8
+    %s = sar %a, 2: i32x8
+    %x = add %l, %r: i32x8
+    %y = add %s, %a: i32x8
+    %z = add %x, %y: i32x8
+    ret %z
+  }
+}
+
+wideFold<complex>(%p: Ptr, %a: i32x8): i32x8 {
+  b_0 {
+    %v = load %p, 32: i32x8
+    %s = add %a, %v: i32x8
+    ret %s
+  }
+}
+
+
+--- codegen: arith ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm4]  => c5fdfee1
+  mul uses=[xmm4, xmm0] creates=[xmm4]  => c4e25d40e0
+  and uses=[xmm4, xmm1] creates=[xmm4]  => c5dddbe1
+  add uses=[xmm2, xmm3] creates=[xmm0]  => c5ec58c3
+  div uses=[xmm0, xmm2] creates=[xmm0]  => c5fc5ec2
+  sqrt uses=[xmm0] creates=[xmm0]  => c5fc51c0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  or uses=[xmm4, xmm0] creates=[xmm0]  => c5ddebc0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: broadcast ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm1]  => c5f96ecfc4e27d58c9
+  vsplat uses=[xmm0] creates=[xmm0]  => c4e27d58c0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  add uses=[xmm1, xmm0] creates=[xmm0]  => c5f5fec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: shuffles ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5fd70c8b1
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c001
+  add uses=[xmm1, xmm0] creates=[xmm0]  => c5f5fec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: reduce ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5fd70c8b1
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fc58c1
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5fd70c84e
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fc58c1
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c4e37d06c801
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fc58c1
+  vlane uses=[xmm0] creates=[xmm0]  => c5f970c000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: lanes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4c37d39c701c4630122ff01c4c37d38c701
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4c37d39c700c4630122ff01c4c37d38c700
+  vlane uses=[xmm0] creates=[rax]  => c4c37d39c701c4637916f801
+  vlane uses=[xmm0] creates=[rcx]  => c4e37916c101
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: foreignSink ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c5f877c3
+
+--- codegen: crossing ---
+  prologue  => 55488bec4883e4e04883ec20
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm0] creates=[xmm15] post=[xmm15->stack:0]  => c57dfef8c57c113c24
+  fun uses=[] creates=[-]  => 
+  call_sysv uses=[-, rdi] creates=[rax]  => c5f877e8d3ffffff
+  vlane uses=[xmm14] creates=[rcx] pre=[stack:0->xmm14]  => c57c103424c4637916f100
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c5f877c3
+
+--- codegen: internalSink ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: internal ---
+  prologue  => 55488bec4883e4e04883ec20
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm0] creates=[xmm15] post=[xmm15->stack:0]  => c57dfef8c57c113c24
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8d6ffffff
+  vlane uses=[xmm14] creates=[rcx] pre=[stack:0->xmm14]  => c57c103424c4637916f100
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: narrow ---
+  prologue  => 4883ec18
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm0] creates=[xmm15] post=[xmm15->stack:0]  => c579fef8c578113c24
+  fun uses=[] creates=[-]  => 
+  call_sysv uses=[-, rdi] creates=[rax]  => c5f877e86bffffff
+  vlane uses=[xmm15] creates=[rcx] pre=[stack:0->xmm15]  => c578103c24c4637916f900
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 4883c418c5f877c3
+
+--- codegen: wideResult ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm0] creates=[xmm0]  => c5fdfec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: wideArgument ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm0] creates=[xmm0]  => c5fdfec0
+  fun uses=[] creates=[-]  => 
+  call_sysv uses=[-, xmm0] creates=[rax]  => e813000000
+  ret uses=[rax] creates=[]  => c9c5f877c3
+
+--- codegen: wideSink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => c4e37916c000
+  ret uses=[rax] creates=[]  => c5f877c3
+
+--- codegen: shifts ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm0, -] creates=[xmm1]  => c5f572f003
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm2]  => c5ed72d001
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm3]  => c5e572e002
+  add uses=[xmm1, xmm2] creates=[xmm1]  => c5f5feca
+  add uses=[xmm3, xmm0] creates=[xmm3]  => c5e5fed8
+  add uses=[xmm1, xmm3] creates=[xmm0]  => c5f5fec3
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: wideFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[xmm0, -] creates=[xmm0]  => c5fdfe07
+  ret uses=[xmm0] creates=[]  => c9c3

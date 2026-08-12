@@ -64,14 +64,61 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << "String";
             return;
         case Type::Array: {
-            // Printed the way it is written, length included, because the length is the whole of
-            // what two of these differ in and a diagnostic dropping it would name both `[Int *]`.
+            // Printed the way it is written, count included, because the count is the whole of what
+            // two of these differ in and a diagnostic dropping it would name both `[Int *]`. The
+            // count goes through describeType rather than being a number, so `[a *n]` prints its
+            // variable's name - Implementation-Const-Generics.md §2.1.
             auto array = (ArrayType*)base[type];
             target << '[';
             describeType(context, base, array->content, target);
             target << " *";
-            target.appendValue(array->length);
+            describeType(context, base, array->count, target);
             target << ']';
+            return;
+        }
+        case Type::Const:
+            // A count prints as the number it is, with no mention of what it is a number *of*: the
+            // type in its interning key exists to keep two parameters apart and is not something a
+            // diagnostic naming `[Int *4]` should be saying.
+            target.appendValue(((ConstType*)base[type])->value);
+            return;
+        case Type::Vector: {
+            /*
+             * The natural form where the count is the target's natural one, and the explicit form
+             * otherwise - Implementation-Vector.md §1.4.
+             *
+             * This matters more than it sounds. `Vec(Float)` is four lanes under SSE2 and eight
+             * under AVX2, so printing the resolved count would make every diagnostic and every
+             * `.expect` file that mentions a vector target-specific - and the fixture suite would
+             * have to be regenerated per feature level rather than compared across them. What is
+             * *lost* is nothing a reader needs: the natural form printed back is the source they
+             * wrote, and a count that is not the natural one is exactly the case where they wrote
+             * one and want to see it.
+             *
+             * A mask prints as `Mask(a)` with no count at all, since its content is normalized to
+             * the unsigned integer of the lane width and the count follows from it.
+             */
+            auto vector = (VectorType*)base[type];
+            auto natural = 0u;
+
+            if(auto stride = laneStride(base, vector->content)) {
+                natural = targetVectorBytes(context.settings) / stride;
+            }
+
+            target << (vector->isMask ? "Mask(" : "Vec(");
+            describeType(context, base, vector->content, target);
+
+            // A null count is the unresolved natural form inside a generic body, which prints as the
+            // natural form it is rather than as a count nobody wrote. A *variable* count is always
+            // printed, since it is exactly what the programmer wrote and there is no natural form
+            // for it to coincide with.
+            auto written = writtenCount(base, vector->count);
+            if(!vector->isMask && vector->count && (!written || written.unwrap() != natural)) {
+                target << ", ";
+                describeType(context, base, vector->count, target);
+            }
+
+            target << ')';
             return;
         }
         case Type::Borrow:

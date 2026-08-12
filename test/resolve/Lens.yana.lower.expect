@@ -4,7 +4,7 @@ mut @log = [0, 0, 0, 0]
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$0, 8
+    store %v_1, ResolveTest.continuation$14, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
@@ -17,7 +17,7 @@ main<complex>(): Int {
     %v_9 = add %v_8, 10: Int
     %v_10 = add %v_7, %v_9: Int
     %v_11 = alloca 16, 8: Ptr
-    store %v_11, ResolveTest.continuation$1, 8
+    store %v_11, ResolveTest.continuation$15, 8
     %v_12 = bitcast 0: Ptr
     %v_13 = add %v_11, 8: Ptr
     store %v_13, %v_12, 8
@@ -29,28 +29,28 @@ main<complex>(): Int {
     %v_18 = add %v_17, 100: Int
     store @log, %v_18, 4
     %v_19 = alloca 16, 8: Ptr
-    store %v_19, ResolveTest.continuation$2, 8
+    store %v_19, ResolveTest.continuation$16, 8
     %v_20 = bitcast 0: Ptr
     %v_21 = add %v_19, 8: Ptr
     store %v_21, %v_20, 8
     %v_22 = load %v_19, 8: Ptr
     %v_23 = call_complex %v_22, %v_20, 10: Int
     %v_24 = alloca 16, 8: Ptr
-    store %v_24, ResolveTest.continuation$3, 8
+    store %v_24, ResolveTest.continuation$17, 8
     %v_25 = bitcast 0: Ptr
     %v_26 = add %v_24, 8: Ptr
     store %v_26, %v_25, 8
     %v_27 = load %v_24, 8: Ptr
     %v_28 = call_complex %v_27, %v_25, 7, 3: Int
     %v_29 = alloca 16, 8: Ptr
-    store %v_29, ResolveTest.continuation$6, 8
+    store %v_29, ResolveTest.continuation$20, 8
     %v_30 = bitcast 0: Ptr
     %v_31 = add %v_29, 8: Ptr
     store %v_31, %v_30, 8
     %v_32 = load %v_29, 8: Ptr
     %v_33 = call_complex %v_32, %v_30, 6: Int
     %v_34 = alloca 16, 8: Ptr
-    store %v_34, ResolveTest.continuation$4, 8
+    store %v_34, ResolveTest.continuation$18, 8
     %v_35 = bitcast 0: Ptr
     %v_36 = add %v_34, 8: Ptr
     store %v_36, %v_35, 8
@@ -61,14 +61,14 @@ main<complex>(): Int {
     %v_40 = load %v_36, 8: Ptr
     %v_41 = call_complex %v_39, %v_40, 4: Int
     %v_42 = alloca 16, 8: Ptr
-    store %v_42, ResolveTest.lambda$7, 8
+    store %v_42, ResolveTest.lambda$21, 8
     %v_43 = bitcast 0: Ptr
     %v_44 = add %v_42, 8: Ptr
     store %v_44, %v_43, 8
     %v_45 = load %v_42, 8: Ptr
     %v_46 = call_complex %v_45, %v_43, 5: Int
     %v_47 = alloca 16, 8: Ptr
-    store %v_47, ResolveTest.continuation$8, 8
+    store %v_47, ResolveTest.continuation$22, 8
     %v_48 = bitcast 0: Ptr
     %v_49 = add %v_47, 8: Ptr
     store %v_49, %v_48, 8
@@ -111,13 +111,13 @@ main<complex>(): Int {
   }
 }
 
-ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$14<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
-    ret %value
+    ret %value$
   }
 }
 
-ResolveTest.continuation$1<complex>(%env: Ptr): Int {
+ResolveTest.continuation$15<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads @log, 4: Int
     %v_2 = add %v_1, 1: Int
@@ -126,14 +126,14 @@ ResolveTest.continuation$1<complex>(%env: Ptr): Int {
   }
 }
 
-ResolveTest.continuation$2<complex>(%env: Ptr, %n: Int): Int {
+ResolveTest.continuation$16<complex>(%env: Ptr, %n: Int): Int {
   b_0 {
     %v_1 = shl %n, 1: Int
     ret %v_1
   }
 }
 
-ResolveTest.continuation$3<complex>(%env: Ptr, %low: Int, %high: Int): Int {
+ResolveTest.continuation$17<complex>(%env: Ptr, %low: Int, %high: Int): Int {
   b_0 {
     %v_1 = imul %low, 100: Int
     %v_2 = add %v_1, %high: Int
@@ -141,44 +141,44 @@ ResolveTest.continuation$3<complex>(%env: Ptr, %low: Int, %high: Int): Int {
   }
 }
 
-ResolveTest.continuation$4<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$18<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
     %v_1 = loads @log, 4: Int
     %v_2 = add %v_1, 1: Int
     store @log, %v_2, 4
-    %v_3 = shl %value, 1: Int
+    %v_3 = shl %value$, 1: Int
     ret %v_3
   }
 }
 
-ResolveTest.continuation$6<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$20<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
-    ret %value
+    ret %value$
   }
 }
 
-ResolveTest.lambda$7<complex>(%env: Ptr, %n: Int): Int {
+ResolveTest.lambda$21<complex>(%env: Ptr, %n: Int): Int {
   b_0 {
     %v_1 = imul %n, 3: Int
     ret %v_1
   }
 }
 
-ResolveTest.continuation$8<complex>(%env: Ptr, %value: Int): Int {
+ResolveTest.continuation$22<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$9, 8
+    store %v_1, ResolveTest.continuation$23, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = add %value, 1: Int
+    %v_4 = add %value$, 1: Int
     %v_5 = load %v_1, 8: Ptr
     %v_6 = call_complex %v_5, %v_2, %v_4: Int
     ret %v_6
   }
 }
 
-ResolveTest.continuation$9<complex>(%env: Ptr, %b: Int): Int {
+ResolveTest.continuation$23<complex>(%env: Ptr, %b: Int): Int {
   b_0 {
     ret %b
   }

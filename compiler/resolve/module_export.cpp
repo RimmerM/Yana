@@ -84,7 +84,16 @@ static TypePtr privateTypeIn(GlobalBase global, TypePtr type) {
             return nullptr;
         }
         case Type::Ptr: return privateTypeIn(global, ((PtrType*)global[type])->to);
-        case Type::Array: return privateTypeIn(global, ((ArrayType*)global[type])->content);
+        case Type::Array: {
+            auto array = (ArrayType*)global[type];
+            if(auto found = privateTypeIn(global, array->count)) return found;
+            return privateTypeIn(global, array->content);
+        }
+        case Type::Vector: {
+            auto vector = (VectorType*)global[type];
+            if(auto found = privateTypeIn(global, vector->count)) return found;
+            return privateTypeIn(global, vector->content);
+        }
         case Type::Borrow: return privateTypeIn(global, ((BorrowType*)global[type])->to);
         case Type::Fun: {
             auto function = (FunType*)global[type];

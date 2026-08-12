@@ -1,0 +1,143 @@
+@image$base = []
+mut @seed = [3, 0, 0, 0]
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = loads @seed, 4: Int
+    %base = vsplat %v_1: i32x4
+    %v_2 = add %base, %base: i32x4
+    %v_3 = vsplat 2: i32x4
+    %v_4 = imul %base, %v_3: i32x4
+    %v_5 = vlane %v_2, 0: Int
+    %v_6 = cmp_neq %v_5, 6: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 18446744073709551615
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = vlane %v_4, 1: Int
+    %v_11 = cmp_neq %v_10, 6: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    ret 18446744073709551614
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %mixed = vwithlane %base, 10, 0: i32x4
+    %v_15 = vreduce_imax %mixed: Int
+    %v_16 = cmp_neq %v_15, 10: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    ret 18446744073709551613
+  }
+
+  b_18 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_20 = vreduce_imin %mixed: Int
+    %v_21 = cmp_neq %v_20, 3: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_22 {
+    ret 18446744073709551612
+  }
+
+  b_23 {
+    jmp b_24
+  }
+
+  b_24 {
+    %total = alloca 16, 16: Ptr
+    store %total, %base, 16
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = phi [b_24, 0], [b_27, %v_28]: Int
+    %v_29 = cmp_ilt %v_26, 4: Int
+    je %v_29, b_27, b_30
+  }
+
+  b_30 {
+    %v_31 = load %total, 16: i32x4
+    %v_32 = vlane %v_31, 0: Int
+    %v_33 = cmp_neq %v_32, 15: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_27 {
+    %v_36 = load %total, 16: i32x4
+    %v_37 = add %v_36, %base: i32x4
+    store %total, %v_37, 16
+    %v_28 = add %v_26, 1: Int
+    jmp b_25
+  }
+
+  b_34 {
+    ret 18446744073709551611
+  }
+
+  b_35 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = vlane %v_31, 1: Int
+    %v_40 = cmp_neq %v_39, 15: Int
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    ret 18446744073709551610
+  }
+
+  b_42 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_44 = vsplat 1: i32x4
+    %lanes = vreduce_add %v_44: Int
+    %v_45 = vreduce_add %v_31: Int
+    %v_46 = imul %lanes, 15: Int
+    %v_47 = cmp_neq %v_45, %v_46: Int
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    ret 18446744073709551609
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = vlane %v_2, 1: Int
+    %v_52 = imul %v_51, 100: Int
+    %v_53 = vlane %v_4, 0: Int
+    %v_54 = add %v_52, %v_53: Int
+    %v_55 = vlane %mixed, 0: Int
+    %v_56 = add %v_54, %v_55: Int
+    ret %v_56
+  }
+}
+

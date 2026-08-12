@@ -463,6 +463,13 @@ struct RegMove {
 // from (gen.cpp), so the sequencer cannot ask for an exchange no encoder has.
 bool classHasExchange(RegisterClassId regClass);
 
+// Whether this backend can move a value of the class at all - between two registers, and between a
+// register and a frame slot. False for the classes whose every transfer is VEX- or EVEX-encoded,
+// which is the 256- and 512-bit vector classes and both mask classes: `classForType` will hand one
+// out for a wide vector type, and this is what turns that into a stated refusal at the boundary
+// rather than an assertion inside the encoder. See kClassMoves.
+bool classHasMoves(RegisterClassId regClass);
+
 /*
  * Where the instruction records live: a bump allocator over chunks that are kept rather than freed.
  *
@@ -1051,11 +1058,54 @@ struct FunctionRegs {
  * register held for the whole function. checkFrameSupported reports it as the function enters the
  * backend, in every build, rather than leaving it to an assertion a release build removes.
  */
-// The bytes a whole vector register occupies when it is preserved. A callee-saved vector register
-// has to be given back entire whatever this function put in it - the caller may have been holding a
-// packed value there and nothing in the IR represents that - so preservation is the *bank's* width
-// rather than the class of whatever occupied it.
-static constexpr U32 kVectorSaveSize = 16;
+/*
+ * The bytes a whole vector register occupies when it is preserved.
+ *
+ * A callee-saved vector register has to be given back entire whatever this function put in it - the
+ * caller may have been holding a packed value there and nothing in the IR represents that - so
+ * preservation is the *bank's* width rather than the class of whatever occupied it.
+ *
+ * Which makes it a function of the target rather than a constant. On a target where a value can
+ * occupy a ymm, the caller may be holding thirty-two bytes in one and giving back sixteen is silent
+ * corruption of a value nothing in this function ever named - the exact failure the paragraph above
+ * describes, one register width up. `widestVectorClass` is the same answer said as a class, and the
+ * save is emitted with that class's move so the two cannot disagree about the width.
+ */
+inline U32 vectorSaveSize() {
+    return (targetFeatures() & kFeatureAvx2) ? 32u : 16u;
+}
+
+inline RegisterClassId widestVectorClass() {
+    return (targetFeatures() & kFeatureAvx2) ? ClassYmm256 : ClassXmm128;
+}
+
+/*
+ * Whether an instruction touching a register of this class has to carry a vector prefix.
+ *
+ * The rule the whole backend keeps once the target has AVX: **nothing that writes a vector register
+ * is encoded as a legacy SSE instruction.** A legacy write leaves the upper half of its register
+ * alone, and executing one while any upper half is dirty is what costs - a save and a restore on the
+ * parts §5.4 was written for, a merging uop and a false dependency on everything since. VEX-encoded
+ * writes zero those bits, so a function that is VEX throughout can never be in the state that pays.
+ *
+ * Asked of the three narrow classes only. The wide ones have no legacy spelling to choose against,
+ * and a general register has no upper half for anything to be dirty in.
+ *
+ * The form table answers the same question through `MachineForm::alternative` - see the VEX tier in
+ * machine.cpp. This is for the bytes that no form describes: the copies, the spills and the reloads
+ * `kClassMoves` writes, and the expansions a pseudo's own emitter writes.
+ */
+inline bool vectorClassNeedsVex(RegisterClassId regClass) {
+    if(regClass != ClassFloat32 && regClass != ClassFloat64 && regClass != ClassXmm128) return false;
+    return (targetFeatures() & kFeatureAvx) != 0;
+}
+
+// The same question where there is no class to ask it of, which is every pseudo that expands into
+// packed instructions: those are all ClassXmm128 at the narrow width and ClassYmm256 at the wide one,
+// and the wide one is VEX whatever this answers.
+inline bool packedNeedsVex() {
+    return (targetFeatures() & kFeatureAvx) != 0;
+}
 
 struct FrameLayout {
     // Callee-saved general registers the prologue pushes, in ascending register order.
@@ -1254,6 +1304,17 @@ struct AsmModule {
     HashMap<LowerBlock*, U32> blockOffsets;
     HashMap<LowerFunction*, U32> functionOffsets;
     HashMap<LowerGlobal*, U32> globalOffsets;
+
+    /*
+     * §5.4 Whether any function in this module can leave the upper half of a `ymm` dirty.
+     *
+     * A question about the module and not about the function being emitted, which is the whole
+     * point of it: the upper halves a foreign boundary hands over are dirty because of whatever ran
+     * before it, and what ran before it is usually not the function the boundary is in. Cached here
+     * because emission is per function and the answer is not - see moduleDirtiesUpperHalves.
+     */
+    enum class UpperHalves: U8 { Unknown, Clean, Dirty };
+    UpperHalves upperHalves = UpperHalves::Unknown;
 
     void startBlock(LowerBlock* block) {
         auto b = blocks.push(AsmBlock {

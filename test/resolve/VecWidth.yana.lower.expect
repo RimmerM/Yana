@@ -1,0 +1,72 @@
+@image$base = []
+mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
+
+arithmetic<complex>(%a: i16x4): i16x4 {
+  b_0 {
+    %b = vsplat 4: i16x4
+    %sum = add %a, %b: i16x4
+    %product = imul %a, %b: i16x4
+    %masked = and %sum, %product: i16x4
+    %shifted = shl %masked, %b: i16x4
+    %v_1 = sub %shifted, %a: i16x4
+    ret %v_1
+  }
+}
+
+widths<complex>(%narrow: i8x4, %middle: i32x2): i8x4 {
+  b_0 {
+    %v_1 = shl %narrow, %narrow: i8x4
+    %v_2 = or %narrow, %v_1: i8x4
+    ret %v_2
+  }
+}
+
+widening<complex>(%v: i16x4): i32x4 {
+  b_0 {
+    %v_1 = cast %v: i32x4
+    ret %v_1
+  }
+}
+
+narrowing<complex>(%v: i32x4): i16x4 {
+  b_0 {
+    %v_1 = cast %v: i16x4
+    ret %v_1
+  }
+}
+
+reinterpreting<complex>(%v: i32x4): f32x4 {
+  b_0 {
+    %v_1 = bitcast %v: f32x4
+    ret %v_1
+  }
+}
+
+aliases<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    ret %v
+  }
+}
+
+main$<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i16x4
+    store @sink, %v_1, 8
+    %sized = call_complex arithmetic, %v_1: i16x4
+    %widened = call_complex widening, %sized: i32x4
+    %back = call_complex narrowing, %widened: i16x4
+    %v_2 = call_complex reinterpreting, %widened: f32x4
+    %bits = call_complex aliases, %v_2: f32x4
+    %v_3 = vsplat 1: i8x4
+    %v_4 = vsplat 2: i32x2
+    %narrow = call_complex widths, %v_3, %v_4: i8x4
+    %v_5 = bitcast %bits: i32x4
+    %v_6 = cast %v_5: i16x4
+    %v_7 = xor %back, %v_6: i16x4
+    %v_8 = cast %narrow: i16x4
+    %v_9 = xor %v_7, %v_8: i16x4
+    store @sink, %v_9, 8
+    ret 1
+  }
+}
+

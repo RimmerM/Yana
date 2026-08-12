@@ -476,7 +476,7 @@ ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Plac
     if(fixed) {
         auto pointer = resolvePointerType(module, element);
         items = ref(emit<InstUnary>(source, StringId(), pointer, Value::Cast, load(array, source)));
-        count = makeInt(source, module.scalar.size, ((ArrayType*)global[from])->length);
+        count = countOf(((ArrayType*)global[from])->count, module.scalar.size, source);
     } else {
         auto held = projectField(array, context.addUnqualifiedName("items", 5), source, source);
         auto stored = projectField(array, context.addUnqualifiedName("length", 6), source, source);
@@ -664,7 +664,7 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
     initialize(project(slice, ProjectionKind::Field, 0), items, source);
 
     auto count = fixed
-        ? makeInt(source, module.scalar.long_, ((ArrayType*)global[from])->length)
+        ? countOf(((ArrayType*)global[from])->count, module.scalar.long_, source)
         : load(length.unwrap(), source);
 
     if(auto declared = sliceLengthType(module, target)) count = convert(count, declared, source, false);

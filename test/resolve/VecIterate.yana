@@ -1,0 +1,78 @@
+{-
+   The iteration protocol - Implementation-Vector.md §9 item 5, Design-Vector §4.1.
+
+   `for v in vectors(xs)` is the thing the whole vector design exists for: one loop, every element
+   read exactly once, and the last iteration over a chunk is the same body as the others rather than
+   a scalar epilogue. `VecLoad.yana` is the same four programs with their loops written out by hand;
+   this is what writing them once looks like.
+
+   Three shapes, and the third is the one that could not be written before the compiler changes
+   below it:
+
+   - `sumInts` accumulates with `+`, whose identity is zero, so it takes `vectors` and the lanes past
+     the end contribute nothing. That is a *ruling* rather than a convenience - see the note on the
+     iterators in Collections.
+   - `largest` accumulates with `max`, whose identity is not zero, so it takes `vectorsMasked` and
+     forces its own: `select(maskUpTo(live), v, acc)` leaves the padding lanes holding the
+     accumulator, which is exactly the value that cannot change the answer.
+   - `total` and `biggest` are the same two written *generically*, over `Chunked(c, a)`, which is
+     what every bulk operation in §9 item 7 is. A generic function calling another generic function
+     over the same class reported "cannot infer type argument a" until `fillDetermined` learned to
+     read the determined position off the caller's own declared requirement, and `Vec(a)` in a body
+     generic in `a` could not reach `lanes` or `horizontalSum` at all until a const-generic count
+     could bind against the natural form.
+
+   No `.js.expect`: both iterators yield from inside `for chunk in chunks(self)`, and an `iter fn`
+   that yields from inside a `for` captures the continuation it was handed - which the JavaScript
+   backend cannot name, since it flattens a function value into two variables. That gap is every
+   adaptor in the language and is recorded in §0.2.
+-}
+
+fn sumInts(xs: [Int]) -> Int:
+    let &acc = zero() :: Vec(Int)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn largest(xs: [Int], floor: Int) -> Int:
+    let &acc = splat(floor)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(Int), v, acc))
+
+    return horizontalMax(acc)
+
+fn (Chunked(c, a), Num(Vec(a))) total(xs: c) -> a:
+    let &acc = zero() :: Vec(a)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn (Chunked(c, a), Ord(a)) biggest(xs: c, floor: a) -> a:
+    let &acc = splat(floor)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMax(acc)
+
+-- Eleven elements, so every lane count this compiles at leaves a tail: three past two vectors of
+-- four, and three past one of eight.
+fn main() -> Int:
+    let xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    let ys = [3.0, 1.0, 4.0, 1.0, 5.0]
+
+    let &result = 0
+
+    if sumInts(xs) == 66 then result = result + 1
+    if largest(xs, 0) == 11 then result = result + 2
+    if total(xs) == 66 then result = result + 4
+    if biggest(xs, 0) == 11 then result = result + 8
+    if total(ys) == 14.0 then result = result + 16
+    if biggest(ys, 0.0) == 5.0 then result = result + 32
+
+    return result

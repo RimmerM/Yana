@@ -1,0 +1,208 @@
+let image$base: () = <none>
+
+fn arithmetic() -> Int {
+  b0:
+    %a = vsplat 3 : Vec(Int)
+    %b = vsplat 4 : Vec(Int)
+    %sum = add %a, %b : Vec(Int)
+    %product = mul %a, %b : Vec(Int)
+    %difference = sub %b, %a : Vec(Int)
+    %v11 = vlane %sum, 0 : Int
+    %v14 = mul %v11, 100 : Int
+    %v17 = vlane %product, 0 : Int
+    %v18 = add %v14, %v17 : Int
+    %v21 = vlane %difference, 1 : Int
+    %v22 = add %v18, %v21 : Int
+    ret %v22
+}
+
+fn bits() -> Int {
+  b0:
+    %a = vsplat 12 : Vec(Int)
+    %b = vsplat 10 : Vec(Int)
+    %v6 = and %a, %b : Vec(Int)
+    %v9 = vlane %v6, 0 : Int
+    %v12 = mul %v9, 100 : Int
+    %v13 = or %a, %b : Vec(Int)
+    %v16 = vlane %v13, 0 : Int
+    %v17 = add %v12, %v16 : Int
+    %v18 = xor %a, %b : Vec(Int)
+    %v21 = vlane %v18, 1 : Int
+    %v22 = add %v17, %v21 : Int
+    ret %v22
+}
+
+fn lanes() -> Int {
+  b0:
+    %v = vsplat 5 : Vec(Int)
+    %changed = vwithlane %v, 9, 1 : Vec(Int)
+    %v10 = vlane %changed, 0 : Int
+    %v13 = mul %v10, 100 : Int
+    %v16 = vlane %changed, 1 : Int
+    %v17 = add %v13, %v16 : Int
+    ret %v17
+}
+
+fn reductions() -> Int {
+  b0:
+    %ones = vsplat 1 : Vec(Int)
+    %count = vreduce_add %ones : Int
+    %v6 = cmp_lt %count, 2 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = neg 1 : Int
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = vreduce_mul %ones : Int
+    %v16 = cmp_ne %v13, 1 : Bool
+    je %v16, b4, b5
+
+  b4:
+    %v20 = neg 2 : Int
+    ret %v20
+
+  b5:
+    jmp b6
+
+  b6:
+    %sevens = vsplat 7 : Vec(Int)
+    %v26 = vreduce_add %sevens : Int
+    %v29 = mul %count, 7 : Int
+    %v30 = cmp_ne %v26, %v29 : Bool
+    je %v30, b7, b8
+
+  b7:
+    %v34 = neg 3 : Int
+    ret %v34
+
+  b8:
+    jmp b9
+
+  b9:
+    %v37 = vreduce_min %sevens : Int
+    %v40 = cmp_ne %v37, 7 : Bool
+    je %v40, b10, b11
+
+  b10:
+    %v44 = neg 4 : Int
+    ret %v44
+
+  b11:
+    jmp b12
+
+  b12:
+    %v51 = vwithlane %sevens, 9, 0 : Vec(Int)
+    %v52 = vreduce_max %v51 : Int
+    %v55 = cmp_ne %v52, 9 : Bool
+    je %v55, b13, b14
+
+  b13:
+    %v59 = neg 5 : Int
+    ret %v59
+
+  b14:
+    jmp b15
+
+  b15:
+    %v66 = vwithlane %sevens, 2, 1 : Vec(Int)
+    %v67 = vreduce_min %v66 : Int
+    %v70 = cmp_ne %v67, 2 : Bool
+    je %v70, b16, b17
+
+  b16:
+    %v74 = neg 6 : Int
+    ret %v74
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn floats() -> Int {
+  b0:
+    %a = vsplat 1.5 : Vec(Float)
+    %b = vsplat 2 : Vec(Float)
+    %scaled = mul %a, %b : Vec(Float)
+    %v9 = vlane %scaled, 0 : Float
+    %v12 = cmp_ne %v9, 3 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v16 = neg 1 : Int
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = add %a, %b : Vec(Float)
+    %v22 = vlane %v19, 1 : Float
+    %v25 = cmp_ne %v22, 3.5 : Bool
+    je %v25, b4, b5
+
+  b4:
+    %v29 = neg 2 : Int
+    ret %v29
+
+  b5:
+    jmp b6
+
+  b6:
+    %v32 = neg %a : Vec(Float)
+    %v35 = vlane %v32, 0 : Float
+    %v38 = neg 1.5 : Float
+    %v39 = cmp_ne %v35, %v38 : Bool
+    je %v39, b7, b8
+
+  b7:
+    %v43 = neg 3 : Int
+    ret %v43
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call reductions : Int
+    %v3 = cmp_ne %v0, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call reductions : Int
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = call floats : Int
+    %v11 = cmp_ne %v8, 0 : Bool
+    je %v11, b4, b5
+
+  b4:
+    %v13 = call floats : Int
+    %v16 = mul %v13, 10 : Int
+    ret %v16
+
+  b5:
+    jmp b6
+
+  b6:
+    %v19 = call arithmetic : Int
+    %v20 = call bits : Int
+    %v21 = add %v19, %v20 : Int
+    %v22 = call lanes : Int
+    %v23 = add %v21, %v22 : Int
+    ret %v23
+}

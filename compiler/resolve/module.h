@@ -958,6 +958,34 @@ struct Program {
     // signature agreeing across a module boundary needs.
     GlobalList<GlobalPtr<ArrayType>> fixedArrayTypes;
 
+    // `Vec(a, n)` and `Mask(a)`, interned on the lane type, the lane count and the mask flag - the
+    // same shape the fixed array above is interned in, and for the same reason.
+    GlobalList<GlobalPtr<VectorType>> vectorTypes;
+
+    // The numbers written in the count positions above - Implementation-Const-Generics.md §2.1.
+    // Interned on the value and the type it is a value of, so that the count in `[Int *4]` and the
+    // one in `Vec(Float, 4)` are one TypePtr and a count position compares by pointer.
+    GlobalList<GlobalPtr<ConstType>> constTypes;
+
+    /*
+     * The Core names `Vec` and `Mask` resolve by.
+     *
+     * These are the two type constructors that are not declarations: there is no `data Vec(a)` for
+     * a lookup to find, because what one *is* is decided by the target rather than by a body. So
+     * `resolveApp` compares the written name against these before it looks a type up, which is
+     * Implementation-Vector.md §1.4's "named type applications resolved by the Core name rather than
+     * by new grammar" - no parser change, and no record to instantiate.
+     *
+     * They are looked for **after** the ordinary lookup rather than instead of it, so a declaration
+     * shadows them exactly as a local `Maybe` shadows Core's. That is not politeness: `Mask` is a
+     * name programs already use - two fixtures in this tree declare `data Mask {bits: Int}` - and a
+     * builtin that won the lookup would be a reserved word the language never announced.
+     *
+     * Both are interned by `defineCore` and are null until it has run.
+     */
+    StringId vecTypeName {};
+    StringId maskTypeName {};
+
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
     Array<GlobalPtr<RecordType>> pendingInstances;

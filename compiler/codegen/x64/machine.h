@@ -81,6 +81,139 @@ enum : MachineOpcodeId {
     OpFNeg,
     OpFCmp,
 
+    /*
+     * Packed vector arithmetic.
+     *
+     * Opcodes of their own rather than forms of the scalar ones, for the reason the floating-point
+     * set above is: `add` over two `i32x4` and `add` over two `Int` are two target operations
+     * reading two register files, and keeping them apart is what lets every form of one opcode agree
+     * about the flags. None of these touches the flags at all.
+     *
+     * One opcode per *operation* and a form per lane type, which is where the widths live: `paddb`,
+     * `paddw`, `paddd`, `paddq` and `addps` are five forms of OpVAdd, chosen by the lane the
+     * instruction is typed with.
+     */
+    OpVAdd,
+    OpVSub,
+    OpVMul,
+    OpVDiv,
+    OpVAnd,
+    OpVOr,
+    OpVXor,
+    OpVAndNot,
+    OpVShl,
+    OpVShr,
+    OpVSar,
+    OpVCmp,
+
+    /*
+     * Lanes rearranged within one vector, by a pattern the encoding carries as a trailing byte.
+     *
+     * One opcode rather than one per lane width, because unlike the arithmetic the *machine's* lane
+     * width here need not be the IR's: `pshufd` permutes 32-bit lanes and is what an `i32x4`, an
+     * `f32x4` and an `i64x2` shuffle all reach, the last by moving its two halves as pairs of
+     * 32-bit ones. What that costs is a domain crossing on a float vector, which `shufps` would
+     * avoid and which is a second form of this opcode rather than a second opcode.
+     *
+     * Two-source shuffles are not here. `pshufd` reads one register, so a pattern naming lanes of
+     * both sources needs a sequence, and `selectPackedForm` refuses one rather than picking a
+     * source and being quietly wrong about the other.
+     */
+    OpVShuffle,
+
+    /*
+     * Every lane the same scalar.
+     *
+     * A pseudo rather than a form, because what it expands to depends on which *bank* the scalar
+     * arrived in and the two are not the same length. A float lane is already in a vector register,
+     * so the broadcast is the shuffle alone; an integer lane is in a general one and needs `movd` or
+     * `movq` across the boundary first. Expressing that as two IR instructions would need a kind for
+     * "this scalar as lane zero", which the lower IR does not have and which LLVM and JS - both of
+     * which lower a splat perfectly well already - would then have to be taught for nothing.
+     */
+    OpVBroadcast,
+
+    /*
+     * One lane read out of a vector.
+     *
+     * Two shapes that share an opcode because they are one operation: a float lane stays in the
+     * vector bank and gets to lane zero by a shuffle, an integer lane crosses to a general register.
+     * The second is where SSE4.1 earns its place - `pextrd`/`pextrq` do it in one instruction at any
+     * index, where the baseline can only take lane zero (`movd`/`movq`) and would otherwise need a
+     * shuffle into a scratch vector register that nothing here can reserve.
+     */
+    OpVExtract,
+
+    /*
+     * One lane written into a vector, which is the extract's mirror and is *not* its shape.
+     *
+     * Every form is two-address - the destination is the vector being written and every lane but one
+     * is carried through it - so where the extract is non-destructive at every width, this one ties
+     * and the allocator copies a vector that is still live afterwards. That asymmetry is the machine's
+     * and not a choice here: `pinsr` writes its first operand and there is no three-operand spelling
+     * of it before VEX.
+     *
+     * The bank the *scalar* arrives in decides the family rather than the encoding. An integer lane
+     * is `pinsr`, whose r/m operand is a general register; a float lane never leaves the vector bank
+     * and is `insertps` at a 32-bit lane, `movsd` or `unpcklpd` at a 64-bit one - which are the two
+     * halves of a two-lane vector and so cover it exactly, with no feature at all.
+     *
+     * Where SSE4.1 earns its place is the 32- and 64-bit integer lane. `pinsrw` is the baseline's
+     * only insert and reaches a *word*, so a wider lane is the pair or the quadruple of words it is
+     * made of - which is `lowerLaneInserts` in transform.cpp, the mirror of `lowerLaneExtracts`.
+     */
+    OpVInsert,
+
+    /*
+     * A lane-wise select: every lane of the result taken from one of two vectors by a mask.
+     *
+     * A pseudo, and the only vector operation here that needs a scratch register of its own. What
+     * the baseline has is `pand`, `pandn` and `por` and no conditional move of a vector at all, so
+     * the operation is `(mask & a) | (~mask & b)` - three instructions over two values, the second
+     * of which has to be computed somewhere that is neither the destination nor the mask. A clobber
+     * is what supplies that, exactly as the float-immediate pseudo's r11 does: it keeps a live value
+     * out of one register at this one instruction, where a declared temporary
+     * (`MachineForm::temporaries`) would hold one back from the whole function.
+     *
+     * Written as a pseudo rather than expanded into IR - which is what the reduction and the lane
+     * accesses each are - because the expansion needs the mask read as a *vector*, and a bitcast
+     * between the two is exactly what the lower validator refuses (a mask is `lanes` booleans on
+     * JavaScript, so the reinterpretation means nothing there). The three instructions are one
+     * machine operation here and nothing above this backend has to hear about them.
+     */
+    OpVBlend,
+
+    // A vector or a mask complemented. A pseudo for the same reason `OpVBlend` is: there is no
+    // packed `not`, so it is an exclusive-or against an all-ones vector, and producing all ones
+    // without a constant pool is a comparison of a scratch register with itself.
+    OpVNot,
+
+    // A vector negated, which is a subtraction from zero at an integer lane and a sign bit toggled
+    // at a float one. Both need a constant this backend has no pool for and both can build the one
+    // they need out of a scratch register, so it is a pseudo rather than a refusal.
+    OpVNeg,
+
+    /*
+     * The square root and the fused multiply-add, which are one opcode each across both banks.
+     *
+     * `sqrtss`, `sqrtsd`, `sqrtps` and `sqrtpd` differ in a mandatory prefix and in nothing else, so
+     * a scalar square root and a packed one are the same machine operation at different widths -
+     * which is what makes this the one arithmetic opcode here that is *not* split into a scalar
+     * `OpF-` and a packed `OpV-` pair. The same is true of `vfmadd213`.
+     *
+     * Neither is two-address in the shape the rest of this table is. `sqrt` writes a destination
+     * that need not be its source at every feature level; `vfmadd213` is three-operand by
+     * construction, being VEX-only, and ties its destination to the *first* source the way its
+     * `213` suffix says.
+     */
+    OpSqrt,
+    OpFma,
+
+    // `vzeroupper`, which a function that wrote a ymm or zmm register owes before every call to one
+    // that might not have and before returning - see §5.4 of Implementation-Vector.md. It takes no
+    // operands and produces no value; what it does is to the upper halves of the register file.
+    OpVZeroUpper,
+
     OpSelect,
     OpAlloca,
     OpLoad,
@@ -417,6 +550,60 @@ enum class PseudoKind: U8 {
     FloatNeg,    // the sign bit toggled in a general register, for want of a vector sign mask
     FloatSelect, // a conditional register copy, for want of a vector cmov
 
+    // Every lane the same scalar: a bank crossing where the lane is an integer, and a shuffle in
+    // both cases. See OpVBroadcast for why the pair is not two IR instructions.
+    VecBroadcast,
+
+    /*
+     * The two vector constants this machine makes out of nothing, which is what keeps them out of
+     * the pool - Implementation-Vector.md §5.7.
+     *
+     * A splat of zero is `pxor r, r` and a splat of all-ones is `pcmpeqd r, r`: one instruction each,
+     * no memory, no `.rodata` entry and no general register on the way. They are the two patterns
+     * `poolVectorConstants` declines for that reason, and they are the reason it declines anything.
+     *
+     * The scalar operand is `folded()` - it is not encoded anywhere, the opcode being the whole of
+     * the value - so it occupies no location and the immediate that fed it is marked Implicit.
+     */
+    VecZero,
+    VecOnes,
+
+    // A lane-wise select, which the baseline spends as `(mask & a) | (~mask & b)` through a
+    // clobbered scratch vector register. See OpVBlend.
+    VecSelect,
+
+    // The two that need an all-ones vector, which is a register compared with itself: a mask
+    // complemented, and the three signed relations the machine has only the complement of.
+    VecNot,
+    VecCompareInverted,
+
+    // A 32-bit lane product without SSE4.1's `pmulld`: `pmuludq` multiplies the even lanes only, so
+    // the odd ones are shuffled down, multiplied, and the two sets of low halves interleaved back.
+    VecMul32,
+
+    // A vector negated: subtracted from a zero the expansion makes, or its sign bits toggled against
+    // a mask the expansion makes. Both out of the same scratch.
+    VecNegate,
+
+    /*
+     * A lane read out of, or written into, a **256-bit** vector.
+     *
+     * Its own pair rather than a wide twin of the lane forms, because at this width the operation is
+     * a different one and not the same instruction re-encoded. Every lane access AMD64 has names a
+     * lane inside *one* 128-bit register: `vpextrd` reads one of four dwords whatever `L` says, and
+     * `vpinsrd` writes one of four and zeroes everything above the register it wrote. So a lane in
+     * the upper half is reached by bringing that half down with `vextracti128`, doing the 128-bit
+     * access, and - for a write - putting the half back with `vinserti128`.
+     *
+     * Two to three instructions and one scratch, which is what makes them pseudos on exactly the
+     * terms `VecSelect` is one: the expansion needs a register that is neither operand, and a form
+     * cannot declare a temporary (`validateMachineForms`). The float extract is the one of the four
+     * that needs no scratch - its destination is a vector register of its own - and it is written as
+     * a pseudo anyway, so that "how a lane is reached at this width" is one place rather than two.
+     */
+    VecWideLane,
+    VecWideWithLane,
+
     // The two intrinsics whose one operation is several instructions (§15.2 of the plan). Both
     // expand after allocation, which is only safe because every register and flag their expansion
     // touches is a fixed operand or a declared clobber of the form that names them - so nothing the
@@ -460,6 +647,11 @@ enum : U8 {
 enum class OperationWidth: U8 {
     FromResult,  // the first result's type
     FromUse0,    // the first operand's type
+
+    // The second operand's type, which is what a store's width is: operand zero is the address it
+    // writes through and says nothing about how much of it is written.
+    FromUse1,
+
     Narrowest,   // the narrower of the first operand and the result
     Fixed32,
     Fixed64,
@@ -545,6 +737,26 @@ struct EncodingDescriptor {
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     bool omitWhenSame = false; // emits nothing when source and destination are already the same register
 
+    /*
+     * The form writes part of its destination register and leaves the rest of it alone, and its
+     * vector-prefixed spelling therefore names a *third* operand to supply what it did not write.
+     *
+     * True of the scalar instructions that operate on one lane of a register: `cvtss2sd xmm1, xmm2`
+     * writes 64 bits and leaves bits 64-127 as it found them, and `vcvtss2sd xmm1, xmm2, xmm3`
+     * says where those bits come from instead. Every VEX form marked NDS in the manual is one of
+     * these, and the derivation reads this to name the destination there - which is what the legacy
+     * encoding did with the bits it left alone, so the twin merges from the same place.
+     *
+     * It cannot be inferred from the operands, and getting it wrong in either direction is silent
+     * or fatal rather than approximate: `sqrtss` and `sqrtps` are one opcode picked apart by a
+     * mandatory prefix, the scalar one names a merge source and the packed one requires `vvvv` to
+     * be all-ones or the processor raises #UD. So it is stated per form.
+     *
+     * Only meaningful for a form with no tie. A two-address operation already names its first
+     * source, and that is where `dropTie` puts it.
+     */
+    bool mergesIntoDestination = false;
+
     // The encoding carries the negation of the selected condition, because the operand the tie
     // already placed in the destination is the one the *un*negated condition would have moved.
     bool negateCondition = false;
@@ -552,6 +764,34 @@ struct EncodingDescriptor {
     // Materializes the flags into the instruction's first result afterwards - `setcc` and a
     // zero-extension - for a comparison whose result could not be left in the flags.
     bool materializeFlags = false;
+
+    /*
+     * The encoding ends in a one-byte *predicate* taken from the selected condition.
+     *
+     * `cmpps` is one instruction for all eight relations and says which in a trailing byte, where
+     * every other comparison here says it in the opcode or leaves it in the flags. That byte is
+     * neither an immediate operand - the IR has no value there - nor part of the opcode, so it is
+     * its own field: the condition is already selected data (`MachineInst::condition`), and this
+     * says the encoder writes it.
+     *
+     * It is not `immediateBytes`, which says how wide an immediate *operand* the LoadStore family
+     * writes. The two never appear together and validateMachineForms says so.
+     */
+    bool conditionImmediate = false;
+
+    /*
+     * The encoding ends in a one-byte lane *pattern* taken from the instruction itself.
+     *
+     * The same shape as `conditionImmediate` and for the same reason - a trailing byte no operand
+     * supplies - but read from a different place. A shuffle's pattern is a field of the lower
+     * instruction rather than selected data, because it was decided when the IR was built and
+     * nothing between there and here has an opinion about it; `packedShufflePattern` is what turns
+     * the IR's one-entry-per-result-lane form into the byte `pshufd` wants.
+     *
+     * Never set together with `conditionImmediate`: an encoding has one trailing byte or none, and
+     * validateMachineForms says so.
+     */
+    bool patternImmediate = false;
 };
 
 // The scratch registers a form's expansion needs beyond its declared operands, by bank. `rep movsb`
@@ -652,6 +892,27 @@ struct MachineForm {
      */
     MachineFormId alternative = 0;
     MachineFormId alternativeOf = 0;
+
+    /*
+     * The same operation over a 256-bit register.
+     *
+     * Deliberately *not* an `alternative`. An alternative is one operation encoded better, chosen by
+     * what the target can encode and interchangeable with its source at every call site; this is a
+     * different operation - it reads and writes twice as many bytes - and which of the two an
+     * instruction takes is decided by its own type rather than by the feature set. §5's note about
+     * `pextrd` not being an alternative of `movd` is the same distinction, and this is the case it
+     * was drawing the line for.
+     *
+     * The consequence worth stating is that selection asks for it by width and never falls back:
+     * `packedForm` reads the 128-bit row, and a 32-byte type takes this link or the operation is
+     * refused. A wide value that quietly took its narrow form would write half a vector.
+     *
+     * VEX makes almost every one of them three-operand, so the twin usually drops the tie its source
+     * carried - which is where the wide tier gets shorter as well as wider, since the copy the
+     * allocator inserted for that tie disappears with it.
+     */
+    MachineFormId wide = 0;
+    MachineFormId wideOf = 0;
 
     // The operand that may be read directly out of a frame slot, and the one that may be read and
     // written there in place, as indices into `uses`. At most one of the two can be taken at any one
@@ -805,6 +1066,12 @@ struct MachineTarget {
     Array<MachineForm> forms;
     MachineOpcodeDesc opcodes[kMachineOpcodeCount];
 
+    // The names of the derived VEX forms, which are the only ones this table does not read out of a
+    // string literal: a twin's name is its source's with a `v` in front, so the text has to be built
+    // and held somewhere for the StringViews to point into. Reserved to its final size before the
+    // first view is taken, so that nothing here moves once something points at it.
+    Array<char> derivedNames;
+
     // One per intrinsic the IR can name, in that order. An intrinsic with no descriptor is one this
     // target cannot select, which selection rejects rather than emitting something for.
     IntrinsicDescriptor intrinsics[kLowerIntrinsicCount];
@@ -911,6 +1178,90 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst);
 // instruction whose encoding carries no condition code.
 Maybe<LowerCmp> selectCondition(LowerInst* inst);
 
+/*
+ * The instruction a shuffle's lane pattern is, and the trailing byte it carries.
+ *
+ * Asked twice for the same reason `selectForm` is: `selectPackedForm` needs to know whether any form
+ * applies at all before the allocator runs, and the encoder needs the byte itself afterwards. One
+ * function so that "which shuffle is this" and "which control byte" cannot answer differently - and
+ * one *answer*, because at more than one candidate instruction the two questions stop being
+ * separable: `[0, 4, 1, 5]` is a `punpckldq` and carries no byte, and `[0, 1, 4, 5]` is a `shufps`
+ * and carries 0x44, and nothing but the pattern tells them apart.
+ *
+ * Nothing is returned where no single instruction expresses the pattern, which is now a narrow set:
+ * a lane width with no shuffle at all (8 and 16 bits, outside the interleaves), or a two-source
+ * pattern that is neither an interleave nor `shufps`'s "two lanes from each side" shape.
+ */
+struct PackedShuffleChoice {
+    MachineFormId form = 0;
+
+    // The control byte, for the two forms that carry one. `hasByte` rather than a zero test: 0x00 is
+    // the byte a broadcast of lane zero writes, and a form that carries no byte at all must not have
+    // one written after it.
+    U8 byte = 0;
+    bool hasByte = false;
+};
+
+Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
+
+/*
+ * The relation a packed comparison is actually emitted at, which is not always the one it names.
+ *
+ * Four of the eight have no instruction and no predicate of their own and are reached by exchanging
+ * the operands instead: `gt` is `lt` read backwards, `ge` is `le`, and `ilt` is `igt`. That exchange
+ * is `orderPackedCompare`'s, in transform.cpp.
+ *
+ * Asked twice for the reason `packedShufflePattern` is, and the reason is sharper here because the
+ * two askers stand on opposite sides of the pass that makes the change: `checkVectorSupported` runs
+ * at the top of `transformFunction` and sees the written relation, and `selectPackedForm` runs after
+ * canonicalization and sees the exchanged one. Read separately, the first refuses a `cmp_ilt` the
+ * second would have emitted perfectly well.
+ */
+LowerCmp packedCompareRelation(LowerCmp cmp);
+
+/*
+ * The trailing byte an instruction supplies for the form selected for it - see `patternImmediate`.
+ *
+ * Three instructions carry one and they carry different things: a shuffle its lane pattern, a lane
+ * access its index. One function because the encoder's question is the same for all of them - what
+ * byte goes after the encoding - and because a form declaring `patternImmediate` for a kind that has
+ * no answer should fail here rather than write a stale byte.
+ */
+U8 packedTrailingByte(LowerInst* inst);
+
+// The `pshufd` control byte that puts lane `index` of a vector of this lane width into every lane of
+// the result. The splat's byte with the index generalized, and the one a float lane extract needs:
+// both want a chosen lane spread, and neither cares what lands where beyond lane zero.
+U8 broadcastLaneByte(LowerType type, U8 index);
+
+/*
+ * The vector operations this backend cannot emit, reported where a program can still be stopped.
+ *
+ * The same split - and for the same reason - as `checkFrameSupported`, whose comment says it
+ * outright: a gap stated as an `assertTrue` inside form selection compiles away in a release build,
+ * so the program that stopped in a debug build emits something that is not it in the configuration
+ * users actually build. `test/resolve/VecOps.yana` was the demonstration, exiting 255 natively where
+ * the same fixture answers 2042 under Node.
+ *
+ * So the refusals are asked here, before anything is selected or emitted, and the assertions in
+ * `opcodeFor` and `selectPackedForm` stay as the backstop that catches this function drifting out of
+ * agreement with them. Asking twice is deliberate: the two answers are checked against each other by
+ * every debug build of every fixture that reaches one.
+ *
+ * Returns false having reported. Emission stops on the error count either way; the pipeline still
+ * runs, since a half-transformed function is worse to reason about than a whole one.
+ */
+/*
+ * Whether this value is a constant vector that `poolVectorConstants` will replace with a load.
+ *
+ * Implemented in transform.cpp, beside the pass it speaks for, and read by the refusals above it:
+ * an instruction that pass removes is not one this backend has to have a form for. See the comment
+ * there for why the two have to ask one function rather than each deciding.
+ */
+bool isPooledVectorConstant(LowerBase base, LowerValue* value);
+
+bool checkVectorSupported(Context& ctx, LowerBase base, LowerFunction& fun);
+
 // The width the operation this form describes works at - see OperationWidth. Asked by the encoder to
 // choose the operand size, and by the memory-operand rules to decide whether a frame slot is exactly
 // as wide as the access that would read it in place.
@@ -928,6 +1279,19 @@ I32 opcodeAddressOperand(MachineOpcodeId opcode);
 // immediate count in an 8-bit field, so a count that only fits in four bytes has to stay in a
 // register however embeddable the position is.
 bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value);
+
+/*
+ * Whether a splat is one of the two constants this machine makes out of nothing - §5.7 of
+ * Implementation-Vector.md.
+ *
+ * Asked by `canEmbedImm`, which is what marks the scalar Implicit: the forms `pxor r, r` and
+ * `pcmpeqd r, r` take the operand as `folded()`, so the opcode *is* the value and nothing about the
+ * scalar is encoded - and a scalar left occupying a location is a `mov r15d, 0` in front of a `pxor`
+ * that does not read it. Exported rather than left static because the question is asked once at
+ * selection and once at embedding, and the two must not answer differently - which is the same
+ * arrangement `packedShufflePattern` and `packedCompareRelation` already have.
+ */
+bool splatIsMachineConstant(LowerBase base, LowerInst* inst);
 
 // The opcode an instruction selects, independent of which form it ends up in. Takes the base because
 // an operation's opcode can depend on the type of an operand rather than of a result - a comparison

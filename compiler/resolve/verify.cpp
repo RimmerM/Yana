@@ -617,6 +617,36 @@ void Verifier::verifyArgs() {
 }
 
 void Verifier::verifyPlace(Value& instruction, const Place& place) {
+    /*
+     * The tail-read guarantee - Implementation-Vector.md §3.3 and §9.7, Design-Vector §5.3.
+     *
+     * An overreading load reads up to a vector's width past the extent of what it names, and that is
+     * safe exactly where the storage carries the guarantee: the heap, the frame and static data are
+     * all padded by the runtime and the linker, and a slice of one inherits it.
+     *
+     * **§3.3 asks for the check to be "not rooted in a raw pointer", and that rule is not one this
+     * IR can hold.** Natively *everything under a slice is a raw pointer* - `Flat(a)` is `{items:
+     * %a, length}` and `Index(Flat(a)).get` is `borrow(self.items + index)` - so an overreading load
+     * of a slice's storage is rooted the way a subscript of the same slice is rooted, and the borrow
+     * that says so does not even survive: `collapseBorrows` rewrites a borrow root into the place
+     * the borrow was taken of, which is the pointer. Written as §3.3 asks, this refused every
+     * program `loadVectorTail` appears in, and refused it in the assertion build alone.
+     *
+     * Which storage a slice was taken *of* is not a question this level can ask at all, so the rule
+     * that does hold the invariant is one layer up and is a *type*: `Collections.loadVectorTail`
+     * takes a `Flat(a)`, `Native.vectorPast` is the only thing that sets this flag, and an
+     * `Unpadded(a)` is refused by having no slice to hand over. What is left here is the half that
+     * is checkable and is still worth checking - the flag belongs to a *vector* transfer, and a
+     * scalar load carrying it is a load nothing exempted from the bounds reasoning downstream.
+     * `lower_validate.cpp` says the same thing from the other side of the seam.
+     */
+    if(instruction.kind == Value::LoadPlace && ((InstLoadPlace&)instruction).overread) {
+        if(!isVectorType(global, instruction.type)) {
+            fail(instruction.source, "%%@ reads past the end of the place it names and is not a vector load - only a vector transfer spends the tail-read guarantee"_v,
+                 instruction.id);
+        }
+    }
+
     switch(place.root) {
         case PlaceRoot::Local:
             if(place.local >= function.localCount()) {
@@ -741,6 +771,21 @@ void Verifier::verifyGenCall(InstGenCall& call) {
         if(slot.forwarded >= slots) {
             fail(call.source, "%%@ fills slot %@ from slot %@ of a schema with %@ slots"_v,
                  call.id, U32(i), U32(slot.forwarded), U32(slots));
+            continue;
+        }
+
+        /*
+         * A count forwarded from a slot that is not one - Implementation-Const-Generics.md §3.1.
+         *
+         * The two cell shapes are the whole of what this checks: a count holds a number and every
+         * other slot holds an anchor-relative address, so forwarding one into the other would decode
+         * a number as a pointer with nothing anywhere to say so. It is exactly the failure the §2.4
+         * rename existed to prevent, one layer down.
+         */
+        auto forwarded = genSchemaOf(module, *env).slots.get(global, slot.forwarded).kind;
+        if((forwarded == GenSlotKind::Const) != slot.count) {
+            fail(call.source, "%%@ fills slot %@ from slot %@, which holds the other kind of cell"_v,
+                 call.id, U32(i), U32(slot.forwarded));
         }
     }
 }
@@ -865,6 +910,158 @@ void Verifier::verifyInstruction(Value& instruction) {
             if(!select.cond || !select.whenTrue || !select.whenFalse) {
                 fail(instruction.source, "%%@ selects between values that are not both there"_v,
                      instruction.id);
+            }
+            break;
+        }
+
+        /*
+         * The two floating-point operations, whose one rule is that they are floating-point.
+         *
+         * Checked here rather than left to the lower validator because this is where the *type* is
+         * still a language type: what reaches the lower IR is a lane kind, so a square root of an
+         * integer arrives there as "a square root of an i32" with nothing left to say which
+         * declaration asked for it.
+         */
+        case Value::Sqrt:
+        case Value::Fma: {
+            auto lane = vectorLane(global, instruction.type);
+            auto element = lane ? lane : instruction.type;
+
+            if(!element || global[element]->kind != Type::Float) {
+                fail(instruction.source, "%%@ is a floating-point operation over a type that is not one"_v,
+                     instruction.id);
+            }
+
+            if(instruction.kind == Value::Fma) {
+                auto& fma = (InstFma&)instruction;
+
+                if(!fma.a || !fma.b || !fma.c) {
+                    fail(instruction.source, "%%@ multiplies and adds values that are not all there"_v,
+                         instruction.id);
+                }
+            }
+
+            break;
+        }
+
+        /*
+         * A `Cast` between two vectors has to keep the lane count - Implementation-Vector.md §3.2's
+         * first consequence, and the one rule in this stage that is easy to get wrong silently.
+         *
+         * Nothing else distinguishes the two things such a cast could mean: `f32x8` to `f64x8` is a
+         * widening of every lane, and `f32x8` to `f64x4` is `unpackLow`. They differ in the result
+         * type alone, and only one of them is a `Cast` - the other is a `VecShuffle` and a `Cast`,
+         * which is why no instruction changes a lane count.
+         */
+        case Value::Cast:
+        case Value::Bitcast: {
+            auto& unary = (InstUnary&)instruction;
+            auto from = unary.from ? local[unary.from]->type : nullptr;
+            auto to = instruction.type;
+
+            auto fromLanes = vectorLanes(global, from);
+            auto toLanes = vectorLanes(global, to);
+
+            if(instruction.kind == Value::Cast && fromLanes && toLanes && fromLanes != toLanes) {
+                fail(instruction.source, "%%@ casts %@ lanes to %@ - a conversion that changes the lane count is a shuffle and a cast, not a cast"_v,
+                     instruction.id, fromLanes, toLanes);
+            }
+
+            // One end a vector and the other a scalar is neither conversion: a lane's worth of a
+            // vector is `VecLane`, and a whole vector out of a scalar is `VecSplat`.
+            if(bool(fromLanes) != bool(toLanes) && from && to) {
+                fail(instruction.source, "%%@ converts between a vector and a scalar - read a lane with `vlane` and build one with `vsplat`"_v,
+                     instruction.id);
+            }
+            break;
+        }
+
+        /*
+         * A comparison of vectors answers a mask of the same shape - Design-Vector §2.4, and §3.1's
+         * "a typing rule rather than a new instruction". A `Bool` here would be an `all` or an `any`
+         * that nobody chose.
+         */
+        case Value::Cmp: {
+            auto& compare = (InstCmp&)instruction;
+            auto lhs = compare.lhs ? local[compare.lhs]->type : nullptr;
+
+            if(auto lanes = vectorLanes(global, lhs)) {
+                if(!isMaskType(global, instruction.type) || vectorLanes(global, instruction.type) != lanes) {
+                    fail(instruction.source, "%%@ compares %@ lanes and does not answer a mask of that shape"_v,
+                         instruction.id, lanes);
+                }
+            }
+            break;
+        }
+
+        case Value::VecSplat: {
+            auto& splat = (InstVecSplat&)instruction;
+
+            if(!splat.from) fail(instruction.source, "%%@ splats nothing"_v, instruction.id);
+            if(!vectorLanes(global, instruction.type)) {
+                fail(instruction.source, "%%@ splats into something that is not a vector"_v, instruction.id);
+            }
+            break;
+        }
+
+        case Value::VecLane:
+        case Value::VecWithLane: {
+            auto& lane = (InstVecLane&)instruction;
+            auto reading = instruction.kind == Value::VecLane;
+
+            // The vector is the operand for a read and the result for a write, so the lane index is
+            // bounded by whichever of the two is the vector.
+            auto vector = reading
+                ? (lane.from ? local[lane.from]->type : nullptr) : instruction.type;
+            auto lanes = vectorLanes(global, vector);
+
+            if(!lanes) {
+                fail(instruction.source, "%%@ names a lane of something that is not a vector"_v,
+                     instruction.id);
+            } else if(lane.lane >= lanes) {
+                fail(instruction.source, "%%@ names lane %@ of a vector with %@ of them"_v,
+                     instruction.id, U32(lane.lane), lanes);
+            }
+
+            if(reading == bool(lane.value)) {
+                fail(instruction.source, "%%@ reads a lane and writes one, or does neither"_v,
+                     instruction.id);
+            }
+            break;
+        }
+
+        case Value::VecShuffle: {
+            auto& shuffle = (InstVecShuffle&)instruction;
+            auto lanes = vectorLanes(global, instruction.type);
+            auto sources = vectorLanes(global, shuffle.left ? local[shuffle.left]->type : nullptr);
+
+            if(!lanes || !sources) {
+                fail(instruction.source, "%%@ shuffles something that is not a vector"_v, instruction.id);
+                break;
+            }
+
+            // One entry per lane of the *result*, each naming a lane of the two sources
+            // concatenated - see InstVecShuffle, which is where the numbering is stated.
+            if(shuffle.pattern.size() != lanes) {
+                fail(instruction.source, "%%@ shuffles into %@ lanes with a pattern of %@"_v,
+                     instruction.id, lanes, U32(shuffle.pattern.size()));
+            }
+
+            for(auto entry: shuffle.pattern) {
+                if(entry < sources * 2) continue;
+
+                fail(instruction.source, "%%@ shuffles in lane %@, and its two sources have %@ between them"_v,
+                     instruction.id, U32(entry), sources * 2);
+                break;
+            }
+            break;
+        }
+
+        case Value::VecReduce: {
+            auto& reduce = (InstVecReduce&)instruction;
+
+            if(!vectorLanes(global, reduce.from ? local[reduce.from]->type : nullptr)) {
+                fail(instruction.source, "%%@ reduces something that is not a vector"_v, instruction.id);
             }
             break;
         }

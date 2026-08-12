@@ -58,10 +58,7 @@ LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer) 
      */
     if(value.kind == Value::TypeMetric) {
         auto& metric = (InstTypeMetric&)value;
-        auto& repr = lower.repr.of(metric.of);
-        auto number = metric.metric == TypeMetricKind::Align ? repr.align
-                    : metric.metric == TypeMetricKind::Stride ? repr.stride
-                    : repr.size;
+        auto number = lower.repr.metric(metric.of, metric.metric);
 
         auto result = immediate(lower, number, lowerType(lower.global, value.type));
         lower.values.add(pointer, result);
@@ -73,7 +70,7 @@ LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer) 
 }
 
 LowerCmp lowerCmp(LowerContext& lower, InstCmp& compare) {
-    auto signedOperands = signedType(lower.global, lower.local[compare.lhs]->type);
+    auto signedOperands = signedOperand(lower.global, lower.local[compare.lhs]->type);
 
     switch(compare.cmp) {
         case CompareOp::Eq: return LowerCmp::eq;
@@ -103,7 +100,7 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
     // Which of the two multiply/divide/remainder instructions an integer operation becomes is the
     // type's own signedness: an unsigned type's arithmetic is the unsigned one, which is the
     // whole of what makes Native's U8..U64 different from the I-family at the machine level.
-    auto signed_ = signedType(lower.global, binary.type);
+    auto signed_ = signedOperand(lower.global, binary.type);
 
     switch(binary.kind) {
         case Value::Add: return LowerInst::Add;
@@ -172,6 +169,8 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
+        case Value::Sqrt:
+        case Value::Fma:
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
@@ -185,6 +184,11 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Xor:
         case Value::Cmp:
         case Value::Select:
+        case Value::VecSplat:
+        case Value::VecLane:
+        case Value::VecWithLane:
+        case Value::VecShuffle:
+        case Value::VecReduce:
         case Value::Symbol:
             return InstGroup::Compute;
 

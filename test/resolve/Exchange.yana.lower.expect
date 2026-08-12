@@ -42,46 +42,48 @@ growHeap<complex>(%needed: Long): Int {
 
   b_5 {
     %v_6 = phi [b_3, %needed], [b_4, %v_1]: Long
-    %v_7 = call_complex mapMemory, %v_6: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = cmp_eq %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    %v_12 = cmp_igt %needed, 4194304: Int
-    %least = select %needed, 4194304, %v_12: Long
-    %v_13 = cmp_ige %least, %v_6: Int
-    je %v_13, b_14, b_15
+    %v_7 = add %v_6, 4096: Long
+    %v_8 = call_complex mapMemory, %v_7: Ptr
+    %v_9 = bitcast %v_8: Long
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_12
   }
 
   b_11 {
-    jmp b_16
+    %v_13 = cmp_igt %needed, 4194304: Int
+    %least = select %v_13, %needed, 4194304: Long
+    %v_14 = cmp_ige %least, %v_6: Int
+    je %v_14, b_15, b_16
   }
 
-  b_14 {
-    ret 0
+  b_12 {
+    jmp b_17
   }
 
   b_15 {
-    %v_17 = call_complex mapMemory, %least: Ptr
-    %v_18 = bitcast %v_17: Long
-    %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_14, b_20
-  }
-
-  b_20 {
-    jmp b_16
+    ret 0
   }
 
   b_16 {
-    %v_21 = phi [b_11, %v_6], [b_20, %least]: Long
-    %v_22 = phi [b_11, %v_7], [b_20, %v_17]: Ptr
-    store @heapNext, %v_22, 8
-    %v_23 = add %v_22, %v_21: Ptr
-    store @heapLimit, %v_23, 8
-    %v_24 = add %v_21, %v_21: Long
-    store @heapRegionNext, %v_24, 8
+    %v_18 = add %least, 4096: Long
+    %v_19 = call_complex mapMemory, %v_18: Ptr
+    %v_20 = bitcast %v_19: Long
+    %v_21 = cmp_eq %v_20, 0: Int
+    je %v_21, b_15, b_22
+  }
+
+  b_22 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_23 = phi [b_12, %v_6], [b_22, %least]: Long
+    %v_24 = phi [b_12, %v_8], [b_22, %v_19]: Ptr
+    store @heapNext, %v_24, 8
+    %v_25 = add %v_24, %v_23: Ptr
+    store @heapLimit, %v_25, 8
+    %v_26 = add %v_23, %v_23: Long
+    store @heapRegionNext, %v_26, 8
     ret 1
   }
 }
@@ -99,11 +101,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_4 {
-    %result = syscall 9, 0, 4194304, 3, 34, 18446744073709551615, 0: Long
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: Long
     %v_7 = cmp_ilt %result, 0: Int
     %v_8 = bitcast 0: Ptr
     %v_9 = bitcast %result: Ptr
-    %region = select %v_8, %v_9, %v_7: Ptr
+    %region = select %v_7, %v_8, %v_9: Ptr
     %v_10 = bitcast %region: Long
     %v_11 = cmp_eq %v_10, 0: Int
     je %v_11, b_12, b_13

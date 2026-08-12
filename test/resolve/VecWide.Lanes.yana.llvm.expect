@@ -1,0 +1,150 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+@"image$base" = constant [0 x i8] zeroinitializer, align 8
+@seed = global [4 x i8] c"\03\00\00\00", align 8
+
+define fastcc i32 @main() {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load i32, ptr @seed, align 1
+  %.splatinsert = insertelement <8 x i32> poison, i32 %2, i32 0
+  %base = shufflevector <8 x i32> %.splatinsert, <8 x i32> poison, <8 x i32> zeroinitializer
+  %high = insertelement <8 x i32> %base, i32 40, i32 5
+  %3 = extractelement <8 x i32> %high, i32 5
+  %4 = icmp ne i32 %3, 40
+  %5 = zext i1 %4 to i32
+  br i1 %4, label %6, label %7
+
+6:                                                ; preds = %1
+  ret i32 -1
+
+7:                                                ; preds = %1
+  br label %8
+
+8:                                                ; preds = %7
+  %9 = extractelement <8 x i32> %high, i32 4
+  %10 = icmp ne i32 %9, 3
+  %11 = zext i1 %10 to i32
+  br i1 %10, label %12, label %13
+
+12:                                               ; preds = %8
+  ret i32 -2
+
+13:                                               ; preds = %8
+  br label %14
+
+14:                                               ; preds = %13
+  %15 = extractelement <8 x i32> %high, i32 7
+  %16 = icmp ne i32 %15, 3
+  %17 = zext i1 %16 to i32
+  br i1 %16, label %18, label %19
+
+18:                                               ; preds = %14
+  ret i32 -3
+
+19:                                               ; preds = %14
+  br label %20
+
+20:                                               ; preds = %19
+  %21 = extractelement <8 x i32> %high, i32 0
+  %22 = icmp ne i32 %21, 3
+  %23 = zext i1 %22 to i32
+  br i1 %22, label %24, label %25
+
+24:                                               ; preds = %20
+  ret i32 -4
+
+25:                                               ; preds = %20
+  br label %26
+
+26:                                               ; preds = %25
+  %low = insertelement <8 x i32> %high, i32 20, i32 1
+  %27 = extractelement <8 x i32> %low, i32 1
+  %28 = icmp ne i32 %27, 20
+  %29 = zext i1 %28 to i32
+  br i1 %28, label %30, label %31
+
+30:                                               ; preds = %26
+  ret i32 -5
+
+31:                                               ; preds = %26
+  br label %32
+
+32:                                               ; preds = %31
+  %33 = extractelement <8 x i32> %low, i32 5
+  %34 = icmp ne i32 %33, 40
+  %35 = zext i1 %34 to i32
+  br i1 %34, label %36, label %37
+
+36:                                               ; preds = %32
+  ret i32 -6
+
+37:                                               ; preds = %32
+  br label %38
+
+38:                                               ; preds = %37
+  %39 = extractelement <8 x i32> %low, i32 6
+  %40 = icmp ne i32 %39, 3
+  %41 = zext i1 %40 to i32
+  br i1 %40, label %42, label %43
+
+42:                                               ; preds = %38
+  ret i32 -7
+
+43:                                               ; preds = %38
+  br label %44
+
+44:                                               ; preds = %43
+  %45 = call i32 @llvm.vector.reduce.smax.v8i32(<8 x i32> %low)
+  %46 = icmp ne i32 %45, 40
+  %47 = zext i1 %46 to i32
+  br i1 %46, label %48, label %49
+
+48:                                               ; preds = %44
+  ret i32 -8
+
+49:                                               ; preds = %44
+  br label %50
+
+50:                                               ; preds = %49
+  %51 = call i32 @llvm.vector.reduce.smin.v8i32(<8 x i32> %low)
+  %52 = icmp ne i32 %51, 3
+  %53 = zext i1 %52 to i32
+  br i1 %52, label %54, label %55
+
+54:                                               ; preds = %50
+  ret i32 -9
+
+55:                                               ; preds = %50
+  br label %56
+
+56:                                               ; preds = %55
+  %57 = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> %low)
+  %58 = icmp ne i32 %57, 78
+  %59 = zext i1 %58 to i32
+  br i1 %58, label %60, label %61
+
+60:                                               ; preds = %56
+  ret i32 -10
+
+61:                                               ; preds = %56
+  br label %62
+
+62:                                               ; preds = %61
+  %63 = mul i32 %33, 10
+  %64 = add i32 %63, %27
+  ret i32 %64
+}
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i32 @llvm.vector.reduce.smax.v8i32(<8 x i32>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i32 @llvm.vector.reduce.smin.v8i32(<8 x i32>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #0
+
+attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }

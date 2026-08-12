@@ -28,12 +28,62 @@ LowerType lowerType(GlobalBase base, TypePtr type) {
         return ((FloatType*)value)->width == FloatType::Double ? LowerType::Float64 : LowerType::Float32;
     }
 
+    /*
+     * A vector, whose lane count and lane kind travel across the seam unchanged.
+     *
+     * The resolve type has already spent the natural form, so what arrives here is a concrete count
+     * and the translation is a lookup - which is the whole of why Design-Vector §2.1 spends it during
+     * resolution. `isMemoryType` above answered false for one because `isDirectType` did, so a vector
+     * reaches this rather than becoming a `Pointer` to storage.
+     */
+    if(value->kind == Type::Vector) {
+        auto vector = (VectorType*)value;
+        auto stride = laneStride(base, vector->content);
+        auto lane = LowerLane::Int8;
+
+        if(vector->content && base[vector->content]->kind == Type::Float) {
+            lane = stride == 8 ? LowerLane::Float64 : LowerLane::Float32;
+        } else {
+            lane = stride == 1 ? LowerLane::Int8 : stride == 2 ? LowerLane::Int16
+                 : stride == 4 ? LowerLane::Int32 : LowerLane::Int64;
+        }
+
+        auto lanes = U32(constValue(base, vector->count));
+        return vector->isMask ? maskType(lane, lanes) : vectorType(lane, lanes);
+    }
+
     assertTrue("unit and unsupported types have no lower value" == nullptr);
     return LowerType::Int32;
 }
 
 bool signedType(GlobalBase base, TypePtr type) {
     return base[type]->kind == Type::Int && ((IntType*)base[type])->isSigned;
+}
+
+/*
+ * Whether *arithmetic* on this type is the signed instruction - which is not the same question as
+ * the one above, and the difference is a vector.
+ *
+ * `signedType` asks whether a value of this type carries a sign, and its readers are a narrow load
+ * (does it sign-extend into the register) and a packed field (does it sign-extend out of the word).
+ * Neither means anything for a vector, and a vector answering yes made a load of one claim to
+ * sign-extend sixteen bytes.
+ *
+ * This asks which of two instructions the machine keeps apart an operation becomes, and there a
+ * vector's answer is its lane's: `Vec(Int)` compares and divides signed. Nothing above the lower IR
+ * produced either until stage 9 - a comparison had no spelling before `class Lanewise` and the
+ * arithmetic had no instance below the four natural widths - which is why one predicate served both
+ * readers for as long as it did. A multiply, which is what `VecOps.yana` exercises, answers the same
+ * bits either way and so said nothing.
+ *
+ * A mask has no signedness to read and answers false. Nothing compares or divides two masks.
+ */
+bool signedOperand(GlobalBase base, TypePtr type) {
+    if(auto lane = vectorLane(base, type)) {
+        return !((VectorType*)base[type])->isMask && signedType(base, lane);
+    }
+
+    return signedType(base, type);
 }
 
 /*
@@ -76,8 +126,26 @@ bool lowerArgExists(GlobalBase global, TypePtr type, bool mutableBorrow) {
     return mutableBorrow || !isUnit(global, type);
 }
 
+/*
+ * How many bytes one access of this type moves.
+ *
+ * A scalar is one of the four machine widths, and the assertion is what says so: a type that reaches
+ * a load or a store and is not one of them is an aggregate that should have been walked into.
+ *
+ * A vector is the fifth answer and is not a scalar in that sense - it is 16, 32 or 64 bytes, and it
+ * is loaded and stored whole because there is no narrower access to widen from (`validateLoad` says
+ * the same thing from the other end). So the width is the type's own size, and the assertion is
+ * asked only of the scalars it was written about.
+ *
+ * A mask answers with the vector's width for the same reason and by the same rule - Design-Vector
+ * §2.4's "the memory form is the vector form". Asked of the *kind* rather than through
+ * `isVectorType`, which since masks became types of their own answers false for one: a mask local is
+ * ordinary storage, so a load or a store of one reaches here exactly as a vector's does.
+ */
 U32 memoryWidth(LowerContext& lower, TypePtr type) {
     auto size = typeSize(lower, type);
+    if(isVectorType(lower.global, type) || isMaskType(lower.global, type)) return size;
+
     assertTrue(size == 1 || size == 2 || size == 4 || size == 8);
     return size;
 }

@@ -1,0 +1,56 @@
+# The fused multiply-add, where the target has one.
+#
+# extensions: avx2
+#
+# `vfmadd213` computes `dst = src1 * dst + src2` - the digits name which operand is which - so with
+# the destination tied to the first operand it is exactly `a * b + c`: the tie makes `dst` be `a`,
+# VEX.vvvv names `b`, and ModRM.rm names `c`.
+#
+# These are the only forms in the table with no legacy tier under them at all, FMA3 having arrived
+# with the three-operand encoding rather than before it. What stands in for one is a *transform*:
+# `expandFusedMultiplyAdd` turns the instruction into the multiply and the add it always meant where
+# the target cannot fuse, at two roundings rather than one - which Design-Vector §3.3 permits
+# outright, `fma` being permission to fuse rather than a promise. `VectorOps.lower` is the same
+# operations at the baseline and is what that expansion looks like.
+#
+# AVX2 rather than AVX, because FMA3 is a flag beside the level rather than a point on it: there are
+# parts with AVX and no FMA, and both the command line and this driver draw the implication at AVX2.
+# It does not widen anything here - a `.lower` file states its own types, so an `f32x4` is sixteen
+# bytes at every level and the natural width the resolver would have picked never enters into it.
+
+# All four forms: the scalar pair, whose W bit is the whole of the difference between them, and the
+# packed pair, whose opcode byte is one lower.
+fused(%a: f32x4, %b: f32x4, %c: f32x4, %d: f64x2, %x: Float, %y: Float, %z: Double): f32x4 {
+    {
+        %vs = fma %a, %b, %c: f32x4
+        %vd = fma %d, %d, %d: f64x2
+        %ss = fma %x, %y, %x: Float
+        %sd = fma %z, %z, %z: Double
+        ret %vs
+    }
+}
+
+# The tie, which is what a value still live afterwards costs: `a` is read again below the multiply-
+# add that writes over it, so the allocator has to copy it somewhere first.
+tied(%a: f32x4, %b: f32x4, %c: f32x4): f32x4 {
+    {
+        %r = fma %a, %b, %c: f32x4
+        %s = add %r, %a: f32x4
+        ret %s
+    }
+}
+
+# A dot product's inner step, which is the shape this instruction exists for: multiply lanewise into
+# a running accumulator with one rounding, then reduce. The reduction is written out as the butterfly
+# `lowerVectorReductions` expands it into - see VectorOps.lower.
+accumulate(%x: f32x4, %y: f32x4, %acc: f32x4): Float {
+    {
+        %a = fma %x, %y, %acc: f32x4
+        %p0 = vshuffle %a, %a, 1, 0, 3, 2: f32x4
+        %s0 = add %a, %p0: f32x4
+        %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
+        %s1 = add %s0, %p1: f32x4
+        %r = vlane %s1, 0: Float
+        ret %r
+    }
+}

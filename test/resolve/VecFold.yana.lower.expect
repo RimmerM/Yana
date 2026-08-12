@@ -1,0 +1,83 @@
+@image$base = []
+mut @a = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+mut @b = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+sum<complex>(%xs$items: Ptr, %xs$length: Long): i32x4 {
+  b_0 {
+    %v_1 = bitcast %xs$length: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = load %xs$items, 16: i32x4
+    %v_6 = cmp_ge 1, %v_1: Int
+    je %v_6, b_3, b_7
+  }
+
+  b_7 {
+    %v_8 = add %xs$items, 16: Ptr
+    %v_9 = load %v_8, 16: i32x4
+    %v_10 = add %v_5, %v_9: i32x4
+    ret %v_10
+  }
+
+  b_3 {
+    %v_11 = syscall 60, 134: Long
+    unreachable 
+  }
+}
+
+masked<complex>(%xs$items: Ptr, %xs$length: Long): i32x4 {
+  b_0 {
+    %v_1 = bitcast %xs$length: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = load %xs$items, 16: i32x4
+    %v_6 = cmp_ge 1, %v_1: Int
+    je %v_6, b_3, b_7
+  }
+
+  b_7 {
+    %v_8 = add %xs$items, 16: Ptr
+    %v_9 = load %v_8, 16: i32x4
+    %v_10 = and %v_5, %v_9: i32x4
+    ret %v_10
+  }
+
+  b_3 {
+    %v_11 = syscall 60, 134: Long
+    unreachable 
+  }
+}
+
+main$<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 11: i32x4
+    store @a, %v_1, 16
+    %v_2 = vsplat 31: i32x4
+    store @b, %v_2, 16
+    %xs = alloca 16, 8: Ptr
+    %v_3 = alloca 32, 16: Ptr
+    store %xs, %v_3, 8
+    %v_4 = add %xs, 8: Ptr
+    %v_5 = load %v_4, 4: Int
+    store %v_4, 2, 4
+    store %v_3, %v_1, 16
+    %v_6 = add %v_3, 16: Ptr
+    store %v_6, %v_2, 16
+    %v_7 = add %xs, 12: Ptr
+    store %v_7, 2, 4
+    %s = call_complex sum, %v_3, 2: i32x4
+    %m = call_complex masked, %v_3, 2: i32x4
+    %v_8 = vlane %s, 0: Int
+    %v_9 = imul %v_8, 100: Int
+    %v_10 = vlane %m, 1: Int
+    %v_11 = add %v_9, %v_10: Int
+    ret %v_11
+  }
+}
+

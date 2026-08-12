@@ -90,7 +90,7 @@ function firstOverOrCount(n, bound) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v43 = ResolveTest_continuation$4(v5, i);
+      var v43 = ResolveTest_continuation$18(v5, i);
       if (v43.$tag === 1) {
         v30 = v43;
       } else {
@@ -233,7 +233,7 @@ function stopAt(n) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      if (ResolveTest_continuation$16(null, i) !== 1) {
+      if (ResolveTest_continuation$30(null, i) !== 1) {
         i = i + 1 | 0;
         continue L0;
       }
@@ -257,7 +257,7 @@ function main() {
   var v64 = { $v: 5 };
   var v73 = log + 1 | 0;
   log = v73;
-  var v75 = ResolveTest_continuation$14(v64, v73);
+  var v75 = ResolveTest_continuation$28(v64, v73);
   log = log + 10 | 0;
   var v39 = v36 + v75 | 0;
   visited = 0;
@@ -265,11 +265,11 @@ function main() {
   return v39 + visited | 0;
 }
 
-function ResolveTest_continuation$4(env, value) {
-  if (value > env.bound) {
-    return { $tag: 1, $p: Math.imul(value, 100) };
+function ResolveTest_continuation$18(env, value$) {
+  if (value$ > env.bound) {
+    return { $tag: 1, $p: Math.imul(value$, 100) };
   } else {
-    if (value === 4) {
+    if (value$ === 4) {
       return { $tag: 1, $p: null };
     } else {
       var v14 = env.seen;
@@ -279,11 +279,11 @@ function ResolveTest_continuation$4(env, value) {
   }
 }
 
-function ResolveTest_continuation$14(env, value) {
+function ResolveTest_continuation$28(env, value$) {
   var v2 = env.$v;
   var v18 = null;
   var i = 0;
-  var v55 = Math.imul(value, 1000);
+  var v55 = Math.imul(value$, 1000);
   L0: for (;;) {
     if (i < v2) {
       var v30 = i;
@@ -307,15 +307,15 @@ function ResolveTest_continuation$14(env, value) {
   if (!(v18 === null)) {
     return v18;
   } else {
-    return value;
+    return value$;
   }
 }
 
-function ResolveTest_continuation$16(env, value) {
-  if (value === 3) {
+function ResolveTest_continuation$30(env, value$) {
+  if (value$ === 3) {
     return 1;
   } else {
-    visited = visited + value | 0;
+    visited = visited + value$ | 0;
     return 0;
   }
 }

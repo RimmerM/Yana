@@ -68,9 +68,20 @@ void genVariablesIn(GlobalBase base, TypePtr type, U64& mask) {
         case Type::Ptr:
             genVariablesIn(base, ((PtrType*)base[type])->to, mask);
             break;
-        case Type::Array:
-            genVariablesIn(base, ((ArrayType*)base[type])->content, mask);
+        case Type::Array: {
+            // The count is walked beside the element: the `n` of `[a *n]` is a variable of this
+            // context exactly as `a` is - Implementation-Const-Generics.md §2.3.
+            auto array = (ArrayType*)base[type];
+            genVariablesIn(base, array->content, mask);
+            genVariablesIn(base, array->count, mask);
             break;
+        }
+        case Type::Vector: {
+            auto vector = (VectorType*)base[type];
+            genVariablesIn(base, vector->content, mask);
+            genVariablesIn(base, vector->count, mask);
+            break;
+        }
         case Type::Borrow:
             genVariablesIn(base, ((BorrowType*)base[type])->to, mask);
             break;
@@ -141,6 +152,54 @@ TypePtr fixedElement(Module& module, TypePtr type) {
     if(!type || global[type]->kind != Type::Array) return nullptr;
 
     return ((ArrayType*)global[type])->content;
+}
+
+/*
+ * How wide one lane is, and therefore whether this type may be one at all.
+ *
+ * The *natural storage* of an integer rather than its declared bits, which is what makes a `@bits`
+ * refinement an ordinary lane: `Count` is `@bits(30) U32` and occupies four bytes standing alone, so
+ * a lane of it occupies four bytes too and `Vec(Count)` has the shape `Vec(U32)` has. Design-Vector
+ * §2.2 accepts the refinement precisely so that the lanes keep the range `opt_range` derives from it.
+ *
+ * Zero for everything else, including `Bool`: one bit is not a lane, and what a comparison of a
+ * vector answers is a `Mask` rather than a vector of booleans - see Design-Vector §2.4, which is the
+ * whole argument for the two being different types.
+ */
+U32 laneStride(GlobalBase base, TypePtr type) {
+    if(!type) return 0;
+
+    auto value = base[type];
+
+    if(value->kind == Type::Float) {
+        return ((FloatType*)value)->width == FloatType::Double ? 8 : 4;
+    }
+
+    if(value->kind != Type::Int) return 0;
+
+    auto bits = U32(((IntType*)value)->bits);
+    if(bits < 8) return 0;
+
+    auto storage = naturalStorageBits(bits) / 8;
+    return storage == 1 || storage == 2 || storage == 4 || storage == 8 ? storage : 0;
+}
+
+bool isVectorType(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Vector && !((VectorType*)base[type])->isMask;
+}
+
+bool isMaskType(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Vector && ((VectorType*)base[type])->isMask;
+}
+
+TypePtr vectorLane(GlobalBase base, TypePtr type) {
+    if(!type || base[type]->kind != Type::Vector) return nullptr;
+    return ((VectorType*)base[type])->content;
+}
+
+U32 vectorLanes(GlobalBase base, TypePtr type) {
+    if(!type || base[type]->kind != Type::Vector) return 0;
+    return U32(writtenCount(base, ((VectorType*)base[type])->count).from(0));
 }
 
 bool isGrowableArray(Module& module, TypePtr type) {
@@ -228,7 +287,9 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, U32 depth) {
         // `[&T *4]` holds four references and is exactly as unable to outlive them as a record of
         // four would be. Asked once because `n` copies of one answer is that answer.
         auto array = (ArrayType*)value;
-        if(array->length) return containsBorrowLikeAt(module, array->content, depth - 1);
+        // A count this stage cannot read is a const variable, and the conservative answer for one is
+        // that the array is not empty - an erased `[&T *n]` holds borrows for every `n` but zero.
+        if(writtenCount(base, array->count).from(1)) return containsBorrowLikeAt(module, array->content, depth - 1);
     }
 
     return false;
@@ -290,8 +351,14 @@ bool isDirectType(GlobalBase base, TypePtr type) {
     // A raw pointer is an address held in a register, not something held in memory: `%T` is
     // direct however large `T` is. The memory it names is reached through a place instead, and a
     // borrow is the same shape with checking attached.
+    //
+    // A vector is direct for the reason Design-Vector §2.5 gives, and the direction of that contract
+    // is the point: resolve *states* it and every target's calling convention is bound by it, so a
+    // backend that cannot pass one in a register has to fail loudly rather than quietly spill. It is
+    // also what makes a `return` marker on a vector parameter a diagnostic - the caller's storage did
+    // not travel, so a vector parameter roots no borrow. See checkAbiContract in repr.cpp.
     if(value->kind == Type::Int || value->kind == Type::Float || value->kind == Type::Ptr ||
-       value->kind == Type::Borrow) {
+       value->kind == Type::Borrow || value->kind == Type::Vector) {
         return true;
     }
 

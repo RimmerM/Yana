@@ -279,7 +279,7 @@ void Solver::settleDependencies(GenEnv& env, LocationId source) {
         if(defaulted[i]) asked[i] = nullptr;
     }
 
-    fillDetermined(resolver.module, env, asked, source);
+    fillDetermined(resolver.module, env, asked, source, functionGen(global, resolver.function));
 
     for(Size i = 0; i < bindings.size(); i++) {
         if(asked[i]) bindings[i] = asked[i];

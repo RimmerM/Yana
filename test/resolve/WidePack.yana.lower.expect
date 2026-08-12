@@ -132,7 +132,7 @@ main<complex>(): Int {
     %v_5 = cast %v_4: Int
     %v_6 = cast %v_5: Int
     %v_7 = cmp_eq %v_6, 1048575: Int
-    %v_8 = select 2, 0, %v_7: Int
+    %v_8 = select %v_7, 2, 0: Int
     %v_9 = add %v_8, 1: Int
     %v_10 = alloca 8, 8: Ptr
     call_complex writeHigh, %v_10
@@ -141,7 +141,7 @@ main<complex>(): Int {
     %v_13 = cast %v_12: Int
     %v_14 = cast %v_13: Int
     %v_15 = cmp_eq %v_14, 1000: Int
-    %v_16 = select 4, 0, %v_15: Int
+    %v_16 = select %v_15, 4, 0: Int
     %v_17 = add %v_9, %v_16: Int
     %v_18 = alloca 8, 8: Ptr
     call_complex writeLow, %v_18
@@ -151,7 +151,7 @@ main<complex>(): Int {
     %v_22 = cast %v_21: Int
     %v_23 = cast %v_22: Int
     %v_24 = cmp_eq %v_23, 999999: Int
-    %v_25 = select 8, 0, %v_24: Int
+    %v_25 = select %v_24, 8, 0: Int
     %v_26 = add %v_17, %v_25: Int
     %v_27 = alloca 8, 8: Ptr
     call_complex bumpedHigh, %v_27
@@ -161,7 +161,7 @@ main<complex>(): Int {
     %v_31 = cast %v_30: Int
     %v_32 = cast %v_31: Int
     %v_33 = cmp_eq %v_32, 1000000: Int
-    %v_34 = select 16, 0, %v_33: Int
+    %v_34 = select %v_33, 16, 0: Int
     %v_35 = add %v_26, %v_34: Int
     %v_36 = alloca 8, 8: Ptr
     call_complex bumpedHigh, %v_36
@@ -170,7 +170,7 @@ main<complex>(): Int {
     %v_39 = cast %v_38: Int
     %v_40 = cast %v_39: Int
     %v_41 = cmp_eq %v_40, 1000: Int
-    %v_42 = select 32, 0, %v_41: Int
+    %v_42 = select %v_41, 32, 0: Int
     %v_43 = add %v_35, %v_42: Int
     %v_44 = alloca 8, 8: Ptr
     call_complex marked, %v_44
@@ -180,7 +180,7 @@ main<complex>(): Int {
     %v_48 = sext %v_47: Int
     %v_49 = cast %v_48: Int
     %v_50 = cmp_eq %v_49, 18446744073709551613: Int
-    %v_51 = select 64, 0, %v_50: Int
+    %v_51 = select %v_50, 64, 0: Int
     %v_52 = add %v_43, %v_51: Int
     %v_53 = alloca 8, 8: Ptr
     call_complex marked, %v_53
@@ -189,7 +189,7 @@ main<complex>(): Int {
     %v_56 = cast %v_55: Int
     %v_57 = cast %v_56: Int
     %v_58 = cmp_eq %v_57, 5: Int
-    %v_59 = select 128, 0, %v_58: Int
+    %v_59 = select %v_58, 128, 0: Int
     %v_60 = add %v_52, %v_59: Int
     %v_61 = add %v_60, 768: Int
     %v_62 = alloca 8, 8: Ptr
@@ -203,7 +203,7 @@ main<complex>(): Int {
     %v_69 = shl %v_67, %v_68: Long
     %v_70 = sar %v_69, %v_68: Long
     %v_71 = cmp_eq %v_70, 18446744073709551614: Int
-    %v_72 = select 1024, 0, %v_71: Int
+    %v_72 = select %v_71, 1024, 0: Int
     %v_73 = add %v_61, %v_72: Int
     %v_74 = alloca 8, 8: Ptr
     call_complex retagged, %v_74
@@ -213,7 +213,7 @@ main<complex>(): Int {
     %v_78 = cast %v_77: Int
     %v_79 = cast %v_78: Int
     %v_80 = cmp_eq %v_79, 9: Int
-    %v_81 = select 2048, 0, %v_80: Int
+    %v_81 = select %v_80, 2048, 0: Int
     %v_82 = add %v_73, %v_81: Int
     %v_83 = alloca 8, 4: Ptr
     call_complex boxed, %v_83
@@ -221,7 +221,7 @@ main<complex>(): Int {
     %v_85 = load %v_84, 4: Int
     %v_86 = shr %v_85, 20: Int
     %v_87 = cmp_eq %v_86, 0: Int
-    %v_88 = select 4096, 0, %v_87: Int
+    %v_88 = select %v_87, 4096, 0: Int
     %v_89 = add %v_82, %v_88: Int
     %v_90 = alloca 8, 8: Ptr
     call_complex stored, %v_90, 549755813887
@@ -234,7 +234,7 @@ main<complex>(): Int {
     %v_97 = shl %v_95, %v_96: Long
     %v_98 = sar %v_97, %v_96: Long
     %v_99 = cmp_eq %v_98, 549755813887: Int
-    %v_100 = select 8192, 0, %v_99: Int
+    %v_100 = select %v_99, 8192, 0: Int
     %v_101 = add %v_89, %v_100: Int
     %v_102 = alloca 8, 8: Ptr
     call_complex stored, %v_102, 18446743523953737728
@@ -247,7 +247,7 @@ main<complex>(): Int {
     %v_109 = shl %v_107, %v_108: Long
     %v_110 = sar %v_109, %v_108: Long
     %v_111 = cmp_eq %v_110, 18446743523953737728: Int
-    %v_112 = select 16384, 0, %v_111: Int
+    %v_112 = select %v_111, 16384, 0: Int
     %v_113 = add %v_101, %v_112: Int
     ret %v_113
   }

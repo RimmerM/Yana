@@ -1,0 +1,162 @@
+{-
+   The rest of Design-Vector §3.3's portable set - Implementation-Vector.md §9 item 4.
+
+   `splat`, `lane`, `withLane` and the four reductions are `VecOps.yana`'s; what is here is everything
+   else that exists on every target: construction from nothing, the lane count, the lanewise
+   arithmetic the classes do not cover, and the four rearrangements.
+
+   Every one of them is built out of the five vector instruction kinds and the ordinary arithmetic,
+   which is what §3.2 claimed and this is the file that tests it: a portable vector library needs no
+   instruction the IR did not already have.
+
+   **Width-independent**, and the rearrangements are where that takes work: `reverse` and
+   `interleaveHigh` name a lane whose index *is* the lane count, so both are asserted against
+   `lanes(v)` rather than against a number. `rotate` and `interleaveLow` are asserted at lane 0 and
+   lane 1, which every vector this language admits has.
+
+   No `.run.expect`, for the reason `VecValue.yana` gives: the local x64 backend has no machine opcode
+   for the five vector kinds yet.
+-}
+
+let &seed = 2 :: Int
+
+{-
+   `zero`, `iota` and `lanes` - the three that take nothing, or take a vector and answer something
+   the type already knew.
+
+   `iota` is the one with anything in it. There is no vector constant in this IR, so it is a chain of
+   lane writes over a zero - `lanes` instructions, every one of them a constant, which the folder
+   answers whole. What reaches either backend is the finished vector.
+-}
+fn construction() -> Int:
+    let empty = zero() :: Vec(Int)
+    let indices = iota() :: Vec(Int)
+
+    if lane(empty, 0) != 0 then return -1
+    if lane(empty, 1) != 0 then return -2
+    if lane(indices, 0) != 0 then return -3
+    if lane(indices, 1) != 1 then return -4
+
+    -- The lane count, which is a constant and not a call: the argument it was read off is dead by
+    -- the time anything below the resolver sees it.
+    if lanes(indices) < 2 then return -5
+    if horizontalSum(indices) != lanes(indices) * (lanes(indices) - 1) / 2 then return -6
+
+    return 0
+
+{-
+   `min`, `max` and `abs`, which are lanewise arithmetic the classes do not cover.
+
+   Each is a comparison and a select rather than one instruction, because no target here has a packed
+   minimum yet - and the shape is what a target that gains one folds. `abs` is written as
+   `select(v .<= 0, 0 - v, v)` for a reason a positive zero makes visible: negating `+0.0` gives
+   `-0.0`, so the obvious `select(v .< 0, -v, v)` answers a negative zero for a positive input.
+-}
+fn arithmetic(v: Vec(Int)) -> Int:
+    let indices = iota() :: Vec(Int)
+    let empty = zero() :: Vec(Int)
+
+    let lower = min(v, indices)
+    let upper = max(v, indices)
+
+    -- Lane 0 of `iota` is zero and lane 1 is one, so with `v` holding two in every lane the answers
+    -- are fixed at both without knowing the width.
+    if lane(lower, 0) != 0 then return -1
+    if lane(upper, 0) != 2 then return -2
+    if lane(lower, 1) != 1 then return -3
+    if lane(upper, 1) != 2 then return -4
+
+    let negated = empty - v
+    if lane(abs(negated), 0) != 2 then return -5
+    if lane(abs(v), 1) != 2 then return -6
+
+    return 0
+
+fn floats() -> Int:
+    let a = splat(-1.5) :: Vec(Float)
+    let zeros = zero() :: Vec(Float)
+
+    if lane(abs(a), 0) != 1.5 then return -1
+    if lane(min(a, zeros), 0) != -1.5 then return -2
+    if lane(max(a, zeros), 1) != 0.0 then return -3
+
+    -- The signed zero, which is the whole reason `abs` is a subtraction rather than a negation: this
+    -- has to be `+0.0`, and `1.0 / +0.0` is the only portable way to see which one it is.
+    if 1.0 / lane(abs(zeros), 0) < 0.0 then return -4
+
+    return 0
+
+{-
+   The four rearrangements, each one `vshuffle` and differing only in the pattern.
+
+   `rotate` is a rotation *left*: lane `i` of the result is lane `i + by` of the source, so rotating
+   `iota` by one puts a one in lane zero. Its distance is a constant for the reason a lane index is -
+   the pattern is a field of the instruction on every target, and a computed one is `pshufb` on x86
+   and nothing at all elsewhere.
+-}
+fn rearrangement() -> Int:
+    let indices = iota() :: Vec(Int)
+    let width = lanes(indices)
+
+    -- Reversed: lane zero holds what lane `width - 1` held.
+    let backwards = reverse(indices)
+    if lane(backwards, 0) != width - 1 then return -1
+    if lane(backwards, 1) != width - 2 then return -2
+
+    -- Rotated left by one, and by one the other way, which the modulus handles rather than a second
+    -- name.
+    if lane(rotate(indices, 1), 0) != 1 then return -3
+    if lane(rotate(indices, -1), 0) != width - 1 then return -4
+
+    -- Interleaved: the low halves of both sources alternating, then the high halves.
+    let nines = splat(9) :: Vec(Int)
+    let low = interleaveLow(indices, nines)
+    let high = interleaveHigh(indices, nines)
+
+    if lane(low, 0) != 0 then return -5
+    if lane(low, 1) != 9 then return -6
+    if lane(high, 0) != width / 2 then return -7
+    if lane(high, 1) != 9 then return -8
+
+    return 0
+
+{-
+   The three conversions that change the lane *count*, which is what makes them functions where the
+   ones that keep it are `Widen`, `Narrow` and `Bitcast` over vector types: a class relates one type
+   to one type, and these relate one to two or two to one.
+
+   Nothing in the argument decides the result, so each is written with the ascription that does - and
+   the shapes have to be half and whole of one width, which is checked at the call because that is the
+   only place both can be named.
+
+   Width-independent by construction: `packLanes` doubles the count whatever it was, and the two
+   `unpack`s halve it, so every assertion here is about lane 0 and about `lanes(v)`.
+-}
+fn regrouping(v: Vec(I32)) -> Int:
+    let other = withLane(v, 0, 5) :: Vec(I32)
+    let packed = packLanes(v, other) :: Vec(I16)
+
+    if lanes(packed) != lanes(v) * 2 then return -1
+    if lane(packed, 0) != 2 then return -2
+    if lane(packed, lanes(v)) != 5 then return -3
+
+    -- And back, which is the other direction of the same relation. `lanes(v)` is a constant by the
+    -- time the lane read is expanded, which is what lets it be a lane index at all.
+    let low = unpackLow(packed) :: Vec(I32)
+    let high = unpackHigh(packed) :: Vec(I32)
+
+    if lane(low, 0) != 2 then return -4
+    if lane(high, 0) != 5 then return -5
+
+    return 0
+
+fn main() -> Int:
+    let v = splat(seed) :: Vec(Int)
+
+    if construction() != 0 then return construction()
+    if arithmetic(v) != 0 then return arithmetic(v) * 10
+    if floats() != 0 then return floats() * 100
+    if rearrangement() != 0 then return rearrangement() * 1000
+    if regrouping(splat(seed)) != 0 then return regrouping(splat(seed)) * 10000
+
+    return 271

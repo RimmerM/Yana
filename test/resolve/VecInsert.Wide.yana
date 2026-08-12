@@ -1,0 +1,42 @@
+{-
+   Writing a 64-bit lane, which is native-only and is the one insert route with a detour in it.
+
+   Separate from `VecInsert.yana` because `Vec(Long)` has no JavaScript form at all - a 64-bit
+   integer is a `bigint` on that target and a `bigint` is not a lane (Design-Vector §7.3) - so this
+   is the half of the insert that no cross-target assertion can cover, and is exactly the half that
+   most needs its own runnable one.
+
+   What it exercises on x64: a vector of two quadwords has an instruction for each of the two lanes
+   it holds - `movsd` writes the low one and `unpcklpd` the high one, both at the baseline - and
+   neither cares that the bits it moves were meant as a double. So `lowerLaneInserts` spends an
+   integer insert as the float one with a bitcast at each end, which is two machine instructions
+   where the word-by-word route the 32-bit lane takes would have been eleven. Every step of that is a
+   reinterpretation, so a value whose bits are *not* a plausible double is what makes it an
+   assertion: 20015998348988 is a signalling NaN pattern's worth of nothing in particular, and any
+   route that let a float unit see it as a number would not answer it back.
+-}
+
+fn wide() -> Int:
+    let v = splat(1 :: Long) :: Vec(Long)
+    let a = withLane(v, 1, 20015998348988 :: Long)
+
+    if lane(a, 0) != 1 then return -1
+    if lane(a, 1) != 20015998348988 then return -2
+
+    -- The low lane, which is the other instruction. Written second so that the first write has to
+    -- survive it: a route that wrote the whole register rather than one half would lose it here.
+    let b = withLane(a, 0, -3 :: Long)
+
+    if lane(b, 0) != -3 then return -3
+    if lane(b, 1) != 20015998348988 then return -4
+
+    return 0
+
+fn main() -> Int:
+    if wide() != 0 then return wide()
+
+    -- Read back out of a lane rather than written down, and reduced by a modulus larger than a word
+    -- so that the answer says the whole quadword came back: a route that lost the high half would
+    -- reduce a different number and could not arrive here by accident.
+    let v = withLane(splat(0 :: Long) :: Vec(Long), 1, 20015998348988 :: Long)
+    return truncate(lane(v, 1) % 1000003)

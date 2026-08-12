@@ -1,0 +1,36 @@
+@image$base = []
+mut @sink = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+regrouping<complex>(%v: i32x4): i16x8 {
+  b_0 {
+    %v_1 = bitcast %v: i16x8
+    ret %v_1
+  }
+}
+
+bytes<complex>(%v: i16x8): i8x16 {
+  b_0 {
+    %v_1 = bitcast %v: i8x16
+    ret %v_1
+  }
+}
+
+back<complex>(%v: i8x16): i32x4 {
+  b_0 {
+    %v_1 = bitcast %v: i32x4
+    ret %v_1
+  }
+}
+
+main$<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x4
+    store @sink, %v_1, 16
+    %v_2 = call_complex regrouping, %v_1: i16x8
+    %v_3 = call_complex bytes, %v_2: i8x16
+    %v_4 = call_complex back, %v_3: i32x4
+    store @sink, %v_4, 16
+    ret 1
+  }
+}
+

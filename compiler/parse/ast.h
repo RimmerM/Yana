@@ -122,6 +122,21 @@ struct Type {
         App,    // Application of higher-kinded type.
         Arr,    // An array of a type.
         Map,    // A map from one type to another.
+
+        /*
+         * An integer literal written where a type is - `Vec(Float, 4)`.
+         *
+         * The one position that has a number in it and no expression around it. `[T *n]` already has
+         * one and reads it as an `Expr`, because `*n` is written outside the type; a type argument
+         * has no such syntax to hang it off, so the number arrives as an argument and says here that
+         * it is one.
+         *
+         * It is deliberately *not* accepted as a type: `resolveType` reports it, and the only reader
+         * is the vector constructor, which is asking for a lane count rather than for a type. That
+         * keeps this from being the beginning of const generics - a feature this is not - while
+         * still letting the one constructor that needs a number take one.
+         */
+        Lit,
     };
 
     struct MapPayload {
@@ -139,6 +154,9 @@ struct Type {
         ParsePtr<Type> to;
         ParsePtr<FunType> fun;
         ParsePtr<AppType> app;
+
+        // `Kind::Lit` - the integer literal a lane count is written as.
+        ParsePtr<Expr> lit;
 
         struct {
             ParseList<TupField> fields;
@@ -546,9 +564,25 @@ inline bool isTerminating(const Expr& e) {
  * Decls
  */
 
+/*
+ * One parameter of a declaration head - Implementation-Const-Generics.md §1.1.
+ *
+ * A bare `name` is a type parameter and `name: T` is a *value* parameter of type `T`, so the
+ * annotation is what distinguishes the two and its absence is the whole of what says "a type". That
+ * is the reason the annotation is a type rather than a keyword: nothing else in the grammar changes,
+ * and admitting a new sort of const parameter later is a semantic ruling rather than a production.
+ */
+struct GenParam {
+    StringId name;
+
+    // Null for a type parameter. Parsed with parseAType and not parseType, so that the `->` of a
+    // class head's functional dependency stays a separator - §1.4.
+    ParsePtr<Type> type;
+};
+
 struct SimpleType {
     StringId name;
-    ParseList<StringId> kind;
+    ParseList<GenParam> kind;
 
     /*
      * Where a class head's `->` was written: the index of the first parameter the ones before it
@@ -665,11 +699,33 @@ struct Constraint {
         Class,     // Type must implement this class.
         Field,     // Type must have a field with this name and type.
         Function,  // There must exist a function with this signature.
+
+        // `n: Int` - a const parameter of this context, Implementation-Const-Generics.md §1.2. Read
+        // as a family member of the two above rather than a rule of its own: `a.name: Int` says `a`
+        // has a field, `f: (a) -> b` says `f` is callable, and this one says `n` is an `Int`.
+        Const,
     };
 
     union {
         StringId name;
-        SimpleType type;
+
+        /*
+         * `Num(a)`, `Num(Vec(I16, n))` - Implementation-Const-Generics.md §10.2.
+         *
+         * A payload of its own rather than the `SimpleType` a declaration head uses, because the two
+         * are opposite things that looked alike: a head *binds* parameters and its list is therefore
+         * bare identifiers, while a constraint *applies* them and its list is arguments. They shared
+         * one production only because until const generics every argument anyone wrote happened to
+         * be a bare variable.
+         *
+         * The arguments are whole written types, read by `parseTypeApplicationArg` - the same
+         * production a type application's argument uses, so `Vec(I16, n)`, `Vec(I16, 4)`, `[Int *n]`
+         * and `Pair(k, v)` all arrive with no grammar written for any of them.
+         */
+        struct {
+            StringId name;
+            ParseList<Type> args;
+        } klass;
 
         struct {
             StringId typeName;
@@ -681,6 +737,11 @@ struct Constraint {
             StringId name;
             ParsePtr<Type> type;
         } fun;
+
+        struct {
+            StringId name;
+            ParsePtr<Type> type;
+        } constant;
     };
 
     LocationId source: 28;

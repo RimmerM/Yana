@@ -25,19 +25,20 @@ fn growHeap(%needed: I64) -> Bool {
 
   b3:
     %v10 = load %size : I64
-    %v11 = call mapMemory, %v10 : %U8
+    %v12 = add %v10, 4096 : I64
+    %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
-    init %region, %v11
-    %v15 = bitcast %v11 : Long
-    %v17 = cmp_eq %v15, 0 : Bool
-    je %v17, b4, b5
+    init %region, %v13
+    %v17 = bitcast %v13 : Long
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b4, b5
 
   b4:
-    %v20 = cmp_gt %needed, 4194304 : Bool
-    %least = select %v20 ? %needed : 4194304 : I64
-    %v26 = load %size : I64
-    %v27 = cmp_ge %least, %v26 : Bool
-    je %v27, b6, b7
+    %v22 = cmp_gt %needed, 4194304 : Bool
+    %least = select %v22 ? %needed : 4194304 : I64
+    %v28 = load %size : I64
+    %v29 = cmp_ge %least, %v28 : Bool
+    je %v29, b6, b7
 
   b5:
     jmp b10
@@ -47,11 +48,12 @@ fn growHeap(%needed: I64) -> Bool {
 
   b7:
     assign %size, %least
-    %v34 = call mapMemory, %least : %U8
-    assign %region, %v34
-    %v37 = bitcast %v34 : Long
-    %v39 = cmp_eq %v37, 0 : Bool
-    je %v39, b8, b9
+    %v37 = add %least, 4096 : I64
+    %v38 = call mapMemory, %v37 : %U8
+    assign %region, %v38
+    %v41 = bitcast %v38 : Long
+    %v43 = cmp_eq %v41, 0 : Bool
+    je %v43, b8, b9
 
   b8:
     ret False
@@ -60,13 +62,13 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b10
 
   b10:
-    %v46 = load %region : %U8
-    assign heapNext, %v46
-    %v49 = load %size : I64
-    %v52 = add %v46, %v49 : %U8
-    assign heapLimit, %v52
-    %v56 = add %v49, %v49 : I64
-    assign heapRegionNext, %v56
+    %v50 = load %region : %U8
+    assign heapNext, %v50
+    %v53 = load %size : I64
+    %v56 = add %v50, %v53 : %U8
+    assign heapLimit, %v56
+    %v60 = add %v53, %v53 : I64
+    assign heapRegionNext, %v60
     ret True
 }
 
@@ -81,7 +83,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b7
 
   b2:
-    %result = syscall 9, 0, 4194304, 3, 34, -1, 0 : I64
+    %result = syscall 9, 0, 4198400, 3, 34, -1, 0 : I64
     %v81 = cmp_lt %result, 0 : Bool
     %v83 = bitcast 0 : %U8
     %v84 = bitcast %result : %U8

@@ -105,7 +105,8 @@ bool findClassRequirement(Module& module, const GenEnv& env, GlobalPtr<TypeClass
     return false;
 }
 
-void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source) {
+void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source,
+                    const GenEnv* caller) {
     auto global = *module.types;
 
     // A chain resolves in one call rather than in declaration order, so each round that changes
@@ -133,9 +134,20 @@ void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId 
                 auto decided = substituted && !isGeneric(global, substituted);
 
                 if(index < determined) {
-                    // Nothing to look an instance up by until every deciding position is a real
-                    // type. A later round may still decide it.
-                    if(!decided) ready = false;
+                    /*
+                     * Nothing to look an instance up by until every deciding position names a head.
+                     * A later round may still decide it.
+                     *
+                     * A *bare* variable is what cannot select, and only a bare one - which is the
+                     * rule `resolveDetermined` states at length and this test used to be stricter
+                     * than: `Flat(a)` is generic and is still a container the author wrote out, one
+                     * instance answers for it, and what that instance determines is the same answer
+                     * whatever `a` turns out to be. Asking for concreteness here meant a body
+                     * generic in the *element* could not call an operation over its own chunk -
+                     * `fn (Num(a)) f(chunk: [a])` calling `vectors(chunk)` - while the identical
+                     * body over `[Int]` could.
+                     */
+                    if(!substituted || global[substituted]->kind == Type::Gen) ready = false;
                     concrete.push(substituted);
                 } else {
                     if(!decided) open = true;
@@ -145,8 +157,44 @@ void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId 
                 index++;
             }
 
-            if(!ready || !open) continue;
-            if(!resolveDetermined(module, typeClass, concrete)) continue;
+            if(!open) continue;
+
+            /*
+             * What answers the dependency, and there are two things that can.
+             *
+             * An *instance* answers when every deciding position is a real type, which is the
+             * ordinary case and the one this pass was written for. Inside a generic body a deciding
+             * position is frequently the calling function's own type variable - `fn (Chunked(c, a))
+             * sum(xs: c)` calling `vectors(xs)` hands over its own `c` - and there is no instance to
+             * look up, because which container `c` will be is that function's caller's business.
+             *
+             * What answers there is the **caller's own declared requirement**, which named the
+             * determined position already: the `a` of the `Chunked(c, a)` this function declared is
+             * what `chunks(xs)` yields, whatever `c` turns out to be. Without this, every generic
+             * function over a dependency that calls another one reports that the call does not
+             * decide what it hands over - for a call that decides it perfectly well - and that is
+             * every bulk operation in Implementation-Vector.md §9 item 7.
+             *
+             * `fillDependency` states the same rule for the single-instance case and cites the same
+             * reason; this is the chain, which it did not reach.
+             */
+            auto answered = false;
+
+            if(ready) {
+                answered = bool(resolveDetermined(module, typeClass, concrete));
+            } else if(caller) {
+                TypeList declared;
+
+                if(findClassRequirement(module, *caller, typeClass, toBuffer(concrete), declared)) {
+                    for(Size i = determined; i < concrete.size() && i < declared.size(); i++) {
+                        if(!concrete[i]) concrete[i] = declared[i];
+                    }
+
+                    answered = true;
+                }
+            }
+
+            if(!answered) continue;
 
             /*
              * What the instance answered, matched back against the constraint *as written*, which
@@ -771,6 +819,13 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
 
             result = resolver.emit<InstLoadPlace>(inst.source, inst.name, type,
                                                   clonePlace(clone, ((InstLoadPlace&)inst).place));
+
+            // And the overread flag with it. A clone that dropped it produced a load nothing had
+            // exempted from the bounds reasoning - which is not a wrong answer here but is one
+            // everywhere the flag is read, and every one of those readers is downstream of this
+            // walk. `loadVectorTail` is a generic function, so *every* overreading load in a real
+            // program arrives through a specialization of one.
+            ((InstLoadPlace*)result)->overread = ((InstLoadPlace&)inst).overread;
             break;
         case Value::Init:
         case Value::Assign: {
@@ -973,8 +1028,15 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
+        case Value::Sqrt:
             result = resolver.emit<InstUnary>(inst.source, inst.name, type, inst.kind,
                                               cloneValue(clone, ((InstUnary&)inst).from));
+            break;
+        case Value::Fma:
+            result = resolver.emit<InstFma>(inst.source, inst.name, type,
+                                            cloneValue(clone, ((InstFma&)inst).a),
+                                            cloneValue(clone, ((InstFma&)inst).b),
+                                            cloneValue(clone, ((InstFma&)inst).c));
             break;
         case Value::Add:
         case Value::Sub:
@@ -996,6 +1058,48 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto& compare = (InstCmp&)inst;
             result = resolver.emit<InstCmp>(inst.source, inst.name, type, cloneValue(clone, compare.lhs),
                                             cloneValue(clone, compare.rhs), compare.cmp);
+            break;
+        }
+        /*
+         * The vector kinds, cloned like every other computation.
+         *
+         * `type` is already the substituted one, which is what carries the whole of the natural
+         * form's deferral through specialization: a `Vec(a)` in the generic body has no lane count,
+         * and the clone of an instruction over it is an instruction over the resolved vector because
+         * `cloneType` resolved it. Nothing here has to know that happened.
+         */
+        case Value::VecSplat:
+            result = resolver.emit<InstVecSplat>(inst.source, inst.name, type,
+                                                 cloneValue(clone, ((InstVecSplat&)inst).from));
+            break;
+        case Value::VecLane: {
+            auto& lane = (InstVecLane&)inst;
+            result = resolver.emit<InstVecLane>(inst.source, inst.name, type,
+                                                cloneValue(clone, lane.from), lane.lane);
+            break;
+        }
+        case Value::VecWithLane: {
+            auto& lane = (InstVecLane&)inst;
+            result = resolver.emit<InstVecLane>(inst.source, inst.name, type,
+                                                cloneValue(clone, lane.from), lane.lane,
+                                                cloneValue(clone, lane.value));
+            break;
+        }
+        case Value::VecShuffle: {
+            auto& shuffle = (InstVecShuffle&)inst;
+            auto cloned = resolver.create<InstVecShuffle>(inst.source, inst.name, type,
+                                                          cloneValue(clone, shuffle.left),
+                                                          cloneValue(clone, shuffle.right));
+
+            for(auto entry: shuffle.pattern) cloned->pattern.push(entry);
+            resolver.append(cloned);
+            result = cloned;
+            break;
+        }
+        case Value::VecReduce: {
+            auto& reduce = (InstVecReduce&)inst;
+            result = resolver.emit<InstVecReduce>(inst.source, inst.name, type,
+                                                  cloneValue(clone, reduce.from), reduce.reduce);
             break;
         }
         case Value::Call: {

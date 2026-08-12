@@ -52,11 +52,23 @@ struct Diamond {
     ModulePtr<Value> cond = nullptr;
 };
 
+/*
+ * The block `addFunction` already made, which is the one every case here has to build into.
+ *
+ * `Module::addFunction` creates the entry block itself, so a case that called `addBlock` for its own
+ * entry left block 0 empty and terminator-less - and `hasBody` answers no to that, which makes
+ * `verifyFunction` return true without looking at anything. Every `verifies` check in this file was
+ * vacuous for exactly that reason, which is a thing a test driver is not allowed to be quiet about.
+ */
+static Block* entryBlock(Module& module, Function& function) {
+    return (*module.arena)[function.blocks.get(*module.arena, 0)];
+}
+
 static Diamond buildDuplicateArms(Module& module, Function& function) {
     IrEditor editor(module, function);
     Diamond result;
 
-    result.entry = function.addBlock(module);
+    result.entry = entryBlock(module, function);
     result.join = function.addBlock(module);
 
     auto joinPointer = (ModulePtr<Block>)(result.join - *module.arena);
@@ -245,6 +257,147 @@ static void testRedirectDuplicateArms(Module& module) {
     check(predecessorsFrom(base, *target, entryPointer) == 2, "the target gained both");
 }
 
+/*
+ * The five vector instructions - Implementation-Vector.md §3.2, built here for the reason this
+ * driver exists at all: they are shapes **no source program produces**.
+ *
+ * Stage 9's library is what will build them from a `Vec(a)` expression, and until it lands nothing
+ * above the resolver can construct one - so the alternative to building them by hand is five kinds,
+ * a verifier that has never seen them, a use list that has never recorded one and a translation to
+ * the lower IR that has never run. That is the state a bug lives in comfortably, which is the
+ * sentence at the top of this file.
+ *
+ * What each case asserts is the thing that would be silently wrong: that `IrEditor::append` records
+ * the operands as uses (a kind missing from `addUse` compiles and leaks a reader), and that
+ * `verifyFunction` accepts a well-formed one and rejects the malformed one beside it.
+ *
+ *      vectors: %v = vsplat %x; %l = vlane %v, 2; %w = vwithlane %v, %x, 1
+ *               %s = vshuffle %v, %w, 0, 1, 2, 3; %r = vreduce_add %v; ret %l
+ */
+static void testVectorInstructions(Module& module) {
+    currentTest = "vector instructions";
+
+    auto& context = module.context;
+    auto function = module.addFunction(context.addUnqualifiedName("vectors", 7), kNullLocation);
+    auto block = entryBlock(module, *function);
+    auto base = *module.arena;
+
+    // Four lanes explicitly rather than the natural count, so that the pattern below is four entries
+    // whatever this build's target vector width is.
+    auto lane = module.scalar.float_;
+    auto vector = resolveVectorType(module, lane, 4, false, kNullLocation);
+    check(vectorLanes(*module.types, vector) == 4, "a four-lane vector");
+
+    IrEditor editor(module, *function);
+
+    auto scalar = (ModulePtr<Value>)(addConstant<ConstFloat>(module, *function, *block, kNullLocation,
+                                                             lane, 1.5f) - base);
+
+    auto splat = addInst<InstVecSplat>(module, *function, *block, kNullLocation, StringId(), vector,
+                                       scalar);
+    auto splatPointer = (ModulePtr<Value>)(splat - base);
+
+    auto read = addInst<InstVecLane>(module, *function, *block, kNullLocation, StringId(), lane,
+                                     splatPointer, 2);
+
+    auto written = addInst<InstVecLane>(module, *function, *block, kNullLocation, StringId(), vector,
+                                        splatPointer, 1, scalar);
+    auto writtenPointer = (ModulePtr<Value>)(written - base);
+
+    auto shuffle = createInst<InstVecShuffle>(module, *function, *block, kNullLocation, StringId(),
+                                              vector, splatPointer, writtenPointer);
+    for(U8 i = 0; i < 4; i++) shuffle->pattern.push(i);
+    editor.append(*block, (Inst*)shuffle);
+
+    addInst<InstVecReduce>(module, *function, *block, kNullLocation, StringId(), lane, splatPointer,
+                           ReduceOp::Add);
+
+    addInst<InstRet>(module, *function, *block, kNullLocation, StringId(), module.scalar.unit,
+                     (ModulePtr<Value>)(read - base));
+
+    /*
+     * The splat is read four times - by the lane read, the lane write, the shuffle's left source and
+     * the reduction - and every one of those is a kind `addUse` had to be told about. A kind it was
+     * not told about compiles, records nothing, and leaves the dead-value pass entitled to delete
+     * the instruction its reader still names.
+     */
+    check(base[splatPointer]->useCount() == 4, "every reader of the splat is recorded");
+    check(base[scalar]->useCount() == 2, "and both readers of the scalar");
+
+    check(verifyFunction(module, *function, VerifyStage::Resolved, "vectors"_v), "verifies");
+}
+
+/*
+ * And the malformed ones, which is the half that says the rules above are checked rather than
+ * written down. Each of these is one instruction that is wrong in one way.
+ */
+static void testVectorRejections(Module& module) {
+    currentTest = "vector rejections";
+
+    auto& context = module.context;
+    auto base = *module.arena;
+    auto lane = module.scalar.float_;
+    auto vector = resolveVectorType(module, lane, 4, false, kNullLocation);
+    auto narrow = resolveVectorType(module, lane, 2, false, kNullLocation);
+
+    // The verifier reports through the module's diagnostics, and `main` treats a leftover finding as
+    // a failure - so each rejection is counted here and the count is what is asserted, rather than
+    // the errors being left to accumulate.
+    auto before = context.diagnostics.errorCount();
+
+    // The four findings below are printed as they are reported, because the diagnostics object is
+    // the process's one and there is nothing to redirect it into. Saying so first is what keeps a
+    // passing run from reading like a failing one.
+    println("The four verifier findings below are the point of this case, and are expected:");
+
+    auto reject = [&](const char* name, Size length, auto&& build) {
+        auto function = module.addFunction(context.addUnqualifiedName(name, length), kNullLocation);
+        auto block = entryBlock(module, *function);
+        auto scalar = (ModulePtr<Value>)(addConstant<ConstFloat>(module, *function, *block,
+                                                                 kNullLocation, lane, 1.5f) - base);
+        auto splat = (ModulePtr<Value>)(addInst<InstVecSplat>(module, *function, *block, kNullLocation,
+                                                              StringId(), vector, scalar) - base);
+
+        build(*function, *block, scalar, splat);
+        addInst<InstRet>(module, *function, *block, kNullLocation, StringId(), module.scalar.unit, nullptr);
+
+        check(!verifyFunction(module, *function, VerifyStage::Resolved, "rejection"_v), name);
+    };
+
+    // A lane index past the end of the vector it names.
+    reject("laneOutOfRange", 14, [&](Function& function, Block& block, ModulePtr<Value>, ModulePtr<Value> splat) {
+        addInst<InstVecLane>(module, function, block, kNullLocation, StringId(), lane, splat, 7);
+    });
+
+    // A shuffle pattern with fewer entries than the result has lanes.
+    reject("shortPattern", 12, [&](Function& function, Block& block, ModulePtr<Value>, ModulePtr<Value> splat) {
+        IrEditor editor(module, function);
+        auto shuffle = createInst<InstVecShuffle>(module, function, block, kNullLocation, StringId(),
+                                                  vector, splat, splat);
+        shuffle->pattern.push(0);
+        editor.append(block, (Inst*)shuffle);
+    });
+
+    // A cast between two vectors of different lane counts, which is a shuffle and a cast rather than
+    // a cast - §3.2's first consequence, and the one rule nothing else distinguishes.
+    reject("laneCountCast", 13, [&](Function& function, Block& block, ModulePtr<Value>, ModulePtr<Value> splat) {
+        addInst<InstUnary>(module, function, block, kNullLocation, StringId(), narrow, Value::Cast, splat);
+    });
+
+    // A reduction of something that is not a vector at all.
+    reject("scalarReduce", 12, [&](Function& function, Block& block, ModulePtr<Value> scalar, ModulePtr<Value>) {
+        addInst<InstVecReduce>(module, function, block, kNullLocation, StringId(), lane, scalar,
+                               ReduceOp::Add);
+    });
+
+    check(context.diagnostics.errorCount() > before, "the verifier reported them");
+
+    // `main` treats a leftover finding as a failure, which is what catches a verifier complaining
+    // about a function no case asked about. These findings were asked for, so the count goes back to
+    // where the run started rather than staying as four unattributed errors.
+    context.diagnostics.reset();
+}
+
 // A source provider that answers nothing, because nothing here has a source: every function is
 // built out of instructions rather than parsed, and every location is null. It exists so that a
 // verifier finding still reaches `println` rather than a null dereference on the way to formatting.
@@ -268,6 +421,8 @@ int main() {
     testFoldDuplicateBranch(*module);
     testClearDuplicateTerminator(*module);
     testRedirectDuplicateArms(*module);
+    testVectorInstructions(*module);
+    testVectorRejections(*module);
 
     // The verifier reports through the module's diagnostics rather than by answering, so a finding
     // that `verifyFunction` returned false about is also an error here - and one it reported about a

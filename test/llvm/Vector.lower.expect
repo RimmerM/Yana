@@ -1,0 +1,149 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc <8 x float> @arith(<8 x float> %a, <8 x float> %b, <4 x i32> %i, <4 x i32> %j) {
+  br label %1
+
+1:                                                ; preds = %0
+  %add = fadd <8 x float> %a, %b
+  %sub = fsub <8 x float> %a, %b
+  %mul = fmul <8 x float> %a, %b
+  %div = fdiv <8 x float> %a, %b
+  %ng = fneg <8 x float> %a
+  %iadd = add <4 x i32> %i, %j
+  %idiv = sdiv <4 x i32> %i, %j
+  %irem = srem <4 x i32> %i, %j
+  %and = and <4 x i32> %i, %j
+  %not = xor <4 x i32> %i, <i32 -1, i32 -1, i32 -1, i32 -1>
+  %shv = shl <4 x i32> %i, %j
+  %shs = shl <4 x i32> %i, <i32 3, i32 3, i32 3, i32 3>
+  ret <8 x float> %add
+}
+
+define fastcc <8 x float> @masks(<8 x float> %a, <8 x float> %b) {
+  br label %1
+
+1:                                                ; preds = %0
+  %lt = fcmp olt <8 x float> %a, %b
+  %gt = fcmp ogt <8 x float> %a, %b
+  %both = and <8 x i1> %lt, %gt
+  %inv = xor <8 x i1> %both, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+  %sel = select <8 x i1> %inv, <8 x float> %a, <8 x float> %b
+  %2 = call i1 @llvm.vector.reduce.or.v8i1(<8 x i1> %inv)
+  %any = zext i1 %2 to i32
+  %3 = call i1 @llvm.vector.reduce.and.v8i1(<8 x i1> %inv)
+  %all = zext i1 %3 to i32
+  %4 = zext <8 x i1> %inv to <8 x i32>
+  %count = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> %4)
+  ret <8 x float> %sel
+}
+
+define fastcc float @lanes(float %x, <8 x float> %v, <8 x float> %w) {
+  br label %1
+
+1:                                                ; preds = %0
+  %.splatinsert = insertelement <8 x float> poison, float %x, i32 0
+  %splat = shufflevector <8 x float> %.splatinsert, <8 x float> poison, <8 x i32> zeroinitializer
+  %lane = extractelement <8 x float> %v, i32 3
+  %with = insertelement <8 x float> %v, float %x, i32 5
+  %2 = shufflevector <8 x float> %v, <8 x float> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
+  %3 = shufflevector <8 x float> %v, <8 x float> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
+  %4 = fadd <4 x float> %2, %3
+  %5 = shufflevector <4 x float> %4, <4 x float> poison, <2 x i32> <i32 0, i32 2>
+  %6 = shufflevector <4 x float> %4, <4 x float> poison, <2 x i32> <i32 1, i32 3>
+  %7 = fadd <2 x float> %5, %6
+  %8 = shufflevector <2 x float> %7, <2 x float> poison, <1 x i32> zeroinitializer
+  %9 = shufflevector <2 x float> %7, <2 x float> poison, <1 x i32> <i32 1>
+  %10 = fadd <1 x float> %8, %9
+  %sum = extractelement <1 x float> %10, i64 0
+  %max = call float @llvm.vector.reduce.fmax.v8f32(<8 x float> %v)
+  %zip = shufflevector <8 x float> %v, <8 x float> %w, <8 x i32> <i32 0, i32 8, i32 1, i32 9, i32 2, i32 10, i32 3, i32 11>
+  %low = shufflevector <8 x float> %v, <8 x float> %v, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %11 = shufflevector <4 x float> %low, <4 x float> poison, <2 x i32> <i32 0, i32 2>
+  %12 = shufflevector <4 x float> %low, <4 x float> poison, <2 x i32> <i32 1, i32 3>
+  %13 = fadd <2 x float> %11, %12
+  %14 = shufflevector <2 x float> %13, <2 x float> poison, <1 x i32> zeroinitializer
+  %15 = shufflevector <2 x float> %13, <2 x float> poison, <1 x i32> <i32 1>
+  %16 = fadd <1 x float> %14, %15
+  %narrow = extractelement <1 x float> %16, i64 0
+  ret float %sum
+}
+
+define fastcc <32 x i8> @narrow(ptr %p, i32 %n) {
+  br label %1
+
+1:                                                ; preds = %0
+  %b = load <32 x i8>, ptr %p, align 1
+  %s = load <16 x i16>, ptr %p, align 1
+  %l = load <4 x i64>, ptr %p, align 1
+  %d = load <4 x double>, ptr %p, align 1
+  %2 = trunc i32 %n to i8
+  %.splatinsert = insertelement <32 x i8> poison, i8 %2, i32 0
+  %splat = shufflevector <32 x i8> %.splatinsert, <32 x i8> poison, <32 x i32> zeroinitializer
+  %3 = extractelement <32 x i8> %b, i32 7
+  %lane = zext i8 %3 to i32
+  %4 = trunc i32 %n to i8
+  %with = insertelement <32 x i8> %b, i8 %4, i32 9
+  %5 = call i8 @llvm.vector.reduce.add.v32i8(<32 x i8> %b)
+  %sum = zext i8 %5 to i32
+  %tail = load <32 x i8>, ptr %p, align 1
+  %total = add <32 x i8> %b, %tail
+  store <32 x i8> %total, ptr %p, align 1
+  ret <32 x i8> %total
+}
+
+define fastcc <4 x double> @convert(<4 x float> %f, <4 x i32> %i) {
+  br label %1
+
+1:                                                ; preds = %0
+  %bits = bitcast <4 x i32> %i to <4 x float>
+  %wide = fpext <4 x float> %f to <4 x double>
+  %narrow = trunc <4 x i32> %i to <4 x i8>
+  %pack = bitcast <4 x i32> %i to <16 x i8>
+  %trunc = call <4 x i32> @llvm.fptosi.sat.v4i32.v4f32(<4 x float> %f)
+  %back = sitofp <4 x i32> %i to <4 x float>
+  ret <4 x double> %wide
+}
+
+define fastcc <8 x float> @loop(<8 x float> %v, i32 %n) {
+  br label %start
+
+start:                                            ; preds = %0
+  br label %head
+
+head:                                             ; preds = %body, %start
+  %acc = phi <8 x float> [ %v, %start ], [ %next, %body ]
+  %i = phi i32 [ 0, %start ], [ %step, %body ]
+  %1 = icmp slt i32 %i, %n
+  %2 = zext i1 %1 to i32
+  br i1 %1, label %body, label %exit
+
+body:                                             ; preds = %head
+  %next = fadd <8 x float> %acc, %v
+  %step = add i32 %i, 1
+  br label %head
+
+exit:                                             ; preds = %head
+  ret <8 x float> %acc
+}
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i1 @llvm.vector.reduce.or.v8i1(<8 x i1>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i1 @llvm.vector.reduce.and.v8i1(<8 x i1>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare float @llvm.vector.reduce.fmax.v8f32(<8 x float>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+declare i8 @llvm.vector.reduce.add.v32i8(<32 x i8>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare <4 x i32> @llvm.fptosi.sat.v4i32.v4f32(<4 x float>) #1
+
+attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
+attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }

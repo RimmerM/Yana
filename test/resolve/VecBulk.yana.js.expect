@@ -1,0 +1,511 @@
+"use strict";
+// Core
+function teardown$none(value) {
+}
+
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function sumVectors_Array_Int_Int(xs) {
+  var acc = { $v: [0, 0, 0, 0] };
+  var v20 = { width: 4, body: { $o: { $c: Collections_continuation$2_Array_Int_Int, $e: { $v: { $o: acc, $k: "$v", $s: 1 } } }, $k: "$c", $ke: "$e" }, empty: [0, 0, 0, 0] };
+  var v44 = 0;
+  var v47 = Collections_continuation$1_Array_Int_Int(v20, Contiguous_Array_a_a_elements_Int(xs));
+  if (v47 <= 1) {
+    v44 = v47;
+  } else {
+    v44 = 2;
+  }
+  var v14 = acc.$v;
+  return (v14[0] + v14[1] | 0) + (v14[2] + v14[3] | 0) | 0;
+}
+
+function Collections_continuation$2_Array_Int_Int(env, value$) {
+  var v2 = env.$v;
+  var v4 = v2.$o[v2.$k];
+  v2.$o[v2.$k] = [v4[0] + value$[0] | 0, v4[1] + value$[1] | 0, v4[2] + value$[2] | 0, v4[3] + value$[3] | 0];
+  return 0;
+}
+
+function Collections_continuation$1_Array_Int_Int(env, value$) {
+  var v2 = value$.length;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + env.width | 0) <= v2) {
+      var v16 = env.body;
+      var v19 = loadVector_Int(value$.items, value$.length, value$.offset, i);
+      var v20 = v16.$o[v16.$k](v16.$o[v16.$ke], v19);
+      if (v20 === 1) {
+        return v20;
+      } else {
+        i = i + env.width | 0;
+        continue L0;
+      }
+    } else {
+      B1: {
+        if (i < v2) {
+          var v36 = v2 - i | 0;
+          var live$0 = 0 < v36;
+          var live$1 = 1 < v36;
+          var live$2 = 2 < v36;
+          var live$3 = 3 < v36;
+          var v48 = env.body;
+          var v51 = loadVectorTail_Int(value$.items, value$.length, value$.offset, i);
+          var v52 = env.empty;
+          var v54 = v48.$o[v48.$k](v48.$o[v48.$ke], [live$0 ? v51[0] : v52[0], live$1 ? v51[1] : v52[1], live$2 ? v51[2] : v52[2], live$3 ? v51[3] : v52[3]]);
+          if (v54 === 1) {
+            return v54;
+          }
+        }
+      }
+      return 2;
+    }
+    break L0;
+  }
+}
+
+function loadVector_Int(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
+}
+
+function loadVectorTail_Int(from$items, from$length, from$offset, at) {
+  var v4 = from$offset + at | 0;
+  var v9 = (from$offset + from$length | 0) - 1 | 0;
+  var v12 = from$items[v4 > v9 ? v9 : v4];
+  var v15 = v4 + 1 | 0;
+  var v18 = from$items[v15 > v9 ? v9 : v15];
+  var v21 = v4 + 2 | 0;
+  var v24 = from$items[v21 > v9 ? v9 : v21];
+  var v27 = v4 + 3 | 0;
+  return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
+}
+
+function Contiguous_Array_a_a_elements_Int(self) {
+  var v2 = self.length;
+  var v4 = self.items;
+  var start = 0;
+  if (0 > v2) {
+    start = v2;
+  }
+  var end = v2;
+  if (v2 < start) {
+    end = start;
+  }
+  if (end > v2) {
+    end = v2;
+  }
+  return { items: v4, length: end - start | 0, offset: start };
+}
+
+function Collections_continuation$4_Array_Int_Int(env, value$) {
+  var v = value$.f0;
+  var live = value$.f1;
+  var v4 = env.acc;
+  var v6 = v4.$o[v4.$k];
+  var v17$0 = 0 < live;
+  var v17$1 = 1 < live;
+  var v17$2 = 2 < live;
+  var v17$3 = 3 < live;
+  var v18 = env.ones;
+  v4.$o[v4.$k] = [Math.imul(v6[0], v17$0 ? v[0] : v18[0]), Math.imul(v6[1], v17$1 ? v[1] : v18[1]), Math.imul(v6[2], v17$2 ? v[2] : v18[2]), Math.imul(v6[3], v17$3 ? v[3] : v18[3])];
+  return 0;
+}
+
+function vectorsMasked_Array_Int_Int(self, body$c, body$e) {
+  var v5 = { width: 4, body: { $o: { $c: body$c, $e: body$e }, $k: "$c", $ke: "$e" } };
+  var v25 = 0;
+  var v28 = Collections_continuation$0_Array_Int_Int(v5, Contiguous_Array_a_a_elements_Int(self));
+  if (v28 <= 1) {
+    v25 = v28;
+  } else {
+    v25 = 2;
+  }
+  if (v25 <= 1) {
+    return v25;
+  } else {
+    return 0;
+  }
+}
+
+function Collections_continuation$0_Array_Int_Int(env, value$) {
+  var v2 = value$.length;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + env.width | 0) <= v2) {
+      var v16 = env.body;
+      var v18 = { f0: loadVector_Int(value$.items, value$.length, value$.offset, i), f1: env.width };
+      var v23 = v16.$o[v16.$k](v16.$o[v16.$ke], v18);
+      if (v23 === 1) {
+        return v23;
+      } else {
+        i = i + env.width | 0;
+        continue L0;
+      }
+    } else {
+      B1: {
+        if (i < v2) {
+          var v38 = env.body;
+          var v40 = { f0: loadVectorTail_Int(value$.items, value$.length, value$.offset, i), f1: v2 - i | 0 };
+          var v46 = v38.$o[v38.$k](v38.$o[v38.$ke], v40);
+          if (v46 === 1) {
+            return v46;
+          }
+        }
+      }
+      return 2;
+    }
+    break L0;
+  }
+}
+
+function Collections_continuation$6_Array_Int_Int(env, value$) {
+  var v = value$.f0;
+  var live = value$.f1;
+  var v4 = env.$v;
+  var v6 = v4.$o[v4.$k];
+  var v17$0 = 0 < live;
+  var v17$1 = 1 < live;
+  var v17$2 = 2 < live;
+  var v17$3 = 3 < live;
+  var v20$0 = v17$0 ? v[0] : v6[0];
+  var v20$1 = v17$1 ? v[1] : v6[1];
+  var v20$2 = v17$2 ? v[2] : v6[2];
+  var v20$3 = v17$3 ? v[3] : v6[3];
+  v4.$o[v4.$k] = [v6[0] > v20$0 ? v6[0] : v20$0, v6[1] > v20$1 ? v6[1] : v20$1, v6[2] > v20$2 ? v6[2] : v20$2, v6[3] > v20$3 ? v6[3] : v20$3];
+  return 0;
+}
+
+function Collections_continuation$8_Array_Int_Int(env, value$) {
+  var v = value$.f0;
+  var live = value$.f1;
+  var v4 = env.$v;
+  var v6 = v4.$o[v4.$k];
+  var v17$0 = 0 < live;
+  var v17$1 = 1 < live;
+  var v17$2 = 2 < live;
+  var v17$3 = 3 < live;
+  var v20$0 = v17$0 ? v[0] : v6[0];
+  var v20$1 = v17$1 ? v[1] : v6[1];
+  var v20$2 = v17$2 ? v[2] : v6[2];
+  var v20$3 = v17$3 ? v[3] : v6[3];
+  v4.$o[v4.$k] = [v6[0] < v20$0 ? v6[0] : v20$0, v6[1] < v20$1 ? v6[1] : v20$1, v6[2] < v20$2 ? v6[2] : v20$2, v6[3] < v20$3 ? v6[3] : v20$3];
+  return 0;
+}
+
+function Collections_continuation$10_Array_Int_Int(env, value$) {
+  var v = value$.f0;
+  var live = value$.f1;
+  var v4 = env.total;
+  var v6 = v4.$o[v4.$k];
+  var v7 = env.sought;
+  v4.$o[v4.$k] = v6 + ((v[0] === v7[0] && 0 < live ? 1 : 0) + (v[1] === v7[1] && 1 < live ? 1 : 0) + ((v[2] === v7[2] && 2 < live ? 1 : 0) + (v[3] === v7[3] && 3 < live ? 1 : 0))) | 0;
+  return 0;
+}
+
+function indexOfVectors_Array_Int_Int(xs, wanted) {
+  var v11 = { $c: Collections_continuation$12_Array_Int_Int, $e: { sought: [wanted, wanted, wanted, wanted], at: { $o: { $v: 0 }, $k: "$v", $s: 1 } } };
+  var v26 = { $tag: 0, $p: null };
+  var v27 = { width: 4, body: { $o: v11, $k: "$c", $ke: "$e" } };
+  var v50 = { $tag: 0, $p: null };
+  var v53 = Collections_continuation$0_Array_Int_Int_Maybe_Int(v27, Contiguous_Array_a_a_elements_Int(xs));
+  if (!(v53 === null)) {
+    v50 = v53;
+  } else {
+    v50 = null;
+  }
+  if (!(v50 === null)) {
+    v26 = v50;
+  } else {
+    v26 = { $tag: 0, $p: null };
+  }
+  if (v26.$tag === 1) {
+    return v26.$p;
+  } else {
+    return null;
+  }
+}
+
+function Collections_continuation$12_Array_Int_Int(env, value$) {
+  var v = value$.f0;
+  var live = value$.f1;
+  var v4 = env.sought;
+  var v5$0 = v[0] === v4[0];
+  var v5$1 = v[1] === v4[1];
+  var v5$2 = v[2] === v4[2];
+  var v5$3 = v[3] === v4[3];
+  var v16$0 = 0 < live;
+  var v16$1 = 1 < live;
+  var v16$2 = 2 < live;
+  var v16$3 = 3 < live;
+  var hits$0 = v5$0 && v16$0;
+  var hits$1 = v5$1 && v16$1;
+  var hits$2 = v5$2 && v16$2;
+  var hits$3 = v5$3 && v16$3;
+  if (hits$0 || hits$1 || (hits$2 || hits$3)) {
+    var v21 = env.at;
+    return { $tag: 1, $p: v21.$o[v21.$k] + Math.min(Math.min(hits$0 ? 0 : 4, hits$1 ? 1 : 4), Math.min(hits$2 ? 2 : 4, hits$3 ? 3 : 4)) | 0 };
+  } else {
+    var v45 = env.at;
+    v45.$o[v45.$k] = v45.$o[v45.$k] + live | 0;
+    return { $tag: 0, $p: null };
+  }
+}
+
+function Collections_continuation$0_Array_Int_Int_Maybe_Int(env, value$) {
+  var v2 = value$.length;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + env.width | 0) <= v2) {
+      var v16 = env.body;
+      var v18 = { f0: loadVector_Int(value$.items, value$.length, value$.offset, i), f1: env.width };
+      var v23 = v16.$o[v16.$k](v16.$o[v16.$ke], v18);
+      if (v23.$tag === 1) {
+        return v23;
+      } else {
+        i = i + env.width | 0;
+        continue L0;
+      }
+    } else {
+      B1: {
+        if (i < v2) {
+          var v38 = env.body;
+          var v40 = { f0: loadVectorTail_Int(value$.items, value$.length, value$.offset, i), f1: v2 - i | 0 };
+          var v46 = v38.$o[v38.$k](v38.$o[v38.$ke], v40);
+          if (v46.$tag === 1) {
+            return v46;
+          }
+        }
+      }
+      return null;
+    }
+    break L0;
+  }
+}
+
+function sumVectors_Array_Float_Float(xs) {
+  var acc = { $v: [0, 0, 0, 0] };
+  var v20 = { width: 4, body: { $o: { $c: Collections_continuation$2_Array_Float_Float, $e: { $v: { $o: acc, $k: "$v", $s: 1 } } }, $k: "$c", $ke: "$e" }, empty: [0, 0, 0, 0] };
+  var v44 = 0;
+  var v47 = Collections_continuation$1_Array_Float_Float(v20, Contiguous_Array_a_a_elements_Float(xs));
+  if (v47 <= 1) {
+    v44 = v47;
+  } else {
+    v44 = 2;
+  }
+  var v14 = acc.$v;
+  return Math.fround(Math.fround(v14[0] + v14[1]) + Math.fround(v14[2] + v14[3]));
+}
+
+function Collections_continuation$2_Array_Float_Float(env, value$) {
+  var v2 = env.$v;
+  var v4 = v2.$o[v2.$k];
+  v2.$o[v2.$k] = [Math.fround(v4[0] + value$[0]), Math.fround(v4[1] + value$[1]), Math.fround(v4[2] + value$[2]), Math.fround(v4[3] + value$[3])];
+  return 0;
+}
+
+function Collections_continuation$1_Array_Float_Float(env, value$) {
+  var v2 = value$.length;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + env.width | 0) <= v2) {
+      var v16 = env.body;
+      var from$items = value$.items;
+      var v80 = value$.offset + i | 0;
+      var v20 = v16.$o[v16.$k](v16.$o[v16.$ke], [from$items[v80], from$items[v80 + 1 | 0], from$items[v80 + 2 | 0], from$items[v80 + 3 | 0]]);
+      if (v20 === 1) {
+        return v20;
+      } else {
+        i = i + env.width | 0;
+        continue L0;
+      }
+    } else {
+      B1: {
+        if (i < v2) {
+          var v45 = Math.fround(v2 - i | 0);
+          var live$0 = 0 < v45;
+          var live$1 = 1 < v45;
+          var live$2 = 2 < v45;
+          var live$3 = 3 < v45;
+          var v48 = env.body;
+          var from$items$1 = value$.items;
+          var from$length = value$.length;
+          var from$offset$1 = value$.offset;
+          var v95 = from$offset$1 + i | 0;
+          var v98 = (from$offset$1 + from$length | 0) - 1 | 0;
+          var v101 = from$items$1[v95 > v98 ? v98 : v95];
+          var v104 = v95 + 1 | 0;
+          var v107 = from$items$1[v104 > v98 ? v98 : v104];
+          var v110 = v95 + 2 | 0;
+          var v113 = from$items$1[v110 > v98 ? v98 : v110];
+          var v116 = v95 + 3 | 0;
+          var v119 = from$items$1[v116 > v98 ? v98 : v116];
+          var v52 = env.empty;
+          var v54 = v48.$o[v48.$k](v48.$o[v48.$ke], [live$0 ? v101 : v52[0], live$1 ? v107 : v52[1], live$2 ? v113 : v52[2], live$3 ? v119 : v52[3]]);
+          if (v54 === 1) {
+            return v54;
+          }
+        }
+      }
+      return 2;
+    }
+    break L0;
+  }
+}
+
+function Contiguous_Array_a_a_elements_Float(self) {
+  var v2 = self.length;
+  var v4 = self.items;
+  var start = 0;
+  if (0 > v2) {
+    start = v2;
+  }
+  var end = v2;
+  if (v2 < start) {
+    end = start;
+  }
+  if (end > v2) {
+    end = v2;
+  }
+  return { items: v4, length: end - start | 0, offset: start };
+}
+
+function occurrencesElements_Array_String_String(xs, wanted) {
+  var total = 0;
+  var v20 = Contiguous_Array_a_a_elements_String(xs);
+  var v33 = v20.length;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v33) {
+      var v47 = v20.offset + i | 0;
+      checkCondition(i >>> 0 >= v20.length >>> 0);
+      if (v20.items[v47] === wanted) {
+        total = total + 1 | 0;
+      }
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function Contiguous_Array_a_a_elements_String(self) {
+  var v2 = self.length;
+  var start = 0;
+  if (0 > v2) {
+    start = v2;
+  }
+  var end = v2;
+  if (v2 < start) {
+    end = start;
+  }
+  if (end > v2) {
+    end = v2;
+  }
+  return { items: self, length: end - start | 0, offset: start };
+}
+
+function indexOfElements_Array_String_String(xs, wanted) {
+  var v5 = { wanted: { $o: { $v: wanted }, $k: "$v", $s: 1 }, at: { $o: { $v: 0 }, $k: "$v", $s: 1 } };
+  var v26 = { $tag: 0, $p: null };
+  var v29 = Collections_continuation$13_Array_String_String(v5, Contiguous_Array_a_a_elements_String(xs));
+  if (v29.$tag === 1) {
+    v26 = v29;
+  } else {
+    v26 = { $tag: 0, $p: null };
+  }
+  if (v26.$tag === 1) {
+    return v26.$p;
+  } else {
+    return null;
+  }
+}
+
+function Collections_continuation$13_Array_String_String(env, value$) {
+  var v2 = value$.length;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v2) {
+      var v22 = value$.offset + i | 0;
+      checkCondition(i >>> 0 >= value$.length >>> 0);
+      var v30 = value$.items[v22];
+      var v31 = env.wanted;
+      if (v30 === v31.$o[v31.$k]) {
+        var v36 = env.at;
+        return { $tag: 1, $p: v36.$o[v36.$k] + i | 0 };
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      var v10 = env.at;
+      v10.$o[v10.$k] = v10.$o[v10.$k] + v2 | 0;
+      return { $tag: 0, $p: null };
+    }
+    break L0;
+  }
+}
+
+// ResolveTest
+function main() {
+  var xs = { items: new Int32Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]), length: 11 };
+  var heights = { items: new Float32Array([3, 1, 4, 1.5]), length: 4 };
+  var names = ["ann", "bob", "cid", "bob"];
+  if (names.length !== 4) {
+    names.length = 4;
+  }
+  var result = 0;
+  if (sumVectors_Array_Int_Int(xs) === 66) {
+    result = result + 1 | 0;
+  }
+  var v78 = { items: new Int32Array([1, 2, 3, 4]), length: 4 };
+  var acc = { $v: [1, 1, 1, 1] };
+  var v231 = vectorsMasked_Array_Int_Int(v78, Collections_continuation$4_Array_Int_Int, { acc: { $o: acc, $k: "$v", $s: 1 }, ones: [1, 1, 1, 1] });
+  var v232 = acc.$v;
+  if (((v232[0] * v232[1] | 0) * (v232[2] * v232[3] | 0) | 0) === 24) {
+    result = result + 2 | 0;
+  }
+  var acc$1 = { $v: [0, 0, 0, 0] };
+  var v245 = vectorsMasked_Array_Int_Int(xs, Collections_continuation$6_Array_Int_Int, { $v: { $o: acc$1, $k: "$v", $s: 1 } });
+  var v246 = acc$1.$v;
+  if (Math.max(Math.max(v246[0], v246[1]), Math.max(v246[2], v246[3])) === 11) {
+    result = result + 4 | 0;
+  }
+  var acc$2 = { $v: [100, 100, 100, 100] };
+  var v259 = vectorsMasked_Array_Int_Int(xs, Collections_continuation$8_Array_Int_Int, { $v: { $o: acc$2, $k: "$v", $s: 1 } });
+  var v260 = acc$2.$v;
+  if (Math.min(Math.min(v260[0], v260[1]), Math.min(v260[2], v260[3])) === 1) {
+    result = result + 8 | 0;
+  }
+  var total = { $v: 0 };
+  var v275 = vectorsMasked_Array_Int_Int(xs, Collections_continuation$10_Array_Int_Int, { total: { $o: total, $k: "$v", $s: 1 }, sought: [7, 7, 7, 7] });
+  if (total.$v === 1) {
+    if (!(indexOfVectors_Array_Int_Int(xs, 9) === null)) {
+      result = result + 16 | 0;
+    }
+  }
+  var v151 = indexOfVectors_Array_Int_Int(xs, 4);
+  if (!(v151 === null)) {
+    if (v151 === 3) {
+      result = result + 32 | 0;
+    }
+  }
+  if (sumVectors_Array_Float_Float(heights) === 9.5) {
+    result = result + 64 | 0;
+  }
+  if (occurrencesElements_Array_String_String(names, "bob") === 2) {
+    var v189 = indexOfElements_Array_String_String(names, "cid");
+    if (!(v189 === null)) {
+      if (v189 === 2) {
+        result = result + 128 | 0;
+      }
+    }
+  }
+  return result;
+}
+main();

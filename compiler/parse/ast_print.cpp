@@ -815,7 +815,27 @@ private:
                 if(index && index == t.determined) stream.writeString(" -> "_v);
                 else if(index) stream.writeString(", "_v);
 
-                write(stream, context.findName(*i));
+                write(stream, context.findName((*i).name));
+
+                /*
+                 * The annotation, which is what makes this a const parameter rather than a type one.
+                 *
+                 * Its name, because §2.5 admits only the integer types and a named type is what
+                 * every one of them is. A head is printed on one line and a type is printed as a
+                 * subtree, so anything wider than a name has no room here - and a head that needed
+                 * one would be a head this printer should be told about rather than guess at.
+                 */
+                if((*i).type) {
+                    auto& annotation = *base[(*i).type];
+                    stream.writeString(": "_v);
+
+                    if(annotation.kind == Type::Con || annotation.kind == Type::Gen) {
+                        write(stream, context.findName(annotation.name));
+                    } else {
+                        stream.writeString("<type>"_v);
+                    }
+                }
+
                 index++;
             }
 
@@ -954,6 +974,13 @@ private:
                     makeLevel();
                     toString(*base[type.arr.type], type.arr.length == nullptr);
                     if(type.arr.length) toString(*base[type.arr.length], true);
+                    removeLevel();
+                    break;
+                case Type::Lit:
+                    // A number written where a type is - `Vec(Float, 4)`. See ast::Type::Lit.
+                    stream.writeString("LitType "_v);
+                    makeLevel();
+                    toString(*base[type.lit], true);
                     removeLevel();
                     break;
                 case Type::Map:
@@ -1151,7 +1178,21 @@ private:
             }
             case Constraint::Class: {
                 stream.writeString("ClassConstraint "_v);
-                toString(constraint.type);
+                write(stream, context.findName(constraint.klass.name));
+
+                // The arguments are whole types now (§10.2), so they print as the subtree every
+                // other written type in this dump does rather than as names on the head's line.
+                if(constraint.klass.args.isNotEmpty()) {
+                    makeLevel();
+                    auto args = constraint.klass.args;
+                    Size index = 0;
+
+                    for(auto arg: args.contents(base)) {
+                        toString(arg, ++index == args.size());
+                    }
+
+                    removeLevel();
+                }
                 break;
             }
             case Constraint::Field: {
@@ -1172,6 +1213,15 @@ private:
 
                 makeLevel();
                 toString(*base[constraint.fun.type], true);
+                removeLevel();
+                break;
+            }
+            case Constraint::Const: {
+                stream.writeString("ConstConstraint "_v);
+                write(stream, context.findName(constraint.constant.name));
+
+                makeLevel();
+                toString(*base[constraint.constant.type], true);
                 removeLevel();
                 break;
             }

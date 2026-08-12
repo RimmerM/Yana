@@ -125,28 +125,22 @@ void LowerParser::parseGlobal(bool mut) {
         auto target = (U8*)module.arena.alloc(size);
         g->initialContents = { target, size };
 
-        switch(type) {
-            case LowerType::Int32: {
-                U32 it = v.integer;
-                copyMem(&it, target, size);
-                break;
-            }
-            case LowerType::Pointer:
-            case LowerType::Int64: {
-                U64 it = v.integer;
-                copyMem(&it, target, size);
-                break;
-            }
-            case LowerType::Float32: {
-                auto it = float(v.floating);
-                copyMem(&it, target, size);
-                break;
-            }
-            case LowerType::Float64: {
-                double it = v.floating;
-                copyMem(&it, target, size);
-                break;
-            }
+        if(type == LowerType::Int32) {
+            U32 it = v.integer;
+            copyMem(&it, target, size);
+        } else if(type == LowerType::Int64 || type == LowerType::Pointer) {
+            U64 it = v.integer;
+            copyMem(&it, target, size);
+        } else if(type == LowerType::Float32) {
+            auto it = float(v.floating);
+            copyMem(&it, target, size);
+        } else if(type == LowerType::Float64) {
+            double it = v.floating;
+            copyMem(&it, target, size);
+        } else {
+            // A vector global would need as many numbers as it has lanes, which nothing writes one
+            // of yet; a one-number initializer of one would silently be a splat or a first lane.
+            error("a global cannot be initialized with a single number of this type"_v);
         }
     } else {
         error("expected global initializer"_v);
@@ -368,6 +362,60 @@ LowerArgAst LowerParser::parseNumericArg() {
     }
 }
 
+/*
+ * A vector or a mask, from the spelling the printer produces: `f32x8`, `i8x32`, `m32x8`.
+ *
+ * Read out of the identifier's text rather than compared against interned names, because there are
+ * six lane kinds at seven lane counts and interning forty-odd names to recognize them would be a
+ * second statement of what the printer already writes. Nothing here decides whether the type is one
+ * this target can hold - a lane count that is not a power of two or a width no register has is
+ * rejected here because it is not a *type*, and the rest is validateFunction's.
+ */
+static Maybe<LowerType> parseVectorTypeName(StringView name) {
+    Size i = 0;
+    auto digits = [&]() -> U32 {
+        U32 value = 0;
+        auto start = i;
+
+        while(i < name.length && name.ptr[i] >= '0' && name.ptr[i] <= '9') {
+            value = value * 10 + U32(name.ptr[i++] - '0');
+            if(value > 1024) return 0;
+        }
+
+        return i == start ? 0 : value;
+    };
+
+    if(name.length < 4) return Nothing();
+    auto kind = name.ptr[i++];
+    if(kind != 'i' && kind != 'f' && kind != 'm') return Nothing();
+
+    auto bits = digits();
+    if(i >= name.length || name.ptr[i++] != 'x') return Nothing();
+
+    auto lanes = digits();
+    if(i != name.length) return Nothing();
+
+    // A lane count is a power of two, at least two - a one-lane vector is a scalar and is spelled as
+    // one - and the widest register this target describes is 64 bytes.
+    if(lanes < 2 || (lanes & (lanes - 1)) != 0) return Nothing();
+    if(U64(bits / 8) * lanes > 64) return Nothing();
+
+    LowerLane lane;
+    if(kind == 'f') {
+        if(bits == 32) lane = LowerLane::Float32;
+        else if(bits == 64) lane = LowerLane::Float64;
+        else return Nothing();
+    } else {
+        if(bits == 8) lane = LowerLane::Int8;
+        else if(bits == 16) lane = LowerLane::Int16;
+        else if(bits == 32) lane = LowerLane::Int32;
+        else if(bits == 64) lane = LowerLane::Int64;
+        else return Nothing();
+    }
+
+    return Just(kind == 'm' ? maskType(lane, lanes) : vectorType(lane, lanes));
+}
+
 LowerType LowerParser::parseType() {
     auto i = tryMaybe(expect(LowerToken::LabelID, "expected type"_v), return LowerType::Int32).id;
 
@@ -376,6 +424,10 @@ LowerType LowerParser::parseType() {
     if(i == f32Id) return LowerType::Float32;
     if(i == f64Id) return LowerType::Float64;
     if(i == ptrId) return LowerType::Pointer;
+
+    auto name = context.findName(i);
+    auto vector = parseVectorTypeName(StringView { name.text(), name.size() });
+    if(vector) return vector.unwrap();
 
     error("unknown type"_v);
     return LowerType::Int32;

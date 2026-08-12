@@ -1,0 +1,91 @@
+{-
+   The tail-read guarantee, as a program that would fault if it did not hold - Design-Vector §5.4 and
+   Implementation-Vector.md §8.
+
+   A vector loop's last iteration reads a whole register where only part of it is wanted. What makes
+   that safe is not that the bytes past the end mean anything - they are unspecified, and nothing
+   here looks at what they hold - but that they are *mapped*: storage the language allocated has a
+   vector's width of readable memory after it. This reads `kMaxVectorBytes - 1` bytes past the end of
+   every size class the allocator has, and past a block that ends exactly at a region's limit, and
+   the whole of what it asserts is that the process is still running afterwards.
+
+   It has to be a runnable fixture for that reason. A golden file cannot say "this load did not
+   fault", and the guarantee has no other symptom: on a heap whose regions are mapped to their stated
+   size the read succeeds for every block but the last few in a region, and for those it takes down
+   the process. Which is why the second half below is the important one - the first would pass
+   against an unguarded heap almost always.
+
+   `Native` rather than a container, because what carries the guarantee is the *allocator* and the
+   point is to test it directly: an `Array(a)` would reach the same blocks with an extra layer of
+   ownership between the test and the thing being tested.
+-}
+import Native
+
+-- One byte past the end, read as a byte at a time so that nothing here depends on a vector type
+-- existing yet. 63 is `kMaxVectorBytes - 1`, which is the widest overread the language permits.
+let guardWidth = 63 :: I64
+
+-- Reads the guard bytes after `size` bytes of `block` and folds them together, so that no optimizer
+-- can decide the loads are dead. The value is meaningless by construction - the bytes are
+-- unspecified - and only the fact that they were readable is being asserted.
+fn readPast(block: %U8, size: I64) -> I64:
+    let &sum = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < guardWidth:
+        sum = sum + (*(block + (size + i)) :: I64)
+        i = i + 1
+
+    return sum
+
+fn main() -> Int:
+    {-
+       Every size class the allocator has, from 16 bytes up. Each block is read past its own end,
+       which inside a region is free - the next block's header follows it - and is what this half
+       establishes rather than tests.
+    -}
+    let &request = 8 :: I64
+    let &seen = 0 :: I64
+
+    while request < 1048576:
+        let block = allocateHeap(request)
+        if isNull(block) then return -1
+
+        -- Discarded, but read: the point is the load, and a sum nothing looks at is one the
+        -- optimizer is entitled to remove.
+        if readPast(block, request) < 0 then return -2
+
+        seen = seen + 1
+        request = request + request
+
+    if seen != 17 then return -3
+
+    {-
+       The case the guard page is for: a block that ends at the region's limit.
+
+       Allocated until the bump pointer is within a vector's width of the limit, then read past the
+       last block. Without the guard the read is off the end of the mapping and the process dies with
+       a fault rather than answering anything; with it, the bytes are there and unspecified.
+
+       The loop takes 16-byte blocks so that it lands close to the limit rather than jumping over it
+       into a new region, and it is bounded because `growHeap` moves the limit: reaching it once is
+       all this needs, and a region is 4 MiB of 16-byte blocks.
+    -}
+    let &last = null() :: %U8
+    let &steps = 0 :: I64
+
+    while difference(heapNext, heapLimit) > guardWidth:
+        let block = allocateHeap(8)
+        if isNull(block) then return -4
+
+        last = block
+        steps = steps + 1
+
+        -- The bump pointer only fails to move when a free list handed the block back, which cannot
+        -- happen here because nothing is freed. A bound on the loop rather than a proof of it.
+        if steps > 300000 then return -5
+
+    if isNull(last) then return -6
+    if readPast(last, 8) < 0 then return -7
+
+    return 0

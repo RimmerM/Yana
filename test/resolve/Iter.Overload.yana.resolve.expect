@@ -2,12 +2,12 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -83,7 +83,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     ret
 }
 
-fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
+fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = borrow %self : &Array(Int)
     %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
@@ -224,7 +224,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-fn chunks(%b: Box, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn chunks(%b: Box, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
@@ -267,8 +267,8 @@ fn main() -> Int {
     %v7 = borrow_mut %total : &mut Int
     init %local2.total, %v7
     %v9 = addressof %local2 : %()
-    %v10 = alloc : (value: Int) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$0 : %()
+    %v10 = alloc : (value$: Int) -> Outcome((), ())
+    %v11 = symbol ResolveTest.continuation$14 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call chunks(()), %v3, %v10 : Outcome((), ())
@@ -284,8 +284,8 @@ fn main() -> Int {
     %v34 = borrow_mut %total : &mut Int
     init %local7.total, %v34
     %v36 = addressof %local7 : %()
-    %v37 = alloc : (value: Flat(Int)) -> Outcome((), ())
-    %v38 = symbol ResolveTest.continuation$1 : %()
+    %v37 = alloc : (value$: Flat(Int)) -> Outcome((), ())
+    %v38 = symbol ResolveTest.continuation$15 : %()
     init %local8.code, %v38
     init %local8.env, %v36
     %v41 = call Chunked(Array(a), a).chunks(Int, ()), %xs, %v37 : Outcome((), ())
@@ -294,19 +294,19 @@ fn main() -> Int {
     ret %v42
 }
 
-fn ResolveTest.continuation$0(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$14(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn chunks(())(%b: Box, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn chunks(())(%b: Box, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = load %b@Box.n : Int
     %v3 = calldyn %body, %v2 : Outcome((), ())
@@ -334,12 +334,12 @@ fn chunks(())(%b: Box, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()
     ret %v18
 }
 
-fn ResolveTest.continuation$1(%env: %{total: &mut Int}, %value: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &mut Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = load %value@Flat.length : I64
+    %v5 = load %value$@Flat.length : I64
     %v6 = cast %v5 : Int
     %v7 = add %v4, %v6 : Int
     assign [%v2], %v7

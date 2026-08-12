@@ -1,0 +1,341 @@
+# Packed vectors at 128 bits: the arithmetic, the bitwise operations, the shifts, the comparison
+# into a mask, and a vector moving between a register, memory and a frame slot.
+#
+# Everything here is xmm. A wider vector has a register class (classForType hands out ClassYmm256)
+# and no way to be moved into one - kClassMoves has no row for it - so it fails loudly rather than
+# being written out as a 128-bit instruction with a 256-bit type. The forms this file covers are the
+# two-byte SSE2 opcodes and nothing above them; see the note on `packedArith` in machine.cpp for the
+# list of what a lane width has no instruction for.
+
+# One form per lane width of one operation, which is the whole of what a lane type decides for the
+# packed arithmetic: paddb, paddw, paddd, paddq and addps differ in an opcode byte and a prefix.
+lanes(%b: i8x16, %s: i16x8, %w: i32x4, %q: i64x2, %f: f32x4, %d: f64x2): i32x4 {
+    {
+        %ab = add %b, %b: i8x16
+        %as = add %s, %s: i16x8
+        %aw = add %w, %w: i32x4
+        %aq = add %q, %q: i64x2
+        %af = add %f, %f: f32x4
+        %ad = add %d, %d: f64x2
+        ret %aw
+    }
+}
+
+float(%a: f32x4, %b: f32x4): f32x4 {
+    {
+        %s = add %a, %b: f32x4
+        %d = sub %s, %b: f32x4
+        %m = mul %d, %a: f32x4
+        %q = div %m, %b: f32x4
+        ret %q
+    }
+}
+
+double(%a: f64x2, %b: f64x2): f64x2 {
+    {
+        %s = add %a, %b: f64x2
+        %d = sub %s, %b: f64x2
+        %m = mul %d, %a: f64x2
+        %q = div %m, %b: f64x2
+        ret %q
+    }
+}
+
+# The bitwise operations have no lane width at all, so one instruction serves every vector - and,
+# without AVX-512, every mask as well.
+bits(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %n = and %a, %b: i32x4
+        %o = or %n, %b: i32x4
+        %x = xor %o, %a: i32x4
+        ret %x
+    }
+}
+
+# A shift by a constant count every lane shares. The count is an immediate operand in the encoding,
+# so it never reaches a register - and there is no arithmetic shift of a quadword before AVX-512,
+# which is why this shifts the 64-bit lanes logically and the 32-bit ones both ways.
+shifts(%w: i32x4, %q: i64x2): i32x4 {
+    {
+        %l = shl %w, 3: i32x4
+        %r = shr %l, 1: i32x4
+        %a = sar %r, 2: i32x4
+        %ql = shl %q, 7: i64x2
+        %qr = shr %ql, 5: i64x2
+        ret %a
+    }
+}
+
+# A comparison answers a mask, which is a vector of all-ones lanes on a target without the mask
+# registers - so the masks combine with the same `pand` an integer vector does.
+#
+# `cmp_gt` is written by the machine as `cmp_lt` with its operands the other way round, since only
+# four of the eight predicates cmpps carries are the ones this IR names; the golden below is where
+# that exchange is visible.
+compare(%a: f32x4, %b: f32x4, %i: i32x4, %j: i32x4): m32x4 {
+    {
+        %lt = cmp_lt %a, %b: m32x4
+        %gt = cmp_gt %a, %b: m32x4
+        %ne = cmp_neq %a, %b: m32x4
+        %both = and %lt, %ne: m32x4
+        %eq = cmp_eq %i, %j: m32x4
+        %sgt = cmp_igt %i, %j: m32x4
+        %some = or %eq, %sgt: m32x4
+        %all = xor %both, %some: m32x4
+        ret %all
+    }
+}
+
+# Lanes rearranged within one vector, which is `pshufd` and a control byte.
+#
+# The IR's pattern is one entry per result lane naming the source lane it takes, which is what the
+# byte holds at a 32-bit lane width - so `3, 2, 1, 0` is 0x1b and a broadcast of lane 0 is 0x00. A
+# 64-bit lane has no shuffle of its own before AVX-512 and is spent as a 32-bit one moving each half
+# as a pair, so `1, 0` is 0x4e rather than 0x01.
+#
+# Both sources are named and both are the same value, which is the convention the IR states for a
+# shuffle within one vector. A pattern naming lanes of two different vectors has no single
+# instruction and is refused rather than being written as one of them.
+# One function per lane domain rather than one with three dead values in it: what an unread shuffle
+# encodes to is a question about dead-code elimination and not about this form.
+shuffle(%w: i32x4): i32x4 {
+    {
+        %rev = vshuffle %w, %w, 3, 2, 1, 0: i32x4
+        %bcast = vshuffle %rev, %rev, 0, 0, 0, 0: i32x4
+        %sum = add %rev, %bcast: i32x4
+        ret %sum
+    }
+}
+
+# A float vector reaches the same instruction. `pshufd` is in the integer domain, so this costs a
+# forwarding penalty on some parts that `shufps` would not - a second form of this opcode rather
+# than a second opcode, and not one this tier builds.
+shuffleFloat(%f: f32x4): f32x4 {
+    {
+        %r = vshuffle %f, %f, 1, 0, 3, 2: f32x4
+        %s = add %r, %f: f32x4
+        ret %s
+    }
+}
+
+# And a 64-bit lane, which is where the pattern is translated rather than copied: `1, 0` swaps the
+# two halves and is written as the 32-bit shuffle that moves each as a pair.
+shuffleWide(%q: i64x2): i64x2 {
+    {
+        %s = vshuffle %q, %q, 1, 0: i64x2
+        %t = add %s, %q: i64x2
+        ret %t
+    }
+}
+
+# Every lane the same scalar, which is two instructions or one depending on which bank the scalar
+# arrived in. An integer lane crosses with `movd`/`movq` into the destination and is then shuffled
+# from its own register; a float lane is already in a vector register and is shuffled where it
+# stands. The control byte is 0x00 for a 32-bit lane and 0x44 for a 64-bit one, since there is no
+# quadword shuffle at this feature level and the low half is a pair of 32-bit lanes.
+broadcast(%i: Int): i32x4 {
+    {
+        %a = vsplat %i: i32x4
+        %b = add %a, %a: i32x4
+        ret %b
+    }
+}
+
+broadcastWide(%l: Long): i64x2 {
+    {
+        %a = vsplat %l: i64x2
+        %b = add %a, %a: i64x2
+        ret %b
+    }
+}
+
+broadcastFloat(%f: Float): f32x4 {
+    {
+        %a = vsplat %f: f32x4
+        %b = add %a, %a: f32x4
+        ret %b
+    }
+}
+
+broadcastDouble(%g: Double): f64x2 {
+    {
+        %a = vsplat %g: f64x2
+        %b = add %a, %a: f64x2
+        ret %b
+    }
+}
+
+# One lane out of a vector, at the baseline - so lane zero and nothing else for an integer vector.
+# `movd`/`movq` move the low element and cannot name another, and reaching a higher one needs a
+# shuffle into a register that is neither operand. VectorSse41.lower is the same functions one
+# feature level up, where `pextrd` takes any index in one instruction.
+#
+# A float lane is not subject to any of that: it stays in the vector bank, so the extract is the
+# shuffle that brings the wanted lane down to lane zero, and every index works at every level.
+extract(%w: i32x4): Int {
+    {
+        %a = vlane %w, 0: Int
+        %b = add %a, %a: Int
+        ret %b
+    }
+}
+
+extractWide(%q: i64x2): Long {
+    {
+        %a = vlane %q, 0: Long
+        %b = add %a, %a: Long
+        ret %b
+    }
+}
+
+# A lane other than the first, which at this level is a shuffle bringing it down to lane zero and
+# then the same `movd`. `lowerLaneExtracts` writes the pair into the IR rather than expanding it in
+# the encoder, so the shuffle's result is an ordinary value the allocator places - the alternative
+# needed a scratch vector register that no form can declare.
+extractHigh(%w: i32x4, %q: i64x2): Int {
+    {
+        %a = vlane %w, 3: Int
+        %b = vlane %q, 1: Long
+        %c = vlane %w, 1: Int
+        %d = add %a, %c: Int
+        ret %d
+    }
+}
+
+extractFloat(%f: f32x4): Float {
+    {
+        %a = vlane %f, 2: Float
+        %b = vlane %f, 0: Float
+        %c = add %a, %b: Float
+        ret %c
+    }
+}
+
+extractDouble(%d: f64x2): Double {
+    {
+        %a = vlane %d, 1: Double
+        %b = add %a, %a: Double
+        ret %b
+    }
+}
+
+# A whole vector to and from memory, in both domains: `movups` where the lanes are floats and
+# `movdqu` where they are integers. Neither is the aligned encoding - an address the program computed
+# is not one this backend has promised anything about, and the aligned forms fault rather than being
+# slow.
+memory(%p: Ptr, %q: Ptr): f32x4 {
+    {
+        %f = load %p, 16: f32x4
+        %i = load %q, 16: i32x4
+        %s = add %f, %f: f32x4
+        %t = add %i, %i: i32x4
+        store %p, %s, 16
+        store %q, %t, 16
+        ret %s
+    }
+}
+
+# More live vectors than the convention leaves free, so that some of them spill: a vector's frame
+# slot is sixteen bytes (StackSlotClass::Slot128) and is transferred with the unaligned move, since
+# the frame's own alignment is settled before the allocator knows a vector will land in it.
+spill(%p: Ptr): i32x4 {
+    {
+        %a = load %p, 16: i32x4
+        %b = load %p, 16: i32x4
+        %c = load %p, 16: i32x4
+        %d = load %p, 16: i32x4
+        %e = load %p, 16: i32x4
+        %f = load %p, 16: i32x4
+        %g = load %p, 16: i32x4
+        %h = load %p, 16: i32x4
+        %i = load %p, 16: i32x4
+        %j = load %p, 16: i32x4
+        %k = load %p, 16: i32x4
+        %l = load %p, 16: i32x4
+        %m = load %p, 16: i32x4
+        %n = load %p, 16: i32x4
+        %o = load %p, 16: i32x4
+        %r = load %p, 16: i32x4
+        %s = load %p, 16: i32x4
+        %t1 = add %a, %b: i32x4
+        %t2 = add %t1, %c: i32x4
+        %t3 = add %t2, %d: i32x4
+        %t4 = add %t3, %e: i32x4
+        %t5 = add %t4, %f: i32x4
+        %t6 = add %t5, %g: i32x4
+        %t7 = add %t6, %h: i32x4
+        %t8 = add %t7, %i: i32x4
+        %t9 = add %t8, %j: i32x4
+        %t10 = add %t9, %k: i32x4
+        %t11 = add %t10, %l: i32x4
+        %t12 = add %t11, %m: i32x4
+        %t13 = add %t12, %n: i32x4
+        %t14 = add %t13, %o: i32x4
+        %t15 = add %t14, %r: i32x4
+        %t16 = add %t15, %s: i32x4
+        ret %t16
+    }
+}
+
+# One lane into a vector, at the baseline - where the only insert the machine has is `pinsrw` and it
+# writes a *word*. So a 32-bit lane is the two words it is made of: `pinsrw` at `2i` takes the low
+# half of the scalar, a shift brings the high half down, and `pinsrw` at `2i + 1` takes that.
+# `lowerLaneInserts` writes the sequence into the IR, the way `lowerLaneExtracts` does for the other
+# direction, so every value in it is one the allocator places.
+#
+# Every form here is two-address, which the extract's are not: `pinsr` writes the vector it reads,
+# so a vector still live afterwards gets a copy. That is the machine's asymmetry and not a choice -
+# there is no three-operand insert before VEX.
+insert(%w: i32x4, %x: Int): i32x4 {
+    {
+        %a = vwithlane %w, %x, 1: i32x4
+        %b = add %a, %w: i32x4
+        ret %b
+    }
+}
+
+# A 64-bit lane is not four words. A vector of two quadwords has an instruction for each of the two
+# lanes it holds - `movsd` writes the low one and `unpcklpd` the high one, both at the baseline - and
+# neither cares that the bits it moves were meant as a double. So the integer insert is the float one
+# with a bitcast at each end, which is two machine instructions where the word route would have been
+# eleven.
+insertWide(%q: i64x2, %l: Long): i64x2 {
+    {
+        %a = vwithlane %q, %l, 1: i64x2
+        %b = vwithlane %a, %l, 0: i64x2
+        ret %b
+    }
+}
+
+# A float lane, where the baseline reaches lane zero of a single-precision vector and nothing above
+# it: `movss xmm, xmm` merges the low element and leaves the rest, which is the insert exactly.
+# VectorSse41.lower is where `insertps` reaches the others.
+insertFloat(%f: f32x4, %s: Float): f32x4 {
+    {
+        %a = vwithlane %f, %s, 0: f32x4
+        %b = add %a, %f: f32x4
+        ret %b
+    }
+}
+
+# And a double, which is complete at the baseline because both of its lanes have an instruction.
+insertDouble(%d: f64x2, %g: Double): f64x2 {
+    {
+        %a = vwithlane %d, %g, 0: f64x2
+        %b = vwithlane %a, %g, 1: f64x2
+        ret %b
+    }
+}
+
+# A vector read at another lane shape, which is the register itself. It reaches a form rather than
+# nothing because the two ends are still separate values the allocator may have placed apart, and
+# that form is `movaps` with `omitWhenSame` - so the usual case emits no bytes at all and only a
+# genuine relocation of the value costs anything.
+regroup(%w: i32x4): i32x4 {
+    {
+        %s = bitcast %w: i16x8
+        %a = add %s, %s: i16x8
+        %r = bitcast %a: i32x4
+        ret %r
+    }
+}

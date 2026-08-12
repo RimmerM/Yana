@@ -1,0 +1,232 @@
+let image$base: () = <none>
+
+let &seed: Int = 3
+
+fn doubled(%v: Vec(Int)) -> Vec(Int) {
+  b0:
+    %v1 = add %v, %v : Vec(Int)
+    ret %v1
+}
+
+fn scaled(%v: Vec(Int), %by: Int) -> Vec(Int) {
+  b0:
+    %v2 = vsplat %by : Vec(Int)
+    %v3 = mul %v, %v2 : Vec(Int)
+    ret %v3
+}
+
+fn combined(%a: Vec(Int), %b: Vec(Int), %c: Vec(Int), %d: Vec(Int)) -> Int {
+  b0:
+    %v4 = add %a, %b : Vec(Int)
+    %v7 = vlane %v4, 0 : Int
+    %v8 = add %c, %d : Vec(Int)
+    %v11 = vlane %v8, 0 : Int
+    %v12 = add %v7, %v11 : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load seed : Int
+    %base = vsplat %v0 : Vec(Int)
+    %twice = call doubled, %base : Vec(Int)
+    %six = call scaled, %base, 2 : Vec(Int)
+    %v7 = vlane %twice, 0 : Int
+    %v10 = cmp_ne %v7, 6 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v14 = neg 1 : Int
+    ret %v14
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = vlane %six, 1 : Int
+    %v22 = cmp_ne %v19, 6 : Bool
+    je %v22, b4, b5
+
+  b4:
+    %v26 = neg 2 : Int
+    ret %v26
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = vsplat 1 : Vec(Int)
+    %lanes = vreduce_add %v31 : Int
+    %mixed = vwithlane %base, 10, 0 : Vec(Int)
+    %v38 = vreduce_max %mixed : Int
+    %v41 = cmp_ne %v38, 10 : Bool
+    je %v41, b7, b8
+
+  b7:
+    %v45 = neg 3 : Int
+    ret %v45
+
+  b8:
+    jmp b9
+
+  b9:
+    %v48 = vreduce_min %mixed : Int
+    %v51 = cmp_ne %v48, 3 : Bool
+    je %v51, b10, b11
+
+  b10:
+    %v55 = neg 4 : Int
+    ret %v55
+
+  b11:
+    jmp b12
+
+  b12:
+    %total = alloc : Vec(Int)
+    init %total, %base
+    %i = alloc : Int
+    init %i, 0
+    jmp b13
+
+  b13:
+    %v64 = load %i : Int
+    %v67 = cmp_lt %v64, 4 : Bool
+    je %v67, b15, b14
+
+  b14:
+    %v78 = load %total : Vec(Int)
+    %v81 = vlane %v78, 0 : Int
+    %v84 = cmp_ne %v81, 15 : Bool
+    je %v84, b16, b17
+
+  b15:
+    %v69 = load %total : Vec(Int)
+    %v70 = add %v69, %base : Vec(Int)
+    assign %total, %v70
+    %v72 = load %i : Int
+    %v75 = add %v72, 1 : Int
+    assign %i, %v75
+    jmp b13
+
+  b16:
+    %v88 = neg 5 : Int
+    ret %v88
+
+  b17:
+    jmp b18
+
+  b18:
+    %v91 = load %total : Vec(Int)
+    %v94 = vlane %v91, 1 : Int
+    %v97 = cmp_ne %v94, 15 : Bool
+    je %v97, b19, b20
+
+  b19:
+    %v101 = neg 6 : Int
+    ret %v101
+
+  b20:
+    jmp b21
+
+  b21:
+    %v104 = load %total : Vec(Int)
+    %v105 = vreduce_add %v104 : Int
+    %v108 = mul %lanes, 15 : Int
+    %v109 = cmp_ne %v105, %v108 : Bool
+    je %v109, b22, b23
+
+  b22:
+    %v113 = neg 7 : Int
+    ret %v113
+
+  b23:
+    jmp b24
+
+  b24:
+    %v116 = load %total : Vec(Int)
+    %v117 = call combined, %base, %twice, %six, %v116 : Int
+    %v122 = add 3, 6 : Int
+    %v125 = add %v122, 6 : Int
+    %v128 = add %v125, 15 : Int
+    %v129 = cmp_ne %v117, %v128 : Bool
+    je %v129, b25, b26
+
+  b25:
+    %v133 = neg 8 : Int
+    ret %v133
+
+  b26:
+    jmp b27
+
+  b27:
+    %above = cmp_gt %mixed, %base : Mask(Int)
+    %v137 = vreduce_add %above : Int
+    %v140 = cmp_ne %v137, 1 : Bool
+    je %v140, b28, b29
+
+  b28:
+    %v144 = neg 9 : Int
+    ret %v144
+
+  b29:
+    jmp b30
+
+  b30:
+    %v147 = vreduce_or %above : Bool
+    %v149 = xor %v147, True : Bool
+    je %v149, b31, b32
+
+  b31:
+    %v153 = neg 10 : Int
+    ret %v153
+
+  b32:
+    jmp b33
+
+  b33:
+    %v156 = vreduce_and %above : Bool
+    je %v156, b34, b35
+
+  b34:
+    %v160 = neg 11 : Int
+    ret %v160
+
+  b35:
+    jmp b36
+
+  b36:
+    %v165 = vsplat 7 : Vec(Int)
+    %v168 = vsplat 2 : Vec(Int)
+    %picked = select %above ? %v165 : %v168 : Vec(Int)
+    %v172 = vlane %picked, 0 : Int
+    %v175 = cmp_ne %v172, 7 : Bool
+    je %v175, b37, b38
+
+  b37:
+    %v179 = neg 12 : Int
+    ret %v179
+
+  b38:
+    jmp b39
+
+  b39:
+    %v184 = vlane %picked, 1 : Int
+    %v187 = cmp_ne %v184, 2 : Bool
+    je %v187, b40, b41
+
+  b40:
+    %v191 = neg 13 : Int
+    ret %v191
+
+  b41:
+    jmp b42
+
+  b42:
+    %v196 = vlane %twice, 1 : Int
+    %v199 = mul %v196, 100 : Int
+    %v202 = vlane %six, 0 : Int
+    %v203 = add %v199, %v202 : Int
+    %v206 = vlane %mixed, 0 : Int
+    %v207 = add %v203, %v206 : Int
+    ret %v207
+}

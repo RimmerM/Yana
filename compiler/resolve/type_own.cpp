@@ -111,6 +111,18 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
             // and what keeps it out of this analysis entirely.
             break;
 
+        case Type::Vector:
+            /*
+             * TrivialCopy and TrivialSink with no teardown of either half - Design-Vector §2.5.
+             *
+             * Structural over the element, and the fold is not written out because it cannot say
+             * anything else: a lane is an integer or a float by construction, so every member of the
+             * scalar arm above applies to every lane there is. That holds inside a generic body too,
+             * where the element is still a variable - `Vec(a)` is trivial whatever `a` turns out to
+             * be, because a lane that was not a primitive would have been rejected at the type.
+             */
+            break;
+
         case Type::String:
             /*
              * Implementation-String.md part 2's table, as the two entries that are not the Repr.
@@ -179,7 +191,7 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
              * day and a walk off the end of a zero-size allocation on a bad one.
              */
             auto array = (ArrayType*)value;
-            if(array->length) includeMember(module, array->content, result);
+            if(writtenCount(base, array->count).from(1)) includeMember(module, array->content, result);
             break;
         }
 
@@ -449,7 +461,7 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
             // `n` members of one type, folded once - the same rule ownershipOf states, asked in a
             // context where the element may still be a variable the constraints say something about.
             auto array = (ArrayType*)value;
-            if(!array->length) return Ownership {};
+            if(!writtenCount(base, array->count).from(1)) return Ownership {};
 
             auto result = ownershipInAt(module, env, array->content, depth - 1);
             if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;

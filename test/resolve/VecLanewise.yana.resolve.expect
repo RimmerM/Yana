@@ -1,0 +1,406 @@
+let image$base: () = <none>
+
+let &seed: Int = 3
+
+fn comparisons(%a: Vec(Int), %b: Vec(Int)) -> Int {
+  b0:
+    %v2 = cmp_lt %a, %b : Mask(Int)
+    %v3 = vreduce_and %v2 : Bool
+    %v5 = xor %v3, True : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v9 = neg 1 : Int
+    ret %v9
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = cmp_le %a, %b : Mask(Int)
+    %v13 = vreduce_and %v12 : Bool
+    %v15 = xor %v13, True : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v19 = neg 2 : Int
+    ret %v19
+
+  b5:
+    jmp b6
+
+  b6:
+    %v22 = cmp_gt %b, %a : Mask(Int)
+    %v23 = vreduce_and %v22 : Bool
+    %v25 = xor %v23, True : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v29 = neg 3 : Int
+    ret %v29
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = cmp_ge %b, %a : Mask(Int)
+    %v33 = vreduce_and %v32 : Bool
+    %v35 = xor %v33, True : Bool
+    je %v35, b10, b11
+
+  b10:
+    %v39 = neg 4 : Int
+    ret %v39
+
+  b11:
+    jmp b12
+
+  b12:
+    %v42 = cmp_ne %a, %b : Mask(Int)
+    %v43 = vreduce_and %v42 : Bool
+    %v45 = xor %v43, True : Bool
+    je %v45, b13, b14
+
+  b13:
+    %v49 = neg 5 : Int
+    ret %v49
+
+  b14:
+    jmp b15
+
+  b15:
+    %v52 = cmp_eq %a, %b : Mask(Int)
+    %v53 = vreduce_or %v52 : Bool
+    je %v53, b16, b17
+
+  b16:
+    %v57 = neg 6 : Int
+    ret %v57
+
+  b17:
+    jmp b18
+
+  b18:
+    %v60 = cmp_gt %a, %b : Mask(Int)
+    %v61 = vreduce_or %v60 : Bool
+    %v63 = xor %v61, True : Bool
+    %v65 = xor %v63, True : Bool
+    je %v65, b19, b20
+
+  b19:
+    %v69 = neg 7 : Int
+    ret %v69
+
+  b20:
+    jmp b21
+
+  b21:
+    ret 0
+}
+
+fn selection(%a: Vec(Int), %b: Vec(Int)) -> Int {
+  b0:
+    %v2 = cmp_lt %a, %b : Mask(Int)
+    %smaller = select %v2 ? %a : %b : Vec(Int)
+    %v4 = cmp_lt %a, %b : Mask(Int)
+    %larger = select %v4 ? %b : %a : Vec(Int)
+    %v8 = vlane %smaller, 0 : Int
+    %v11 = cmp_ne %v8, 3 : Bool
+    je %v11, b1, b2
+
+  b1:
+    %v15 = neg 1 : Int
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = vlane %larger, 1 : Int
+    %v23 = cmp_ne %v20, 4 : Bool
+    je %v23, b4, b5
+
+  b4:
+    %v27 = neg 2 : Int
+    ret %v27
+
+  b5:
+    jmp b6
+
+  b6:
+    ret 0
+}
+
+fn combining(%a: Vec(Int), %b: Vec(Int)) -> Int {
+  b0:
+    %below = cmp_lt %a, %b : Mask(Int)
+    %equal = cmp_eq %a, %b : Mask(Int)
+    %v4 = or %below, %equal : Mask(Int)
+    %v5 = vreduce_and %v4 : Bool
+    %v7 = xor %v5, True : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v11 = neg 1 : Int
+    ret %v11
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = and %below, %equal : Mask(Int)
+    %v15 = vreduce_or %v14 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v19 = neg 2 : Int
+    ret %v19
+
+  b5:
+    jmp b6
+
+  b6:
+    %v22 = xor %below, %equal : Mask(Int)
+    %v23 = vreduce_and %v22 : Bool
+    %v25 = xor %v23, True : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v29 = neg 3 : Int
+    ret %v29
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = not %equal : Mask(Int)
+    %v33 = vreduce_and %v32 : Bool
+    %v35 = xor %v33, True : Bool
+    je %v35, b10, b11
+
+  b10:
+    %v39 = neg 4 : Int
+    ret %v39
+
+  b11:
+    jmp b12
+
+  b12:
+    ret 0
+}
+
+fn counting() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(Int)
+    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
+    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
+    %indices = vwithlane %v5, 3, 3 : Vec(Int)
+    %v10 = vsplat 1 : Vec(Int)
+    %past = cmp_ge %indices, %v10 : Mask(Int)
+    %v12 = vreduce_add %past : Int
+    %v16 = sub 4, 1 : Int
+    %v17 = cmp_ne %v12, %v16 : Bool
+    je %v17, b1, b2
+
+  b1:
+    %v21 = neg 1 : Int
+    ret %v21
+
+  b2:
+    jmp b3
+
+  b3:
+    %v25 = vsplat 0 : Vec(Int)
+    %v27 = vwithlane %v25, 1, 1 : Vec(Int)
+    %v29 = vwithlane %v27, 2, 2 : Vec(Int)
+    %v31 = vwithlane %v29, 3, 3 : Vec(Int)
+    %v33 = vsplat 4 : Vec(Int)
+    %v34 = select %past ? %v31 : %v33 : Vec(Int)
+    %v35 = vreduce_min %v34 : Int
+    %v36 = cast %v35 : Int
+    %v39 = cmp_ne %v36, 1 : Bool
+    je %v39, b4, b5
+
+  b4:
+    %v43 = neg 2 : Int
+    ret %v43
+
+  b5:
+    jmp b6
+
+  b6:
+    %empty = vsplat 0 : Vec(Int)
+    %never = cmp_lt %indices, %empty : Mask(Int)
+    %v50 = vsplat 0 : Vec(Int)
+    %v52 = vwithlane %v50, 1, 1 : Vec(Int)
+    %v54 = vwithlane %v52, 2, 2 : Vec(Int)
+    %v56 = vwithlane %v54, 3, 3 : Vec(Int)
+    %v58 = vsplat 4 : Vec(Int)
+    %v59 = select %never ? %v56 : %v58 : Vec(Int)
+    %v60 = vreduce_min %v59 : Int
+    %v61 = cast %v60 : Int
+    %v63 = cmp_ne %v61, 4 : Bool
+    je %v63, b7, b8
+
+  b7:
+    %v67 = neg 3 : Int
+    ret %v67
+
+  b8:
+    jmp b9
+
+  b9:
+    %v70 = vreduce_add %never : Int
+    %v73 = cmp_ne %v70, 0 : Bool
+    je %v73, b10, b11
+
+  b10:
+    %v77 = neg 4 : Int
+    ret %v77
+
+  b11:
+    jmp b12
+
+  b12:
+    %always = cmp_ge %indices, %empty : Mask(Int)
+    %v82 = vsplat 0 : Vec(Int)
+    %v84 = vwithlane %v82, 1, 1 : Vec(Int)
+    %v86 = vwithlane %v84, 2, 2 : Vec(Int)
+    %v88 = vwithlane %v86, 3, 3 : Vec(Int)
+    %v90 = vsplat 4 : Vec(Int)
+    %v91 = select %always ? %v88 : %v90 : Vec(Int)
+    %v92 = vreduce_min %v91 : Int
+    %v93 = cast %v92 : Int
+    %v96 = cmp_ne %v93, 0 : Bool
+    je %v96, b13, b14
+
+  b13:
+    %v100 = neg 5 : Int
+    ret %v100
+
+  b14:
+    jmp b15
+
+  b15:
+    %v103 = vreduce_add %always : Int
+    %v105 = cmp_ne %v103, 4 : Bool
+    je %v105, b16, b17
+
+  b16:
+    %v109 = neg 6 : Int
+    ret %v109
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn floats() -> Int {
+  b0:
+    %a = vsplat 1.5 : Vec(Float)
+    %b = vsplat 2.5 : Vec(Float)
+    %v6 = cmp_lt %a, %b : Mask(Float)
+    %v7 = vreduce_and %v6 : Bool
+    %v9 = xor %v7, True : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = neg 1 : Int
+    ret %v13
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = cmp_lt %a, %b : Mask(Float)
+    %v17 = select %v16 ? %a : %b : Vec(Float)
+    %v20 = vlane %v17, 0 : Float
+    %v23 = cmp_ne %v20, 1.5 : Bool
+    je %v23, b4, b5
+
+  b4:
+    %v27 = neg 2 : Int
+    ret %v27
+
+  b5:
+    jmp b6
+
+  b6:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load seed : Int
+    %a = vsplat %v0 : Vec(Int)
+    %v2 = load seed : Int
+    %v5 = add %v2, 1 : Int
+    %b = vsplat %v5 : Vec(Int)
+    %v7 = call comparisons, %a, %b : Int
+    %v10 = cmp_ne %v7, 0 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v12 = call comparisons, %a, %b : Int
+    ret %v12
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = call selection, %a, %b : Int
+    %v18 = cmp_ne %v15, 0 : Bool
+    je %v18, b4, b5
+
+  b4:
+    %v20 = call selection, %a, %b : Int
+    %v23 = mul %v20, 10 : Int
+    ret %v23
+
+  b5:
+    jmp b6
+
+  b6:
+    %v26 = call combining, %a, %b : Int
+    %v29 = cmp_ne %v26, 0 : Bool
+    je %v29, b7, b8
+
+  b7:
+    %v31 = call combining, %a, %b : Int
+    %v34 = mul %v31, 100 : Int
+    ret %v34
+
+  b8:
+    jmp b9
+
+  b9:
+    %v37 = call counting : Int
+    %v40 = cmp_ne %v37, 0 : Bool
+    je %v40, b10, b11
+
+  b10:
+    %v42 = call counting : Int
+    %v45 = mul %v42, 1000 : Int
+    ret %v45
+
+  b11:
+    jmp b12
+
+  b12:
+    %v48 = call floats : Int
+    %v51 = cmp_ne %v48, 0 : Bool
+    je %v51, b13, b14
+
+  b13:
+    %v53 = call floats : Int
+    %v56 = mul %v53, 10000 : Int
+    ret %v56
+
+  b14:
+    jmp b15
+
+  b15:
+    ret 4839
+}

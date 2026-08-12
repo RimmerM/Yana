@@ -1,0 +1,143 @@
+let image$base: () = <none>
+
+let &seed: Int = 3
+
+fn doubled(%v: Vec(Int)) -> Vec(Int) {
+  b0:
+    %v1 = add %v, %v : Vec(Int)
+    ret %v1
+}
+
+fn scaled(%v: Vec(Int), %by: Int) -> Vec(Int) {
+  b0:
+    %v2 = vsplat %by : Vec(Int)
+    %v3 = mul %v, %v2 : Vec(Int)
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load seed : Int
+    %base = vsplat %v0 : Vec(Int)
+    %twice = call doubled, %base : Vec(Int)
+    %six = call scaled, %base, 2 : Vec(Int)
+    %v7 = vlane %twice, 0 : Int
+    %v10 = cmp_ne %v7, 6 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v14 = neg 1 : Int
+    ret %v14
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = vlane %six, 1 : Int
+    %v22 = cmp_ne %v19, 6 : Bool
+    je %v22, b4, b5
+
+  b4:
+    %v26 = neg 2 : Int
+    ret %v26
+
+  b5:
+    jmp b6
+
+  b6:
+    %mixed = vwithlane %base, 10, 0 : Vec(Int)
+    %v34 = vreduce_max %mixed : Int
+    %v37 = cmp_ne %v34, 10 : Bool
+    je %v37, b7, b8
+
+  b7:
+    %v41 = neg 3 : Int
+    ret %v41
+
+  b8:
+    jmp b9
+
+  b9:
+    %v44 = vreduce_min %mixed : Int
+    %v47 = cmp_ne %v44, 3 : Bool
+    je %v47, b10, b11
+
+  b10:
+    %v51 = neg 4 : Int
+    ret %v51
+
+  b11:
+    jmp b12
+
+  b12:
+    %total = alloc : Vec(Int)
+    init %total, %base
+    %i = alloc : Int
+    init %i, 0
+    jmp b13
+
+  b13:
+    %v60 = load %i : Int
+    %v63 = cmp_lt %v60, 4 : Bool
+    je %v63, b15, b14
+
+  b14:
+    %v74 = load %total : Vec(Int)
+    %v77 = vlane %v74, 0 : Int
+    %v80 = cmp_ne %v77, 15 : Bool
+    je %v80, b16, b17
+
+  b15:
+    %v65 = load %total : Vec(Int)
+    %v66 = add %v65, %base : Vec(Int)
+    assign %total, %v66
+    %v68 = load %i : Int
+    %v71 = add %v68, 1 : Int
+    assign %i, %v71
+    jmp b13
+
+  b16:
+    %v84 = neg 5 : Int
+    ret %v84
+
+  b17:
+    jmp b18
+
+  b18:
+    %v87 = load %total : Vec(Int)
+    %v90 = vlane %v87, 1 : Int
+    %v93 = cmp_ne %v90, 15 : Bool
+    je %v93, b19, b20
+
+  b19:
+    %v97 = neg 6 : Int
+    ret %v97
+
+  b20:
+    jmp b21
+
+  b21:
+    %v102 = vsplat 1 : Vec(Int)
+    %lanes = vreduce_add %v102 : Int
+    %v104 = load %total : Vec(Int)
+    %v105 = vreduce_add %v104 : Int
+    %v108 = mul %lanes, 15 : Int
+    %v109 = cmp_ne %v105, %v108 : Bool
+    je %v109, b22, b23
+
+  b22:
+    %v113 = neg 7 : Int
+    ret %v113
+
+  b23:
+    jmp b24
+
+  b24:
+    %v118 = vlane %twice, 1 : Int
+    %v121 = mul %v118, 100 : Int
+    %v124 = vlane %six, 0 : Int
+    %v125 = add %v121, %v124 : Int
+    %v128 = vlane %mixed, 0 : Int
+    %v129 = add %v125, %v128 : Int
+    ret %v129
+}

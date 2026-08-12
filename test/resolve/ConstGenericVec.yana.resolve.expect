@@ -1,0 +1,129 @@
+let image$base: () = <none>
+
+let &sink: Vec(I16, 4) = <startup>
+
+fn secondLane(%v: Vec(I16, n)) -> I16 {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v3 = gencall lane(n, I16), %v, 1 : I16
+    ret %v3
+}
+
+fn widthOf(%v: Vec(I16, n)) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = countof n : Int
+    ret %v1
+}
+
+fn doubled(%v: Vec(I16, n)) -> Vec(I16, n) {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = gencall reverse(n, I16), %v : Vec(I16, n)
+    %v2 = gencall max(n, I16), %v1, %v : Vec(I16, n)
+    ret %v2
+}
+
+(Num(Vec(I16, n))) fn twice(%v: Vec(I16, n)) -> Vec(I16, n) {
+  schema {
+    #0 const n: Int
+    #1 class Num(Vec(I16, n))
+  }
+
+  b0:
+    %v1 = gencall Num(Vec(I16, n)).+, %v, %v : Vec(I16, n)
+    ret %v1
+}
+
+(Num(Vec(I16, n))) fn sameCount(%v: Vec(I16, n), %w: Vec(I16, n)) -> Vec(I16, n) {
+  schema {
+    #0 const n: Int
+    #1 class Num(Vec(I16, n))
+  }
+
+  b0:
+    %v2 = gencall Num(Vec(I16, n)).+, %v, %w : Vec(I16, n)
+    ret %v2
+}
+
+fn quadWidth(%v: Vec(I16, 4)) -> Int {
+  b0:
+    %v1 = call widthOf(4), %v : Int
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load sink : Vec(I16, 4)
+    %v = vwithlane %v0, 9, 1 : Vec(I16, 4)
+    %wide = call doubled(4), %v : Vec(I16, 4)
+    %v6 = call twice(4), %v : Vec(I16, 4)
+    %v7 = call sameCount(4), %v, %wide : Vec(I16, 4)
+    %summed = call sameCount(4), %v6, %v7 : Vec(I16, 4)
+    assign sink, %wide
+    %v10 = call widthOf(4), %v : Int
+    %v11 = call quadWidth, %v : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call secondLane(4), %wide : I16
+    %v14 = cast %v13 : I32
+    %v15 = cast %v14 : Int
+    %v16 = add %v12, %v15 : Int
+    %v17 = call secondLane(4), %summed : I16
+    %v18 = cast %v17 : I32
+    %v19 = cast %v18 : Int
+    %v20 = add %v16, %v19 : Int
+    %v23 = vlane %summed, 2 : I16
+    %v24 = cast %v23 : I32
+    %v25 = cast %v24 : Int
+    %v26 = add %v20, %v25 : Int
+    ret %v26
+}
+
+fn main$() -> Int {
+  b0:
+    %v3 = vsplat 0 : Vec(I16, 4)
+    init sink, %v3
+    %v5 = call main : Int
+    ret %v5
+}
+
+fn widthOf(4)(%v: Vec(I16, 4)) -> Int {
+  b0:
+    %v1 = countof 4 : Int
+    ret %v1
+}
+
+fn doubled(4)(%v: Vec(I16, 4)) -> Vec(I16, 4) {
+  b0:
+    %v1 = vshuffle %v, %v, 3, 2, 1, 0 : Vec(I16, 4)
+    %v2 = cmp_gt %v1, %v : Mask(I16)
+    %v3 = select %v2 ? %v1 : %v : Vec(I16, 4)
+    ret %v3
+}
+
+fn twice(4)(%v: Vec(I16, 4)) -> Vec(I16, 4) {
+  b0:
+    %v1 = add %v, %v : Vec(I16, 4)
+    ret %v1
+}
+
+fn sameCount(4)(%v: Vec(I16, 4), %w: Vec(I16, 4)) -> Vec(I16, 4) {
+  b0:
+    %v2 = add %v, %w : Vec(I16, 4)
+    ret %v2
+}
+
+fn secondLane(4)(%v: Vec(I16, 4)) -> I16 {
+  b0:
+    %v2 = vlane %v, 1 : I16
+    ret %v2
+}

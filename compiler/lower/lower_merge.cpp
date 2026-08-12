@@ -146,6 +146,20 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::Xor:
         case LowerInst::Cmp:
         case LowerInst::Select:
+
+        // Both floating-point kinds, which carry nothing beside their operands - so two of them in
+        // two copies of a block are the same computation exactly when their operands are, which is
+        // what the caller compares next.
+        case LowerInst::Sqrt:
+        case LowerInst::Fma:
+
+        // Four of the five vector kinds. `VecShuffle` is deliberately not one of them: its pattern
+        // is stored past its operands rather than in `flags`, so two of them that pick different
+        // lanes out of the same pair of vectors would compare the same here.
+        case LowerInst::VecSplat:
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+        case LowerInst::VecReduce:
         case LowerInst::Load:
         case LowerInst::Store:
         case LowerInst::Copy:

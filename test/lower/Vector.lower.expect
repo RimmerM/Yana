@@ -1,0 +1,70 @@
+
+arith<complex>(%a: f32x8, %b: f32x8, %i: i32x4, %j: i32x4): f32x8 {
+  b_0 {
+    %add = add %a, %b: f32x8
+    %sub = sub %a, %b: f32x8
+    %mul = mul %a, %b: f32x8
+    %div = div %a, %b: f32x8
+    %ng = neg %a: f32x8
+    %iadd = add %i, %j: i32x4
+    %idiv = idiv %i, %j: i32x4
+    %irem = irem %i, %j: i32x4
+    %and = and %i, %j: i32x4
+    %not = not %i: i32x4
+    %shv = shl %i, %j: i32x4
+    %shs = shl %i, 3: i32x4
+    ret %add
+  }
+}
+
+masks<complex>(%a: f32x8, %b: f32x8): f32x8 {
+  b_0 {
+    %lt = cmp_lt %a, %b: m32x8
+    %gt = cmp_gt %a, %b: m32x8
+    %both = and %lt, %gt: m32x8
+    %inv = not %both: m32x8
+    %sel = select %inv, %a, %b: f32x8
+    %any = vreduce_or %inv: Int
+    %all = vreduce_and %inv: Int
+    %count = vreduce_add %inv: Int
+    ret %sel
+  }
+}
+
+lanes<complex>(%x: Float, %v: f32x8, %w: f32x8): Float {
+  b_0 {
+    %splat = vsplat %x: f32x8
+    %lane = vlane %v, 3: Float
+    %with = vwithlane %v, %x, 5: f32x8
+    %sum = vreduce_add %v: Float
+    %max = vreduce_max %v: Float
+    %zip = vshuffle %v, %w, 0, 8, 1, 9, 2, 10, 3, 11: f32x8
+    %low = vshuffle %v, %v, 0, 1, 2, 3: f32x4
+    %narrow = vreduce_add %low: Float
+    ret %sum
+  }
+}
+
+widths<complex>(%p: Ptr): i8x32 {
+  b_0 {
+    %b = load %p, 32: i8x32
+    %s = load %p, 32: i16x16
+    %l = load %p, 32: i64x4
+    %d = load %p, 32: f64x4
+    %tail = loadx %p, 32: i8x32
+    %sum = add %b, %tail: i8x32
+    store %p, %sum, 32
+    ret %sum
+  }
+}
+
+convert<complex>(%f: f32x4, %i: i32x4): f64x4 {
+  b_0 {
+    %bits = bitcast %i: f32x4
+    %wide = cast %f: f64x4
+    %narrow = cast %i: i8x4
+    %pack = bitcast %i: i8x16
+    ret %wide
+  }
+}
+

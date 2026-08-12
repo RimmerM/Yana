@@ -4,7 +4,8 @@
    Three rejections, and they are three different statements about the same decision. A fixed array
    is a *type* rather than a Repr refinement of `[T]`, so it differs in capability: it holds exactly
    the elements its type names, which makes growth impossible, the length a check rather than an
-   inference, and `n` something the compiler has to be able to read off the source.
+   inference, and `n` something the compiler has to be able to read off the source - a literal or a
+   const parameter, per Implementation-Const-Generics.md §2.5.
 -}
 
 import Native
@@ -20,8 +21,9 @@ fn grow() -> {}:
 fn short() -> {}:
     let xs = [1, 2, 3] :: [Int *4]
 
--- **And `n` is a literal.** A computed or generic length is const generics, which is a separate
--- feature; the diagnostic names it rather than folding whatever the parser happened to produce.
+-- **And `n` is a literal or a const parameter.** A `let` is neither: const generics quantifies over
+-- a *parameter* of the declaration, not over whatever a name happens to be bound to in the body, so
+-- the diagnostic names the two forms that are counts rather than folding what the parser produced.
 fn computed() -> {}:
     let n = 4
     let xs = [1] :: [Int *n]

@@ -1,0 +1,518 @@
+let image$base: () = <none>
+
+let &seed: Int = 2
+
+fn construction() -> Int {
+  b0:
+    %empty = vsplat 0 : Vec(Int)
+    %v3 = vsplat 0 : Vec(Int)
+    %v5 = vwithlane %v3, 1, 1 : Vec(Int)
+    %v7 = vwithlane %v5, 2, 2 : Vec(Int)
+    %indices = vwithlane %v7, 3, 3 : Vec(Int)
+    %v12 = vlane %empty, 0 : Int
+    %v15 = cmp_ne %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    %v19 = neg 1 : Int
+    ret %v19
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = vlane %empty, 1 : Int
+    %v27 = cmp_ne %v24, 0 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 2 : Int
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v36 = vlane %indices, 0 : Int
+    %v39 = cmp_ne %v36, 0 : Bool
+    je %v39, b7, b8
+
+  b7:
+    %v43 = neg 3 : Int
+    ret %v43
+
+  b8:
+    jmp b9
+
+  b9:
+    %v48 = vlane %indices, 1 : Int
+    %v51 = cmp_ne %v48, 1 : Bool
+    je %v51, b10, b11
+
+  b10:
+    %v55 = neg 4 : Int
+    ret %v55
+
+  b11:
+    jmp b12
+
+  b12:
+    %v61 = cmp_lt 4, 2 : Bool
+    je %v61, b13, b14
+
+  b13:
+    %v65 = neg 5 : Int
+    ret %v65
+
+  b14:
+    jmp b15
+
+  b15:
+    %v68 = vreduce_add %indices : Int
+    %v73 = sub 4, 1 : Int
+    %v74 = mul 4, %v73 : Int
+    %v77 = div %v74, 2 : Int
+    %v78 = cmp_ne %v68, %v77 : Bool
+    je %v78, b16, b17
+
+  b16:
+    %v82 = neg 6 : Int
+    ret %v82
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn arithmetic(%v: Vec(Int)) -> Int {
+  b0:
+    %v2 = vsplat 0 : Vec(Int)
+    %v4 = vwithlane %v2, 1, 1 : Vec(Int)
+    %v6 = vwithlane %v4, 2, 2 : Vec(Int)
+    %indices = vwithlane %v6, 3, 3 : Vec(Int)
+    %empty = vsplat 0 : Vec(Int)
+    %v11 = cmp_lt %v, %indices : Mask(Int)
+    %lower = select %v11 ? %v : %indices : Vec(Int)
+    %v13 = cmp_gt %v, %indices : Mask(Int)
+    %upper = select %v13 ? %v : %indices : Vec(Int)
+    %v17 = vlane %lower, 0 : Int
+    %v20 = cmp_ne %v17, 0 : Bool
+    je %v20, b1, b2
+
+  b1:
+    %v24 = neg 1 : Int
+    ret %v24
+
+  b2:
+    jmp b3
+
+  b3:
+    %v29 = vlane %upper, 0 : Int
+    %v32 = cmp_ne %v29, 2 : Bool
+    je %v32, b4, b5
+
+  b4:
+    %v36 = neg 2 : Int
+    ret %v36
+
+  b5:
+    jmp b6
+
+  b6:
+    %v41 = vlane %lower, 1 : Int
+    %v44 = cmp_ne %v41, 1 : Bool
+    je %v44, b7, b8
+
+  b7:
+    %v48 = neg 3 : Int
+    ret %v48
+
+  b8:
+    jmp b9
+
+  b9:
+    %v53 = vlane %upper, 1 : Int
+    %v56 = cmp_ne %v53, 2 : Bool
+    je %v56, b10, b11
+
+  b10:
+    %v60 = neg 4 : Int
+    ret %v60
+
+  b11:
+    jmp b12
+
+  b12:
+    %negated = sub %empty, %v : Vec(Int)
+    %v65 = vsplat 0 : Vec(Int)
+    %v66 = cmp_le %negated, %v65 : Mask(Int)
+    %v67 = sub %v65, %negated : Vec(Int)
+    %v68 = select %v66 ? %v67 : %negated : Vec(Int)
+    %v71 = vlane %v68, 0 : Int
+    %v74 = cmp_ne %v71, 2 : Bool
+    je %v74, b13, b14
+
+  b13:
+    %v78 = neg 5 : Int
+    ret %v78
+
+  b14:
+    jmp b15
+
+  b15:
+    %v82 = vsplat 0 : Vec(Int)
+    %v83 = cmp_le %v, %v82 : Mask(Int)
+    %v84 = sub %v82, %v : Vec(Int)
+    %v85 = select %v83 ? %v84 : %v : Vec(Int)
+    %v88 = vlane %v85, 1 : Int
+    %v91 = cmp_ne %v88, 2 : Bool
+    je %v91, b16, b17
+
+  b16:
+    %v95 = neg 6 : Int
+    ret %v95
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn floats() -> Int {
+  b0:
+    %v2 = neg 1.5 : Float
+    %a = vsplat %v2 : Vec(Float)
+    %zeros = vsplat 0 : Vec(Float)
+    %v7 = vsplat 0 : Vec(Float)
+    %v8 = cmp_le %a, %v7 : Mask(Float)
+    %v9 = sub %v7, %a : Vec(Float)
+    %v10 = select %v8 ? %v9 : %a : Vec(Float)
+    %v13 = vlane %v10, 0 : Float
+    %v16 = cmp_ne %v13, 1.5 : Bool
+    je %v16, b1, b2
+
+  b1:
+    %v20 = neg 1 : Int
+    ret %v20
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = cmp_lt %a, %zeros : Mask(Float)
+    %v24 = select %v23 ? %a : %zeros : Vec(Float)
+    %v27 = vlane %v24, 0 : Float
+    %v30 = neg 1.5 : Float
+    %v31 = cmp_ne %v27, %v30 : Bool
+    je %v31, b4, b5
+
+  b4:
+    %v35 = neg 2 : Int
+    ret %v35
+
+  b5:
+    jmp b6
+
+  b6:
+    %v38 = cmp_gt %a, %zeros : Mask(Float)
+    %v39 = select %v38 ? %a : %zeros : Vec(Float)
+    %v42 = vlane %v39, 1 : Float
+    %v45 = cmp_ne %v42, 0 : Bool
+    je %v45, b7, b8
+
+  b7:
+    %v49 = neg 3 : Int
+    ret %v49
+
+  b8:
+    jmp b9
+
+  b9:
+    %v54 = vsplat 0 : Vec(Float)
+    %v55 = cmp_le %zeros, %v54 : Mask(Float)
+    %v56 = sub %v54, %zeros : Vec(Float)
+    %v57 = select %v55 ? %v56 : %zeros : Vec(Float)
+    %v60 = vlane %v57, 0 : Float
+    %v62 = div 1, %v60 : Float
+    %v65 = cmp_lt %v62, 0 : Bool
+    je %v65, b10, b11
+
+  b10:
+    %v69 = neg 4 : Int
+    ret %v69
+
+  b11:
+    jmp b12
+
+  b12:
+    ret 0
+}
+
+fn rearrangement() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(Int)
+    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
+    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
+    %indices = vwithlane %v5, 3, 3 : Vec(Int)
+    %backwards = vshuffle %indices, %indices, 3, 2, 1, 0 : Vec(Int)
+    %v12 = vlane %backwards, 0 : Int
+    %v15 = sub %width, 1 : Int
+    %v16 = cmp_ne %v12, %v15 : Bool
+    je %v16, b1, b2
+
+  b1:
+    %v20 = neg 1 : Int
+    ret %v20
+
+  b2:
+    jmp b3
+
+  b3:
+    %v25 = vlane %backwards, 1 : Int
+    %v28 = sub %width, 2 : Int
+    %v29 = cmp_ne %v25, %v28 : Bool
+    je %v29, b4, b5
+
+  b4:
+    %v33 = neg 2 : Int
+    ret %v33
+
+  b5:
+    jmp b6
+
+  b6:
+    %v38 = vshuffle %indices, %indices, 1, 2, 3, 0 : Vec(Int)
+    %v41 = vlane %v38, 0 : Int
+    %v44 = cmp_ne %v41, 1 : Bool
+    je %v44, b7, b8
+
+  b7:
+    %v48 = neg 3 : Int
+    ret %v48
+
+  b8:
+    jmp b9
+
+  b9:
+    %v53 = neg 1 : Int
+    %v54 = vshuffle %indices, %indices, 3, 0, 1, 2 : Vec(Int)
+    %v57 = vlane %v54, 0 : Int
+    %v60 = sub %width, 1 : Int
+    %v61 = cmp_ne %v57, %v60 : Bool
+    je %v61, b10, b11
+
+  b10:
+    %v65 = neg 4 : Int
+    ret %v65
+
+  b11:
+    jmp b12
+
+  b12:
+    %nines = vsplat 9 : Vec(Int)
+    %low = vshuffle %indices, %nines, 0, 4, 1, 5 : Vec(Int)
+    %high = vshuffle %indices, %nines, 2, 6, 3, 7 : Vec(Int)
+    %v75 = vlane %low, 0 : Int
+    %v78 = cmp_ne %v75, 0 : Bool
+    je %v78, b13, b14
+
+  b13:
+    %v82 = neg 5 : Int
+    ret %v82
+
+  b14:
+    jmp b15
+
+  b15:
+    %v87 = vlane %low, 1 : Int
+    %v90 = cmp_ne %v87, 9 : Bool
+    je %v90, b16, b17
+
+  b16:
+    %v94 = neg 6 : Int
+    ret %v94
+
+  b17:
+    jmp b18
+
+  b18:
+    %v99 = vlane %high, 0 : Int
+    %v102 = div %width, 2 : Int
+    %v103 = cmp_ne %v99, %v102 : Bool
+    je %v103, b19, b20
+
+  b19:
+    %v107 = neg 7 : Int
+    ret %v107
+
+  b20:
+    jmp b21
+
+  b21:
+    %v112 = vlane %high, 1 : Int
+    %v115 = cmp_ne %v112, 9 : Bool
+    je %v115, b22, b23
+
+  b22:
+    %v119 = neg 8 : Int
+    ret %v119
+
+  b23:
+    jmp b24
+
+  b24:
+    ret 0
+}
+
+fn regrouping(%v: Vec(I32)) -> Int {
+  b0:
+    %other = vwithlane %v, 5, 0 : Vec(I32)
+    %v6 = cast %v : Vec(I16, 4)
+    %v7 = cast %other : Vec(I16, 4)
+    %packed = vshuffle %v6, %v7, 0, 1, 2, 3, 4, 5, 6, 7 : Vec(I16)
+    %v13 = mul 4, 2 : Int
+    %v14 = cmp_ne 8, %v13 : Bool
+    je %v14, b1, b2
+
+  b1:
+    %v18 = neg 1 : Int
+    ret %v18
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = vlane %packed, 0 : I16
+    %v26 = cmp_ne %v23, 2 : Bool
+    je %v26, b4, b5
+
+  b4:
+    %v30 = neg 2 : Int
+    ret %v30
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = vlane %packed, 4 : I16
+    %v37 = cmp_ne %v34, 5 : Bool
+    je %v37, b7, b8
+
+  b7:
+    %v41 = neg 3 : Int
+    ret %v41
+
+  b8:
+    jmp b9
+
+  b9:
+    %v44 = vshuffle %packed, %packed, 0, 1, 2, 3 : Vec(I16, 4)
+    %low = cast %v44 : Vec(I32)
+    %v46 = vshuffle %packed, %packed, 4, 5, 6, 7 : Vec(I16, 4)
+    %high = cast %v46 : Vec(I32)
+    %v50 = vlane %low, 0 : I32
+    %v53 = cmp_ne %v50, 2 : Bool
+    je %v53, b10, b11
+
+  b10:
+    %v57 = neg 4 : Int
+    ret %v57
+
+  b11:
+    jmp b12
+
+  b12:
+    %v62 = vlane %high, 0 : I32
+    %v65 = cmp_ne %v62, 5 : Bool
+    je %v65, b13, b14
+
+  b13:
+    %v69 = neg 5 : Int
+    ret %v69
+
+  b14:
+    jmp b15
+
+  b15:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load seed : Int
+    %v = vsplat %v0 : Vec(Int)
+    %v2 = call construction : Int
+    %v5 = cmp_ne %v2, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = call construction : Int
+    ret %v7
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = call arithmetic, %v : Int
+    %v13 = cmp_ne %v10, 0 : Bool
+    je %v13, b4, b5
+
+  b4:
+    %v15 = call arithmetic, %v : Int
+    %v18 = mul %v15, 10 : Int
+    ret %v18
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = call floats : Int
+    %v24 = cmp_ne %v21, 0 : Bool
+    je %v24, b7, b8
+
+  b7:
+    %v26 = call floats : Int
+    %v29 = mul %v26, 100 : Int
+    ret %v29
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = call rearrangement : Int
+    %v35 = cmp_ne %v32, 0 : Bool
+    je %v35, b10, b11
+
+  b10:
+    %v37 = call rearrangement : Int
+    %v40 = mul %v37, 1000 : Int
+    ret %v40
+
+  b11:
+    jmp b12
+
+  b12:
+    %v43 = load seed : Int
+    %v44 = vsplat %v43 : Vec(Int)
+    %v45 = cast %v44 : Vec(I32)
+    %v46 = call regrouping, %v45 : Int
+    %v49 = cmp_ne %v46, 0 : Bool
+    je %v49, b13, b14
+
+  b13:
+    %v51 = load seed : Int
+    %v52 = vsplat %v51 : Vec(Int)
+    %v53 = cast %v52 : Vec(I32)
+    %v54 = call regrouping, %v53 : Int
+    %v57 = mul %v54, 10000 : Int
+    ret %v57
+
+  b14:
+    jmp b15
+
+  b15:
+    ret 271
+}

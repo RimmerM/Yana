@@ -134,6 +134,27 @@ ModulePtr<Value> ExprResolver::makeInt(LocationId source, TypePtr type, U64 valu
     return constant<ConstInt>(source, type, value);
 }
 
+ModulePtr<Value> ExprResolver::countOf(TypePtr count, TypePtr type, LocationId source) {
+    return ref(emit<InstTypeMetric>(source, StringId(), type, count, TypeMetricKind::Count));
+}
+
+ModulePtr<Value> ExprResolver::constParameterValue(StringId name, LocationId source) {
+    auto env = functionGen(global, function);
+    if(!env) return nullptr;
+
+    // Looked up without creating, deliberately: a name nothing declared is an unknown name and not
+    // a new const parameter. An open context introduces a variable from a *type* position, where
+    // the position says what kind it is; an expression position says only "a value", which every
+    // name is.
+    auto found = findGenVariable(module, *env, name);
+    if(!found || global[found]->kind != GenKind::Const) return nullptr;
+
+    auto variable = (Type*)global[found] - global;
+    recordReference(context, source, typeVarSymbol(module, found), variable);
+
+    return countOf(variable, global[found]->constType, source);
+}
+
 /*
  * Reports a written literal that does not fit the type it is being built at.
  *
@@ -855,6 +876,19 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
                 if(auto callee = findFunction(module, expr.var, expr.source)) {
                     auto value = functionValue(callee, expr.source);
                     return value && target ? convert(value, target, expr.source, implicit) : value;
+                }
+
+                /*
+                 * A const parameter read as a value - Implementation-Const-Generics.md §1.6.
+                 *
+                 * `fn (n: Int) stride(v: Vec(Float, n)) -> Int = n * 4`. This needs no new
+                 * expression form: the parameter has a *type*, so every expression rule already
+                 * applies to it, and what is here is only the arm that finds it before the lookup
+                 * gives up. That it lands after the binding, the global and the function is what
+                 * keeps a local called `n` shadowing it exactly as one shadows anything else.
+                 */
+                if(auto value = constParameterValue(expr.var, expr.source)) {
+                    return target ? convert(value, target, expr.source, implicit) : value;
                 }
 
                 context.diagnostics.error("unknown scalar value %@"_v, expr.source, context.findName(expr.var));

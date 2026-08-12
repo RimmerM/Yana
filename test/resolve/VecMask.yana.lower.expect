@@ -1,0 +1,53 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %a = vsplat 1: f32x4
+    %b = vsplat 2: f32x4
+    %ints = vsplat 7: i32x4
+    %others = vsplat 3: i32x4
+    %v_1 = cmp_lt %a, %b: m32x4
+    %v_2 = bitcast %v_1: m32x4
+    %v_3 = select %v_2, %ints, %others: i32x4
+    %v_4 = cmp_ilt %others, %ints: m32x4
+    %v_5 = bitcast %v_4: m32x4
+    %v_6 = select %v_5, %a, %b: f32x4
+    %v_7 = vsplat 0: i32x4
+    %v_8 = vwithlane %v_7, 1, 1: i32x4
+    %v_9 = vwithlane %v_8, 2, 2: i32x4
+    %v_10 = vwithlane %v_9, 3, 3: i32x4
+    %v_11 = cmp_ilt %v_10, %others: m32x4
+    %live = alloca 16, 16: Ptr
+    store %live, %v_11, 16
+    %kept = select %v_11, %v_10, %v_7: i32x4
+    %v_12 = vreduce_or %v_11: Int
+    %v_13 = xor %v_12, 1: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    %v_16 = vreduce_add %kept: Int
+    %v_17 = imul %v_16, 10: Int
+    %v_18 = load %live, 16: m32x4
+    %v_19 = vreduce_add %v_18: Int
+    %v_20 = add %v_17, %v_19: Int
+    jmp b_21
+  }
+
+  b_14 {
+    jmp b_21
+  }
+
+  b_21 {
+    %counted = phi [b_15, %v_20], [b_14, 18446744073709551615]: Int
+    %v_22 = vlane %v_3, 0: Int
+    %v_23 = imul %v_22, 100000: Int
+    %v_24 = vlane %v_6, 0: Float
+    %v_25 = cmp_eq %v_24, 1: Int
+    %v_26 = imul %v_25, 10000: Int
+    %v_27 = add %v_23, %v_26: Int
+    %v_28 = add %v_27, %counted: Int
+    ret %v_28
+  }
+}
+

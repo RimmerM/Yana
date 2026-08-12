@@ -1070,6 +1070,24 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
         case LowerInst::Cmp:
         case LowerInst::Select:
+
+        // The two floating-point operations, which are pure functions of their operands exactly as
+        // the arithmetic above is. `Sqrt` needs nothing else - it is a Unary and every pass that
+        // asks about one reaches it through `isUnary`. `Fma` is a third arity and had to be told to
+        // each of them by name; see `sameComputation`, which would otherwise have read it as a
+        // binary and compared two operands at the wrong offsets.
+        case LowerInst::Sqrt:
+        case LowerInst::Fma:
+
+        // All five, and for the same reason the arithmetic above is here: each is a pure function of
+        // its operands and of the fields it carries. It is what lets a splat of a loop-invariant
+        // scalar be hoisted out of the loop, which is §3.4's highest-value vector optimization and
+        // is free - the existing passes do it once the instruction says it may be repeated.
+        case LowerInst::VecSplat:
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+        case LowerInst::VecShuffle:
+        case LowerInst::VecReduce:
             return true;
         default:
             return false;

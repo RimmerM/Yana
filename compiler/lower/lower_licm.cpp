@@ -51,9 +51,14 @@ bool writesStorage(LowerInst* inst) {
 
 // How far an instruction reaches past its own base address, for the two kinds that touch memory.
 // Zero for everything else, which is what makes the search below a filter rather than a switch.
+//
+// An overreading load answers zero, which takes it out of the search entirely - see the comment in
+// `safeToSpeculate` on why it may not vouch for anything. It is not a load whose *own* extent is
+// unknown; it is one whose extent is deliberately past the object, and both readers here would take
+// it for a statement about how large the object is.
 U64 accessExtent(LowerInst* inst) {
     switch(inst->kind) {
-        case LowerInst::Load:  return ((LowerInstLoad*)inst)->getWidth();
+        case LowerInst::Load:  return ((LowerInstLoad*)inst)->isOverread() ? 0 : ((LowerInstLoad*)inst)->getWidth();
         case LowerInst::Store: return ((LowerInstStore*)inst)->getWidth();
         default:               return 0;
     }
@@ -74,6 +79,10 @@ LowerValue* accessAddress(LowerBase base, LowerInst* inst) {
  * stated as "the object extends at least this far from its base", which is what a dominating access
  * at a further offset says: an access at `%p + 12` of four bytes is a statement that `%p` names
  * sixteen bytes, and `%p + 0` of eight is inside them.
+ *
+ * An overreading load says the opposite of that and is excluded from both sides of the search by
+ * `accessExtent` answering zero for one. Its whole content is that it reads past the object on
+ * purpose, so reading it as a claim about the object's size is the one way this rule can be wrong.
  */
 bool safeToSpeculate(LowerBase base, LowerFunction& fun, const DominatorTree& dominators,
                      LowerBlock* preheader, const Address& address, U64 extent) {

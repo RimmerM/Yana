@@ -177,8 +177,18 @@ static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
             return ((GenType*)global[type])->index == index;
         case Type::Ptr:
             return mentionsVariable(global, ((PtrType*)global[type])->to, index);
-        case Type::Array:
-            return mentionsVariable(global, ((ArrayType*)global[type])->content, index);
+        case Type::Array: {
+            // The count is a child like any other - the `n` of `[a *n]` occurs in the type exactly
+            // as `a` does. See Implementation-Const-Generics.md §2.3.
+            auto array = (ArrayType*)global[type];
+            return mentionsVariable(global, array->content, index) ||
+                   mentionsVariable(global, array->count, index);
+        }
+        case Type::Vector: {
+            auto vector = (VectorType*)global[type];
+            return mentionsVariable(global, vector->content, index) ||
+                   mentionsVariable(global, vector->count, index);
+        }
         case Type::Tup: {
             auto tuple = (TupType*)global[type];
 

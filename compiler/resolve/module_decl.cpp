@@ -26,53 +26,175 @@
  */
 
 /*
+ * The arguments of one written class constraint - Implementation-Const-Generics.md §10.3.
+ *
+ * Each one goes through `resolveAppArg`, which is the same function a written type application uses,
+ * so which positions are counts is read off the *class's* declared parameter list rather than
+ * guessed from the argument's shape. That is the third place the same rule is needed; `Vec` and
+ * `resolveApp` are the first two.
+ *
+ * A bare `a` needs no arm of its own. `resolveType`'s `Gen` case calls `genVariable`, which creates
+ * the variable in an open context - so `fn (Num(a)) inc(x: a)` still introduces `a` here, exactly as
+ * the list of bare identifiers this replaced did - and reports "unknown type variable" in a closed
+ * one, which is the right message for a head naming something its parameter list does not.
+ *
+ * The arity is checked here because nothing downstream does. `superclassPath` bails on a length
+ * mismatch and `hasClassRequirement` never matches one, so a constraint of the wrong arity is
+ * decoration that quietly proves nothing - `fn (Num(a, b)) f(x: a)` was accepted in silence.
+ */
+static void resolveConstraintArgs(Module& module, ClassConstraint& entry, GenEnv* env) {
+    auto global = *module.types;
+
+    // Null when the class itself is unknown, which makes every position a type position - the right
+    // reading when there is no declaration to say otherwise, and the arity check below is skipped
+    // rather than reported against a class that was already reported.
+    auto declared = entry.typeClass ? global[entry.typeClass]->gen : nullptr;
+    Size index = 0;
+
+    for(auto arg: entry.written.contents(module.parse)) {
+        entry.args.push(module.types, resolveAppArg(module, declared, index, arg, env));
+        index++;
+    }
+
+    if(!declared) return;
+
+    auto arity = global[declared]->types.size();
+    if(index != arity) {
+        module.context.diagnostics.error("class %@ takes %@ arguments but was given %@"_v,
+                                         entry.source, module.context.findName(entry.name),
+                                         U32(arity), U32(index));
+    }
+}
+
+/*
  * Builds the generic context of one declaration: its declared type variables, then the class
- * constraints written over them. Constraint *classes* are resolved in a later pass, since a class
- * may be declared after the type that constrains itself by it.
+ * constraints written over them.
  *
  * `open` says whether a type variable the constraints mention introduces itself. A function and an
  * instance have no declared variable list, so it has to - and it has to be set *here* rather than
  * by the caller afterwards, because a constraint's own types are resolved below: `f: (a) -> Int`
  * mentions `a` before the signature that would otherwise have introduced it, and a context that
  * only opened after this returned would have rejected it.
+ *
+ * ## Two passes, and why only `Const` moves
+ *
+ * The constraint list is walked twice - Implementation-Const-Generics.md §10.3. The first pass takes
+ * the `Const` entries and nothing else; the second takes the rest in written order.
+ *
+ * A const parameter has to be declared before anything *resolves a type mentioning it*, because
+ * §1.5's inference in `resolveCountVariable` will otherwise create it: `fn (Num(Vec(I16, n)), n: Int)`
+ * would have the class constraint invent `n` as a count of `Int`, and the annotation beside it would
+ * then report §2.2's collision about a declaration that is perfectly correct. Splitting it out means
+ * the two may be written in either order.
+ *
+ * Only `Const` moves. `Any` stays where it is, so the order in which a context introduces its
+ * variables - and therefore every `GenType::index` in it - is byte-identical for a context with no
+ * const parameter, which is every context that existed before this feature.
  */
 GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
-                                       ast::ParseList<StringId> variables,
+                                       ast::ParseList<ast::GenParam> variables,
                                        ast::ConstraintList constraints, bool open) {
     auto env = new (module.types) GenEnv(kind);
     auto pointer = env - *module.types;
     env->open = open;
 
+    auto fresh = false;
     auto addVariable = [&](StringId variableName, LocationId source) -> GlobalPtr<GenType> {
+        fresh = false;
+
         for(auto existing: env->types.contents(*module.types)) {
             if((*module.types)[existing]->name == variableName) return existing;
         }
 
+        fresh = true;
         auto type = new (module.types) GenType(pointer, variableName, U16(env->types.size()));
+        type->source = source;
         auto typePointer = type - *module.types;
         env->types.push(module.types, typePointer);
         return typePointer;
     };
 
-    for(auto variable: variables.contents(module.parse)) addVariable(variable, kNullLocation);
+    /*
+     * `n: Int` - a const parameter, Implementation-Const-Generics.md §1.1 and §1.2.
+     *
+     * The declared kind, which is the case §1.5 requires in a head and allows in a signature. It is
+     * set here rather than inferred because it is *written*: a variable whose annotation says what
+     * it is has nothing left to work out, and the inference in type_ast.cpp is only for the variable
+     * a private function leaves to the position that uses it.
+     */
+    auto declareConst = [&](GlobalPtr<GenType> variable, bool created,
+                            ast::ParsePtr<ast::Type> annotation, LocationId source) {
+        auto type = (*module.types)[variable];
+
+        /*
+         * A name this list already introduced, declared again as a const parameter - §2.2's
+         * collision seen at declaration rather than at a use.
+         *
+         * Reported instead of being resolved by the second entry winning, because the two readings
+         * of `fn (a, a: Int) f(x: a)` are a type and a number and neither is the obvious one.
+         */
+        if(!created) {
+            module.context.diagnostics.error("%@ is already a parameter of this declaration - a name is a type parameter or a const parameter and not both"_v,
+                                             source, module.context.findName(type->name));
+            return;
+        }
+
+        auto declared = resolveType(module, *module.parse[annotation], (*module.types)[pointer]);
+
+        // The kind is set even when the *type* was refused, so that one inadmissible annotation is
+        // one diagnostic: leaving it a type parameter would make every count position that mentions
+        // it report §2.2's collision as well, about a declaration that already knows it is wrong.
+        type->kind = GenKind::Const;
+        type->constType = admissibleConstType(module, declared, source) ? declared : module.scalar.int_;
+    };
+
+    for(auto variable: variables.contents(module.parse)) {
+        auto added = addVariable(variable.name, kNullLocation);
+        if(variable.type) declareConst(added, fresh, variable.type, kNullLocation);
+    }
+
+    // Pass one - see the header. Every `Const` entry, so that a type resolved below which mentions
+    // one finds it declared rather than inferring a second reading of it.
+    for(auto constraint: constraints.contents(module.parse)) {
+        if(constraint.kind != ast::Constraint::Const) continue;
+
+        // `fn (n: Int) lane(v: Vec(Float, n), i: Int)` - §1.2. A context declares a const parameter
+        // in the same list it declares everything else in, so this is one arm and no second list.
+        auto variable = addVariable(constraint.constant.name, constraint.source);
+        declareConst(variable, fresh, constraint.constant.type, constraint.source);
+    }
 
     for(auto constraint: constraints.contents(module.parse)) {
         switch(constraint.kind) {
             case ast::Constraint::Error:
+            case ast::Constraint::Const:
                 break;
             case ast::Constraint::Any:
                 addVariable(constraint.name, constraint.source);
                 break;
             case ast::Constraint::Class: {
                 ClassConstraint entry;
-                entry.name = constraint.type.name;
+                entry.name = constraint.klass.name;
                 entry.source = constraint.source;
+                entry.written = constraint.klass.args;
 
-                auto args = constraint.type.kind;
-                for(auto arg: args.contents(module.parse)) {
-                    auto variable = addVariable(arg, constraint.source);
-                    entry.args.push(module.types, (Type*)(*module.types)[variable] - *module.types);
-                }
+                /*
+                 * Resolved here when the class is already declared, and deferred otherwise - §10.4.
+                 *
+                 * `findClass` cannot answer inside the pass that *declares* classes, which is where
+                 * a `data` or `class` head is built. Those two contexts are closed, so a constraint
+                 * of theirs introduces nothing and there is no ordering to lose by finishing them in
+                 * resolveConstraintClasses.
+                 *
+                 * An *open* context - a function's or an instance's - is built two passes later, by
+                 * which point every class exists. So a lookup that fails there is a name that does
+                 * not exist rather than one not read yet, and the arguments are resolved anyway:
+                 * that is what keeps `fn (Foo(a)) f(x: a)` to the one diagnostic naming `Foo`,
+                 * instead of following it with an "unknown type variable a" about a variable the
+                 * constraint would have introduced.
+                 */
+                entry.typeClass = findClass(module, entry.name, constraint.source);
+                if(entry.typeClass || open) resolveConstraintArgs(module, entry, env);
 
                 env->classes.push(module.types, entry);
                 break;
@@ -119,6 +241,10 @@ void resolveConstraintClasses(Module& module, GenEnv& env) {
         if(!constraint.typeClass) {
             module.context.diagnostics.error("unknown class %@"_v, constraint.source,
                                              module.context.findName(constraint.name));
+        } else {
+            // The half prepareGenEnv could not do, for the two closed contexts whose constraints may
+            // name a class declared after them - §10.4.
+            resolveConstraintArgs(module, constraint, &env);
         }
 
         env.classes.set(*module.types, i, constraint);
@@ -447,6 +573,17 @@ RecordType* declaredRecord(Module& module, StringId name) {
 void defineRecord(Module& module, ast::Decl& decl) {
     auto record = declaredRecord(module, decl.data.type.name);
     if(!record) return;
+
+    /*
+     * The record head's own constraints, which nothing resolved until now - Implementation-Const-
+     * Generics.md §10.4.
+     *
+     * `declareRecord` runs in the pass that declares classes, so a head naming one written further
+     * down the file cannot look it up there; and this was the only one of the four contexts with no
+     * later pass to finish it in, so `data (NoSuchClass(a)) A(a)` was accepted in silence. Here is
+     * the first point at which every class in the module exists.
+     */
+    if(record->gen) resolveConstraintClasses(module, *(*module.types)[record->gen]);
 
     // Inline: a record's constructors are one for a struct and a handful for a sum, and one of
     // these is built for every `data` declaration in every module the compile touches.

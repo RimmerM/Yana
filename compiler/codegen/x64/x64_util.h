@@ -32,7 +32,13 @@ inline bool needsRex(U8 reg) {
 // nothing. Every scalar the lowering produces is four bytes or eight, which is exactly the
 // distinction a slot class already makes. Shared because two passes ask the same question of the
 // same load: whether it may be folded into its reader, and whether it may be a recipe.
+//
+// A vector is its own width and is asked separately, the slot classes above 64 bits being what the
+// scalar answer has no room for. Answering 8 for one was not a refusal that had been reasoned about
+// - it made every question about a vector load compare 8 against 16 and decline, which read as "a
+// vector load is never foldable" and was really "this function does not know about vectors".
 inline U32 accessWidthOf(LowerType type) {
+    if(isVectorLike(type)) return type.byteWidth();
     return stackSlotClassFor(type) == StackSlotClass::Slot32 ? 4 : 8;
 }
 

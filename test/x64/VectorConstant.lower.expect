@@ -1,0 +1,103 @@
+
+iota<complex>(): i32x4 {
+  b_0 {
+    %v = vsplat 0: i32x4
+    %a = vwithlane %v, 1, 1: i32x4
+    %b = vwithlane %a, 2, 2: i32x4
+    %c = vwithlane %b, 3, 3: i32x4
+    ret %c
+  }
+}
+
+splat<complex>(): i32x4 {
+  b_0 {
+    %v = vsplat 7: i32x4
+    ret %v
+  }
+}
+
+folded<complex>(%a: i32x4): i32x4 {
+  b_0 {
+    %v = vsplat 3: i32x4
+    %s = add %a, %v: i32x4
+    ret %s
+  }
+}
+
+floats<complex>(): f32x4 {
+  b_0 {
+    %v = vsplat 0.5: f32x4
+    %a = vwithlane %v, 0.25, 2: f32x4
+    ret %a
+  }
+}
+
+zero<complex>(): i64x2 {
+  b_0 {
+    %v = vsplat 0: i64x2
+    ret %v
+  }
+}
+
+ones<complex>(): i32x4 {
+  b_0 {
+    %v = vsplat 18446744073709551615: i32x4
+    ret %v
+  }
+}
+
+
+--- codegen: iota ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0564000000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: splat ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0564000000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: folded ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d64000000
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffec1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: floats ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => 0f100555000000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: zero ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: ones ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660f76c0
+  ret uses=[xmm0] creates=[]  => c9c3

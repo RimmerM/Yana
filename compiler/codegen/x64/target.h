@@ -60,11 +60,54 @@ static constexpr FeatureSet kFeatureRdtscp = 1 << 1;
 // the instruction: a processor with XSAVE has it, and one without it faults.
 static constexpr FeatureSet kFeatureXsave = 1 << 4;
 
+/*
+ * SSE4.1: the lane insert and extract, and the three-byte opcode map they live in.
+ *
+ * Named for the level rather than for the instructions because what it buys here is one shape rather
+ * than a list - `pextrd`/`pextrq` move a lane straight into a general register and `pinsrd`/`pinsrq`
+ * move one back, where the baseline needs a shuffle into a scratch vector register first and has
+ * nowhere to put one (`MachineForm::temporaries` is what validateMachineForms still rejects). So the
+ * feature is the difference between a lane access being one instruction and being unavailable at any
+ * index but zero.
+ */
+static constexpr FeatureSet kFeatureSse41 = 1 << 5;
+
 // VEX encoding: the 128- and 256-bit three-operand vector forms, and the ymm half of the vector bank.
 static constexpr FeatureSet kFeatureAvx = 1 << 2;
 
+/*
+ * AVX2: the integer half of the 256-bit tier, which is what makes a `ymm` a register a value can
+ * live in here rather than one a float operation happens to be able to name.
+ *
+ * A feature of its own beside `kFeatureAvx` rather than a wider reading of it, because AVX widened
+ * the *float* operations alone: `vaddps ymm` is AVX and `vpaddd ymm` is AVX2, and a `Vec(I32)` that
+ * had to be split in half for want of the integer form would not be one vector. `targetVectorBytes`
+ * already draws the line in the same place - it answers 32 at AVX2 and 16 at AVX - so the feature
+ * and the width the type system hands out agree by construction rather than by a rule kept in two
+ * places.
+ *
+ * Every wide form in the table requires this, the float ones included. Nothing is lost by it: a
+ * target with AVX and not AVX2 has a natural vector width of 16, so no value of 32 bytes is ever
+ * built for one, and a form the width can never reach is a row nobody selects.
+ */
+static constexpr FeatureSet kFeatureAvx2 = 1 << 7;
+
 // EVEX encoding: 512-bit operations, the upper sixteen vector registers, and the mask registers.
 static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
+
+/*
+ * The fused multiply-add, at every width and both lane kinds.
+ *
+ * A feature of its own rather than a level, because it *is* one: FMA3 arrived with Haswell and AVX
+ * arrived with Sandy Bridge, and there are parts with AVX and no FMA. `CompileSettings` already
+ * draws the same distinction (`extensions.fma3` is a flag beside the SSE level rather than a point
+ * on it), so the two agree by construction.
+ *
+ * What it buys is a rounding rather than an instruction count. Design-Vector §3.3 makes `fma` a
+ * *permission* to fuse rather than a promise, so a target without this expands it into the multiply
+ * and the add it always meant - which is `expandFusedMultiplyAdd`, and is two roundings.
+ */
+static constexpr FeatureSet kFeatureFma3 = 1 << 6;
 
 /*
  * The features this backend is compiling for.
@@ -365,16 +408,53 @@ const TargetRegisters& targetRegisters();
  * Types to classes.
  */
 
+/*
+ * Whether a mask value lives in the mask bank on this target, or in the vector bank as the vector of
+ * all-ones lanes that a comparison without AVX-512 produces.
+ *
+ * This is a *codegen* choice and deliberately not a Repr one - see §2 of Implementation-Vector.md.
+ * A mask's representation in memory is the vector at both feature levels, so `Maybe(Mask(Float))`
+ * means one thing everywhere; what changes here is only where a live one is held.
+ */
+inline bool maskInMaskBank() {
+    return maskRegisterCount() > 0;
+}
+
+// Whether this type occupies the wide tier's register rather than the narrow one's. Asked of the
+// *byte width* rather than of the class, because a mask's class is the vector class it is held in
+// and the two answers have to be the same one. Read by form selection and by the pseudo encoders,
+// which is why it is here rather than beside either.
+inline bool isWideVector(LowerType type) {
+    return type.byteWidth() > 16;
+}
+
+// Which of the three packed classes a vector of this many bytes occupies. A vector narrower than a
+// register - `i32x2` is eight bytes - occupies the smallest one that holds it, which is the same
+// thing the machine does with it.
+inline RegisterClassId vectorClassForBytes(U32 bytes) {
+    if(bytes <= 16) return ClassXmm128;
+    if(bytes <= 32) return ClassYmm256;
+    return ClassZmm512;
+}
+
 // The bank a value of this type lives in.
 inline RegisterBankId bankForType(LowerType type) {
+    if(type.isMask()) return maskInMaskBank() ? BankMask : BankVector;
     return isIntLike(type) ? BankGpr : BankVector;
 }
 
 // The class a value of this type occupies. Every scalar the lowering produces is at most eight bytes
-// wide, so a float takes the scalar view of a vector register rather than the whole of one; the
-// packed classes exist for the vector values the register model describes and the IR has no type for
-// yet.
+// wide, so a float takes the scalar view of a vector register rather than the whole of one; a vector
+// takes the whole of one, at the width its lanes come to.
 inline RegisterClassId classForType(LowerType type) {
+    if(type.isMask()) {
+        // A mask register holds one bit per lane, so which of the two mask classes it is depends on
+        // how many lanes there are and not on how wide they are: 32 lanes fit `k` at 32 bits.
+        if(maskInMaskBank()) return type.lanes() > 32 ? ClassMask64 : ClassMask32;
+        return vectorClassForBytes(type.byteWidth());
+    }
+
+    if(type.isVector()) return vectorClassForBytes(type.byteWidth());
     if(isIntLike(type)) return type == LowerType::Int32 ? ClassGpr32 : ClassGpr64;
     return type == LowerType::Float32 ? ClassFloat32 : ClassFloat64;
 }
@@ -384,7 +464,12 @@ inline RegisterClassId classForType(LowerType type) {
 // rules when they decide whether an instruction may read one in place, which have to agree: a slot
 // is exactly as wide as the value in it, and an access of any other width would take a neighbouring
 // value with it.
+//
+// A vector reads it out of the class rather than restating it, because that is where the answer is
+// least able to drift: `RegisterClassDesc::spillClass` is what the allocator sizes the slot from.
 inline StackSlotClass stackSlotClassFor(LowerType type) {
+    if(isVectorLike(type)) return targetRegisters().regClass(classForType(type)).spillClass;
+
     return type == LowerType::Int32 || type == LowerType::Float32
         ? StackSlotClass::Slot32
         : StackSlotClass::Slot64;
@@ -539,13 +624,26 @@ inline RegSet framePointerRegs() {
  * register the same instruction is also placing.
  */
 
-// The most operand temporaries one instruction can ask for of one bank, which is a property of the
-// widest form described: two unconstrained operands and a result sharing with neither. A
-// fixed-register operand needs none, being loaded straight into the register the instruction demands.
-//
-// This is not the reserve - it is the limit the measurement is checked against, so that a form
-// wanting more is a loud failure rather than two temporaries quietly naming one register.
-static constexpr Size kMaxOperandTemps = 3;
+/*
+ * The highest operand-temporary position one instruction can reach in one bank.
+ *
+ * Not the number of temporaries the widest form wants, which is three - the lane-wise select reads
+ * three unconstrained operands and ties its result to the first, so a spilled result and two reloads
+ * want three at once, and a fixed-register operand wants none. A *position* is reached past as well
+ * as taken: `takeTemp` steps over any position whose register the instruction is already using - the
+ * two a folded address is holding, and the ones the form's own expansion clobbers - and consumes it,
+ * because the pool is a contiguous block off the top of the register file and the reserve has to
+ * hold back what was stepped over as well as what was taken.
+ *
+ * So this is the sum of the two, and `operandTempReach` in machine.cpp is what adds them up - for
+ * every form in the table, when the table is built. That check is the point: this number is one
+ * number for a whole backend, and both times it has been wrong the form that outgrew it looked
+ * perfectly ordinary next to the ones that did not.
+ *
+ * This is not the reserve - it is the limit the measurement is checked against, so that a form
+ * wanting more is a loud failure rather than two temporaries quietly naming one register.
+ */
+static constexpr Size kMaxOperandTemps = 4;
 
 // The two the move sequencer can want at once: one to break a cycle that has no exchange to use, and
 // one to carry a transfer whose ends are both frame slots.

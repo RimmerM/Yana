@@ -63,6 +63,24 @@ YANA_INST(Cast,         InstUnary,       "cast"_v,        kInstResult | kInstPur
 YANA_INST(Bitcast,      InstUnary,       "bitcast"_v,     kInstResult | kInstPure)
 YANA_INST(Neg,          InstUnary,       "neg"_v,         kInstResult | kInstPure)
 YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPure)
+/*
+ * The two floating-point operations no arrangement of the arithmetic above expresses.
+ *
+ * `Sqrt` is here because nothing in this compiler had a square root at any width, which is what made
+ * Implementation-Vector.md §9.4 call it "not a vector-shaped piece of work": what a vector needs is
+ * the same instruction the scalar wanted all along.
+ *
+ * `Fma` is `a * b + c` with **at most one rounding**, which is why it cannot be the multiply and the
+ * add: those round twice and are a different function of the same three inputs. Design-Vector §3.3
+ * makes that observable and rules on it - the language says `fma` *may* fuse, so a target with a
+ * fused instruction gives one rounding and a target without gives two, and a program that must not
+ * fuse writes `a * b + c` rather than calling this.
+ *
+ * Both take a float or a vector of floats, and neither is anything else: `Sqrt` of an integer is a
+ * question about rounding that no machine instruction answers.
+ */
+YANA_INST(Sqrt,         InstUnary,       "sqrt"_v,        kInstResult | kInstPure)
+YANA_INST(Fma,          InstFma,         "fma"_v,         kInstResult | kInstPure)
 YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
 YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
 YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)
@@ -79,6 +97,31 @@ YANA_INST(Cmp,          InstCmp,         "cmp"_v,         kInstResult | kInstPur
 // unconditionally, so there is nothing in one that recomputing could repeat and nothing that not
 // computing it could skip. See convertSelects, which is where that holds.
 YANA_INST(Select,       InstSelect,      "select"_v,      kInstResult | kInstPure)
+/*
+ * Vectors - Implementation-Vector.md §3.2, and five kinds rather than the dozen a portable vector
+ * set names.
+ *
+ * Most of the operation set is not here, and that is the point of the section: `Add` through `Xor`,
+ * `Neg`, `Not`, `Cmp` and `Select` all take vector operands with no new kind, so `opt_fold`, CSE, the
+ * forwarding passes and the verifier keep working on them unchanged - an `InstBinary` over a vector
+ * is an `InstBinary`. `Cmp` over one answers a `Mask` instead of a `Bool`, which is a typing rule
+ * rather than an instruction, and `Select` over a mask is the lane-wise select, which is the same
+ * instruction with a wider condition.
+ *
+ * Nor are the conversions here. A lane-count-preserving one is `Widen`, `Narrow` or `Bitcast` over
+ * vector types and lowers to the `Cast` and `Bitcast` above; one that changes the lane count is a
+ * `VecShuffle` and a `Cast`. Both are instances in stage 9 rather than kinds here.
+ *
+ * All five are pure: none reads storage and none has an effect, so each may be recomputed, hoisted
+ * or dropped. The lane index and the shuffle pattern are *fields* rather than operands, because the
+ * resolver has already rejected a runtime one (Design-Vector §3.3) - so nothing downstream handles a
+ * dynamic case and nothing has to prove an index constant.
+ */
+YANA_INST(VecSplat,     InstVecSplat,    "vsplat"_v,      kInstResult | kInstPure)
+YANA_INST(VecLane,      InstVecLane,     "vlane"_v,       kInstResult | kInstPure)
+YANA_INST(VecWithLane,  InstVecLane,     "vwithlane"_v,   kInstResult | kInstPure)
+YANA_INST(VecShuffle,   InstVecShuffle,  "vshuffle"_v,    kInstResult | kInstPure)
+YANA_INST(VecReduce,    InstVecReduce,   "vreduce"_v,     kInstResult | kInstPure)
 YANA_INST(Symbol,       InstSymbol,      "symbol"_v,      kInstResult | kInstPure)
 YANA_INST(Call,         InstCall,        "call"_v,        kInstResult)
 YANA_INST(CallDyn,      InstCallDyn,     "calldyn"_v,     kInstResult)

@@ -130,6 +130,25 @@ static StringView nameForCmp(LowerCmp cmp) {
     return ""_v;
 }
 
+// The reduction is part of the name rather than a printed field, the way a comparison's condition
+// is: there are eight of them, they are what the instruction *is*, and one name reads better than
+// `vreduce %v, 3` in every dump this backend produces.
+static StringView nameForReduce(LowerReduce reduce) {
+    switch(reduce) {
+        case LowerReduce::Add:  return "vreduce_add"_v;
+        case LowerReduce::Mul:  return "vreduce_mul"_v;
+        case LowerReduce::Min:  return "vreduce_min"_v;
+        case LowerReduce::IMin: return "vreduce_imin"_v;
+        case LowerReduce::Max:  return "vreduce_max"_v;
+        case LowerReduce::IMax: return "vreduce_imax"_v;
+        case LowerReduce::And:  return "vreduce_and"_v;
+        case LowerReduce::Or:   return "vreduce_or"_v;
+    }
+
+    assertTrue(false);
+    return ""_v;
+}
+
 static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
     auto to = inst.result.type;
     auto from = base[inst.from]->type;
@@ -167,6 +186,10 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "neg"_v;
         case LowerInst::Not:
             return "not"_v;
+        case LowerInst::Sqrt:
+            return "sqrt"_v;
+        case LowerInst::Fma:
+            return "fma"_v;
         case LowerInst::Add:
             return "add"_v;
         case LowerInst::Sub:
@@ -203,9 +226,20 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
         case LowerInst::Select:
             return "select"_v;
+        case LowerInst::VecSplat:
+            return "vsplat"_v;
+        case LowerInst::VecLane:
+            return "vlane"_v;
+        case LowerInst::VecWithLane:
+            return "vwithlane"_v;
+        case LowerInst::VecShuffle:
+            return "vshuffle"_v;
+        case LowerInst::VecReduce:
+            return nameForReduce(((LowerInstVecReduce&)inst).getReduce());
         case LowerInst::Alloca:
             return "alloca"_v;
         case LowerInst::Load:
+            if(((LowerInstLoad&)inst).isOverread()) return "loadx"_v;
             return ((LowerInstLoad&)inst).isSigned() ? "loads"_v : "load"_v;
         case LowerInst::Store:
             return "store"_v;
@@ -240,21 +274,67 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
 }
 
 StringView nameForType(LowerType type) {
-    switch(type) {
-        case LowerType::Int32:
+    assertTrue(!isVectorLike(type)); // a vector has no single name - see writeType
+
+    switch(type.lane) {
+        case LowerLane::Int32:
             return "Int"_v;
-        case LowerType::Int64:
+        case LowerLane::Int64:
             return "Long"_v;
-        case LowerType::Float32:
+        case LowerLane::Float32:
             return "Float"_v;
-        case LowerType::Float64:
+        case LowerLane::Float64:
             return "Double"_v;
-        case LowerType::Pointer:
+        case LowerLane::Pointer:
             return "Ptr"_v;
+        case LowerLane::Int8:
+        case LowerLane::Int16:
+            break; // only ever a lane, so only ever reached through writeType
     }
 
     assertTrue(false);
     return ""_v;
+}
+
+StringView nameForLane(LowerLane lane) {
+    switch(lane) {
+        case LowerLane::Int8:    return "i8"_v;
+        case LowerLane::Int16:   return "i16"_v;
+        case LowerLane::Int32:   return "i32"_v;
+        case LowerLane::Int64:   return "i64"_v;
+        case LowerLane::Float32: return "f32"_v;
+        case LowerLane::Float64: return "f64"_v;
+        case LowerLane::Pointer: return "ptr"_v;
+    }
+
+    assertTrue(false);
+    return ""_v;
+}
+
+/*
+ * The whole type.
+ *
+ * A scalar is written the way it always was, which is what keeps every existing golden byte for
+ * byte. A vector is `f32x8` and a mask `m32x8` - short, unambiguous, and the spelling the parser
+ * reads back. A mask names the *width* of the lane it masks rather than its kind, because that and
+ * the lane count are the whole of a mask's identity (Design-Vector §2.4): a comparison of two
+ * `f32x8` and one of two `i32x8` produce the same type.
+ */
+void writeType(Net::Writer& writer, LowerType type) {
+    if(!isVectorLike(type)) {
+        writer.writeString(nameForType(type));
+        return;
+    }
+
+    if(type.isMask()) {
+        writer.writeByte('m');
+        printInt(writer, laneBytes(type.lane) * 8);
+    } else {
+        writer.writeString(nameForLane(type.lane));
+    }
+
+    writer.writeByte('x');
+    printInt(writer, type.lanes());
 }
 
 StringView nameForCallType(LowerCallType type) {
@@ -353,7 +433,7 @@ void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerF
 
         printValueRef(writer, context, base, base[a]->result, print);
         writer.writeString(": "_v);
-        writer.writeString(nameForType(base[a]->result.type));
+        writeType(writer, base[a]->result.type);
     }
 
     writer.writeByte(')');
@@ -366,7 +446,7 @@ void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerF
             writer.writeString(", "_v);
         }
 
-        writer.writeString(nameForType(LowerType(r)));
+        writeType(writer, LowerType(r));
     }
 
     writer.writeString(" {\n"_v);
@@ -482,6 +562,24 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             writer.writeString(folded ? "    # implicit "_v : "    # flags "_v);
             writer.writeString(nameForCmp(cmp.unwrap()));
         }
+    } else if(inst.kind == LowerInst::Select) {
+        /*
+         * `select <condition>, <lhs>, <rhs>`, which is not the order the operands are stored in.
+         *
+         * LowerInstSelect declares `lhs, rhs, cmp` because used values have to come first after the
+         * embedded ones and the condition is the one that may be implicit; the *text* form puts the
+         * condition first, because that is the order it reads in - `c ? a : b`. Printing `used()`
+         * meant the printer and the parser disagreed, so a `.lower` file round-tripped into a
+         * different program: `select %a, %v, %cmp` printed as `select %v, %cmp, %a`, which parses
+         * back with the three operands rotated.
+         */
+        auto& select = (LowerInstSelect&)inst;
+
+        printValueRef(writer, context, base, *base[select.cmp], print);
+        writer.writeString(", "_v);
+        printValueRef(writer, context, base, *base[select.lhs], print);
+        writer.writeString(", "_v);
+        printValueRef(writer, context, base, *base[select.rhs], print);
     } else {
         Size currentUse = 0;
         for(auto use: inst.used()) {
@@ -501,6 +599,19 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
         } else if(inst.kind == LowerInst::Alloca) {
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstAlloca&)inst).alignment);
+        } else if(inst.kind == LowerInst::VecLane || inst.kind == LowerInst::VecWithLane) {
+            // The lane index is a field rather than an operand, so it comes after every operand the
+            // loop above printed: `vlane %v, 3` and `vwithlane %v, %x, 3`. Same for the shuffle's
+            // pattern below, which is why both read as a trailing run of numbers.
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstVecLane&)inst).getLane());
+        } else if(inst.kind == LowerInst::VecShuffle) {
+            auto pattern = ((LowerInstVecShuffle&)inst).pattern();
+
+            for(auto lane: pattern) {
+                writer.writeString(", "_v);
+                printInt(writer, lane);
+            }
         }
     }
 
@@ -509,7 +620,7 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
 
     for(auto& c: created) {
         writer.writeString(currentCreated++ ? ", "_v : ": "_v);
-        writer.writeString(nameForType(c.type));
+        writeType(writer, c.type);
 
         if(c.flags & LowerValue::Implicit) needsComment = true;
     }

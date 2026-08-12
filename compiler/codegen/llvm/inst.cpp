@@ -35,6 +35,45 @@ static llvm::StringRef nameOf(FunGen& f, LowerValue& value) {
 }
 
 /*
+ * Vectors, and the two ways they meet the scalar code below.
+ *
+ * The first is that the float/integer question is asked of a lane rather than of a value: `isFloat`
+ * answers no for an `f32x8` on purpose (see LowerType), so every site that has to treat a float
+ * vector as a float names this instead. The second is the lane's *scalar form* - what a `vsplat`
+ * takes and a `vlane` answers - which is wider than the lane for an 8- or 16-bit one and is an Int32
+ * truth value for a mask.
+ */
+static bool isFloatLike(LowerType type) {
+    return isFloat(type) || isFloatVector(type);
+}
+
+// The LLVM element type of a vector or a mask, which is not `typeOf(laneType())` for a mask: a mask
+// is `<N x i1>` here and its lane type names the integer whose width it masks.
+static llvm::Type* laneTypeOf(Gen& gen, LowerType type) {
+    return llvm::cast<llvm::FixedVectorType>(typeOf(gen, type))->getElementType();
+}
+
+// A scalar narrowed into the lane it is going to occupy. A mask lane is a truth value, so anything
+// that is not zero is one - a truncation would read the low bit and call 2 false.
+static llvm::Value* intoLane(FunGen& f, llvm::Value* scalar, LowerType vector) {
+    auto lane = laneTypeOf(f.gen, vector);
+    if(scalar->getType() == lane) return scalar;
+
+    if(lane->isIntegerTy(1)) {
+        return f.builder.CreateICmpNE(scalar, llvm::ConstantInt::get(scalar->getType(), 0));
+    }
+
+    return f.builder.CreateTrunc(scalar, lane);
+}
+
+// And back out: an 8- or 16-bit lane arrives in a 32-bit register zero-extended, which is what
+// `pextrb` and `pextrw` do on the machine, and a mask lane arrives as the 0 or 1 it means.
+static llvm::Value* outOfLane(FunGen& f, llvm::Value* lane, LowerType scalar) {
+    auto type = typeOf(f.gen, scalar);
+    return lane->getType() == type ? lane : f.builder.CreateZExt(lane, type);
+}
+
+/*
  * Provided values.
  */
 
@@ -80,9 +119,12 @@ static void genCast(FunGen& f, LowerInstCast& inst) {
     auto type = typeOf(f.gen, target);
     llvm::Value* value;
 
-    if(isFloat(source) && isFloat(target)) {
+    // Asked of the lane, so that a conversion between two vectors is the conversion between their
+    // lanes: every builder call below takes a vector wherever it takes the scalar, and the lane
+    // count the lower validator holds fixed across a `cast` is what makes that true.
+    if(isFloatLike(source) && isFloatLike(target)) {
         value = f.builder.CreateFPCast(from, type, nameOf(f, inst.result));
-    } else if(isFloat(source)) {
+    } else if(isFloatLike(source)) {
         /*
          * Saturating, per the ruling in `saturationRange`: out of range clamps to the nearest end
          * and NaN becomes zero.
@@ -97,7 +139,7 @@ static void genCast(FunGen& f, LowerInstCast& inst) {
         llvm::Type* overloads[] = { type, from->getType() };
 
         value = f.builder.CreateIntrinsic(id, overloads, { from }, nullptr, nameOf(f, inst.result));
-    } else if(isFloat(target)) {
+    } else if(isFloatLike(target)) {
         value = inst.isSignedSource() ? f.builder.CreateSIToFP(from, type, nameOf(f, inst.result))
                                       : f.builder.CreateUIToFP(from, type, nameOf(f, inst.result));
     } else {
@@ -112,13 +154,7 @@ static void genCast(FunGen& f, LowerInstCast& inst) {
 
 // How many bits a lower type occupies, which is the only thing a bitcast is about.
 static U32 bitsOf(LowerType type) {
-    switch(type) {
-        case LowerType::Int32:
-        case LowerType::Float32:
-            return 32;
-        default:
-            return 64;
-    }
+    return type.byteWidth() * 8;
 }
 
 static void genBitcast(FunGen& f, LowerInstUnary& inst) {
@@ -129,7 +165,12 @@ static void genBitcast(FunGen& f, LowerInstUnary& inst) {
     auto name = nameOf(f, inst.result);
     llvm::Value* value;
 
-    if(isPtr(source) && isPtr(target)) {
+    if(isVectorLike(source) || isVectorLike(target)) {
+        // Reinterpretation of one register: the lower validator has already checked that the two are
+        // the same width, which is the whole of what a vector bitcast means - `i8x16` to `i32x4` is
+        // one register read differently, and `i8x16` to `i32x8` names two and is refused there.
+        value = f.builder.CreateBitCast(from, type, name);
+    } else if(isPtr(source) && isPtr(target)) {
         // Both are the one opaque pointer type, so there is nothing left to cast.
         value = from;
     } else if(isPtr(source)) {
@@ -164,15 +205,41 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
             value = from;
             break;
         case LowerInst::Neg:
-            value = isFloat(inst.result.type) ? f.builder.CreateFNeg(from, name)
-                                              : f.builder.CreateNeg(from, name);
+            value = isFloatLike(inst.result.type) ? f.builder.CreateFNeg(from, name)
+                                                  : f.builder.CreateNeg(from, name);
+            break;
+        case LowerInst::Sqrt:
+            // One intrinsic for the scalar and the vector alike - `llvm.sqrt` is overloaded on its
+            // operand type, so a `<4 x float>` is the same call with a different type argument.
+            value = f.builder.CreateIntrinsic(llvm::Intrinsic::sqrt, { from->getType() }, { from },
+                                              nullptr, name);
             break;
         default:
+            // `not` over a mask is the lane-wise negation of an `<N x i1>`, which is the same xor
+            // against all ones an integer vector gets.
             value = f.builder.CreateNot(from, name);
             break;
     }
 
     f.define(inst.result, value);
+}
+
+/*
+ * `a * b + c`, at most once rounded.
+ *
+ * `llvm.fma` is the intrinsic that *means* one rounding, so this is the one place the two backends
+ * do not have to agree about a feature level: LLVM lowers it to the machine's fused instruction
+ * where there is one and to a libm call or the two operations where there is not, and either way it
+ * is the operation the IR asked for. The x64 backend makes the same choice one level lower, in
+ * `expandFusedMultiplyAdd`.
+ */
+static void genFma(FunGen& f, LowerInstFma& inst) {
+    auto a = use(f, inst, inst.a);
+    auto b = use(f, inst, inst.b);
+    auto c = use(f, inst, inst.c);
+
+    f.define(inst.result, f.builder.CreateIntrinsic(llvm::Intrinsic::fma, { a->getType() },
+                                                    { a, b, c }, nullptr, nameOf(f, inst.result)));
 }
 
 /*
@@ -264,8 +331,18 @@ static void genCmp(FunGen& f, LowerInstCmp& inst) {
     auto rhs = use(f, inst, inst.rhs);
     auto type = f.base[inst.lhs]->type;
 
-    auto compared = isFloat(type) ? f.builder.CreateFCmp(floatPredicate(inst.getCmp()), lhs, rhs)
-                                  : f.builder.CreateICmp(intPredicate(inst.getCmp()), lhs, rhs);
+    auto compared = isFloatLike(type) ? f.builder.CreateFCmp(floatPredicate(inst.getCmp()), lhs, rhs)
+                                      : f.builder.CreateICmp(intPredicate(inst.getCmp()), lhs, rhs);
+
+    // A comparison of vectors answers a mask, which is the `<N x i1>` the comparison already
+    // produced - the one place where this backend's representation is LLVM's own rather than the
+    // full-width lanes the Repr describes. Everything a mask reaches (`and`, `not`, `select`, a
+    // reduction) is written against that, and LLVM's lowering collapses the pair.
+    if(inst.result.type.isMask()) {
+        compared->setName(nameOf(f, inst.result));
+        f.define(inst.result, compared);
+        return;
+    }
 
     // The lower IR has no one-bit type: a comparison answers Int, which is 0 or 1.
     f.define(inst.result, f.builder.CreateZExt(compared, typeOf(f.gen, inst.result.type), nameOf(f, inst.result)));
@@ -278,7 +355,7 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
     auto rhsType = f.base[inst.rhs]->type;
     auto result = inst.result.type;
     auto name = nameOf(f, inst.result);
-    auto isFloatOp = isFloat(result);
+    auto isFloatOp = isFloatLike(result);
     llvm::Value* value;
 
     switch(inst.kind) {
@@ -336,15 +413,21 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
         case LowerInst::MulHi:
         case LowerInst::IMulHi: {
             auto isSigned = inst.kind == LowerInst::IMulHi;
-            auto width = lhs->getType()->getIntegerBitWidth();
-            auto wide = llvm::IntegerType::get(f.gen.llvm, width * 2);
+            auto width = lhs->getType()->getScalarSizeInBits();
+            llvm::Type* wide = llvm::IntegerType::get(f.gen.llvm, width * 2);
+
+            // Per lane where the operands are a vector, which is what the double-width product has
+            // to be taken in for the truncation below to be one lane's high half.
+            if(auto vector = llvm::dyn_cast<llvm::FixedVectorType>(lhs->getType())) {
+                wide = llvm::FixedVectorType::get(wide, vector->getNumElements());
+            }
 
             auto extend = [&](llvm::Value* v) {
                 return isSigned ? f.builder.CreateSExt(v, wide) : f.builder.CreateZExt(v, wide);
             };
 
             auto product = f.builder.CreateMul(extend(lhs), extend(rhs));
-            auto high = f.builder.CreateLShr(product, llvm::ConstantInt::get(wide, width));
+            auto high = f.builder.CreateLShr(product, llvm::ConstantInt::get(wide, width, false));
             value = f.builder.CreateTrunc(high, lhs->getType(), name);
             break;
         }
@@ -352,8 +435,20 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar: {
-            // The IR lets the amount be either integer width; LLVM wants both operands alike.
-            auto amount = f.builder.CreateZExtOrTrunc(rhs, lhs->getType());
+            // The IR lets the amount be either integer width; LLVM wants both operands alike. A
+            // vector shifts either by a vector of counts or by one count in a general register that
+            // every lane shares, and LLVM has only the first - so the shared count is splatted,
+            // which is also the form the machine's immediate shift is selected back out of.
+            llvm::Value* amount;
+
+            if(auto vector = llvm::dyn_cast<llvm::FixedVectorType>(lhs->getType());
+               vector && !rhs->getType()->isVectorTy())
+            {
+                amount = f.builder.CreateVectorSplat(vector->getElementCount(),
+                                                     f.builder.CreateZExtOrTrunc(rhs, vector->getElementType()));
+            } else {
+                amount = f.builder.CreateZExtOrTrunc(rhs, lhs->getType());
+            }
 
             if(inst.kind == LowerInst::Shl) value = f.builder.CreateShl(lhs, amount, name);
             else if(inst.kind == LowerInst::Shr) value = f.builder.CreateLShr(lhs, amount, name);
@@ -395,12 +490,157 @@ static llvm::Value* genCondition(FunGen& f, llvm::Value* value) {
 }
 
 static void genSelect(FunGen& f, LowerInstSelect& inst) {
-    auto condition = genCondition(f, use(f, inst, inst.cmp));
+    auto given = use(f, inst, inst.cmp);
+
+    // A mask chooses per lane and is already the `<N x i1>` a lane-wise select consumes; an Int32
+    // chooses the whole value and has the i1 recovered out of it.
+    auto condition = f.base[inst.cmp]->type.isMask() ? given : genCondition(f, given);
     auto lhs = use(f, inst, inst.lhs);
     auto rhs = use(f, inst, inst.rhs);
 
     // `select` yields its first operand when the condition holds, matching the x64 form's tie.
     f.define(inst.result, f.builder.CreateSelect(condition, lhs, rhs, nameOf(f, inst.result)));
+}
+
+/*
+ * The five kinds that only a vector is an operand or a result of.
+ *
+ * Four of them are the instruction they look like, which is what §6 of Implementation-Vector.md
+ * predicted: LLVM has `insertelement`, `extractelement` and `shufflevector`, and they mean what the
+ * lower IR's `vlane`, `vwithlane` and `vshuffle` mean. The reduction is the one that owes a decision,
+ * and it is below.
+ */
+
+// A name is given after the fact rather than to the builder, which spells a splat as an insert and a
+// shuffle and would otherwise name the pair `x.splatinsert` and `x.splat`. What the IR named is the
+// vector, which is the second of the two.
+static void nameResult(FunGen& f, llvm::Value* value, LowerValue& result) {
+    if(auto name = nameOf(f, result); !name.empty()) value->setName(name);
+}
+
+static void genVecSplat(FunGen& f, LowerInstVecSplat& inst) {
+    auto type = inst.result.type;
+    auto from = intoLane(f, use(f, inst, inst.from), type);
+    auto splat = f.builder.CreateVectorSplat(type.lanes(), from);
+
+    nameResult(f, splat, inst.result);
+    f.define(inst.result, splat);
+}
+
+static void genVecLane(FunGen& f, LowerInstVecLane& inst) {
+    auto from = use(f, inst, inst.from);
+    auto source = f.base[inst.from]->type;
+    auto index = llvm::ConstantInt::get(llvm::Type::getInt32Ty(f.gen.llvm), inst.getLane());
+
+    if(inst.kind == LowerInst::VecWithLane) {
+        auto value = intoLane(f, use(f, inst, inst.value), source);
+        f.define(inst.result, f.builder.CreateInsertElement(from, value, index, nameOf(f, inst.result)));
+        return;
+    }
+
+    auto lane = outOfLane(f, f.builder.CreateExtractElement(from, index), inst.result.type);
+
+    nameResult(f, lane, inst.result);
+    f.define(inst.result, lane);
+}
+
+static void genVecShuffle(FunGen& f, LowerInstVecShuffle& inst) {
+    auto left = use(f, inst, inst.left);
+    auto right = use(f, inst, inst.right);
+
+    // One entry per lane of the *result*, each naming a lane of the two sources concatenated - which
+    // is what a `shufflevector` mask means as well, so the pattern is copied across as it stands.
+    llvm::SmallVector<int, 16> pattern;
+    for(auto entry: inst.pattern()) pattern.push_back(int(entry));
+
+    f.define(inst.result, f.builder.CreateShuffleVector(left, right, pattern, nameOf(f, inst.result)));
+}
+
+/*
+ * A reduction, in the order Design-Vector §4.5 makes a stated language property.
+ *
+ * Integer and mask reductions are the LLVM intrinsic: they are associative, so the order the target
+ * picks cannot be observed, and the intrinsic is what its own lowering knows how to select.
+ *
+ * A float sum or product is not associative and the order *is* observable, so it is built here as
+ * the same adjacent-pair tree the other two backends build - `(a0+a1) + (a2+a3)` for four lanes -
+ * rather than as `llvm.vector.reduce.fadd`, which is strictly sequential without `reassoc` and
+ * unspecified with it. Neither of those is the answer this language states, and a checksum that
+ * differs between two backends of one compiler is the bug report §13 predicts.
+ */
+static llvm::Value* genReduceTree(FunGen& f, llvm::Value* value, bool isMul) {
+    auto lanes = llvm::cast<llvm::FixedVectorType>(value->getType())->getNumElements();
+
+    while(lanes > 1) {
+        llvm::SmallVector<int, 16> even, odd;
+
+        for(unsigned i = 0; i < lanes; i += 2) {
+            even.push_back(int(i));
+            odd.push_back(int(i + 1));
+        }
+
+        auto lhs = f.builder.CreateShuffleVector(value, even);
+        auto rhs = f.builder.CreateShuffleVector(value, odd);
+
+        value = isMul ? f.builder.CreateFMul(lhs, rhs) : f.builder.CreateFAdd(lhs, rhs);
+        lanes /= 2;
+    }
+
+    return f.builder.CreateExtractElement(value, uint64_t(0));
+}
+
+static llvm::Intrinsic::ID reduceIntrinsic(LowerReduce reduce, bool isFloat) {
+    switch(reduce) {
+        case LowerReduce::Add:  return llvm::Intrinsic::vector_reduce_add;
+        case LowerReduce::Mul:  return llvm::Intrinsic::vector_reduce_mul;
+        case LowerReduce::Min:  return isFloat ? llvm::Intrinsic::vector_reduce_fmin
+                                               : llvm::Intrinsic::vector_reduce_umin;
+        case LowerReduce::IMin: return llvm::Intrinsic::vector_reduce_smin;
+        case LowerReduce::Max:  return isFloat ? llvm::Intrinsic::vector_reduce_fmax
+                                               : llvm::Intrinsic::vector_reduce_umax;
+        case LowerReduce::IMax: return llvm::Intrinsic::vector_reduce_smax;
+        case LowerReduce::And:  return llvm::Intrinsic::vector_reduce_and;
+        case LowerReduce::Or:   return llvm::Intrinsic::vector_reduce_or;
+    }
+
+    return llvm::Intrinsic::vector_reduce_add;
+}
+
+static void genVecReduce(FunGen& f, LowerInstVecReduce& inst) {
+    auto from = use(f, inst, inst.from);
+    auto source = f.base[inst.from]->type;
+    auto reduce = inst.getReduce();
+
+    if(isFloatVector(source) && (reduce == LowerReduce::Add || reduce == LowerReduce::Mul)) {
+        auto tree = genReduceTree(f, from, reduce == LowerReduce::Mul);
+
+        nameResult(f, tree, inst.result);
+        f.define(inst.result, tree);
+        return;
+    }
+
+    // How many lanes of a mask are set is a sum of ones rather than a reduction of truth values, so
+    // the `<N x i1>` is widened into the result's own width first - `and` and `or` are the two that
+    // reduce the mask as it stands.
+    if(source.isMask() && reduce == LowerReduce::Add) {
+        auto lanes = llvm::FixedVectorType::get(typeOf(f.gen, inst.result.type), source.lanes());
+        auto widened = f.builder.CreateZExt(from, lanes);
+
+        f.define(inst.result, f.builder.CreateIntrinsic(llvm::Intrinsic::vector_reduce_add,
+                                                        { lanes }, { widened }, nullptr,
+                                                        nameOf(f, inst.result)));
+        return;
+    }
+
+    auto id = reduceIntrinsic(reduce, isFloatVector(source));
+    auto reduced = f.builder.CreateIntrinsic(id, { from->getType() }, { from });
+
+    // An 8- or 16-bit lane's reduction is that lane's width, and a mask's is an i1, so both are
+    // widened into the scalar form the result states - the same rule `vlane` answers by.
+    auto value = outOfLane(f, reduced, inst.result.type);
+
+    nameResult(f, value, inst.result);
+    f.define(inst.result, value);
 }
 
 /*
@@ -442,7 +682,11 @@ static void genLoad(FunGen& f, LowerInstLoad& inst) {
     auto name = nameOf(f, inst.result);
     llvm::Value* value;
 
-    if(isFloat(result) || (isPtr(result) && width == 8)) {
+    // A vector is loaded whole - there is no narrower access to widen from, and the validator says
+    // so. The overread flag needs nothing here: LLVM has no way to be told that a load deliberately
+    // reads past the end of the object it names, and needs none, because the load it is given names
+    // the whole width it reads and no object smaller than that is derived from anything here.
+    if(isVectorLike(result) || isFloat(result) || (isPtr(result) && width == 8)) {
         value = f.builder.CreateAlignedLoad(type, from, kUnknownAlign, name);
     } else {
         auto loaded = f.builder.CreateAlignedLoad(intTypeOfWidth(f.gen, width), from, kUnknownAlign);
@@ -462,7 +706,7 @@ static void genStore(FunGen& f, LowerInstStore& inst) {
     auto type = f.base[inst.value]->type;
     auto width = inst.getWidth();
 
-    if(!isFloat(type)) {
+    if(!isFloat(type) && !isVectorLike(type)) {
         auto word = intTypeOfWidth(f.gen, width);
 
         if(isPtr(type)) {
@@ -608,7 +852,11 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Set:
         case LowerInst::Neg:
         case LowerInst::Not:
+        case LowerInst::Sqrt:
             genUnary(f, (LowerInstUnary&)inst);
+            break;
+        case LowerInst::Fma:
+            genFma(f, (LowerInstFma&)inst);
             break;
         case LowerInst::Add:
         case LowerInst::Sub:
@@ -633,6 +881,19 @@ void genInst(FunGen& f, LowerInst& inst) {
             break;
         case LowerInst::Select:
             genSelect(f, (LowerInstSelect&)inst);
+            break;
+        case LowerInst::VecSplat:
+            genVecSplat(f, (LowerInstVecSplat&)inst);
+            break;
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+            genVecLane(f, (LowerInstVecLane&)inst);
+            break;
+        case LowerInst::VecShuffle:
+            genVecShuffle(f, (LowerInstVecShuffle&)inst);
+            break;
+        case LowerInst::VecReduce:
+            genVecReduce(f, (LowerInstVecReduce&)inst);
             break;
         case LowerInst::Alloca:
             genAlloca(f, (LowerInstAlloca&)inst);

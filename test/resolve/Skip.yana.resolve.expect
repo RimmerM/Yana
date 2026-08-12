@@ -2,14 +2,19 @@ let image$base: () = <none>
 
 let &log: Int = 0
 
-table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$6 before ResolveTest.continuation$6 {
+table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
   .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
 }
 
 fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
@@ -36,11 +41,6 @@ fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
   b3:
     %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Int, ())
     ret %v1
-}
-
-fn teardown$none(%value: %()) -> () {
-  b0:
-    ret
 }
 
 fn Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))(%value: Maybe(Outcome((), Int))) -> Outcome(Outcome((), Int), ()) {
@@ -199,7 +199,7 @@ fn attempt(%open: Bool, %body: () -> a) -> Maybe(a) {
 fn always(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$0 : %()
+    %v2 = symbol ResolveTest.continuation$14 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -225,7 +225,7 @@ fn valued(%n: Int) -> Int {
 
   b1:
     %v5 = alloc : (found: Int) -> Int
-    %v6 = symbol ResolveTest.continuation$1 : %()
+    %v6 = symbol ResolveTest.continuation$15 : %()
     init %local0.code, %v6
     %v9 = cast 0 : %()
     init %local0.env, %v9
@@ -268,7 +268,7 @@ fn mixed(%n: Int) -> Int {
     init %local1.total, %v9
     %v11 = addressof %local1 : %()
     %v12 = alloc : (found: Int) -> Outcome((), Int)
-    %v13 = symbol ResolveTest.continuation$2 : %()
+    %v13 = symbol ResolveTest.continuation$16 : %()
     init %local2.code, %v13
     init %local2.env, %v11
     %v16 = call findFirst(Outcome((), Int)), %n, %v12 : Maybe(Outcome((), Int))
@@ -309,7 +309,7 @@ fn mixed(%n: Int) -> Int {
 fn reasoned(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$3 : %()
+    %v2 = symbol ResolveTest.continuation$17 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -333,7 +333,7 @@ fn reasoned(%n: Int) -> Int {
 fn guarded(%open: Bool) -> Int {
   b0:
     %v1 = alloc : () -> Int
-    %v2 = symbol ResolveTest.continuation$4 : %()
+    %v2 = symbol ResolveTest.continuation$18 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -352,7 +352,7 @@ fn guarded(%open: Bool) -> Int {
     ret %v16
 }
 
-fn doubled(%x: Int, %body: (value: Int) -> $r) -> $r {
+fn doubled(%x: Int, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -372,7 +372,7 @@ fn doubled(%x: Int, %body: (value: Int) -> $r) -> $r {
 fn nested(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$5 : %()
+    %v2 = symbol ResolveTest.continuation$19 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -383,7 +383,7 @@ fn nested(%n: Int) -> Int {
 fn written(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.lambda$7 : %()
+    %v2 = symbol ResolveTest.lambda$21 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -444,7 +444,7 @@ fn main() -> Int {
     ret %v54
 }
 
-fn ResolveTest.continuation$0(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$14(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = add %found, 1 : Int
     ret %v4
@@ -477,13 +477,13 @@ fn findFirst(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
     ret %v21
 }
 
-fn ResolveTest.continuation$1(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$15(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = mul %found, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %found: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$16(%env: %{total: &mut Int}, %found: Int) -> Outcome((), Int) {
   b0:
     %v4 = cmp_gt %found, 100 : Bool
     je %v4, b1, b2
@@ -535,7 +535,7 @@ fn findFirst(Outcome((), Int))(%n: Int, %body: (found: Int) -> Outcome((), Int))
     ret %v21
 }
 
-fn ResolveTest.continuation$3(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$17(%env: %{}, %value: Int) -> Int {
   b0:
     %v4 = add %value, 1 : Int
     ret %v4
@@ -573,7 +573,7 @@ fn checked(Int)(%n: Int, %body: (found: Int) -> Int) -> Result(Int, Int) {
     ret %v20
 }
 
-fn ResolveTest.continuation$4(%env: %{}) -> Int {
+fn ResolveTest.continuation$18(%env: %{}) -> Int {
   b0:
     ret 3
 }
@@ -601,16 +601,16 @@ fn attempt(Int)(%open: Bool, %body: () -> Int) -> Maybe(Int) {
     ret %v14
 }
 
-fn ResolveTest.continuation$5(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$19(%env: %{}, %value$: Int) -> Int {
   b0:
     %v2 = alloc : {d: Int}
-    init %local0.d, %value
+    init %local0.d, %value$
     %v4 = addressof %local0 : %()
     %v5 = alloc : (found: Int) -> Int
-    %v6 = symbol ResolveTest.continuation$6 : %()
+    %v6 = symbol ResolveTest.continuation$20 : %()
     init %local1.code, %v6
     init %local1.env, %v4
-    %v9 = call findFirst(Int), %value, %v5 : Maybe(Int)
+    %v9 = call findFirst(Int), %value$, %v5 : Maybe(Int)
     %v10 = copy %local2 : Maybe(Int)
     %v11 = call Try(Maybe(a), a, ()).toOutcome(Int), %v10 : Outcome(Int, ())
     %v12 = load %local4.discriminant : Int
@@ -625,7 +625,7 @@ fn ResolveTest.continuation$5(%env: %{}, %value: Int) -> Int {
     ret %v17
 }
 
-fn ResolveTest.continuation$6(%env: %{d: Int}, %found: Int) -> Int {
+fn ResolveTest.continuation$20(%env: %{d: Int}, %found: Int) -> Int {
   b0:
     %v2 = load [%env].d : Int
     %v3 = add %found, %v2 : Int
@@ -645,7 +645,7 @@ fn doubled(Int)(%x: Int, %body: (found: Int) -> Int) -> Int {
     ret %v8
 }
 
-fn ResolveTest.lambda$7(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.lambda$21(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = mul %found, 5 : Int
     ret %v4

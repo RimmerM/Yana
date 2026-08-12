@@ -19,6 +19,11 @@ static bool readHostAttribute(Module& module, const ast::Type& type);
 
 static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, const char* name, U32 length);
 
+// Defined beside the fixed array's count, which is the other position that reads one - §2.5.
+static TypePtr resolveCountVariable(Module& module, GenEnv* env, StringId name, LocationId source);
+static TypePtr resolveCountLiteral(Module& module, I64 written, U32 limit, LocationId source,
+                                   StringView what);
+
 /*
  * Where the `@host` fields of a tuple may sit, which is after the one field that is stored.
  *
@@ -125,11 +130,28 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
  * specialization". The one thing it is never is a *growable* argument: `push` says `Array(T)`, so a
  * fixed array reaching it is rejected by the ordinary conversion rule with a diagnostic naming why -
  * see convertType.
+ *
+ * ## The one exception: a count the signature quantified over
+ *
+ * `fn (n: Int) firstOf(xs: [Int *n])` keeps the owner - Implementation-Const-Generics.md §1.7.
+ *
+ * The slice conversion is *exactly* "forget the count": `Flat(T)` carries a length field and no
+ * type-level number, which is what makes it one type for every `n`. A signature that names `n` is
+ * saying the opposite, and slicing it would leave the variable with nothing to bind from - so
+ * `firstOf([1, 2, 3, 4])` would report "cannot infer `n`" for a call whose argument states it.
+ *
+ * A *written* count is unaffected, because there is nothing to infer from it: `fn f(xs: [Int *4])`
+ * still takes a slice, and its four is a fact about what the caller may pass rather than something
+ * the body reads back. So this is not a second rule for fixed arrays - it is the same rule, applied
+ * to the one case where the conversion would destroy information the declaration asked for.
  */
 TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env) {
     auto type = resolveType(module, written, env);
     if(bind == ast::BindType::Sink) return type;
     if(written.kind != ast::Type::Arr) return type;
+
+    auto base = *module.types;
+    if(base[type]->kind == Type::Array && isGeneric(base, ((ArrayType*)base[type])->count)) return type;
 
     auto slice = sliceOf(module, type);
     return slice ? slice : type;
@@ -194,6 +216,15 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
 
     auto type = findType(module, name, source);
     if(!type) {
+        // The two constructors with no declaration behind them, and only where nothing is declared
+        // under the name - see resolveApp. Written bare they are the same mistake a bare generic
+        // record is, and the message is the one that names it.
+        if(name == module.program.vecTypeName || name == module.program.maskTypeName) {
+            module.context.diagnostics.error("type %@ requires type arguments"_v, source,
+                                             module.context.findName(name));
+            return module.scalar.error;
+        }
+
         module.context.diagnostics.error("unknown type %@"_v, source, module.context.findName(name));
         return module.scalar.error;
     }
@@ -209,6 +240,130 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
     return type;
 }
 
+/*
+ * `Vec(a)`, `Vec(a, n)` and `Mask(a)` - Implementation-Vector.md §1.4.
+ *
+ * Recognized by the Core name rather than by grammar, which is what keeps the parser out of this
+ * entirely: a vector is a type application like any other, and the only thing unusual about it is
+ * that there is no declaration behind the name. There cannot be - what a `Vec(Float)` *is* is a
+ * function of the target, so there is nothing for a `data` declaration to say.
+ *
+ * The count is read the way a fixed array's length is: a literal and nothing else. A count that is a
+ * `let`, an expression or a type variable is const generics, which is a separate feature, and saying
+ * so is better than folding whatever the parser happened to produce.
+ *
+ * Nothing here decides whether the element is a lane or what the natural count is - both are
+ * `resolveVectorType`'s, so the two spellings and the substituted form all reach one set of rules.
+ */
+static Maybe<TypePtr> resolveVectorApp(Module& module, const ast::AppType& app, GenEnv* env,
+                                       LocationId source) {
+    auto& program = module.program;
+    auto name = app.base.name;
+    auto isMask = name == program.maskTypeName;
+    if(!isMask && name != program.vecTypeName) return Nothing();
+
+    auto args = app.args;
+    auto count = args.size();
+
+    if(count < 1 || count > (isMask ? 1u : 2u)) {
+        module.context.diagnostics.error(isMask
+            ? "`Mask` takes one type argument: the lane type of the vector it masks"_v
+            : "`Vec` takes a lane type, and optionally a lane count - `Vec(Float)` for the target's natural width, `Vec(Float, 4)` for exactly four"_v,
+            source);
+        return Just(module.scalar.error);
+    }
+
+    auto content = resolveType(module, args.get(module.parse, 0), env);
+    TypePtr lanes = nullptr;
+
+    if(count == 2) {
+        auto written = args.get(module.parse, 1);
+
+        /*
+         * A literal or a bare const parameter, exactly as a fixed array's count is - see
+         * fixedArrayCount, whose reasoning applies verbatim. A type argument that is a lowercase
+         * name already parses as an `ast::Type::Gen`, so `Vec(Float, n)` needs no parser work at all.
+         *
+         * The literal is bounded here as well as in `resolveVectorType`, and the two say different
+         * things. This one is about the *literal* and can name whatever number was written, however
+         * large; the one below is about a lane count and takes a `U32`. Clamping instead and letting
+         * the other report would name a count nobody wrote - `Vec(Float, 128)` came out as "asks for
+         * 65", which is the clamp talking rather than the program.
+         */
+        if(written.kind == ast::Type::Lit) {
+            auto literal = module.parse[written.lit];
+
+            if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+                module.context.diagnostics.error("a vector's lane count must be an integer literal or a const parameter"_v,
+                                                 written.source);
+                return Just(module.scalar.error);
+            }
+
+            lanes = resolveCountLiteral(module, literal->lit.i(), kMaxVectorLanes, written.source,
+                                        "a vector's lane count"_v);
+        } else if(written.kind == ast::Type::Gen) {
+            lanes = resolveCountVariable(module, env, written.name, written.source);
+        } else {
+            module.context.diagnostics.error("a vector's lane count must be an integer literal or a const parameter - a count that is computed needs const expressions, which this version does not have"_v,
+                                             written.source);
+            return Just(module.scalar.error);
+        }
+
+        if(!lanes) return Just(module.scalar.error);
+    }
+
+    return Just(resolveVectorType(module, content, lanes, isMask, source));
+}
+
+/*
+ * One argument of a written type application, at whichever kind the declaration's parameter is.
+ *
+ * The count forms are exactly §2.5's two: a literal, which arrives as an `ast::Type::Lit` because
+ * `parseTypeApplicationArg` makes an integer one, and a bare variable, which arrives as an
+ * `ast::Type::Gen` because a lowercase type argument already parses as one. Neither needed a
+ * production, which is §0.2's "the spellings already parse".
+ *
+ * Shared with a class constraint's argument list, which is the same question about a class's
+ * parameters rather than a record's - Implementation-Const-Generics.md §10.3.
+ */
+TypePtr resolveAppArg(Module& module, GlobalPtr<GenEnv> declared, Size index,
+                      const ast::Type& arg, GenEnv* env) {
+    auto global = *module.types;
+    auto parameters = declared ? global[declared]->types : GlobalList<GlobalPtr<GenType>>();
+
+    if(index >= parameters.size() || global[parameters.get(global, index)]->kind != GenKind::Const) {
+        return resolveType(module, arg, env);
+    }
+
+    // The bound a count position carries is the *parameter's* type rather than a limit of this
+    // constructor: a `[a *n]` inside the declaration is checked when the argument reaches it, which
+    // is where the message can name the array. So the only ceiling here is the type's own.
+    auto limit = maxLimit<U32>;
+
+    if(arg.kind == ast::Type::Lit) {
+        auto literal = module.parse[arg.lit];
+
+        if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            module.context.diagnostics.error("this parameter is a const parameter, so it takes an integer literal or a const parameter"_v,
+                                             arg.source);
+            return module.scalar.error;
+        }
+
+        auto count = resolveCountLiteral(module, literal->lit.i(), limit, arg.source, "a count"_v);
+        return count ? count : module.scalar.error;
+    }
+
+    if(arg.kind == ast::Type::Gen) {
+        auto count = resolveCountVariable(module, env, arg.name, arg.source);
+        return count ? count : module.scalar.error;
+    }
+
+    module.context.diagnostics.error("this parameter is a const parameter, so it takes an integer literal or a const parameter and not %@"_v,
+                                     arg.source, describeType(module.context, global,
+                                                              resolveType(module, arg, env)));
+    return module.scalar.error;
+}
+
 static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, LocationId source) {
     auto global = *module.types;
 
@@ -216,19 +371,55 @@ static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, 
         return errorType(module, source, "only a named type can be applied to type arguments"_v);
     }
 
-    TypeList args;
-    auto appArgs = app.args;
-    for(auto arg: appArgs.contents(module.parse)) args.push(resolveType(module, arg, env));
+    /*
+     * The name is resolved before the arguments are, which is the other way round from how this
+     * used to read, and the reason is `Vec`.
+     *
+     * A vector's second argument is a *number* and not a type, so resolving the arguments first
+     * would report it as one before anything had a chance to notice which constructor was being
+     * applied. And the vector constructors have to be looked for *after* the ordinary lookup rather
+     * than before it, or they would be reserved words: `data Mask {bits: Int}` is a declaration two
+     * fixtures in this tree already make, and a builtin that shadowed it would be a name the
+     * language had quietly taken.
+     */
+    auto alias = findAlias(module, app.base.name, source);
+    auto type = alias ? nullptr : findType(module, app.base.name, source);
 
-    if(auto alias = findAlias(module, app.base.name, source)) {
-        return resolveAlias(module, *alias.unwrap(), toBuffer(args), source);
-    }
+    if(!alias && !type) {
+        if(auto vector = resolveVectorApp(module, app, env, source)) return vector.unwrap();
 
-    auto type = findType(module, app.base.name, source);
-    if(!type) {
         module.context.diagnostics.error("unknown type %@"_v, source, module.context.findName(app.base.name));
         return module.scalar.error;
     }
+
+    /*
+     * Which of a declaration's parameters is a count, and therefore which arguments are numbers -
+     * Implementation-Const-Generics.md §1.1.
+     *
+     * Read off the declaration rather than guessed from what was written, which is the same
+     * direction §1.5 requires the annotation in a head for: `A(4)` and `A(Int)` are told apart by
+     * what `A` declares and not by their own shape, and a reader looking at `data A(width: Int)` is
+     * looking at the one place that says so.
+     *
+     * `Vec` is the one constructor that is not a declaration, and it answers this question for
+     * itself in resolveVectorApp above.
+     */
+    GlobalPtr<GenEnv> declared = nullptr;
+    if(alias) {
+        declared = alias.unwrap()->gen;
+    } else if(global[type]->kind == Type::Record) {
+        declared = global[((RecordType*)global[type])->base(global)]->gen;
+    }
+
+    TypeList args;
+    auto appArgs = app.args;
+    auto index = Size(0);
+
+    for(auto arg: appArgs.contents(module.parse)) {
+        args.push(resolveAppArg(module, declared, index++, arg, env));
+    }
+
+    if(alias) return resolveAlias(module, *alias.unwrap(), toBuffer(args), source);
 
     if(global[type]->kind != Type::Record) {
         return errorType(module, source, "only a data type can take type arguments"_v);
@@ -434,38 +625,117 @@ static bool readHostAttribute(Module& module, const ast::Type& type) {
     return elided;
 }
 
+bool admissibleConstType(Module& module, TypePtr type, LocationId source) {
+    auto base = *module.types;
+    if(!type || base[type]->kind == Type::Error) return false;
+
+    /*
+     * The integer types, and nothing else in this version - §2.5.
+     *
+     * `Bool` costs nothing to admit and has no caller; `String` has a representation question in
+     * front of it. Which types are admissible is a *semantic* rule and not a syntactic one, which is
+     * why this is one predicate that can be loosened one type at a time rather than a production
+     * that would have to be reopened.
+     */
+    if(base[type]->kind != Type::Int) {
+        module.context.diagnostics.error("a const parameter is a number, and %@ is not an integer type - the integer types are what a count position takes"_v,
+                                         source, describeType(module.context, base, type));
+        return false;
+    }
+
+    return true;
+}
+
 /*
- * The `n` of a written `[T *n]`, or nothing where it is not a number this stage can read.
+ * The `n` of a written `[T *n]` or of a `Vec(a, n)`, as a count - §2.5.
  *
- * A literal and nothing else, which is Implementation-Containers.md §6's "typing is resolve-stage":
- * because `n` is a literal in every position that mentions it, nothing needs to quantify over it -
- * the resolver checks a literal's length against an expected `[T *n]` and `[T *n]` never appears in
- * an instance head. A length that is a `let`, an expression or a type variable is const generics,
- * which is a separate feature and is named in the diagnostic rather than silently accepted as
- * whatever the parser happened to fold.
+ * A literal or a bare variable, and nothing else. `[a *(n+1)]` needs normalized const expressions or
+ * `sameType`'s pointer equality stops holding, since `[a *(n+1)]` and `[a *(1+n)]` would be two
+ * interned types for one type - the wall Rust's `generic_const_exprs` is still at, and not one worth
+ * walking into for a first version. So a computed count is named in the diagnostic rather than
+ * silently accepted as whatever the parser happened to fold.
  */
-static Maybe<U32> fixedArrayLength(Module& module, const ast::Expr& length) {
+static TypePtr resolveCountVariable(Module& module, GenEnv* env, StringId name, LocationId source) {
+    if(!env) {
+        module.context.diagnostics.error("%@ is not a const parameter of this declaration - a count is an integer literal or a const parameter, and a local is neither"_v,
+                                         source, module.context.findName(name));
+        return nullptr;
+    }
+
+    /*
+     * §1.5's kind inference, which is easy here in a way constraint inference is not: this position
+     * wants a number, so a variable it introduces is a const one with no search and no ambiguity.
+     *
+     * Only for a variable this occurrence *creates*. One that already exists has a kind already -
+     * from its annotation, or from the first position that used it - and disagreeing with it is
+     * §2.2's collision rather than a re-inference.
+     */
+    auto existing = findGenVariable(module, *env, name);
+    auto found = existing ? existing : genVariable(module, *env, name, source);
+
+    if(!found) {
+        module.context.diagnostics.error("unknown type variable %@ - it is not declared in this context"_v,
+                                         source, module.context.findName(name));
+        return nullptr;
+    }
+
+    auto variable = (*module.types)[found];
+
+    if(!existing) {
+        variable->kind = GenKind::Const;
+        variable->constType = module.scalar.int_;
+    } else if(variable->kind != GenKind::Const) {
+        module.context.diagnostics.error("%@ is a type parameter of this declaration, so it cannot also be a count - a name stands for a type or for a number and not both"_v,
+                                         source, module.context.findName(name));
+        return nullptr;
+    }
+
+    recordReference(module.context, source, typeVarSymbol(module, found),
+                    (Type*)variable - *module.types);
+
+    return (Type*)variable - *module.types;
+}
+
+// A literal count, bounded and interned. `limit` is what the position accepts, so that the number
+// the diagnostic names is the one that was written however large it was.
+static TypePtr resolveCountLiteral(Module& module, I64 written, U32 limit, LocationId source,
+                                   StringView what) {
+    if(written < 0) {
+        module.context.diagnostics.error("%@ cannot be negative"_v, source, what);
+        return nullptr;
+    }
+
+    if(U64(written) > limit) {
+        module.context.diagnostics.error("%@ may be at most %@, and this one asks for %@"_v, source,
+                                         what, limit, U64(written));
+        return nullptr;
+    }
+
+    return constType(module, U64(written), module.scalar.int_);
+}
+
+/*
+ * The `n` of a written `[T *n]`, or null where it is not a count this stage can read.
+ *
+ * `parseArrayType` calls `parseExpr` after the `*`, so a variable arrives as an `Expr::Var` and a
+ * literal as an `Expr::Lit`. Those are the two forms §2.5 admits; everything else is an expression
+ * and is refused by name.
+ */
+static TypePtr fixedArrayCount(Module& module, const ast::Expr& length, GenEnv* env) {
     // The literal's own kind is encoded in the expression kind - see ast::Expr::Lit - so an integer
     // literal is exactly `Lit + Literal::Int`, the same shape readBitsAttribute reads.
-    if(length.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
-        module.context.diagnostics.error("a fixed array's length must be an integer literal - a length that is computed or generic needs const generics, which does not exist yet"_v,
-                                         length.source);
-        return Nothing();
+    if(length.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+        return resolveCountLiteral(module, length.lit.i(), kMaxFixedArrayLength, length.source,
+                                   "a fixed array's count"_v);
     }
 
-    auto written = length.lit.i();
-    if(written < 0) {
-        module.context.diagnostics.error("a fixed array's length cannot be negative"_v, length.source);
-        return Nothing();
+    if(length.kind == ast::Expr::Var) {
+        return resolveCountVariable(module, env, length.var, length.source);
     }
 
-    if(written > kMaxFixedArrayLength) {
-        module.context.diagnostics.error("a fixed array may hold at most %@ elements, and this one asks for %@"_v,
-                                         length.source, U32(kMaxFixedArrayLength), written);
-        return Nothing();
-    }
-
-    return Just(U32(written));
+    module.context.diagnostics.error("a fixed array's count must be an integer literal or a const parameter - a count that is computed needs const expressions, which this version does not have"_v,
+                                     length.source);
+    return nullptr;
 }
 
 /*
@@ -578,6 +848,15 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
                 return module.scalar.error;
             }
 
+            // The other half of §2.2's kind rule: a const parameter written where a type belongs.
+            // Reported here rather than accepted as a type nothing has, since the position asking is
+            // the one that can say what it wanted.
+            if((*module.types)[found]->kind == GenKind::Const) {
+                module.context.diagnostics.error("%@ is a const parameter - a number, not a type"_v,
+                                                 type.source, module.context.findName(type.name));
+                return module.scalar.error;
+            }
+
             // `a` in a signature jumps to its binder, which is wherever the context first named
             // it - §1.2's type variable choke point.
             recordReference(module.context, type.source, typeVarSymbol(module, found),
@@ -598,10 +877,10 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             // its own, because what it differs in is capability rather than layout (§6).
             if(type.arr.length) {
                 auto element = resolveType(module, *module.parse[type.arr.type], env);
-                auto length = fixedArrayLength(module, *module.parse[type.arr.length]);
+                auto length = fixedArrayCount(module, *module.parse[type.arr.length], env);
                 if(!length) return module.scalar.error;
 
-                return resolveFixedArrayType(module, element, length.unwrap(), type.source);
+                return resolveFixedArrayType(module, element, length, type.source);
             }
 
             if(!module.program.arrayType) {
@@ -636,6 +915,11 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         }
         case ast::Type::Fun:
             return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
+        case ast::Type::Lit:
+            // The grammar accepts a number where a type is written so that `Vec(Float, 4)` parses -
+            // see ast::Type::Lit. Everywhere else it is this, which is a better message than the
+            // parse error it replaced, and is what stops the form being const generics by accident.
+            return errorType(module, type.source, "a number is not a type - a number is a type argument only where the declaration declared a const parameter there"_v);
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }

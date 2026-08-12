@@ -1,0 +1,64 @@
+
+fused<complex>(%a: f32x4, %b: f32x4, %c: f32x4, %d: f64x2, %x: Float, %y: Float, %z: Double): f32x4 {
+  b_0 {
+    %vs = fma %a, %b, %c: f32x4
+    %vd = fma %d, %d, %d: f64x2
+    %ss = fma %x, %y, %x: Float
+    %sd = fma %z, %z, %z: Double
+    ret %vs
+  }
+}
+
+tied<complex>(%a: f32x4, %b: f32x4, %c: f32x4): f32x4 {
+  b_0 {
+    %r = fma %a, %b, %c: f32x4
+    %s = add %r, %a: f32x4
+    ret %s
+  }
+}
+
+accumulate<complex>(%x: f32x4, %y: f32x4, %acc: f32x4): Float {
+  b_0 {
+    %a = fma %x, %y, %acc: f32x4
+    %p0 = vshuffle %a, %a, 1, 0, 3, 2: f32x4
+    %s0 = add %a, %p0: f32x4
+    %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
+    %s1 = add %s0, %p1: f32x4
+    %r = vlane %s1, 0: Float
+    ret %r
+  }
+}
+
+
+--- codegen: fused ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fma uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e271a8c2
+  fma uses=[xmm1, xmm3, xmm3] creates=[xmm1] pre=[xmm3->xmm1]  => c5f828cbc4e2e1a8cb
+  fma uses=[xmm1, xmm5, xmm4] creates=[xmm1] pre=[xmm4->xmm1]  => c5f828ccc4e251a9cc
+  fma uses=[xmm1, xmm6, xmm6] creates=[xmm1] pre=[xmm6->xmm1]  => c5f828cec4e2c9a9ce
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: tied ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fma uses=[xmm3, xmm1, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => c5f828d8c4e271a8da
+  add uses=[xmm3, xmm0] creates=[xmm0]  => c5e058c0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: accumulate ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fma uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e271a8c2
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c8b1
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c84e
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  vlane uses=[xmm0] creates=[xmm0]  => c5f970c000
+  ret uses=[xmm0] creates=[]  => c9c3

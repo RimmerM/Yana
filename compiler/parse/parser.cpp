@@ -1885,9 +1885,36 @@ void Parser::parseAttributes(ast::AttrList& list, bool isInline) {
 ast::Constraint Parser::parseConstraint() {
     WithLocation location(*this);
 
+    /*
+     * `Num(a)`, `Num(Vec(I16, n))` - Implementation-Const-Generics.md §10.2.
+     *
+     * Not parseSimpleType, which is the *head* production: its list is the parameters a declaration
+     * introduces, so bare identifiers are right there and an annotation is what §1.1 hangs off one.
+     * A constraint's list is arguments, and each of them is exactly what an argument of a type
+     * application is - so parseTypeApplicationArg reads them and no grammar is written for the
+     * applied, literal-counted or array forms.
+     */
     if(token.type == Token::ConID) {
-        auto type = parseSimpleType();
-        return { .type = type, .source = context.addLocation(location), .kind = ast::Constraint::Class };
+        auto name = expect(Token::ConID, "expected type name"_v).from({ .id = StringId() }).id;
+        ast::ParseList<ast::Type> args;
+
+        if(token.type == Token::ParenL) {
+            parens([&] {
+                sepBy([&] {
+                    args.push(arena, parseTypeApplicationArg());
+                }, Token::Comma, Token::ParenR);
+            });
+        } else if(token.type == Token::VarID) {
+            // The unparenthesized one-parameter form, `Show a`, which parseSimpleType also accepts.
+            // A bare variable and nothing wider: an argument that needs a type constructor is one
+            // written with the parentheses, and this way `Show a` cannot swallow the comma that
+            // separates it from the next constraint in the list.
+            WithLocation argLocation(*this);
+            args.push(arena, parseAType(argLocation, nullptr));
+        }
+
+        return { .klass = { name, args }, .source = context.addLocation(location),
+                 .kind = ast::Constraint::Class };
     }
 
     auto name = expect(Token::VarID, "expected type constraint"_v).from({ .id = StringId() }).id;
@@ -1903,6 +1930,23 @@ ast::Constraint Parser::parseConstraint() {
     if(maybe(Token::opColon)) {
         WithLocation funLocation(*this);
         auto funKind = parseFunKind();
+
+        /*
+         * `n: Int` - a const parameter, Implementation-Const-Generics.md §1.2.
+         *
+         * Reached from the same colon the function constraint is reached from, and told apart by
+         * what follows it: a `(` or a `lens`/`iter` marker is a callable's signature and anything
+         * else is the type of a number. Parsed with parseAType for §1.4's reason - it stops before
+         * `->`, which both keeps a class head's dependency arrow a separator and refuses
+         * `n: (Int) -> Int`, a const parameter that would mean nothing.
+         */
+        if(funKind == ast::FunKind::Plain && token.type != Token::ParenL) {
+            WithLocation constLocation(*this);
+            auto type = parseAType(constLocation, nullptr);
+
+            return { .constant = { name, heap(type) }, .source = context.addLocation(location),
+                     .kind = ast::Constraint::Const };
+        }
 
         expect(Token::ParenL, "expected function constraint"_v);
         ast::ParseList<ast::ArgDecl> args;
@@ -1961,6 +2005,27 @@ void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {
     parseArgDecl(list);
 }
 
+/*
+ * One argument of a type application.
+ *
+ * A type, plus the one thing that is written where a type is and is not one: an integer literal, so
+ * that `Vec(Float, 4)` parses. Confined to this position rather than accepted by `parseAType`,
+ * because a number written anywhere *else* a type belongs is a mistake the parser can name on the
+ * spot - `data BadField {3: Int}` reads better as "expected a type" than as a literal that survives
+ * to the resolver - and only an application has a constructor that might have wanted a count.
+ *
+ * Whether the constructor in hand actually takes one is not decided here. `resolveType` rejects a
+ * `Lit` everywhere except the vector constructors, which is where the message can say what the
+ * number would have had to be.
+ */
+ast::Type Parser::parseTypeApplicationArg() {
+    if(token.type != Token::Integer) return parseType();
+
+    WithLocation location(*this);
+    auto literal = heap(toLiteral(location));
+    return makeType(Lit, lit, literal, location, nullptr);
+}
+
 ast::Type Parser::parseType() {
     WithLocation location(*this);
 
@@ -1996,7 +2061,7 @@ ast::Type Parser::parseType() {
             if(token.type == Token::ParenL) {
                 parens([&] {
                     sepBy1([&] {
-                        app.push(arena, parseType());
+                        app.push(arena, parseTypeApplicationArg());
                     }, Token::Comma);
                 });
             } else if(token.type == Token::BraceL) {
@@ -2062,7 +2127,7 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
 
             parens([&] {
                 sepBy1([&] {
-                    args.push(arena, parseType());
+                    args.push(arena, parseTypeApplicationArg());
                 }, Token::Comma);
             });
 
@@ -2155,16 +2220,28 @@ ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast
  */
 ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
     auto name = expect(Token::ConID, "expected type name"_v).from({ .id = StringId() }).id;
-    ast::ParseList<StringId> kind;
+    ast::ParseList<ast::GenParam> kind;
     U16 determined = 0;
 
     if(auto v = maybe(Token::VarID)) {
-        kind.push(arena, v.unwrap().id);
+        // The unparenthesized one-parameter form, `data Maybe a`. No colon can follow it: the
+        // annotation belongs inside the parentheses, and a head with a const parameter is a head
+        // that has something to say - see §1.5 on why a head must write one.
+        kind.push(arena, ast::GenParam { v.unwrap().id, nullptr });
     } else {
         maybeParens([&] {
             sepBy1([&] {
                 auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = StringId() }).id;
-                if(n) kind.push(arena, n);
+
+                // `n: Int` - the const parameter of §1.1, and one `maybe` per parameter is the whole
+                // of the change here. parseSimpleType had no other use for a colon in this list.
+                ast::ParsePtr<ast::Type> annotation = nullptr;
+                if(maybe(Token::opColon)) {
+                    WithLocation constLocation(*this);
+                    annotation = heap(parseAType(constLocation, nullptr));
+                }
+
+                if(n) kind.push(arena, ast::GenParam { n, annotation });
             }, [&] {
                 if(allowDependency && token.type == Token::opArrowR) {
                     auto split = U16(kind.size());

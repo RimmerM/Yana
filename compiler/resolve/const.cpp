@@ -621,9 +621,13 @@ static ConstantPtr arrayConstant(Module& module, const ast::Expr& expr, TypePtr 
     auto items = expr.arr;
     auto elements = items.contents(module.parse);
 
-    if(elements.size() != array.length) {
+    // A constant is only ever evaluated against a concrete expected type, so the count is a number
+    // here - a generic `[T *n]` has no constant to be.
+    auto length = constValue(global, array.count);
+
+    if(elements.size() != length) {
         context.diagnostics.error("%@ has %@ elements, but %@ holds %@"_v, expr.source, what,
-                                  elements.size(), describeType(context, global, expected), array.length);
+                                  elements.size(), describeType(context, global, expected), length);
         return nullptr;
     }
 

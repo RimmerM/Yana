@@ -1,0 +1,59 @@
+-- Const generics - Implementation-Const-Generics.md §1.
+--
+-- A parameter is annotated where it is introduced, and the annotation is a *type*: a bare `name`
+-- stays a type parameter and `name: T` is a value parameter of type `T`. Nothing else changes, which
+-- is the whole of §1 - the use sites need no production at all, since `[Int *n]` already calls
+-- `parseExpr` after the `*` and a lowercase type argument already parses as a type variable.
+
+-- §1.1: the three heads. One `maybe(':')` per parameter, and `parseSimpleType` had no other use for
+-- a colon in that list.
+data A(width: Int) {l: Int, v: [Float *width]}
+data B(a, n: Int, b) {v: [a *n], w: [b *n]}
+alias Fixed(a, n: Int) = [a *n]
+class C(a, n: Int):
+  fn f(x: a) -> Int
+
+-- §1.4: the one parse hazard. In a class head the functional-dependency arrow collides with function
+-- type syntax, so the annotation is parsed with `parseAType`, which stops before `->`. The arrow
+-- therefore stays the dependency separator and `n: (Int) -> Int` - meaningless as a const parameter
+-- - is refused for free.
+class Chunked(c, a, n: Int -> m):
+  fn g(x: c) -> m
+
+-- §1.2: the context list, where a function and an instance declare theirs. This reads as a family
+-- member rather than a new rule - `a.name: Int` says `a` has a field, `f: (a) -> b` says `f` is
+-- callable, and `n: Int` says `n` is an `Int` - and it is reached from the colon the function
+-- constraint already used, told apart by what follows it.
+fn (n: Int) lane(v: Vec(Float, n), i: Int) -> Float = 0.0
+fn (n: Int, Ord(a), a.size: Int, f: (a) -> Int) mixed(v: [a *n]) -> Int = 0
+
+instance (n: Int) C(Int, n):
+  fn f(x: Int) -> Int = 0
+
+-- §1.6: a const parameter in an expression position needs no new form. The parameter has a type, so
+-- every expression rule already applies to it.
+fn (n: Int) stride(v: Vec(Float, n)) -> Int = n * 4
+
+-- §1.5's unannotated form, which a private function may write: the position that uses it says
+-- whether it wants a type or a number, and a count position wants a number.
+fn firstOf(xs: [Int *n]) -> Int = xs[0]
+
+{-
+   §10.2: a constraint's arguments are written types.
+
+   `parseSimpleType` is the *head* production - the parameters a declaration introduces, which is why
+   bare identifiers are right there and why an annotation hangs off one. A constraint applies them
+   instead, so each argument is read by `parseTypeApplicationArg`, exactly what an argument of a type
+   application is. Nothing below needed a production of its own: the applied form, the literal count,
+   the array and the function type all already parse.
+-}
+fn (n: Int, Num(Vec(I16, n))) applied(v: Vec(I16, n)) -> Vec(I16, n) = v + v
+fn (Num(Vec(I16, 4))) writtenCount(v: Vec(I16, 4)) -> Vec(I16, 4) = v + v
+fn (n: Int, Sized([Int *n], Int)) overArray(xs: [Int *n]) -> Int = 0
+fn (Callable((a) -> Int)) overFunction(f: (a) -> Int) -> Int = 0
+fn (Two(Pair(k, v), Maybe(k))) nested(p: Pair(k, v)) -> Int = 0
+
+-- The bare form is unchanged, parenthesized or not, so every constraint written before §10 reads the
+-- same way after it.
+fn (Show(a)) bare(x: a) -> Int = 0
+fn (Show a) unparenthesized(x: a) -> Int = 0

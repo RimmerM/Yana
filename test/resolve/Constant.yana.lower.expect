@@ -16,9 +16,9 @@ main<complex>(): Int {
     %v_3 = cmp_eq %v_2, 0: Int
     %v_4 = cmp_eq %v_2, 1: Int
     %v_5 = cmp_eq %v_2, 2: Int
-    %v_6 = select 4, 8, %v_5: Int
-    %v_7 = select 2, %v_6, %v_4: Int
-    %v_8 = select 1, %v_7, %v_3: Int
+    %v_6 = select %v_5, 4, 8: Int
+    %v_7 = select %v_4, 2, %v_6: Int
+    %v_8 = select %v_3, 1, %v_7: Int
     %v_9 = add %v_8, 64: Int
     %v_10 = load @ready, 1: Int
     je %v_10, b_11, b_12
@@ -95,7 +95,7 @@ main<complex>(): Int {
     %v_46 = load @state, 1: Int
     %v_47 = cast %v_46: Int
     %v_48 = cmp_eq %v_47, 0: Int
-    %v_49 = select 0, 1, %v_48: Int
+    %v_49 = select %v_48, 0, 1: Int
     %v_50 = cmp_eq %v_49, 1: Int
     je %v_50, b_51, b_52
   }

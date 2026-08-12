@@ -531,6 +531,17 @@ void prepareBuiltLocals(Gen& g, Function& function) {
     });
 }
 
+// Which local slot names this parameter, or -1 where it has none. A place is rooted in a *slot* and
+// an argument is a *value*, and `bindFunctionArgs` is what ties the two together - so this is the
+// lookup that question needs and there is no index to shortcut it with.
+static I32 localSlotOf(Gen& g, Function& function, ModulePtr<Value> value) {
+    for(Size i = 0; i < function.localCount(); i++) {
+        if(function.localAt(g.local, i).value == value) return I32(i);
+    }
+
+    return -1;
+}
+
 // The body, once the parameters have been named and bound. Split out because a capturing lambda's
 // goes inside a function *expression* and every other function's goes inside a declaration, and
 // nothing else about building one differs.
@@ -556,6 +567,79 @@ StmtList genBody(Gen& g, Function& function) {
         }
 
         /*
+         * A **by-value parameter of a type this target does not hold as an object, whose address is
+         * taken**, boxed once at the top.
+         *
+         * `prepareLocals` decides which locals need the box - a reference here is an (object, key)
+         * pair, so a value that is a `number` or a host `string` has to be *inside* something before
+         * one can name it - and the box for a local is built where its `alloca` is. A parameter has
+         * no alloca: it arrives as a plain variable, so nothing built its box and the reference was
+         * `{$o: wanted, $k: "$v"}` over a primitive, which reads back `undefined`.
+         *
+         * Silent, and reachable from ordinary source: `fn f(xs: [String], wanted: String)` looping
+         * with `for chunk in chunks(xs)` captures `wanted` by reference, because a `String` is a
+         * memory type - so every comparison inside the loop was against nothing. A `&` parameter is
+         * *not* this: its box was made by the caller and arrives as the argument.
+         */
+        for(auto argPointer: function.args.contents(g.local)) {
+            auto value = (ModulePtr<Value>)argPointer;
+            auto slot = localSlotOf(g, function, value);
+            if(slot < 0 || Size(slot) >= g.boxed.size() || !g.boxed[Size(slot)]) continue;
+            if(function.localAt(g.local, Size(slot)).borrowed) continue;
+
+            /*
+             * A `String` and nothing else, which is narrower than the rule the paragraph above
+             * states and is deliberately so.
+             *
+             * Every other parameter this could reach already arrives inside something: a memory type
+             * crosses a call as a reference, so the caller built the box (`unwrapOr({$v: t.left},
+             * …)`), and a niche-folded record *is* an object whose `$v` the walk's unbox step reads
+             * as the payload. A `String` is the one type that is a memory type on the native target
+             * and a *primitive* here, so it is the one that arrives as a bare value with `g.boxed`
+             * set - and boxing any of the others a second time reads the box back as the value.
+             */
+            if(g.global[g.local[argPointer]->type]->kind != Type::String) continue;
+
+            auto& arg = *g.local[argPointer];
+            auto box = declare(g, valueName(g, arg), boxOf(g, useValue(g, value)));
+
+            // Replaced rather than added: the parameter is already registered as its own variable,
+            // and what every reader wants from here on is the box - the walk adds `.$v` where the
+            // value itself is wanted, exactly as it does for a boxed local.
+            if(auto found = g.values.get(U32(value))) found.unwrap() = box;
+            else g.values.add(U32(value), box);
+        }
+
+        /*
+         * And a **function-value parameter whose whole self is borrowed**, on the same terms and for
+         * a sharper reason: a reference here is an owner and two keys, and two variables have no
+         * owner.
+         *
+         * `prepareFunLocals` already declines to hold a *local* flat where anything borrows it, so
+         * this is only ever a parameter - which arrives flat because the calling convention says so
+         * (`funIsFlattened`), whatever this body then does with it. Reassembled once at the top, and
+         * registered as the value, so every reader below - including the place walk that builds the
+         * reference - sees one object.
+         *
+         * The shape that needs it is every adaptor: `iter fn f(...)` yielding from inside a `for`
+         * captures the continuation it was handed, and a capture by reference is exactly a borrow of
+         * the whole parameter. It was reported as "the JS target cannot make a reference to a
+         * function value that is not reachable through an object", which was true and was a
+         * statement about this body rather than about the target.
+         */
+        for(auto argPointer: function.args.contents(g.local)) {
+            auto value = (ModulePtr<Value>)argPointer;
+            if(!g.funParts.get(U32(value))) continue;
+
+            auto slot = localSlotOf(g, function, value);
+            if(slot < 0 || (Size(slot) < g.flatFuns.size() && g.flatFuns[Size(slot)])) continue;
+
+            auto& arg = *g.local[argPointer];
+            g.values.add(U32(value), declare(g, valueName(g, arg),
+                                             materializeFun(g, g.funParts.get(U32(value)).unwrap())));
+        }
+
+        /*
          * Phi results are declared before anything that assigns them, because a phi is written by
          * each predecessor and read at the join - which is two different places in the emitted
          * structure and one value in the IR.
@@ -563,10 +647,32 @@ StmtList genBody(Gen& g, Function& function) {
         for(auto blockPointer: function.blocks.contents(g.local)) {
             for(auto phiPointer: g.local[blockPointer]->phis(g.local)) {
                 auto& phi = *g.local[phiPointer];
+                auto value = (ModulePtr<Value>)phiPointer;
+
+                /*
+                 * A vector phi is `lanes` variables, which is the same statement the rest of this
+                 * target makes about a vector - see VecParts. Written out here rather than left to
+                 * the array form because a loop-carried vector is the shape the whole
+                 * representation exists for: an accumulator that materialized an array would
+                 * allocate one per iteration, which is exactly the cost §7 is arranged to avoid.
+                 */
+                if(auto lanes = vectorLanes(g.global, phi.type)) {
+                    auto parts = newVecParts(g, lanes);
+
+                    for(U32 i = 0; i < lanes; i++) {
+                        auto name = laneName(g, phi, i);
+                        parts.lanes[i] = variable(g, name);
+                        emit(g, make<DeclStmt>(g, name, JsPtr<Expr>(nullptr), false));
+                    }
+
+                    g.vecParts.add(U32(value), parts);
+                    continue;
+                }
+
                 auto name = valueName(g, phi);
 
                 g.phis.add(U32(phiPointer), name);
-                g.values.add(U32((ModulePtr<Value>)phiPointer), variable(g, name));
+                g.values.add(U32(value), variable(g, name));
                 emit(g, make<DeclStmt>(g, name, JsPtr<Expr>(nullptr), false));
             }
         }
@@ -606,6 +712,7 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
     g.phis.reset();
     g.localNames.reset();
     g.funParts.reset();
+    g.vecParts.reset();
     g.labelCounter = 0;
     g.genEnv = nullptr;
     g.genContext = functionGen(g.global, function);

@@ -2,6 +2,10 @@
 #include "x64_util.h"
 #include "../../lower/lower_fold.h"
 
+// For `setOperand`, which is how lowerLaneExtracts moves an extract onto the shuffle it inserted
+// without leaving the use lists disagreeing with the operands.
+#include "../../lower/lower_builder.h"
+
 // Whether running this instruction can change the flags register.
 //
 // Answered from the form selection would give it, which is the same function the final selection
@@ -76,6 +80,17 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
         if(!isIntLike(((LowerInstUnary*)inst)->result.type)) return false;
     }
 
+    /*
+     * The scalar of a splat this machine builds out of nothing - §5.7. `pxor r, r` and `pcmpeqd r, r`
+     * take it as `folded()`, so there is nothing to encode and nothing to place; left occupying a
+     * location it is a `mov r15d, 0` in front of a `pxor` that does not read it.
+     *
+     * Answered here rather than through `opcodeCanEmbedImmediate` for the reason the block count is:
+     * that function is asked about an opcode and a position, and which of `OpVBroadcast`'s forms
+     * applies is a question about this instruction's own operand.
+     */
+    if(splatIsMachineConstant(base, inst)) return true;
+
     auto opcode = opcodeFor(base, inst);
     auto value = immValue(op);
     auto used = inst->used();
@@ -114,9 +129,31 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     return found;
 }
 
+/*
+ * Whether every use of this constant is a splat the machine builds out of nothing - §5.7.
+ *
+ * For those, being taken out of allocation is not an optimization: `selectForm` answers `FormVZero`
+ * or `FormVOnes` for the *pattern*, and both take the scalar as `folded()`, so a scalar that keeps a
+ * location is the selection verifier's "folds an operand that still needs a location". It is
+ * therefore asked ahead of `isEmbeddableImm`, whose two rules are both about cost and both wrong
+ * here - a float can never be embedded, and `zero() :: Vec(Float)` is a float; and a constant read
+ * more than twice is cheaper in a register, which a splat's scalar never is because there is no
+ * register.
+ */
+static bool onlyFeedsMachineSplats(LowerBase base, LowerImm* imm) {
+    auto uses = imm->result.uses.contents(base);
+    if(uses.size() == 0) return false;
+
+    for(auto use: uses) {
+        if(!splatIsMachineConstant(base, base[use])) return false;
+    }
+
+    return true;
+}
+
 // Tries to embed this immediate into any instructions that use it.
 static bool tryEmbedImm(LowerBase base, LowerImm* imm) {
-    if(!isEmbeddableImm(imm)) return false;
+    if(!isEmbeddableImm(imm) && !onlyFeedsMachineSplats(base, imm)) return false;
 
     for(auto use: imm->result.uses.contents(base)) {
         if(!canEmbedImm(base, base[use], &imm->result)) return false;
@@ -433,6 +470,36 @@ static bool orderFloatCompare(LowerBase base, LowerInst* inst) {
         default: return false;
     }
 
+    ::swap(cmp->lhs, cmp->rhs);
+    return true;
+}
+
+/*
+ * The same exchange for a packed comparison, in the other direction and for a different reason.
+ *
+ * A packed comparison answers a mask rather than the flags, so there is no NaN asymmetry to work
+ * around: `cmpps` states its relation in a predicate byte and every one of the eight is exact. What
+ * is missing is only that four of them have no predicate of their own - `a > b` is written `b < a`,
+ * with the predicate for "less" - so `gt` and `ge` are turned into `lt` and `le` here rather than in
+ * the encoder, which is the opposite of the direction the scalar rule above moves them.
+ *
+ * An integer comparison has a narrower reason and the same shape. The machine has `pcmpeqd` and
+ * `pcmpgtd` and nothing else, so `ilt` is `igt` with the operands the other way round; `ige`, `ile`
+ * and `neq` would need the mask inverted afterwards, and selection refuses them.
+ */
+static bool orderPackedCompare(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cmp) return false;
+
+    auto cmp = (LowerInstCmp*)inst;
+    if(!isVectorLike(base[cmp->lhs]->type)) return false;
+
+    // Which of the four they are is `packedCompareRelation`'s answer rather than a second switch
+    // here: `checkVectorSupported` reads the same function from the other side of this pass, and a
+    // relation the two disagreed about is one refused before it could be exchanged.
+    auto exchanged = packedCompareRelation(cmp->getCmp());
+    if(exchanged == cmp->getCmp()) return false;
+
+    cmp->setCmp(exchanged);
     ::swap(cmp->lhs, cmp->rhs);
     return true;
 }
@@ -810,6 +877,18 @@ static void tryElideBranchTest(LowerBase base, LowerBlock* block) {
 // flags rather than being materialized. Returns how many instructions were lifted above it to make
 // that possible, which is how far its own position in the block moved down.
 static Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
+    /*
+     * A packed comparison is not a comparison in the sense any of this is about.
+     *
+     * Its answer is a mask in a vector register rather than a condition in the flags - it does not
+     * write the flags at all - so there is nothing here for it to be carried into. The step that
+     * makes it wrong rather than merely pointless is the first one: a comparison nothing reads is
+     * marked implicit because a flags-only comparison needs no destination, and a packed one *has* a
+     * destination, which its encoding writes over its own first operand. Taking its location away
+     * leaves an instruction that clobbers a live value.
+     */
+    if(isVectorLike(base[cmp->lhs]->type)) return 0;
+
     auto& uses = cmp->result.uses;
 
     if(uses.size() == 0) {
@@ -1153,6 +1232,45 @@ struct Expansion {
         return emit(new (fun.arena) LowerInstCast(name, type, from - base, signedSource, signedResult));
     }
 
+    // The same bits read as another type of the same width - between two vectors it is the register
+    // itself and emits nothing wherever the allocator lands both ends in one place.
+    LowerValue* reinterpret(LowerType type, LowerValue* from, StringId name = StringId()) {
+        return emit(new (fun.arena) LowerInstUnary(LowerInst::Bitcast, name, type, from - base));
+    }
+
+    LowerValue* withLane(LowerType type, LowerValue* vector, U8 lane, LowerValue* value, StringId name = StringId()) {
+        return emit(new (fun.arena) LowerInstVecLane(name, type, vector - base, lane, value - base));
+    }
+
+    // One lane read back out, which answers in the lane's scalar form and in no other type - so the
+    // type is derived here rather than passed, the way the text parser derives it.
+    LowerValue* lane(LowerValue* vector, U8 index, StringId name = StringId()) {
+        return emit(new (fun.arena) LowerInstVecLane(name, scalarFormOf(vector->type), vector - base, index));
+    }
+
+    LowerValue* splat(LowerType type, LowerValue* scalar, StringId name = StringId()) {
+        return emit(new (fun.arena) LowerInstVecSplat(name, type, scalar - base));
+    }
+
+    /*
+     * Lanes rearranged, with the pattern written by a callback rather than handed over as a buffer.
+     *
+     * The pattern lives in the instruction's own allocation - past the used values, the way a phi's
+     * source blocks do - so it cannot be filled in before the instruction exists, and a caller that
+     * built one somewhere else would be copying it in anyway.
+     */
+    template<class F>
+    LowerValue* shuffle(LowerType type, LowerValue* left, LowerValue* right, F&& entry, StringId name = StringId()) {
+        auto inst = (LowerInstVecShuffle*)fun.arena.alloc(
+            sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
+        new (inst) LowerInstVecShuffle(name, type, left - base, right - base);
+
+        auto pattern = inst->pattern();
+        for(Size i = 0; i < pattern.length; i++) pattern[i] = entry(i);
+
+        return emit((LowerInstSingle*)inst);
+    }
+
     LowerValue* compare(LowerCmp cmp, LowerValue* lhs, LowerValue* rhs) {
         return emit(new (fun.arena) LowerInstCmp(StringId(), lhs - base, rhs - base, cmp));
     }
@@ -1337,6 +1455,616 @@ static void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) 
             // conversion's own used to begin at, and removing the conversion from the end of it
             // closed the gap - so `at` is where the walk carries on. Nothing in what was produced is
             // an unsigned conversion, so there is nothing there to come back for.
+            i = e.at;
+        }
+    }
+}
+
+/*
+ * Reading a lane out of an integer vector where the machine can only read the first.
+ *
+ * `movd`/`movq` move the low element and have no way to name another. SSE4.1's `pextrd`/`pextrq`
+ * take any index in one instruction, so where that feature is claimed there is nothing to do here;
+ * without it the wanted lane has to be brought down to lane zero first, and the instruction that
+ * does that - `pshufd` - writes a *vector* register that is neither of the extract's operands.
+ *
+ * Which is the whole reason this is a pass rather than a two-instruction pseudo. A pseudo would need
+ * a scratch vector register, and a form cannot declare one: `MachineForm::temporaries` is what
+ * validateMachineForms still rejects, and the alternative of naming a fixed clobber would hold a
+ * vector register back across every function that extracts a lane. Expanded into the IR instead, the
+ * shuffle's result is an ordinary value the allocator places wherever it has room - which is §5.3's
+ * own argument for expanding a reduction into IR rather than into a pseudo, applied one instruction
+ * earlier.
+ *
+ * A float lane is untouched at every feature level: it never leaves the vector bank, so its extract
+ * already *is* this shuffle and has been since the form was written.
+ */
+static void lowerLaneExtracts(Context&, LowerBase base, LowerFunction& fun) {
+    if(targetFeatures() & kFeatureSse41) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Indexed and advanced by hand, like expandBankConversions above: an insertion moves every
+        // instruction after it, including the extract this is rewriting.
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecLane) { i++; continue; }
+
+            auto lane = (LowerInstVecLane*)inst;
+            auto from = base[lane->from];
+            auto type = from->type;
+
+            if(!isVectorLike(type) || isFloatVector(type) || lane->getLane() == 0) { i++; continue; }
+
+            /*
+             * The lane wanted, in every lane of the shuffle's result.
+             *
+             * Every lane rather than lane zero alone because the pattern has to say something about
+             * each of them and this is the answer that costs nothing: `pshufd`'s byte is the same
+             * length whatever it holds, and a broadcast is what `packedShufflePattern` already turns
+             * into the byte `broadcastLaneByte` would have written for a splat of the same index.
+             *
+             * Both sources name the same value, which is the convention LowerInstVecShuffle states
+             * for a shuffle within one vector and what keeps this off the two-source refusal.
+             */
+            auto shuffle = (LowerInstVecShuffle*)fun.arena.alloc(
+                sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
+            new (shuffle) LowerInstVecShuffle(StringId(), type, lane->from, lane->from);
+
+            for(Size l = 0; l < type.lanes(); l++) shuffle->pattern()[l] = lane->getLane();
+
+            insertInstAt(base, block, i, (LowerInst*)shuffle);
+
+            // The extract now reads the shuffle at lane zero. The operand goes through `setOperand`
+            // so that the old source loses this reader and the new one gains it - the use lists are
+            // what the transform verifier checks between every pair of passes - and the index is a
+            // field with nobody to tell.
+            setOperand(base, fun.arena, (LowerInst*)lane, lane->from, &shuffle->result);
+            lane->flags = 0;
+
+            // Past the shuffle and past the extract. Neither is a lane extract needing this pass -
+            // the extract's index is zero now - so there is nothing here to come back for.
+            i += 2;
+        }
+    }
+}
+
+/*
+ * Writing a lane into an integer vector where the machine can only write a word.
+ *
+ * `pinsrd`/`pinsrq` take any lane at any index and are SSE4.1; without them the only insert the
+ * machine has is `pinsrw`, which writes one 16-bit word. So a wider lane has to be spent as the
+ * words it is made of - and the vector it is written into has to be *named* at that width, which is
+ * a bitcast and is free, since the two types are one register read two ways.
+ *
+ * Two shapes rather than one, and the second is where this stops being mechanical:
+ *
+ * - **A 32-bit lane is its two words.** `pinsrw` at `2i` takes the low half of the scalar and
+ *   `pinsrw` at `2i + 1` takes the low half of the scalar shifted down, which is three instructions
+ *   and no bank crossing. Every value in it is an ordinary one the allocator places, which is
+ *   `lowerLaneExtracts`' own argument for expanding into IR rather than into a pseudo.
+ * - **A 64-bit lane is not four words - it is a *quadword*, and the machine has an instruction for
+ *   each of the two a vector holds.** `movsd` writes the low one and `unpcklpd` the high one, both
+ *   at the baseline, and neither cares that the bits it moves were meant as a double. So a
+ *   `Vec(Long)` insert is the `Vec(Double)` one with a bitcast at each end: two machine instructions
+ *   where the word route would have been eleven, since each of the four words would have needed a
+ *   shift *and* a narrowing to reach `pinsrw`'s 32-bit operand.
+ *
+ * A byte lane has neither route - it is half a word, so writing one means reading the word around it
+ * back out first - and is refused by `unsupportedVectorReason` rather than expanded here.
+ */
+static void lowerLaneInserts(Context&, LowerBase base, LowerFunction& fun) {
+    if(targetFeatures() & kFeatureSse41) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Indexed and advanced by hand, like the passes above: an insertion moves every instruction
+        // after it, including the insert this is rewriting.
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecWithLane) { i++; continue; }
+
+            auto insert = (LowerInstVecLane*)inst;
+            auto type = insert->result.type;
+            auto width = type.isVector() ? laneBytes(type.lane) : 0;
+
+            /*
+             * A **single-precision float lane above lane zero**, which the machine has no
+             * instruction for at this level and which this pass reaches anyway.
+             *
+             * The route is the integer one, and the reason it works is a fact that reads as an
+             * obstacle: the scalar is in the vector bank, so it has to cross to a general register
+             * first. `movd` is that crossing, it is what a `Bitcast` from a `Float32` to an `Int32`
+             * already selects, and once the scalar is a word pair the vector is written by the same
+             * two `pinsrw`s a `Vec(Int)` insert takes. So the whole of the difference is a bitcast
+             * at each end, and each of those is one instruction the allocator often removes.
+             *
+             * A *double*-precision lane needs none of this: `movsd` and `unpcklpd` write the two
+             * halves of a two-lane vector directly, which covers it exactly. And lane zero of a
+             * single-precision vector is `movss`. Both are skipped here for the same reason the
+             * SSE4.1 path is - there is already an instruction.
+             */
+            auto floatWordRoute = isFloatVector(type) && width == 4 && insert->getLane() != 0;
+
+            if(isFloatVector(type) && !floatWordRoute) { i++; continue; }
+            if(width != 4 && width != 8) { i++; continue; }
+
+            Expansion e { base, fun, block, i };
+            auto vector = base[insert->from];
+            auto value = base[insert->value];
+            auto lane = insert->getLane();
+            LowerValue* built;
+
+            // The scalar across the bank boundary, where it started in the wrong one. What follows
+            // is then the integer route verbatim - `value` is a word pair either way.
+            if(floatWordRoute) value = e.reinterpret(LowerType::Int32, value);
+
+            if(width == 8) {
+                // The quadword route. `laneShift` is carried across unchanged because the lane
+                // *count* does not change - only what a lane is said to hold.
+                auto asFloat = LowerType(LowerLane::Float64, type.laneShift, false);
+                auto wide = e.reinterpret(asFloat, vector);
+                auto scalar = e.reinterpret(LowerType::Float64, value);
+
+                built = e.reinterpret(type, e.withLane(asFloat, wide, lane, scalar));
+            } else {
+                auto asWords = LowerType(LowerLane::Int16, U8(type.laneShift + 1), false);
+                auto words = e.reinterpret(asWords, vector);
+                auto low = e.withLane(asWords, words, U8(lane * 2), value);
+
+                /*
+                 * Only the low sixteen bits of the operand reach the vector, so the high half is the
+                 * same instruction over the scalar shifted down - logically, since what is being
+                 * moved is a bit pattern and the lane above it is written separately either way.
+                 *
+                 * The shift is emitted even where the scalar is a constant and the answer is known
+                 * here, which was **measured** rather than assumed: `iota` is `lanes - 1` inserts of
+                 * a small constant and folding each one turns `shr $16, %eax` into `mov $0, %eax`,
+                 * which is the same instruction count and one register more - the shift is in place
+                 * on a value that is dead after it, and a materialized constant is not.
+                 */
+                auto shift = e.integer(LowerType::Int32, 16);
+                auto high = e.binary(LowerInst::Shr, LowerType::Int32, value, shift);
+
+                built = e.reinterpret(type, e.withLane(asWords, low, U8(lane * 2 + 1), high));
+            }
+
+            replaceAllUses(base, &insert->result, built);
+            removeInst(base, insert);
+
+            // Past the whole expansion. Removing the insert from the end of it closed the gap the
+            // insertions opened, so `at` is where the walk carries on - and the `vwithlane`s this
+            // produced are at a word lane, which this pass does not rewrite.
+            i = e.at;
+        }
+    }
+}
+
+/*
+ * A splat of an 8- or 16-bit lane, which this machine has no broadcast for.
+ *
+ * `pshufd` is the widest-reaching broadcast SSE2 has and it moves 32-bit lanes; the byte and word
+ * broadcasts are `pshufb` (SSSE3) and `vpbroadcastb`/`vpbroadcastw` (AVX2). So the narrow columns of
+ * the broadcast row were the machine's gap, and a `Vec(U8)` could be *typed* and not built - which
+ * kept `String` off the vector path entirely, since a string is a container of bytes.
+ *
+ * **The scalar is replicated before it becomes a vector, and that is the whole of it.** A byte `b`
+ * splatted across sixteen lanes is the 32-bit pattern `b*0x01010101` broadcast across four 32-bit
+ * lanes; a word `w` across eight is `w*0x00010001` broadcast the same way. One `imul` on a general
+ * register, and then the broadcast this backend already has.
+ *
+ * Two things it needs beyond the multiply. The source is zero-extended first, because the product is
+ * only the pattern when the bits above the lane are clear - a byte arriving in a register whose top
+ * three bytes hold something else would multiply into garbage. And the result is a `bitcast`, which
+ * between two vectors of one width is the register itself and emits nothing.
+ *
+ * A *constant* splat never reaches here: `poolVectorConstants` runs below and pools it, and the two
+ * nothing-constants are peepholes on the form. What is left for this is a splat of a runtime value,
+ * which is what a search for one byte is.
+ */
+static void expandNarrowSplats(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecSplat) { i++; continue; }
+
+            auto splat = (LowerInstVecSplat*)inst;
+            auto type = splat->result.type;
+
+            if(!type.isVector() || laneBytes(type.lane) >= 4) { i++; continue; }
+
+            auto lanes = laneBytes(type.lane) == 1 ? 4u : 2u;
+            auto pattern = laneBytes(type.lane) == 1 ? U64(0x01010101) : U64(0x00010001);
+
+            // The 32-bit vector of the same byte width, which is what the broadcast row has a form
+            // for at every width this backend holds - 128 bits and 256.
+            auto wide = LowerType(LowerLane::Int32, U8(type.laneShift - (lanes == 4 ? 2 : 1)), false);
+
+            Expansion e { base, fun, block, i };
+            auto word = e.convert(LowerType::Int32, base[splat->from], false, false);
+            auto replicated = e.binary(LowerInst::Mul, LowerType::Int32, word, e.integer(LowerType::Int32, pattern));
+            auto broadcast = e.splat(wide, replicated);
+            auto result = e.reinterpret(type, broadcast, splat->result.name);
+
+            replaceAllUses(base, &splat->result, result);
+            removeInst(base, splat);
+
+            i = e.at;
+        }
+    }
+}
+
+/*
+ * The fused multiply-add, where the target has no instruction that fuses.
+ *
+ * `a * b + c` at two roundings rather than one, which is not an approximation of what was asked for
+ * but the other thing the language permits: Design-Vector §3.3 makes `fma` a *permission* to fuse
+ * rather than a promise, precisely so that a target without FMA3 can spend it as the two operations
+ * it always meant. A program that must not fuse writes `a * b + c` itself and gets two roundings
+ * everywhere; a program that writes `fma` is saying it does not care.
+ *
+ * Expanded into IR rather than into a pseudo, on `expandUnsignedConversions`' argument: the multiply
+ * and the add are two instructions this backend already allocates, folds and costs.
+ */
+static void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun) {
+    if(targetFeatures() & kFeatureFma3) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Fma) { i++; continue; }
+
+            auto fma = (LowerInstFma*)inst;
+            auto type = fma->result.type;
+
+            Expansion e { base, fun, block, i };
+            auto product = e.binary(LowerInst::Mul, type, base[fma->a], base[fma->b]);
+            auto sum = e.binary(LowerInst::Add, type, product, base[fma->c], fma->result.name);
+
+            replaceAllUses(base, &fma->result, sum);
+            removeInst(base, fma);
+
+            i = e.at;
+        }
+    }
+}
+
+/*
+ * Unsigned packed comparisons, which no x86 has and every x86 can do.
+ *
+ * `pcmpgt` reads its lanes as signed and there is no unsigned twin at any feature level. What there
+ * is instead is the identity that makes one: `a <u b` exactly when `(a ^ 0x80000000) <s (b ^
+ * 0x80000000)`, because flipping the top bit maps the unsigned order onto the signed one. So an
+ * unsigned relation is the signed one over both operands biased, which is two exclusive-ors and a
+ * broadcast the folder hoists out of any loop it is invariant in.
+ *
+ * A 32-bit lane only. The bias is a splat, and a splat of an 8- or 16-bit lane needs the byte and
+ * word shuffles this tier does not have; a 64-bit lane has no `pcmpgtq` to bias *into* before
+ * SSE4.2. `unsupportedVectorReason` states the same bound from the other side.
+ *
+ * This is what `firstSet` reaches, and reaching it is not obvious: the lane indices it compares are
+ * small non-negative numbers whose signed and unsigned orders agree, and the *type* is what decides
+ * which comparison the IR asks for. So the sequence below is exact where it is also unnecessary,
+ * which is the ordinary case for it.
+ */
+static void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
+    auto signedForm = [](LowerCmp cmp) {
+        switch(cmp) {
+            case LowerCmp::lt: return LowerCmp::ilt;
+            case LowerCmp::le: return LowerCmp::ile;
+            case LowerCmp::gt: return LowerCmp::igt;
+            case LowerCmp::ge: return LowerCmp::ige;
+            default:           return cmp;
+        }
+    };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Cmp) { i++; continue; }
+
+            auto cmp = (LowerInstCmp*)inst;
+            auto type = base[cmp->lhs]->type;
+            auto relation = signedForm(cmp->getCmp());
+
+            if(relation == cmp->getCmp() || !isIntVector(type)) { i++; continue; }
+
+            Expansion e { base, fun, block, i };
+
+            // The top bit of every lane. Built once here and left to CSE and LICM, which is the
+            // whole argument for expanding into IR: two comparisons in one block share this, and one
+            // inside a loop leaves it outside.
+            auto bit = e.integer(scalarFormOf(type), U64(1) << (laneBytes(type.lane) * 8 - 1));
+            auto bias = e.splat(type, bit);
+            auto lhs = e.binary(LowerInst::Xor, type, base[cmp->lhs], bias);
+            auto rhs = e.binary(LowerInst::Xor, type, base[cmp->rhs], bias);
+
+            setOperand(base, fun.arena, inst, cmp->lhs, lhs);
+            setOperand(base, fun.arena, inst, cmp->rhs, rhs);
+            cmp->setCmp(relation);
+
+            // Past the four instructions the expansion added and past the comparison itself, which
+            // is now a signed one and has nothing here to come back for.
+            i = e.at + 1;
+        }
+    }
+}
+
+/*
+ * Every lane of a vector combined into one scalar.
+ *
+ * A tree of shuffles and pairwise operations, log2(lanes) deep, expanded into IR - which is what
+ * §5.3 of Implementation-Vector.md asks for and for the reason it gives: every instruction this
+ * produces is then allocated, folded and costed by machinery that already exists, where a pseudo
+ * would have needed a scratch vector register for each level of the tree.
+ *
+ * **The tree is a butterfly and not a compaction**, which is the one thing here that is a decision
+ * rather than a transcription. The order a floating-point reduction combines in is a stated language
+ * property (Design-Vector §4.5) - `(a0+a1) + (a2+a3)` for four lanes - so the shape has to be the
+ * adjacent-pair tree the other two backends build and not the "fold the upper half down" idiom,
+ * which for four lanes gives `(a0+a2) + (a1+a3)` and a different answer. Written as a compaction
+ * that would have been two shuffles per level (the even lanes, then the odd ones); written as a
+ * butterfly - lane `j` paired with lane `j ^ s`, doubling `s` - it is *one*, because every lane
+ * holds the combination of its own group at every level and lane zero holds the one that is wanted.
+ *
+ * What comes out of the bottom is a lane extract, which is the same instruction the tree is built on
+ * top of and needs nothing of its own.
+ */
+
+// One level of the tree: the two vectors combined the way this reduction says. `min` and `max` are a
+// comparison and a select rather than an instruction, which is the same shape `emitMinMax` gives
+// them in the library - the machine has `minps` and this backend has no form for it yet.
+static LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
+                              LowerValue* lhs, LowerValue* rhs)
+{
+    auto compareAndSelect = [&](LowerCmp cmp) {
+        // The comparison answers a mask of the operands' shape, which is the one thing about a
+        // vector comparison that is not the scalar instruction unchanged.
+        auto mask = e.emit(new (e.fun.arena) LowerInstCmp(
+            StringId(), lhs - e.base, rhs - e.base, cmp, maskType(type.lane, type.lanes())));
+
+        return e.select(type, mask, lhs, rhs);
+    };
+
+    switch(reduce) {
+        case LowerReduce::Add: return e.binary(LowerInst::Add, type, lhs, rhs);
+        case LowerReduce::Mul: return e.binary(LowerInst::Mul, type, lhs, rhs);
+        case LowerReduce::And: return e.binary(LowerInst::And, type, lhs, rhs);
+        case LowerReduce::Or:  return e.binary(LowerInst::Or, type, lhs, rhs);
+
+        // `min` keeps the left operand where it compares less, and `max` where it compares greater -
+        // so a NaN in either position follows the comparison, which answers false and yields the
+        // right-hand side. That is what `minps` does with its operands in this order, and what the
+        // library's `min` already promises.
+        case LowerReduce::Min:  return compareAndSelect(LowerCmp::lt);
+        case LowerReduce::IMin: return compareAndSelect(LowerCmp::ilt);
+        case LowerReduce::Max:  return compareAndSelect(LowerCmp::gt);
+        default:                return compareAndSelect(LowerCmp::igt);
+    }
+}
+
+/*
+ * A reduction of a **mask**, which is three questions rather than one arithmetic operation.
+ *
+ * `and` and `or` combine the lanes as they stand and answer a truth value: a mask lane is all-ones
+ * or all-zeros here, so lane zero of the combined mask is `-1` or `0`, and `& 1` is the whole of
+ * turning that into the `Bool` the result type asks for.
+ *
+ * `add` is the odd one and is `count`: how many lanes are set. Summing the mask itself would answer
+ * the negative of it - every set lane is `-1` - and, worse, would be an `add` over two masks, which
+ * is a thing the lower IR does not admit at all (a mask holds truth values). So the mask is turned
+ * into a vector of ones and zeros with a select first, and what is summed is that.
+ */
+static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source);
+
+/*
+ * A reduction of an 8- or 16-bit lane, which is the butterfly above finished in a general register.
+ *
+ * The tree needs a shuffle that pairs lane `i` with lane `i ^ stride`, and this machine's only
+ * integer shuffle moves 32-bit lanes - `pshufd`. So the levels split in two by where the partner is:
+ *
+ * - **A partner a whole 32-bit lane away or further** is that same `pshufd`, applied to the register
+ *   read as `i32` and read back as itself. Both bitcasts are the register and emit nothing; the
+ *   *combining* step stays at the narrow lane, which is where the lane width has to be honoured.
+ * - **A partner inside one 32-bit lane** has no shuffle at all, so the last one or two levels are
+ *   done after the value has crossed to a general register - which it has to do anyway, since what
+ *   a reduction answers is a scalar.
+ *
+ * The order is free here in a way it is not for a float: Design-Vector §4.5 fixes the *pairing* order
+ * because floating-point addition is not associative, and there is no floating-point lane narrower
+ * than four bytes. Every operation this reaches is associative and commutative over the integers, so
+ * doing the wide levels first and the narrow ones last answers the same number.
+ *
+ * The scalar finish is two shapes rather than one. `add`, `and`, `or` and `mul` combine the whole
+ * word against itself shifted down - the low lane of the result is exact whatever the lanes above it
+ * hold, because a carry only ever travels upward - and the answer is the low lane truncated. `min`
+ * and `max` cannot borrow that: they need each sub-lane as a value of its own, so the word is cut
+ * into its two or four pieces and the pieces are compared at the lane's own width and signedness.
+ */
+static LowerValue* reduceScalarStep(Expansion& e, LowerReduce reduce, LowerType type,
+                                    LowerValue* lhs, LowerValue* rhs) {
+    auto compareAndSelect = [&](LowerCmp cmp) {
+        auto flag = e.compare(cmp, lhs, rhs);
+        return e.select(type, flag, lhs, rhs);
+    };
+
+    switch(reduce) {
+        case LowerReduce::Add: return e.binary(LowerInst::Add, type, lhs, rhs);
+        case LowerReduce::Mul: return e.binary(LowerInst::Mul, type, lhs, rhs);
+        case LowerReduce::And: return e.binary(LowerInst::And, type, lhs, rhs);
+        case LowerReduce::Or:  return e.binary(LowerInst::Or, type, lhs, rhs);
+        case LowerReduce::Min:  return compareAndSelect(LowerCmp::lt);
+        case LowerReduce::IMin: return compareAndSelect(LowerCmp::ilt);
+        case LowerReduce::Max:  return compareAndSelect(LowerCmp::gt);
+        default:                return compareAndSelect(LowerCmp::igt);
+    }
+}
+
+static LowerValue* expandNarrowReduce(Expansion& e, LowerReduce reduce, LowerValue* value) {
+    auto type = value->type;
+    auto width = laneBytes(type.lane);
+    auto bits = width * 8;
+    auto perWord = 4 / width;
+    auto lanes = type.lanes();
+
+    // The same register read as 32-bit lanes, which is what the shuffle below is expressed in. Both
+    // bitcasts are the register itself and emit nothing.
+    auto wide = LowerType(LowerLane::Int32, U8(type.laneShift - (perWord == 4 ? 2 : 1)), false);
+
+    for(U32 stride = perWord; stride < lanes; stride *= 2) {
+        auto step = stride / perWord;
+        auto asWide = e.reinterpret(wide, value);
+        auto partnerWide = e.shuffle(wide, asWide, asWide, [&](Size j) { return U8(j ^ step); });
+        auto partner = e.reinterpret(type, partnerWide);
+
+        value = reduceStep(e, reduce, type, value, partner);
+    }
+
+    // Lane zero of the 32-bit view, which now holds every sub-lane's own answer - `movd`, and the
+    // one lane extract this backend has at every feature level.
+    auto word = e.lane(e.reinterpret(wide, value), 0);
+    auto scalar = LowerType::Int32;
+
+    /*
+     * What a narrow lane is *in* a general register: the low `bits` and nothing said about the rest.
+     * That is this backend's existing convention for a lane extract - `movd` of a byte vector hands
+     * over four bytes and the reader uses one - so the two shapes below differ in exactly whether
+     * they can live with it.
+     */
+    if(reduce == LowerReduce::Add || reduce == LowerReduce::Mul ||
+       reduce == LowerReduce::And || reduce == LowerReduce::Or) {
+        // A carry only ever travels upward, so the low lane of the whole word combined against
+        // itself shifted down is the combination of every lane - exactly, and whatever the lanes
+        // above it end up holding.
+        for(U32 shift = 16; shift >= bits; shift /= 2) {
+            auto moved = e.binary(LowerInst::Shr, scalar, word, e.integer(scalar, shift));
+            word = reduceScalarStep(e, reduce, scalar, word, moved);
+        }
+
+        /*
+         * And the lanes above the answer, cleared - which is not the redundant step it looks like.
+         *
+         * A reduction is the one operation here whose *result* is read as a whole register by
+         * something that never knew there were lanes: `count(mask)` answers an `Int`, and an `Int`
+         * is thirty-two bits of value rather than eight bits of value and a convention. So the
+         * partial sums the shifts leave above the low lane have to go, and `count(m) == 5` compared
+         * them until they did.
+         */
+        return e.binary(LowerInst::And, scalar, word, e.integer(scalar, (U64(1) << bits) - 1));
+    }
+
+    /*
+     * `min` and `max` cannot: a comparison reads the whole register, so each sub-lane has to be a
+     * value of its own first. An unsigned lane is masked and a signed one is shifted up and back
+     * down, which is the sign extension the lane's own width asks for - and the comparison is then
+     * the ordinary 32-bit one, at the signedness the reduction named.
+     */
+    auto signedLane = reduce == LowerReduce::IMin || reduce == LowerReduce::IMax;
+
+    auto piece = [&](U32 index) {
+        if(signedLane) {
+            auto up = e.binary(LowerInst::Shl, scalar, word, e.integer(scalar, 32 - bits - index * bits));
+            return e.binary(LowerInst::Sar, scalar, up, e.integer(scalar, 32 - bits));
+        }
+
+        auto down = index == 0 ? word
+                               : e.binary(LowerInst::Shr, scalar, word, e.integer(scalar, index * bits));
+
+        return e.binary(LowerInst::And, scalar, down, e.integer(scalar, (U64(1) << bits) - 1));
+    };
+
+    auto best = piece(0);
+    for(U32 i = 1; i < perWord; i++) best = reduceScalarStep(e, reduce, scalar, best, piece(i));
+
+    return best;
+}
+
+/*
+ * The tree over one vector, answering the scalar it reduces to.
+ *
+ * A scalar rather than the vector whose lane zero holds it, because the narrow route below has no
+ * such vector: its last levels happen after the value has crossed to a general register. The wide
+ * route ends in the lane extract it always did, which is one instruction either way.
+ */
+static LowerValue* reduceTree(Expansion& e, LowerReduce reduce, LowerValue* value, LowerType type) {
+    if(laneBytes(type.lane) < 4) return expandNarrowReduce(e, reduce, value);
+
+    auto lanes = type.lanes();
+
+    // The butterfly. At stride `s` every lane is paired with the lane `s` above or below it, which
+    // after `log2(lanes)` doublings leaves lane zero holding the whole tree - and holding it in the
+    // adjacent-pair order, since a lane's partner at each level is the other half of its own group.
+    for(U32 stride = 1; stride < lanes; stride *= 2) {
+        auto partner = e.shuffle(type, value, value, [&](Size i) { return U8(i ^ stride); });
+        value = reduceStep(e, reduce, type, value, partner);
+    }
+
+    return e.lane(value, 0);
+}
+
+static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+    auto type = source->type;
+
+    if(type.isMask()) return expandMaskReduce(e, reduce, source);
+    return reduceTree(e, reduce, source, type);
+}
+
+static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+    auto type = source->type;
+
+    if(reduce == LowerReduce::Add) {
+        // One per set lane, zero per clear one, at the mask's own lane shape - so the vector this
+        // sums has the same lane count and the same lane width, and the tree below is the one the
+        // mask itself would have taken.
+        auto counted = LowerType(type.lane, type.laneShift, false);
+        auto ones = e.splat(counted, e.integer(scalarFormOf(counted), 1));
+        auto zeros = e.splat(counted, e.integer(scalarFormOf(counted), 0));
+
+        return reduceTree(e, LowerReduce::Add, e.select(counted, source, ones, zeros), counted);
+    }
+
+    return reduceTree(e, reduce, source, type);
+}
+
+static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Indexed and advanced by hand, like the passes above: the expansion is inserted in front of
+        // the reduction and moves everything after it.
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecReduce) { i++; continue; }
+
+            auto reduce = (LowerInstVecReduce*)inst;
+            auto source = base[reduce->from];
+
+            Expansion e { base, fun, block, i };
+            auto scalar = expandReduce(e, reduce->getReduce(), source);
+
+            /*
+             * A mask's `and` and `or` answer a `Bool`, and what the extract handed back is `-1` or
+             * `0` - every bit of a set lane, which is what a mask lane holds. `& 1` is the narrowing
+             * to a truth value, and it is exact rather than approximate precisely because the lane
+             * has no other two values it could have held.
+             */
+            if(source->type.isMask() && reduce->getReduce() != LowerReduce::Add) {
+                scalar = e.binary(LowerInst::And, scalar->type, scalar, e.integer(scalar->type, 1));
+            }
+
+            replaceAllUses(base, &reduce->result, scalar);
+            removeInst(base, reduce);
+
+            // Past the whole expansion. Removing the reduction from the end of it closed the gap the
+            // insertions opened, and nothing in what was produced is a reduction.
             i = e.at;
         }
     }
@@ -2793,7 +3521,8 @@ static void rotateLoops(Context&, LowerBase base, LowerFunction& fun) {
 
 // Moves operands into the canonical position for the passes below: an immediate onto the right-hand
 // side of a commutative operation, so that nothing downstream has to look at both sides, and a
-// floating-point `lt`/`le` exchanged into the `gt`/`ge` this machine can answer for a NaN.
+// floating-point `lt`/`le` exchanged into the `gt`/`ge` this machine can answer for a NaN, and a
+// packed `gt`/`ge` exchanged the other way into the predicate `cmpps` has.
 // Representation-neutral: no target register or encoding decision is made here.
 //
 // Expects: the lowering's output, unmodified.  Establishes: commutative immediates on the right, and
@@ -2803,6 +3532,7 @@ static void canonicalizeOperands(Context&, LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         trySwapOperands(base, inst);
         orderFloatCompare(base, inst);
+        orderPackedCompare(base, inst);
     });
 }
 
@@ -2924,6 +3654,362 @@ static LowerGlobal* pooledConstant(Context& ctx, LowerModule& module, U64 bits, 
     module.globalOrder.push(global - *module.arena);
 
     return global;
+}
+
+/*
+ * The same pool, entered with the bytes already laid out - which is what a vector constant needs and
+ * `pooledConstant` above cannot express, since it takes one word and repeats it.
+ *
+ * The name is the whole pattern in hex, so the interning `LowerModule::globals` already performs is
+ * still exact: two entries collide only if every byte agrees, and a 16-byte constant's name cannot be
+ * a prefix of a 32-byte one's because the width is in the name ahead of the bytes.
+ */
+static LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* bytes, Size size) {
+    static const char digits[] = "0123456789abcdef";
+
+    // `$v128$<2 * size hex digits>`. Sized for the widest constant this language admits.
+    char text[6 + 2 * kMaxVectorBytes];
+    auto width = size * 8;
+
+    text[0] = '$';
+    text[1] = 'v';
+    text[2] = digits[(width / 100) % 10];
+    text[3] = digits[(width / 10) % 10];
+    text[4] = digits[width % 10];
+    text[5] = '$';
+
+    for(Size i = 0; i < size; i++) {
+        text[6 + i * 2] = digits[bytes[i] >> 4];
+        text[7 + i * 2] = digits[bytes[i] & 0xf];
+    }
+
+    auto length = 6 + size * 2;
+    auto name = Context::nameHash(text, length);
+
+    auto entry = module.globals.add(name);
+    if(entry.existed) return (*module.arena)[*entry.value];
+
+    // Copied into the arena for the reason `pooledConstant` states: `addUnqualifiedName` keeps the
+    // pointer it is handed, and this one is on the stack.
+    auto stored = (char*)module.arena.alloc(length);
+    copyMem(text, stored, length);
+    ctx.addUnqualifiedName(stored, length);
+
+    auto global = new (module.arena) LowerGlobal(name);
+    auto contents = (U8*)module.arena.alloc(size);
+    copyMem(bytes, contents, size);
+
+    global->initialContents = { contents, size };
+    *entry.value = global - *module.arena;
+    module.globalOrder.push(global - *module.arena);
+
+    return global;
+}
+
+/*
+ * The bytes a value holds if it is a constant vector, and whether it is one.
+ *
+ * A constant vector in this IR is not a constant - §9.7 of Implementation-Vector.md records that
+ * there is deliberately no vector constant form, because a lane pattern is not an immediate on any
+ * of these machines. What there is instead is the shape the resolver builds: a `vsplat` of a
+ * constant, and a chain of `vwithlane`s over it whose values are constants. `iota` is exactly that,
+ * and so is every `splat` of a literal.
+ *
+ * So this is the folder's job done at the one place that can act on the answer. Reading the chain
+ * here rather than folding it into a constant earlier is what keeps the IR's own claim true.
+ */
+static bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size,
+                                Array<LowerInst*>& chain) {
+    auto inst = value->inst();
+    auto type = value->type;
+    auto lane = laneBytes(type.lane);
+
+    // A lane's bits at its own width, from an immediate of the lane's *scalar* form - which for an
+    // 8- or 16-bit lane is an Int32, and for a Float32 lane is held as a double until here.
+    auto laneBits = [&](LowerValue* from, U8* at) {
+        auto source = from->inst();
+        if(source->kind != LowerInst::Imm) return false;
+
+        auto imm = (LowerImm*)source;
+
+        if(type.lane == LowerLane::Float32) {
+            auto narrow = float(imm->f);
+            copyMem(&narrow, at, 4);
+            return true;
+        }
+
+        if(type.lane == LowerLane::Float64) {
+            auto wide = imm->f;
+            copyMem(&wide, at, 8);
+            return true;
+        }
+
+        auto integer = imm->i;
+        copyMem(&integer, at, lane);
+        return true;
+    };
+
+    if(inst->kind == LowerInst::VecSplat) {
+        auto splat = (LowerInstVecSplat*)inst;
+        auto from = base[splat->from];
+        if(!laneBits(from, bytes)) return false;
+
+        for(Size at = lane; at < size; at += lane) copyMem(bytes, bytes + at, lane);
+
+        chain.push(inst);
+        chain.push(from->inst());
+        return true;
+    }
+
+    if(inst->kind == LowerInst::VecWithLane) {
+        auto write = (LowerInstVecLane*)inst;
+        if(!constantVectorBytes(base, base[write->from], bytes, size, chain)) return false;
+
+        auto from = base[write->value];
+        if(!laneBits(from, bytes + Size(write->getLane()) * lane)) return false;
+
+        chain.push(inst);
+        chain.push(from->inst());
+        return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether this value is a constant vector, asked from the other side of the pass that pools it.
+ *
+ * `checkVectorSupported` runs at the top of `transformFunction` and refuses what this backend has no
+ * form for - and a *lane write* of an 8-bit lane is one of those, since `pinsrw` writes a word and
+ * half of one would have to be read back out first. But nothing emits the lane writes of a constant
+ * chain: `poolVectorConstants` below replaces the whole chain with a `.rodata` load and removes
+ * every link of it, so refusing one is refusing an instruction that will not exist.
+ *
+ * That is not a hypothetical case, it is `iota` - which `maskUpTo` and `firstSet` are both written
+ * over, so every masked tail of every byte-lane loop is exactly this shape. Asked here rather than
+ * approximated in machine.cpp, on `packedCompareRelation`'s argument: two readers on opposite sides
+ * of a pass have to ask one function or they will drift.
+ */
+bool isPooledVectorConstant(LowerBase base, LowerValue* value) {
+    auto type = value->type;
+    if(!type.isVector() && !type.isMask()) return false;
+
+    U8 bytes[kMaxVectorBytes] = {};
+    Array<LowerInst*> chain;
+
+    return constantVectorBytes(base, value, bytes, type.byteWidth(), chain);
+}
+
+/*
+ * The chain that fed the constant, removed.
+ *
+ * Nothing below this pass is a dead-code elimination - the IR optimizer ran long ago and what is
+ * left here is selection - so a link whose only reader was the next link stays in the function and
+ * is emitted. Left to itself the pass made `iota` *longer*: the load appeared and the six
+ * instructions it replaced were still there.
+ *
+ * To a fixpoint rather than in one sweep, and that is not caution. A link and the immediate it reads
+ * die in that order, so any single ordering leaves half of them standing: walked outermost-first the
+ * immediates are still used when they are looked at, and walked innermost-first the lane writes are.
+ * The chain is at most two entries per lane, so repeating until nothing moves is bounded by its own
+ * length and is what makes "the constant leaves nothing behind" true rather than nearly.
+ *
+ * Each is removed only once its own use list is empty, which is what keeps a constant that two
+ * chains share, or that something else reads, exactly where it is.
+ */
+static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain) {
+    for(Size round = 0; round <= chain.size(); round++) {
+        auto moved = false;
+
+        for(Size i = chain.size(); i > 0; i--) {
+            auto inst = chain[i - 1];
+            if(!inst || inst->createdCount != 1) continue;
+
+            auto result = &((LowerInstSingle*)inst)->result;
+            if(!result->uses.isEmpty()) continue;
+
+            removeInst(base, inst);
+
+            // Cleared so that a second round does not remove it again - `inst` is the outermost link
+            // and has already been removed by the caller, so this list may hold one either way.
+            chain[i - 1] = nullptr;
+            moved = true;
+        }
+
+        if(!moved) break;
+    }
+}
+
+/*
+ * Vector constants - Implementation-Vector.md §0.2's prerequisite, finally spent on what it was
+ * asked for.
+ *
+ * §5 concluded that the pool "turned out not to need to be" opened to vectors, on the evidence of
+ * four operations that could each build their constant out of a scratch register. That generalized
+ * from a sample chosen by being buildable: what is *not* buildable that way is every pattern with
+ * more than one distinct lane in it, and the commonest of those is `iota` - which `maskUpTo` and
+ * `firstSet` are both written over, so **every masked tail in every vector loop** was paying a chain
+ * of `lanes` lane-writes where a load is one instruction.
+ *
+ * Where it sits is the same argument `poolFloatConstants` makes and it is worth more here: before
+ * `selectMemorySources`, so `foldLoads` sees these loads. §5.4.1 opened the vector memory twin, so a
+ * pooled constant read once by the instruction below it becomes `vpaddd xmm, xmm, [rip + k]` and the
+ * common case is not one instruction but none.
+ *
+ * **Zero is pooled here where the float pass leaves it an immediate**, and the asymmetry is real
+ * rather than an oversight. That pass keeps `0.0` because `xorps xmm, xmm` is a one-instruction form
+ * this backend already selects, so the constant has something cheaper to lose to; a vector has no
+ * such form - `vsplat 0` is a general register zeroed, a bank crossing and a shuffle - so there is
+ * nothing for zero to lose to and the load wins on count outright. If a `pxor` peephole is written
+ * it belongs *before* this pass, which will then not see the splat at all.
+ */
+/*
+ * A constant chain that is uniformly zero or uniformly all-ones, rewritten as the splat it means.
+ *
+ * Reachable where a program wrote the pattern the long way - `withLane`ing a vector into all-ones a
+ * lane at a time is not idiomatic but is expressible - and it exists so that the peephole below has
+ * one shape to recognize rather than two. The immediate is marked Implicit because the form's
+ * operand is `folded()`: the opcode *is* the value, so nothing about the scalar is encoded and it
+ * must not be given a register. A fresh one rather than reusing whatever the chain held, since a
+ * shared constant may have a scalar reader that does need its register.
+ */
+static void replaceWithConstantSplat(LowerBase base, LowerBlock* block, Size at, LowerValue* result,
+                                     LowerType type, bool zero, Array<LowerInst*>& chain) {
+    auto& fun = *base[block->fun];
+    auto scalar = scalarFormOf(type);
+    auto width = laneBytes(type.lane);
+    auto value = zero ? U64(0) : (width >= 8 ? ~U64(0) : ((U64(1) << (width * 8)) - 1));
+
+    auto imm = new (fun.arena) LowerImm(StringId(), scalar, value);
+    imm->result.flags |= LowerValue::Implicit;
+
+    auto splat = new (fun.arena) LowerInstVecSplat(result->name, type, &imm->result - base);
+
+    insertInstAt(base, block, at, imm);
+    insertInstAt(base, block, at + 1, splat);
+
+    replaceAllUses(base, result, &splat->result);
+    removeInst(base, base[result->inst() - base]);
+    for(Size c = 0; c < chain.size(); c++) if(chain[c] == result->inst()) chain[c] = nullptr;
+
+    removeDeadChain(base, chain);
+}
+
+static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
+    auto& module = *fun.module;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecSplat && inst->kind != LowerInst::VecWithLane) continue;
+
+            auto result = &((LowerInstSingle*)inst)->result;
+            auto type = result->type;
+            if(!isVectorLike(type)) continue;
+
+            // Nothing reads it, so there is nothing to point at the pool - and interning a constant
+            // no instruction mentions would put bytes in the image for it. The float pass declines
+            // the same case for the same reason.
+            if(result->uses.isEmpty()) continue;
+
+            /*
+             * An intermediate of a longer constant is left alone: its one reader is the next lane
+             * write, which is about to be pooled whole, and this link then dies with the rest of the
+             * chain. Pooling every link would put `lanes` entries in the image where one is wanted.
+             */
+            auto onlyReaderExtends = false;
+
+            if(result->uses.size() == 1) {
+                auto reader = base[result->uses.get(base, 0)];
+
+                if(reader->kind == LowerInst::VecWithLane &&
+                   ((LowerInstVecLane*)reader)->from == (result - base)) {
+                    onlyReaderExtends = true;
+                }
+            }
+
+            if(onlyReaderExtends) continue;
+
+            U8 bytes[kMaxVectorBytes] = {};
+            auto size = Size(type.byteWidth());
+            if(size > kMaxVectorBytes) continue;
+
+            Array<LowerInst*> chain;
+            if(!constantVectorBytes(base, result, bytes, size, chain)) continue;
+
+            /*
+             * The two patterns this machine makes out of nothing, left for the peepholes - §5.7.
+             *
+             * `pxor r, r` and `pcmpeqd r, r` are one instruction each with no memory, no `.rodata`
+             * entry and no general register on the way in, so a load has nothing to offer either.
+             * They are left as a *splat of their scalar*, which is the form `selectPackedForm` reads
+             * to pick the pseudo - and a chain that happens to be all-zero or all-ones by a route
+             * other than a splat is rewritten into one here, so the peephole sees one shape rather
+             * than two.
+             *
+             * Only these two, deliberately. A float sign mask is all-ones shifted, and an abs mask
+             * is all-ones shifted the other way - two instructions each, which is *not* obviously
+             * better than one load and would need measuring. Guessing is the mistake §5 made in the
+             * other direction, and it is not worth making twice.
+             */
+            auto uniform = [&](U8 value) {
+                for(Size at = 0; at < size; at++) if(bytes[at] != value) return false;
+                return true;
+            };
+
+            if(uniform(0x00) || uniform(0xff)) {
+                if(inst->kind != LowerInst::VecSplat) {
+                    replaceWithConstantSplat(base, block, i, result, type, uniform(0x00), chain);
+                    continue;
+                }
+
+                /*
+                 * A splat is already the shape the peephole reads - but only if its scalar can be
+                 * taken out of allocation, which is what `folded()` means and what
+                 * `onlyFeedsMachineSplats` answers. A constant some scalar instruction *also* reads
+                 * keeps its register, so this splat has no pseudo to be selected into and would
+                 * reach the form as an operand that is folded and placed at once.
+                 *
+                 * That one takes the pool below like any other constant. It is the same reason
+                 * `replaceWithConstantSplat` builds a fresh immediate rather than reusing the
+                 * chain's, stated from the other side: the two forms of a shared constant are a
+                 * private copy or no pseudo, and only one of them is available here.
+                 */
+                auto scalar = base[((LowerInstVecSplat*)inst)->from]->inst();
+
+                if(scalar->kind == LowerInst::Imm &&
+                   onlyFeedsMachineSplats(base, (LowerImm*)scalar))
+                {
+                    continue;
+                }
+            }
+
+            auto global = pooledBytes(ctx, module, bytes, size);
+            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+            auto load = new (fun.arena) LowerInstLoad(
+                &address->result - base, result->name, type, U32(size), false
+            );
+
+            insertInstAt(base, block, i, address);
+            insertInstAt(base, block, i + 1, load);
+
+            replaceAllUses(base, result, &load->result);
+
+            // The outermost link is removed here and cleared from the chain, so the sweep below sees
+            // only what fed it.
+            removeInst(base, inst);
+            for(Size c = 0; c < chain.size(); c++) if(chain[c] == inst) chain[c] = nullptr;
+
+            removeDeadChain(base, chain);
+
+            // The walk resumes at the load. Two were inserted and at least this instruction removed,
+            // so the index is restarted from the block rather than adjusted - the chain removal may
+            // have taken any number of instructions out from above it.
+            i = 0;
+        }
+    }
 }
 
 static void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
@@ -3195,6 +4281,39 @@ struct TransformPass {
 static const TransformPass kTransformPipeline[] = {
     { "rotateLoops"_v,                 rotateLoops,                 0 },
     { "expandBankConversions"_v,   expandBankConversions,   0 },
+    // Before the two lane passes, because the tree it builds ends in a lane extract that each of
+    // them may then have to rewrite - and after nothing, since what it reads is only the reduction.
+    { "expandFusedMultiplyAdd"_v,      expandFusedMultiplyAdd,      0 },
+    { "lowerVectorReductions"_v,       lowerVectorReductions,       0 },
+
+    // After the reduction, whose unsigned minimum and maximum are comparisons this then biases, and
+    // before canonicalizeOperands, which is what exchanges the signed relations it produces.
+    { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0 },
+    { "lowerLaneExtracts"_v,           lowerLaneExtracts,           0 },
+
+    /*
+     * **Before `lowerLaneInserts`, which is the whole of where this may sit.** A constant vector in
+     * this IR is a `vsplat` of a constant and a chain of `vwithlane`s over it, and that pass rewrites
+     * every one of those into a shift and a `pinsrw` pair - so run afterwards this saw a chain that
+     * no longer existed, pooled the *splat* at the root of it, and left the six instructions that
+     * were the actual cost standing. `iota` came out one instruction longer than before.
+     *
+     * Still above `selectMemorySources`, which is the other constraint and is what `poolFloatConstants`
+     * argues: `foldLoads` runs below, so a pooled constant with one reader lands in that reader's
+     * addressing mode rather than in a register (§5.4.1's memory twin, and only under VEX - a legacy
+     * packed operation faults on an unaligned memory operand, so at the baseline the load stands).
+     */
+    { "poolVectorConstants"_v,         poolVectorConstants,         0 },
+
+    /*
+     * **After the pool, which is what decides how much this has to cover.** A constant narrow splat
+     * is a `.rodata` entry by the time this runs, so what is left for it is a splat of a *runtime*
+     * value - a byte a program is searching for, which is exactly what a string scan has and what
+     * nothing else produced before item 8. Running above the pool instead would replace the constant
+     * chain with an `imul` the pool no longer recognizes.
+     */
+    { "expandNarrowSplats"_v,          expandNarrowSplats,          0 },
+    { "lowerLaneInserts"_v,            lowerLaneInserts,            0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
     { "poolFloatConstants"_v,          poolFloatConstants,          0 },
@@ -3374,6 +4493,11 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // checkFrameSupported; the pipeline still runs, since a reported error stops emission anyway and
     // a half-transformed function is worse to reason about than a whole one.
     checkFrameSupported(ctx, base, fun, targetConstraints());
+
+    // And the same question about the vector operations, at the same point and for the same reason -
+    // see checkVectorSupported. It has to stand after setTargetFeatures, since which forms exist is
+    // a function of the feature set this build claims.
+    checkVectorSupported(ctx, base, fun);
 
     U32 established = 0;
 

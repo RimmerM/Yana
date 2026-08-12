@@ -1,0 +1,69 @@
+{-
+   What a const parameter refuses - Implementation-Const-Generics.md §1.6, §2.2, §2.5 and §8.
+
+   Four rules, and each of them is a decision rather than a limit of the implementation.
+
+   **A name stands for a type or for a number and not both** (§2.2). Reported at the second
+   occurrence, naming the first, because the two readings of `fn f(x: a, ys: [b *a])` are far apart
+   and neither is the obvious one.
+
+   **A count is a literal or a bare const parameter, and nothing else** (§2.5). `[a *(n+1)]` needs
+   normalized const expressions or `sameType`'s pointer equality stops holding, since `[a *(n+1)]`
+   and `[a *(1+n)]` would be two interned types for one type. That is the wall Rust's
+   `generic_const_exprs` is still at, and the diagnostic names the two forms that *are* counts rather
+   than folding whatever the parser produced.
+
+   **A const parameter is a number, so its type has to be one** (§2.5). The integer types and nothing
+   else in this version: `Bool` costs nothing to admit and has no caller, and `String` has a
+   representation question in front of it. Which types are admissible is a semantic rule and not a
+   syntactic one, so this is one predicate rather than a production.
+
+   **A declaration says which of its parameters is a count** (§1.5). A head must write the
+   annotation, because a reader looking at `data A(width)` has no way to tell `A(4)` from a type
+   application - and a use site that supplies the wrong kind is told which one the declaration meant.
+-}
+
+import Native
+
+data Holder(a, n: Int) {items: [a *n]}
+
+-- §2.2, from the count's side: `a` is a type parameter of this signature, and the count position
+-- wants a number.
+fn bothKinds(x: a, ys: [a *a]) -> Int = 0
+
+-- §2.2, from the type's side: `n` is declared a count, so it is not a type.
+fn (n: Int) countAsType(x: n) -> Int = 0
+
+-- §1.6: a const parameter and an ordinary parameter of the same name are two things called `n` in
+-- one signature, reported at the declaration rather than resolved by shadowing.
+fn (n: Int) twice(n: Int) -> Int = n
+
+-- §2.5: arithmetic in a count position. The feature this needs is const expressions, and the
+-- diagnostic says which forms exist rather than which one was written.
+fn computed(xs: [Int *(4 + 1)]) -> Int = 0
+
+-- The same for a vector, whose count reaches the same two forms by a different production.
+fn computedLanes(v: Vec(I16, Holder)) -> Int = 0
+
+-- §2.5: an admissible const parameter is an integer. Reported at the declaration, which is where the
+-- inadmissible type was named.
+fn (s: String) named(xs: [Int *s]) -> Int = 0
+
+-- §1.1: a use site that hands a type where the declaration declared a count, and a count where it
+-- declared a type. `Holder(a, n: Int)` is the one place that says which is which.
+fn wrongKinds(h: Holder(Int, Int), g: Holder(4, 4)) -> Int = 0
+
+-- §1.7: a const argument is inferred from the arguments or supplied by the expected type, and there
+-- is deliberately no explicit type-argument syntax to fall back on - the language has none for a
+-- type argument either, so declining to invent one here is consistency rather than a gap.
+fn (n: Int) nothingDecides() -> Int = n
+
+-- A count bound twice constrains rather than rebinds, exactly as a type variable does: `f(a, b)` on
+-- a two-element and a three-element array has no instantiation.
+fn (n: Int) twoArrays(xs: [Int *n], ys: [Int *n]) -> Int = 0
+
+fn main() -> Int:
+    let a = [1, 2] :: [Int *2]
+    let b = [1, 2, 3] :: [Int *3]
+
+    return twoArrays(a, b) + nothingDecides()

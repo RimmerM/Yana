@@ -1,0 +1,247 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+let &a: Vec(Int) = <startup>
+
+let &b: Vec(Int) = <startup>
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn releaseRun(Vec(Int))(%self: Run(Vec(Int))) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Vec(Int)
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Reclaim(Array(a)).reclaim(Vec(Int))(%value: Array(Vec(Int))) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Vec(Int))
+    call releaseRun(Vec(Int)), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Vec(Int))
+    %v14 = load %value@Array.run@Run.items : %Vec(Int)
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof Vec(Int) : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %Vec(Int)
+    %v20 = load [%v19] : Vec(Int)
+    %doomed = alloc : Vec(Int)
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
+  b0:
+    %v3 = borrow %xs : &Flat(Vec(Int))
+    %v4 = load [%v3]@Flat.length : I64
+    %v5 = cast 0 : U64
+    %v6 = cast %v4 : U64
+    %v7 = cmp_ge %v5, %v6 : Bool
+    call checkCondition, %v7
+    %v9 = load [%v3]@Flat.items : %Vec(Int)
+    %v10 = strideof Vec(Int) : Long
+    %v11 = mul 0, %v10 : Long
+    %v12 = add %v9, %v11 : %Vec(Int)
+    %v13 = borrow [%v12] : &Vec(Int)
+    %v14 = load [%v13] : Vec(Int)
+    %v17 = borrow %xs : &Flat(Vec(Int))
+    %v18 = load [%v17]@Flat.length : I64
+    %v19 = cast 1 : U64
+    %v20 = cast %v18 : U64
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@Flat.items : %Vec(Int)
+    %v24 = strideof Vec(Int) : Long
+    %v25 = mul 1, %v24 : Long
+    %v26 = add %v23, %v25 : %Vec(Int)
+    %v27 = borrow [%v26] : &Vec(Int)
+    %v28 = load [%v27] : Vec(Int)
+    %v29 = add %v14, %v28 : Vec(Int)
+    ret %v29
+}
+
+fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
+  b0:
+    %v3 = borrow %xs : &Flat(Vec(Int))
+    %v4 = load [%v3]@Flat.length : I64
+    %v5 = cast 0 : U64
+    %v6 = cast %v4 : U64
+    %v7 = cmp_ge %v5, %v6 : Bool
+    call checkCondition, %v7
+    %v9 = load [%v3]@Flat.items : %Vec(Int)
+    %v10 = strideof Vec(Int) : Long
+    %v11 = mul 0, %v10 : Long
+    %v12 = add %v9, %v11 : %Vec(Int)
+    %v13 = borrow [%v12] : &Vec(Int)
+    %v14 = load [%v13] : Vec(Int)
+    %v17 = borrow %xs : &Flat(Vec(Int))
+    %v18 = load [%v17]@Flat.length : I64
+    %v19 = cast 1 : U64
+    %v20 = cast %v18 : U64
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@Flat.items : %Vec(Int)
+    %v24 = strideof Vec(Int) : Long
+    %v25 = mul 1, %v24 : Long
+    %v26 = add %v23, %v25 : %Vec(Int)
+    %v27 = borrow [%v26] : &Vec(Int)
+    %v28 = load [%v27] : Vec(Int)
+    %v29 = and %v14, %v28 : Vec(Int)
+    ret %v29
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = load a : Vec(Int)
+    %v1 = load b : Vec(Int)
+    %xs = alloc : Array(Vec(Int))
+    %v5 = alloc *2 : Vec(Int)
+    %v6 = addressof %local1 : %Vec(Int)
+    init %local0@Array.run@Run.items, %v6
+    init %local0@Array.run@Run.capacity, 2
+    init %local0@Array.run@Run.ownsHeap, 0
+    aggregate [%v6][0] = %v0, [%v6][1] = %v1
+    init %local0@Array.length, 2
+    %v15 = borrow %local0 : &Array(Vec(Int))
+    %xs = alloc : Flat(Vec(Int))
+    %v17 = load [%v15]@Array.run@Run.items : %Vec(Int)
+    init %xs@Flat.items, %v17
+    %v19 = load [%v15]@Array.length : @bits(30) U32
+    %v20 = cast %v19 : I64
+    init %xs@Flat.length, %v20
+    %s = call sum, %xs : Vec(Int)
+    %v23 = borrow %local0 : &Array(Vec(Int))
+    %xs = alloc : Flat(Vec(Int))
+    %v25 = load [%v23]@Array.run@Run.items : %Vec(Int)
+    init %xs@Flat.items, %v25
+    %v27 = load [%v23]@Array.length : @bits(30) U32
+    %v28 = cast %v27 : I64
+    init %xs@Flat.length, %v28
+    %m = call masked, %xs : Vec(Int)
+    drop %local0 reclaim Reclaim(Array(a)).reclaim(Vec(Int))
+    %v33 = vlane %s, 0 : Int
+    %v36 = mul %v33, 100 : Int
+    %v39 = vlane %m, 1 : Int
+    %v40 = add %v36, %v39 : Int
+    ret %v40
+}
+
+fn main$() -> Int {
+  b0:
+    %v3 = vsplat 11 : Vec(Int)
+    init a, %v3
+    %v8 = vsplat 31 : Vec(Int)
+    init b, %v8
+    %v10 = call main : Int
+    ret %v10
+}

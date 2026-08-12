@@ -1,0 +1,56 @@
+"use strict";
+var sink = [0, 0, 0, 0];
+
+// ResolveTest
+function arithmetic(a) {
+  return [((a[0] + 4 << 16 >> 16 & Math.imul(a[0], 4) << 16 >> 16) << 16 >> 16 << 4 << 16 >> 16) - a[0] << 16 >> 16, ((a[1] + 4 << 16 >> 16 & Math.imul(a[1], 4) << 16 >> 16) << 16 >> 16 << 4 << 16 >> 16) - a[1] << 16 >> 16, ((a[2] + 4 << 16 >> 16 & Math.imul(a[2], 4) << 16 >> 16) << 16 >> 16 << 4 << 16 >> 16) - a[2] << 16 >> 16, ((a[3] + 4 << 16 >> 16 & Math.imul(a[3], 4) << 16 >> 16) << 16 >> 16 << 4 << 16 >> 16) - a[3] << 16 >> 16];
+}
+
+function widths(narrow, middle) {
+  return [(narrow[0] | narrow[0] << narrow[0] & 255) & 255, (narrow[1] | narrow[1] << narrow[1] & 255) & 255, (narrow[2] | narrow[2] << narrow[2] & 255) & 255, (narrow[3] | narrow[3] << narrow[3] & 255) & 255];
+}
+
+function widening(v) {
+  return [v[0] | 0, v[1] | 0, v[2] | 0, v[3] | 0];
+}
+
+function narrowing(v) {
+  return [v[0] << 16 >> 16, v[1] << 16 >> 16, v[2] << 16 >> 16, v[3] << 16 >> 16];
+}
+
+function reinterpreting(v) {
+  return [Math.fround($bc$i2f(v[0])), Math.fround($bc$i2f(v[1])), Math.fround($bc$i2f(v[2])), Math.fround($bc$i2f(v[3]))];
+}
+
+function aliases(v) {
+  return v;
+}
+
+function main$() {
+  sink = [0, 0, 0, 0];
+  var widened = widening(arithmetic([0, 0, 0, 0]));
+  var back = narrowing(widened);
+  var bits = aliases(reinterpreting(widened));
+  var narrow = widths([1, 1, 1, 1], [2, 2]);
+  var v18$0 = $bc$f2i(bits[0]) | 0;
+  var v18$1 = $bc$f2i(bits[1]) | 0;
+  var v18$2 = $bc$f2i(bits[2]) | 0;
+  var v18$3 = $bc$f2i(bits[3]) | 0;
+  sink = [((back[0] ^ v18$0 << 16 >> 16) << 16 >> 16 ^ narrow[0] << 16 >> 16) << 16 >> 16, ((back[1] ^ v18$1 << 16 >> 16) << 16 >> 16 ^ narrow[1] << 16 >> 16) << 16 >> 16, ((back[2] ^ v18$2 << 16 >> 16) << 16 >> 16 ^ narrow[2] << 16 >> 16) << 16 >> 16, ((back[3] ^ v18$3 << 16 >> 16) << 16 >> 16 ^ narrow[3] << 16 >> 16) << 16 >> 16];
+  return 1;
+}
+
+// a float's bits, which no host operator reaches - see codegen/js/inst.cpp
+const $bcf = new Float32Array(1);
+const $bci = new Int32Array($bcf.buffer);
+
+function $bc$f2i(v) {
+  $bcf[0] = v;
+  return $bci[0];
+}
+
+function $bc$i2f(v) {
+  $bci[0] = v;
+  return $bcf[0];
+}
+main$();

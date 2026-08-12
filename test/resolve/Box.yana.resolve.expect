@@ -8,9 +8,14 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: I64 = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
 }
 
 fn +=(Int)(%target: Int, %amount: Int) -> () {
@@ -21,17 +26,13 @@ fn +=(Int)(%target: Int, %amount: Int) -> () {
     ret
 }
 
-fn teardown$none(%value: %()) -> () {
-  b0:
-    ret
-}
-
 fn initHeap() -> () {
   b0:
-    %region = call mapMemory, 4194304 : %U8
-    %v2 = bitcast %region : Long
-    %v4 = cmp_eq %v2, 0 : Bool
-    je %v4, b1, b2
+    %v2 = add 4194304, 4096 : I64
+    %region = call mapMemory, %v2 : %U8
+    %v4 = bitcast %region : Long
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b1, b2
 
   b1:
     ret
@@ -42,18 +43,18 @@ fn initHeap() -> () {
   b3:
     %table = mul 32, 8 : I64
     setmemory %region, 0, %table
-    %v14 = bitcast %region : %%U8
-    assign heapFree, %v14
-    %v16 = strideof U8 : I64
-    %v17 = mul %table, %v16 : I64
-    %v18 = add %region, %v17 : %U8
-    assign heapNext, %v18
-    %v21 = strideof U8 : I64
-    %v22 = mul 4194304, %v21 : I64
-    %v23 = add %region, %v22 : %U8
-    assign heapLimit, %v23
-    %v27 = add 4194304, 4194304 : I64
-    assign heapRegionNext, %v27
+    %v16 = bitcast %region : %%U8
+    assign heapFree, %v16
+    %v18 = strideof U8 : I64
+    %v19 = mul %table, %v18 : I64
+    %v20 = add %region, %v19 : %U8
+    assign heapNext, %v20
+    %v23 = strideof U8 : I64
+    %v24 = mul 4194304, %v23 : I64
+    %v25 = add %region, %v24 : %U8
+    assign heapLimit, %v25
+    %v29 = add 4194304, 4194304 : I64
+    assign heapRegionNext, %v29
     ret
 }
 
@@ -75,17 +76,18 @@ fn growHeap(%needed: I64) -> Bool {
 
   b3:
     %v10 = load %size : I64
-    %v11 = call mapMemory, %v10 : %U8
+    %v12 = add %v10, 4096 : I64
+    %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
-    init %region, %v11
-    %v14 = load %region : %U8
-    %v15 = bitcast %v14 : Long
-    %v17 = cmp_eq %v15, 0 : Bool
-    je %v17, b4, b5
+    init %region, %v13
+    %v16 = load %region : %U8
+    %v17 = bitcast %v16 : Long
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b4, b5
 
   b4:
-    %v20 = cmp_gt %needed, 4194304 : Bool
-    je %v20, b6, b7
+    %v22 = cmp_gt %needed, 4194304 : Bool
+    je %v22, b6, b7
 
   b5:
     jmp b15
@@ -98,9 +100,9 @@ fn growHeap(%needed: I64) -> Bool {
 
   b8:
     %least = phi [b6, %needed], [b7, 4194304] : I64
-    %v26 = load %size : I64
-    %v27 = cmp_ge %least, %v26 : Bool
-    je %v27, b9, b10
+    %v28 = load %size : I64
+    %v29 = cmp_ge %least, %v28 : Bool
+    je %v29, b9, b10
 
   b9:
     ret False
@@ -110,13 +112,14 @@ fn growHeap(%needed: I64) -> Bool {
 
   b11:
     assign %size, %least
-    %v33 = load %size : I64
-    %v34 = call mapMemory, %v33 : %U8
-    assign %region, %v34
-    %v36 = load %region : %U8
-    %v37 = bitcast %v36 : Long
-    %v39 = cmp_eq %v37, 0 : Bool
-    je %v39, b12, b13
+    %v35 = load %size : I64
+    %v37 = add %v35, 4096 : I64
+    %v38 = call mapMemory, %v37 : %U8
+    assign %region, %v38
+    %v40 = load %region : %U8
+    %v41 = bitcast %v40 : Long
+    %v43 = cmp_eq %v41, 0 : Bool
+    je %v43, b12, b13
 
   b12:
     ret False
@@ -128,18 +131,18 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b15
 
   b15:
-    %v46 = load %region : %U8
-    assign heapNext, %v46
-    %v48 = load %region : %U8
-    %v49 = load %size : I64
-    %v50 = strideof U8 : I64
-    %v51 = mul %v49, %v50 : I64
-    %v52 = add %v48, %v51 : %U8
-    assign heapLimit, %v52
-    %v54 = load %size : I64
-    %v55 = load %size : I64
-    %v56 = add %v54, %v55 : I64
-    assign heapRegionNext, %v56
+    %v50 = load %region : %U8
+    assign heapNext, %v50
+    %v52 = load %region : %U8
+    %v53 = load %size : I64
+    %v54 = strideof U8 : I64
+    %v55 = mul %v53, %v54 : I64
+    %v56 = add %v52, %v55 : %U8
+    assign heapLimit, %v56
+    %v58 = load %size : I64
+    %v59 = load %size : I64
+    %v60 = add %v58, %v59 : I64
+    assign heapRegionNext, %v60
     ret True
 }
 
@@ -412,7 +415,7 @@ fn pinnedValue() -> Int {
     ret %v23
 }
 
-fn levelIn(%c: Config, %body: (value: Int) -> $r) -> $r {
+fn levelIn(%c: Config, %body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -439,8 +442,8 @@ fn throughLens() -> Int {
     %v13 = borrow_mut %c : &mut Config
     init %local3.c, %v13
     %v15 = addressof %local3 : %()
-    %v16 = alloc : (value: Int) -> Int
-    %v17 = symbol ResolveTest.continuation$0 : %()
+    %v16 = alloc : (value$: Int) -> Int
+    %v17 = symbol ResolveTest.continuation$14 : %()
     init %local4.code, %v17
     init %local4.env, %v15
     %v20 = call levelIn(Int), %v11, %v16 : Int
@@ -486,17 +489,17 @@ fn main() -> Int {
     ret %v22
 }
 
-fn ResolveTest.continuation$0(%env: %{c: &mut Config}, %value: Int) -> Int {
+fn ResolveTest.continuation$14(%env: %{c: &mut Config}, %value$: Int) -> Int {
   b0:
     %v2 = load [%env].c : &mut Config
     %v3 = load [%v2] : Config
     %v4 = load [%v2]@Config.cold.* : Diagnostics
     %v5 = load [%v2]@Config.cold.*@Diagnostics.count : Int
-    %v6 = add %value, %v5 : Int
+    %v6 = add %value$, %v5 : Int
     ret %v6
 }
 
-fn levelIn(Int)(%c: Config, %body: (value: Int) -> Int) -> Int {
+fn levelIn(Int)(%c: Config, %body: (value$: Int) -> Int) -> Int {
   b0:
     %v2 = load %c@Config.cold.* : Diagnostics
     %v3 = load %c@Config.cold.*@Diagnostics.level : Int

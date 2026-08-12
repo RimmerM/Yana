@@ -27,6 +27,10 @@ static GlobalPtr<GenType> findGen(GlobalBase global, GenEnv* env, StringId name)
     return nullptr;
 }
 
+GlobalPtr<GenType> findGenVariable(Module& module, GenEnv& env, StringId name) {
+    return findGen(*module.types, &env, name);
+}
+
 GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name, LocationId source) {
     auto global = *module.types;
     if(auto existing = findGen(global, &env, name)) return existing;
@@ -68,6 +72,11 @@ GenSchema& genSchemaOf(Module& module, GenEnv& env) {
     //    needed. Both are TypeDesc slots and are numbered together, because what distinguishes them
     //    is where they came from rather than what a reader does with them.
     for(auto variable: env.types.contents(global)) {
+        // A const parameter is a variable of this context and is *not* a type descriptor: what it
+        // stands for is a number. It is numbered in group 2 below, which is what keeps both
+        // fixed-width groups a prefix - Implementation-Const-Generics.md §3.1.
+        if(global[variable]->kind == GenKind::Const) continue;
+
         GenSlot slot;
         slot.kind = GenSlotKind::Type;
         slot.index = index++;
@@ -89,7 +98,28 @@ GenSchema& genSchemaOf(Module& module, GenEnv& env) {
 
     schema->typeCount = index;
 
-    // 2. The class constraints, declared ones and inferred ones alike. By the time anything reads
+    /*
+     * 2. The const parameters, in declaration order.
+     *
+     * One integer each and nothing to point at, which is why they sit here rather than among the
+     * witnesses: `typeCount` exists so that everything else indexes off it, and a second fixed-width
+     * group beside it keeps that true of a caller filling an environment as well as of a reader.
+     */
+    for(auto variable: env.types.contents(global)) {
+        if(global[variable]->kind != GenKind::Const) continue;
+
+        GenSlot slot;
+        slot.kind = GenSlotKind::Const;
+        slot.index = index++;
+        slot.type = (Type*)global[variable] - global;
+        slot.name = global[variable]->name;
+        slot.result = global[variable]->constType;
+        schema->slots.push(module.types, slot);
+    }
+
+    schema->constCount = U16(index - schema->typeCount);
+
+    // 3. The class constraints, declared ones and inferred ones alike. By the time anything reads
     //    the numbering the two are the same entry, which is the point of recording them in one list.
     for(auto constraint: env.classes.contents(global)) {
         if(!constraint.typeClass) continue;
@@ -147,6 +177,17 @@ U16 genTypeSlot(Module& module, GenEnv& env, TypePtr type) {
 
     for(auto slot: schema.slots.contents(global)) {
         if(slot.kind == GenSlotKind::Type && slot.type == type) return slot.index;
+    }
+
+    return maxLimit<U16>;
+}
+
+U16 genConstSlot(Module& module, GenEnv& env, TypePtr variable) {
+    auto global = *module.types;
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind == GenSlotKind::Const && slot.type == variable) return slot.index;
     }
 
     return maxLimit<U16>;

@@ -1,5 +1,6 @@
 #include "core.h"
 #include "intrinsic.h"
+#include "simd.h"
 #include "name.h"
 #include "generic.h"
 #include "witness.h"
@@ -481,6 +482,181 @@ pub class Bitcast(a, b):
 -}
 pub fn swap(&left: a, &right: a) -> {}
 pub fn exchange(&slot: a, ->value: a) -> a
+
+{-
+   Building a vector, reading one lane of it, and folding one down to a scalar.
+
+   The part of Design-Vector §3.3 that has to exist before anything else about vectors can be
+   written at all: `Vec(a)` is a type a program can name from stage 1 onward, and until there is a
+   `splat` there is no way to *make* one, so every backend below the resolver had to be tested from
+   hand-written IR. These seven are what close that, and they are the smallest set that does -
+   construction, one lane in each direction, and the four reductions.
+
+   Generic intrinsics with no bodies, like `swap` above: there is one operation per lane type, so
+   there is nothing to generate until a call says which, and `expandIntrinsic` generates it where it
+   is called. None of them is ever a call in the IR.
+
+   `index` is a compile-time constant and the expansion says so - Design-Vector §3.3, and the reason
+   is that a runtime lane index is `pshufb` on x86 and does not exist at all on some targets.
+
+   The count is a const parameter wherever an *argument* supplies it - Implementation-Const-Generics.md
+   §5's first row, and Implementation-Vector.md §9.3's gap closed. `Vec(a)` in a parameter is the
+   target's natural width and nothing else, so `lane(v, 0)` on a `Vec(I16, 4)` had no overload at all
+   on a target whose natural count is eight. `splat`, `zero` and `iota` keep the natural form: what
+   decides their count is the *result*, and a const parameter there would be one nothing supplies.
+-}
+pub fn splat(value: a) -> Vec(a)
+pub fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a
+pub fn (n: Int) withLane(vector: Vec(a, n), index: Int, value: a) -> Vec(a, n)
+
+{-
+   The reductions, whose *order* is a stated language property rather than an implementation detail -
+   Design-Vector §4.5. Each of these is the adjacent-pair tree `(a0+a1) + (a2+a3)`, on every target,
+   which is what keeps a float sum from answering different bits under two vector widths of one
+   backend or under two backends of one width.
+-}
+pub fn (n: Int) horizontalSum(vector: Vec(a, n)) -> a
+pub fn (n: Int) horizontalProduct(vector: Vec(a, n)) -> a
+pub fn (n: Int) horizontalMin(vector: Vec(a, n)) -> a
+pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
+
+{-
+   The rest of the portable set - Design-Vector §3.3.
+
+   `lanes` is the one that is not an instruction: it answers a number the *type* already carries, so
+   the expansion is a constant and there is nothing left of the call. `zero` and `iota` take no
+   argument at all and are selected by what the result is asked to be, which is the ordinary
+   return-type selection `truncate(x) :: U8` uses.
+
+   `min` and `max` are here rather than in `Ord` for the reason `Eq` and `Ord` have no vector
+   instances: they are lanewise, they answer a vector, and the class that would relate them to a
+   scalar comparison answers a `Bool`. `abs` is the same family - the value with its sign removed,
+   per lane.
+
+   The rearrangements take their pattern from the *declaration* and not from an argument, which is
+   what keeps them portable: a runtime shuffle is `pshufb` on x86 and does not exist at all on some
+   targets, so a pattern this resolver cannot read is not expressible rather than slow. `rotate`'s
+   distance is therefore a constant, checked where it is written.
+-}
+pub fn zero() -> Vec(a)
+pub fn iota() -> Vec(a)
+pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
+
+pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+pub fn (n: Int) max(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
+
+{-
+   The square root and the fused multiply-add, which are the two operations in the portable set that
+   needed an instruction of their own rather than an arrangement of the ones that were here.
+
+   **One declaration each, over an unconstrained `a`, and it covers the scalar and the vector both.**
+   Nothing in this language had a square root at any width, so what §3.3 asks for over lanes is the
+   thing a scalar wanted all along - and `sqrt(x)` on a `Double` and `sqrt(v)` on a `Vec(Float)` are
+   the same instruction over two types rather than two functions. The intrinsic reads which it was
+   handed; the signature does not have to say, and a second declaration is not expressible anyway,
+   one function per name per module being a hard limit.
+
+   `a` is unconstrained rather than bounded by a class, because the class that would bound it does
+   not exist: there is no `Float(a)` relating a float to a vector of floats, and inventing one to
+   carry a fact the compiler can read off the type would be a class per operation. What holds the
+   argument to a float instead is the intrinsic's own diagnostic, at the call, naming the type.
+
+   `fma` is `a * b + c` with **at most one rounding**, which is what makes it a function rather than
+   two operators. Design-Vector §3.3 rules that it *may* fuse: a target with a fused instruction
+   gives one rounding, a target without gives two, and a program that must not fuse writes
+   `a * b + c` and gets two everywhere. Both answers are correct and the difference is observable,
+   which is why the permission is stated rather than assumed.
+
+   Floating lanes only, on both. A square root of an integer is a question about rounding no machine
+   answers, and a fused multiply-add of two is the ordinary pair with nothing fused about it - so
+   each is refused at its call with a diagnostic naming the type rather than silently truncating.
+-}
+pub fn sqrt(value: a) -> a
+pub fn fma(lhs: a, rhs: a, addend: a) -> a
+
+{-
+   The conversions that change the lane *count*. The ones that keep it are `Widen`, `Narrow` and
+   `Bitcast` over vector types and are not functions at all - Design-Vector §3.4.
+
+   Each is a shuffle and a cast, which is what the verifier's refusal of a lane-count-changing `Cast`
+   already said one is. What decides the result is the *call*, since nothing in the argument does:
+   `unpackLow(v) :: Vec(I32)` is how one is written, and asking for a shape that is not half and whole
+   of one width is reported at the call.
+-}
+pub fn unpackLow(vector: Vec(a)) -> Vec(b)
+pub fn unpackHigh(vector: Vec(a)) -> Vec(b)
+pub fn packLanes(lhs: Vec(a), rhs: Vec(a)) -> Vec(b)
+
+pub fn (n: Int) reverse(vector: Vec(a, n)) -> Vec(a, n)
+pub fn (n: Int) rotate(vector: Vec(a, n), by: Int) -> Vec(a, n)
+pub fn (n: Int) interleaveLow(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+pub fn (n: Int) interleaveHigh(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+
+{-
+   Comparing lanes, and choosing between two vectors by the answer - Design-Vector §3.2.
+
+   A class rather than six functions, and the functional dependency `v -> m` is what earns it: `a .<
+   b` has to infer its own result without an ascription, and one vector shape has exactly one mask
+   shape. It is the same machinery `class Chunked(c -> a)` rides on.
+
+   The dotted spellings are borrowed from Fortran and Julia and are ordinary declarable operators
+   here - a symbol run beginning with `.` lexes as one operator, so nothing in the parser changes.
+   They sit at the precedence of the comparisons they mirror, which is what makes `a .< b `and` c .<
+   d` group the way `a < b and c < d` does.
+
+   `select` is in the class rather than beside it because it is the only operation that relates a
+   mask back to the vector it came from, and a class keyed on the pair is where that relation lives.
+-}
+infixl 3 .==
+infixl 3 .!=
+infixl 3 .<
+infixl 3 .<=
+infixl 3 .>
+infixl 3 .>=
+
+pub class Lanewise(v -> m):
+  fn .==(lhs: v, rhs: v) -> m
+  fn .!=(lhs: v, rhs: v) -> m
+  fn .<(lhs: v, rhs: v) -> m
+  fn .<=(lhs: v, rhs: v) -> m
+  fn .>(lhs: v, rhs: v) -> m
+  fn .>=(lhs: v, rhs: v) -> m
+  fn select(mask: m, ifTrue: v, ifFalse: v) -> v
+
+{-
+   Reading a mask - Design-Vector §3.2.
+
+   `firstSet` is the one that makes a search loop terminate correctly, and it is why this family is
+   portable rather than left to a platform module: without it, "which lane matched" is a `movemask`
+   and a bit scan on one target and something else everywhere else. It answers the lane count when
+   nothing is set, so `firstSet(m)` indexes a chunk without a preceding `any`.
+
+   Masks get `and`, `or`, `xor` and `not` from `Logic`, whose instance simd.cpp generates - so the
+   combining of two masks is written the way the combining of two conditions is.
+-}
+pub fn any(mask: Mask(a)) -> Bool
+pub fn all(mask: Mask(a)) -> Bool
+pub fn none(mask: Mask(a)) -> Bool
+pub fn count(mask: Mask(a)) -> Int
+pub fn firstSet(mask: Mask(a)) -> Int
+
+{-
+   The first `count` lanes set and the rest clear - the tail mask, and the one operation in this
+   family that is about a *length* rather than about a comparison somebody wrote.
+
+   It is here rather than left to `iota() .< splat(count)` for a reason that is not brevity: written
+   that way the count has to reach the lane type, and a lane narrower than an `Int` cannot be handed
+   one. `Vec(I16)`'s tail mask is not expressible in source at all, and every wider one is expressible
+   only because the conversion happens to widen. The count is a lane *index*, bounded by the lane
+   count and so by 64, so what the conversion means is settled - which is exactly the kind of fact a
+   signature cannot carry and an intrinsic can.
+
+   Design-Vector §4.4 asks for this to be a load from a `.rodata` table indexed by the count, on the
+   grounds that a short chunk has no full-width iterations to amortize a computed mask against. It is
+   the comparison today; the table is a change behind this name and nothing that calls it moves.
+-}
+pub fn maskUpTo(count: Int) -> Mask(a)
 )CORE";
 
 /*
@@ -833,10 +1009,59 @@ void defineCore(Program& program) {
     program.scalar.unsignedSize = isJsMode(context.settings.mode) ? coreType(*module, "U32"_v)
                                                                   : coreType(*module, "U64"_v);
 
+    /*
+     * `CodeUnit` - one unit of a string's native encoding, target-selected exactly as `Size` is -
+     * Implementation-Vector.md §9 item 8, Design-Vector §4.6.
+     *
+     * A UTF-8 byte natively and a UTF-16 unit on JS, which is the same split
+     * Implementation-String.md part 3 already makes for `length`: what is uniform across targets is
+     * the *complexity class* of an operation over units, not the number of them. A program that
+     * names this type is saying "the encoding's own unit", which is what the ASCII scanning family
+     * takes and what a `Chunked(String, CodeUnit)` yields - and an ASCII value means the same thing
+     * in both, which is the self-synchronizing property that whole family rests on.
+     */
+    auto unitType = isJsMode(context.settings.mode) ? coreType(*module, "U16"_v) : coreType(*module, "U8"_v);
+    module->namedTypes.add(context.addQualifiedName("CodeUnit", 8, 1), unitType);
+
+    /*
+     * `F32` and `F64` - Implementation-Vector.md §9 item 1.
+     *
+     * Names for `Float` and `Double` and nothing else, on exactly the terms `Size` is a name for
+     * `I64`: no type, no instances, no conversion to or from what they are. What they buy is that a
+     * signature which names widths can name all of them the same way - `Vec(F32)` beside `Vec(I32)`
+     * reads as one family where `Vec(Float)` beside `Vec(I32)` reads as two - and vector code is
+     * where that comes up, because a lane width is the thing being said.
+     */
+    module->namedTypes.add(context.addQualifiedName("F32", 3, 1), program.scalar.float_);
+    module->namedTypes.add(context.addQualifiedName("F64", 3, 1), program.scalar.double_);
+
+    /*
+     * The vector constructors - Design-Vector §2, Implementation-Vector.md §1.4.
+     *
+     * Two interned names and no declarations, because there is nothing for a declaration to say: a
+     * `Vec(Float)` is four lanes or eight depending on the target, so what it *is* comes from
+     * `targetVectorBytes` rather than from a body. `resolveApp` recognizes the names; see
+     * Program::vecTypeName for what reserving them costs.
+     *
+     * The unsigned family beside them is what a mask's element is normalized to, which is how
+     * `Mask(Float)` and `Mask(I32)` become one interned type (§2.4).
+     */
+    program.vecTypeName = context.addQualifiedName("Vec", 3, 1);
+    program.maskTypeName = context.addQualifiedName("Mask", 4, 1);
+
+    program.scalar.unsignedLanes[0] = coreType(*module, "U8"_v);
+    program.scalar.unsignedLanes[1] = coreType(*module, "U16"_v);
+    program.scalar.unsignedLanes[2] = coreType(*module, "U32"_v);
+    program.scalar.unsignedLanes[3] = coreType(*module, "U64"_v);
+
     resolveModuleDecls(*module, *ast, nullptr);
 
     attachIntrinsic(*module, "swap"_v, emitSwap);
     attachIntrinsic(*module, "exchange"_v, emitExchange);
+
+    // The portable vector set, whose declarations are in the source above and whose expansions are
+    // simd.cpp's - Design-Vector §3.3.
+    defineVectorIntrinsics(*module);
 
     program.scalar.bool_ = coreType(*module, "Bool"_v);
     program.scalar.ordering = coreType(*module, "Ordering"_v);
@@ -863,6 +1088,18 @@ void defineCore(Program& program) {
 
     defineIntegral(*module, program.scalar.int_);
     defineIntegral(*module, program.scalar.long_);
+
+    /*
+     * The same instances over the vector of each are **not** here - simd.cpp generates them where
+     * they are asked for, and simd.h says why.
+     *
+     * The short of it: this loop is what Implementation-Vector.md §9 item 1 describes, and it worked
+     * for the four natural-width vectors it covered. Item 1's remaining half is every lane type at
+     * every lane count and item 2 is the conversion ladder over the *pairs* of those, which is about
+     * seven hundred instances - carried by every program in the language, in an IR arena that holds
+     * a program of one to two thousand functions. Generating one when a head is asked for and not
+     * before is the same rules at a cost the language can pay.
+     */
 
     defineEq(*module, program.scalar.bool_);
     defineLogic(*module, program.scalar.bool_);
@@ -936,6 +1173,15 @@ void defineCore(Program& program) {
     program.coreClasses.drop = classNamed(*module, "Drop"_v);
     program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
     program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
+
+    // The five a vector joins on demand, for the reason CoreClasses gives: no instance of any of
+    // them over a vector is declared anywhere, so "could a vector join this" is asked at every
+    // instance lookup that finds nothing and must not be a string lookup.
+    program.coreClasses.num = classNamed(*module, "Num"_v);
+    program.coreClasses.integral = classNamed(*module, "Integral"_v);
+    program.coreClasses.logic = classNamed(*module, "Logic"_v);
+    program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
+    program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
 
     // The exit signal's carrier. Its constructors are found by name rather than assumed to be
     // declared in this order, since the order is a detail of the source above and this is emitted
@@ -1313,6 +1559,284 @@ instance Chunked(Flat(a), a):
     iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
 
 {-
+   Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a
+   way to read a vector out of a `Flat(a)`", which is what the iteration protocol below is built on.
+
+   Core's portable set deliberately has no load in it: `splat`, `lane` and the rearrangements are
+   operations on a value, and where a value comes *from* is a question about storage. So these three
+   are the crossing, and they are here rather than in `Native` because the type they take is what
+   makes them safe: a `Flat(a)` is a window into storage the language allocated, and §5.2 of
+   Design-Vector is what says such storage is padded. A raw address promises nothing, which is why
+   `Native.vectorPast` takes one and this does not.
+
+   Two implementations and one signature, which is the split every container operation here already
+   has. Natively a vector transfer is one instruction at an address; on JS it is `lanes` element
+   accesses, because a vector on that target *is* `lanes` values (Design-Vector §7.2).
+
+   `loadVectorTail` is the one place the two targets differ in what they *mean* rather than in how
+   they spell it. Natively it overreads - it loads a whole vector from `at`, reading up to a vector's
+   width past the end of the object, which §8's guarantee says is safe and which is the whole reason
+   that guarantee exists. On JS there is no such guarantee to have and a read past the end of a host
+   array is `undefined` rather than an unspecified byte, so the lanes past the end repeat the last
+   element instead. Both are values the caller is about to mask off; neither is a number that could
+   poison an accumulator before it does.
+-}
+@platform(native) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = vectorAt(from.items + at)
+@platform(js) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = hostVector(from.items, from.offset + at)
+
+@platform(native) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) = vectorPast(from.items + at)
+@platform(js) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) =
+    hostVectorUpTo(from.items, from.offset + at, from.offset + from.length - 1)
+
+@platform(native) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} = setVectorAt(to.items + at, value)
+@platform(js) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} =
+    hostSetVector(to.items, to.offset + at, value)
+
+{-
+   The iteration protocol - Design-Vector §4.1, Implementation-Vector.md §9 item 5.
+
+   This is what the whole vector design is for: a loop written over `vectors(xs)` is one loop, it
+   reads every element of the container exactly once, and the last iteration over each chunk is the
+   same body as the others rather than a scalar epilogue somebody had to remember to write.
+
+   Over `Chunked` and not `Contiguous`, per Design-Vector §4.1: a contiguous container yields one
+   chunk and the outer loop folds away, so the general formulation costs the common case nothing,
+   while a deque or a rope reaches full speed inside each of its runs.
+
+   **`vectors` forces the identity into the lanes past the end.** It is not `vectorsMasked` with the
+   mask thrown away, and this is a ruling rather than a convenience - §4.4 of the design says a body
+   handles the padding lanes "by selecting the identity into the masked-off lanes before
+   accumulating", which the *body* cannot do, because it is the mask that says which lanes those are
+   and this is the iterator that does not hand one over. Zero is the identity for `+`, `-`, `|` and
+   `^`; a body accumulating with `*`, `min` or `max` writes `vectorsMasked` and forces its own. The
+   cost is one `select` per chunk tail and nothing in the full-width iterations, where the mask is
+   all-set and the select folds to its own operand.
+
+   The live count travels as an `Int` rather than as the `Mask(a)` it stands for, which is a choice
+   and not a limitation - a mask may be held in memory since §9.9. One integer against sixteen to
+   sixty-four bytes, `maskUpTo(live)` folds to all-set on every full-width iteration, and §4.4 wants
+   the tail mask read out of a table indexed by exactly this number.
+
+   Native only for now, and the reason is not vectors: an `iter fn` that yields from inside a `for`
+   captures the continuation it was handed, and a reference to a function value the JS backend
+   flattened into two variables has no object to name. Every adaptor in the language has that gap.
+-}
+pub iter fn (Chunked(c, a)) vectorsMasked(self: c) -> {Vec(a), Int}:
+    let width = lanes(zero() :: Vec(a))
+
+    for chunk in chunks(self):
+        let n = truncate(length(chunk)) :: Int
+        let &i = 0 :: Int
+
+        while i + width <= n:
+            yield {loadVector(chunk, i :: Size), width}
+            i = i + width
+
+        if i < n:
+            yield {loadVectorTail(chunk, i :: Size), n - i}
+
+pub iter fn (Chunked(c, a)) vectors(self: c) -> Vec(a):
+    let empty = zero() :: Vec(a)
+    let width = lanes(empty)
+
+    for chunk in chunks(self):
+        let n = truncate(length(chunk)) :: Int
+        let &i = 0 :: Int
+
+        while i + width <= n:
+            yield loadVector(chunk, i :: Size)
+            i = i + width
+
+        if i < n:
+            let live = maskUpTo(n - i) :: Mask(a)
+            yield select(live, loadVectorTail(chunk, i :: Size), empty)
+
+{-
+   The bulk operations - Implementation-Vector.md §9 items 6 and 7, Design-Vector §4.3.
+
+   This is where "idiomatic code is fast code" is delivered. `sum(xs)` over a container of a lane
+   type is a vector loop; over a container of anything else it is the loop it always was; and the
+   program that wrote it said neither. Every one of them is over `Chunked`, so every container in the
+   language has them, and none of them mentions a vector in its signature.
+
+   **Each is one declaration with no body and two implementations.** The declaration is the
+   intrinsic: `expandBulk` in the compiler picks the pair by asking whether the element has a vector
+   *on this target*, which is a question about the lane's stride and the target's register width and
+   so is not a question a constraint could carry. The two implementations below are ordinary source
+   and are the whole of what runs.
+
+   The vector halves are written over `vectors` and `vectorsMasked` rather than over `loadVector`,
+   which is what makes them four lines each: the protocol already walks the chunks, reads the tail
+   under a mask and folds to one loop for a contiguous container. Which of the two an operation takes
+   is decided by its identity - `+` and the counting ones take `vectors`, because the lanes past the
+   end contribute zero; `*`, `min` and `max` take `vectorsMasked` and force their own, because zero
+   is not the identity of any of them.
+
+   `maximum` and `minimum` take the answer for an empty container as an argument rather than
+   answering a `Maybe`. It is what a fold over a container of borrows can promise without copying an
+   element out of one, and it is what the vector half wants anyway: the seed is what the accumulator
+   is splatted from and what the masked-off lanes hold.
+-}
+pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a
+pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a
+pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int
+pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size)
+
+-- Reached through `indexOf`, so it is one function rather than a seventh pair. A search that stops
+-- at the first hit is what both halves of that one already are.
+pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, wanted) is Just(_)
+
+fn (Chunked(c, a), Num(a), Num(Vec(a))) sumVectors(xs: c) -> a:
+    let &acc = zero() :: Vec(a)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
+    let &acc = 0 :: a
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            acc = acc + chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
+    let ones = splat(1 :: a)
+    let &acc = ones
+
+    for {v, live} in vectorsMasked(xs):
+        acc = acc * select(maskUpTo(live) :: Mask(a), v, ones)
+
+    return horizontalProduct(acc)
+
+fn (Chunked(c, a), Num(a)) productElements(xs: c) -> a:
+    let &acc = 1 :: a
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            acc = acc * chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumVectors(xs: c, ifEmpty: a) -> a:
+    let &acc = splat(ifEmpty)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMax(acc)
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) -> a:
+    let &acc = ifEmpty
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] > acc then acc = chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumVectors(xs: c, ifEmpty: a) -> a:
+    let &acc = splat(ifEmpty)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = min(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMin(acc)
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) -> a:
+    let &acc = ifEmpty
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] < acc then acc = chunk[i]
+            i = i + 1
+
+    return acc
+
+{-
+   Counting, where the mask is the answer rather than something applied to one: `count` on a mask is
+   how many lanes hold, and the lanes past the end of a chunk hold nothing because `vectors` has
+   already selected the identity into them - and the identity of a comparison against `wanted` is
+   whatever `wanted` is not. That is not something this can rely on, so the masked form is what it
+   takes and the live mask is what it counts against.
+-}
+fn (Chunked(c, a), Eq(a), Logic(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
+    let sought = splat(wanted)
+    let &total = 0
+
+    for {v, live} in vectorsMasked(xs):
+        total = total + count(and(v .== sought, maskUpTo(live) :: Mask(a)))
+
+    return total
+
+fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
+    let &total = 0
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] == wanted then total = total + 1
+            i = i + 1
+
+    return total
+
+{-
+   The search, and the one operation here that leaves its loop early.
+
+   `firstSet` is what makes the vector half a search rather than a scan: it answers the lowest set
+   lane of a mask in three instructions and with no branch, so the iteration that found the element
+   is also the one that says where in it - and the running count of live lanes is the position of the
+   vector, which is exactly what `vectorsMasked` hands over beside it.
+-}
+fn (Chunked(c, a), Eq(a), Logic(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
+    let sought = splat(wanted)
+    let &at = 0
+
+    for {v, live} in vectorsMasked(xs):
+        let hits = and(v .== sought, maskUpTo(live) :: Mask(a))
+        if any(hits) then return Just((at + firstSet(hits)) :: Size)
+        at = at + live
+
+    return Nothing
+
+fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
+    let &at = 0 :: Size
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] == wanted then return Just(at + i)
+            i = i + 1
+
+        at = at + n
+
+    return Nothing
+
+{-
    Subscripting the owner - Core's `Index`.
 
    A second instance rather than the conversion alone, and the reason is generic code. `xs[i]`
@@ -1516,6 +2040,12 @@ void defineCollections(Program& program) {
     auto name = context.addQualifiedName("Collections", 11, 1);
     Lexer lexer(context, context.diagnostics, StringView { kCollectionsSource, stringLength(kCollectionsSource) }, name);
     Parser parser(context, lexer, name);
+
+    // A declaration with no body, which this module has since the bulk operations landed: what a
+    // call to one expands to is chosen by the compiler from the two implementations beside it. Core
+    // and Native have said this since they were written, and for the same reason.
+    parser.allowSignatures = true;
+
     auto ast = new ast::Module(parser.parseModule());
 
     auto module = program.addModule(ast->name, *ast->region);
@@ -1575,6 +2105,10 @@ void defineCollections(Program& program) {
     // After `arrayType` above, and before this module's own bodies below - several of which
     // subscript, and would reach an instance that does not exist yet.
     defineContainerInstances(*module);
+
+    // The bulk operations, whose declarations above have no body: which of the two implementations
+    // beside each one a call takes is decided where the call is - see simd.cpp.
+    defineBulkOperations(*module);
 
     resolveModuleBodies(*module);
 }
@@ -2024,6 +2558,66 @@ fn formatBound(bound: Maybe(Size)) -> Size = match bound:
    constant that folds and `Show(String)`'s is a runtime value that does not, which is the property
    part 7 designed the `Maybe(Int)` shape for.
 -}
+
+{-
+   ==========================================================================================
+   The ASCII tier - Implementation-String.md part 5, Implementation-Vector.md §9 item 8.
+   ==========================================================================================
+
+   Scanning a string for one unit, at raw scan speed and with no decode step anywhere. It is correct
+   without any encoding-awareness because an ASCII unit is **self-synchronizing in both UTF-8 and
+   UTF-16**: a value below 0x80 never appears as part of the encoding of any other code point in
+   either. That is a real property of both encodings rather than something being leaned on loosely,
+   and it is what lets one signature over `CodeUnit` serve a byte scan natively and a UTF-16 scan on
+   JS.
+
+   **Natively these are the bulk operations over the string's own units**, which is the whole of what
+   `instance Chunked(String, CodeUnit)` below buys: `indexOf` over a `Chunked` container is already
+   the vector search - `firstSet` over a hit mask, sixteen units at a time - so the highest-value
+   item in the vector plan is spelled here as three calls to machinery that was built for containers.
+   A string is a container of code units, and saying so is what vectorizes it.
+
+   **On JS they are the host's own**, which Implementation-String.md part 5 rules is "legitimate,
+   encouraged" for exactly this family: searching for one fixed unit has no room for the cross-engine
+   disagreement the decoding tier has to worry about, and `String.prototype.indexOf` is C++ that no
+   `charCodeAt` loop this compiler emits will beat.
+
+   The decoding tier is untouched by all of this and stays scalar.
+-}
+@platform(native) instance Chunked(String, CodeUnit):
+    iter fn chunks(self: String) -> Flat(CodeUnit) = yield elements(stringData(self).bytes)
+
+-- Where the first `unit` is, in units of this target's own encoding, or `Nothing`. The index is a
+-- `Size` in that encoding and means what `stringUnit` means by one, which is the same number on both
+-- targets for ASCII content and deliberately not for anything else.
+@platform(native) pub fn findAscii(self: String, unit: CodeUnit) -> Maybe(Size) = indexOf(self, unit)
+
+@platform(js) pub fn findAscii(self: String, unit: CodeUnit) -> Maybe(Size):
+    let at = hostIndexOf(self, hostFromCharCode(unit :: Int), 0)
+    if at < 0 then return Nothing
+    return Just(at)
+
+-- Whether it is there at all, which is the search with its answer thrown away - one function on both
+-- targets, because the thing that differs is what `findAscii` is.
+pub fn containsAscii(self: String, unit: CodeUnit) -> Bool = findAscii(self, unit) is Just(_)
+
+-- How many there are. Natively one vector pass with a lane-wise compare and a mask count; on JS the
+-- host search stepped along, which is the same C++ scan restarted at each hit.
+@platform(native) pub fn countAscii(self: String, unit: CodeUnit) -> Int = occurrences(self, unit)
+
+@platform(js) pub fn countAscii(self: String, unit: CodeUnit) -> Int:
+    let needle = hostFromCharCode(unit :: Int)
+    let &total = 0
+    let &from = 0 :: Size
+
+    while from >= 0:
+        let at = hostIndexOf(self, needle, from)
+        if at < 0 then return total
+
+        total = total + 1
+        from = at + 1
+
+    return total
 )TEXT";
 
 void defineText(Program& program) {

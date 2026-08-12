@@ -1,0 +1,136 @@
+let image$base: () = <none>
+
+let &seed: Int = 3
+
+fn main() -> Int {
+  b0:
+    %v0 = load seed : Int
+    %base = vsplat %v0 : Vec(Int)
+    %high = vwithlane %base, 40, 5 : Vec(Int)
+    %v9 = vlane %high, 5 : Int
+    %v12 = cmp_ne %v9, 40 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v16 = neg 1 : Int
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = vlane %high, 4 : Int
+    %v24 = cmp_ne %v21, 3 : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v28 = neg 2 : Int
+    ret %v28
+
+  b5:
+    jmp b6
+
+  b6:
+    %v33 = vlane %high, 7 : Int
+    %v36 = cmp_ne %v33, 3 : Bool
+    je %v36, b7, b8
+
+  b7:
+    %v40 = neg 3 : Int
+    ret %v40
+
+  b8:
+    jmp b9
+
+  b9:
+    %v45 = vlane %high, 0 : Int
+    %v48 = cmp_ne %v45, 3 : Bool
+    je %v48, b10, b11
+
+  b10:
+    %v52 = neg 4 : Int
+    ret %v52
+
+  b11:
+    jmp b12
+
+  b12:
+    %low = vwithlane %high, 20, 1 : Vec(Int)
+    %v62 = vlane %low, 1 : Int
+    %v65 = cmp_ne %v62, 20 : Bool
+    je %v65, b13, b14
+
+  b13:
+    %v69 = neg 5 : Int
+    ret %v69
+
+  b14:
+    jmp b15
+
+  b15:
+    %v74 = vlane %low, 5 : Int
+    %v77 = cmp_ne %v74, 40 : Bool
+    je %v77, b16, b17
+
+  b16:
+    %v81 = neg 6 : Int
+    ret %v81
+
+  b17:
+    jmp b18
+
+  b18:
+    %v86 = vlane %low, 6 : Int
+    %v89 = cmp_ne %v86, 3 : Bool
+    je %v89, b19, b20
+
+  b19:
+    %v93 = neg 7 : Int
+    ret %v93
+
+  b20:
+    jmp b21
+
+  b21:
+    %v96 = vreduce_max %low : Int
+    %v99 = cmp_ne %v96, 40 : Bool
+    je %v99, b22, b23
+
+  b22:
+    %v103 = neg 8 : Int
+    ret %v103
+
+  b23:
+    jmp b24
+
+  b24:
+    %v106 = vreduce_min %low : Int
+    %v109 = cmp_ne %v106, 3 : Bool
+    je %v109, b25, b26
+
+  b25:
+    %v113 = neg 9 : Int
+    ret %v113
+
+  b26:
+    jmp b27
+
+  b27:
+    %v116 = vreduce_add %low : Int
+    %v119 = cmp_ne %v116, 78 : Bool
+    je %v119, b28, b29
+
+  b28:
+    %v123 = neg 10 : Int
+    ret %v123
+
+  b29:
+    jmp b30
+
+  b30:
+    %v128 = vlane %low, 5 : Int
+    %v131 = mul %v128, 10 : Int
+    %v134 = vlane %low, 1 : Int
+    %v135 = add %v131, %v134 : Int
+    ret %v135
+}

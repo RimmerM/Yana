@@ -1,0 +1,33 @@
+{-
+   What a written class constraint refuses - Implementation-Const-Generics.md §10.5.
+
+   A constraint's arguments are whole types now (§10.2), which is what makes `Num(Vec(I16, n))`
+   writable. The declaration is also the only place the three mistakes below can be named: a
+   constraint whose arity or whose argument kinds are wrong proves nothing rather than proving
+   something false, so nothing downstream ever reports it. `superclassPath` bails on a length
+   mismatch and `hasClassRequirement` never matches one, which is why an arity error used to be
+   accepted in silence and the body's calls then failed for a reason that named neither.
+-}
+
+import Native
+
+class Sized(c, n: Int):
+  fn sizeOf(xs: c) -> Int
+
+-- Arity, in both directions.
+fn (Num(a, b)) tooMany(x: a) -> Int = 1
+fn (Sized(c)) tooFew(xs: c) -> Int = 1
+
+-- A number where the class declared a type. The grammar accepts it - `parseTypeApplicationArg` is
+-- what an application's argument is - and resolve says which positions a number belongs in.
+fn (Num(4)) numberForType(x: a) -> Int = 1
+
+-- And a type where the class declared a count, which is the same rule from the other side.
+fn (Sized(c, Int)) typeForCount(xs: c) -> Int = 1
+
+-- An unknown class is one diagnostic and not two: §10.4 resolves the arguments of an open context's
+-- constraint even when the class is not found, so `a` is introduced and the signature below does not
+-- report it as well.
+fn (Missing(a)) unknownClass(x: a) -> Int = 1
+
+fn main() -> Int = 0

@@ -1,0 +1,80 @@
+let image$base: () = <none>
+
+fn pickByFloat(%a: Vec(Float), %b: Vec(Float), %x: Vec(Int), %y: Vec(Int)) -> Vec(Int) {
+  b0:
+    %v4 = cmp_lt %a, %b : Mask(Float)
+    %v5 = bitcast %v4 : Mask(Int)
+    %v6 = select %v5 ? %x : %y : Vec(Int)
+    ret %v6
+}
+
+fn pickByInt(%a: Vec(Int), %b: Vec(Int), %x: Vec(Float), %y: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v4 = cmp_lt %a, %b : Mask(Int)
+    %v5 = bitcast %v4 : Mask(Float)
+    %v6 = select %v5 ? %x : %y : Vec(Float)
+    ret %v6
+}
+
+fn maskedTotal(%v: Vec(Int), %limit: Int) -> Int {
+  b0:
+    %v2 = vsplat %limit : Vec(Int)
+    %v3 = cmp_lt %v, %v2 : Mask(Int)
+    %live = alloc : Mask(Int)
+    init %live, %v3
+    %v6 = load %live : Mask(Int)
+    %v9 = vsplat 0 : Vec(Int)
+    %kept = select %v6 ? %v : %v9 : Vec(Int)
+    %v11 = load %live : Mask(Int)
+    %v12 = vreduce_or %v11 : Bool
+    %v14 = xor %v12, True : Bool
+    je %v14, b1, b2
+
+  b1:
+    %v18 = neg 1 : Int
+    ret %v18
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = vreduce_add %kept : Int
+    %v24 = mul %v21, 10 : Int
+    %v25 = load %live : Mask(Int)
+    %v26 = vreduce_add %v25 : Int
+    %v27 = add %v24, %v26 : Int
+    ret %v27
+}
+
+fn main() -> Int {
+  b0:
+    %a = vsplat 1 : Vec(Float)
+    %b = vsplat 2 : Vec(Float)
+    %ints = vsplat 7 : Vec(Int)
+    %others = vsplat 3 : Vec(Int)
+    %picked = call pickByFloat, %a, %b, %ints, %others : Vec(Int)
+    %floats = call pickByInt, %others, %ints, %a, %b : Vec(Float)
+    %v15 = vsplat 0 : Vec(Int)
+    %v17 = vwithlane %v15, 1, 1 : Vec(Int)
+    %v19 = vwithlane %v17, 2, 2 : Vec(Int)
+    %v21 = vwithlane %v19, 3, 3 : Vec(Int)
+    %counted = call maskedTotal, %v21, 3 : Int
+    %v26 = vlane %picked, 0 : Int
+    %v29 = mul %v26, 100000 : Int
+    %v32 = vlane %floats, 0 : Float
+    %v35 = cmp_eq %v32, 1 : Bool
+    je %v35, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v43 = phi [b1, 1], [b2, 0] : Int
+    %v46 = mul %v43, 10000 : Int
+    %v47 = add %v29, %v46 : Int
+    %v48 = add %v47, %counted : Int
+    ret %v48
+}

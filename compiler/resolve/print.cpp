@@ -218,6 +218,22 @@ static void printValue(ResolvePrint& print, Value& value) {
 static StringView instructionName(Value& value, GlobalBase global) {
     switch(value.kind) {
         case Value::Borrow: return ((InstBorrow&)value).mut ? "borrow_mut"_v : "borrow"_v;
+        case Value::LoadPlace:
+            // A load that deliberately reads past the end of what it names - see
+            // InstLoadPlace::overread. Spelled apart from an ordinary load because it is the one
+            // thing about a load that changes what three passes may conclude from it, and the lower
+            // IR draws the same distinction with the same name.
+            return ((InstLoadPlace&)value).overread ? "loadx"_v : "load"_v;
+        case Value::VecReduce:
+            switch(((InstVecReduce&)value).reduce) {
+                case ReduceOp::Add: return "vreduce_add"_v;
+                case ReduceOp::Mul: return "vreduce_mul"_v;
+                case ReduceOp::Min: return "vreduce_min"_v;
+                case ReduceOp::Max: return "vreduce_max"_v;
+                case ReduceOp::And: return "vreduce_and"_v;
+                case ReduceOp::Or:  return "vreduce_or"_v;
+            }
+            break;
         case Value::Drop:
             // Named after what it actually runs. A teardown with an authored half on either side is
             // opaque to region placement, so telling the two apart in the dump is telling apart the
@@ -233,6 +249,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case TypeMetricKind::Size: return "sizeof"_v;
                 case TypeMetricKind::Align: return "alignof"_v;
                 case TypeMetricKind::Stride: return "strideof"_v;
+                case TypeMetricKind::Count: return "countof"_v;
             }
             break;
         case Value::Native:
@@ -459,9 +476,20 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Cast:
         case Value::Bitcast:
         case Value::Neg:
-        case Value::Not: {
+        case Value::Not:
+        case Value::Sqrt: {
             print.writer.writeByte(' ');
             printValue(print, *print.local[((InstUnary&)inst).from]);
+            break;
+        }
+        case Value::Fma: {
+            auto& fma = (InstFma&)inst;
+
+            for(auto operand: { fma.a, fma.b, fma.c }) {
+                print.writer.writeByte(' ');
+                printValue(print, *print.local[operand]);
+            }
+
             break;
         }
         case Value::Add:
@@ -491,6 +519,48 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printValue(print, *print.local[select.whenTrue]);
             print.writer.writeString(" : "_v);
             printValue(print, *print.local[select.whenFalse]);
+            break;
+        }
+        case Value::VecSplat: {
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[((InstVecSplat&)inst).from]);
+            break;
+        }
+        case Value::VecLane:
+        case Value::VecWithLane: {
+            // The lane index is a field rather than an operand, so it prints after every operand
+            // there is: `vlane %v, 3` and `vwithlane %v, %x, 3`. Same shape as the shuffle's
+            // pattern below, which is why both read as a trailing run of numbers.
+            auto& lane = (InstVecLane&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[lane.from]);
+
+            if(lane.value) {
+                print.writer.writeString(", "_v);
+                printValue(print, *print.local[lane.value]);
+            }
+
+            print.writer.writeString(", "_v);
+            writeUInt(print.writer, lane.lane);
+            break;
+        }
+        case Value::VecShuffle: {
+            auto& shuffle = (InstVecShuffle&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[shuffle.left]);
+            print.writer.writeString(", "_v);
+            printValue(print, *print.local[shuffle.right]);
+
+            for(auto entry: shuffle.pattern) {
+                print.writer.writeString(", "_v);
+                writeUInt(print.writer, entry);
+            }
+
+            break;
+        }
+        case Value::VecReduce: {
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[((InstVecReduce&)inst).from]);
             break;
         }
         case Value::Symbol: {
@@ -718,6 +788,16 @@ static void printGenSchema(ResolvePrint& print, Module& module, GenEnv& env) {
                 print.writer.writeString(": "_v);
                 printType(print, slot.type);
                 break;
+            case GenSlotKind::Const:
+                // The parameter and the type of the number it holds -
+                // Implementation-Const-Generics.md §3.1, and §7's "asserted through the printed
+                // schema": the slot numbering is the one property the erased ABI cannot check for
+                // itself, so a fixture reads it back from here.
+                print.writer.writeString("const "_v);
+                printType(print, slot.type);
+                print.writer.writeString(": "_v);
+                printType(print, slot.result);
+                break;
         }
 
         print.writer.writeByte('\n');
@@ -890,6 +970,7 @@ static void printTable(ResolvePrint& print, Global& global_) {
                     case TypeMetricKind::Size: print.writer.writeString("sizeof "_v); break;
                     case TypeMetricKind::Align: print.writer.writeString("alignof "_v); break;
                     case TypeMetricKind::Stride: print.writer.writeString("strideof "_v); break;
+                    case TypeMetricKind::Count: print.writer.writeString("countof "_v); break;
                 }
 
                 printType(print, slot.metricType());

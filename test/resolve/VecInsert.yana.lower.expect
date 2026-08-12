@@ -1,0 +1,174 @@
+@image$base = []
+
+floats<complex>(): Int {
+  b_0 {
+    %f = vsplat 1.5: f32x4
+    %v_1 = neg 0: Float
+    %g = vwithlane %f, %v_1, 0: f32x4
+    %v_2 = vlane %g, 1: Float
+    %v_3 = cmp_neq %v_2, 1.5: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = vlane %g, 0: Float
+    %v_8 = div 1, %v_7: Float
+    %v_9 = cmp_gt %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    ret 18446744073709551614
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    %d = vsplat 1.5: f64x2
+    %e = vwithlane %d, 4.25, 1: f64x2
+    %v_13 = vlane %e, 0: Double
+    %v_14 = cmp_neq %v_13, 1.5: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    ret 18446744073709551613
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_18 = vlane %e, 1: Double
+    %v_19 = cmp_neq %v_18, 4.25: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    ret 18446744073709551612
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_22 {
+    ret 0
+  }
+}
+
+indices<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 2, 2: i32x4
+    %v = vwithlane %v_3, 3, 3: i32x4
+    %v_4 = vlane %v, 0: Int
+    %v_5 = cmp_neq %v_4, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    ret 18446744073709551615
+  }
+
+  b_7 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = vlane %v, 1: Int
+    %v_10 = cmp_neq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    ret 18446744073709551614
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_13 {
+    %r = vshuffle %v, %v, 3, 2, 1, 0: i32x4
+    %v_14 = vlane %r, 0: Int
+    %v_15 = cmp_neq %v_14, 3: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 18446744073709551613
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    ret 0
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex floats: Int
+    %v_2 = cmp_neq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = call_complex floats: Int
+    %v_6 = imul %v_5, 10: Int
+    ret %v_6
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = call_complex indices: Int
+    %v_9 = cmp_neq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = call_complex indices: Int
+    %v_13 = imul %v_12, 100: Int
+    ret %v_13
+  }
+
+  b_11 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v = vsplat 5: i32x4
+    %a = vwithlane %v, 9, 1: i32x4
+    %b = vwithlane %a, 7, 0: i32x4
+    %v_15 = vlane %b, 0: Int
+    %v_16 = imul %v_15, 1000: Int
+    %v_17 = vlane %b, 1: Int
+    %v_18 = imul %v_17, 100: Int
+    %v_19 = add %v_16, %v_18: Int
+    %v_20 = vlane %v, 0: Int
+    %v_21 = imul %v_20, 10: Int
+    %v_22 = add %v_19, %v_21: Int
+    %v_23 = vlane %v, 1: Int
+    %v_24 = add %v_22, %v_23: Int
+    ret %v_24
+  }
+}
+

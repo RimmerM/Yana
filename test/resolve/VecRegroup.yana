@@ -1,0 +1,34 @@
+{-
+   A `bitcast` that changes the lane *count* - Design-Vector §3.4's third rule, and the one case of it
+   that has no JavaScript form.
+
+   `Widen` and `Narrow` keep the lane count and change the lane type; `Bitcast` keeps the byte width
+   and is otherwise free. So `i32x4` to `i16x8` is a rung and `i32x4` to `i16x4` is not, which is the
+   whole of the safety argument: no instance relating two vectors of different byte widths was ever
+   generated, so nothing downstream has to ask whether a reinterpretation fits.
+
+   Its own fixture rather than a half of `VecWidth.yana` because this is exactly what a lane cannot be
+   on JS: sixteen bytes read as four numbers cannot be read as eight, since a lane there is a number
+   rather than a run of bits, and the backend says so. `VecWidth.yana` asserts that the two targets
+   agree; this asserts the case where one of them declines, and so has no `.js.expect`.
+-}
+
+let &sink = 0 :: Vec(I32, 4)
+
+@noinline
+fn regrouping(v: Vec(I32, 4)) -> Vec(I16, 8):
+    return bitcast(v)
+
+@noinline
+fn bytes(v: Vec(I16, 8)) -> Vec(U8, 16):
+    return bitcast(v)
+
+@noinline
+fn back(v: Vec(U8, 16)) -> Vec(I32, 4):
+    return bitcast(v)
+
+fn main() -> Int:
+    -- Sixteen bytes read three ways and put back, which has to be the value it started as: every step
+    -- is the same register under another name.
+    sink = back(bytes(regrouping(sink)))
+    return 1

@@ -7,8 +7,8 @@ fn initHeap {
 
 fn growHeap {
   arg needed readonly
-  %size: I64 writable live [1, 26) [27, 36) [37, 49)
-  %region: %U8 writable live [11, 26) [27, 36) [37, 46)
+  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %region: %U8 writable live [12, 27) [28, 38) [39, 48)
 }
 
 fn heapClassOf {
@@ -130,7 +130,7 @@ fn collectFor {
   %local1: Array(Int) droppable readonly live [0, 3)
   %out: Array(Int) droppable writable live [1, 14)
   %local3: {out: &mut Array(Int)} closure writable addressed live [3, 11)
-  %local4: (value: Int) -> Outcome((), ()) droppable readonly live [7, 12)
+  %local4: (value$: Int) -> Outcome((), ()) droppable readonly live [7, 12)
   %local5: Outcome((), ()) readonly live [11, 12)
 }
 
@@ -164,9 +164,9 @@ fn Drop(Cell).drop {
   %self: Cell borrowed droppable readonly live never
 }
 
-fn ResolveTest.continuation$1 {
+fn ResolveTest.continuation$15 {
   arg env readonly
-  arg value readonly
+  arg value$ readonly
   %local0: Outcome((), ()) readonly live [4, 7)
 }
 
@@ -174,7 +174,7 @@ fn each(Int, ()) {
   arg xs readonly
   arg body readonly
   %xs: Flat(Int) borrowed readonly live [0, 8) [11, 29) [30, 34)
-  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
+  %body: (value$: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: Int writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), ()) readonly live [25, 30)
   %local4: Outcome((), ()) readonly live [8, 11)
@@ -194,16 +194,16 @@ fn collectMapped(Int, Int) {
   %local2: Array(Int) droppable readonly live [0, 3)
   %out: Array(Int) droppable writable live [1, 14)
   %local4: {out: &mut Array(Int)} closure writable addressed live [3, 11)
-  %local5: (value: Int) -> Outcome((), ()) droppable readonly live [7, 12)
+  %local5: (value$: Int) -> Outcome((), ()) droppable readonly live [7, 12)
   %local6: Outcome((), ()) readonly live [11, 12)
   %local7: Array(Int) droppable readonly live never
   %local8: Outcome((), ()) readonly live never
 }
 
-fn ResolveTest.continuation$2(Int, Int) {
+fn ResolveTest.continuation$16(Int, Int) {
   arg env readonly
-  arg value readonly
-  %value: Int borrowed readonly live [0, 4)
+  arg value$ readonly
+  %value$: Int borrowed readonly live [0, 4)
   %local1: Outcome((), ()) readonly live [4, 7)
 }
 
@@ -213,18 +213,18 @@ fn mapped(Int, Int, ()) {
   arg body readonly
   %xs: Flat(Int) borrowed readonly live [0, 11)
   %f: (v: Int) -> Int borrowed droppable readonly live [0, 5)
-  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 3)
-  %local3: {body: &(value: Int) -> Outcome((), ()), f: &(v: Int) -> Int} closure writable addressed live [0, 10)
-  %local4: (value: Int) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
+  %body: (value$: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 3)
+  %local3: {body: &(value$: Int) -> Outcome((), ()), f: &(v: Int) -> Int} closure writable addressed live [0, 10)
+  %local4: (value$: Int) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
   %local5: Outcome((), Outcome((), ())) readonly live [10, 15)
   %local6: Outcome((), ()) readonly live [16, 19)
   %local7: Outcome((), Outcome((), ())) readonly live never
 }
 
-fn ResolveTest.continuation$0(Int, Int, ()) {
+fn ResolveTest.continuation$14(Int, Int, ()) {
   arg env readonly
-  arg value readonly
-  %value: Int borrowed readonly live [0, 5)
+  arg value$ readonly
+  %value$: Int borrowed readonly live [0, 5)
   %local1: Int readonly live [4, 6)
   %local2: Outcome((), ()) readonly live [5, 12)
   %local3: Outcome((), Outcome((), ())) readonly live [13, 16)
@@ -237,7 +237,7 @@ fn each(Int, Outcome((), ())) {
   arg xs readonly
   arg body readonly
   %xs: Flat(Int) borrowed readonly live [0, 8) [11, 29) [30, 34)
-  %body: (value: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
+  %body: (value$: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: Int writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), ())) readonly live [25, 30)
   %local4: Outcome((), Outcome((), ())) readonly live [8, 11)

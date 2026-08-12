@@ -46,6 +46,9 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
 void printBlock(Net::Writer& writer, Context& context, LowerBase base, LowerBlock& block, PrintContext& print);
 
 StringView nameForInst(LowerBase base, LowerInst& inst);
+// A scalar type's name. A vector has none - see writeType, which is what every printer calls.
 StringView nameForType(LowerType type);
+StringView nameForLane(LowerLane lane);
+void writeType(Net::Writer& writer, LowerType type);
 StringView nameForCallType(LowerCallType type);
 StringView nameForCall(LowerCallType type);

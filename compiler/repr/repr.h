@@ -529,6 +529,16 @@ struct ReprTable {
     const Repr& of(TypePtr type, ReprRequirements requirements = {});
 
     /*
+     * What one InstTypeMetric of a *concrete* operand comes to.
+     *
+     * One function rather than the ternary that used to sit at each of the four folding sites,
+     * because `Count` is not a Repr field: it reads the ConstType the count is
+     * (Implementation-Const-Generics.md §3.2), and a fourth arm bolted onto a three-way ternary is
+     * exactly the shape that gets one of the four sites wrong.
+     */
+    U64 metric(TypePtr of, TypeMetricKind kind);
+
+    /*
      * The half of the ABI contract with resolve that a target could break.
      *
      * `isDirectType` in resolve/type.h is a decision rather than an observation, and the contract runs
@@ -614,6 +624,7 @@ private:
     void computeRecord(RecordType& record, Repr& into);
     bool computeInlineContainer(TupType& tuple, Repr& into);
     void computeFixedArray(ArrayType& array, Repr& into);
+    void computeVector(VectorType& vector, Repr& into);
     void computeString(TypePtr type, Repr& into);
     bool foldNiche(RecordType& record, Repr& into);
     bool scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign);

@@ -92,8 +92,18 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
     auto same = [&](ModulePtr<Value> x, ModulePtr<Value> y) { return sameOperand(opt, x, y); };
 
     switch(a.kind) {
-        case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
+        case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not: case Value::Sqrt:
             return same(((InstUnary&)a).from, ((InstUnary&)b).from);
+
+        // Three operands and no state beside them. Commutative in `a` and `b` alone: the product is,
+        // and the addend is not one of the pair.
+        case Value::Fma: {
+            auto& x = (InstFma&)a;
+            auto& y = (InstFma&)b;
+
+            return same(x.c, y.c)
+                && ((same(x.a, y.a) && same(x.b, y.b)) || (same(x.a, y.b) && same(x.b, y.a)));
+        }
         // Commutative, so the operands are compared as a pair rather than in order. The folder
         // already moves a constant to the right, which settles the common case before this is
         // asked; this is what catches `x + y` against a `y + x` neither of whose operands is one.
@@ -118,6 +128,38 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
             return same(((InstSelect&)a).cond, ((InstSelect&)b).cond) &&
                    same(((InstSelect&)a).whenTrue, ((InstSelect&)b).whenTrue) &&
                    same(((InstSelect&)a).whenFalse, ((InstSelect&)b).whenFalse);
+        /*
+         * The vector kinds. Every one of them carries state beside its operands - a lane index, a
+         * shuffle pattern, which reduction - and this is the switch where a kind whose extra state
+         * went uncompared would have two different instructions declared equal.
+         *
+         * `isRepeatable` already answers yes for all five, from the purity column in inst.def, so
+         * they were CSE candidates the moment they existed and the arm below is what makes that
+         * sound rather than what makes it happen.
+         */
+        case Value::VecSplat:
+            return same(((InstVecSplat&)a).from, ((InstVecSplat&)b).from);
+        case Value::VecLane:
+        case Value::VecWithLane:
+            return same(((InstVecLane&)a).from, ((InstVecLane&)b).from) &&
+                   same(((InstVecLane&)a).value, ((InstVecLane&)b).value) &&
+                   ((InstVecLane&)a).lane == ((InstVecLane&)b).lane;
+        case Value::VecShuffle: {
+            auto& first = (InstVecShuffle&)a;
+            auto& second = (InstVecShuffle&)b;
+
+            if(!same(first.left, second.left) || !same(first.right, second.right)) return false;
+            if(first.pattern.size() != second.pattern.size()) return false;
+
+            for(Size i = 0; i < first.pattern.size(); i++) {
+                if(first.pattern[i] != second.pattern[i]) return false;
+            }
+
+            return true;
+        }
+        case Value::VecReduce:
+            return same(((InstVecReduce&)a).from, ((InstVecReduce&)b).from) &&
+                   ((InstVecReduce&)a).reduce == ((InstVecReduce&)b).reduce;
         case Value::TypeMetric:
             return ((InstTypeMetric&)a).of == ((InstTypeMetric&)b).of &&
                    ((InstTypeMetric&)a).metric == ((InstTypeMetric&)b).metric;

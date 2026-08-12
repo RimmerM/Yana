@@ -279,10 +279,19 @@ bool classContinuationSignature(ExprResolver& resolver, Module& module, ClassMat
     auto handed = substituteType(module, resolver.local[entry.fun]->returnType, toBuffer(match.args), source);
     if(!handed) return false;
 
-    // A unit hand-over gives a nullary continuation rather than one taking `{}`, which is the rule
-    // the desugaring states - there would be nothing at the call site to name.
+    /*
+     * A unit hand-over gives a nullary continuation rather than one taking `{}`, which is the rule
+     * the desugaring states - there would be nothing at the call site to name.
+     *
+     * The name has a `$` in it because it is a name the loop body cannot have written, and the
+     * shadowing is the reason: a continuation's parameters are bound into the body's scope by name,
+     * so a parameter this compiler invented and called `value` silently *replaced* a caller's own
+     * `value` inside every `for` body - one type error where the types disagreed and a wrong number
+     * where they did not. What binds the hand-over is the loop's pattern; this name is what the
+     * dump prints.
+     */
     if(!isUnit(global, handed)) {
-        out.push(FunArg { handed, context.addUnqualifiedName("value", 5) });
+        out.push(FunArg { handed, context.addUnqualifiedName("value$", 6) });
     }
 
     return true;

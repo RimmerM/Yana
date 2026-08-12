@@ -30,6 +30,16 @@ bool touchesMemory(LowerInst* inst) {
         case LowerInst::Select:
         case LowerInst::Alloca:
         case LowerInst::Phi:
+        case LowerInst::VecSplat:
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+        case LowerInst::VecShuffle:
+        case LowerInst::VecReduce:
+
+        // `Fma` is neither unary nor binary, so the fallback below answers *yes* for it - which is
+        // this function's stated design (a new kind touches memory until it says otherwise) and is
+        // wrong here. `Sqrt` reaches the fallback correctly, being a Unary.
+        case LowerInst::Fma:
             return false;
         default:
             return !isUnary(inst) && !isBinary(inst) && !isCast(inst);

@@ -1,5 +1,6 @@
 #include "name.h"
 #include "index.h"
+#include "simd.h"
 
 /*
  * The typed wrappers over search().
@@ -352,6 +353,20 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
 
         best.instance = candidate;
         replaceContents(best.args, bindings);
+    }
+
+    /*
+     * A vector's instances, which are generated where they are asked for rather than declared -
+     * Implementation-Vector.md §9 items 1 to 3, and simd.h for why they are not a loop over every
+     * lane type at every lane count.
+     *
+     * Last rather than first, which is the opposite of `structuralInstance` above and is what makes
+     * it safe: nothing here can shadow a declared head, so a program that writes its own instance
+     * over a vector type keeps it. What it answers is only the heads the language promises and
+     * nobody wrote.
+     */
+    if(!best) {
+        if(auto generated = vectorInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
     }
 
     return best;

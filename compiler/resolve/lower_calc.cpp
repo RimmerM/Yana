@@ -26,6 +26,16 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
              * time, through machinery that already existed for the sizes lowering needed anyway.
              */
             auto& metric = (InstTypeMetric&)instruction;
+
+            // A count this body does not know is one cell of the environment - see genConstValue.
+            if(metric.metric == TypeMetricKind::Count) {
+                if(auto count = genConstValue(lower, block, metric.of,
+                                              lowerType(lower.global, instruction.type))) {
+                    lower.values.add(instValue, count);
+                    return nullptr;
+                }
+            }
+
             auto descriptor = genTypeDesc(lower, block, metric.of);
 
             // A concrete type's metric is a constant, so it is materialized on demand by
@@ -228,6 +238,24 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             }
             break;
         }
+        // The two floating-point operations that are neither the unary pair above nor the binary
+        // group below: one operand and no arithmetic beside it, and three operands and no other
+        // instruction of that arity in this IR.
+        case Value::Sqrt: {
+            auto& unaryInst = (InstUnary&)instruction;
+            result = unary<LowerInst::Sqrt>(
+                lower.lower, lower.to, block, lower.lower[mappedValue(lower, unaryInst.from)],
+                lowerType(lower.global, instruction.type), instruction.name
+            );
+            break;
+        }
+        case Value::Fma: {
+            auto& fma = (InstFma&)instruction;
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFma(
+                instruction.name, lowerType(lower.global, instruction.type),
+                mappedValue(lower, fma.a), mappedValue(lower, fma.b), mappedValue(lower, fma.c)));
+            break;
+        }
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
@@ -265,11 +293,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 auto& metric = *(InstTypeMetric*)value;
                 if(isGeneric(lower.global, metric.of)) return false;
 
-                auto& repr = lower.repr.of(metric.of);
-                auto number = metric.metric == TypeMetricKind::Align ? repr.align
-                            : metric.metric == TypeMetricKind::Stride ? repr.stride
-                            : repr.size;
-                return number == 1;
+                return lower.repr.metric(metric.of, metric.metric) == 1;
             };
 
             if(instruction.kind == Value::Mul || instruction.kind == Value::Div) {
@@ -351,7 +375,14 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto lhs = mappedValue(lower, compare.lhs);
             auto rhs = mappedValue(lower, compare.rhs);
 
-            result = cmp(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], lowerCmp(lower, compare), instruction.name);
+            // The result type travels rather than being assumed: a comparison of two vectors answers
+            // a mask of their shape and one of two scalars answers a Bool, and only this instruction's
+            // own type tells them apart (§3.1). Nothing above the lower IR produced a vector
+            // comparison until `class Lanewise` existed, so the builder's `Int32` default stood
+            // unchallenged and every `.<` lowered into an `i32` the validator then rejected.
+            result = cmp(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs],
+                         lowerCmp(lower, compare), instruction.name,
+                         lowerType(lower.global, instruction.type));
             break;
         }
         case Value::Select: {
@@ -372,6 +403,90 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSelect(
                 instruction.name, whenTrue, whenFalse, condition,
                 lowerType(lower.global, instruction.type)));
+
+            break;
+        }
+        /*
+         * The five vector kinds, each one instruction on both sides - Implementation-Vector.md §3.2
+         * and §4.2, which say the same five names.
+         *
+         * There is nothing to decide here and that is by construction: the resolve IR rejected a
+         * runtime lane index and a runtime shuffle pattern, so both arrive as fields, and the
+         * natural lane count was spent at the type. What is left is a rename.
+         */
+        case Value::VecSplat: {
+            auto& splat = (InstVecSplat&)instruction;
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecSplat(
+                instruction.name, lowerType(lower.global, instruction.type),
+                mappedValue(lower, splat.from)));
+
+            break;
+        }
+        case Value::VecLane: {
+            auto& lane = (InstVecLane&)instruction;
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
+                instruction.name, lowerType(lower.global, instruction.type),
+                mappedValue(lower, lane.from), U8(lane.lane)));
+
+            break;
+        }
+        case Value::VecWithLane: {
+            auto& lane = (InstVecLane&)instruction;
+            auto from = mappedValue(lower, lane.from);
+            auto value = mappedValue(lower, lane.value);
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
+                instruction.name, lowerType(lower.global, instruction.type), from, U8(lane.lane), value));
+
+            break;
+        }
+        case Value::VecShuffle: {
+            /*
+             * The one that is not a plain construction: the lower IR's shuffle keeps its pattern in
+             * the allocation past its own operands, so the space has to be reserved before the
+             * instruction is built rather than pushed into it afterwards.
+             */
+            auto& shuffle = (InstVecShuffle&)instruction;
+            auto type = lowerType(lower.global, instruction.type);
+            auto left = mappedValue(lower, shuffle.left);
+            auto right = mappedValue(lower, shuffle.right);
+
+            auto memory = lower.to.arena.alloc(sizeof(LowerInstVecShuffle) +
+                                               LowerInstVecShuffle::patternBytes(type));
+            auto lowered = new (memory) LowerInstVecShuffle(instruction.name, type, left, right);
+            auto pattern = lowered->pattern();
+
+            for(Size i = 0; i < pattern.length; i++) {
+                pattern.ptr[i] = i < shuffle.pattern.size() ? shuffle.pattern[i] : 0;
+            }
+
+            result = block.addInst(lower.lower, lowered);
+            break;
+        }
+        case Value::VecReduce: {
+            /*
+             * Where the signed/unsigned split is made. The resolve IR has one `Min` and one `Max`
+             * because signedness is in the lane type; the lower IR has `IMin`/`IMax` beside them
+             * because by then a type is a lane kind and a count and has forgotten it. Same shape as
+             * `Div`/`IDiv` above, and read off the same predicate.
+             */
+            auto& reduce = (InstVecReduce&)instruction;
+            auto lane = vectorLane(lower.global, lower.local[reduce.from]->type);
+            auto isSigned = lane && signedType(lower.global, lane);
+            auto op = LowerReduce::Add;
+
+            switch(reduce.reduce) {
+                case ReduceOp::Add: op = LowerReduce::Add; break;
+                case ReduceOp::Mul: op = LowerReduce::Mul; break;
+                case ReduceOp::Min: op = isSigned ? LowerReduce::IMin : LowerReduce::Min; break;
+                case ReduceOp::Max: op = isSigned ? LowerReduce::IMax : LowerReduce::Max; break;
+                case ReduceOp::And: op = LowerReduce::And; break;
+                case ReduceOp::Or:  op = LowerReduce::Or; break;
+            }
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
+                instruction.name, lowerType(lower.global, instruction.type),
+                mappedValue(lower, reduce.from), op));
 
             break;
         }

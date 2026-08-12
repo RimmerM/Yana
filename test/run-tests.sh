@@ -51,6 +51,7 @@ done
 
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
+echo "llvm|$build/test/YanaLlvmTest" >> "$jobfile"
 
 # Source to executable file to running process, over the same corpus the resolve driver runs
 # in-process. It compiles every runnable fixture, so it is sharded on the same terms they are.

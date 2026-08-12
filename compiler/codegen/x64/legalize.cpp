@@ -485,6 +485,35 @@ struct Legalizer {
      */
     RegSet foldedAddressRegs;
 
+    /*
+     * And the registers the instruction's own expansion is going to write.
+     *
+     * The same hazard as the paragraph above, reached from the other side and found by the first
+     * wide vector that had to be reloaded at a pseudo. A form that expands into several machine
+     * instructions needs a register that is neither operand nor result, and it says so by declaring
+     * a **clobber** - `FormVSelect` names xmm15, the lane accesses name it, the negation names it.
+     * A clobber keeps a live *web* out of that register at this instruction, which is what it is
+     * for; what it does not do, and could not, is keep the *scratch pool* out of it, because the
+     * pool is not a web and is handed out here rather than by placement.
+     *
+     * And the pool is taken from the top of each register file, which is exactly where a form
+     * looking for a register nothing else wants also reached. So an operand that had to come out of
+     * a frame slot at one of those instructions was reloaded into xmm15 and then overwritten by the
+     * expansion that was told xmm15 was free:
+     *
+     *     vmovups (%rsp), %ymm15                  # the operand, reloaded into the operand temp
+     *     vextracti128 $0, %ymm15, %xmm15         # the expansion's scratch, same register
+     *     vinserti128 $0, %xmm15, %ymm15, %ymm0   # reads %ymm15 for the half it did not write
+     *
+     * which answered a vector whose upper half was zero. Nothing in the suite spilled a vector
+     * before the 256-bit tier, so this had never fired - the general-register pseudos avoid it by
+     * accident rather than by rule, `FormImmFloat32` using r11 where the pool starts at r15.
+     *
+     * Excluded rather than counted, for the reason above: what has to be avoided is a *register*,
+     * and a form that clobbers one the pool would not have reached blocks nothing.
+     */
+    RegSet formClobberRegs;
+
     // The copies that cross a split web's segment boundaries, in instruction order, and how far the
     // walk has read into them. One cursor serves the function because the walk visits every
     // instruction index once and in order.
@@ -542,7 +571,10 @@ struct Legalizer {
         // foldedAddressRegs. The skipped positions are consumed rather than stepped over, so the
         // measurement below reports the demand this instruction really has and the reserve grows to
         // cover it on the next placement round.
-        while(index < kMaxOperandTemps && foldedAddressRegs.has(reserve.operandTemp(bank, index))) {
+        while(index < kMaxOperandTemps
+              && (foldedAddressRegs.has(reserve.operandTemp(bank, index))
+                  || formClobberRegs.has(reserve.operandTemp(bank, index))))
+        {
             index = tempsUsed[bank]++;
         }
 
@@ -703,6 +735,11 @@ struct Legalizer {
 
         for(auto& used: tempsUsed) used = 0;
         foldedAddressRegs = regsHeldByFoldedAddress(inst);
+
+        // A call's clobber set is the callee's and says nothing about registers the *caller* may
+        // read its operands out of, so only a form's own declared clobbers are in the way here -
+        // which is the same distinction `ClobberSite::operandMask` draws one pass earlier.
+        formClobberRegs = machine.formOf(inst).clobbers;
 
         Scratch<InstShape> held(shapes);
         auto& shape = *held;

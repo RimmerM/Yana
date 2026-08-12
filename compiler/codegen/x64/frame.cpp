@@ -271,7 +271,7 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // and exactly as long, and Complex is entered on eight, so asking for sixteen here would turn
     // every function that saves a vector register into a realigning one. See kClassMoves in gen.cpp.
     auto vectorSaveRegion = size;
-    size += kVectorSaveSize * U32(layout.savedVectors.count());
+    size += vectorSaveSize() * U32(layout.savedVectors.count());
 
     // The boundary rsp has to be on for the whole body: whatever the calls in this function expect to
     // find at the call, and whatever the objects in its frame need of their addresses. The second is

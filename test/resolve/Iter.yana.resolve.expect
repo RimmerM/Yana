@@ -4,72 +4,7 @@ let &log: Int = 0
 
 let &visited: Int = 0
 
-table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$3 before ResolveTest.continuation$3 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$6 before ResolveTest.continuation$6 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$5 before ResolveTest.continuation$5 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$7 before ResolveTest.continuation$7 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$8 before ResolveTest.continuation$8 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$9 before ResolveTest.continuation$9 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$10 before ResolveTest.continuation$10 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$11 before ResolveTest.continuation$11 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$13 before ResolveTest.continuation$13 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$12 before ResolveTest.continuation$12 {
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -79,7 +14,72 @@ table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
+table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$29 before ResolveTest.continuation$29 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -89,7 +89,7 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn upTo(%limit: Int, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
@@ -127,7 +127,7 @@ fn upTo(%limit: Int, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) 
     jmp b1
 }
 
-fn corners(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), $r)) -> Outcome((), $r) {
+fn corners(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
@@ -169,7 +169,7 @@ fn corners(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), $r)) -> Outc
     jmp b1
 }
 
-fn twice(%value: a, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+fn twice(%value: a, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -208,8 +208,8 @@ fn sum(%n: Int) -> Int {
     %v5 = borrow_mut %total : &mut Int
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$0 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$14 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -225,8 +225,8 @@ fn odds(%n: Int) -> Int {
     %v5 = borrow_mut %total : &mut Int
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$1 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$15 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -242,8 +242,8 @@ fn upToFive(%n: Int) -> Int {
     %v5 = borrow_mut %total : &mut Int
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$2 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$16 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -256,8 +256,8 @@ fn firstOver(%n: Int, %bound: Int) -> Int {
     %v2 = alloc : {bound: Int}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value: Int) -> Outcome((), Int)
-    %v6 = symbol ResolveTest.continuation$3 : %()
+    %v5 = alloc : (value$: Int) -> Outcome((), Int)
+    %v6 = symbol ResolveTest.continuation$17 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
@@ -283,8 +283,8 @@ fn firstOverOrCount(%n: Int, %bound: Int) -> Int {
     %v7 = borrow_mut %seen : &mut Int
     init %local1.seen, %v7
     %v9 = addressof %local1 : %()
-    %v10 = alloc : (value: Int) -> Outcome((), Outcome((), Int))
-    %v11 = symbol ResolveTest.continuation$4 : %()
+    %v10 = alloc : (value$: Int) -> Outcome((), Outcome((), Int))
+    %v11 = symbol ResolveTest.continuation$18 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(Outcome((), Int)), %n, %v10 : Outcome((), Outcome((), Int))
@@ -322,8 +322,8 @@ fn grid(%rows: Int, %columns: Int) -> Int {
     %v7 = borrow_mut %total : &mut Int
     init %local1.total, %v7
     %v9 = addressof %local1 : %()
-    %v10 = alloc : (value: Int) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$5 : %()
+    %v10 = alloc : (value$: Int) -> Outcome((), ())
+    %v11 = symbol ResolveTest.continuation$19 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(()), %rows, %v10 : Outcome((), ())
@@ -339,8 +339,8 @@ fn corners_(%n: Int) -> Int {
     %v5 = borrow_mut %total : &mut Int
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value: {x: Int, y: Int}) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$7 : %()
+    %v8 = alloc : (value$: {x: Int, y: Int}) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$21 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call corners(()), %n, %v8 : Outcome((), ())
@@ -356,8 +356,8 @@ fn generic() -> Int {
     %v6 = borrow_mut %total : &mut Int
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
-    %v9 = alloc : (value: Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$8 : %()
+    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call twice(Int, ()), 7, %v9 : Outcome((), ())
@@ -365,8 +365,8 @@ fn generic() -> Int {
     %v16 = borrow_mut %total : &mut Int
     init %local4.total, %v16
     %v18 = addressof %local4 : %()
-    %v19 = alloc : (value: Bool) -> Outcome((), ())
-    %v20 = symbol ResolveTest.continuation$9 : %()
+    %v19 = alloc : (value$: Bool) -> Outcome((), ())
+    %v20 = symbol ResolveTest.continuation$23 : %()
     init %local5.code, %v20
     init %local5.env, %v18
     %v23 = call twice(Bool, ()), True, %v19 : Outcome((), ())
@@ -379,8 +379,8 @@ fn firstOddOver(%n: Int, %bound: Int) -> Int {
     %v2 = alloc : {bound: Int}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value: Int) -> Outcome((), Int)
-    %v6 = symbol ResolveTest.continuation$10 : %()
+    %v5 = alloc : (value$: Int) -> Outcome((), Int)
+    %v6 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
@@ -402,8 +402,8 @@ fn firstPairOver(%n: Int, %bound: Int) -> Pair {
     %v2 = alloc : {bound: Int}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value: Int) -> Outcome((), Pair)
-    %v6 = symbol ResolveTest.continuation$11 : %()
+    %v5 = alloc : (value$: Int) -> Outcome((), Pair)
+    %v6 = symbol ResolveTest.continuation$25 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(Pair), %n, %v5 : Outcome((), Pair)
@@ -423,7 +423,7 @@ fn firstPairOver(%n: Int, %bound: Int) -> Pair {
     ret %v16
 }
 
-fn counted(%body: (value: Int) -> $r) -> $r {
+fn counted(%body: (value$: Int) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -448,8 +448,8 @@ fn withLens(%n: Int) -> Int {
     %v5 = borrow_mut %total : &mut Int
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$12 : %()
+    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$26 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -462,8 +462,8 @@ fn loopInLens(%n: Int) -> Int {
     %v1 = alloc : {n: Int}
     init %local0.n, %n
     %v3 = addressof %local0 : %()
-    %v4 = alloc : (value: Int) -> Int
-    %v5 = symbol ResolveTest.continuation$14 : %()
+    %v4 = alloc : (value$: Int) -> Int
+    %v5 = symbol ResolveTest.continuation$28 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = call counted(Int), %v4 : Int
@@ -472,8 +472,8 @@ fn loopInLens(%n: Int) -> Int {
 
 fn stopAt(%n: Int) -> () {
   b0:
-    %v1 = alloc : (value: Int) -> Outcome((), ())
-    %v2 = symbol ResolveTest.continuation$16 : %()
+    %v1 = alloc : (value$: Int) -> Outcome((), ())
+    %v2 = symbol ResolveTest.continuation$30 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -528,19 +528,19 @@ fn stopped() -> Int {
     ret %v4
 }
 
-fn ResolveTest.continuation$0(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$14(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn upTo(())(%limit: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -573,9 +573,9 @@ fn upTo(())(%limit: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), 
     jmp b1
 }
 
-fn ResolveTest.continuation$1(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v4 = rem %value, 2 : Int
+    %v4 = rem %value$, 2 : Int
     %v7 = cmp_eq %v4, 0 : Bool
     je %v7, b1, b2
 
@@ -591,16 +591,16 @@ fn ResolveTest.continuation$1(%env: %{total: &mut Int}, %value: Int) -> Outcome(
     %v10 = load [%env].total : &mut Int
     %v11 = load [%env].total : &mut Int
     %v12 = load [%v11] : Int
-    %v13 = add %v12, %value : Int
+    %v13 = add %v12, %value$ : Int
     assign [%v10], %v13
     %v15 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v15
 }
 
-fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v4 = cmp_gt %value, 5 : Bool
+    %v4 = cmp_gt %value$, 5 : Bool
     je %v4, b1, b2
 
   b1:
@@ -615,23 +615,23 @@ fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %value: Int) -> Outcome(
     %v7 = load [%env].total : &mut Int
     %v8 = load [%env].total : &mut Int
     %v9 = load [%v8] : Int
-    %v10 = add %v9, %value : Int
+    %v10 = add %v9, %value$ : Int
     assign [%v7], %v10
     %v12 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v12
 }
 
-fn ResolveTest.continuation$3(%env: %{bound: Int}, %value: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$17(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
     %v2 = load [%env].bound : Int
-    %v3 = cmp_gt %value, %v2 : Bool
+    %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
     %v10 = alloc : Outcome((), Int)
     init %local1.discriminant, 1
-    init %local1@Exit, %value
+    init %local1@Exit, %value$
     ret %v10
 
   b2:
@@ -643,7 +643,7 @@ fn ResolveTest.continuation$3(%env: %{bound: Int}, %value: Int) -> Outcome((), I
     ret %v6
 }
 
-fn upTo(Int)(%limit: Int, %body: (value: Int) -> Outcome((), Int)) -> Outcome((), Int) {
+fn upTo(Int)(%limit: Int, %body: (value$: Int) -> Outcome((), Int)) -> Outcome((), Int) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -676,14 +676,14 @@ fn upTo(Int)(%limit: Int, %body: (value: Int) -> Outcome((), Int)) -> Outcome(()
     jmp b1
 }
 
-fn ResolveTest.continuation$4(%env: %{bound: Int, seen: &mut Int}, %value: Int) -> Outcome((), Outcome((), Int)) {
+fn ResolveTest.continuation$18(%env: %{bound: Int, seen: &mut Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
   b0:
     %v2 = load [%env].bound : Int
-    %v3 = cmp_gt %value, %v2 : Bool
+    %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
-    %v7 = mul %value, 100 : Int
+    %v7 = mul %value$, 100 : Int
     %v33 = alloc : Outcome((), Int)
     init %local3.discriminant, 1
     init %local3@Exit, %v7
@@ -696,7 +696,7 @@ fn ResolveTest.continuation$4(%env: %{bound: Int, seen: &mut Int}, %value: Int) 
     jmp b3
 
   b3:
-    %v11 = cmp_eq %value, 4 : Bool
+    %v11 = cmp_eq %value$, 4 : Bool
     je %v11, b4, b5
 
   b4:
@@ -721,7 +721,7 @@ fn ResolveTest.continuation$4(%env: %{bound: Int, seen: &mut Int}, %value: Int) 
     ret %v21
 }
 
-fn upTo(Outcome((), Int))(%limit: Int, %body: (value: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
+fn upTo(Outcome((), Int))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -754,17 +754,17 @@ fn upTo(Outcome((), Int))(%limit: Int, %body: (value: Int) -> Outcome((), Outcom
     jmp b1
 }
 
-fn ResolveTest.continuation$5(%env: %{columns: Int, total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{columns: Int, total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].columns : Int
     %v3 = alloc : {total: &mut Int, r: Int}
     %v4 = load [%env].total : &mut Int
     %v5 = borrow_mut [%v4] : &mut Int
     init %local0.total, %v5
-    init %local0.r, %value
+    init %local0.r, %value$
     %v8 = addressof %local0 : %()
-    %v9 = alloc : (value: Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$6 : %()
+    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$20 : %()
     init %local1.code, %v10
     init %local1.env, %v8
     %v13 = call upTo(()), %v2, %v9 : Outcome((), ())
@@ -773,7 +773,7 @@ fn ResolveTest.continuation$5(%env: %{columns: Int, total: &mut Int}, %value: In
     ret %v14
 }
 
-fn ResolveTest.continuation$6(%env: %{total: &mut Int, r: Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$20(%env: %{total: &mut Int, r: Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
@@ -781,17 +781,17 @@ fn ResolveTest.continuation$6(%env: %{total: &mut Int, r: Int}, %value: Int) -> 
     %v5 = load [%env].r : Int
     %v8 = mul %v5, 10 : Int
     %v9 = add %v4, %v8 : Int
-    %v10 = add %v9, %value : Int
+    %v10 = add %v9, %value$ : Int
     assign [%v2], %v10
     %v12 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v12
 }
 
-fn ResolveTest.continuation$7(%env: %{total: &mut Int}, %value: {x: Int, y: Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{total: &mut Int}, %value$: {x: Int, y: Int}) -> Outcome((), ()) {
   b0:
-    %x = load %value.x : Int
-    %y = load %value.y : Int
+    %x = load %value$.x : Int
+    %y = load %value$.y : Int
     %v4 = load [%env].total : &mut Int
     %v5 = load [%env].total : &mut Int
     %v6 = load [%v5] : Int
@@ -803,7 +803,7 @@ fn ResolveTest.continuation$7(%env: %{total: &mut Int}, %value: {x: Int, y: Int}
     ret %v10
 }
 
-fn corners(())(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), ())) -> Outcome((), ()) {
+fn corners(())(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -840,19 +840,19 @@ fn corners(())(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), ())) -> 
     jmp b1
 }
 
-fn ResolveTest.continuation$8(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn twice(Int, ())(%value: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn twice(Int, ())(%value: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = calldyn %body, %value : Outcome((), ())
     %v3 = load %local2.discriminant : Int
@@ -877,9 +877,9 @@ fn twice(Int, ())(%value: Int, %body: (value: Int) -> Outcome((), ())) -> Outcom
     ret %v14
 }
 
-fn ResolveTest.continuation$9(%env: %{total: &mut Int}, %value: Bool) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &mut Int}, %value$: Bool) -> Outcome((), ()) {
   b0:
-    je %value, b1, b2
+    je %value$, b1, b2
 
   b1:
     %v3 = load [%env].total : &mut Int
@@ -898,7 +898,7 @@ fn ResolveTest.continuation$9(%env: %{total: &mut Int}, %value: Bool) -> Outcome
     ret %v12
 }
 
-fn twice(Bool, ())(%value: Bool, %body: (value: Bool) -> Outcome((), ())) -> Outcome((), ()) {
+fn twice(Bool, ())(%value: Bool, %body: (value$: Bool) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = calldyn %body, %value : Outcome((), ())
     %v3 = load %local2.discriminant : Int
@@ -923,9 +923,9 @@ fn twice(Bool, ())(%value: Bool, %body: (value: Bool) -> Outcome((), ())) -> Out
     ret %v14
 }
 
-fn ResolveTest.continuation$10(%env: %{bound: Int}, %value: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$24(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
-    %v4 = rem %value, 2 : Int
+    %v4 = rem %value$, 2 : Int
     %v7 = cmp_eq %v4, 0 : Bool
     je %v7, b1, b2
 
@@ -939,13 +939,13 @@ fn ResolveTest.continuation$10(%env: %{bound: Int}, %value: Int) -> Outcome((), 
 
   b3:
     %v10 = load [%env].bound : Int
-    %v11 = cmp_gt %value, %v10 : Bool
+    %v11 = cmp_gt %value$, %v10 : Bool
     je %v11, b4, b5
 
   b4:
     %v22 = alloc : Outcome((), Int)
     init %local2.discriminant, 1
-    init %local2@Exit, %value
+    init %local2@Exit, %value$
     ret %v22
 
   b5:
@@ -957,16 +957,16 @@ fn ResolveTest.continuation$10(%env: %{bound: Int}, %value: Int) -> Outcome((), 
     ret %v14
 }
 
-fn ResolveTest.continuation$11(%env: %{bound: Int}, %value: Int) -> Outcome((), Pair) {
+fn ResolveTest.continuation$25(%env: %{bound: Int}, %value$: Int) -> Outcome((), Pair) {
   b0:
     %v2 = load [%env].bound : Int
-    %v3 = cmp_gt %value, %v2 : Bool
+    %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
     %v5 = alloc : Pair
-    %v8 = mul %value, 2 : Int
-    aggregate %local0@Pair.a = %value, %local0@Pair.b = %v8
+    %v8 = mul %value$, 2 : Int
+    aggregate %local0@Pair.a = %value$, %local0@Pair.b = %v8
     %v15 = alloc : Outcome((), Pair)
     init %local2.discriminant, 1
     init %local2@Exit, %v5
@@ -981,7 +981,7 @@ fn ResolveTest.continuation$11(%env: %{bound: Int}, %value: Int) -> Outcome((), 
     ret %v11
 }
 
-fn upTo(Pair)(%limit: Int, %body: (value: Int) -> Outcome((), Pair)) -> Outcome((), Pair) {
+fn upTo(Pair)(%limit: Int, %body: (value$: Int) -> Outcome((), Pair)) -> Outcome((), Pair) {
   b0:
     %i = alloc : Int
     init %i, 0
@@ -1014,16 +1014,16 @@ fn upTo(Pair)(%limit: Int, %body: (value: Int) -> Outcome((), Pair)) -> Outcome(
     jmp b1
 }
 
-fn ResolveTest.continuation$12(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &mut Int, x: Int}
     %v3 = load [%env].total : &mut Int
     %v4 = borrow_mut [%v3] : &mut Int
     init %local0.total, %v4
-    init %local0.x, %value
+    init %local0.x, %value$
     %v7 = addressof %local0 : %()
-    %v8 = alloc : (value: Int) -> ()
-    %v9 = symbol ResolveTest.continuation$13 : %()
+    %v8 = alloc : (value$: Int) -> ()
+    %v9 = symbol ResolveTest.continuation$27 : %()
     init %local1.code, %v9
     init %local1.env, %v7
     call counted(()), %v8
@@ -1032,19 +1032,19 @@ fn ResolveTest.continuation$12(%env: %{total: &mut Int}, %value: Int) -> Outcome
     ret %v13
 }
 
-fn ResolveTest.continuation$13(%env: %{total: &mut Int, x: Int}, %value: Int) -> () {
+fn ResolveTest.continuation$27(%env: %{total: &mut Int, x: Int}, %value$: Int) -> () {
   b0:
     %v2 = load [%env].total : &mut Int
     %v3 = load [%env].total : &mut Int
     %v4 = load [%v3] : Int
-    %v5 = add %v4, %value : Int
+    %v5 = add %v4, %value$ : Int
     %v6 = load [%env].x : Int
     %v7 = add %v5, %v6 : Int
     assign [%v2], %v7
     ret
 }
 
-fn counted(())(%body: (value: Int) -> ()) -> () {
+fn counted(())(%body: (value$: Int) -> ()) -> () {
   b0:
     %v1 = load log : Int
     %v3 = add %v1, 1 : Int
@@ -1057,14 +1057,14 @@ fn counted(())(%body: (value: Int) -> ()) -> () {
     ret %v6
 }
 
-fn ResolveTest.continuation$14(%env: %{n: Int}, %value: Int) -> Int {
+fn ResolveTest.continuation$28(%env: %{n: Int}, %value$: Int) -> Int {
   b0:
     %v2 = load [%env].n : Int
     %v3 = alloc : {base: Int}
-    init %local0.base, %value
+    init %local0.base, %value$
     %v5 = addressof %local0 : %()
-    %v6 = alloc : (value: Int) -> Outcome((), Int)
-    %v7 = symbol ResolveTest.continuation$15 : %()
+    %v6 = alloc : (value$: Int) -> Outcome((), Int)
+    %v7 = symbol ResolveTest.continuation$29 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     %v10 = call upTo(Int), %v2, %v6 : Outcome((), Int)
@@ -1077,18 +1077,18 @@ fn ResolveTest.continuation$14(%env: %{n: Int}, %value: Int) -> Int {
     ret %v15
 
   b2:
-    ret %value
+    ret %value$
 }
 
-fn ResolveTest.continuation$15(%env: %{base: Int}, %value: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$29(%env: %{base: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
-    %v4 = cmp_eq %value, 2 : Bool
+    %v4 = cmp_eq %value$, 2 : Bool
     je %v4, b1, b2
 
   b1:
     %v6 = load [%env].base : Int
     %v9 = mul %v6, 1000 : Int
-    %v10 = add %v9, %value : Int
+    %v10 = add %v9, %value$ : Int
     %v16 = alloc : Outcome((), Int)
     init %local1.discriminant, 1
     init %local1@Exit, %v10
@@ -1103,7 +1103,7 @@ fn ResolveTest.continuation$15(%env: %{base: Int}, %value: Int) -> Outcome((), I
     ret %v12
 }
 
-fn counted(Int)(%body: (value: Int) -> Int) -> Int {
+fn counted(Int)(%body: (value$: Int) -> Int) -> Int {
   b0:
     %v1 = load log : Int
     %v3 = add %v1, 1 : Int
@@ -1116,9 +1116,9 @@ fn counted(Int)(%body: (value: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$16(%env: %{}, %value: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$30(%env: %{}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v4 = cmp_eq %value, 3 : Bool
+    %v4 = cmp_eq %value$, 3 : Bool
     je %v4, b1, b2
 
   b1:
@@ -1131,7 +1131,7 @@ fn ResolveTest.continuation$16(%env: %{}, %value: Int) -> Outcome((), ()) {
 
   b3:
     %v7 = load visited : Int
-    %v8 = add %v7, %value : Int
+    %v8 = add %v7, %value$ : Int
     assign visited, %v8
     %v10 = alloc : Outcome((), ())
     init %local0.discriminant, 0

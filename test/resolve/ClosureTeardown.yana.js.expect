@@ -7,9 +7,9 @@ function teardown$none(value) {
 function either(pick, a, b) {
   var f;
   if (pick < 1) {
-    f = { $c: ResolveTest_lambda$1, $e: { $v: a } };
+    f = { $c: ResolveTest_lambda$15, $e: { $v: a } };
   } else {
-    f = { $c: ResolveTest_lambda$2, $e: { $v: b } };
+    f = { $c: ResolveTest_lambda$16, $e: { $v: b } };
   }
   return f.$c(f.$e, 10);
 }
@@ -18,11 +18,11 @@ function main() {
   return ((either(0, 3, 7) + 6 | 0) + either(2, 3, 7) | 0) + 101 | 0;
 }
 
-function ResolveTest_lambda$1(env, x) {
+function ResolveTest_lambda$15(env, x) {
   return x + env.$v | 0;
 }
 
-function ResolveTest_lambda$2(env, x) {
+function ResolveTest_lambda$16(env, x) {
   return Math.imul(x, env.$v);
 }
 main();

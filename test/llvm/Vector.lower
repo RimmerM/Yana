@@ -1,0 +1,136 @@
+# Every vector shape the lower IR can write down, through the LLVM backend.
+#
+# The companion of test/lower/Vector.lower (which asserts the round trip) and test/x64/Vector.lower
+# (which asserts the bytes). What this one asserts is §6 of Implementation-Vector.md: that each
+# instruction is the LLVM instruction it looks like, and that the two places the two IRs disagree
+# about how to say something are said here rather than left to the verifier.
+#
+# The two are the mask and the reduction. A mask is `<N x i1>` in LLVM and full-width lanes in this
+# compiler's Repr, and the boundary between them is a comparison and a select - so a mask never
+# appears in memory here and every operation over one is written against the `i1` form. A float sum
+# is an explicit pairwise tree rather than `llvm.vector.reduce.fadd`, because the order is a stated
+# language property and the intrinsic states a different one.
+
+arith(%a: f32x8, %b: f32x8, %i: i32x4, %j: i32x4): f32x8 {
+    {
+        %add = add %a, %b: f32x8
+        %sub = sub %a, %b: f32x8
+        %mul = mul %a, %b: f32x8
+        %div = div %a, %b: f32x8
+        %ng = neg %a: f32x8
+
+        # Integer lanes take the whole integer set, division included - LLVM has a packed divide in
+        # its IR whatever the machine has, and lowering it is its business rather than this one's.
+        %iadd = add %i, %j: i32x4
+        %idiv = idiv %i, %j: i32x4
+        %irem = irem %i, %j: i32x4
+        %and = and %i, %j: i32x4
+        %not = not %i: i32x4
+
+        # Shifted by a vector of counts, and by one count every lane shares - the second of which
+        # LLVM has no form of, so it is splatted into the first.
+        %shv = shl %i, %j: i32x4
+        %shs = shl %i, 3: i32x4
+        ret %add
+    }
+}
+
+# A comparison answers a mask, a select consumes one, and the three ways a mask reduces. `count` is
+# the one that is not the mask reduced as it stands: how many lanes are set is a sum of ones.
+masks(%a: f32x8, %b: f32x8): f32x8 {
+    {
+        %lt = cmp_lt %a, %b: m32x8
+        %gt = cmp_gt %a, %b: m32x8
+        %both = and %lt, %gt: m32x8
+        %inv = not %both: m32x8
+        %sel = select %inv, %a, %b: f32x8
+        %any = vreduce_or %inv: Int
+        %all = vreduce_and %inv: Int
+        %count = vreduce_add %inv: Int
+        ret %sel
+    }
+}
+
+# The five that are not one of the instructions above.
+lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
+    {
+        %splat = vsplat %x: f32x8
+        %lane = vlane %v, 3: Float
+        %with = vwithlane %v, %x, 5: f32x8
+        %sum = vreduce_add %v: Float
+        %max = vreduce_max %v: Float
+
+        # A pattern entry names a lane of the two sources concatenated, so 8..15 is the second one.
+        # This is the interleave of the two low halves.
+        %zip = vshuffle %v, %w, 0, 8, 1, 9, 2, 10, 3, 11: f32x8
+
+        # A shuffle may change the lane count but not the lane type: this is the low four lanes of
+        # one vector, which is what `packLanes` and the two `unpack`s are built out of.
+        %low = vshuffle %v, %v, 0, 1, 2, 3: f32x4
+        %narrow = vreduce_add %low: Float
+        ret %sum
+    }
+}
+
+# The lane widths that exist only as lanes. A lane narrower than a register is read out into one and
+# written back from one, which is the whole of what `scalarFormOf` says and the only place a lane
+# type and its scalar form differ.
+narrow(%p: Ptr, %n: Int): i8x32 {
+    {
+        %b = load %p, 32: i8x32
+        %s = load %p, 32: i16x16
+        %l = load %p, 32: i64x4
+        %d = load %p, 32: f64x4
+
+        %splat = vsplat %n: i8x32
+        %lane = vlane %b, 7: Int
+        %with = vwithlane %b, %n, 9: i8x32
+        %sum = vreduce_add %b: Int
+
+        # The tail-read guarantee, spelled. LLVM has no way to be told and needs none: the load names
+        # the whole width it reads, and nothing here derives a smaller object from it.
+        %tail = loadx %p, 32: i8x32
+        %total = add %b, %tail: i8x32
+        store %p, %total, 32
+        ret %total
+    }
+}
+
+# Reinterpretation and conversion, which are the two things a `cast` between vectors can mean and
+# which are told apart by the lane count. The float-to-integer direction saturates, which is the same
+# ruling and the same intrinsic the scalar conversion above it already uses.
+convert(%f: f32x4, %i: i32x4): f64x4 {
+    {
+        %bits = bitcast %i: f32x4
+        %wide = cast %f: f64x4
+        %narrow = cast %i: i8x4
+        %pack = bitcast %i: i8x16
+        %trunc = ftoi %f: i32x4
+        %back = itof %i: f32x4
+        ret %wide
+    }
+}
+
+# A vector is a value like any other: it is passed, returned and carried around a loop by a phi.
+# Nothing here is vector-specific and that is the point.
+loop(%v: f32x8, %n: Int): f32x8 {
+    start {
+        jmp head
+    }
+
+    head {
+        %acc = phi [start, %v], [body, %next]: f32x8
+        %i = phi [start, 0], [body, %step]: Int
+        je (cmp_ilt %i, %n), body, exit
+    }
+
+    body {
+        %next = add %acc, %v: f32x8
+        %step = add %i, 1
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}

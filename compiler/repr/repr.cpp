@@ -209,11 +209,28 @@ void ReprTable::checkAbiContract(TypePtr type, const Repr& repr) const {
     // A generic type has no layout here at all, so there is nothing to hold it to.
     if(repr.opaque) return;
 
-    // A copy in a register is a copy of one register's worth. Anything resolve calls direct whose
-    // representation outgrew that is a type admitted to `isDirectType` by its kind while its layout
-    // says otherwise - and the failure would be silent, since the value would simply be truncated at
-    // every load of it.
-    assertTrue(!isDirectType(global, type) || repr.size <= target.pointerSize);
+    /*
+     * A copy in a register is a copy of one register's worth. Anything resolve calls direct whose
+     * representation outgrew that is a type admitted to `isDirectType` by its kind while its layout
+     * says otherwise - and the failure would be silent, since the value would simply be truncated at
+     * every load of it.
+     *
+     * A vector is the one direct type whose register is not a general one, so what it is held to is
+     * the widest vector register this compiler describes. That is Design-Vector §2.5's "every
+     * target's calling convention is bound by it. A backend that cannot pass a `Vec` in a register
+     * has to say so loudly rather than quietly spilling it" - widening the bound rather than
+     * exempting the kind, so the contract still says something about a vector.
+     *
+     * It is deliberately not the *running* target's width, which is not knowable here: a ReprTable
+     * holds a type region and a target description and no settings, because a layout has to be a
+     * function of the type graph alone (see the header). A `Vec(Float, 16)` written explicitly under
+     * SSE2 is a value that target has no register for, and the target that cannot hold it is the one
+     * that refuses it - `opcodeFor` in the x64 backend already declines a vector wider than a
+     * register by name.
+     */
+    GlobalBase base = global;
+    auto width = base[type]->kind == Type::Vector ? kMaxVectorBytes : target.pointerSize;
+    assertTrue(!isDirectType(global, type) || repr.size <= width);
 }
 
 const FieldRepr* ReprTable::fieldOf(TypePtr type, U16 index) {
@@ -342,8 +359,21 @@ void ReprTable::compute(TypePtr type, Repr& into) {
         case Type::Array:
             computeFixedArray(*(ArrayType*)value, into);
             break;
+        case Type::Vector:
+            computeVector(*(VectorType*)value, into);
+            break;
         case Type::String:
             computeString(type, into);
+            break;
+        case Type::Const:
+            /*
+             * A count has no layout, and the whole point of saying so out loud is
+             * Implementation-Const-Generics.md §8: `ReprTable::of` answers a zeroed Repr for every
+             * kind it has no arm for, so a reader that asked this by mistake - a metric folded
+             * through `of` instead of through `metric` - would get a size of zero and a program that
+             * silently indexed nothing. It cost a fixture suite once already.
+             */
+            assertTrue("a count is not a value and has no layout - read it with ReprTable::metric" == nullptr);
             break;
         default:
             // Unit, Error, and the kinds that are reserved but not constructible yet - Ref,
@@ -438,6 +468,13 @@ void ReprTable::hostNiche(TypePtr type, Repr& into) {
 
             break;
         }
+
+        case Type::Vector:
+            // A vector has no niche on any target and declines here for the same reason it declines
+            // in `computeVector` - not because the pattern is unavailable, but because publishing it
+            // would make `Maybe(Vec(a))` cost different amounts for different lane types.
+            into.niche = Niche {};
+            return;
 
         case Type::Array:
             /*
@@ -626,11 +663,62 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
  * `Maybe([T *4])` fold into a pattern of `T` that `xs[0] = v` can write at will. A container's
  * elements are exactly the bytes the program assigns to, so there are no spare patterns in them.
  */
+U64 ReprTable::metric(TypePtr type, TypeMetricKind kind) {
+    // A count is not measured, it is read: `of(count)` would ask a ConstType for a layout, which is
+    // the assertion Implementation-Const-Generics.md §8 wants firing rather than a multiply.
+    if(kind == TypeMetricKind::Count) return constValue(global, type);
+
+    auto& repr = of(type);
+
+    switch(kind) {
+        case TypeMetricKind::Align: return repr.align;
+        case TypeMetricKind::Stride: return repr.stride;
+        case TypeMetricKind::Size: return repr.size;
+        case TypeMetricKind::Count: break;
+    }
+
+    return repr.size;
+}
+
 void ReprTable::computeFixedArray(ArrayType& array, Repr& into) {
     auto& element = of(array.content);
 
-    into.align = array.length ? element.align : 1;
-    into.size = element.stride * array.length;
+    // A count read as a number, which is sound here for the reason a Repr is asked at all: a generic
+    // type has none (Type::generic), so a count that is still a variable never reaches this.
+    auto count = constValue(global, array.count);
+
+    into.align = count ? element.align : 1;
+    into.size = U32(element.stride * count);
+    into.stride = into.size;
+}
+
+/*
+ * A vector - Implementation-Vector.md §2, Design-Vector §6.
+ *
+ * `lanes` strides of the lane type, and that is the whole of it. Three things are deliberately *not*
+ * here, and each of them is a boundary rather than an omission:
+ *
+ *  - **No fields.** Lane access is an instruction (`VecLane`), not a place walk, so the existing
+ *    field-projection paths are never asked about a vector. Giving one `lanes` fields would make
+ *    every walk over an aggregate able to reach into a register, which is exactly the thing the
+ *    instruction exists to avoid.
+ *  - **No niche.** A float vector has NaN patterns and an integer vector has none, so folding a
+ *    discriminant into one would make `Maybe(Vec(Float))` cheaper than `Maybe(Vec(I32))` for no
+ *    reason anybody asked for - Design-Vector §2.5. Declining is one line and keeps the search's
+ *    cost model honest.
+ *  - **No scalar form.** `scalarBits` stays zero however narrow the lanes are: a vector is not an
+ *    integer a target can co-pack a neighbour into, which is what that field means.
+ *
+ * The alignment is capped at sixteen rather than being the natural one. A 32- or 64-byte value
+ * aligned to its own width would force every frame holding one to realign and every allocation of
+ * one to over-allocate, for a load that is one cycle faster on parts where it is faster at all;
+ * `@align(n)` is the way a declaration asks for more (stage 8.4).
+ */
+void ReprTable::computeVector(VectorType& vector, Repr& into) {
+    auto stride = laneStride(global, vector.content);
+
+    into.size = U32(stride * constValue(global, vector.count));
+    into.align = min(into.size, 16u);
     into.stride = into.size;
 }
 
