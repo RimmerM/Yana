@@ -1,0 +1,32 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 64: i32x4
+    %v_2 = vwithlane %v_1, 5, 0: i32x4
+    %v_3 = vwithlane %v_2, 100, 1: i32x4
+    %a = vwithlane %v_3, 18446744073709551584, 2: i32x4
+    %b = vsplat 3: i64x2
+    %v_4 = vsplat 3: i32x4
+    %left = shl %a, %v_4: i32x4
+    %v_5 = vsplat 2: i32x4
+    %right = shr %a, %v_5: i32x4
+    %v_6 = vsplat 1: i32x4
+    %arith = sar %a, %v_6: i32x4
+    %v_7 = vsplat 5: i64x2
+    %v_8 = shl %b, %v_7: i64x2
+    %v_9 = vsplat 4: i64x2
+    %wide = shr %v_8, %v_9: i64x2
+    %v_10 = vlane %left, 0: Int
+    %v_11 = vlane %right, 1: Int
+    %v_12 = add %v_10, %v_11: Int
+    %v_13 = vlane %arith, 2: Int
+    %v_14 = add %v_12, %v_13: Int
+    %v_15 = vlane %wide, 0: Long
+    %v_16 = cast %v_15: Int
+    %v_17 = add %v_14, %v_16: Int
+    %v_18 = add %v_17, 100: Int
+    ret %v_18
+  }
+}
+

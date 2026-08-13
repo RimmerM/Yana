@@ -1253,6 +1253,25 @@ struct Expansion {
     }
 
     /*
+     * A one-in-one-out intrinsic, which is the only shape anything here needs.
+     *
+     * `LowerInstIntrinsic` is not a `LowerInstSingle` - its results live past the instruction rather
+     * than in it, because an intrinsic may answer none or several - so this cannot go through
+     * `emit`, and builds the allocation the way `handleIntrinsic` in lower_resolve.cpp does.
+     */
+    LowerValue* intrinsic(LowerIntrinsic which, LowerType type, LowerValue* operand, StringId name = StringId()) {
+        auto inst = (LowerInstIntrinsic*)fun.arena.alloc(
+            sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
+
+        new (inst) LowerInstIntrinsic(which, 1, 1);
+        inst->used().ptr[0] = operand - base;
+        new (inst->created().ptr) LowerValue(inst, type, name);
+
+        insertInstAt(base, block, at++, (LowerInst*)inst);
+        return inst->created().ptr;
+    }
+
+    /*
      * Lanes rearranged, with the pattern written by a callback rather than handed over as a buffer.
      *
      * The pattern lives in the instruction's own allocation - past the used values, the way a phi's
@@ -1643,6 +1662,81 @@ static void lowerLaneInserts(Context&, LowerBase base, LowerFunction& fun) {
 }
 
 /*
+ * A packed shift whose count is a splat, written as the scalar count the machine's form takes.
+ *
+ * `class (Num(a)) Integral(a)` declares `shl(lhs: a, rhs: a)`, so over a vector *both* operands are
+ * vectors and `v `shr` 7` reaches this backend as a shift by `vsplat(7)`. The form table has only
+ * the immediate rows - `pslld xmm, imm8` and its siblings - and the selection asks whether the right
+ * operand is a scalar `Imm`, so every shift a program could actually write was refused for want of
+ * an instruction that was standing right there.
+ *
+ * **The splat is the whole of the difference, and unwrapping it is the whole of the fix.** Every
+ * lane of the count holds the same scalar by construction, which is exactly what one shared count
+ * means, so the rewrite is exact rather than a narrowing of what was asked for.
+ *
+ * Only a splat of a *constant* is unwrapped. A splat of a runtime value would want the machine's
+ * other form, whose count is the low quadword of a vector register - and handing it this splat
+ * unchanged would be wrong rather than slow: `pslld` reads the whole low *quadword* as one count, so
+ * a 32-bit lane splat of 7 arrives as 0x0000000700000007 and shifts every lane out. That form wants
+ * the scalar moved into lane zero with the rest cleared, which is a transfer this backend does not
+ * have yet; `unsupportedVectorReason` still refuses it, and says which of the two cases it is now.
+ *
+ * **Above `poolVectorConstants`**, which is the whole of where this may sit: a constant splat is a
+ * `.rodata` load by the time that pass has run, and a load is not a count this can read. It is the
+ * same ordering constraint `lowerLaneInserts` has and for the same reason.
+ */
+static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            if(inst->kind != LowerInst::Shl && inst->kind != LowerInst::Shr && inst->kind != LowerInst::Sar) {
+                continue;
+            }
+
+            auto shift = (LowerInstBinary*)inst;
+            if(!isVectorLike(shift->result.type)) continue;
+
+            // A count that is already a scalar is the spelling the machine wants and the one the
+            // `.lower` fixtures are written in - there is nothing here for it.
+            auto count = base[shift->rhs];
+            if(count->inst()->kind != LowerInst::VecSplat) continue;
+
+            auto source = base[((LowerInstVecSplat*)count->inst())->from];
+            if(source->inst()->kind != LowerInst::Imm) continue;
+
+            setOperand(base, fun.arena, inst, shift->rhs, source);
+
+            /*
+             * **The orphaned splat has to go, and not only because it is dead code.** While it
+             * stands it is a second reader of the constant, and `canEmbedImm` will not embed a
+             * constant something else needs in a register - so the count would be materialized with
+             * a `mov` and the shift would encode a zero where its immediate should be. Measured:
+             * `mov $0x7,%eax ; movd ; pshufd ; psrld $0x0`.
+             *
+             * The splat sits above the shift, so removing it moves the walk back one - and its own
+             * source may be dead in turn, which is what the second removal is for. Nothing deeper
+             * than that: a constant is the end of the chain.
+             */
+            // The cursor moves back only for a removal from *this* block: either of the two may have
+            // been built in another one - a constant hoisted to the entry block is the ordinary case
+            // - and there the walk is unaffected.
+            auto removeAndTrack = [&](LowerInst* dead) {
+                if(base[dead->block] == block) i--;
+                removeInst(base, dead);
+            };
+
+            if(!count->uses.isEmpty()) continue;
+
+            removeAndTrack(count->inst());
+            if(source->uses.isEmpty()) removeAndTrack(source->inst());
+        }
+    }
+}
+
+/*
  * A splat of an 8- or 16-bit lane, which this machine has no broadcast for.
  *
  * `pshufd` is the widest-reaching broadcast SSE2 has and it moves 32-bit lanes; the byte and word
@@ -1676,6 +1770,22 @@ static void expandNarrowSplats(Context&, LowerBase base, LowerFunction& fun) {
             auto type = splat->result.type;
 
             if(!type.isVector() || laneBytes(type.lane) >= 4) { i++; continue; }
+
+            /*
+             * **The two nothing-constants at a narrow lane, which used to fall through here.**
+             *
+             * The comment above says a constant splat never reaches this pass because
+             * `poolVectorConstants` has pooled it. That is true of every constant but two: the pool
+             * *declines* all-zero and all-ones on purpose, because `pxor r, r` and `pcmpeqd r, r`
+             * build them out of nothing and a `.rodata` entry would be worse. Those two are meant to
+             * reach the form table, where `splatConstantPattern` recognizes them - and this pass
+             * stood between, turning a byte-lane `splat(0)` into `xor ; mov ; mul ; movd ; pshufd`.
+             *
+             * Five instructions to produce zero, once per chunk, in the `count(mask)` path - so in
+             * every `countAscii`. The predicate is the form table's own, exported so that the two
+             * cannot disagree about which splats are constants. See §34.5 of test/bench/findings.md.
+             */
+            if(splatIsMachineConstant(base, inst)) { i++; continue; }
 
             auto lanes = laneBytes(type.lane) == 1 ? 4u : 2u;
             auto pattern = laneBytes(type.lane) == 1 ? U64(0x01010101) : U64(0x00010001);
@@ -2017,8 +2127,65 @@ static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* so
     return reduceTree(e, reduce, source, type);
 }
 
+/*
+ * A mask read through `pmovmskb` - §34.2 of test/bench/findings.md.
+ *
+ * One instruction turns the whole mask into an integer with a bit per *byte*, and all three mask
+ * reductions are then ordinary scalar arithmetic on it. What it replaces is a reduction tree: `any`
+ * was three `pshufd`/`por` levels, a lane extract and six general-register instructions, and `count`
+ * was that plus a select against two splats it had to build first.
+ *
+ * **A bit per byte, not per lane.** A mask lane is all-ones or all-zeros by construction, so a
+ * four-byte lane contributes four identical bits: `any` and `all` do not care, and `count` divides.
+ * The full pattern is `1 << bytes` minus one - sixteen bits at 128 and thirty-two at 256 - and it is
+ * computed from the type rather than written down, because the two tiers share this code.
+ *
+ * `count` needs a population count, which is an instruction only where the target claims it. Without
+ * it the tree below is still the shorter of the two - a SWAR population count is a dozen general
+ * -register instructions - so the fallback is the code this replaced rather than a second expansion.
+ */
+static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+    auto type = source->type;
+    auto scalar = LowerType::Int32;
+    auto bytes = type.lanes() * laneBytes(type.lane);
+
+    auto bits = e.emit(new (e.fun.arena) LowerInstVecReduce(StringId(), scalar, source - e.base,
+                                                            LowerReduce::Bits));
+
+    if(reduce == LowerReduce::Add) {
+        auto counted = e.intrinsic(LowerIntrinsic::Popcnt, scalar, bits);
+
+        // Every lane contributed `laneBytes` equal bits, so the population is the lane count times
+        // that - and the width is a power of two, so the division is a shift. A byte lane divides by
+        // one and needs none, which is the `String` case and the common one.
+        U64 shift = 0;
+        for(auto width = laneBytes(type.lane); width > 1; width /= 2) shift++;
+
+        return shift ? e.binary(LowerInst::Shr, scalar, counted, e.integer(scalar, shift)) : counted;
+    }
+
+    /*
+     * `any` is "not zero" and `all` is "every byte set", and both answer the -1/0 a mask lane holds
+     * rather than a 0/1 - because the caller appends the `& 1` that narrows it, and did so for the
+     * tree this replaces. A comparison into a select of two constants is what this backend already
+     * emits a `setcc` for.
+     */
+    auto wanted = reduce == LowerReduce::Or ? U64(0) : (U64(1) << bytes) - 1;
+    auto flag = e.compare(reduce == LowerReduce::Or ? LowerCmp::neq : LowerCmp::eq,
+                          bits, e.integer(scalar, wanted));
+
+    return e.select(scalar, flag, e.integer(scalar, 1), e.integer(scalar, 0));
+}
+
 static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
     auto type = source->type;
+
+    // The movemask exists at both tiers this backend emits for, and the population count it needs
+    // for `count` is a separate claim - so the fallback below is reached only by a target that has
+    // said it wants neither.
+    if(reduce != LowerReduce::Add || (targetFeatures() & kFeaturePopcnt)) {
+        return expandMaskBitsReduce(e, reduce, source);
+    }
 
     if(reduce == LowerReduce::Add) {
         // One per set lane, zero per clear one, at the mask's own lane shape - so the vector this
@@ -4290,6 +4457,10 @@ static const TransformPass kTransformPipeline[] = {
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
     { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0 },
     { "lowerLaneExtracts"_v,           lowerLaneExtracts,           0 },
+
+    // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
+    // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
+    { "unwrapVectorShiftCounts"_v,     unwrapVectorShiftCounts,     0 },
 
     /*
      * **Before `lowerLaneInserts`, which is the whole of where this may sit.** A constant vector in

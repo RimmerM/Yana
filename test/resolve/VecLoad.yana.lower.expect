@@ -79,64 +79,59 @@ sumInts<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
     %empty = vsplat 0: i32x4
     %n = cast %xs$length: Int
-    %acc = alloca 16, 16: Ptr
-    store %acc, %empty, 16
     %width = imm 4: Int
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = add %v_2, %width: Int
-    %v_6 = cmp_ile %v_5, %n: Int
-    je %v_6, b_3, b_7
-  }
-
-  b_7 {
-    %v_8 = cmp_ilt %v_2, %n: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_3 {
-    %v_11 = load %acc, 16: i32x4
-    %v_12 = sext %v_2: Long
-    %v_13 = shl %v_12, 2: Long
-    %v_14 = add %xs$items, %v_13: Ptr
-    %v_15 = bitcast %v_14: Ptr
-    %v_16 = load %v_15, 16: i32x4
-    %v_17 = add %v_11, %v_16: i32x4
-    store %acc, %v_17, 16
-    %v_4 = add %v_2, %width: Int
-    jmp b_1
+    %v_2 = phi [b_0, %empty], [b_3, %v_4]: i32x4
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = add %v_5, %width: Int
+    %v_8 = cmp_ile %v_7, %n: Int
+    je %v_8, b_3, b_9
   }
 
   b_9 {
-    %v_18 = sub %n, %v_2: Int
+    %v_10 = cmp_ilt %v_5, %n: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_3 {
+    %v_13 = sext %v_5: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = add %xs$items, %v_14: Ptr
+    %v_16 = bitcast %v_15: Ptr
+    %v_17 = load %v_16, 16: i32x4
+    %v_4 = add %v_2, %v_17: i32x4
+    %v_6 = add %v_5, %width: Int
+    jmp b_1
+  }
+
+  b_11 {
+    %v_18 = sub %n, %v_5: Int
     %v_19 = vwithlane %empty, 1, 1: i32x4
     %v_20 = vwithlane %v_19, 2, 2: i32x4
     %v_21 = vwithlane %v_20, 3, 3: i32x4
     %v_22 = vsplat %v_18: i32x4
     %live = cmp_ilt %v_21, %v_22: m32x4
-    %v_23 = load %acc, 16: i32x4
-    %v_24 = sext %v_2: Long
-    %v_25 = shl %v_24, 2: Long
-    %v_26 = add %xs$items, %v_25: Ptr
-    %v_27 = bitcast %v_26: Ptr
-    %v_28 = loadx %v_27, 16: i32x4
-    %v_29 = select %live, %v_28, %empty: i32x4
-    %v_30 = add %v_23, %v_29: i32x4
-    store %acc, %v_30, 16
-    jmp b_31
+    %v_23 = sext %v_5: Long
+    %v_24 = shl %v_23, 2: Long
+    %v_25 = add %xs$items, %v_24: Ptr
+    %v_26 = bitcast %v_25: Ptr
+    %v_27 = loadx %v_26, 16: i32x4
+    %v_28 = select %live, %v_27, %empty: i32x4
+    %v_29 = add %v_2, %v_28: i32x4
+    jmp b_30
   }
 
-  b_10 {
-    jmp b_31
+  b_12 {
+    jmp b_30
   }
 
-  b_31 {
-    %v_32 = load %acc, 16: i32x4
-    %v_33 = vreduce_add %v_32: Int
-    ret %v_33
+  b_30 {
+    %v_31 = phi [b_11, %v_29], [b_12, %v_2]: i32x4
+    %v_32 = vreduce_add %v_31: Int
+    ret %v_32
   }
 }
 
@@ -144,49 +139,46 @@ dot<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: Long)
   b_0 {
     %empty = vsplat 0: f32x4
     %n = cast %xs$length: Int
-    %acc = alloca 16, 16: Ptr
-    store %acc, %empty, 16
     %width = imm 4: Int
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = add %v_2, %width: Int
-    %v_6 = cmp_ile %v_5, %n: Int
-    je %v_6, b_3, b_7
-  }
-
-  b_7 {
-    %v_8 = cmp_ilt %v_2, %n: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_3 {
-    %v_11 = sext %v_2: Long
-    %v_12 = shl %v_11, 2: Long
-    %v_13 = add %xs$items, %v_12: Ptr
-    %v_14 = bitcast %v_13: Ptr
-    %v_15 = load %v_14, 16: f32x4
-    %v_16 = add %ys$items, %v_12: Ptr
-    %v_17 = bitcast %v_16: Ptr
-    %v_18 = load %v_17, 16: f32x4
-    %v_19 = load %acc, 16: f32x4
-    %v_20 = fma %v_15, %v_18, %v_19: f32x4
-    store %acc, %v_20, 16
-    %v_4 = add %v_2, %width: Int
-    jmp b_1
+    %v_2 = phi [b_0, %empty], [b_3, %v_4]: f32x4
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = add %v_5, %width: Int
+    %v_8 = cmp_ile %v_7, %n: Int
+    je %v_8, b_3, b_9
   }
 
   b_9 {
-    %v_21 = sub %n, %v_2: Int
+    %v_10 = cmp_ilt %v_5, %n: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_3 {
+    %v_13 = sext %v_5: Long
+    %v_14 = shl %v_13, 2: Long
+    %v_15 = add %xs$items, %v_14: Ptr
+    %v_16 = bitcast %v_15: Ptr
+    %v_17 = load %v_16, 16: f32x4
+    %v_18 = add %ys$items, %v_14: Ptr
+    %v_19 = bitcast %v_18: Ptr
+    %v_20 = load %v_19, 16: f32x4
+    %v_4 = fma %v_17, %v_20, %v_2: f32x4
+    %v_6 = add %v_5, %width: Int
+    jmp b_1
+  }
+
+  b_11 {
+    %v_21 = sub %n, %v_5: Int
     %v_22 = vwithlane %empty, 1, 1: f32x4
     %v_23 = vwithlane %v_22, 2, 2: f32x4
     %v_24 = vwithlane %v_23, 3, 3: f32x4
     %v_25 = itof %v_21: Float
     %v_26 = vsplat %v_25: f32x4
     %live = cmp_lt %v_24, %v_26: m32x4
-    %v_27 = sext %v_2: Long
+    %v_27 = sext %v_5: Long
     %v_28 = shl %v_27, 2: Long
     %v_29 = add %xs$items, %v_28: Ptr
     %v_30 = bitcast %v_29: Ptr
@@ -196,20 +188,18 @@ dot<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: Long)
     %v_33 = bitcast %v_32: Ptr
     %v_34 = loadx %v_33, 16: f32x4
     %y = select %live, %v_34, %empty: f32x4
-    %v_35 = load %acc, 16: f32x4
-    %v_36 = fma %x, %y, %v_35: f32x4
-    store %acc, %v_36, 16
-    jmp b_37
+    %v_35 = fma %x, %y, %v_2: f32x4
+    jmp b_36
   }
 
-  b_10 {
-    jmp b_37
+  b_12 {
+    jmp b_36
   }
 
-  b_37 {
-    %v_38 = load %acc, 16: f32x4
-    %v_39 = vreduce_add %v_38: Float
-    ret %v_39
+  b_36 {
+    %v_37 = phi [b_11, %v_35], [b_12, %v_2]: f32x4
+    %v_38 = vreduce_add %v_37: Float
+    ret %v_38
   }
 }
 

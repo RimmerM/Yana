@@ -466,6 +466,24 @@ enum class LowerReduce: U8 {
     IMax,
     And,
     Or,
+
+    /*
+     * The lanes of a *mask*, as bits of an integer - lane `i` in bit `i`, and nothing above the lane
+     * count.
+     *
+     * Not a combination at all, which is why it sits after the eight rather than among them: it is
+     * the one thing a machine can do to a mask that the eight are then arithmetic on. `any` is it
+     * against zero, `all` is it against the full pattern, `count` is its population and `firstSet`
+     * is its lowest set bit - four answers off one instruction, where each of the four expanded on
+     * its own is a reduction tree.
+     *
+     * **Written by a backend for itself, and never by anything above one.** `x86` has `pmovmskb` and
+     * ARM does not, so a target that lacks the instruction never sees this kind rather than having
+     * to expand it; the portable spelling of all four stays what `simd.cpp` emits. The validator
+     * still states its rule, the printer still names it and the parser still reads it back, because
+     * an IR this backend hands to its own next pass has to be one that round-trips.
+     */
+    Bits,
 };
 
 // Every lane of the result is the same scalar. The source is the lane type's scalar form - see

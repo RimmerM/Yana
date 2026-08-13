@@ -1,0 +1,37 @@
+let image$base: () = <none>
+
+fn shifts(%a: Vec(Int), %b: Vec(I64)) -> Int {
+  b0:
+    %v5 = vsplat 3 : Vec(Int)
+    %left = shl %a, %v5 : Vec(Int)
+    %v10 = vsplat 2 : Vec(Int)
+    %right = shr %a, %v10 : Vec(Int)
+    %v15 = vsplat 1 : Vec(Int)
+    %arith = sar %a, %v15 : Vec(Int)
+    %v20 = vsplat 5 : Vec(I64)
+    %v21 = shl %b, %v20 : Vec(I64)
+    %v25 = vsplat 4 : Vec(I64)
+    %wide = shr %v21, %v25 : Vec(I64)
+    %v29 = vlane %left, 0 : Int
+    %v32 = vlane %right, 1 : Int
+    %v33 = add %v29, %v32 : Int
+    %v36 = vlane %arith, 2 : Int
+    %v37 = add %v33, %v36 : Int
+    %v40 = vlane %wide, 0 : I64
+    %v41 = cast %v40 : Int
+    %v42 = add %v37, %v41 : Int
+    ret %v42
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = vsplat 64 : Vec(Int)
+    %v7 = vwithlane %v2, 5, 0 : Vec(Int)
+    %v12 = vwithlane %v7, 100, 1 : Vec(Int)
+    %v18 = sub 0, 32 : Int
+    %a = vwithlane %v12, %v18, 2 : Vec(Int)
+    %b = vsplat 3 : Vec(I64)
+    %v23 = call shifts, %a, %b : Int
+    %v26 = add %v23, 100 : Int
+    ret %v26
+}

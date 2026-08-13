@@ -377,6 +377,7 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
     instructionSet.add(Context::nameHash("vreduce_max"_v), handleReduce<LowerReduce::Max>());
     instructionSet.add(Context::nameHash("vreduce_imax"_v), handleReduce<LowerReduce::IMax>());
     instructionSet.add(Context::nameHash("vreduce_and"_v), handleReduce<LowerReduce::And>());
+    instructionSet.add(Context::nameHash("vreduce_bits"_v), handleReduce<LowerReduce::Bits>());
     instructionSet.add(Context::nameHash("vreduce_or"_v), handleReduce<LowerReduce::Or>());
 }
 

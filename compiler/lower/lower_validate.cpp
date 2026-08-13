@@ -922,6 +922,25 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
                 return false;
             }
 
+            /*
+             * `Bits` is the one kind whose result is not the lane's scalar form: it answers the
+             * lanes *as bits* rather than one of them, so a mask of any lane width answers the one
+             * integer that holds a bit per lane. Everything else states the ordinary rule.
+             */
+            if(reduce->getReduce() == LowerReduce::Bits) {
+                if(!source.isMask()) {
+                    diagnostics->error("only a mask reduces to its bits"_v, inst->source);
+                    return false;
+                }
+
+                if(reduce->result.type != LowerType::Int32) {
+                    diagnostics->error("a reduction to bits produces an i32"_v, inst->source);
+                    return false;
+                }
+
+                return true;
+            }
+
             if(reduce->result.type != scalarFormOf(source)) {
                 diagnostics->error("a reduction produces the lane's scalar form"_v, inst->source);
                 return false;
@@ -929,7 +948,7 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
 
             // A mask holds truth values, so the three that mean something over one are `and` (all),
             // `or` (any) and `add` (how many). The rest are arithmetic over lanes a mask does not
-            // have.
+            // have. `Bits` is the fourth and has answered above, since its result type differs.
             if(source.isMask()) {
                 auto reduction = reduce->getReduce();
                 auto valid = reduction == LowerReduce::And

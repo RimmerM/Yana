@@ -601,6 +601,13 @@ static llvm::Intrinsic::ID reduceIntrinsic(LowerReduce reduce, bool isFloat) {
         case LowerReduce::IMax: return llvm::Intrinsic::vector_reduce_smax;
         case LowerReduce::And:  return llvm::Intrinsic::vector_reduce_and;
         case LowerReduce::Or:   return llvm::Intrinsic::vector_reduce_or;
+
+        // Written by the x64 backend for itself and never by anything above one - see the note on
+        // the kind. Listed rather than defaulted so that the -Wswitch sweep keeps saying something
+        // about this switch, which is the whole reason it has no `default`.
+        case LowerReduce::Bits:
+            assertTrue("a movemask reduction reached the LLVM backend" == nullptr);
+            break;
     }
 
     return llvm::Intrinsic::vector_reduce_add;

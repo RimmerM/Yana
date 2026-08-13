@@ -1,0 +1,37 @@
+{-
+   Packed shifts by a constant count.
+
+   `class (Num(a)) Integral(a)` declares `shl(lhs: a, rhs: a)`, so over a vector *both* operands are
+   vectors: a shift by three reaches the backend as a shift by `vsplat(3)`, and every lane of that count
+   holds the same scalar by construction. The x64 form table has only the immediate rows - `pslld
+   xmm, imm8` and its siblings - and the selection asked whether the right operand was a scalar
+   `Imm`, so every packed shift a program could actually write was refused for want of an instruction
+   that was standing right there. See §33.6 and §34.1 of test/bench/findings.md.
+
+   The three directions and the two lane widths that have all three, because they are three separate
+   opcode extensions and a wrong one is a wrong answer rather than a refusal. `sar` is the one that
+   has to be told apart from `shr`: they differ only on a negative lane, which is why every `sar`
+   below is over one.
+
+   The counts are deliberately different per operation - a single shared count would pass with the
+   immediate encoded from the wrong operand.
+-}
+
+fn shifts(a: Vec(Int), b: Vec(I64)) -> Int:
+    let left = a `shl` 3
+    let right = a `shr` 2
+    let arith = a `sar` 1
+
+    -- A quadword lane has `shl` and `shr` and no `sar` before AVX-512, so this pair is what says the
+    -- 64-bit rows are reached and reached correctly.
+    let wide = (b `shl` 5) `shr` 4
+
+    return lane(left, 0) + lane(right, 1) + lane(arith, 2) + (truncate(lane(wide, 0)) :: Int)
+
+fn main() -> Int:
+    -- Lane 2 is negative, so `sar` and `shr` disagree about it and the fixture can tell which ran.
+    let a = withLane(withLane(withLane(splat(64), 0, 5), 1, 100), 2, 0 - 32)
+    let b = splat(3 :: I64)
+
+    -- 5 << 3 = 40; 100 >> 2 = 25; -32 >> 1 (arithmetic) = -16; (3 << 5) >> 4 = 6.
+    return shifts(a, b) + 100

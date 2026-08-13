@@ -145,6 +145,22 @@ enum : MachineOpcodeId {
     OpVExtract,
 
     /*
+     * A mask's lanes, as bits of a general register - `pmovmskb`, and `vpmovmskb` at 256.
+     *
+     * The one instruction that reads a mask as a whole, and the reason all four mask consumers are
+     * cheap once it exists: `any` is it against zero, `all` against the full pattern, `count` its
+     * population and `firstSet` its lowest set bit. Without it each of the four is a reduction tree
+     * over the vector - `firstSet` measured about forty instructions where this and a bit scan are
+     * two. See §34.2 of test/bench/findings.md.
+     *
+     * **It is one bit per *byte*, not one per lane**, which is the whole of what the arithmetic
+     * above it has to know: a mask lane is all-ones or all-zeros by construction, so a four-byte
+     * lane contributes four identical bits and the lane count is the bit count divided by the lane
+     * width. `expandMaskReduce` divides; nothing else reads the value.
+     */
+    OpVMaskBits,
+
+    /*
      * One lane written into a vector, which is the extract's mirror and is *not* its shape.
      *
      * Every form is two-address - the destination is the vector being written and every lane but one
@@ -1292,6 +1308,21 @@ bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value);
  * arrangement `packedShufflePattern` and `packedCompareRelation` already have.
  */
 bool splatIsMachineConstant(LowerBase base, LowerInst* inst);
+
+/*
+ * The constant count of a packed shift, if it has one - the scalar `pslld xmm, imm8` takes.
+ *
+ * Two spellings reach this backend and mean the same thing. A `.lower` fixture writes the count as a
+ * scalar, which is the form the machine has; `class (Num(a)) Integral(a)` declares both operands as
+ * `a`, so a shift written in the language arrives with the count as a *vector* - `vsplat(7)` - and
+ * every lane of it holds the same scalar by construction.
+ *
+ * Asked on both sides of the pass that unifies them, for the reason `packedCompareRelation` is:
+ * `checkVectorSupported` runs at the top of `transformFunction` and sees the splat, and
+ * `selectPackedForm` runs below `unwrapVectorShiftCounts` and sees the scalar. Read separately, the
+ * first refuses a shift the second emits perfectly well - which is what it did until this existed.
+ */
+LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst);
 
 // The opcode an instruction selects, independent of which form it ends up in. Takes the base because
 // an operation's opcode can depend on the type of an operand rather than of a result - a comparison

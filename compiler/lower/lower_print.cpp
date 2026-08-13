@@ -143,6 +143,7 @@ static StringView nameForReduce(LowerReduce reduce) {
         case LowerReduce::IMax: return "vreduce_imax"_v;
         case LowerReduce::And:  return "vreduce_and"_v;
         case LowerReduce::Or:   return "vreduce_or"_v;
+        case LowerReduce::Bits: return "vreduce_bits"_v;
     }
 
     assertTrue(false);

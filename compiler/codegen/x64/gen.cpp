@@ -1881,13 +1881,43 @@ struct Emitter {
     void emitVecSelect(LowerInst* inst, const InstRegs& regs) {
         auto wide = isWideVector(((LowerInstSelect*)inst)->result.type);
         auto destination = reg(regs.creates[0]);
+        auto whenTrue = reg(regs.uses[0]);
         auto whenFalse = reg(regs.uses[1]);
         auto mask = reg(regs.uses[2]);
         auto scratch = U8(15);
 
-        // `~mask & b` into the scratch, which is where the mask's second reader has to be: `pandn`
-        // writes the register it reads the mask out of, so doing this to the mask itself would
-        // destroy a value the caller may still need.
+        /*
+         * `vpblendvb` where the target has a VEX encoding, which is the whole of the operation in one
+         * instruction - VEX.66.0F3A.W0 4C /r /is4, and the byte after it names the mask in its high
+         * nibble. It reads *every* byte's sign bit, which is exactly what a mask lane is at any lane
+         * width, so one row serves the float and integer cases and both register widths.
+         *
+         * Three instructions saved out of four, and the sequence below was worse than its own
+         * description under a prefix: the copy in front of it exists only because `pandn` is
+         * two-address, and VEX made it dead years before this read it. Measured at four occurrences
+         * per program in the SIMD corpus - see §34.3 of test/bench/findings.md.
+         */
+        if(packedNeedsVex() || wide) {
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+                .map = kOpcodeMap0F3A, .length = wide ? U8(1) : U8(0), .vvvv = whenFalse,
+            }, whenTrue, destination, 0x4c);
+
+            to.buffer.writeByte(U8(mask << 4));
+            return;
+        }
+
+        /*
+         * The legacy sequence: `(mask & a) | (~mask & b)`, in the one order that needs a single
+         * scratch register and leaves both of the caller's inputs alone. `pandn` computes
+         * `~lhs & rhs`, which is what makes the second half one instruction rather than a complement
+         * and an `and`.
+         *
+         * `pblendvb` is SSE4.1 and would be two of these four - but it takes its mask in `xmm0`
+         * implicitly, and a form that clobbers `xmm0` gives up the *first* register placement reaches
+         * for at every select in the function. xmm15 is the last one, which is why the scratch is
+         * there and not here.
+         */
         genPackedCopy(wide, mask, scratch, 0x28, 0x0f, 0x00);      // movaps scratch, mask
         genPackedTwoAddress(wide, whenFalse, scratch, 0xdf, 0x0f, 0x66); // pandn scratch, b
 

@@ -84,15 +84,25 @@ function firstOver(n, bound) {
 }
 
 function firstOverOrCount(n, bound) {
-  var seen = { $v: 0 };
-  var v5 = { bound: bound, seen: { $o: seen, $k: "$v", $s: 1 } };
+  var seen = 0;
   var v30 = { $tag: 0, $p: null };
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v43 = ResolveTest_continuation$18(v5, i);
-      if (v43.$tag === 1) {
-        v30 = v43;
+      var v42 = i;
+      var v56 = { $tag: 0, $p: null };
+      if (v42 > bound) {
+        v56 = { $tag: 1, $p: Math.imul(v42, 100) };
+      } else {
+        if (v42 === 4) {
+          v56 = { $tag: 1, $p: null };
+        } else {
+          seen = seen + 1 | 0;
+          v56 = { $tag: 0, $p: null };
+        }
+      }
+      if (v56.$tag === 1) {
+        v30 = v56;
       } else {
         i = i + 1 | 0;
         continue L0;
@@ -109,7 +119,7 @@ function firstOverOrCount(n, bound) {
       }
     }
   }
-  return seen.$v;
+  return seen;
 }
 
 function grid(rows, columns) {
@@ -263,20 +273,6 @@ function main() {
   visited = 0;
   stopAt(10);
   return v39 + visited | 0;
-}
-
-function ResolveTest_continuation$18(env, value$) {
-  if (value$ > env.bound) {
-    return { $tag: 1, $p: Math.imul(value$, 100) };
-  } else {
-    if (value$ === 4) {
-      return { $tag: 1, $p: null };
-    } else {
-      var v14 = env.seen;
-      v14.$o[v14.$k] = v14.$o[v14.$k] + 1 | 0;
-      return { $tag: 0, $p: null };
-    }
-  }
 }
 
 function ResolveTest_continuation$28(env, value$) {

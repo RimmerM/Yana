@@ -184,7 +184,7 @@ struct InlinePolicy {
     U32 accessor = 0;
 
     /*
-     * Per argument that is a function value this frame built and that the callee *calls*.
+     * Per argument that is a function value this frame built and that the callee *reaches*.
      *
      * The second term the table prices against what the copy makes possible rather than against
      * what the callee contains, and it is the one that flattens an adaptor chain. A closure is
@@ -197,12 +197,39 @@ struct InlinePolicy {
      * Large, because what it has to reach is a whole loop rather than a small body: `each` in
      * `test/bench/programs/Pipeline.yana` is thirty instructions over eight blocks, and it is the
      * function every `for x in mapped(xs, f)` in the program is. Narrow enough to afford it - both
-     * halves have to hold, so a callee that merely takes a function parameter without calling it
-     * gets nothing, and a site passing a closure whose code word merges gets nothing either.
+     * halves have to hold, so a callee that never mentions its function parameter gets nothing, and
+     * a site passing a closure whose code word merges gets nothing either.
      *
-     * The ceiling still applies, which is what keeps this a budget rather than a decision.
+     * **And it is the one term that raises the ceiling with it** - see `worthInlining`, which is
+     * where that argument is, and `Parameter::used` for why "reaches" rather than "calls".
      */
     U32 closureArgument = 0;
+
+    /*
+     * Per indirect call the callee holds, where this site is itself one this pass resolved - capped
+     * at `chainedCap`, so that a body full of them does not buy an unbounded copy.
+     *
+     * `closureArgument` read from the other end, and the same argument. That term prices a closure
+     * arriving as an *argument*; this one prices the link below it, where the closure arrives in the
+     * environment of a call that has just been resolved. `Collections.continuation$1` is the shape:
+     * the chunk walker reads the loop body out of `[%env].body` and calls it, and neither the code
+     * word nor the environment is anything the walker's own frame can name. Copied into the frame
+     * that built them, both are - the environment is re-rooted at the caller's own storage, the
+     * forwarding turns the read of the body word into the function value the caller wrote there, and
+     * `knownCallee` resolves the call that was opaque.
+     *
+     * So what this buys is the *chain*: the second link of `for v in vectors(xs)` costs a body of
+     * sixty against a ceiling of forty-eight, and what stands behind it is the third link, the loop
+     * body itself, and - once the accumulator is a local rather than a capture - the promotion in
+     * `lower_promote.cpp` that §34.4 measured at 2.5x on the loop it applies to.
+     *
+     * Narrow by construction: both halves have to hold, and the site half is only ever true of a
+     * `calldyn` this pass resolved out of a function value the frame built, which is an adaptor
+     * chain and nothing else. A body that merely *contains* an indirect call, reached by an ordinary
+     * call, earns nothing here.
+     */
+    U32 chainedCall = 0;
+    U32 chainedCap = 2;
 
     /*
      * Where the copy removes the *last* call from the caller: the callee performs none, and this
@@ -340,6 +367,10 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.accessor = 0;
             policy.closureArgument = 0;
 
+            // And zero here on the same terms: what it prices is a chain of bodies copied into one
+            // frame, which is growth in every one of them.
+            policy.chainedCall = 0;
+
             // Zero here for the reason every speed argument is at this level, and this one has a
             // size argument as well - see the term. It is declined anyway: what the level pays for
             // is a body that moves, and a body with one call site moves already.
@@ -367,6 +398,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.borrowResult = managed ? 12 : 0;
             policy.accessor = 6;
             policy.closureArgument = 28;
+            policy.chainedCall = 28;
             policy.leafCaller = managed ? 0 : 8;
             policy.cycleCollapse = 16;
 
@@ -401,6 +433,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.borrowResult = managed ? 20 : 0;
             policy.accessor = 12;
             policy.closureArgument = 36;
+            policy.chainedCall = 36;
             policy.leafCaller = managed ? 0 : 12;
             policy.cycleCollapse = 24;
             policy.repeatedPenalty = managed ? 2 : 0;
@@ -457,9 +490,22 @@ enum class Binding: U8 {
 struct Parameter {
     Binding binding = Binding::Value;
 
-    // Whether the body calls this parameter through a `calldyn`, which is what makes a closure
-    // passed here worth a budget of its own - see `InlinePolicy::closureArgument`.
-    bool called = false;
+    /*
+     * Whether the body reaches this parameter at all, which is half of what makes a closure passed
+     * here worth a budget of its own - the other half is that the argument is one this frame built,
+     * and `closureBonus` asks that separately. See `InlinePolicy::closureArgument`.
+     *
+     * **Reaching it rather than calling it**, which is what the iteration protocol needs: `vectors`
+     * yields from inside `for chunk in chunks(self)`, so it never calls the continuation it was
+     * handed - it captures it into the environment of the closure it builds for the chunk walker,
+     * and the `calldyn` is a level further down in a body this one only names. Read as "calls it",
+     * every `for v in vectors(xs)` in the language scored a bonus of zero, and the term reached only
+     * the adaptors that call their function directly.
+     *
+     * A parameter the body never mentions earns nothing, which is the whole of what this excludes:
+     * a closure nothing reads is one the copy cannot resolve a call through either.
+     */
+    bool used = false;
 
     // The callee local the two re-rooted cases rewrite away, and `kNone` for the value case.
     U32 local = maxLimit<U32>;
@@ -524,6 +570,16 @@ struct Candidate {
     // Whether the body performs no call of its own, which is half of what `policy.leafCaller`
     // prices. The other half is the site's, and is asked there.
     bool callFree = true;
+
+    /*
+     * How many indirect calls the body holds, and whether the site being weighed is one this pass
+     * resolved out of a function value - the two halves of `policy.chainedCall`.
+     *
+     * `dynamicCalls` is the callee's own and is counted with the rest of the description; `dynamic`
+     * belongs to the site and is set by `inlineDynamicCall`.
+     */
+    U32 dynamicCalls = 0;
+    bool dynamic = false;
 
     bool isStraightLine() const { return blocks.size() == 1; }
 
@@ -721,6 +777,17 @@ struct Inliner {
     HashMap<U32, bool> taken;
     HashMap<U32, bool> recursive;
     HashMap<U32, U32> callSites;
+
+    /*
+     * How many `symbol` instructions in the program name each function, counted beside the call
+     * sites and by the same walk.
+     *
+     * The other way into a body, and for a lifted lambda it is the only one: nothing calls
+     * `Collections.continuation$1` by name, so `callSites` says zero about a body every chunk of
+     * every container goes through. One code word is one function value built in one place, which is
+     * what `movesIntoSite` reads it for.
+     */
+    HashMap<U32, U32> codeWords;
 
     /*
      * The three tables `collapsesCycle` is about, and they bound it between them.
@@ -1260,9 +1327,6 @@ struct Inliner {
         candidate.callee = callee;
         orderBlocks(*callee, candidate.blocks);
 
-        // Inline: the callables of one body, held for the length of this description.
-        SmallArray<ModulePtr<Value>, 4> called;
-
         if(candidate.blocks.size() > policy.maxBlocks) return Nothing();
 
         /*
@@ -1287,17 +1351,14 @@ struct Inliner {
                 auto& instruction = *opt.local[instructionPointer];
                 if(!clonableKind(instruction.kind)) return Nothing();
 
-                // Which values the body calls *through*, which the parameter walk below reads back
-                // - see `InlinePolicy::closureArgument`. Collected here rather than walked for,
-                // because this is already the walk of every instruction.
-                if(instruction.kind == Value::CallDyn) {
-                    auto callable = ((InstCallDyn&)instruction).callable;
-                    if(callable) called.push(callable);
-                }
-
                 // Whether the copy brings a call in with it - see `InlinePolicy::leafCaller`, which
                 // is the one term that is about the caller's frame rather than about either body.
                 if(performsCall(instruction.kind)) candidate.callFree = false;
+
+                // And how many of them are indirect, which is what `policy.chainedCall` prices.
+                // Counted here rather than walked for, because this is already the walk of every
+                // instruction.
+                if(instruction.kind == Value::CallDyn) candidate.dynamicCalls++;
 
                 candidate.size += dischargedSize(instruction);
             }
@@ -1362,7 +1423,9 @@ struct Inliner {
             Parameter parameter;
             parameter.binding = Binding::Value;
             parameter.arg = (ModulePtr<Value>)argPointer;
-            parameter.called = called.containsValue((ModulePtr<Value>)argPointer);
+            // Whether the body reaches this parameter at all - see `Parameter::used`, which is why
+            // this is the value's own use list rather than a walk for the `calldyn` that reads it.
+            parameter.used = arg->useCount() != 0;
 
             for(U32 local = 0; local < callee->localCount(); local++) {
                 auto slot = callee->localAt(opt.local, local);
@@ -1647,20 +1710,167 @@ struct Inliner {
     }
 
     /*
+     * What the closure term is worth at this site, summed over the parameters that earn it.
+     *
+     * Both halves are asked in the cheap order: the callee has to use the parameter, which is a flag
+     * `describe` already set, and only then is the argument worth the walk that says which lambda it
+     * is.
+     *
+     * Read twice - once against the ceiling and once against the limit - which is why it is a
+     * function rather than a term computed inside `worthInlining`'s parameter walk. Nothing here
+     * depends on the caller's state, so the two readings are the same number.
+     */
+    U32 closureBonus(Candidate& candidate) {
+        if(!policy.closureArgument) return 0;
+
+        U32 bonus = 0;
+        for(Size i = 0; i < candidate.parameters.size(); i++) {
+            if(!candidate.parameters[i].used) continue;
+            if(!knownCallee(candidate.arguments[i], false)) continue;
+
+            bonus += policy.closureArgument;
+        }
+
+        return bonus;
+    }
+
+    /*
+     * Whether the environment this site hands over holds a function value *this* frame built.
+     *
+     * The question the chain term rests on, and the whole of what stops it firing in the frame where
+     * the copy would be wasted. `vectors` hands the chunk walker an environment holding a borrow of
+     * the loop body it was itself passed - so copying the walker into `vectors` brings two `calldyn`
+     * in and resolves neither, since the body is that frame's *argument* and its code word is
+     * whatever the caller wrote. The identical site inside the caller, once `vectors` has been
+     * copied into it, hands over an environment holding a borrow of the closure the caller built,
+     * and there the same copy resolves both.
+     *
+     * Two spellings, which are the two ways a capture is written: the function value itself, and a
+     * borrow of the local holding one. `knownCallee` answers the first directly and the second
+     * through the borrowed local's own storage, which is the value the closure was built in.
+     */
+    bool environmentHoldsClosure(Place& environment) {
+        if(environment.root != PlaceRoot::Local) return false;
+        if(environment.projections.isNotEmpty()) return false;
+        if(environment.local >= opt.function->localCount()) return false;
+
+        auto storage = opt.function->localAt(opt.local, environment.local).value;
+        if(!storage) return false;
+
+        for(auto user: opt.local[storage]->uses(opt.local)) {
+            auto& instruction = *opt.local[user];
+            if(instruction.kind != Value::Init && instruction.kind != Value::Assign) continue;
+
+            auto written = ((InstInit&)instruction).value;
+            if(!written) continue;
+
+            if(opt.local[written]->kind == Value::Borrow) {
+                auto& borrow = (InstBorrow&)*opt.local[written];
+                if(borrow.place.root != PlaceRoot::Local) continue;
+                if(borrow.place.projections.isNotEmpty()) continue;
+                if(borrow.place.local >= opt.function->localCount()) continue;
+
+                written = opt.function->localAt(opt.local, borrow.place.local).value;
+                if(!written) continue;
+            }
+
+            if(knownCallee(written, false)) return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * And the same question for the link below it - see `policy.chainedCall`, whose two halves this
+     * is. Read twice for the reason `closureBonus` is.
+     */
+    U32 chainBonus(Candidate& candidate) {
+        if(!candidate.dynamic || !policy.chainedCall || !candidate.dynamicCalls) return 0;
+        if(candidate.parameters.isEmpty()) return 0;
+        if(!environmentHoldsClosure(candidate.parameters[0].storage)) return 0;
+
+        return min(candidate.dynamicCalls, policy.chainedCap) * policy.chainedCall;
+    }
+
+    /*
+     * Whether the copy *moves* this body rather than duplicating it.
+     *
+     * `soleCallSite` from the other end, and the same statement: a callee whose only way in is this
+     * site leaves nothing behind, so what the ceiling is guarding against - a large body copied on
+     * the strength of enough small reasons - is not what would happen. It is the last link of an
+     * adaptor chain and it is the one the other two terms cannot reach: `Collections.continuation$12`
+     * is `indexOf`'s own loop body at size 93, and it holds no indirect call of its own, so neither
+     * the closure term nor the chain term has anything to say about it.
+     *
+     * Four things have to hold and each of them is what makes "only way in" true rather than likely.
+     * The site is one this pass *resolved*, so the function value it goes through is one this frame
+     * built. The callee is a `takesEnv` body - a lifted lambda, which no source name reaches. And
+     * exactly one `symbol` instruction in the whole program names it, which is that closure: a second
+     * would be another function value able to reach the same body, and a body two frames can reach is
+     * one this copy duplicates rather than moves.
+     *
+     * The fourth is that the callee holds **no indirect call of its own**, which makes this the last
+     * link and nothing else. A body that does hold one is a link in the middle, and where it should
+     * be copied to is not a question about how many frames can reach it - it is `chainBonus`'s
+     * question, and the answer depends on which frame built the closure the copy would resolve. Read
+     * without this, the rule moved the chunk walker into `vectors`, where the loop body it then
+     * calls is that frame's own argument: the copy resolved nothing and left `vectors` too large to
+     * be copied into the caller that could have. Measured, that is `VecFloat` at 5.0 ms against
+     * 10.6.
+     *
+     * `callSites` says nothing here and cannot: nothing *calls* a lifted lambda by name, so its
+     * count is zero for every one of them and `soleCallSite` was already being paid on that basis.
+     * The code-word census is the same question asked where the answer is - see `codeWords`.
+     */
+    bool movesIntoSite(Candidate& candidate) {
+        // Spent where `soleCallSite` is, since it is that term's argument: zero only at
+        // `InlineLevel::None`, where nothing is inlined at all and a bisection expects it.
+        if(!policy.soleCallSite) return false;
+        if(!candidate.dynamic || !candidate.callee->takesEnv) return false;
+        if(candidate.dynamicCalls != 0) return false;
+
+        auto words = codeWords.getValue(U32(candidate.pointer));
+        return words && words.unwrap() == 1;
+    }
+
+    /*
      * Whether this call site is worth what the copy costs.
      *
      * The budget is the callee's size against a limit built from what the *call* looks like, and
      * every term is named in `InlinePolicy`. A call site that clears the ceiling is refused whatever
      * else it has going for it.
+     *
+     * **The ceiling is the two closure terms' too**, and those two are the only ones that raise it.
+     * The rest of the table prices a body against what it contains, and a ceiling over the sum of
+     * them is what stops a large body being copied on the strength of enough small reasons - see
+     * `InlinePolicy::ceiling`. Neither of these is one of those: what they buy is not the call the
+     * copy removes but the ones below it, and the bodies holding an indirect call over a container
+     * are loops, which are large by construction. Weighed under a fixed ceiling they can therefore
+     * never be spent on the callees they were written for - `Collections.continuation$1` is eleven
+     * blocks and size 60 against a ceiling of 48, refused with a bonus of 56 standing unspent beside
+     * it - which makes each of them a budget line that the shape it exists for cannot reach.
+     *
+     * **And a body that moves is not weighed against it at all** - see `movesIntoSite`. The ceiling
+     * is about what a *copy* costs, and there is no copy: the callee is a lifted lambda this site is
+     * the only way into, so what the program holds afterwards is the same body in one place instead
+     * of two. `soleCallSite` makes the same argument about the limit and has made it all along.
+     *
+     * `maxBlocks` is deliberately *not* lifted with any of them. That cap prices what a graft costs
+     * the passes downstream rather than what the body contains, and it is the same cost whichever
+     * term paid for the copy. See §34.6 and §35 of test/bench/findings.md.
      */
     bool worthInlining(Candidate& candidate) {
-        if(candidate.size > policy.ceiling) return false;
+        auto closure = closureBonus(candidate) + chainBonus(candidate);
+        auto moves = movesIntoSite(candidate);
+
+        if(!moves && candidate.size > policy.ceiling + closure) return false;
 
         auto sites = callSites.getValue(U32(candidate.pointer));
         auto count = sites ? sites.unwrap() : U32(0);
 
         auto limit = I64(policy.budget);
-        if(count <= 1) limit += policy.soleCallSite;
+        if(moves) limit += I64(candidate.size);
+        else if(count <= 1) limit += policy.soleCallSite;
         else if(count >= policy.manyCallSites) limit -= policy.manyPenalty;
         else limit -= policy.repeatedPenalty;
 
@@ -1671,18 +1881,11 @@ struct Inliner {
 
         limit += I64(min(constants, policy.constantCap)) * policy.constantArgument;
 
-        for(Size i = 0; i < candidate.parameters.size(); i++) {
-            auto& parameter = candidate.parameters[i];
+        for(auto& parameter: candidate.parameters) {
             if(parameter.binding == Binding::Borrowed) limit += policy.mutableBorrow;
-
-            // Both halves, asked in the cheap order: the callee has to call the parameter, which is
-            // a flag `describe` already set, and only then is the argument worth the walk that says
-            // which lambda it is.
-            if(policy.closureArgument && parameter.called &&
-               knownCallee(candidate.arguments[i], false)) {
-                limit += policy.closureArgument;
-            }
         }
+
+        limit += closure;
 
         if(candidate.resultLocal != Candidate::kNone || candidate.copiedResult) {
             limit += policy.memoryResult;
@@ -2706,13 +2909,36 @@ struct Inliner {
         for(auto user: storage->uses(opt.local)) {
             auto& instruction = *opt.local[user];
 
+            /*
+             * Which of the two words a place names, or nothing.
+             *
+             * **A leading `Downcast` is part of the shape and is skipped**, which is what this was
+             * missing. A function value is a record, and a place stepping into a record with one
+             * constructor is written `[Downcast 0][Field n]` rather than `[Field n]` - so the writes
+             * every closure the resolver builds performs were read here as "a place I do not
+             * recognize", and `knownCallee` answered Nothing for all of them. The consequence was
+             * not a missed optimization but a missing one: `inlineDynamicCall` is what flattens an
+             * adaptor chain and it was reachable only for the closures written the other way.
+             *
+             * Skipping it is exact rather than approximate. A downcast selects a constructor, a
+             * function value has exactly one, and the field indices below it are the layout's own -
+             * so the step names the same storage it started from. See §34.6 of
+             * test/bench/findings.md.
+             */
             auto word = [&](const Place& place) -> Maybe<U32> {
                 if(place.root != PlaceRoot::Local || place.local != local) return Nothing();
 
                 auto& projections = const_cast<Place&>(place).projections;
-                if(projections.size() != 1) return Nothing();
+                Size at = 0;
 
-                auto projection = projections.get(opt.local, 0);
+                if(projections.size() == 2 &&
+                   projections.get(opt.local, 0).kind == ProjectionKind::Downcast) {
+                    at = 1;
+                } else if(projections.size() != 1) {
+                    return Nothing();
+                }
+
+                auto projection = projections.get(opt.local, at);
                 if(projection.kind != ProjectionKind::Field) return Nothing();
                 if(projection.index != FunValueLayout::kCode &&
                    projection.index != FunValueLayout::kEnv) return Nothing();
@@ -2824,6 +3050,7 @@ struct Inliner {
         if(!described) return false;
 
         auto candidate = described.unwrap();
+        candidate.dynamic = true;
 
         // The environment in front of the declared arguments, which is what `takesEnv` says the
         // callee's parameter list is.
@@ -3102,11 +3329,12 @@ struct Inliner {
      */
     void countCallSites() {
         callSites.clear();
+        codeWords.clear();
 
-        auto record = [&](ModulePtr<Function> callee) {
+        auto record = [&](HashMap<U32, U32>& into, ModulePtr<Function> callee) {
             if(!callee) return;
 
-            auto entry = callSites.add(U32(callee));
+            auto entry = into.add(U32(callee));
             *entry.value = entry.existed ? *entry.value + 1 : 1;
         };
 
@@ -3119,10 +3347,14 @@ struct Inliner {
                         auto& instruction = *opt.local[instructionPointer];
 
                         if(instruction.kind == Value::Call) {
-                            record(((InstCall&)instruction).callee);
+                            record(callSites, ((InstCall&)instruction).callee);
                         } else if(instruction.kind == Value::Drop) {
-                            record(((InstDrop&)instruction).drop);
-                            record(((InstDrop&)instruction).reclaim);
+                            record(callSites, ((InstDrop&)instruction).drop);
+                            record(callSites, ((InstDrop&)instruction).reclaim);
+                        } else if(instruction.kind == Value::Symbol) {
+                            // The other way a body is reached, and the one a `calldyn` goes through
+                            // - see `movesIntoSite`.
+                            record(codeWords, ((InstSymbol&)instruction).callee);
                         }
                     }
                 }

@@ -224,6 +224,7 @@ enum: MachineFormId {
     // the value staying in the bank it is already in.
     FormVExtract32, FormVExtract64,
     FormVExtract32Zero, FormVExtract64Zero,
+    FormVMaskBits,
     FormVExtractF32, FormVExtractF64,
 
     // One lane into a vector, which is a longer list than the extract's because the machine gives a
@@ -345,6 +346,7 @@ enum: MachineFormId {
     // wanted half brought down in front of it - see PseudoKind::VecWideLane. Four of each, by the
     // bank the scalar lives in and by its width, which is the same split the narrow forms have.
     FormVWideExtract32, FormVWideExtract64, FormVWideExtractF32, FormVWideExtractF64,
+    FormVWideMaskBits,
     FormVWideInsert32, FormVWideInsert64, FormVWideInsertF32, FormVWideInsertF64,
 
     FormSelectFlags,
@@ -536,6 +538,7 @@ MachineTarget::MachineTarget() {
     name(OpVShuffle, "vshuffle"_v);
     name(OpVBroadcast, "vbroadcast"_v);
     name(OpVExtract, "vextract"_v);
+    name(OpVMaskBits, "vmaskbits"_v);
     name(OpVInsert, "vinsert"_v);
     name(OpVBlend, "vblend"_v);
     name(OpVNot, "vnot"_v);
@@ -2089,6 +2092,30 @@ MachineTarget::MachineTarget() {
         extractZero(FormVExtract32Zero, "movd r32, xmm"_v, ClassGpr32, false);
         extractZero(FormVExtract64Zero, "movq r64, xmm"_v, ClassGpr64, true);
 
+        /*
+         * A mask's bytes, as bits of a general register - `pmovmskb`, `66 0F D7 /r`, SSE2.
+         *
+         * The ordinary extract direction, and the same shape `movd r32, xmm` above has: the general
+         * register is what it writes so it sits in ModRM.reg, and the vector it reads is r/m. Fixed
+         * at 32 bits on both sides of the tier - sixteen bits are set at 128 and thirty-two at 256,
+         * and neither needs REX.W to hold.
+         *
+         * There is no memory form: `pmovmskb` takes a register operand only, which is why this row
+         * declares no `memorySource` twin where the other packed rows do.
+         */
+        {
+            auto& form = add(FormVMaskBits, OpVMaskBits, "pmovmskb r32, xmm"_v);
+            form.uses.push(anyReg(ClassXmm128));
+            form.defs.push(def(ClassGpr32));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = 0xd7,
+                .escape = 0x0f, .prefix = 0x66,
+                .regField = defRef(0), .rmField = useRef(0),
+                .width = OperationWidth::Fixed32,
+            };
+        }
+
         // A float lane never leaves the vector bank, so the extract is the shuffle that brings the
         // wanted lane down to lane zero - no feature, no bank crossing, and the same instruction the
         // broadcast uses with the index generalized.
@@ -2795,6 +2822,11 @@ MachineTarget::MachineTarget() {
         wideExtract(FormVWideExtract64,  "vextracti128; vpextrq r64, xmm, lane"_v, ClassGpr64, true);
         wideExtract(FormVWideExtractF32, "vextractf128; vpshufd xmm, xmm, lane"_v, ClassFloat32, false);
         wideExtract(FormVWideExtractF64, "vextractf128; vpshufd xmm, xmm, lane"_v, ClassFloat64, false);
+
+        // `vpmovmskb r32, ymm` - the one wide row that is a real encoding rather than a pseudo,
+        // because AVX2 widened the instruction itself: thirty-two bytes in, thirty-two bits out, and
+        // the general register it writes is the same width at either tier.
+        wideTwin(FormVWideMaskBits, FormVMaskBits, "vpmovmskb r32, ymm"_v);
 
         auto wideInsert = [&](MachineFormId id, StringView formName, RegisterClassId cls) {
             auto& form = add(id, OpVInsert, formName);
@@ -4153,12 +4185,20 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::VecWithLane:
             return OpVInsert;
 
-        // The one left that only a vector can be an operand of. A reduction is a machine operation
-        // this backend has yet to describe - it is a tree of shuffles and pairwise operations, which
-        // §5.3 of Implementation-Vector.md says to expand into IR rather than into a pseudo -
-        // so it is refused rather than mapped onto a neighbouring opcode, which is the failure that
-        // would be silent.
+        /*
+         * A reduction is a tree of shuffles and pairwise operations, which §5.3 of
+         * Implementation-Vector.md says to expand into IR rather than into a pseudo - so every kind
+         * but one is refused here rather than mapped onto a neighbouring opcode, which is the
+         * failure that would be silent.
+         *
+         * The one is `Bits`, which is not a tree and not a combination: it is `pmovmskb`, one
+         * instruction, and `expandMaskReduce` writes it in terms of which the other three mask
+         * reductions are ordinary integer arithmetic. It reaches here rather than being expanded
+         * because there is nothing to expand it into.
+         */
         case LowerInst::VecReduce:
+            if(((LowerInstVecReduce*)inst)->getReduce() == LowerReduce::Bits) return OpVMaskBits;
+
             assertTrue("no machine opcode for this vector instruction yet" == nullptr);
             return OpNone;
 
@@ -4806,6 +4846,17 @@ bool splatIsMachineConstant(LowerBase base, LowerInst* inst) {
     return inst->kind == LowerInst::VecSplat && splatConstantPattern(base, inst);
 }
 
+LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst) {
+    auto count = base[((LowerInstBinary*)inst)->rhs]->inst();
+
+    // A splat of a constant is the language's spelling and a bare constant is the fixtures'. One
+    // level of unwrapping and no more: a splat of a runtime value is the other machine form's
+    // business, and a splat of a splat is not a thing this IR produces.
+    if(count->kind == LowerInst::VecSplat) count = base[((LowerInstVecSplat*)count)->from]->inst();
+
+    return count->kind == LowerInst::Imm ? (LowerImm*)count : nullptr;
+}
+
 static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
     // Indexed by laneColumn: i8, i16, i32, i64, f32, f64.
     static const MachineFormId kAdd[6] = { FormVAdd8, FormVAdd16, FormVAdd32, FormVAdd64, FormVAddF32, FormVAddF64 };
@@ -4894,8 +4945,10 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * only where some *other* use of it cannot take it in the encoding. `checkFormOperands`
              * is what catches it, one stage later and as an assertion rather than as a diagnostic.
              */
-            // `isImm` is the *embedded* question and this one is not it - see above.
-            assertTrue(base[binary->rhs]->inst()->kind == LowerInst::Imm); // no packed shift by a register count yet
+            // `isImm` is the *embedded* question and this one is not it - see above. Read through
+            // the splat as well, because `tryFoldLoad` selects a form for every instruction it walks
+            // past and that walk starts above `unwrapVectorShiftCounts`.
+            assertTrue(packedShiftConstantCount(base, inst)); // no packed shift by a register count yet
 
             switch(inst->kind) {
                 case LowerInst::Shl: return packedForm(kShlImm, type);
@@ -5159,6 +5212,22 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return packedForm(kInsert, type);
         }
 
+        /*
+         * The one reduction that is an instruction. Every other kind has been expanded into a tree
+         * by `lowerVectorReductions` long before this runs, so reaching this row with one is that
+         * pass not having run - which the `opcodeFor` arm asserts rather than this one, since a
+         * form of zero here is read as "not a packed operation" and would fall through silently.
+         *
+         * One row at each tier and no lane table: `pmovmskb` reads bytes whatever the mask's lanes
+         * are, so the lane width is the arithmetic above it and not the form.
+         */
+        case LowerInst::VecReduce: {
+            if(((LowerInstVecReduce*)inst)->getReduce() != LowerReduce::Bits) return 0;
+
+            return isWideVector(base[((LowerInstVecReduce*)inst)->from]->type)
+                ? FormVWideMaskBits : FormVMaskBits;
+        }
+
         default:
             return 0;
     }
@@ -5419,8 +5488,19 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar: {
-            if(base[((LowerInstBinary*)inst)->rhs]->inst()->kind != LowerInst::Imm) {
-                return Just("a packed shift by a count in a register is not implemented here - the count would have to be moved into a vector register first"_v);
+            /*
+             * Read through the splat the language's spelling wraps the count in - see
+             * `packedShiftConstantCount`, and `unwrapVectorShiftCounts` in transform.cpp, which is
+             * the pass this stands on the other side of.
+             *
+             * What is left refused is a count that is not a constant at all. The machine does have a
+             * form for that - the count in the low quadword of a vector register - and reaching it
+             * needs the scalar moved into lane zero with the rest cleared, since `pslld` reads the
+             * whole quadword as one count and a splat would arrive as a number far past the lane
+             * width. That transfer is the missing piece rather than the instruction.
+             */
+            if(!packedShiftConstantCount(base, inst)) {
+                return Just("a packed shift by a count that is not a constant is not implemented here - the count would have to be moved into lane zero of a vector register with the rest cleared"_v);
             }
 
             if(laneBytes(type.lane) == 1) return Just("the machine has no packed shift of a byte lane"_v);
@@ -6000,7 +6080,8 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
         // The two that only a vector can be an operand of. `opcodeFor` has already refused each of
         // them - the machine operations are named in §5.3 of Implementation-Vector.md and neither is
-        // described yet - so this is unreachable rather than a second refusal.
+        // described yet - so this is unreachable rather than a second refusal. Except for the one
+        // reduction that *is* an instruction, which `selectPackedForm` answers above.
         case LowerInst::VecWithLane:
         case LowerInst::VecReduce:
             break;

@@ -478,7 +478,32 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
             auto follow = g.ipdom[block];
             auto label = generatedName(g, "L"_v, g.labelCounter++);
 
+            /*
+             * Two exits rather than one, which are the loop's two ways out and share its label.
+             *
+             * `continue L` is the header. `break L` is the *follow*, and it is for a path that
+             * leaves the loop from inside a construct nested in its body. A path that reaches the
+             * follow from the body itself falls off the end and is a `break` for that reason - the
+             * one emitted below - but a path inside a labelled merge block is several levels down
+             * and has nothing to fall off, and neither the merge's own exit nor the enclosing `if`'s
+             * join names the block it is going to. Without the entry the follow was emitted a second
+             * time *inside* the loop, which is what `g.emitted` then reported as a graph this pass
+             * could not structure.
+             *
+             * `break L` on a labelled `for(;;)` lands exactly where the follow is emitted, which is
+             * the statement after the loop - so the two spellings are the same statement, in the way
+             * `findExit`'s two arms already are for a labelled block.
+             *
+             * The shape it takes is a loop whose body holds a `match`: `indexOf` over a container is
+             * one - the merge is the arm join, and the early return out of the vector tail leaves
+             * both it and the loop at once. Nothing produced one until a body of that shape was
+             * inlined into a frame that put a loop around it - see §35 of test/bench/findings.md.
+             */
+            auto exits = follow < g.blocks.size() ? 2 : 1;
+
             g.exits.push(Exit { block, label, true });
+            if(exits == 2) g.exits.push(Exit { follow, label, false });
+
             auto body = collect(g, [&] {
                 emitChain(g, block, follow);
 
@@ -486,7 +511,8 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
                 // repeats said so with an explicit `continue`.
                 emit(g, make<BreakStmt>(g, label));
             });
-            g.exits.pop();
+
+            for(auto i = 0; i < exits; i++) g.exits.pop();
 
             emit(g, make<LabelledStmt>(g, label, asStmt(g, make<ForeverStmt>(g, body))));
             block = follow;
