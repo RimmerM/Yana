@@ -100,7 +100,6 @@ noneLanes<complex>(%a: i32x4, %b: i32x4, %x: Int): Int {
 
 
 --- codegen: firstByte ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -109,58 +108,49 @@ block #1:
   imm uses=[] creates=[-]  => 
   or uses=[rax, -] creates=[rax]  => 81c800000100
   cttz uses=[rax] creates=[rax]  => 0fbcc0
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: firstWord ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
-  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  vreduce_bits uses=[xmm0] creates=[rax]  => 0f50c0
   imm uses=[] creates=[-]  => 
-  or uses=[rax, -] creates=[rax]  => 81c800000100
+  or uses=[rax, -] creates=[rax]  => 83c810
   cttz uses=[rax] creates=[rax]  => 0fbcc0
-  imm uses=[] creates=[-]  => 
-  shr uses=[rax, -] creates=[rax]  => c1e802
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: anyLane ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
-  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  vreduce_bits uses=[xmm0] creates=[rax]  => 0f50c0
   imm uses=[] creates=[-]  => 
   cmp_neq uses=[rax, -] creates=[rax]  => 85c00f95c00fb6c0
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: allLanes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
-  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  vreduce_bits uses=[xmm0] creates=[rax]  => 0f50c0
   imm uses=[] creates=[-]  => 
-  cmp_eq uses=[rax, -] creates=[rax]  => 81f8ffff00000f94c00fb6c0
-  ret uses=[rax] creates=[]  => c9c3
+  cmp_eq uses=[rax, -] creates=[rax]  => 83f80f0f94c00fb6c0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: countLanes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
-  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  vreduce_bits uses=[xmm0] creates=[rax]  => 0f50c0
   popcnt uses=[rax] creates=[rax]  => f30fb8c0
-  imm uses=[] creates=[-]  => 
-  shr uses=[rax, -] creates=[rax]  => c1e802
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: anyThenFirst ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
@@ -168,24 +158,23 @@ block start:
   vreduce_bits uses=[xmm0] creates=[rcx]  => 660fd7c8
   imm uses=[] creates=[-]  => 
   cmp_neq uses=[rcx, -] creates=[-]  => 85c9
-  je uses=[-] creates=[]  => 7502
+  je uses=[-] creates=[]  => 7501
 block miss:
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 block hit:
   imm uses=[] creates=[-]  => 
   or uses=[rcx, -] creates=[rcx]  => 81c900000100
   cttz uses=[rcx] creates=[rcx]  => 0fbcc9
   add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: phiMask ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   cmp_eq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f74d1
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm3]  => f30f6f1d4d000000
+  load uses=[-] creates=[xmm3]  => f30f6f1d51000000
   xor uses=[xmm0, xmm3] creates=[xmm0]  => 660fefc3
   xor uses=[xmm1, xmm3] creates=[xmm1]  => 660fefcb
   cmp_igt uses=[xmm0, xmm1] creates=[xmm0]  => 660f64c1
@@ -200,21 +189,20 @@ block join:
   or uses=[rax, -] creates=[rax]  => 81c800000100
   cttz uses=[rax] creates=[rax]  => 0fbcc0
   add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: noneLanes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
-  vreduce_bits uses=[xmm0] creates=[rcx]  => 660fd7c8
+  vreduce_bits uses=[xmm0] creates=[rcx]  => 0f50c8
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rcx, -] creates=[-]  => 85c9
   imm uses=[] creates=[-]  => 
-  je uses=[-] creates=[]  => 7407
+  je uses=[-] creates=[]  => 7406
 block some:
   imm uses=[] creates=[remat:0]  => 
-  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c9c3
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
 block empty:
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3

@@ -18,17 +18,15 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = shl %sizeClass, 3: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = add %v_13, %v_10: Ptr
-    store %v_14, %allocation, 8
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
     ret 
   }
 }
@@ -62,8 +60,7 @@ Reclaim(Array(a)).reclaim(Point)<complex>(%value: Ptr) {
 
   b_14 {
     %v_17 = load %value, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
+    call_complex freeHeap, %v_17
     jmp b_16
   }
 

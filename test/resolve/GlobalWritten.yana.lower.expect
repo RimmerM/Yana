@@ -79,26 +79,25 @@ main<complex>(): Int {
 
   b_20 {
     %v_21 = phi [b_17, %v_19], [b_18, %v_13]: Int
-    %v_22 = bitcast @greeting: Ptr
-    %v_23 = add %v_22, 12: Ptr
-    %v_24 = load %v_23, 4: Int
-    %units = cast %v_24: Int
-    %v_25 = cmp_eq %units, 2: Int
-    je %v_25, b_26, b_27
+    %v_22 = add @greeting, 12: Ptr
+    %v_23 = load %v_22, 4: Int
+    %units = cast %v_23: Int
+    %v_24 = cmp_eq %units, 2: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    %v_27 = add %v_21, 8: Int
+    jmp b_28
   }
 
   b_26 {
-    %v_28 = add %v_21, 8: Int
-    jmp b_29
+    jmp b_28
   }
 
-  b_27 {
-    jmp b_29
-  }
-
-  b_29 {
-    %v_30 = phi [b_26, %v_28], [b_27, %v_21]: Int
-    ret %v_30
+  b_28 {
+    %v_29 = phi [b_25, %v_27], [b_26, %v_21]: Int
+    ret %v_29
   }
 }
 

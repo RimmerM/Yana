@@ -18,17 +18,15 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = shl %sizeClass, 3: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = add %v_13, %v_10: Ptr
-    store %v_14, %allocation, 8
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
     ret 
   }
 }
@@ -158,26 +156,24 @@ sumInts<complex>(%xs$items: Ptr, %xs$length: Long): Int {
     %v_20 = sext %v_7: Long
     %v_21 = shl %v_20, 2: Long
     %v_22 = add %xs$items, %v_21: Ptr
-    %v_23 = bitcast %v_22: Ptr
-    %v_24 = loadx %v_23, 16: i32x4
-    %v_25 = select %live, %v_24, %v_1: i32x4
-    %v_26 = add %v_4, %v_25: i32x4
+    %v_23 = loadx %v_22, 16: i32x4
+    %v_24 = select %live, %v_23, %v_1: i32x4
+    %v_25 = add %v_4, %v_24: i32x4
     jmp b_14
   }
 
   b_14 {
-    %v_27 = phi [b_11, %v_4], [b_13, %v_26]: i32x4
-    %v_28 = vreduce_add %v_27: Int
-    ret %v_28
+    %v_26 = phi [b_11, %v_4], [b_13, %v_25]: i32x4
+    %v_27 = vreduce_add %v_26: Int
+    ret %v_27
   }
 
   b_5 {
-    %v_29 = sext %v_7: Long
-    %v_30 = shl %v_29, 2: Long
-    %v_31 = add %xs$items, %v_30: Ptr
-    %v_32 = bitcast %v_31: Ptr
-    %v_33 = load %v_32, 16: i32x4
-    %v_6 = add %v_4, %v_33: i32x4
+    %v_28 = sext %v_7: Long
+    %v_29 = shl %v_28, 2: Long
+    %v_30 = add %xs$items, %v_29: Ptr
+    %v_31 = load %v_30, 16: i32x4
+    %v_6 = add %v_4, %v_31: i32x4
     %v_8 = add %v_7, %v_2: Int
     jmp b_3
   }
@@ -214,32 +210,30 @@ largest<complex>(%xs$items: Ptr, %xs$length: Long, %floor: Int): Int {
     %v_21 = sext %v_13: Long
     %v_22 = shl %v_21, 2: Long
     %v_23 = add %xs$items, %v_22: Ptr
-    %v_24 = bitcast %v_23: Ptr
-    %v_25 = loadx %v_24, 16: i32x4
-    %v_26 = sub %n, %v_13: Int
-    %v_27 = vsplat %v_26: i32x4
-    %v_28 = cmp_ilt %v_5, %v_27: m32x4
-    %v_29 = select %v_28, %v_25, %v_10: i32x4
-    %v_30 = cmp_igt %v_10, %v_29: m32x4
-    %v_31 = select %v_30, %v_10, %v_29: i32x4
+    %v_24 = loadx %v_23, 16: i32x4
+    %v_25 = sub %n, %v_13: Int
+    %v_26 = vsplat %v_25: i32x4
+    %v_27 = cmp_ilt %v_5, %v_26: m32x4
+    %v_28 = select %v_27, %v_24, %v_10: i32x4
+    %v_29 = cmp_igt %v_10, %v_28: m32x4
+    %v_30 = select %v_29, %v_10, %v_28: i32x4
     jmp b_20
   }
 
   b_20 {
-    %v_32 = phi [b_17, %v_10], [b_19, %v_31]: i32x4
-    %v_33 = vreduce_imax %v_32: Int
-    ret %v_33
+    %v_31 = phi [b_17, %v_10], [b_19, %v_30]: i32x4
+    %v_32 = vreduce_imax %v_31: Int
+    ret %v_32
   }
 
   b_11 {
-    %v_34 = sext %v_13: Long
-    %v_35 = shl %v_34, 2: Long
-    %v_36 = add %xs$items, %v_35: Ptr
-    %v_37 = bitcast %v_36: Ptr
-    %v_38 = load %v_37, 16: i32x4
-    %v_39 = select %v_8, %v_38, %v_10: i32x4
-    %v_40 = cmp_igt %v_10, %v_39: m32x4
-    %v_12 = select %v_40, %v_10, %v_39: i32x4
+    %v_33 = sext %v_13: Long
+    %v_34 = shl %v_33, 2: Long
+    %v_35 = add %xs$items, %v_34: Ptr
+    %v_36 = load %v_35, 16: i32x4
+    %v_37 = select %v_8, %v_36, %v_10: i32x4
+    %v_38 = cmp_igt %v_10, %v_37: m32x4
+    %v_12 = select %v_38, %v_10, %v_37: i32x4
     %v_14 = add %v_13, %v_6: Int
     jmp b_9
   }
@@ -361,279 +355,269 @@ main<complex>(): Int {
     %v_67 = sext %v_53: Long
     %v_68 = shl %v_67, 2: Long
     %v_69 = add %from$items, %v_68: Ptr
-    %v_70 = bitcast %v_69: Ptr
-    %v_71 = loadx %v_70, 16: i32x4
-    %v_72 = select %live, %v_71, %v_45: i32x4
-    %v_73 = add %v_50, %v_72: i32x4
+    %v_70 = loadx %v_69, 16: i32x4
+    %v_71 = select %live, %v_70, %v_45: i32x4
+    %v_72 = add %v_50, %v_71: i32x4
     jmp b_60
   }
 
   b_60 {
-    %v_74 = phi [b_57, %v_50], [b_59, %v_73]: i32x4
-    %v_75 = vreduce_add %v_74: Int
-    %v_76 = cmp_eq %v_75, 66: Int
-    je %v_76, b_77, b_78
+    %v_73 = phi [b_57, %v_50], [b_59, %v_72]: i32x4
+    %v_74 = vreduce_add %v_73: Int
+    %v_75 = cmp_eq %v_74, 66: Int
+    je %v_75, b_76, b_77
   }
 
   b_51 {
-    %v_79 = sext %v_53: Long
-    %v_80 = shl %v_79, 2: Long
-    %v_81 = add %from$items, %v_80: Ptr
-    %v_82 = bitcast %v_81: Ptr
-    %v_83 = load %v_82, 16: i32x4
-    %v_52 = add %v_50, %v_83: i32x4
+    %v_78 = sext %v_53: Long
+    %v_79 = shl %v_78, 2: Long
+    %v_80 = add %from$items, %v_79: Ptr
+    %v_81 = load %v_80, 16: i32x4
+    %v_52 = add %v_50, %v_81: i32x4
     %v_54 = add %v_53, %v_28: Int
     jmp b_49
   }
 
+  b_76 {
+    %v_82 = add %v_44, 4: Int
+    jmp b_77
+  }
+
   b_77 {
-    %v_84 = add %v_44, 4: Int
-    jmp b_78
+    %v_83 = phi [b_60, %v_44], [b_76, %v_82]: Int
+    %v_84 = vsplat 0: i32x4
+    %v_85 = alloca 16, 8: Ptr
+    call_complex Contiguous(Array(a), a).elements(Int), %v_85, %xs
+    %v_86 = add %v_85, 8: Ptr
+    %v_87 = loads %v_86, 8: Long
+    %n = cast %v_87: Int
+    %v_88 = vsplat 0: i32x4
+    %v_89 = vwithlane %v_88, 1, 1: i32x4
+    %v_90 = vwithlane %v_89, 2, 2: i32x4
+    %v_91 = vwithlane %v_90, 3, 3: i32x4
+    %v_92 = vsplat %v_29: i32x4
+    %v_93 = cmp_ilt %v_91, %v_92: m32x4
+    %from$items = load %v_85, 8: Ptr
+    jmp b_94
   }
 
-  b_78 {
-    %v_85 = phi [b_60, %v_44], [b_77, %v_84]: Int
-    %v_86 = vsplat 0: i32x4
-    %v_87 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Int), %v_87, %xs
-    %v_88 = add %v_87, 8: Ptr
-    %v_89 = loads %v_88, 8: Long
-    %n = cast %v_89: Int
-    %v_90 = vsplat 0: i32x4
-    %v_91 = vwithlane %v_90, 1, 1: i32x4
-    %v_92 = vwithlane %v_91, 2, 2: i32x4
-    %v_93 = vwithlane %v_92, 3, 3: i32x4
-    %v_94 = vsplat %v_29: i32x4
-    %v_95 = cmp_ilt %v_93, %v_94: m32x4
-    %from$items = load %v_87, 8: Ptr
-    jmp b_96
+  b_94 {
+    %v_95 = phi [b_77, %v_84], [b_96, %v_97]: i32x4
+    %v_98 = phi [b_77, 0], [b_96, %v_99]: Int
+    %v_100 = add %v_98, %v_29: Int
+    %v_101 = cmp_ile %v_100, %n: Int
+    je %v_101, b_96, b_102
   }
 
-  b_96 {
-    %v_97 = phi [b_78, %v_86], [b_98, %v_99]: i32x4
-    %v_100 = phi [b_78, 0], [b_98, %v_101]: Int
-    %v_102 = add %v_100, %v_29: Int
-    %v_103 = cmp_ile %v_102, %n: Int
-    je %v_103, b_98, b_104
+  b_102 {
+    %v_103 = cmp_ilt %v_98, %n: Int
+    je %v_103, b_104, b_105
   }
 
   b_104 {
-    %v_105 = cmp_ilt %v_100, %n: Int
-    je %v_105, b_106, b_107
+    %v_106 = sext %v_98: Long
+    %v_107 = shl %v_106, 2: Long
+    %v_108 = add %from$items, %v_107: Ptr
+    %v_109 = loadx %v_108, 16: i32x4
+    %v_110 = sub %n, %v_98: Int
+    %v_111 = vsplat %v_110: i32x4
+    %v_112 = cmp_ilt %v_91, %v_111: m32x4
+    %v_113 = select %v_112, %v_109, %v_95: i32x4
+    %v_114 = cmp_igt %v_95, %v_113: m32x4
+    %v_115 = select %v_114, %v_95, %v_113: i32x4
+    jmp b_105
   }
 
-  b_106 {
-    %v_108 = sext %v_100: Long
-    %v_109 = shl %v_108, 2: Long
-    %v_110 = add %from$items, %v_109: Ptr
-    %v_111 = bitcast %v_110: Ptr
-    %v_112 = loadx %v_111, 16: i32x4
-    %v_113 = sub %n, %v_100: Int
-    %v_114 = vsplat %v_113: i32x4
-    %v_115 = cmp_ilt %v_93, %v_114: m32x4
-    %v_116 = select %v_115, %v_112, %v_97: i32x4
-    %v_117 = cmp_igt %v_97, %v_116: m32x4
-    %v_118 = select %v_117, %v_97, %v_116: i32x4
-    jmp b_107
+  b_105 {
+    %v_116 = phi [b_102, %v_95], [b_104, %v_115]: i32x4
+    %v_117 = vreduce_imax %v_116: Int
+    %v_118 = add %xs, 8: Ptr
+    %v_119 = load %v_118, 4: Int
+    %v_120 = shr %v_119, 30: Int
+    %v_121 = cmp_eq %v_120, 1: Int
+    je %v_121, b_122, b_123
   }
 
-  b_107 {
-    %v_119 = phi [b_104, %v_97], [b_106, %v_118]: i32x4
-    %v_120 = vreduce_imax %v_119: Int
-    %v_121 = add %xs, 8: Ptr
-    %v_122 = load %v_121, 4: Int
-    %v_123 = shr %v_122, 30: Int
-    %v_124 = cmp_eq %v_123, 1: Int
-    je %v_124, b_125, b_126
+  b_96 {
+    %v_124 = sext %v_98: Long
+    %v_125 = shl %v_124, 2: Long
+    %v_126 = add %from$items, %v_125: Ptr
+    %v_127 = load %v_126, 16: i32x4
+    %v_128 = select %v_93, %v_127, %v_95: i32x4
+    %v_129 = cmp_igt %v_95, %v_128: m32x4
+    %v_97 = select %v_129, %v_95, %v_128: i32x4
+    %v_99 = add %v_98, %v_29: Int
+    jmp b_94
   }
 
-  b_98 {
-    %v_127 = sext %v_100: Long
-    %v_128 = shl %v_127, 2: Long
-    %v_129 = add %from$items, %v_128: Ptr
-    %v_130 = bitcast %v_129: Ptr
-    %v_131 = load %v_130, 16: i32x4
-    %v_132 = select %v_95, %v_131, %v_97: i32x4
-    %v_133 = cmp_igt %v_97, %v_132: m32x4
-    %v_99 = select %v_133, %v_97, %v_132: i32x4
-    %v_101 = add %v_100, %v_29: Int
-    jmp b_96
+  b_122 {
+    %v_130 = load %xs, 8: Ptr
+    call_complex freeHeap, %v_130
+    jmp b_123
   }
 
-  b_125 {
-    %v_134 = load %xs, 8: Ptr
-    %v_135 = bitcast %v_134: Ptr
-    call_complex freeHeap, %v_135
-    jmp b_126
+  b_123 {
+    %v_131 = cmp_eq %v_117, 11: Int
+    je %v_131, b_132, b_133
   }
 
-  b_126 {
-    %v_136 = cmp_eq %v_120, 11: Int
-    je %v_136, b_137, b_138
+  b_132 {
+    %v_134 = add %v_83, 8: Int
+    jmp b_133
   }
 
-  b_137 {
-    %v_139 = add %v_85, 8: Int
-    jmp b_138
+  b_133 {
+    %v_135 = phi [b_123, %v_83], [b_132, %v_134]: Int
+    %v_136 = vsplat 0: f32x4
+    %v_137 = alloca 16, 8: Ptr
+    call_complex Contiguous(Array(a), a).elements(Float), %v_137, %ys
+    %v_138 = add %v_137, 8: Ptr
+    %v_139 = loads %v_138, 8: Long
+    %n = cast %v_139: Int
+    %from$items = load %v_137, 8: Ptr
+    jmp b_140
   }
 
-  b_138 {
-    %v_140 = phi [b_126, %v_85], [b_137, %v_139]: Int
-    %v_141 = vsplat 0: f32x4
-    %v_142 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Float), %v_142, %ys
-    %v_143 = add %v_142, 8: Ptr
-    %v_144 = loads %v_143, 8: Long
-    %n = cast %v_144: Int
-    %from$items = load %v_142, 8: Ptr
-    jmp b_145
+  b_140 {
+    %v_141 = phi [b_133, %v_136], [b_142, %v_143]: f32x4
+    %v_144 = phi [b_133, 0], [b_142, %v_145]: Int
+    %v_146 = add %v_144, %v_30: Int
+    %v_147 = cmp_ile %v_146, %n: Int
+    je %v_147, b_142, b_148
   }
 
-  b_145 {
-    %v_146 = phi [b_138, %v_141], [b_147, %v_148]: f32x4
-    %v_149 = phi [b_138, 0], [b_147, %v_150]: Int
-    %v_151 = add %v_149, %v_30: Int
-    %v_152 = cmp_ile %v_151, %n: Int
-    je %v_152, b_147, b_153
+  b_148 {
+    %v_149 = cmp_ilt %v_144, %n: Int
+    je %v_149, b_150, b_151
   }
 
-  b_153 {
-    %v_154 = cmp_ilt %v_149, %n: Int
-    je %v_154, b_155, b_156
+  b_150 {
+    %v_152 = sub %n, %v_144: Int
+    %v_153 = vsplat 0: f32x4
+    %v_154 = vwithlane %v_153, 1, 1: f32x4
+    %v_155 = vwithlane %v_154, 2, 2: f32x4
+    %v_156 = vwithlane %v_155, 3, 3: f32x4
+    %v_157 = itof %v_152: Float
+    %v_158 = vsplat %v_157: f32x4
+    %live = cmp_lt %v_156, %v_158: m32x4
+    %v_159 = sext %v_144: Long
+    %v_160 = shl %v_159, 2: Long
+    %v_161 = add %from$items, %v_160: Ptr
+    %v_162 = loadx %v_161, 16: f32x4
+    %v_163 = select %live, %v_162, %v_136: f32x4
+    %v_164 = add %v_141, %v_163: f32x4
+    jmp b_151
   }
 
-  b_155 {
-    %v_157 = sub %n, %v_149: Int
-    %v_158 = vsplat 0: f32x4
-    %v_159 = vwithlane %v_158, 1, 1: f32x4
-    %v_160 = vwithlane %v_159, 2, 2: f32x4
-    %v_161 = vwithlane %v_160, 3, 3: f32x4
-    %v_162 = itof %v_157: Float
-    %v_163 = vsplat %v_162: f32x4
-    %live = cmp_lt %v_161, %v_163: m32x4
-    %v_164 = sext %v_149: Long
-    %v_165 = shl %v_164, 2: Long
-    %v_166 = add %from$items, %v_165: Ptr
-    %v_167 = bitcast %v_166: Ptr
-    %v_168 = loadx %v_167, 16: f32x4
-    %v_169 = select %live, %v_168, %v_141: f32x4
-    %v_170 = add %v_146, %v_169: f32x4
-    jmp b_156
+  b_151 {
+    %v_165 = phi [b_148, %v_141], [b_150, %v_164]: f32x4
+    %v_166 = vreduce_add %v_165: Float
+    %v_167 = cmp_eq %v_166, 14: Int
+    je %v_167, b_168, b_169
   }
 
-  b_156 {
-    %v_171 = phi [b_153, %v_146], [b_155, %v_170]: f32x4
-    %v_172 = vreduce_add %v_171: Float
-    %v_173 = cmp_eq %v_172, 14: Int
-    je %v_173, b_174, b_175
+  b_142 {
+    %v_170 = sext %v_144: Long
+    %v_171 = shl %v_170, 2: Long
+    %v_172 = add %from$items, %v_171: Ptr
+    %v_173 = load %v_172, 16: f32x4
+    %v_143 = add %v_141, %v_173: f32x4
+    %v_145 = add %v_144, %v_30: Int
+    jmp b_140
   }
 
-  b_147 {
-    %v_176 = sext %v_149: Long
-    %v_177 = shl %v_176, 2: Long
-    %v_178 = add %from$items, %v_177: Ptr
-    %v_179 = bitcast %v_178: Ptr
-    %v_180 = load %v_179, 16: f32x4
-    %v_148 = add %v_146, %v_180: f32x4
-    %v_150 = add %v_149, %v_30: Int
-    jmp b_145
+  b_168 {
+    %v_174 = add %v_135, 16: Int
+    jmp b_169
   }
 
-  b_174 {
-    %v_181 = add %v_140, 16: Int
-    jmp b_175
+  b_169 {
+    %v_175 = phi [b_151, %v_135], [b_168, %v_174]: Int
+    %v_176 = vsplat 0: f32x4
+    %v_177 = alloca 16, 8: Ptr
+    call_complex Contiguous(Array(a), a).elements(Float), %v_177, %ys
+    %v_178 = add %v_177, 8: Ptr
+    %v_179 = loads %v_178, 8: Long
+    %n = cast %v_179: Int
+    %v_180 = vsplat 0: f32x4
+    %v_181 = vwithlane %v_180, 1, 1: f32x4
+    %v_182 = vwithlane %v_181, 2, 2: f32x4
+    %v_183 = vwithlane %v_182, 3, 3: f32x4
+    %v_184 = vsplat 4: f32x4
+    %v_185 = cmp_lt %v_183, %v_184: m32x4
+    %from$items = load %v_177, 8: Ptr
+    jmp b_186
   }
 
-  b_175 {
-    %v_182 = phi [b_156, %v_140], [b_174, %v_181]: Int
-    %v_183 = vsplat 0: f32x4
-    %v_184 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Float), %v_184, %ys
-    %v_185 = add %v_184, 8: Ptr
-    %v_186 = loads %v_185, 8: Long
-    %n = cast %v_186: Int
-    %v_187 = vsplat 0: f32x4
-    %v_188 = vwithlane %v_187, 1, 1: f32x4
-    %v_189 = vwithlane %v_188, 2, 2: f32x4
-    %v_190 = vwithlane %v_189, 3, 3: f32x4
-    %v_191 = vsplat 4: f32x4
-    %v_192 = cmp_lt %v_190, %v_191: m32x4
-    %from$items = load %v_184, 8: Ptr
-    jmp b_193
+  b_186 {
+    %v_187 = phi [b_169, %v_176], [b_188, %v_189]: f32x4
+    %v_190 = phi [b_169, 0], [b_188, %v_191]: Int
+    %v_192 = add %v_190, %v_31: Int
+    %v_193 = cmp_ile %v_192, %n: Int
+    je %v_193, b_188, b_194
   }
 
-  b_193 {
-    %v_194 = phi [b_175, %v_183], [b_195, %v_196]: f32x4
-    %v_197 = phi [b_175, 0], [b_195, %v_198]: Int
-    %v_199 = add %v_197, %v_31: Int
-    %v_200 = cmp_ile %v_199, %n: Int
-    je %v_200, b_195, b_201
+  b_194 {
+    %v_195 = cmp_ilt %v_190, %n: Int
+    je %v_195, b_196, b_197
   }
 
-  b_201 {
-    %v_202 = cmp_ilt %v_197, %n: Int
-    je %v_202, b_203, b_204
+  b_196 {
+    %v_198 = sext %v_190: Long
+    %v_199 = shl %v_198, 2: Long
+    %v_200 = add %from$items, %v_199: Ptr
+    %v_201 = loadx %v_200, 16: f32x4
+    %v_202 = sub %n, %v_190: Int
+    %v_203 = itof %v_202: Float
+    %v_204 = vsplat %v_203: f32x4
+    %v_205 = cmp_lt %v_183, %v_204: m32x4
+    %v_206 = select %v_205, %v_201, %v_187: f32x4
+    %v_207 = cmp_gt %v_187, %v_206: m32x4
+    %v_208 = select %v_207, %v_187, %v_206: f32x4
+    jmp b_197
   }
 
-  b_203 {
-    %v_205 = sext %v_197: Long
-    %v_206 = shl %v_205, 2: Long
-    %v_207 = add %from$items, %v_206: Ptr
-    %v_208 = bitcast %v_207: Ptr
-    %v_209 = loadx %v_208, 16: f32x4
-    %v_210 = sub %n, %v_197: Int
-    %v_211 = itof %v_210: Float
-    %v_212 = vsplat %v_211: f32x4
-    %v_213 = cmp_lt %v_190, %v_212: m32x4
-    %v_214 = select %v_213, %v_209, %v_194: f32x4
-    %v_215 = cmp_gt %v_194, %v_214: m32x4
-    %v_216 = select %v_215, %v_194, %v_214: f32x4
-    jmp b_204
+  b_197 {
+    %v_209 = phi [b_194, %v_187], [b_196, %v_208]: f32x4
+    %v_210 = vreduce_max %v_209: Float
+    %v_211 = add %ys, 8: Ptr
+    %v_212 = load %v_211, 4: Int
+    %v_213 = shr %v_212, 30: Int
+    %v_214 = cmp_eq %v_213, 1: Int
+    je %v_214, b_215, b_216
   }
 
-  b_204 {
-    %v_217 = phi [b_201, %v_194], [b_203, %v_216]: f32x4
-    %v_218 = vreduce_max %v_217: Float
-    %v_219 = add %ys, 8: Ptr
-    %v_220 = load %v_219, 4: Int
-    %v_221 = shr %v_220, 30: Int
-    %v_222 = cmp_eq %v_221, 1: Int
-    je %v_222, b_223, b_224
+  b_188 {
+    %v_217 = sext %v_190: Long
+    %v_218 = shl %v_217, 2: Long
+    %v_219 = add %from$items, %v_218: Ptr
+    %v_220 = load %v_219, 16: f32x4
+    %v_221 = select %v_185, %v_220, %v_187: f32x4
+    %v_222 = cmp_gt %v_187, %v_221: m32x4
+    %v_189 = select %v_222, %v_187, %v_221: f32x4
+    %v_191 = add %v_190, %v_31: Int
+    jmp b_186
   }
 
-  b_195 {
-    %v_225 = sext %v_197: Long
-    %v_226 = shl %v_225, 2: Long
-    %v_227 = add %from$items, %v_226: Ptr
-    %v_228 = bitcast %v_227: Ptr
-    %v_229 = load %v_228, 16: f32x4
-    %v_230 = select %v_192, %v_229, %v_194: f32x4
-    %v_231 = cmp_gt %v_194, %v_230: m32x4
-    %v_196 = select %v_231, %v_194, %v_230: f32x4
-    %v_198 = add %v_197, %v_31: Int
-    jmp b_193
+  b_215 {
+    %v_223 = load %ys, 8: Ptr
+    call_complex freeHeap, %v_223
+    jmp b_216
   }
 
-  b_223 {
-    %v_232 = load %ys, 8: Ptr
-    %v_233 = bitcast %v_232: Ptr
-    call_complex freeHeap, %v_233
-    jmp b_224
+  b_216 {
+    %v_224 = cmp_eq %v_210, 5: Int
+    je %v_224, b_225, b_226
   }
 
-  b_224 {
-    %v_234 = cmp_eq %v_218, 5: Int
-    je %v_234, b_235, b_236
+  b_225 {
+    %v_227 = add %v_175, 32: Int
+    jmp b_226
   }
 
-  b_235 {
-    %v_237 = add %v_182, 32: Int
-    jmp b_236
-  }
-
-  b_236 {
-    %v_238 = phi [b_224, %v_182], [b_235, %v_237]: Int
-    ret %v_238
+  b_226 {
+    %v_228 = phi [b_216, %v_175], [b_225, %v_227]: Int
+    ret %v_228
   }
 }
 

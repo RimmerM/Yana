@@ -64,7 +64,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
-  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c100
+  vlane uses=[xmm0] creates=[rcx]  => 660f7ec1
   add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => c3
 
@@ -73,7 +73,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[rax]  => 66480f3a16c001
-  vlane uses=[xmm0] creates=[rcx]  => 66480f3a16c100
+  vlane uses=[xmm0] creates=[rcx]  => 66480f7ec1
   add uses=[rax, rcx] creates=[rax]  => 4801c8
   ret uses=[rax] creates=[]  => c3
 
@@ -82,42 +82,38 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[xmm1]  => 660f70c8aa
-  vlane uses=[xmm0] creates=[xmm0]  => 660f70c000
+  vlane uses=[xmm0] creates=[xmm0]  => 
   add uses=[xmm1, xmm0] creates=[xmm1]  => f30f58c8
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: insert ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a22cf01
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: insertWide ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c866480f3a22cf01
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: insertFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a21d120
   add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: insertByte ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a20cf05
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffcc8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3

@@ -269,6 +269,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "x86_pusharg"_v;
         case LowerInst::X86MinMax:
             return nameForMinMax(((LowerInstX86MinMax&)inst).getMinMax());
+        case LowerInst::X86MaskAnd:
+            return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
         case LowerInst::Call:
             return nameForCall(((LowerInstCall&)inst).getCallType());
         case LowerInst::Je:

@@ -1,0 +1,73 @@
+{-
+   §32.2 The same walk with an `Int` counter, which is the case the third no-wrap proof exists for.
+
+   `StrideInduction.yana` beside this one carries its counter at `I64`, and says why: a narrower one
+   reaches an address through a sign extension, and `sext(i + by) == sext(i) + by` only holds where
+   the narrow addition cannot wrap. Neither of the first two proofs answers here - the `for`-range
+   guard is not emitted for a `while`, and the strict-test argument needs a step of exactly one - so
+   the counter below was refused and its address rebuilt every iteration.
+
+   What proves it now is the subscript's own bounds check. Reaching the body establishes `i >= 0`,
+   because a negative index sign-extends to a number above every container length; an overflow of
+   `i + by` from a non-negative `i` always lands negative; and the same check rejects that on the
+   next iteration before the carried pointer is read. See `checkedIndexCannotOverflow`.
+
+   `Cell` is 24 bytes for the reason the other fixture's is: a scale the SIB byte holds is free, so
+   an element of 1, 2, 4 or 8 bytes would assert nothing about this pass whatever the proof said.
+
+   The answers are checked rather than the instruction count: a pointer advanced by the wrong amount,
+   or one carried where the proof should have refused, is a different number here.
+-}
+
+import Native
+
+data Cell {a: Int, b: Int, c: Int, d: Int, e: Int, f: Int}
+
+fn strided(by: Int) -> Int:
+    let &xs = [] :: [Cell]
+    let &n = 0 :: Int
+
+    while n < 6:
+        push(xs, Cell {a: n, b: 0, c: 0, d: 0, e: n * 10, f: 0})
+        n = n + 1
+
+    let &i = 0 :: Int
+    let &total = 0 :: Int
+
+    while i < 6:
+        total = total + xs[i].a + xs[i].e
+        i = i + by
+
+    return total
+
+-- A narrow counter stepped by a literal, which is the same proof reached from the other direction:
+-- `stepCannotOverflow` has no guard to read here either, the loop being a `while` with a step of two.
+fn everyOther() -> Int:
+    let &xs = [] :: [Cell]
+    let &n = 0 :: Int
+
+    while n < 6:
+        push(xs, Cell {a: n, b: 0, c: 0, d: 0, e: n * 10, f: 0})
+        n = n + 1
+
+    let &i = 0 :: Int
+    let &total = 0 :: Int
+
+    while i < 6:
+        total = total + xs[i].a + xs[i].e
+        i = i + 2
+
+    return total
+
+fn main() -> Int:
+    -- 0, 2 and 4, each contributing `n + n*10`: 0 + 22 + 44.
+    if strided(2) != 66 then return -1
+    if everyOther() != 66 then return -2
+
+    -- Every element, so all six: 0 + 11 + 22 + 33 + 44 + 55.
+    if strided(1) != 165 then return -3
+
+    -- A stride past the end runs exactly once.
+    if strided(9) != 0 then return -4
+
+    return strided(2) + strided(3)

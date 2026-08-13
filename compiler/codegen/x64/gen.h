@@ -696,6 +696,24 @@ struct Remat {
         // is what a pooled float constant is placed as: recreating it costs the same eight bytes
         // the definition did, where a frame home would cost a store and a reload of the same width.
         ConstantLoad,
+
+        /*
+         * pxor/vpxor r, r, r - a vector of zeroes, which every one of these machines makes out of
+         * nothing at all.
+         *
+         * The cheapest recipe in the list and the one worth the most, because of what a *vector*
+         * spill costs rather than what the instruction costs. A 16- or 32-byte value in the frame
+         * raises the frame's own alignment past what the calling convention promises, so a function
+         * holding one across a call pays a realigning prologue - a frame pointer held for the whole
+         * function, `and $-32,%rsp`, and the `leave` that undoes it - for a value that is three
+         * bytes to recreate. `sumVectors` in test/bench/programs is the shape: a zero accumulator
+         * built before a call to `elements` and read after it.
+         *
+         * Not written as an `Immediate` of zero, which it resembles: that one is `mov r, imm` into a
+         * general register, and this one is a self-exclusive-or in the vector bank. Two kinds
+         * because two encoders.
+         */
+        VectorZero,
     };
 
     Kind kind = Immediate;

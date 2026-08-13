@@ -343,7 +343,7 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
             }
 
             // A destructive result must not share a location with any operand other than the one it
-            // is written over. The copy that puts operand zero there runs in front of the
+            // is written over. The copy that puts the tied operand there runs in front of the
             // instruction, so a sibling operand in the same place is read after it has already gone.
             //
             // Nothing in the interval arithmetic rules this out: an operand's life ends exactly
@@ -353,11 +353,13 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
             auto used = inst->used();
             auto tied = machine.formOf(inst).tiedResult();
 
-            if(tied == 0 && used.size() > 0 && inst->createdCount > 0 && !isImplicit(&inst->created()[0])) {
+            if(tied >= 0 && Size(tied) < used.size() && inst->createdCount > 0 && !isImplicit(&inst->created()[0])) {
                 auto result = placement.locationOf(&inst->created()[0], beforeInst(index));
-                auto first = base[used[0]];
+                auto first = base[used[tied]];
 
-                for(Size i = 1; result.isValid() && i < used.size(); i++) {
+                for(Size i = 0; result.isValid() && i < used.size(); i++) {
+                    if(I32(i) == tied) continue;
+
                     auto value = base[used[i]];
                     if(isImplicit(value) || value == first) continue;
                     if(placement.locationOf(value, beforeInst(index)) != result) continue;

@@ -105,6 +105,17 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             return true;
         }
 
+        /*
+         * Written by the x64 backend for itself and never by anything above one - see the note on
+         * the kind, and `LowerReduce::Bits`, which is here for the same reason and refused the same
+         * way. Expanding it would mean choosing what an out-of-range index does, and the whole point
+         * of the kind is that x86's answer to that is the one being spent.
+         */
+        case LowerIntrinsic::Bzhi:
+            f.context.diagnostics.error("llvm: a target-lowered intrinsic reached the LLVM backend"_v,
+                                        inst.source);
+            return true;
+
         case LowerIntrinsic::Cpuid: {
             llvm::Value* args[] = { asInt32(f, argOf(f, inst, 0)), asInt32(f, argOf(f, inst, 1)) };
 

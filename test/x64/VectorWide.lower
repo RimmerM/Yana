@@ -252,7 +252,7 @@ wideFold(%p: Ptr, %a: i32x8): i32x8 {
 # truncation back into the `Int` the kind states emits nothing, since a bit scan's answer cannot
 # reach past its low byte.
 #
-# The byte lane is the one that needs no shift and is the string search's own shape. `firstWord`
+# The byte lane is the one that fills the word, and it is the string search's own shape. `firstWord`
 # in `VectorMaskBits.lower` is the narrow twin to read this against.
 firstWideByte(%a: i8x32, %b: i8x32): Int {
     {
@@ -262,8 +262,10 @@ firstWideByte(%a: i8x32, %b: i8x32): Int {
     }
 }
 
-# The same over an eight-lane 32-bit mask, where the scan's answer is a byte index and the shift
-# brings it back to a lane index - at 64 bits, like everything else in this tier.
+# The same over an eight-lane 32-bit mask, which takes `vmovmskps` and therefore takes the *narrow*
+# tier's sequence: one bit per lane is eight bits out of a `ymm`, so there is room for the sentinel
+# at bit 8 and the scan's answer is already a lane index. `vpmovmskb` would have answered thirty-two
+# bits with four per lane, no bit above them to mark, and a `shr $0x2` to divide them back out.
 firstWideWord(%a: i32x8, %b: i32x8): Int {
     {
         %m = cmp_eq %a, %b: m32x8

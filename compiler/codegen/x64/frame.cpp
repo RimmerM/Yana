@@ -187,13 +187,15 @@ bool checkFrameSupported(Context& ctx, LowerBase base, LowerFunction& fun, const
     return false;
 }
 
-bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun) {
-    // Neither of these is a preference. After a dynamic alloca there is no fixed relationship between
-    // rsp and anything; after a realignment the distance from rsp back to the frame is only known at
-    // run time. Both override every mode below.
-    if(hasDynamicAlloca(base, fun)) return true;
-    if(functionMayRealignStack(base, fun, targetConstraints())) return true;
-
+/*
+ * What the *mode* asks for, with nothing about this function's frame in it.
+ *
+ * Split out of `functionNeedsFramePointer` because the layout asks it again. The two questions
+ * that function answers are not the same question: "does the frame need one" is settled exactly,
+ * after allocation, and "may the frame need one" has to be settled before it - so the half that
+ * does not change between the two is the one worth stating once.
+ */
+static bool modeNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun) {
     switch(ctx.settings.framePointer) {
         case FramePointerMode::All:
             return true;
@@ -204,6 +206,16 @@ bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun)
     }
 
     return false;
+}
+
+bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun) {
+    // Neither of these is a preference. After a dynamic alloca there is no fixed relationship between
+    // rsp and anything; after a realignment the distance from rsp back to the frame is only known at
+    // run time. Both override every mode below.
+    if(hasDynamicAlloca(base, fun)) return true;
+    if(functionMayRealignStack(base, fun, targetConstraints())) return true;
+
+    return modeNeedsFramePointer(ctx, base, fun);
 }
 
 static U32 alignUp(U32 value, U32 alignment) {
@@ -315,6 +327,33 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     if(layout.realignsStack && frame.hasDynamicAlloca) {
         if(requiredStackAlignment(base, fun, constraints) <= entryAlignment) reportUnsupportedFrame(ctx, fun);
         layout.realignsStack = false;
+    }
+
+    /*
+     * And the other side of that seam: a frame pointer the pre-pass reserved for a realignment that
+     * did not happen.
+     *
+     * `functionMayRealignStack` answers for every function that *holds* a value wider than a word,
+     * because a spill of one would demand a boundary the entry convention does not promise. Every
+     * function with a vector in it is that function, and most of them never spill - so every leaf
+     * in the vector library was carrying `push rbp ; mov rsp,rbp ; leave` for a slot that was never
+     * made. Three instructions and four bytes each, on functions whose whole body is a loop.
+     *
+     * The conservatism has to stay where it is: rbp is either handed to the allocator or held back,
+     * and that cannot be revisited once the allocator has run. What can be revisited is whether the
+     * *prologue* establishes one, which is this - and by here `realignsStack` is exact, so the
+     * question has a real answer. rbp is simply not used by the function that gives it up; it was
+     * never in the pool, so nothing is in it and nothing has to move.
+     *
+     * The mode is asked again rather than inherited. `-frame-pointer all` and `nonleaf` are requests
+     * for a frame pointer whatever the frame needs, and a debugger walking rbp does not care that
+     * this function turned out to spill nothing.
+     */
+    if(layout.framePointer && !layout.realignsStack && !frame.hasDynamicAlloca &&
+       !modeNeedsFramePointer(ctx, base, fun))
+    {
+        layout.framePointer = false;
+        layout.base = stackPointerReg();
     }
 
     // Locals and spill slots hang off rsp whenever there is no frame pointer, and also whenever the

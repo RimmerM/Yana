@@ -1,0 +1,85 @@
+
+keepInt<complex>(%a: i32x4, %b: i32x4, %v: i32x4): i32x4 {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %z = vsplat 0: i32x4
+    %r = select %m, %v, %z: i32x4
+    ret %r
+  }
+}
+
+dropInt<complex>(%a: i32x4, %b: i32x4, %v: i32x4): i32x4 {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %z = vsplat 0: i32x4
+    %r = select %m, %z, %v: i32x4
+    ret %r
+  }
+}
+
+keepFloat<complex>(%a: f32x4, %b: f32x4, %v: f32x4): f32x4 {
+  b_0 {
+    %m = cmp_lt %a, %b: m32x4
+    %z = vsplat 0: f32x4
+    %r = select %m, %v, %z: f32x4
+    ret %r
+  }
+}
+
+dropFloat<complex>(%a: f64x2, %b: f64x2, %v: f64x2): f64x2 {
+  b_0 {
+    %m = cmp_lt %a, %b: m64x2
+    %z = vsplat 0: f64x2
+    %r = select %m, %z, %v: f64x2
+    ret %r
+  }
+}
+
+bothArms<complex>(%a: i32x4, %b: i32x4, %v: i32x4, %w: i32x4): i32x4 {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %r = select %m, %v, %w: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: keepInt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  x86_maskand uses=[xmm2, xmm0] creates=[xmm2]  => 660fdbd0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
+
+--- codegen: dropInt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  x86_maskandn uses=[xmm0, xmm2] creates=[xmm0]  => 660fdfc2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: keepFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_lt uses=[xmm0, xmm1] creates=[xmm0]  => 0fc2c101
+  x86_maskand uses=[xmm2, xmm0] creates=[xmm2]  => 0f54d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
+
+--- codegen: dropFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_lt uses=[xmm0, xmm1] creates=[xmm0]  => 660fc2c101
+  x86_maskandn uses=[xmm0, xmm2] creates=[xmm0]  => 660f55c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: bothArms ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660f76e1
+  select uses=[xmm2, xmm3, xmm4] creates=[xmm3]  => 0f28c4660f3810da
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 0f28c3c3

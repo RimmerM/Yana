@@ -151,7 +151,27 @@ struct Folded {
     static Folded forward(LowerValue* v) { return Folded { Operand, 0, v }; }
 };
 
+/*
+ * A reinterpretation between two types that are the same type, which is nothing at all.
+ *
+ * These are written rather than sought out: `loadx`/`load` of a vector reads through a `Ptr`, and the
+ * lowering names the address at the type it is about to read - so an address that is already a `Ptr`
+ * gets a `bitcast` from `Ptr` to `Ptr`. The instruction is free to *encode* and not free to have: it
+ * ends a value's live range and starts another, so a base and an index that would have addressed one
+ * instruction between them become `mov` and `add` into a temporary instead of one `[base+index]`, and
+ * the pointer-induction pass stops recognizing the address as the induction variable it is.
+ *
+ * Stated as an equality of `LowerType` rather than of width, because that is the whole of what a
+ * bitcast at this level changes: two types of one width that are not one type - `i32x4` and `f32x4` -
+ * are a real reinterpretation to every reader that asks which bank the value is in.
+ */
+bool isNoOpReinterpretation(LowerInst::Kind kind, LowerValue* arg, LowerType type) {
+    return kind == LowerInst::Bitcast && arg->type == type;
+}
+
 Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, LowerType type) {
+    if(isNoOpReinterpretation(kind, arg, type)) return Folded::forward(arg);
+
     if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
 
     U64 value;
@@ -678,7 +698,13 @@ Folded foldInstruction(LowerBase base, LowerInst* inst) {
     if(auto boolean = foldBooleanValue(base, inst); boolean.kind != Folded::None) return boolean;
 
     if(isCast(inst)) {
-        if(inst->kind != LowerInst::Cast) return Folded::nothing();
+        // A `Bitcast` is a unary rather than a `LowerInstCast`, and the only thing asked of one here
+        // is whether it reinterprets anything - which a promotion can be what decides, since the
+        // operand it reads may not have had its final type when the instruction was built.
+        if(inst->kind == LowerInst::Bitcast) {
+            auto unary = (LowerInstUnary*)inst;
+            return foldUnaryValue(base, inst->kind, base[unary->from], unary->result.type);
+        }
 
         auto cast = (LowerInstCast*)inst;
         return foldCastValue(base, base[cast->from], cast->result.type, cast->isSignedSource());

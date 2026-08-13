@@ -71,13 +71,12 @@ floatConstants<complex>(%a: f32x4, %b: f32x4): f32x4 {
 
 
 --- codegen: maskedMax ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   x86_vimax uses=[xmm0, -] creates=[xmm0]  => c4e27d3d07
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: noneLive ---
 block #0:
@@ -86,30 +85,28 @@ block #1:
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: mixed ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => c5fa6f1554000000
+  load uses=[-] creates=[xmm2]  => c5fa6f1558000000
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm3]  => c5fa6f1d5c000000
+  load uses=[-] creates=[xmm3]  => c5fa6f1d60000000
   cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e166da
   select uses=[xmm0, xmm1, xmm3] creates=[xmm0]  => c4e3714cc030
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: runtimeMask ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm1]  => c5fa6f0d34000000
+  load uses=[-] creates=[xmm1]  => c5fa6f0d38000000
   vsplat uses=[rsi] creates=[xmm2]  => c5f96ed6c4e27958d2
   cmp_igt uses=[xmm2, xmm1] creates=[xmm2]  => c5e966d1
   load uses=[rdi] creates=[xmm1]  => c5fa6f0f
   select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => c4e3794cc920
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c3
 
 --- codegen: floatConstants ---
 block #0:

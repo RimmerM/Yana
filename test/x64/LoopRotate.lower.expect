@@ -242,11 +242,9 @@ block body:
   add uses=[rcx, rax] creates=[rcx]  => 01c1
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 7cf8
-block #6:
+block #5:
   jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1
 block exit:
   ret uses=[rax] creates=[]  => c3
@@ -257,19 +255,17 @@ block #0:
 block entry:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 740e
+  je uses=[-] creates=[]  => 740c
 block body:
   add uses=[rax, rdx] creates=[rax]  => 01d0
   imm uses=[] creates=[-]  => 
   sub uses=[rdi, -] creates=[rdi]  => ffcf
-  jmp uses=[] creates=[]  => 
-block head:
   imm uses=[] creates=[-]  => 
-  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  cmp_eq uses=[rdi, -] creates=[-]  => 
   je uses=[-] creates=[]  => 7404
+block #4:
+  jmp uses=[] creates=[] pre=[rdx<->rax]  => 87c2ebf6
 block #5:
-  jmp uses=[] creates=[] pre=[rdx<->rax]  => 87c2ebf4
-block #6:
   jmp uses=[] creates=[] pre=[rdx->rax]  => 8bc2
 block exit:
   ret uses=[rax] creates=[]  => c3
@@ -294,11 +290,9 @@ block rejoin:
   add uses=[rcx, rdx] creates=[rcx]  => 01d1
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => 
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 7cea
-block #9:
+block #8:
   jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1
 block exit:
   ret uses=[rax] creates=[]  => c3
@@ -322,18 +316,14 @@ block innerBody:
   add uses=[rdx, r8] creates=[rdx]  => 4401c2
   imm uses=[] creates=[-]  => 
   add uses=[r8, -] creates=[r8]  => 41ffc0
-  jmp uses=[] creates=[]  => 
-block innerHead:
   cmp_ige uses=[r8, rsi] creates=[-]  => 4139f0
   je uses=[-] creates=[]  => 7cf5
 block outerLatch:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => 
-block outerHead:
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
   je uses=[-] creates=[]  => 7ce8
-block #13:
+block #11:
   jmp uses=[] creates=[] pre=[rdx->rax]  => 8bc2
 block exit:
   ret uses=[rax] creates=[]  => c3

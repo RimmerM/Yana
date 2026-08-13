@@ -162,9 +162,10 @@ enum: MachineFormId {
     // And the `and` in the *float* domain, which is the one bitwise row here that a lane type
     // selects: `andps`/`andpd` do to a float vector exactly what `pand` does, and differ in the
     // forwarding domain the result is read from. What reaches them is the absolute value - see
-    // `expandVectorAbs` - and nothing else does, which is why the other two operations have no
-    // float row beside them.
+    // `expandVectorAbs` - and the masked vector, `X86MaskAnd`; the complemented pair beside them is
+    // that second reader's other arm, and is why `andn` has a float row where `or` and `xor` do not.
     FormVAndF32, FormVAndF64,
+    FormVAndNotF32, FormVAndNotF64,
 
     // Shifts by a constant count every lane shares. The machine also shifts by a count held in the
     // low quadword of a vector register, and AVX2 by one count per lane - neither is here, because
@@ -250,13 +251,19 @@ enum: MachineFormId {
     FormVZero, FormVOnes,
     FormVWideZero, FormVWideOnes,
 
-    // One lane out of a vector. The two integer forms are SSE4.1 and reach any index; the two below
-    // them are the baseline's lane zero and nothing else. The float pair needs no feature at all,
-    // the value staying in the bank it is already in.
+    // One lane out of a vector. The two integer forms reach any index; the two below them are lane
+    // zero, which `movd`/`movq` reach in two bytes fewer and no index byte. The float pair needs no
+    // feature at all, the value staying in the bank it is already in - and its own lane zero is the
+    // register itself, so the `Low` pair is the bank's copy with `omitWhenSame`.
     FormVExtract32, FormVExtract64,
     FormVExtract32Zero, FormVExtract64Zero,
-    FormVMaskBits,
+    // The movemask, at one row per number of bits a lane contributes. `pmovmskb` answers a bit per
+    // *byte*, which is what a narrow lane wants and what a wide one then has to divide back out;
+    // `movmskps` and `movmskpd` answer a bit per lane outright. See `maskBitsPerLane` in
+    // transform.cpp, which is the other half of this choice and has to agree with it.
+    FormVMaskBits, FormVMaskBitsF32, FormVMaskBitsF64,
     FormVExtractF32, FormVExtractF64,
+    FormVExtractF32Low, FormVExtractF64Low,
 
     // One lane into a vector, which is a longer list than the extract's because the machine gives a
     // word its own instruction and gives nothing else one below SSE4.1. `pinsrw` is the baseline's
@@ -270,7 +277,11 @@ enum: MachineFormId {
     // A lane-wise select, which the baseline has no single instruction for: three bitwise operations
     // through a scratch the form declares as a clobber. One form for every lane type and for a mask,
     // because none of the three cares what a lane is.
-    FormVSelect,
+    //
+    // `Blend` is `pblendvb`, the same operation in one instruction and a mask move - two rows rather
+    // than an `alternative` chain, because they do not tie the same operand and the allocator has to
+    // be told which before it runs. See selectSelectForm.
+    FormVSelect, FormVSelectBlend,
 
     // A vector reinterpreted as another vector of the same width, which is the register itself and
     // therefore no instruction at all where the allocator has already put the two in one place.
@@ -335,6 +346,7 @@ enum: MachineFormId {
 
     FormVWideAnd, FormVWideOr, FormVWideXor, FormVWideAndNot,
     FormVWideAndF32, FormVWideAndF64,
+    FormVWideAndNotF32, FormVWideAndNotF64,
 
     FormVWideShl16Imm, FormVWideShl32Imm, FormVWideShl64Imm,
     FormVWideShr16Imm, FormVWideShr32Imm, FormVWideShr64Imm,
@@ -391,7 +403,7 @@ enum: MachineFormId {
     // wanted half brought down in front of it - see PseudoKind::VecWideLane. Four of each, by the
     // bank the scalar lives in and by its width, which is the same split the narrow forms have.
     FormVWideExtract32, FormVWideExtract64, FormVWideExtractF32, FormVWideExtractF64,
-    FormVWideMaskBits,
+    FormVWideMaskBits, FormVWideMaskBitsF32, FormVWideMaskBitsF64,
     FormVWideInsert32, FormVWideInsert64, FormVWideInsertF32, FormVWideInsertF64,
 
     FormSelectFlags,
@@ -1832,6 +1844,10 @@ MachineTarget::MachineTarget() {
         packed(FormVAndF32, OpVAnd, "andps xmm, xmm/m"_v, 0x00, 0x54);
         packed(FormVAndF64, OpVAnd, "andpd xmm, xmm/m"_v, 0x66, 0x54);
 
+        // And the complement of the same, which the dropped arm of a masked float vector is.
+        packed(FormVAndNotF32, OpVAndNot, "andnps xmm, xmm/m"_v, 0x00, 0x55);
+        packed(FormVAndNotF64, OpVAndNot, "andnpd xmm, xmm/m"_v, 0x66, 0x55);
+
         /*
          * Shifts by a constant count every lane shares.
          *
@@ -2234,6 +2250,50 @@ MachineTarget::MachineTarget() {
             };
         }
 
+        /*
+         * The same movemask at one bit per lane - `movmskps`, `0F 50 /r`, and `movmskpd`, `66 0F 50
+         * /r`. Both SSE2, so neither costs a feature.
+         *
+         * They read the *sign bit* of each 32- or 64-bit element, which for a mask is the lane: a
+         * mask lane is all-ones or all-zeros by construction, so its sign bit is its truth value.
+         * What that buys is the shift underneath every consumer. `pmovmskb` answers a bit per byte,
+         * so a four-byte lane contributed four equal bits and `count` divided them back out with a
+         * `shr $0x2` and `firstSet` with the same shift - one instruction per consumer, in the loop,
+         * for a repacking nobody asked for. Here the bitmap the consumers want *is* the answer.
+         *
+         * A float-domain instruction over an integer vector is deliberate and is what LLVM's own
+         * selection does: a movemask is a read, so the domain crossing costs a forwarding delay at
+         * worst and there is no `pmovmskd` to cross back to.
+         *
+         * The 16-bit lane keeps `pmovmskb` and its shift, there being no `movmskw`; the 8-bit lane
+         * keeps it because a bit per byte is already a bit per lane.
+         */
+        {
+            auto& form = add(FormVMaskBitsF32, OpVMaskBits, "movmskps r32, xmm"_v);
+            form.uses.push(anyReg(ClassXmm128));
+            form.defs.push(def(ClassGpr32));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = 0x50,
+                .escape = 0x0f, .prefix = 0x00,
+                .regField = defRef(0), .rmField = useRef(0),
+                .width = OperationWidth::Fixed32,
+            };
+        }
+
+        {
+            auto& form = add(FormVMaskBitsF64, OpVMaskBits, "movmskpd r32, xmm"_v);
+            form.uses.push(anyReg(ClassXmm128));
+            form.defs.push(def(ClassGpr32));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = 0x50,
+                .escape = 0x0f, .prefix = 0x66,
+                .regField = defRef(0), .rmField = useRef(0),
+                .width = OperationWidth::Fixed32,
+            };
+        }
+
         // A float lane never leaves the vector bank, so the extract is the shuffle that brings the
         // wanted lane down to lane zero - no feature, no bank crossing, and the same instruction the
         // broadcast uses with the index generalized.
@@ -2247,6 +2307,36 @@ MachineTarget::MachineTarget() {
 
         extractFloat(FormVExtractF32, "pshufd xmm, xmm, lane"_v, ClassFloat32);
         extractFloat(FormVExtractF64, "pshufd xmm, xmm, lane"_v, ClassFloat64);
+
+        /*
+         * And lane *zero* of a float vector, which is the register it is already in.
+         *
+         * A scalar float lives in the low lane, so reading lane zero out of a vector moves no bits
+         * at all - the shuffle above spends four bytes rearranging a register into itself. What it
+         * is instead is the vector bank's copy, and `omitWhenSame` is what makes that free: the
+         * allocator's `copyHint` gives a result the register its source is vacating, so the copy is
+         * usually between one register and itself and emits nothing.
+         *
+         * That is the whole of "the low scalar coalesces into the return register" - a reduction
+         * ending in `horizontalSum` hands its answer to a `ret`, the return register is where the
+         * convention wants it, and nothing now stands between the two claiming to be a shuffle.
+         *
+         * `movaps` rather than `movss`, and the same argument `FormVBitcast` makes one row up: the
+         * two are the same length, `movss` merges into its destination where this does not care,
+         * and a lane read is by construction a value about to be read as something other than what
+         * produced it - so neither forwarding domain is the right guess and the shorter dependency
+         * is the better default.
+         */
+        auto extractFloatLow = [&](MachineFormId id, StringView formName, RegisterClassId cls) {
+            auto& form = add(id, OpVExtract, formName);
+            form.uses.push(anyReg(ClassXmm128));
+            form.defs.push(def(cls));
+            form.encoding = sseRegRm(0x00, 0x28, defRef(0), useRef(0), OperationWidth::FromResult);
+            form.encoding.omitWhenSame = true;
+        };
+
+        extractFloatLow(FormVExtractF32Low, "movaps xmm, xmm"_v, ClassFloat32);
+        extractFloatLow(FormVExtractF64Low, "movaps xmm, xmm"_v, ClassFloat64);
 
         /*
          * One lane into a vector.
@@ -2353,6 +2443,43 @@ MachineTarget::MachineTarget() {
             form.clobbers.add(vectorReg(15));
             form.encoding = EncodingDescriptor {
                 .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecSelect,
+            };
+        }
+
+        /*
+         * The same select as `pblendvb`, which is SSE4.1 and therefore inside the floor §38 fixed.
+         *
+         * `PBLENDVB xmm1, xmm2/m128, <XMM0>` keeps its destination's byte where the mask byte's sign
+         * bit is clear and takes the source's where it is set - so two instructions, `movaps xmm0,
+         * mask` and the blend, replace the four the sequence above needs. Nine bytes against
+         * seventeen at the widest, and one dependency chain shorter.
+         *
+         * **The tie is on the other operand**, and that is why this is a row of its own rather than
+         * an `alternative` of the one above. `pand` writes the value taken where the mask is *set*,
+         * so that sequence's destination is `whenTrue`; `pblendvb` preserves what it already holds
+         * where the mask is clear, so this one's destination is `whenFalse`. An alternative is a
+         * swap `selectForm` may perform after allocation, and the allocator has to have been told
+         * which operand it is writing over before it places anything.
+         *
+         * **The cost is xmm0**, which is not the register a scratch should be: it is the first one
+         * placement reaches for, where `FormVSelect`'s xmm15 is the last. §34.3 declined the row for
+         * that reason and did not measure it. Measured, the trade is one-sided: a clobber holds a
+         * register back at *one instruction*, and two instructions are removed at every select in a
+         * language whose vector library selects in every masked tail. A function under enough
+         * pressure to want xmm0 across a select is a function spilling anyway.
+         *
+         * Legacy only. Under any VEX build `emitVecSelect` writes `vpblendvb`, which takes the mask
+         * as an ordinary third operand and needs neither the row nor the move.
+         */
+        {
+            auto& form = add(FormVSelectBlend, OpVBlend, "movaps xmm0, mask; pblendvb xmm, xmm (lanewise select)"_v);
+            form.uses.push(anyReg(ClassXmm128));
+            form.uses.push(anyReg(ClassXmm128));
+            form.uses.push(anyReg(ClassXmm128));
+            form.defs.push(tiedDef(1, ClassXmm128));
+            form.clobbers.add(vectorReg(0));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecSelectBlend,
             };
         }
 
@@ -2716,6 +2843,8 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideAndNot, FormVAndNot, "vpandn ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideAndF32, FormVAndF32, "vandps ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideAndF64, FormVAndF64, "vandpd ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideAndNotF32, FormVAndNotF32, "vandnps ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideAndNotF64, FormVAndNotF64, "vandnpd ymm, ymm, ymm/m"_v);
 
         wideTwin(FormVWideShl16Imm, FormVShl16Imm, "vpsllw ymm, ymm, imm8"_v);
         wideTwin(FormVWideShl32Imm, FormVShl32Imm, "vpslld ymm, ymm, imm8"_v);
@@ -3003,6 +3132,8 @@ MachineTarget::MachineTarget() {
         // because AVX2 widened the instruction itself: thirty-two bytes in, thirty-two bits out, and
         // the general register it writes is the same width at either tier.
         wideTwin(FormVWideMaskBits, FormVMaskBits, "vpmovmskb r32, ymm"_v);
+        wideTwin(FormVWideMaskBitsF32, FormVMaskBitsF32, "vmovmskps r32, ymm"_v);
+        wideTwin(FormVWideMaskBitsF64, FormVMaskBitsF64, "vmovmskpd r32, ymm"_v);
 
         auto wideInsert = [&](MachineFormId id, StringView formName, RegisterClassId cls) {
             auto& form = add(id, OpVInsert, formName);
@@ -4036,9 +4167,20 @@ bool validateMachineForms(const MachineTarget& target) {
                 fail(form, "names an opcode map no vector prefix can encode"_v);
             }
 
-            // A form that can only be written with a prefix the target may not have is a form that
-            // has to say so, or selectForm would pick it on a machine that cannot execute it.
-            if((form.requiredFeatures & (kFeatureAvx | kFeatureAvx512f)) == 0) {
+            /*
+             * A form that can only be written with a prefix the target may not have is a form that
+             * has to say so, or selectForm would pick it on a machine that cannot execute it.
+             *
+             * The bit-manipulation levels are in the set beside AVX because VEX is not only the
+             * vector prefix: `bzhi` and the rest of BMI2 are VEX-encoded and name general registers
+             * exclusively, so a form requiring one of those has said everything there is to say
+             * about whether the prefix decodes. What is being checked is that *some* claimed
+             * extension implies the encoding, not that the operation is a vector one.
+             */
+            static constexpr FeatureSet kVexBearing =
+                kFeatureAvx | kFeatureAvx512f | kFeatureBmi1 | kFeatureBmi2;
+
+            if((form.requiredFeatures & kVexBearing) == 0) {
                 fail(form, "is written with a vector prefix without requiring the extension that defines it"_v);
             }
         }
@@ -4405,6 +4547,12 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // for both, and what a form of one may not be is a form of the other.
         case LowerInst::X86MinMax:
             return ((LowerInstX86MinMax*)inst)->isMax() ? OpVMax : OpVMin;
+
+        // And the masked vector, which is the bitwise `and` this table already has - the kind exists
+        // to carry which of the two it is and to have made the zero operand go away, not to name an
+        // instruction the opcode list was missing.
+        case LowerInst::X86MaskAnd:
+            return ((LowerInstX86MaskAnd*)inst)->isComplemented() ? OpVAndNot : OpVAnd;
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
         case LowerInst::X86PushArg: return OpPushArg;
@@ -4594,7 +4742,7 @@ static Size laneColumn(LowerType type) {
  * of one would write eight bytes past its object. Closing it is `movq` and `movd` forms, which is
  * the same work the lane extract needs.
  */
-static bool isWholePackedRegister(LowerType type) {
+bool isWholePackedRegister(LowerType type) {
     auto bytes = type.byteWidth();
     if(bytes == 16) return classForType(type) == ClassXmm128;
     if(bytes == 32) return classForType(type) == ClassYmm256 && (targetFeatures() & kFeatureAvx2) != 0;
@@ -5230,12 +5378,51 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         }
 
         /*
+         * A vector masked by a mask, which is the bitwise `and` and picks its row the way the
+         * ordinary one does: by the *domain* rather than by the lane width, since neither `pand` nor
+         * `pandn` has a lane at all.
+         *
+         * The type read is the instruction's result, which is the value's type and not the mask's -
+         * a mask lane is a truth value, so asking `isFloatVector` of one would answer false for a
+         * masked float vector and put its result back in the integer domain.
+         */
+        case LowerInst::X86MaskAnd: {
+            auto masked = (LowerInstX86MaskAnd*)inst;
+            auto type = masked->result.type;
+
+            assertTrue(isWholePackedRegister(type)); // no forms for a vector of any other width
+
+            if(isFloatVector(type)) {
+                auto single = laneBytes(type.lane) == 4;
+
+                if(masked->isComplemented()) {
+                    return widthForm(single ? FormVAndNotF32 : FormVAndNotF64, type);
+                }
+
+                return widthForm(single ? FormVAndF32 : FormVAndF64, type);
+            }
+
+            return widthForm(masked->isComplemented() ? FormVAndNot : FormVAnd, type);
+        }
+
+        /*
          * A lane-wise select, which is one form for every lane type and for a mask: the three
          * bitwise instructions it expands into have no lane width, so nothing here indexes a row.
          */
         case LowerInst::Select: {
             auto type = ((LowerInstSelect*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
+
+            /*
+             * `pblendvb` at 128 bits without VEX, and the expansion everywhere else.
+             *
+             * A 256-bit vector exists only in a build that has VEX, and a VEX build's expansion is
+             * already the one instruction with the mask as a real operand - so the blend row is
+             * exactly the case that is left: legacy encoding, 128 bits, SSE4.1 (which §38 made the
+             * floor). See the row itself for what the xmm0 clobber is being traded for.
+             */
+            if(!isWideVector(type) && !packedNeedsVex()) return FormVSelectBlend;
+
             return widthForm(FormVSelect, type);
         }
 
@@ -5394,8 +5581,17 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
                     ? FormVWideExtract64 : FormVWideExtract32;
             }
 
+            /*
+             * A float lane, whose lane zero is the register it is already in - a scalar float *is*
+             * the low lane, so there is nothing to move and the `Low` row says so with a copy the
+             * allocator usually makes disappear. Every other index is the shuffle that brings the
+             * wanted lane down to it.
+             */
             if(isFloatVector(type)) {
-                return laneBytes(type.lane) == 4 ? FormVExtractF32 : FormVExtractF64;
+                auto narrow = laneBytes(type.lane) == 4;
+
+                if(lane->getLane() == 0) return narrow ? FormVExtractF32Low : FormVExtractF64Low;
+                return narrow ? FormVExtractF32 : FormVExtractF64;
             }
 
             /*
@@ -5406,6 +5602,25 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * which is a class disagreement rather than a wrong number.
              */
             auto wide = laneBytes(type.lane) == 8 && !type.isMask();
+
+            /*
+             * And lane zero, which `movd`/`movq` reach in two opcode bytes and no index where
+             * `pextrd`/`pextrq` take three and one - six bytes down to four, or five down to seven
+             * at the quadword where REX.W is spent either way.
+             *
+             * The two rows exist already, `extractZero` above having built them as the baseline's
+             * only reachable index back when there was a baseline below SSE4.1. §38 removed the
+             * feature question and left them selected by nothing; what selects them now is the
+             * *index*, which is the question they were always the answer to. Lane zero is where
+             * every reduction ends, so this is the row the butterfly's last step reads through.
+             *
+             * Still not an `alternative` of the `pextr` row - see the note there. An alternative is
+             * interchangeable at every call site and this one reaches one index, so the choice has
+             * to be made here where the index is known rather than by `selectForm`, which sees only
+             * the feature set.
+             */
+            if(lane->getLane() == 0) return wide ? FormVExtract64Zero : FormVExtract32Zero;
+
             return wide ? FormVExtract64 : FormVExtract32;
         }
 
@@ -5459,14 +5674,20 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
          * pass not having run - which the `opcodeFor` arm asserts rather than this one, since a
          * form of zero here is read as "not a packed operation" and would fall through silently.
          *
-         * One row at each tier and no lane table: `pmovmskb` reads bytes whatever the mask's lanes
-         * are, so the lane width is the arithmetic above it and not the form.
+         * Three rows at each tier, chosen by how many bits of the answer a lane is worth: a 32- or
+         * 64-bit lane takes `movmskps`/`movmskpd` and gets a bit each, everything else takes
+         * `pmovmskb` and gets one per byte. `maskBitsPerLane` in transform.cpp is where the same
+         * choice is made for the arithmetic above the instruction, and the two have to agree - the
+         * shift a consumer applies is exactly what this row decides.
          */
         case LowerInst::VecReduce: {
             if(((LowerInstVecReduce*)inst)->getReduce() != LowerReduce::Bits) return 0;
 
-            return isWideVector(base[((LowerInstVecReduce*)inst)->from]->type)
-                ? FormVWideMaskBits : FormVMaskBits;
+            auto type = base[((LowerInstVecReduce*)inst)->from]->type;
+            auto width = laneBytes(type.lane);
+            auto id = width == 4 ? FormVMaskBitsF32 : width == 8 ? FormVMaskBitsF64 : FormVMaskBits;
+
+            return widthForm(id, type);
         }
 
         default:
@@ -5926,6 +6147,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
          * for, which is what `packedMinMaxSupported` exists to have refused.
          */
         case LowerInst::X86MinMax:
+        case LowerInst::X86MaskAnd:
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:

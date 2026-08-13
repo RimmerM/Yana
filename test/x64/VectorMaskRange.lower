@@ -1,0 +1,146 @@
+# The live-lane range of a masked tail, taken out of the vector bank - §41.3 of
+# test/bench/findings.md.
+#
+# extensions: v3
+#
+# Every bulk operation in the library masks its last chunk with `maskUpTo(live)`, which is
+# `iota .< splat(live)` - a general register moved into a vector one, a broadcast, a comparison
+# against a 32-byte constant, and an `and` per consumer. Every one of those consumers goes through a
+# movemask (§37), and a bit range of a general register is one instruction. What to look for:
+#
+#   - **`bzhi` below the movemask, and no `iota` in the function at all.** The constant, the splat,
+#     the comparison and the `and` all go together; what is left is `vpcmpeqd ; vmovmskps ; bzhi ;
+#     popcnt`.
+#   - **the clamp, and where it is not.** `bzhi` reads its count from the low *byte* of its operand
+#     and clears nothing when that byte is at or above the register width, so a count of 256 would
+#     read as zero and answer "no lanes" where the truth is all of them. `countMasked` proves the
+#     count fits by `knownZeroBits` and pays nothing; `countUnsigned` cannot and pays one `cmp` and
+#     one `cmovae` against the lane count.
+#   - **the signed count that is declined.** `countSigned` compares with `ilt` against a count
+#     nothing bounds below, and a negative one would read as 255 and answer "every lane" where the
+#     comparison answers none. The vector mask stands, exactly as it did before this existed.
+#   - **the constant range, which is not this at all.** `countFull` is the *full*-chunk half of the
+#     same loop, where the count is the lane count: `foldConstantMasks` answers it lane by lane and
+#     the `and` disappears rather than becoming a `bzhi` of a literal.
+#
+# `VectorMaskBits.lower` is where the movemask and its four consumers are read on their own.
+
+# The count masked to a byte, which is what a narrow lane's own width does to it - and is what makes
+# the range free here: every bit above the low byte is known clear, so the machine's saturation at
+# the register width is already the right answer and no clamp is emitted.
+countMasked(%a: i32x8, %b: i32x8, %n: Int): Int {
+    {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %k = and %n, 255: Int
+        %s = vsplat %k: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %c = vreduce_add %r: Int
+        ret %c
+    }
+}
+
+# An unsigned count, which has no negative values to rule out and so needs no proof - but is not
+# bounded above either, so the index is `min(n, 8)` before it reaches the instruction.
+countUnsigned(%a: i32x8, %b: i32x8, %n: Int): Int {
+    {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %s = vsplat %n: i32x8
+        %live = cmp_lt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %c = vreduce_add %r: Int
+        ret %c
+    }
+}
+
+# The same with a *signed* comparison and nothing saying the count is not negative, which is the one
+# shape this declines: the vector comparison and the `and` are still here.
+countSigned(%a: i32x8, %b: i32x8, %n: Int): Int {
+    {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %s = vsplat %n: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %c = vreduce_add %r: Int
+        ret %c
+    }
+}
+
+# And the full chunk, which goes through the identical line with the count equal to the lane count.
+# Both sides of the comparison are constants there, so the mask is all-ones and the `and` is its
+# other operand - `foldConstantMasks`, not the range.
+countFull(%a: i32x8, %b: i32x8): Int {
+    {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %s = vsplat 8: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %c = vreduce_add %r: Int
+        ret %c
+    }
+}
+
+# The range in front of a *search* rather than a tally, which is the other consumer it serves: `bzhi`
+# clears the bits above the live lanes and the scan then answers the lane count for a mask with
+# nothing set in range, exactly as it does for an empty one.
+firstLive(%a: i32x8, %b: i32x8, %n: Int): Int {
+    {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %k = and %n, 255: Int
+        %s = vsplat %k: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %f = vreduce_first %r: Int
+        ret %f
+    }
+}

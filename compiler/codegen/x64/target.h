@@ -92,8 +92,8 @@ static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
  * BMI1, which here is `tzcnt` and nothing else yet - and which is v3, like everything beside it.
  *
  * It was claimed with AVX2 before the levels were named, on the grounds that no part has one without
- * the other; the level says the same thing and says it once. BMI2 is v3 as well and needs no bit
- * until `bzhi` or `shlx` is wanted.
+ * the other; the level says the same thing and says it once. BMI2 is v3 as well and has a bit of its
+ * own below, which `bzhi` is what finally wanted.
  *
  * What it buys is the one thing a sentinel bit cannot do at every width: `tzcnt` answers the
  * *operand's width* for a zero operand, where `bsf` leaves its destination undefined. A movemask
@@ -107,6 +107,28 @@ static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
  * instruction, which is why it is claimed from a level that implies it rather than detected.
  */
 static constexpr FeatureSet kFeatureBmi1 = 1 << 8;
+
+/*
+ * BMI2, which here is `bzhi` and nothing else yet - and which is v3, beside BMI1.
+ *
+ * A bit of its own rather than a wider reading of `kFeatureBmi1`, on the argument the file opens
+ * with: the two are separate facts about the instruction set, and a level that ever splits them
+ * should find them written down separately. Every part that has one has the other, so today the two
+ * are set and cleared together.
+ *
+ * What it buys is the tail of a chunked loop. `bzhi dst, src, index` copies the low `index` bits of
+ * its source and clears the rest, which is exactly "only these lanes are live" applied to a movemask
+ * - so the lane range a masked tail is written over stops being a *vector* (a splat of the count, a
+ * comparison against `iota`, and an `and` per consumer, with `iota` and its bias held in registers
+ * for the whole function) and becomes one general-register instruction below the movemask every
+ * consumer already goes through. See `matchLaneRangeMask` and `laneRangeIndex` in transform.cpp,
+ * which `lowerVectorReductions` reads.
+ *
+ * The index is read from the low byte of its operand and an index at or above the operand width
+ * clears nothing, which is what makes the clamp that pass emits a *narrowing* question rather than a
+ * saturating one - see the note there.
+ */
+static constexpr FeatureSet kFeatureBmi2 = 1 << 9;
 
 /*
  * The fused multiply-add, at every width and both lane kinds - v3, with the rest.

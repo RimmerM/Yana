@@ -99,9 +99,7 @@ Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
 
 moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
-    %v_1 = bitcast %to: Ptr
-    %v_2 = bitcast %from: Ptr
-    copy %v_1, %v_2, 16
+    copy %to, %from, 16
     call_complex Sink(Handle).sink, %to, %from
     ret 
   }

@@ -613,6 +613,11 @@ enum class PseudoKind: U8 {
     // clobbered scratch vector register. See OpVBlend.
     VecSelect,
 
+    // The same select as `pblendvb`, whose mask is `xmm0` and nowhere else: a move into it and the
+    // blend. Two instructions rather than four, at the cost of clobbering the register placement
+    // reaches for first - see FormVSelectBlend, which is where that trade is argued.
+    VecSelectBlend,
+
     // The two that need an all-ones vector, which is a register compared with itself: a mask
     // complemented, and the three signed relations the machine has only the complement of.
     VecNot,
@@ -1270,6 +1275,16 @@ LowerCmp packedCompareRelation(LowerCmp cmp);
  * AVX-512's `pminsq` - and a lane count that is not a whole register, which nothing here holds.
  */
 bool packedMinMaxSupported(LowerType type);
+
+/*
+ * Whether a vector of this type fills a register this target has, which is what every packed form
+ * here is written against.
+ *
+ * Exported for `selectMaskedVectors`, which writes a `X86MaskAnd` whose form selection asserts it:
+ * a pass and the table it writes for have to be asking one function, on `packedMinMaxSupported`'s
+ * argument one paragraph up.
+ */
+bool isWholePackedRegister(LowerType type);
 
 /*
  * The trailing byte an instruction supplies for the form selected for it - see `patternImmediate`.

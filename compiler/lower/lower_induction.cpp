@@ -1,5 +1,6 @@
 #include "lower_induction.h"
 #include "lower_builder.h"
+#include "lower_fold.h"
 
 namespace {
 
@@ -104,6 +105,12 @@ struct Induction {
     LowerValue* variable;  // the step, where it is a value rather than a number
     U64 step;
     bool widened;
+
+    // §32.2 The no-wrap fact came from `checkedIndexCannotOverflow` rather than from
+    // `stepCannotOverflow`, which is a weaker claim: the addition *may* wrap, and what is proved is
+    // that nothing reads a pointer derived from a wrapped value. Enough to carry a pointer, not
+    // enough to replace the counter - see the proof, which says which pass may believe it.
+    bool checkedOnly;
 };
 
 // One address the loop recomputes, and everything needed to decide which pointer it becomes.
@@ -329,6 +336,160 @@ bool stepCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLo
 }
 
 /*
+ * The arm a bounds check on `%u` lets through, where `cmp` is that check.
+ *
+ * The shape is the one every subscript in the language emits: `cmp_ge %index, %length` - *unsigned*,
+ * which is what makes one comparison answer both ends of the range - branching to a block control
+ * never leaves. `Unreachable` is asked for by name rather than "a block outside the loop", because
+ * what the proof above needs is that the failing arm does not go on to read anything.
+ *
+ * The bound has to have its top bit provably clear, and that is the whole of the arithmetic: a
+ * negative index sign-extends to at least 0xffffffff80000000, so it compares at or above every bound
+ * below 2^63 and the check rejects it. A container's length is a 32-bit field widened to 64 and is
+ * far inside that; an arbitrary `Size` is not, and is declined.
+ */
+LowerBlock* boundsCheckPassArm(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cmp) return nullptr;
+
+    auto cmp = (LowerInstCmp*)inst;
+    if(cmp->getCmp() != LowerCmp::ge) return nullptr;
+
+    auto bound = base[cmp->rhs];
+    if(!isWide(bound->type)) return nullptr;
+    if(!(knownZeroBits(base, bound) & (U64(1) << 63))) return nullptr;
+
+    // The comparison has to be the branch's whole condition, and the branch has to be the terminator
+    // of the block the comparison is in - anything else is a value this cannot follow to an arm.
+    auto block = base[inst->block];
+    if(!block->terminator || base[block->terminator]->kind != LowerInst::Je) return nullptr;
+
+    auto je = (LowerInstJe*)base[block->terminator];
+    if(base[je->cond] != cmp->created().ptr) return nullptr;
+
+    auto fail = base[je->then];
+    if(!fail->terminator || base[fail->terminator]->kind != LowerInst::Unreachable) return nullptr;
+
+    return base[je->otherwise];
+}
+
+/*
+ * §32.2 The third no-wrap proof, and the only one that lets the wrap happen.
+ *
+ * The two above establish that the narrow addition cannot overflow. This one establishes something
+ * weaker and, for the *address* rewrite, sufficient: that if it does overflow, nothing ever reads a
+ * pointer computed from the overflowed value. `Sieve`'s marking loop is what it is for -
+ *
+ *     while m < limit:  flags[m] = 0;  m = m + p
+ *
+ * where `m` is an `Int`, the address it drives is a `Ptr`, and the step is the prime being sieved.
+ * Neither existing proof reaches it: the `for`-range guard is not emitted for a `while`, and the
+ * strict-test argument needs the step to be exactly one.
+ *
+ * ## The argument
+ *
+ * The subscript's own bounds check is the evidence, and it is still standing here:
+ *
+ *     %w = sext %m       %u = bitcast %w       %c = cmp_ge %u, %L      je %c, abort, body
+ *
+ * **Reaching the body proves `%m >= 0`.** A negative `%m` sign-extends to at least
+ * 0xffffffff80000000, so `%u >=u %L` for any `%L` below that - and `%L` is a container's length,
+ * which arrives here as a 32-bit field widened to 64, so its top thirty-three bits are provably
+ * clear. That is the step §32.2 recorded as "not airtight" and it is airtight after all: the bound
+ * is not an arbitrary `Size`, it is one `knownZeroBits` can see the width of.
+ *
+ * **An overflow of `%m ± %p` from a non-negative `%m` always produces a negative result**, whatever
+ * the sign of the step and with no fact about it needed. Adding: the sum exceeds the signed maximum
+ * only if the step was positive, and wrapping past it sets the sign bit. Subtracting: the same, with
+ * the signs mirrored. Underflow cannot happen at all - `%m >= 0` puts the true result at or above
+ * the type's minimum in both directions.
+ *
+ * **So a wrap is rejected before it is read.** The next iteration enters the header with a negative
+ * counter, reaches the same check, and aborts - and the pointer the reduction carries, which by then
+ * disagrees with `base + sext(%m) * scale`, is never dereferenced. The unreduced program aborts at
+ * exactly the same point, so the two are the same program.
+ *
+ * ## Where it may and may not be used
+ *
+ * **The address rewrite only.** `widenLoopCounters` replaces the counter itself, and there the
+ * wrapped value is *observable*: a narrow counter that wraps negative re-enters the loop and aborts,
+ * where a widened one keeps counting up, fails `%m < limit` and leaves normally. Two different
+ * programs. `removeCheckedBounds` is worse than unsound, it is circular - it deletes the very check
+ * this reads. So the fact is carried on `Induction::checkedOnly` rather than folded into
+ * `stepCannotOverflow`, and both of those decline it.
+ *
+ * The conditions below are what make "before it is read" true rather than likely: the failing arm
+ * must be a block control never leaves, the passing arm must dominate the step, and every use of the
+ * widened index outside the check itself must be dominated by the passing arm.
+ */
+bool checkedIndexCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLoop& loop,
+                                const DominatorTree& dominators, LowerInstPhi* phi, LowerInst* stepInst)
+{
+    // The step has to run inside the loop, or the counter reaching the check is not the one it
+    // advances. Every other use of the counter is asked about through the widening below.
+    if(!loops.contains(loop.header->index, base[stepInst->block]->index)) return false;
+
+    auto checked = false;
+
+    for(auto u: phi->result.uses.contents(base)) {
+        auto widening = base[u];
+        if(widening->kind != LowerInst::Cast || widening->createdCount != 1) continue;
+
+        auto conversion = (LowerInstCast*)widening;
+        if(!conversion->isSignedSource() || !conversion->isSignedResult()) continue;
+        if(!isWide(conversion->result.type) || !isInt(conversion->result.type)) continue;
+
+        auto index = &conversion->result;
+
+        /*
+         * The check this widening feeds. Found from the index's own readers rather than by walking
+         * the loop: a bounds check is a comparison of the index, and the `bitcast` between them is
+         * the `Size`/`I64` renaming every subscript goes through - the same alias walk
+         * `removeCheckedBounds` performs one function down.
+         */
+        LowerBlock* pass = nullptr;
+
+        auto findCheck = [&](LowerValue* alias) {
+            for(auto c: alias->uses.contents(base)) {
+                if(auto found = boundsCheckPassArm(base, base[c])) pass = found;
+            }
+        };
+
+        findCheck(index);
+
+        for(auto c: index->uses.contents(base)) {
+            auto inst = base[c];
+
+            // Through the bitcast, which is the same bits under the other name - a subscript
+            // compares its index as a `Size` where the counter is an `I64`.
+            if(inst->kind == LowerInst::Bitcast && inst->createdCount == 1 &&
+               isWide(inst->created().ptr->type))
+            {
+                findCheck(inst->created().ptr);
+            }
+        }
+
+        if(!pass) return false;
+        if(!pass->dominates(base[stepInst->block], dominators)) return false;
+
+        /*
+         * And nothing reads the widened index anywhere the check has not run. The comparison and the
+         * bitcast in front of it are the check itself and are the two readers that may sit above the
+         * passing arm; anything else is an address this pass is about to make a carried pointer, and
+         * one read on a path that skipped the check would be read after a wrap.
+         */
+        for(auto r: index->uses.contents(base)) {
+            auto reader = base[r];
+            if(reader->kind == LowerInst::Cmp || reader->kind == LowerInst::Bitcast) continue;
+            if(!pass->dominates(base[reader->block], dominators)) return false;
+        }
+
+        checked = true;
+    }
+
+    return checked;
+}
+
+/*
  * Whether a header phi counts by the same amount every iteration.
  *
  * The value it takes on the latch edge has to be `%phi + C`, or `%phi + %s` for an `%s` the loop does
@@ -347,7 +508,7 @@ bool stepCannotOverflow(LowerBase base, const LoopInfo& loops, const ReducibleLo
  * emitted in the preheader in the other, and nothing this compiler emits counts down by a value.
  */
 Maybe<Induction> inductionOf(LowerBase base, const LoopInfo& loops, const ReducibleLoop& loop,
-                             LowerInstPhi* phi)
+                             const DominatorTree& dominators, LowerInstPhi* phi)
 {
     if(phi->usedCount != 2) return Nothing();
     if(!isInt(phi->result.type)) return Nothing();
@@ -388,22 +549,32 @@ Maybe<Induction> inductionOf(LowerBase base, const LoopInfo& loops, const Reduci
 
         if(step == 0) return Nothing();
 
+        auto checkedOnly = false;
+
         if(narrow && !stepCannotOverflow(base, loops, loop, phi, inst, stride,
                                          inst->kind == LowerInst::Add))
         {
-            return Nothing();
+            // §32.2 And the check the subscript already performs, which proves less and is enough
+            // for the pointer. `checkedOnly` is what keeps that distinction downstream.
+            if(!checkedIndexCannotOverflow(base, loops, loop, dominators, phi, inst)) return Nothing();
+            checkedOnly = true;
         }
 
-        return Just(Induction { initial, nullptr, step, narrow });
+        return Just(Induction { initial, nullptr, step, narrow, checkedOnly });
     }
 
-    // §32 A step the loop does not compute. Refused at a narrow width for want of the proof above,
-    // and refused where the addition is a subtraction - see the header comment.
-    if(narrow || inst->kind != LowerInst::Add) return Nothing();
+    // §32 A step the loop does not compute, and the case §32.2 left unreachable: a *narrow* counter
+    // stepped by a value has no proof that reads the stride as a number, so the only one available
+    // is the one that does not read it at all. `Sieve`'s marking loop is exactly this shape.
+    if(inst->kind != LowerInst::Add) return Nothing();
     if(stride->type != phi->result.type) return Nothing();
     if(!outsideLoop(base, loops, loop.header->index, stride)) return Nothing();
 
-    return Just(Induction { initial, stride, 0, false });
+    if(narrow && !checkedIndexCannotOverflow(base, loops, loop, dominators, phi, inst)) {
+        return Nothing();
+    }
+
+    return Just(Induction { initial, stride, 0, narrow, narrow });
 }
 
 // The factor a value scales `of` by, where it is `%of << k` or `%of * f` at a literal - the two
@@ -621,9 +792,20 @@ void reduceGroup(LowerBase base, LowerModule& module, LowerFunction& fun, const 
      * addition is; a step that is a value is that value times the scale, multiplied out in the
      * *preheader* - it is the same product on every iteration, and putting it in the latch would be
      * a multiply per iteration in exchange for the shift this pass is removing.
+     *
+     * §32.2 A *narrow* step is sign-extended first, exactly as the counter's start is one line up and
+     * for the same reason: what the pointer advances by is `sext(%p) * scale`, and the no-wrap fact
+     * is what says that is the same number as `sext(%i + %p) - sext(%i)`. Only reachable since the
+     * third proof - before it a variable step implied a wide counter, and the widening had nothing
+     * to do. Left out, the multiply is an `Int32` against an `Int64` immediate and `validateFunction`
+     * reports it, which is how it was found.
      */
+    auto step = shape.variable && shape.widened
+        ? resultOf(cast<true, true>(base, module, *loop.pre, shape.variable, LowerType::Int64, StringId()))
+        : shape.variable;
+
     auto stride = shape.variable
-        ? resultOf(binary<LowerInst::Mul>(base, module, *loop.pre, shape.variable,
+        ? resultOf(binary<LowerInst::Mul>(base, module, *loop.pre, step,
                                           immediate(base, module, *loop.pre, LowerType::Int64,
                                                     shape.scale),
                                           LowerType::Int64, StringId()))
@@ -707,7 +889,7 @@ void reduceLoop(LowerBase base, LowerModule& module, LowerFunction& fun, const L
     SmallArray<Candidate, 8> candidates;
 
     for(auto phi: counters) {
-        auto induction = inductionOf(base, loops, loop, phi);
+        auto induction = inductionOf(base, loops, loop, dominators, phi);
         if(!induction) continue;
 
         auto& counter = induction.unwrap();
@@ -926,7 +1108,7 @@ bool classifyCounter(LowerBase base, const LoopInfo& loops, BlockIndex header, N
  * extension left" the right question rather than a guess.
  */
 void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopInfo& loops,
-                       const ReducibleLoop& loop, DeadSweep& sweep)
+                       const DominatorTree& dominators, const ReducibleLoop& loop, DeadSweep& sweep)
 {
     auto& arena = fun.arena;
     auto header = loop.header->index;
@@ -935,12 +1117,22 @@ void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, 
     for(auto p: loop.header->phis.contents(base)) phis.push(base[p]);
 
     for(auto phi: phis) {
-        auto induction = inductionOf(base, loops, loop, phi);
+        auto induction = inductionOf(base, loops, loop, dominators, phi);
         if(!induction) continue;
 
         auto& found = induction.unwrap();
         if(!found.widened) continue;   // already at the address unit's width
         if(found.variable) continue;   // and so is every counter stepped by a value - see Induction
+
+        /*
+         * §32.2 And every counter whose no-wrap fact is the bounds check rather than the arithmetic.
+         *
+         * That proof permits the wrap and shows nothing *reads* what it produced; here the wrapped
+         * value is the thing being replaced, and a counter that wraps negative re-enters the loop
+         * and aborts where a widened one leaves it normally. Two different programs, so the pointer
+         * rewrite may believe it and this may not.
+         */
+        if(found.checkedOnly) continue;
         if(!outsideLoop(base, loops, header, found.initial)) continue;
 
         NarrowCounter counter;
@@ -1303,7 +1495,7 @@ void widenInductionVariables(LowerBase base, LowerModule& module, LowerFunction&
         if(!loops.isHeader(block->index)) continue;
 
         if(auto loop = reducibleLoop(base, loops, dominators, block)) {
-            widenLoopCounters(base, module, fun, loops, loop.unwrap(), sweep);
+            widenLoopCounters(base, module, fun, loops, dominators, loop.unwrap(), sweep);
         }
     }
 

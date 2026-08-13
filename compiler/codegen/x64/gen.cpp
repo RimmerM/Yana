@@ -1138,11 +1138,52 @@ static void genLoadAddress(AsmModule& to, MachineLocation destReg, RegisterClass
 // `movsd` into the vector bank and a plain `mov` into the general one. Whichever it is, it is one
 // instruction of the same length the definition it stands in for was.
 static void genLoadConstant(AsmModule& to, MachineLocation dest, RegisterClassId regClass, LowerGlobal* global, LowerType type) {
+    /*
+     * A vector reads the class's own transfer rather than a spelling of its own, which is the same
+     * decision `genMoves` makes and for the same reason: "which instruction moves a value of this
+     * class" is one answer, and `moveEncoding` is where it lives - including the VEX prefix a build
+     * with AVX owes every vector access.
+     */
+    if(isVectorLike(type)) {
+        auto encoding = moveEncoding(regClass);
+        assertTrue(encoding.defined); // a class with no way to move it reached a recipe
+
+        genMemory(to, MachineAddress::atSymbol(nullptr, global), reg(dest, regClass), MemForm {
+            .opCode = encoding.load, .escape = encoding.escape, .prefix = encoding.memPrefix,
+            .kind = encoding.kind, .length = encoding.length,
+        });
+
+        return;
+    }
+
     auto form = isFloat(type)
         ? MemForm { .opCode = 0x10, .escape = 0x0f, .prefix = U8(type == LowerType::Float64 ? 0xf2 : 0xf3) }
         : MemForm { .opCode = 0x8b, .is64 = is64Bit(type) };
 
     genMemory(to, MachineAddress::atSymbol(nullptr, global), reg(dest, regClass), form);
+}
+
+/*
+ * A vector register zeroed - `pxor r, r`, or `vpxor r, r, r` where the prefix is available.
+ *
+ * The integer form at every lane kind, exactly as `emitVecZero` elsewhere in this backend writes it:
+ * `pxor` and `xorps` clear the same bits, and the integer one is what a vector of any lane type is
+ * held as between the operations that read it.
+ *
+ * Under VEX the 128-bit encoding is written even for a 256-bit value, which is not a shortcut: a VEX
+ * instruction writing an xmm destination zeroes the upper half of the register, so `vpxor xmm, xmm,
+ * xmm` clears the whole ymm and is one byte shorter than the wide spelling.
+ */
+static void genVectorZero(AsmModule& to, MachineLocation dest, RegisterClassId regClass) {
+    auto at = reg(dest, regClass);
+    auto vex = vectorClassNeedsVex(regClass);
+
+    auto prefix = InstPrefix {
+        .kind = vex ? PrefixEncoding::Vex : PrefixEncoding::Legacy,
+        .mandatory = 0x66, .escape = 0x0f, .length = 0, .vvvv = vex ? at : U8(0),
+    };
+
+    genRegRegPrefixed(to, prefix, at, at, 0xef);
 }
 
 // Recreates a rematerialized value in `dest`. This is the whole of what a recipe costs at the point
@@ -1164,6 +1205,9 @@ static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, Ma
             break;
         case Remat::ConstantLoad:
             genLoadConstant(to, dest, regClass, r.global, r.type);
+            break;
+        case Remat::VectorZero:
+            genVectorZero(to, dest, regClass);
             break;
     }
 }
@@ -1973,10 +2017,9 @@ struct Emitter {
          * `~lhs & rhs`, which is what makes the second half one instruction rather than a complement
          * and an `and`.
          *
-         * `pblendvb` is SSE4.1 and would be two of these four - but it takes its mask in `xmm0`
-         * implicitly, and a form that clobbers `xmm0` gives up the *first* register placement reaches
-         * for at every select in the function. xmm15 is the last one, which is why the scratch is
-         * there and not here.
+         * Reached only where the blend row was not selected - which today is the 256-bit twin, whose
+         * `wide` flag brings it here for a target with AVX but not AVX2. `FormVSelectBlend` is the
+         * 128-bit legacy answer and is two instructions; see emitVecSelectBlend below.
          */
         genPackedCopy(wide, mask, scratch, 0x28, 0x0f, 0x00);      // movaps scratch, mask
         genPackedTwoAddress(wide, whenFalse, scratch, 0xdf, 0x0f, 0x66); // pandn scratch, b
@@ -1984,6 +2027,43 @@ struct Emitter {
         // And `mask & a` into the destination, which the tie has already made `a`.
         genPackedTwoAddress(wide, mask, destination, 0xdb, 0x0f, 0x66);  // pand dst, mask
         genPackedTwoAddress(wide, scratch, destination, 0xeb, 0x0f, 0x66); // por dst, scratch
+    }
+
+    /*
+     * The same lane-wise select as two instructions - see FormVSelectBlend, which is where the trade
+     * this makes is argued.
+     *
+     * `PBLENDVB xmm1, xmm2/m128, <XMM0>` reads the sign bit of every *byte* of xmm0 and takes that
+     * byte from xmm2 where it is set and leaves xmm1's where it is clear. A mask lane here is all
+     * ones or all zeros at whatever width it was compared at, so every byte of a lane carries the
+     * same sign bit and one row serves every lane type and both domains - the same fact that makes
+     * `pmovmskb` the movemask for all of them.
+     *
+     * The destination is `whenFalse` by the form's tie, which is the operand it preserves; the
+     * source it reads is `whenTrue`. `66 0F 38 10 /r`, in the 0F38 map, with no immediate - the
+     * implicit `xmm0` is what a three-operand encoding would have spelled out and the whole of why
+     * the mask has to be moved there first.
+     *
+     * The move is unconditional. `xmm0` is the form's declared clobber, so nothing the allocator
+     * placed is in it - the mask included - and a `movaps` from a register into itself is not a case
+     * that can arise here.
+     */
+    void emitVecSelectBlend(LowerInst*, const InstRegs& regs) {
+        auto destination = reg(regs.creates[0]);
+        auto whenTrue = reg(regs.uses[0]);
+        auto mask = reg(regs.uses[2]);
+
+        genPackedCopy(false, mask, U8(0), 0x28, 0x0f, 0x00); // movaps xmm0, mask
+
+        // `66 0F 38 10 /r`, written through the shared prefix encoder so that the mandatory byte,
+        // REX and the two-byte map escape come out in the one order the decoder wants - the same
+        // route the `pextr` rows take for the 0F3A map beside this one.
+        writePrefix(to, InstPrefix {
+            .kind = PrefixEncoding::Legacy, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F38,
+        }, needsRex(destination), false, needsRex(whenTrue));
+
+        to.buffer.writeByte(0x10);
+        to.buffer.writeByte(makeMod(3, whenTrue, destination));
     }
 
     /*
@@ -2185,6 +2265,23 @@ struct Emitter {
                 held = destination;
             }
 
+            /*
+             * Lane zero of the half in hand is the register the value is already in - a scalar
+             * float *is* the low lane - so what is left is a copy, and no copy at all where the
+             * half came down into the destination or the allocator put the two in one place. The
+             * narrow twin says the same thing as a form (`FormVExtractF32Low`); here it has to be
+             * said in the emitter, a pseudo having no form to carry `omitWhenSame`.
+             */
+            if(within == 0) {
+                if(held != destination) {
+                    genRegRegPrefixed(to, InstPrefix {
+                        .kind = PrefixEncoding::Vex, .escape = 0x0f, .map = kOpcodeMap0F,
+                    }, held, destination, 0x28);
+                }
+
+                return;
+            }
+
             // `vpshufd`, at VEX.128 - the value is one register wide by now whichever half it came
             // from, and a 256-bit shuffle would read bytes this lane is not in.
             genRegRegPrefixed(to, InstPrefix {
@@ -2207,16 +2304,28 @@ struct Emitter {
          * register in r/m - the opposite way round from most of this file and what the extract
          * direction encodes. VEX.128 and W deciding the width, exactly as the legacy `pextrq` states
          * it in REX.W.
+         *
+         * Lane zero of the half in hand is `vmovd`/`vmovq` instead, which is the same direction and
+         * the same operand roles in the one-byte 0F map with no index after it - two bytes shorter,
+         * and the index this reduces to on every reduction that ends at lane zero. It is the wide
+         * twin of the row `formFor` selects for a 128-bit `vlane` at index zero, and the choice is
+         * made here for the same reason it is made there: the index decides, and only the emitter
+         * and the form selector can see one.
+         *
+         * `within` rather than `index`, so the low lane of the *upper* half takes it too - by then
+         * `vextracti128` has made that half a register in its own right and lane zero of it is the
+         * lane this reads.
          */
         auto quad = laneBytes(type.lane) == 8 && !type.isMask();
+        auto low = within == 0;
 
         writePrefix(to, InstPrefix {
             .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-            .map = kOpcodeMap0F3A, .w = quad,
+            .map = low ? kOpcodeMap0F : kOpcodeMap0F3A, .w = quad,
         }, needsRex(held), false, needsRex(destination));
-        to.buffer.writeByte(0x16);
+        to.buffer.writeByte(low ? 0x7e : 0x16);
         to.buffer.writeByte(makeMod(3, destination, held));
-        to.buffer.writeByte(within);
+        if(!low) to.buffer.writeByte(within);
     }
 
     /*
@@ -2411,6 +2520,32 @@ struct Emitter {
         genRegReg(to, false, U8(IntRegister::rax), U8(IntRegister::rax), 0xb6, 0x0f);
     }
 
+    /*
+     * Whether this branch is reading the flags of a *float equality*, which no one condition code
+     * answers - see canCarryInFlags, which is what let one reach here.
+     *
+     * Asked of the comparison rather than of the branch, and every part of the test is load-bearing:
+     * the condition has to be the comparison's own kind (`tryElideBranchTest` embeds a `neq` that
+     * means "the register is not zero", which is a different claim about a different value), and the
+     * comparison's result has to be implicit (a comparison that still materializes a value has
+     * already spent the `setcc`, and its flags are not what the branch is reading).
+     */
+    bool branchesOnFloatEquality(LowerInstJe* je) {
+        auto embedded = je->getEmbeddedCmp();
+        if(!embedded) return false;
+
+        auto condition = base[je->cond];
+        auto definition = condition->inst();
+        if(definition->kind != LowerInst::Cmp || !isImplicit(condition)) return false;
+
+        auto cmp = (LowerInstCmp*)definition;
+        auto kind = cmp->getCmp();
+        if(kind != embedded.unwrap()) return false;
+        if(kind != LowerCmp::eq && kind != LowerCmp::neq) return false;
+
+        return isFloat(base[cmp->lhs]->type);
+    }
+
     void emitBranch(LowerInst* inst, const MachineInst& selected, const InstRegs& regs) {
         auto je = (LowerInstJe*)inst;
         auto condition = selected.condition.unwrap();
@@ -2424,6 +2559,33 @@ struct Emitter {
         if(whenTrue == whenFalse) {
             emitJump(whenTrue);
             return;
+        }
+
+        /*
+         * The parity case of a float equality, named before the ordered one is decided.
+         *
+         * A NaN sets ZF and PF together, so `je` alone would take the equal arm for a pair that is
+         * not equal to anything. `jp` sends it to the arm an unordered comparison belongs in, and
+         * everything below then reasons about the ordered case only - where ZF *is* the answer and
+         * the code is the ordinary two-arm emission with no float in it.
+         *
+         * Normalizing `neq` into `eq` with the arms exchanged is what makes that true of both: the
+         * unordered arm is the one an ordered inequality would also take, so it is `whenTrue` for a
+         * `neq` and `whenFalse` for an `eq`, and after the swap it is always the false arm.
+         *
+         * The jump costs two bytes and is not always necessary - a comparison whose operands cannot
+         * be NaN needs none - but nothing here knows that, and the register form it replaces spends
+         * a `setcc`, a jump, a correction and a `test` to answer the same question.
+         */
+        if(branchesOnFloatEquality(je)) {
+            if(condition == LowerCmp::neq) {
+                auto swap = whenTrue;
+                whenTrue = whenFalse;
+                whenFalse = swap;
+                condition = LowerCmp::eq;
+            }
+
+            emitJumpIf(LowerCmp::uno, whenFalse);
         }
 
         // Whichever successor the block order put next is the one that costs nothing to fall into,
@@ -2631,6 +2793,10 @@ struct Emitter {
 
             case PseudoKind::VecSelect:
                 emitVecSelect(inst, regs);
+                break;
+
+            case PseudoKind::VecSelectBlend:
+                emitVecSelectBlend(inst, regs);
                 break;
 
             case PseudoKind::VecNot:

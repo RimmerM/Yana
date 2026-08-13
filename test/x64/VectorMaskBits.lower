@@ -1,15 +1,18 @@
 # The four ways a mask becomes a scalar, and the one instruction all four start from - §37 of
 # test/bench/findings.md, and §34.2 before it.
 #
-# `pmovmskb` answers a bit per *byte* of the register, so everything below is arithmetic on that one
-# number: `any` compares it against zero, `all` against the full pattern, `count` is its population
-# and `firstSet` is its lowest set bit. What to look for, in order:
+# The movemask answers a bit per lane, and everything below is arithmetic on that one number: `any`
+# compares it against zero, `all` against the full pattern, `count` is its population and `firstSet`
+# is its lowest set bit. **Which movemask is the lane width's**: a 32- or 64-bit lane takes
+# `movmskps`/`movmskpd`, which read one sign bit each; an 8- or 16-bit lane takes `pmovmskb`, which
+# reads a bit per *byte* - one per lane at the first and two per lane at the second, the machine
+# having no `movmskw`. What to look for, in order:
 #
-#   - **the bit scan, and the sentinel in front of it.** `or $0x10000` sets the bit one past the last
-#     lane byte, which is what makes an empty mask answer the lane count *and* what keeps `bsf`'s
-#     operand non-zero - the instruction leaves its destination undefined at zero, and the `tzcnt`
-#     that does not needs a feature level this target does not describe. A lane wider than a byte
-#     then shifts the bit index back down into a lane index.
+#   - **the bit scan, and the sentinel in front of it.** The `or` sets the bit one past the last lane
+#     bit, which is what makes an empty mask answer the lane count *and* what keeps `bsf`'s operand
+#     non-zero - the instruction leaves its destination undefined at zero, and the `tzcnt` that does
+#     not needs a feature level this target does not describe. Where it sits is the movemask's own
+#     width: bit 16 for the byte lane's sixteen bits, bit 4 for the four `movmskps` answers.
 #   - **one movemask where a mask has more than one consumer**, placed directly below the definition
 #     of the mask - which is a position that dominates every use of it without any dominance being
 #     computed. `anyThenFirst` is the shape a vector search has, and the second `pmovmskb` it used to
@@ -31,9 +34,10 @@ firstByte(%a: i8x16, %b: i8x16): Int {
     }
 }
 
-# The same over a four-byte lane, where four equal bits stand for one lane and the scan's answer is
-# shifted back down by two. The sentinel is bit 16 either way - it is the register's width in bytes
-# and not the lane count.
+# The same over a four-byte lane, which takes `movmskps` and is therefore the same three instructions
+# rather than five: one bit per lane means the scan's answer is already a lane index and there is no
+# shift behind it, and the sentinel moves down to bit 4 - the lane count, where `pmovmskb` would have
+# put it at bit 16, the register's width in bytes.
 firstWord(%a: i32x4, %b: i32x4): Int {
     {
         %m = cmp_eq %a, %b: m32x4
@@ -60,7 +64,8 @@ allLanes(%a: i32x4, %b: i32x4): Int {
     }
 }
 
-# How many lanes are set: the population of the movemask, divided by the bits one lane contributed.
+# How many lanes are set: the population of the movemask, which at a 32-bit lane is the answer -
+# `movmskps` contributed one bit per lane, so there is nothing to divide back out.
 countLanes(%a: i32x4, %b: i32x4): Int {
     {
         %m = cmp_eq %a, %b: m32x4

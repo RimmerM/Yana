@@ -288,7 +288,12 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
     // in any of the three.
     auto want = wantForUse(shape, i);
     if(want.isValid()) return UseSite { want };
-    if(i == 0 && destructiveReg.isValid()) return UseSite { destructiveReg };
+
+    // The operand the result is written over reads from the result's own register, whichever operand
+    // the form says that is - see the tie index below.
+    if(I32(i) == machine.formOf(inst).tiedResult() && destructiveReg.isValid()) {
+        return UseSite { destructiveReg };
+    }
 
     auto home = placement.locationOf(v, beforeInst(index));
     assertTrue(home.isValid()); // an operand whose web placement never reached
@@ -747,21 +752,20 @@ struct Legalizer {
         auto used = inst->used();
         auto created = inst->created();
 
-        // The destructive destination has to be resolved before anything else: it is where used()[0]
-        // must sit by the time the instruction runs, so it is reported for both that operand and
-        // the result. Placement already kept it off the registers the *other* operands are read
-        // from, which is what makes the copy that puts used()[0] there safe to emit in front of the
+        // The destructive destination has to be resolved before anything else: it is where the tied
+        // operand must sit by the time the instruction runs, so it is reported for both that operand
+        // and the result. Placement already kept it off the registers the *other* operands are read
+        // from, which is what makes the copy that puts it there safe to emit in front of the
         // instruction.
         MachineLocation destructiveReg;
         bool memoryDest = false;
 
-        // The form states which operand the result is written over, if any. Every one described so
-        // far ties to operand zero, which is what the code below assumes when it copies that operand
-        // into the result's register; a form tying to any other would need that copy to move.
+        // Which operand the result is written over, if any. Almost every form here ties operand
+        // zero - two-address arithmetic reads and writes its first source - but `pblendvb` preserves
+        // its *second* and takes bytes from its first, so the index is read rather than assumed.
         auto tied = machine.formOf(inst).tiedResult();
-        assertTrue(tied <= 0); // a result tied to an operand other than the first
 
-        if(tied == 0 && used.size() > 0 && created.size() > 0 && !isImplicit(&created[0])) {
+        if(tied >= 0 && Size(tied) < used.size() && created.size() > 0 && !isImplicit(&created[0])) {
             destructiveReg = homeOf(&created[0], index);
 
             if(destructiveReg.isStack()) {

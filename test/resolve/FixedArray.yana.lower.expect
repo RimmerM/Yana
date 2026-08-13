@@ -2,40 +2,38 @@
 
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = sext %v_6: Long
-    %v_9 = cmp_ilt %v_8, %xs$length: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    ret %v_3
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = sext %v_5: Long
+    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    je %v_8, b_9, b_10
   }
 
   b_10 {
-    %v_12 = sext %v_6: Long
-    %v_13 = bitcast %v_12: Long
-    %v_14 = cmp_ge %v_13, %v_1: Int
-    je %v_14, b_15, b_4
+    ret %v_2
   }
 
-  b_4 {
-    %v_16 = shl %v_12, 2: Long
-    %v_17 = add %xs$items, %v_16: Ptr
-    %v_18 = loads %v_17, 4: Int
-    %v_5 = add %v_3, %v_18: Int
-    %v_7 = add %v_6, 1: Int
-    jmp b_2
+  b_9 {
+    %v_11 = sext %v_5: Long
+    %v_12 = cmp_ge %v_11, %xs$length: Int
+    je %v_12, b_13, b_3
   }
 
-  b_15 {
-    %v_19 = syscall 60, 134: Long
+  b_3 {
+    %v_14 = shl %v_11, 2: Long
+    %v_15 = add %xs$items, %v_14: Ptr
+    %v_16 = loads %v_15, 4: Int
+    %v_4 = add %v_2, %v_16: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+
+  b_13 {
+    %v_17 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -60,29 +58,27 @@ double<complex>(%xs: Ptr) {
 
   b_9 {
     %v_11 = sext %v_2: Long
-    %v_12 = bitcast %v_11: Long
-    %v_13 = bitcast %v_6: Long
-    %v_14 = cmp_ge %v_12, %v_13: Int
-    je %v_14, b_15, b_16
+    %v_12 = cmp_ge %v_11, %v_6: Int
+    je %v_12, b_13, b_14
   }
 
-  b_16 {
-    %v_17 = load %xs, 8: Ptr
-    %v_18 = shl %v_11, 2: Long
-    %v_19 = add %v_17, %v_18: Ptr
-    %value = loads %v_19, 4: Int
+  b_14 {
+    %v_15 = load %xs, 8: Ptr
+    %v_16 = shl %v_11, 2: Long
+    %v_17 = add %v_15, %v_16: Ptr
+    %value = loads %v_17, 4: Int
     jmp b_3
   }
 
   b_3 {
-    %v_20 = add %value, %value: Int
-    store %v_19, %v_20, 4
+    %v_18 = add %value, %value: Int
+    store %v_17, %v_18, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
 
-  b_15 {
-    %v_21 = syscall 60, 134: Long
+  b_13 {
+    %v_19 = syscall 60, 134: Long
     unreachable 
   }
 }

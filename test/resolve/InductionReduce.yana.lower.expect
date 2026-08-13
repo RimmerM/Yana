@@ -18,17 +18,15 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %v_7 = bitcast %v_6: Ptr
-    %sizeClass = loads %v_7, 8: Long
-    %v_8 = bitcast %allocation: Ptr
-    %v_9 = load @heapFree, 8: Ptr
-    %v_10 = shl %sizeClass, 3: Long
-    %v_11 = add %v_9, %v_10: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_8, %v_12, 8
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = add %v_13, %v_10: Ptr
-    store %v_14, %allocation, 8
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
     ret 
   }
 }
@@ -62,8 +60,7 @@ Reclaim(Array(a)).reclaim(Quad)<complex>(%value: Ptr) {
 
   b_14 {
     %v_17 = load %value, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
+    call_complex freeHeap, %v_17
     jmp b_16
   }
 
@@ -106,8 +103,7 @@ Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
 
   b_14 {
     %v_17 = load %value, 8: Ptr
-    %v_18 = bitcast %v_17: Ptr
-    call_complex freeHeap, %v_18
+    call_complex freeHeap, %v_17
     jmp b_16
   }
 
@@ -197,51 +193,48 @@ sumQuads<complex>(%xs$items: Ptr, %xs$length: Long): Long {
 
 dotCells<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: Long): Long {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = bitcast %ys$length: Long
-    jmp b_3
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
+    %v_7 = phi [b_0, %xs$items], [b_3, %v_8]: Ptr
+    %v_9 = phi [b_0, %ys$items], [b_3, %v_10]: Ptr
+    %v_11 = cmp_ilt %v_5, %xs$length: Int
+    %v_12 = cmp_ilt %v_5, %ys$length: Int
+    %v_13 = select %v_11, %v_12, %v_11: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    ret %v_2
+  }
+
+  b_14 {
+    %v_16 = cmp_ge %v_5, %xs$length: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    %v_19 = loads %v_7, 8: Long
+    %v_20 = cmp_ge %v_5, %ys$length: Int
+    je %v_20, b_17, b_3
   }
 
   b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Long
-    %v_9 = phi [b_0, %xs$items], [b_5, %v_10]: Ptr
-    %v_11 = phi [b_0, %ys$items], [b_5, %v_12]: Ptr
-    %v_13 = cmp_ilt %v_7, %xs$length: Int
-    %v_14 = cmp_ilt %v_7, %ys$length: Int
-    %v_15 = select %v_13, %v_14, %v_13: Int
-    je %v_15, b_16, b_17
+    %v_21 = add %v_9, 8: Ptr
+    %v_22 = loads %v_21, 8: Long
+    %v_23 = imul %v_19, %v_22: Long
+    %v_4 = add %v_2, %v_23: Long
+    %v_6 = add %v_5, 1: Long
+    %v_8 = add %v_7, 24: Ptr
+    %v_10 = add %v_9, 24: Ptr
+    jmp b_1
   }
 
   b_17 {
-    ret %v_4
-  }
-
-  b_16 {
-    %v_18 = bitcast %v_7: Long
-    %v_19 = cmp_ge %v_18, %v_1: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = loads %v_9, 8: Long
-    %v_23 = cmp_ge %v_18, %v_2: Int
-    je %v_23, b_20, b_5
-  }
-
-  b_5 {
-    %v_24 = add %v_11, 8: Ptr
-    %v_25 = loads %v_24, 8: Long
-    %v_26 = imul %v_22, %v_25: Long
-    %v_6 = add %v_4, %v_26: Long
-    %v_8 = add %v_7, 1: Long
-    %v_10 = add %v_9, 24: Ptr
-    %v_12 = add %v_11, 24: Ptr
-    jmp b_3
-  }
-
-  b_20 {
-    %v_27 = syscall 60, 134: Long
+    %v_24 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -249,41 +242,39 @@ dotCells<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: 
 sumDown<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   b_0 {
     %v_1 = sub %xs$length, 1: Long
-    %v_2 = bitcast %xs$length: Long
-    %v_3 = mul %v_1, 24: Long
-    %v_4 = add %xs$items, %v_3: Ptr
-    jmp b_5
+    %v_2 = mul %v_1, 24: Long
+    %v_3 = add %xs$items, %v_2: Ptr
+    jmp b_4
   }
 
-  b_5 {
-    %v_6 = phi [b_0, 0], [b_7, %v_8]: Long
-    %v_9 = phi [b_0, %v_1], [b_7, %v_10]: Long
-    %v_11 = phi [b_0, %v_4], [b_7, %v_12]: Ptr
-    %v_13 = cmp_ige %v_9, 0: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    ret %v_6
+  b_4 {
+    %v_5 = phi [b_0, 0], [b_6, %v_7]: Long
+    %v_8 = phi [b_0, %v_1], [b_6, %v_9]: Long
+    %v_10 = phi [b_0, %v_3], [b_6, %v_11]: Ptr
+    %v_12 = cmp_ige %v_8, 0: Int
+    je %v_12, b_13, b_14
   }
 
   b_14 {
-    %v_16 = bitcast %v_9: Long
-    %v_17 = cmp_ge %v_16, %v_2: Int
-    je %v_17, b_18, b_7
+    ret %v_5
   }
 
-  b_7 {
-    %v_19 = add %v_11, 8: Ptr
-    %v_20 = loads %v_19, 8: Long
-    %v_8 = add %v_6, %v_20: Long
-    %v_10 = sub %v_9, 1: Long
-    %v_12 = add %v_11, 18446744073709551592: Ptr
-    jmp b_5
+  b_13 {
+    %v_15 = cmp_ge %v_8, %xs$length: Int
+    je %v_15, b_16, b_6
   }
 
-  b_18 {
-    %v_21 = syscall 60, 134: Long
+  b_6 {
+    %v_17 = add %v_10, 8: Ptr
+    %v_18 = loads %v_17, 8: Long
+    %v_7 = add %v_5, %v_18: Long
+    %v_9 = sub %v_8, 1: Long
+    %v_11 = add %v_10, 18446744073709551592: Ptr
+    jmp b_4
+  }
+
+  b_16 {
+    %v_19 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -320,89 +311,85 @@ sumWords<complex>(%xs$items: Ptr, %xs$length: Long): Long {
 
 sumInt<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = sext %v_6: Long
-    %v_9 = cmp_ilt %v_8, %xs$length: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    ret %v_3
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = sext %v_5: Long
+    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    je %v_8, b_9, b_10
   }
 
   b_10 {
-    %v_12 = sext %v_6: Long
-    %v_13 = bitcast %v_12: Long
-    %v_14 = cmp_ge %v_13, %v_1: Int
-    je %v_14, b_15, b_4
+    ret %v_2
   }
 
-  b_4 {
-    %v_16 = imul %v_12, 24: Long
-    %v_17 = add %xs$items, %v_16: Ptr
-    %v_18 = add %v_17, 16: Ptr
-    %v_19 = loads %v_18, 8: Long
-    %v_5 = add %v_3, %v_19: Long
-    %v_7 = add %v_6, 1: Int
-    jmp b_2
+  b_9 {
+    %v_11 = sext %v_5: Long
+    %v_12 = cmp_ge %v_11, %xs$length: Int
+    je %v_12, b_13, b_3
   }
 
-  b_15 {
-    %v_20 = syscall 60, 134: Long
+  b_3 {
+    %v_14 = imul %v_11, 24: Long
+    %v_15 = add %xs$items, %v_14: Ptr
+    %v_16 = add %v_15, 16: Ptr
+    %v_17 = loads %v_16, 8: Long
+    %v_4 = add %v_2, %v_17: Long
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+
+  b_13 {
+    %v_18 = syscall 60, 134: Long
     unreachable 
   }
 }
 
 forInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = imm 1: Int
-    jmp b_3
+    %v_1 = imm 1: Int
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
-    %v_9 = phi [b_0, %xs$items], [b_5, %v_10]: Ptr
-    %v_11 = cmp_ilt %v_7, %n: Int
-    je %v_11, b_12, b_13
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = phi [b_0, %xs$items], [b_4, %v_9]: Ptr
+    %v_10 = cmp_ilt %v_6, %n: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = sext %v_6: Long
+    %v_14 = cmp_ge %v_13, %xs$length: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    %v_17 = add %v_8, 16: Ptr
+    %v_18 = loads %v_17, 8: Long
+    %v_5 = add %v_3, %v_18: Long
+    %v_19 = sub %n, %v_6: Int
+    %v_20 = cmp_ile %v_19, %v_1: Int
+    je %v_20, b_12, b_4
+  }
+
+  b_4 {
+    %v_7 = add %v_6, %v_1: Int
+    %v_9 = add %v_8, 24: Ptr
+    jmp b_2
   }
 
   b_12 {
-    %v_14 = sext %v_7: Long
-    %v_15 = bitcast %v_14: Long
-    %v_16 = cmp_ge %v_15, %v_1: Int
-    je %v_16, b_17, b_18
+    %v_21 = phi [b_2, %v_3], [b_16, %v_5]: Long
+    ret %v_21
   }
 
-  b_18 {
-    %v_19 = add %v_9, 16: Ptr
-    %v_20 = loads %v_19, 8: Long
-    %v_6 = add %v_4, %v_20: Long
-    %v_21 = sub %n, %v_7: Int
-    %v_22 = cmp_ile %v_21, %v_2: Int
-    je %v_22, b_13, b_5
-  }
-
-  b_5 {
-    %v_8 = add %v_7, %v_2: Int
-    %v_10 = add %v_9, 24: Ptr
-    jmp b_3
-  }
-
-  b_13 {
-    %v_23 = phi [b_3, %v_4], [b_18, %v_6]: Long
-    ret %v_23
-  }
-
-  b_17 {
-    %v_24 = syscall 60, 134: Long
+  b_15 {
+    %v_22 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -422,145 +409,139 @@ forDownInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
 
   b_7 {
     %v_8 = sub %n, %v_3: Int
-    %v_9 = bitcast %xs$length: Long
-    %v_10 = sext %v_8: Long
-    %v_11 = mul %v_10, 24: Long
-    %v_12 = add %xs$items, %v_11: Ptr
-    %v_13 = sext %v_8: Long
-    jmp b_14
+    %v_9 = sext %v_8: Long
+    %v_10 = mul %v_9, 24: Long
+    %v_11 = add %xs$items, %v_10: Ptr
+    %v_12 = sext %v_8: Long
+    jmp b_13
   }
 
-  b_14 {
-    %v_15 = phi [b_7, %v_1], [b_16, %v_17]: Long
-    %v_18 = phi [b_7, %v_12], [b_16, %v_19]: Ptr
-    %v_20 = phi [b_7, %v_13], [b_16, %v_21]: Long
-    %v_22 = cmp_ige %v_20, 0: Int
-    je %v_22, b_23, b_5
+  b_13 {
+    %v_14 = phi [b_7, %v_1], [b_15, %v_16]: Long
+    %v_17 = phi [b_7, %v_11], [b_15, %v_18]: Ptr
+    %v_19 = phi [b_7, %v_12], [b_15, %v_20]: Long
+    %v_21 = cmp_ige %v_19, 0: Int
+    je %v_21, b_22, b_5
   }
 
-  b_23 {
-    %v_24 = imul %v_15, 10: Long
-    %v_25 = bitcast %v_20: Long
-    %v_26 = cmp_ge %v_25, %v_9: Int
-    je %v_26, b_27, b_28
+  b_22 {
+    %v_23 = imul %v_14, 10: Long
+    %v_24 = cmp_ge %v_19, %xs$length: Int
+    je %v_24, b_25, b_26
   }
 
-  b_28 {
-    %v_29 = loads %v_18, 8: Long
-    %v_17 = add %v_24, %v_29: Long
-    %v_30 = cmp_ilt %v_20, 1: Int
-    je %v_30, b_5, b_16
+  b_26 {
+    %v_27 = loads %v_17, 8: Long
+    %v_16 = add %v_23, %v_27: Long
+    %v_28 = cmp_ilt %v_19, 1: Int
+    je %v_28, b_5, b_15
   }
 
-  b_16 {
-    %v_19 = add %v_18, 18446744073709551592: Ptr
-    %v_21 = add %v_20, 18446744073709551615: Long
-    jmp b_14
+  b_15 {
+    %v_18 = add %v_17, 18446744073709551592: Ptr
+    %v_20 = add %v_19, 18446744073709551615: Long
+    jmp b_13
   }
 
   b_5 {
-    %v_31 = phi [b_0, %v_1], [b_4, %v_1], [b_14, %v_15], [b_28, %v_17]: Long
-    ret %v_31
+    %v_29 = phi [b_0, %v_1], [b_4, %v_1], [b_13, %v_14], [b_26, %v_16]: Long
+    ret %v_29
   }
 
-  b_27 {
-    %v_32 = syscall 60, 134: Long
+  b_25 {
+    %v_30 = syscall 60, 134: Long
     unreachable 
   }
 }
 
 forStepInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = imm 2: Int
-    jmp b_3
+    %v_1 = imm 2: Int
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
-    %v_9 = phi [b_0, %xs$items], [b_5, %v_10]: Ptr
-    %v_11 = cmp_ilt %v_7, %n: Int
-    je %v_11, b_12, b_13
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = phi [b_0, %xs$items], [b_4, %v_9]: Ptr
+    %v_10 = cmp_ilt %v_6, %n: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = imul %v_3, 10: Long
+    %v_14 = sext %v_6: Long
+    %v_15 = cmp_ge %v_14, %xs$length: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_17 {
+    %v_18 = loads %v_8, 8: Long
+    %v_5 = add %v_13, %v_18: Long
+    %v_19 = sub %n, %v_6: Int
+    %v_20 = cmp_ile %v_19, %v_1: Int
+    je %v_20, b_12, b_4
+  }
+
+  b_4 {
+    %v_7 = add %v_6, %v_1: Int
+    %v_9 = add %v_8, 48: Ptr
+    jmp b_2
   }
 
   b_12 {
-    %v_14 = imul %v_4, 10: Long
-    %v_15 = sext %v_7: Long
-    %v_16 = bitcast %v_15: Long
-    %v_17 = cmp_ge %v_16, %v_1: Int
-    je %v_17, b_18, b_19
+    %v_21 = phi [b_2, %v_3], [b_17, %v_5]: Long
+    ret %v_21
   }
 
-  b_19 {
-    %v_20 = loads %v_9, 8: Long
-    %v_6 = add %v_14, %v_20: Long
-    %v_21 = sub %n, %v_7: Int
-    %v_22 = cmp_ile %v_21, %v_2: Int
-    je %v_22, b_13, b_5
-  }
-
-  b_5 {
-    %v_8 = add %v_7, %v_2: Int
-    %v_10 = add %v_9, 48: Ptr
-    jmp b_3
-  }
-
-  b_13 {
-    %v_23 = phi [b_3, %v_4], [b_19, %v_6]: Long
-    ret %v_23
-  }
-
-  b_18 {
-    %v_24 = syscall 60, 134: Long
+  b_16 {
+    %v_22 = syscall 60, 134: Long
     unreachable 
   }
 }
 
 forInclusiveInt<complex>(%xs$items: Ptr, %xs$length: Long, %n: Int): Long {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = imm 1: Int
-    jmp b_3
+    %v_1 = imm 1: Int
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
-    %v_9 = phi [b_0, %xs$items], [b_5, %v_10]: Ptr
-    %v_11 = cmp_ile %v_7, %n: Int
-    je %v_11, b_12, b_13
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = phi [b_0, %xs$items], [b_4, %v_9]: Ptr
+    %v_10 = cmp_ile %v_6, %n: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = imul %v_3, 10: Long
+    %v_14 = sext %v_6: Long
+    %v_15 = cmp_ge %v_14, %xs$length: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_17 {
+    %v_18 = loads %v_8, 8: Long
+    %v_5 = add %v_13, %v_18: Long
+    %v_19 = sub %n, %v_6: Int
+    %v_20 = cmp_ilt %v_19, %v_1: Int
+    je %v_20, b_12, b_4
+  }
+
+  b_4 {
+    %v_7 = add %v_6, %v_1: Int
+    %v_9 = add %v_8, 24: Ptr
+    jmp b_2
   }
 
   b_12 {
-    %v_14 = imul %v_4, 10: Long
-    %v_15 = sext %v_7: Long
-    %v_16 = bitcast %v_15: Long
-    %v_17 = cmp_ge %v_16, %v_1: Int
-    je %v_17, b_18, b_19
+    %v_21 = phi [b_2, %v_3], [b_17, %v_5]: Long
+    ret %v_21
   }
 
-  b_19 {
-    %v_20 = loads %v_9, 8: Long
-    %v_6 = add %v_14, %v_20: Long
-    %v_21 = sub %n, %v_7: Int
-    %v_22 = cmp_ilt %v_21, %v_2: Int
-    je %v_22, b_13, b_5
-  }
-
-  b_5 {
-    %v_8 = add %v_7, %v_2: Int
-    %v_10 = add %v_9, 24: Ptr
-    jmp b_3
-  }
-
-  b_13 {
-    %v_23 = phi [b_3, %v_4], [b_19, %v_6]: Long
-    ret %v_23
-  }
-
-  b_18 {
-    %v_24 = syscall 60, 134: Long
+  b_16 {
+    %v_22 = syscall 60, 134: Long
     unreachable 
   }
 }

@@ -1011,6 +1011,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:
         case LowerInst::X86MinMax:
+        case LowerInst::X86MaskAnd:
             // Created by the x64 backend's own transforms, which run on a copy of the IR this
             // backend never sees. Reaching one means two targets were run over one module.
             f.context.diagnostics.error("llvm: a target-lowered instruction reached the LLVM backend"_v, inst.source);

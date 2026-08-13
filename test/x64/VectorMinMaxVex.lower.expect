@@ -96,17 +96,15 @@ equalityFoldBytes<complex>(%p: Ptr, %a: i8x16): m8x16 {
 
 
 --- codegen: narrow ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vimin uses=[xmm0, xmm1] creates=[xmm2]  => c4e27939d1
   x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => c4e2793fc1
   add uses=[xmm2, xmm0] creates=[xmm0]  => c5e9fec0
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: minMaxBoth ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -115,76 +113,68 @@ block #1:
   sub uses=[xmm3, xmm2] creates=[xmm3]  => c5e05cda
   add uses=[xmm3, xmm0] creates=[xmm3]  => c5e058d8
   sub uses=[xmm3, xmm1] creates=[xmm0]  => c5e05cc1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: loadFold ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   x86_vimin uses=[xmm0, -] creates=[xmm0]  => c4e2793907
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: wide ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vimin uses=[xmm0, xmm1] creates=[xmm2]  => c4e27d39d1
   x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d3bc1
   add uses=[xmm2, xmm0] creates=[xmm0]  => c5edfec0
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: wideFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => c5fc5fc1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: wideLoadFold ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   x86_vimax uses=[xmm0, -] creates=[xmm0]  => c4e27d3d07
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: loadFoldExchange ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   x86_vimin uses=[xmm0, -] creates=[xmm0]  => c4e2793907
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: loadFoldFloatKeeps ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   load uses=[rdi] creates=[xmm1]  => c5f8100f
   x86_vmin uses=[xmm1, xmm0] creates=[xmm0]  => c5f05dc0
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: equalityFold ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   cmp_eq uses=[xmm0, -] creates=[xmm0]  => c5f97607
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: equalityFoldBytes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   cmp_eq uses=[xmm0, -] creates=[xmm0]  => c5f97407
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3

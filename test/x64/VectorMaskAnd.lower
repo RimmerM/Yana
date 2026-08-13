@@ -1,0 +1,73 @@
+# A lane-wise select one of whose arms is zero, which is an `and` - §41.4 of test/bench/findings.md.
+#
+# The baseline's select is `movaps xmm0, mask ; pblendvb`, two instructions and the xmm0 clobber that
+# `FormVSelectBlend` argues for. A zero arm makes it one bitwise instruction with no clobber at all,
+# and - the half that is worth more - takes the last reader off the zero, so the register that was
+# holding it across whatever loop the select is in goes back to the pool. What to look for:
+#
+#   - **`pand`/`andps` where the zero is the false arm**, the mask being the one that is *kept*, and
+#     **`pandn`/`andnps` where it is the true arm**, `pandn` computing `~lhs & rhs` so that the
+#     complement is in the opcode rather than in an instruction in front of it.
+#   - **the domain follows the value and not the mask.** A masked float vector takes `andps`, whose
+#     result is read back in the domain it was produced in; a mask lane is a truth value rather than
+#     a float, so asking the *mask*'s type would put every one of these back in the integer domain.
+#   - **no `pxor` anywhere.** The zero is gone rather than moved: nothing reads it, so the splat that
+#     built it goes with the select.
+#
+# `VectorVex.lower` is where the same rewrite is read under VEX, where what it replaces is one
+# `vpblendvb` rather than two instructions and is still worth the register.
+
+# The false arm, which is `value & mask`. Integer lanes, so `pand` - which has no lane width, one
+# instruction serving every vector and every mask.
+keepInt(%a: i32x4, %b: i32x4, %v: i32x4): i32x4 {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %z = vsplat 0: i32x4
+        %r = select %m, %v, %z: i32x4
+        ret %r
+    }
+}
+
+# The true arm, which is `~mask & value` - one instruction, and the destination is tied to the *mask*
+# because that is the operand `pandn` complements.
+dropInt(%a: i32x4, %b: i32x4, %v: i32x4): i32x4 {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %z = vsplat 0: i32x4
+        %r = select %m, %z, %v: i32x4
+        ret %r
+    }
+}
+
+# The same pair over float lanes, which take the float-domain rows: `andps` and `andnps` do to these
+# bits exactly what `pand` and `pandn` do, and differ in the forwarding domain the result is read
+# from. This is the shape `clipped` in test/bench/programs/VecFloat.yana has in its inner loop.
+keepFloat(%a: f32x4, %b: f32x4, %v: f32x4): f32x4 {
+    {
+        %m = cmp_lt %a, %b: m32x4
+        %f = imm 0.0f: Float
+        %z = vsplat %f: f32x4
+        %r = select %m, %v, %z: f32x4
+        ret %r
+    }
+}
+
+dropFloat(%a: f64x2, %b: f64x2, %v: f64x2): f64x2 {
+    {
+        %m = cmp_lt %a, %b: m64x2
+        %d = imm 0.0: Double
+        %z = vsplat %d: f64x2
+        %r = select %m, %z, %v: f64x2
+        ret %r
+    }
+}
+
+# A select whose arms are two ordinary values, which is left exactly as it was: the rewrite is about
+# the zero rather than about the select, and this is the row `FormVSelectBlend` is still selected for.
+bothArms(%a: i32x4, %b: i32x4, %v: i32x4, %w: i32x4): i32x4 {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %r = select %m, %v, %w: i32x4
+        ret %r
+    }
+}

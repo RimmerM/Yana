@@ -259,7 +259,6 @@ regroup<complex>(%w: i32x4): i32x4 {
 
 
 --- codegen: lanes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -269,10 +268,9 @@ block #1:
   add uses=[xmm1, xmm3] creates=[xmm1] pre=[xmm3->xmm1]  => 0f28cb660fd4cb
   add uses=[xmm1, xmm4] creates=[xmm1] pre=[xmm4->xmm1]  => 0f28cc0f58cc
   add uses=[xmm1, xmm5] creates=[xmm1] pre=[xmm5->xmm1]  => 0f28cd660f58cd
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: float ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -280,10 +278,9 @@ block #1:
   sub uses=[xmm2, xmm1] creates=[xmm2]  => 0f5cd1
   mul uses=[xmm2, xmm0] creates=[xmm2]  => 0f59d0
   div uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c20f5ec1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: double ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -291,20 +288,18 @@ block #1:
   sub uses=[xmm2, xmm1] creates=[xmm2]  => 660f5cd1
   mul uses=[xmm2, xmm0] creates=[xmm2]  => 660f59d0
   div uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f5ec1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: bits ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   and uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660fdbd1
   or uses=[xmm2, xmm1] creates=[xmm2]  => 660febd1
   xor uses=[xmm2, xmm0] creates=[xmm2]  => 660fefd0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: shifts ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -318,10 +313,9 @@ block #1:
   shl uses=[xmm1, -] creates=[xmm1]  => 660f73f107
   imm uses=[] creates=[-]  => 
   shr uses=[xmm1, -] creates=[xmm1]  => 660f73d105
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: compare ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -333,77 +327,70 @@ block #1:
   cmp_igt uses=[xmm2, xmm3] creates=[xmm2]  => 660f66d3
   or uses=[xmm0, xmm2] creates=[xmm0]  => 660febc2
   xor uses=[xmm4, xmm0] creates=[xmm4]  => 660fefe0
-  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c3
 
 --- codegen: shuffle ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 660f70c01b
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c800
   add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffec1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: shuffleFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c8b1
   add uses=[xmm1, xmm0] creates=[xmm1]  => 0f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: shuffleWide ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c84e
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: broadcast ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 660f6ec7660f70c000
   add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660ffec8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: broadcastWide ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 66480f6ec7660f70c044
   add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660fd4c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: broadcastFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[xmm0] creates=[xmm0]  => 660f70c000
   add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c80f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: broadcastDouble ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[xmm0] creates=[xmm0]  => 660f70c044
   add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: extract ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vlane uses=[xmm0] creates=[rax]  => 660f3a16c000
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
   add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 8d0c00
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
@@ -411,7 +398,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vlane uses=[xmm0] creates=[rax]  => 66480f3a16c000
+  vlane uses=[xmm0] creates=[rax]  => 66480f7ec0
   add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 488d0c00
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
@@ -430,7 +417,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[xmm1]  => 660f70c8aa
-  vlane uses=[xmm0] creates=[xmm0]  => 660f70c000
+  vlane uses=[xmm0] creates=[xmm0]  => 
   add uses=[xmm1, xmm0] creates=[xmm1]  => f30f58c8
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
@@ -443,7 +430,6 @@ block #1:
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: memory ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -453,7 +439,7 @@ block #1:
   add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffec1
   store uses=[rdi, xmm2] creates=[]  => 0f1117
   store uses=[rsi, xmm0] creates=[]  => f30f7f06
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: spill ---
   prologue  => 55488bec4883e4f04883ec20
@@ -496,47 +482,42 @@ block #1:
   ret uses=[xmm0] creates=[]  => c9c3
 
 --- codegen: insert ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a22cf01
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: insertWide ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm0, rdi] creates=[xmm0]  => 66480f3a22c701
   vwithlane uses=[xmm0, rdi] creates=[xmm0]  => 66480f3a22c700
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: insertFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a21d100
   add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: insertDouble ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vwithlane uses=[xmm0, xmm1] creates=[xmm0]  => f20f10c1
   vwithlane uses=[xmm0, xmm1] creates=[xmm0]  => 660f14c1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: regroup ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   bitcast uses=[xmm0] creates=[xmm0]  => 
   add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660ffdc8
   bitcast uses=[xmm1] creates=[xmm1]  => 
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3

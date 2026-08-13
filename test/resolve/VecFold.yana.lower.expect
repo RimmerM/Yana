@@ -4,52 +4,50 @@ mut @b = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 sum<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = load %xs$items, 32: i32x8
-    %v_6 = cmp_ge 1, %v_1: Int
-    je %v_6, b_3, b_7
-  }
-
-  b_7 {
-    %v_8 = add %xs$items, 32: Ptr
-    %v_9 = load %v_8, 32: i32x8
-    %v_10 = add %v_5, %v_9: i32x8
-    ret %v_10
+    %v_1 = cmp_eq %xs$length, 0: Int
+    je %v_1, b_2, b_3
   }
 
   b_3 {
-    %v_11 = syscall 60, 134: Long
+    %v_4 = load %xs$items, 32: i32x8
+    %v_5 = cmp_ge 1, %xs$length: Int
+    je %v_5, b_2, b_6
+  }
+
+  b_6 {
+    %v_7 = add %xs$items, 32: Ptr
+    %v_8 = load %v_7, 32: i32x8
+    %v_9 = add %v_4, %v_8: i32x8
+    ret %v_9
+  }
+
+  b_2 {
+    %v_10 = syscall 60, 134: Long
     unreachable 
   }
 }
 
 masked<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
   b_0 {
-    %v_1 = bitcast %xs$length: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = load %xs$items, 32: i32x8
-    %v_6 = cmp_ge 1, %v_1: Int
-    je %v_6, b_3, b_7
-  }
-
-  b_7 {
-    %v_8 = add %xs$items, 32: Ptr
-    %v_9 = load %v_8, 32: i32x8
-    %v_10 = and %v_5, %v_9: i32x8
-    ret %v_10
+    %v_1 = cmp_eq %xs$length, 0: Int
+    je %v_1, b_2, b_3
   }
 
   b_3 {
-    %v_11 = syscall 60, 134: Long
+    %v_4 = load %xs$items, 32: i32x8
+    %v_5 = cmp_ge 1, %xs$length: Int
+    je %v_5, b_2, b_6
+  }
+
+  b_6 {
+    %v_7 = add %xs$items, 32: Ptr
+    %v_8 = load %v_7, 32: i32x8
+    %v_9 = and %v_4, %v_8: i32x8
+    ret %v_9
+  }
+
+  b_2 {
+    %v_10 = syscall 60, 134: Long
     unreachable 
   }
 }

@@ -134,65 +134,58 @@ signedBelowOrEqual<complex>(%a: i32x4, %b: i32x4): m32x4 {
 
 
 --- codegen: signed32 ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3839d1
   x86_vimax uses=[xmm0, xmm1] creates=[xmm0]  => 660f383dc1
   add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffed0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: unsigned32 ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f383bd1
   x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 660f383fc1
   add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffed0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: bytes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3838d1
   x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 660fdec1
   add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffcd0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: words ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660fead1
   x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660f383ac1
   add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffdd0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: floats ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f5dd1
   x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 0f5fc1
   add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: doubles ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660f5dc1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: mirrored ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -200,74 +193,67 @@ block #1:
   x86_vmax uses=[xmm3, xmm2] creates=[xmm3]  => 0f5fda
   bitcast uses=[xmm3] creates=[xmm3]  => 
   add uses=[xmm0, xmm3] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffec3
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: nonStrict ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660f3839c1
+  x86_vimin uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660f3839e1
   cmp_le uses=[xmm1, xmm3] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28ca0fc2cb02
-  select uses=[xmm2, xmm3, xmm1] creates=[xmm2]  => 440f28f966440fdffb660fdbd166410febd7
-  bitcast uses=[xmm2] creates=[xmm2]  => 
-  add uses=[xmm0, xmm2] creates=[xmm0]  => 660ffec2
-  ret uses=[xmm0] creates=[]  => c9c3
+  select uses=[xmm2, xmm3, xmm1] creates=[xmm3]  => 0f28c1660f3810da
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  add uses=[xmm0, xmm3] creates=[xmm0] pre=[xmm4->xmm0]  => 0f28c4660ffec3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: sharedMask ---
-  prologue  => 55488bec
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[xmm1->xmm2, xmm0->xmm1]  => 0f28d10f28c8
 block #1:
-  cmp_igt uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1660f66d0
-  select uses=[xmm3, xmm1, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8440f28fa66440fdff9660fdbda66410febdf
-  select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => 440f28fa66440fdff8660fdbca66410febcf
-  add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm3->xmm0]  => 0f28c3660ffec1
-  ret uses=[xmm0] creates=[]  => c9c3
+  cmp_igt uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm2->xmm3]  => 0f28da660f66d9
+  select uses=[xmm1, xmm4, xmm3] creates=[xmm4] pre=[xmm2->xmm4]  => 0f28e20f28c3660f3810e1
+  select uses=[xmm2, xmm1, xmm3] creates=[xmm1]  => 0f28c3660f3810ca
+  add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm4->xmm0]  => 0f28c4660ffec1
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: unrelated ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f66c8
-  select uses=[xmm0, xmm3, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2440f28f966440fdffb660fdbc166410febc7
-  ret uses=[xmm0] creates=[]  => c9c3
+  select uses=[xmm2, xmm3, xmm1] creates=[xmm3]  => 0f28c1660f3810da
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 0f28c3c3
 
 --- codegen: belowOrEqual ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660fdad1
   cmp_eq uses=[xmm2, xmm0] creates=[xmm2]  => 660f74d0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: atLeast ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_vmax uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f383fd1
   cmp_eq uses=[xmm2, xmm0] creates=[xmm2]  => 660f76d0
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
 
 --- codegen: belowStrict ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => f30f6f1534000000
+  load uses=[-] creates=[xmm2]  => f30f6f1528000000
   xor uses=[xmm0, xmm2] creates=[xmm0]  => 660fefc2
   xor uses=[xmm1, xmm2] creates=[xmm1]  => 660fefca
   cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f64c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
 
 --- codegen: signedBelowOrEqual ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_ile uses=[xmm0, xmm1] creates=[xmm0]  => 660f66c166450f76ff66410fefc7
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3

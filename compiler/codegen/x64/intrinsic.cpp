@@ -178,6 +178,42 @@ void addIntrinsics(MachineTarget& target) {
     }
 
     {
+        /*
+         * BZHI r32a, r/m32, r32b (VEX.LZ.0F38.W0 F5 /r) copies the low `r32b` bits of its source and
+         * clears everything above them - BMI2, and the first VEX-prefixed *general-register*
+         * encoding in this table.
+         *
+         * The operand shape is the one VEX exists for: three registers, none of them tied. The
+         * destination is ModRM.reg, the value is r/m - so it may be read out of a frame slot in
+         * place, like every other `regOrMem` here - and the *index* is VEX.vvvv, which is why this
+         * needs the prefix at all. Nothing about it is two-address, so no copy is emitted in front
+         * of it and the value it reads stays live afterwards if something else wants it.
+         *
+         * `LZ` is a vector length of zero, which is what `vectorLength = 0` already says, and `W0`
+         * is what a 32-bit operation width says. The flags are written (ZF and SF from the result,
+         * CF when the index was out of range) and nothing reads them; the effect is declared so the
+         * window a comparison's flags survive in knows that.
+         */
+        auto b = add(LowerIntrinsic::Bzhi, "bzhi r, r/m, r"_v, kFeatureBmi2);
+        b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+        b.form.uses.push(anyReg());
+        b.form.defs.push(def());
+        b.form.flagsEffect = FlagsEffect::Def;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xf5,
+            .regField = defRef(0), .rmField = useRef(0), .vvvvField = useRef(1),
+            .width = OperationWidth::Fixed32,
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+
+        b.desc.operands.push(integerRule());
+        b.desc.operands.push(integerRule());
+        b.desc.results.push(integerRule());
+    }
+
+    {
         // CPUID (0f a2) reads the leaf in eax and the subleaf in ecx, and answers in all four of
         // eax, ebx, ecx and edx. Every one of those is a fixed register the allocator copies into
         // and out of - including ebx, which is callee-saved, so a function using this pays a push

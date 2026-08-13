@@ -130,23 +130,20 @@ loadFoldFloat<complex>(%p: Ptr, %a: f32x4): f32x4 {
 
 
 --- codegen: select ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   select uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e3714cc020
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: selectFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   select uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e3714cc020
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: complement ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -154,20 +151,18 @@ block #1:
   not uses=[xmm2] creates=[xmm2] pre=[xmm1->xmm2]  => c5f828d1c4410176ffc4c169efd7
   cmp_eq uses=[xmm2, xmm1] creates=[xmm2]  => c5e976d1
   and uses=[xmm0, xmm2] creates=[xmm0]  => c5f9dbc2
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: negate ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   neg uses=[xmm0] creates=[xmm0]  => c44101efffc501faf8c4c17828c7
   neg uses=[xmm1] creates=[xmm1]  => c4410176ffc4c10172f71fc4c17057cf
   neg uses=[xmm2] creates=[xmm2]  => c4410176ffc4c10173f73fc4c16957d7
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: inverted ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -176,18 +171,16 @@ block #1:
   cmp_ile uses=[xmm1, xmm0] creates=[xmm1]  => c5f166c8c4410176ffc4c171efcf
   and uses=[xmm2, xmm3] creates=[xmm2]  => c5e9dbd3
   and uses=[xmm2, xmm1] creates=[xmm0]  => c5e9dbc1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: product ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imul uses=[xmm0, xmm1] creates=[xmm0]  => c4e27940c1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: shuffles ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -198,19 +191,17 @@ block #1:
   add uses=[xmm2, xmm3] creates=[xmm2]  => c5e9fed3
   add uses=[xmm2, xmm4] creates=[xmm2]  => c5e9fed4
   add uses=[xmm2, xmm0] creates=[xmm0]  => c5e9fec0
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: interleaveNarrow ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c5f960c1
   vshuffle uses=[xmm2, xmm3] creates=[xmm2]  => c5e969d3
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: convert ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -218,10 +209,9 @@ block #1:
   cast uses=[xmm1] creates=[xmm1]  => c5fa5bc9
   add uses=[xmm1, xmm0] creates=[xmm1]  => c5f1fec8
   cast uses=[xmm1] creates=[xmm0]  => c5f85bc1
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: roots ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -229,19 +219,17 @@ block #1:
   sqrt uses=[xmm1] creates=[xmm1]  => c5f951c9
   sqrt uses=[xmm2] creates=[xmm2]  => c5ea51d2
   sqrt uses=[xmm3] creates=[xmm3]  => c5e351db
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: multiplyAdd ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fma uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e271a8c2
   fma uses=[xmm3, xmm4, xmm5] creates=[xmm3]  => c4e2d9a9dd
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: reduceSum ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -249,11 +237,10 @@ block #1:
   add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c84e
   add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
-  vlane uses=[xmm0] creates=[xmm0]  => c5f970c000
-  ret uses=[xmm0] creates=[]  => c9c3
+  vlane uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: loadFold ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -261,13 +248,12 @@ block #1:
   add uses=[xmm0, -] creates=[xmm0]  => c5f9fe07
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   and uses=[xmm0, -] creates=[xmm0]  => c5f9db07
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: loadFoldFloat ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
   add uses=[xmm0, -] creates=[xmm0]  => c5f85807
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3

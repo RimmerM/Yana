@@ -799,8 +799,22 @@ struct Placer {
          * `rematCost` is weighted by where the reads *are* rather than by how many there are. Above
          * the bar the comparison is the one at the bottom of this function, where a register that is
          * not free is weighed against the recipe properly.
+         *
+         * **A packed value is left out of this shortcut, and it is a measurement rather than a
+         * principle.** Both halves of the argument above are about a register file running short -
+         * `Matrix`'s inner loop, `Sieve`'s - and about a recreation costing the same bytes wherever
+         * it lands. A packed recreation does not: a homeless operand is brought in through the *top*
+         * of its bank, so `movups xmm15, [rip + k] ; andps %xmm15` pays two REX prefixes that
+         * `movups xmm1 ; andps %xmm1` did not, and the abs mask - read once, immediately below its
+         * own definition - came out two bytes longer for a register that was free.
+         *
+         * A *scalar* float in a vector register keeps the shortcut, which is what §11.2 measured and
+         * where a pooled `movsd` still answers it. What is excluded is the class of value that only
+         * became rematerializable with §41.6, and the recipe still earns its place there where a
+         * register genuinely is not available - the comparison at the bottom of this function, and
+         * the case a vector held across a call is.
          */
-        if(info.canRemat && info.rematCost <= kRematCost) {
+        if(info.canRemat && info.rematCost <= kRematCost && !isVectorLike(v->type)) {
             return assignHomeless(webId, v->type, cls, interval);
         }
 
@@ -1217,11 +1231,12 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
     out.reset(a.out.webOf.size());
 
     auto onInst = [&](LowerInst* inst) {
-        if(a.machine.formOf(inst).tiedResult() != 0) return;
+        auto tied = a.machine.formOf(inst).tiedResult();
+        if(tied < 0) return;
         if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return;
 
         auto used = inst->used();
-        if(used.size() == 0) return;
+        if(Size(tied) >= used.size()) return;
 
         auto result = inst->created()[0].liveId();
 
@@ -1232,8 +1247,8 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
             out[value->liveId()].push(result);
         };
 
-        for(Size i = 1; i < used.size(); i++) {
-            if(used[i] == used[0]) continue;
+        for(Size i = 0; i < used.size(); i++) {
+            if(I32(i) == tied || used[i] == used[tied]) continue;
             conflicts(a.base[used[i]]);
         }
 
@@ -1632,14 +1647,39 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
             if(global->mut) return false;
             if(load->getWidth() != accessWidthOf(v->type)) return false;
 
-            // And not a vector, which `genLoadConstant` has no spelling for: it writes `movss`,
-            // `movsd` or a general `mov` and would emit the last of those against a vector register
-            // number. Stated here rather than left to the width check above, which used to decline
-            // this by accident and stopped when accessWidthOf learned what a vector is wide.
-            if(isVectorLike(v->type)) return false;
-
+            /*
+             * A vector is included, and used not to be.
+             *
+             * `genLoadConstant` writes the *class's* transfer now rather than one of three scalar
+             * spellings, so a pooled `movups xmm, [rip + k]` is as reproducible as a pooled
+             * `movsd`, and costs the same bytes where it is read as it did where it was defined.
+             * What it is worth is more than a scalar recipe: a vector's spill slot raises the
+             * frame's alignment past what the convention promises, so the alternative is a
+             * realigning prologue for the whole function.
+             */
             out = Remat { .kind = Remat::ConstantLoad, .type = v->type };
             out.global = global;
+            return true;
+        }
+
+        /*
+         * A splat of zero, which is the one vector constant `poolVectorConstants` leaves alone -
+         * deliberately, because `pxor` builds it out of nothing and a pool entry would be worse.
+         * That decision is what makes it arrive here as a `vsplat` rather than as the `Load` above.
+         *
+         * Only zero. Every other splat is either pooled, and so is the load above, or is a splat of
+         * a *value* - which depends on a register this recipe has no way to reproduce.
+         */
+        case LowerInst::VecSplat: {
+            if(!isVectorLike(v->type)) return false;
+
+            auto from = a.base[((LowerInstVecSplat*)inst)->from];
+            auto scalar = from->inst();
+
+            if(scalar->kind != LowerInst::Imm) return false;
+            if(!isIntLike(from->type) || ((LowerImm*)scalar)->i != 0) return false;
+
+            out = Remat { .kind = Remat::VectorZero, .type = v->type };
             return true;
         }
 
@@ -1751,11 +1791,11 @@ static void computeSpillCosts(Placer& a) {
 
 // The register a freshly defined value would rather have: the one its source operand is about to
 // vacate, so that the copy legalization would otherwise emit becomes `mov r, r` and disappears.
-static MachineLocation copyHint(Placer& a, LowerInst* inst, U32 index) {
+static MachineLocation copyHint(Placer& a, LowerInst* inst, U32 index, Size operand = 0) {
     auto used = inst->used();
-    if(used.size() == 0) return MachineLocation::invalid();
+    if(operand >= used.size()) return MachineLocation::invalid();
 
-    auto source = a.base[used[0]];
+    auto source = a.base[used[operand]];
     if(isImplicit(source)) return MachineLocation::invalid();
 
     auto webId = a.webIdOf(source);
@@ -1776,22 +1816,39 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
     auto used = inst->used();
     auto created = inst->created();
 
-    // The form states which operand the result is written over, if any. Every one described so far
-    // ties to operand zero, which is what legalization assumes when it copies that operand into the
-    // result's register; a form tying to any other would need that copy to move.
+    // Which operand the result is written over, if any. Almost every form here ties operand zero -
+    // two-address arithmetic reads and writes its first source - but `pblendvb` preserves its
+    // *second* and takes bytes from its first, so the index is read rather than assumed. Everything
+    // below is about "the tied operand" and never about operand zero.
     auto tied = a.machine.formOf(inst).tiedResult();
-    assertTrue(tied <= 0); // a result tied to an operand other than the first
 
     bool tiedPlaced = false;
 
-    if(tied == 0 && used.size() > 0 && created.size() > 0 && !isImplicit(&created[0])) {
-        // A destructive result is where used()[0] must sit by the time the instruction runs, so it
-        // has to avoid wherever the *other* operands are read from: the copy that puts used()[0]
+    if(tied >= 0 && Size(tied) < used.size() && created.size() > 0 && !isImplicit(&created[0])) {
+        // A destructive result is where the tied operand must sit by the time the instruction runs,
+        // so it has to avoid wherever the *other* operands are read from: the copy that puts it
         // there runs before the instruction, and would otherwise overwrite a sibling operand the
         // instruction has not read yet. Where those are read from is legalization's rule, asked
         // here of the placement so far.
-        RegSet blocked;
-        for(Size i = 1; i < used.size(); i++) {
+        //
+        /*
+         * And it has to avoid the form's own clobbers, for the same reason and one step earlier: a
+         * pseudo's scratch register is written before it has read everything, so a tied operand
+         * copied into one is destroyed by the expansion it was copied in for. Nothing else keeps it
+         * out - a clobber is a constraint on values living *across* the instruction, and this one is
+         * defined by it.
+         *
+         * Latent in `FormVSelect` from the day it was written, and unreachable there only because
+         * its scratch is xmm15 and placement reaches for that last. `FormVSelectBlend` stages its
+         * mask in xmm0, which placement reaches for *first*, and it produced `movups %xmm0 (the
+         * false arm) ; movaps %xmm2,%xmm0 (the mask, over it) ; pblendvb` - a select that answered
+         * its mask where it should have answered a value.
+         */
+        RegSet blocked = a.machine.formOf(inst).clobbers;
+
+        for(Size i = 0; i < used.size(); i++) {
+            if(I32(i) == tied) continue;
+
             auto site = useSiteOf(a.base, a.machine, a.out, inst, shape, i,
                 index, MachineLocation::invalid(), false);
 
@@ -1801,7 +1858,7 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
             else if(site.at.isPhysical()) blocked.add(site.at.physicalReg());
         }
 
-        a.assign(&created[0], blocked, copyHint(a, inst, index));
+        a.assign(&created[0], blocked, copyHint(a, inst, index, Size(tied)));
         tiedPlaced = true;
     }
 
@@ -2105,7 +2162,7 @@ static void collectWebReads(Placer& a, const Array<LiveId>& candidates) {
                 // The second is the one this had to learn separately - `shape` does not say it, and
                 // charging it a whole reload turned `mov [slot],%eax ; mov [slot],%ecx` in `Sort`
                 // into a load and two copies, which is one instruction *more* for the same bytes.
-                auto tied = k == 0 && a.machine.formOf(inst).tiedResult() == 0
+                auto tied = I32(k) == a.machine.formOf(inst).tiedResult()
                     && inst->createdCount > 0 && !isImplicit(&inst->created()[0]);
 
                 auto constrained = tied || shape.uses[k].kind == ArgLocation::Register;

@@ -198,7 +198,34 @@ struct LowerInst {
          * pattern with a correction after it.
          */
         X86MinMax,
-        LastInst = X86MinMax,
+
+        /*
+         * A vector kept where a mask is set and zeroed where it is not - `pand`, `andps`, `pandn`.
+         *
+         * Backend-private for the reason `X86MinMax` above is, and arrived at from the same
+         * direction: the portable spelling is `select(m, v, 0)`, which is what a target whose select
+         * is one instruction wants and what LLVM folds for itself. Here a select is `OpVBlend` -
+         * three instructions and a scratch register at the baseline, `pblendvb` with its mask pinned
+         * to xmm0 at SSE4.1, `vpblendvb` with three register operands under VEX - and every one of
+         * those is more than the single `and` that a zero arm makes it.
+         *
+         * **The zero arm has to go, which is why this is a rewrite and not a form.** A form chosen
+         * for the select would still list the zero as an operand, so the allocator would still hold
+         * a register for it across the loop and still materialize it; what makes this worth doing is
+         * that the operand disappears along with the instruction that built it.
+         *
+         * `complemented` is which arm was the zero. `pand` is the mask kept, `pandn` computes
+         * `~lhs & rhs` and is the mask *dropped* - so the two arms of a select map onto the two
+         * instructions with no negation between them. The operands are stated in the machine's
+         * order, `lhs` being the one the destination is tied to: `and` is commutative and takes the
+         * value first, `andn` is not and takes the mask first.
+         *
+         * A mask lane is all-ones or all-zeros by construction, which is the whole of why this is
+         * exact at a float lane as well: `v & ~0` is `v` including a NaN's payload and both zeroes,
+         * and `v & 0` is `+0.0`, which is what the select's zero arm held.
+         */
+        X86MaskAnd,
+        LastInst = X86MaskAnd,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -850,6 +877,25 @@ struct LowerInstX86MinMax: LowerInstSingle {
     LowerPtr<LowerValue> lhs, rhs;
 };
 
+// A vector masked by a mask of its own shape - see LowerInst::X86MaskAnd, which states why the
+// operand order is the machine's and why the complemented form takes them the other way round.
+struct LowerInstX86MaskAnd: LowerInstSingle {
+    LowerInstX86MaskAnd(StringId name, LowerType type, LowerPtr<LowerValue> lhs,
+                        LowerPtr<LowerValue> rhs, bool complemented):
+        LowerInstSingle(X86MaskAnd, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = complemented ? 1 : 0;
+    }
+
+    // Whether the mask is the arm that is *dropped* rather than the one that is kept, which is
+    // `pandn` against `pand`. The mask is then `lhs`, that being the operand `pandn` complements.
+    bool isComplemented() const { return flags != 0; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
 /*
  * Intrinsics.
  *
@@ -887,6 +933,21 @@ enum class LowerIntrinsic: U16 {
      */
     Cttz,
     CttzWidth,
+
+    /*
+     * The low `index` bits of a value, with everything above them cleared - `bzhi`, BMI2.
+     *
+     * Two operands, the value and the bit count, in that order. **An index at or above the value's
+     * width clears nothing**, which is the machine's rule and is stated here because a caller
+     * relying on the other reading would be relying on nothing: the index is read from the low byte
+     * of its operand, so a count of 256 is a count of zero and a negative one is a count of 255.
+     * Whoever emits this owes it an index it has narrowed itself.
+     *
+     * Written only by a backend that has the instruction, for the reason `LowerReduce::Bits` is:
+     * without it this is three general-register instructions and a constant, and a target with a
+     * different answer should write its own rather than expand somebody else's.
+     */
+    Bzhi,
     Cpuid,   // query the processor's feature information
     Rdtscp,  // read the processor's timestamp counter and its id
     Rdtsc,   // read the processor's timestamp counter

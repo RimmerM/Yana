@@ -1,0 +1,160 @@
+
+countMasked<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  b_0 {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %k = and %n, 255: Int
+    %s = vsplat %k: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %c = vreduce_add %r: Int
+    ret %c
+  }
+}
+
+countUnsigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  b_0 {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %s = vsplat %n: i32x8
+    %live = cmp_lt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %c = vreduce_add %r: Int
+    ret %c
+  }
+}
+
+countSigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  b_0 {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %s = vsplat %n: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %c = vreduce_add %r: Int
+    ret %c
+  }
+}
+
+countFull<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %s = vsplat 8: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %c = vreduce_add %r: Int
+    ret %c
+  }
+}
+
+firstLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  b_0 {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %k = and %n, 255: Int
+    %s = vsplat %k: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %f = vreduce_first %r: Int
+    ret %f
+  }
+}
+
+
+--- codegen: countMasked ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  and uses=[rdi, -] creates=[rdi]  => 81e7ff000000
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  bzhi uses=[rax, rdi] creates=[rax]  => c4e240f5c0
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: countUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  imm uses=[] creates=[rax]  => b808000000
+  cmp_lt uses=[rdi, rax] creates=[-]  => 39c7
+  select uses=[rdi, rax, -] creates=[rdi]  => 0f43f8
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  bzhi uses=[rax, rdi] creates=[rax]  => c4e240f5c0
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: countSigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f1558000000
+  vsplat uses=[rdi] creates=[xmm3]  => c5f96edfc4e27d58db
+  cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e566da
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  and uses=[xmm0, xmm3] creates=[xmm0]  => c5fddbc3
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: countFull ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: firstLive ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  and uses=[rdi, -] creates=[rdi]  => 81e7ff000000
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  bzhi uses=[rax, rdi] creates=[rax]  => c4e240f5c0
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800010000
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3

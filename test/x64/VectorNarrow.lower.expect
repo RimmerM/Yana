@@ -36,23 +36,20 @@ belowByte<complex>(%a: i8x16, %b: i8x16): m8x16 {
 
 
 --- codegen: splatByte ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 660f6ec766450fefff66410f3800c7
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: splatWord ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 660f6ec7f20f70c000660f70c000
-  ret uses=[xmm0] creates=[]  => c9c3
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: sumBytes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -65,7 +62,7 @@ block #1:
   bitcast uses=[xmm1] creates=[xmm1]  => 
   add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffcc1
   bitcast uses=[xmm0] creates=[xmm0]  => 
-  vlane uses=[xmm0] creates=[rax]  => 660f3a16c000
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
   imm uses=[] creates=[-]  => 
   shr uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc8c1e910
   add uses=[rax, rcx] creates=[rax]  => 01c8
@@ -74,10 +71,9 @@ block #1:
   add uses=[rax, rcx] creates=[rax]  => 01c8
   imm uses=[] creates=[-]  => 
   and uses=[rax, -] creates=[rax]  => 81e0ff000000
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: minBytes ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -90,7 +86,7 @@ block #1:
   bitcast uses=[xmm1] creates=[xmm1]  => 
   x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660fdac1
   bitcast uses=[xmm0] creates=[xmm0]  => 
-  vlane uses=[xmm0] creates=[rax]  => 660f3a16c000
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
   imm uses=[] creates=[-]  => 
   and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
   imm uses=[] creates=[-]  => 
@@ -111,16 +107,15 @@ block #1:
   and uses=[rax, -] creates=[rax]  => 81e0ff000000
   cmp_lt uses=[rcx, rax] creates=[-]  => 39c1
   select uses=[rcx, rax, -] creates=[rcx]  => 0f43c8
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c9c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: belowByte ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => f30f6f1514000000
+  load uses=[-] creates=[xmm2]  => f30f6f1518000000
   xor uses=[xmm0, xmm2] creates=[xmm0]  => 660fefc2
   xor uses=[xmm1, xmm2] creates=[xmm1]  => 660fefca
   cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f64c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
