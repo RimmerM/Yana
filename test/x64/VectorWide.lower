@@ -242,3 +242,43 @@ wideFold(%p: Ptr, %a: i32x8): i32x8 {
         ret %s
     }
 }
+
+# `firstSet` at the width the sentinel does not fit beside, which is what makes the wide tier's mask
+# scan a different sequence rather than the same one re-encoded - §37 of test/bench/findings.md.
+#
+# `vpmovmskb` off a `ymm` answers thirty-two bits, one per byte of the register, so the bit that says
+# "nothing is set" is bit 32 - and an `i32` has no such bit. The `or` and the scan therefore happen at
+# sixty-four, where the movemask's own zero extension is free and the constant is a `movabs`; the
+# truncation back into the `Int` the kind states emits nothing, since a bit scan's answer cannot
+# reach past its low byte.
+#
+# The byte lane is the one that needs no shift and is the string search's own shape. `firstWord`
+# in `VectorMaskBits.lower` is the narrow twin to read this against.
+firstWideByte(%a: i8x32, %b: i8x32): Int {
+    {
+        %m = cmp_eq %a, %b: m8x32
+        %r = vreduce_first %m: Int
+        ret %r
+    }
+}
+
+# The same over an eight-lane 32-bit mask, where the scan's answer is a byte index and the shift
+# brings it back to a lane index - at 64 bits, like everything else in this tier.
+firstWideWord(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_eq %a, %b: m32x8
+        %r = vreduce_first %m: Int
+        ret %r
+    }
+}
+
+# `all` at a whole 256-bit register, where the pattern every byte-bit set is `0xffffffff` - a
+# constant no immediate carries, until it is read as the `i32` the comparison happens at and is -1.
+# Nine bytes and a register, or three bytes: see the note in `expandMaskBitsReduce`.
+allWide(%a: i8x32, %b: i8x32): Int {
+    {
+        %m = cmp_eq %a, %b: m8x32
+        %r = vreduce_and %m: Int
+        ret %r
+    }
+}

@@ -923,18 +923,23 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
             }
 
             /*
-             * `Bits` is the one kind whose result is not the lane's scalar form: it answers the
-             * lanes *as bits* rather than one of them, so a mask of any lane width answers the one
-             * integer that holds a bit per lane. Everything else states the ordinary rule.
+             * The two kinds whose result is not the lane's scalar form, and they are the two that
+             * read a mask as a *number* rather than combining its lanes: `Bits` answers the lanes as
+             * bits and `FirstSet` answers the index of the lowest set one. Neither is a value a lane
+             * holds - thirty-two `i8` lanes answer up to 32 either way - so both state the integer
+             * they produce, and everything else states the ordinary rule.
              */
-            if(reduce->getReduce() == LowerReduce::Bits) {
+            auto readsMaskAsNumber = reduce->getReduce() == LowerReduce::Bits
+                                  || reduce->getReduce() == LowerReduce::FirstSet;
+
+            if(readsMaskAsNumber) {
                 if(!source.isMask()) {
-                    diagnostics->error("only a mask reduces to its bits"_v, inst->source);
+                    diagnostics->error("only a mask reduces to its bits or to its first set lane"_v, inst->source);
                     return false;
                 }
 
                 if(reduce->result.type != LowerType::Int32) {
-                    diagnostics->error("a reduction to bits produces an i32"_v, inst->source);
+                    diagnostics->error("a reduction to bits or to a lane index produces an i32"_v, inst->source);
                     return false;
                 }
 
@@ -948,7 +953,8 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
 
             // A mask holds truth values, so the three that mean something over one are `and` (all),
             // `or` (any) and `add` (how many). The rest are arithmetic over lanes a mask does not
-            // have. `Bits` is the fourth and has answered above, since its result type differs.
+            // have. `Bits` and `FirstSet` are the other two and have answered above, since their
+            // result type differs.
             if(source.isMask()) {
                 auto reduction = reduce->getReduce();
                 auto valid = reduction == LowerReduce::And

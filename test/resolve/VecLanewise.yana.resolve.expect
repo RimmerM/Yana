@@ -210,20 +210,13 @@ fn counting() -> Int {
     jmp b3
 
   b3:
-    %v25 = vsplat 0 : Vec(Int)
-    %v27 = vwithlane %v25, 1, 1 : Vec(Int)
-    %v29 = vwithlane %v27, 2, 2 : Vec(Int)
-    %v31 = vwithlane %v29, 3, 3 : Vec(Int)
-    %v33 = vsplat 4 : Vec(Int)
-    %v34 = select %past ? %v31 : %v33 : Vec(Int)
-    %v35 = vreduce_min %v34 : Int
-    %v36 = cast %v35 : Int
-    %v39 = cmp_ne %v36, 1 : Bool
-    je %v39, b4, b5
+    %v24 = vreduce_first %past : Int
+    %v27 = cmp_ne %v24, 1 : Bool
+    je %v27, b4, b5
 
   b4:
-    %v43 = neg 2 : Int
-    ret %v43
+    %v31 = neg 2 : Int
+    ret %v31
 
   b5:
     jmp b6
@@ -231,64 +224,50 @@ fn counting() -> Int {
   b6:
     %empty = vsplat 0 : Vec(Int)
     %never = cmp_lt %indices, %empty : Mask(Int)
-    %v50 = vsplat 0 : Vec(Int)
-    %v52 = vwithlane %v50, 1, 1 : Vec(Int)
-    %v54 = vwithlane %v52, 2, 2 : Vec(Int)
-    %v56 = vwithlane %v54, 3, 3 : Vec(Int)
-    %v58 = vsplat 4 : Vec(Int)
-    %v59 = select %never ? %v56 : %v58 : Vec(Int)
-    %v60 = vreduce_min %v59 : Int
-    %v61 = cast %v60 : Int
-    %v63 = cmp_ne %v61, 4 : Bool
-    je %v63, b7, b8
+    %v37 = vreduce_first %never : Int
+    %v39 = cmp_ne %v37, 4 : Bool
+    je %v39, b7, b8
 
   b7:
-    %v67 = neg 3 : Int
-    ret %v67
+    %v43 = neg 3 : Int
+    ret %v43
 
   b8:
     jmp b9
 
   b9:
-    %v70 = vreduce_add %never : Int
-    %v73 = cmp_ne %v70, 0 : Bool
-    je %v73, b10, b11
+    %v46 = vreduce_add %never : Int
+    %v49 = cmp_ne %v46, 0 : Bool
+    je %v49, b10, b11
 
   b10:
-    %v77 = neg 4 : Int
-    ret %v77
+    %v53 = neg 4 : Int
+    ret %v53
 
   b11:
     jmp b12
 
   b12:
     %always = cmp_ge %indices, %empty : Mask(Int)
-    %v82 = vsplat 0 : Vec(Int)
-    %v84 = vwithlane %v82, 1, 1 : Vec(Int)
-    %v86 = vwithlane %v84, 2, 2 : Vec(Int)
-    %v88 = vwithlane %v86, 3, 3 : Vec(Int)
-    %v90 = vsplat 4 : Vec(Int)
-    %v91 = select %always ? %v88 : %v90 : Vec(Int)
-    %v92 = vreduce_min %v91 : Int
-    %v93 = cast %v92 : Int
-    %v96 = cmp_ne %v93, 0 : Bool
-    je %v96, b13, b14
+    %v57 = vreduce_first %always : Int
+    %v60 = cmp_ne %v57, 0 : Bool
+    je %v60, b13, b14
 
   b13:
-    %v100 = neg 5 : Int
-    ret %v100
+    %v64 = neg 5 : Int
+    ret %v64
 
   b14:
     jmp b15
 
   b15:
-    %v103 = vreduce_add %always : Int
-    %v105 = cmp_ne %v103, 4 : Bool
-    je %v105, b16, b17
+    %v67 = vreduce_add %always : Int
+    %v69 = cmp_ne %v67, 4 : Bool
+    je %v69, b16, b17
 
   b16:
-    %v109 = neg 6 : Int
-    ret %v109
+    %v73 = neg 6 : Int
+    ret %v73
 
   b17:
     jmp b18

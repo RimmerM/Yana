@@ -222,11 +222,51 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v196 = vlane %twice, 1 : Int
-    %v199 = mul %v196, 100 : Int
-    %v202 = vlane %six, 0 : Int
-    %v203 = add %v199, %v202 : Int
-    %v206 = vlane %mixed, 0 : Int
-    %v207 = add %v203, %v206 : Int
+    %v198 = vwithlane %base, 10, 1 : Vec(Int)
+    %v199 = cmp_gt %v198, %base : Mask(Int)
+    %v200 = vreduce_first %v199 : Int
+    %v203 = cmp_ne %v200, 1 : Bool
+    je %v203, b43, b44
+
+  b43:
+    %v207 = neg 14 : Int
     ret %v207
+
+  b44:
+    jmp b45
+
+  b45:
+    %v210 = cmp_lt %mixed, %base : Mask(Int)
+    %v211 = vreduce_first %v210 : Int
+    %v212 = cmp_ne %v211, %lanes : Bool
+    je %v212, b46, b47
+
+  b46:
+    %v216 = neg 15 : Int
+    ret %v216
+
+  b47:
+    jmp b48
+
+  b48:
+    %v219 = cmp_ge %mixed, %base : Mask(Int)
+    %v220 = vreduce_first %v219 : Int
+    %v223 = cmp_ne %v220, 0 : Bool
+    je %v223, b49, b50
+
+  b49:
+    %v227 = neg 16 : Int
+    ret %v227
+
+  b50:
+    jmp b51
+
+  b51:
+    %v232 = vlane %twice, 1 : Int
+    %v235 = mul %v232, 100 : Int
+    %v238 = vlane %six, 0 : Int
+    %v239 = add %v235, %v238 : Int
+    %v242 = vlane %mixed, 0 : Int
+    %v243 = add %v239, %v242 : Int
+    ret %v243
 }

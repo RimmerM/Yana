@@ -482,6 +482,10 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case ReduceOp::Max: op = isSigned ? LowerReduce::IMax : LowerReduce::Max; break;
                 case ReduceOp::And: op = LowerReduce::And; break;
                 case ReduceOp::Or:  op = LowerReduce::Or; break;
+
+                // The one kind with no signedness to read and no lane type to read it off: what it
+                // answers is an index into the lanes rather than one of them.
+                case ReduceOp::FirstSet: op = LowerReduce::FirstSet; break;
             }
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(

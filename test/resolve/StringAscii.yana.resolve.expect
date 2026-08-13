@@ -91,46 +91,27 @@ fn Collections.continuation$12(String, U8)(%env: %{sought: Vec(U8), at: &mut Int
     %v44 = alloc : Maybe(I64)
     %v45 = load [%env].at : &mut Int
     %v46 = load [%v45] : Int
-    %v48 = vsplat 0 : Vec(U8)
-    %v50 = vwithlane %v48, 1, 1 : Vec(U8)
-    %v52 = vwithlane %v50, 2, 2 : Vec(U8)
-    %v54 = vwithlane %v52, 3, 3 : Vec(U8)
-    %v56 = vwithlane %v54, 4, 4 : Vec(U8)
-    %v58 = vwithlane %v56, 5, 5 : Vec(U8)
-    %v60 = vwithlane %v58, 6, 6 : Vec(U8)
-    %v62 = vwithlane %v60, 7, 7 : Vec(U8)
-    %v64 = vwithlane %v62, 8, 8 : Vec(U8)
-    %v66 = vwithlane %v64, 9, 9 : Vec(U8)
-    %v68 = vwithlane %v66, 10, 10 : Vec(U8)
-    %v70 = vwithlane %v68, 11, 11 : Vec(U8)
-    %v72 = vwithlane %v70, 12, 12 : Vec(U8)
-    %v74 = vwithlane %v72, 13, 13 : Vec(U8)
-    %v76 = vwithlane %v74, 14, 14 : Vec(U8)
-    %v78 = vwithlane %v76, 15, 15 : Vec(U8)
-    %v80 = vsplat 16 : Vec(U8)
-    %v81 = select %hits ? %v78 : %v80 : Vec(U8)
-    %v82 = vreduce_min %v81 : U8
-    %v83 = cast %v82 : Int
-    %v84 = add %v46, %v83 : Int
-    %v85 = cast %v84 : I64
-    aggregate %local1.discriminant = 1, %local1@Just = %v85
-    %v88 = alloc : Outcome((), Maybe(I64))
+    %v47 = vreduce_first %hits : Int
+    %v48 = add %v46, %v47 : Int
+    %v49 = cast %v48 : I64
+    aggregate %local1.discriminant = 1, %local1@Just = %v49
+    %v52 = alloc : Outcome((), Maybe(I64))
     init %local3.discriminant, 1
     init %local3@Exit, %v44
-    ret %v88
+    ret %v52
 
   b2:
     jmp b3
 
   b3:
-    %v94 = load [%env].at : &mut Int
-    %v95 = load [%env].at : &mut Int
-    %v96 = load [%v95] : Int
-    %v97 = add %v96, %live : Int
-    assign [%v94], %v97
-    %v99 = alloc : Outcome((), Maybe(I64))
+    %v58 = load [%env].at : &mut Int
+    %v59 = load [%env].at : &mut Int
+    %v60 = load [%v59] : Int
+    %v61 = add %v60, %live : Int
+    assign [%v58], %v61
+    %v63 = alloc : Outcome((), Maybe(I64))
     init %local2.discriminant, 0
-    ret %v99
+    ret %v63
 }
 
 fn vectorsMasked(String, U8, Maybe(I64))(%self: String, %body: (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))) -> Outcome((), Maybe(I64)) {

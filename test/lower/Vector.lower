@@ -28,7 +28,11 @@ arith(%a: f32x8, %b: f32x8, %i: i32x4, %j: i32x4): f32x8 {
     }
 }
 
-# A comparison answers a mask, a select consumes one, and the three ways a mask combines.
+# A comparison answers a mask, a select consumes one, and the four ways a mask becomes a scalar.
+#
+# `vreduce_first` is the one whose result type is not the lane's scalar form: it answers *which* lane
+# rather than one of them, so it states an `Int` at any lane width - the rule the validator holds it
+# and `vreduce_bits` to, and the reason both are written out here.
 masks(%a: f32x8, %b: f32x8): f32x8 {
     {
         %lt = cmp_lt %a, %b: m32x8
@@ -39,6 +43,7 @@ masks(%a: f32x8, %b: f32x8): f32x8 {
         %any = vreduce_or %inv: Int
         %all = vreduce_and %inv: Int
         %count = vreduce_add %inv: Int
+        %first = vreduce_first %inv: Int
         ret %sel
     }
 }

@@ -397,43 +397,29 @@ static ModulePtr<Value> emitNone(ExprResolver& resolver, Buffer<ModulePtr<Value>
  *
  * The operation a search loop terminates on, and the reason the whole mask family is portable rather
  * than a platform module's: "which lane matched" is `movemask` and a bit scan on x86 and something
- * else on every other machine, and none of those is an instruction this IR has.
+ * else on every other machine, and none of those is an instruction this IR *had*.
  *
- * What it is instead is three instructions the IR does have: `select(mask, iota(), splat(lanes))`
- * followed by an unsigned minimum reduction. A lane that is set contributes its own index and a lane
- * that is not contributes a number larger than every index, so the smallest is the first set one and
- * the all-clear case falls out with no branch rather than being tested for.
+ * It is one now - `ReduceOp::FirstSet`, which each backend lowers for itself. What it used to be is
+ * three instructions this IR already had: `select(mask, iota(), splat(lanes))` followed by an
+ * unsigned minimum reduction, where a set lane contributes its own index and a clear one a number
+ * larger than every index, so the smallest is the first set lane and the all-clear case falls out
+ * with no branch. That is exact, it is portable, and on x64 it is about forty instructions - a
+ * reduction tree of shuffles, a blend per level and a narrow lane extract - against the two that a
+ * `pmovmskb` and a bit scan are. §34 item 2 of test/bench/findings.md is the measurement, and the
+ * ruling it records is this one: a kind of its own that each backend lowers, rather than a pattern
+ * match on the chain above in the one backend that can see through it.
  *
- * The vector it works in is the mask's own content, so the shapes agree by construction and the
- * select needs no conversion on either side. That used to be an unsigned integer of the lane's width
- * because a mask normalized its element; it is now whatever the mask was made from, and the
- * reduction is signed or unsigned or floating accordingly. All three are exact here for the reason
- * §5 already records about this function: what it compares are lane indices and a sentinel one past
- * the last, which are small non-negative numbers every lane type orders the same way.
+ * The result is the `Int` the signature promises rather than the lane's scalar form, because a lane
+ * index is not a lane: a `Mask(I8)` of thirty-two lanes answers up to 32, which is not a value an
+ * `I8` holds. That is the one thing about this kind every layer below has to state separately - see
+ * the validator's rule, which is `Bits`'s.
  */
 static ModulePtr<Value> emitFirstSet(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
     auto mask = resolver.valueType(args[0]);
-    auto lane = vectorLane(resolver.global, mask);
-    auto lanes = vectorLanes(resolver.global, mask);
-    if(!lane || !lanes) return nullptr;
+    if(!vectorLanes(resolver.global, mask)) return nullptr;
 
-    auto indices = resolveVectorType(resolver.module, lane, lanes, false, source);
-    if(!isVectorType(resolver.global, indices)) return nullptr;
-
-    // `iota` takes no argument, so the buffer it is handed is empty - it is the result type that says
-    // what to build, here as at an ordinary call site.
-    auto iota = emitIota(resolver, { nullptr, 0 }, indices, source, StringId());
-    auto missing = splatConstant(resolver, indices, source, I64(lanes));
-    if(!iota || !missing) return nullptr;
-
-    auto chosen = resolver.ref(resolver.emit<InstSelect>(source, StringId(), indices, args[0], iota, missing));
-    auto first = resolver.ref(resolver.emit<InstVecReduce>(source, StringId(), lane, chosen, ReduceOp::Min));
-
-    // Into the `Int` the signature promises. A lane is an unsigned type of the mask's width, so this
-    // is a widening on every width below the target's word and a truncation at the widest - and
-    // never a value change, since what it carries is a lane index.
-    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Cast, first));
+    return resolver.ref(resolver.emit<InstVecReduce>(source, name, type, args[0], ReduceOp::FirstSet));
 }
 
 /*

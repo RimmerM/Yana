@@ -868,34 +868,27 @@ fn Collections.continuation$12(Array(Int), Int)(%env: %{sought: Vec(Int), at: &m
     %v20 = alloc : Maybe(I64)
     %v21 = load [%env].at : &mut Int
     %v22 = load [%v21] : Int
-    %v24 = vsplat 0 : Vec(Int)
-    %v26 = vwithlane %v24, 1, 1 : Vec(Int)
-    %v28 = vwithlane %v26, 2, 2 : Vec(Int)
-    %v30 = vwithlane %v28, 3, 3 : Vec(Int)
-    %v32 = vsplat 4 : Vec(Int)
-    %v33 = select %hits ? %v30 : %v32 : Vec(Int)
-    %v34 = vreduce_min %v33 : Int
-    %v35 = cast %v34 : Int
-    %v36 = add %v22, %v35 : Int
-    %v37 = cast %v36 : I64
-    aggregate %local1.discriminant = 1, %local1@Just = %v37
-    %v40 = alloc : Outcome((), Maybe(I64))
+    %v23 = vreduce_first %hits : Int
+    %v24 = add %v22, %v23 : Int
+    %v25 = cast %v24 : I64
+    aggregate %local1.discriminant = 1, %local1@Just = %v25
+    %v28 = alloc : Outcome((), Maybe(I64))
     init %local3.discriminant, 1
     init %local3@Exit, %v20
-    ret %v40
+    ret %v28
 
   b2:
     jmp b3
 
   b3:
-    %v46 = load [%env].at : &mut Int
-    %v47 = load [%env].at : &mut Int
-    %v48 = load [%v47] : Int
-    %v49 = add %v48, %live : Int
-    assign [%v46], %v49
-    %v51 = alloc : Outcome((), Maybe(I64))
+    %v34 = load [%env].at : &mut Int
+    %v35 = load [%env].at : &mut Int
+    %v36 = load [%v35] : Int
+    %v37 = add %v36, %live : Int
+    assign [%v34], %v37
+    %v39 = alloc : Outcome((), Maybe(I64))
     init %local2.discriminant, 0
-    ret %v51
+    ret %v39
 }
 
 fn vectorsMasked(Array(Int), Int, Maybe(I64))(%self: Array(Int), %body: (value$: {Vec(Int), Int}) -> Outcome((), Maybe(I64))) -> Outcome((), Maybe(I64)) {

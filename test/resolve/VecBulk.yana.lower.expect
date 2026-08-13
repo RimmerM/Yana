@@ -473,67 +473,65 @@ indexOfVectors(Array(Int), Int)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
   }
 
   b_36 {
-    %v_40 = select %hits, %v_8, %v_10: i32x4
-    %v_41 = vreduce_imin %v_40: Int
-    %v_42 = add %v_13, %v_41: Int
-    %v_43 = sext %v_42: Long
+    %v_40 = vreduce_first %hits: Int
+    %v_41 = add %v_13, %v_40: Int
+    %v_42 = sext %v_41: Long
     jmp b_39
   }
 
   b_39 {
-    %v_44 = phi [b_37, %v_38], [b_36, %v_13]: Int
+    %v_43 = phi [b_37, %v_38], [b_36, %v_13]: Int
+    %v_44 = phi [b_37, 0], [b_36, 1]: Int
     %v_45 = phi [b_37, 0], [b_36, 1]: Int
-    %v_46 = phi [b_37, 0], [b_36, 1]: Int
-    %v_47 = phi [b_37, 0], [b_36, %v_43]: Long
-    %v_48 = cmp_eq %v_45, 1: Int
-    je %v_48, b_49, b_50
+    %v_46 = phi [b_37, 0], [b_36, %v_42]: Long
+    %v_47 = cmp_eq %v_44, 1: Int
+    je %v_47, b_48, b_49
   }
 
-  b_50 {
+  b_49 {
     jmp b_25
   }
 
   b_25 {
-    %v_51 = phi [b_24, %v_13], [b_50, %v_44]: Int
-    jmp b_52
+    %v_50 = phi [b_24, %v_13], [b_49, %v_43]: Int
+    jmp b_51
   }
 
-  b_49 {
-    jmp b_52
+  b_48 {
+    jmp b_51
   }
 
   b_20 {
-    %v_53 = sext %v_16: Long
-    %v_54 = shl %v_53, 2: Long
-    %v_55 = add %from$items, %v_54: Ptr
-    %v_56 = bitcast %v_55: Ptr
-    %v_57 = load %v_56, 16: i32x4
-    %v_58 = cmp_eq %v_57, %sought: m32x4
-    %hits = and %v_58, %v_11: m32x4
-    %v_59 = vreduce_or %hits: Int
-    je %v_59, b_60, b_61
-  }
-
-  b_61 {
-    %v_62 = add %v_13, %v_9: Int
-    jmp b_63
+    %v_52 = sext %v_16: Long
+    %v_53 = shl %v_52, 2: Long
+    %v_54 = add %from$items, %v_53: Ptr
+    %v_55 = bitcast %v_54: Ptr
+    %v_56 = load %v_55, 16: i32x4
+    %v_57 = cmp_eq %v_56, %sought: m32x4
+    %hits = and %v_57, %v_11: m32x4
+    %v_58 = vreduce_or %hits: Int
+    je %v_58, b_59, b_60
   }
 
   b_60 {
-    %v_64 = select %hits, %v_8, %v_10: i32x4
-    %v_65 = vreduce_imin %v_64: Int
-    %v_66 = add %v_13, %v_65: Int
-    %v_67 = sext %v_66: Long
-    jmp b_63
+    %v_61 = add %v_13, %v_9: Int
+    jmp b_62
   }
 
-  b_63 {
-    %v_15 = phi [b_61, %v_62], [b_60, %v_13]: Int
-    %v_68 = phi [b_61, 0], [b_60, 1]: Int
-    %v_69 = phi [b_61, 0], [b_60, 1]: Int
-    %v_70 = phi [b_61, 0], [b_60, %v_67]: Long
-    %v_71 = cmp_eq %v_68, 1: Int
-    je %v_71, b_72, b_14
+  b_59 {
+    %v_63 = vreduce_first %hits: Int
+    %v_64 = add %v_13, %v_63: Int
+    %v_65 = sext %v_64: Long
+    jmp b_62
+  }
+
+  b_62 {
+    %v_15 = phi [b_60, %v_61], [b_59, %v_13]: Int
+    %v_66 = phi [b_60, 0], [b_59, 1]: Int
+    %v_67 = phi [b_60, 0], [b_59, 1]: Int
+    %v_68 = phi [b_60, 0], [b_59, %v_65]: Long
+    %v_69 = cmp_eq %v_66, 1: Int
+    je %v_69, b_70, b_14
   }
 
   b_14 {
@@ -541,62 +539,62 @@ indexOfVectors(Array(Int), Int)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
     jmp b_12
   }
 
-  b_72 {
-    jmp b_52
+  b_70 {
+    jmp b_51
   }
 
-  b_52 {
-    %v_73 = phi [b_25, %v_51], [b_49, %v_44], [b_72, %v_15]: Int
-    %v_74 = phi [b_25, 0], [b_49, 1], [b_72, 1]: Int
-    %v_75 = phi [b_25, 0], [b_49, %v_45], [b_72, %v_68]: Int
-    %v_76 = phi [b_25, 0], [b_49, %v_46], [b_72, %v_69]: Int
-    %v_77 = phi [b_25, 0], [b_49, %v_47], [b_72, %v_70]: Long
-    %v_78 = cmp_eq %v_74, 1: Int
-    je %v_78, b_79, b_80
+  b_51 {
+    %v_71 = phi [b_25, %v_50], [b_48, %v_43], [b_70, %v_15]: Int
+    %v_72 = phi [b_25, 0], [b_48, 1], [b_70, 1]: Int
+    %v_73 = phi [b_25, 0], [b_48, %v_44], [b_70, %v_66]: Int
+    %v_74 = phi [b_25, 0], [b_48, %v_45], [b_70, %v_67]: Int
+    %v_75 = phi [b_25, 0], [b_48, %v_46], [b_70, %v_68]: Long
+    %v_76 = cmp_eq %v_72, 1: Int
+    je %v_76, b_77, b_78
   }
 
-  b_80 {
-    jmp b_81
+  b_78 {
+    jmp b_79
+  }
+
+  b_77 {
+    jmp b_79
   }
 
   b_79 {
-    jmp b_81
+    %v_80 = phi [b_78, 0], [b_77, %v_72]: Int
+    %v_81 = phi [b_78, 0], [b_77, %v_73]: Int
+    %v_82 = phi [b_78, 0], [b_77, %v_74]: Int
+    %v_83 = phi [b_78, 0], [b_77, %v_75]: Long
+    %v_84 = cmp_eq %v_80, 1: Int
+    je %v_84, b_85, b_86
   }
 
-  b_81 {
-    %v_82 = phi [b_80, 0], [b_79, %v_74]: Int
-    %v_83 = phi [b_80, 0], [b_79, %v_75]: Int
-    %v_84 = phi [b_80, 0], [b_79, %v_76]: Int
-    %v_85 = phi [b_80, 0], [b_79, %v_77]: Long
-    %v_86 = cmp_eq %v_82, 1: Int
-    je %v_86, b_87, b_88
+  b_86 {
+    jmp b_87
   }
 
-  b_88 {
-    jmp b_89
+  b_85 {
+    jmp b_87
   }
 
   b_87 {
-    jmp b_89
+    %v_88 = phi [b_86, 0], [b_85, %v_81]: Int
+    %v_89 = phi [b_86, 0], [b_85, %v_82]: Int
+    %v_90 = phi [b_86, 0], [b_85, %v_83]: Long
+    %v_91 = cmp_eq %v_88, 1: Int
+    je %v_91, b_92, b_93
   }
 
-  b_89 {
-    %v_90 = phi [b_88, 0], [b_87, %v_83]: Int
-    %v_91 = phi [b_88, 0], [b_87, %v_84]: Int
-    %v_92 = phi [b_88, 0], [b_87, %v_85]: Long
-    %v_93 = cmp_eq %v_90, 1: Int
-    je %v_93, b_94, b_95
-  }
-
-  b_95 {
+  b_93 {
     store %v_0, 0, 4
     ret 
   }
 
-  b_94 {
-    store %v_0, %v_91, 4
-    %v_96 = add %v_0, 8: Ptr
-    store %v_96, %v_92, 8
+  b_92 {
+    store %v_0, %v_89, 4
+    %v_94 = add %v_0, 8: Ptr
+    store %v_94, %v_90, 8
     ret 
   }
 }

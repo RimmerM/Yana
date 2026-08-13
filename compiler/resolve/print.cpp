@@ -232,6 +232,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case ReduceOp::Max: return "vreduce_max"_v;
                 case ReduceOp::And: return "vreduce_and"_v;
                 case ReduceOp::Or:  return "vreduce_or"_v;
+                case ReduceOp::FirstSet: return "vreduce_first"_v;
             }
             break;
         case Value::Drop:

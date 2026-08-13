@@ -1,0 +1,220 @@
+
+firstByte<complex>(%a: i8x16, %b: i8x16): Int {
+  b_0 {
+    %m = cmp_eq %a, %b: m8x16
+    %r = vreduce_first %m: Int
+    ret %r
+  }
+}
+
+firstWord<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %r = vreduce_first %m: Int
+    ret %r
+  }
+}
+
+anyLane<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %r = vreduce_or %m: Int
+    ret %r
+  }
+}
+
+allLanes<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %r = vreduce_and %m: Int
+    ret %r
+  }
+}
+
+countLanes<complex>(%a: i32x4, %b: i32x4): Int {
+  b_0 {
+    %m = cmp_eq %a, %b: m32x4
+    %r = vreduce_add %m: Int
+    ret %r
+  }
+}
+
+anyThenFirst<complex>(%a: i8x16, %b: i8x16, %at: Int): Int {
+  start {
+    %m = cmp_eq %a, %b: m8x16
+    %any = vreduce_or %m: Int
+    je %any, hit, miss
+  }
+
+  hit {
+    %first = vreduce_first %m: Int
+    %r = add %at, %first: Int
+    ret %r
+  }
+
+  miss {
+    ret %at
+  }
+}
+
+phiMask<complex>(%a: i8x16, %b: i8x16, %c: Int): Int {
+  start {
+    %p = cmp_eq %a, %b: m8x16
+    %q = cmp_gt %a, %b: m8x16
+    je %c, left, right
+  }
+
+  left {
+    jmp join
+  }
+
+  right {
+    jmp join
+  }
+
+  join {
+    %m = phi [left, %p], [right, %q]: m8x16
+    %any = vreduce_or %m: Int
+    %first = vreduce_first %m: Int
+    %r = add %first, %any: Int
+    ret %r
+  }
+}
+
+noneLanes<complex>(%a: i32x4, %b: i32x4, %x: Int): Int {
+  start {
+    %m = cmp_eq %a, %b: m32x4
+    %any = vreduce_or %m: Int
+    %none = xor %any, 1: Int
+    je %none, empty, some
+  }
+
+  empty {
+    ret %x
+  }
+
+  some {
+    ret 0
+  }
+}
+
+
+--- codegen: firstByte ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800000100
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: firstWord ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800000100
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e802
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: anyLane ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rax]  => 85c00f95c00fb6c0
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: allLanes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rax]  => 81f8ffff00000f94c00fb6c0
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: countLanes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e802
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: anyThenFirst ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block start:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
+  vreduce_bits uses=[xmm0] creates=[rcx]  => 660fd7c8
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7502
+block miss:
+  ret uses=[rax] creates=[]  => c9c3
+block hit:
+  imm uses=[] creates=[-]  => 
+  or uses=[rcx, -] creates=[rcx]  => 81c900000100
+  cttz uses=[rcx] creates=[rcx]  => 0fbcc9
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: phiMask ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_eq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f74d1
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d4d000000
+  xor uses=[xmm0, xmm3] creates=[xmm0]  => 660fefc3
+  xor uses=[xmm1, xmm3] creates=[xmm1]  => 660fefcb
+  cmp_igt uses=[xmm0, xmm1] creates=[xmm0]  => 660f64c1
+  je uses=[rdi] creates=[]  => 85ff7503
+block right:
+  jmp uses=[] creates=[] pre=[xmm0->xmm2]  => 0f28d0
+block join:
+  vreduce_bits uses=[xmm2] creates=[rax]  => 660fd7c2
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rcx]  => 31c985c00f95c1
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800000100
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c3
+
+--- codegen: noneLanes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block start:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f76c1
+  vreduce_bits uses=[xmm0] creates=[rcx]  => 660fd7c8
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rcx, -] creates=[-]  => 85c9
+  imm uses=[] creates=[-]  => 
+  je uses=[-] creates=[]  => 7407
+block some:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c9c3
+block empty:
+  ret uses=[rax] creates=[]  => c9c3

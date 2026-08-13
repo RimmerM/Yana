@@ -1,0 +1,135 @@
+# The four ways a mask becomes a scalar, and the one instruction all four start from - §37 of
+# test/bench/findings.md, and §34.2 before it.
+#
+# `pmovmskb` answers a bit per *byte* of the register, so everything below is arithmetic on that one
+# number: `any` compares it against zero, `all` against the full pattern, `count` is its population
+# and `firstSet` is its lowest set bit. What to look for, in order:
+#
+#   - **the bit scan, and the sentinel in front of it.** `or $0x10000` sets the bit one past the last
+#     lane byte, which is what makes an empty mask answer the lane count *and* what keeps `bsf`'s
+#     operand non-zero - the instruction leaves its destination undefined at zero, and the `tzcnt`
+#     that does not needs a feature level this target does not describe. A lane wider than a byte
+#     then shifts the bit index back down into a lane index.
+#   - **one movemask where a mask has more than one consumer**, placed directly below the definition
+#     of the mask - which is a position that dominates every use of it without any dominance being
+#     computed. `anyThenFirst` is the shape a vector search has, and the second `pmovmskb` it used to
+#     spend is the whole point of the placement.
+#   - **`any` as a branch, which is `test` and a `jcc` and nothing else.** The comparison the
+#     expansion ends in is folded into the branch by the ordinary flags window, so the sequence that
+#     materialized a `Bool` - `xor`, `test`, `mov`, `cmove`, `and` - is gone from every search loop.
+#
+# The wide tier's twin is in `VectorWide.lower`: a whole 256-bit register has no bit 32 in an `i32`,
+# so the sentinel and the scan happen at 64 bits there and here they do not.
+
+# The lowest set lane of a byte mask, which is the movemask and the scan with no shift between them:
+# one byte of the register is one lane, so a bit index *is* a lane index.
+firstByte(%a: i8x16, %b: i8x16): Int {
+    {
+        %m = cmp_eq %a, %b: m8x16
+        %r = vreduce_first %m: Int
+        ret %r
+    }
+}
+
+# The same over a four-byte lane, where four equal bits stand for one lane and the scan's answer is
+# shifted back down by two. The sentinel is bit 16 either way - it is the register's width in bytes
+# and not the lane count.
+firstWord(%a: i32x4, %b: i32x4): Int {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %r = vreduce_first %m: Int
+        ret %r
+    }
+}
+
+# `any` and `all`, as values rather than as conditions: both are the comparison materialized, which
+# is a `setcc` and the zero-extension behind it.
+anyLane(%a: i32x4, %b: i32x4): Int {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %r = vreduce_or %m: Int
+        ret %r
+    }
+}
+
+allLanes(%a: i32x4, %b: i32x4): Int {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %r = vreduce_and %m: Int
+        ret %r
+    }
+}
+
+# How many lanes are set: the population of the movemask, divided by the bits one lane contributed.
+countLanes(%a: i32x4, %b: i32x4): Int {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %r = vreduce_add %m: Int
+        ret %r
+    }
+}
+
+# The search: `any` decides the branch and `firstSet` answers on the arm it took. One `pmovmskb`
+# below the `pcmpeqb` that defines the mask, a `test` and a `jne` in the loop, and the scan on the
+# arm - where the two consumers are in two different blocks and neither is where the movemask sits.
+anyThenFirst(%a: i8x16, %b: i8x16, %at: Int): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x16
+        %any = vreduce_or %m: Int
+        je %any, hit, miss
+    }
+
+    hit {
+        %first = vreduce_first %m: Int
+        %r = add %at, %first: Int
+        ret %r
+    }
+
+    miss {
+        ret %at
+    }
+}
+
+# A mask that arrives as a phi, which is what a search whose mask comes from two arms has - and the
+# one definition with no slot below it, a phi not being in the instruction list at all. The movemask
+# goes at the *top of the phi's own block* instead, which dominates exactly what the phi dominates,
+# so the two consumers below share one `pmovmskb` as they would anywhere else.
+#
+# An argument-defined mask is the case deliberately left out: the only position dominating every use
+# of one is the entry block's top, which may be a call or a loop away from the consumers, and no
+# vector code this language generates hands a mask in as a parameter. That one keeps a movemask per
+# consumer, which is what all of them had before any of this.
+phiMask(%a: i8x16, %b: i8x16, %c: Int): Int {
+    start {
+        %p = cmp_eq %a, %b: m8x16
+        %q = cmp_gt %a, %b: m8x16
+        je %c, left, right
+    }
+
+    left { jmp join }
+    right { jmp join }
+
+    join {
+        %m = phi [left, %p], [right, %q]: m8x16
+        %any = vreduce_or %m: Int
+        %first = vreduce_first %m: Int
+        %r = add %first, %any: Int
+        ret %r
+    }
+}
+
+# `none`, which the library writes as `any` exclusive-ored with one - the negation of a `Bool` being
+# arithmetic, and there being nothing above this tier to negate but the value. Left alone that is the
+# whole materialization the comparison exists to avoid (`test ; setne ; xor $1 ; jne`); inverting the
+# comparison instead is exact, since what it answers is a bit.
+noneLanes(%a: i32x4, %b: i32x4, %x: Int): Int {
+    start {
+        %m = cmp_eq %a, %b: m32x4
+        %any = vreduce_or %m: Int
+        %none = xor %any, 1: Int
+        je %none, empty, some
+    }
+
+    empty { ret %x }
+    some { ret 0 }
+}

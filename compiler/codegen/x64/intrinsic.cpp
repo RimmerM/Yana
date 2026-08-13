@@ -121,6 +121,63 @@ void addIntrinsics(MachineTarget& target) {
     }
 
     {
+        /*
+         * BSF r, r/m (0f bc) answers the index of the lowest set bit of its operand, in a register
+         * that need not be the operand's - the same shape POPCNT has above, and the memory
+         * alternative is there for the same reason.
+         *
+         * **Baseline, and undefined at zero.** TZCNT is this instruction with an `f3` prefix and a
+         * defined answer for zero (the operand's width), but it is BMI1 and this target describes no
+         * such level; a processor without it decodes the prefix as BSF and silently leaves the
+         * destination alone, which is the one way for a feature to be wrong that no diagnostic
+         * catches. So the row is BSF, the IR kind says the zero case is undefined, and every emitter
+         * here hands it an operand that cannot be zero.
+         *
+         * ZF is set exactly when the operand was zero, which nothing reads: the flags effect is
+         * declared so that the window a comparison's flags survive in knows this writes them.
+         */
+        auto b = add(LowerIntrinsic::Cttz, "bsf r, r/m"_v, kFeatureBaseline);
+        b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+        b.form.defs.push(def());
+        b.form.flagsEffect = FlagsEffect::Def;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xbc, .escape = 0x0f,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::FromUse0,
+        };
+
+        b.desc.operands.push(integerRule());
+        b.desc.results.push(integerRule());
+    }
+
+    {
+        /*
+         * TZCNT r, r/m (f3 0f bc) is the same scan with the zero case defined: it answers the
+         * operand's width rather than leaving the destination alone, which is the whole reason it is
+         * a second row rather than a cheaper encoding of the one above.
+         *
+         * **A prefix on BSF is exactly what makes the feature matter.** A processor without BMI1
+         * ignores the `f3` and runs the bit scan, so a target that claimed this wrongly would not
+         * fault - it would answer whatever the destination held. `kFeatureBmi1` is claimed from
+         * AVX2 rather than detected for that reason; see the note on it in target.h.
+         */
+        auto b = add(LowerIntrinsic::CttzWidth, "tzcnt r, r/m"_v, kFeatureBmi1);
+        b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+        b.form.defs.push(def());
+        b.form.flagsEffect = FlagsEffect::Def;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xbc, .escape = 0x0f, .prefix = 0xf3,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::FromUse0,
+        };
+
+        b.desc.operands.push(integerRule());
+        b.desc.results.push(integerRule());
+    }
+
+    {
         // CPUID (0f a2) reads the leaf in eax and the subleaf in ecx, and answers in all four of
         // eax, ebx, ecx and edx. Every one of those is a fixed register the allocator copies into
         // and out of - including ebx, which is callee-saved, so a function using this pays a push

@@ -236,82 +236,78 @@ counting<complex>(): Int {
   }
 
   b_9 {
-    %v_10 = vsplat 4: i32x4
-    %v_11 = select %past, %indices, %v_10: i32x4
-    %v_12 = vreduce_imin %v_11: Int
-    %v_13 = cmp_neq %v_12, 1: Int
-    je %v_13, b_14, b_15
+    %v_10 = vreduce_first %past: Int
+    %v_11 = cmp_neq %v_10, 1: Int
+    je %v_11, b_12, b_13
   }
 
-  b_14 {
+  b_12 {
     ret 18446744073709551614
   }
 
-  b_15 {
-    jmp b_16
+  b_13 {
+    jmp b_14
   }
 
-  b_16 {
+  b_14 {
     %never = cmp_ilt %indices, %v_1: m32x4
-    %v_17 = select %never, %indices, %v_10: i32x4
-    %v_18 = vreduce_imin %v_17: Int
-    %v_19 = cmp_neq %v_18, 4: Int
-    je %v_19, b_20, b_21
+    %v_15 = vreduce_first %never: Int
+    %v_16 = cmp_neq %v_15, 4: Int
+    je %v_16, b_17, b_18
   }
 
-  b_20 {
+  b_17 {
     ret 18446744073709551613
   }
 
-  b_21 {
-    jmp b_22
+  b_18 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_20 = vreduce_add %never: Int
+    %v_21 = cmp_neq %v_20, 0: Int
+    je %v_21, b_22, b_23
   }
 
   b_22 {
-    %v_23 = vreduce_add %never: Int
-    %v_24 = cmp_neq %v_23, 0: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
     ret 18446744073709551612
   }
 
-  b_26 {
-    jmp b_27
+  b_23 {
+    jmp b_24
+  }
+
+  b_24 {
+    %always = cmp_ige %indices, %v_1: m32x4
+    %v_25 = vreduce_first %always: Int
+    %v_26 = cmp_neq %v_25, 0: Int
+    je %v_26, b_27, b_28
   }
 
   b_27 {
-    %always = cmp_ige %indices, %v_1: m32x4
-    %v_28 = select %always, %indices, %v_10: i32x4
-    %v_29 = vreduce_imin %v_28: Int
-    %v_30 = cmp_neq %v_29, 0: Int
-    je %v_30, b_31, b_32
-  }
-
-  b_31 {
     ret 18446744073709551611
   }
 
+  b_28 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = vreduce_add %always: Int
+    %v_31 = cmp_neq %v_30, 4: Int
+    je %v_31, b_32, b_33
+  }
+
   b_32 {
-    jmp b_33
-  }
-
-  b_33 {
-    %v_34 = vreduce_add %always: Int
-    %v_35 = cmp_neq %v_34, 4: Int
-    je %v_35, b_36, b_37
-  }
-
-  b_36 {
     ret 18446744073709551610
   }
 
-  b_37 {
-    jmp b_38
+  b_33 {
+    jmp b_34
   }
 
-  b_38 {
+  b_34 {
     ret 0
   }
 }

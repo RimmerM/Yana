@@ -217,13 +217,59 @@ main<complex>(): Int {
   }
 
   b_83 {
-    %v_84 = vlane %v_2, 1: Int
-    %v_85 = imul %v_84, 100: Int
-    %v_86 = vlane %v_4, 0: Int
-    %v_87 = add %v_85, %v_86: Int
-    %v_88 = vlane %mixed, 0: Int
-    %v_89 = add %v_87, %v_88: Int
-    ret %v_89
+    %v_84 = vwithlane %base, 10, 1: i32x8
+    %v_85 = cmp_igt %v_84, %base: m32x8
+    %v_86 = vreduce_first %v_85: Int
+    %v_87 = cmp_neq %v_86, 1: Int
+    je %v_87, b_88, b_89
+  }
+
+  b_88 {
+    ret 18446744073709551602
+  }
+
+  b_89 {
+    jmp b_90
+  }
+
+  b_90 {
+    %v_91 = cmp_ilt %mixed, %base: m32x8
+    %v_92 = vreduce_first %v_91: Int
+    %v_93 = cmp_neq %v_92, %lanes: Int
+    je %v_93, b_94, b_95
+  }
+
+  b_94 {
+    ret 18446744073709551601
+  }
+
+  b_95 {
+    jmp b_96
+  }
+
+  b_96 {
+    %v_97 = cmp_ige %mixed, %base: m32x8
+    %v_98 = vreduce_first %v_97: Int
+    %v_99 = cmp_neq %v_98, 0: Int
+    je %v_99, b_100, b_101
+  }
+
+  b_100 {
+    ret 18446744073709551600
+  }
+
+  b_101 {
+    jmp b_102
+  }
+
+  b_102 {
+    %v_103 = vlane %v_2, 1: Int
+    %v_104 = imul %v_103, 100: Int
+    %v_105 = vlane %v_4, 0: Int
+    %v_106 = add %v_104, %v_105: Int
+    %v_107 = vlane %mixed, 0: Int
+    %v_108 = add %v_106, %v_107: Int
+    ret %v_108
   }
 }
 

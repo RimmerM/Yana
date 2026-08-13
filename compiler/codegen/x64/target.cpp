@@ -44,10 +44,17 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
 
     if(settings.extensions.sse >= TargetExtensions::AVX) features |= kFeatureAvx;
 
-    // The 256-bit tier, which is AVX2 rather than AVX for the reason `targetVectorBytes` gives:
-    // AVX widened the float operations alone, so the level at which a whole vector of any lane type
-    // fits one register is this one and not the one below it.
-    if(settings.extensions.sse >= TargetExtensions::AVX2) features |= kFeatureAvx2;
+    /*
+     * The 256-bit tier, which is AVX2 rather than AVX for the reason `targetVectorBytes` gives:
+     * AVX widened the float operations alone, so the level at which a whole vector of any lane type
+     * fits one register is this one and not the one below it.
+     *
+     * **BMI1 comes with it and is not asked about separately** - see the note on the feature, which
+     * is where the argument is. There is no part with one and not the other, and the pairing is what
+     * the wide mask scan is written against: a movemask that fills its word needs `tzcnt`'s answer
+     * for zero, and every movemask that fills its word is thirty-two bytes wide and so is this level.
+     */
+    if(settings.extensions.sse >= TargetExtensions::AVX2) features |= kFeatureAvx2 | kFeatureBmi1;
 
     // FMA3 is a flag beside the level rather than a point on it, on both sides: there are parts with
     // AVX and no FMA, and `applyDefaults` reads the two out of separate CPUID bits. It needs VEX to

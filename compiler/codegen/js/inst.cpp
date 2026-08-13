@@ -2346,9 +2346,34 @@ static JsPtr<Expr> reduceLanes(Gen& g, ReduceOp reduce, TypePtr type, bool mask,
     }
 }
 
+/*
+ * The lowest set lane, which is the one mask consumer that is not a tree.
+ *
+ * A chain of conditionals built from the last lane back - `m0 ? 0 : m1 ? 1 : 2` for two lanes - so
+ * the answer is the first index whose lane holds, and the lane count where none does. Every lane is
+ * named once and in order, which is what makes this the same expression the tree would have been in
+ * cost and a different one in shape.
+ *
+ * Nothing here is a bit scan, because there are no bits: a lane is a variable on this target, so
+ * "which lane matched" is a question about a run of booleans and the conditional chain is what asks
+ * it. The alternative - the `select(mask, iota, splat(lanes))` and minimum this kind replaced - is
+ * the same chain with a `Math.min` per level and a number materialized per lane.
+ */
+static JsPtr<Expr> firstSetLane(Gen& g, Buffer<JsPtr<Expr>> lanes, U32 count) {
+    auto result = number(g, count);
+    for(auto i = count; i-- > 0;) result = ternary(g, lanes[i], number(g, i), result);
+
+    return result;
+}
+
 static void genVecReduce(Gen& g, ModulePtr<Value> pointer, InstVecReduce& instruction) {
     auto source = g.local[instruction.from]->type;
     auto from = vecPartsOf(g, instruction.from);
+
+    if(instruction.reduce == ReduceOp::FirstSet) {
+        define(g, pointer, firstSetLane(g, from.contents(), from.count));
+        return;
+    }
 
     define(g, pointer, reduceLanes(g, instruction.reduce, instruction.type,
                                    isMaskType(g, source), from.contents(), 0, from.count));

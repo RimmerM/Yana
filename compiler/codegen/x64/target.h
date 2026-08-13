@@ -96,6 +96,29 @@ static constexpr FeatureSet kFeatureAvx2 = 1 << 7;
 static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
 
 /*
+ * BMI1, which here is `tzcnt` and nothing else yet.
+ *
+ * **Claimed with AVX2 rather than on its own**, which is a statement about parts that exist rather
+ * than about instruction sets. Haswell brought AVX2, BMI1 and BMI2 out together and every Intel part
+ * with the first has the other two; AMD's Excavator and every Zen do the same, and the AMD parts
+ * that had BMI1 without BMI2 (Piledriver, Steamroller) had AVX and not AVX2. So there is no
+ * processor for a separate claim to describe, and a flag nothing can set differently is a flag that
+ * only gets out of step. BMI2 belongs on the same line the day `bzhi` or `shlx` is wanted.
+ *
+ * What it buys is the one thing a sentinel bit cannot do at every width: `tzcnt` answers the
+ * *operand's width* for a zero operand, where `bsf` leaves its destination undefined. A movemask
+ * that fills its word - thirty-two bytes of a `ymm`, and a 64-lane `k` register when the mask bank
+ * lands - has no bit above itself to mark, and this is what answers "nothing is set" there. See
+ * `expandMaskFirstSet`.
+ *
+ * The hazard the linkage removes is the one that has no diagnostic: `tzcnt` is `f3 0f bc`, which a
+ * processor without BMI1 decodes as `bsf` and runs, leaving the destination alone where the program
+ * wanted the width. A feature claimed wrongly here is a wrong answer rather than an illegal
+ * instruction, which is why it is claimed from a level that implies it rather than detected.
+ */
+static constexpr FeatureSet kFeatureBmi1 = 1 << 8;
+
+/*
  * The fused multiply-add, at every width and both lane kinds.
  *
  * A feature of its own rather than a level, because it *is* one: FMA3 arrived with Haswell and AVX

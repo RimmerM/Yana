@@ -395,9 +395,9 @@ fn indexOf(%xs: Flat(Int), %needle: Int) -> Int {
     je %v14, b3, b2
 
   b2:
-    %v43 = load %i : Int
-    %v44 = cmp_lt %v43, %n : Bool
-    je %v44, b7, b8
+    %v31 = load %i : Int
+    %v32 = cmp_lt %v31, %n : Bool
+    je %v32, b7, b8
 
   b3:
     %v16 = load %i : Int
@@ -409,59 +409,45 @@ fn indexOf(%xs: Flat(Int), %needle: Int) -> Int {
 
   b4:
     %v22 = load %i : Int
-    %v24 = vsplat 0 : Vec(Int)
-    %v26 = vwithlane %v24, 1, 1 : Vec(Int)
-    %v28 = vwithlane %v26, 2, 2 : Vec(Int)
-    %v30 = vwithlane %v28, 3, 3 : Vec(Int)
-    %v32 = vsplat 4 : Vec(Int)
-    %v33 = select %hits ? %v30 : %v32 : Vec(Int)
-    %v34 = vreduce_min %v33 : Int
-    %v35 = cast %v34 : Int
-    %v36 = add %v22, %v35 : Int
-    ret %v36
+    %v23 = vreduce_first %hits : Int
+    %v24 = add %v22, %v23 : Int
+    ret %v24
 
   b5:
     jmp b6
 
   b6:
-    %v39 = load %i : Int
-    %v40 = add %v39, %width : Int
-    assign %i, %v40
+    %v27 = load %i : Int
+    %v28 = add %v27, %width : Int
+    assign %i, %v28
     jmp b1
 
   b7:
-    %v46 = load %i : Int
-    %v47 = sub %n, %v46 : Int
-    %v49 = vsplat 0 : Vec(Int)
-    %v51 = vwithlane %v49, 1, 1 : Vec(Int)
-    %v53 = vwithlane %v51, 2, 2 : Vec(Int)
-    %v55 = vwithlane %v53, 3, 3 : Vec(Int)
-    %v56 = cast %v47 : Int
-    %v57 = vsplat %v56 : Vec(Int)
-    %live = cmp_lt %v55, %v57 : Mask(Int)
-    %v59 = load %i : Int
-    %v60 = cast %v59 : I64
-    %v61 = call loadVectorTail(Int), %xs, %v60 : Vec(Int)
-    %v62 = cmp_eq %v61, %wanted : Mask(Int)
-    %hits = and %v62, %live : Mask(Int)
-    %v64 = vreduce_or %hits : Bool
-    je %v64, b9, b10
+    %v34 = load %i : Int
+    %v35 = sub %n, %v34 : Int
+    %v37 = vsplat 0 : Vec(Int)
+    %v39 = vwithlane %v37, 1, 1 : Vec(Int)
+    %v41 = vwithlane %v39, 2, 2 : Vec(Int)
+    %v43 = vwithlane %v41, 3, 3 : Vec(Int)
+    %v44 = cast %v35 : Int
+    %v45 = vsplat %v44 : Vec(Int)
+    %live = cmp_lt %v43, %v45 : Mask(Int)
+    %v47 = load %i : Int
+    %v48 = cast %v47 : I64
+    %v49 = call loadVectorTail(Int), %xs, %v48 : Vec(Int)
+    %v50 = cmp_eq %v49, %wanted : Mask(Int)
+    %hits = and %v50, %live : Mask(Int)
+    %v52 = vreduce_or %hits : Bool
+    je %v52, b9, b10
 
   b8:
     jmp b12
 
   b9:
-    %v66 = load %i : Int
-    %v68 = vsplat 0 : Vec(Int)
-    %v70 = vwithlane %v68, 1, 1 : Vec(Int)
-    %v72 = vwithlane %v70, 2, 2 : Vec(Int)
-    %v74 = vwithlane %v72, 3, 3 : Vec(Int)
-    %v76 = vsplat 4 : Vec(Int)
-    %v77 = select %hits ? %v74 : %v76 : Vec(Int)
-    %v78 = vreduce_min %v77 : Int
-    %v79 = cast %v78 : Int
-    %v80 = add %v66, %v79 : Int
-    ret %v80
+    %v54 = load %i : Int
+    %v55 = vreduce_first %hits : Int
+    %v56 = add %v54, %v55 : Int
+    ret %v56
 
   b10:
     jmp b11
@@ -470,8 +456,8 @@ fn indexOf(%xs: Flat(Int), %needle: Int) -> Int {
     jmp b12
 
   b12:
-    %v87 = neg 1 : Int
-    ret %v87
+    %v63 = neg 1 : Int
+    ret %v63
 }
 
 fn fill(%xs: Flat(Int), %value: Int) -> () {

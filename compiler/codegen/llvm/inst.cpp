@@ -608,6 +608,12 @@ static llvm::Intrinsic::ID reduceIntrinsic(LowerReduce reduce, bool isFloat) {
         case LowerReduce::Bits:
             assertTrue("a movemask reduction reached the LLVM backend" == nullptr);
             break;
+
+        // Not an intrinsic on this side either: `genVecReduce` answers it above with the bitcast and
+        // the trailing-zero count that are its whole expansion, and never reaches this table.
+        case LowerReduce::FirstSet:
+            assertTrue("a first-set reduction has no reduce intrinsic" == nullptr);
+            break;
     }
 
     return llvm::Intrinsic::vector_reduce_add;
@@ -623,6 +629,45 @@ static void genVecReduce(FunGen& f, LowerInstVecReduce& inst) {
 
         nameResult(f, tree, inst.result);
         f.define(inst.result, tree);
+        return;
+    }
+
+    /*
+     * The lowest set lane, which is the mask read as a *number* rather than reduced.
+     *
+     * `<N x i1>` bitcast to an `iN` is the movemask this backend never has to name: lane `i` lands
+     * in bit `i` on every little-endian target LLVM has, and the pattern is one it selects
+     * `pmovmskb` for outright. The sentinel bit one past the last lane is what gives "nothing is
+     * set" the lane count as its answer, and it is also what makes the operand non-zero - which the
+     * `cttz` below needs, since the IR's own kind says a zero operand is undefined.
+     *
+     * **The sentinel is spent only where there is room for it**, which is the same rule the x64
+     * expansion follows and for the same reason: a 32-lane mask fills the `i32` it was bitcast into,
+     * and bit 32 is not a bit that word has. Where none fits there is nothing to add - `cttz` told
+     * that a zero operand is *not* poison answers the operand's width, and the width is the lane
+     * count exactly. That is one `tzcnt` on a target that has one and a scan plus a correction on a
+     * target that does not, which is LLVM's choice to make rather than ours.
+     */
+    if(reduce == LowerReduce::FirstSet) {
+        auto lanes = source.lanes();
+        auto width = lanes <= 32 ? 32 : 64;
+        auto counted = llvm::IntegerType::get(f.gen.llvm, width);
+        auto bits = f.builder.CreateBitCast(from, llvm::IntegerType::get(f.gen.llvm, lanes));
+        auto wide = f.builder.CreateZExt(bits, counted);
+
+        auto fits = lanes < U32(width);
+        auto marked = fits ? f.builder.CreateOr(wide, llvm::ConstantInt::get(counted, U64(1) << lanes))
+                           : wide;
+
+        llvm::Value* args[] = { marked, fits ? f.builder.getTrue() : f.builder.getFalse() };
+        auto first = f.builder.CreateIntrinsic(llvm::Intrinsic::cttz, { counted }, args);
+
+        // Into the `i32` the kind states, which is a truncation only where the count had to be
+        // taken at a width the sentinel fit in.
+        auto value = f.builder.CreateZExtOrTrunc(first, typeOf(f.gen, inst.result.type));
+
+        nameResult(f, value, inst.result);
+        f.define(inst.result, value);
         return;
     }
 

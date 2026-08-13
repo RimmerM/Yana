@@ -1362,6 +1362,22 @@ enum class ReduceOp: U8 {
     Max,
     And,
     Or,
+
+    /*
+     * The lowest set lane of a *mask*, or the lane count where nothing is set.
+     *
+     * Not a combination of lanes at all, which is why it sits after the six rather than among them:
+     * what it answers is a lane *index*, so its result is an `Int` whatever the lane type is, and
+     * the pairwise tree the others owe an expansion has nothing to say about it.
+     *
+     * It is a reduction rather than an arrangement of the other kinds because every target does it
+     * in one step and none of them does it the same way: `pmovmskb` and a bit scan on x86, a
+     * bitcast to an integer and `cttz` in LLVM, and a chain of conditionals where a lane is a
+     * variable. Written portably - `min(select(mask, iota(), splat(lanes)))`, which is what this
+     * replaced - it is a reduction tree over a vector, and measured about forty instructions on x64
+     * where the movemask is two. See §34 item 2 of test/bench/findings.md.
+     */
+    FirstSet,
 };
 
 // Every lane of the result is the same scalar. `type` is the vector; the operand is one lane of it.

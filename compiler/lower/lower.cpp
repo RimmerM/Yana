@@ -8,6 +8,8 @@
 static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::Bswap)]  = { "bswap"_v, 1, 1 },
     [Size(LowerIntrinsic::Popcnt)] = { "popcnt"_v, 1, 1 },
+    [Size(LowerIntrinsic::Cttz)]      = { "cttz"_v, 1, 1 },
+    [Size(LowerIntrinsic::CttzWidth)] = { "cttz_width"_v, 1, 1 },
 
     // Takes the leaf and subleaf, and returns the four information registers in their usual order.
     [Size(LowerIntrinsic::Cpuid)]  = { "cpuid"_v, 4, 2 },

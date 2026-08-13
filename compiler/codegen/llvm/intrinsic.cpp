@@ -85,6 +85,26 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             defineResults(f, inst, f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, argOf(f, inst, 0)));
             return true;
 
+        /*
+         * `llvm.cttz` takes a second argument saying whether a zero operand is poison, and the two
+         * kinds here are exactly that argument: `Cttz` promises nothing at zero and selects the bare
+         * bit scan, `CttzWidth` promises the operand's width and selects `tzcnt` where the target has
+         * it and the scan plus a correction where it does not.
+         *
+         * Which one a caller wants is not this backend's guess to make, which is the argument for
+         * two kinds rather than one and a flag read off the target.
+         */
+        case LowerIntrinsic::Cttz:
+        case LowerIntrinsic::CttzWidth: {
+            auto poisonZero = inst.getIntrinsic() == LowerIntrinsic::Cttz;
+            auto operand = argOf(f, inst, 0);
+            llvm::Value* args[] = { operand, poisonZero ? f.builder.getTrue() : f.builder.getFalse() };
+
+            defineResults(f, inst, f.builder.CreateIntrinsic(llvm::Intrinsic::cttz,
+                                                             { operand->getType() }, args));
+            return true;
+        }
+
         case LowerIntrinsic::Cpuid: {
             llvm::Value* args[] = { asInt32(f, argOf(f, inst, 0)), asInt32(f, argOf(f, inst, 1)) };
 

@@ -484,6 +484,21 @@ enum class LowerReduce: U8 {
      * an IR this backend hands to its own next pass has to be one that round-trips.
      */
     Bits,
+
+    /*
+     * The lowest set lane of a mask, or the lane count where none is set.
+     *
+     * The portable one of the pair, and the reason `Bits` may stay private: a lane index is a thing
+     * every backend can answer and no two answer alike, so what crosses this boundary is the
+     * question rather than one target's way of asking it. x64 reads it off the movemask above with a
+     * bit scan, LLVM bitcasts the `<N x i1>` to an integer and counts its trailing zeros, and the
+     * JavaScript backend - where a lane is a variable and there is no mask to scan - emits the chain
+     * of conditionals that is the same answer.
+     *
+     * Its result is an `Int32` and not the lane's scalar form, for the reason `Bits` is one: a mask
+     * of thirty-two `i8` lanes answers 32 where nothing is set, which is not a value an `i8` holds.
+     */
+    FirstSet,
 };
 
 // Every lane of the result is the same scalar. The source is the lane type's scalar form - see
@@ -779,6 +794,23 @@ struct LowerInstX86PushArg: LowerInstSingle {
 enum class LowerIntrinsic: U16 {
     Bswap,   // reverse the byte order of an integer
     Popcnt,  // count the set bits of an integer
+
+    /*
+     * The number of zero bits below the lowest set bit of an integer, in two kinds that differ only
+     * in what a zero operand answers - which is the one thing about this operation that is not the
+     * same everywhere, and so is the one thing the IR has to say out loud.
+     *
+     * `Cttz` is **undefined at zero**, which is `llvm.cttz`'s poison zero and x86's `bsf`. An
+     * emitter owes it a non-zero operand.
+     *
+     * `CttzWidth` **answers the operand's width at zero** - 32 for an `i32`, 64 for an `i64` - which
+     * is `tzcnt` and needs the feature level that has it. It is not a convenience: a mask whose bits
+     * fill their word has no bit above them to mark, so an operand that may be zero is the shape
+     * rather than an oversight, and the width is exactly the answer wanted. See `expandMaskFirstSet`,
+     * which spends the sentinel where one fits and this where none does.
+     */
+    Cttz,
+    CttzWidth,
     Cpuid,   // query the processor's feature information
     Rdtscp,  // read the processor's timestamp counter and its id
     Rdtsc,   // read the processor's timestamp counter

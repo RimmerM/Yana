@@ -96,4 +96,24 @@ fn main() -> Int:
     if lane(picked, 0) != 7 then return -12
     if lane(picked, 1) != 2 then return -13
 
+    {-
+       `firstSet` at the width where the sentinel does not fit beside the mask.
+
+       On x64 this is a movemask and a bit scan, and the bit the scan finds for "nothing is set" is
+       the one past the last lane *byte* - which at a whole 256-bit register is bit 32, and is not a
+       bit an `i32` has. So the count is taken at 64 there and in 32 bits everywhere else, and these
+       three assertions are what say the two agree: the lowest set lane, the answer where a mask is
+       empty, and the answer where every lane is set.
+
+       Lane 1 rather than lane 0 for the first of them, because a lane index is a *byte* index
+       shifted here: the bit the scan finds for lane 1 of a four-byte lane is bit 4, and a shift
+       dropped anywhere between the movemask and the answer reads as four rather than one.
+
+       Written against `lanes` rather than against a number for the reason the rest of this fixture
+       is: JavaScript has no register to read a width off, and the same source runs there at four.
+    -}
+    if firstSet(withLane(base, 1, 10) .> base) != 1 then return -14
+    if firstSet(mixed .< base) != lanes then return -15
+    if firstSet(mixed .>= base) != 0 then return -16
+
     return lane(twice, 1) * 100 + lane(six, 0) + lane(mixed, 0)

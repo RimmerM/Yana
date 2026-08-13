@@ -322,6 +322,26 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
         case LowerInst::Cmp:
             return !isImplicit(value);
 
+        // The movemask, which is the one reduction still standing this late - every other kind was
+        // expanded into a tree by `lowerVectorReductions`. `pmovmskb r32` writes a 32-bit register
+        // and clears the rest of it, and it has no wider form to be confused with.
+        case LowerInst::VecReduce:
+            return narrow;
+
+        /*
+         * The intrinsics whose answer is a bit *count* rather than a value: `popcnt` and the two bit
+         * scans all answer at most 64, so every bit above the low byte is clear whatever width the
+         * instruction ran at. A cast of one of these is a name for the register rather than a `mov`.
+         */
+        case LowerInst::Intrinsic: {
+            if(!isIntLike(type)) return false;
+
+            auto which = ((LowerInstIntrinsic*)inst)->getIntrinsic();
+            return which == LowerIntrinsic::Popcnt
+                || which == LowerIntrinsic::Cttz
+                || which == LowerIntrinsic::CttzWidth;
+        }
+
         // Anything loaded at four bytes or fewer lands in a register the load itself filled: the
         // narrow forms extend into the result's own width, and a four-byte one is `mov r32` unless
         // it is the signed widening `movsxd`. A sign extension is the one that carries a bit up.
@@ -1962,7 +1982,7 @@ static LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
 }
 
 /*
- * A reduction of a **mask**, which is three questions rather than one arithmetic operation.
+ * A reduction of a **mask**, which is four questions rather than one arithmetic operation.
  *
  * `and` and `or` combine the lanes as they stand and answer a truth value: a mask lane is all-ones
  * or all-zeros here, so lane zero of the combined mask is `-1` or `0`, and `& 1` is the whole of
@@ -1972,8 +1992,17 @@ static LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
  * the negative of it - every set lane is `-1` - and, worse, would be an `add` over two masks, which
  * is a thing the lower IR does not admit at all (a mask holds truth values). So the mask is turned
  * into a vector of ones and zeros with a select first, and what is summed is that.
+ *
+ * `first` is `firstSet` and has no tree at all: it is a lane *index*, and the only reason it is a
+ * reduction kind rather than the `select(mask, iota, splat(lanes))` chain it used to be written as
+ * is that every machine answers it in one step and no two answer it alike.
+ *
+ * `bits` is the movemask the three below reach it through, and the two things a caller may hand in
+ * are about it: one already placed for a mask that several of them read, and whether what comes back
+ * is already a 0/1 rather than the -1/0 a mask lane holds.
  */
-static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source);
+static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
+                                    LowerValue* bits, bool& truth);
 
 /*
  * A reduction of an 8- or 16-bit lane, which is the butterfly above finished in a general register.
@@ -2120,37 +2149,111 @@ static LowerValue* reduceTree(Expansion& e, LowerReduce reduce, LowerValue* valu
     return e.lane(value, 0);
 }
 
-static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
+                                LowerValue* bits, bool& truth) {
     auto type = source->type;
 
-    if(type.isMask()) return expandMaskReduce(e, reduce, source);
+    if(type.isMask()) return expandMaskReduce(e, reduce, source, bits, truth);
     return reduceTree(e, reduce, source, type);
 }
 
 /*
  * A mask read through `pmovmskb` - §34.2 of test/bench/findings.md.
  *
- * One instruction turns the whole mask into an integer with a bit per *byte*, and all three mask
- * reductions are then ordinary scalar arithmetic on it. What it replaces is a reduction tree: `any`
- * was three `pshufd`/`por` levels, a lane extract and six general-register instructions, and `count`
- * was that plus a select against two splats it had to build first.
+ * One instruction turns the whole mask into an integer with a bit per *byte*, and all four mask
+ * consumers are then ordinary scalar arithmetic on it. What it replaces is a reduction tree: `any`
+ * was three `pshufd`/`por` levels, a lane extract and six general-register instructions, `count`
+ * was that plus a select against two splats it had to build first, and `firstSet` was a blend per
+ * level over a vector of lane indices - about forty instructions where a bit scan is one.
  *
  * **A bit per byte, not per lane.** A mask lane is all-ones or all-zeros by construction, so a
- * four-byte lane contributes four identical bits: `any` and `all` do not care, and `count` divides.
- * The full pattern is `1 << bytes` minus one - sixteen bits at 128 and thirty-two at 256 - and it is
- * computed from the type rather than written down, because the two tiers share this code.
+ * four-byte lane contributes four identical bits: `any` and `all` do not care, `count` divides and
+ * `firstSet` shifts. The full pattern is `1 << bytes` minus one - sixteen bits at 128 and thirty-two
+ * at 256 - and it is computed from the type rather than written down, because the two tiers share
+ * this code.
  *
  * `count` needs a population count, which is an instruction only where the target claims it. Without
  * it the tree below is still the shorter of the two - a SWAR population count is a dozen general
  * -register instructions - so the fallback is the code this replaced rather than a second expansion.
  */
-static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+
+// How many bits of the movemask one lane contributes, as a shift: a bit index is a lane index
+// shifted left by this, which is what `count` divides out and `firstSet` undoes.
+static U64 maskBitShift(LowerType type) {
+    U64 shift = 0;
+    for(auto width = laneBytes(type.lane); width > 1; width /= 2) shift++;
+
+    return shift;
+}
+
+// The movemask itself. One instruction, and the one instruction every consumer below starts from -
+// which is why `lowerVectorReductions` may place it once for a mask several of them read.
+static LowerValue* emitMaskBits(Expansion& e, LowerValue* source) {
+    return e.emit(new (e.fun.arena) LowerInstVecReduce(StringId(), LowerType::Int32, source - e.base,
+                                                       LowerReduce::Bits));
+}
+
+/*
+ * `firstSet` off the movemask: the lowest set bit of it, shifted back into a lane index.
+ *
+ * **Two sequences, and which one is chosen is decided by whether the movemask fills its word.**
+ * Both answer the same three things - the lowest set lane, the lane count where none is set, and
+ * nothing undefined in between - and they answer the third differently because the machine does.
+ *
+ * *Where the bits leave room above them*, which is a 128-bit register's sixteen, the sentinel does
+ * two jobs and is one instruction: setting the bit one past the last lane byte makes "nothing is
+ * set" answer the lane count - the scan finds the sentinel and the shift turns it into `lanes` - and
+ * it is also what keeps the operand non-zero, which `Cttz` needs because `bsf` leaves its
+ * destination undefined at zero.
+ *
+ * *Where they fill it*, which is a `ymm`'s thirty-two bytes, there is no bit to set: bit 32 is not a
+ * bit an `i32` has. `tzcnt` answers the operand's width for a zero operand and the width is 32,
+ * which is the byte count, which the shift turns into the lane count - so the sentinel is not
+ * replaced by something wider, it is *not needed*, and the sequence is one instruction shorter than
+ * the one that has it rather than longer.
+ *
+ * **The second is the one that generalizes and the first is the one that is portable**, which is why
+ * both are here. A 512-bit mask is a `k` register with a bit per lane rather than per byte, so
+ * sixty-four byte lanes fill sixty-four bits with nothing above them, and the sentinel has no width
+ * to live at however wide the arithmetic is made; `tzcnt` at 64 answers 64, which is the lane count
+ * again. The sentinel survives because it needs no feature, and BMI1 is claimed only from AVX2 -
+ * which is exactly the level at which a movemask first fills its word.
+ */
+static LowerValue* expandMaskFirstSet(Expansion& e, LowerValue* bits, LowerType type) {
+    auto scalar = LowerType::Int32;
+    auto bytes = type.lanes() * laneBytes(type.lane);
+    auto shift = maskBitShift(type);
+
+    /*
+     * A movemask that fills its word comes from a register wider than 128 bits, and a vector that
+     * wide needs AVX2 - `unsupportedVectorReason` refuses one without it - so the feature the scan
+     * needs is implied by the shape that needs the scan. Asserted rather than branched on, because a
+     * fallback here would be a path no target description can reach: see x64FeaturesFor, which is
+     * where the two are tied together.
+     */
+    assertTrue(bytes <= 32); // a wider register's mask is a `k` bit per lane, and is not this yet
+
+    if(bytes == 32) {
+        assertTrue(targetFeatures() & kFeatureBmi1);
+
+        auto first = e.intrinsic(LowerIntrinsic::CttzWidth, scalar, bits);
+        return shift ? e.binary(LowerInst::Shr, scalar, first, e.integer(scalar, shift)) : first;
+    }
+
+    auto marked = e.binary(LowerInst::Or, scalar, bits, e.integer(scalar, U64(1) << bytes));
+    auto first = e.intrinsic(LowerIntrinsic::Cttz, scalar, marked);
+
+    return shift ? e.binary(LowerInst::Shr, scalar, first, e.integer(scalar, shift)) : first;
+}
+
+static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
+                                        LowerValue* bits, bool& truth) {
     auto type = source->type;
     auto scalar = LowerType::Int32;
     auto bytes = type.lanes() * laneBytes(type.lane);
 
-    auto bits = e.emit(new (e.fun.arena) LowerInstVecReduce(StringId(), scalar, source - e.base,
-                                                            LowerReduce::Bits));
+    if(!bits) bits = emitMaskBits(e, source);
+    if(reduce == LowerReduce::FirstSet) return expandMaskFirstSet(e, bits, type);
 
     if(reduce == LowerReduce::Add) {
         auto counted = e.intrinsic(LowerIntrinsic::Popcnt, scalar, bits);
@@ -2158,33 +2261,45 @@ static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerV
         // Every lane contributed `laneBytes` equal bits, so the population is the lane count times
         // that - and the width is a power of two, so the division is a shift. A byte lane divides by
         // one and needs none, which is the `String` case and the common one.
-        U64 shift = 0;
-        for(auto width = laneBytes(type.lane); width > 1; width /= 2) shift++;
+        auto shift = maskBitShift(type);
 
         return shift ? e.binary(LowerInst::Shr, scalar, counted, e.integer(scalar, shift)) : counted;
     }
 
     /*
-     * `any` is "not zero" and `all` is "every byte set", and both answer the -1/0 a mask lane holds
-     * rather than a 0/1 - because the caller appends the `& 1` that narrows it, and did so for the
-     * tree this replaces. A comparison into a select of two constants is what this backend already
-     * emits a `setcc` for.
+     * `any` is "not zero" and `all` is "every byte set", and what is answered is the *comparison* -
+     * so a branch on it reads the flags the comparison left standing and spends nothing at all.
+     *
+     * It used to be a select of one and zero, which the caller then narrowed with an `& 1` because
+     * the tree this replaced handed back the -1 a mask lane holds. Both are gone: a comparison
+     * already answers 0 or 1, so the narrowing is a no-op, and materializing it is `genSetCc`'s job
+     * on the paths that genuinely want a value. `if any(hits)` was `xor ; test ; mov ; cmove ; and ;
+     * jne` and is now `test ; jne` - four instructions per iteration of every search loop.
      */
-    auto wanted = reduce == LowerReduce::Or ? U64(0) : (U64(1) << bytes) - 1;
-    auto flag = e.compare(reduce == LowerReduce::Or ? LowerCmp::neq : LowerCmp::eq,
-                          bits, e.integer(scalar, wanted));
+    /*
+     * The pattern is signed at the width the comparison happens at, which is the difference between
+     * a three-byte instruction and nine. A mask filling a whole 256-bit register wants every bit of
+     * the `i32` set, and that written as `0xffffffff` is a constant no immediate carries - so it was
+     * materialized into a register, and in a leaf function that register cost a callee-saved push
+     * and pop as well. The same number as an `i32` is -1, which is an `imm8`.
+     */
+    auto pattern = bytes < 32 ? (U64(1) << bytes) - 1 : ~U64(0);
+    auto wanted = reduce == LowerReduce::Or ? U64(0) : pattern;
 
-    return e.select(scalar, flag, e.integer(scalar, 1), e.integer(scalar, 0));
+    truth = true;
+    return e.compare(reduce == LowerReduce::Or ? LowerCmp::neq : LowerCmp::eq,
+                     bits, e.integer(scalar, wanted));
 }
 
-static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source) {
+static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
+                                    LowerValue* bits, bool& truth) {
     auto type = source->type;
 
     // The movemask exists at both tiers this backend emits for, and the population count it needs
     // for `count` is a separate claim - so the fallback below is reached only by a target that has
     // said it wants neither.
     if(reduce != LowerReduce::Add || (targetFeatures() & kFeaturePopcnt)) {
-        return expandMaskBitsReduce(e, reduce, source);
+        return expandMaskBitsReduce(e, reduce, source, bits, truth);
     }
 
     if(reduce == LowerReduce::Add) {
@@ -2201,7 +2316,135 @@ static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue
     return reduceTree(e, reduce, source, type);
 }
 
+/*
+ * §37 One movemask for every consumer of a mask.
+ *
+ * `if any(hits) then return Just(at + firstSet(hits))` is two consumers of one mask, in two blocks,
+ * and expanded one at a time it is two `pmovmskb`s of the same register - the second on the path
+ * where the first has already answered. The instruction is the same instruction; what stops the
+ * expansion from saying so is that it runs after the tier where common subexpressions are removed,
+ * so nothing below it will notice.
+ *
+ * So the movemask is placed *once*, immediately below the instruction that defines the mask. That
+ * position needs no dominance computation to justify: a definition dominates every use of what it
+ * defines, and an instruction directly under it dominates exactly what it does - so a movemask there
+ * is readable from every consumer of the mask, in this block and in every block below.
+ *
+ * **Only where there is more than one consumer**, which is the whole of what keeps it from being a
+ * hoist. A single reader has its movemask expanded where it stands, as before; moving that one up to
+ * the definition would lengthen a general-register live range across whatever lies between, and buy
+ * nothing. A mask defined by a phi or by an argument has no position "below the definition" in an
+ * instruction list at all, and takes the same path.
+ */
+
+// The mask a reduction reads, where that reduction is one that goes through the movemask. Nothing
+// for a reduction of an ordinary vector, and nothing for the `count` a target without a population
+// count has to expand as a tree.
+static LowerValue* maskBitsSource(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecReduce) return nullptr;
+
+    auto reduce = (LowerInstVecReduce*)inst;
+    auto source = base[reduce->from];
+
+    if(!source->type.isMask()) return nullptr;
+    if(reduce->getReduce() == LowerReduce::Bits) return nullptr;   // the movemask itself
+
+    if(reduce->getReduce() == LowerReduce::Add && !(targetFeatures() & kFeaturePopcnt)) return nullptr;
+
+    return source;
+}
+
+/*
+ * One movemask below the mask's definition, for a mask more than one consumer reads.
+ *
+ * A **phi** takes the top of its own block, which is the same statement one line up: a phi is not in
+ * the instruction list and has no slot below it, but every value it defines is live from the head of
+ * its block, so position zero dominates exactly what the phi does. That is the shape a search whose
+ * mask comes from two arms has, and without it such a mask pays a movemask per consumer.
+ *
+ * An **argument** is declined, and that is a judgement rather than a limitation. The only position
+ * that dominates every use of one is the top of the entry block, which may be an arbitrary distance
+ * - a call, a loop - from the consumers that would read it, and a mask handed in as a parameter is
+ * not a shape this language's own vector code produces. It keeps a movemask per consumer, which is
+ * what every consumer had before any of this.
+ */
+static LowerValue* placeSharedMaskBits(LowerBase base, LowerFunction& fun, LowerValue* source) {
+    Size readers = 0;
+    for(auto use: source->uses.contents(base)) {
+        if(maskBitsSource(base, base[use]) == source) readers++;
+    }
+
+    if(readers < 2) return nullptr;
+
+    auto definition = source->inst();
+    auto block = base[definition->block];
+    auto list = block->instructions.contents(base);
+    Size at = 0;
+
+    if(!isPhi(definition)) {
+        while(at < list.size() && base[list[at]] != definition) at++;
+        if(at == list.size()) return nullptr; // an argument: see above
+
+        at++;
+    }
+
+    Expansion e { base, fun, block, at };
+    return emitMaskBits(e, source);
+}
+
+/*
+ * `none`, which arrives as `any` and a negation and leaves as one comparison.
+ *
+ * The library writes `none(m)` as `any(m)` exclusive-ored with one - the negation of a `Bool` is
+ * arithmetic, and above this tier there is nothing to negate but the value. What that costs once the
+ * reduction has become a comparison is the whole materialization the comparison was meant to avoid:
+ * `test ; setne ; xor $1 ; jne` where the answer wanted is `test ; je`.
+ *
+ * So the comparison is inverted instead, which is exact - it answers 0 or 1 by construction, and the
+ * negation of a bit is the other relation. Asked here rather than as a peephole over every `xor`,
+ * because here the comparison's uses are known to be the reduction's: it was created three lines ago
+ * with the uses the reduction had and nothing else, which is what makes rewriting it rather than
+ * copying it sound.
+ */
+static void foldNegatedTruth(LowerBase base, LowerValue* value) {
+    if(value->uses.size() != 1) return;
+
+    auto use = base[value->uses.get(base, 0)];
+    if(use->kind != LowerInst::Xor) return;
+
+    auto negation = (LowerInstBinary*)use;
+    auto lhs = base[negation->lhs];
+    auto other = lhs == value ? base[negation->rhs] : lhs;
+
+    /*
+     * The constant read as an instruction rather than through `isImm`, which asks a different
+     * question: that one means "already embedded into its reader", and the embedding happens in
+     * `selectMachineInstructions` several passes below this. Here every constant is still an
+     * instruction of its own, and the one this looks for is the `1` a negation is written as.
+     */
+    if(other == value || other->inst()->kind != LowerInst::Imm) return;
+    if(((LowerImm*)other->inst())->i != 1) return;
+
+    // The two the mask expansion produces, and the two a truth value can be compared with. Written
+    // out rather than negated generically because a signed relation has no business here at all.
+    auto cmp = (LowerInstCmp*)value->inst();
+    auto kind = cmp->getCmp();
+
+    if(kind == LowerCmp::neq) cmp->setCmp(LowerCmp::eq);
+    else if(kind == LowerCmp::eq) cmp->setCmp(LowerCmp::neq);
+    else return;
+
+    replaceAllUses(base, &negation->result, value);
+    removeInst(base, negation);
+}
+
 static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) {
+    // The mask sources whose movemask has been placed already, and what it was placed as. A function
+    // has a handful of these at most - one per mask a search or a tally reads - so the lookup is a
+    // walk rather than a map.
+    struct SharedBits { LowerValue* source; LowerValue* bits; };
+    SmallArray<SharedBits, 8> shared;
+
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -2214,21 +2457,60 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
             auto reduce = (LowerInstVecReduce*)inst;
             auto source = base[reduce->from];
 
-            Expansion e { base, fun, block, i };
-            auto scalar = expandReduce(e, reduce->getReduce(), source);
+            // The movemask is this backend's own instruction and is what every expansion below is
+            // written in terms of, so one standing here is finished rather than pending. It is here
+            // because the walk placed it: a mask defined in this block by an instruction above this
+            // one is where a shared movemask goes, and expanding it again would not terminate.
+            if(reduce->getReduce() == LowerReduce::Bits) { i++; continue; }
+
+            /*
+             * The shared movemask, which may be placed *into this block above this instruction* -
+             * so the position the expansion starts at is re-read afterwards rather than carried
+             * across the call.
+             */
+            LowerValue* bits = nullptr;
+
+            if(maskBitsSource(base, inst)) {
+                for(auto& entry: shared) {
+                    if(entry.source == source) { bits = entry.bits; break; }
+                }
+
+                if(!bits) {
+                    bits = placeSharedMaskBits(base, fun, source);
+                    if(bits) shared.push(SharedBits { source, bits });
+                }
+            }
+
+            auto list = block->instructions.contents(base);
+            Size at = i;
+            while(at < list.size() && base[list[at]] != inst) at++;
+            assertTrue(at < list.size()); // it was at `i`, or one below it if a movemask was placed
+
+            Expansion e { base, fun, block, at };
+            auto truth = false;
+            auto scalar = expandReduce(e, reduce->getReduce(), source, bits, truth);
 
             /*
              * A mask's `and` and `or` answer a `Bool`, and what the extract handed back is `-1` or
              * `0` - every bit of a set lane, which is what a mask lane holds. `& 1` is the narrowing
              * to a truth value, and it is exact rather than approximate precisely because the lane
              * has no other two values it could have held.
+             *
+             * `truth` is the expansion saying it has already answered one: the movemask route ends
+             * in a comparison, which is a 0 or a 1 by construction and is worth far more than the
+             * narrowing - a branch reads it out of the flags.
              */
-            if(source->type.isMask() && reduce->getReduce() != LowerReduce::Add) {
+            if(source->type.isMask() && !truth && reduce->getReduce() != LowerReduce::Add
+               && reduce->getReduce() != LowerReduce::FirstSet) {
                 scalar = e.binary(LowerInst::And, scalar->type, scalar, e.integer(scalar->type, 1));
             }
 
             replaceAllUses(base, &reduce->result, scalar);
             removeInst(base, reduce);
+
+            // And `none`, which is this comparison with a negation on top of it - asked after the
+            // uses have moved across, since what it reads is the comparison's users.
+            if(truth) foldNegatedTruth(base, scalar);
 
             // Past the whole expansion. Removing the reduction from the end of it closed the gap the
             // insertions opened, and nothing in what was produced is a reduction.
