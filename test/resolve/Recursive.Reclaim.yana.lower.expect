@@ -287,28 +287,22 @@ sum<complex>(%xs: Ptr): Int {
 buildAndDrop<complex>(): Int {
   b_0 {
     %xs = alloca 12, 8: Ptr
-    %v_1 = alloca 12, 8: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    store %v_3, 0, 8
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, 39, 4
+    %v_1 = call_complex allocateHeap, 12: Ptr
+    store %v_1, 0, 8
+    %v_2 = call_complex allocateHeap, 12: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 39, 4
+    %v_4 = add %xs, 8: Ptr
+    store %v_4, 1, 4
     %v_5 = call_complex allocateHeap, 12: Ptr
-    store %v_2, %v_5, 8
-    copy %v_5, %v_3, 12
-    %v_6 = add %v_1, 8: Ptr
+    store %xs, %v_5, 8
+    store %v_5, %v_2, 8
+    %v_6 = add %v_5, 8: Ptr
     store %v_6, 2, 4
-    %v_7 = call_complex allocateHeap, 12: Ptr
-    store %v_1, %v_7, 8
-    copy %v_7, %v_2, 12
-    %v_8 = add %xs, 8: Ptr
-    store %v_8, 1, 4
-    %v_9 = call_complex allocateHeap, 12: Ptr
-    store %xs, %v_9, 8
-    copy %v_9, %v_1, 12
-    %v_10 = call_complex sum, %xs: Int
+    %v_7 = call_complex sum, %xs: Int
     call_complex reclaim$List, %xs
-    ret %v_10
+    ret %v_7
   }
 }
 

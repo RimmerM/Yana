@@ -12,14 +12,10 @@ mut @released = [0, 0, 0, 0]
 
 main<complex>(): Int {
   b_0 {
-    %o = alloca 8, 4: Ptr
-    store %o, 1, 4
-    %v_1 = add %o, 4: Ptr
-    store %v_1, 36, 4
     call_complex +=(Int), @released, 1
-    %v_2 = loads @released, 4: Int
-    %v_3 = add %v_2, 142: Int
-    ret %v_3
+    %v_1 = loads @released, 4: Int
+    %v_2 = add %v_1, 142: Int
+    ret %v_2
   }
 }
 

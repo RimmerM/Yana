@@ -8,35 +8,21 @@ unitValue<complex>() {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.lambda$15, 8
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, %v_2, 8
+    %v_1 = bitcast 0: Ptr
     call_complex unitValue
-    %v_4 = add %v_1, 8: Ptr
-    %v_5 = load %v_1, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6: Int
-    %v_8 = alloca 16, 8: Ptr
-    store %v_8, ResolveTest.lambda$16, 8
-    %v_9 = bitcast 0: Ptr
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, %v_9, 8
+    %v_2 = call_complex ResolveTest.lambda$15, %v_1: Int
+    %v_3 = bitcast 0: Ptr
     call_complex unitValue
-    %v_11 = add %v_8, 8: Ptr
-    %v_12 = load %v_8, 8: Ptr
-    %v_13 = load %v_11, 8: Ptr
-    %v_14 = call_complex %v_12, %v_13: Int
-    %v_15 = alloca 1, 1: Ptr
-    %v_16 = alloca 1, 1: Ptr
+    %v_4 = call_complex ResolveTest.lambda$16, %v_3: Int
+    %v_5 = alloca 1, 1: Ptr
+    %v_6 = alloca 1, 1: Ptr
     %inner = alloca 1, 1: Ptr
-    %v_17 = alloca 1, 1: Ptr
-    %v_18 = alloca 1, 1: Ptr
-    %v_19 = add %v_7, 34: Int
-    %v_20 = add %v_19, %v_14: Int
-    %v_21 = add %v_20, 37: Int
-    ret %v_21
+    %v_7 = alloca 1, 1: Ptr
+    %v_8 = alloca 1, 1: Ptr
+    %v_9 = add %v_2, 34: Int
+    %v_10 = add %v_9, %v_4: Int
+    %v_11 = add %v_10, 37: Int
+    ret %v_11
   }
 }
 

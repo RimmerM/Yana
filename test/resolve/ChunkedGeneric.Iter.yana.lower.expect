@@ -140,37 +140,33 @@ sumItems<complex>(%xs: Ptr): Int {
 
 sumArray<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %self = alloca 16, 8: Ptr
-    store %self, %xs$items, 8
-    %v_1 = add %self, 8: Ptr
-    store %v_1, %xs$length, 8
     %n = cast %xs$length: Int
-    %v_2 = sext %n: Long
-    jmp b_3
+    %v_1 = sext %n: Long
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Long
-    %v_9 = cmp_ilt %v_7, %v_2: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    ret %v_4
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Long
+    %v_8 = cmp_ilt %v_6, %v_1: Int
+    je %v_8, b_9, b_10
   }
 
   b_10 {
-    jmp b_5
+    ret %v_3
   }
 
-  b_5 {
-    %v_12 = shl %v_7, 2: Long
-    %v_13 = add %xs$items, %v_12: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_6 = add %v_4, %v_14: Int
-    %v_8 = add %v_7, 1: Long
-    jmp b_3
+  b_9 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_11 = shl %v_6, 2: Long
+    %v_12 = add %xs$items, %v_11: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_5 = add %v_3, %v_13: Int
+    %v_7 = add %v_6, 1: Long
+    jmp b_2
   }
 }
 
@@ -187,40 +183,41 @@ main<complex>(): Int {
     store %v_5, 2, 4
     %v_6 = add %v_1, 12: Ptr
     store %v_6, 2, 4
-    %v_7 = alloca 16, 8: Ptr
+    %v_7 = alloca 4, 8: Ptr
     %v_8 = alloca 8, 4: Ptr
-    store %v_7, %v_8, 8
-    %v_9 = add %v_7, 8: Ptr
-    %v_10 = load %v_9, 4: Int
-    store %v_9, 2, 4
+    %v_9 = load %v_7, 4: Int
+    store %v_7, 2, 4
     store %v_8, 3, 4
-    %v_11 = add %v_8, 4: Ptr
-    store %v_11, 4, 4
-    %v_12 = add %v_7, 12: Ptr
-    store %v_12, 2, 4
-    %v_13 = add %v_1, 16: Ptr
-    copy %v_13, %v_7, 16
-    %v_14 = add %v_1, 32: Ptr
+    %v_10 = add %v_8, 4: Ptr
+    store %v_10, 4, 4
+    %v_11 = add %v_1, 16: Ptr
+    store %v_11, %v_8, 8
+    %v_12 = add %v_11, 8: Ptr
+    %v_13 = load %v_7, 4: Int
+    store %v_12, %v_13, 4
+    %v_14 = add %v_11, 12: Ptr
     store %v_14, 2, 4
-    %v_15 = call_complex sumItems, %v_1: Int
+    %v_15 = add %v_1, 32: Ptr
+    store %v_15, 2, 4
+    %v_16 = call_complex sumItems, %v_1: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_16 = add %v_1, 16: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_16
-    %v_17 = alloca 16, 8: Ptr
-    %v_18 = alloca 8, 4: Ptr
-    store %v_17, %v_18, 8
-    %v_19 = add %v_17, 8: Ptr
-    %v_20 = load %v_19, 4: Int
-    store %v_19, 2, 4
-    store %v_18, 10, 4
-    %v_21 = add %v_18, 4: Ptr
-    store %v_21, 20, 4
-    %v_22 = add %v_17, 12: Ptr
-    store %v_22, 2, 4
-    %v_23 = call_complex sumArray, %v_18, 2: Int
+    %v_17 = add %v_1, 16: Ptr
     call_complex Reclaim(Array(a)).reclaim(Int), %v_17
-    %v_24 = add %v_15, %v_23: Int
-    ret %v_24
+    %v_18 = alloca 16, 8: Ptr
+    %v_19 = alloca 8, 4: Ptr
+    store %v_18, %v_19, 8
+    %v_20 = add %v_18, 8: Ptr
+    %v_21 = load %v_20, 4: Int
+    store %v_20, 2, 4
+    store %v_19, 10, 4
+    %v_22 = add %v_19, 4: Ptr
+    store %v_22, 20, 4
+    %v_23 = add %v_18, 12: Ptr
+    store %v_23, 2, 4
+    %v_24 = call_complex sumArray, %v_19, 2: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_18
+    %v_25 = add %v_16, %v_24: Int
+    ret %v_25
   }
 }
 

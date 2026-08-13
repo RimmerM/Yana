@@ -331,94 +331,91 @@ main<complex>(): Int {
   b_108 {
     %v_110 = phi [b_100, %v_102], [b_107, %v_109]: Int
     %s = alloca 44, 8: Ptr
-    %v_111 = alloca 8, 4: Ptr
+    %v_111 = alloca 4, 8: Ptr
+    %v_112 = load %v_111, 4: Int
     store %v_111, 2, 4
-    %v_112 = add %v_111, 4: Ptr
-    store %v_112, 3, 4
-    %v_113 = alloca 16, 8: Ptr
-    store %v_113, @string$2, 8
-    %v_114 = add %v_113, 8: Ptr
-    %v_115 = load %v_114, 4: Int
+    %v_113 = alloca 12, 4: Ptr
+    store %v_113, 1, 4
+    %v_114 = add %v_113, 4: Ptr
     store %v_114, 2, 4
-    %v_116 = add %v_113, 12: Ptr
+    %v_115 = add %v_113, 8: Ptr
+    store %v_115, 5, 4
+    %v_116 = add %s, 28: Ptr
     store %v_116, 2, 4
-    %v_117 = alloca 12, 4: Ptr
-    store %v_117, 1, 4
-    %v_118 = add %v_117, 4: Ptr
-    store %v_118, 2, 4
-    %v_119 = add %v_117, 8: Ptr
-    store %v_119, 5, 4
-    %v_120 = alloca 8, 4: Ptr
-    store %v_120, 1, 4
-    %v_121 = add %v_120, 4: Ptr
-    store %v_121, 4, 4
-    %v_122 = add %s, 28: Ptr
-    copy %v_122, %v_111, 8
-    copy %s, %v_113, 16
-    %v_123 = add %s, 16: Ptr
-    copy %v_123, %v_117, 12
-    %v_124 = add %s, 36: Ptr
-    copy %v_124, %v_120, 8
-    %p$x = loads %v_122, 4: Int
-    %v_125 = add %s, 32: Ptr
-    %p$y = loads %v_125, 4: Int
-    %v_126 = add %p$x, %p$y: Int
-    %v_127 = bitcast %s: Ptr
-    %v_128 = add %v_127, 12: Ptr
-    %v_129 = load %v_128, 4: Int
-    %units = cast %v_129: Int
-    %v_130 = add %v_126, %units: Int
-    %v_131 = call_complex area, %v_117: Int
-    %v_132 = add %v_130, %v_131: Int
-    %v_133 = add %s, 36: Ptr
-    %v_134 = loads %v_133, 4: Int
-    %v_135 = cmp_eq %v_134, 1: Int
-    je %v_135, b_136, b_137
-  }
-
-  b_137 {
-    jmp b_138
+    %v_117 = add %v_116, 4: Ptr
+    store %v_117, 3, 4
+    store %s, @string$2, 8
+    %v_118 = add %s, 8: Ptr
+    %v_119 = load %v_111, 4: Int
+    store %v_118, %v_119, 4
+    %v_120 = add %s, 12: Ptr
+    store %v_120, 2, 4
+    %v_121 = add %s, 16: Ptr
+    copy %v_121, %v_113, 12
+    %v_122 = add %s, 36: Ptr
+    store %v_122, 1, 4
+    %v_123 = add %v_122, 4: Ptr
+    store %v_123, 4, 4
+    %p$x = loads %v_116, 4: Int
+    %v_124 = add %s, 32: Ptr
+    %p$y = loads %v_124, 4: Int
+    %v_125 = add %p$x, %p$y: Int
+    %v_126 = bitcast %s: Ptr
+    %v_127 = add %v_126, 12: Ptr
+    %v_128 = load %v_127, 4: Int
+    %units = cast %v_128: Int
+    %v_129 = add %v_125, %units: Int
+    %v_130 = call_complex area, %v_113: Int
+    %v_131 = add %v_129, %v_130: Int
+    %v_132 = add %s, 36: Ptr
+    %v_133 = loads %v_132, 4: Int
+    %v_134 = cmp_eq %v_133, 1: Int
+    je %v_134, b_135, b_136
   }
 
   b_136 {
-    %v_139 = add %s, 40: Ptr
-    %v = loads %v_139, 4: Int
-    jmp b_138
+    jmp b_137
   }
 
-  b_138 {
-    %v_140 = phi [b_136, %v], [b_137, 0]: Int
-    %v_141 = bitcast %s: Ptr
-    %v_142 = add %v_141, 8: Ptr
-    %v_143 = load %v_142, 4: Long
-    %v_144 = shr %v_143, 30: Long
+  b_135 {
+    %v_138 = add %s, 40: Ptr
+    %v = loads %v_138, 4: Int
+    jmp b_137
+  }
+
+  b_137 {
+    %v_139 = phi [b_135, %v], [b_136, 0]: Int
+    %v_140 = bitcast %s: Ptr
+    %v_141 = add %v_140, 8: Ptr
+    %v_142 = load %v_141, 4: Long
+    %v_143 = shr %v_142, 30: Long
+    %v_144 = cast %v_143: Int
     %v_145 = cast %v_144: Int
-    %v_146 = cast %v_145: Int
-    %v_147 = cmp_eq %v_146, 1: Int
-    je %v_147, b_148, b_149
+    %v_146 = cmp_eq %v_145, 1: Int
+    je %v_146, b_147, b_148
+  }
+
+  b_147 {
+    %v_149 = load %v_140, 8: Ptr
+    call_complex freeHeap, %v_149
+    jmp b_148
   }
 
   b_148 {
-    %v_150 = load %v_141, 8: Ptr
-    call_complex freeHeap, %v_150
-    jmp b_149
+    %defaults = add %v_131, %v_139: Int
+    %v_150 = cmp_eq %defaults, 21: Int
+    je %v_150, b_151, b_152
   }
 
-  b_149 {
-    %defaults = add %v_132, %v_140: Int
-    %v_151 = cmp_eq %defaults, 21: Int
-    je %v_151, b_152, b_153
+  b_151 {
+    %v_153 = add %v_110, 16384: Int
+    jmp b_152
   }
 
   b_152 {
-    %v_154 = add %v_110, 16384: Int
-    jmp b_153
-  }
-
-  b_153 {
-    %v_155 = phi [b_149, %v_110], [b_152, %v_154]: Int
-    %v_156 = add %v_155, 32768: Int
-    ret %v_156
+    %v_154 = phi [b_148, %v_110], [b_151, %v_153]: Int
+    %v_155 = add %v_154, 32768: Int
+    ret %v_155
   }
 }
 

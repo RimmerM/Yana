@@ -133,37 +133,28 @@ main<complex>(): Int {
     store %p, 10, 4
     %v_4 = add %p, 4: Ptr
     store %v_4, 0, 4
-    %v_5 = alloca 8, 4: Ptr
+    %v_5 = add %p, 8: Ptr
     store %v_5, 100, 4
     %v_6 = add %v_5, 4: Ptr
     store %v_6, 0, 4
-    %v_7 = add %p, 8: Ptr
-    copy %v_7, %v_5, 8
-    %v_8 = call_complex countOf, @genEnv$countOf(4), %xs: Int
-    %v_9 = call_complex firstOf, @genEnv$firstOf(4), %xs: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = call_complex sumOf, @genEnv$sumOf(4), %xs: Int
-    %v_12 = add %v_10, %v_11: Int
-    %v_13 = alloca 12, 4: Ptr
-    store %v_13, 4, 4
-    %v_14 = add %v_13, 4: Ptr
-    store %v_14, 5, 4
-    %v_15 = add %v_13, 8: Ptr
-    store %v_15, 6, 4
-    %v_16 = loads %v_13, 4: Int
-    %v_17 = add %v_12, %v_16: Int
-    %v_18 = call_complex both, %p: Int
+    %v_7 = call_complex countOf, @genEnv$countOf(4), %xs: Int
+    %v_8 = call_complex firstOf, @genEnv$firstOf(4), %xs: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex sumOf, @genEnv$sumOf(4), %xs: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = add %v_11, 4: Int
+    %v_13 = call_complex both, %p: Int
+    %v_14 = add %v_12, %v_13: Int
+    %v_15 = add %v_14, 100: Int
+    %v_16 = loads %xs, 4: Int
+    %v_17 = add %v_15, %v_16: Int
+    %v_18 = call_complex aliased, @genEnv$aliased(4), %xs: Int
     %v_19 = add %v_17, %v_18: Int
-    %v_20 = add %v_19, 100: Int
-    %v_21 = loads %xs, 4: Int
-    %v_22 = add %v_20, %v_21: Int
-    %v_23 = call_complex aliased, @genEnv$aliased(4), %xs: Int
-    %v_24 = add %v_22, %v_23: Int
-    %v_25 = call_complex firstThrough, @genEnv$firstThrough(2), %p: Int
-    %v_26 = add %v_24, %v_25: Int
-    %v_27 = call_complex firstThrough, @genEnv$firstThrough(4), %xs: Int
-    %v_28 = add %v_26, %v_27: Int
-    ret %v_28
+    %v_20 = call_complex firstThrough, @genEnv$firstThrough(2), %p: Int
+    %v_21 = add %v_19, %v_20: Int
+    %v_22 = call_complex firstThrough, @genEnv$firstThrough(4), %xs: Int
+    %v_23 = add %v_21, %v_22: Int
+    ret %v_23
   }
 }
 

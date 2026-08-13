@@ -324,30 +324,31 @@ maybeArr<complex>(%v_0: Ptr, %n: Int) {
   b_3 {
     %v_5 = shl %n, 1: Int
     %v_6 = imul %n, 3: Int
-    %v_7 = alloca 16, 8: Ptr
+    %v_7 = alloca 4, 8: Ptr
     %v_8 = call_complex allocateHeap, 12: Ptr
-    store %v_7, %v_8, 8
-    %v_9 = add %v_7, 8: Ptr
-    %v_10 = load %v_9, 4: Int
-    store %v_9, 1073741827, 4
+    %v_9 = load %v_7, 4: Int
+    store %v_7, 1073741827, 4
     store %v_8, %n, 4
-    %v_11 = add %v_8, 4: Ptr
-    store %v_11, %v_5, 4
-    %v_12 = add %v_8, 8: Ptr
-    store %v_12, %v_6, 4
-    %v_13 = add %v_7, 12: Ptr
-    store %v_13, 3, 4
-    copy %v_0, %v_7, 16
+    %v_10 = add %v_8, 4: Ptr
+    store %v_10, %v_5, 4
+    %v_11 = add %v_8, 8: Ptr
+    store %v_11, %v_6, 4
+    store %v_0, %v_8, 8
+    %v_12 = add %v_0, 8: Ptr
+    %v_13 = load %v_7, 4: Int
+    store %v_12, %v_13, 4
+    %v_14 = add %v_0, 12: Ptr
+    store %v_14, 3, 4
     ret 
   }
 
   b_4 {
-    jmp b_14
+    jmp b_15
   }
 
-  b_14 {
-    %v_15 = add %v_0, 12: Ptr
-    store %v_15, 1073741824, 4
+  b_15 {
+    %v_16 = add %v_0, 12: Ptr
+    store %v_16, 1073741824, 4
     ret 
   }
 }

@@ -17,81 +17,71 @@ flags<complex>(): Int {
     %v_2 = alloca 1, 1: Ptr
     store %v_2, 0, 1
     copy %v_2, %r, 1
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$14, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, %v_2, 8
-    %v_5 = load %v_3, 8: Ptr
-    %v_6 = alloca 1, 1: Ptr
-    call_complex %v_5, %v_6, %v_2
-    %v_7 = alloca 1, 1: Ptr
-    store %v_7, 0, 1
-    %v_8 = load %v_6, 1: Int
+    %v_3 = alloca 1, 1: Ptr
+    call_complex ResolveTest.deferred$14, %v_3, %v_2
+    %v_4 = alloca 1, 1: Ptr
+    store %v_4, 0, 1
+    %v_5 = load %v_3, 1: Int
+    %v_6 = and %v_5, 1: Int
+    %v_7 = cast %v_6: Int
+    %v_8 = shr %v_5, 1: Int
     %v_9 = and %v_8, 1: Int
     %v_10 = cast %v_9: Int
-    %v_11 = shr %v_8, 1: Int
-    %v_12 = and %v_11, 1: Int
-    %v_13 = cast %v_12: Int
-    %v_14 = cast %v_10: Int
-    %v_15 = cast %v_13: Int
-    %v_16 = shl %v_15, 1: Int
-    %v_17 = or %v_14, %v_16: Int
-    store %v_7, %v_17, 1
-    %v_18 = call_complex Eq(Flags).==, %v_7, %r: Int
-    je %v_18, b_19, b_20
+    %v_11 = cast %v_7: Int
+    %v_12 = cast %v_10: Int
+    %v_13 = shl %v_12, 1: Int
+    %v_14 = or %v_11, %v_13: Int
+    store %v_4, %v_14, 1
+    %v_15 = call_complex Eq(Flags).==, %v_4, %r: Int
+    je %v_15, b_16, b_17
   }
 
-  b_19 {
-    jmp b_20
+  b_16 {
+    jmp b_17
   }
 
-  b_20 {
-    %v_21 = phi [b_0, 0], [b_19, 256]: Int
-    %v_22 = alloca 1, 1: Ptr
-    store %v_22, 0, 1
-    copy %v_22, %rw, 1
-    %v_23 = alloca 16, 8: Ptr
-    store %v_23, ResolveTest.deferred$15, 8
-    %v_24 = add %v_23, 8: Ptr
-    store %v_24, %v_22, 8
-    %v_25 = load %v_23, 8: Ptr
-    %v_26 = alloca 1, 1: Ptr
-    call_complex %v_25, %v_26, %v_22
-    %v_27 = alloca 1, 1: Ptr
-    store %v_27, 0, 1
-    %v_28 = load %v_26, 1: Int
-    %v_29 = shr %v_28, 1: Int
-    %v_30 = and %v_29, 1: Int
-    %v_31 = cast %v_30: Int
-    %v_32 = cast %v_31: Int
-    %v_33 = shl %v_32, 1: Int
-    %v_34 = or %v_33, 1: Int
-    store %v_27, %v_34, 1
-    %v_35 = call_complex Eq(Flags).==, %v_27, %rw: Int
+  b_17 {
+    %v_18 = phi [b_0, 0], [b_16, 256]: Int
+    %v_19 = alloca 1, 1: Ptr
+    store %v_19, 0, 1
+    copy %v_19, %rw, 1
+    %v_20 = alloca 1, 1: Ptr
+    call_complex ResolveTest.deferred$15, %v_20, %v_19
+    %v_21 = alloca 1, 1: Ptr
+    store %v_21, 0, 1
+    %v_22 = load %v_20, 1: Int
+    %v_23 = shr %v_22, 1: Int
+    %v_24 = and %v_23, 1: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = shl %v_26, 1: Int
+    %v_28 = or %v_27, 1: Int
+    store %v_21, %v_28, 1
+    %v_29 = call_complex Eq(Flags).==, %v_21, %rw: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_30 {
+    %v_32 = add %v_18, 512: Int
+    jmp b_31
+  }
+
+  b_31 {
+    %v_33 = phi [b_17, %v_18], [b_30, %v_32]: Int
+    %v_34 = alloca 1, 1: Ptr
+    store %v_34, 2, 1
+    %v_35 = call_complex Eq(Flags).==, %v_1, %v_34: Int
     je %v_35, b_36, b_37
   }
 
   b_36 {
-    %v_38 = add %v_21, 512: Int
+    %v_38 = add %v_33, 1024: Int
     jmp b_37
   }
 
   b_37 {
-    %v_39 = phi [b_20, %v_21], [b_36, %v_38]: Int
-    %v_40 = alloca 1, 1: Ptr
-    store %v_40, 2, 1
-    %v_41 = call_complex Eq(Flags).==, %v_1, %v_40: Int
-    je %v_41, b_42, b_43
-  }
-
-  b_42 {
-    %v_44 = add %v_39, 1024: Int
-    jmp b_43
-  }
-
-  b_43 {
-    %v_45 = phi [b_37, %v_39], [b_42, %v_44]: Int
-    ret %v_45
+    %v_39 = phi [b_31, %v_33], [b_36, %v_38]: Int
+    ret %v_39
   }
 }
 

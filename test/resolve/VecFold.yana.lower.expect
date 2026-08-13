@@ -60,24 +60,20 @@ main$<complex>(): Int {
     store @a, %v_1, 16
     %v_2 = vsplat 31: i32x4
     store @b, %v_2, 16
-    %xs = alloca 16, 8: Ptr
-    %v_3 = alloca 32, 16: Ptr
-    store %xs, %v_3, 8
-    %v_4 = add %xs, 8: Ptr
-    %v_5 = load %v_4, 4: Int
-    store %v_4, 2, 4
-    store %v_3, %v_1, 16
-    %v_6 = add %v_3, 16: Ptr
+    %v_3 = alloca 4, 8: Ptr
+    %v_4 = alloca 32, 16: Ptr
+    %v_5 = load %v_3, 4: Int
+    store %v_3, 2, 4
+    store %v_4, %v_1, 16
+    %v_6 = add %v_4, 16: Ptr
     store %v_6, %v_2, 16
-    %v_7 = add %xs, 12: Ptr
-    store %v_7, 2, 4
-    %s = call_complex sum, %v_3, 2: i32x4
-    %m = call_complex masked, %v_3, 2: i32x4
-    %v_8 = vlane %s, 0: Int
-    %v_9 = imul %v_8, 100: Int
-    %v_10 = vlane %m, 1: Int
-    %v_11 = add %v_9, %v_10: Int
-    ret %v_11
+    %s = call_complex sum, %v_4, 2: i32x4
+    %m = call_complex masked, %v_4, 2: i32x4
+    %v_7 = vlane %s, 0: Int
+    %v_8 = imul %v_7, 100: Int
+    %v_9 = vlane %m, 1: Int
+    %v_10 = add %v_8, %v_9: Int
+    ret %v_10
   }
 }
 

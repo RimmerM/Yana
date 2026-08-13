@@ -30,47 +30,45 @@ main<complex>(): Int {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = add %v_1, 16: Ptr
     store %v_4, funvalue$triple, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, %v_2, 8
-    %v_6 = add %v_1, 16: Ptr
-    copy %v_6, %v_4, 16
-    %v_7 = load %v_1, 8: Ptr
-    %v_8 = load %v_3, 8: Ptr
-    %v_9 = call_complex %v_7, %v_8, 10: Int
-    %v_10 = add %v_1, 16: Ptr
-    %v_11 = add %v_10, 8: Ptr
+    %v_6 = load %v_1, 8: Ptr
+    %v_7 = load %v_3, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7, 10: Int
+    %v_9 = add %v_1, 16: Ptr
+    %v_10 = add %v_9, 8: Ptr
+    %v_11 = load %v_9, 8: Ptr
     %v_12 = load %v_10, 8: Ptr
-    %v_13 = load %v_11, 8: Ptr
-    %v_14 = call_complex %v_12, %v_13, 10: Int
-    %before = add %v_9, %v_14: Int
+    %v_13 = call_complex %v_11, %v_12, 10: Int
+    %before = add %v_8, %v_13: Int
     call_complex retarget, %v_1
-    %v_15 = add %v_1, 8: Ptr
-    %v_16 = load %v_1, 8: Ptr
-    %v_17 = load %v_15, 8: Ptr
-    %v_18 = call_complex %v_16, %v_17, 10: Int
-    %v_19 = add %v_1, 16: Ptr
-    %v_20 = add %v_19, 8: Ptr
+    %v_14 = add %v_1, 8: Ptr
+    %v_15 = load %v_1, 8: Ptr
+    %v_16 = load %v_14, 8: Ptr
+    %v_17 = call_complex %v_15, %v_16, 10: Int
+    %v_18 = add %v_1, 16: Ptr
+    %v_19 = add %v_18, 8: Ptr
+    %v_20 = load %v_18, 8: Ptr
     %v_21 = load %v_19, 8: Ptr
-    %v_22 = load %v_20, 8: Ptr
-    %v_23 = call_complex %v_21, %v_22, 10: Int
-    %one = add %v_18, %v_23: Int
-    %v_24 = add %v_1, 16: Ptr
-    call_complex retargetBoth, %v_1, %v_24
-    %v_25 = add %v_1, 8: Ptr
-    %v_26 = load %v_1, 8: Ptr
-    %v_27 = load %v_25, 8: Ptr
-    %v_28 = call_complex %v_26, %v_27, 10: Int
-    %v_29 = add %v_1, 16: Ptr
-    %v_30 = add %v_29, 8: Ptr
+    %v_22 = call_complex %v_20, %v_21, 10: Int
+    %one = add %v_17, %v_22: Int
+    %v_23 = add %v_1, 16: Ptr
+    call_complex retargetBoth, %v_1, %v_23
+    %v_24 = add %v_1, 8: Ptr
+    %v_25 = load %v_1, 8: Ptr
+    %v_26 = load %v_24, 8: Ptr
+    %v_27 = call_complex %v_25, %v_26, 10: Int
+    %v_28 = add %v_1, 16: Ptr
+    %v_29 = add %v_28, 8: Ptr
+    %v_30 = load %v_28, 8: Ptr
     %v_31 = load %v_29, 8: Ptr
-    %v_32 = load %v_30, 8: Ptr
-    %v_33 = call_complex %v_31, %v_32, 10: Int
-    %both = add %v_28, %v_33: Int
-    %v_34 = add %before, %one: Int
-    %v_35 = add %v_34, %both: Int
-    ret %v_35
+    %v_32 = call_complex %v_30, %v_31, 10: Int
+    %both = add %v_27, %v_32: Int
+    %v_33 = add %before, %one: Int
+    %v_34 = add %v_33, %both: Int
+    ret %v_34
   }
 }
 

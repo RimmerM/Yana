@@ -281,80 +281,72 @@ paired<complex>(%v_0: Ptr, %a: Int, %b: Int) {
   }
 
   b_5 {
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 0, 4
-    copy %v_2, %v_6, 8
-    jmp b_7
+    store %v_2, 0, 4
+    jmp b_6
   }
 
   b_4 {
+    store %v_2, 1, 4
+    %v_7 = add %v_2, 4: Ptr
+    store %v_7, %a, 4
+    jmp b_6
+  }
+
+  b_6 {
     %v_8 = alloca 8, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, %a, 4
-    copy %v_2, %v_8, 8
-    jmp b_7
+    call_complex Try(Maybe(a), a, ()).toOutcome(Token), %v_8, %v_2
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
   }
 
-  b_7 {
-    %v_10 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Token), %v_10, %v_2
-    %v_11 = loads %v_10, 4: Int
-    %v_12 = cmp_eq %v_11, 1: Int
-    je %v_12, b_13, b_14
+  b_12 {
+    %v_13 = alloca 8, 4: Ptr
+    %v_14 = cmp_igt %b, 0: Int
+    je %v_14, b_15, b_16
   }
 
-  b_14 {
-    %v_15 = alloca 8, 4: Ptr
-    %v_16 = cmp_igt %b, 0: Int
-    je %v_16, b_17, b_18
+  b_16 {
+    store %v_13, 0, 4
+    jmp b_17
   }
 
-  b_18 {
-    %v_19 = alloca 8, 4: Ptr
-    store %v_19, 0, 4
-    copy %v_15, %v_19, 8
-    jmp b_20
+  b_15 {
+    store %v_13, 1, 4
+    %v_18 = add %v_13, 4: Ptr
+    store %v_18, %b, 4
+    jmp b_17
   }
 
   b_17 {
-    %v_21 = alloca 8, 4: Ptr
-    store %v_21, 1, 4
-    %v_22 = add %v_21, 4: Ptr
-    store %v_22, %b, 4
-    copy %v_15, %v_21, 8
-    jmp b_20
+    %v_19 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Token), %v_19, %v_13
+    %v_20 = loads %v_19, 4: Int
+    %v_21 = cmp_eq %v_20, 1: Int
+    je %v_21, b_22, b_23
   }
 
-  b_20 {
-    %v_23 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Token), %v_23, %v_15
-    %v_24 = loads %v_23, 4: Int
-    %v_25 = cmp_eq %v_24, 1: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    %v_28 = add %v_10, 4: Ptr
-    %v_29 = add %v_23, 4: Ptr
-    %v_30 = call_complex combine, %v_28, %v_29: Int
+  b_23 {
+    %v_24 = add %v_8, 4: Ptr
+    %v_25 = add %v_19, 4: Ptr
+    %v_26 = call_complex combine, %v_24, %v_25: Int
     store %v_0, 1, 4
-    %v_31 = add %v_0, 4: Ptr
-    store %v_31, %v_30, 4
+    %v_27 = add %v_0, 4: Ptr
+    store %v_27, %v_26, 4
     ret 
   }
 
-  b_26 {
-    call_complex drop$Outcome(Token, ()), %v_10
-    call_complex drop$Outcome(Token, ()), %v_23
-    %v_32 = alloca 1, 1: Ptr
+  b_22 {
+    call_complex drop$Outcome(Token, ()), %v_8
+    call_complex drop$Outcome(Token, ()), %v_19
+    %v_28 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
 
-  b_13 {
-    call_complex drop$Outcome(Token, ()), %v_10
-    %v_33 = alloca 1, 1: Ptr
+  b_11 {
+    call_complex drop$Outcome(Token, ()), %v_8
+    %v_29 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
@@ -362,72 +354,60 @@ paired<complex>(%v_0: Ptr, %a: Int, %b: Int) {
 
 reasoned<complex>(%v_0: Ptr, %n: Int) {
   b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = loads @log, 4: Int
-    %v_4 = add %v_3, 10: Int
-    store @log, %v_4, 4
-    %v_5 = cmp_igt %n, 9: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = cmp_ilt %n, 0: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 1, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, %n, 4
-    copy %v_2, %v_11, 8
-    jmp b_13
-  }
-
-  b_9 {
-    %v_14 = alloca 8, 4: Ptr
-    store %v_14, 0, 4
-    %v_15 = add %v_14, 4: Ptr
-    store %v_15, 2, 4
-    copy %v_2, %v_14, 8
-    jmp b_13
+    %v_2 = loads @log, 4: Int
+    %v_3 = add %v_2, 10: Int
+    store @log, %v_3, 4
+    %v_4 = cmp_igt %n, 9: Int
+    je %v_4, b_5, b_6
   }
 
   b_6 {
-    %v_16 = alloca 8, 4: Ptr
-    store %v_16, 0, 4
-    %v_17 = add %v_16, 4: Ptr
-    store %v_17, 1, 4
-    copy %v_2, %v_16, 8
-    jmp b_13
+    %v_7 = cmp_ilt %n, 0: Int
+    je %v_7, b_8, b_9
   }
 
-  b_13 {
-    %v_18 = alloca 8, 4: Ptr
-    copy %v_18, %v_2, 8
-    %v_19 = alloca 8, 4: Ptr
-    call_complex Try(Result(e, a), a, e).toOutcome(Int, Int), %v_19, %v_18
-    %v_20 = loads %v_19, 4: Int
-    %v_21 = cmp_eq %v_20, 1: Int
-    je %v_21, b_22, b_23
+  b_9 {
+    jmp b_10
   }
 
-  b_23 {
-    %v_24 = add %v_19, 4: Ptr
-    %v = loads %v_24, 4: Int
-    %v_25 = add %v, 100: Int
+  b_8 {
+    jmp b_10
+  }
+
+  b_5 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_9, 1], [b_8, 0], [b_5, 0]: Int
+    %v_12 = phi [b_9, %n], [b_8, 2], [b_5, 1]: Int
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, %v_11, 4
+    %v_14 = add %v_13, 4: Ptr
+    store %v_14, %v_12, 4
+    %v_15 = alloca 8, 4: Ptr
+    call_complex Try(Result(e, a), a, e).toOutcome(Int, Int), %v_15, %v_13
+    %v_16 = loads %v_15, 4: Int
+    %v_17 = cmp_eq %v_16, 1: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    %v_20 = add %v_15, 4: Ptr
+    %v = loads %v_20, 4: Int
+    %v_21 = add %v, 100: Int
     store %v_0, 1, 4
-    %v_26 = add %v_0, 4: Ptr
-    store %v_26, %v_25, 4
+    %v_22 = add %v_0, 4: Ptr
+    store %v_22, %v_21, 4
     ret 
   }
 
-  b_22 {
-    %v_27 = add %v_19, 4: Ptr
-    %v_28 = loads %v_27, 4: Int
+  b_18 {
+    %v_23 = add %v_15, 4: Ptr
+    %v_24 = loads %v_23, 4: Int
     store %v_0, 0, 4
-    %v_29 = add %v_0, 4: Ptr
-    store %v_29, %v_28, 4
+    %v_25 = add %v_0, 4: Ptr
+    store %v_25, %v_24, 4
     ret 
   }
 }
@@ -508,61 +488,49 @@ throughLens<complex>(%v_0: Ptr, %n: Int) {
 
 viaSkipping<complex>(%n: Int): Int {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.continuation$15, 8
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, %v_2, 8
-    %v_4 = alloca 8, 4: Ptr
-    %v_5 = alloca 8, 4: Ptr
-    call_complex parse, %v_5, %n
-    %v_6 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_6, %v_5
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
+    %v_1 = bitcast 0: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    call_complex parse, %v_2, %n
+    %v_3 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = add %v_3, 4: Ptr
+    %v = loads %v_8, 4: Int
+    %v_9 = call_complex ResolveTest.continuation$15, %v_1, %v: Int
+    jmp b_10
+  }
+
+  b_6 {
+    %v_11 = alloca 1, 1: Ptr
+    jmp b_10
   }
 
   b_10 {
-    %v_11 = add %v_6, 4: Ptr
-    %v = loads %v_11, 4: Int
-    %v_12 = alloca 8, 4: Ptr
-    %v_13 = add %v_1, 8: Ptr
-    %v_14 = load %v_1, 8: Ptr
-    %v_15 = load %v_13, 8: Ptr
-    %v_16 = call_complex %v_14, %v_15, %v: Int
-    store %v_12, 1, 4
-    %v_17 = add %v_12, 4: Ptr
-    store %v_17, %v_16, 4
-    copy %v_4, %v_12, 8
-    jmp b_18
+    %v_12 = phi [b_7, 1], [b_6, 0]: Int
+    %v_13 = phi [b_7, %v_9], [b_6, 0]: Int
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, %v_12, 4
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, %v_13, 4
+    %v_16 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_16, %v_14
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_20
   }
 
-  b_9 {
-    %v_19 = alloca 1, 1: Ptr
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 0, 4
-    copy %v_4, %v_20, 8
-    jmp b_18
+  b_20 {
+    %v_21 = add %v_16, 4: Ptr
+    %v_22 = loads %v_21, 4: Int
+    ret %v_22
   }
 
-  b_18 {
-    %v_21 = alloca 8, 4: Ptr
-    copy %v_21, %v_4, 8
-    %v_22 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_22, %v_21
-    %v_23 = loads %v_22, 4: Int
-    %v_24 = cmp_eq %v_23, 1: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    %v_27 = add %v_22, 4: Ptr
-    %v_28 = loads %v_27, 4: Int
-    ret %v_28
-  }
-
-  b_25 {
+  b_19 {
     ret 0
   }
 }
@@ -583,158 +551,148 @@ main<complex>(): Int {
     %f = alloca 8, 4: Ptr
     call_complex valuePosition, %f, 1, 18446744073709551614
     %g = alloca 8, 4: Ptr
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = loads @log, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @log, %v_3, 4
-    %v_4 = alloca 8, 4: Ptr
-    store %v_4, 1, 4
-    %v_5 = add %v_4, 4: Ptr
-    store %v_5, 4, 4
-    %v_6 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_6, %v_4
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    %v_11 = add %v_6, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = loads @log, 4: Int
-    %v_14 = add %v_13, 1: Int
-    store @log, %v_14, 4
-    %v_15 = alloca 8, 4: Ptr
-    store %v_15, 1, 4
-    %v_16 = add %v_15, 4: Ptr
-    store %v_16, 6, 4
-    %v_17 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_17, %v_15
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = add %v_17, 4: Ptr
-    %v_23 = loads %v_22, 4: Int
-    %v_24 = add %v_12, %v_23: Int
-    store %v_1, 1, 4
-    %v_25 = add %v_1, 4: Ptr
-    store %v_25, %v_24, 4
-    copy %g, %v_1, 8
-    jmp b_26
-  }
-
-  b_20 {
-    %v_27 = alloca 1, 1: Ptr
-    %v_28 = alloca 8, 4: Ptr
-    store %v_28, 0, 4
-    copy %g, %v_28, 8
-    jmp b_26
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 1, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 4, 4
+    %v_5 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_5, %v_3
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = cmp_eq %v_6, 1: Int
+    je %v_7, b_8, b_9
   }
 
   b_9 {
-    %v_29 = alloca 1, 1: Ptr
-    %v_30 = alloca 8, 4: Ptr
-    store %v_30, 0, 4
-    copy %g, %v_30, 8
-    jmp b_26
+    %v_10 = add %v_5, 4: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_12 = loads @log, 4: Int
+    %v_13 = add %v_12, 1: Int
+    store @log, %v_13, 4
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, 1, 4
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, 6, 4
+    %v_16 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_16, %v_14
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_20
   }
 
-  b_26 {
+  b_20 {
+    %v_21 = add %v_16, 4: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = add %v_11, %v_22: Int
+    store %g, 1, 4
+    %v_24 = add %g, 4: Ptr
+    store %v_24, %v_23, 4
+    jmp b_25
+  }
+
+  b_19 {
+    %v_26 = alloca 1, 1: Ptr
+    store %g, 0, 4
+    jmp b_25
+  }
+
+  b_8 {
+    %v_27 = alloca 1, 1: Ptr
+    store %g, 0, 4
+    jmp b_25
+  }
+
+  b_25 {
     %h = alloca 8, 4: Ptr
     call_complex reasoned, %h, 4
     %i = alloca 8, 4: Ptr
     call_complex reasoned, %i, 20
-    %j = alloca 8, 4: Ptr
-    %v_31 = loads @log, 4: Int
-    %v_32 = add %v_31, 10: Int
-    store @log, %v_32, 4
+    %v_28 = alloca 3, 4: Ptr
+    %v_29 = loads @log, 4: Int
+    %v_30 = add %v_29, 10: Int
+    store @log, %v_30, 4
+    %v_31 = alloca 8, 4: Ptr
+    store %v_31, 0, 4
+    %v_32 = add %v_31, 4: Ptr
+    store %v_32, 2, 4
     %v_33 = alloca 8, 4: Ptr
-    store %v_33, 0, 4
-    %v_34 = add %v_33, 4: Ptr
-    store %v_34, 2, 4
-    %v_35 = alloca 8, 4: Ptr
-    call_complex Try(Result(e, a), a, e).toOutcome(Int, Int), %v_35, %v_33
-    %v_36 = loads %v_35, 4: Int
-    %v_37 = cmp_eq %v_36, 1: Int
-    je %v_37, b_38, b_39
+    call_complex Try(Result(e, a), a, e).toOutcome(Int, Int), %v_33, %v_31
+    %v_34 = loads %v_33, 4: Int
+    %v_35 = cmp_eq %v_34, 1: Int
+    je %v_35, b_36, b_37
   }
 
-  b_39 {
-    %v_40 = add %v_35, 4: Ptr
-    %v = loads %v_40, 4: Int
-    %v_41 = alloca 8, 4: Ptr
-    %v_42 = cmp_igt %v, 5: Int
-    store %v_41, 1, 4
-    %v_43 = add %v_41, 4: Ptr
-    store %v_43, %v_42, 1
-    copy %j, %v_41, 8
-    jmp b_44
+  b_37 {
+    %v_38 = add %v_33, 4: Ptr
+    %v = loads %v_38, 4: Int
+    %v_39 = alloca 3, 4: Ptr
+    %v_40 = cmp_igt %v, 5: Int
+    copy %v_28, %v_39, 3
+    jmp b_41
   }
 
-  b_38 {
-    %v_45 = add %v_35, 4: Ptr
-    %v_46 = loads %v_45, 4: Int
-    %v_47 = alloca 8, 4: Ptr
-    store %v_47, 0, 4
-    %v_48 = add %v_47, 4: Ptr
-    store %v_48, %v_46, 4
-    copy %j, %v_47, 8
-    jmp b_44
+  b_36 {
+    %v_42 = add %v_33, 4: Ptr
+    %v_43 = loads %v_42, 4: Int
+    %v_44 = alloca 8, 4: Ptr
+    store %v_44, 0, 4
+    %v_45 = add %v_44, 4: Ptr
+    store %v_45, %v_43, 4
+    %v_46 = load %v_44, 4: Int
+    %v_47 = load %v_45, 1: Int
+    %v_48 = add %v_44, 5: Ptr
+    copy %v_28, %v_48, 3
+    jmp b_41
   }
 
-  b_44 {
+  b_41 {
+    %v_49 = phi [b_37, 1], [b_36, %v_46]: Int
+    %v_50 = phi [b_37, %v_40], [b_36, %v_47]: Int
     %k = alloca 8, 4: Ptr
-    %v_49 = loads @log, 4: Int
-    %v_50 = add %v_49, 1: Int
-    store @log, %v_50, 4
-    %v_51 = alloca 8, 4: Ptr
-    store %v_51, 1, 4
-    %v_52 = add %v_51, 4: Ptr
-    store %v_52, 12, 4
+    %v_51 = loads @log, 4: Int
+    %v_52 = add %v_51, 1: Int
+    store @log, %v_52, 4
     %v_53 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_53, %v_51
-    %v_54 = loads %v_53, 4: Int
-    %v_55 = cmp_eq %v_54, 1: Int
-    je %v_55, b_56, b_57
+    store %v_53, 1, 4
+    %v_54 = add %v_53, 4: Ptr
+    store %v_54, 12, 4
+    %v_55 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Int), %v_55, %v_53
+    %v_56 = loads %v_55, 4: Int
+    %v_57 = cmp_eq %v_56, 1: Int
+    je %v_57, b_58, b_59
   }
 
-  b_57 {
-    %v_58 = add %v_53, 4: Ptr
-    %v_59 = loads %v_58, 4: Int
-    %v_60 = cmp_igt %v_59, 10: Int
-    je %v_60, b_61, b_62
+  b_59 {
+    %v_60 = add %v_55, 4: Ptr
+    %v_61 = loads %v_60, 4: Int
+    %v_62 = cmp_igt %v_61, 10: Int
+    je %v_62, b_63, b_64
   }
 
-  b_62 {
-    %v_63 = alloca 8, 4: Ptr
-    store %v_63, 1, 4
-    %v_64 = add %v_63, 4: Ptr
-    store %v_64, 0, 4
-    copy %k, %v_63, 8
-    jmp b_65
+  b_64 {
+    store %k, 1, 4
+    %v_65 = add %k, 4: Ptr
+    store %v_65, 0, 4
+    jmp b_66
   }
 
-  b_61 {
-    %v_66 = alloca 8, 4: Ptr
-    store %v_66, 1, 4
-    %v_67 = add %v_66, 4: Ptr
+  b_63 {
+    store %k, 1, 4
+    %v_67 = add %k, 4: Ptr
     store %v_67, 1, 4
-    copy %k, %v_66, 8
-    jmp b_65
+    jmp b_66
   }
 
-  b_56 {
+  b_58 {
     %v_68 = alloca 1, 1: Ptr
-    %v_69 = alloca 8, 4: Ptr
-    store %v_69, 0, 4
-    copy %k, %v_69, 8
-    jmp b_65
+    store %k, 0, 4
+    jmp b_66
   }
 
-  b_65 {
+  b_66 {
     %l = alloca 8, 4: Ptr
     call_complex looped, %l, 4
     %m = alloca 8, 4: Ptr
@@ -755,83 +713,82 @@ main<complex>(): Int {
     %s = alloca 8, 4: Ptr
     call_complex paired, %s, 18446744073709551615, 4
     %afterEarly = loads @dropped, 4: Int
-    %v_70 = call_complex unwrap, %a: Int
-    %v_71 = call_complex unwrap, %c: Int
-    %v_72 = add %v_70, %v_71: Int
-    %v_73 = call_complex unwrap, %e: Int
-    %v_74 = add %v_72, %v_73: Int
-    %v_75 = call_complex unwrap, %g: Int
-    %v_76 = add %v_74, %v_75: Int
-    %v_77 = loads %h, 4: Int
-    %v_78 = cmp_eq %v_77, 1: Int
-    je %v_78, b_79, b_80
-  }
-
-  b_80 {
-    jmp b_81
+    %v_69 = call_complex unwrap, %a: Int
+    %v_70 = call_complex unwrap, %c: Int
+    %v_71 = add %v_69, %v_70: Int
+    %v_72 = call_complex unwrap, %e: Int
+    %v_73 = add %v_71, %v_72: Int
+    %v_74 = call_complex unwrap, %g: Int
+    %v_75 = add %v_73, %v_74: Int
+    %v_76 = loads %h, 4: Int
+    %v_77 = cmp_eq %v_76, 1: Int
+    je %v_77, b_78, b_79
   }
 
   b_79 {
-    %v_82 = add %h, 4: Ptr
-    %v = loads %v_82, 4: Int
-    jmp b_81
+    jmp b_80
   }
 
-  b_81 {
-    %v_83 = phi [b_79, %v], [b_80, 0]: Int
-    %v_84 = add %v_76, %v_83: Int
-    %v_85 = call_complex unwrap, %k: Int
-    %v_86 = add %v_84, %v_85: Int
-    %v_87 = call_complex unwrap, %l: Int
-    %v_88 = add %v_86, %v_87: Int
-    %v_89 = call_complex unwrap, %n: Int
-    %v_90 = add %v_88, %v_89: Int
-    %v_91 = add %v_90, %o: Int
-    %v_92 = add %v_91, %p: Int
-    %v_93 = call_complex unwrap, %q: Int
-    %sum = add %v_92, %v_93: Int
-    %v_94 = loads %b, 4: Int
-    %v_95 = cmp_eq %v_94, 1: Int
-    %v_96 = select %v_95, 0, 1: Int
-    %v_97 = loads %d, 4: Int
-    %v_98 = cmp_eq %v_97, 1: Int
-    %v_99 = select %v_98, 0, 1: Int
-    %v_100 = add %v_96, %v_99: Int
-    %v_101 = loads %f, 4: Int
-    %v_102 = cmp_eq %v_101, 1: Int
-    %v_103 = select %v_102, 0, 1: Int
-    %v_104 = add %v_100, %v_103: Int
-    %v_105 = loads %m, 4: Int
-    %v_106 = cmp_eq %v_105, 1: Int
-    %v_107 = select %v_106, 0, 1: Int
-    %v_108 = add %v_104, %v_107: Int
-    %v_109 = loads %i, 4: Int
-    %v_110 = cmp_eq %v_109, 1: Int
-    %v_111 = select %v_110, 0, 1: Int
-    %v_112 = add %v_108, %v_111: Int
-    %v_113 = loads %j, 4: Int
-    %v_114 = cmp_eq %v_113, 1: Int
-    %v_115 = select %v_114, 0, 1: Int
-    %v_116 = add %v_112, %v_115: Int
-    %v_117 = loads %r, 4: Int
-    %v_118 = cmp_eq %v_117, 1: Int
-    %v_119 = select %v_118, 0, 1: Int
-    %v_120 = add %v_116, %v_119: Int
-    %v_121 = loads %s, 4: Int
-    %v_122 = cmp_eq %v_121, 1: Int
-    %v_123 = select %v_122, 0, 1: Int
-    %failures = add %v_120, %v_123: Int
-    %v_124 = imul %failures, 1000: Int
-    %v_125 = add %sum, %v_124: Int
-    %v_126 = imul %afterBoth, 100000: Int
+  b_78 {
+    %v_81 = add %h, 4: Ptr
+    %v = loads %v_81, 4: Int
+    jmp b_80
+  }
+
+  b_80 {
+    %v_82 = phi [b_78, %v], [b_79, 0]: Int
+    %v_83 = add %v_75, %v_82: Int
+    %v_84 = call_complex unwrap, %k: Int
+    %v_85 = add %v_83, %v_84: Int
+    %v_86 = call_complex unwrap, %l: Int
+    %v_87 = add %v_85, %v_86: Int
+    %v_88 = call_complex unwrap, %n: Int
+    %v_89 = add %v_87, %v_88: Int
+    %v_90 = add %v_89, %o: Int
+    %v_91 = add %v_90, %p: Int
+    %v_92 = call_complex unwrap, %q: Int
+    %sum = add %v_91, %v_92: Int
+    %v_93 = loads %b, 4: Int
+    %v_94 = cmp_eq %v_93, 1: Int
+    %v_95 = select %v_94, 0, 1: Int
+    %v_96 = loads %d, 4: Int
+    %v_97 = cmp_eq %v_96, 1: Int
+    %v_98 = select %v_97, 0, 1: Int
+    %v_99 = add %v_95, %v_98: Int
+    %v_100 = loads %f, 4: Int
+    %v_101 = cmp_eq %v_100, 1: Int
+    %v_102 = select %v_101, 0, 1: Int
+    %v_103 = add %v_99, %v_102: Int
+    %v_104 = loads %m, 4: Int
+    %v_105 = cmp_eq %v_104, 1: Int
+    %v_106 = select %v_105, 0, 1: Int
+    %v_107 = add %v_103, %v_106: Int
+    %v_108 = loads %i, 4: Int
+    %v_109 = cmp_eq %v_108, 1: Int
+    %v_110 = select %v_109, 0, 1: Int
+    %v_111 = add %v_107, %v_110: Int
+    %v_112 = cmp_eq %v_49, 1: Int
+    %v_113 = select %v_112, 0, 1: Int
+    %v_114 = add %v_111, %v_113: Int
+    %v_115 = loads %r, 4: Int
+    %v_116 = cmp_eq %v_115, 1: Int
+    %v_117 = select %v_116, 0, 1: Int
+    %v_118 = add %v_114, %v_117: Int
+    %v_119 = loads %s, 4: Int
+    %v_120 = cmp_eq %v_119, 1: Int
+    %v_121 = select %v_120, 0, 1: Int
+    %failures = add %v_118, %v_121: Int
+    %v_122 = imul %failures, 1000: Int
+    %v_123 = add %sum, %v_122: Int
+    %v_124 = imul %afterBoth, 100000: Int
+    %v_125 = add %v_123, %v_124: Int
+    %v_126 = imul %afterExit, 10000000: Int
     %v_127 = add %v_125, %v_126: Int
-    %v_128 = imul %afterExit, 10000000: Int
+    %v_128 = imul %afterEarly, 1000000000: Int
     %v_129 = add %v_127, %v_128: Int
-    %v_130 = imul %afterEarly, 1000000000: Int
+    %v_130 = loads @log, 4: Int
     %v_131 = add %v_129, %v_130: Int
-    %v_132 = loads @log, 4: Int
-    %v_133 = add %v_131, %v_132: Int
-    ret %v_133
+    ret %v_131
   }
 }
 

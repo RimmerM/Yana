@@ -42,4 +42,49 @@
  * this pass and for folding alike, and the caller runs it afterwards: this one returns early where
  * there is nothing to promote, and the constants folding orphans are there either way.
  */
+// How many bits a value of this type occupies in a register, and therefore whether a load narrower
+// than the slot's register truncated something on the way out of memory. A vector occupies its own
+// width, which is the whole register it lives in - there is no narrower load of one.
+inline U32 registerBits(LowerType type) {
+    if(isVectorLike(type)) return type.byteWidth() * 8;
+    return type == LowerType::Int32 || type == LowerType::Float32 ? 32 : 64;
+}
+
+/*
+ * Whether a slot of this many bytes is one a register could hold - §34.4 of test/bench/findings.md.
+ *
+ * The four scalar widths, and the three a vector register has. **A vector width is safe to accept
+ * without asking the target**, which is what makes this a portable question after all: a 32-byte
+ * vector *type* exists only in a program compiled for a machine with a 32-byte register, because
+ * `targetVectorBytes` is what decided the lane count when the type was made. A target that has no
+ * such register has no value of the type either.
+ *
+ * Until this said so, every `let &acc = zero() :: Vec(a)` in the language was a stack slot loaded
+ * and stored once per chunk - which is not only the traffic but a loop-carried *memory* dependency,
+ * and it is why a hand-written vector loop with no call in it measured slower than the same loop
+ * behind one.
+ */
+inline bool holdableWidth(U32 width, LowerType type) {
+    if(isVectorLike(type)) return width == 16 || width == 32 || width == 64;
+    return width == 1 || width == 2 || width == 4 || width == 8;
+}
+
+/*
+ * Whether promotion would take a slot of this width holding a value of this type at all - the whole
+ * of what `collectSlots` asks about the two once it has a type to ask with.
+ *
+ * Here rather than inside the pass because `splitAggregateSlots` has to know it: the pieces it cuts
+ * an aggregate into are worth cutting exactly when promotion can then hold them, and a field it
+ * moves as a typed load and store rather than as a copy is one it has decided the answer is yes for.
+ * A rule stated twice would drift, and the way it would drift is a split that buys nothing.
+ */
+inline bool promotableSlot(U32 width, LowerType type) {
+    if(!holdableWidth(width, type)) return false;
+
+    // A float or a pointer read out of storage narrower than itself is not something promotion
+    // reproduces - and not something anything emits, since both are stored whole. A vector is the
+    // same rule: `registerBits` answers its own width.
+    return isInt(type) || width * 8 == registerBits(type);
+}
+
 void promoteStackSlots(LowerBase base, LowerFunction& fun);

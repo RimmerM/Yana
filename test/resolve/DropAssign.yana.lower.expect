@@ -322,34 +322,27 @@ immediate<complex>(): Long {
 
 field<complex>(): Long {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
     call_complex +=(I64), @liveBuffers, 1
-    %v_2 = imm 16: Long
-    %v_3 = call_complex allocateHeap, %v_2: Ptr
-    setpattern %v_3, %v_2, 0
-    store %v_1, %v_3, 8
-    %v_4 = add %v_1, 8: Ptr
-    %v_5 = imm 1: Long
-    store %v_4, %v_5, 8
-    %v_6 = load %v_1, 8: Ptr
-    %v_7 = load %v_6, 1: Int
-    %v_8 = cast %v_7: Long
+    %v_1 = imm 16: Long
+    %v_2 = call_complex allocateHeap, %v_1: Ptr
+    setpattern %v_2, %v_1, 0
+    %v_3 = load %v_2, 1: Int
+    %v_4 = cast %v_3: Long
     call_complex +=(I64), @liveBuffers, 1
-    %v_9 = imm 32: Long
-    %v_10 = call_complex allocateHeap, %v_9: Ptr
-    setpattern %v_10, %v_9, 0
+    %v_5 = imm 32: Long
+    %v_6 = call_complex allocateHeap, %v_5: Ptr
+    setpattern %v_6, %v_5, 0
+    call_complex freeHeap, %v_2
+    call_complex -=(I64), @liveBuffers, 1
+    %counted = loads @liveBuffers, 8: Long
+    %v_7 = add %counted, %v_4: Long
+    %v_8 = load %v_6, 1: Int
+    %v_9 = cast %v_8: Long
+    %v_10 = add %v_7, %v_9: Long
     call_complex freeHeap, %v_6
     call_complex -=(I64), @liveBuffers, 1
-    store %v_1, %v_10, 8
-    %counted = loads @liveBuffers, 8: Long
-    %v_11 = add %counted, %v_8: Long
-    %v_12 = load %v_10, 1: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = add %v_11, %v_13: Long
-    call_complex freeHeap, %v_10
-    call_complex -=(I64), @liveBuffers, 1
-    %v_15 = add %v_14, %v_5: Long
-    ret %v_15
+    %v_11 = add %v_10, 1: Long
+    ret %v_11
   }
 }
 

@@ -732,60 +732,56 @@ container<complex>(): Int {
     %v_49 = load %v_48, 4: Int
     %v_50 = cast %v_49: Long
     %whole = call_complex idsOf, %v_47, %v_50: Int
-    %v_51 = alloca 16, 8: Ptr
-    store %v_51, %v_47, 8
-    %v_52 = add %v_51, 8: Ptr
-    store %v_52, %v_50, 8
-    %v_53 = cmp_igt %v_12, %v_50: Int
-    je %v_53, b_54, b_55
+    %v_51 = cmp_igt %v_12, %v_50: Int
+    je %v_51, b_52, b_53
   }
 
-  b_54 {
-    jmp b_55
+  b_52 {
+    jmp b_53
   }
 
-  b_55 {
-    %v_56 = phi [b_46, %v_12], [b_54, %v_50]: Long
-    %v_57 = cmp_ilt %v_13, %v_56: Int
-    je %v_57, b_58, b_59
+  b_53 {
+    %v_54 = phi [b_46, %v_12], [b_52, %v_50]: Long
+    %v_55 = cmp_ilt %v_13, %v_54: Int
+    je %v_55, b_56, b_57
   }
 
-  b_58 {
-    jmp b_59
+  b_56 {
+    jmp b_57
   }
 
-  b_59 {
-    %v_60 = phi [b_55, %v_13], [b_58, %v_56]: Long
-    %v_61 = cmp_igt %v_60, %v_50: Int
-    je %v_61, b_62, b_63
+  b_57 {
+    %v_58 = phi [b_53, %v_13], [b_56, %v_54]: Long
+    %v_59 = cmp_igt %v_58, %v_50: Int
+    je %v_59, b_60, b_61
   }
 
-  b_62 {
-    jmp b_63
+  b_60 {
+    jmp b_61
   }
 
-  b_63 {
-    %v_64 = phi [b_59, %v_60], [b_62, %v_50]: Long
-    %v_65 = shl %v_56, 2: Long
-    %v_66 = add %v_47, %v_65: Ptr
-    %v_67 = sub %v_64, %v_56: Long
-    %tail = call_complex idsOf, %v_66, %v_67: Int
+  b_61 {
+    %v_62 = phi [b_57, %v_58], [b_60, %v_50]: Long
+    %v_63 = shl %v_54, 2: Long
+    %v_64 = add %v_47, %v_63: Ptr
+    %v_65 = sub %v_62, %v_54: Long
+    %tail = call_complex idsOf, %v_64, %v_65: Int
     call_complex Reclaim(Array(a)).reclaim(Handle), %v_1
-    %v_68 = imul %v_41, 1000: Int
-    %v_69 = imul %whole, 10: Int
-    %v_70 = add %v_68, %v_69: Int
-    %v_71 = add %v_70, %tail: Int
-    ret %v_71
+    %v_66 = imul %v_41, 1000: Int
+    %v_67 = imul %whole, 10: Int
+    %v_68 = add %v_66, %v_67: Int
+    %v_69 = add %v_68, %tail: Int
+    ret %v_69
   }
 
   b_22 {
-    %v_72 = phi [b_30, 18446744073709551612], [b_23, 18446744073709551614], [b_15, 18446744073709551615]: Int
+    %v_70 = phi [b_30, 18446744073709551612], [b_23, 18446744073709551614], [b_15, 18446744073709551615]: Int
     call_complex Reclaim(Array(a)).reclaim(Handle), %v_1
-    ret %v_72
+    ret %v_70
   }
 
   b_14 {
-    %v_73 = syscall 60, 134: Long
+    %v_71 = syscall 60, 134: Long
     unreachable 
   }
 }

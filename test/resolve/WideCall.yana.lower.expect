@@ -5,17 +5,12 @@ main<complex>(): Int {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
     %v_2 = alloca 1, 1: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    store %v_3, ResolveTest.deferred$15, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = load %v_3, 8: Ptr
-    %v_7 = call_complex %v_6, %v_4: Int
-    %v_8 = add %v_7, 38: Int
-    %v_9 = loads @effects, 4: Int
-    %v_10 = add %v_8, %v_9: Int
-    ret %v_10
+    %v_3 = bitcast 0: Ptr
+    %v_4 = call_complex ResolveTest.deferred$15, %v_3: Int
+    %v_5 = add %v_4, 38: Int
+    %v_6 = loads @effects, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    ret %v_7
   }
 }
 

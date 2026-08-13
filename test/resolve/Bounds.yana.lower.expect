@@ -597,47 +597,43 @@ main<complex>(): Int {
     store %v_8, 6, 4
     %v_9 = add %xs, 12: Ptr
     store %v_9, 6, 4
-    %xs = alloca 16, 8: Ptr
-    store %xs, %v_1, 8
-    %v_10 = add %xs, 8: Ptr
-    store %v_10, 6, 8
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    %v_11 = loads %v_5, 4: Int
-    %v_12 = add %v_5, 8: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = add %v_11, %v_13: Int
+    %v_10 = loads %v_5, 4: Int
+    %v_11 = add %v_5, 8: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = add %v_10, %v_12: Int
     %xs = alloca 16, 8: Ptr
-    %v_15 = alloca 12, 4: Ptr
-    store %xs, %v_15, 8
-    %v_16 = add %xs, 8: Ptr
-    %v_17 = load %v_16, 4: Int
-    store %v_16, 3, 4
-    store %v_15, 7, 4
-    %v_18 = add %v_15, 4: Ptr
-    store %v_18, 8, 4
-    %v_19 = add %v_15, 8: Ptr
-    store %v_19, 9, 4
-    %v_20 = add %xs, 12: Ptr
-    store %v_20, 3, 4
-    %v_21 = loads %v_15, 4: Int
-    %v_22 = loads %v_19, 4: Int
+    %v_14 = alloca 12, 4: Ptr
+    store %xs, %v_14, 8
+    %v_15 = add %xs, 8: Ptr
+    %v_16 = load %v_15, 4: Int
+    store %v_15, 3, 4
+    store %v_14, 7, 4
+    %v_17 = add %v_14, 4: Ptr
+    store %v_17, 8, 4
+    %v_18 = add %v_14, 8: Ptr
+    store %v_18, 9, 4
+    %v_19 = add %xs, 12: Ptr
+    store %v_19, 3, 4
+    %v_20 = loads %v_14, 4: Int
+    %v_21 = loads %v_18, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
     %xs = alloca 16, 8: Ptr
-    %v_23 = alloca 4, 4: Ptr
-    store %xs, %v_23, 8
-    %v_24 = add %xs, 8: Ptr
-    %v_25 = load %v_24, 4: Int
-    store %v_24, 1, 4
-    store %v_23, 42, 4
-    %v_26 = add %xs, 12: Ptr
-    store %v_26, 1, 4
-    %v_27 = loads %v_23, 4: Int
+    %v_22 = alloca 4, 4: Ptr
+    store %xs, %v_22, 8
+    %v_23 = add %xs, 8: Ptr
+    %v_24 = load %v_23, 4: Int
+    store %v_23, 1, 4
+    store %v_22, 42, 4
+    %v_25 = add %xs, 12: Ptr
+    store %v_25, 1, 4
+    %v_26 = loads %v_22, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    %v_28 = imul %owner, 1000: Int
-    %v_29 = imul %v_14, 100: Int
-    %v_30 = add %v_28, %v_29: Int
-    %v_31 = add %v_30, 202: Int
-    ret %v_31
+    %v_27 = imul %owner, 1000: Int
+    %v_28 = imul %v_13, 100: Int
+    %v_29 = add %v_27, %v_28: Int
+    %v_30 = add %v_29, 202: Int
+    ret %v_30
   }
 }
 

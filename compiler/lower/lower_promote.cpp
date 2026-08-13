@@ -20,33 +20,6 @@
 
 namespace {
 
-// How many bits a value of this type occupies in a register, and therefore whether a load narrower
-// than the slot's register truncated something on the way out of memory. A vector occupies its own
-// width, which is the whole register it lives in - there is no narrower load of one.
-U32 registerBits(LowerType type) {
-    if(isVectorLike(type)) return type.byteWidth() * 8;
-    return type == LowerType::Int32 || type == LowerType::Float32 ? 32 : 64;
-}
-
-/*
- * Whether a slot of this many bytes is one a register could hold - §34.4 of test/bench/findings.md.
- *
- * The four scalar widths, and the three a vector register has. **A vector width is safe to accept
- * without asking the target**, which is what makes this a portable question after all: a 32-byte
- * vector *type* exists only in a program compiled for a machine with a 32-byte register, because
- * `targetVectorBytes` is what decided the lane count when the type was made. A target that has no
- * such register has no value of the type either.
- *
- * Until this said so, every `let &acc = zero() :: Vec(a)` in the language was a stack slot loaded
- * and stored once per chunk - which is not only the traffic but a loop-carried *memory* dependency,
- * and it is why a hand-written vector loop with no call in it measured slower than the same loop
- * behind one.
- */
-bool holdableWidth(U32 width, LowerType type) {
-    if(isVectorLike(type)) return width == 16 || width == 32 || width == 64;
-    return width == 1 || width == 2 || width == 4 || width == 8;
-}
-
 /*
  * One stack slot this pass decided it can hold in a register.
  *
@@ -184,14 +157,11 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
             // reserved it, which is a decision for a dead-code pass rather than for this one.
             if(!usable || !typed) continue;
 
-            // And now that there is a type, whether a register of that kind holds this many bytes.
-            if(!holdableWidth(width, slot.type)) continue;
-
-            // A float or a pointer read out of storage narrower than itself is not something this
-            // reproduces - and not something anything emits, since both are stored whole. A vector
-            // is the same rule: `registerBits` answers its own width, so this rejects a slot read as
-            // a vector wider or narrower than the storage reserved for it.
-            if(!isInt(slot.type) && width * 8 != registerBits(slot.type)) continue;
+            // And now that there is a type, whether a register of that kind holds this many bytes,
+            // and whether the storage is the width the register reads back whole - see
+            // `promotableSlot` in lower_promote.h, which `splitAggregateSlots` asks the same
+            // question of a field it is deciding how to move.
+            if(!promotableSlot(width, slot.type)) continue;
 
             index.add(U32(slot.address), U32(into.size()));
             into.push(::move(slot));

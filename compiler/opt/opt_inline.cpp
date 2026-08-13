@@ -1723,8 +1723,16 @@ struct Inliner {
     U32 closureBonus(Candidate& candidate) {
         if(!policy.closureArgument) return 0;
 
+        /*
+         * The parameters an argument was passed for, which is not all of them: a teardown site binds
+         * `parameters[0]` to the *place* being dropped and passes nothing at all, so the two lists
+         * have different lengths there and pairing them by index reads past the end of one.
+         *
+         * A site with no argument in a position has no lambda in it either, so stopping at the
+         * shorter list is the answer rather than a way of avoiding the question.
+         */
         U32 bonus = 0;
-        for(Size i = 0; i < candidate.parameters.size(); i++) {
+        for(Size i = 0; i < min(candidate.parameters.size(), candidate.arguments.size()); i++) {
             if(!candidate.parameters[i].used) continue;
             if(!knownCallee(candidate.arguments[i], false)) continue;
 

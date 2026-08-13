@@ -30,210 +30,180 @@ mut @effects = [0, 0, 0, 0]
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, ResolveTest.deferred$17, 8
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, %v_2, 8
-    %v_4 = load %v_1, 8: Ptr
-    %v_5 = call_complex %v_4, %v_2: Int
-    %v_6 = cmp_eq %v_5, 2: Int
-    je %v_6, b_7, b_8
+    %v_1 = bitcast 0: Ptr
+    %v_2 = call_complex ResolveTest.deferred$17, %v_1: Int
+    %v_3 = cmp_eq %v_2, 2: Int
+    je %v_3, b_4, b_5
   }
 
-  b_7 {
-    jmp b_8
+  b_4 {
+    jmp b_5
   }
 
-  b_8 {
-    %v_9 = phi [b_0, 1], [b_7, 3]: Int
-    %v_10 = alloca 16, 8: Ptr
-    store %v_10, ResolveTest.deferred$18, 8
-    %v_11 = bitcast 0: Ptr
-    %v_12 = add %v_10, 8: Ptr
-    store %v_12, %v_11, 8
-    %v_13 = load %v_10, 8: Ptr
-    %v_14 = call_complex %v_13, %v_11: Int
-    %v_15 = cmp_eq %v_14, 4: Int
-    je %v_15, b_16, b_17
+  b_5 {
+    %v_6 = phi [b_0, 1], [b_4, 3]: Int
+    %v_7 = bitcast 0: Ptr
+    %v_8 = call_complex ResolveTest.deferred$18, %v_7: Int
+    %v_9 = cmp_eq %v_8, 4: Int
+    je %v_9, b_10, b_11
   }
 
-  b_16 {
-    %v_18 = add %v_9, 4: Int
-    jmp b_17
+  b_10 {
+    %v_12 = add %v_6, 4: Int
+    jmp b_11
   }
 
-  b_17 {
-    %v_19 = phi [b_8, %v_9], [b_16, %v_18]: Int
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, 1, 4
-    %v_22 = alloca 16, 8: Ptr
-    store %v_22, ResolveTest.deferred$20, 8
-    %v_23 = bitcast 0: Ptr
-    %v_24 = add %v_22, 8: Ptr
-    store %v_24, %v_23, 8
-    %v_25 = call_complex orDefault(Int), %v_20, %v_22: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_28
+  b_11 {
+    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: Int
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, 1, 4
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, 1, 4
+    %v_16 = alloca 16, 8: Ptr
+    store %v_16, ResolveTest.deferred$20, 8
+    %v_17 = bitcast 0: Ptr
+    %v_18 = add %v_16, 8: Ptr
+    store %v_18, %v_17, 8
+    %v_19 = call_complex orDefault(Int), %v_14, %v_16: Int
+    %v_20 = cmp_eq %v_19, 1: Int
+    je %v_20, b_21, b_22
   }
 
-  b_27 {
-    %v_29 = add %v_19, 8: Int
-    jmp b_28
+  b_21 {
+    %v_23 = add %v_13, 8: Int
+    jmp b_22
   }
 
-  b_28 {
-    %v_30 = phi [b_17, %v_19], [b_27, %v_29]: Int
-    %v_31 = alloca 8, 4: Ptr
-    store %v_31, 0, 4
-    %v_32 = alloca 16, 8: Ptr
-    store %v_32, ResolveTest.deferred$21, 8
-    %v_33 = bitcast 0: Ptr
-    %v_34 = add %v_32, 8: Ptr
-    store %v_34, %v_33, 8
-    %v_35 = call_complex orDefault(Int), %v_31, %v_32: Int
-    %v_36 = cmp_eq %v_35, 32768: Int
-    je %v_36, b_37, b_38
+  b_22 {
+    %v_24 = phi [b_11, %v_13], [b_21, %v_23]: Int
+    %v_25 = alloca 8, 4: Ptr
+    store %v_25, 0, 4
+    %v_26 = alloca 16, 8: Ptr
+    store %v_26, ResolveTest.deferred$21, 8
+    %v_27 = bitcast 0: Ptr
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = call_complex orDefault(Int), %v_25, %v_26: Int
+    %v_30 = cmp_eq %v_29, 32768: Int
+    je %v_30, b_31, b_32
   }
 
-  b_37 {
-    %v_39 = add %v_30, 16: Int
-    jmp b_38
+  b_31 {
+    %v_33 = add %v_24, 16: Int
+    jmp b_32
   }
 
-  b_38 {
-    %v_40 = phi [b_28, %v_30], [b_37, %v_39]: Int
-    %v_41 = alloca 1, 1: Ptr
-    store %v_41, 0, 1
-    %v_42 = alloca 16, 8: Ptr
-    store %v_42, ResolveTest.deferred$22, 8
-    %v_43 = bitcast 0: Ptr
-    %v_44 = add %v_42, 8: Ptr
-    store %v_44, %v_43, 8
-    %v_45 = call_complex orDefault(Bool), %v_41, %v_42: Int
-    %v_46 = cmp_eq %v_45, 0: Int
-    je %v_46, b_47, b_48
+  b_32 {
+    %v_34 = phi [b_22, %v_24], [b_31, %v_33]: Int
+    %v_35 = alloca 1, 1: Ptr
+    store %v_35, 0, 1
+    %v_36 = alloca 16, 8: Ptr
+    store %v_36, ResolveTest.deferred$22, 8
+    %v_37 = bitcast 0: Ptr
+    %v_38 = add %v_36, 8: Ptr
+    store %v_38, %v_37, 8
+    %v_39 = call_complex orDefault(Bool), %v_35, %v_36: Int
+    %v_40 = cmp_eq %v_39, 0: Int
+    je %v_40, b_41, b_42
   }
 
-  b_47 {
-    %v_49 = add %v_40, 32: Int
-    jmp b_48
+  b_41 {
+    %v_43 = add %v_34, 32: Int
+    jmp b_42
   }
 
-  b_48 {
-    %v_50 = phi [b_38, %v_40], [b_47, %v_49]: Int
-    %v_51 = loads @effects, 4: Int
-    %v_52 = add %v_51, 32: Int
-    store @effects, %v_52, 4
-    %v_53 = add %v_50, 448: Int
-    %v_54 = alloca 16, 8: Ptr
-    store %v_54, ResolveTest.deferred$24, 8
-    %v_55 = bitcast 0: Ptr
-    %v_56 = add %v_54, 8: Ptr
-    store %v_56, %v_55, 8
-    %v_57 = load %v_54, 8: Ptr
-    %v_58 = call_complex %v_57, %v_55: Int
-    %v_59 = cmp_eq %v_58, 640: Int
+  b_42 {
+    %v_44 = phi [b_32, %v_34], [b_41, %v_43]: Int
+    %v_45 = loads @effects, 4: Int
+    %v_46 = add %v_45, 32: Int
+    store @effects, %v_46, 4
+    %v_47 = add %v_44, 448: Int
+    %v_48 = bitcast 0: Ptr
+    %v_49 = call_complex ResolveTest.deferred$24, %v_48: Int
+    %v_50 = cmp_eq %v_49, 640: Int
+    je %v_50, b_51, b_52
+  }
+
+  b_51 {
+    %v_53 = add %v_47, 512: Int
+    jmp b_52
+  }
+
+  b_52 {
+    %v_54 = phi [b_42, %v_47], [b_51, %v_53]: Int
+    %v_55 = add %v_54, 1024: Int
+    %v_56 = bitcast 0: Ptr
+    %v_57 = alloca 8, 4: Ptr
+    call_complex ResolveTest.deferred$26, %v_57, %v_56
+    %v_58 = loads %v_57, 4: Int
+    %v_59 = cmp_eq %v_58, 2: Int
     je %v_59, b_60, b_61
   }
 
   b_60 {
-    %v_62 = add %v_53, 512: Int
+    %v_62 = add %v_55, 2048: Int
     jmp b_61
   }
 
   b_61 {
-    %v_63 = phi [b_48, %v_53], [b_60, %v_62]: Int
-    %v_64 = add %v_63, 1024: Int
-    %v_65 = alloca 16, 8: Ptr
-    store %v_65, ResolveTest.deferred$26, 8
-    %v_66 = bitcast 0: Ptr
-    %v_67 = add %v_65, 8: Ptr
-    store %v_67, %v_66, 8
-    %v_68 = load %v_65, 8: Ptr
-    %v_69 = alloca 8, 4: Ptr
-    call_complex %v_68, %v_69, %v_66
-    %v_70 = loads %v_69, 4: Int
-    %v_71 = cmp_eq %v_70, 2: Int
-    je %v_71, b_72, b_73
+    %v_63 = phi [b_52, %v_55], [b_60, %v_62]: Int
+    %v_64 = add %v_63, 4096: Int
+    %v_65 = bitcast 0: Ptr
+    %v_66 = call_complex ResolveTest.deferred$28, %v_65: Int
+    %v_67 = cmp_eq %v_66, 5: Int
+    je %v_67, b_68, b_69
   }
 
-  b_72 {
-    %v_74 = add %v_64, 2048: Int
-    jmp b_73
+  b_68 {
+    %v_70 = add %v_64, 8192: Int
+    jmp b_69
   }
 
-  b_73 {
-    %v_75 = phi [b_61, %v_64], [b_72, %v_74]: Int
-    %v_76 = add %v_75, 4096: Int
-    %v_77 = alloca 16, 8: Ptr
-    store %v_77, ResolveTest.deferred$28, 8
-    %v_78 = bitcast 0: Ptr
-    %v_79 = add %v_77, 8: Ptr
-    store %v_79, %v_78, 8
-    %v_80 = load %v_77, 8: Ptr
-    %v_81 = call_complex %v_80, %v_78: Int
-    %v_82 = cmp_eq %v_81, 5: Int
+  b_69 {
+    %v_71 = phi [b_61, %v_64], [b_68, %v_70]: Int
+    %v_72 = bitcast 0: Ptr
+    %v_73 = call_complex ResolveTest.deferred$30, %v_72: Int
+    jmp b_74
+  }
+
+  b_74 {
+    %v_75 = phi [b_69, %v_73], [b_76, %v_77]: Int
+    %v_78 = phi [b_69, 0], [b_76, %v_79]: Int
+    %v_80 = cmp_ilt %v_78, 3: Int
+    je %v_80, b_76, b_81
+  }
+
+  b_81 {
+    %v_82 = cmp_eq %v_75, 16387: Int
     je %v_82, b_83, b_84
   }
 
   b_83 {
-    %v_85 = add %v_76, 8192: Int
+    %v_85 = add %v_71, 16384: Int
     jmp b_84
   }
 
   b_84 {
-    %v_86 = phi [b_73, %v_76], [b_83, %v_85]: Int
-    %v_87 = alloca 16, 8: Ptr
-    store %v_87, ResolveTest.deferred$30, 8
-    %v_88 = bitcast 0: Ptr
-    %v_89 = add %v_87, 8: Ptr
-    store %v_89, %v_88, 8
-    %v_90 = load %v_87, 8: Ptr
-    %v_91 = call_complex %v_90, %v_88: Int
-    jmp b_92
+    %v_86 = phi [b_81, %v_71], [b_83, %v_85]: Int
+    %v_87 = loads @effects, 4: Int
+    %v_88 = cmp_eq %v_87, 51622: Int
+    je %v_88, b_89, b_90
   }
 
-  b_92 {
-    %v_93 = phi [b_84, %v_91], [b_94, %v_95]: Int
-    %v_96 = phi [b_84, 0], [b_94, %v_97]: Int
-    %v_98 = cmp_ilt %v_96, 3: Int
-    je %v_98, b_94, b_99
+  b_89 {
+    %v_91 = add %v_86, 32768: Int
+    jmp b_90
   }
 
-  b_99 {
-    %v_100 = cmp_eq %v_93, 16387: Int
-    je %v_100, b_101, b_102
+  b_90 {
+    %v_92 = phi [b_84, %v_86], [b_89, %v_91]: Int
+    ret %v_92
   }
 
-  b_101 {
-    %v_103 = add %v_86, 16384: Int
-    jmp b_102
-  }
-
-  b_102 {
-    %v_104 = phi [b_99, %v_86], [b_101, %v_103]: Int
-    %v_105 = loads @effects, 4: Int
-    %v_106 = cmp_eq %v_105, 51622: Int
-    je %v_106, b_107, b_108
-  }
-
-  b_107 {
-    %v_109 = add %v_104, 32768: Int
-    jmp b_108
-  }
-
-  b_108 {
-    %v_110 = phi [b_102, %v_104], [b_107, %v_109]: Int
-    ret %v_110
-  }
-
-  b_94 {
-    %v_95 = add %v_93, 1: Int
-    %v_97 = add %v_96, 1: Int
-    jmp b_92
+  b_76 {
+    %v_77 = add %v_75, 1: Int
+    %v_79 = add %v_78, 1: Int
+    jmp b_74
   }
 }
 

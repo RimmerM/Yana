@@ -313,7 +313,6 @@ straightLine<complex>(): Long {
 
 derived<complex>(): Long {
   b_0 {
-    %pair = alloca 16, 8: Ptr
     call_complex +=(I64), @liveBuffers, 1
     %v_1 = imm 32: Long
     %v_2 = call_complex allocateHeap, %v_1: Ptr
@@ -322,21 +321,15 @@ derived<complex>(): Long {
     %v_3 = imm 32: Long
     %v_4 = call_complex allocateHeap, %v_3: Ptr
     setpattern %v_4, %v_3, 0
-    store %pair, %v_2, 8
-    %v_5 = add %pair, 8: Ptr
-    store %v_5, %v_4, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_6 = load %pair, 8: Ptr
-    %v_7 = load %v_6, 1: Int
-    %v_8 = cast %v_7: Long
-    call_complex freeHeap, %v_6
+    %v_5 = load %v_2, 1: Int
+    %v_6 = cast %v_5: Long
+    call_complex freeHeap, %v_2
     call_complex -=(I64), @liveBuffers, 1
-    %v_9 = add %pair, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex freeHeap, %v_10
+    call_complex freeHeap, %v_4
     call_complex -=(I64), @liveBuffers, 1
-    %v_11 = add %counted, %v_8: Long
-    ret %v_11
+    %v_7 = add %counted, %v_6: Long
+    ret %v_7
   }
 }
 

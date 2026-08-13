@@ -369,57 +369,49 @@ total<complex>(%t: Ptr): Int {
 buildList<complex>(): Int {
   b_0 {
     %xs = alloca 12, 8: Ptr
-    %v_1 = alloca 12, 8: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    store %v_3, 0, 8
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, 39, 4
+    %v_1 = call_complex allocateHeap, 12: Ptr
+    store %v_1, 0, 8
+    %v_2 = call_complex allocateHeap, 12: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 39, 4
+    %v_4 = add %xs, 8: Ptr
+    store %v_4, 1, 4
     %v_5 = call_complex allocateHeap, 12: Ptr
-    store %v_2, %v_5, 8
-    copy %v_5, %v_3, 12
-    %v_6 = add %v_1, 8: Ptr
+    store %xs, %v_5, 8
+    store %v_5, %v_2, 8
+    %v_6 = add %v_5, 8: Ptr
     store %v_6, 2, 4
-    %v_7 = call_complex allocateHeap, 12: Ptr
-    store %v_1, %v_7, 8
-    copy %v_7, %v_2, 12
-    %v_8 = add %xs, 8: Ptr
-    store %v_8, 1, 4
-    %v_9 = call_complex allocateHeap, 12: Ptr
-    store %xs, %v_9, 8
-    copy %v_9, %v_1, 12
-    %v_10 = call_complex sum, %xs: Int
+    %v_7 = call_complex sum, %xs: Int
     call_complex reclaim$List, %xs
-    ret %v_10
+    ret %v_7
   }
 }
 
 buildTree<complex>(): Int {
   b_0 {
-    %deep = alloca 32, 8: Ptr
     %v_1 = call_complex allocateHeap, 32: Ptr
     store %v_1, 0, 4
     %v_2 = add %v_1, 8: Ptr
     store %v_2, 20, 4
-    store %deep, 1, 4
-    %v_3 = add %deep, 8: Ptr
-    store %v_3, 0, 8
-    %v_4 = add %deep, 16: Ptr
-    store %v_4, %v_1, 8
-    %v_5 = add %deep, 24: Ptr
-    store %v_5, 5, 4
     %t = alloca 32, 8: Ptr
-    %v_6 = call_complex allocateHeap, 32: Ptr
-    store %v_6, 0, 4
-    %v_7 = add %v_6, 8: Ptr
-    store %v_7, 10, 4
-    %v_8 = call_complex allocateHeap, 32: Ptr
-    copy %v_8, %deep, 32
+    %v_3 = call_complex allocateHeap, 32: Ptr
+    store %v_3, 0, 4
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 10, 4
+    %v_5 = call_complex allocateHeap, 32: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 0, 8
+    %v_7 = add %v_5, 16: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = add %v_5, 24: Ptr
+    store %v_8, 5, 4
     store %t, 1, 4
     %v_9 = add %t, 8: Ptr
-    store %v_9, %v_6, 8
+    store %v_9, %v_3, 8
     %v_10 = add %t, 16: Ptr
-    store %v_10, %v_8, 8
+    store %v_10, %v_5, 8
     %v_11 = add %t, 24: Ptr
     store %v_11, 7, 4
     %v_12 = call_complex total, %t: Int
@@ -489,24 +481,20 @@ buildChain<complex>(): Int {
   b_0 {
     %c = alloca 12, 8: Ptr
     call_complex +=(Int), @liveNodes, 1
-    %v_1 = alloca 12, 8: Ptr
     call_complex +=(Int), @liveNodes, 1
-    %v_2 = alloca 12, 8: Ptr
-    store %v_2, 0, 8
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, 5, 4
-    %v_4 = call_complex allocateHeap, 12: Ptr
-    store %v_1, %v_4, 8
-    copy %v_4, %v_2, 12
-    %v_5 = add %c, 8: Ptr
-    store %v_5, 4, 4
-    %v_6 = call_complex allocateHeap, 12: Ptr
-    store %c, %v_6, 8
-    copy %v_6, %v_1, 12
-    %v_7 = call_complex idsOf, %c: Int
+    %v_1 = call_complex allocateHeap, 12: Ptr
+    store %v_1, 0, 8
+    %v_2 = add %c, 8: Ptr
+    store %v_2, 4, 4
+    %v_3 = call_complex allocateHeap, 12: Ptr
+    store %c, %v_3, 8
+    store %v_3, %v_1, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 5, 4
+    %v_5 = call_complex idsOf, %c: Int
     call_complex drop$Chain, %c
     call_complex reclaim$Chain, %c
-    ret %v_7
+    ret %v_5
   }
 }
 

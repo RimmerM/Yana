@@ -2172,88 +2172,86 @@ records<complex>(): Int {
     store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 2, 4
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 3, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 4, 4
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, %v_1, 8
-    %v_6 = add %v_5, 8: Ptr
-    %v_7 = load %v_6, 4: Int
-    store %v_6, 2, 4
-    %v_8 = add %v_1, 8: Ptr
-    copy %v_8, %v_3, 8
-    %v_9 = add %v_5, 12: Ptr
-    store %v_9, 2, 4
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 5, 4
-    %v_11 = add %v_10, 4: Ptr
-    store %v_11, 6, 4
-    call_complex push(Pair), %v_5, %v_10
-    %v_12 = alloca 12, 4: Ptr
-    call_complex remove(Pair), %v_12, %v_5, 0
-    %v_13 = add %v_5, 12: Ptr
-    %v_14 = load %v_13, 4: Int
-    %n = cast %v_14: Int
-    %v_15 = cast %v_14: Long
-    %v_16 = load %v_5, 8: Ptr
-    %v_17 = imm 1: Int
-    jmp b_18
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = add %v_3, 8: Ptr
+    %v_5 = load %v_4, 4: Int
+    store %v_4, 2, 4
+    %v_6 = add %v_1, 8: Ptr
+    store %v_6, 3, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 4, 4
+    %v_8 = add %v_3, 12: Ptr
+    store %v_8, 2, 4
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 5, 4
+    %v_10 = add %v_9, 4: Ptr
+    store %v_10, 6, 4
+    call_complex push(Pair), %v_3, %v_9
+    %v_11 = alloca 12, 4: Ptr
+    call_complex remove(Pair), %v_11, %v_3, 0
+    %v_12 = add %v_3, 12: Ptr
+    %v_13 = load %v_12, 4: Int
+    %n = cast %v_13: Int
+    %v_14 = cast %v_13: Long
+    %v_15 = load %v_3, 8: Ptr
+    %v_16 = imm 1: Int
+    jmp b_17
   }
 
-  b_18 {
-    %v_19 = phi [b_0, 0], [b_20, %v_21]: Int
-    %v_22 = phi [b_0, 0], [b_20, %v_23]: Int
-    %v_24 = cmp_ilt %v_22, %n: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    call_complex Reclaim(Array(a)).reclaim(Pair), %v_5
-    jmp b_27
+  b_17 {
+    %v_18 = phi [b_0, 0], [b_19, %v_20]: Int
+    %v_21 = phi [b_0, 0], [b_19, %v_22]: Int
+    %v_23 = cmp_ilt %v_21, %n: Int
+    je %v_23, b_24, b_25
   }
 
   b_25 {
-    %v_28 = sext %v_22: Long
-    %v_29 = bitcast %v_28: Long
-    %v_30 = cmp_ge %v_29, %v_15: Int
-    je %v_30, b_31, b_32
+    call_complex Reclaim(Array(a)).reclaim(Pair), %v_3
+    jmp b_26
   }
 
-  b_32 {
-    %v_33 = shl %v_28, 3: Long
-    %v_34 = add %v_16, %v_33: Ptr
-    %v_35 = loads %v_34, 4: Int
-    %v_36 = add %v_19, %v_35: Int
-    jmp b_37
-  }
-
-  b_37 {
-    %v_38 = add %v_34, 4: Ptr
-    %v_39 = loads %v_38, 4: Int
-    %v_21 = add %v_36, %v_39: Int
-    %v_40 = sub %n, %v_22: Int
-    %v_41 = cmp_ile %v_40, %v_17: Int
-    je %v_41, b_42, b_20
-  }
-
-  b_20 {
-    %v_23 = add %v_22, %v_17: Int
-    jmp b_18
-  }
-
-  b_42 {
-    call_complex Reclaim(Array(a)).reclaim(Pair), %v_5
-    jmp b_27
-  }
-
-  b_27 {
-    %v_43 = phi [b_26, %v_19], [b_42, %v_21]: Int
-    ret %v_43
+  b_24 {
+    %v_27 = sext %v_21: Long
+    %v_28 = bitcast %v_27: Long
+    %v_29 = cmp_ge %v_28, %v_14: Int
+    je %v_29, b_30, b_31
   }
 
   b_31 {
-    %v_44 = syscall 60, 134: Long
+    %v_32 = shl %v_27, 3: Long
+    %v_33 = add %v_15, %v_32: Ptr
+    %v_34 = loads %v_33, 4: Int
+    %v_35 = add %v_18, %v_34: Int
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = add %v_33, 4: Ptr
+    %v_38 = loads %v_37, 4: Int
+    %v_20 = add %v_35, %v_38: Int
+    %v_39 = sub %n, %v_21: Int
+    %v_40 = cmp_ile %v_39, %v_16: Int
+    je %v_40, b_41, b_19
+  }
+
+  b_19 {
+    %v_22 = add %v_21, %v_16: Int
+    jmp b_17
+  }
+
+  b_41 {
+    call_complex Reclaim(Array(a)).reclaim(Pair), %v_3
+    jmp b_26
+  }
+
+  b_26 {
+    %v_42 = phi [b_25, %v_18], [b_41, %v_20]: Int
+    ret %v_42
+  }
+
+  b_30 {
+    %v_43 = syscall 60, 134: Long
     unreachable 
   }
 }
