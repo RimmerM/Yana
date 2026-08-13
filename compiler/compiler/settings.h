@@ -60,31 +60,44 @@ enum class TargetArch {
     ARM64, /// AArch64 64-bit ARMv8-A instruction set.
 };
 
-/// Defines optional instruction set extensions that can be enabled.
-/// Some extensions are defines as enums of related sets;
-/// in those cases, enabling a high set implies enabling the ones before it.
+/*
+ * Which machine the generated code is for, as one of the three levels the x86-64 psABI names.
+ *
+ * **Three levels rather than a ladder of extensions**, and they are not this compiler's invention:
+ * `x86-64-v2`, `v3` and `v4` are what the psABI defines, what `gcc -march=` and `clang -march=`
+ * spell, and what distributions build against. Every extension this backend cares about arrives as
+ * part of one of them, so a level says everything a list of flags used to say and cannot say it
+ * inconsistently - `AVX2` without `BMI1`, or `SSE4.2` without `POPCNT`, are not machines.
+ *
+ * **v2 is the floor and not a choice.** POPCNT, RDTSCP and XSAVE were claimed unconditionally by the
+ * x64 backend long before this enum existed, and those three are present on every part that meets v2
+ * and on nothing below it - so the compiler already required v2 and merely did not say so. What it
+ * did instead was carry fallbacks *below* its own floor: a population count expanded as a reduction
+ * tree, a lane read through `pshufd` because `pextrd` might be missing. Neither could ever run, and
+ * neither could be tested. Naming the floor is what let them go.
+ *
+ * What each level is, in the terms this compiler uses them in:
+ *
+ *   v2  SSE3 through SSE4.2, POPCNT, CMPXCHG16B - Nehalem and Bulldozer. A vector is 16 bytes.
+ *   v3  AVX, AVX2, BMI1, BMI2, F16C, FMA, LZCNT, MOVBE - Haswell, Excavator, every Zen. A vector is
+ *       32 bytes, which is why this level changes what a `Vec(a)` *is* rather than only how it is
+ *       encoded.
+ *   v4  AVX-512 F/BW/CD/DQ/VL - Skylake-X and Zen 4. Named, and only partly built: this backend
+ *       still holds a vector in at most 32 bytes, so today the level buys the EVEX encodings and not
+ *       the width.
+ *
+ * The one machine that stops being describable is AVX without AVX2 - Sandy and Ivy Bridge - which
+ * the psABI also declines to name. Those parts are v2 here, as they are everywhere else.
+ */
 struct TargetExtensions {
-    enum SSEMode {
-        NoSSE,
-        SSE,
-        SSE2,
-        SSE3,
-        SSSE3,
-        SSE4_1,
-        SSE4_2,
-        AVX,
-        AVX2,
-        AVX512,
+    enum Level: U8 {
+        V2,
+        V3,
+        V4,
     };
 
-    /*
-     * x86 extensions.
-     */
-
-    SSEMode sse = NoSSE; /// The highest SSE/AVX instruction set to support.
-    bool popcnt = false; /// Enable the popcnt instruction (separate from SSE due to differences in supported cpus).
-    bool lzcnt = false;  /// Enable the lzcnt instruction (separate from SSE due to differences in supported cpus).
-    bool fma3 = false;   /// Enable the FMA3 instruction set.
+    /// The x86-64 level the generated code may use. See above; v2 is the floor.
+    Level level = V2;
 
     /*
      * ARM extensions.
@@ -331,9 +344,21 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
     // register to read it off, and four lanes is what the scalarized form stays cheap at.
     if(isJsMode(settings.mode)) return 16;
 
-    if(settings.arch == TargetArch::X64 && settings.explicitExtensions) {
-        if(settings.extensions.sse >= TargetExtensions::AVX512) return 64;
-        if(settings.extensions.sse >= TargetExtensions::AVX2) return 32;
+    /*
+     * The level, always - where this used to ask `explicitExtensions` first, so that a lane count
+     * could never be a function of the machine that ran the compiler.
+     *
+     * That guard is gone because the *default* is no longer "assume nothing": a build that names no
+     * level gets the one the host meets, which is `-march=native`'s bargain - the code fits the
+     * machine in front of you, and a build that has to be reproducible says which machine it is for.
+     * `-enable-inst v2` is that statement, and every fixture in the test suite makes it.
+     *
+     * v4 answers 32 and not 64: this backend holds a vector in a register and has none wider than a
+     * `ymm` yet, so the level buys the EVEX encodings of the widths it already has. When the mask
+     * bank and the 512-bit moves land, this is the line that lets a `Vec(a)` grow.
+     */
+    if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::V3) {
+        return 32;
     }
 
     // SSE2 on amd64, NEON on ARM, and the width every target this compiler emits for has at least.

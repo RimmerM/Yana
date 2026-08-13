@@ -2,8 +2,7 @@
 #include "x64_util.h"
 #include "../../lower/lower_fold.h"
 
-// For `setOperand`, which is how lowerLaneExtracts moves an extract onto the shuffle it inserted
-// without leaving the use lists disagreeing with the operands.
+// For `setOperand`, which is how a rewritten operand keeps the use lists agreeing with it.
 #include "../../lower/lower_builder.h"
 
 // Whether running this instruction can change the flags register.
@@ -1500,188 +1499,6 @@ static void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) 
 }
 
 /*
- * Reading a lane out of an integer vector where the machine can only read the first.
- *
- * `movd`/`movq` move the low element and have no way to name another. SSE4.1's `pextrd`/`pextrq`
- * take any index in one instruction, so where that feature is claimed there is nothing to do here;
- * without it the wanted lane has to be brought down to lane zero first, and the instruction that
- * does that - `pshufd` - writes a *vector* register that is neither of the extract's operands.
- *
- * Which is the whole reason this is a pass rather than a two-instruction pseudo. A pseudo would need
- * a scratch vector register, and a form cannot declare one: `MachineForm::temporaries` is what
- * validateMachineForms still rejects, and the alternative of naming a fixed clobber would hold a
- * vector register back across every function that extracts a lane. Expanded into the IR instead, the
- * shuffle's result is an ordinary value the allocator places wherever it has room - which is §5.3's
- * own argument for expanding a reduction into IR rather than into a pseudo, applied one instruction
- * earlier.
- *
- * A float lane is untouched at every feature level: it never leaves the vector bank, so its extract
- * already *is* this shuffle and has been since the form was written.
- */
-static void lowerLaneExtracts(Context&, LowerBase base, LowerFunction& fun) {
-    if(targetFeatures() & kFeatureSse41) return;
-
-    for(auto offset: fun.blocks.contents(base)) {
-        auto block = base[offset];
-
-        // Indexed and advanced by hand, like expandBankConversions above: an insertion moves every
-        // instruction after it, including the extract this is rewriting.
-        for(Size i = 0; i < block->instructions.size(); ) {
-            auto inst = base[block->instructions.get(base, i)];
-            if(inst->kind != LowerInst::VecLane) { i++; continue; }
-
-            auto lane = (LowerInstVecLane*)inst;
-            auto from = base[lane->from];
-            auto type = from->type;
-
-            if(!isVectorLike(type) || isFloatVector(type) || lane->getLane() == 0) { i++; continue; }
-
-            /*
-             * The lane wanted, in every lane of the shuffle's result.
-             *
-             * Every lane rather than lane zero alone because the pattern has to say something about
-             * each of them and this is the answer that costs nothing: `pshufd`'s byte is the same
-             * length whatever it holds, and a broadcast is what `packedShufflePattern` already turns
-             * into the byte `broadcastLaneByte` would have written for a splat of the same index.
-             *
-             * Both sources name the same value, which is the convention LowerInstVecShuffle states
-             * for a shuffle within one vector and what keeps this off the two-source refusal.
-             */
-            auto shuffle = (LowerInstVecShuffle*)fun.arena.alloc(
-                sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
-            new (shuffle) LowerInstVecShuffle(StringId(), type, lane->from, lane->from);
-
-            for(Size l = 0; l < type.lanes(); l++) shuffle->pattern()[l] = lane->getLane();
-
-            insertInstAt(base, block, i, (LowerInst*)shuffle);
-
-            // The extract now reads the shuffle at lane zero. The operand goes through `setOperand`
-            // so that the old source loses this reader and the new one gains it - the use lists are
-            // what the transform verifier checks between every pair of passes - and the index is a
-            // field with nobody to tell.
-            setOperand(base, fun.arena, (LowerInst*)lane, lane->from, &shuffle->result);
-            lane->flags = 0;
-
-            // Past the shuffle and past the extract. Neither is a lane extract needing this pass -
-            // the extract's index is zero now - so there is nothing here to come back for.
-            i += 2;
-        }
-    }
-}
-
-/*
- * Writing a lane into an integer vector where the machine can only write a word.
- *
- * `pinsrd`/`pinsrq` take any lane at any index and are SSE4.1; without them the only insert the
- * machine has is `pinsrw`, which writes one 16-bit word. So a wider lane has to be spent as the
- * words it is made of - and the vector it is written into has to be *named* at that width, which is
- * a bitcast and is free, since the two types are one register read two ways.
- *
- * Two shapes rather than one, and the second is where this stops being mechanical:
- *
- * - **A 32-bit lane is its two words.** `pinsrw` at `2i` takes the low half of the scalar and
- *   `pinsrw` at `2i + 1` takes the low half of the scalar shifted down, which is three instructions
- *   and no bank crossing. Every value in it is an ordinary one the allocator places, which is
- *   `lowerLaneExtracts`' own argument for expanding into IR rather than into a pseudo.
- * - **A 64-bit lane is not four words - it is a *quadword*, and the machine has an instruction for
- *   each of the two a vector holds.** `movsd` writes the low one and `unpcklpd` the high one, both
- *   at the baseline, and neither cares that the bits it moves were meant as a double. So a
- *   `Vec(Long)` insert is the `Vec(Double)` one with a bitcast at each end: two machine instructions
- *   where the word route would have been eleven, since each of the four words would have needed a
- *   shift *and* a narrowing to reach `pinsrw`'s 32-bit operand.
- *
- * A byte lane has neither route - it is half a word, so writing one means reading the word around it
- * back out first - and is refused by `unsupportedVectorReason` rather than expanded here.
- */
-static void lowerLaneInserts(Context&, LowerBase base, LowerFunction& fun) {
-    if(targetFeatures() & kFeatureSse41) return;
-
-    for(auto offset: fun.blocks.contents(base)) {
-        auto block = base[offset];
-
-        // Indexed and advanced by hand, like the passes above: an insertion moves every instruction
-        // after it, including the insert this is rewriting.
-        for(Size i = 0; i < block->instructions.size(); ) {
-            auto inst = base[block->instructions.get(base, i)];
-            if(inst->kind != LowerInst::VecWithLane) { i++; continue; }
-
-            auto insert = (LowerInstVecLane*)inst;
-            auto type = insert->result.type;
-            auto width = type.isVector() ? laneBytes(type.lane) : 0;
-
-            /*
-             * A **single-precision float lane above lane zero**, which the machine has no
-             * instruction for at this level and which this pass reaches anyway.
-             *
-             * The route is the integer one, and the reason it works is a fact that reads as an
-             * obstacle: the scalar is in the vector bank, so it has to cross to a general register
-             * first. `movd` is that crossing, it is what a `Bitcast` from a `Float32` to an `Int32`
-             * already selects, and once the scalar is a word pair the vector is written by the same
-             * two `pinsrw`s a `Vec(Int)` insert takes. So the whole of the difference is a bitcast
-             * at each end, and each of those is one instruction the allocator often removes.
-             *
-             * A *double*-precision lane needs none of this: `movsd` and `unpcklpd` write the two
-             * halves of a two-lane vector directly, which covers it exactly. And lane zero of a
-             * single-precision vector is `movss`. Both are skipped here for the same reason the
-             * SSE4.1 path is - there is already an instruction.
-             */
-            auto floatWordRoute = isFloatVector(type) && width == 4 && insert->getLane() != 0;
-
-            if(isFloatVector(type) && !floatWordRoute) { i++; continue; }
-            if(width != 4 && width != 8) { i++; continue; }
-
-            Expansion e { base, fun, block, i };
-            auto vector = base[insert->from];
-            auto value = base[insert->value];
-            auto lane = insert->getLane();
-            LowerValue* built;
-
-            // The scalar across the bank boundary, where it started in the wrong one. What follows
-            // is then the integer route verbatim - `value` is a word pair either way.
-            if(floatWordRoute) value = e.reinterpret(LowerType::Int32, value);
-
-            if(width == 8) {
-                // The quadword route. `laneShift` is carried across unchanged because the lane
-                // *count* does not change - only what a lane is said to hold.
-                auto asFloat = LowerType(LowerLane::Float64, type.laneShift, false);
-                auto wide = e.reinterpret(asFloat, vector);
-                auto scalar = e.reinterpret(LowerType::Float64, value);
-
-                built = e.reinterpret(type, e.withLane(asFloat, wide, lane, scalar));
-            } else {
-                auto asWords = LowerType(LowerLane::Int16, U8(type.laneShift + 1), false);
-                auto words = e.reinterpret(asWords, vector);
-                auto low = e.withLane(asWords, words, U8(lane * 2), value);
-
-                /*
-                 * Only the low sixteen bits of the operand reach the vector, so the high half is the
-                 * same instruction over the scalar shifted down - logically, since what is being
-                 * moved is a bit pattern and the lane above it is written separately either way.
-                 *
-                 * The shift is emitted even where the scalar is a constant and the answer is known
-                 * here, which was **measured** rather than assumed: `iota` is `lanes - 1` inserts of
-                 * a small constant and folding each one turns `shr $16, %eax` into `mov $0, %eax`,
-                 * which is the same instruction count and one register more - the shift is in place
-                 * on a value that is dead after it, and a materialized constant is not.
-                 */
-                auto shift = e.integer(LowerType::Int32, 16);
-                auto high = e.binary(LowerInst::Shr, LowerType::Int32, value, shift);
-
-                built = e.reinterpret(type, e.withLane(asWords, low, U8(lane * 2 + 1), high));
-            }
-
-            replaceAllUses(base, &insert->result, built);
-            removeInst(base, insert);
-
-            // Past the whole expansion. Removing the insert from the end of it closed the gap the
-            // insertions opened, so `at` is where the walk carries on - and the `vwithlane`s this
-            // produced are at a word lane, which this pass does not rewrite.
-            i = e.at;
-        }
-    }
-}
-
-/*
  * A packed shift whose count is a splat, written as the scalar count the machine's form takes.
  *
  * `class (Num(a)) Integral(a)` declares `shl(lhs: a, rhs: a)`, so over a vector *both* operands are
@@ -1703,7 +1520,7 @@ static void lowerLaneInserts(Context&, LowerBase base, LowerFunction& fun) {
  *
  * **Above `poolVectorConstants`**, which is the whole of where this may sit: a constant splat is a
  * `.rodata` load by the time that pass has run, and a load is not a count this can read. It is the
- * same ordering constraint `lowerLaneInserts` has and for the same reason.
+ * same ordering constraint every pass reading a constant chain has, and for the same reason.
  */
 static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
@@ -2291,29 +2108,13 @@ static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerV
                      bits, e.integer(scalar, wanted));
 }
 
+// Every mask consumer goes through the movemask, at every level this backend describes: `pmovmskb`
+// is SSE2 and the population count `count` reads it with is SSE4.2, which is the floor. There used
+// to be a reduction tree here for a target claiming neither - a select against two splats, summed
+// through the butterfly - and it went with the sub-v2 machines it was written for.
 static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
                                     LowerValue* bits, bool& truth) {
-    auto type = source->type;
-
-    // The movemask exists at both tiers this backend emits for, and the population count it needs
-    // for `count` is a separate claim - so the fallback below is reached only by a target that has
-    // said it wants neither.
-    if(reduce != LowerReduce::Add || (targetFeatures() & kFeaturePopcnt)) {
-        return expandMaskBitsReduce(e, reduce, source, bits, truth);
-    }
-
-    if(reduce == LowerReduce::Add) {
-        // One per set lane, zero per clear one, at the mask's own lane shape - so the vector this
-        // sums has the same lane count and the same lane width, and the tree below is the one the
-        // mask itself would have taken.
-        auto counted = LowerType(type.lane, type.laneShift, false);
-        auto ones = e.splat(counted, e.integer(scalarFormOf(counted), 1));
-        auto zeros = e.splat(counted, e.integer(scalarFormOf(counted), 0));
-
-        return reduceTree(e, LowerReduce::Add, e.select(counted, source, ones, zeros), counted);
-    }
-
-    return reduceTree(e, reduce, source, type);
+    return expandMaskBitsReduce(e, reduce, source, bits, truth);
 }
 
 /*
@@ -2337,9 +2138,8 @@ static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue
  * instruction list at all, and takes the same path.
  */
 
-// The mask a reduction reads, where that reduction is one that goes through the movemask. Nothing
-// for a reduction of an ordinary vector, and nothing for the `count` a target without a population
-// count has to expand as a tree.
+// The mask a reduction reads, where that reduction is one that goes through the movemask - which
+// is every mask reduction, and nothing else.
 static LowerValue* maskBitsSource(LowerBase base, LowerInst* inst) {
     if(inst->kind != LowerInst::VecReduce) return nullptr;
 
@@ -2348,8 +2148,6 @@ static LowerValue* maskBitsSource(LowerBase base, LowerInst* inst) {
 
     if(!source->type.isMask()) return nullptr;
     if(reduce->getReduce() == LowerReduce::Bits) return nullptr;   // the movemask itself
-
-    if(reduce->getReduce() == LowerReduce::Add && !(targetFeatures() & kFeaturePopcnt)) return nullptr;
 
     return source;
 }
@@ -4730,31 +4528,29 @@ struct TransformPass {
 static const TransformPass kTransformPipeline[] = {
     { "rotateLoops"_v,                 rotateLoops,                 0 },
     { "expandBankConversions"_v,   expandBankConversions,   0 },
-    // Before the two lane passes, because the tree it builds ends in a lane extract that each of
-    // them may then have to rewrite - and after nothing, since what it reads is only the reduction.
+    // After nothing, since what it reads is only the multiply-add itself. It used to have to run
+    // before the two lane passes as well, the tree it builds ending in a lane extract each of them
+    // might rewrite; both went with the sub-v2 machines that needed them.
     { "expandFusedMultiplyAdd"_v,      expandFusedMultiplyAdd,      0 },
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0 },
 
     // After the reduction, whose unsigned minimum and maximum are comparisons this then biases, and
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
     { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0 },
-    { "lowerLaneExtracts"_v,           lowerLaneExtracts,           0 },
 
     // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
     // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
     { "unwrapVectorShiftCounts"_v,     unwrapVectorShiftCounts,     0 },
 
     /*
-     * **Before `lowerLaneInserts`, which is the whole of where this may sit.** A constant vector in
-     * this IR is a `vsplat` of a constant and a chain of `vwithlane`s over it, and that pass rewrites
-     * every one of those into a shift and a `pinsrw` pair - so run afterwards this saw a chain that
-     * no longer existed, pooled the *splat* at the root of it, and left the six instructions that
-     * were the actual cost standing. `iota` came out one instruction longer than before.
+     * **Above `selectMemorySources`**, which is what `poolFloatConstants` argues: `foldLoads` runs
+     * below, so a pooled constant with one reader lands in that reader's addressing mode rather than
+     * in a register (§5.4.1's memory twin, and only under VEX - a legacy packed operation faults on
+     * an unaligned memory operand, so at v2 the load stands).
      *
-     * Still above `selectMemorySources`, which is the other constraint and is what `poolFloatConstants`
-     * argues: `foldLoads` runs below, so a pooled constant with one reader lands in that reader's
-     * addressing mode rather than in a register (§5.4.1's memory twin, and only under VEX - a legacy
-     * packed operation faults on an unaligned memory operand, so at the baseline the load stands).
+     * It also had to run before `lowerLaneInserts`, which rewrote every `vwithlane` of a constant
+     * chain into a shift and a `pinsrw` pair and so hid the chain from this pass - `iota` came out
+     * one instruction longer. That pass is gone: `pinsrd` is v2.
      */
     { "poolVectorConstants"_v,         poolVectorConstants,         0 },
 
@@ -4766,7 +4562,6 @@ static const TransformPass kTransformPipeline[] = {
      * chain with an `imul` the pool no longer recognizes.
      */
     { "expandNarrowSplats"_v,          expandNarrowSplats,          0 },
-    { "lowerLaneInserts"_v,            lowerLaneInserts,            0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
     { "poolFloatConstants"_v,          poolFloatConstants,          0 },

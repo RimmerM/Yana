@@ -105,7 +105,7 @@ void addIntrinsics(MachineTarget& target) {
         // be the operand's. The r/m side is the ordinary memory alternative: a source the allocator
         // left in the frame is read there, with no reload, because this row says so in the same
         // words `add` does - and nothing in placement or legalization had to learn the name.
-        auto b = add(LowerIntrinsic::Popcnt, "popcnt r, r/m"_v, kFeaturePopcnt);
+        auto b = add(LowerIntrinsic::Popcnt, "popcnt r, r/m"_v, kFeatureBaseline);
         b.form.uses.push(regOrMem(MemoryAccessKind::Read));
         b.form.defs.push(def());
         b.form.flagsEffect = FlagsEffect::Def;
@@ -207,7 +207,7 @@ void addIntrinsics(MachineTarget& target) {
         // Only the counter halves are results here, so ecx is a register the instruction writes
         // without naming - an implicit clobber, exactly like a call's, and the allocator keeps live
         // values out of it for exactly the same reason.
-        auto b = add(LowerIntrinsic::Rdtscp, "rdtscp"_v, kFeatureRdtscp);
+        auto b = add(LowerIntrinsic::Rdtscp, "rdtscp"_v, kFeatureBaseline);
         b.form.defs.push(fixedDef(IntRegister::rax));
         b.form.defs.push(fixedDef(IntRegister::rdx));
         b.form.clobbers.add(gpr(IntRegister::rcx));
@@ -415,7 +415,7 @@ void addIntrinsics(MachineTarget& target) {
         // XGETBV (0f 01 d0) reads an extended-state register: the number in ecx, the answer in
         // edx:eax. Unprivileged, and the one intrinsic here that needs a feature the architecture
         // does not guarantee - a processor without XSAVE faults on it rather than ignoring it.
-        auto b = add(LowerIntrinsic::Xgetbv, "xgetbv"_v, kFeatureXsave);
+        auto b = add(LowerIntrinsic::Xgetbv, "xgetbv"_v, kFeatureBaseline);
         b.form.uses.push(fixedReg(IntRegister::rcx));
         b.form.defs.push(fixedDef(IntRegister::rax));
         b.form.defs.push(fixedDef(IntRegister::rdx));

@@ -152,8 +152,19 @@ static void initializeTargets() {
     initialized = true;
 }
 
-// The instruction set extensions the settings enabled, in the form LLVM names them. What the
-// command line says the target has is what the code generator is allowed to use.
+/*
+ * The level the settings name, as the feature list LLVM spells it with.
+ *
+ * One list per level and not a ladder, because that is what a level *is*: the psABI defines v2 and
+ * v3 as sets, LLVM has no name for either set, and writing them out is how the two sides come to be
+ * compiling for one machine. Getting this wrong is not a missed optimization - `llc` told less than
+ * the local backend claims produces a slower program the benchmark then reads as a difference of
+ * code generation, which is precisely what §37.2 had to correct once already.
+ *
+ * `x86-64-v2` and `-v3` are LLVM feature names in recent versions, but not in every version this is
+ * built against, so the members are listed instead. A member LLVM does not know is ignored with a
+ * warning rather than refused, which is the failure mode to prefer here.
+ */
 static std::string featuresOf(const CompileSettings& settings) {
     std::string features;
 
@@ -163,22 +174,17 @@ static std::string featuresOf(const CompileSettings& settings) {
         features += name;
     };
 
-    switch(settings.extensions.sse) {
-        case TargetExtensions::AVX512: add("avx512f"); [[fallthrough]];
-        case TargetExtensions::AVX2:   add("avx2");    [[fallthrough]];
-        case TargetExtensions::AVX:    add("avx");     [[fallthrough]];
-        case TargetExtensions::SSE4_2: add("sse4.2");  [[fallthrough]];
-        case TargetExtensions::SSE4_1: add("sse4.1");  [[fallthrough]];
-        case TargetExtensions::SSSE3:  add("ssse3");   [[fallthrough]];
-        case TargetExtensions::SSE3:   add("sse3");    [[fallthrough]];
-        case TargetExtensions::SSE2:   add("sse2");    [[fallthrough]];
-        case TargetExtensions::SSE:    add("sse");     [[fallthrough]];
-        case TargetExtensions::NoSSE:  break;
+    // v2, which is the floor: everything this compiler emits assumes it.
+    add("sse2"); add("sse3"); add("ssse3"); add("sse4.1"); add("sse4.2"); add("popcnt"); add("cx16");
+
+    if(settings.extensions.level >= TargetExtensions::V3) {
+        add("avx"); add("avx2"); add("bmi"); add("bmi2"); add("fma"); add("f16c");
+        add("lzcnt"); add("movbe"); add("xsave");
     }
 
-    if(settings.extensions.popcnt) add("popcnt");
-    if(settings.extensions.lzcnt) add("lzcnt");
-    if(settings.extensions.fma3) add("fma");
+    if(settings.extensions.level >= TargetExtensions::V4) {
+        add("avx512f"); add("avx512bw"); add("avx512cd"); add("avx512dq"); add("avx512vl");
+    }
 
     return features;
 }

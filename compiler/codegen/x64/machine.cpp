@@ -1724,7 +1724,7 @@ MachineTarget::MachineTarget() {
             form.uses.push(anyReg(ClassXmm128));
             form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
             form.defs.push(tiedDef(0, ClassXmm128));
-            form.requiredFeatures = kFeatureSse41;
+            form.requiredFeatures = kFeatureBaseline;
             form.encoding = sseRegRm(0x66, 0x40, useRef(0), useRef(1), OperationWidth::FromResult);
             form.encoding.opcodeMap = kOpcodeMap0F38;
         }
@@ -2054,7 +2054,7 @@ MachineTarget::MachineTarget() {
             auto& form = add(id, OpVExtract, formName);
             form.uses.push(anyReg(ClassXmm128));
             form.defs.push(def(cls));
-            form.requiredFeatures = kFeatureSse41;
+            form.requiredFeatures = kFeatureBaseline;
             form.encoding = EncodingDescriptor {
                 .family = EncodingFamily::RegRm,
                 .opcode = 0x16,
@@ -2166,13 +2166,13 @@ MachineTarget::MachineTarget() {
         // scalar is a 32-bit register for every lane but the quadword, which is what `scalarFormOf`
         // already says an 8- or 16-bit lane arrives in.
         insertInt(FormVInsert8, "pinsrb xmm, r32, lane"_v, ClassGpr32, 0x20, kOpcodeMap0F3A,
-                  OperationWidth::Fixed32, kFeatureSse41);
+                  OperationWidth::Fixed32, kFeatureBaseline);
         insertInt(FormVInsert16, "pinsrw xmm, r32, lane"_v, ClassGpr32, 0xc4, kOpcodeMap0F,
                   OperationWidth::Fixed32, kFeatureBaseline);
         insertInt(FormVInsert32, "pinsrd xmm, r32, lane"_v, ClassGpr32, 0x22, kOpcodeMap0F3A,
-                  OperationWidth::Fixed32, kFeatureSse41);
+                  OperationWidth::Fixed32, kFeatureBaseline);
         insertInt(FormVInsert64, "pinsrq xmm, r64, lane"_v, ClassGpr64, 0x22, kOpcodeMap0F3A,
-                  OperationWidth::Fixed64, kFeatureSse41);
+                  OperationWidth::Fixed64, kFeatureBaseline);
 
         /*
          * A float lane, which never crosses a bank and so is a different instruction at each width.
@@ -2200,7 +2200,7 @@ MachineTarget::MachineTarget() {
         };
 
         insertFloat(FormVInsertF32, "insertps xmm, xmm, lane"_v, ClassFloat32, 0x66, 0x21,
-                    kOpcodeMap0F3A, true, kFeatureSse41);
+                    kOpcodeMap0F3A, true, kFeatureBaseline);
         insertFloat(FormVInsertF32Low, "movss xmm, xmm"_v, ClassFloat32, 0xf3, 0x10,
                     kOpcodeMap0F, false, kFeatureBaseline);
         insertFloat(FormVInsertF64Low, "movsd xmm, xmm"_v, ClassFloat64, 0xf2, 0x10,
@@ -4899,12 +4899,10 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
                 case LowerInst::Sub: return packedForm(kSub, type);
                 case LowerInst::Mul:
                 case LowerInst::IMul:
-                    // The one lane width whose form is a feature question. Which signedness it was
-                    // written with does not enter into it: the low half of a product is the same
-                    // bits either way, which is why `IMul` reaches this row at all.
-                    if(laneColumn(type) == 2) {
-                        return widthForm((targetFeatures() & kFeatureSse41) ? FormVMul32 : FormVMul32Sse2, type);
-                    }
+                    // A 32-bit lane's product is `pmulld`, which is SSE4.1 and so is the floor.
+                    // Which signedness it was written with does not enter into it: the low half of a
+                    // product is the same bits either way, which is why `IMul` reaches this row.
+                    if(laneColumn(type) == 2) return widthForm(FormVMul32, type);
 
                     return packedForm(kMul, type);
                 default:              return packedForm(kDiv, type);
@@ -5156,10 +5154,7 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * which is a class disagreement rather than a wrong number.
              */
             auto wide = laneBytes(type.lane) == 8 && !type.isMask();
-            if(targetFeatures() & kFeatureSse41) return wide ? FormVExtract64 : FormVExtract32;
-
-            assertTrue(lane->getLane() == 0); // no baseline extract of any lane but the first
-            return wide ? FormVExtract64Zero : FormVExtract32Zero;
+            return wide ? FormVExtract64 : FormVExtract32;
         }
 
         /*
@@ -5196,19 +5191,13 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
                     return lane->getLane() == 0 ? FormVInsertF64Low : FormVInsertF64High;
                 }
 
-                if(targetFeatures() & kFeatureSse41) return FormVInsertF32;
-
-                assertTrue(lane->getLane() == 0); // no baseline insert into a higher single lane
-                return FormVInsertF32Low;
+                return FormVInsertF32;
             }
 
             static const MachineFormId kInsert[6] = {
                 FormVInsert8, FormVInsert16, FormVInsert32, FormVInsert64, 0, 0
             };
 
-            // A row whose feature the target lacks is `selectForm`'s assertion rather than one here:
-            // every form goes through it, and at the baseline the 32- and 64-bit columns are exactly
-            // what `lowerLaneInserts` was supposed to have taken away.
             return packedForm(kInsert, type);
         }
 
@@ -5389,22 +5378,9 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                 return Just("a lane of a mask cannot be written here - a mask lane is all-ones or all-zeros and its scalar form states no width, so build the mask with a comparison instead"_v);
             }
 
-            if(targetFeatures() & kFeatureSse41) return {};
-
-            // A float lane is complete at both widths. A quadword one is `movsd`/`unpcklpd`, and a
-            // single one above lane zero goes through the word route with a bitcast at each end -
-            // see `lowerLaneInserts`, which is what the crossing to a general register costs.
-            if(isFloatVector(type)) return {};
-
-            if(laneBytes(type.lane) == 1) {
-                // Unless the whole chain is a constant, in which case `poolVectorConstants` turns it
-                // into a load and this link is never emitted - which is what `iota` is at a byte
-                // lane, and so what every masked tail of a byte-lane loop is.
-                if(isPooledVectorConstant(base, &((LowerInstVecLane*)inst)->result)) return {};
-
-                return Just("the machine has no insert of a byte lane before SSE4.1 - `pinsrw` writes a whole word, so one byte of it would have to be read back out first"_v);
-            }
-
+            // Every lane width has an insert at the floor: `pinsrb`, `pinsrw`, `pinsrd`, `pinsrq`
+            // and `insertps` are all SSE4.1, which is v2. The byte lane was the one this refused
+            // before the floor was named, since `pinsrw` writes a whole word.
             return {};
         }
 

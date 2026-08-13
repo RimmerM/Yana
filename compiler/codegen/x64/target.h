@@ -48,29 +48,22 @@ struct CompileSettings;
 
 using FeatureSet = U32;
 
-// Baseline is AMD64 itself, which is more than the 386 instruction set: SSE2 is architectural
-// here, so the fences, `pause`, `prefetch` and `clflush` need no feature of their own. What does
-// need one is anything added after the architecture was: the three below, and the vector
-// extensions.
-static constexpr FeatureSet kFeatureBaseline = 0;
-static constexpr FeatureSet kFeaturePopcnt = 1 << 0;
-static constexpr FeatureSet kFeatureRdtscp = 1 << 1;
-
-// XGETBV, and the extended-state registers it reads. Named for the enabling bit rather than for
-// the instruction: a processor with XSAVE has it, and one without it faults.
-static constexpr FeatureSet kFeatureXsave = 1 << 4;
-
 /*
- * SSE4.1: the lane insert and extract, and the three-byte opcode map they live in.
+ * The baseline is **x86-64-v2**, and it is the floor rather than a default.
  *
- * Named for the level rather than for the instructions because what it buys here is one shape rather
- * than a list - `pextrd`/`pextrq` move a lane straight into a general register and `pinsrd`/`pinsrq`
- * move one back, where the baseline needs a shuffle into a scratch vector register first and has
- * nowhere to put one (`MachineForm::temporaries` is what validateMachineForms still rejects). So the
- * feature is the difference between a lane access being one instruction and being unavailable at any
- * index but zero.
+ * POPCNT, RDTSCP and XSAVE were claimed here unconditionally long before the levels were named, and
+ * those three are on every part that meets v2 and on nothing below it - so this backend already
+ * required v2 and only said so by accident. SSE4.1 was the one that gave the game away: it was a
+ * feature bit with a fallback behind it, and the fallback was for a machine the popcnt claim had
+ * already excluded. Naming the floor removed both the bit and the fallback.
+ *
+ * So a feature below is never a question about the *baseline* - it is a question about which of the
+ * two levels above it the target is. They are kept as separate bits rather than collapsed into a
+ * level number because a form's `requiredFeatures` is documentation as much as a check: `vpaddd ymm`
+ * needing AVX2 and `vfmadd` needing FMA3 are different facts about the instruction set, and a future
+ * level that splits them differently should find them written down separately.
  */
-static constexpr FeatureSet kFeatureSse41 = 1 << 5;
+static constexpr FeatureSet kFeatureBaseline = 0;
 
 // VEX encoding: the 128- and 256-bit three-operand vector forms, and the ymm half of the vector bank.
 static constexpr FeatureSet kFeatureAvx = 1 << 2;
@@ -96,14 +89,11 @@ static constexpr FeatureSet kFeatureAvx2 = 1 << 7;
 static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
 
 /*
- * BMI1, which here is `tzcnt` and nothing else yet.
+ * BMI1, which here is `tzcnt` and nothing else yet - and which is v3, like everything beside it.
  *
- * **Claimed with AVX2 rather than on its own**, which is a statement about parts that exist rather
- * than about instruction sets. Haswell brought AVX2, BMI1 and BMI2 out together and every Intel part
- * with the first has the other two; AMD's Excavator and every Zen do the same, and the AMD parts
- * that had BMI1 without BMI2 (Piledriver, Steamroller) had AVX and not AVX2. So there is no
- * processor for a separate claim to describe, and a flag nothing can set differently is a flag that
- * only gets out of step. BMI2 belongs on the same line the day `bzhi` or `shlx` is wanted.
+ * It was claimed with AVX2 before the levels were named, on the grounds that no part has one without
+ * the other; the level says the same thing and says it once. BMI2 is v3 as well and needs no bit
+ * until `bzhi` or `shlx` is wanted.
  *
  * What it buys is the one thing a sentinel bit cannot do at every width: `tzcnt` answers the
  * *operand's width* for a zero operand, where `bsf` leaves its destination undefined. A movemask
@@ -119,12 +109,11 @@ static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
 static constexpr FeatureSet kFeatureBmi1 = 1 << 8;
 
 /*
- * The fused multiply-add, at every width and both lane kinds.
+ * The fused multiply-add, at every width and both lane kinds - v3, with the rest.
  *
- * A feature of its own rather than a level, because it *is* one: FMA3 arrived with Haswell and AVX
- * arrived with Sandy Bridge, and there are parts with AVX and no FMA. `CompileSettings` already
- * draws the same distinction (`extensions.fma3` is a flag beside the SSE level rather than a point
- * on it), so the two agree by construction.
+ * It was a flag beside the SSE ladder when the ladder had a rung for AVX-without-AVX2, since Sandy
+ * Bridge has that rung and no FMA. Under the levels there is no such rung: a part with AVX and
+ * without FMA is v2, and every v3 part has both.
  *
  * What it buys is a rounding rather than an instruction count. Design-Vector §3.3 makes `fma` a
  * *permission* to fuse rather than a promise, so a target without this expands it into the multiply

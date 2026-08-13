@@ -1,5 +1,5 @@
 {-
-   # extensions: avx
+   # extensions: v3
 
    A vector read out of memory and folded into the operation that reads it - Implementation-Vector.md
    §5.4.1.
@@ -8,10 +8,10 @@
    `tryFoldLoad` moves onto the twin that reads its operand from an address. `xs[0]` is further up and
    stays in a register, which is what makes the pair of them a fold rather than a rewrite of both.
 
-   **The point is that this is only possible with the extension.** A legacy-encoded packed operation
+   **The point is that this is only possible above the floor.** A legacy-encoded packed operation
    faults on a memory operand that is not 16-byte aligned, and an address the program computed is not
-   one this backend has promised anything about - so `memoryTwin` was never called for one and below
-   AVX there is no form to fold onto. Nothing in `tryFoldLoad` was taught about the target for it: the
+   one this backend has promised anything about - so `memoryTwin` was never called for one and at v2
+   there is no form to fold onto. Nothing in `tryFoldLoad` was taught about the target for it: the
    pass asks the form `selectForm` would choose, and without the extension that is the legacy form
    with no memory twin, so the fold declines itself. `test/x64/VectorOps.lower` and `VectorVex.lower`
    are the byte-level halves of that - the same two functions, one directive apart - and what this

@@ -1,11 +1,11 @@
 {-
-   # extensions: avx2
+   # extensions: v3
 
    The 256-bit tier - Implementation-Vector.md §5.4 and §12's "the ymm/zmm tier".
 
    The directive above is the whole of what makes this fixture different from
    `VecValue.yana`, and it changes what the *types* mean rather than which instructions are picked:
-   `targetVectorBytes` answers 32 under AVX2, so `Vec(Int)` here is eight lanes where the same
+   `targetVectorBytes` answers 32 at v3, so `Vec(Int)` here is eight lanes where the same
    source without the directive is four. That is why this is a file of its own with goldens of its
    own rather than a mode on an existing fixture.
 
@@ -99,11 +99,12 @@ fn main() -> Int:
     {-
        `firstSet` at the width where the sentinel does not fit beside the mask.
 
-       On x64 this is a movemask and a bit scan, and the bit the scan finds for "nothing is set" is
-       the one past the last lane *byte* - which at a whole 256-bit register is bit 32, and is not a
-       bit an `i32` has. So the count is taken at 64 there and in 32 bits everywhere else, and these
-       three assertions are what say the two agree: the lowest set lane, the answer where a mask is
-       empty, and the answer where every lane is set.
+       On x64 this is a movemask and a bit scan, and what the scan answers for an empty mask is where
+       the two tiers differ. Below a whole register the answer comes from a sentinel bit one past the
+       last lane byte; at 256 bits there is no such bit in an `i32`, and `tzcnt`'s answer for a zero
+       operand - the operand's width - is the byte count instead. These three assertions are what say
+       the two agree: the lowest set lane, the answer where a mask is empty, and the answer where
+       every lane is set.
 
        Lane 1 rather than lane 0 for the first of them, because a lane index is a *byte* index
        shifted here: the bit the scan finds for lane 1 of a four-byte lane is bit 4, and a shift

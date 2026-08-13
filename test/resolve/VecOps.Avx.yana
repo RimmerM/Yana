@@ -1,22 +1,24 @@
 {-
-   # extensions: avx
+   # extensions: v3
 
-   `VecOps.yana` again with AVX present - Implementation-Vector.md §5.4.
+   `VecOps.yana` again one level up - Implementation-Vector.md §5.4.
 
-   **The same source and the same number, with every instruction VEX-encoded.** `targetVectorBytes`
-   answers 32 only under AVX2, so a vector here is still four lanes and every operation is a 128-bit
-   one - which makes this the runnable half of `test/x64/VectorVex.lower`: that file asserts which
-   bytes come out, and this one asserts that a program built from them computes what it did before.
+   **The same source, VEX-encoded throughout, at the width v3 gives it.** The two files differ in one
+   line, and what the pair asserts is that the operation set means the same thing at both levels: a
+   VEX form derived wrongly from its legacy twin - a tie dropped where the machine still ties, an
+   operand moved into the field a prefix reads it from - shows up as a difference between these two
+   rather than as a golden nobody can check by eye.
 
-   Worth a fixture of its own rather than a directive on the original, because the pair is the
-   assertion: the two files differ in one line and have to agree on one number, so a VEX form that
-   was derived wrongly from its legacy twin - a tie dropped where the machine still ties, an operand
-   moved into the field a prefix reads it from - shows up as a difference between them rather than as
-   a golden nobody can check by eye.
+   It used to say `# extensions: avx` and be *four* lanes, which was the point of it: AVX without
+   AVX2 left `targetVectorBytes` at 16, so this was the runnable half of `test/x64/VectorVex.lower` -
+   VEX encodings over 128-bit registers. That machine is not describable any more (see
+   TargetExtensions: AVX-without-AVX2 is a v2 part, as the psABI has it), so the width moves with the
+   encoding here and the 128-bit VEX forms are asserted by the `.lower` fixtures alone, which name
+   their types and so keep them whatever the level says.
 
-   The lane count is the reason there is no `.js.expect` beside this: a directive naming an x86
-   extension says nothing to that backend, and a second JavaScript golden of the same program would
-   assert only that the directive was ignored.
+   The lane count is the reason there is no `.js.expect` beside this: a directive naming an x86 level
+   says nothing to that backend, and a second JavaScript golden of the same program would assert only
+   that the directive was ignored.
 -}
 
 -- Lanewise arithmetic through `Num`, which is the whole of what an instance over a vector type buys:

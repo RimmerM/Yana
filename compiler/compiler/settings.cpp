@@ -136,17 +136,34 @@ StringView archName(TargetArch arch) {
     return index < sizeof(archTable) / sizeof(StringView) ? archTable[index] : "unknown"_v;
 }
 
-StringView sseTable[] = {
-    "sse"_v,
-    "sse2"_v,
-    "sse3"_v,
-    "ssse3"_v,
-    "sse4.1"_v,
-    "sse4.2"_v,
-    "avx"_v,
-    "avx2"_v,
-    "avx512"_v,
+/*
+ * The three levels, and the three older spellings that name the same machines.
+ *
+ * The aliases are kept because they read better at a call site that is about one instruction set -
+ * `-enable-inst avx2` says why a benchmark row exists more clearly than `v3` does - and because
+ * every script and fixture already writes them. What is *not* kept is a spelling for a machine no
+ * level describes: `avx` alone was Sandy Bridge, which is a v2 part everywhere else, and `sse4.1`
+ * alone was Penryn, which is below the floor. Both now name the level that contains them.
+ */
+struct LevelName { StringView name; TargetExtensions::Level level; };
+
+static const LevelName levelTable[] = {
+    { "v2"_v, TargetExtensions::V2 },
+    { "v3"_v, TargetExtensions::V3 },
+    { "v4"_v, TargetExtensions::V4 },
+
+    { "sse4.2"_v, TargetExtensions::V2 },
+    { "avx2"_v, TargetExtensions::V3 },
+    { "avx512"_v, TargetExtensions::V4 },
 };
+
+Maybe<TargetExtensions::Level> matchLevel(const String& arg) {
+    for(auto& entry: levelTable) {
+        if(Tritium::toString(entry.name) == arg) return Just(TargetExtensions::Level(entry.level));
+    }
+
+    return Nothing();
+}
 
 static Maybe<U32> matchString(StringView* table, Size count, const String& arg) {
     for(U32 i = 0; i < count; i++) {
@@ -222,35 +239,76 @@ static void applyHostExtensions(CompileSettings& settings) {
     }
 #endif // __MSC_VER
 
-    // Parse the supported instruction sets from the cpuid values.
-    bool hasSSE    = !!(info_edx & (1 << 25));
-    bool hasSSE2   = !!(info_edx & (1 << 26));
-    bool hasSSE3   = !!(info_ecx & (1 << 0 ));
-    bool hasSSSE3  = !!(info_ecx & (1 << 9 ));
-    bool hasSSE4_1 = !!(info_ecx & (1 << 19));
-    bool hasSSE4_2 = !!(info_ecx & (1 << 20));
-    bool hasPOPCNT = !!(info_ecx & (1 << 23));
-    bool hasAVX    = !!(info_ecx & (1 << 28));
-    bool hasFMA3   = !!(info_ecx & (1 << 12));
+    /*
+     * The bits each level is defined by, and the whole level is required rather than the part this
+     * backend happens to use today. The name is the psABI's, so what it promises has to be the
+     * psABI's too: a build that called a machine v3 because it had AVX2 would be lying about
+     * `movbe` and `f16c` to whatever asks next, and on the LLVM path something does - `-mattr=+...`
+     * is written straight from this.
+     */
+    bool hasSSE3    = !!(info_ecx & (1 << 0 ));
+    bool hasSSSE3   = !!(info_ecx & (1 << 9 ));
+    bool hasCx16    = !!(info_ecx & (1 << 13));
+    bool hasSSE4_1  = !!(info_ecx & (1 << 19));
+    bool hasSSE4_2  = !!(info_ecx & (1 << 20));
+    bool hasPOPCNT  = !!(info_ecx & (1 << 23));
+    bool hasMOVBE   = !!(info_ecx & (1 << 22));
+    bool hasFMA3    = !!(info_ecx & (1 << 12));
+    bool hasF16C    = !!(info_ecx & (1 << 29));
+    bool hasAVX     = !!(info_ecx & (1 << 28));
+    bool hasXSAVE   = !!(info_ecx & (1 << 26));
+    bool hasOSXSAVE = !!(info_ecx & (1 << 27));
 
-    bool hasAVX2 = !!(info7_ebx & (1 << 5));
-    bool hasAVX512 = !!(info7_ebx & (1 << 16));
+    bool hasAVX2    = !!(info7_ebx & (1 << 5 ));
+    bool hasBMI1    = !!(info7_ebx & (1 << 3 ));
+    bool hasBMI2    = !!(info7_ebx & (1 << 8 ));
+    bool hasAVX512F = !!(info7_ebx & (1 << 16));
+    bool hasAVX512DQ= !!(info7_ebx & (1 << 17));
+    bool hasAVX512CD= !!(info7_ebx & (1 << 28));
+    bool hasAVX512BW= !!(info7_ebx & (1 << 30));
+    bool hasAVX512VL= !!(info7_ebx & (1 << 31));
 
-    bool hasABM = !!(infoex_ecx & (1 << 5));
+    bool hasABM     = !!(infoex_ecx & (1 << 5));
 
-    settings.extensions.lzcnt = hasABM;
-    settings.extensions.popcnt = hasPOPCNT || hasABM;
-    settings.extensions.fma3 = hasFMA3;
+    /*
+     * **What the processor has is not what the program may use.** The wide registers are extended
+     * state, and an operating system that has not enabled saving them leaves their instructions
+     * faulting however the feature bits read - so the enabling is asked about too, through the same
+     * `xgetbv` a runtime check would use. Without this a `-march=native` default would be a
+     * `#UD` on a kernel that never turned AVX on, which is exactly the kind of machine this compiler
+     * is also used to write.
+     */
+    U64 xcr0 = 0;
+    if(hasXSAVE && hasOSXSAVE) {
+#if defined(__MSC_VER)
+        xcr0 = _xgetbv(0);
+#elif defined(__GNUC__)
+        U32 lo, hi;
+        __asm__ volatile("xgetbv" : "=a"(lo), "=d"(hi) : "c"(0));
+        xcr0 = U64(lo) | (U64(hi) << 32);
+#endif
+    }
 
-    if(hasSSE)    settings.extensions.sse = TargetExtensions::SSE;
-    if(hasSSE2)   settings.extensions.sse = TargetExtensions::SSE2;
-    if(hasSSE3)   settings.extensions.sse = TargetExtensions::SSE3;
-    if(hasSSSE3)  settings.extensions.sse = TargetExtensions::SSSE3;
-    if(hasSSE4_1) settings.extensions.sse = TargetExtensions::SSE4_1;
-    if(hasSSE4_2) settings.extensions.sse = TargetExtensions::SSE4_2;
-    if(hasAVX)    settings.extensions.sse = TargetExtensions::AVX;
-    if(hasAVX2)   settings.extensions.sse = TargetExtensions::AVX2;
-    if(hasAVX512) settings.extensions.sse = TargetExtensions::AVX512;
+    auto savesSse = (xcr0 & 0x2) != 0;                  // XMM state
+    auto savesAvx = savesSse && (xcr0 & 0x4) != 0;      // and the upper half of each YMM
+    auto savesAvx512 = savesAvx && (xcr0 & 0xe0) == 0xe0; // opmask, ZMM_hi256, hi16_ZMM
+
+    auto meetsV2 = hasSSE3 && hasSSSE3 && hasSSE4_1 && hasSSE4_2 && hasCx16 && (hasPOPCNT || hasABM);
+    auto meetsV3 = meetsV2 && hasAVX && hasAVX2 && hasBMI1 && hasBMI2 && hasFMA3 && hasF16C
+                          && hasMOVBE && hasABM && savesAvx;
+    auto meetsV4 = meetsV3 && hasAVX512F && hasAVX512BW && hasAVX512CD && hasAVX512DQ && hasAVX512VL
+                          && savesAvx512;
+
+    /*
+     * A machine below the floor still gets the floor, because the floor is a requirement rather than
+     * an observation: there is no code generator here for a part without SSE4.2, and answering "v1"
+     * would only move the failure to a form table that has no row to select. Compiling *on* such a
+     * machine is fine - what is produced is code for a machine one level up, which is what a cross
+     * build always is.
+     */
+    settings.extensions.level = meetsV4 ? TargetExtensions::V4
+                              : meetsV3 ? TargetExtensions::V3
+                                        : TargetExtensions::V2;
 #endif // __X86__
 }
 
@@ -328,15 +386,23 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
         }
     }
 
-    if(settings.arch == TargetArch::X64 && settings.extensions.sse < TargetExtensions::SSE2) {
-        // AMD64 instruction set implies SSE2 support.
-        settings.extensions.sse = TargetExtensions::SSE2;
-    } else if(settings.arch == TargetArch::ARM64 && !settings.extensions.neon) {
-        // All AArch64 cpus seem to support NEON (documentation is unclear if this is required though).
+    // All AArch64 cpus seem to support NEON (documentation is unclear if this is required though).
+    // x86-64 needs no such line any more: its level is v2 unless something raises it, and v2 is the
+    // floor rather than a default - see TargetExtensions.
+    if(settings.arch == TargetArch::ARM64 && !settings.extensions.neon) {
         settings.extensions.neon = true;
     }
 
-    // If no explicit arch and extensions were provided, we default to what the host supports.
+    /*
+     * And the level, which is the *host's* where a build named neither an architecture nor a level.
+     *
+     * That is `-march=native`'s bargain and it is worth stating plainly: a build with no flags
+     * produces code for the machine it ran on, so the same source compiled on a Haswell and on a
+     * Nehalem is two different programs - eight lanes in a `Vec(Int)` and four. A build that has to
+     * be reproducible names its level, which every fixture in the test suite and every row of the
+     * benchmark corpus does. Detection is skipped when an architecture was named, since the host's
+     * CPUID says nothing about a machine it is not.
+     */
     if(!hasArch && !hasExtensions) {
         applyHostExtensions(settings);
     }
@@ -459,30 +525,16 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::enableInst:
                 hasExtensions = true;
-                if(auto v = matchString(sseTable, sizeof(sseTable) / sizeof(StringView), value)) {
-                    auto sse = (TargetExtensions::SSEMode)(v.unwrap() + 1);
-                    if(settings.extensions.sse < sse) settings.extensions.sse = sse;
-
-                    // All targets that support SSE4.2 also support popcnt.
-                    if(sse >= TargetExtensions::SSE4_2) settings.extensions.popcnt = true;
-
-                    // All targets that support AVX2 also support lzcnt and fma3.
-                    if(sse >= TargetExtensions::AVX2) {
-                        settings.extensions.lzcnt = true;
-                        settings.extensions.fma3 = true;
-                    }
-                    return true;
-                } else if(value == "popcnt") {
-                    settings.extensions.popcnt = true;
-                    return true;
-                } else if(value == "lzcnt") {
-                    settings.extensions.lzcnt = true;
+                if(auto level = matchLevel(value)) {
+                    // The highest of everything named, so that two flags do not undo each other.
+                    if(settings.extensions.level < level.unwrap()) settings.extensions.level = level.unwrap();
                     return true;
                 } else if(value == "neon") {
                     settings.extensions.neon = true;
                     return true;
                 } else {
-                    error = "Unrecognized instruction set extension.";
+                    error = "Unrecognized instruction set level. Valid levels are: "
+                            "v2|v3|v4 (or sse4.2|avx2|avx512, which name the same three), and neon.";
                     return false;
                 }
             case Flag::to:

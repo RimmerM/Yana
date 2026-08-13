@@ -11,11 +11,10 @@
  * than described differently here.
  */
 
-// What this backend claims about AMD64 itself, and what a build that configures nothing gets. The
-// three are unconditional because they are older than any target description here: making them
-// depend on detected extensions would change existing programs' code according to the machine that
-// compiled them. See the comment on x64FeaturesFor in target.h.
-static constexpr FeatureSet kBaselineFeatures = kFeaturePopcnt | kFeatureRdtscp | kFeatureXsave;
+// What this backend claims about AMD64 itself: x86-64-v2, which is the floor every target
+// description here is written against. See kFeatureBaseline, and TargetExtensions for why the floor
+// is a requirement rather than a default.
+static constexpr FeatureSet kBaselineFeatures = kFeatureBaseline;
 
 static FeatureSet gTargetFeatures = kBaselineFeatures;
 
@@ -34,32 +33,25 @@ void setTargetFeatures(FeatureSet features) {
     gTargetFeatures = features;
 }
 
+/*
+ * The level, as the bits the form table is written in terms of.
+ *
+ * One switch and no implications drawn on the way: what used to be four separate claims - SSE4.1
+ * from the ladder, AVX from a rung above it, FMA3 from a flag beside it, BMI1 from a rule about
+ * which parts exist - is a level saying what a level means. The bits stay separate below this line
+ * because a form's requirement is documentation (see kFeatureBaseline); they are simply never set
+ * apart from each other any more.
+ *
+ * There is no `explicitExtensions` test here and no host detection either. The level is settled by
+ * the time this is asked - a build that named one has it, and a build that named none has the one
+ * its host meets - so this reads a decision rather than making one.
+ */
 FeatureSet x64FeaturesFor(const CompileSettings& settings) {
     auto features = kBaselineFeatures;
-    if(!settings.explicitExtensions) return features;
 
-    // Every level from SSE4.1 up has it, AVX included: the VEX forms of these instructions are the
-    // same operations re-encoded, and a target claiming AVX without SSE4.1 is not one that exists.
-    if(settings.extensions.sse >= TargetExtensions::SSE4_1) features |= kFeatureSse41;
-
-    if(settings.extensions.sse >= TargetExtensions::AVX) features |= kFeatureAvx;
-
-    /*
-     * The 256-bit tier, which is AVX2 rather than AVX for the reason `targetVectorBytes` gives:
-     * AVX widened the float operations alone, so the level at which a whole vector of any lane type
-     * fits one register is this one and not the one below it.
-     *
-     * **BMI1 comes with it and is not asked about separately** - see the note on the feature, which
-     * is where the argument is. There is no part with one and not the other, and the pairing is what
-     * the wide mask scan is written against: a movemask that fills its word needs `tzcnt`'s answer
-     * for zero, and every movemask that fills its word is thirty-two bytes wide and so is this level.
-     */
-    if(settings.extensions.sse >= TargetExtensions::AVX2) features |= kFeatureAvx2 | kFeatureBmi1;
-
-    // FMA3 is a flag beside the level rather than a point on it, on both sides: there are parts with
-    // AVX and no FMA, and `applyDefaults` reads the two out of separate CPUID bits. It needs VEX to
-    // be encodable at all, so a target claiming the one without the other gets neither.
-    if(settings.extensions.fma3 && (features & kFeatureAvx)) features |= kFeatureFma3;
+    if(settings.extensions.level >= TargetExtensions::V3) {
+        features |= kFeatureAvx | kFeatureAvx2 | kFeatureBmi1 | kFeatureFma3;
+    }
 
     /*
      * AVX-512 is claimed for its *encoding* and not for its register file.
@@ -71,9 +63,10 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
      * Handing out xmm16 while any form is still legacy is an encoding that silently means xmm0.
      *
      * So `vectorRegisterCountFor` holds the bank at sixteen whatever the features say, and lifting
-     * it is stage 5's - it comes with the EVEX forms that make the upper half reachable.
+     * it is what makes v4 a width rather than a prefix - it comes with the EVEX forms that make the
+     * upper half reachable, and with `targetVectorBytes` answering 64.
      */
-    if(settings.extensions.sse >= TargetExtensions::AVX512) features |= kFeatureAvx512f;
+    if(settings.extensions.level >= TargetExtensions::V4) features |= kFeatureAvx512f;
 
     return features;
 }

@@ -2,7 +2,7 @@
 
 reductions<complex>(): Int {
   b_0 {
-    %ones = vsplat 1: i32x4
+    %ones = vsplat 1: i32x8
     %count = vreduce_add %ones: Int
     %v_1 = cmp_ilt %count, 2: Int
     je %v_1, b_2, b_3
@@ -31,7 +31,7 @@ reductions<complex>(): Int {
   }
 
   b_9 {
-    %sevens = vsplat 7: i32x4
+    %sevens = vsplat 7: i32x8
     %v_10 = vreduce_add %sevens: Int
     %v_11 = imul %count, 7: Int
     %v_12 = cmp_neq %v_10, %v_11: Int
@@ -61,7 +61,7 @@ reductions<complex>(): Int {
   }
 
   b_20 {
-    %v_21 = vwithlane %sevens, 9, 0: i32x4
+    %v_21 = vwithlane %sevens, 9, 0: i32x8
     %v_22 = vreduce_imax %v_21: Int
     %v_23 = cmp_neq %v_22, 9: Int
     je %v_23, b_24, b_25
@@ -76,7 +76,7 @@ reductions<complex>(): Int {
   }
 
   b_26 {
-    %v_27 = vwithlane %sevens, 2, 1: i32x4
+    %v_27 = vwithlane %sevens, 2, 1: i32x8
     %v_28 = vreduce_imin %v_27: Int
     %v_29 = cmp_neq %v_28, 2: Int
     je %v_29, b_30, b_31
@@ -97,9 +97,9 @@ reductions<complex>(): Int {
 
 floats<complex>(): Int {
   b_0 {
-    %a = vsplat 1.5: f32x4
-    %b = vsplat 2: f32x4
-    %scaled = mul %a, %b: f32x4
+    %a = vsplat 1.5: f32x8
+    %b = vsplat 2: f32x8
+    %scaled = mul %a, %b: f32x8
     %v_1 = vlane %scaled, 0: Float
     %v_2 = cmp_neq %v_1, 3: Int
     je %v_2, b_3, b_4
@@ -114,7 +114,7 @@ floats<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = add %a, %b: f32x4
+    %v_6 = add %a, %b: f32x8
     %v_7 = vlane %v_6, 1: Float
     %v_8 = cmp_neq %v_7, 3.5: Int
     je %v_8, b_9, b_10
@@ -129,7 +129,7 @@ floats<complex>(): Int {
   }
 
   b_11 {
-    %v_12 = neg %a: f32x4
+    %v_12 = neg %a: f32x8
     %v_13 = vlane %v_12, 0: Float
     %v_14 = cmp_neq %v_13, -1.5: Int
     je %v_14, b_15, b_16
@@ -181,31 +181,31 @@ main<complex>(): Int {
   }
 
   b_13 {
-    %a = vsplat 3: i32x4
-    %b = vsplat 4: i32x4
-    %sum = add %a, %b: i32x4
-    %product = imul %a, %b: i32x4
-    %difference = sub %b, %a: i32x4
+    %a = vsplat 3: i32x8
+    %b = vsplat 4: i32x8
+    %sum = add %a, %b: i32x8
+    %product = imul %a, %b: i32x8
+    %difference = sub %b, %a: i32x8
     %v_14 = vlane %sum, 0: Int
     %v_15 = imul %v_14, 100: Int
     %v_16 = vlane %product, 0: Int
     %v_17 = add %v_15, %v_16: Int
     %v_18 = vlane %difference, 1: Int
     %v_19 = add %v_17, %v_18: Int
-    %a = vsplat 12: i32x4
-    %b = vsplat 10: i32x4
-    %v_20 = and %a, %b: i32x4
+    %a = vsplat 12: i32x8
+    %b = vsplat 10: i32x8
+    %v_20 = and %a, %b: i32x8
     %v_21 = vlane %v_20, 0: Int
     %v_22 = imul %v_21, 100: Int
-    %v_23 = or %a, %b: i32x4
+    %v_23 = or %a, %b: i32x8
     %v_24 = vlane %v_23, 0: Int
     %v_25 = add %v_22, %v_24: Int
-    %v_26 = xor %a, %b: i32x4
+    %v_26 = xor %a, %b: i32x8
     %v_27 = vlane %v_26, 1: Int
     %v_28 = add %v_25, %v_27: Int
     %v_29 = add %v_19, %v_28: Int
-    %v = vsplat 5: i32x4
-    %changed = vwithlane %v, 9, 1: i32x4
+    %v = vsplat 5: i32x8
+    %changed = vwithlane %v, 9, 1: i32x8
     %v_30 = vlane %changed, 0: Int
     %v_31 = imul %v_30, 100: Int
     %v_32 = vlane %changed, 1: Int

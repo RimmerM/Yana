@@ -403,7 +403,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c000
   add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 8d0c00
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
@@ -411,23 +411,19 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vlane uses=[xmm0] creates=[rax]  => 66480f7ec0
+  vlane uses=[xmm0] creates=[rax]  => 66480f3a16c000
   add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 488d0c00
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: extractHigh ---
-  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => 660f70d0ff
-  vlane uses=[xmm2] creates=[rax]  => 660f7ed0
-  vshuffle uses=[xmm1, xmm1] creates=[xmm1]  => 660f70c9ee
-  vlane uses=[xmm1] creates=[rcx]  => 66480f7ec9
-  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 660f70c055
-  vlane uses=[xmm0] creates=[rcx]  => 660f7ec1
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
+  vlane uses=[xmm1] creates=[rcx]  => 66480f3a16c901
+  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c101
   add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: extractFloat ---
 block #0:
@@ -504,12 +500,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660fc4cf02
-  imm uses=[] creates=[-]  => 
-  shr uses=[rdi, -] creates=[rdi]  => c1ef10
-  vwithlane uses=[xmm1, rdi] creates=[xmm1]  => 660fc4cf03
-  bitcast uses=[xmm1] creates=[xmm1]  => 
+  vwithlane uses=[xmm1, rdi] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f3a22cf01
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
 
@@ -518,14 +509,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  bitcast uses=[rdi] creates=[xmm1]  => 66480f6ecf
-  vwithlane uses=[xmm0, xmm1] creates=[xmm0]  => 660f14c1
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  bitcast uses=[rdi] creates=[xmm1]  => 66480f6ecf
-  vwithlane uses=[xmm0, xmm1] creates=[xmm0]  => f20f10c1
-  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => 66480f3a22c701
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => 66480f3a22c700
   ret uses=[xmm0] creates=[]  => c9c3
 
 --- codegen: insertFloat ---
@@ -533,7 +518,7 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vwithlane uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f30f10d1
+  vwithlane uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a21d100
   add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
   ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
 
