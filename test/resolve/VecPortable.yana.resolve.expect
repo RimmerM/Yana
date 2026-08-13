@@ -146,33 +146,27 @@ fn arithmetic(%v: Vec(Int)) -> Int {
 
   b12:
     %negated = sub %empty, %v : Vec(Int)
-    %v65 = vsplat 0 : Vec(Int)
-    %v66 = cmp_le %negated, %v65 : Mask(Int)
-    %v67 = sub %v65, %negated : Vec(Int)
-    %v68 = select %v66 ? %v67 : %negated : Vec(Int)
-    %v71 = vlane %v68, 0 : Int
-    %v74 = cmp_ne %v71, 2 : Bool
-    je %v74, b13, b14
+    %v64 = abs %negated : Vec(Int)
+    %v67 = vlane %v64, 0 : Int
+    %v70 = cmp_ne %v67, 2 : Bool
+    je %v70, b13, b14
 
   b13:
-    %v78 = neg 5 : Int
-    ret %v78
+    %v74 = neg 5 : Int
+    ret %v74
 
   b14:
     jmp b15
 
   b15:
-    %v82 = vsplat 0 : Vec(Int)
-    %v83 = cmp_le %v, %v82 : Mask(Int)
-    %v84 = sub %v82, %v : Vec(Int)
-    %v85 = select %v83 ? %v84 : %v : Vec(Int)
-    %v88 = vlane %v85, 1 : Int
-    %v91 = cmp_ne %v88, 2 : Bool
-    je %v91, b16, b17
+    %v77 = abs %v : Vec(Int)
+    %v80 = vlane %v77, 1 : Int
+    %v83 = cmp_ne %v80, 2 : Bool
+    je %v83, b16, b17
 
   b16:
-    %v95 = neg 6 : Int
-    ret %v95
+    %v87 = neg 6 : Int
+    ret %v87
 
   b17:
     jmp b18
@@ -186,63 +180,57 @@ fn floats() -> Int {
     %v2 = neg 1.5 : Float
     %a = vsplat %v2 : Vec(Float)
     %zeros = vsplat 0 : Vec(Float)
-    %v7 = vsplat 0 : Vec(Float)
-    %v8 = cmp_le %a, %v7 : Mask(Float)
-    %v9 = sub %v7, %a : Vec(Float)
-    %v10 = select %v8 ? %v9 : %a : Vec(Float)
-    %v13 = vlane %v10, 0 : Float
-    %v16 = cmp_ne %v13, 1.5 : Bool
-    je %v16, b1, b2
+    %v6 = abs %a : Vec(Float)
+    %v9 = vlane %v6, 0 : Float
+    %v12 = cmp_ne %v9, 1.5 : Bool
+    je %v12, b1, b2
 
   b1:
-    %v20 = neg 1 : Int
-    ret %v20
+    %v16 = neg 1 : Int
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v23 = cmp_lt %a, %zeros : Mask(Float)
-    %v24 = select %v23 ? %a : %zeros : Vec(Float)
-    %v27 = vlane %v24, 0 : Float
-    %v30 = neg 1.5 : Float
-    %v31 = cmp_ne %v27, %v30 : Bool
-    je %v31, b4, b5
+    %v19 = cmp_lt %a, %zeros : Mask(Float)
+    %v20 = select %v19 ? %a : %zeros : Vec(Float)
+    %v23 = vlane %v20, 0 : Float
+    %v26 = neg 1.5 : Float
+    %v27 = cmp_ne %v23, %v26 : Bool
+    je %v27, b4, b5
 
   b4:
-    %v35 = neg 2 : Int
-    ret %v35
+    %v31 = neg 2 : Int
+    ret %v31
 
   b5:
     jmp b6
 
   b6:
-    %v38 = cmp_gt %a, %zeros : Mask(Float)
-    %v39 = select %v38 ? %a : %zeros : Vec(Float)
-    %v42 = vlane %v39, 1 : Float
-    %v45 = cmp_ne %v42, 0 : Bool
-    je %v45, b7, b8
+    %v34 = cmp_gt %a, %zeros : Mask(Float)
+    %v35 = select %v34 ? %a : %zeros : Vec(Float)
+    %v38 = vlane %v35, 1 : Float
+    %v41 = cmp_ne %v38, 0 : Bool
+    je %v41, b7, b8
 
   b7:
-    %v49 = neg 3 : Int
-    ret %v49
+    %v45 = neg 3 : Int
+    ret %v45
 
   b8:
     jmp b9
 
   b9:
-    %v54 = vsplat 0 : Vec(Float)
-    %v55 = cmp_le %zeros, %v54 : Mask(Float)
-    %v56 = sub %v54, %zeros : Vec(Float)
-    %v57 = select %v55 ? %v56 : %zeros : Vec(Float)
-    %v60 = vlane %v57, 0 : Float
-    %v62 = div 1, %v60 : Float
-    %v65 = cmp_lt %v62, 0 : Bool
-    je %v65, b10, b11
+    %v49 = abs %zeros : Vec(Float)
+    %v52 = vlane %v49, 0 : Float
+    %v54 = div 1, %v52 : Float
+    %v57 = cmp_lt %v54, 0 : Bool
+    je %v57, b10, b11
 
   b10:
-    %v69 = neg 4 : Int
-    ret %v69
+    %v61 = neg 4 : Int
+    ret %v61
 
   b11:
     jmp b12

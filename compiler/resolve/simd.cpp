@@ -179,10 +179,12 @@ static ModulePtr<Value> emitLanes(ExprResolver& resolver, Buffer<ModulePtr<Value
 /*
  * `min` and `max`, which are a comparison and a select.
  *
- * Two instructions where `minps` is one, and that is the honest state of a backend with no packed
- * minimum rather than a design choice - the shape is what a target that has the instruction folds,
- * and the shape is what a target that does not needs anyway. NaN follows the comparison: `min(NaN,
- * b)` answers `b`, which is what `minps` does with its operands in this order.
+ * Two instructions where `minps` is one, and the shape rather than an instruction because that is
+ * what a target *without* a packed minimum needs and what a target with one folds back: the x64
+ * backend recognizes exactly this pair (`selectPackedMinMax`) and LLVM's own selection does the
+ * same. NaN follows the comparison: `min(NaN, b)` answers `b`, which is what `minps` does with its
+ * operands in this order - so the fold is an identity rather than an approximation, and **the
+ * operand order here is what makes that true**.
  */
 template<CompareOp op>
 static ModulePtr<Value> emitMinMax(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -195,15 +197,19 @@ static ModulePtr<Value> emitMinMax(ExprResolver& resolver, Buffer<ModulePtr<Valu
 }
 
 /*
- * `abs`, and the one place a signed zero decides the shape.
+ * `abs`, which is one instruction and used to be three.
  *
- * `select(v .<= 0, 0 - v, v)` and not `select(v .< 0, -v, v)`, which differ only at zero and differ
- * there in the direction that matters: negating `+0.0` gives `-0.0`, so the obvious form answers a
- * negative zero for a positive input, while subtracting from zero gives `+0.0` for both signs. NaN
- * compares false and passes through.
+ * It was `select(v .<= 0, 0 - v, v)` - the comparison non-strict and the negation a subtraction from
+ * zero, so that `-0.0` answers `+0.0` where `-v` would have answered `-0.0`, and a NaN compares
+ * false and passes through the untouched arm. That last part is what made it wrong to leave as a
+ * shape: every target computes a magnitude in one instruction and every one of them clears the sign
+ * of a NaN, so a backend that used its own instruction disagreed with one that expanded this, and
+ * nothing in the language said which was right. `Value::Abs` is where that is now ruled on - see the
+ * row in inst.def.
  *
- * An unsigned lane is already its own magnitude, so the expansion is the operand and nothing is
- * emitted at all.
+ * An unsigned lane is already its own magnitude, so the answer is the operand and no instruction is
+ * emitted at all - which is also why the verifier refuses one over an unsigned lane rather than
+ * treating it as a no-op.
  */
 static ModulePtr<Value> emitAbs(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                 LocationId source, StringId name) {
@@ -214,11 +220,7 @@ static ModulePtr<Value> emitAbs(ExprResolver& resolver, Buffer<ModulePtr<Value>>
     auto integer = resolver.global[lane];
     if(integer->kind == Type::Int && !((IntType*)integer)->isSigned) return args[0];
 
-    auto zero = splatConstant(resolver, type, source, 0);
-    auto negative = resolver.ref(resolver.emit<InstCmp>(source, StringId(), mask, args[0], zero, CompareOp::Le));
-    auto negated = resolver.ref(resolver.emit<InstBinary>(source, StringId(), type, Value::Sub, zero, args[0]));
-
-    return resolver.ref(resolver.emit<InstSelect>(source, name, type, negative, negated, args[0]));
+    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Abs, args[0]));
 }
 
 /*

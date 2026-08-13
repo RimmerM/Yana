@@ -170,6 +170,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Neg:
         case Value::Not:
         case Value::Sqrt:
+        case Value::Abs:
         case Value::Fma:
         case Value::Add:
         case Value::Sub:

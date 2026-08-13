@@ -922,6 +922,38 @@ void Verifier::verifyInstruction(Value& instruction) {
          * integer arrives there as "a square root of an i32" with nothing left to say which
          * declaration asked for it.
          */
+        /*
+         * The magnitude, whose two rules are what the instruction is for - see inst.def.
+         *
+         * A *vector*, because nothing produces a scalar one: the library's `abs` is a vector
+         * intrinsic, and a rule admitting a shape no program can write is one no test exercises.
+         * Lanes that are floats or **signed** integers, an unsigned lane being its own magnitude and
+         * answered by `emitAbs` without an instruction at all.
+         *
+         * Asked here rather than left to the lower validator for the reason the two above are: this
+         * is where the type is still a language type. What reaches the lower IR is a lane kind, and
+         * an `i32` lane there has already forgotten whether it was declared signed.
+         */
+        case Value::Abs: {
+            auto lane = vectorLane(global, instruction.type);
+            auto element = lane ? global[lane] : nullptr;
+
+            if(!element) {
+                fail(instruction.source, "%%@ takes the magnitude of a value that is not a vector"_v,
+                     instruction.id);
+            } else if(element->kind == Type::Int) {
+                if(!((IntType*)element)->isSigned) {
+                    fail(instruction.source, "%%@ takes the magnitude of an unsigned lane, which is itself"_v,
+                         instruction.id);
+                }
+            } else if(element->kind != Type::Float) {
+                fail(instruction.source, "%%@ takes the magnitude of a lane that is neither a number nor a float"_v,
+                     instruction.id);
+            }
+
+            break;
+        }
+
         case Value::Sqrt:
         case Value::Fma: {
             auto lane = vectorLane(global, instruction.type);

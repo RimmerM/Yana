@@ -1,0 +1,125 @@
+
+abs32<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %r = abs %v: f32x4
+    ret %r
+  }
+}
+
+abs64<complex>(%v: f64x2): f64x2 {
+  b_0 {
+    %r = abs %v: f64x2
+    ret %r
+  }
+}
+
+absTwice<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %x = abs %a: f32x4
+    %y = abs %b: f32x4
+    %r = add %x, %y: f32x4
+    ret %r
+  }
+}
+
+absBoth<complex>(%a: f32x4, %b: f64x2): f32x4 {
+  b_0 {
+    %x = abs %a: f32x4
+    %y = abs %b: f64x2
+    %w = bitcast %y: f32x4
+    %r = add %x, %w: f32x4
+    ret %r
+  }
+}
+
+absInt<complex>(%b: i8x16, %w: i16x8, %d: i32x4): i32x4 {
+  b_0 {
+    %rb = abs %b: i8x16
+    %rw = abs %w: i16x8
+    %rd = abs %d: i32x4
+    %cb = bitcast %rb: i32x4
+    %cw = bitcast %rw: i32x4
+    %s = add %cb, %cw: i32x4
+    %r = add %s, %rd: i32x4
+    ret %r
+  }
+}
+
+absNonDestructive<complex>(%d: i32x4): i32x4 {
+  b_0 {
+    %a = abs %d: i32x4
+    %r = add %a, %d: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: abs32 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => 0f100da5000000
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 0f54c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: abs64 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => 0f100da5000000
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660f54c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absTwice ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => 0f101575000000
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 0f54c2
+  and uses=[xmm1, xmm2] creates=[xmm1]  => 0f54ca
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 0f58c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absBoth ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => 0f101565000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => 0f101d4e000000
+  and uses=[xmm0, xmm3] creates=[xmm0]  => 0f54c3
+  and uses=[xmm1, xmm2] creates=[xmm1]  => 660f54ca
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 0f58c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absInt ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  abs uses=[xmm0] creates=[xmm0]  => 660f381cc0
+  abs uses=[xmm1] creates=[xmm1]  => 660f381dc9
+  abs uses=[xmm2] creates=[xmm2]  => 660f381ed2
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffec1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => 660ffec2
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absNonDestructive ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  abs uses=[xmm0] creates=[xmm1]  => 660f381ec8
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3

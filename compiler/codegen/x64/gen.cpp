@@ -1828,38 +1828,98 @@ struct Emitter {
      */
     void emitVecBroadcast(LowerInst* inst, const InstRegs& regs) {
         auto type = ((LowerInstVecSplat*)inst)->result.type;
-        auto is64 = laneBytes(type.lane) == 8;
+        auto lane = laneBytes(type.lane);
+        auto is64 = lane == 8;
 
         auto destination = reg(regs.creates[0]);
         auto source = reg(regs.uses[0]);
 
-        // An integer lane crosses banks first. The move writes the whole destination, so what the
-        // shuffle then reads is its own register and the source register is free from here.
-        if(isIntLike(type.laneType())) {
+        /*
+         * An integer lane crosses banks first. The move writes the whole destination, so what the
+         * shuffle then reads is its own register and the source register is free from here.
+         *
+         * Asked of the lane's *scalar form* rather than of the lane, and that is not a tidy-up: an
+         * 8- or 16-bit lane arrives in a general register as an Int32 (`scalarFormOf`), while
+         * `laneType()` answers `Int8`, which `isIntLike` calls neither an integer nor a pointer -
+         * the lower IR's scalars being 32 bits and wider. Read the other way, a byte splat emitted
+         * its shuffle over whatever the destination happened to hold.
+         */
+        if(!isFloat(scalarFormOf(type))) {
             emitMoveAcrossBanks(destination, source, is64, true);
             source = destination;
         }
 
         /*
-         * At 256 bits the shuffle is not the answer, and this is the one expansion here where the
-         * wide route is a different instruction rather than the same one re-encoded.
+         * AVX2's own broadcasts, which are one instruction at every lane width and at both register
+         * widths - `vpbroadcastb`, `-w`, `-d`, `-q`, all VEX in the three-byte 0F38 map, none of
+         * them carrying a control byte because the operation has no choices left in it.
          *
-         * `vpshufd ymm` works inside each 128-bit half, so it can put lane zero in all four lanes of
-         * the low half and cannot reach the upper half at all. AVX2's broadcasts exist for exactly
-         * this: `vpbroadcastd`/`vpbroadcastq` take lane zero of an xmm and fill the whole register.
-         * Both are VEX.256 in the three-byte 0F38 map - 58 for the dword, 59 for the quadword - and
-         * neither carries a control byte, the operation having no choices left in it.
+         * Asked before the width rather than after it, and that is a change of shape: `vpshufd`
+         * works *inside* each 128-bit half, so it never reached the upper one and the wide route had
+         * to be this already. What is new is that the 128-bit route takes it too wherever the
+         * extension is there - which removes the last legacy-encoded instruction a VEX build was
+         * emitting into a vector register, and is what §5.4's rule asks for rather than an
+         * optimization.
          */
-        if(isWideVector(type)) {
+        if(targetFeatures() & kFeatureAvx2) {
+            static const U8 kOpcode[] = { 0x78, 0x79, 0x58, 0x59 }; // byte, word, dword, quadword
+            auto opcode = kOpcode[lane == 1 ? 0 : lane == 2 ? 1 : lane == 4 ? 2 : 3];
+
             genRegRegPrefixed(to, InstPrefix {
                 .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                .map = kOpcodeMap0F38, .length = 1,
-            }, source, destination, is64 ? 0x59 : 0x58);
+                .map = kOpcodeMap0F38, .length = U8(isWideVector(type) ? 1 : 0),
+            }, source, destination, opcode);
+            return;
+        }
+
+        /*
+         * And the baseline's stand-ins for the two narrow lanes, which are what a target without
+         * AVX2 has instead - and are still shorter than the multiply this backend used to expand a
+         * narrow splat into (`and ; mov $0x01010101 ; mul ; movd ; pshufd`, five instructions and a
+         * general register held for the constant).
+         *
+         * A **byte** is `pshufb` against a register of zeros: the instruction takes one byte index
+         * per lane out of its second operand, so all-zero indices answer byte zero everywhere. The
+         * zeros go in the form's declared clobber, which is what makes this a pseudo with a scratch
+         * rather than a form.
+         *
+         * A **word** needs no scratch and no constant. `pshuflw` puts word zero into all four words
+         * of the low quadword, and `pshufd` then broadcasts the dword those four make - two shuffles
+         * of the value itself, which is the same count as the byte's route without the register.
+         */
+        if(lane == 1) {
+            auto zeros = U8(15); // the form's declared clobber - see FormVBroadcast8Sse
+
+            // `pxor` against itself, which is the shortest zero on this machine and needs nothing.
+            genRegReg(to, false, zeros, zeros, 0xef, 0x0f, 0x66);
+
+            // `pshufb xmm, xmm/m128` is 66 0F 38 00 /r - the destination is what is shuffled and is
+            // ModRM.reg, and the r/m operand is the vector of indices. The generator takes the r/m
+            // operand first, which is the order every other call here passes.
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Legacy, .mandatory = 0x66, .escape = 0x0f,
+                .map = kOpcodeMap0F38,
+            }, zeros, destination, 0x00);
+            return;
+        }
+
+        if(lane == 2) {
+            // `pshuflw xmm, xmm, imm8` is F2 0F 70 /r ib, and the control byte is `pshufd`'s read
+            // over the low four *words*: zero in every field is word zero four times over.
+            genRegReg(to, false, source, destination, 0x70, 0x0f, 0xf2);
+            to.buffer.writeByte(0x00);
+
+            genRegReg(to, false, destination, destination, 0x70, 0x0f, 0x66);
+            to.buffer.writeByte(0x00);
             return;
         }
 
         // `pshufd` is 66 0F 70 /r ib whatever the lane, and never REX.W: the width it works at is in
         // the mandatory prefix, exactly as every other packed form here states with `widthInPrefix`.
+        //
+        // The control byte is the broadcast of lane zero at the *result's* lane width, which is 0x00
+        // for a 32-bit lane and 0x44 for a 64-bit one - the latter being the pair of 32-bit lanes
+        // that make up the low half, there being no quadword shuffle here.
         genRegReg(to, false, source, destination, 0x70, 0x0f, 0x66);
         to.buffer.writeByte(is64 ? 0x44 : 0x00);
     }

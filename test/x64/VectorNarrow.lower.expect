@@ -36,28 +36,20 @@ belowByte<complex>(%a: i8x16, %b: i8x16): m8x16 {
 
 
 --- codegen: splatByte ---
-  prologue  => 55488bec4157
+  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  cast uses=[rdi] creates=[rax]  => 8bc7
-  imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 41bf0101010141f7e7
-  vsplat uses=[rax] creates=[xmm0]  => 660f6ec0660f70c000
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  ret uses=[xmm0] creates=[]  => 488d65f8415f5dc3
+  vsplat uses=[rdi] creates=[xmm0]  => 660f6ec766450fefff66410f3800c7
+  ret uses=[xmm0] creates=[]  => c9c3
 
 --- codegen: splatWord ---
-  prologue  => 55488bec4157
+  prologue  => 55488bec
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  cast uses=[rdi] creates=[rax]  => 8bc7
-  imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 41bf0100010041f7e7
-  vsplat uses=[rax] creates=[xmm0]  => 660f6ec0660f70c000
-  bitcast uses=[xmm0] creates=[xmm0]  => 
-  ret uses=[xmm0] creates=[]  => 488d65f8415f5dc3
+  vsplat uses=[rdi] creates=[xmm0]  => 660f6ec7f20f70c000660f70c000
+  ret uses=[xmm0] creates=[]  => c9c3
 
 --- codegen: sumBytes ---
   prologue  => 55488bec
@@ -92,21 +84,11 @@ block #1:
   bitcast uses=[xmm0] creates=[xmm0]  => 
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c8b1
   bitcast uses=[xmm1] creates=[xmm1]  => 
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => f30f6f15bf000000
-  xor uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660fefda
-  xor uses=[xmm4, xmm2] creates=[xmm4] pre=[xmm1->xmm4]  => 0f28e1660fefe2
-  cmp_igt uses=[xmm4, xmm3] creates=[xmm4]  => 660f64e3
-  select uses=[xmm0, xmm1, xmm4] creates=[xmm0]  => 440f28fc66440fdff9660fdbc466410febc7
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660fdac1
   bitcast uses=[xmm0] creates=[xmm0]  => 
   vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c84e
   bitcast uses=[xmm1] creates=[xmm1]  => 
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => f30f6f158e000000
-  xor uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660fefda
-  xor uses=[xmm4, xmm2] creates=[xmm4] pre=[xmm1->xmm4]  => 0f28e1660fefe2
-  cmp_igt uses=[xmm4, xmm3] creates=[xmm4]  => 660f64e3
-  select uses=[xmm0, xmm1, xmm4] creates=[xmm0]  => 440f28fc66440fdff9660fdbc466410febc7
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660fdac1
   bitcast uses=[xmm0] creates=[xmm0]  => 
   vlane uses=[xmm0] creates=[rax]  => 660f3a16c000
   imm uses=[] creates=[-]  => 

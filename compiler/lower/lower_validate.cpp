@@ -219,6 +219,30 @@ static bool validateSqrt(Diagnostics* diagnostics, LowerBase base, LowerInstUnar
     return true;
 }
 
+/*
+ * The magnitude, whose rule is what is left of the resolver's after the language types are gone.
+ *
+ * A float or an integer, scalar or vector, and the operand's type is the result's. The *signedness*
+ * of an integer lane cannot be checked here and is not this validator's to check: a lane kind has
+ * forgotten it by now, and `verifyFunction` has already refused an unsigned one - see the row in
+ * resolve/inst.def.
+ */
+static bool validateAbs(Diagnostics* diagnostics, LowerBase base, LowerInstUnary* inst) {
+    auto type = inst->result.type;
+
+    if(!isFloat(type) && !isFloatVector(type) && !isIntLike(type) && !isIntVector(type)) {
+        diagnostics->error("the magnitude is defined on numbers and vectors of them only"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->from]->type != type) {
+        diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
 static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* inst) {
     if(!validateFloatOnly(diagnostics, inst->result.type, inst)) return false;
 
@@ -1092,6 +1116,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, false);
         case LowerInst::Sqrt:
             return validateSqrt(diagnostics, base, (LowerInstUnary*)inst);
+        case LowerInst::Abs:
+            return validateAbs(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Fma:
             return validateFma(diagnostics, base, (LowerInstFma*)inst);
         case LowerInst::Add:
@@ -1158,6 +1184,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:
+        case LowerInst::X86MinMax:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;
     }

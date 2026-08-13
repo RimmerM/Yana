@@ -1,0 +1,144 @@
+# The minimum and the maximum with AVX present - the same functions as `VectorMinMax.lower` at the
+# two tiers a VEX build has, plus the two things the legacy tier cannot do at all.
+#
+# extensions: v3
+#
+# The pair of files reads the same way `VectorOps.lower` and `VectorVex.lower` do: the same source,
+# one directive apart, and every difference is one of four things - a `c4`/`c5` prefix, `L` set for
+# the wide half, operands a class wider, and the tie gone with the copy the allocator was putting in
+# front of it.
+#
+# What this file asserts that the baseline one cannot:
+#
+#   - **the three-operand shape.** `pminsd xmm0, xmm1` writes over one of its sources, so a minimum
+#     whose operands are both live afterwards needs a `movaps` first; `vpminsd xmm2, xmm0, xmm1` does
+#     not, and `minMaxBoth` below is the shape that shows it.
+#   - **the memory operand.** A legacy packed operation faults on an unaligned address, so the whole
+#     family declines a folded load (see `foldableUnderVex`); the VEX twins have no such rule, and a
+#     `vpmaxsd` reads the array element it is compared against straight out of memory. That is the
+#     one instruction the `pblendvb` shape could never have been: a blend takes three registers.
+#   - **the wide tier**, where the integer rows are AVX2's own and the float ones are AVX's.
+
+# The signed and unsigned pairs at 128 bits, three-operand throughout.
+narrow(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %ms = cmp_ilt %a, %b: m32x4
+        %s = select %ms, %a, %b: i32x4
+        %mu = cmp_gt %a, %b: m32x4
+        %u = select %mu, %a, %b: i32x4
+        %r = add %s, %u: i32x4
+        ret %r
+    }
+}
+
+# Both operands read again afterwards, which is where the tie would have cost a copy each.
+minMaxBoth(%a: f32x4, %b: f32x4): f32x4 {
+    {
+        %ml = cmp_lt %a, %b: m32x4
+        %lo = select %ml, %a, %b: f32x4
+        %mg = cmp_gt %a, %b: m32x4
+        %hi = select %mg, %a, %b: f32x4
+        %d = sub %hi, %lo: f32x4
+        %s = add %d, %a: f32x4
+        %r = sub %s, %b: f32x4
+        ret %r
+    }
+}
+
+# The load the minimum reads out of memory rather than out of a register it was moved into first.
+#
+# The operand order is what decides whether this can happen at all: the address has to be the one
+# operand the encoding dereferences, which is the second. `arr[i] < acc ? arr[i] : acc` puts the load
+# first and the exchange `tryFoldLoad` performs for a commutative operation is what moves it - which
+# an integer minimum permits and a float one does not, the order being part of what `minps` answers.
+loadFold(%p: Ptr, %a: i32x4): i32x4 {
+    {
+        %v = load %p, 16: i32x4
+        %m = cmp_ilt %a, %v: m32x4
+        %r = select %m, %a, %v: i32x4
+        ret %r
+    }
+}
+
+# The wide tier: eight lanes, `L` set, and the integer rows AVX2's.
+wide(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %ms = cmp_ilt %a, %b: m32x8
+        %s = select %ms, %a, %b: i32x8
+        %mu = cmp_lt %a, %b: m32x8
+        %u = select %mu, %a, %b: i32x8
+        %r = add %s, %u: i32x8
+        ret %r
+    }
+}
+
+# And the wide float pair, which is AVX's own `vmaxps` at 256 bits.
+wideFloat(%a: f32x8, %b: f32x8): f32x8 {
+    {
+        %m = cmp_gt %a, %b: m32x8
+        %hi = select %m, %a, %b: f32x8
+        ret %hi
+    }
+}
+
+# A wide load folded, which is the same twin one tier up - `wideTwin` rebuilds the link from scratch
+# rather than inheriting it, and this is what says the rebuild happened.
+wideLoadFold(%p: Ptr, %a: i32x8): i32x8 {
+    {
+        %v = load %p, 32: i32x8
+        %m = cmp_igt %a, %v: m32x8
+        %r = select %m, %a, %v: i32x8
+        ret %r
+    }
+}
+
+# The same fold with the load on the *other* side, which is where the exchange earns its place.
+#
+# `arr[i] < acc ? arr[i] : acc` is `min(v, a)`, and the address has to end up in the second operand
+# because that is the one the encoding dereferences. An integer minimum permits the exchange - the
+# lanes are the same either way - so this is one instruction like the one above it.
+loadFoldExchange(%p: Ptr, %a: i32x4): i32x4 {
+    {
+        %v = load %p, 16: i32x4
+        %m = cmp_ilt %v, %a: m32x4
+        %r = select %m, %v, %a: i32x4
+        ret %r
+    }
+}
+
+# And the float half of exactly that shape, which keeps its `vmovups`.
+#
+# `minps` answers its second operand whenever the comparison is false, so `min(v, a)` and `min(a, v)`
+# differ for a NaN and for a pair of zeros of opposite sign. The load stays in the first operand and
+# therefore stays a load: two instructions, and correct.
+loadFoldFloatKeeps(%p: Ptr, %a: f32x4): f32x4 {
+    {
+        %v = load %p, 16: f32x4
+        %m = cmp_lt %v, %a: m32x4
+        %r = select %m, %v, %a: f32x4
+        ret %r
+    }
+}
+
+# An equality with the load on the left, which is the other half of the same canonicalization.
+#
+# `vpcmpeqd` reads its second operand out of memory, and an equality is the one relation whose two
+# operands may be exchanged whatever they hold - a NaN answers false from either side. Every AVX2
+# string and integer loop in the library arrives in this shape, and each was emitting a `vmovdqu`
+# in front of the comparison for it.
+equalityFold(%p: Ptr, %a: i32x4): m32x4 {
+    {
+        %v = load %p, 16: i32x4
+        %m = cmp_eq %v, %a: m32x4
+        ret %m
+    }
+}
+
+# The byte lane of the same thing, which is what `countAscii` and every string search reach.
+equalityFoldBytes(%p: Ptr, %a: i8x16): m8x16 {
+    {
+        %v = load %p, 16: i8x16
+        %m = cmp_eq %v, %a: m8x16
+        ret %m
+    }
+}

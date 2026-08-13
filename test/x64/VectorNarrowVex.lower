@@ -1,0 +1,49 @@
+# The 8- and 16-bit lane with AVX2 present, which is where the machine has the broadcast outright.
+#
+# extensions: v3
+#
+# `VectorNarrow.lower` beside this one is the same operations at the baseline, where a byte splat is
+# `movd ; pxor ; pshufb` and a word splat is `movd ; pshuflw ; pshufd`. AVX2 has `vpbroadcastb` and
+# `vpbroadcastw`, which take the low lane of an xmm and fill a register of either width with it - so
+# each of those sequences is the bank crossing and one instruction, and the byte's scratch register
+# goes with it.
+#
+# The 32-bit and 64-bit broadcasts take the same route here, and that is the part worth reading
+# twice: `vpshufd` was doing the job perfectly well at 128 bits, but it was doing it *legacy-encoded*
+# in a build that is VEX everywhere else - a partial write of the low half of a register whose upper
+# half a `ymm` value may be living in. §5.4's rule is that a VEX build emits no legacy vector
+# instruction at all, and this was the last one left.
+
+# A byte and a word splat of a runtime value, at 128 bits.
+splatNarrow(%b: Int, %w: Int): i8x16 {
+    {
+        %vb = vsplat %b: i8x16
+        %vw = vsplat %w: i16x8
+        %cw = bitcast %vw: i8x16
+        %r = add %vb, %cw: i8x16
+        ret %r
+    }
+}
+
+# And at 256, where the same instruction fills the whole register - `vpshufd` never could, working
+# inside each 128-bit half.
+splatNarrowWide(%b: Int, %w: Int): i8x32 {
+    {
+        %vb = vsplat %b: i8x32
+        %vw = vsplat %w: i16x16
+        %cw = bitcast %vw: i8x32
+        %r = add %vb, %cw: i8x32
+        ret %r
+    }
+}
+
+# The two wider lanes, which take the same instruction rather than the shuffle they used to.
+splatWide(%d: Int, %q: Long): i32x4 {
+    {
+        %vd = vsplat %d: i32x4
+        %vq = vsplat %q: i64x2
+        %cq = bitcast %vq: i32x4
+        %r = add %vd, %cq: i32x4
+        ret %r
+    }
+}

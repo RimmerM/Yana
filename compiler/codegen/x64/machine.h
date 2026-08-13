@@ -106,6 +106,31 @@ enum : MachineOpcodeId {
     OpVSar,
     OpVCmp,
 
+    // The magnitude of every lane, at an integer lane alone: `pabsb`/`pabsw`/`pabsd`, one instruction
+    // and non-destructive. A float lane's magnitude is an `and` against a pooled sign mask and so is
+    // `OpVAnd` by the time anything here sees it - see `expandVectorAbs` in transform.cpp.
+    OpVAbs,
+
+    /*
+     * The lane-wise minimum and maximum, which the machine has and the portable IR does not.
+     *
+     * `minps`, `pminsd`, `pmaxub` and the rest: one instruction where a comparison and a blend are
+     * two (three, at a feature level without `pblendvb`), and no mask register in between. What
+     * reaches these is `LowerInst::X86MinMax`, which `selectPackedMinMax` writes in place of the
+     * pair - so the opcode exists here for the same reason `OpVMaskBits` does, the operation being
+     * one this machine performs and nothing above the backend can name.
+     *
+     * A form per lane type *and per signedness*, unlike every other packed opcode: `pminsb` and
+     * `pminub` are two instructions where `paddb` serves both readings. The signedness is the
+     * instruction's own (`LowerInstX86MinMax::isSignedLanes`) rather than the type's, because the
+     * comparison this was recognized from is what decided it.
+     *
+     * The quadword lane has no form at either signedness - there is no `pminsq` before AVX-512 - so
+     * a 64-bit minimum stays the comparison and the select it arrived as.
+     */
+    OpVMin,
+    OpVMax,
+
     /*
      * Lanes rearranged within one vector, by a pattern the encoding carries as a trailing byte.
      *
@@ -1234,6 +1259,17 @@ Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
  * second would have emitted perfectly well.
  */
 LowerCmp packedCompareRelation(LowerCmp cmp);
+
+/*
+ * Whether this machine has a packed minimum and maximum at this vector's lane.
+ *
+ * Asked by `selectPackedMinMax` in transform.cpp, which is what builds the instruction, and answered
+ * here for `packedCompareRelation`'s reason: what the form table has a row for and what a pass may
+ * write down have to be one statement, or the pass produces an instruction `selectPackedForm` then
+ * asserts on. The gaps are the machine's - the quadword integer lane at both signednesses, which is
+ * AVX-512's `pminsq` - and a lane count that is not a whole register, which nothing here holds.
+ */
+bool packedMinMaxSupported(LowerType type);
 
 /*
  * The trailing byte an instruction supplies for the form selected for it - see `patternImmediate`.

@@ -1,0 +1,64 @@
+
+splatNarrow<complex>(%b: Int, %w: Int): i8x16 {
+  b_0 {
+    %vb = vsplat %b: i8x16
+    %vw = vsplat %w: i16x8
+    %cw = bitcast %vw: i8x16
+    %r = add %vb, %cw: i8x16
+    ret %r
+  }
+}
+
+splatNarrowWide<complex>(%b: Int, %w: Int): i8x32 {
+  b_0 {
+    %vb = vsplat %b: i8x32
+    %vw = vsplat %w: i16x16
+    %cw = bitcast %vw: i8x32
+    %r = add %vb, %cw: i8x32
+    ret %r
+  }
+}
+
+splatWide<complex>(%d: Int, %q: Long): i32x4 {
+  b_0 {
+    %vd = vsplat %d: i32x4
+    %vq = vsplat %q: i64x2
+    %cq = bitcast %vq: i32x4
+    %r = add %vd, %cq: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: splatNarrow ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm0]  => c5f96ec7c4e27978c0
+  vsplat uses=[rsi] creates=[xmm1]  => c5f96ecec4e27979c9
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f9fcc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: splatNarrowWide ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm0]  => c5f96ec7c4e27d78c0
+  vsplat uses=[rsi] creates=[xmm1]  => c5f96ecec4e27d79c9
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fdfcc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: splatWide ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm0]  => c5f96ec7c4e27958c0
+  vsplat uses=[rsi] creates=[xmm1]  => c4e1f96ecec4e27959c9
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f9fec1
+  ret uses=[xmm0] creates=[]  => c9c3

@@ -159,6 +159,13 @@ enum: MachineFormId {
     // what the lanes are. A mask uses the same forms, which is what a mask *is* without AVX-512.
     FormVAnd, FormVOr, FormVXor, FormVAndNot,
 
+    // And the `and` in the *float* domain, which is the one bitwise row here that a lane type
+    // selects: `andps`/`andpd` do to a float vector exactly what `pand` does, and differ in the
+    // forwarding domain the result is read from. What reaches them is the absolute value - see
+    // `expandVectorAbs` - and nothing else does, which is why the other two operations have no
+    // float row beside them.
+    FormVAndF32, FormVAndF64,
+
     // Shifts by a constant count every lane shares. The machine also shifts by a count held in the
     // low quadword of a vector register, and AVX2 by one count per lane - neither is here, because
     // neither is what the IR's other spelling means: `shl %v, %count` with a register count is a
@@ -174,6 +181,21 @@ enum: MachineFormId {
     FormVCmpEq8, FormVCmpEq16, FormVCmpEq32,
     FormVCmpGt8, FormVCmpGt16, FormVCmpGt32,
     FormVCmpF32, FormVCmpF64,
+    /*
+     * The lane-wise minimum and maximum, which is the one packed family with a column per
+     * *signedness* as well as per lane width: `pminsb` and `pminub` are two instructions where
+     * `paddb` is one for both readings.
+     *
+     * The quadword is missing at both signednesses and is the machine's gap rather than this
+     * table's - there is no `pminsq` before AVX-512 - so a 64-bit minimum keeps the comparison and
+     * the select it was written as. The float pair carries no signedness: `minps` is the only
+     * ordering floats have.
+     */
+    FormVMinI8, FormVMinU8, FormVMinI16, FormVMinU16, FormVMinI32, FormVMinU32,
+    FormVMinF32, FormVMinF64,
+    FormVMaxI8, FormVMaxU8, FormVMaxI16, FormVMaxU16, FormVMaxI32, FormVMaxU32,
+    FormVMaxF32, FormVMaxF64,
+
 
     // The three signed relations the machine has only the complement of - see
     // packedCompareIsInverted. One form for every lane width, because what differs between them is
@@ -208,9 +230,18 @@ enum: MachineFormId {
     FormVUnpackHigh8, FormVUnpackHigh16, FormVUnpackHigh32, FormVUnpackHigh64,
     FormVUnpackHighF32, FormVUnpackHighF64,
 
-    // Every lane the same scalar, at the four lane widths whose scalar form this backend can move
-    // into a vector register. An 8- or 16-bit lane arrives as an Int32 (scalarFormOf) and would need
-    // the byte and word shuffles this tier does not have, so it has no form here.
+    /*
+     * Every lane the same scalar, at every lane width - the two narrow ones included.
+     *
+     * ~~An 8- or 16-bit lane arrives as an Int32 and would need the byte and word shuffles this tier
+     * does not have.~~ It needs one of two sequences, and which one is a *feature* question rather
+     * than a row: with AVX2 a narrow broadcast is `vpbroadcastb`/`vpbroadcastw`, one instruction
+     * after the bank crossing; without it a byte is `pshufb` against a register of zeros and a word
+     * is `pshuflw` and then `pshufd`. So the narrow pair is two rows each, exactly as `pmulld` and
+     * its SSE2 stand-in are - and the byte's baseline row is the one that declares the scratch the
+     * zeros live in.
+     */
+    FormVBroadcast8, FormVBroadcast8Sse, FormVBroadcast16, FormVBroadcast16Sse,
     FormVBroadcast32, FormVBroadcast64, FormVBroadcastF32, FormVBroadcastF64,
 
     // The two constants made out of nothing rather than loaded - see PseudoKind::VecZero. One form
@@ -250,6 +281,12 @@ enum: MachineFormId {
     // it only in the opcode it is a form of. The negation is a pseudo at both lane kinds.
     FormVMove,
     FormVNeg8, FormVNeg16, FormVNeg32, FormVNeg64, FormVNegF32, FormVNegF64,
+
+    // The magnitude of an integer lane, which SSSE3 gives at three widths and no feature level gives
+    // at the fourth: there is no `pabsq` before AVX-512. A float lane has no row here at all - it is
+    // an `and` against a pooled sign mask, which `expandVectorAbs` builds out of instructions this
+    // table already has.
+    FormVAbs8, FormVAbs16, FormVAbs32,
 
     // A packed conversion between the two lane kinds, which at this width is the 32-bit lane alone:
     // any other pair changes the register width as well as the lane's.
@@ -297,6 +334,7 @@ enum: MachineFormId {
     FormVWideDivF32, FormVWideDivF64,
 
     FormVWideAnd, FormVWideOr, FormVWideXor, FormVWideAndNot,
+    FormVWideAndF32, FormVWideAndF64,
 
     FormVWideShl16Imm, FormVWideShl32Imm, FormVWideShl64Imm,
     FormVWideShr16Imm, FormVWideShr32Imm, FormVWideShr64Imm,
@@ -305,11 +343,17 @@ enum: MachineFormId {
     FormVWideCmpEq8, FormVWideCmpEq16, FormVWideCmpEq32,
     FormVWideCmpGt8, FormVWideCmpGt16, FormVWideCmpGt32,
     FormVWideCmpF32, FormVWideCmpF64,
+    FormVWideMinI8, FormVWideMinU8, FormVWideMinI16, FormVWideMinU16,
+    FormVWideMinI32, FormVWideMinU32, FormVWideMinF32, FormVWideMinF64,
+    FormVWideMaxI8, FormVWideMaxU8, FormVWideMaxI16, FormVWideMaxU16,
+    FormVWideMaxI32, FormVWideMaxU32, FormVWideMaxF32, FormVWideMaxF64,
+
     FormVWideCmpInverted,
 
     FormVWideNot, FormVWideSelect,
     FormVWideNeg8, FormVWideNeg16, FormVWideNeg32, FormVWideNeg64,
     FormVWideNegF32, FormVWideNegF64,
+    FormVWideAbs8, FormVWideAbs16, FormVWideAbs32,
 
     FormVWideShuffle32, FormVWideShuffle32Second,
     FormVWideShuffle2F32, FormVWideShuffle2F64,
@@ -339,6 +383,7 @@ enum: MachineFormId {
      * and AVX2 is where one arrives.
      */
     FormVPerm2, FormVExtract128, FormVInsert128,
+    FormVWideBroadcast8, FormVWideBroadcast16,
     FormVWideBroadcast32, FormVWideBroadcast64,
     FormVWideBroadcastF32, FormVWideBroadcastF64,
 
@@ -535,6 +580,9 @@ MachineTarget::MachineTarget() {
     name(OpVShr, "vshr"_v);
     name(OpVSar, "vsar"_v);
     name(OpVCmp, "vcmp"_v);
+    name(OpVAbs, "vabs"_v);
+    name(OpVMin, "vmin"_v);
+    name(OpVMax, "vmax"_v);
     name(OpVShuffle, "vshuffle"_v);
     name(OpVBroadcast, "vbroadcast"_v);
     name(OpVExtract, "vextract"_v);
@@ -1688,12 +1736,20 @@ MachineTarget::MachineTarget() {
          * There is no feature test in `tryFoldLoad` for it: that pass asks the form `selectForm`
          * would choose, and here that is this row, which has no memory source to move onto.
          */
-        auto packed = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 prefix, U8 op) {
+        auto packed = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 prefix, U8 op,
+                          U8 map = kOpcodeMap0F, FeatureSet features = 0) {
             auto& form = add(id, opcode, formName);
             form.uses.push(anyReg(ClassXmm128));
             form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
             form.defs.push(tiedDef(0, ClassXmm128));
+            form.requiredFeatures = features;
             form.encoding = sseRegRm(prefix, op, useRef(0), useRef(1), OperationWidth::FromResult);
+
+            // The map the opcode is in, which for most of this table is the two-byte one the default
+            // names. The minimum and maximum are where that stops being true of a whole family: half
+            // of their rows are SSE4.1 and so live in the three-byte 0F38 map, the other half are
+            // SSE2 two-byte opcodes, and the two are the same instruction at a different lane.
+            form.encoding.opcodeMap = map;
         };
 
         // The integer widths of one operation, in lane order, and the two float ones. `0` for a lane
@@ -1770,6 +1826,12 @@ MachineTarget::MachineTarget() {
         packed(FormVXor,    OpVXor,    "pxor xmm, xmm/m"_v,  0x66, 0xef);
         packed(FormVAndNot, OpVAndNot, "pandn xmm, xmm/m"_v, 0x66, 0xdf);
 
+        // The float domain's `and`, which the absolute value is: `v & 0x7fffffff` per lane clears
+        // the sign bit and leaves a NaN, an infinity and a zero of either sign exactly where they
+        // were. One instruction against the comparison, the subtraction and the blend it replaces.
+        packed(FormVAndF32, OpVAnd, "andps xmm, xmm/m"_v, 0x00, 0x54);
+        packed(FormVAndF64, OpVAnd, "andpd xmm, xmm/m"_v, 0x66, 0x54);
+
         /*
          * Shifts by a constant count every lane shares.
          *
@@ -1838,6 +1900,42 @@ MachineTarget::MachineTarget() {
 
         floatCompare(FormVCmpF32, "cmpps xmm, xmm/m, predicate"_v, 0x00);
         floatCompare(FormVCmpF64, "cmppd xmm, xmm/m, predicate"_v, 0x66);
+
+        /*
+         * The lane-wise minimum and maximum.
+         *
+         * The one packed family with a signedness as well as a lane width, and the machine's own
+         * shape: `pminsw` and `pmaxub` are the two SSE2 rows, and SSE4.1 filled in the other four
+         * integer pairs in the three-byte 0F38 map. Which of the pair a program reaches is the
+         * *comparison* `selectPackedMinMax` recognized, not the lane type - an `i32x4` compared
+         * unsigned takes `pminud` and one compared signed takes `pminsd`.
+         *
+         * `minps`/`maxps` are `0F 5D` and `0F 5F` with the mandatory prefix deciding the lane width,
+         * exactly as the arithmetic above them is. Their NaN and signed-zero behaviour is what makes
+         * the operand order load-bearing - see LowerInst::X86MinMax - and it is also what makes them
+         * an exact replacement for `select(a < b, a, b)`: both answer the second operand when the
+         * comparison is false, which is what an unordered comparison is.
+         *
+         * There is no quadword row. `pminsq` is AVX-512, so a 64-bit lane keeps the comparison and
+         * the blend, which is what `selectPackedMinMax` declines to rewrite.
+         */
+        packed(FormVMinI8,  OpVMin, "pminsb xmm, xmm/m"_v, 0x66, 0x38, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMinU8,  OpVMin, "pminub xmm, xmm/m"_v, 0x66, 0xda);
+        packed(FormVMinI16, OpVMin, "pminsw xmm, xmm/m"_v, 0x66, 0xea);
+        packed(FormVMinU16, OpVMin, "pminuw xmm, xmm/m"_v, 0x66, 0x3a, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMinI32, OpVMin, "pminsd xmm, xmm/m"_v, 0x66, 0x39, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMinU32, OpVMin, "pminud xmm, xmm/m"_v, 0x66, 0x3b, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMinF32, OpVMin, "minps xmm, xmm/m"_v,  0x00, 0x5d);
+        packed(FormVMinF64, OpVMin, "minpd xmm, xmm/m"_v,  0x66, 0x5d);
+
+        packed(FormVMaxI8,  OpVMax, "pmaxsb xmm, xmm/m"_v, 0x66, 0x3c, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMaxU8,  OpVMax, "pmaxub xmm, xmm/m"_v, 0x66, 0xde);
+        packed(FormVMaxI16, OpVMax, "pmaxsw xmm, xmm/m"_v, 0x66, 0xee);
+        packed(FormVMaxU16, OpVMax, "pmaxuw xmm, xmm/m"_v, 0x66, 0x3e, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMaxI32, OpVMax, "pmaxsd xmm, xmm/m"_v, 0x66, 0x3d, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMaxU32, OpVMax, "pmaxud xmm, xmm/m"_v, 0x66, 0x3f, kOpcodeMap0F38, kFeatureBaseline);
+        packed(FormVMaxF32, OpVMax, "maxps xmm, xmm/m"_v,  0x00, 0x5f);
+        packed(FormVMaxF64, OpVMax, "maxpd xmm, xmm/m"_v,  0x66, 0x5f);
 
         /*
          * The three signed relations that are the complement of one the machine has.
@@ -1990,14 +2088,34 @@ MachineTarget::MachineTarget() {
          * No clobber and no scratch, unlike the float-immediate pseudo it otherwise resembles: the
          * bank crossing writes the destination directly, so there is no third register in it.
          */
-        auto broadcast = [&](MachineFormId id, StringView formName, RegisterClassId source) {
+        auto broadcast = [&](MachineFormId id, StringView formName, RegisterClassId source,
+                             FeatureSet features = 0, bool scratch = false) {
             auto& form = add(id, OpVBroadcast, formName);
             form.uses.push(anyReg(source));
             form.defs.push(def(ClassXmm128));
+            form.requiredFeatures = features;
+
+            // The byte broadcast's baseline route alone - `pshufb` shuffles by a *vector* of indices
+            // and the indices wanted are zeros, which have to be somewhere. xmm15 for the reason
+            // `FormVSelect` gives: it is the last register placement reaches for.
+            if(scratch) form.clobbers.add(vectorReg(15));
+
             form.encoding = EncodingDescriptor {
                 .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecBroadcast,
             };
         };
+
+        // The two narrow lanes, whose AVX2 row is one instruction after the crossing and whose
+        // baseline row is the shuffle sequence that stands in for it. The byte's baseline route
+        // needs a register of zeros to shuffle against, which is what the clobber is for; the word's
+        // is two shuffles of the value itself and needs nothing.
+        broadcast(FormVBroadcast8, "movd xmm, r32; vpbroadcastb xmm, xmm"_v, ClassGpr32,
+                  kFeatureAvx | kFeatureAvx2);
+        broadcast(FormVBroadcast8Sse, "movd xmm, r32; pxor; pshufb (byte broadcast)"_v, ClassGpr32,
+                  0, true);
+        broadcast(FormVBroadcast16, "movd xmm, r32; vpbroadcastw xmm, xmm"_v, ClassGpr32,
+                  kFeatureAvx | kFeatureAvx2);
+        broadcast(FormVBroadcast16Sse, "movd xmm, r32; pshuflw; pshufd (word broadcast)"_v, ClassGpr32);
 
         broadcast(FormVBroadcast32,  "movd xmm, r32; pshufd xmm, xmm, 0"_v,  ClassGpr32);
         broadcast(FormVBroadcast64,  "movq xmm, r64; pshufd xmm, xmm, 0x44"_v, ClassGpr64);
@@ -2301,6 +2419,29 @@ MachineTarget::MachineTarget() {
         negate(FormVNegF64, "pcmpeqd; psllq; xorpd (negate)"_v);
 
         /*
+         * The magnitude of an integer lane, which is an ordinary form and not a pseudo: `pabsb`,
+         * `pabsw` and `pabsd` are SSSE3 - inside the v2 floor - and are non-destructive, writing a
+         * destination that need not be either operand.
+         *
+         * Three rows and not four. There is no `pabsq` outside AVX-512, so a 64-bit lane keeps the
+         * comparison and the select the magnitude was written as; `unsupportedVectorReason` states
+         * that from the other side, since the comparison it falls back on is itself missing at that
+         * width below SSE4.2.
+         */
+        auto absolute = [&](MachineFormId id, StringView formName, U8 opcode) {
+            auto& form = add(id, OpVAbs, formName);
+            form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+            form.defs.push(def(ClassXmm128));
+            form.requiredFeatures = kFeatureBaseline;
+            form.encoding = sseRegRm(0x66, opcode, defRef(0), useRef(0), OperationWidth::FromResult);
+            form.encoding.opcodeMap = kOpcodeMap0F38;
+        };
+
+        absolute(FormVAbs8,  "pabsb xmm, xmm/m"_v,  0x1c);
+        absolute(FormVAbs16, "pabsw xmm, xmm/m"_v,  0x1d);
+        absolute(FormVAbs32, "pabsd xmm, xmm/m"_v,  0x1e);
+
+        /*
          * A packed conversion between the two lane kinds.
          *
          * `cvtdq2ps` and `cvttps2dq` convert four lanes at a time and are the only pair at this
@@ -2573,6 +2714,8 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideOr,     FormVOr,     "vpor ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideXor,    FormVXor,    "vpxor ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideAndNot, FormVAndNot, "vpandn ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideAndF32, FormVAndF32, "vandps ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideAndF64, FormVAndF64, "vandpd ymm, ymm, ymm/m"_v);
 
         wideTwin(FormVWideShl16Imm, FormVShl16Imm, "vpsllw ymm, ymm, imm8"_v);
         wideTwin(FormVWideShl32Imm, FormVShl32Imm, "vpslld ymm, ymm, imm8"_v);
@@ -2592,6 +2735,27 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideCmpF32,  FormVCmpF32,  "vcmpps ymm, ymm, ymm/m, predicate"_v);
         wideTwin(FormVWideCmpF64,  FormVCmpF64,  "vcmppd ymm, ymm, ymm/m, predicate"_v);
 
+        // The minimum and the maximum, whose 256-bit integer rows are AVX2's own and whose float
+        // ones are AVX's - stated as AVX2 with everything else here, a target below that having no
+        // wide value to take the minimum of.
+        wideTwin(FormVWideMinI8,  FormVMinI8,  "vpminsb ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinU8,  FormVMinU8,  "vpminub ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinI16, FormVMinI16, "vpminsw ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinU16, FormVMinU16, "vpminuw ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinI32, FormVMinI32, "vpminsd ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinU32, FormVMinU32, "vpminud ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinF32, FormVMinF32, "vminps ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMinF64, FormVMinF64, "vminpd ymm, ymm, ymm/m"_v);
+
+        wideTwin(FormVWideMaxI8,  FormVMaxI8,  "vpmaxsb ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxU8,  FormVMaxU8,  "vpmaxub ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxI16, FormVMaxI16, "vpmaxsw ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxU16, FormVMaxU16, "vpmaxuw ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxI32, FormVMaxI32, "vpmaxsd ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxU32, FormVMaxU32, "vpmaxud ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxF32, FormVMaxF32, "vmaxps ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideMaxF64, FormVMaxF64, "vmaxpd ymm, ymm, ymm/m"_v);
+
         // The four pseudos, which keep their ties and their clobber. What changes for each is the
         // width its emitter writes - see genPackedTwoAddress - and xmm15 becoming ymm15, which is
         // the same physical register named at the width the expansion now works at.
@@ -2605,6 +2769,10 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideNeg64,  FormVNeg64,  "vpxor; vpsubq (negate)"_v);
         wideTwin(FormVWideNegF32, FormVNegF32, "vpcmpeqd; vpslld; vxorps (negate)"_v);
         wideTwin(FormVWideNegF64, FormVNegF64, "vpcmpeqd; vpsllq; vxorpd (negate)"_v);
+
+        wideTwin(FormVWideAbs8,  FormVAbs8,  "vpabsb ymm, ymm/m"_v);
+        wideTwin(FormVWideAbs16, FormVAbs16, "vpabsw ymm, ymm/m"_v);
+        wideTwin(FormVWideAbs32, FormVAbs32, "vpabsd ymm, ymm/m"_v);
 
         /*
          * The shuffles, every one of which works *inside* each 128-bit half at this width.
@@ -2778,16 +2946,24 @@ MachineTarget::MachineTarget() {
             };
         };
 
+        // The narrow pair, which at this width exists only under AVX2 - as does the 32-byte vector
+        // they fill, so there is no second row for a target without it.
+        wideBroadcast(FormVWideBroadcast8,   "vmovd xmm, r32; vpbroadcastb ymm, xmm"_v,  ClassGpr32);
+        wideBroadcast(FormVWideBroadcast16,  "vmovd xmm, r32; vpbroadcastw ymm, xmm"_v,  ClassGpr32);
         wideBroadcast(FormVWideBroadcast32,  "vmovd xmm, r32; vpbroadcastd ymm, xmm"_v,  ClassGpr32);
         wideBroadcast(FormVWideBroadcast64,  "vmovq xmm, r64; vpbroadcastq ymm, xmm"_v,  ClassGpr64);
         wideBroadcast(FormVWideBroadcastF32, "vbroadcastss ymm, xmm"_v, ClassFloat32);
         wideBroadcast(FormVWideBroadcastF64, "vbroadcastsd ymm, xmm"_v, ClassFloat64);
 
+        forms[FormVBroadcast8].wide = FormVWideBroadcast8;
+        forms[FormVBroadcast16].wide = FormVWideBroadcast16;
         forms[FormVBroadcast32].wide = FormVWideBroadcast32;
         forms[FormVBroadcast64].wide = FormVWideBroadcast64;
         forms[FormVBroadcastF32].wide = FormVWideBroadcastF32;
         forms[FormVBroadcastF64].wide = FormVWideBroadcastF64;
 
+        forms[FormVWideBroadcast8].wideOf = FormVBroadcast8;
+        forms[FormVWideBroadcast16].wideOf = FormVBroadcast16;
         forms[FormVWideBroadcast32].wideOf = FormVBroadcast32;
         forms[FormVWideBroadcast64].wideOf = FormVBroadcast64;
         forms[FormVWideBroadcastF32].wideOf = FormVBroadcastF32;
@@ -4164,6 +4340,10 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Not:
             return isPackedOp() ? OpVNot : OpNot;
 
+        // The magnitude of an integer lane. A float one never reaches here: `expandVectorAbs` has
+        // turned it into an `and` against a pooled mask, which is `OpVAnd`.
+        case LowerInst::Abs: return OpVAbs;
+
         // The two that are one opcode across both banks: `sqrtss` and `sqrtps` differ in a mandatory
         // prefix, so a scalar square root and a packed one are the same machine operation at two
         // widths rather than two operations. Same for `vfmadd213`.
@@ -4219,6 +4399,12 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Phi:        return OpPhi;
         case LowerInst::X86Address: return OpAddress;
         case LowerInst::X86Lea:     return OpLea;
+
+        // The minimum and the maximum, which are two opcodes rather than one with a flag for the
+        // reason every other pair here is two: what the allocator and the encoder read is the same
+        // for both, and what a form of one may not be is a form of the other.
+        case LowerInst::X86MinMax:
+            return ((LowerInstX86MinMax*)inst)->isMax() ? OpVMax : OpVMin;
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
         case LowerInst::X86PushArg: return OpPushArg;
@@ -4846,6 +5032,15 @@ bool splatIsMachineConstant(LowerBase base, LowerInst* inst) {
     return inst->kind == LowerInst::VecSplat && splatConstantPattern(base, inst);
 }
 
+bool packedMinMaxSupported(LowerType type) {
+    if(!isVectorLike(type) || !isWholePackedRegister(type)) return false;
+    if(isFloatVector(type)) return true;
+
+    // Every integer width but the quadword, which has no `pminsq` outside AVX-512 - the same gap the
+    // form table's rows leave empty at that column.
+    return isIntVector(type) && laneBytes(type.lane) < 8;
+}
+
 LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst) {
     auto count = base[((LowerInstBinary*)inst)->rhs]->inst();
 
@@ -4918,6 +5113,16 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             if(!isVectorLike(type)) return 0;
 
             assertTrue(isWholePackedRegister(type)); // no forms for a vector of any other width
+
+            // The one exception to "no lane width": an `and` over a *float* vector takes `andps`
+            // rather than `pand`. Same bits, same length, and the result is read back in the domain
+            // it was produced in - which is the whole of the difference and the reason the row
+            // exists at all. A mask answers false here and keeps `pand`, a mask lane being a truth
+            // value rather than a float.
+            if(inst->kind == LowerInst::And && isFloatVector(type)) {
+                return widthForm(laneBytes(type.lane) == 4 ? FormVAndF32 : FormVAndF64, type);
+            }
+
             return widthForm(inst->kind == LowerInst::And ? FormVAnd : inst->kind == LowerInst::Or ? FormVOr : FormVXor, type);
         }
 
@@ -4996,6 +5201,35 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         }
 
         /*
+         * The minimum and the maximum, which index their row by lane *and* by signedness - the one
+         * packed family the machine spells twice at the same width.
+         *
+         * The four unsigned float entries are the signed ones repeated rather than left empty: a
+         * float lane has one ordering, so `isSignedLanes` is false for every `minps` this reaches
+         * and reading the row at the unsigned column has to find it there.
+         */
+        case LowerInst::X86MinMax: {
+            static const MachineFormId kMinSigned[6] = {
+                FormVMinI8, FormVMinI16, FormVMinI32, 0, FormVMinF32, FormVMinF64,
+            };
+            static const MachineFormId kMinUnsigned[6] = {
+                FormVMinU8, FormVMinU16, FormVMinU32, 0, FormVMinF32, FormVMinF64,
+            };
+            static const MachineFormId kMaxSigned[6] = {
+                FormVMaxI8, FormVMaxI16, FormVMaxI32, 0, FormVMaxF32, FormVMaxF64,
+            };
+            static const MachineFormId kMaxUnsigned[6] = {
+                FormVMaxU8, FormVMaxU16, FormVMaxU32, 0, FormVMaxF32, FormVMaxF64,
+            };
+
+            auto minMax = (LowerInstX86MinMax*)inst;
+            auto type = minMax->result.type;
+
+            if(minMax->isMax()) return packedForm(minMax->isSignedLanes() ? kMaxSigned : kMaxUnsigned, type);
+            return packedForm(minMax->isSignedLanes() ? kMinSigned : kMinUnsigned, type);
+        }
+
+        /*
          * A lane-wise select, which is one form for every lane type and for a mask: the three
          * bitwise instructions it expands into have no lane width, so nothing here indexes a row.
          */
@@ -5022,6 +5256,15 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             auto type = ((LowerInstUnary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
             return packedForm(kNegate, type);
+        }
+
+        // The magnitude of an integer lane, at the three widths SSSE3 gives one.
+        case LowerInst::Abs: {
+            static const MachineFormId kAbsolute[6] = { FormVAbs8, FormVAbs16, FormVAbs32, 0, 0, 0 };
+
+            auto type = ((LowerInstUnary*)inst)->result.type;
+            if(!isVectorLike(type)) return 0;
+            return packedForm(kAbsolute, type);
         }
 
         /*
@@ -5091,8 +5334,11 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         // lane arrives as an Int32 and would need the byte and word shuffles this tier has not
         // written, so those two columns are the machine's gap rather than the IR's.
         case LowerInst::VecSplat: {
+            // The two narrow columns are the AVX2 rows; a target without the extension takes the
+            // baseline stand-in below, which is the same arrangement `pmulld` has.
             static const MachineFormId kBroadcast[6] = {
-                0, 0, FormVBroadcast32, FormVBroadcast64, FormVBroadcastF32, FormVBroadcastF64
+                FormVBroadcast8, FormVBroadcast16, FormVBroadcast32, FormVBroadcast64,
+                FormVBroadcastF32, FormVBroadcastF64
             };
 
             auto type = ((LowerInstVecSplat*)inst)->result.type;
@@ -5111,6 +5357,12 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
                 if(pattern.unwrap() == SplatPattern::Zero) return wide ? FormVWideZero : FormVZero;
                 return wide ? FormVWideOnes : FormVOnes;
+            }
+
+            // The baseline's byte and word broadcasts, which are sequences rather than instructions
+            // - `packedForm` would answer the AVX2 row, which this build cannot encode.
+            if(!(targetFeatures() & kFeatureAvx2) && laneBytes(type.lane) < 4) {
+                return laneBytes(type.lane) == 1 ? FormVBroadcast8Sse : FormVBroadcast16Sse;
             }
 
             return packedForm(kBroadcast, type);
@@ -5400,9 +5652,11 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
 
         /*
          * A splat of an 8- or 16-bit lane used to be refused here - there is no byte or word
-         * broadcast below SSSE3 - and is `expandNarrowSplats` now: the scalar is replicated into a
-         * 32-bit pattern with one `imul` and the 32-bit broadcast does the rest. Nothing about the
-         * lane width is a refusal any more, at any feature level.
+         * broadcast below SSSE3 - and then became a *pass*, the scalar replicated into a 32-bit
+         * pattern with one `imul` before the 32-bit broadcast did the rest. It is a form again now,
+         * and two of them: `vpbroadcastb`/`vpbroadcastw` where AVX2 is there, and `pshufb` against
+         * zeros or a pair of shuffles where it is not. Nothing about the lane width is a refusal at
+         * any feature level, and nothing about it is a pass either.
          */
         case LowerInst::VecSplat:
             return {};
@@ -5548,8 +5802,9 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                  * And the four unsigned ones, which `biasUnsignedPackedCompares` turns into the four
                  * above by flipping the top bit of every lane. ~~The bias is a splat, so it is a
                  * 32-bit lane alone - the two narrower ones have no broadcast here.~~ Every lane
-                 * width the signed relations have, since `expandNarrowSplats` gave the narrow ones a
-                 * broadcast: the bias is a constant splat, which is pooled before it is anything.
+                 * width the signed relations have: the bias is a constant splat, which is pooled
+                 * before it is anything, and a *runtime* splat of a narrow lane is a form of its own
+                 * at every feature level now.
                  *
                  * `ige` is not in this list and needs no entry: `packedCompareRelation` has already
                  * turned it into `ile`, which is.
@@ -5597,6 +5852,19 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
          * question "is this kind supported" has one place that answers it.
          */
         case LowerInst::Arg:
+        /*
+         * The magnitude, which is a form at three integer lane widths and an `and` against a pooled
+         * mask at both float ones - so the only gap is the quadword integer lane, where there is no
+         * `pabsq` outside AVX-512 and no `pcmpgtq` below SSE4.2 to build the comparison-and-select
+         * fallback out of either.
+         */
+        case LowerInst::Abs:
+            if(isIntVector(type) && laneBytes(type.lane) == 8) {
+                return Just("the machine has no packed absolute value of a quadword integer lane before AVX-512"_v);
+            }
+
+            return {};
+
         case LowerInst::Phi:
         case LowerInst::Load:
         case LowerInst::Store:
@@ -5648,11 +5916,20 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::X86Address: return FormAddress;
         case LowerInst::X86Lea:     return FormLea;
 
-        // Answered above, at every width rather than at the packed ones alone - see the note there.
-        // Listed here so that the -Wswitch sweep keeps saying something about this switch.
+        /*
+         * Answered above, at every width rather than at the packed ones alone - see the note there.
+         * Listed here so that the -Wswitch sweep keeps saying something about this switch.
+         *
+         * The minimum and the maximum are here for a slightly different reason: they are packed at
+         * every width they exist at, so `selectPackedForm` has answered for every one that reaches
+         * this. One that did not would be an instruction built at a lane the form table has no row
+         * for, which is what `packedMinMaxSupported` exists to have refused.
+         */
+        case LowerInst::X86MinMax:
+        case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:
-            assertTrue("a square root or a multiply-add selectPackedForm did not answer for" == nullptr);
+            assertTrue("a packed instruction selectPackedForm did not answer for" == nullptr);
             return FormNop;
 
         // An intrinsic's form is a row of the registry rather than a case here - see intrinsic.cpp.

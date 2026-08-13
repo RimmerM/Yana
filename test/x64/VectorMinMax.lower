@@ -1,0 +1,193 @@
+# The lane-wise minimum and maximum, recognized out of the comparison and the select the portable IR
+# writes them as - `selectPackedMinMax` in transform.cpp, and §39.1 of test/bench/findings.md.
+#
+# There is no minimum in the lower IR and there is deliberately not going to be one: `emitMinMax` in
+# resolve/simd.cpp emits `select(a < b, a, b)`, which is what a target without the instruction needs
+# anyway and what LLVM's own selection folds back into `minps`. So the pair is recognized here, in
+# the one backend that has the instruction, and becomes `LowerInst::X86MinMax` - which is why the
+# listings below name `x86_vmin` where the source above them says `cmp` and `select`.
+#
+# What to look for, in order:
+#
+#   - **two instructions become one, and the mask register goes with them.** The baseline spends a
+#     select as `pand ; pandn ; por` through a declared clobber, so a minimum was four instructions
+#     and a scratch register; it is now `pminsd`.
+#   - **the signedness is the comparison's, not the lane's.** `i32x4` compared with `cmp_ilt` takes
+#     `pminsd` and the same type compared with `cmp_lt` takes `pminud`. That is the one packed family
+#     the machine spells twice at one width, and it is why the form rows have a signedness column.
+#   - **the mirrored shape keeps the operand order.** `select(a < b, b, a)` is `max(b, a)` and not
+#     `max(a, b)`, and at a float lane those are two different answers for a NaN and for a pair of
+#     zeros of opposite sign. The listing shows the operands exchanged rather than the relation
+#     rewritten.
+#   - **what is declined, and why each refusal is not a gap.** A non-strict float relation differs
+#     from the instruction at `(+0.0, -0.0)`; a mask something else also reads would leave the
+#     comparison standing, so this would be an instruction added rather than two replaced.
+
+# The signed pair at a 32-bit lane, which is `pminsd`/`pmaxsd` and SSE4.1 - so the floor this backend
+# already stands on. `cmp_ilt` is what a `Vec(Int)` comparison is.
+signed32(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %ml = cmp_ilt %a, %b: m32x4
+        %lo = select %ml, %a, %b: i32x4
+        %mg = cmp_igt %a, %b: m32x4
+        %hi = select %mg, %a, %b: i32x4
+        %r = add %lo, %hi: i32x4
+        ret %r
+    }
+}
+
+# The unsigned pair at the same width, reached by the same source with the comparison read the other
+# way - `pminud`/`pmaxud`. Note what does *not* happen to these: `biasUnsignedPackedCompares` would
+# have turned each comparison into two exclusive-ors and a signed compare, and it runs after this.
+unsigned32(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %ml = cmp_lt %a, %b: m32x4
+        %lo = select %ml, %a, %b: i32x4
+        %mg = cmp_gt %a, %b: m32x4
+        %hi = select %mg, %a, %b: i32x4
+        %r = add %lo, %hi: i32x4
+        ret %r
+    }
+}
+
+# The byte lane, where the machine is at its least regular: `pminub` is SSE2 and `pminsb` is SSE4.1,
+# and the same is true of the maximum with the signednesses the other way round.
+bytes(%a: i8x16, %b: i8x16): i8x16 {
+    {
+        %ms = cmp_ilt %a, %b: m8x16
+        %s = select %ms, %a, %b: i8x16
+        %mu = cmp_gt %a, %b: m8x16
+        %u = select %mu, %a, %b: i8x16
+        %r = add %s, %u: i8x16
+        ret %r
+    }
+}
+
+# And the word lane, which is the byte lane's mirror image - `pminsw` is the SSE2 one here and
+# `pminuw` the SSE4.1 one.
+words(%a: i16x8, %b: i16x8): i16x8 {
+    {
+        %ms = cmp_ilt %a, %b: m16x8
+        %s = select %ms, %a, %b: i16x8
+        %mu = cmp_lt %a, %b: m16x8
+        %u = select %mu, %a, %b: i16x8
+        %r = add %s, %u: i16x8
+        ret %r
+    }
+}
+
+# The float pair at both widths. `minps` answers its second operand whenever the comparison is false,
+# which is exactly what a NaN in either operand does to `cmp_lt` - so this is an exact rewrite and
+# not an approximation of one.
+floats(%a: f32x4, %b: f32x4): f32x4 {
+    {
+        %ml = cmp_lt %a, %b: m32x4
+        %lo = select %ml, %a, %b: f32x4
+        %mg = cmp_gt %a, %b: m32x4
+        %hi = select %mg, %a, %b: f32x4
+        %r = add %lo, %hi: f32x4
+        ret %r
+    }
+}
+
+# The same at a 64-bit float lane, which is `minpd` - the mandatory prefix and nothing else.
+doubles(%c: f64x2, %d: f64x2): f64x2 {
+    {
+        %m = cmp_lt %c, %d: m64x2
+        %lo = select %m, %c, %d: f64x2
+        ret %lo
+    }
+}
+
+# The mirrored shape: `a < b ? b : a` is the maximum, and it is the maximum *of `b` and `a` in that
+# order*. At an integer lane the order does not matter and at a float lane it decides what a NaN
+# answers, so it is preserved either way rather than only where it is visible.
+mirrored(%a: i32x4, %b: i32x4, %c: f32x4, %d: f32x4): i32x4 {
+    {
+        %mi = cmp_ilt %a, %b: m32x4
+        %hi = select %mi, %b, %a: i32x4
+        %mf = cmp_lt %c, %d: m32x4
+        %hf = select %mf, %d, %c: f32x4
+        %w = bitcast %hf: i32x4
+        %r = add %hi, %w: i32x4
+        ret %r
+    }
+}
+
+# A non-strict relation, which an integer lane takes and a float lane does not.
+#
+# `select(a <= b, a, b)` and `minps a, b` differ at exactly one pair of values - `+0.0` against
+# `-0.0`, where the comparison holds and the instruction still answers its second operand - so the
+# integer half below is one instruction and the float half is still a compare and a select.
+nonStrict(%a: i32x4, %b: i32x4, %c: f32x4, %d: f32x4): i32x4 {
+    {
+        %mi = cmp_ile %a, %b: m32x4
+        %lo = select %mi, %a, %b: i32x4
+        %mf = cmp_le %c, %d: m32x4
+        %lf = select %mf, %c, %d: f32x4
+        %w = bitcast %lf: i32x4
+        %r = add %lo, %w: i32x4
+        ret %r
+    }
+}
+
+# A mask with a second reader, which is declined: the comparison would have to stay for the other
+# reader, so this would replace two instructions with two and add one.
+sharedMask(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %m = cmp_ilt %a, %b: m32x4
+        %lo = select %m, %a, %b: i32x4
+        %o = select %m, %b, %a: i32x4
+        %r = add %lo, %o: i32x4
+        ret %r
+    }
+}
+
+# And a select whose operands are not the comparison's, which is a select and nothing else - the
+# shape every `select(mask, x, y)` in a program has.
+unrelated(%a: i32x4, %b: i32x4, %x: i32x4, %y: i32x4): i32x4 {
+    {
+        %m = cmp_ilt %a, %b: m32x4
+        %r = select %m, %x, %y: i32x4
+        ret %r
+    }
+}
+
+# The other direction the same instructions are reached from: an *unsigned* non-strict comparison.
+#
+# `a <=u b` is `minu(a, b) == a` and `a >=u b` is `maxu(a, b) == a` - two instructions, no constant
+# and no mask complemented. What that replaces is the worst case of `biasUnsignedPackedCompares`:
+# `ile` is one of the three relations the machine has only the complement of, so an unsigned `le` was
+# two exclusive-ors against a pooled sign bias and then `pcmpgt ; pcmpeqd ; pxor` through a scratch.
+belowOrEqual(%a: i8x16, %b: i8x16): m8x16 {
+    {
+        %m = cmp_le %a, %b: m8x16
+        ret %m
+    }
+}
+
+atLeast(%a: i32x4, %b: i32x4): m32x4 {
+    {
+        %m = cmp_ge %a, %b: m32x4
+        ret %m
+    }
+}
+
+# And the strict pair, which keeps the bias: through a maximum it would be this plus the complement,
+# which is the inversion pseudo and its scratch again - four instructions where the bias is two
+# exclusive-ors and a `pcmpgt` whose constant leaves any loop it stands in.
+belowStrict(%a: i8x16, %b: i8x16): m8x16 {
+    {
+        %m = cmp_lt %a, %b: m8x16
+        ret %m
+    }
+}
+
+# The signed non-strict relation, which is not this at all: `pcmpgt` reads its lanes signed already,
+# so `ile` is the machine's own comparison with the mask inverted and no bias in front of it.
+signedBelowOrEqual(%a: i32x4, %b: i32x4): m32x4 {
+    {
+        %m = cmp_ile %a, %b: m32x4
+        ret %m
+    }
+}

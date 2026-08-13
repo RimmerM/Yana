@@ -1574,78 +1574,6 @@ static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun
 }
 
 /*
- * A splat of an 8- or 16-bit lane, which this machine has no broadcast for.
- *
- * `pshufd` is the widest-reaching broadcast SSE2 has and it moves 32-bit lanes; the byte and word
- * broadcasts are `pshufb` (SSSE3) and `vpbroadcastb`/`vpbroadcastw` (AVX2). So the narrow columns of
- * the broadcast row were the machine's gap, and a `Vec(U8)` could be *typed* and not built - which
- * kept `String` off the vector path entirely, since a string is a container of bytes.
- *
- * **The scalar is replicated before it becomes a vector, and that is the whole of it.** A byte `b`
- * splatted across sixteen lanes is the 32-bit pattern `b*0x01010101` broadcast across four 32-bit
- * lanes; a word `w` across eight is `w*0x00010001` broadcast the same way. One `imul` on a general
- * register, and then the broadcast this backend already has.
- *
- * Two things it needs beyond the multiply. The source is zero-extended first, because the product is
- * only the pattern when the bits above the lane are clear - a byte arriving in a register whose top
- * three bytes hold something else would multiply into garbage. And the result is a `bitcast`, which
- * between two vectors of one width is the register itself and emits nothing.
- *
- * A *constant* splat never reaches here: `poolVectorConstants` runs below and pools it, and the two
- * nothing-constants are peepholes on the form. What is left for this is a splat of a runtime value,
- * which is what a search for one byte is.
- */
-static void expandNarrowSplats(Context&, LowerBase base, LowerFunction& fun) {
-    for(auto offset: fun.blocks.contents(base)) {
-        auto block = base[offset];
-
-        for(Size i = 0; i < block->instructions.size(); ) {
-            auto inst = base[block->instructions.get(base, i)];
-            if(inst->kind != LowerInst::VecSplat) { i++; continue; }
-
-            auto splat = (LowerInstVecSplat*)inst;
-            auto type = splat->result.type;
-
-            if(!type.isVector() || laneBytes(type.lane) >= 4) { i++; continue; }
-
-            /*
-             * **The two nothing-constants at a narrow lane, which used to fall through here.**
-             *
-             * The comment above says a constant splat never reaches this pass because
-             * `poolVectorConstants` has pooled it. That is true of every constant but two: the pool
-             * *declines* all-zero and all-ones on purpose, because `pxor r, r` and `pcmpeqd r, r`
-             * build them out of nothing and a `.rodata` entry would be worse. Those two are meant to
-             * reach the form table, where `splatConstantPattern` recognizes them - and this pass
-             * stood between, turning a byte-lane `splat(0)` into `xor ; mov ; mul ; movd ; pshufd`.
-             *
-             * Five instructions to produce zero, once per chunk, in the `count(mask)` path - so in
-             * every `countAscii`. The predicate is the form table's own, exported so that the two
-             * cannot disagree about which splats are constants. See §34.5 of test/bench/findings.md.
-             */
-            if(splatIsMachineConstant(base, inst)) { i++; continue; }
-
-            auto lanes = laneBytes(type.lane) == 1 ? 4u : 2u;
-            auto pattern = laneBytes(type.lane) == 1 ? U64(0x01010101) : U64(0x00010001);
-
-            // The 32-bit vector of the same byte width, which is what the broadcast row has a form
-            // for at every width this backend holds - 128 bits and 256.
-            auto wide = LowerType(LowerLane::Int32, U8(type.laneShift - (lanes == 4 ? 2 : 1)), false);
-
-            Expansion e { base, fun, block, i };
-            auto word = e.convert(LowerType::Int32, base[splat->from], false, false);
-            auto replicated = e.binary(LowerInst::Mul, LowerType::Int32, word, e.integer(LowerType::Int32, pattern));
-            auto broadcast = e.splat(wide, replicated);
-            auto result = e.reinterpret(type, broadcast, splat->result.name);
-
-            replaceAllUses(base, &splat->result, result);
-            removeInst(base, splat);
-
-            i = e.at;
-        }
-    }
-}
-
-/*
  * The fused multiply-add, where the target has no instruction that fuses.
  *
  * `a * b + c` at two roundings rather than one, which is not an approximation of what was asked for
@@ -1691,14 +1619,28 @@ static void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun)
  * unsigned relation is the signed one over both operands biased, which is two exclusive-ors and a
  * broadcast the folder hoists out of any loop it is invariant in.
  *
- * A 32-bit lane only. The bias is a splat, and a splat of an 8- or 16-bit lane needs the byte and
- * word shuffles this tier does not have; a 64-bit lane has no `pcmpgtq` to bias *into* before
- * SSE4.2. `unsupportedVectorReason` states the same bound from the other side.
+ * ~~A 32-bit lane only.~~ Every lane width the signed relations have: the bias is a constant splat,
+ * which is pooled before it is anything, and a narrow one has a broadcast of its own now. A 64-bit
+ * lane still has no `pcmpgtq` to bias *into* before SSE4.2, and `unsupportedVectorReason` states
+ * that bound from the other side.
  *
  * This is what `firstSet` reaches, and reaching it is not obvious: the lane indices it compares are
  * small non-negative numbers whose signed and unsigned orders agree, and the *type* is what decides
  * which comparison the IR asks for. So the sequence below is exact where it is also unnecessary,
  * which is the ordinary case for it.
+ *
+ * ## The two non-strict relations take a shorter route
+ *
+ * `a <=u b` is `minu(a, b) == a` and `a >=u b` is `maxu(a, b) == a` - two instructions, no constant
+ * and no mask inverted. What they replace is the worst case of the bias: `ile` is one of the three
+ * relations the machine has only the *complement* of (`packedCompareIsInverted`), so an unsigned
+ * `le` was two exclusive-ors and then `pcmpgt ; pcmpeqd ; pxor` through a scratch register - five
+ * instructions where this is two.
+ *
+ * The two strict ones keep the bias, and that is a measurement rather than an omission: `a <u b`
+ * through a minimum is `maxu(a, b) == a` complemented, which is the same inversion pseudo again and
+ * comes to four, where the bias is two exclusive-ors and a `pcmpgt` whose constant is hoisted out of
+ * any loop it stands in.
  */
 static void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
     auto signedForm = [](LowerCmp cmp) {
@@ -1723,6 +1665,35 @@ static void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& 
             auto relation = signedForm(cmp->getCmp());
 
             if(relation == cmp->getCmp() || !isIntVector(type)) { i++; continue; }
+
+            /*
+             * The two non-strict relations, as a minimum or a maximum against one of the operands -
+             * see the note above on why the strict pair is not done this way.
+             *
+             * The comparison is rewritten in place rather than replaced: it keeps its result, its
+             * readers and its position, and what changes is which values it reads and which relation
+             * it states. `a` stands in both the minimum and the equality, which is what makes this
+             * two instructions rather than two and a copy.
+             */
+            auto written = cmp->getCmp();
+
+            if((written == LowerCmp::le || written == LowerCmp::ge) && packedMinMaxSupported(type)) {
+                Expansion pick { base, fun, block, i };
+                auto lhs = base[cmp->lhs];
+                auto rhs = base[cmp->rhs];
+
+                auto minMax = pick.emit(new (fun.arena) LowerInstX86MinMax(
+                    StringId(), type, lhs - base, rhs - base,
+                    written == LowerCmp::le ? LowerMinMax::Min : LowerMinMax::Max
+                ));
+
+                setOperand(base, fun.arena, inst, cmp->lhs, minMax);
+                setOperand(base, fun.arena, inst, cmp->rhs, lhs);
+                cmp->setCmp(LowerCmp::eq);
+
+                i = pick.at + 1;
+                continue;
+            }
 
             Expansion e { base, fun, block, i };
 
@@ -2318,6 +2289,159 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
 }
 
 /*
+ * A comparison and the select that reads it, recognized as one minimum or maximum.
+ *
+ * `min` and `max` have no instruction in the portable IR - `emitMinMax` in resolve/simd.cpp writes
+ * them as `select(a < b, a, b)`, which is what a target without a packed minimum needs anyway and
+ * what LLVM's own selection folds back. x86 has the instruction at every lane width but the
+ * quadword, so this is where the pair becomes one: three instructions (a compare, a blend, and the
+ * mask register between them) down to `vpmaxsd`, and the operand it reads may then come out of
+ * memory, which a blend's could not.
+ *
+ * ## The two shapes, and why one of them exchanges the operands
+ *
+ * `select(a REL b, a, b)` is the shape the library and the reduction tree both build, and it maps
+ * straight across: a `lt` keeps the left operand where it is smaller, which is a minimum with the
+ * operands in that order. The mirror `select(a REL b, b, a)` is the same operation with the
+ * comparison read the other way round - `a < b ? b : a` is `max(b, a)` - so it is recognized as the
+ * opposite kind with the operands exchanged rather than declined.
+ *
+ * **The order survives the exchange, and that is the whole of what makes this exact at a float
+ * lane.** `minps a, b` answers `b` whenever the comparison is false, which is what a NaN in either
+ * operand produces and what `-0.0` against `+0.0` produces; so it is `select(a < b, a, b)` bit for
+ * bit, and it is *not* `select(b > a, ...)` with the operands left where they were.
+ *
+ * ## What is declined
+ *
+ * A non-strict relation at a float lane. `select(a <= b, a, b)` and `minps a, b` differ at the pair
+ * `(+0.0, -0.0)` - the comparison holds, so the select answers `+0.0` where the instruction answers
+ * `-0.0` - and nothing in the language says a program may not have written it. An integer lane has
+ * no such pair and takes `le` and `lt` alike.
+ *
+ * A quadword integer lane, which has no `pminsq` before AVX-512 (see the form table), and a mask the
+ * select reads that anything else reads too: the comparison would then stay and this would be an
+ * instruction added rather than two replaced.
+ */
+
+// The same comparison with its operands exchanged: `a < b` is `b > a`. Equality and the unordered
+// tests are their own mirrors and are not relations this recognizes anyway.
+static LowerCmp mirroredCmp(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::lt:  return LowerCmp::gt;
+        case LowerCmp::le:  return LowerCmp::ge;
+        case LowerCmp::gt:  return LowerCmp::lt;
+        case LowerCmp::ge:  return LowerCmp::le;
+        case LowerCmp::ilt: return LowerCmp::igt;
+        case LowerCmp::ile: return LowerCmp::ige;
+        case LowerCmp::igt: return LowerCmp::ilt;
+        case LowerCmp::ige: return LowerCmp::ile;
+        default:            return cmp;
+    }
+}
+
+// Which minimum or maximum `select(a REL b, a, b)` is, or nothing where the relation is not an
+// ordering this machine has an instruction for at this lane kind.
+static Maybe<LowerMinMax> minMaxForRelation(LowerCmp cmp, bool isFloat) {
+    switch(cmp) {
+        case LowerCmp::lt:  return Just(LowerMinMax::Min);
+        case LowerCmp::gt:  return Just(LowerMinMax::Max);
+
+        // The signed pair, which a float lane can never state - `signedOperand` answers a lane's
+        // signedness and a float lane is neither - and the non-strict pair, which is exact for an
+        // integer lane and not for a float one. See the note above.
+        case LowerCmp::ilt: return isFloat ? Nothing() : Just(LowerMinMax::IMin);
+        case LowerCmp::igt: return isFloat ? Nothing() : Just(LowerMinMax::IMax);
+        case LowerCmp::le:  return isFloat ? Nothing() : Just(LowerMinMax::Min);
+        case LowerCmp::ge:  return isFloat ? Nothing() : Just(LowerMinMax::Max);
+        case LowerCmp::ile: return isFloat ? Nothing() : Just(LowerMinMax::IMin);
+        case LowerCmp::ige: return isFloat ? Nothing() : Just(LowerMinMax::IMax);
+        default:            return Nothing();
+    }
+}
+
+// Answers the minimum or maximum this select performs, with `lhs` and `rhs` set to the operands in
+// the order the machine reads them - or nothing where this select is not one.
+static Maybe<LowerMinMax> matchPackedMinMax(LowerBase base, LowerInstSelect* select,
+                                            LowerValue*& lhs, LowerValue*& rhs) {
+    auto type = select->result.type;
+    if(!packedMinMaxSupported(type)) return Nothing();
+
+    auto condition = base[select->cmp];
+    if(condition->inst()->kind != LowerInst::Cmp) return Nothing();
+
+    // The comparison has to die with the select, or this replaces two instructions with two and
+    // leaves the mask being computed for one reader that no longer wants it.
+    if(condition->uses.size() != 1) return Nothing();
+
+    auto cmp = (LowerInstCmp*)condition->inst();
+    auto a = base[cmp->lhs];
+    auto b = base[cmp->rhs];
+    // `lhs` is the value taken where the mask is set and `rhs` the other, which is the order both
+    // the machine form and the encoder read a select in.
+    auto whenTrue = base[select->lhs];
+    auto whenFalse = base[select->rhs];
+    auto relation = cmp->getCmp();
+
+    if(whenTrue == a && whenFalse == b) {
+        lhs = a;
+        rhs = b;
+    } else if(whenTrue == b && whenFalse == a) {
+        // The mirror: `a < b ? b : a` is `max(b, a)`, which is this relation read from the other
+        // side with the operands in the order the select already names them.
+        lhs = b;
+        rhs = a;
+        relation = mirroredCmp(relation);
+    } else {
+        return Nothing();
+    }
+
+    return minMaxForRelation(relation, isFloatVector(type));
+}
+
+// Defined below, beside the constant pooling it was written for: every instruction in the list whose
+// own use list has emptied, removed, to a fixpoint. Declared here because three passes above that
+// point now finish by clearing what they left behind.
+static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain);
+
+static void selectPackedMinMax(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // The comparisons this leaves with no readers, cleared after the walk rather than during it:
+        // one of them stands immediately *above* the select being rewritten, and removing it there
+        // would renumber the instructions this loop is indexing.
+        Array<LowerInst*> dead;
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Select) continue;
+
+            auto select = (LowerInstSelect*)inst;
+            LowerValue* lhs = nullptr;
+            LowerValue* rhs = nullptr;
+
+            auto kind = matchPackedMinMax(base, select, lhs, rhs);
+            if(!kind) continue;
+
+            auto comparison = base[select->cmp]->inst();
+            auto minMax = new (fun.arena) LowerInstX86MinMax(
+                select->result.name, select->result.type, lhs - base, rhs - base, kind.unwrap()
+            );
+
+            insertInstAt(base, block, i, minMax);
+            replaceAllUses(base, &select->result, &minMax->result);
+            removeInst(base, select);
+
+            // The comparison, whose one use has just gone. It has to go too: there is no dead-code
+            // elimination below this point, so an instruction nothing reads is one that gets emitted.
+            dead.push(comparison);
+        }
+
+        removeDeadChain(base, dead);
+    }
+}
+
+/*
  * Addressing modes.
  *
  * x86 computes `base + index*{1,2,4,8} + disp32` as part of a memory access and charges nothing for
@@ -2807,16 +2931,63 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
 // trySwapOperands uses, and restricted to the integer bank for the same reason: a float addition is
 // commutative in value but not in which NaN payload the machine propagates.
 static bool isCommutativeInt(LowerInst* inst) {
-    if(!isBinary(inst) || !isIntLike(((LowerInstBinary*)inst)->result.type)) return false;
+    /*
+     * The packed minimum and maximum, at an integer lane and not at a float one.
+     *
+     * `min(a, b)` and `min(b, a)` hold the same lanes for integers, so the operand the load feeds
+     * may be moved into the position the encoding dereferences - which is the whole of what turns
+     * `vmovdqu ; vpmaxsd` into one instruction. At a float lane the order is *the answer* for a NaN
+     * and for a pair of zeros of opposite sign (see LowerInst::X86MinMax), so exchanging it there
+     * would be a different operation wearing the same name.
+     */
+    if(inst->kind == LowerInst::X86MinMax) return isIntVector(((LowerInstX86MinMax*)inst)->result.type);
+
+    /*
+     * An equality, at every type it can be asked about.
+     *
+     * `a == b` is `b == a` whatever the operands are - the one relation for which that is true of a
+     * float and of a NaN as well, both orders answering false - so the load may be exchanged into
+     * the memory-capable position here too. That is what the AVX2 string and integer loops needed:
+     * `vpcmpeqb` reads its second operand out of memory quite happily, and the comparison arrived
+     * with the load on the *left*, so a separate `vmovdqu` was emitted in front of every one.
+     *
+     * `neq` rides along for the same reason. A packed one is the equality inverted rather than an
+     * instruction of its own, and what is inverted is a mask that does not care which side is which.
+     */
+    if(inst->kind == LowerInst::Cmp) {
+        auto relation = ((LowerInstCmp*)inst)->getCmp();
+        return relation == LowerCmp::eq || relation == LowerCmp::neq;
+    }
+
+    if(!isBinary(inst)) return false;
+    auto type = ((LowerInstBinary*)inst)->result.type;
 
     switch(inst->kind) {
-        case LowerInst::Add:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
+        /*
+         * The bitwise three, at every type whose bits they are - a vector and a mask included, and
+         * a *float* vector included, which is the one that matters here: an absolute value is an
+         * `and` against a sign mask over `f32x8`, and with the operands as written the mask stands
+         * where the encoding's address goes. Exchanging is what puts the value being measured there
+         * instead, so the loop's own load folds and the loop-invariant mask keeps its register.
+         *
+         * A float `and` is commutative in the way that matters here, and in a way a float `add` is
+         * not: what these do is to bits, so there is no rounding and no NaN payload to be taken from
+         * one side rather than the other.
+         */
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:
-            return true;
+            return isIntLike(type) || isVectorLike(type);
+
+        // The arithmetic, at integer lanes alone. A float add and a float multiply are exchangeable
+        // in value, and this backend does not exchange them: `addps` takes the payload of a NaN from
+        // its destination, so which operand is which is visible in a way it is not for the three
+        // above.
+        case LowerInst::Add:
+        case LowerInst::Mul:
+        case LowerInst::IMul:
+            return isIntLike(type) || isIntVector(type);
+
         default:
             return false;
     }
@@ -2914,7 +3085,17 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
      * Committed from here: everything below changes the function.
      */
 
-    if(exchange) ::swap(((LowerInstBinary*)inst)->lhs, ((LowerInstBinary*)inst)->rhs);
+    // Through the operand list rather than through `LowerInstBinary`'s two fields, because the kinds
+    // this exchanges are no longer all binary: `X86MinMax` has its own struct, and what "exchange the
+    // operands" means is the same for every two-operand instruction - the first two used values,
+    // which is what the encoder and the form both read positionally.
+    if(exchange) {
+        auto operands = inst->used();
+        auto first = operands[0];
+
+        operands[0] = operands[1];
+        operands[1] = first;
+    }
 
     if(pooledSymbol) {
         auto producer = address->inst();
@@ -4008,6 +4189,25 @@ static bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Si
         return true;
     }
 
+    /*
+     * A vector read as another vector of the same width, which changes nothing about the bytes.
+     *
+     * This is how a constant reaches the *other* lane kind. `expandVectorAbs` builds its mask as an
+     * integer splat - a float lane's immediate is held as a double and narrowed, which cannot state
+     * a NaN's payload exactly, and `0x7fffffff` is a NaN - and then reads it as the float vector the
+     * `andps` wants. Without this the chain would stop at the bitcast, the *inner* splat would be
+     * pooled on its own, and what the `and` read would be a bitcast of a load rather than a load:
+     * one instruction more, and the fold that puts the constant in the addressing mode gone.
+     */
+    if(inst->kind == LowerInst::Bitcast) {
+        auto from = base[((LowerInstUnary*)inst)->from];
+        if(!isVectorLike(from->type) || from->type.byteWidth() != type.byteWidth()) return false;
+        if(!constantVectorBytes(base, from, bytes, size, chain)) return false;
+
+        chain.push(inst);
+        return true;
+    }
+
     if(inst->kind == LowerInst::VecWithLane) {
         auto write = (LowerInstVecLane*)inst;
         if(!constantVectorBytes(base, base[write->from], bytes, size, chain)) return false;
@@ -4077,13 +4277,303 @@ static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain) {
 
             removeInst(base, inst);
 
-            // Cleared so that a second round does not remove it again - `inst` is the outermost link
-            // and has already been removed by the caller, so this list may hold one either way.
-            chain[i - 1] = nullptr;
+            /*
+             * Cleared so that a second round does not remove it again - `inst` is the outermost link
+             * and has already been removed by the caller, so this list may hold one either way.
+             *
+             * **Every entry holding it, not only this one.** A list built from more than one rewrite
+             * holds the shared links twice - two absolute values over one hoisted zero, two masked
+             * selects over one `iota` - and the second entry would otherwise be an instruction with
+             * an empty use list that is no longer in any block, which `removeInst` reports as the
+             * structural error it would be anywhere else.
+             */
+            for(Size c = 0; c < chain.size(); c++) if(chain[c] == inst) chain[c] = nullptr;
             moved = true;
         }
 
         if(!moved) break;
+    }
+}
+
+/*
+ * The absolute value of a float vector, which is one bit per lane.
+ *
+ * `LowerInst::Abs` is the magnitude and says nothing about how - see the `Abs` row in
+ * resolve/inst.def, which is where the language rules that the sign of a NaN is unspecified. That
+ * ruling is what lets this be one instruction: `v & 0x7fffffff` per lane leaves the exponent and the
+ * mantissa exactly where they are, so every finite value, both infinities and both zeros come out
+ * with the magnitude they had, and `-0.0` becomes `+0.0`.
+ *
+ * An **integer** lane is not here at all: `pabsb`/`pabsw`/`pabsd` are ordinary forms, and the
+ * quadword - which has no `pabsq` outside AVX-512 - is refused by `unsupportedVectorReason` rather
+ * than expanded, the comparison it would have to fall back on being missing at that width too.
+ *
+ * ## The mask is an integer constant read as a float one
+ *
+ * `0x7fffffff` is a NaN when read as a float, and a float lane's immediate is held as a double in
+ * this IR and narrowed where the bytes are taken - which is exact for every value in the language
+ * and not for a NaN's payload. So the constant is built as an *integer* splat and bitcast to the
+ * float vector the `and` works at, which `constantVectorBytes` reads through: the pool gets one
+ * entry of the right bytes, and `andps` reads it in its own domain.
+ *
+ * ## The mask goes in the entry block, and that is the whole of what it is worth
+ *
+ * Built beside the `and`, the mask is the load *immediately above* its reader - and `tryFoldLoad`
+ * takes the load immediately above, so the mask won the addressing mode and the value being
+ * measured had to be loaded into a register first:
+ *
+ *     vmovups (%rdx),%ymm3 ; vandps 0x9b6(%rip),%ymm3,%ymm3
+ *
+ * Two instructions and, less obviously, **two loads**: the pooled mask is re-read from `.rodata`
+ * every iteration. There is one r/m field, so only one operand can be the memory one, and the right
+ * one to spend it on is the operand that changes. Built in the entry block, the mask leaves the loop
+ * (once per function, and interned per lane width), the value's own load becomes the one above the
+ * `and`, and the loop body is `vandps (%rdx),%ymmMask,%ymm3` - one instruction and one load.
+ *
+ * What that costs is a register held across the function, and it is the cheapest kind: a load of a
+ * global nothing writes is rematerializable (`recipeFor` in place.cpp), so a function under pressure
+ * spills it by forgetting it and re-loading where it is next read.
+ */
+static void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
+    /*
+     * The block the mask is built in, which is the entry block's *successor* rather than the entry
+     * block itself.
+     *
+     * `LowerFunction`'s entry block is implicit and holds no instructions - its terminator is index
+     * zero, which is what lets the legalizer emit the incoming argument copies ahead of everything
+     * the function executes (`runLegalizer` asserts it). So the first block that may hold one is the
+     * one that block jumps to, and a value defined at the top of it dominates every use for the same
+     * reason the entry block does: every path through the function goes through it.
+     */
+    auto home = [&]() -> LowerBlock* {
+        if(fun.blocks.isEmpty()) return nullptr;
+
+        auto entry = base[fun.blocks.get(base, 0)];
+        auto terminator = base[entry->terminator];
+        if(terminator->kind != LowerInst::Jmp) return nullptr;
+
+        return base[((LowerInstJmp*)terminator)->then];
+    }();
+
+    if(!home) return;
+
+    // One mask per lane width, built on demand and shared by every absolute value in the function -
+    // interning it here rather than leaving it to CSE, which does not run below this point.
+    LowerValue* masks[2] = { nullptr, nullptr };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Abs) continue;
+
+            auto type = ((LowerInstUnary*)inst)->result.type;
+            if(!isFloatVector(type)) continue;
+
+            auto lane = laneBytes(type.lane);
+            auto& mask = masks[lane == 4 ? 0 : 1];
+
+            if(!mask) {
+                /*
+                 * At the *top* of that block, which is where a value with no operands may go and
+                 * where it dominates every use by construction. The three instructions are an
+                 * immediate, the splat over it and the reinterpretation - `poolVectorConstants`
+                 * folds all three into one load of the whole pattern.
+                 */
+                auto integerLane = lane == 4 ? LowerLane::Int32 : LowerLane::Int64;
+                auto integers = LowerType(integerLane, type.laneShift, false);
+                auto bits = lane == 4 ? U64(0x7fffffff) : (~U64(0) >> 1);
+
+                Expansion at { base, fun, home, 0 };
+                auto scalar = at.integer(scalarFormOf(integers), bits);
+                auto splat = at.splat(integers, scalar);
+                mask = at.reinterpret(type, splat);
+
+                // The walk is inside that block whenever this fires there, and three instructions
+                // have just been put in front of it.
+                if(block == home) i += 3;
+            }
+
+            Expansion e { base, fun, block, i };
+            auto cleared = e.binary(LowerInst::And, type, base[((LowerInstUnary*)inst)->from], mask,
+                                    ((LowerInstUnary*)inst)->result.name);
+
+            replaceAllUses(base, &((LowerInstUnary*)inst)->result, cleared);
+            removeInst(base, inst);
+
+            // The `and` stands where the absolute value did, so the walk carries on past it.
+            i = e.at - 1;
+        }
+    }
+}
+
+/*
+ * A select whose mask the two constants either side of a comparison have already decided.
+ *
+ * This is the tail mask of every bulk operation. `maximumVectors` (resolve/core.cpp) is written as
+ *
+ *     acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+ *
+ * so that the last chunk contributes only its live lanes - and the *full* chunks go through the
+ * identical line with `live` equal to the lane count. `maskUpTo(n)` is `iota .< splat(n)`, both of
+ * whose operands are constant vectors in the full-chunk loop, so the mask is all-ones and the select
+ * is `v`. Left standing it was a `vpcmpgtd` hoisted out of the loop, a register held for its result
+ * across the whole loop, and a `vpblendvb` per chunk that answered its second operand every time.
+ *
+ * Removing it is worth more than the blend, and that is the reason this pass exists rather than the
+ * one instruction it deletes: what the blend stood between was the *load* and the operation that
+ * reads it. `vmovdqu (%rdx),%ymm3 ; vpblendvb ; vpmaxsd %ymm3,%ymm0,%ymm0` is three instructions and
+ * a register where `vpmaxsd (%rdx),%ymm0,%ymm0` is one - a blend takes three registers and can never
+ * be the thing a load folds into, so the fold below is what lets `tryFoldLoad` see the pair at all.
+ *
+ * ## Why the comparison rather than the mask
+ *
+ * A mask has no constant form in this IR and is not going to get one: `constantVectorBytes` reads a
+ * `vsplat`/`vwithlane` chain of immediates, and a mask lane's immediate is a truth value rather than
+ * the all-ones pattern the machine holds - so "the bytes of a constant mask" is a question with two
+ * plausible answers and no reader that needs it. The comparison has no such ambiguity: both its
+ * operands are ordinary vectors, and what is asked of them is whether every lane answers the same
+ * way. So this recognizes `select(cmp(k1, k2), a, b)` and nothing more general.
+ *
+ * A mixed answer is left alone. It could be folded into a shuffle or into a pooled mask, and neither
+ * is reachable from anything the library writes - `maskUpTo` of a constant is all-ones or nothing.
+ */
+
+// One lane of two constant vectors compared, at the relation and lane type given. The bytes are the
+// vector's own, so a lane is read out of them at its width and its kind.
+static bool constantLaneCompare(LowerCmp cmp, LowerLane lane, const U8* lhs, const U8* rhs) {
+    if(lane == LowerLane::Float32 || lane == LowerLane::Float64) {
+        F64 a = 0, b = 0;
+
+        if(lane == LowerLane::Float32) {
+            float na = 0, nb = 0;
+            copyMem(lhs, &na, 4);
+            copyMem(rhs, &nb, 4);
+            a = na;
+            b = nb;
+        } else {
+            copyMem(lhs, &a, 8);
+            copyMem(rhs, &b, 8);
+        }
+
+        // An unordered pair answers false to every ordered relation and true to `neq`, which is what
+        // the two tests below say without naming a NaN: `a == a` is false for one.
+        auto ordered = (a == a) && (b == b);
+
+        switch(cmp) {
+            case LowerCmp::eq:  return a == b;
+            case LowerCmp::neq: return a != b;
+            case LowerCmp::lt:  return ordered && a < b;
+            case LowerCmp::le:  return ordered && a <= b;
+            case LowerCmp::gt:  return ordered && a > b;
+            case LowerCmp::ge:  return ordered && a >= b;
+            case LowerCmp::uno: return !ordered;
+            case LowerCmp::ord: return ordered;
+            default:            return false; // a signed integer relation between floats
+        }
+    }
+
+    auto width = laneBytes(lane);
+    U64 a = 0, b = 0;
+    copyMem(lhs, &a, width);
+    copyMem(rhs, &b, width);
+
+    // Sign-extended for the signed relations, which is what makes `ilt` over an `i8` lane read `0xff`
+    // as -1 rather than as 255.
+    auto shift = 64 - width * 8;
+    auto sa = I64(a << shift) >> shift;
+    auto sb = I64(b << shift) >> shift;
+
+    switch(cmp) {
+        case LowerCmp::eq:  return a == b;
+        case LowerCmp::neq: return a != b;
+        case LowerCmp::lt:  return a < b;
+        case LowerCmp::le:  return a <= b;
+        case LowerCmp::gt:  return a > b;
+        case LowerCmp::ge:  return a >= b;
+        case LowerCmp::ilt: return sa < sb;
+        case LowerCmp::ile: return sa <= sb;
+        case LowerCmp::igt: return sa > sb;
+        case LowerCmp::ige: return sa >= sb;
+        default:            return false; // an ordering test on an integer lane
+    }
+}
+
+static void foldConstantMaskSelects(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // What the walk below leaves behind: a comparison whose last reader it removed, and the
+        // constant chains that fed one. Both are cleared after the walk rather than during it,
+        // because either may stand *above* the select being folded - removing one there would
+        // renumber the instructions the walk is indexing, which is the one thing this loop assumes
+        // does not happen.
+        Array<LowerInst*> dead;
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Select) continue;
+
+            auto select = (LowerInstSelect*)inst;
+            if(!isVectorLike(select->result.type)) continue;
+
+            auto condition = base[select->cmp];
+            if(condition->inst()->kind != LowerInst::Cmp) continue;
+
+            auto cmp = (LowerInstCmp*)condition->inst();
+            auto lhs = base[cmp->lhs];
+            auto rhs = base[cmp->rhs];
+            auto type = lhs->type;
+
+            // A vector of values, and not a mask: a mask lane's immediate is a truth value rather
+            // than the pattern the machine holds, so what `constantVectorBytes` would answer about
+            // one is not what a comparison of two of them means. Nothing produces that shape today;
+            // this is what keeps the answer from depending on that staying true.
+            if(!isIntVector(type) && !isFloatVector(type)) continue;
+
+            auto size = Size(type.byteWidth());
+            if(size > kMaxVectorBytes) continue;
+
+            U8 left[kMaxVectorBytes] = {};
+            U8 right[kMaxVectorBytes] = {};
+            Array<LowerInst*> chain;
+
+            if(!constantVectorBytes(base, lhs, left, size, chain)) continue;
+            if(!constantVectorBytes(base, rhs, right, size, chain)) continue;
+
+            auto width = laneBytes(type.lane);
+            auto first = constantLaneCompare(cmp->getCmp(), type.lane, left, right);
+            auto uniform = true;
+
+            for(Size at = width; at < size; at += width) {
+                if(constantLaneCompare(cmp->getCmp(), type.lane, left + at, right + at) != first) {
+                    uniform = false;
+                    break;
+                }
+            }
+
+            if(!uniform) continue;
+
+            // Every lane took the same side, so the select is that side and nothing else.
+            replaceAllUses(base, &select->result, base[first ? select->lhs : select->rhs]);
+            removeInst(base, select);
+
+            // The comparison and the constants that fed it, for the sweep below - nothing between
+            // here and emission is a dead-code elimination, so an instruction left with no readers
+            // is one that gets encoded.
+            dead.push(cmp);
+            for(auto link: chain) dead.push(link);
+
+            // The walk carries on from where the select was: what stands there now is whatever
+            // followed it, and nothing above it changed.
+            i--;
+        }
+
+        // Each is removed only once its own use list is empty, which is `removeDeadChain`'s rule and
+        // is what keeps a comparison with a second reader, or a constant two chains share, exactly
+        // where it is.
+        removeDeadChain(base, dead);
     }
 }
 
@@ -4150,7 +4640,15 @@ static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
-            if(inst->kind != LowerInst::VecSplat && inst->kind != LowerInst::VecWithLane) continue;
+
+            // A bitcast is a root as well as a link, and for one reason: it is where a constant
+            // written at one lane kind is read at another (see `constantVectorBytes`), and what has
+            // to be pooled is the *outer* type - the entry's bytes are the same either way, and the
+            // load's type is what decides which instruction reads it.
+            if(inst->kind != LowerInst::VecSplat && inst->kind != LowerInst::VecWithLane
+               && inst->kind != LowerInst::Bitcast) {
+                continue;
+            }
 
             auto result = &((LowerInstSingle*)inst)->result;
             auto type = result->type;
@@ -4173,6 +4671,14 @@ static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun
 
                 if(reader->kind == LowerInst::VecWithLane &&
                    ((LowerInstVecLane*)reader)->from == (result - base)) {
+                    onlyReaderExtends = true;
+                }
+
+                // And the same for a bitcast of it, which is the other way a chain continues: the
+                // link below is about to be pooled whole at the *outer* type, and pooling this one
+                // as well would put two entries in the image and leave the reader reading a bitcast
+                // of a load rather than the load.
+                if(reader->kind == LowerInst::Bitcast && isVectorLike(reader->created()[0].type)) {
                     onlyReaderExtends = true;
                 }
             }
@@ -4534,6 +5040,28 @@ static const TransformPass kTransformPipeline[] = {
     { "expandFusedMultiplyAdd"_v,      expandFusedMultiplyAdd,      0 },
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0 },
 
+    /*
+     * Above `poolVectorConstants`, which is what turns the mask it builds into a `.rodata` entry the
+     * `andps` reads out of memory, and above the two passes below - both of which rewrite a select,
+     * and this one has to see the absolute value's before either has taken it for something else.
+     *
+     * Nothing else constrains it: what it reads is a select over a float vector, and no pass above
+     * it produces or consumes one.
+     */
+    { "expandVectorAbs"_v,             expandVectorAbs,             0 },
+
+    // **Above `poolVectorConstants`**, which is what the constants it reads have to survive: this
+    // asks `constantVectorBytes` for the bytes of a `vsplat`/`vwithlane` chain, and that pass turns
+    // one into a `.rodata` load. Above `selectPackedMinMax` as well, so that what the minimum is
+    // handed is the load rather than the blend that was standing in front of it.
+    { "foldConstantMaskSelects"_v,     foldConstantMaskSelects,     0 },
+
+    // After the reduction, every level of whose min/max tree is exactly the compare-and-select this
+    // recognizes, and **before `biasUnsignedPackedCompares`**, which rewrites an unsigned comparison
+    // into a signed one over two exclusive-ors: what reaches this has to be the relation the program
+    // asked for, since the signedness of the comparison is what picks `pminsd` over `pminud`.
+    { "selectPackedMinMax"_v,          selectPackedMinMax,          0 },
+
     // After the reduction, whose unsigned minimum and maximum are comparisons this then biases, and
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
     { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0 },
@@ -4554,14 +5082,6 @@ static const TransformPass kTransformPipeline[] = {
      */
     { "poolVectorConstants"_v,         poolVectorConstants,         0 },
 
-    /*
-     * **After the pool, which is what decides how much this has to cover.** A constant narrow splat
-     * is a `.rodata` entry by the time this runs, so what is left for it is a splat of a *runtime*
-     * value - a byte a program is searching for, which is exactly what a string scan has and what
-     * nothing else produced before item 8. Running above the pool instead would replace the constant
-     * chain with an `imul` the pool no longer recognizes.
-     */
-    { "expandNarrowSplats"_v,          expandNarrowSplats,          0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
     { "poolFloatConstants"_v,          poolFloatConstants,          0 },

@@ -2178,6 +2178,11 @@ static void genVecUnary(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction
             parts.lanes[i] = coerce(g, element, unary(g, UnaryOp::Neg, lane));
         } else if(instruction.kind == Value::Sqrt) {
             parts.lanes[i] = coerce(g, element, hostCall(g, "Math"_v, "sqrt"_v, lane));
+        } else if(instruction.kind == Value::Abs) {
+            // `Math.abs` is the magnitude at both lane kinds and agrees with what every native
+            // target does with one - `+0` for either zero, and a NaN whose sign is not a thing
+            // JavaScript has an opinion about. See the `Abs` row in resolve/inst.def.
+            parts.lanes[i] = coerce(g, element, hostCall(g, "Math"_v, "abs"_v, lane));
         } else {
             parts.lanes[i] = coerce(g, element, unary(g, UnaryOp::BitNot, lane));
         }
@@ -2478,6 +2483,7 @@ bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
         case Value::Neg:
         case Value::Not:
         case Value::Sqrt:
+        case Value::Abs:
             genVecUnary(g, pointer, (InstUnary&)instruction);
             return true;
         case Value::Fma:
@@ -2711,6 +2717,13 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::Sqrt:
             define(g, value, coerce(g, instruction.type,
                                     hostCall(g, "Math"_v, "sqrt"_v, useValue(g, ((InstUnary&)instruction).from))));
+            break;
+        // The scalar magnitude, which nothing produces today - `abs` is a vector intrinsic and the
+        // resolver's verifier says so. It is here because the vector path above is written per lane
+        // and this is the same call with the lane loop gone.
+        case Value::Abs:
+            define(g, value, coerce(g, instruction.type,
+                                    hostCall(g, "Math"_v, "abs"_v, useValue(g, ((InstUnary&)instruction).from))));
             break;
         case Value::Fma: {
             auto& fma = (InstFma&)instruction;

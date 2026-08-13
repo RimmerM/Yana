@@ -81,6 +81,30 @@ YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPur
  */
 YANA_INST(Sqrt,         InstUnary,       "sqrt"_v,        kInstResult | kInstPure)
 YANA_INST(Fma,          InstFma,         "fma"_v,         kInstResult | kInstPure)
+/*
+ * The magnitude, which is a kind rather than the three instructions it can be built from.
+ *
+ * `select(v .<= 0, 0 - v, v)` computes it, and that is what the library emitted until this row
+ * existed - the comparison non-strict and the negation a subtraction *from zero*, so that `-0.0`
+ * answers `+0.0` where `-v` would have answered `-0.0`. What that shape also does, without meaning
+ * to, is promise that the **sign of a NaN survives**, since a NaN compares false and leaves through
+ * the untouched arm.
+ *
+ * That promise is the reason this is a kind. Every target computes a magnitude in one instruction -
+ * `andps` against `0x7fffffff`, `pabsd`, `llvm.fabs`, `Math.abs` - and every one of them **clears**
+ * the sign of a NaN. So a backend that used its own instruction quietly disagreed with one that
+ * expanded the shape, and the disagreement was invisible: three backends, two answers, and nothing
+ * in the language saying which was right.
+ *
+ * **So the ruling is here: `abs` answers the magnitude, and the sign of a NaN is unspecified.** That
+ * is weaker than the expansion and is what every target can implement directly, which is the whole
+ * of what a kind buys over a shape a peephole has to find again.
+ *
+ * A vector of floats or of *signed* integers. An unsigned lane is its own magnitude, so `emitAbs`
+ * answers the operand and no instruction is built; a scalar is not produced by anything today, and
+ * `verifyFunction` says so rather than leaving a case every backend would have to carry untested.
+ */
+YANA_INST(Abs,          InstUnary,       "abs"_v,         kInstResult | kInstPure)
 YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
 YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
 YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)

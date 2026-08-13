@@ -214,6 +214,29 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
             value = f.builder.CreateIntrinsic(llvm::Intrinsic::sqrt, { from->getType() }, { from },
                                               nullptr, name);
             break;
+
+        /*
+         * The magnitude, which is two intrinsics rather than one because LLVM spells the integer and
+         * the floating-point cases separately.
+         *
+         * `llvm.fabs` clears the sign bit, which is exactly what `Value::Abs` was made a kind to
+         * state (the sign of a NaN is unspecified - see resolve/inst.def). `llvm.abs` takes a second
+         * argument saying whether the most negative integer is poison, and it is **false** here: the
+         * lower IR's magnitude of `INT_MIN` is `INT_MIN`, the same wrap every other target gives,
+         * and promising otherwise would let this be optimized on an assumption the language does not
+         * make.
+         */
+        case LowerInst::Abs:
+            if(isFloatLike(inst.result.type)) {
+                value = f.builder.CreateIntrinsic(llvm::Intrinsic::fabs, { from->getType() }, { from },
+                                                  nullptr, name);
+            } else {
+                value = f.builder.CreateIntrinsic(
+                    llvm::Intrinsic::abs, { from->getType() },
+                    { from, f.builder.getInt1(false) }, nullptr, name
+                );
+            }
+            break;
         default:
             // `not` over a mask is the lane-wise negation of an `<N x i1>`, which is the same xor
             // against all ones an integer vector gets.
@@ -905,6 +928,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Neg:
         case LowerInst::Not:
         case LowerInst::Sqrt:
+        case LowerInst::Abs:
             genUnary(f, (LowerInstUnary&)inst);
             break;
         case LowerInst::Fma:
@@ -986,6 +1010,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:
+        case LowerInst::X86MinMax:
             // Created by the x64 backend's own transforms, which run on a copy of the IR this
             // backend never sees. Reaching one means two targets were run over one module.
             f.context.diagnostics.error("llvm: a target-lowered instruction reached the LLVM backend"_v, inst.source);

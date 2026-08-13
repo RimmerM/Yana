@@ -94,6 +94,7 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Neg:
         case Value::Not:
         case Value::Sqrt:
+        case Value::Abs:
             addUse(((InstUnary*)inst)->from, inst);
             break;
         case Value::Fma: {

@@ -485,6 +485,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("neg"_v), handleUnary<LowerInst::Neg>());
     instructionSet.add(Context::nameHash("not"_v), handleUnary<LowerInst::Not>());
     instructionSet.add(Context::nameHash("sqrt"_v), handleUnary<LowerInst::Sqrt>());
+    instructionSet.add(Context::nameHash("abs"_v), handleUnary<LowerInst::Abs>());
 
     // The one three-operand arithmetic instruction, so the one that cannot borrow a handler. Its
     // result type is the operands' - all three and the result are one type, which validateFma

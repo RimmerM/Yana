@@ -47,10 +47,15 @@ fn construction() -> Int:
 {-
    `min`, `max` and `abs`, which are lanewise arithmetic the classes do not cover.
 
-   Each is a comparison and a select rather than one instruction, because no target here has a packed
-   minimum yet - and the shape is what a target that gains one folds. `abs` is written as
-   `select(v .<= 0, 0 - v, v)` for a reason a positive zero makes visible: negating `+0.0` gives
-   `-0.0`, so the obvious `select(v .< 0, -v, v)` answers a negative zero for a positive input.
+   `min` and `max` are written as a comparison and a select, which is what a target without a packed
+   minimum needs and what a target with one folds back: the x64 backend recognizes the pair and emits
+   `pminsd`, and LLVM's own selection does the same.
+
+   `abs` is an instruction rather than a shape, and the difference is a ruling rather than a count:
+   it answers the magnitude and says nothing about the sign of a NaN, which is what every machine
+   instruction that computes one does and what `select(v .<= 0, 0 - v, v)` does *not* - that shape
+   preserves the sign, so spelling it out would have made three backends disagree. What it does
+   promise is `+0.0` for either zero, which is the assertion below.
 -}
 fn arithmetic(v: Vec(Int)) -> Int:
     let indices = iota() :: Vec(Int)

@@ -1,0 +1,190 @@
+
+narrow<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %ms = cmp_ilt %a, %b: m32x4
+    %s = select %ms, %a, %b: i32x4
+    %mu = cmp_gt %a, %b: m32x4
+    %u = select %mu, %a, %b: i32x4
+    %r = add %s, %u: i32x4
+    ret %r
+  }
+}
+
+minMaxBoth<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %ml = cmp_lt %a, %b: m32x4
+    %lo = select %ml, %a, %b: f32x4
+    %mg = cmp_gt %a, %b: m32x4
+    %hi = select %mg, %a, %b: f32x4
+    %d = sub %hi, %lo: f32x4
+    %s = add %d, %a: f32x4
+    %r = sub %s, %b: f32x4
+    ret %r
+  }
+}
+
+loadFold<complex>(%p: Ptr, %a: i32x4): i32x4 {
+  b_0 {
+    %v = load %p, 16: i32x4
+    %m = cmp_ilt %a, %v: m32x4
+    %r = select %m, %a, %v: i32x4
+    ret %r
+  }
+}
+
+wide<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %ms = cmp_ilt %a, %b: m32x8
+    %s = select %ms, %a, %b: i32x8
+    %mu = cmp_lt %a, %b: m32x8
+    %u = select %mu, %a, %b: i32x8
+    %r = add %s, %u: i32x8
+    ret %r
+  }
+}
+
+wideFloat<complex>(%a: f32x8, %b: f32x8): f32x8 {
+  b_0 {
+    %m = cmp_gt %a, %b: m32x8
+    %hi = select %m, %a, %b: f32x8
+    ret %hi
+  }
+}
+
+wideLoadFold<complex>(%p: Ptr, %a: i32x8): i32x8 {
+  b_0 {
+    %v = load %p, 32: i32x8
+    %m = cmp_igt %a, %v: m32x8
+    %r = select %m, %a, %v: i32x8
+    ret %r
+  }
+}
+
+loadFoldExchange<complex>(%p: Ptr, %a: i32x4): i32x4 {
+  b_0 {
+    %v = load %p, 16: i32x4
+    %m = cmp_ilt %v, %a: m32x4
+    %r = select %m, %v, %a: i32x4
+    ret %r
+  }
+}
+
+loadFoldFloatKeeps<complex>(%p: Ptr, %a: f32x4): f32x4 {
+  b_0 {
+    %v = load %p, 16: f32x4
+    %m = cmp_lt %v, %a: m32x4
+    %r = select %m, %v, %a: f32x4
+    ret %r
+  }
+}
+
+equalityFold<complex>(%p: Ptr, %a: i32x4): m32x4 {
+  b_0 {
+    %v = load %p, 16: i32x4
+    %m = cmp_eq %v, %a: m32x4
+    ret %m
+  }
+}
+
+equalityFoldBytes<complex>(%p: Ptr, %a: i8x16): m8x16 {
+  b_0 {
+    %v = load %p, 16: i8x16
+    %m = cmp_eq %v, %a: m8x16
+    ret %m
+  }
+}
+
+
+--- codegen: narrow ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm2]  => c4e27939d1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => c4e2793fc1
+  add uses=[xmm2, xmm0] creates=[xmm0]  => c5e9fec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: minMaxBoth ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm2]  => c5f85dd1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm3]  => c5f85fd9
+  sub uses=[xmm3, xmm2] creates=[xmm3]  => c5e05cda
+  add uses=[xmm3, xmm0] creates=[xmm3]  => c5e058d8
+  sub uses=[xmm3, xmm1] creates=[xmm0]  => c5e05cc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: loadFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  x86_vimin uses=[xmm0, -] creates=[xmm0]  => c4e2793907
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: wide ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm2]  => c4e27d39d1
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d3bc1
+  add uses=[xmm2, xmm0] creates=[xmm0]  => c5edfec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: wideFloat ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => c5fc5fc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: wideLoadFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  x86_vimax uses=[xmm0, -] creates=[xmm0]  => c4e27d3d07
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: loadFoldExchange ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  x86_vimin uses=[xmm0, -] creates=[xmm0]  => c4e2793907
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: loadFoldFloatKeeps ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm1]  => c5f8100f
+  x86_vmin uses=[xmm1, xmm0] creates=[xmm0]  => c5f05dc0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: equalityFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_eq uses=[xmm0, -] creates=[xmm0]  => c5f97607
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: equalityFoldBytes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_eq uses=[xmm0, -] creates=[xmm0]  => c5f97407
+  ret uses=[xmm0] creates=[]  => c9c3

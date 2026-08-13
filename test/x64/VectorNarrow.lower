@@ -3,9 +3,12 @@
 #
 # Three operations had no form and one pass each now stands in for them:
 #
-#   `vsplat` - there is no byte or word broadcast below SSSE3, so the *scalar* is replicated instead:
-#   `b * 0x01010101` is the sixteen-lane pattern already, and `pshufd` spreads it. One `imul` and the
-#   broadcast this backend always had. See `expandNarrowSplats`.
+#   `vsplat` - ~~there is no byte or word broadcast below SSSE3, so the *scalar* is replicated
+#   instead: `b * 0x01010101` is the sixteen-lane pattern already, and `pshufd` spreads it.~~ That
+#   was five instructions and a general register held for the constant, and it is two forms now:
+#   `pshufb` against a register of zeros for a byte, `pshuflw` and then `pshufd` for a word - both
+#   inside the broadcast pseudo, and both replaced by one `vpbroadcastb`/`vpbroadcastw` wherever AVX2
+#   is there. `VectorNarrowVex.lower` is that half.
 #
 #   `vreduce` - the butterfly needs a shuffle pairing lane `i` with `i ^ s`, and `pshufd` moves
 #   32-bit lanes. So the levels whose partner is a whole 32-bit lane away are that shuffle over the

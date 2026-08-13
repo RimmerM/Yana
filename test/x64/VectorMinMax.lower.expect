@@ -1,0 +1,273 @@
+
+signed32<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %ml = cmp_ilt %a, %b: m32x4
+    %lo = select %ml, %a, %b: i32x4
+    %mg = cmp_igt %a, %b: m32x4
+    %hi = select %mg, %a, %b: i32x4
+    %r = add %lo, %hi: i32x4
+    ret %r
+  }
+}
+
+unsigned32<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %ml = cmp_lt %a, %b: m32x4
+    %lo = select %ml, %a, %b: i32x4
+    %mg = cmp_gt %a, %b: m32x4
+    %hi = select %mg, %a, %b: i32x4
+    %r = add %lo, %hi: i32x4
+    ret %r
+  }
+}
+
+bytes<complex>(%a: i8x16, %b: i8x16): i8x16 {
+  b_0 {
+    %ms = cmp_ilt %a, %b: m8x16
+    %s = select %ms, %a, %b: i8x16
+    %mu = cmp_gt %a, %b: m8x16
+    %u = select %mu, %a, %b: i8x16
+    %r = add %s, %u: i8x16
+    ret %r
+  }
+}
+
+words<complex>(%a: i16x8, %b: i16x8): i16x8 {
+  b_0 {
+    %ms = cmp_ilt %a, %b: m16x8
+    %s = select %ms, %a, %b: i16x8
+    %mu = cmp_lt %a, %b: m16x8
+    %u = select %mu, %a, %b: i16x8
+    %r = add %s, %u: i16x8
+    ret %r
+  }
+}
+
+floats<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %ml = cmp_lt %a, %b: m32x4
+    %lo = select %ml, %a, %b: f32x4
+    %mg = cmp_gt %a, %b: m32x4
+    %hi = select %mg, %a, %b: f32x4
+    %r = add %lo, %hi: f32x4
+    ret %r
+  }
+}
+
+doubles<complex>(%c: f64x2, %d: f64x2): f64x2 {
+  b_0 {
+    %m = cmp_lt %c, %d: m64x2
+    %lo = select %m, %c, %d: f64x2
+    ret %lo
+  }
+}
+
+mirrored<complex>(%a: i32x4, %b: i32x4, %c: f32x4, %d: f32x4): i32x4 {
+  b_0 {
+    %mi = cmp_ilt %a, %b: m32x4
+    %hi = select %mi, %b, %a: i32x4
+    %mf = cmp_lt %c, %d: m32x4
+    %hf = select %mf, %d, %c: f32x4
+    %w = bitcast %hf: i32x4
+    %r = add %hi, %w: i32x4
+    ret %r
+  }
+}
+
+nonStrict<complex>(%a: i32x4, %b: i32x4, %c: f32x4, %d: f32x4): i32x4 {
+  b_0 {
+    %mi = cmp_ile %a, %b: m32x4
+    %lo = select %mi, %a, %b: i32x4
+    %mf = cmp_le %c, %d: m32x4
+    %lf = select %mf, %c, %d: f32x4
+    %w = bitcast %lf: i32x4
+    %r = add %lo, %w: i32x4
+    ret %r
+  }
+}
+
+sharedMask<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %m = cmp_ilt %a, %b: m32x4
+    %lo = select %m, %a, %b: i32x4
+    %o = select %m, %b, %a: i32x4
+    %r = add %lo, %o: i32x4
+    ret %r
+  }
+}
+
+unrelated<complex>(%a: i32x4, %b: i32x4, %x: i32x4, %y: i32x4): i32x4 {
+  b_0 {
+    %m = cmp_ilt %a, %b: m32x4
+    %r = select %m, %x, %y: i32x4
+    ret %r
+  }
+}
+
+belowOrEqual<complex>(%a: i8x16, %b: i8x16): m8x16 {
+  b_0 {
+    %m = cmp_le %a, %b: m8x16
+    ret %m
+  }
+}
+
+atLeast<complex>(%a: i32x4, %b: i32x4): m32x4 {
+  b_0 {
+    %m = cmp_ge %a, %b: m32x4
+    ret %m
+  }
+}
+
+belowStrict<complex>(%a: i8x16, %b: i8x16): m8x16 {
+  b_0 {
+    %m = cmp_lt %a, %b: m8x16
+    ret %m
+  }
+}
+
+signedBelowOrEqual<complex>(%a: i32x4, %b: i32x4): m32x4 {
+  b_0 {
+    %m = cmp_ile %a, %b: m32x4
+    ret %m
+  }
+}
+
+
+--- codegen: signed32 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3839d1
+  x86_vimax uses=[xmm0, xmm1] creates=[xmm0]  => 660f383dc1
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffed0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: unsigned32 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f383bd1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 660f383fc1
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffed0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: bytes ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3838d1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 660fdec1
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffcd0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: words ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660fead1
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660f383ac1
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 660ffdd0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: floats ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f5dd1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 0f5fc1
+  add uses=[xmm2, xmm0] creates=[xmm2]  => 0f58d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: doubles ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmin uses=[xmm0, xmm1] creates=[xmm0]  => 660f5dc1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: mirrored ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimax uses=[xmm1, xmm0] creates=[xmm1]  => 660f383dc8
+  x86_vmax uses=[xmm3, xmm2] creates=[xmm3]  => 0f5fda
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  add uses=[xmm0, xmm3] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffec3
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: nonStrict ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660f3839c1
+  cmp_le uses=[xmm1, xmm3] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28ca0fc2cb02
+  select uses=[xmm2, xmm3, xmm1] creates=[xmm2]  => 440f28f966440fdffb660fdbd166410febd7
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  add uses=[xmm0, xmm2] creates=[xmm0]  => 660ffec2
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: sharedMask ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_igt uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1660f66d0
+  select uses=[xmm3, xmm1, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8440f28fa66440fdff9660fdbda66410febdf
+  select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => 440f28fa66440fdff8660fdbca66410febcf
+  add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm3->xmm0]  => 0f28c3660ffec1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: unrelated ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f66c8
+  select uses=[xmm0, xmm3, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2440f28f966440fdffb660fdbc166410febc7
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: belowOrEqual ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmin uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660fdad1
+  cmp_eq uses=[xmm2, xmm0] creates=[xmm2]  => 660f74d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: atLeast ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vmax uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f383fd1
+  cmp_eq uses=[xmm2, xmm0] creates=[xmm2]  => 660f76d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c9c3
+
+--- codegen: belowStrict ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1534000000
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => 660fefc2
+  xor uses=[xmm1, xmm2] creates=[xmm1]  => 660fefca
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f64c8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c9c3
+
+--- codegen: signedBelowOrEqual ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_ile uses=[xmm0, xmm1] creates=[xmm0]  => 660f66c166450f76ff66410fefc7
+  ret uses=[xmm0] creates=[]  => c9c3

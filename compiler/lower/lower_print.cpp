@@ -151,6 +151,20 @@ static StringView nameForReduce(LowerReduce reduce) {
     return ""_v;
 }
 
+// The same arrangement for the backend's packed minimum and maximum: which of the four it is is what
+// the instruction is, so it is the name rather than a field beside it.
+static StringView nameForMinMax(LowerMinMax kind) {
+    switch(kind) {
+        case LowerMinMax::Min:  return "x86_vmin"_v;
+        case LowerMinMax::IMin: return "x86_vimin"_v;
+        case LowerMinMax::Max:  return "x86_vmax"_v;
+        case LowerMinMax::IMax: return "x86_vimax"_v;
+    }
+
+    assertTrue(false);
+    return ""_v;
+}
+
 static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
     auto to = inst.result.type;
     auto from = base[inst.from]->type;
@@ -188,6 +202,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "neg"_v;
         case LowerInst::Not:
             return "not"_v;
+        case LowerInst::Abs:
+            return "abs"_v;
         case LowerInst::Sqrt:
             return "sqrt"_v;
         case LowerInst::Fma:
@@ -251,6 +267,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "setpattern"_v;
         case LowerInst::X86PushArg:
             return "x86_pusharg"_v;
+        case LowerInst::X86MinMax:
+            return nameForMinMax(((LowerInstX86MinMax&)inst).getMinMax());
         case LowerInst::Call:
             return nameForCall(((LowerInstCall&)inst).getCallType());
         case LowerInst::Je:

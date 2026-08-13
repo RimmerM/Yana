@@ -1,0 +1,198 @@
+
+abs32<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %r = abs %v: f32x4
+    ret %r
+  }
+}
+
+abs64<complex>(%v: f64x2): f64x2 {
+  b_0 {
+    %r = abs %v: f64x2
+    ret %r
+  }
+}
+
+absTwice<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %x = abs %a: f32x4
+    %y = abs %b: f32x4
+    %r = add %x, %y: f32x4
+    ret %r
+  }
+}
+
+absBoth<complex>(%a: f32x4, %b: f64x2): f32x4 {
+  b_0 {
+    %x = abs %a: f32x4
+    %y = abs %b: f64x2
+    %w = bitcast %y: f32x4
+    %r = add %x, %w: f32x4
+    ret %r
+  }
+}
+
+absInt<complex>(%b: i8x16, %w: i16x8, %d: i32x4): i32x4 {
+  b_0 {
+    %rb = abs %b: i8x16
+    %rw = abs %w: i16x8
+    %rd = abs %d: i32x4
+    %cb = bitcast %rb: i32x4
+    %cw = bitcast %rw: i32x4
+    %s = add %cb, %cw: i32x4
+    %r = add %s, %rd: i32x4
+    ret %r
+  }
+}
+
+absNonDestructive<complex>(%d: i32x4): i32x4 {
+  b_0 {
+    %a = abs %d: i32x4
+    %r = add %a, %d: i32x4
+    ret %r
+  }
+}
+
+absLoadFold<complex>(%p: Ptr): f32x4 {
+  b_0 {
+    %v = load %p, 16: f32x4
+    %r = abs %v: f32x4
+    ret %r
+  }
+}
+
+absLoop<complex>(%p: Ptr, %n: Int): f32x4 {
+  start {
+    %init = vsplat 0: f32x4
+    %zero = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %zero], [body, %next]: Int
+    %acc = phi [start, %init], [body, %sum]: f32x4
+    %v_0 = cmp_ilt %i, %n: Int
+    je %v_0, body, end
+  }
+
+  body {
+    %off = mul %i, 16: Int
+    %at = add %p, %off: Ptr
+    %v = load %at, 16: f32x4
+    %m = abs %v: f32x4
+    %sum = add %acc, %m: f32x4
+    %next = add %i, 1: Int
+    jmp head
+  }
+
+  end {
+    ret %acc
+  }
+}
+
+
+--- codegen: abs32 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v128$ffffff7fffffff7fffffff7fffffff7f] uses=[] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5f85405e4000000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: abs64 ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v128$ffffffffffffff7fffffffffffffff7f] uses=[] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5f95405e4000000
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absTwice ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5f81015c4000000
+  and uses=[xmm0, xmm2] creates=[xmm0]  => c5f854c2
+  and uses=[xmm1, xmm2] creates=[xmm1]  => c5f054ca
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absBoth ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5f81015b4000000
+  x86_addr [rip + $v128$ffffff7fffffff7fffffff7fffffff7f] uses=[] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5f854059c000000
+  and uses=[xmm1, xmm2] creates=[xmm1]  => c5f154ca
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absInt ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  abs uses=[xmm0] creates=[xmm0]  => c4e2791cc0
+  abs uses=[xmm1] creates=[xmm1]  => c4e2791dc9
+  abs uses=[xmm2] creates=[xmm2]  => c4e2791ed2
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5f9fec1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => c5f9fec2
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absNonDestructive ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  abs uses=[xmm0] creates=[xmm1]  => c4e2791ec8
+  add uses=[xmm1, xmm0] creates=[xmm0]  => c5f1fec0
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absLoadFold ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5f8100554000000
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5f85407
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: absLoop ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5f8100534000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm1]  => c5f1efc9
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rcx]  => 31c9
+  cmp_ilt uses=[rcx, rsi] creates=[-]  => 39f1
+  je uses=[-] creates=[]  => 7d1a
+block body:
+  imm uses=[] creates=[r8]  => 41b810000000
+  mul uses=[rax, r8] creates=[rax] pre=[rcx->rax]  => 8bc141f7e0
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm2]  => c5f8541407
+  add uses=[xmm1, xmm2] creates=[xmm1]  => c5f058ca
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => ffc1
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_ilt uses=[rcx, rsi] creates=[-]  => 39f1
+  je uses=[-] creates=[]  => 7ce6
+block end:
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c9c3

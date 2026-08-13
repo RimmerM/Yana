@@ -1,0 +1,135 @@
+# The magnitude with AVX present - the same functions as `VectorAbs.lower`, one directive apart, and
+# one more that only exists here.
+#
+# `abs` is `LowerInst::Abs` here because it is `Value::Abs` above: the language rules that it answers
+# the magnitude and says nothing about the sign of a NaN (see the row in resolve/inst.def), which is
+# what lets every backend use the one instruction it has. It used to be `select(v .<= 0, 0 - v, v)`
+# written out by the library and recognized back here, which worked and left the three targets
+# disagreeing about that sign - LLVM and JavaScript preserving it, this backend clearing it.
+#
+# What it becomes here depends on the lane:
+#
+#   float           `andps` against a pooled mask of `0x7fffffff` per lane. The mask is an *integer*
+#                   splat bitcast to the float type, because a float lane's immediate is a double
+#                   narrowed where its bytes are taken and `0x7fffffff` read as a float is a NaN.
+#   8/16/32 int     `pabsb`/`pabsw`/`pabsd`, which are SSSE3 and so inside the v2 floor. Ordinary
+#                   forms, and non-destructive - the destination need not be the source.
+#   64-bit int      nothing: there is no `pabsq` before AVX-512 and no `pcmpgtq` below SSE4.2 to
+#                   build the comparison-and-select fallback from either, so
+#                   `unsupportedVectorReason` refuses it before anything is selected.
+#
+# extensions: v3
+#
+# This is the VEX listing. A VEX-encoded packed operation has no alignment requirement, so the mask
+# can be the `vandps`'s own memory operand - and where the *value* is a load, it is the value that
+# takes the operand instead and the mask stays in the register the entry block put it in. That is the
+# arrangement worth having and is what `absLoadFold` below is here to show: one instruction and one
+# load per iteration, against the two of each the mask-in-memory arrangement costs.
+#
+# `VectorAbs.lower` beside this one is the same file at the baseline.
+
+# The float lane at both widths. One mask each, and the pooled entry is the pattern repeated to the
+# register's width whatever the lane count is.
+abs32(%v: f32x4): f32x4 {
+    {
+        %r = abs %v: f32x4
+        ret %r
+    }
+}
+
+abs64(%v: f64x2): f64x2 {
+    {
+        %r = abs %v: f64x2
+        ret %r
+    }
+}
+
+# Two magnitudes at one lane width, which share one mask: it is built once per function and per lane
+# width, in the entry block, rather than once per use.
+absTwice(%a: f32x4, %b: f32x4): f32x4 {
+    {
+        %x = abs %a: f32x4
+        %y = abs %b: f32x4
+        %r = add %x, %y: f32x4
+        ret %r
+    }
+}
+
+# Both lane widths in one function, which is two masks and two `.rodata` entries - the patterns
+# differ, `0x7fffffff` per lane against `0x7fffffffffffffff`.
+absBoth(%a: f32x4, %b: f64x2): f32x4 {
+    {
+        %x = abs %a: f32x4
+        %y = abs %b: f64x2
+        %w = bitcast %y: f32x4
+        %r = add %x, %w: f32x4
+        ret %r
+    }
+}
+
+# The three integer lanes the machine has an instruction for, which need no constant and no mask.
+absInt(%b: i8x16, %w: i16x8, %d: i32x4): i32x4 {
+    {
+        %rb = abs %b: i8x16
+        %rw = abs %w: i16x8
+        %rd = abs %d: i32x4
+        %cb = bitcast %rb: i32x4
+        %cw = bitcast %rw: i32x4
+        %s = add %cb, %cw: i32x4
+        %r = add %s, %rd: i32x4
+        ret %r
+    }
+}
+
+# An integer magnitude whose operand is still live afterwards, which costs nothing: `pabsd` writes a
+# destination that need not be either operand, so there is no copy in front of it.
+absNonDestructive(%d: i32x4): i32x4 {
+    {
+        %a = abs %d: i32x4
+        %r = add %a, %d: i32x4
+        ret %r
+    }
+}
+
+# The load the magnitude reads, folded into it - which is what the mask living in the entry block is
+# worth. Built beside the `and`, the mask would be the load immediately above it and would win the
+# addressing mode, leaving `vmovups ; vandps (%rip)`: two instructions, and two loads per iteration
+# since the pooled mask is re-read every time. This is one of each.
+absLoadFold(%p: Ptr): f32x4 {
+    {
+        %v = load %p, 16: f32x4
+        %r = abs %v: f32x4
+        ret %r
+    }
+}
+
+# And the same in a loop, which is the shape `test/bench/programs/VecFloat.yana` has: the mask is
+# loaded once before the loop and the body is the load folded into the `and`.
+absLoop(%p: Ptr, %n: Int): f32x4 {
+    start {
+        %z = imm 0.0f: Float
+        %init = vsplat %z: f32x4
+        %zero = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %zero], [body, %next]: Int
+        %acc = phi [start, %init], [body, %sum]: f32x4
+        je (cmp_ilt %i, %n), body, end
+    }
+
+    body {
+        %off = mul %i, 16: Int
+        %at = add %p, %off: Ptr
+        %v = load %at, 16: f32x4
+        %m = abs %v: f32x4
+        %sum = add %acc, %m: f32x4
+        %next = add %i, 1: Int
+        jmp head
+    }
+
+    end {
+        ret %acc
+    }
+}

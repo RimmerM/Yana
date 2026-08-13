@@ -397,6 +397,7 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Neg:
             case Value::Not:
             case Value::Sqrt:
+            case Value::Abs:
                 useValue(analysis, effects, ((InstUnary&)instruction).from);
                 break;
 

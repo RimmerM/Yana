@@ -1,0 +1,118 @@
+
+maskedMax<complex>(%p: Ptr, %acc: i32x8): i32x8 {
+  b_0 {
+    %i0 = vsplat 0: i32x8
+    %i1 = vwithlane %i0, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %lanes = vsplat 8: i32x8
+    %live = cmp_ilt %iota, %lanes: m32x8
+    %v = load %p, 32: i32x8
+    %kept = select %live, %v, %acc: i32x8
+    %m = cmp_igt %acc, %kept: m32x8
+    %r = select %m, %acc, %kept: i32x8
+    ret %r
+  }
+}
+
+noneLive<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %i0 = vsplat 0: i32x4
+    %i1 = vwithlane %i0, 1, 1: i32x4
+    %i2 = vwithlane %i1, 2, 2: i32x4
+    %iota = vwithlane %i2, 3, 3: i32x4
+    %zero = vsplat 0: i32x4
+    %live = cmp_ilt %iota, %zero: m32x4
+    %r = select %live, %a, %b: i32x4
+    ret %r
+  }
+}
+
+mixed<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %i0 = vsplat 0: i32x4
+    %i1 = vwithlane %i0, 1, 1: i32x4
+    %i2 = vwithlane %i1, 2, 2: i32x4
+    %iota = vwithlane %i2, 3, 3: i32x4
+    %half = vsplat 2: i32x4
+    %live = cmp_ilt %iota, %half: m32x4
+    %r = select %live, %a, %b: i32x4
+    ret %r
+  }
+}
+
+runtimeMask<complex>(%p: Ptr, %acc: i32x4, %live: Int): i32x4 {
+  b_0 {
+    %i0 = vsplat 0: i32x4
+    %i1 = vwithlane %i0, 1, 1: i32x4
+    %i2 = vwithlane %i1, 2, 2: i32x4
+    %iota = vwithlane %i2, 3, 3: i32x4
+    %n = vsplat %live: i32x4
+    %m = cmp_ilt %iota, %n: m32x4
+    %v = load %p, 16: i32x4
+    %r = select %m, %v, %acc: i32x4
+    ret %r
+  }
+}
+
+floatConstants<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %ones = vsplat 1: f32x4
+    %twos = vsplat 2: f32x4
+    %m = cmp_lt %ones, %twos: m32x4
+    %r = select %m, %a, %b: f32x4
+    ret %r
+  }
+}
+
+
+--- codegen: maskedMax ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  x86_vimax uses=[xmm0, -] creates=[xmm0]  => c4e27d3d07
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: noneLive ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm0]  => c5f828c1
+block #1:
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mixed ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fa6f1554000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fa6f1d5c000000
+  cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e166da
+  select uses=[xmm0, xmm1, xmm3] creates=[xmm0]  => c4e3714cc030
+  ret uses=[xmm0] creates=[]  => c9c3
+
+--- codegen: runtimeMask ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0d34000000
+  vsplat uses=[rsi] creates=[xmm2]  => c5f96ed6c4e27958d2
+  cmp_igt uses=[xmm2, xmm1] creates=[xmm2]  => c5e966d1
+  load uses=[rdi] creates=[xmm1]  => c5fa6f0f
+  select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => c4e3794cc920
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c9c3
+
+--- codegen: floatConstants ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[xmm0] creates=[]  => c3

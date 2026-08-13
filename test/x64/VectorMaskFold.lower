@@ -1,0 +1,130 @@
+# A select whose mask two constants have already decided - `foldConstantMaskSelects` in
+# transform.cpp, and §39.2 of test/bench/findings.md.
+#
+# extensions: v3
+#
+# This is the tail mask of every bulk operation, and the shape is `maximumVectors` in
+# resolve/core.cpp:
+#
+#     acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+#
+# The last chunk contributes only its live lanes, and the *full* chunks go through the identical line
+# with `live` equal to the lane count - where `maskUpTo(n)` is `iota .< splat(n)` over two constant
+# vectors, so every lane of the mask is set and the select is its first operand.
+#
+# What that removes is not only the blend. A `vpblendvb` takes three registers and can never be the
+# instruction a load folds into, so it stood between the load and the operation that read it:
+#
+#     vmovdqu (%rdx),%ymm3 ; vpblendvb %ymm2,%ymm3,%ymm0,%ymm3 ; vpmaxsd %ymm3,%ymm0,%ymm0
+#
+# is three instructions, a hoisted comparison and a register held across the whole loop, where
+# `vpmaxsd (%rdx),%ymm0,%ymm0` is one. `maskedMax` below is that loop body written out.
+#
+# What is *not* folded is as much of the statement: a comparison with one runtime operand is the real
+# tail mask and stays, and a comparison whose lanes disagree is left alone rather than turned into a
+# pooled mask nothing would have written.
+
+# The full-chunk body: `iota .< splat(lanes)` is true in every lane, so the select is the load and
+# the maximum reads it out of memory.
+maskedMax(%p: Ptr, %acc: i32x8): i32x8 {
+    {
+        %z = imm 0: Int
+        %i0 = vsplat %z: i32x8
+        %c1 = imm 1: Int
+        %i1 = vwithlane %i0, %c1, 1: i32x8
+        %c2 = imm 2: Int
+        %i2 = vwithlane %i1, %c2, 2: i32x8
+        %c3 = imm 3: Int
+        %i3 = vwithlane %i2, %c3, 3: i32x8
+        %c4 = imm 4: Int
+        %i4 = vwithlane %i3, %c4, 4: i32x8
+        %c5 = imm 5: Int
+        %i5 = vwithlane %i4, %c5, 5: i32x8
+        %c6 = imm 6: Int
+        %i6 = vwithlane %i5, %c6, 6: i32x8
+        %c7 = imm 7: Int
+        %iota = vwithlane %i6, %c7, 7: i32x8
+        %n = imm 8: Int
+        %lanes = vsplat %n: i32x8
+        %live = cmp_ilt %iota, %lanes: m32x8
+        %v = load %p, 32: i32x8
+        %kept = select %live, %v, %acc: i32x8
+        %m = cmp_igt %acc, %kept: m32x8
+        %r = select %m, %acc, %kept: i32x8
+        ret %r
+    }
+}
+
+# The other side of the same fold: a mask no lane of which is set answers the select's second
+# operand, so the first is never computed into anything.
+noneLive(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %z = imm 0: Int
+        %i0 = vsplat %z: i32x4
+        %c1 = imm 1: Int
+        %i1 = vwithlane %i0, %c1, 1: i32x4
+        %c2 = imm 2: Int
+        %i2 = vwithlane %i1, %c2, 2: i32x4
+        %c3 = imm 3: Int
+        %iota = vwithlane %i2, %c3, 3: i32x4
+        %n = imm 0: Int
+        %zero = vsplat %n: i32x4
+        %live = cmp_ilt %iota, %zero: m32x4
+        %r = select %live, %a, %b: i32x4
+        ret %r
+    }
+}
+
+# A mask whose lanes disagree, which is left exactly as written: it could be folded into a pooled
+# mask or into a shuffle, and neither is a shape anything in the library produces.
+mixed(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %z = imm 0: Int
+        %i0 = vsplat %z: i32x4
+        %c1 = imm 1: Int
+        %i1 = vwithlane %i0, %c1, 1: i32x4
+        %c2 = imm 2: Int
+        %i2 = vwithlane %i1, %c2, 2: i32x4
+        %c3 = imm 3: Int
+        %iota = vwithlane %i2, %c3, 3: i32x4
+        %n = imm 2: Int
+        %half = vsplat %n: i32x4
+        %live = cmp_ilt %iota, %half: m32x4
+        %r = select %live, %a, %b: i32x4
+        ret %r
+    }
+}
+
+# And the real tail mask, whose second operand is a runtime value - the comparison, the blend and the
+# load all stay, which is what the last chunk of every bulk operation is entitled to.
+runtimeMask(%p: Ptr, %acc: i32x4, %live: Int): i32x4 {
+    {
+        %z = imm 0: Int
+        %i0 = vsplat %z: i32x4
+        %c1 = imm 1: Int
+        %i1 = vwithlane %i0, %c1, 1: i32x4
+        %c2 = imm 2: Int
+        %i2 = vwithlane %i1, %c2, 2: i32x4
+        %c3 = imm 3: Int
+        %iota = vwithlane %i2, %c3, 3: i32x4
+        %n = vsplat %live: i32x4
+        %m = cmp_ilt %iota, %n: m32x4
+        %v = load %p, 16: i32x4
+        %r = select %m, %v, %acc: i32x4
+        ret %r
+    }
+}
+
+# A float comparison of two constants, where what decides the lanes is the relation's NaN rule rather
+# than the numbers: an unordered pair answers false to `lt` in every lane.
+floatConstants(%a: f32x4, %b: f32x4): f32x4 {
+    {
+        %o = imm 1.0f: Float
+        %ones = vsplat %o: f32x4
+        %t = imm 2.0f: Float
+        %twos = vsplat %t: f32x4
+        %m = cmp_lt %ones, %twos: m32x4
+        %r = select %m, %a, %b: f32x4
+        ret %r
+    }
+}

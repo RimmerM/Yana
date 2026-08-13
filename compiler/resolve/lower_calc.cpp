@@ -249,6 +249,16 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             );
             break;
         }
+        // The magnitude, which is a unary instruction on both sides of this lowering - what each
+        // backend does with one is its own business, and that is the point of the kind.
+        case Value::Abs: {
+            auto& unaryInst = (InstUnary&)instruction;
+            result = unary<LowerInst::Abs>(
+                lower.lower, lower.to, block, lower.lower[mappedValue(lower, unaryInst.from)],
+                lowerType(lower.global, instruction.type), instruction.name
+            );
+            break;
+        }
         case Value::Fma: {
             auto& fma = (InstFma&)instruction;
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFma(

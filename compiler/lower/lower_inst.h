@@ -56,7 +56,22 @@ struct LowerInst {
         // vector one and a scalar one, for the reason the arithmetic above is one kind: what differs
         // is the operand's type and nothing else.
         Sqrt,
-        LastUnaryArith = Sqrt,
+
+        /*
+         * The magnitude of every lane - `andps` against a sign mask, `pabsd`, `llvm.fabs`,
+         * `Math.abs`.
+         *
+         * A kind rather than the comparison and the select it can be built from, and the reason is a
+         * *semantic* one rather than a count: every machine instruction that computes a magnitude
+         * clears the sign of a NaN and the expansion preserves it, so a target using its own
+         * instruction and a target expanding the shape answered differently. `Value::Abs` in the
+         * resolve IR is where the language rules on that (the sign of a NaN is unspecified); this is
+         * the same instruction one tier down, and every backend implements it directly.
+         *
+         * A float lane or a *signed* integer one, the resolver having refused the rest.
+         */
+        Abs,
+        LastUnaryArith = Abs,
         LastUnary = LastUnaryArith,
 
         FirstBinary,
@@ -165,7 +180,25 @@ struct LowerInst {
         // it there rather than in a register. Created by transformFunction from the convention's
         // own answer, never written by hand - see insertStackArgs in transform.cpp.
         X86PushArg,
-        LastInst = X86PushArg,
+
+        /*
+         * The lane-wise minimum or maximum of two vectors - `pminsd`, `pmaxub`, `minps`.
+         *
+         * Backend-private for the reason `LowerReduce::Bits` is: the portable spelling of a minimum
+         * is a comparison and a select (`emitMinMax` in resolve/simd.cpp), which is what every
+         * target that lacks the instruction needs anyway and what LLVM's own selection folds. x86
+         * has the instruction at most lane widths, so the x64 backend recognizes the pair and writes
+         * this in their place - see `selectPackedMinMax` in codegen/x64/transform.cpp.
+         *
+         * **The operand order is the machine's and is load-bearing at a float lane.** `minps a, b`
+         * answers `a < b ? a : b`, which is `b` when either operand is a NaN and `b` when both are
+         * zeros of opposite sign - so exchanging the operands is a different operation, and only an
+         * integer lane may have them swapped (see `isCommutativeInt`). That is exactly the order
+         * `select(a < b, a, b)` states, which is why the recognition is a rewrite rather than a
+         * pattern with a correction after it.
+         */
+        X86MinMax,
+        LastInst = X86MinMax,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -772,6 +805,49 @@ struct LowerInstX86PushArg: LowerInstSingle {
 
     // Byte offset within the argument area, as the calling convention assigned it.
     U32 stackOffset;
+};
+
+/*
+ * Which minimum or maximum a `X86MinMax` performs.
+ *
+ * The naming the binary operations and `LowerReduce` already use: `Min` is the unsigned or floating
+ * one and `IMin` the signed integer one, exactly as `Div` and `IDiv` are. A float lane is `Min` -
+ * there being one ordering of floats - and the signedness of an integer lane is the lane type's.
+ */
+enum class LowerMinMax: U8 {
+    Min,
+    IMin,
+    Max,
+    IMax,
+};
+
+// The lane-wise minimum or maximum of two vectors - see LowerInst::X86MinMax, which states why this
+// is the backend's own instruction and why its operand order may not be exchanged at a float lane.
+struct LowerInstX86MinMax: LowerInstSingle {
+    LowerInstX86MinMax(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs,
+                       LowerMinMax kind):
+        LowerInstSingle(X86MinMax, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = U8(kind);
+    }
+
+    LowerMinMax getMinMax() const { return (LowerMinMax)flags; }
+
+    bool isMax() const {
+        auto kind = getMinMax();
+        return kind == LowerMinMax::Max || kind == LowerMinMax::IMax;
+    }
+
+    // Whether the lanes are read as signed, which for an integer lane is what picks `pminsd` over
+    // `pminud`. A float lane answers false and nothing asks: `minps` is the only float ordering.
+    bool isSignedLanes() const {
+        auto kind = getMinMax();
+        return kind == LowerMinMax::IMin || kind == LowerMinMax::IMax;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
 };
 
 /*
