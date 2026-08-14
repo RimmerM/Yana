@@ -70,35 +70,35 @@ main<complex>(): Int {
     jmp b_26
   }
 
+  b_27 {
+    %v_28 = cmp_ilt %v_29, 4: Int
+    je %v_28, b_26, b_30
+  }
+
+  b_30 {
+    %v_31 = vlane %v_32, 0: Int
+    %v_33 = cmp_neq %v_31, 15: Int
+    je %v_33, b_34, b_35
+  }
+
   b_26 {
-    %v_27 = phi [b_25, %base], [b_28, %v_29]: i32x8
-    %v_30 = phi [b_25, 0], [b_28, %v_31]: Int
-    %v_32 = cmp_ilt %v_30, 4: Int
-    je %v_32, b_28, b_33
+    %v_36 = phi [b_27, %v_32], [b_25, %base]: i32x8
+    %v_37 = phi [b_27, %v_29], [b_25, 0]: Int
+    %v_32 = add %v_36, %base: i32x8
+    %v_29 = add %v_37, 1: Int
+    jmp b_27
   }
 
-  b_33 {
-    %v_34 = vlane %v_27, 0: Int
-    %v_35 = cmp_neq %v_34, 15: Int
-    je %v_35, b_36, b_37
-  }
-
-  b_28 {
-    %v_29 = add %v_27, %base: i32x8
-    %v_31 = add %v_30, 1: Int
-    jmp b_26
-  }
-
-  b_36 {
+  b_34 {
     ret 18446744073709551611
   }
 
-  b_37 {
+  b_35 {
     jmp b_38
   }
 
   b_38 {
-    %v_39 = vlane %v_27, 1: Int
+    %v_39 = vlane %v_32, 1: Int
     %v_40 = cmp_neq %v_39, 15: Int
     je %v_40, b_41, b_42
   }
@@ -112,7 +112,7 @@ main<complex>(): Int {
   }
 
   b_43 {
-    %v_44 = vreduce_add %v_27: Int
+    %v_44 = vreduce_add %v_32: Int
     %v_45 = imul %lanes, 15: Int
     %v_46 = cmp_neq %v_44, %v_45: Int
     je %v_46, b_47, b_48
@@ -129,7 +129,7 @@ main<complex>(): Int {
   b_49 {
     %v_50 = add %base, %v_2: i32x8
     %v_51 = vlane %v_50, 0: Int
-    %v_52 = add %v_4, %v_27: i32x8
+    %v_52 = add %v_4, %v_32: i32x8
     %v_53 = vlane %v_52, 0: Int
     %v_54 = add %v_51, %v_53: Int
     %v_55 = cmp_neq %v_54, 30: Int

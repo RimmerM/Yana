@@ -268,6 +268,23 @@ enum : MachineOpcodeId {
     OpAlloca,
     OpLoad,
     OpStore,
+
+    /*
+     * The five that read a location, combine it with a value and write it back - `add [m], r`.
+     *
+     * One opcode each rather than one `store-update` opcode with the operation as a form dimension,
+     * because that is what an opcode is here: a machine operation. They differ in what they leave in
+     * the flags as well as in their bytes - the three logical ones clear OF, so a signed comparison
+     * of the result against zero is answered and an arithmetic one's is not - and a claim like that
+     * belongs to an operation rather than to an encoding of one.
+     *
+     * See LowerInst::X86StoreOp, and `foldStoreUpdates` in transform.cpp for what reaches them.
+     */
+    OpStoreAdd,
+    OpStoreSub,
+    OpStoreAnd,
+    OpStoreOr,
+    OpStoreXor,
     OpBlockCopy,
     OpBlockSet,
     OpCall,
@@ -1282,6 +1299,22 @@ bool shuffleReadsOneSource(LowerInst* inst);
  * second would have emitted perfectly well.
  */
 LowerCmp packedCompareRelation(LowerCmp cmp);
+
+/*
+ * And whether the relation that comes back is one the machine can only answer the *opposite* of.
+ *
+ * `pcmpeq` and `pcmpgt` are the whole of the packed integer comparison, so `neq` and `ile` are the
+ * base instruction plus an all-ones register and an exclusive-or against it - three instructions and
+ * a vector constant to say "not this". A float comparison is never one of them: `cmpps` carries all
+ * eight relations in its predicate byte.
+ *
+ * Exported because `foldComplementedCompare` in transform.cpp asks exactly this question about a
+ * mask nothing but a reduction reads, and answers it with a scalar exclusive-or or with a different
+ * immediate instead. Two statements of which relations are complemented would be two answers to the
+ * question of what that pass is allowed to rewrite. Takes the relation *after*
+ * `packedCompareRelation`, which is the form the instruction is selected at.
+ */
+bool packedCompareIsInverted(LowerType type, LowerCmp cmp);
 
 /*
  * Whether this machine has a packed minimum and maximum at this vector's lane.

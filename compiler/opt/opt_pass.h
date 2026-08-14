@@ -334,9 +334,25 @@ inline bool isFoldableFloat(F64 value) { return value == value && value - value 
  *
  * Two passes ask it and they ask it of the same thing - a memory-typed argument at a call site.
  * opt_arg.cpp needs somewhere to project a field out of; opt_inline.cpp needs the root a callee's
- * own places should be rebuilt against.
+ * own places should be rebuilt against. Both of them ask it through `argumentStorage` below rather
+ * than directly, and the note there is why.
  */
 Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value);
+
+/*
+ * The same question asked of a *call argument*, which is the only form either caller has.
+ *
+ * A `return` parameter's argument is the exception `storageOf` cannot answer, and it is why this
+ * exists. The marker makes the loan outlive the call, so `borrowArgument` hands over an explicit
+ * `InstBorrow` rather than the loaded value - and that borrow has a slot of its own holding an
+ * *address*. `storageOf` finds that slot, which is a correct answer to the question it asks and the
+ * wrong storage for either caller: it is one pointer wide and has no fields at all. Reading
+ * `Flat.items` and `Flat.length` out of it produced two loads at offset zero, so a slice's length
+ * arrived as its own base address.
+ *
+ * What the fields are in is the place the borrow *names*, which the instruction carries.
+ */
+Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value);
 
 /*
  * The fields of an aggregate a pass is willing to take apart, and how a place names one.

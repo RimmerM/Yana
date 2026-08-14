@@ -455,6 +455,24 @@ enum: MachineFormId {
     FormLoadF32Vex, FormLoadF64Vex,
     FormStoreF32Vex, FormStoreF64Vex,
 
+    /*
+     * The in-place memory updates, six per operation: one per access width, and the two immediate
+     * shapes at the widths a group-1 immediate has - see `storeUpdate` below.
+     *
+     * Written out rather than generated because the ids are the construction order, and the block
+     * that builds them reads this list back one operation at a time.
+     */
+    FormStoreAdd8, FormStoreAdd16, FormStoreAdd32, FormStoreAdd64,
+    FormStoreAdd32Imm, FormStoreAdd64Imm,
+    FormStoreSub8, FormStoreSub16, FormStoreSub32, FormStoreSub64,
+    FormStoreSub32Imm, FormStoreSub64Imm,
+    FormStoreAnd8, FormStoreAnd16, FormStoreAnd32, FormStoreAnd64,
+    FormStoreAnd32Imm, FormStoreAnd64Imm,
+    FormStoreOr8, FormStoreOr16, FormStoreOr32, FormStoreOr64,
+    FormStoreOr32Imm, FormStoreOr64Imm,
+    FormStoreXor8, FormStoreXor16, FormStoreXor32, FormStoreXor64,
+    FormStoreXor32Imm, FormStoreXor64Imm,
+
     FormBlockCopyRep,
     FormBlockCopyUnrolled,
     FormBlockCopyUnrolledCount,
@@ -654,6 +672,14 @@ MachineTarget::MachineTarget() {
 
     name(OpLoad, "load"_v);
     name(OpStore, "store"_v);
+
+    // The in-place updates, which write the flags at every form they have - the arithmetic they
+    // perform is the same arithmetic wherever its destination lives.
+    name(OpStoreAdd, "storeadd"_v);
+    name(OpStoreSub, "storesub"_v);
+    name(OpStoreAnd, "storeand"_v);
+    name(OpStoreOr, "storeor"_v);
+    name(OpStoreXor, "storexor"_v);
     name(OpBlockCopy, "blockcopy"_v);
     name(OpBlockSet, "blockset"_v);
     name(OpCall, "call"_v);
@@ -3538,6 +3564,112 @@ MachineTarget::MachineTarget() {
     vexTwin(FormStoreF64Vex, FormStoreF64, "vmovsd [address], xmm"_v, false);
 
     /*
+     * §45.2 The in-place memory updates - `add [rdi + rcx*4], edx`.
+     *
+     * Shaped exactly like the stores above and encoded by the same family: an `address()` operand,
+     * the other operand in ModRM.reg or in the immediate, and *no result at all*. What the group-1
+     * register forms already declare - a ReadWrite r/m operand with the result tied to it - is the
+     * same operation reaching memory through a frame slot; this is the same operation reaching it
+     * through an address the program computed, which is a location no operand can hold and so a form
+     * rather than a location. `foldStoreUpdates` in transform.cpp is what moves an instruction here.
+     *
+     * The widths are the store's four. A narrower update is exact for all five of these operations
+     * whatever the value's own width was, because each of them decides every bit of its result from
+     * the bits of its operands at or below that position - so the low `w` bytes of a wide operation
+     * are the `w`-byte operation, and the bytes above are the ones the store discarded anyway.
+     *
+     * The immediate forms exist at 32 and 64 bits, which is where the group-1 `imm8`/`imm32` pair
+     * lives. Without them a fold would be a regression rather than a saving at the shape that wants
+     * it most: `xs[i] += 1` reaches this with its constant already embeddable, and a register-only
+     * form would put it back into a register and hold one across the loop for it. Which of the two
+     * opcodes carries the value is decided by the value, in `emitLoadStore` - the same choice
+     * `emitRmExtImm` makes for the register forms, made where an address is what it is written
+     * around.
+     */
+    auto storeUpdate = [&](MachineFormId first, MachineOpcodeId opcode, const StringView (&names)[6],
+                           U8 rmRegOp, U8 extension, bool logical)
+    {
+        // The four widths, at the ids the list declares in order: byte, word, dword, qword.
+        auto reg = [&](MachineFormId id, StringView formName, U8 op, U8 prefix,
+                       OperationWidth width)
+        {
+            auto& form = add(id, opcode, formName);
+            form.uses.push(address());
+            form.uses.push(anyReg());
+            form.flagsEffect = FlagsEffect::Def;
+            form.resultInFlags = true;
+            form.signInFlags = logical;
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::LoadStore,
+                .opcode = op,
+                .prefix = prefix,
+                .regField = useRef(1),
+                .width = width,
+            };
+
+            return &form;
+        };
+
+        reg(MachineFormId(first + 0), names[0], U8(rmRegOp - 1), 0,
+            OperationWidth::Fixed32)->encoding.byteRegField = true;
+        reg(MachineFormId(first + 1), names[1], rmRegOp, 0x66, OperationWidth::Fixed32);
+        reg(MachineFormId(first + 2), names[2], rmRegOp, 0, OperationWidth::Fixed32);
+        reg(MachineFormId(first + 3), names[3], rmRegOp, 0, OperationWidth::Fixed64);
+
+        // And the two immediate forms. `0x83` carries a sign-extended byte and `0x81` four bytes;
+        // both name the operation in the ModRM extension, the r/m field being the address.
+        auto imm = [&](MachineFormId id, StringView formName, OperationWidth width) {
+            auto& form = add(id, opcode, formName);
+            form.uses.push(address());
+            form.uses.push(immediate(ImmediateWidth::Imm8OrImm32));
+            form.flagsEffect = FlagsEffect::Def;
+            form.resultInFlags = true;
+            form.signInFlags = logical;
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::LoadStore,
+                .opcode = 0x83, .opcodeAlt = 0x81,
+                .extension = extension,
+                .immField = useRef(1),
+                .width = width,
+                .immediateBytes = 1,
+            };
+        };
+
+        imm(MachineFormId(first + 4), names[4], OperationWidth::Fixed32);
+        imm(MachineFormId(first + 5), names[5], OperationWidth::Fixed64);
+    };
+
+    // The `r/m, r` opcode of each operation, which is the register form's own primary (`add r/m, r`
+    // is 0x01) - and the byte-width one is that opcode minus one, which is how the whole group-1
+    // family is laid out. The extension is the same one the immediate register forms declare.
+    static const StringView addNames[6] = {
+        "add byte [address], r"_v, "add word [address], r"_v, "add dword [address], r"_v,
+        "add qword [address], r"_v, "add dword [address], imm"_v, "add qword [address], imm"_v,
+    };
+    static const StringView subNames[6] = {
+        "sub byte [address], r"_v, "sub word [address], r"_v, "sub dword [address], r"_v,
+        "sub qword [address], r"_v, "sub dword [address], imm"_v, "sub qword [address], imm"_v,
+    };
+    static const StringView andNames[6] = {
+        "and byte [address], r"_v, "and word [address], r"_v, "and dword [address], r"_v,
+        "and qword [address], r"_v, "and dword [address], imm"_v, "and qword [address], imm"_v,
+    };
+    static const StringView orNames[6] = {
+        "or byte [address], r"_v, "or word [address], r"_v, "or dword [address], r"_v,
+        "or qword [address], r"_v, "or dword [address], imm"_v, "or qword [address], imm"_v,
+    };
+    static const StringView xorNames[6] = {
+        "xor byte [address], r"_v, "xor word [address], r"_v, "xor dword [address], r"_v,
+        "xor qword [address], r"_v, "xor dword [address], imm"_v, "xor qword [address], imm"_v,
+    };
+
+    storeUpdate(FormStoreAdd8, OpStoreAdd, addNames, 0x01, 0, false);
+    storeUpdate(FormStoreSub8, OpStoreSub, subNames, 0x29, 5, false);
+    storeUpdate(FormStoreAnd8, OpStoreAnd, andNames, 0x21, 4, true);
+    storeUpdate(FormStoreOr8,  OpStoreOr,  orNames,  0x09, 1, true);
+    storeUpdate(FormStoreXor8, OpStoreXor, xorNames, 0x31, 6, true);
+
+    /*
      * Block operations.
      *
      * Two encodings with very different register requirements: `rep movsb`/`rep stosb` demand fixed
@@ -4557,6 +4689,39 @@ bool validateMachineForms(const MachineTarget& target) {
  * Selection.
  */
 
+// Which of the five in-place updates a folded binary operation became. The mapping is the whole of
+// what `LowerInstX86StoreOp::op` means, and it is stated once here rather than at each of the two
+// places that read it - the opcode below and the form beside it.
+static MachineOpcodeId storeUpdateOpcode(LowerInst::Kind op) {
+    switch(op) {
+        case LowerInst::Add: return OpStoreAdd;
+        case LowerInst::Sub: return OpStoreSub;
+        case LowerInst::And: return OpStoreAnd;
+        case LowerInst::Or:  return OpStoreOr;
+        case LowerInst::Xor: return OpStoreXor;
+        default: break;
+    }
+
+    assertTrue("no in-place memory update for this operation" == nullptr);
+    return OpStoreAdd;
+}
+
+// And the first of its six forms, the block being laid out byte, word, dword, qword, dword-immediate
+// and qword-immediate. One place for both halves of the same fact, for the reason above.
+static MachineFormId storeUpdateFirstForm(LowerInst::Kind op) {
+    switch(op) {
+        case LowerInst::Add: return FormStoreAdd8;
+        case LowerInst::Sub: return FormStoreSub8;
+        case LowerInst::And: return FormStoreAnd8;
+        case LowerInst::Or:  return FormStoreOr8;
+        case LowerInst::Xor: return FormStoreXor8;
+        default: break;
+    }
+
+    assertTrue("no in-place memory update for this operation" == nullptr);
+    return FormStoreAdd8;
+}
+
 MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
     // Whether this instruction's operands live in the vector bank. Read from the operands rather
     // than from the result, because the two disagree for exactly the operation whose opcode this
@@ -4677,6 +4842,12 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Alloca:     return OpAlloca;
         case LowerInst::Load:       return OpLoad;
         case LowerInst::Store:      return OpStore;
+
+        // The in-place update, whose operation is the instruction's own field rather than anything
+        // read off its operands: the value it combines with the location may be of any width the
+        // access truncates to, so the type says nothing about which of the five this is.
+        case LowerInst::X86StoreOp: return storeUpdateOpcode(((LowerInstX86StoreOp*)inst)->getOp());
+
         case LowerInst::Copy:       return OpBlockCopy;
         case LowerInst::SetPattern: return OpBlockSet;
         case LowerInst::Call:       return OpCall;
@@ -5286,7 +5457,7 @@ LowerCmp packedCompareRelation(LowerCmp cmp) {
  * Float comparisons are never this. `cmpps` carries all eight relations in its predicate byte, so
  * the complement is a different byte and not a different instruction.
  */
-static bool packedCompareIsInverted(LowerType type, LowerCmp cmp) {
+bool packedCompareIsInverted(LowerType type, LowerCmp cmp) {
     if(isFloatVector(type)) return false;
     return cmp == LowerCmp::neq || cmp == LowerCmp::ile;
 }
@@ -6754,6 +6925,33 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                 case 2: return FormStore16;
                 case 4: return FormStore32;
                 default: return FormStore64;
+            }
+        }
+
+        /*
+         * The in-place update, whose six forms sit contiguously per operation - so the operation
+         * chooses the block and the width and the value choose the row within it.
+         *
+         * The immediate rows exist at the two widths a group-1 immediate has, and are taken on the
+         * same terms the store's are: a constant `canEmbedImm` has already accepted has no register
+         * to fall back to, and both rows declare the `Imm8OrImm32` that question was asked for.
+         */
+        case LowerInst::X86StoreOp: {
+            auto update = (LowerInstX86StoreOp*)inst;
+            auto first = MachineFormId(storeUpdateFirstForm(update->getOp()));
+            auto width = update->getWidth();
+
+            if(width >= 4 && isImm(base[update->value])
+               && fitsImmediate(ImmediateWidth::Imm8OrImm32, embeddedValue(base, update->value)))
+            {
+                return MachineFormId(first + (width == 4 ? 4 : 5));
+            }
+
+            switch(width) {
+                case 1: return first;
+                case 2: return MachineFormId(first + 1);
+                case 4: return MachineFormId(first + 2);
+                default: return MachineFormId(first + 3);
             }
         }
 

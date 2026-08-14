@@ -46,12 +46,18 @@ function total(t) {
 }
 
 function leftOf(t) {
+  var v24;
   var v19;
   var absent = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
   if (t.$tag === 0) {
     v19 = t.$p;
   } else {
-    v19 = total(unwrapOr_Tree({ $v: t.left }, absent));
+    if (t.left === null) {
+      v24 = absent;
+    } else {
+      v24 = t.left;
+    }
+    v19 = total(v24);
   }
   return v19;
 }
@@ -101,16 +107,6 @@ function main() {
   } else {
     return values + chained | 0;
   }
-}
-
-function unwrapOr_Tree(m, fallback) {
-  var v2;
-  if (m.$v === null) {
-    v2 = fallback;
-  } else {
-    v2 = m.$v;
-  }
-  return v2;
 }
 
 function drop$Chain(value) {

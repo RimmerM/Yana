@@ -373,30 +373,30 @@ loop<complex>(): Long {
     jmp b_4
   }
 
+  b_5 {
+    %v_6 = cmp_ilt %v_7, 3: Int
+    je %v_6, b_4, b_8
+  }
+
+  b_9 {
+    ret %v_10
+  }
+
   b_4 {
-    %v_5 = phi [b_0, 0], [b_6, %v_7]: Long
-    %v_8 = phi [b_0, 0], [b_6, %v_9]: Long
-    %v_10 = cmp_ilt %v_8, 3: Int
-    je %v_10, b_6, b_11
-  }
-
-  b_12 {
-    ret %v_5
-  }
-
-  b_6 {
+    %v_11 = phi [b_5, %v_10], [b_0, 0]: Long
+    %v_12 = phi [b_5, %v_7], [b_0, 0]: Long
     %v_13 = load %v_2, 1: Int
     %v_14 = cast %v_13: Long
     %v_15 = add %v_14, %v_3: Long
-    %v_7 = add %v_5, %v_15: Long
-    %v_9 = add %v_8, 1: Long
-    jmp b_4
+    %v_10 = add %v_11, %v_15: Long
+    %v_7 = add %v_12, 1: Long
+    jmp b_5
   }
 
-  b_11 {
+  b_8 {
     call_complex freeHeap, %v_2
     call_complex -=(I64), @liveBuffers, 1
-    jmp b_12
+    jmp b_9
   }
 }
 

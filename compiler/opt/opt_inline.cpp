@@ -2776,15 +2776,24 @@ struct Inliner {
         /*
          * And the memory-typed arguments, which have to be storage this frame can name.
          *
-         * `storageOf` is the same question the flattening pass asks of the same values, and it
-         * answers for the two shapes the resolver produces: a load of a place, and a value some
-         * local's storage came from. Anything else - a memory-typed value with no place behind it -
-         * is one there is nothing to re-root at, so the call stays a call.
+         * `argumentStorage` is the same question the flattening pass asks of the same values, and it
+         * answers for the three shapes the resolver produces: a load of a place, a value some local's
+         * storage came from, and the borrow a `return`-marked parameter is handed. Anything else - a
+         * memory-typed value with no place behind it - is one there is nothing to re-root at, so the
+         * call stays a call.
+         *
+         * **The third shape is the one this used to refuse**, by asking `storageOf` directly. A
+         * `return` marker makes the loan outlive the call, so `borrowArgument` passes an `InstBorrow`
+         * where every other memory argument is a `LoadPlace` - and `storageOf` answers that with the
+         * borrow's own one-word slot, which is an address rather than the record. So every callee in
+         * the language whose result points into its argument was declined here, whatever its size:
+         * `elements`, `slice` and `get` are the whole of a container's read surface, and `elements`
+         * was a real call with a real frame in the middle of every vector loop because of it.
          */
         for(Size i = 0; i < candidate.parameters.size(); i++) {
             if(candidate.parameters[i].binding != Binding::Memory) continue;
 
-            auto storage = storageOf(opt, candidate.arguments[i]);
+            auto storage = argumentStorage(opt, candidate.arguments[i]);
             if(!storage) return false;
 
             candidate.parameters[i].storage = storage.unwrap();

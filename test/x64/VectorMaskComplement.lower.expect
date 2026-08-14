@@ -1,0 +1,192 @@
+
+allNotEqual<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %m = cmp_neq %a, %b: m32x8
+    %r = vreduce_and %m: Int
+    ret %r
+  }
+}
+
+anyLessEqual<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %m = cmp_ile %a, %b: m32x8
+    %r = vreduce_or %m: Int
+    ret %r
+  }
+}
+
+countGreaterEqual<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %m = cmp_ige %a, %b: m32x8
+    %r = vreduce_add %m: Int
+    ret %r
+  }
+}
+
+firstNotEqual<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %m = cmp_neq %a, %b: m32x8
+    %r = vreduce_first %m: Int
+    ret %r
+  }
+}
+
+bothFree<complex>(%a: i32x8, %b: i32x8): Int {
+  entry {
+    %m = cmp_ile %a, %b: m32x8
+    %any = vreduce_or %m: Int
+    %v_0 = cmp_neq %any, 0: Int
+    je %v_0, some, none
+  }
+
+  some {
+    %all = vreduce_and %m: Int
+    ret %all
+  }
+
+  none {
+    ret 0
+  }
+}
+
+bothPay<complex>(%a: i32x8, %b: i32x8): Int {
+  entry {
+    %m = cmp_neq %a, %b: m32x8
+    %c = vreduce_add %m: Int
+    %v_0 = cmp_neq %c, 0: Int
+    je %v_0, some, none
+  }
+
+  some {
+    %f = vreduce_first %m: Int
+    ret %f
+  }
+
+  none {
+    ret 0
+  }
+}
+
+selected<complex>(%a: i32x8, %b: i32x8): Int {
+  b_0 {
+    %m = cmp_ile %a, %b: m32x8
+    %v = select %m, %a, %b: i32x8
+    %r = vreduce_add %m: Int
+    %l = vlane %v, 0: Int
+    %s = add %r, %l: Int
+    ret %s
+  }
+}
+
+floatNotEqual<complex>(%a: f32x8, %b: f32x8): Int {
+  b_0 {
+    %m = cmp_neq %a, %b: m32x8
+    %r = vreduce_and %m: Int
+    ret %r
+  }
+}
+
+
+--- codegen: allNotEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rax]  => 85c00f94c00fb6c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: anyLessEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_igt uses=[xmm0, xmm1] creates=[xmm0]  => c5fd66c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rax]  => 81f8ff0000000f95c00fb6c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: countGreaterEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => c5f566c8
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fc50c1
+  imm uses=[] creates=[-]  => 
+  xor uses=[rax, -] creates=[rax]  => 81f0ff000000
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: firstNotEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  xor uses=[rax, -] creates=[rax]  => 81f0ff000000
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800010000
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: bothFree ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  cmp_igt uses=[xmm0, xmm1] creates=[xmm0]  => c5fd66c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rcx]  => 31c981f8ff0000000f95c1
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7506
+block none:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+block some:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rax]  => 85c00f94c00fb6c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: bothPay ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  cmp_neq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1c4410576ffc4c17defc7
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  popcnt uses=[rax] creates=[rcx]  => f30fb8c8
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7506
+block none:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+block some:
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800010000
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: selected ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_ile uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => c5fc28d0c5ed66d1c4410576ffc4c16defd7
+  select uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => c4e3754cc020
+  vreduce_bits uses=[xmm2] creates=[rax]  => c5fc50c2
+  popcnt uses=[rax] creates=[rax]  => f30fb8c0
+  vlane uses=[xmm0] creates=[rcx]  => c5f97ec1
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: floatNotEqual ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm0, xmm1] creates=[xmm0]  => c5fcc2c104
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rax]  => 81f8ff0000000f94c00fb6c0
+  ret uses=[rax] creates=[]  => c3

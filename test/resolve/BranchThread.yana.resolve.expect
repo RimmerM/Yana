@@ -1,0 +1,200 @@
+let image$base: () = <none>
+
+fn firstOver(%limit: Int, %count: Int) -> Int {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %count : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v25 = neg 1 : Int
+    ret %v25
+
+  b3:
+    %v9 = load %i : Int
+    %v10 = load %i : Int
+    %v11 = mul %v9, %v10 : Int
+    %v12 = cmp_gt %v11, %limit : Bool
+    je %v12, b4, b5
+
+  b4:
+    %v14 = load %i : Int
+    ret %v14
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = load %i : Int
+    %v20 = add %v17, 1 : Int
+    assign %i, %v20
+    jmp b1
+}
+
+fn firstPair(%target: Int, %rows: Int) -> Int {
+  b0:
+    %row = alloc : Int
+    init %row, 0
+    jmp b1
+
+  b1:
+    %v6 = load %row : Int
+    %v7 = cmp_lt %v6, %rows : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v44 = neg 1 : Int
+    ret %v44
+
+  b3:
+    %column = alloc : Int
+    init %column, 0
+    jmp b4
+
+  b4:
+    %v13 = load %column : Int
+    %v14 = cmp_lt %v13, %rows : Bool
+    je %v14, b6, b5
+
+  b5:
+    %v36 = load %row : Int
+    %v39 = add %v36, 1 : Int
+    assign %row, %v39
+    jmp b1
+
+  b6:
+    %v16 = load %row : Int
+    %v17 = mul %v16, %rows : Int
+    %v18 = load %column : Int
+    %v19 = add %v17, %v18 : Int
+    %v20 = cmp_eq %v19, %target : Bool
+    je %v20, b7, b8
+
+  b7:
+    %v22 = load %row : Int
+    %v25 = mul %v22, 100 : Int
+    %v26 = load %column : Int
+    %v27 = add %v25, %v26 : Int
+    ret %v27
+
+  b8:
+    jmp b9
+
+  b9:
+    %v30 = load %column : Int
+    %v33 = add %v30, 1 : Int
+    assign %column, %v33
+    jmp b4
+}
+
+fn sumTo(%count: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %total : Int
+    ret %v21
+
+  b3:
+    %v11 = load %total : Int
+    %v12 = load %i : Int
+    %v13 = add %v11, %v12 : Int
+    assign %total, %v13
+    %v15 = load %i : Int
+    %v18 = add %v15, 1 : Int
+    assign %i, %v18
+    jmp b1
+}
+
+fn neverRuns() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 7
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v10 = cmp_gt %v7, 0 : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v23 = load %total : Int
+    ret %v23
+
+  b3:
+    %v12 = load %total : Int
+    %v15 = add %v12, 1 : Int
+    assign %total, %v15
+    %v17 = load %i : Int
+    %v20 = sub %v17, 1 : Int
+    assign %i, %v20
+    jmp b1
+}
+
+fn joined(%flag: Bool, %a: Int, %b: Int) -> Int {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v4 = alloc : Point
+    aggregate %local0@Point.x = %a, %local0@Point.y = 1
+    jmp b3
+
+  b2:
+    %v7 = alloc : Point
+    aggregate %local1@Point.x = %b, %local1@Point.y = 0
+    jmp b3
+
+  b3:
+    %chosen = phi [b1, %v4], [b2, %v7] : Point
+    %v13 = load %local2@Point.y : Int
+    %v16 = cmp_eq %v13, 1 : Bool
+    je %v16, b4, b5
+
+  b4:
+    %v18 = load %local2@Point.x : Int
+    %v19 = load %local2@Point.y : Int
+    %v20 = add %v18, %v19 : Int
+    ret %v20
+
+  b5:
+    jmp b6
+
+  b6:
+    %v23 = load %local2@Point.x : Int
+    %v24 = load %local2@Point.y : Int
+    %v25 = sub %v23, %v24 : Int
+    ret %v25
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call firstOver, 30, 20 : Int
+    %v5 = call firstPair, 14, 5 : Int
+    %v6 = add %v2, %v5 : Int
+    %v8 = call sumTo, 10 : Int
+    %v9 = add %v6, %v8 : Int
+    %v10 = call neverRuns : Int
+    %v11 = add %v9, %v10 : Int
+    %v15 = call joined, True, 3, 9 : Int
+    %v16 = add %v11, %v15 : Int
+    %v20 = call joined, False, 3, 9 : Int
+    %v21 = add %v16, %v20 : Int
+    ret %v21
+}

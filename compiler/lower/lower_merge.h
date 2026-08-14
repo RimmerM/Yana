@@ -67,10 +67,22 @@
  * opinion about which of the copies control arrived through. The phis this pass builds are in the
  * merged block itself, where the edges are the ones it just collected.
  *
- * The general case - two blocks that both `jmp X` - is deliberately left alone. It needs the phis in
- * `X` to agree about the two edges *and* one of the two source entries removed from each of them,
- * which is a rebuild rather than an edit (a phi's alternatives are allocated with it). What it would
- * buy is one jump per merged pair, against the three-to-six instructions a duplicated exit is.
+ * The general case - two blocks that both `jmp X` - is deliberately left alone, and that is now a
+ * measurement rather than an estimate. It needs the phis in `X` to agree about the two edges *and*
+ * one of the two source entries removed from each of them, which is a rebuild rather than an edit (a
+ * phi's alternatives are allocated with it) - and `narrowBlockPhis` in lower_builder.h is that
+ * rebuild, so the named blocker no longer exists.
+ *
+ * **It was built, and it is worth −32 bytes in one program out of 184.** §44 of
+ * test/bench/findings.md: admitting a `jmp` terminator changes the lower IR of 52 `test/resolve`
+ * fixtures and the emitted bytes of exactly one, and nothing at all on the benchmark corpus. What it
+ * removes is a block; what it costs is the fallthrough that block was reached by, so the trade is a
+ * jump for a jump, and the duplicated tails that would have paid are ones §7.2.1's byte-level rewind
+ * in the x64 backend has already collapsed. It also needs a reachability walk per candidate pair,
+ * because merging two blocks where one can reach the other folds a path into a cycle.
+ *
+ * So the shape stays refused, and the reason it stays refused is what it is worth rather than what it
+ * would take.
  *
  * ## Where it runs
  *

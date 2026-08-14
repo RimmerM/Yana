@@ -281,6 +281,18 @@ Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value) {
     return Nothing();
 }
 
+// See opt_pass.h. Here rather than beside either caller because both of them ask it now: opt_arg.cpp
+// has always projected fields out of the answer, and opt_inline.cpp used to ask `storageOf` for the
+// root it re-bases a callee's places against - which refused every `return`-marked callee in the
+// language, `elements` and `slice` and `get` among them, for handing over a borrow instead of a load.
+Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value) {
+    if(value && opt.local[value]->kind == Value::Borrow) {
+        return Just(((InstBorrow*)opt.local[value])->place);
+    }
+
+    return storageOf(opt, value);
+}
+
 Fields fieldsOf(OptContext& opt, TypePtr type) {
     if(!type) return {};
 

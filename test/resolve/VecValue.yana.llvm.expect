@@ -62,34 +62,34 @@ define fastcc i32 @main() {
   br label %28
 
 28:                                               ; preds = %27
+  br label %36
+
+29:                                               ; preds = %36
+  %30 = icmp slt i32 %40, 4
+  %31 = zext i1 %30 to i32
+  br i1 %30, label %36, label %32
+
+32:                                               ; preds = %29
+  %33 = extractelement <4 x i32> %39, i32 0
+  %34 = icmp ne i32 %33, 15
+  %35 = zext i1 %34 to i32
+  br i1 %34, label %41, label %42
+
+36:                                               ; preds = %29, %28
+  %37 = phi <4 x i32> [ %39, %29 ], [ %base, %28 ]
+  %38 = phi i32 [ %40, %29 ], [ 0, %28 ]
+  %39 = add <4 x i32> %37, %base
+  %40 = add i32 %38, 1
   br label %29
 
-29:                                               ; preds = %38, %28
-  %30 = phi <4 x i32> [ %base, %28 ], [ %39, %38 ]
-  %31 = phi i32 [ 0, %28 ], [ %40, %38 ]
-  %32 = icmp slt i32 %31, 4
-  %33 = zext i1 %32 to i32
-  br i1 %32, label %38, label %34
-
-34:                                               ; preds = %29
-  %35 = extractelement <4 x i32> %30, i32 0
-  %36 = icmp ne i32 %35, 15
-  %37 = zext i1 %36 to i32
-  br i1 %36, label %41, label %42
-
-38:                                               ; preds = %29
-  %39 = add <4 x i32> %30, %base
-  %40 = add i32 %31, 1
-  br label %29
-
-41:                                               ; preds = %34
+41:                                               ; preds = %32
   ret i32 -5
 
-42:                                               ; preds = %34
+42:                                               ; preds = %32
   br label %43
 
 43:                                               ; preds = %42
-  %44 = extractelement <4 x i32> %30, i32 1
+  %44 = extractelement <4 x i32> %39, i32 1
   %45 = icmp ne i32 %44, 15
   %46 = zext i1 %45 to i32
   br i1 %45, label %47, label %48
@@ -102,7 +102,7 @@ define fastcc i32 @main() {
 
 49:                                               ; preds = %48
   %lanes = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 1, i32 1, i32 1, i32 1>)
-  %50 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %30)
+  %50 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %39)
   %51 = mul i32 %lanes, 15
   %52 = icmp ne i32 %50, %51
   %53 = zext i1 %52 to i32

@@ -96,6 +96,66 @@ firstLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
   }
 }
 
+searchLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  entry {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %k = and %n, 255: Int
+    %s = vsplat %k: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %any = vreduce_or %r: Int
+    %v_0 = cmp_neq %any, 0: Int
+    je %v_0, found, missing
+  }
+
+  found {
+    %f = vreduce_first %r: Int
+    ret %f
+  }
+
+  missing {
+    ret 18446744073709551615
+  }
+}
+
+searchAll<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+  entry {
+    %z = vsplat 0: i32x8
+    %i1 = vwithlane %z, 1, 1: i32x8
+    %i2 = vwithlane %i1, 2, 2: i32x8
+    %i3 = vwithlane %i2, 3, 3: i32x8
+    %i4 = vwithlane %i3, 4, 4: i32x8
+    %i5 = vwithlane %i4, 5, 5: i32x8
+    %i6 = vwithlane %i5, 6, 6: i32x8
+    %iota = vwithlane %i6, 7, 7: i32x8
+    %k = and %n, 255: Int
+    %s = vsplat %k: i32x8
+    %live = cmp_ilt %iota, %s: m32x8
+    %m = cmp_eq %a, %b: m32x8
+    %r = and %m, %live: m32x8
+    %all = vreduce_and %r: Int
+    %v_0 = cmp_neq %all, 0: Int
+    je %v_0, every, some
+  }
+
+  every {
+    %f = vreduce_first %r: Int
+    ret %f
+  }
+
+  some {
+    ret 18446744073709551615
+  }
+}
+
 
 --- codegen: countMasked ---
 block #0:
@@ -127,7 +187,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => c5fe6f1558000000
+  load uses=[-] creates=[xmm2]  => c5fe6f15d8000000
   vsplat uses=[rdi] creates=[xmm3]  => c5f96edfc4e27d58db
   cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e566da
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
@@ -154,6 +214,56 @@ block #1:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
   vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
   bzhi uses=[rax, rdi] creates=[rax]  => c4e240f5c0
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800010000
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: searchLive ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  imm uses=[] creates=[-]  => 
+  and uses=[rdi, -] creates=[rdi]  => 81e7ff000000
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  bzhi uses=[rax, rdi] creates=[rax]  => c4e240f5c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rcx]  => 31c985c00f95c1
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7506
+block missing:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
+block found:
+  imm uses=[] creates=[-]  => 
+  or uses=[rax, -] creates=[rax]  => 81c800010000
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: searchAll ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f1548000000
+  imm uses=[] creates=[-]  => 
+  and uses=[rdi, -] creates=[rdi]  => 81e7ff000000
+  vsplat uses=[rdi] creates=[xmm3]  => c5f96edfc4e27d58db
+  cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e566da
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  and uses=[xmm0, xmm3] creates=[xmm0]  => c5fddbc3
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rcx]  => 31c981f8ff0000000f94c1
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
+  je uses=[-] creates=[]  => 7506
+block some:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
+block every:
   imm uses=[] creates=[-]  => 
   or uses=[rax, -] creates=[rax]  => 81c800010000
   cttz uses=[rax] creates=[rax]  => 0fbcc0

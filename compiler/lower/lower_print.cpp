@@ -165,6 +165,22 @@ static StringView nameForMinMax(LowerMinMax kind) {
     return ""_v;
 }
 
+// And for the in-place memory update, whose operation is the same field read the same way: `[m] +=`
+// and `[m] ^=` are one instruction kind and five machine operations.
+static StringView nameForStoreOp(LowerInst::Kind op) {
+    switch(op) {
+        case LowerInst::Add: return "x86_storeadd"_v;
+        case LowerInst::Sub: return "x86_storesub"_v;
+        case LowerInst::And: return "x86_storeand"_v;
+        case LowerInst::Or:  return "x86_storeor"_v;
+        case LowerInst::Xor: return "x86_storexor"_v;
+        default: break;
+    }
+
+    assertTrue(false);
+    return ""_v;
+}
+
 static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
     auto to = inst.result.type;
     auto from = base[inst.from]->type;
@@ -273,6 +289,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
         case LowerInst::X86Permute:
             return "x86_permute"_v;
+        case LowerInst::X86StoreOp:
+            return nameForStoreOp(((LowerInstX86StoreOp&)inst).getOp());
         case LowerInst::Call:
             return nameForCall(((LowerInstCall&)inst).getCallType());
         case LowerInst::Je:

@@ -1535,19 +1535,23 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
    the same change": every container that exists is one of these, so a signature written against
    `Chunked` accepts everything a `[a]` one does.
 
-   `elements` on the owner goes through `slice` rather than building the descriptor by hand, and the
+   `elements` on the owner goes through a *call* rather than building the descriptor by hand, and the
    reason is ownership rather than brevity: the conversion at that call is what records the result as
    a view of `self` (Local::viewOf), which is what makes the returned borrow rooted in the argument
    the signature marked `return`. A hand-built `Flat` would be rooted in nothing and would type-check
    for the wrong reason.
 
+   Which call it is is `unclampedSlice` rather than `slice`, and that is a size decision - see the
+   note there. The two are the same conversion at the same argument position, so the rooting is
+   unchanged; what goes is three clamps that a whole container can never trip.
+
    On the slice itself `elements` is the identity, because a `Flat(a)` already is the descriptor.
 -}
 @platform(native) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> Flat(a) = slice(self, 0, self.length :: Size)
+    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
 
 @platform(js) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> Flat(a) = slice(self, 0, self.length :: Size)
+    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
 
 instance Chunked(Array(a), a):
     iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
@@ -1909,6 +1913,31 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
     if end > self.length then end = self.length
 
     return Flat {items: self.items, length: end - start, offset: self.offset + start}
+
+{-
+   The same descriptor, for a window whose bounds are already known good.
+
+   `slice` clamps both ends because a caller may write any two numbers, and every one of those clamps
+   is a branch and a merge. A *whole* container is the case where none of them can fire - `from` is
+   zero and `count` is the length the descriptor was read from - and the clamped form cannot be folded
+   down to that: `start` and `end` are whole scalar locals, which opt_promote.cpp declines to promote
+   by the rule in its header, so nothing at the resolve tier ever sees the two constants meet. The
+   callee stayed seven blocks, the inliner sized it at seven blocks, and `elements` was a real call
+   with a real frame in every vector loop in the language.
+
+   So this is `slice` with the clamping taken out and the obligation moved to the caller, which is
+   the only reason it is not `pub`: the two call sites below are the whole of it, and both pass the
+   container's own length. `return self` for the same reason `slice` has it - the result points into
+   whatever `self` points into.
+
+   `count` rather than `to`, because a caller who has already established its bounds knows the length
+   directly and subtracting a zero back off is the thing this exists to avoid.
+-}
+@platform(native) fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
+    Flat {items: self.items + from, length: count}
+
+@platform(js) fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
+    Flat {items: self.items, length: count, offset: self.offset + from}
 
 {-
    Removes element `index`, moving whatever followed it down over the gap, and answers what it took.

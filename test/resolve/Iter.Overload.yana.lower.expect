@@ -31,89 +31,30 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-Contiguous(Array(a), a).elements(Int)<complex>(%v_0: Ptr, %self: Ptr) {
-  b_1 {
-    %v_2 = add %self, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = cast %v_3: Long
-    %v_5 = load %self, 8: Ptr
-    %v_6 = imm 0: Long
-    %v_7 = cmp_igt %v_6, %v_4: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    jmp b_9
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 12, 4: Ptr
+    %v_3 = load %v_1, 4: Int
+    store %v_1, 3, 4
+    store %v_2, 10, 4
+    %v_4 = add %v_2, 4: Ptr
+    store %v_4, 20, 4
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, 30, 4
+    %v_6 = load %v_1, 4: Int
+    %v_7 = shr %v_6, 30: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_10 = phi [b_1, %v_6], [b_8, %v_4]: Long
-    %v_11 = cmp_ilt %v_4, %v_10: Int
-    je %v_11, b_12, b_13
+    call_complex freeHeap, %v_2
+    jmp b_10
   }
 
-  b_12 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_9, %v_4], [b_12, %v_10]: Long
-    %v_15 = cmp_igt %v_14, %v_4: Int
-    je %v_15, b_16, b_17
-  }
-
-  b_16 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_18 = phi [b_13, %v_14], [b_16, %v_4]: Long
-    %v_19 = shl %v_10, 2: Long
-    %v_20 = add %v_5, %v_19: Ptr
-    %v_21 = sub %v_18, %v_10: Long
-    store %v_0, %v_20, 8
-    %v_22 = add %v_0, 8: Ptr
-    store %v_22, %v_21, 8
-    ret 
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    %v_1 = alloca 12, 4: Ptr
-    store %xs, %v_1, 8
-    %v_2 = add %xs, 8: Ptr
-    %v_3 = load %v_2, 4: Int
-    store %v_2, 3, 4
-    store %v_1, 10, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, 20, 4
-    %v_5 = add %v_1, 8: Ptr
-    store %v_5, 30, 4
-    %v_6 = add %xs, 12: Ptr
-    store %v_6, 3, 4
-    %v_7 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(Int), %v_7, %xs
-    %v_8 = add %v_7, 8: Ptr
-    %v_9 = loads %v_8, 8: Long
-    %v_10 = cast %v_9: Int
-    %v_11 = add %v_10, 15: Int
-    %v_12 = add %xs, 8: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = shr %v_13, 30: Int
-    %v_15 = cmp_eq %v_14, 1: Int
-    je %v_15, b_16, b_17
-  }
-
-  b_16 {
-    %v_18 = load %xs, 8: Ptr
-    call_complex freeHeap, %v_18
-    jmp b_17
-  }
-
-  b_17 {
-    ret %v_11
+  b_10 {
+    ret 18
   }
 }
 

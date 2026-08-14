@@ -214,6 +214,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_induction.cpp
     lower/lower_merge.h
     lower/lower_merge.cpp
+    lower/lower_thread.h
+    lower/lower_thread.cpp
 )
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})

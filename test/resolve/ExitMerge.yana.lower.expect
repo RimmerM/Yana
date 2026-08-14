@@ -145,24 +145,24 @@ main<complex>(): Int {
     jmp b_1
   }
 
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 5: Int
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    ret %v_6
+  }
+
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, 5: Int
-    je %v_7, b_3, b_8
-  }
-
-  b_8 {
-    ret %v_2
-  }
-
-  b_3 {
-    %v_9 = call_complex classify, %v_5: Int
-    %v_10 = add %v_2, %v_9: Int
-    %v_11 = call_complex parity, %v_5, %v_5: Int
-    %v_4 = add %v_10, %v_11: Int
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
+    %v_7 = phi [b_2, %v_6], [b_0, 0]: Int
+    %v_8 = phi [b_2, %v_4], [b_0, 0]: Int
+    %v_9 = call_complex classify, %v_8: Int
+    %v_10 = add %v_7, %v_9: Int
+    %v_11 = call_complex parity, %v_8, %v_8: Int
+    %v_6 = add %v_10, %v_11: Int
+    %v_4 = add %v_8, 1: Int
+    jmp b_2
   }
 }
 

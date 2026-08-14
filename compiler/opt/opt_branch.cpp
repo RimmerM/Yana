@@ -54,6 +54,21 @@
  * and where a predecessor could already reach the target directly, the two alternatives it would
  * then have are not required to agree.
  *
+ * **Supplying those alternatives was built, and it is the wrong thing to do** - §44 of
+ * test/bench/findings.md. The values are available: this block computes nothing, so what a phi in the
+ * target takes on the edge from here is defined above here, and a definition that dominates a block
+ * and is not in it dominates every predecessor of that block. So an `IrEditor` operation copying one
+ * predecessor's alternatives onto another is fifteen lines and it works. It also costs 38 bytes on
+ * `test/resolve/Adaptor.yana` and nothing anywhere else, for the reason the shape exists: **a phi
+ * alternative is a copy on an edge, and an empty block in front of a join is where a set of them is
+ * shared.** Splicing it hands every predecessor its own copy, and where the predecessor branches it
+ * re-creates the critical edge this block was the split of. Restricted to the case that cannot cost -
+ * one predecessor, ending in a plain jump - it fires on nothing at all, because `mergeInto` below has
+ * already folded that block into its predecessor.
+ *
+ * So the refusal stands on what it is worth rather than on what it would take, and the count is 146
+ * sites over the 233 `test/resolve` programs and none at all on the benchmark corpus.
+ *
  * ## The join a deleted arm leaves, which is the other half
  *
  * `mergeBlocks` is the fourth step and the one shared with opt_inline.cpp - see the comment on
@@ -279,6 +294,10 @@ bool threadBooleanBranch(OptContext& opt, ModulePtr<Block> joinPointer) {
     // New edges cannot invent alternatives for a phi in either destination. The useful producer -
     // short-circuit boolean control - leads to ordinary body blocks, so decline the harder CFG case
     // rather than growing a second phi-repair mechanism beside IrEditor.
+    //
+    // Counted, this refuses **nothing**: not one site over the 233 `test/resolve` programs and not
+    // one over the benchmark corpus. The sentence above describes a case the language does not
+    // produce, and §44 of test/bench/findings.md is where that was measured.
     if(opt.local[branch.thenBlock]->phiCount() != 0 || opt.local[branch.elseBlock]->phiCount() != 0) {
         return false;
     }

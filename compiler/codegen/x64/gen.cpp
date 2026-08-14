@@ -609,27 +609,6 @@ static U8 conditionCode(LowerCmp cmp) {
     return 0;
 }
 
-static LowerCmp negateCmp(LowerCmp cmp) {
-    switch(cmp) {
-        case LowerCmp::eq:  return LowerCmp::neq;
-        case LowerCmp::neq: return LowerCmp::eq;
-        case LowerCmp::gt:  return LowerCmp::le;
-        case LowerCmp::ge:  return LowerCmp::lt;
-        case LowerCmp::lt:  return LowerCmp::ge;
-        case LowerCmp::le:  return LowerCmp::gt;
-        case LowerCmp::igt: return LowerCmp::ile;
-        case LowerCmp::ige: return LowerCmp::ilt;
-        case LowerCmp::ilt: return LowerCmp::ige;
-        case LowerCmp::ile: return LowerCmp::igt;
-
-        case LowerCmp::uno: return LowerCmp::ord;
-        case LowerCmp::ord: return LowerCmp::uno;
-    }
-
-    assertTrue(false);
-    return cmp;
-}
-
 /*
  * Materializing the flags into a real register, for a comparison whose result could not stay in
  * them. SETcc r/m8 (0f 90+cc /0) writes 1 or 0 into the register's *low byte* and leaves the other
@@ -1595,10 +1574,30 @@ struct Emitter {
 
         auto regField = e.regField.isNone() ? e.extension : reg(field(regs, e.regField));
 
+        /*
+         * Which opcode and how many immediate bytes, where the form carries both spellings.
+         *
+         * `opcodeAlt` on this family is the group-1 pair: `0x83` sign-extends one byte and `0x81`
+         * takes four, and which applies is decided by the value exactly as `emitRmExtImm` decides it
+         * for the register forms. A form with no alternative says its width in `immediateBytes` and
+         * is left alone - which is every store of a constant, whose `mov` has one immediate size per
+         * access width and no choice to make.
+         */
+        auto opcode = e.opcode;
+        auto immediateBytes = e.immediateBytes;
+
+        if(!e.immField.isNone() && e.opcodeAlt) {
+            auto value = field(regs, e.immField).immediate;
+            auto isImm8 = fitsImm8(value);
+
+            opcode = isImm8 ? e.opcode : e.opcodeAlt;
+            immediateBytes = isImm8 ? U8(1) : U8(4);
+        }
+
         auto memForm = memFormOf(e, regs, is64);
-        memForm.opCode = e.opcode;
+        memForm.opCode = opcode;
         memForm.byteRegField = e.byteRegField;
-        memForm.trailing = e.immField.isNone() ? U8(0) : e.immediateBytes;
+        memForm.trailing = e.immField.isNone() ? U8(0) : immediateBytes;
 
         genMemory(to, regs.address, regField, memForm);
 
@@ -1610,7 +1609,7 @@ struct Emitter {
             // As wide as the access rather than as wide as the number - see `immediateBytes`. The
             // narrow widths truncate, which is what the store does anyway; the 64-bit one writes
             // four bytes the processor sign-extends, which is what Imm32 above is the constraint for.
-            switch(e.immediateBytes) {
+            switch(immediateBytes) {
                 case 1: to.buffer.writeByte(U8(immOp.immediate)); break;
                 case 2: to.buffer.writeShort<LittleEndian>(U16(immOp.immediate)); break;
                 case 4: to.buffer.writeInt<LittleEndian>(U32(immOp.immediate)); break;
@@ -1634,7 +1633,7 @@ struct Emitter {
     void emitConditional(const EncodingDescriptor& e, const MachineInst& selected, const InstRegs& regs, bool is64) {
         assertTrue(selected.condition.isJust()); // a conditional form selected without a condition
         auto condition = selected.condition.unwrap();
-        if(e.negateCondition) condition = negateCmp(condition);
+        if(e.negateCondition) condition = negatedCmp(condition);
 
         genRegReg(to, is64, reg(field(regs, e.rmField)), reg(field(regs, e.regField)),
             e.opcode + conditionCode(condition), e.escape);
@@ -2663,7 +2662,7 @@ struct Emitter {
         if(whenFalse == next) {
             emitJumpIf(condition, whenTrue);
         } else if(whenTrue == next) {
-            emitJumpIf(negateCmp(condition), whenFalse);
+            emitJumpIf(negatedCmp(condition), whenFalse);
         } else {
             /*
              * §3.2.4 Which arm the conditional branch names, where neither is the fallthrough.
@@ -2684,7 +2683,7 @@ struct Emitter {
                 frequency->frequencyOf(base[je->then]->index);
 
             if(otherwiseIsHotter) {
-                emitJumpIf(negateCmp(condition), whenFalse);
+                emitJumpIf(negatedCmp(condition), whenFalse);
                 emitJump(whenTrue);
             } else {
                 emitJumpIf(condition, whenTrue);

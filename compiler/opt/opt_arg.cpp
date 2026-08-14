@@ -434,31 +434,6 @@ Place materialize(OptContext& opt, Block& block, InstList& into, Value& at, Modu
 }
 
 /*
- * The storage an argument's fields are in.
- *
- * `storageOf` answers "which place is this value", and for every ordinary aggregate argument that is
- * the whole of it: a memory-typed value *is* a place, so the argument is a `LoadPlace` and the place
- * is the caller's own record.
- *
- * A `return` parameter's argument is the exception, and it is why this exists. The marker makes the
- * loan outlive the call, so `borrowArgument` hands over an explicit `InstBorrow` rather than the
- * loaded value - and that borrow has a slot of its own holding an *address*. `storageOf` finds that
- * slot, which is a correct answer to the question it asks and the wrong storage to project record
- * fields out of: it is one pointer wide and has no fields at all. Reading `Flat.items` and
- * `Flat.length` out of it produced two loads at offset zero, so a slice's length arrived as its own
- * base address.
- *
- * What the fields are in is the place the borrow *names*, which the instruction carries.
- */
-Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value) {
-    if(value && opt.local[value]->kind == Value::Borrow) {
-        return Just(((InstBorrow*)opt.local[value])->place);
-    }
-
-    return storageOf(opt, value);
-}
-
-/*
  * One call site, rewritten against its callee's plan.
  *
  * Answers how many instructions it put in front of the call, so that the walk over the block can

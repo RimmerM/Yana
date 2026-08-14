@@ -23,6 +23,36 @@ enum class LowerCmp {
     uno, ord
 };
 
+/*
+ * The relation that holds exactly where this one does not.
+ *
+ * Total over the twelve, which is what makes it usable as an answer rather than as a rewrite that
+ * may decline: `ord` exists so that `uno` has one, and the signed and unsigned families negate
+ * within themselves - `!(a <s b)` is `a >=s b` and says nothing about the unsigned order.
+ *
+ * A fact about the relations rather than about any one target, so it lives here: the x64 encoder
+ * negates a branch it emits the other way round, and the backend's own mask folding negates a
+ * comparison it is about to complement the result of.
+ */
+inline LowerCmp negatedCmp(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::eq:  return LowerCmp::neq;
+        case LowerCmp::neq: return LowerCmp::eq;
+        case LowerCmp::gt:  return LowerCmp::le;
+        case LowerCmp::ge:  return LowerCmp::lt;
+        case LowerCmp::lt:  return LowerCmp::ge;
+        case LowerCmp::le:  return LowerCmp::gt;
+        case LowerCmp::igt: return LowerCmp::ile;
+        case LowerCmp::ige: return LowerCmp::ilt;
+        case LowerCmp::ilt: return LowerCmp::ige;
+        case LowerCmp::ile: return LowerCmp::igt;
+        case LowerCmp::uno: return LowerCmp::ord;
+        case LowerCmp::ord: return LowerCmp::uno;
+    }
+
+    return cmp;
+}
+
 // A single operation that can be performed inside a function block.
 struct LowerInst {
     enum Kind: U8 {
@@ -244,7 +274,30 @@ struct LowerInst {
          * single vector, so a cross-half pattern naming both sources is refused rather than lowered.
          */
         X86Permute,
-        LastInst = X86Permute,
+
+        /*
+         * A memory location read, combined with a value, and written back - `add [rdi + rcx*4], edx`.
+         *
+         * Backend-private on the terms `X86MinMax` states, and arrived at from the other direction:
+         * the portable spelling is the three instructions this replaces - a load, an operation and a
+         * store - and there is nothing wrong with them anywhere except on a machine whose ALU writes
+         * its result through the same r/m field it read the operand from. x86's does, at `add`,
+         * `sub`, `and`, `or` and `xor`, and what that removes is not only two of the three
+         * instructions: it removes the *register* the loaded value occupied, in the innermost loop
+         * of every accumulating write.
+         *
+         * **A store rather than an operation, which is why it defines nothing.** The result is in
+         * memory; there is no value here for anything below to read, and an instruction that
+         * produced one would have the allocator hold a register for a number the encoding never
+         * writes. `foldStoreUpdates` in codegen/x64/transform.cpp is what recognizes the three, and
+         * the conditions it holds them to are stated there.
+         *
+         * The operand order is the machine's: the location is the destination and the left-hand
+         * side, so a subtraction is `[m] - value` and nothing else. A commutative operation may have
+         * arrived either way round and is folded from both.
+         */
+        X86StoreOp,
+        LastInst = X86StoreOp,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -784,6 +837,37 @@ struct LowerInstStore: LowerInst {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, value;
+};
+
+/*
+ * A location read, combined with a value and written back in place - see LowerInst::X86StoreOp.
+ *
+ * Written exactly as a store is, and the two differ in one field: `op` says which operation combines
+ * what is there with what arrives. It is one of the five the machine can perform through its r/m
+ * field - Add, Sub, And, Or, Xor - and `getWidth` is the store's width, which is the width the
+ * operation is performed at as well.
+ */
+struct LowerInstX86StoreOp: LowerInst {
+    LowerInstX86StoreOp(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width, Kind op):
+        LowerInst(X86StoreOp), to(to), value(value), op(op)
+    {
+        usedCount = 2;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const {
+        return getMemoryWidth(flags);
+    }
+
+    Kind getOp() const {
+        return op;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> to, value;
+
+    // Which of the five, as the binary instruction kind it was folded out of.
+    Kind op;
 };
 
 // Set on Copy/SetPattern by a target-specific transform to record which of the two available

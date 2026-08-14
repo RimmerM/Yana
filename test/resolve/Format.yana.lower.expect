@@ -993,18 +993,18 @@ inLoop<complex>(): Int {
     jmp b_1
   }
 
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 100: Int
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    ret %v_6
+  }
+
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, 100: Int
-    je %v_7, b_3, b_8
-  }
-
-  b_8 {
-    ret %v_2
-  }
-
-  b_3 {
+    %v_7 = phi [b_2, %v_6], [b_0, 0]: Int
+    %v_8 = phi [b_2, %v_4], [b_0, 0]: Int
     %v_9 = alloca 16, 8: Ptr
     store %v_9, 1, 4
     %v_10 = add %v_9, 8: Ptr
@@ -1018,14 +1018,15 @@ inLoop<complex>(): Int {
     %v_15 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_15, @string$11, 10
     call_complex pushString, %v_14, %v_15
-    call_complex showSigned, %v_5, %v_14
-    %v_16 = add %v_14, 12: Ptr
-    %v_17 = load %v_16, 4: Int
-    %units = cast %v_17: Int
+    %v_16 = sext %v_8: Long
+    call_complex showSigned, %v_16, %v_14
+    %v_17 = add %v_14, 12: Ptr
+    %v_18 = load %v_17, 4: Int
+    %units = cast %v_18: Int
     call_complex Reclaim(String).reclaim, %v_14
-    %v_4 = add %v_2, %units: Int
-    %v_6 = add %v_5, 1: Long
-    jmp b_1
+    %v_6 = add %v_7, %units: Int
+    %v_4 = add %v_8, 1: Int
+    jmp b_2
   }
 }
 

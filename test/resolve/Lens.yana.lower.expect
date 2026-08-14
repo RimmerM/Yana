@@ -37,33 +37,33 @@ main<complex>(): Int {
     jmp b_26
   }
 
+  b_27 {
+    %v_28 = cmp_ilt %v_29, 3: Int
+    je %v_28, b_26, b_30
+  }
+
+  b_30 {
+    %v_31 = add %v_6, %v_8: Int
+    %v_32 = add %v_31, %v_12: Int
+    %v_33 = add %v_32, %v_14: Int
+    %v_34 = add %v_33, %v_16: Int
+    %v_35 = add %v_34, %v_22: Int
+    %v_36 = add %v_35, %v_25: Int
+    %v_37 = add %v_36, %v_38: Int
+    %v_39 = add %v_37, %v_20: Int
+    ret %v_39
+  }
+
   b_26 {
-    %v_27 = phi [b_0, 0], [b_28, %v_29]: Int
-    %v_30 = phi [b_0, 0], [b_28, %v_31]: Int
-    %v_32 = cmp_ilt %v_27, 3: Int
-    je %v_32, b_28, b_33
-  }
-
-  b_33 {
-    %v_34 = add %v_6, %v_8: Int
-    %v_35 = add %v_34, %v_12: Int
-    %v_36 = add %v_35, %v_14: Int
-    %v_37 = add %v_36, %v_16: Int
-    %v_38 = add %v_37, %v_22: Int
-    %v_39 = add %v_38, %v_25: Int
-    %v_40 = add %v_39, %v_30: Int
-    %v_41 = add %v_40, %v_20: Int
-    ret %v_41
-  }
-
-  b_28 {
-    %v_29 = add %v_27, 1: Int
+    %v_40 = phi [b_27, %v_29], [b_0, 0]: Int
+    %v_41 = phi [b_27, %v_38], [b_0, 0]: Int
+    %v_29 = add %v_40, 1: Int
     %v_42 = loads @log, 4: Int
     %v_43 = add %v_42, 1: Int
-    %v_31 = add %v_30, %v_43: Int
+    %v_38 = add %v_41, %v_43: Int
     %v_44 = add %v_42, 11: Int
     store @log, %v_44, 4
-    jmp b_26
+    jmp b_27
   }
 }
 

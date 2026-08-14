@@ -297,35 +297,36 @@ main<complex>(): Int {
     jmp b_34
   }
 
-  b_34 {
-    %v_35 = phi [b_33, 0], [b_36, %v_37]: Int
-    %v_38 = phi [b_33, 0], [b_36, %v_39]: Long
-    %v_40 = cmp_ilt %v_38, 7: Int
-    je %v_40, b_41, b_16
+  b_35 {
+    %v_36 = cmp_ilt %v_37, 7: Int
+    je %v_36, b_34, b_16
   }
 
   b_16 {
-    %v_42 = phi [b_34, %v_35], [b_30, 18446744073709551611], [b_25, 18446744073709551612], [b_21, 18446744073709551613], [b_17, 18446744073709551614], [b_0, 18446744073709551615]: Int
+    %v_38 = phi [b_35, %v_39], [b_30, 18446744073709551611], [b_25, 18446744073709551612], [b_21, 18446744073709551613], [b_17, 18446744073709551614], [b_0, 18446744073709551615]: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    ret %v_42
+    ret %v_38
   }
 
-  b_41 {
-    %v_43 = cmp_ge %v_38, 7: Int
-    je %v_43, b_44, b_36
+  b_34 {
+    %v_40 = phi [b_35, %v_39], [b_33, 0]: Int
+    %v_41 = phi [b_35, %v_37], [b_33, 0]: Int
+    %v_42 = sext %v_41: Long
+    %v_43 = cmp_ge %v_42, 7: Int
+    je %v_43, b_44, b_45
   }
 
-  b_36 {
-    %v_45 = shl %v_38, 2: Long
-    %v_46 = add %v_2, %v_45: Ptr
-    %v_47 = loads %v_46, 4: Int
-    %v_37 = add %v_35, %v_47: Int
-    %v_39 = add %v_38, 1: Long
-    jmp b_34
+  b_45 {
+    %v_46 = shl %v_42, 2: Long
+    %v_47 = add %v_2, %v_46: Ptr
+    %v_48 = loads %v_47, 4: Int
+    %v_39 = add %v_40, %v_48: Int
+    %v_37 = add %v_41, 1: Int
+    jmp b_35
   }
 
   b_44 {
-    %v_48 = syscall 60, 134: Long
+    %v_49 = syscall 60, 134: Long
     unreachable 
   }
 }

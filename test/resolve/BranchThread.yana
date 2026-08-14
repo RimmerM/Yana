@@ -1,0 +1,96 @@
+{-
+   Branches whose answer the edge into them already settled - see compiler/lower/lower_thread.h.
+
+   Every function here is a shape the pass either takes or refuses, and `.lower.expect` is what says
+   which. `main` folds them all together so that `.run.expect` and the driver's optimizer-equivalence
+   check assert the answers as well as the block lists: threading is edge surgery over values in SSA
+   form, and a repair phi placed at the wrong join produces a program that still validates and
+   answers differently.
+-}
+
+data Point {x: Int, y: Int}
+
+{-
+   The shape the pass exists for: a `return` out of a loop.
+
+   The early exit becomes a nested `Outcome` per loop it climbs out of, and by the time the records
+   are split into fields and promoted, each level is a phi of two literals followed by a test of one
+   of them. Threaded, the search is the loop and the two returns and nothing between.
+-}
+fn firstOver(limit: Int, count: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < count:
+        if i * i > limit then return i
+        i = i + 1
+
+    return -1
+
+{-
+   Two levels of it. The inner `return` has to cross both loops, so the tag is tested twice on the
+   way out and the second test reads a phi the first one's threading made a literal - which is what
+   the fixed point in the pass is for, one level per round.
+-}
+fn firstPair(target: Int, rows: Int) -> Int:
+    let &row = 0 :: Int
+
+    while row < rows:
+        let &column = 0 :: Int
+
+        while column < rows:
+            if row * rows + column == target then return row * 100 + column
+            column = column + 1
+
+        row = row + 1
+
+    return -1
+
+{-
+   A counted loop whose entry test the preheader already answers, which threading rotates: `i` is
+   zero where the loop is entered and the bound is positive, so the edge into the header decides the
+   header's own branch and the test moves to the bottom.
+-}
+fn sumTo(count: Int) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        total = total + i
+        i = i + 1
+
+    return total
+
+{-
+   The loop that cannot be entered. Threading the preheader edge past a test that answers false
+   leaves the whole body with no way in, which is correct and is the case that made the unreachable
+   sweep part of the pass rather than something downstream: `buildPostorder` does not visit such a
+   block, and every array indexed by postorder position then has a hole in it.
+-}
+fn neverRuns() -> Int:
+    let &total = 7 :: Int
+    let &i = 0 :: Int
+
+    while i > 0:
+        total = total + 1
+        i = i - 1
+
+    return total
+
+{-
+   The one the pass has to refuse - the fourth precondition in lower_thread.h.
+
+   Both arms of the branch reach the same join and the join *reads* the merged value rather than only
+   merging it again, so the read is dominated by the tested block and by neither arm. There is no one
+   place a repair phi could go, and the branch stays where it is.
+-}
+fn joined(flag: Bool, a: Int, b: Int) -> Int:
+    let chosen = if flag then Point {x: a, y: 1} else Point {x: b, y: 0}
+
+    if chosen.y == 1:
+        return chosen.x + chosen.y
+
+    return chosen.x - chosen.y
+
+fn main() -> Int =
+    firstOver(30, 20) + firstPair(14, 5) + sumTo(10) + neverRuns() +
+    joined(True, 3, 9) + joined(False, 3, 9)

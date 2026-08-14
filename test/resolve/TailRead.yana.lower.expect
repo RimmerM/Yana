@@ -224,25 +224,25 @@ readPast<complex>(%block: Ptr, %size: Long): Long {
     jmp b_1
   }
 
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 63: Int
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    ret %v_6
+  }
+
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, 63: Int
-    je %v_7, b_3, b_8
-  }
-
-  b_8 {
-    ret %v_2
-  }
-
-  b_3 {
-    %v_9 = add %size, %v_5: Long
+    %v_7 = phi [b_2, %v_6], [b_0, 0]: Long
+    %v_8 = phi [b_2, %v_4], [b_0, 0]: Long
+    %v_9 = add %size, %v_8: Long
     %v_10 = add %block, %v_9: Ptr
     %v_11 = load %v_10, 1: Int
     %v_12 = cast %v_11: Long
-    %v_4 = add %v_2, %v_12: Long
-    %v_6 = add %v_5, 1: Long
-    jmp b_1
+    %v_6 = add %v_7, %v_12: Long
+    %v_4 = add %v_8, 1: Long
+    jmp b_2
   }
 }
 
@@ -251,58 +251,58 @@ main<complex>(): Int {
     jmp b_1
   }
 
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 1048576: Int
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    %v_6 = cmp_neq %v_7, 17: Int
+    je %v_6, b_8, b_9
+  }
+
   b_1 {
-    %v_2 = phi [b_0, 8], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_2, 1048576: Int
-    je %v_7, b_8, b_9
+    %v_10 = phi [b_2, %v_4], [b_0, 8]: Long
+    %v_11 = phi [b_2, %v_7], [b_0, 0]: Long
+    %block = call_complex allocateHeap, %v_10: Ptr
+    %v_12 = bitcast %block: Long
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_15
   }
 
-  b_9 {
-    %v_10 = cmp_neq %v_5, 17: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_8 {
-    %block = call_complex allocateHeap, %v_2: Ptr
-    %v_13 = bitcast %block: Long
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
+  b_14 {
     ret 18446744073709551615
   }
 
+  b_15 {
+    jmp b_16
+  }
+
   b_16 {
-    jmp b_17
+    %v_17 = call_complex readPast, %block, %v_10: Long
+    %v_18 = cmp_ilt %v_17, 0: Int
+    je %v_18, b_19, b_20
   }
 
-  b_17 {
-    %v_18 = call_complex readPast, %block, %v_2: Long
-    %v_19 = cmp_ilt %v_18, 0: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_20 {
+  b_19 {
     ret 18446744073709551614
   }
 
+  b_20 {
+    jmp b_21
+  }
+
   b_21 {
-    jmp b_3
+    %v_7 = add %v_11, 1: Long
+    %v_4 = add %v_10, %v_10: Long
+    jmp b_2
   }
 
-  b_3 {
-    %v_6 = add %v_5, 1: Long
-    %v_4 = add %v_2, %v_2: Long
-    jmp b_1
-  }
-
-  b_11 {
+  b_8 {
     ret 18446744073709551613
   }
 
-  b_12 {
+  b_9 {
     jmp b_22
   }
 

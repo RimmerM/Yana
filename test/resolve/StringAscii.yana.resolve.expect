@@ -254,81 +254,19 @@ fn Contiguous(Array(a), a).elements(U8)(%self: Array(U8)) -> Flat(U8) {
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : I64
     init %self@Flat.length, %v8
-    %v11 = call slice(U8), %self, 0, %v2 : Flat(U8)
+    %v11 = call unclampedSlice(U8), %self, 0, %v2 : Flat(U8)
     ret %v11
 }
 
-fn slice(U8)(%self: Flat(U8), %from: I64, %to: I64) -> Flat(U8) {
+fn unclampedSlice(U8)(%self: Flat(U8), %from: I64, %count: I64) -> Flat(U8) {
   b0:
-    %start = alloc : I64
-    init %start, %from
-    %v5 = load %start : I64
-    %v7 = cmp_lt %v5, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
-    assign %start, 0
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v13 = load %start : I64
-    %v14 = load %self@Flat.length : I64
-    %v15 = cmp_gt %v13, %v14 : Bool
-    je %v15, b4, b5
-
-  b4:
-    %v17 = load %self@Flat.length : I64
-    assign %start, %v17
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %end = alloc : I64
-    init %end, %to
-    %v23 = load %end : I64
-    %v24 = load %start : I64
-    %v25 = cmp_lt %v23, %v24 : Bool
-    je %v25, b7, b8
-
-  b7:
-    %v27 = load %start : I64
-    assign %end, %v27
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v31 = load %end : I64
-    %v32 = load %self@Flat.length : I64
-    %v33 = cmp_gt %v31, %v32 : Bool
-    je %v33, b10, b11
-
-  b10:
-    %v35 = load %self@Flat.length : I64
-    assign %end, %v35
-    jmp b12
-
-  b11:
-    jmp b12
-
-  b12:
-    %v39 = alloc : Flat(U8)
-    %v40 = load %self@Flat.items : %U8
-    %v41 = load %start : I64
-    %v42 = strideof U8 : I64
-    %v43 = mul %v41, %v42 : I64
-    %v44 = add %v40, %v43 : %U8
-    %v45 = load %end : I64
-    %v46 = load %start : I64
-    %v47 = sub %v45, %v46 : I64
-    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
-    ret %v39
+    %v3 = alloc : Flat(U8)
+    %v4 = load %self@Flat.items : %U8
+    %v5 = strideof U8 : I64
+    %v6 = mul %from, %v5 : I64
+    %v7 = add %v4, %v6 : %U8
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
 }
 
 fn occurrencesVectors(String, U8)(%xs: String, %wanted: U8) -> Int {

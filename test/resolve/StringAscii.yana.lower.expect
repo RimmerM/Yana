@@ -5,11 +5,10 @@
 indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
   b_1 {
     %sought = vsplat %wanted: i8x16
-    %v_2 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(U8), %v_2, %xs
-    %v_3 = add %v_2, 8: Ptr
-    %v_4 = loads %v_3, 8: Long
-    %n = cast %v_4: Int
+    %v_2 = add %xs, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %v_4 = load %xs, 8: Ptr
+    %n = cast %v_3: Int
     %v_5 = vsplat 0: i8x16
     %v_6 = vwithlane %v_5, 1, 1: i8x16
     %v_7 = vwithlane %v_6, 2, 2: i8x16
@@ -29,7 +28,6 @@ indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
     %v_21 = vsplat 16: i8x16
     %v_22 = cmp_lt %v_20, %v_21: m8x16
     %v_23 = imm 16: Int
-    %from$items = load %v_2, 8: Ptr
     jmp b_24
   }
 
@@ -52,8 +50,7 @@ indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
 
   b_35 {
     %v_38 = sext %v_28: Long
-    %from$items = load %v_2, 8: Ptr
-    %v_39 = add %from$items, %v_38: Ptr
+    %v_39 = add %v_4, %v_38: Ptr
     %v_40 = loadx %v_39, 16: i8x16
     %v_41 = sub %n, %v_28: Int
     %v_42 = cmp_eq %v_40, %sought: m8x16
@@ -75,60 +72,42 @@ indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
     %v_52 = vreduce_first %hits: Int
     %v_53 = add %v_25, %v_52: Int
     %v_54 = sext %v_53: Long
-    jmp b_51
+    jmp b_55
   }
 
   b_51 {
-    %v_55 = phi [b_49, %v_50], [b_48, %v_25]: Int
-    %v_56 = phi [b_49, 0], [b_48, 1]: Int
-    %v_57 = phi [b_49, 0], [b_48, 1]: Int
-    %v_58 = phi [b_49, 0], [b_48, %v_54]: Long
-    %v_59 = cmp_eq %v_56, 1: Int
-    je %v_59, b_60, b_61
-  }
-
-  b_61 {
     jmp b_37
   }
 
   b_37 {
-    %v_62 = phi [b_36, %v_25], [b_61, %v_55]: Int
-    jmp b_63
+    %v_56 = phi [b_36, %v_25], [b_51, %v_50]: Int
+    jmp b_57
   }
 
-  b_60 {
-    jmp b_63
+  b_55 {
+    jmp b_58
   }
 
   b_32 {
-    %v_64 = sext %v_28: Long
-    %v_65 = add %from$items, %v_64: Ptr
-    %v_66 = load %v_65, 16: i8x16
-    %v_67 = cmp_eq %v_66, %sought: m8x16
-    %hits = and %v_67, %v_22: m8x16
-    %v_68 = vreduce_or %hits: Int
-    je %v_68, b_69, b_70
+    %v_59 = sext %v_28: Long
+    %v_60 = add %v_4, %v_59: Ptr
+    %v_61 = load %v_60, 16: i8x16
+    %v_62 = cmp_eq %v_61, %sought: m8x16
+    %hits = and %v_62, %v_22: m8x16
+    %v_63 = vreduce_or %hits: Int
+    je %v_63, b_64, b_65
   }
 
-  b_70 {
-    %v_71 = add %v_25, %v_23: Int
-    jmp b_72
+  b_65 {
+    %v_27 = add %v_25, %v_23: Int
+    jmp b_26
   }
 
-  b_69 {
-    %v_73 = vreduce_first %hits: Int
-    %v_74 = add %v_25, %v_73: Int
-    %v_75 = sext %v_74: Long
-    jmp b_72
-  }
-
-  b_72 {
-    %v_27 = phi [b_70, %v_71], [b_69, %v_25]: Int
-    %v_76 = phi [b_70, 0], [b_69, 1]: Int
-    %v_77 = phi [b_70, 0], [b_69, 1]: Int
-    %v_78 = phi [b_70, 0], [b_69, %v_75]: Long
-    %v_79 = cmp_eq %v_76, 1: Int
-    je %v_79, b_80, b_26
+  b_64 {
+    %v_66 = vreduce_first %hits: Int
+    %v_67 = add %v_25, %v_66: Int
+    %v_68 = sext %v_67: Long
+    jmp b_69
   }
 
   b_26 {
@@ -136,108 +115,36 @@ indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
     jmp b_24
   }
 
-  b_80 {
-    jmp b_63
+  b_69 {
+    jmp b_58
   }
 
-  b_63 {
-    %v_81 = phi [b_37, %v_62], [b_60, %v_55], [b_80, %v_27]: Int
-    %v_82 = phi [b_37, 0], [b_60, 1], [b_80, 1]: Int
-    %v_83 = phi [b_37, 0], [b_60, %v_56], [b_80, %v_76]: Int
-    %v_84 = phi [b_37, 0], [b_60, %v_57], [b_80, %v_77]: Int
-    %v_85 = phi [b_37, 0], [b_60, %v_58], [b_80, %v_78]: Long
-    %v_86 = cmp_eq %v_82, 1: Int
-    je %v_86, b_87, b_88
+  b_57 {
+    jmp b_70
   }
 
-  b_88 {
-    jmp b_89
+  b_58 {
+    %v_71 = phi [b_55, %v_54], [b_69, %v_68]: Long
+    jmp b_72
   }
 
-  b_87 {
-    jmp b_89
+  b_70 {
+    jmp b_73
   }
 
-  b_89 {
-    %v_90 = phi [b_88, 0], [b_87, %v_82]: Int
-    %v_91 = phi [b_88, 0], [b_87, %v_83]: Int
-    %v_92 = phi [b_88, 0], [b_87, %v_84]: Int
-    %v_93 = phi [b_88, 0], [b_87, %v_85]: Long
-    %v_94 = cmp_eq %v_90, 1: Int
-    je %v_94, b_95, b_96
+  b_72 {
+    jmp b_74
   }
 
-  b_96 {
-    jmp b_97
-  }
-
-  b_95 {
-    jmp b_97
-  }
-
-  b_97 {
-    %v_98 = phi [b_96, 0], [b_95, %v_91]: Int
-    %v_99 = phi [b_96, 0], [b_95, %v_92]: Int
-    %v_100 = phi [b_96, 0], [b_95, %v_93]: Long
-    %v_101 = cmp_eq %v_98, 1: Int
-    je %v_101, b_102, b_103
-  }
-
-  b_103 {
+  b_73 {
     store %v_0, 0, 4
     ret 
   }
 
-  b_102 {
-    store %v_0, %v_99, 4
-    %v_104 = add %v_0, 8: Ptr
-    store %v_104, %v_100, 8
-    ret 
-  }
-}
-
-Contiguous(Array(a), a).elements(U8)<complex>(%v_0: Ptr, %self: Ptr) {
-  b_1 {
-    %v_2 = add %self, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = cast %v_3: Long
-    %v_5 = load %self, 8: Ptr
-    %v_6 = imm 0: Long
-    %v_7 = cmp_igt %v_6, %v_4: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_1, %v_6], [b_8, %v_4]: Long
-    %v_11 = cmp_ilt %v_4, %v_10: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_9, %v_4], [b_12, %v_10]: Long
-    %v_15 = cmp_igt %v_14, %v_4: Int
-    je %v_15, b_16, b_17
-  }
-
-  b_16 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_18 = phi [b_13, %v_14], [b_16, %v_4]: Long
-    %v_19 = add %v_5, %v_10: Ptr
-    %v_20 = sub %v_18, %v_10: Long
-    store %v_0, %v_19, 8
-    %v_21 = add %v_0, 8: Ptr
-    store %v_21, %v_20, 8
+  b_74 {
+    store %v_0, 1, 4
+    %v_75 = add %v_0, 8: Ptr
+    store %v_75, %v_71, 8
     ret 
   }
 }
@@ -245,11 +152,10 @@ Contiguous(Array(a), a).elements(U8)<complex>(%v_0: Ptr, %self: Ptr) {
 occurrencesVectors(String, U8)<complex>(%xs: Ptr, %wanted: Int): Int {
   b_0 {
     %sought = vsplat %wanted: i8x16
-    %v_1 = alloca 16, 8: Ptr
-    call_complex Contiguous(Array(a), a).elements(U8), %v_1, %xs
-    %v_2 = add %v_1, 8: Ptr
-    %v_3 = loads %v_2, 8: Long
-    %n = cast %v_3: Int
+    %v_1 = add %xs, 12: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = load %xs, 8: Ptr
+    %n = cast %v_2: Int
     %v_4 = vsplat 0: i8x16
     %v_5 = vwithlane %v_4, 1, 1: i8x16
     %v_6 = vwithlane %v_5, 2, 2: i8x16
@@ -268,7 +174,6 @@ occurrencesVectors(String, U8)<complex>(%xs: Ptr, %wanted: Int): Int {
     %v_19 = vwithlane %v_18, 15, 15: i8x16
     %v_20 = vsplat 16: i8x16
     %v_21 = cmp_lt %v_19, %v_20: m8x16
-    %from$items = load %v_1, 8: Ptr
     %v_22 = imm 16: Int
     jmp b_23
   }
@@ -288,7 +193,7 @@ occurrencesVectors(String, U8)<complex>(%xs: Ptr, %wanted: Int): Int {
 
   b_33 {
     %v_35 = sext %v_27: Long
-    %v_36 = add %from$items, %v_35: Ptr
+    %v_36 = add %v_3, %v_35: Ptr
     %v_37 = loadx %v_36, 16: i8x16
     %v_38 = sub %n, %v_27: Int
     %v_39 = cmp_eq %v_37, %sought: m8x16
@@ -309,7 +214,7 @@ occurrencesVectors(String, U8)<complex>(%xs: Ptr, %wanted: Int): Int {
 
   b_25 {
     %v_48 = sext %v_27: Long
-    %v_49 = add %from$items, %v_48: Ptr
+    %v_49 = add %v_3, %v_48: Ptr
     %v_50 = load %v_49, 16: i8x16
     %v_51 = cmp_eq %v_50, %sought: m8x16
     %v_52 = and %v_51, %v_21: m8x16

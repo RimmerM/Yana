@@ -1,0 +1,121 @@
+# A comparison the machine has only the complement of, complemented after the movemask - §45.3 of
+# test/bench/findings.md.
+#
+# extensions: v3
+#
+# `pcmpeq` and `pcmpgt` are the whole of the packed integer comparison, so `neq`, `ile` and `ige` are
+# the base instruction plus an all-ones register and a `pxor` against it: two vector instructions and
+# a register held for the constant, every time one of the three is written. A mask whose every reader
+# is a reduction is never looked at as a vector, and the complement of a bitmap is scalar. What to
+# look for:
+#
+#   - **no `vpcmpeqd` against itself and no `vpxor` anywhere the fold applies.** What is left is the
+#     base comparison, the movemask, and - for two of the four consumers - nothing at all.
+#   - **the constant, not the relation.** `all(!m)` is `none(m)`, which is the *same* comparison the
+#     movemask already ends in with zero in place of the full pattern; `any(!m)` is `!all(m)`, which
+#     is the pattern in place of zero. Neither costs an instruction.
+#   - **the exclusive-or, where a consumer reads the bits themselves.** `count` and `firstSet` have
+#     no such identity and pay one scalar `xor` - which is still one instruction against two.
+#   - **what is refused**: a mask something other than a reduction reads, a mask *two* of the paying
+#     consumers read, and a float comparison, which is a predicate byte rather than an instruction
+#     and has no complement to remove.
+
+# `all(a != b)`, which is `pcmpeqd` and the bitmap against zero.
+allNotEqual(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_neq %a, %b: m32x8
+        %r = vreduce_and %m: Int
+        ret %r
+    }
+}
+
+# `any(a <= b)`, which is `pcmpgtd` and the bitmap against the full pattern.
+anyLessEqual(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_ile %a, %b: m32x8
+        %r = vreduce_or %m: Int
+        ret %r
+    }
+}
+
+# `count(a >= b)`, where the complement is an instruction - and one scalar instruction against the
+# two vector ones it replaces. `ige` reaches the machine as `ile` by an exchange, so the relation
+# emitted here is `ilt` with the operands as written.
+countGreaterEqual(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_ige %a, %b: m32x8
+        %r = vreduce_add %m: Int
+        ret %r
+    }
+}
+
+# `firstSet(a != b)`, the other consumer that reads the bits themselves.
+firstNotEqual(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_neq %a, %b: m32x8
+        %r = vreduce_first %m: Int
+        ret %r
+    }
+}
+
+# Two consumers that each answer for free, which is where this is at its best: one comparison, one
+# movemask, and two comparisons of it against two constants.
+bothFree(%a: i32x8, %b: i32x8): Int {
+    entry {
+        %m = cmp_ile %a, %b: m32x8
+        %any = vreduce_or %m: Int
+        je (cmp_neq %any, 0), some, none
+    }
+
+    some {
+        %all = vreduce_and %m: Int
+        ret %all
+    }
+
+    none {
+        ret 0
+    }
+}
+
+# And two that each pay, which is the refusal: the vector complement is paid once however many
+# readers there are, so two scalar ones trade one instruction for two. The `vpcmpeqd`/`vpxor` pair
+# stands.
+bothPay(%a: i32x8, %b: i32x8): Int {
+    entry {
+        %m = cmp_neq %a, %b: m32x8
+        %c = vreduce_add %m: Int
+        je (cmp_neq %c, 0), some, none
+    }
+
+    some {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    none {
+        ret 0
+    }
+}
+
+# A mask something other than a reduction reads, which is a mask whose lanes are the value: the
+# select needs the vector the comparison names and rewriting it would answer a different question.
+selected(%a: i32x8, %b: i32x8): Int {
+    {
+        %m = cmp_ile %a, %b: m32x8
+        %v = select %m, %a, %b: i32x8
+        %r = vreduce_add %m: Int
+        %l = vlane %v, 0: Int
+        %s = add %r, %l: Int
+        ret %s
+    }
+}
+
+# A float comparison, which is never one of the three: `cmpps` carries all eight relations in its
+# predicate byte, so the complement is a different byte and not a different instruction.
+floatNotEqual(%a: f32x8, %b: f32x8): Int {
+    {
+        %m = cmp_neq %a, %b: m32x8
+        %r = vreduce_and %m: Int
+        ret %r
+    }
+}

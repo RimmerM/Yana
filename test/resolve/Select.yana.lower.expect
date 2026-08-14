@@ -34,48 +34,48 @@ main<complex>(): Int {
     jmp b_9
   }
 
-  b_9 {
-    %v_10 = phi [b_0, 100], [b_11, %v_12]: Int
-    %v_13 = phi [b_0, 0], [b_11, %v_14]: Int
-    %v_15 = cmp_ilt %v_13, 5: Int
-    je %v_15, b_11, b_16
+  b_10 {
+    %v_11 = cmp_ilt %v_12, 5: Int
+    je %v_11, b_9, b_13
   }
 
-  b_16 {
-    %v_17 = shl %v_10, 9: Int
-    %v_18 = add %v_8, %v_17: Int
-    %v_19 = call_complex zero: Int
-    %v_20 = cmp_neq %v_19, 0: Int
-    je %v_20, b_21, b_22
+  b_13 {
+    %v_14 = shl %v_15, 9: Int
+    %v_16 = add %v_8, %v_14: Int
+    %v_17 = call_complex zero: Int
+    %v_18 = cmp_neq %v_17, 0: Int
+    je %v_18, b_19, b_20
   }
 
-  b_22 {
-    jmp b_23
+  b_20 {
+    jmp b_21
+  }
+
+  b_19 {
+    %v_22 = idiv 10, %v_17: Int
+    jmp b_21
   }
 
   b_21 {
-    %v_24 = idiv 10, %v_19: Int
-    jmp b_23
+    %v_23 = phi [b_19, %v_22], [b_20, 0]: Int
+    %v_24 = shl %v_23, 10: Int
+    %v_25 = add %v_16, %v_24: Int
+    %v_26 = add %v_25, 10240: Int
+    %v_27 = call_complex doubled, 3: Int
+    %v_28 = shl %v_27, 12: Int
+    %v_29 = add %v_26, %v_28: Int
+    ret %v_29
   }
 
-  b_23 {
-    %v_25 = phi [b_21, %v_24], [b_22, 0]: Int
-    %v_26 = shl %v_25, 10: Int
-    %v_27 = add %v_18, %v_26: Int
-    %v_28 = add %v_27, 10240: Int
-    %v_29 = call_complex doubled, 3: Int
-    %v_30 = shl %v_29, 12: Int
-    %v_31 = add %v_28, %v_30: Int
-    ret %v_31
-  }
-
-  b_11 {
-    %v_32 = imul %v_13, 3: Int
+  b_9 {
+    %v_30 = phi [b_10, %v_15], [b_0, 100]: Int
+    %v_31 = phi [b_10, %v_12], [b_0, 0]: Int
+    %v_32 = imul %v_31, 3: Int
     %candidate = sub 40, %v_32: Int
-    %v_33 = cmp_ilt %candidate, %v_10: Int
-    %v_12 = select %v_33, %candidate, %v_10: Int
-    %v_14 = add %v_13, 1: Int
-    jmp b_9
+    %v_33 = cmp_ilt %candidate, %v_30: Int
+    %v_15 = select %v_33, %candidate, %v_30: Int
+    %v_12 = add %v_31, 1: Int
+    jmp b_10
   }
 }
 

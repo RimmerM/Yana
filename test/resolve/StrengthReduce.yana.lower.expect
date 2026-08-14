@@ -456,127 +456,132 @@ main<complex>(): Int {
     jmp b_32
   }
 
-  b_32 {
-    %v_33 = phi [b_0, 0], [b_34, %v_35]: Int
-    %v_36 = phi [b_0, 0], [b_34, %v_37]: Long
-    %v_38 = cmp_ilt %v_36, 12: Int
-    je %v_38, b_39, b_40
+  b_33 {
+    %v_34 = cmp_ilt %v_35, 12: Int
+    je %v_34, b_32, b_36
   }
 
-  b_40 {
-    jmp b_41
+  b_36 {
+    jmp b_37
+  }
+
+  b_38 {
+    %v_39 = cmp_ilt %v_40, 9: Int
+    je %v_39, b_37, b_41
   }
 
   b_41 {
-    %v_42 = phi [b_40, %v_33], [b_43, %v_44]: Int
-    %v_45 = phi [b_40, 0], [b_43, %v_46]: Long
-    %v_47 = cmp_ilt %v_45, 9: Int
-    je %v_47, b_48, b_49
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
-    %v_51 = phi [b_49, %v_42], [b_52, %v_53]: Int
-    %v_54 = phi [b_49, 0], [b_52, %v_55]: Long
-    %v_56 = cmp_ilt %v_54, 8: Int
-    je %v_56, b_57, b_58
-  }
-
-  b_58 {
-    jmp b_59
-  }
-
-  b_59 {
-    %v_60 = phi [b_58, %v_51], [b_61, %v_62]: Int
-    %v_63 = phi [b_58, 0], [b_61, %v_64]: Long
-    %v_65 = cmp_ilt %v_63, 6: Int
-    je %v_65, b_66, b_67
-  }
-
-  b_67 {
-    ret %v_60
-  }
-
-  b_66 {
-    %v_68 = cmp_ge %v_63, 6: Int
-    je %v_68, b_69, b_61
-  }
-
-  b_61 {
-    %v_70 = shl %v_63, 2: Long
-    %v_71 = add %uints, %v_70: Ptr
-    %v_72 = load %v_71, 4: Int
-    %v_73 = call_complex unsignedInt, %v_72: Int
-    %v_62 = add %v_60, %v_73: Int
-    %v_64 = add %v_63, 1: Long
-    jmp b_59
-  }
-
-  b_69 {
-    %v_74 = syscall 60, 134: Long
-    unreachable 
-  }
-
-  b_57 {
-    %v_75 = cmp_ge %v_54, 8: Int
-    je %v_75, b_69, b_52
-  }
-
-  b_52 {
-    %v_76 = shl %v_54, 3: Long
-    %v_77 = add %ulongs, %v_76: Ptr
-    %v_78 = load %v_77, 8: Long
-    %v_79 = call_complex unsignedLong, %v_78: Int
-    %v_53 = add %v_51, %v_79: Int
-    %v_55 = add %v_54, 1: Long
-    jmp b_50
-  }
-
-  b_48 {
-    %v_80 = cmp_ge %v_45, 9: Int
-    je %v_80, b_69, b_43
+    jmp b_42
   }
 
   b_43 {
-    %v_81 = shl %v_45, 2: Long
+    %v_44 = cmp_ilt %v_45, 8: Int
+    je %v_44, b_42, b_46
+  }
+
+  b_46 {
+    jmp b_47
+  }
+
+  b_48 {
+    %v_49 = cmp_ilt %v_50, 6: Int
+    je %v_49, b_47, b_51
+  }
+
+  b_51 {
+    ret %v_52
+  }
+
+  b_47 {
+    %v_53 = phi [b_48, %v_52], [b_46, %v_54]: Int
+    %v_55 = phi [b_48, %v_50], [b_46, 0]: Int
+    %v_56 = sext %v_55: Long
+    %v_57 = cmp_ge %v_56, 6: Int
+    je %v_57, b_58, b_59
+  }
+
+  b_59 {
+    %v_60 = shl %v_56, 2: Long
+    %v_61 = add %uints, %v_60: Ptr
+    %v_62 = load %v_61, 4: Int
+    %v_63 = call_complex unsignedInt, %v_62: Int
+    %v_52 = add %v_53, %v_63: Int
+    %v_50 = add %v_55, 1: Int
+    jmp b_48
+  }
+
+  b_58 {
+    %v_64 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_42 {
+    %v_65 = phi [b_43, %v_54], [b_41, %v_66]: Int
+    %v_67 = phi [b_43, %v_45], [b_41, 0]: Int
+    %v_68 = sext %v_67: Long
+    %v_69 = cmp_ge %v_68, 8: Int
+    je %v_69, b_58, b_70
+  }
+
+  b_70 {
+    %v_71 = shl %v_68, 3: Long
+    %v_72 = add %ulongs, %v_71: Ptr
+    %v_73 = load %v_72, 8: Long
+    %v_74 = call_complex unsignedLong, %v_73: Int
+    %v_54 = add %v_65, %v_74: Int
+    %v_45 = add %v_67, 1: Int
+    jmp b_43
+  }
+
+  b_37 {
+    %v_75 = phi [b_38, %v_66], [b_36, %v_76]: Int
+    %v_77 = phi [b_38, %v_40], [b_36, 0]: Int
+    %v_78 = sext %v_77: Long
+    %v_79 = cmp_ge %v_78, 9: Int
+    je %v_79, b_58, b_80
+  }
+
+  b_80 {
+    %v_81 = shl %v_78, 2: Long
     %v_82 = add %ints, %v_81: Ptr
     %v_83 = loads %v_82, 4: Int
     %v_84 = call_complex signedInt, %v_83: Int
-    %v_44 = add %v_42, %v_84: Int
-    %v_46 = add %v_45, 1: Long
-    jmp b_41
+    %v_66 = add %v_75, %v_84: Int
+    %v_40 = add %v_77, 1: Int
+    jmp b_38
   }
 
-  b_39 {
-    %v_85 = cmp_ge %v_36, 12: Int
-    je %v_85, b_69, b_86
+  b_32 {
+    %v_85 = phi [b_33, %v_76], [b_0, 0]: Int
+    %v_86 = phi [b_33, %v_35], [b_0, 0]: Int
+    %v_87 = sext %v_86: Long
+    %v_88 = cmp_ge %v_87, 12: Int
+    je %v_88, b_58, b_89
   }
 
-  b_86 {
-    %v_87 = shl %v_36, 3: Long
-    %v_88 = add %longs, %v_87: Ptr
-    %v_89 = loads %v_88, 8: Long
-    %v_90 = call_complex signedLong, %v_89: Int
-    %v_91 = add %v_33, %v_90: Int
-    jmp b_34
+  b_89 {
+    %v_90 = shl %v_87, 3: Long
+    %v_91 = add %longs, %v_90: Ptr
+    %v_92 = loads %v_91, 8: Long
+    %v_93 = call_complex signedLong, %v_92: Int
+    %v_94 = add %v_85, %v_93: Int
+    %v_95 = sext %v_86: Long
+    jmp b_96
   }
 
-  b_34 {
-    %v_92 = shl %v_36, 3: Long
-    %v_93 = add %longs, %v_92: Ptr
-    %v_94 = loads %v_93, 8: Long
-    %v_95 = shl %v_94, 3: Long
-    %v_96 = cmp_eq %v_95, %v_95: Int
-    %v_97 = shl %v_94, 10: Long
-    %v_98 = cmp_eq %v_97, %v_97: Int
-    %v_99 = select %v_96, %v_98, %v_96: Int
-    %v_100 = select %v_99, 1, 0: Int
-    %v_35 = add %v_91, %v_100: Int
-    %v_37 = add %v_36, 1: Long
-    jmp b_32
+  b_96 {
+    %v_97 = shl %v_95, 3: Long
+    %v_98 = add %longs, %v_97: Ptr
+    %v_99 = loads %v_98, 8: Long
+    %v_100 = shl %v_99, 3: Long
+    %v_101 = cmp_eq %v_100, %v_100: Int
+    %v_102 = shl %v_99, 10: Long
+    %v_103 = cmp_eq %v_102, %v_102: Int
+    %v_104 = select %v_101, %v_103, %v_101: Int
+    %v_105 = select %v_104, 1, 0: Int
+    %v_76 = add %v_94, %v_105: Int
+    %v_35 = add %v_86, 1: Int
+    jmp b_33
   }
 }
 

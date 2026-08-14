@@ -8,25 +8,25 @@ function checkCondition(failed) {
 
 function sumVectors_Array_Int_Int(xs) {
   var acc = [0, 0, 0, 0];
-  var v46 = Contiguous_Array_a_a_elements_Int(xs);
-  var v60 = v46.length;
+  var v198 = xs.length;
+  var v199 = xs.items;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v60) {
-      var v115 = loadVector_Int(v46.items, v46.length, v46.offset, i);
+    if ((i + 4 | 0) <= v198) {
+      var v115 = loadVector_Int(v199, v198, 0, i);
       acc = [acc[0] + v115[0] | 0, acc[1] + v115[1] | 0, acc[2] + v115[2] | 0, acc[3] + v115[3] | 0];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
-  if (i < v60) {
-    var v75 = v60 - i | 0;
+  if (i < v198) {
+    var v75 = v198 - i | 0;
     var live$0 = 0 < v75;
     var live$1 = 1 < v75;
     var live$2 = 2 < v75;
     var live$3 = 3 < v75;
-    var v91 = loadVectorTail_Int(v46.items, v46.length, v46.offset, i);
+    var v91 = loadVectorTail_Int(v199, v198, 0, i);
     acc = [acc[0] + (live$0 ? v91[0] : 0) | 0, acc[1] + (live$1 ? v91[1] : 0) | 0, acc[2] + (live$2 ? v91[2] : 0) | 0, acc[3] + (live$3 ? v91[3] : 0) | 0];
   }
   return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
@@ -49,167 +49,60 @@ function loadVectorTail_Int(from$items, from$length, from$offset, at) {
   return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
 }
 
-function Contiguous_Array_a_a_elements_Int(self) {
-  var v2 = self.length;
-  var v4 = self.items;
-  var start = 0;
-  if (0 > v2) {
-    start = v2;
-  }
-  var end = v2;
-  if (v2 < start) {
-    end = start;
-  }
-  if (end > v2) {
-    end = v2;
-  }
-  return { items: v4, length: end - start | 0, offset: start };
-}
-
 function productVectors_Array_Int_Int(xs) {
   var ones$0 = 1;
   var ones$1 = 1;
   var ones$2 = 1;
   var ones$3 = 1;
   var acc = [1, 1, 1, 1];
-  var v45 = Contiguous_Array_a_a_elements_Int(xs);
-  var v59 = v45.length;
+  var v59 = xs.length;
+  var v60 = xs.items;
   var i = 0;
   L0: for (;;) {
     if ((i + 4 | 0) <= v59) {
-      var v105 = loadVector_Int(v45.items, v45.length, v45.offset, i);
-      acc = [Math.imul(acc[0], true ? v105[0] : ones$0), Math.imul(acc[1], true ? v105[1] : ones$1), Math.imul(acc[2], true ? v105[2] : ones$2), Math.imul(acc[3], true ? v105[3] : ones$3)];
+      var v111 = loadVector_Int(v60, v59, 0, i);
+      acc = [Math.imul(acc[0], true ? v111[0] : ones$0), Math.imul(acc[1], true ? v111[1] : ones$1), Math.imul(acc[2], true ? v111[2] : ones$2), Math.imul(acc[3], true ? v111[3] : ones$3)];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
   if (i < v59) {
-    var v80 = loadVectorTail_Int(v45.items, v45.length, v45.offset, i);
-    var v81 = v59 - i | 0;
-    acc = [Math.imul(acc[0], 0 < v81 ? v80[0] : ones$0), Math.imul(acc[1], 1 < v81 ? v80[1] : ones$1), Math.imul(acc[2], 2 < v81 ? v80[2] : ones$2), Math.imul(acc[3], 3 < v81 ? v80[3] : ones$3)];
+    var v86 = loadVectorTail_Int(v60, v59, 0, i);
+    var v87 = v59 - i | 0;
+    acc = [Math.imul(acc[0], 0 < v87 ? v86[0] : ones$0), Math.imul(acc[1], 1 < v87 ? v86[1] : ones$1), Math.imul(acc[2], 2 < v87 ? v86[2] : ones$2), Math.imul(acc[3], 3 < v87 ? v86[3] : ones$3)];
   }
   return (acc[0] * acc[1] | 0) * (acc[2] * acc[3] | 0) | 0;
-}
-
-function maximumVectors_Array_Int_Int(xs, ifEmpty) {
-  var acc = [ifEmpty, ifEmpty, ifEmpty, ifEmpty];
-  var v30 = Contiguous_Array_a_a_elements_Int(xs);
-  var v56 = v30.length;
-  var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= v56) {
-      var v102 = loadVector_Int(v30.items, v30.length, v30.offset, i);
-      var v210$0 = true ? v102[0] : acc[0];
-      var v210$1 = true ? v102[1] : acc[1];
-      var v210$2 = true ? v102[2] : acc[2];
-      var v210$3 = true ? v102[3] : acc[3];
-      acc = [acc[0] > v210$0 ? acc[0] : v210$0, acc[1] > v210$1 ? acc[1] : v210$1, acc[2] > v210$2 ? acc[2] : v210$2, acc[3] > v210$3 ? acc[3] : v210$3];
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  if (i < v56) {
-    var v77 = loadVectorTail_Int(v30.items, v30.length, v30.offset, i);
-    var v78 = v56 - i | 0;
-    var v183$0 = 0 < v78;
-    var v183$1 = 1 < v78;
-    var v183$2 = 2 < v78;
-    var v183$3 = 3 < v78;
-    var v186$0 = v183$0 ? v77[0] : acc[0];
-    var v186$1 = v183$1 ? v77[1] : acc[1];
-    var v186$2 = v183$2 ? v77[2] : acc[2];
-    var v186$3 = v183$3 ? v77[3] : acc[3];
-    acc = [acc[0] > v186$0 ? acc[0] : v186$0, acc[1] > v186$1 ? acc[1] : v186$1, acc[2] > v186$2 ? acc[2] : v186$2, acc[3] > v186$3 ? acc[3] : v186$3];
-  }
-  return Math.max(Math.max(acc[0], acc[1]), Math.max(acc[2], acc[3]));
-}
-
-function minimumVectors_Array_Int_Int(xs, ifEmpty) {
-  var acc = [ifEmpty, ifEmpty, ifEmpty, ifEmpty];
-  var v30 = Contiguous_Array_a_a_elements_Int(xs);
-  var v56 = v30.length;
-  var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= v56) {
-      var v102 = loadVector_Int(v30.items, v30.length, v30.offset, i);
-      var v210$0 = true ? v102[0] : acc[0];
-      var v210$1 = true ? v102[1] : acc[1];
-      var v210$2 = true ? v102[2] : acc[2];
-      var v210$3 = true ? v102[3] : acc[3];
-      acc = [acc[0] < v210$0 ? acc[0] : v210$0, acc[1] < v210$1 ? acc[1] : v210$1, acc[2] < v210$2 ? acc[2] : v210$2, acc[3] < v210$3 ? acc[3] : v210$3];
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  if (i < v56) {
-    var v77 = loadVectorTail_Int(v30.items, v30.length, v30.offset, i);
-    var v78 = v56 - i | 0;
-    var v183$0 = 0 < v78;
-    var v183$1 = 1 < v78;
-    var v183$2 = 2 < v78;
-    var v183$3 = 3 < v78;
-    var v186$0 = v183$0 ? v77[0] : acc[0];
-    var v186$1 = v183$1 ? v77[1] : acc[1];
-    var v186$2 = v183$2 ? v77[2] : acc[2];
-    var v186$3 = v183$3 ? v77[3] : acc[3];
-    acc = [acc[0] < v186$0 ? acc[0] : v186$0, acc[1] < v186$1 ? acc[1] : v186$1, acc[2] < v186$2 ? acc[2] : v186$2, acc[3] < v186$3 ? acc[3] : v186$3];
-  }
-  return Math.min(Math.min(acc[0], acc[1]), Math.min(acc[2], acc[3]));
-}
-
-function occurrencesVectors_Array_Int_Int(xs, wanted) {
-  var total = 0;
-  var v31 = Contiguous_Array_a_a_elements_Int(xs);
-  var v57 = v31.length;
-  var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= v57) {
-      var v103 = loadVector_Int(v31.items, v31.length, v31.offset, i);
-      total = total + ((v103[0] === wanted && true ? 1 : 0) + (v103[1] === wanted && true ? 1 : 0) + ((v103[2] === wanted && true ? 1 : 0) + (v103[3] === wanted && true ? 1 : 0))) | 0;
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  if (i < v57) {
-    var v78 = loadVectorTail_Int(v31.items, v31.length, v31.offset, i);
-    var v79 = v57 - i | 0;
-    total = total + ((v78[0] === wanted && 0 < v79 ? 1 : 0) + (v78[1] === wanted && 1 < v79 ? 1 : 0) + ((v78[2] === wanted && 2 < v79 ? 1 : 0) + (v78[3] === wanted && 3 < v79 ? 1 : 0))) | 0;
-  }
-  return total;
 }
 
 function indexOfVectors_Array_Int_Int(xs, wanted) {
   var at = 0;
   var v26 = { $tag: 0, $p: null };
   var v50 = { $tag: 0, $p: null };
-  var v52 = Contiguous_Array_a_a_elements_Int(xs);
-  var v65 = { $tag: 0, $p: null };
-  var v66 = v52.length;
+  var v66 = xs.length;
+  var v67 = xs.items;
+  var v71 = { $tag: 0, $p: null };
   var i = 0;
   L0: for (;;) {
     if ((i + 4 | 0) <= v66) {
-      var v112 = loadVector_Int(v52.items, v52.length, v52.offset, i);
-      var v223 = { $tag: 0, $p: null };
-      var v227$0 = v112[0] === wanted;
-      var v227$1 = v112[1] === wanted;
-      var v227$2 = v112[2] === wanted;
-      var v227$3 = v112[3] === wanted;
-      var hits$0 = v227$0 && true;
-      var hits$1 = v227$1 && true;
-      var hits$2 = v227$2 && true;
-      var hits$3 = v227$3 && true;
+      var v118 = loadVector_Int(v67, v66, 0, i);
+      var v286 = { $tag: 0, $p: null };
+      var v290$0 = v118[0] === wanted;
+      var v290$1 = v118[1] === wanted;
+      var v290$2 = v118[2] === wanted;
+      var v290$3 = v118[3] === wanted;
+      var hits$0 = v290$0 && true;
+      var hits$1 = v290$1 && true;
+      var hits$2 = v290$2 && true;
+      var hits$3 = v290$3 && true;
       if (hits$0 || hits$1 || (hits$2 || hits$3)) {
-        v223 = { $tag: 1, $p: at + (hits$0 ? 0 : hits$1 ? 1 : hits$2 ? 2 : hits$3 ? 3 : 4) | 0 };
+        v286 = { $tag: 1, $p: at + (hits$0 ? 0 : hits$1 ? 1 : hits$2 ? 2 : hits$3 ? 3 : 4) | 0 };
       } else {
         at = at + 4 | 0;
-        v223 = { $tag: 0, $p: null };
+        v286 = { $tag: 0, $p: null };
       }
-      if (v223.$tag === 1) {
-        v65 = v223;
+      if (v286.$tag === 1) {
+        v71 = v286;
       } else {
         i = i + 4 | 0;
         continue L0;
@@ -217,39 +110,39 @@ function indexOfVectors_Array_Int_Int(xs, wanted) {
     } else {
       B1: {
         if (i < v66) {
-          var v87 = loadVectorTail_Int(v52.items, v52.length, v52.offset, i);
-          var v88 = v66 - i | 0;
-          var v181 = { $tag: 0, $p: null };
-          var v185$0 = v87[0] === wanted;
-          var v185$1 = v87[1] === wanted;
-          var v185$2 = v87[2] === wanted;
-          var v185$3 = v87[3] === wanted;
-          var v195$0 = 0 < v88;
-          var v195$1 = 1 < v88;
-          var v195$2 = 2 < v88;
-          var v195$3 = 3 < v88;
-          var hits$0$1 = v185$0 && v195$0;
-          var hits$1$1 = v185$1 && v195$1;
-          var hits$2$1 = v185$2 && v195$2;
-          var hits$3$1 = v185$3 && v195$3;
+          var v93 = loadVectorTail_Int(v67, v66, 0, i);
+          var v94 = v66 - i | 0;
+          var v244 = { $tag: 0, $p: null };
+          var v248$0 = v93[0] === wanted;
+          var v248$1 = v93[1] === wanted;
+          var v248$2 = v93[2] === wanted;
+          var v248$3 = v93[3] === wanted;
+          var v258$0 = 0 < v94;
+          var v258$1 = 1 < v94;
+          var v258$2 = 2 < v94;
+          var v258$3 = 3 < v94;
+          var hits$0$1 = v248$0 && v258$0;
+          var hits$1$1 = v248$1 && v258$1;
+          var hits$2$1 = v248$2 && v258$2;
+          var hits$3$1 = v248$3 && v258$3;
           if (hits$0$1 || hits$1$1 || (hits$2$1 || hits$3$1)) {
-            v181 = { $tag: 1, $p: at + (hits$0$1 ? 0 : hits$1$1 ? 1 : hits$2$1 ? 2 : hits$3$1 ? 3 : 4) | 0 };
+            v244 = { $tag: 1, $p: at + (hits$0$1 ? 0 : hits$1$1 ? 1 : hits$2$1 ? 2 : hits$3$1 ? 3 : 4) | 0 };
           } else {
-            at = at + v88 | 0;
-            v181 = { $tag: 0, $p: null };
+            at = at + v94 | 0;
+            v244 = { $tag: 0, $p: null };
           }
-          if (v181.$tag === 1) {
-            v65 = v181;
+          if (v244.$tag === 1) {
+            v71 = v244;
             break L0;
           }
         }
       }
-      v65 = null;
+      v71 = null;
     }
     break L0;
   }
-  if (!(v65 === null)) {
-    v50 = v65;
+  if (!(v71 === null)) {
+    v50 = v71;
   } else {
     v50 = null;
   }
@@ -267,70 +160,44 @@ function indexOfVectors_Array_Int_Int(xs, wanted) {
 
 function sumVectors_Array_Float_Float(xs) {
   var acc = [0, 0, 0, 0];
-  var v46 = Contiguous_Array_a_a_elements_Float(xs);
-  var v60 = v46.length;
+  var v240 = xs.length;
+  var v241 = xs.items;
   var i = 0;
-  var from$items = v46.items;
-  var from$offset = v46.offset;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v60) {
-      var v161 = from$offset + i | 0;
-      acc = [Math.fround(acc[0] + from$items[v161]), Math.fround(acc[1] + from$items[v161 + 1 | 0]), Math.fround(acc[2] + from$items[v161 + 2 | 0]), Math.fround(acc[3] + from$items[v161 + 3 | 0])];
+    if ((i + 4 | 0) <= v240) {
+      acc = [Math.fround(acc[0] + v241[i]), Math.fround(acc[1] + v241[i + 1 | 0]), Math.fround(acc[2] + v241[i + 2 | 0]), Math.fround(acc[3] + v241[i + 3 | 0])];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
-  if (i < v60) {
-    var v84 = Math.fround(v60 - i | 0);
+  if (i < v240) {
+    var v84 = Math.fround(v240 - i | 0);
     var live$0 = 0 < v84;
     var live$1 = 1 < v84;
     var live$2 = 2 < v84;
     var live$3 = 3 < v84;
-    var from$items$1 = v46.items;
-    var from$length = v46.length;
-    var from$offset$1 = v46.offset;
-    var v135 = from$offset$1 + i | 0;
-    var v138 = (from$offset$1 + from$length | 0) - 1 | 0;
-    var v141 = from$items$1[v135 > v138 ? v138 : v135];
-    var v144 = v135 + 1 | 0;
-    var v147 = from$items$1[v144 > v138 ? v138 : v144];
-    var v150 = v135 + 2 | 0;
-    var v153 = from$items$1[v150 > v138 ? v138 : v150];
-    var v156 = v135 + 3 | 0;
-    var v159 = from$items$1[v156 > v138 ? v138 : v156];
+    var v138 = v240 - 1;
+    var v141 = v241[i > v138 ? v138 : i];
+    var v144 = i + 1 | 0;
+    var v147 = v241[v144 > v138 ? v138 : v144];
+    var v150 = i + 2 | 0;
+    var v153 = v241[v150 > v138 ? v138 : v150];
+    var v156 = i + 3 | 0;
+    var v159 = v241[v156 > v138 ? v138 : v156];
     acc = [Math.fround(acc[0] + (live$0 ? v141 : 0)), Math.fround(acc[1] + (live$1 ? v147 : 0)), Math.fround(acc[2] + (live$2 ? v153 : 0)), Math.fround(acc[3] + (live$3 ? v159 : 0))];
   }
   return Math.fround(Math.fround(acc[0] + acc[1]) + Math.fround(acc[2] + acc[3]));
 }
 
-function Contiguous_Array_a_a_elements_Float(self) {
-  var v2 = self.length;
-  var v4 = self.items;
-  var start = 0;
-  if (0 > v2) {
-    start = v2;
-  }
-  var end = v2;
-  if (v2 < start) {
-    end = start;
-  }
-  if (end > v2) {
-    end = v2;
-  }
-  return { items: v4, length: end - start | 0, offset: start };
-}
-
 function occurrencesElements_Array_String_String(xs, wanted) {
   var total = 0;
-  var v20 = Contiguous_Array_a_a_elements_String(xs);
-  var v33 = v20.length;
+  var v89 = xs.length;
   var i = 0;
   L0: for (;;) {
-    if (i < v33) {
-      var v47 = v20.offset + i | 0;
-      checkCondition(i >>> 0 >= v20.length >>> 0);
-      if (v20.items[v47] === wanted) {
+    if (i < v89) {
+      checkCondition(i >>> 0 >= v89);
+      if (xs[i] === wanted) {
         total = total + 1 | 0;
       }
       i = i + 1 | 0;
@@ -341,47 +208,29 @@ function occurrencesElements_Array_String_String(xs, wanted) {
   return total;
 }
 
-function Contiguous_Array_a_a_elements_String(self) {
-  var v2 = self.length;
-  var start = 0;
-  if (0 > v2) {
-    start = v2;
-  }
-  var end = v2;
-  if (v2 < start) {
-    end = start;
-  }
-  if (end > v2) {
-    end = v2;
-  }
-  return { items: self, length: end - start | 0, offset: start };
-}
-
 function indexOfElements_Array_String_String(xs, wanted) {
   var at = 0;
   var v26 = { $tag: 0, $p: null };
-  var v28 = Contiguous_Array_a_a_elements_String(xs);
-  var v41 = { $tag: 0, $p: null };
-  var v42 = v28.length;
+  var v41 = xs.length;
+  var v47 = { $tag: 0, $p: null };
   var i = 0;
   L0: for (;;) {
-    if (i < v42) {
-      var v61 = v28.offset + i | 0;
-      checkCondition(i >>> 0 >= v28.length >>> 0);
-      if (v28.items[v61] === wanted) {
-        v41 = { $tag: 1, $p: at + i | 0 };
+    if (i < v41) {
+      checkCondition(i >>> 0 >= v41);
+      if (xs[i] === wanted) {
+        v47 = { $tag: 1, $p: at + i | 0 };
       } else {
         i = i + 1 | 0;
         continue L0;
       }
     } else {
-      at = at + v42 | 0;
-      v41 = { $tag: 0, $p: null };
+      at = at + v41 | 0;
+      v47 = { $tag: 0, $p: null };
     }
     break L0;
   }
-  if (v41.$tag === 1) {
-    v26 = v41;
+  if (v47.$tag === 1) {
+    v26 = v47;
   } else {
     v26 = { $tag: 0, $p: null };
   }
@@ -407,13 +256,95 @@ function main() {
   if (productVectors_Array_Int_Int({ items: new Int32Array([1, 2, 3, 4]), length: 4 }) === 24) {
     result = result + 2 | 0;
   }
-  if (maximumVectors_Array_Int_Int(xs, 0) === 11) {
+  var acc = [0, 0, 0, 0];
+  var v282 = xs.length;
+  var v283 = xs.items;
+  var i = 0;
+  L0: for (;;) {
+    if ((i + 4 | 0) <= v282) {
+      var v358 = loadVector_Int(v283, v282, 0, i);
+      var v1587$0 = true ? v358[0] : acc[0];
+      var v1587$1 = true ? v358[1] : acc[1];
+      var v1587$2 = true ? v358[2] : acc[2];
+      var v1587$3 = true ? v358[3] : acc[3];
+      acc = [acc[0] > v1587$0 ? acc[0] : v1587$0, acc[1] > v1587$1 ? acc[1] : v1587$1, acc[2] > v1587$2 ? acc[2] : v1587$2, acc[3] > v1587$3 ? acc[3] : v1587$3];
+      i = i + 4 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  if (i < v282) {
+    var v333 = loadVectorTail_Int(v283, v282, 0, i);
+    var v334 = v282 - i | 0;
+    var v1560$0 = 0 < v334;
+    var v1560$1 = 1 < v334;
+    var v1560$2 = 2 < v334;
+    var v1560$3 = 3 < v334;
+    var v1563$0 = v1560$0 ? v333[0] : acc[0];
+    var v1563$1 = v1560$1 ? v333[1] : acc[1];
+    var v1563$2 = v1560$2 ? v333[2] : acc[2];
+    var v1563$3 = v1560$3 ? v333[3] : acc[3];
+    acc = [acc[0] > v1563$0 ? acc[0] : v1563$0, acc[1] > v1563$1 ? acc[1] : v1563$1, acc[2] > v1563$2 ? acc[2] : v1563$2, acc[3] > v1563$3 ? acc[3] : v1563$3];
+  }
+  if (Math.max(Math.max(acc[0], acc[1]), Math.max(acc[2], acc[3])) === 11) {
     result = result + 4 | 0;
   }
-  if (minimumVectors_Array_Int_Int(xs, 100) === 1) {
+  var acc$1 = [100, 100, 100, 100];
+  var v393 = xs.length;
+  var v394 = xs.items;
+  var i$1 = 0;
+  L1: for (;;) {
+    if ((i$1 + 4 | 0) <= v393) {
+      var v469 = loadVector_Int(v394, v393, 0, i$1);
+      var v1635$0 = true ? v469[0] : acc$1[0];
+      var v1635$1 = true ? v469[1] : acc$1[1];
+      var v1635$2 = true ? v469[2] : acc$1[2];
+      var v1635$3 = true ? v469[3] : acc$1[3];
+      acc$1 = [acc$1[0] < v1635$0 ? acc$1[0] : v1635$0, acc$1[1] < v1635$1 ? acc$1[1] : v1635$1, acc$1[2] < v1635$2 ? acc$1[2] : v1635$2, acc$1[3] < v1635$3 ? acc$1[3] : v1635$3];
+      i$1 = i$1 + 4 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  if (i$1 < v393) {
+    var v444 = loadVectorTail_Int(v394, v393, 0, i$1);
+    var v445 = v393 - i$1 | 0;
+    var v1608$0 = 0 < v445;
+    var v1608$1 = 1 < v445;
+    var v1608$2 = 2 < v445;
+    var v1608$3 = 3 < v445;
+    var v1611$0 = v1608$0 ? v444[0] : acc$1[0];
+    var v1611$1 = v1608$1 ? v444[1] : acc$1[1];
+    var v1611$2 = v1608$2 ? v444[2] : acc$1[2];
+    var v1611$3 = v1608$3 ? v444[3] : acc$1[3];
+    acc$1 = [acc$1[0] < v1611$0 ? acc$1[0] : v1611$0, acc$1[1] < v1611$1 ? acc$1[1] : v1611$1, acc$1[2] < v1611$2 ? acc$1[2] : v1611$2, acc$1[3] < v1611$3 ? acc$1[3] : v1611$3];
+  }
+  if (Math.min(Math.min(acc$1[0], acc$1[1]), Math.min(acc$1[2], acc$1[3])) === 1) {
     result = result + 8 | 0;
   }
-  if (occurrencesVectors_Array_Int_Int(xs, 7) === 1) {
+  var sought$0 = 7;
+  var sought$1 = 7;
+  var sought$2 = 7;
+  var sought$3 = 7;
+  var total = 0;
+  var v504 = xs.length;
+  var v505 = xs.items;
+  var i$2 = 0;
+  L2: for (;;) {
+    if ((i$2 + 4 | 0) <= v504) {
+      var v580 = loadVector_Int(v505, v504, 0, i$2);
+      total = total + ((v580[0] === sought$0 && true ? 1 : 0) + (v580[1] === sought$1 && true ? 1 : 0) + ((v580[2] === sought$2 && true ? 1 : 0) + (v580[3] === sought$3 && true ? 1 : 0))) | 0;
+      i$2 = i$2 + 4 | 0;
+      continue L2;
+    }
+    break L2;
+  }
+  if (i$2 < v504) {
+    var v555 = loadVectorTail_Int(v505, v504, 0, i$2);
+    var v556 = v504 - i$2 | 0;
+    total = total + ((v555[0] === sought$0 && 0 < v556 ? 1 : 0) + (v555[1] === sought$1 && 1 < v556 ? 1 : 0) + ((v555[2] === sought$2 && 2 < v556 ? 1 : 0) + (v555[3] === sought$3 && 3 < v556 ? 1 : 0))) | 0;
+  }
+  if (total === 1) {
     if (!(indexOfVectors_Array_Int_Int(xs, 9) === null)) {
       result = result + 16 | 0;
     }

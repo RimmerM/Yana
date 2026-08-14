@@ -328,26 +328,26 @@ large<complex>(): Long {
     jmp b_15
   }
 
+  b_16 {
+    %v_17 = cmp_ilt %v_18, 6: Int
+    je %v_17, b_15, b_19
+  }
+
+  b_19 {
+    %v_20 = add %v_13, %v_14: Long
+    ret %v_20
+  }
+
   b_15 {
-    %v_16 = phi [b_0, 0], [b_17, %v_18]: Long
-    %v_19 = cmp_ilt %v_16, 6: Int
-    je %v_19, b_17, b_20
-  }
-
-  b_20 {
-    %v_21 = add %v_13, %v_14: Long
-    ret %v_21
-  }
-
-  b_17 {
-    %v_22 = shl %v_16, 3: Long
+    %v_21 = phi [b_16, %v_18], [b_0, 0]: Long
+    %v_22 = shl %v_21, 3: Long
     %v_23 = add %hs, %v_22: Ptr
     %v_24 = load %v_23, 8: Ptr
     call_complex freeHeap, %v_24
     call_complex -=(I64), @liveHandles, 1
     call_complex +=(I64), @releases, 1
-    %v_18 = add %v_16, 1: Long
-    jmp b_15
+    %v_18 = add %v_21, 1: Long
+    jmp b_16
   }
 }
 

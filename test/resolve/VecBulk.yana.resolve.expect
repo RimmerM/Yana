@@ -440,81 +440,19 @@ fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : I64
     init %self@Flat.length, %v8
-    %v11 = call slice(Int), %self, 0, %v2 : Flat(Int)
+    %v11 = call unclampedSlice(Int), %self, 0, %v2 : Flat(Int)
     ret %v11
 }
 
-fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
+fn unclampedSlice(Int)(%self: Flat(Int), %from: I64, %count: I64) -> Flat(Int) {
   b0:
-    %start = alloc : I64
-    init %start, %from
-    %v5 = load %start : I64
-    %v7 = cmp_lt %v5, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
-    assign %start, 0
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v13 = load %start : I64
-    %v14 = load %self@Flat.length : I64
-    %v15 = cmp_gt %v13, %v14 : Bool
-    je %v15, b4, b5
-
-  b4:
-    %v17 = load %self@Flat.length : I64
-    assign %start, %v17
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %end = alloc : I64
-    init %end, %to
-    %v23 = load %end : I64
-    %v24 = load %start : I64
-    %v25 = cmp_lt %v23, %v24 : Bool
-    je %v25, b7, b8
-
-  b7:
-    %v27 = load %start : I64
-    assign %end, %v27
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v31 = load %end : I64
-    %v32 = load %self@Flat.length : I64
-    %v33 = cmp_gt %v31, %v32 : Bool
-    je %v33, b10, b11
-
-  b10:
-    %v35 = load %self@Flat.length : I64
-    assign %end, %v35
-    jmp b12
-
-  b11:
-    jmp b12
-
-  b12:
-    %v39 = alloc : Flat(Int)
-    %v40 = load %self@Flat.items : %Int
-    %v41 = load %start : I64
-    %v42 = strideof Int : I64
-    %v43 = mul %v41, %v42 : I64
-    %v44 = add %v40, %v43 : %Int
-    %v45 = load %end : I64
-    %v46 = load %start : I64
-    %v47 = sub %v45, %v46 : I64
-    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
-    ret %v39
+    %v3 = alloc : Flat(Int)
+    %v4 = load %self@Flat.items : %Int
+    %v5 = strideof Int : I64
+    %v6 = mul %from, %v5 : I64
+    %v7 = add %v4, %v6 : %Int
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
 }
 
 fn productVectors(Array(Int), Int)(%xs: Array(Int)) -> Int {
@@ -1210,81 +1148,19 @@ fn Contiguous(Array(a), a).elements(Float)(%self: Array(Float)) -> Flat(Float) {
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : I64
     init %self@Flat.length, %v8
-    %v11 = call slice(Float), %self, 0, %v2 : Flat(Float)
+    %v11 = call unclampedSlice(Float), %self, 0, %v2 : Flat(Float)
     ret %v11
 }
 
-fn slice(Float)(%self: Flat(Float), %from: I64, %to: I64) -> Flat(Float) {
+fn unclampedSlice(Float)(%self: Flat(Float), %from: I64, %count: I64) -> Flat(Float) {
   b0:
-    %start = alloc : I64
-    init %start, %from
-    %v5 = load %start : I64
-    %v7 = cmp_lt %v5, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
-    assign %start, 0
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v13 = load %start : I64
-    %v14 = load %self@Flat.length : I64
-    %v15 = cmp_gt %v13, %v14 : Bool
-    je %v15, b4, b5
-
-  b4:
-    %v17 = load %self@Flat.length : I64
-    assign %start, %v17
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %end = alloc : I64
-    init %end, %to
-    %v23 = load %end : I64
-    %v24 = load %start : I64
-    %v25 = cmp_lt %v23, %v24 : Bool
-    je %v25, b7, b8
-
-  b7:
-    %v27 = load %start : I64
-    assign %end, %v27
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v31 = load %end : I64
-    %v32 = load %self@Flat.length : I64
-    %v33 = cmp_gt %v31, %v32 : Bool
-    je %v33, b10, b11
-
-  b10:
-    %v35 = load %self@Flat.length : I64
-    assign %end, %v35
-    jmp b12
-
-  b11:
-    jmp b12
-
-  b12:
-    %v39 = alloc : Flat(Float)
-    %v40 = load %self@Flat.items : %Float
-    %v41 = load %start : I64
-    %v42 = strideof Float : I64
-    %v43 = mul %v41, %v42 : I64
-    %v44 = add %v40, %v43 : %Float
-    %v45 = load %end : I64
-    %v46 = load %start : I64
-    %v47 = sub %v45, %v46 : I64
-    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
-    ret %v39
+    %v3 = alloc : Flat(Float)
+    %v4 = load %self@Flat.items : %Float
+    %v5 = strideof Float : I64
+    %v6 = mul %from, %v5 : I64
+    %v7 = add %v4, %v6 : %Float
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
 }
 
 fn occurrencesElements(Array(String), String)(%xs: Array(String), %wanted: String) -> Int {
@@ -1389,81 +1265,19 @@ fn Contiguous(Array(a), a).elements(String)(%self: Array(String)) -> Flat(String
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : I64
     init %self@Flat.length, %v8
-    %v11 = call slice(String), %self, 0, %v2 : Flat(String)
+    %v11 = call unclampedSlice(String), %self, 0, %v2 : Flat(String)
     ret %v11
 }
 
-fn slice(String)(%self: Flat(String), %from: I64, %to: I64) -> Flat(String) {
+fn unclampedSlice(String)(%self: Flat(String), %from: I64, %count: I64) -> Flat(String) {
   b0:
-    %start = alloc : I64
-    init %start, %from
-    %v5 = load %start : I64
-    %v7 = cmp_lt %v5, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
-    assign %start, 0
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v13 = load %start : I64
-    %v14 = load %self@Flat.length : I64
-    %v15 = cmp_gt %v13, %v14 : Bool
-    je %v15, b4, b5
-
-  b4:
-    %v17 = load %self@Flat.length : I64
-    assign %start, %v17
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %end = alloc : I64
-    init %end, %to
-    %v23 = load %end : I64
-    %v24 = load %start : I64
-    %v25 = cmp_lt %v23, %v24 : Bool
-    je %v25, b7, b8
-
-  b7:
-    %v27 = load %start : I64
-    assign %end, %v27
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v31 = load %end : I64
-    %v32 = load %self@Flat.length : I64
-    %v33 = cmp_gt %v31, %v32 : Bool
-    je %v33, b10, b11
-
-  b10:
-    %v35 = load %self@Flat.length : I64
-    assign %end, %v35
-    jmp b12
-
-  b11:
-    jmp b12
-
-  b12:
-    %v39 = alloc : Flat(String)
-    %v40 = load %self@Flat.items : %String
-    %v41 = load %start : I64
-    %v42 = strideof String : I64
-    %v43 = mul %v41, %v42 : I64
-    %v44 = add %v40, %v43 : %String
-    %v45 = load %end : I64
-    %v46 = load %start : I64
-    %v47 = sub %v45, %v46 : I64
-    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
-    ret %v39
+    %v3 = alloc : Flat(String)
+    %v4 = load %self@Flat.items : %String
+    %v5 = strideof String : I64
+    %v6 = mul %from, %v5 : I64
+    %v7 = add %v4, %v6 : %String
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
 }
 
 fn indexOfElements(Array(String), String)(%xs: Array(String), %wanted: String) -> Maybe(I64) {

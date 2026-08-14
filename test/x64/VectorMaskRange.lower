@@ -144,3 +144,75 @@ firstLive(%a: i32x8, %b: i32x8, %n: Int): Int {
         ret %f
     }
 }
+
+# Two consumers of one masked tail, which is `indexOfVectors` - §45.1 of test/bench/findings.md.
+#
+# `any(hits)` decides the branch and `firstSet(hits)` answers on the arm below it, so the `and` has
+# two readers and the range used to be refused outright for it: the whole vector bank stayed so that
+# two reductions could read the vector it was written as. Neither of them reads the vector. One
+# movemask and one `bzhi` are placed below the `and` and both read the general register.
+searchLive(%a: i32x8, %b: i32x8, %n: Int): Int {
+    entry {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %k = and %n, 255: Int
+        %s = vsplat %k: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %any = vreduce_or %r: Int
+        je (cmp_neq %any, 0), found, missing
+    }
+
+    found {
+        %f = vreduce_first %r: Int
+        ret %f
+    }
+
+    missing {
+        ret -1
+    }
+}
+
+# And the consumer the range cannot serve, which disqualifies the mask rather than itself: `all`
+# compares the movemask against the full pattern, and clearing the bits above the live lanes is
+# exactly what would make that pattern the range. One reader asking it keeps the vector form for
+# both, so `iota` and the `and` are still here.
+searchAll(%a: i32x8, %b: i32x8, %n: Int): Int {
+    entry {
+        %z = vsplat 0: i32x8
+        %i1 = vwithlane %z, 1, 1: i32x8
+        %i2 = vwithlane %i1, 2, 2: i32x8
+        %i3 = vwithlane %i2, 3, 3: i32x8
+        %i4 = vwithlane %i3, 4, 4: i32x8
+        %i5 = vwithlane %i4, 5, 5: i32x8
+        %i6 = vwithlane %i5, 6, 6: i32x8
+        %iota = vwithlane %i6, 7, 7: i32x8
+
+        %k = and %n, 255: Int
+        %s = vsplat %k: i32x8
+        %live = cmp_ilt %iota, %s: m32x8
+
+        %m = cmp_eq %a, %b: m32x8
+        %r = and %m, %live: m32x8
+        %all = vreduce_and %r: Int
+        je (cmp_neq %all, 0), every, some
+    }
+
+    every {
+        %f = vreduce_first %r: Int
+        ret %f
+    }
+
+    some {
+        ret -1
+    }
+}

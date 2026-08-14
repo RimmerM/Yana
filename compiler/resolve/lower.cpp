@@ -18,6 +18,7 @@
 #include "../lower/lower_strength.h"
 #include "../lower/lower_induction.h"
 #include "../lower/lower_merge.h"
+#include "../lower/lower_thread.h"
 
 /*
  * Aggregates that evaporate.
@@ -694,6 +695,18 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // *which* operands are literals. See lower_strength.h, and note that it emits arithmetic of
         // its own, so the fold runs again behind it before the dead immediates are swept.
         strengthReduceFunction(lower.lower, lower.to, *target);
+        foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the branches whose answer the edge into them already settled - see lower_thread.h.
+        // Behind the promotion, which is what turns the nested `Outcome` a `return` inside a `for`
+        // is written as into the phis this reads, and behind the folds, so that an alternative that
+        // is a literal is written as one. In front of the analysis below, because it changes the
+        // block set and every pass past that point indexes by block.
+        //
+        // With a fold behind it for the reason the strength reduction has one: a phi left with a
+        // single alternative is that alternative, and the comparison the next level out branches on
+        // folds against it.
+        threadDecidedBranches(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
 
         /*

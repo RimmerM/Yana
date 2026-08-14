@@ -1187,6 +1187,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86MinMax:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
+        case LowerInst::X86StoreOp:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;
     }

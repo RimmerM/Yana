@@ -1,0 +1,350 @@
+
+sink<complex>(%p: Ptr): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+update<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = add %old, %v: Int
+    store %p, %new, 4
+    ret 
+  }
+}
+
+bitwise<complex>(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %v: Int) {
+  b_0 {
+    %x = load %a, 4: Int
+    %x2 = sub %x, %v: Int
+    store %a, %x2, 4
+    %y = load %b, 4: Int
+    %y2 = and %y, %v: Int
+    store %b, %y2, 4
+    %z = load %c, 4: Int
+    %z2 = or %z, %v: Int
+    store %c, %z2, 4
+    %w = load %d, 4: Int
+    %w2 = xor %w, %v: Int
+    store %d, %w2, 4
+    ret 
+  }
+}
+
+exchanged<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = add %v, %old: Int
+    store %p, %new, 4
+    ret 
+  }
+}
+
+constants<complex>(%p: Ptr, %q: Ptr) {
+  b_0 {
+    %a = load %p, 4: Int
+    %a2 = add %a, 1: Int
+    store %p, %a2, 4
+    %b = load %q, 4: Int
+    %b2 = add %b, 100000: Int
+    store %q, %b2, 4
+    ret 
+  }
+}
+
+wide<complex>(%p: Ptr, %v: Long) {
+  b_0 {
+    %old = load %p, 8: Long
+    %new = or %old, %v: Long
+    store %p, %new, 8
+    ret 
+  }
+}
+
+narrow<complex>(%p: Ptr, %q: Ptr, %v: Int) {
+  b_0 {
+    %a = load %p, 1: Int
+    %a2 = add %a, %v: Int
+    store %p, %a2, 1
+    %b = load %q, 2: Int
+    %b2 = xor %b, %v: Int
+    store %q, %b2, 2
+    ret 
+  }
+}
+
+byteRegister<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 1: Int
+    %new = add %old, %v: Int
+    store %p, %new, 1
+    ret 
+  }
+}
+
+element<complex>(%p: Ptr, %i: Long, %v: Int) {
+  b_0 {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %old = load %q, 4: Int
+    %new = add %old, %v: Int
+    store %q, %new, 4
+    ret 
+  }
+}
+
+checked<complex>(%p: Ptr, %i: Long, %n: Long, %v: Int) {
+  entry {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %old = load %q, 4: Int
+    %v_0 = cmp_ge %i, %n: Int
+    je %v_0, abort, body
+  }
+
+  body {
+    %new = add %old, %v: Int
+    store %q, %new, 4
+    ret 
+  }
+
+  abort {
+    unreachable 
+  }
+}
+
+across<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 4: Int
+    %r = call_complex sink, %p: Int
+    %new = add %old, %v: Int
+    store %p, %new, 4
+    ret 
+  }
+}
+
+elsewhere<complex>(%p: Ptr, %q: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = add %old, %v: Int
+    store %q, %new, 4
+    ret 
+  }
+}
+
+shared<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = add %old, %v: Int
+    store %p, %new, 4
+    ret %new
+  }
+}
+
+reread<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = add %old, %v: Int
+    store %p, %new, 4
+    ret %old
+  }
+}
+
+reversed<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %old = load %p, 4: Int
+    %new = sub %v, %old: Int
+    store %p, %new, 4
+    ret 
+  }
+}
+
+counted<complex>(%p: Ptr, %src: Ptr, %n: Long) {
+  entry {
+    %zero = cast 0: Long
+    %one = cast 1: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [body, %i2]: Long
+    %v_0 = cmp_ge %i, %n: Int
+    je %v_0, exit, body
+  }
+
+  body {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %s = add %src, %o: Ptr
+    %v = load %s, 4: Int
+    %old = load %q, 4: Int
+    %new = add %old, %v: Int
+    store %q, %new, 4
+    %i2 = add %i, %one: Long
+    jmp head
+  }
+
+  exit {
+    ret 
+  }
+}
+
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+
+--- codegen: update ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storeadd uses=[rdi, rsi] creates=[]  => 0137
+  ret uses=[] creates=[]  => c3
+
+--- codegen: bitwise ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storesub uses=[rdi, r8] creates=[]  => 442907
+  x86_storeand uses=[rsi, r8] creates=[]  => 442106
+  x86_storeor uses=[rdx, r8] creates=[]  => 440902
+  x86_storexor uses=[rcx, r8] creates=[]  => 443101
+  ret uses=[] creates=[]  => c3
+
+--- codegen: exchanged ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storeadd uses=[rdi, rsi] creates=[]  => 0137
+  ret uses=[] creates=[]  => c3
+
+--- codegen: constants ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_storeadd uses=[rdi, -] creates=[]  => 830701
+  imm uses=[] creates=[-]  => 
+  x86_storeadd uses=[rsi, -] creates=[]  => 8106a0860100
+  ret uses=[] creates=[]  => c3
+
+--- codegen: wide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storeor uses=[rdi, rsi] creates=[]  => 480937
+  ret uses=[] creates=[]  => c3
+
+--- codegen: narrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storeadd uses=[rdi, rdx] creates=[]  => 0017
+  x86_storexor uses=[rsi, rdx] creates=[]  => 663116
+  ret uses=[] creates=[]  => c3
+
+--- codegen: byteRegister ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_storeadd uses=[rdi, rsi] creates=[]  => 400037
+  ret uses=[] creates=[]  => c3
+
+--- codegen: element ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  x86_storeadd uses=[-, rdx] creates=[]  => 0114b7
+  ret uses=[] creates=[]  => c3
+
+--- codegen: checked ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  imm uses=[] creates=[-]  => 
+  cmp_ge uses=[rsi, rdx] creates=[-]  => 4839d6
+  je uses=[-] creates=[]  => 7304
+block body:
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  x86_storeadd uses=[-, rcx] creates=[]  => 010cb7
+  ret uses=[] creates=[]  => c3
+block abort:
+  unreachable uses=[] creates=[]  => 
+
+--- codegen: across ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->r12]  => 488bdf448be6
+block #1:
+  load uses=[rbx] creates=[r13]  => 448b2b
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 488bfbe84affffff
+  add uses=[r13, r12] creates=[r13]  => 4501e5
+  store uses=[rbx, r13] creates=[]  => 44892b
+  ret uses=[] creates=[]  => 415d415c5bc3
+
+--- codegen: elsewhere ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => 0317
+  store uses=[rsi, rdx] creates=[]  => 8916
+  ret uses=[] creates=[]  => c3
+
+--- codegen: shared ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 8bc60307
+  store uses=[rdi, rax] creates=[]  => 8907
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: reread ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rax]  => 8b07
+  add uses=[rcx, rsi] creates=[rcx] pre=[rax->rcx]  => 8d0c30
+  store uses=[rdi, rcx] creates=[]  => 890f
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: reversed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => 2b37
+  store uses=[rdi, rsi] creates=[]  => 8937
+  ret uses=[] creates=[]  => c3
+
+--- codegen: counted ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => 31c0
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rcx]  => b901000000
+  cmp_ge uses=[rax, rdx] creates=[-]  => 4839d0
+  je uses=[-] creates=[]  => 7314
+block body:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=4 disp=0 uses=[rsi, rax] creates=[-]  => 
+  load uses=[-] creates=[r8]  => 448b0486
+  x86_addr scale=4 disp=0 uses=[rdi, rax] creates=[-]  => 
+  add uses=[r8, -] creates=[r8]  => 44030487
+  x86_addr scale=4 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, r8] creates=[]  => 44890487
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  cmp_ge uses=[rax, rdx] creates=[-]  => 4839d0
+  je uses=[-] creates=[]  => 72ec
+block exit:
+  ret uses=[] creates=[]  => c3

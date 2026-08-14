@@ -157,6 +157,11 @@ bool selectableType(OptContext& opt, TypePtr type) {
  * block; nothing may merge inside it, since a phi there is a value produced by predecessors that no
  * longer exist; and it has to leave by one plain jump, because a block that branches again is a
  * second decision and not an arm at all.
+ *
+ * The middle one refuses **nothing** - not one site over the 233 `test/resolve` programs or the
+ * benchmark corpus, measured in §44 of test/bench/findings.md. An arm has one predecessor by the
+ * first question, and a phi with one alternative is one `collapseSinglePhis` has already answered, so
+ * the case is real in the IR's grammar and absent from every program that reaches here.
  */
 ModulePtr<Block> armTarget(OptContext& opt, ModulePtr<Block> head, ModulePtr<Block> pointer) {
     if(pointer == head) return nullptr;

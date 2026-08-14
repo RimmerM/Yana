@@ -436,27 +436,20 @@ written<complex>(%n: Int): Int {
     %v_9 = loads @log, 4: Int
     %v_10 = add %v_9, 100: Int
     store @log, %v_10, 4
-    jmp b_7
+    jmp b_11
   }
 
   b_7 {
-    %v_11 = phi [b_6, 0], [b_5, 1]: Int
-    %v_12 = phi [b_6, 0], [b_5, %carried]: Int
-    %v_13 = cmp_eq %v_11, 1: Int
-    je %v_13, b_14, b_15
+    jmp b_12
   }
 
-  b_15 {
-    jmp b_16
+  b_11 {
+    jmp b_12
   }
 
-  b_14 {
-    jmp b_16
-  }
-
-  b_16 {
-    %v_17 = phi [b_14, %v_12], [b_15, 0]: Int
-    ret %v_17
+  b_12 {
+    %v_13 = phi [b_11, %carried], [b_7, 0]: Int
+    ret %v_13
   }
 }
 

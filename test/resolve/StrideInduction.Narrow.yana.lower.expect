@@ -509,65 +509,65 @@ strided<complex>(%by: Int): Int {
     jmp b_5
   }
 
-  b_5 {
-    %v_6 = phi [b_0, 0], [b_7, %v_8]: Int
-    %v_9 = cmp_ilt %v_6, 6: Int
-    je %v_9, b_7, b_10
+  b_6 {
+    %v_7 = cmp_ilt %v_8, 6: Int
+    je %v_7, b_5, b_9
   }
 
-  b_10 {
-    %v_11 = add %v_1, 12: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = load %v_1, 8: Ptr
-    %v_15 = sext %by: Long
-    %v_16 = mul %v_15, 24: Long
-    jmp b_17
+  b_9 {
+    %v_10 = add %v_1, 12: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cast %v_11: Long
+    %v_13 = load %v_1, 8: Ptr
+    %v_14 = sext %by: Long
+    %v_15 = mul %v_14, 24: Long
+    jmp b_16
   }
 
   b_17 {
-    %v_18 = phi [b_10, 0], [b_19, %v_20]: Int
-    %v_21 = phi [b_10, 0], [b_19, %v_22]: Int
-    %v_23 = phi [b_10, %v_14], [b_19, %v_24]: Ptr
-    %v_25 = cmp_ilt %v_18, 6: Int
-    je %v_25, b_26, b_27
+    %v_18 = cmp_ilt %v_19, 6: Int
+    %v_20 = add %v_21, %v_15: Ptr
+    je %v_18, b_16, b_22
   }
 
-  b_27 {
+  b_22 {
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_1
-    ret %v_21
+    ret %v_23
   }
 
-  b_26 {
-    %v_28 = sext %v_18: Long
-    %v_29 = cmp_ge %v_28, %v_13: Int
-    je %v_29, b_30, b_31
+  b_16 {
+    %v_24 = phi [b_17, %v_19], [b_9, 0]: Int
+    %v_25 = phi [b_17, %v_23], [b_9, 0]: Int
+    %v_21 = phi [b_9, %v_13], [b_17, %v_20]: Ptr
+    %v_26 = sext %v_24: Long
+    %v_27 = cmp_ge %v_26, %v_12: Int
+    je %v_27, b_28, b_29
   }
 
-  b_31 {
-    %v_32 = loads %v_23, 4: Int
-    %v_33 = add %v_21, %v_32: Int
-    jmp b_19
+  b_29 {
+    %v_30 = loads %v_21, 4: Int
+    %v_31 = add %v_25, %v_30: Int
+    jmp b_32
   }
 
-  b_19 {
-    %v_34 = add %v_23, 16: Ptr
-    %v_35 = loads %v_34, 4: Int
-    %v_22 = add %v_33, %v_35: Int
-    %v_20 = add %v_18, %by: Int
-    %v_24 = add %v_23, %v_16: Ptr
+  b_32 {
+    %v_33 = add %v_21, 16: Ptr
+    %v_34 = loads %v_33, 4: Int
+    %v_23 = add %v_31, %v_34: Int
+    %v_19 = add %v_24, %by: Int
     jmp b_17
   }
 
-  b_30 {
-    %v_36 = syscall 60, 134: Long
+  b_28 {
+    %v_35 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_7 {
-    %v_37 = imul %v_6, 10: Int
+  b_5 {
+    %v_36 = phi [b_6, %v_8], [b_0, 0]: Int
+    %v_37 = imul %v_36, 10: Int
     %v_38 = alloca 24, 4: Ptr
-    store %v_38, %v_6, 4
+    store %v_38, %v_36, 4
     %v_39 = add %v_38, 4: Ptr
     store %v_39, 0, 4
     %v_40 = add %v_38, 8: Ptr
@@ -579,8 +579,8 @@ strided<complex>(%by: Int): Int {
     %v_43 = add %v_38, 20: Ptr
     store %v_43, 0, 4
     call_complex push(Cell), %v_1, %v_38
-    %v_8 = add %v_6, 1: Int
-    jmp b_5
+    %v_8 = add %v_36, 1: Int
+    jmp b_6
   }
 }
 
@@ -596,63 +596,63 @@ everyOther<complex>(): Int {
     jmp b_5
   }
 
-  b_5 {
-    %v_6 = phi [b_0, 0], [b_7, %v_8]: Int
-    %v_9 = cmp_ilt %v_6, 6: Int
-    je %v_9, b_7, b_10
+  b_6 {
+    %v_7 = cmp_ilt %v_8, 6: Int
+    je %v_7, b_5, b_9
   }
 
-  b_10 {
-    %v_11 = add %v_1, 12: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = load %v_1, 8: Ptr
-    jmp b_15
+  b_9 {
+    %v_10 = add %v_1, 12: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cast %v_11: Long
+    %v_13 = load %v_1, 8: Ptr
+    jmp b_14
   }
 
   b_15 {
-    %v_16 = phi [b_10, 0], [b_17, %v_18]: Int
-    %v_19 = phi [b_10, 0], [b_17, %v_20]: Int
-    %v_21 = phi [b_10, %v_14], [b_17, %v_22]: Ptr
-    %v_23 = cmp_ilt %v_16, 6: Int
-    je %v_23, b_24, b_25
+    %v_16 = cmp_ilt %v_17, 6: Int
+    %v_18 = add %v_19, 48: Ptr
+    je %v_16, b_14, b_20
   }
 
-  b_25 {
+  b_20 {
     call_complex Reclaim(Array(a)).reclaim(Cell), %v_1
-    ret %v_19
+    ret %v_21
   }
 
-  b_24 {
-    %v_26 = sext %v_16: Long
-    %v_27 = cmp_ge %v_26, %v_13: Int
-    je %v_27, b_28, b_29
+  b_14 {
+    %v_22 = phi [b_15, %v_17], [b_9, 0]: Int
+    %v_23 = phi [b_15, %v_21], [b_9, 0]: Int
+    %v_19 = phi [b_9, %v_13], [b_15, %v_18]: Ptr
+    %v_24 = sext %v_22: Long
+    %v_25 = cmp_ge %v_24, %v_12: Int
+    je %v_25, b_26, b_27
   }
 
-  b_29 {
-    %v_30 = loads %v_21, 4: Int
-    %v_31 = add %v_19, %v_30: Int
-    jmp b_17
+  b_27 {
+    %v_28 = loads %v_19, 4: Int
+    %v_29 = add %v_23, %v_28: Int
+    jmp b_30
   }
 
-  b_17 {
-    %v_32 = add %v_21, 16: Ptr
-    %v_33 = loads %v_32, 4: Int
-    %v_20 = add %v_31, %v_33: Int
-    %v_18 = add %v_16, 2: Int
-    %v_22 = add %v_21, 48: Ptr
+  b_30 {
+    %v_31 = add %v_19, 16: Ptr
+    %v_32 = loads %v_31, 4: Int
+    %v_21 = add %v_29, %v_32: Int
+    %v_17 = add %v_22, 2: Int
     jmp b_15
   }
 
-  b_28 {
-    %v_34 = syscall 60, 134: Long
+  b_26 {
+    %v_33 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_7 {
-    %v_35 = imul %v_6, 10: Int
+  b_5 {
+    %v_34 = phi [b_6, %v_8], [b_0, 0]: Int
+    %v_35 = imul %v_34, 10: Int
     %v_36 = alloca 24, 4: Ptr
-    store %v_36, %v_6, 4
+    store %v_36, %v_34, 4
     %v_37 = add %v_36, 4: Ptr
     store %v_37, 0, 4
     %v_38 = add %v_36, 8: Ptr
@@ -664,8 +664,8 @@ everyOther<complex>(): Int {
     %v_41 = add %v_36, 20: Ptr
     store %v_41, 0, 4
     call_complex push(Cell), %v_1, %v_36
-    %v_8 = add %v_6, 1: Int
-    jmp b_5
+    %v_8 = add %v_34, 1: Int
+    jmp b_6
   }
 }
 

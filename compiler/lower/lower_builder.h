@@ -70,6 +70,96 @@ inline LowerInst* nop(LowerBase base, LowerModule& module, LowerBlock& block) {
     return block.addInst(base, new (module.arena) LowerInst(LowerInst::Nop));
 }
 
+/*
+ * The two operations on a phi's *alternatives*, which are the ones that cannot be edits.
+ *
+ * A phi's alternatives are allocated with it - the values and their source blocks sit past the
+ * instruction in one block of memory - so there is no room to add one and no way to take one out. A
+ * pass that changes which edges reach a block therefore has to build a replacement, and both passes
+ * that do (lower_thread.cpp and lower_merge.cpp) were separately about to.
+ *
+ * They are here for the reason the three above are: an alternative is an operand, so every one that
+ * moves has to move on both sides of the use list, and a rebuild that forgets the old phi's readers
+ * leaves an IR that prints correctly and walks wrongly.
+ */
+
+// An unattached phi with room for a stated number of alternatives, filled in and added to a block by
+// the caller - adding it is what registers its reads, so the whole group has to be settled first.
+inline LowerInstPhi* makePhi(Region<LowerRegion>& arena, LowerType type, U32 alternatives) {
+    auto storage = arena.alloc(
+        sizeof(LowerInstPhi) +
+        sizeof(LowerPtr<LowerValue>) * alternatives +
+        sizeof(LowerPtr<LowerBlock>) * alternatives);
+
+    auto phi = new (storage) LowerInstPhi(StringId(), type);
+    phi->usedCount = alternatives;
+    return phi;
+}
+
+/*
+ * One phi rebuilt without the alternatives whose edges have gone, in place of the one it replaces.
+ *
+ * The replacement takes the old one's result name, its source location and its readers, so nothing
+ * outside the block can tell that the instruction is a different one. `removed` is any container of
+ * `LowerBlock*` - a phi naming a departed block on two edges loses both, which is what makes this a
+ * filter rather than a subtraction of one entry.
+ */
+template<class Blocks>
+inline void narrowPhi(LowerBase base, Region<LowerRegion>& arena, LowerBlock* block,
+                      LowerInstPhi* phi, const Blocks& removed)
+{
+    auto used = phi->used();
+    auto sources = phi->sources();
+
+    SmallArray<LowerPtr<LowerValue>, 8> keptValues;
+    SmallArray<LowerPtr<LowerBlock>, 8> keptSources;
+
+    for(Size i = 0; i < used.length; i++) {
+        auto gone = false;
+        for(auto departed: removed) {
+            if(base[sources[i]] == departed) { gone = true; break; }
+        }
+
+        if(gone) continue;
+
+        keptValues.push(used.ptr[i]);
+        keptSources.push(sources[i]);
+    }
+
+    auto replacement = makePhi(arena, phi->result.type, U32(keptValues.size()));
+    replacement->source = phi->source;
+    replacement->result.name = phi->result.name;
+
+    for(Size i = 0; i < keptValues.size(); i++) {
+        replacement->used().ptr[i] = keptValues[i];
+        replacement->sources()[i] = keptSources[i];
+    }
+
+    detach(base, (LowerInst*)phi);
+    block->addInst(base, replacement);
+    replaceUses(base, arena, ((LowerInstSingle*)phi)->created().ptr - base,
+                &replacement->result - base);
+
+    for(Size i = 0; i < block->phis.size(); i++) {
+        if(base[block->phis.get(base, i)] != phi) continue;
+
+        block->phis.remove(base, i);
+        break;
+    }
+}
+
+// Every phi of a block rebuilt without the departed edges - the shape both callers want, and the one
+// that has to copy the list first: the rebuild replaces entries in the very list it walks.
+template<class Blocks>
+inline void narrowBlockPhis(LowerBase base, Region<LowerRegion>& arena, LowerBlock* block,
+                            const Blocks& removed)
+{
+    SmallArray<LowerInstPhi*, 8> phis;
+    for(auto phiPtr: block->phis.contents(base)) phis.push(base[phiPtr]);
+
+    for(auto phi: phis) narrowPhi(base, arena, block, phi, removed);
+}
+
 // The three builders that can produce a value already known ask lower_fold.h first. It is asked here
 // rather than at the sites that build bit arithmetic because every producer of lower IR comes through
 // these, and because an operand is always built before its consumer - so a chain of operations over

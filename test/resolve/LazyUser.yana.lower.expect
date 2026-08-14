@@ -166,44 +166,44 @@ main<complex>(): Int {
     jmp b_74
   }
 
-  b_74 {
-    %v_75 = phi [b_69, %v_73], [b_76, %v_77]: Int
-    %v_78 = phi [b_69, 0], [b_76, %v_79]: Int
-    %v_80 = cmp_ilt %v_78, 3: Int
-    je %v_80, b_76, b_81
+  b_75 {
+    %v_76 = cmp_ilt %v_77, 3: Int
+    je %v_76, b_74, b_78
+  }
+
+  b_78 {
+    %v_79 = cmp_eq %v_80, 16387: Int
+    je %v_79, b_81, b_82
   }
 
   b_81 {
-    %v_82 = cmp_eq %v_75, 16387: Int
-    je %v_82, b_83, b_84
+    %v_83 = add %v_71, 16384: Int
+    jmp b_82
   }
 
-  b_83 {
-    %v_85 = add %v_71, 16384: Int
-    jmp b_84
+  b_82 {
+    %v_84 = phi [b_78, %v_71], [b_81, %v_83]: Int
+    %v_85 = loads @effects, 4: Int
+    %v_86 = cmp_eq %v_85, 51622: Int
+    je %v_86, b_87, b_88
   }
 
-  b_84 {
-    %v_86 = phi [b_81, %v_71], [b_83, %v_85]: Int
-    %v_87 = loads @effects, 4: Int
-    %v_88 = cmp_eq %v_87, 51622: Int
-    je %v_88, b_89, b_90
+  b_87 {
+    %v_89 = add %v_84, 32768: Int
+    jmp b_88
   }
 
-  b_89 {
-    %v_91 = add %v_86, 32768: Int
-    jmp b_90
+  b_88 {
+    %v_90 = phi [b_82, %v_84], [b_87, %v_89]: Int
+    ret %v_90
   }
 
-  b_90 {
-    %v_92 = phi [b_84, %v_86], [b_89, %v_91]: Int
-    ret %v_92
-  }
-
-  b_76 {
-    %v_77 = add %v_75, 1: Int
-    %v_79 = add %v_78, 1: Int
-    jmp b_74
+  b_74 {
+    %v_91 = phi [b_75, %v_80], [b_69, %v_73]: Int
+    %v_92 = phi [b_75, %v_77], [b_69, 0]: Int
+    %v_80 = add %v_91, 1: Int
+    %v_77 = add %v_92, 1: Int
+    jmp b_75
   }
 }
 

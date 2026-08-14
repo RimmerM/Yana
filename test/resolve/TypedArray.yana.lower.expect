@@ -1837,51 +1837,50 @@ signedBytes<complex>(): Int {
     jmp b_30
   }
 
-  b_30 {
-    %v_31 = phi [b_25, 0], [b_32, %v_33]: Int
-    %v_34 = phi [b_25, 0], [b_32, %v_35]: Int
-    %v_36 = cmp_ilt %v_34, %v_14: Int
-    je %v_36, b_37, b_38
+  b_31 {
+    %v_32 = cmp_ilt %v_33, %v_14: Int
+    je %v_32, b_30, b_34
   }
 
-  b_38 {
+  b_34 {
     call_complex Reclaim(Array(a)).reclaim(I8), %v_1
-    jmp b_39
+    jmp b_35
   }
 
-  b_37 {
-    %v_40 = sext %v_34: Long
-    %v_41 = cmp_ge %v_40, 4: Int
-    je %v_41, b_24, b_42
+  b_30 {
+    %v_36 = phi [b_31, %v_37], [b_25, 0]: Int
+    %v_38 = phi [b_31, %v_33], [b_25, 0]: Int
+    %v_39 = sext %v_38: Long
+    %v_40 = cmp_ge %v_39, 4: Int
+    je %v_40, b_24, b_41
   }
 
-  b_42 {
-    %v_43 = add %v_29, %v_40: Ptr
-    %v_44 = loads %v_43, 1: Int
-    %v_45 = cast %v_44: Int
-    %v_33 = add %v_31, %v_45: Int
-    %v_46 = sub %v_14, %v_34: Int
-    %v_47 = cmp_ile %v_46, %v_15: Int
-    je %v_47, b_48, b_32
-  }
-
-  b_32 {
-    %v_35 = add %v_34, %v_15: Int
-    jmp b_30
+  b_41 {
+    %v_42 = add %v_29, %v_39: Ptr
+    %v_43 = loads %v_42, 1: Int
+    %v_44 = cast %v_43: Int
+    %v_37 = add %v_36, %v_44: Int
+    %v_45 = sub %v_14, %v_38: Int
+    %v_46 = cmp_ile %v_45, %v_15: Int
+    je %v_46, b_47, b_48
   }
 
   b_48 {
-    call_complex Reclaim(Array(a)).reclaim(I8), %v_1
-    jmp b_39
+    %v_33 = add %v_38, %v_15: Int
+    jmp b_31
   }
 
-  b_39 {
-    %v_49 = phi [b_38, %v_31], [b_48, %v_33]: Int
-    ret %v_49
+  b_47 {
+    call_complex Reclaim(Array(a)).reclaim(I8), %v_1
+    jmp b_35
+  }
+
+  b_35 {
+    ret %v_37
   }
 
   b_24 {
-    %v_50 = syscall 60, 134: Long
+    %v_49 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -1939,53 +1938,52 @@ floats<complex>(): Int {
     jmp b_29
   }
 
-  b_29 {
-    %v_30 = phi [b_24, 0], [b_31, %v_32]: Float
-    %v_33 = phi [b_24, 0], [b_31, %v_34]: Int
-    %v_35 = cmp_ilt %v_33, %v_13: Int
-    je %v_35, b_36, b_37
+  b_30 {
+    %v_31 = cmp_ilt %v_32, %v_13: Int
+    je %v_31, b_29, b_33
   }
 
-  b_37 {
+  b_33 {
     call_complex Reclaim(Array(a)).reclaim(Float), %v_1
-    jmp b_38
+    jmp b_34
   }
 
-  b_36 {
-    %v_39 = sext %v_33: Long
-    %v_40 = cmp_ge %v_39, 4: Int
-    je %v_40, b_23, b_41
+  b_29 {
+    %v_35 = phi [b_30, %v_36], [b_24, 0]: Float
+    %v_37 = phi [b_30, %v_32], [b_24, 0]: Int
+    %v_38 = sext %v_37: Long
+    %v_39 = cmp_ge %v_38, 4: Int
+    je %v_39, b_23, b_40
   }
 
-  b_41 {
-    %v_42 = shl %v_39, 2: Long
-    %v_43 = add %v_28, %v_42: Ptr
-    %v_44 = load %v_43, 4: Float
-    %v_32 = add %v_30, %v_44: Float
-    %v_45 = sub %v_13, %v_33: Int
-    %v_46 = cmp_ile %v_45, %v_14: Int
-    je %v_46, b_47, b_31
-  }
-
-  b_31 {
-    %v_34 = add %v_33, %v_14: Int
-    jmp b_29
+  b_40 {
+    %v_41 = shl %v_38, 2: Long
+    %v_42 = add %v_28, %v_41: Ptr
+    %v_43 = load %v_42, 4: Float
+    %v_36 = add %v_35, %v_43: Float
+    %v_44 = sub %v_13, %v_37: Int
+    %v_45 = cmp_ile %v_44, %v_14: Int
+    je %v_45, b_46, b_47
   }
 
   b_47 {
-    call_complex Reclaim(Array(a)).reclaim(Float), %v_1
-    jmp b_38
+    %v_32 = add %v_37, %v_14: Int
+    jmp b_30
   }
 
-  b_38 {
-    %v_48 = phi [b_37, %v_30], [b_47, %v_32]: Float
-    %v_49 = mul %v_48, 16: Float
-    %v_50 = ftoi %v_49: Int
-    ret %v_50
+  b_46 {
+    call_complex Reclaim(Array(a)).reclaim(Float), %v_1
+    jmp b_34
+  }
+
+  b_34 {
+    %v_48 = mul %v_36, 16: Float
+    %v_49 = ftoi %v_48: Int
+    ret %v_49
   }
 
   b_23 {
-    %v_51 = syscall 60, 134: Long
+    %v_50 = syscall 60, 134: Long
     unreachable 
   }
 }

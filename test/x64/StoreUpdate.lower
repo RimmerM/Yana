@@ -1,0 +1,237 @@
+# An accumulating write, folded into one memory-destination instruction - §45.2 of
+# test/bench/findings.md.
+#
+# The group-1 ALU writes its result back through the very r/m field it read its operand from, so a
+# load, an operation on it and a store back to the same place are one instruction: `add [rdi], esi`
+# in place of three. What to look for:
+#
+#   - **`x86_storeadd` and its four siblings, with no load and no `store` beside them.** The address
+#     folds into the update exactly as it folds into the store it replaced, so a subscripted update
+#     is one instruction with a SIB byte and nothing in front of it.
+#   - **the constant right-hand side**, which is the group-1 `imm8`/`imm32` pair reached through an
+#     address - and where the fold removes a register as well as two instructions.
+#   - **what is refused, and each for its own reason**: an operation with a second reader, a load
+#     with one, a store through a *different* pointer, a subtraction whose location is on the right,
+#     a call between the load and the store, and - the one that is about the machine rather than
+#     about the program - a store inside a loop, where the read-modify-write measured slower than
+#     the three instructions it replaces.
+
+sink<complex>(%p: Ptr): Int {
+    { ret 0 }
+}
+
+# The whole of it: a load, an add and a store through one pointer.
+update(%p: Ptr, %v: Int) {
+    {
+        %old = load %p, 4: Int
+        %new = add %old, %v: Int
+        store %p, %new, 4
+        ret
+    }
+}
+
+# The other four operations, each through its own pointer so that nothing here is about ordering.
+bitwise(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %v: Int) {
+    {
+        %x = load %a, 4: Int
+        %x2 = sub %x, %v: Int
+        store %a, %x2, 4
+
+        %y = load %b, 4: Int
+        %y2 = and %y, %v: Int
+        store %b, %y2, 4
+
+        %z = load %c, 4: Int
+        %z2 = or %z, %v: Int
+        store %c, %z2, 4
+
+        %w = load %d, 4: Int
+        %w2 = xor %w, %v: Int
+        store %d, %w2, 4
+        ret
+    }
+}
+
+# The operand exchanged: an addition arrives either way round, and the location is a location
+# wherever it was written. A subtraction is the one that cannot - see `reversed` below.
+exchanged(%p: Ptr, %v: Int) {
+    {
+        %old = load %p, 4: Int
+        %new = add %v, %old: Int
+        store %p, %new, 4
+        ret
+    }
+}
+
+# A constant right-hand side at both immediate widths, which is the group-1 `imm8`/`imm32` pair
+# reached through an address: `0x83` carries a sign-extended byte and `0x81` four. This is what keeps
+# `xs[i] += 1` from putting its constant back into a register.
+constants(%p: Ptr, %q: Ptr) {
+    {
+        %a = load %p, 4: Int
+        %a2 = add %a, 1: Int
+        store %p, %a2, 4
+
+        %b = load %q, 4: Int
+        %b2 = add %b, 100000: Int
+        store %q, %b2, 4
+        ret
+    }
+}
+
+# The 64-bit width, which is the same instruction with a REX.W in front of it.
+wide(%p: Ptr, %v: Long) {
+    {
+        %old = load %p, 8: Long
+        %new = or %old, %v: Long
+        store %p, %new, 8
+        ret
+    }
+}
+
+# The narrow widths, which are the same operation over fewer bytes: the low `w` bits of the result
+# depend only on the low `w` bits of the operands, so a byte update is exact whatever the value's
+# own width was.
+narrow(%p: Ptr, %q: Ptr, %v: Int) {
+    {
+        %a = load %p, 1: Int
+        %a2 = add %a, %v: Int
+        store %p, %a2, 1
+
+        %b = load %q, 2: Int
+        %b2 = xor %b, %v: Int
+        store %q, %b2, 2
+        ret
+    }
+}
+
+# The byte form with its value in a register the 8-bit encoding cannot name without a REX prefix:
+# `sil` is `%dh` without one, so this is the case `byteRegField` forces the prefix for.
+byteRegister(%p: Ptr, %v: Int) {
+    {
+        %old = load %p, 1: Int
+        %new = add %old, %v: Int
+        store %p, %new, 1
+        ret
+    }
+}
+
+# A subscripted element, which is where this is worth having: the address folds into the update, so
+# the whole of `xs[i] += v` is one instruction.
+element(%p: Ptr, %i: Long, %v: Int) {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %old = load %q, 4: Int
+        %new = add %old, %v: Int
+        store %q, %new, 4
+        ret
+    }
+}
+
+# The load in the block *above* the store's, which is the shape a bounds-checked subscript has: the
+# check is a branch, so the two halves of one line are on two sides of an edge. The store's block has
+# one way in, so every path that reaches it has just run the tail of the load's.
+checked(%p: Ptr, %i: Long, %n: Long, %v: Int) {
+    entry {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %old = load %q, 4: Int
+        je (cmp_ge %i, %n), abort, body
+    }
+
+    body {
+        %new = add %old, %v: Int
+        store %q, %new, 4
+        ret
+    }
+
+    abort {
+        unreachable
+    }
+}
+
+# A call between the load and the store, which can write anything the pointer names.
+across(%p: Ptr, %v: Int) {
+    {
+        %old = load %p, 4: Int
+        %r = call_complex sink, %p: Int
+        %new = add %old, %v: Int
+        store %p, %new, 4
+        ret
+    }
+}
+
+# A store through a different pointer, which is not an update of the location the load read.
+elsewhere(%p: Ptr, %q: Ptr, %v: Int) {
+    {
+        %old = load %p, 4: Int
+        %new = add %old, %v: Int
+        store %q, %new, 4
+        ret
+    }
+}
+
+# A second reader of the sum, which has to be computed into a register anyway.
+shared(%p: Ptr, %v: Int): Int {
+    {
+        %old = load %p, 4: Int
+        %new = add %old, %v: Int
+        store %p, %new, 4
+        ret %new
+    }
+}
+
+# And a second reader of the *load*, which is the same refusal one level down: the value has to be
+# in a register, so folding the store would perform the access twice.
+reread(%p: Ptr, %v: Int): Int {
+    {
+        %old = load %p, 4: Int
+        %new = add %old, %v: Int
+        store %p, %new, 4
+        ret %old
+    }
+}
+
+# `v - [m]`, which is a different number from the `[m] - v` the machine performs. The four
+# commutative operations are folded from either side and this one from neither.
+reversed(%p: Ptr, %v: Int) {
+    {
+        %old = load %p, 4: Int
+        %new = sub %v, %old: Int
+        store %p, %new, 4
+        ret
+    }
+}
+
+# The store inside a loop, which is the refusal that is about the machine rather than about the
+# program: measured, the read-modify-write is slower than the three instructions it replaces in every
+# loop it was put in, so the loop keeps them - `mov ; add ; mov` and a register.
+counted(%p: Ptr, %src: Ptr, %n: Long) {
+    entry {
+        %zero = cast 0: Long
+        %one = cast 1: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        je (cmp_ge %i, %n), exit, body
+    }
+
+    body {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %s = add %src, %o: Ptr
+        %v = load %s, 4: Int
+        %old = load %q, 4: Int
+        %new = add %old, %v: Int
+        store %q, %new, 4
+        %i2 = add %i, %one: Long
+        jmp head
+    }
+
+    exit {
+        ret
+    }
+}

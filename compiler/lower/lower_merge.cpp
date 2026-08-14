@@ -386,21 +386,6 @@ static void dropBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
     for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
 }
 
-// An unattached phi with room for a stated number of alternatives, filled in and added to a block by
-// the caller - the same shape lower_induction.cpp builds one in, because adding it is what registers
-// its reads. A phi's alternatives are allocated with it, which is why the whole group has to be
-// settled before the first one is built.
-static LowerInstPhi* makePhi(Region<LowerRegion>& arena, LowerType type, U32 alternatives) {
-    auto storage = arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * alternatives +
-        sizeof(LowerPtr<LowerBlock>) * alternatives);
-
-    auto phi = new (storage) LowerInstPhi(StringId(), type);
-    phi->usedCount = alternatives;
-    return phi;
-}
-
 /*
  * One group of copies, collapsed into the first of them.
  *
