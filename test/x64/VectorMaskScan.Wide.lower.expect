@@ -1,0 +1,63 @@
+
+searchWide<complex>(%a: i8x32, %b: i8x32): Int {
+  start {
+    %m = cmp_eq %a, %b: m8x32
+    %any = vreduce_or %m: Int
+    je %any, hit, miss
+  }
+
+  hit {
+    %f = vreduce_first %m: Int
+    ret %f
+  }
+
+  miss {
+    ret 18446744073709551615
+  }
+}
+
+searchWideLanes<complex>(%a: i32x8, %b: i32x8): Int {
+  start {
+    %m = cmp_eq %a, %b: m32x8
+    %any = vreduce_or %m: Int
+    je %any, hit, miss
+  }
+
+  hit {
+    %f = vreduce_first %m: Int
+    ret %f
+  }
+
+  miss {
+    ret 18446744073709551615
+  }
+}
+
+
+--- codegen: searchWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd74c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fdd7c0
+  cttz_width uses=[rax] creates=[rax]  => f30fbcc0
+  je uses=[rax] creates=[]  => 7306
+block miss:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
+block hit:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: searchWideLanes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  je uses=[rax] creates=[]  => 7506
+block miss:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
+block hit:
+  ret uses=[rax] creates=[]  => c3

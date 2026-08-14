@@ -225,7 +225,26 @@ struct LowerInst {
          * and `v & 0` is `+0.0`, which is what the select's zero arm held.
          */
         X86MaskAnd,
-        LastInst = X86MaskAnd,
+
+        /*
+         * A vector's lanes rearranged by an index held in another *vector* - AVX2's `vpermd` and
+         * `vpermps`.
+         *
+         * Backend-private on `X86MaskAnd`'s terms, and for a sharper reason than either of the two
+         * above it: the portable spelling is `VecShuffle`, whose pattern is part of the instruction,
+         * and this is the one machine where a general pattern is not part of the instruction at all.
+         * Every shuffle AVX2 has works inside each 128-bit half; the one that crosses them takes its
+         * pattern out of a register, which means the pattern has to become a **value** - a pooled
+         * `.rodata` load with a live range and a register of its own - before it can be an operand.
+         * A form cannot do that, because a form does not create operands.
+         *
+         * So `lowerWideLanePermutes` is what turns the one into the other, and what arrives here is
+         * a shuffle that has already had its pattern materialized. `indices` names a source lane per
+         * result lane, as `VecShuffle`'s pattern does, over the **one** source: `vpermd` reads a
+         * single vector, so a cross-half pattern naming both sources is refused rather than lowered.
+         */
+        X86Permute,
+        LastInst = X86Permute,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -875,6 +894,21 @@ struct LowerInstX86MinMax: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> lhs, rhs;
+};
+
+// A vector permuted by a vector of lane indices - see LowerInst::X86Permute. The operand order is
+// the machine's: `vpermd ymm1, ymm2, ymm3` reads the indices out of `ymm2`, which the encoding puts
+// in `vvvv`, and the vector being permuted out of the r/m operand.
+struct LowerInstX86Permute: LowerInstSingle {
+    LowerInstX86Permute(StringId name, LowerType type, LowerPtr<LowerValue> indices,
+                        LowerPtr<LowerValue> from):
+        LowerInstSingle(X86Permute, name, type), indices(indices), from(from)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> indices, from;
 };
 
 // A vector masked by a mask of its own shape - see LowerInst::X86MaskAnd, which states why the

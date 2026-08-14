@@ -1634,12 +1634,17 @@ static void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) 
  * lane of the count holds the same scalar by construction, which is exactly what one shared count
  * means, so the rewrite is exact rather than a narrowing of what was asked for.
  *
- * Only a splat of a *constant* is unwrapped. A splat of a runtime value would want the machine's
- * other form, whose count is the low quadword of a vector register - and handing it this splat
- * unchanged would be wrong rather than slow: `pslld` reads the whole low *quadword* as one count, so
- * a 32-bit lane splat of 7 arrives as 0x0000000700000007 and shifts every lane out. That form wants
- * the scalar moved into lane zero with the rest cleared, which is a transfer this backend does not
- * have yet; `unsupportedVectorReason` still refuses it, and says which of the two cases it is now.
+ * **Every splat is unwrapped, not only a constant one**, and the argument is the same for both: a
+ * splat's lanes all hold the scalar, and both machine forms want that scalar. ~~A splat of a runtime
+ * value would want the machine's other form, which this backend does not have~~ - it has it now
+ * (`FormVShlReg` and its two siblings), and what that form takes is a scalar in a general register,
+ * so this pass is what puts it in reach.
+ *
+ * Handing either form the splat *unchanged* would be wrong rather than slow, which is worth keeping
+ * written down: `pslld` reads the whole low **quadword** as one count, so a 32-bit lane splat of 7
+ * arrives as 0x0000000700000007 and shifts every lane out. The unwrapping is what makes the count a
+ * number rather than a bit pattern; the `movd` in the register form's expansion is what keeps it
+ * one.
  *
  * **Above `poolVectorConstants`**, which is the whole of where this may sit: a constant splat is a
  * `.rodata` load by the time that pass has run, and a load is not a count this can read. It is the
@@ -1665,8 +1670,6 @@ static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun
             if(count->inst()->kind != LowerInst::VecSplat) continue;
 
             auto source = base[((LowerInstVecSplat*)count->inst())->from];
-            if(source->inst()->kind != LowerInst::Imm) continue;
-
             setOperand(base, fun.arena, inst, shift->rhs, source);
 
             /*
@@ -1678,7 +1681,8 @@ static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun
              *
              * The splat sits above the shift, so removing it moves the walk back one - and its own
              * source may be dead in turn, which is what the second removal is for. Nothing deeper
-             * than that: a constant is the end of the chain.
+             * than that: a constant is the end of the chain, and a runtime count is a value some
+             * other instruction computed and this pass has no business following.
              */
             // The cursor moves back only for a removal from *this* block: either of the two may have
             // been built in another one - a constant hoisted to the entry block is the ordinary case
@@ -1691,7 +1695,13 @@ static void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun
             if(!count->uses.isEmpty()) continue;
 
             removeAndTrack(count->inst());
-            if(source->uses.isEmpty()) removeAndTrack(source->inst());
+
+            // The scalar goes only if it is a constant with nothing left reading it. A runtime count
+            // is somebody else's instruction and removing it here would be a dead-code pass, which
+            // this is not - and it still has a reader anyway, the shift this just gave it to.
+            if(source->uses.isEmpty() && source->inst()->kind == LowerInst::Imm) {
+                removeAndTrack(source->inst());
+            }
         }
     }
 }
@@ -5460,6 +5470,113 @@ static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun
 }
 
 /*
+ * A 256-bit lane pattern that no single shuffle instruction expresses, made into `vpermd`/`vpermps`.
+ *
+ * **Every shuffle AVX2 has works inside each 128-bit half**, and the one exception moves halves
+ * *entire* (`vperm2f128`). So an eight-lane 32-bit pattern like `[0, 4, 1, 5, 2, 6, 3, 7]` - an
+ * interleave, and one instruction at four lanes - is not an instruction at this width at all, and
+ * `wideShuffleChoice` answered nothing for it.
+ *
+ * `vpermd` is the general answer and the reason this pass has to exist rather than a form: its
+ * pattern is **one lane index per result lane, held in a vector register**. A form cannot produce
+ * that, because a form does not create operands - so the pattern has to stop being part of the
+ * instruction and become a value, which is a `.rodata` entry, a load, a live range and a register.
+ * That is the whole of what happens here, and it is why the note in `wideShuffleChoice` said this
+ * needed the vector constant pool: it is the pool that makes a pattern into a value.
+ *
+ * **One source only.** `vpermd` reads a single vector, so a pattern naming lanes of both sources is
+ * left refused - two permutes and a blend would express one, and whether that is worth three
+ * instructions and two pooled constants is a question this pass does not answer.
+ *
+ * The index vector is an **integer** vector at both rows, `vpermps` included: a lane index is a
+ * number whatever domain the lanes it indexes are read in. Only the low three bits of each index are
+ * read by the instruction, so nothing here has to mask.
+ */
+static void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
+    // The one feature level that has the instruction, and the one that can hold a value wide enough
+    // to need it - `targetVectorBytes` answers 32 here and 16 below, so a function compiled without
+    // AVX2 has no eight-lane vector for this to be asked about.
+    if(!(targetFeatures() & kFeatureAvx2)) return;
+
+    auto& module = *fun.module;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecShuffle) continue;
+
+            auto shuffle = (LowerInstVecShuffle*)inst;
+            auto type = shuffle->result.type;
+
+            // The one shape with a row: 32-bit lanes filling a 256-bit register. A 64-bit lane's
+            // general permute is `vpermq`, whose pattern is an immediate and which therefore belongs
+            // to `wideShuffleChoice` rather than here; a narrower one has no crossing permute below
+            // AVX-512 at all.
+            if(!isWideVector(type) || laneBytes(type.lane) != 4) continue;
+
+            // An instruction already expresses it, which is cheaper by a pooled constant and a
+            // register - so this asks the same function the form selection will ask, rather than a
+            // restatement of it that could drift.
+            if(packedShuffleChoice(inst)) continue;
+
+            auto lanes = type.lanes();
+            auto pattern = shuffle->pattern();
+
+            /*
+             * Which of the two sources every entry names, and nothing if they name both.
+             *
+             * The IR numbers the second source's lanes from `lanes` upward, so this is one
+             * comparison per entry - and the answer is the operand `vpermd` will read, with the
+             * indices then written relative to it.
+             */
+            auto second = pattern[0] >= lanes;
+            auto oneSource = true;
+
+            for(U32 k = 0; k < lanes && oneSource; k++) {
+                if((pattern[k] >= lanes) != second) oneSource = false;
+            }
+
+            if(!oneSource) continue;
+
+            // The indices, one 32-bit lane each, little-endian like every other entry this pool
+            // holds. `vpermd` reads the low three bits of each, so an index relative to the source
+            // it belongs to is the whole of what has to be written.
+            U8 bytes[kMaxVectorBytes] = {};
+            auto size = Size(type.byteWidth());
+
+            for(U32 k = 0; k < lanes; k++) {
+                bytes[k * 4] = U8(second ? pattern[k] - lanes : pattern[k]);
+            }
+
+            auto indexType = LowerType { LowerLane::Int32, type.laneShift, false };
+            auto global = pooledBytes(ctx, module, bytes, size);
+            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+            auto load = new (fun.arena) LowerInstLoad(
+                &address->result - base, StringId(), indexType, U32(size), false
+            );
+
+            auto source = second ? shuffle->right : shuffle->left;
+            auto permute = new (fun.arena) LowerInstX86Permute(
+                shuffle->result.name, type, &load->result - base, source
+            );
+
+            insertInstAt(base, block, i, address);
+            insertInstAt(base, block, i + 1, load);
+            insertInstAt(base, block, i + 2, permute);
+
+            replaceAllUses(base, &shuffle->result, &permute->result);
+            removeInst(base, inst);
+
+            // Three inserted and one removed, and the walk carries on below the permute - which
+            // reads a load this pass has no further business with.
+            i += 2;
+        }
+    }
+}
+
+/*
  * §41.6 A vector constant defined above a call it is live across.
  *
  * `sumVectors` builds its zero accumulator at the top of the function and then calls `elements` to
@@ -5704,6 +5821,242 @@ static void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun)
 // constant is embedded, so a comparison looked at first would be told that an instruction about to
 // start writing the flags does not. Nothing after this pass moves a form's flags effect, which is
 // what makes the window the folding cleared still empty when the bytes are written.
+/*
+ * §42 The mask scan and the branch that guards it, made into one instruction.
+ *
+ * A search over vectors compiles to two consumers of one movemask in two blocks, which §37 already
+ * placed one instruction for:
+ *
+ *     %bits = pmovmskb %hits          the movemask, placed once
+ *     %c    = cmp neq %bits, 0        `any(hits)`
+ *     je %c -> hit, miss
+ *   hit:
+ *     %m    = or %bits, 0x10000       the sentinel, so that `bsf` never sees zero
+ *     %f    = bsf %m                  `firstSet(hits)`
+ *
+ * **Two things are being computed twice here, and the machine computes both of them once.** `bsf`
+ * sets ZF exactly when its operand was zero - which is the whole of what the comparison above it
+ * asked - and its answer for a *nonzero* operand needs no sentinel, because the sentinel was only
+ * ever there to keep the operand from being zero. So the four instructions are two:
+ *
+ *     %f = bsf %bits ; jne hit
+ *
+ * Two rewrites, and the second subsumes the first where it applies:
+ *
+ * - **the sentinel goes** wherever `%bits` is proved nonzero where the scan runs. The proof is the
+ *   guard read *locally*, exactly as `isNonNegativeIn` reads one: the scan's block has a single
+ *   predecessor, and that predecessor branches here on this mask being nonzero. No dominator tree
+ *   and no reasoning about paths - one predecessor is what makes "the branch was taken" true of
+ *   every entry to the block.
+ * - **the scan moves into the guard's block and the comparison goes**, the branch reading the scan's
+ *   own flags. `FormJccLive` is already the form for that - a branch whose condition is a live
+ *   register it does not read - so what this needs from the form table is nothing.
+ *
+ * **The two scans answer the emptiness question in different flags**, which is the one thing here
+ * that is not symmetric. `bsf` leaves its destination undefined for a zero operand and says so in
+ * ZF; `tzcnt` answers the operand's width and says so in **CF**, ZF meaning something else entirely
+ * (that the answer was zero, which is bit zero being set - the opposite of empty). So the condition
+ * the branch carries is chosen by which of the two the scan is, and reading ZF off a `tzcnt` would
+ * be a search that answered "found" exactly when it had found the mask's *first* lane.
+ *
+ * Hoisting the scan above the guard is speculation, and the cheapest kind: neither instruction
+ * faults, neither touches memory, and the register it writes is dead on the arm that did not want
+ * it. What the miss path pays is nothing at all - the `test` it used to run is what the scan
+ * replaces.
+ */
+struct MaskScanGuard {
+    LowerInstCmp* compare = nullptr;  // the `any` test, in the guard's block
+    LowerInst* scan = nullptr;        // the `bsf`/`tzcnt`, in the guarded block
+    LowerInst* sentinel = nullptr;    // the `or` in front of it, where there is one
+    LowerValue* bits = nullptr;       // the movemask both of them read
+    bool nonzeroIsThen = false;       // whether the guarded block is the branch's `then` arm
+};
+
+// The comparison a branch reads, where it is `%bits == 0` or `%bits != 0` and nothing else. The
+// constant is asked for by value rather than by `isImm`, which answers "already embedded" and is
+// false this early - see the note on it in §37.
+static LowerInstCmp* maskEmptinessTest(LowerBase base, LowerInst* terminator) {
+    if(terminator->kind != LowerInst::Je) return nullptr;
+
+    auto je = (LowerInstJe*)terminator;
+    auto condition = base[je->cond]->inst();
+    if(condition->kind != LowerInst::Cmp) return nullptr;
+
+    auto cmp = (LowerInstCmp*)condition;
+    if(cmp->getCmp() != LowerCmp::eq && cmp->getCmp() != LowerCmp::neq) return nullptr;
+    if(base[cmp->block] != base[terminator->block]) return nullptr;
+
+    /*
+     * **The branch has usually already been given this comparison's flags**, and that is not a
+     * reason to decline - it is the shape this arrives in.
+     *
+     * `tryMergeCompare` runs over the *guard's* block in the same walk and reaches it first, blocks
+     * being visited in order and a guard standing above what it guards. So by the time this asks,
+     * `%c` is implicit and the branch carries its relation. What has to be checked is that the
+     * relation is still this comparison's: a branch reading somebody else's flags names a condition
+     * that has nothing to do with the value `cond` points at, and rewriting it would be silent.
+     */
+    auto embedded = je->getEmbeddedCmp();
+    if(embedded && embedded.unwrap() != cmp->getCmp()) return nullptr;
+
+    auto rhs = base[cmp->rhs]->inst();
+    if(rhs->kind != LowerInst::Imm || ((LowerImm*)rhs)->i != 0) return nullptr;
+
+    return cmp;
+}
+
+// The scan at the top of a guarded block, with the sentinel that may stand in front of it. Answers
+// nothing unless it reads exactly the mask the guard tested.
+static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue* bits, MaskScanGuard& out) {
+    for(auto offset: block->instructions.contents(base)) {
+        auto inst = base[offset];
+
+        // A constant is not in the way of anything. The sentinel's own immediate is one of these and
+        // is the first instruction of the block in the ordinary case, an `Imm` being placed where it
+        // is read; skipping them is what lets this ask about the shape rather than the order.
+        if(inst->kind == LowerInst::Imm) continue;
+
+        if(inst->kind == LowerInst::Or) {
+            auto binary = (LowerInstBinary*)inst;
+            auto rhs = base[binary->rhs]->inst();
+
+            // The sentinel and nothing else: an `or` of *this* mask with a constant, read by one
+            // instruction. Anything else in the block is left alone and ends the search, since a
+            // scan below it would no longer be the first thing the block does.
+            if(base[binary->lhs] != bits || rhs->kind != LowerInst::Imm) return false;
+            if(binary->result.uses.size() != 1) return false;
+            if(out.sentinel) return false;
+
+            out.sentinel = inst;
+            bits = &binary->result;
+            continue;
+        }
+
+        if(inst->kind != LowerInst::Intrinsic) return false;
+
+        auto which = ((LowerInstIntrinsic*)inst)->getIntrinsic();
+        if(which != LowerIntrinsic::Cttz && which != LowerIntrinsic::CttzWidth) return false;
+        if(base[inst->used()[0]] != bits) return false;
+
+        out.scan = inst;
+        return true;
+    }
+
+    return false;
+}
+
+/*
+ * The whole shape, recognized from the guarded block.
+ *
+ * Read from the *guarded* block rather than from the guard, because that is the side the single
+ * predecessor is a property of - and the single predecessor is the whole proof. A guard whose taken
+ * arm has two ways into it proves nothing about the mask on the second one.
+ */
+static bool findMaskScanGuard(LowerBase base, LowerBlock* block, MaskScanGuard& out) {
+    if(block->incoming.size() != 1) return false;
+
+    auto from = base[block->incoming.get(base, 0)];
+    auto cmp = maskEmptinessTest(base, base[from->terminator]);
+    if(!cmp) return false;
+
+    auto je = (LowerInstJe*)base[from->terminator];
+    auto bits = base[cmp->lhs];
+
+    // Which arm this block is, and whether it is the one the mask is nonzero on. `neq` holds where
+    // the mask is nonzero, so the `then` arm is the nonzero one; `eq` is the other way round.
+    auto nonzeroIsThen = cmp->getCmp() == LowerCmp::neq;
+    auto nonzeroArm = base[nonzeroIsThen ? je->then : je->otherwise];
+    if(nonzeroArm != block) return false;
+
+    out.compare = cmp;
+    out.bits = bits;
+    out.nonzeroIsThen = nonzeroIsThen;
+
+    return findMaskScan(base, block, bits, out);
+}
+
+// Moves an instruction to just above `into`'s terminator. Only the lists change: every value it
+// reads keeps its use and its own result keeps its readers, so nothing outside the two blocks has to
+// be told - which is what makes this a placement change rather than a rewrite.
+static void moveInstToEndOf(LowerBase base, LowerInst* inst, LowerBlock* into) {
+    auto from = base[inst->block];
+    auto list = from->instructions.contents(base);
+
+    for(Size i = 0; i < list.size(); i++) {
+        if(base[list[i]] == inst) { from->instructions.remove(base, i); break; }
+    }
+
+    inst->block = into - base;
+    into->instructions.push(base[into->fun]->arena, inst - base);
+}
+
+static void fuseMaskScanIntoGuard(LowerBase base, LowerBlock* block) {
+    MaskScanGuard found;
+    if(!findMaskScanGuard(base, block, found)) return;
+
+    /*
+     * The sentinel, removed. `bsf` is undefined at zero and this is the proof that it never sees
+     * one; `tzcnt` has no sentinel to begin with, its answer for zero being the width.
+     *
+     * Done before the fusion below rather than only inside it, because the two have different
+     * conditions: this needs the guard alone, and the fusion needs the comparison to have no other
+     * reader and the scan to be liftable. A shape that fails the second still gets the first.
+     */
+    if(found.sentinel) {
+        setOperand(base, base[block->fun]->arena, found.scan, found.scan->used()[0], found.bits);
+        removeInst(base, found.sentinel);
+
+        auto constant = base[((LowerInstBinary*)found.sentinel)->rhs];
+        if(constant->uses.isEmpty()) removeInst(base, constant->inst());
+    }
+
+    /*
+     * And the fusion. Three conditions, each of which is a way the branch could stop being the only
+     * thing that reads the comparison's answer or the scan could stop being liftable:
+     *
+     * - the comparison is read by the branch and by nothing else, since it is about to disappear;
+     * - the guard's block ends with the branch that reads it, which is what puts the scan's new
+     *   position directly in front of the instruction reading its flags - so there is no window to
+     *   check, there being nothing between them;
+     * - the mask is a register rather than a folded address, so that hoisting the scan above the
+     *   guard speculates an instruction and not a load.
+     */
+    auto guard = base[block->incoming.get(base, 0)];
+    auto je = (LowerInstJe*)base[guard->terminator];
+
+    if(found.compare->result.uses.size() != 1) return;
+    if(base[found.compare->result.uses.get(base, 0)] != je) return;
+    if(base[found.scan->used()[0]]->inst()->kind == LowerInst::X86Address) return;
+
+    // And the scan's own operand, which has to be readable from where the scan is going. Everything
+    // else that may stand above it in this block is a constant, which `findMaskScan` skipped and
+    // which the scan does not read - so this is the whole of what the move has to be told.
+    if(base[base[found.scan->used()[0]]->inst()->block] == block) return;
+
+    moveInstToEndOf(base, found.scan, guard);
+
+    /*
+     * Which flag says the mask was empty, and therefore which condition the branch carries.
+     *
+     * `bsf` sets ZF for a zero operand, so "nonzero" is `neq`. `tzcnt` sets **CF** for one - ZF on a
+     * `tzcnt` means the answer was zero, which is the mask's first lane being set - so "nonzero" is
+     * CF clear, which is the unsigned `ge` the encoder writes as `jae`.
+     */
+    auto width = ((LowerInstIntrinsic*)found.scan)->getIntrinsic() == LowerIntrinsic::CttzWidth;
+    auto nonzero = width ? LowerCmp::ge : LowerCmp::neq;
+    auto empty = width ? LowerCmp::lt : LowerCmp::eq;
+
+    auto scanned = &found.scan->created()[0];
+    replaceUse(base, &found.compare->result, je, scanned);
+    je->cond = scanned - base;
+    je->setEmbeddedCmp(Just(found.nonzeroIsThen ? nonzero : empty));
+
+    removeInst(base, found.compare);
+
+    auto constant = base[found.compare->rhs];
+    if(constant->uses.isEmpty()) removeInst(base, constant->inst());
+}
+
 static void selectMachineInstructions(Context&, LowerBase base, LowerFunction& fun) {
     forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         if(inst->kind == LowerInst::Imm) {
@@ -5745,6 +6098,19 @@ static void selectMachineInstructions(Context&, LowerBase base, LowerFunction& f
         // fold above is the better answer for it: that one removes the materialization as well.
         // What is left here is a branch on a value nothing compared.
         tryElideBranchTest(base, block);
+
+        /*
+         * And the mask scan, which is the same finding one block over: the guard and the scan it
+         * guards are two computations of the emptiness of one movemask, and the machine answers both
+         * with the scan's own flags.
+         *
+         * Here rather than beside `lowerVectorReductions`, which is where the shape is *built*,
+         * because the fused branch reads flags that the instruction directly above it left - and
+         * only this late is "directly above it" a statement no later pass can invalidate. It is the
+         * same argument `tryBranchOnLiveCompare` makes about its window, arriving from the other
+         * side: that one measures a window, this one leaves none.
+         */
+        fuseMaskScanIntoGuard(base, block);
     }
 }
 
@@ -5919,6 +6285,12 @@ static const TransformPass kTransformPipeline[] = {
      * one instruction longer. That pass is gone: `pinsrd` is v2.
      */
     { "poolVectorConstants"_v,         poolVectorConstants,         0 },
+
+    // Below `poolVectorConstants` and not above it: what this builds is already a `.rodata` load, so
+    // there is nothing for that pass to find - and putting it above would hand that pass an index
+    // vector to walk for no reason. It has to be above `selectMemorySources` for the reason every
+    // pass that builds a load does.
+    { "lowerWideLanePermutes"_v,       lowerWideLanePermutes,       0 },
 
     // Directly behind it, so that what is left standing as an instruction is the set this can move:
     // everything with more than one distinct lane became a `.rodata` load one line up, and a load

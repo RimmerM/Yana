@@ -1,0 +1,93 @@
+
+crossing<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 0, 4, 1, 5, 2, 6, 3, 7: i32x8
+    ret %r
+  }
+}
+
+reverse<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+    ret %r
+  }
+}
+
+crossingFloat<complex>(%a: f32x8): f32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 0, 4, 1, 5, 2, 6, 3, 7: f32x8
+    ret %r
+  }
+}
+
+secondSource<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %b, 8, 12, 9, 13, 10, 14, 11, 15: i32x8
+    ret %r
+  }
+}
+
+inLane<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+    ret %r
+  }
+}
+
+halves<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 4, 5, 6, 7, 0, 1, 2, 3: i32x8
+    ret %r
+  }
+}
+
+
+--- codegen: crossing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d58000000
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: reverse ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d68000000
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: crossingFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d38000000
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27516c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: secondSource ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f0528000000
+  x86_permute uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d36c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: inLane ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5fd70c0b1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: halves ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c001
+  ret uses=[xmm0] creates=[]  => c3

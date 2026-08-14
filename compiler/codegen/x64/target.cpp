@@ -231,8 +231,8 @@ static PhysicalReg topOfBank(RegisterBankId bank, Size index) {
     return PhysicalReg { bank, U16(count - 1 - index) };
 }
 
-TemporaryReserve TemporaryReserve::widest() {
-    TemporaryReserve out;
+TemporaryReserve TemporaryReserve::widestLike(const TemporaryReserve& like) {
+    TemporaryReserve out = like;
 
     for(Size bank = 0; bank < kRegisterBankCount; bank++) {
         // Never more than the bank has. A bank the enabled ISA level leaves empty - the mask
@@ -248,12 +248,18 @@ TemporaryReserve TemporaryReserve::widest() {
     return out;
 }
 
+// Position `index` of a bank's pool: the register `chooseTemporaryPool` put there, or - for a reserve
+// that was never chosen against a function - the same count down from the top of the file this
+// always answered.
 PhysicalReg TemporaryReserve::operandTemp(RegisterBankId bank, Size index) const {
-    return topOfBank(bank, index);
+    if(!chosen) return topOfBank(bank, index);
+
+    assertTrue(index < kMaxTemporaryPool); // a pool position past the two roles' own maximum
+    return PhysicalReg { bank, pool[bank][index] };
 }
 
 PhysicalReg TemporaryReserve::moveTemp(RegisterBankId bank, Size index) const {
-    return topOfBank(bank, operandTemps[bank] + index);
+    return operandTemp(bank, operandTemps[bank] + index);
 }
 
 RegSet TemporaryReserve::regs() const {

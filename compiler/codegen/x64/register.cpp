@@ -93,6 +93,154 @@ RecordArena::~RecordArena() {
     for(auto chunk: chunks) Tritium::hFree(chunk);
 }
 
+/*
+ * §42 Which registers this function's scratch pool is drawn from.
+ *
+ * The pool used to be the top of the register file - r15 downwards, and xmm15 downwards - which was
+ * one decision standing in for two, and had both of them backwards.
+ *
+ * **Safety.** The old argument was that r11-r15 are outside every described convention's argument
+ * and result registers, so a scratch there can never collide with a fixed register the same
+ * instruction is also placing. That is true of r12-r15 and false of r11, which `kComplexArgs` and
+ * `kComplexResults` both name - and a reserve of five reaches it. The rule that is actually wanted
+ * is about *this function*: a register no instruction of it fixes cannot collide with a fixed
+ * operand, whatever the convention says in general. That is the first filter here, and it is
+ * strictly stronger than the one it replaces.
+ *
+ * A **call** is where that filter earns its keep and where over-reading it would be fatal: its
+ * argument and result registers are fixed operands and belong in the set, and its *clobber* set is
+ * the callee's entire caller-saved half and does not - see the note on `note` below.
+ *
+ * **Cost.** r15 downwards is callee-saved, so every scratch register is a `push` and a `pop` in the
+ * prologue and epilogue - and a leaf function that spills one value pays them while nine registers
+ * its convention lets it destroy sit unused. Several resolve fixtures were paying exactly that for a
+ * single short-lived constant. So among the registers that pass the filter, the ones the convention
+ * clobbers come first.
+ *
+ * **What is *not* weighed is register pressure**, and that is deliberate. A pool register is one
+ * register denied to placement for the whole function, and which one it is does not change how many
+ * are left - so a crowded function spills the same amount whichever end the pool is taken from, and
+ * only the prologue's cost differs. The allocation order (`buildOrder`) already spends registers
+ * clobbered-first, which is the same preference read from the other side.
+ *
+ * Within each group the registers that need no REX prefix come first, which is one byte off every
+ * instruction that names the scratch. That looks like it should collide with the filter - the low
+ * registers are exactly the ones a convention fixes - and it does not, because a register the
+ * function fixes is not in the group at all: what is left there is a low register the function
+ * genuinely does not use, and that one is free *and* short.
+ *
+ * A function that fixes so much that the filter leaves too few registers falls back to what is left,
+ * in the same descending order - which is no worse than what this replaced, since that took those
+ * registers unconditionally.
+ */
+static void chooseTemporaryPool(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, bool framePointer, TemporaryReserve& out)
+{
+    // Every register this function's own instructions place a value in or write behind one's back.
+    // Read from the shapes rather than from a placement: what an instruction fixes is a property of
+    // the instruction, so this is the same answer before and after any pass.
+    RegSet fixed;
+
+    // One shape for the whole walk, which `shapeOf` empties before it fills - the same arrangement
+    // every other walk over the shapes uses, and the difference between two allocations per
+    // instruction and two per function.
+    InstShape shape;
+
+    /*
+     * The **fixed operands** and not the clobbers, which is the distinction `formClobberRegs` in
+     * legalize.cpp already draws and the one that decides how wide this filter is.
+     *
+     * A fixed operand is a register a parallel copy puts a value into at that instruction, so a
+     * scratch there would overwrite an operand the instruction is about to read - and since the pool
+     * is one choice for the whole function, a register fixed *anywhere* has to be out of it.
+     *
+     * A clobber is not that. It is a register the instruction's own expansion writes behind its
+     * operands' backs, and `takeTemp` already steps over any pool position holding one - per
+     * instruction, which is where the hazard is. Reading them here as well would be a filter that
+     * empties itself: a *call*'s clobber set is the callee's whole caller-saved half, so every
+     * function containing one would be left choosing between the two registers placement most needs.
+     */
+    auto note = [&](LowerInst* inst) {
+        shapeOf(base, machine, constraints, fun, inst, shape);
+        fixed |= fixedRegisters(shape);
+    };
+
+    for(auto a: fun.args.contents(base)) note((LowerInst*)base[a]);
+
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        for(auto i: block->instructions.contents(base)) note(base[i]);
+        if(block->terminator) note(base[block->terminator]);
+    }
+
+    // The frame pointer is not a register this function has to hand out, and a scratch there would be
+    // the frame addressed through a register the legalizer is about to overwrite.
+    if(framePointer) fixed.add(framePointerReg());
+
+    auto& convention = constraints.getConvention(fun.callType);
+    auto& registers = targetRegisters();
+
+    for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+        auto id = RegisterBankId(bank);
+        auto& allocatable = registers.bank(id).allocatable;
+        Size count = 0;
+
+        /*
+         * `low` is the encoding tie-break inside each group: a general register below r8 needs no REX
+         * prefix, so a scratch there is one byte shorter at every instruction that names it. The
+         * registers that would be cheapest to encode are also the ones a convention fixes - rax to a
+         * result, rcx to a shift, rdi and rsi to arguments - so this only ever fires where the
+         * function genuinely does not use them, and the filter above is what says so.
+         *
+         * Descending within each half, which keeps the choice stable: the low half is walked from
+         * rdi down and the high from r15 down, so a function that frees one more register does not
+         * reshuffle the ones it had.
+         */
+        auto pass = [&](bool clobbered, bool unfixed, bool low) {
+            for(Size i = registers.bank(id).physicalCount; i-- > 0 && count < kMaxTemporaryPool;) {
+                auto reg = PhysicalReg { id, U16(i) };
+
+                if(!allocatable.has(reg)) continue;
+                if((i < 8) != low) continue;
+                if(convention.clobber.has(reg) != clobbered) continue;
+                if(fixed.has(reg) == unfixed) continue;
+
+                out.pool[bank][count++] = U8(i);
+            }
+        };
+
+        // Clobbered and untouched - free, and the answer for most functions.
+        pass(true, true, true);
+        pass(true, true, false);
+
+        // Preserved and untouched - a push and a pop, which is what this replaces.
+        pass(false, true, true);
+        pass(false, true, false);
+
+        // And the fallback, for a function that fixes nearly everything.
+        pass(true, false, true);
+        pass(true, false, false);
+        pass(false, false, true);
+        pass(false, false, false);
+
+        // A bank with nothing allocatable in it - the mask registers, which no form of this backend
+        // selects - leaves the pool short, and a position read out of a short pool would name
+        // register zero. Nothing asks for one, since nothing is ever placed in such a bank; the fill
+        // is what makes that a fact about the table rather than a fact about who asks.
+        auto available = Size(registers.bank(id).physicalCount);
+
+        for(Size i = count; i < kMaxTemporaryPool; i++) {
+            // Distinct by construction: the passes above take every allocatable register of the bank
+            // before this runs, so a position left over means none of them is - and the count down
+            // from the top then meets nothing that is already here.
+            out.pool[bank][i] = U8(i < available ? available - 1 - i : 0);
+        }
+    }
+
+    out.chosen = true;
+}
+
 void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine,
     RegScratch& scratch, FunctionRegs& result)
 {
@@ -133,8 +281,11 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     Size displacements = 0;
 
     // Nothing held back to begin with, which is the answer for a function that fitted in its
-    // registers.
+    // registers - but *which* registers would be held back is decided here, once, before any of them
+    // is. Once, because the loop's own termination rests on the counts alone moving: a pool that
+    // changed between passes would be a second thing for the two directions to chase.
     TemporaryReserve temporaries;
+    chooseTemporaryPool(base, fun, machine, constraints, framePointer, temporaries);
     Size shrinks = 0;
 
     for(;;) {
@@ -159,7 +310,7 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
         // popped for a temporary no instruction asks for. See kMaxReserveShrinks.
         TemporaryReserve demand;
         if(placement.requiresLegalizationTemps) {
-            demand = measureTemporaryReserve(base, fun, machine, constraints, placement, scratch);
+            demand = measureTemporaryReserve(base, fun, machine, constraints, placement, temporaries, scratch);
         }
 
         if(temporaries.growTo(demand)) {

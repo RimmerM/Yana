@@ -78,15 +78,14 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: zeroArm ---
-  prologue  => 4157
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
 block #1:
-  load uses=[rdi] creates=[rdi]  => 488b3f
+  load uses=[rax] creates=[rax]  => 488b00
   imm uses=[] creates=[remat:0]  => 
-  cmp_igt uses=[rdi, rsi] creates=[-]  => 4839f7
-  select uses=[rax, r15, -] creates=[rax] pre=[rdi->rax, remat:0->r15]  => 488bc741bf00000000490f4ec7
-  ret uses=[rax] creates=[]  => 415fc3
+  cmp_igt uses=[rax, rsi] creates=[-]  => 4839f0
+  select uses=[rax, rdi, -] creates=[rax] pre=[remat:0->rdi]  => bf00000000480f4ec7
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: materialized ---
 block #0:

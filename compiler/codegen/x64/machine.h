@@ -96,6 +96,10 @@ enum : MachineOpcodeId {
     OpVAdd,
     OpVSub,
     OpVMul,
+    // The high half of a packed product, which is two opcodes where the low half is one: `pmulhw`
+    // and `pmulhuw` differ, and the low-half rows do not. See `MulHi`/`IMulHi` in the lower IR.
+    OpVMulHi,
+    OpVIMulHi,
     OpVDiv,
     OpVAnd,
     OpVOr,
@@ -145,6 +149,11 @@ enum : MachineOpcodeId {
      * source and being quietly wrong about the other.
      */
     OpVShuffle,
+
+    // The general 256-bit lane permutation, whose pattern is a vector operand rather than an
+    // immediate - `vpermd`/`vpermps`. Its own opcode and not one of `OpVShuffle`'s forms, because
+    // its two rows are chosen by the lane kind where every other shuffle row is chosen by a pattern.
+    OpVPermute,
 
     /*
      * Every lane the same scalar.
@@ -630,6 +639,10 @@ enum class PseudoKind: U8 {
     // A vector negated: subtracted from a zero the expansion makes, or its sign bits toggled against
     // a mask the expansion makes. Both out of the same scratch.
     VecNegate,
+
+    // A packed shift by a count that is not a constant: the count moved out of a general register
+    // into the low quadword of a scratch vector one, and then the shift the machine already has.
+    VecShiftCount,
 
     /*
      * A lane read out of, or written into, a **256-bit** vector.
@@ -1250,6 +1263,11 @@ struct PackedShuffleChoice {
 
 Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
 
+// Whether every entry of a shuffle's pattern names one source, which is what the general 256-bit
+// permute can express and the two-source case that no single instruction can - see
+// `lowerWideLanePermutes`, and the refusal in `unsupportedVectorReason` that asks the same question.
+bool shuffleReadsOneSource(LowerInst* inst);
+
 /*
  * The relation a packed comparison is actually emitted at, which is not always the one it names.
  *
@@ -1374,6 +1392,13 @@ bool splatIsMachineConstant(LowerBase base, LowerInst* inst);
  * first refuses a shift the second emits perfectly well - which is what it did until this existed.
  */
 LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst);
+
+/*
+ * And the weaker question the same two askers need: the scalar every lane shares its count with,
+ * whether or not it is a constant. Nothing where the count is genuinely per-lane, which is the one
+ * shape this backend has no shift for.
+ */
+LowerValue* packedShiftSharedCount(LowerBase base, LowerInst* inst);
 
 // The opcode an instruction selects, independent of which form it ends up in. Takes the base because
 // an operation's opcode can depend on the type of an operand rather than of a result - a comparison

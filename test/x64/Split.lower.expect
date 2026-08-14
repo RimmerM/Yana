@@ -218,7 +218,7 @@ block #1:
   x86_addr scale=1 disp=0 uses=[rbp] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => 48034d00
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:1]  => 4c8bf94c03384c897c2408
+  add uses=[rsi, -] creates=[rsi] pre=[rcx->rsi] post=[rsi->stack:1]  => 488bf14803304889742408
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e80effffff8bc8488b0424
   x86_addr scale=1 disp=0 uses=[rbp] creates=[-]  => 
@@ -249,13 +249,13 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbp, rdx->rax]  => 897c2418488bee488bc2
 block entry:
   imm uses=[] creates=[-]  => 
-  cast uses=[-] creates=[r15] post=[r15->stack:2]  => 4531ff4c897c2408
-  je uses=[r15] creates=[] pre=[stack:0->r15]  => 448b7c24184585ff7550
+  cast uses=[-] creates=[rsi] post=[rsi->stack:2]  => 31f64889742408
+  je uses=[rsi] creates=[] pre=[stack:0->rsi]  => 8b74241885f6754e
 block #2:
-  jmp uses=[] creates=[] pre=[stack:2->r14, r14->stack:3]  => 4c8b7424084c89742410
+  jmp uses=[] creates=[] pre=[stack:2->rdx, rdx->stack:3]  => 488b5424084889542410
 block body:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi, rax->stack:1] post=[rax->rcx, stack:1->rax]  => 8b7c241848890424e87ffeffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi, rax->stack:1] post=[rax->rcx, stack:1->rax]  => 8b7c241848890424e882feffff8bc8488b0424
   load uses=[rbp] creates=[rcx]  => 488b4d00
   x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => 480308
@@ -270,9 +270,9 @@ block body:
   add uses=[stack:3, rcx] creates=[stack:3]  => 48014c2410
   imm uses=[] creates=[-]  => 
   add uses=[stack:2, -] creates=[stack:2]  => 48ff442408
-  je uses=[r15] creates=[] pre=[stack:0->r15]  => 448b7c24184585ff74c4
+  je uses=[rsi] creates=[] pre=[stack:0->rsi]  => 8b74241885f674c6
 block #5:
-  jmp uses=[] creates=[] pre=[stack:3->r14, r14->stack:2]  => 4c8b7424104c89742408
+  jmp uses=[] creates=[] pre=[stack:3->rdx, rdx->stack:2]  => 488b5424104889542408
 block exit:
   ret uses=[rax] creates=[] pre=[stack:2->rax]  => 488b4424084883c420415f415e415d415c5d5bc3
 

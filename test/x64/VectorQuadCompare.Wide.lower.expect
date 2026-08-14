@@ -1,0 +1,57 @@
+
+eq<complex>(%a: i64x4, %b: i64x4): m64x4 {
+  b_0 {
+    %r = cmp_eq %a, %b: m64x4
+    ret %r
+  }
+}
+
+gt<complex>(%a: i64x4, %b: i64x4): m64x4 {
+  b_0 {
+    %r = cmp_igt %a, %b: m64x4
+    ret %r
+  }
+}
+
+le<complex>(%a: i64x4, %b: i64x4): m64x4 {
+  b_0 {
+    %r = cmp_ile %a, %b: m64x4
+    ret %r
+  }
+}
+
+imulhi<complex>(%a: i16x16, %b: i16x16): i16x16 {
+  b_0 {
+    %r = imulhi %a, %b: i16x16
+    ret %r
+  }
+}
+
+
+--- codegen: eq ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d29c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: gt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_igt uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d37c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: le ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_ile uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d37c1c4410576ffc4c17defc7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: imulhi ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imulhi uses=[xmm0, xmm1] creates=[xmm0]  => c5fde5c1
+  ret uses=[xmm0] creates=[]  => c3

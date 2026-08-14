@@ -1,0 +1,65 @@
+let image$base: () = <none>
+
+let &counter: Int = 0
+
+fn opaque(%n: Int) -> Int {
+  b0:
+    %v1 = load counter : Int
+    %v2 = add %v1, %n : Int
+    assign counter, %v2
+    %v4 = load counter : Int
+    %v7 = cmp_gt %v4, 1000 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
+fn shifts(%a: Vec(Int), %n: Int) -> Int {
+  b0:
+    %count = vsplat %n : Vec(Int)
+    %left = shl %a, %count : Vec(Int)
+    %right = shr %a, %count : Vec(Int)
+    %arith = sar %a, %count : Vec(Int)
+    %v8 = vlane %left, 0 : Int
+    %v11 = vlane %right, 1 : Int
+    %v12 = add %v8, %v11 : Int
+    %v15 = vlane %arith, 2 : Int
+    %v16 = add %v12, %v15 : Int
+    ret %v16
+}
+
+fn quad(%b: Vec(I64), %n: I64) -> I64 {
+  b0:
+    %v2 = vsplat %n : Vec(I64)
+    %up = shl %b, %v2 : Vec(I64)
+    %v6 = sub %n, 1 : I64
+    %v7 = vsplat %v6 : Vec(I64)
+    %down = shr %up, %v7 : Vec(I64)
+    %v11 = vlane %down, 0 : I64
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = vsplat 64 : Vec(Int)
+    %v7 = vwithlane %v2, 5, 0 : Vec(Int)
+    %v12 = vwithlane %v7, 100, 1 : Vec(Int)
+    %v18 = sub 0, 32 : Int
+    %a = vwithlane %v12, %v18, 2 : Vec(Int)
+    %b = vsplat 3 : Vec(I64)
+    %n = call opaque, 2 : Int
+    %v26 = call opaque, 3 : Int
+    %m = cast %v26 : I64
+    %v28 = call shifts, %a, %n : Int
+    %v29 = call quad, %b, %m : I64
+    %v30 = cast %v29 : Int
+    %v31 = add %v28, %v30 : Int
+    ret %v31
+}

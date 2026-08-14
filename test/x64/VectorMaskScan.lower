@@ -1,0 +1,81 @@
+# §42 The mask scan and the branch that guards it, made into one instruction.
+#
+# `if any(hits) then firstSet(hits)` is the shape of every search over vectors, and it computes the
+# emptiness of one movemask twice: once as the comparison the branch reads, and once as the sentinel
+# bit that keeps `bsf` from seeing zero. The machine answers both with the scan's own flags. What to
+# look for:
+#
+#   - **`bsf ; jne` and nothing else.** No `or` and no `test`: the sentinel was only ever there to
+#     make the operand nonzero, and the guard is the proof that it already is.
+#   - **the scan stands in the *guard's* block**, above the branch that reads its flags. Hoisting it
+#     is speculation of the cheapest kind - `bsf` does not fault, does not touch memory, and the
+#     register it writes is dead on the arm that did not want it.
+#   - **`guarded` is the shape that keeps its sentinel.** Its scan is reached from two places, so
+#     one predecessor's branch proves nothing about the mask on the other, and both rewrites decline
+#     together.
+#
+# The wide half of this is in `VectorMaskScan.Wide.lower`, where the scan is `tzcnt` and the flag
+# that answers is CF rather than ZF.
+
+# The whole rewrite. One predecessor, and it branches here on this mask being nonempty.
+search(%a: i8x16, %b: i8x16): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x16
+        %any = vreduce_or %m: Int
+        je %any, hit, miss
+    }
+
+    hit {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    miss {
+        ret -1
+    }
+}
+
+# The same guard written the other way round - `if none(hits) then miss` - which `foldNegatedTruth`
+# turns into the comparison inverted rather than into a second instruction. So the scan's block is
+# the branch's `otherwise` arm here, and the condition the branch carries is the one that means
+# *empty*: `bsf` sets ZF for a zero operand, so this is `je` where the one above is `jne`.
+searchInverted(%a: i8x16, %b: i8x16): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x16
+        %any = vreduce_or %m: Int
+        %none = xor %any, 1: Int
+        je %none, miss, hit
+    }
+
+    miss {
+        ret -1
+    }
+
+    hit {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+}
+
+# A scan whose block has two ways into it, which is the case the proof does not reach: the second
+# predecessor says nothing about the mask, so the sentinel stays and so does the test.
+guarded(%a: i8x16, %b: i8x16, %n: Int): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x16
+        %any = vreduce_or %m: Int
+        je %any, hit, other
+    }
+
+    other {
+        je (cmp_ilt %n, 0), hit, miss
+    }
+
+    hit {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    miss {
+        ret -1
+    }
+}

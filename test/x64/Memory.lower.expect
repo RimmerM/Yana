@@ -95,7 +95,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b057a000000
+  load uses=[-] creates=[rax]  => 8b056a000000
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: globalStoreImm ---
@@ -104,7 +104,7 @@ block #0:
 block #1:
   global uses=[] creates=[-]  => 
   imm uses=[] creates=[-]  => 
-  store uses=[-, -] creates=[]  => c7056600000007000000
+  store uses=[-, -] creates=[]  => c7055600000007000000
   ret uses=[] creates=[]  => c3
 
 --- codegen: globalEscapes ---
@@ -113,20 +113,19 @@ block #0:
 block #1:
   global uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3d57000000e8a2ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3d47000000e8a2ffffff
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: blockOps ---
-  prologue  => 4157
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
 block #1:
   imm uses=[] creates=[-]  => 
-  copy uses=[rdi, rsi, -] creates=[]  => 4c8b1e4c891f448b5e0844895f08
+  copy uses=[rax, rsi, -] creates=[]  => 4c8b1e4c8918448b5e0844895808
   imm uses=[] creates=[-]  => 
   imm uses=[] creates=[remat:0]  => 
-  setpattern uses=[rdi, -, r15] creates=[] pre=[remat:0->r15]  => 41bf0000000044893f6644897f04
-  ret uses=[] creates=[]  => 415fc3
+  setpattern uses=[rax, -, rdi] creates=[] pre=[remat:0->rdi]  => bf00000000893866897804
+  ret uses=[] creates=[]  => c3
 
 --- codegen: blockOpsDynamic ---
 block #0:

@@ -327,40 +327,37 @@ flagsAfterCopiedAdd<complex>(%v: Int, %w: Int): Int {
 
 
 --- codegen: branch ---
-  prologue  => 4157
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block start:
   imm uses=[] creates=[-]  => 
   cmp_le uses=[rax, -] creates=[-]  => 85c0
-  je uses=[-] creates=[]  => 760b
+  je uses=[-] creates=[]  => 7609
 block b:
   imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, r15] creates=[rax] pre=[remat:0->r15]  => 41bf0200000041f7e7
+  mul uses=[rax, rdi] creates=[rax] pre=[remat:0->rdi]  => bf02000000f7e7
   jmp uses=[] creates=[]  => eb02
 block a:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
   jmp uses=[] creates=[]  => 
 block end:
-  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 8bd6415fc3
+  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 8bd6c3
 
 --- codegen: flagWindow ---
-  prologue  => 4157
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rcx]  => 8bcf
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 8d4f01
+  add uses=[r8, -] creates=[r8] pre=[rcx->r8]  => 448d4101
   imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, r15] creates=[rax] pre=[rsi->rax, remat:0->r15]  => 8bc641bf0300000041f7e7
-  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
-  je uses=[-] creates=[]  => 7c03
+  mul uses=[rax, rdi] creates=[rax] pre=[rsi->rax, remat:0->rdi]  => 8bc6bf03000000f7e7
+  cmp_ilt uses=[rcx, rsi] creates=[-]  => 39f1
+  je uses=[-] creates=[]  => 7c01
 block b:
-  ret uses=[rax] creates=[]  => 
-  epilogue  => 415fc3
+  ret uses=[rax] creates=[]  => c3
 block a:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1ebf9
+  ret uses=[rax] creates=[] pre=[r8->rax]  => 418bc0c3
 
 --- codegen: flagWindowLoad ---
 block #0:

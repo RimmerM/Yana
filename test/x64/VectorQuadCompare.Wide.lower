@@ -1,0 +1,41 @@
+# The quadword comparison and the multiply-high at 256 bits - the wide twins of the rows
+# `VectorQuadCompare.lower` reads at the floor.
+#
+# extensions: v3
+#
+# Nothing here is a new instruction: `vpcmpeqq`, `vpcmpgtq`, `vpmulhw` and `vpmulhuw` are their
+# narrow selves with a VEX prefix, `L` set and the tie dropped - which is what `wideTwin` builds and
+# what makes the pair worth one fixture rather than two implementations. What to look for is that
+# the **three-byte map survives the widening**: the comparison keeps `0F38` where the multiply keeps
+# `0F`, and a twin that took its map from the default would have written the wrong opcode at exactly
+# the width where nothing else in the suite reads one.
+
+eq(%a: i64x4, %b: i64x4): m64x4 {
+    {
+        %r = cmp_eq %a, %b: m64x4
+        ret %r
+    }
+}
+
+gt(%a: i64x4, %b: i64x4): m64x4 {
+    {
+        %r = cmp_igt %a, %b: m64x4
+        ret %r
+    }
+}
+
+# The complement, which stays a pseudo at this width - a pseudo's bytes are its emitter's, so the
+# tie is *not* dropped and the sequence is the same three instructions VEX-encoded.
+le(%a: i64x4, %b: i64x4): m64x4 {
+    {
+        %r = cmp_ile %a, %b: m64x4
+        ret %r
+    }
+}
+
+imulhi(%a: i16x16, %b: i16x16): i16x16 {
+    {
+        %r = imulhi %a, %b: i16x16
+        ret %r
+    }
+}

@@ -274,7 +274,7 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e885feffff
-  add uses=[rax, r15] creates=[rax] pre=[rbp->rax, stack:0->r15]  => 488bc5448b3c244c01f8
+  add uses=[rax, rsi] creates=[rax] pre=[rbp->rax, stack:0->rsi]  => 488bc58b34244801f0
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: wideOffset ---
@@ -305,8 +305,8 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e8d7fdffff
-  x86_addr scale=1 disp=0 uses=[r15] creates=[-] pre=[stack:0->r15]  => 4c8b3c24
-  add uses=[rcx, -] creates=[rcx] pre=[rbp->rcx]  => 8bcd41030f
+  x86_addr scale=1 disp=0 uses=[rsi] creates=[-] pre=[stack:0->rsi]  => 488b3424
+  add uses=[rcx, -] creates=[rcx] pre=[rbp->rcx]  => 8bcd030e
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5
   ret uses=[rax] creates=[] pre=[rbp->rax]  => 8bc54883c408415f415e415d415c5d5bc3
@@ -318,7 +318,7 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax]  => e897fdffff
-  sext uses=[r15] creates=[rax] pre=[stack:0->r15]  => 448b3c244963c7
+  sext uses=[rsi] creates=[rax] pre=[stack:0->rsi]  => 8b34244863c6
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 488d440d00
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
@@ -393,9 +393,9 @@ block #0:
 block #1:
   fun uses=[] creates=[-]  => 
   call_clobber uses=[-, rdi] creates=[rax] post=[rax->rdi]  => e854fcffff8bf8
-  add uses=[stack:0, r15] creates=[stack:0] pre=[stack:1->r15]  => 448b7c240444013c24
+  add uses=[stack:0, rsi] creates=[stack:0] pre=[stack:1->rsi]  => 8b742404013424
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e844fcffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e846fcffff
   add uses=[rcx, stack:0] creates=[rcx] pre=[rbp->rcx]  => 8bcd030c24
   add uses=[rbp, rcx] creates=[rbp]  => 01cd
   add uses=[rbp, rax] creates=[rbp]  => 01c5

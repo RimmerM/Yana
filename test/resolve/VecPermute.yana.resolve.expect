@@ -1,0 +1,47 @@
+let image$base: () = <none>
+
+let &sink: Int = 0
+
+fn reversed(%v: Vec(Int)) -> Vec(Int) {
+  b0:
+    %v1 = vshuffle %v, %v, 7, 6, 5, 4, 3, 2, 1, 0 : Vec(Int)
+    ret %v1
+}
+
+fn rotated(%v: Vec(Int)) -> Vec(Int) {
+  b0:
+    %v3 = vshuffle %v, %v, 3, 4, 5, 6, 7, 0, 1, 2 : Vec(Int)
+    ret %v3
+}
+
+fn build() -> Vec(Int) {
+  b0:
+    %v1 = vsplat 0 : Vec(Int)
+    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
+    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
+    %v7 = vwithlane %v5, 3, 3 : Vec(Int)
+    %v9 = vwithlane %v7, 4, 4 : Vec(Int)
+    %v11 = vwithlane %v9, 5, 5 : Vec(Int)
+    %v13 = vwithlane %v11, 6, 6 : Vec(Int)
+    %v15 = vwithlane %v13, 7, 7 : Vec(Int)
+    %v18 = vsplat 1 : Vec(Int)
+    %v19 = add %v15, %v18 : Vec(Int)
+    ret %v19
+}
+
+fn main() -> Int {
+  b0:
+    %v = call build : Vec(Int)
+    %v1 = call reversed, %v : Vec(Int)
+    %a = vlane %v1, 0 : Int
+    %v5 = call reversed, %v : Vec(Int)
+    %b = vlane %v5, 5 : Int
+    %v9 = call rotated, %v : Vec(Int)
+    %c = vlane %v9, 0 : Int
+    %v13 = call rotated, %v : Vec(Int)
+    %d = vlane %v13, 6 : Int
+    %v17 = add %a, %b : Int
+    %v18 = add %v17, %c : Int
+    %v19 = add %v18, %d : Int
+    ret %v19
+}

@@ -653,9 +653,21 @@ inline RegSet framePointerRegs() {
  * clobber, which keeps a live value out of it at that one instruction rather than for the whole
  * function, and is the cheaper of the two ways to say it.
  *
- * Temporaries are taken from the top of the register file on purpose: r11-r15 are outside every
+ * ~~Temporaries are taken from the top of the register file on purpose: r11-r15 are outside every
  * described convention's argument and result registers, so a scratch can never collide with a fixed
- * register the same instruction is also placing.
+ * register the same instruction is also placing.~~
+ *
+ * **The pool is chosen per function** (§42, `chooseTemporaryPool` in register.cpp), because that
+ * argument was wrong in both directions. It was wrong about safety - a reserve of five or six
+ * reaches r11, which `kComplexArgs` and `kComplexResults` name as a fixed operand at a call - and it
+ * was wrong about cost, since r15 downwards is *callee-saved*, so a leaf function that wants one
+ * scratch register pays a `push` and a `pop` for it while half its register file sits unused.
+ *
+ * So the pool is a list of register indices rather than an offset from the top, chosen once per
+ * function from what that function's own instructions leave alone. What it never contains is a
+ * register any instruction *fixes* - which is the safety half of the old rule, stated about the
+ * function rather than about the convention - and what it prefers is a register the convention lets
+ * the function destroy, which is the cost half the old rule had backwards.
  */
 
 /*
@@ -683,15 +695,34 @@ static constexpr Size kMaxOperandTemps = 4;
 // one to carry a transfer whose ends are both frame slots.
 static constexpr Size kMaxMoveTemps = 2;
 
+// How many positions a bank's pool has: the two roles end to end, since the move pool starts where
+// the operand pool stops and `widest()` may ask for all of both at once.
+static constexpr Size kMaxTemporaryPool = kMaxOperandTemps + kMaxMoveTemps;
+
 struct TemporaryReserve {
     U8 operandTemps[kRegisterBankCount] = {};
     U8 moveTemps[kRegisterBankCount] = {};
 
-    // The widest pools any one instruction can ask for. Held during the measuring pass only, so that
-    // measuring hands out a distinct register per temporary: two temporaries naming one register
-    // would look like a copy cycle that the real pass does not have, and would be measured as a
-    // demand for a scratch register nothing needs.
-    static TemporaryReserve widest();
+    /*
+     * Which registers the two pools are drawn from, in the order the positions are handed out.
+     *
+     * Empty until `chooseTemporaryPool` fills it, and a reserve with nothing chosen answers from the
+     * top of the register file as this always did - which is what keeps a hand-built reserve
+     * (`widest()` in the form-table check) meaningful without a function to choose against.
+     */
+    U8 pool[kRegisterBankCount][kMaxTemporaryPool] = {};
+    bool chosen = false;
+
+    // The widest pools any one instruction can ask for, over the same registers as `like`. Held
+    // during the measuring pass only, so that measuring hands out a distinct register per temporary:
+    // two temporaries naming one register would look like a copy cycle that the real pass does not
+    // have, and would be measured as a demand for a scratch register nothing needs.
+    //
+    // Over `like`'s registers and not the file's top, because the measurement has to be of the pass
+    // that will actually run: a demand measured against one set of registers and spent on another is
+    // one that stepped over the wrong clobbers.
+    static TemporaryReserve widestLike(const TemporaryReserve& like);
+    static TemporaryReserve widest() { return widestLike(TemporaryReserve {}); }
 
     bool isEmpty() const {
         for(Size i = 0; i < kRegisterBankCount; i++) {

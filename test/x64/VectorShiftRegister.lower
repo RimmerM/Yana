@@ -1,0 +1,68 @@
+# A packed shift by a count that is not a constant, which this backend used to refuse outright.
+#
+# The instruction was always there: `psllw xmm, xmm/m128` reads the **low quadword** of its second
+# operand as one count that every lane shares. What was missing was the transfer - the IR's shared
+# count is a scalar in a general register, and the shift wants it in the low quadword of a vector one
+# with everything above it clear. What to look for:
+#
+#   - **`movd`/`movq` into xmm15 and then the shift**, two instructions and the clobber the form
+#     declares. `movd` clears bits 32-127, which is what makes the quadword the shift reads *the
+#     count* rather than a pattern - a splat of 7 at a 32-bit lane would arrive as
+#     0x0000000700000007 and shift every lane out.
+#   - **`movq` at a quadword lane alone.** `scalarFormOf` makes a count an `Int32` at every narrower
+#     lane, so the transfer's width follows the lane and not the count's spelling.
+#   - **the opcode is one base per direction with the lane width in the low bits**: `psllw/d/q` are
+#     `F1`/`F2`/`F3`, `psrlw/d/q` are `D1`/`D2`/`D3`, `psraw/d` are `E1`/`E2`. There is no `psraq`
+#     before AVX-512 and no byte shift at all, which is why one direction has two widths here and
+#     the others three.
+#
+# The counts differ per function on purpose: one shared count would pass with the wrong operand read.
+
+shl32(%v: i32x4, %n: Int): i32x4 {
+    {
+        %r = shl %v, %n: i32x4
+        ret %r
+    }
+}
+
+shr16(%v: i16x8, %n: Int): i16x8 {
+    {
+        %r = shr %v, %n: i16x8
+        ret %r
+    }
+}
+
+sar32(%v: i32x4, %n: Int): i32x4 {
+    {
+        %r = sar %v, %n: i32x4
+        ret %r
+    }
+}
+
+# The quadword, which has the two logical directions and no arithmetic one - and whose count is the
+# lane's own width, so this is the row that reads `movq`.
+shl64(%v: i64x2, %n: Long): i64x2 {
+    {
+        %r = shl %v, %n: i64x2
+        ret %r
+    }
+}
+
+shr64(%v: i64x2, %n: Long): i64x2 {
+    {
+        %r = shr %v, %n: i64x2
+        ret %r
+    }
+}
+
+# The other spelling of the same thing: a splat of a runtime value, which is what the language
+# produces (`Integral(a)` types both operands as `a`). `unwrapVectorShiftCounts` takes the splat off
+# and what is left is the function above - so this must emit the same two instructions and no
+# broadcast at all.
+splatCount(%v: i32x4, %n: Int): i32x4 {
+    {
+        %c = vsplat %n: i32x4
+        %r = shl %v, %c: i32x4
+        ret %r
+    }
+}

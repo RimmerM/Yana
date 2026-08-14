@@ -1,0 +1,43 @@
+@image$base = []
+
+reversed<complex>(%v: i32x8): i32x8 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+    ret %v_1
+  }
+}
+
+rotated<complex>(%v: i32x8): i32x8 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 3, 4, 5, 6, 7, 0, 1, 2: i32x8
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x8
+    %v_2 = vwithlane %v_1, 1, 1: i32x8
+    %v_3 = vwithlane %v_2, 2, 2: i32x8
+    %v_4 = vwithlane %v_3, 3, 3: i32x8
+    %v_5 = vwithlane %v_4, 4, 4: i32x8
+    %v_6 = vwithlane %v_5, 5, 5: i32x8
+    %v_7 = vwithlane %v_6, 6, 6: i32x8
+    %v_8 = vwithlane %v_7, 7, 7: i32x8
+    %v_9 = vsplat 1: i32x8
+    %v_10 = add %v_8, %v_9: i32x8
+    %v_11 = call_complex reversed, %v_10: i32x8
+    %a = vlane %v_11, 0: Int
+    %v_12 = call_complex reversed, %v_10: i32x8
+    %b = vlane %v_12, 5: Int
+    %v_13 = call_complex rotated, %v_10: i32x8
+    %c = vlane %v_13, 0: Int
+    %v_14 = call_complex rotated, %v_10: i32x8
+    %d = vlane %v_14, 6: Int
+    %v_15 = add %a, %b: Int
+    %v_16 = add %v_15, %c: Int
+    %v_17 = add %v_16, %d: Int
+    ret %v_17
+  }
+}
+

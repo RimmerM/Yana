@@ -256,18 +256,18 @@ block out:
   ret uses=[rax] creates=[] pre=[r13->rax]  => 418bc5415e415d415c5bc3
 
 --- codegen: locals ---
-  prologue  => 41574883ec28
+  prologue  => 4883ec28
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d0424
+  alloca uses=[-] creates=[rcx]  => 488d0c24
   imm uses=[] creates=[-]  => 
   alloca uses=[-] creates=[remat:0]  => 
-  store uses=[rax, rdi] creates=[]  => 488938
-  store uses=[r15, rdi] creates=[] pre=[remat:0->r15]  => 4c8d7c240849893f
-  load uses=[rax] creates=[rax]  => 488b00
-  ret uses=[rax] creates=[]  => 4883c428415fc3
+  store uses=[rcx, rax] creates=[]  => 488901
+  store uses=[rdi, rax] creates=[] pre=[remat:0->rdi]  => 488d7c2408488907
+  load uses=[rcx] creates=[rax]  => 488b01
+  ret uses=[rax] creates=[]  => 4883c428c3
 
 --- codegen: localsAndCall ---
   prologue  => 534883ec08
@@ -390,17 +390,17 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 448d7704
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 448bff4183c70544893c24
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15]  => 448d7f05
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 448bff4183c70644897c2404
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:0]  => 448bdf4183c30644891c24
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe854ffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe85cffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rax, r12] creates=[rax]  => 4401e0
   add uses=[rax, r13] creates=[rax]  => 4401e8
   add uses=[rax, r14] creates=[rax]  => 4401f0
+  add uses=[rax, r15] creates=[rax]  => 4401f8
   add uses=[rax, stack:0] creates=[rax]  => 030424
-  add uses=[rax, stack:1] creates=[rax]  => 03442404
   ret uses=[rax] creates=[]  => 488d65d8415f415e415d415c5b5dc3
 
 --- codegen: hoistedStackArg ---

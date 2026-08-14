@@ -1636,7 +1636,8 @@ void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction&
 // first: the two would be a pair of answers to one question, and the one that is wrong is the one
 // that leaves an instruction with nowhere to bring a spilled operand.
 TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement, RegScratch& scratch);
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& pool,
+    RegScratch& scratch);
 
 // Where the encoder reads one operand, which is the question legalization exists to answer. It is
 // declared here because placement asks it too: a destructive result must not be placed in a

@@ -1784,25 +1784,35 @@ struct Emitter {
      * from its narrow twin by an opcode byte, and the result would be an instruction that is nearly
      * right at one width and silent in the build anybody ships.
      */
-    void genPacked(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix, U8 vvvv) {
+    // `map` is the opcode map, which every sequence here but one leaves at the two-byte default. The
+    // exception is the quadword comparison - `pcmpeqq` and `pcmpgtq` are the only members of their
+    // families in the three-byte 0F38 map - and it is a parameter rather than a second copy of the
+    // expansion for the reason the paragraph above gives about the width.
+    void genPacked(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix, U8 vvvv,
+                   U8 map = kOpcodeMap0F)
+    {
         // Two questions, and reading them as one is what this used to do: `L` is set by the *width*,
         // and the prefix is chosen by what the *target* can encode. A 128-bit expansion on a target
         // with AVX is VEX with L clear - the same instruction, spelled so that it zeroes the upper
         // half of the register it writes rather than leaving it dirty. See vectorClassNeedsVex.
         if(!wide && !packedNeedsVex()) {
-            genRegReg(to, false, rm, regField, opCode, escape, prefix);
+            genRegRegPrefixed(to, InstPrefix {
+                .mandatory = prefix, .escape = escape, .map = map,
+            }, rm, regField, opCode);
             return;
         }
 
         genRegRegPrefixed(to, InstPrefix {
             .kind = PrefixEncoding::Vex, .mandatory = prefix, .escape = escape,
-            .map = kOpcodeMap0F, .length = wide ? U8(1) : U8(0), .vvvv = vvvv,
+            .map = map, .length = wide ? U8(1) : U8(0), .vvvv = vvvv,
         }, rm, regField, opCode);
     }
 
     // The two-address shape: `op dst, src` reads and writes `dst`, so VEX.vvvv is `dst` itself.
-    void genPackedTwoAddress(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix) {
-        genPacked(wide, rm, regField, opCode, escape, prefix, regField);
+    void genPackedTwoAddress(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix,
+                             U8 map = kOpcodeMap0F)
+    {
+        genPacked(wide, rm, regField, opCode, escape, prefix, regField, map);
     }
 
     // And the non-destructive shape - a copy, a shuffle - whose VEX form names no second source at
@@ -2117,18 +2127,62 @@ struct Emitter {
         auto lanes = base[cmp->lhs]->type;
         auto equality = packedCompareRelation(cmp->getCmp()) == LowerCmp::neq;
 
-        // `pcmpeqb/w/d` are 74/75/76 and `pcmpgtb/w/d` are 64/65/66, so the width is the low two
-        // bits of either base and the two families are one table read two ways.
+        /*
+         * `pcmpeqb/w/d` are 74/75/76 and `pcmpgtb/w/d` are 64/65/66, so the width is the low two
+         * bits of either base and the two families are one table read two ways.
+         *
+         * **The quadword is not the next entry in either run** and cannot be, the run having no room
+         * left in it: `pcmpeqq` is 0F38 29 and `pcmpgtq` is 0F38 37, in the other map and with no
+         * arithmetic relating them to the three above. That is why the width is asked for by name
+         * here rather than derived - a fourth width read off the old expression would have emitted a
+         * *dword* comparison over quadword lanes, which is an answer rather than a fault.
+         */
+        auto quad = laneBytes(lanes.lane) == 8;
         auto width = laneBytes(lanes.lane) == 1 ? 0 : laneBytes(lanes.lane) == 2 ? 1 : 2;
-        auto opcode = U8((equality ? 0x74 : 0x64) + width);
+        auto opcode = quad ? U8(equality ? 0x29 : 0x37) : U8((equality ? 0x74 : 0x64) + width);
+        auto map = quad ? kOpcodeMap0F38 : kOpcodeMap0F;
 
         auto wide = isWideVector(lanes);
         auto destination = reg(regs.creates[0]);
         auto scratch = U8(15);
 
-        genPackedTwoAddress(wide, reg(regs.uses[1]), destination, opcode, 0x0f, 0x66);
+        genPackedTwoAddress(wide, reg(regs.uses[1]), destination, opcode, 0x0f, 0x66, map);
         emitAllOnes(wide, scratch);
         genPackedTwoAddress(wide, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
+    }
+
+    /*
+     * A packed shift by a count that is not a constant - see PseudoKind::VecShiftCount.
+     *
+     * Two instructions. `movd`/`movq` puts the count in the low quadword of the scratch and clears
+     * everything above it, which is what the shift needs: `psllw xmm, xmm/m128` reads that whole
+     * quadword as **one** count, so a splat of the count would arrive as a number vastly past the
+     * lane width and every lane would come out zero. That is the trap this expansion exists to avoid
+     * and the reason the transform hands over the *scalar* rather than the vector it was splatted
+     * into.
+     *
+     * `psllw`/`pslld`/`psllq` are `F1`/`F2`/`F3`, `psrl` is `D1`/`D2`/`D3` and `psra` is `E1`/`E2` -
+     * one base per direction and the lane width as the low bits, which is the same table the
+     * immediate rows read with a different base. A byte lane has no shift at any width and a
+     * quadword has no arithmetic one; both are refused before this runs.
+     */
+    void emitVecShiftCount(LowerInst* inst, const InstRegs& regs) {
+        auto type = ((LowerInstBinary*)inst)->result.type;
+
+        auto opBase = U8(inst->kind == LowerInst::Shl ? 0xf0 : inst->kind == LowerInst::Shr ? 0xd0 : 0xe0);
+        auto width = laneBytes(type.lane) == 2 ? 1 : laneBytes(type.lane) == 4 ? 2 : 3;
+
+        auto wide = isWideVector(type);
+        auto destination = reg(regs.creates[0]);
+        auto count = reg(regs.uses[1]);
+        auto scratch = U8(15);
+
+        // The count's own width, which the *lane* decides: `scalarFormOf` makes a count an `Int32`
+        // at every lane below the quadword and an `Int64` at that one. Either transfer clears
+        // everything above what it wrote, so the quadword the shift reads is the count and nothing
+        // else.
+        emitMoveAcrossBanks(scratch, count, laneBytes(type.lane) == 8, true);
+        genPackedTwoAddress(wide, scratch, destination, U8(opBase + width), 0x0f, 0x66);
     }
 
     /*
@@ -2339,6 +2393,17 @@ struct Emitter {
      * `vinserti128` is three-operand, so the destination need not be the source and the half that
      * was not written comes straight from it. That is why this form has no tie where every 128-bit
      * insert has one - a chain of inserts is shorter here than one tier down.
+     *
+     * **The low half needs no `vextracti128` at all**, which is the difference between two
+     * instructions and three at half the lane indices. Every insert below is VEX-encoded and
+     * therefore three-operand, and the source operand it reads is an *xmm* - so naming the wide
+     * vector's own register there reads its low 128 bits, which is exactly what an extract of half
+     * zero would have copied. `vextracti128 $0, %ymmN, %xmm15` and then reading `%xmm15` is a move
+     * with extra steps.
+     *
+     * The upper half still needs the extract, and that is what keeps this a branch rather than a
+     * deletion: no 128-bit insert can be pointed at the top half of a register, so the only way to
+     * write a lane there is to bring the half down, write it, and put it back.
      */
     void emitVecWideWithLane(LowerInst* inst, const InstRegs& regs) {
         auto insert = (LowerInstVecLane*)inst;
@@ -2354,9 +2419,13 @@ struct Emitter {
         auto value = reg(regs.uses[1]);
         auto scratch = U8(15);
 
-        // The half being written, brought down whole. Both halves go through this: the low one
-        // needs it as much as the high one, since what follows writes a whole 128-bit register.
-        emitExtract128(scratch, vector, high ? 1 : 0);
+        // The half being written, as a 128-bit source operand. The upper one has to be brought down
+        // to be one; the lower one already is one, the register being the same register.
+        auto source = vector;
+        if(high) {
+            emitExtract128(scratch, vector, 1);
+            source = scratch;
+        }
 
         if(isFloat(type.laneType())) {
             if(laneBytes(type.lane) == 8) {
@@ -2369,12 +2438,12 @@ struct Emitter {
                 if(within == 0) {
                     genRegRegPrefixed(to, InstPrefix {
                         .kind = PrefixEncoding::Vex, .mandatory = 0xf2, .escape = 0x0f,
-                        .map = kOpcodeMap0F, .vvvv = scratch,
+                        .map = kOpcodeMap0F, .vvvv = source,
                     }, value, scratch, 0x10);
                 } else {
                     genRegRegPrefixed(to, InstPrefix {
                         .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                        .map = kOpcodeMap0F, .vvvv = scratch,
+                        .map = kOpcodeMap0F, .vvvv = source,
                     }, value, scratch, 0x14);
                 }
             } else {
@@ -2383,7 +2452,7 @@ struct Emitter {
                 // source is a scalar, so the byte is the destination lane shifted into place.
                 genRegRegPrefixed(to, InstPrefix {
                     .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                    .map = kOpcodeMap0F3A, .vvvv = scratch,
+                    .map = kOpcodeMap0F3A, .vvvv = source,
                 }, value, scratch, 0x21);
                 to.buffer.writeByte(U8(within << 4));
             }
@@ -2397,7 +2466,7 @@ struct Emitter {
 
             genRegRegPrefixed(to, InstPrefix {
                 .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                .map = map, .vvvv = scratch, .w = quad,
+                .map = map, .vvvv = source, .w = quad,
             }, value, scratch, opcode);
             to.buffer.writeByte(within);
         }
@@ -2805,6 +2874,10 @@ struct Emitter {
 
             case PseudoKind::VecCompareInverted:
                 emitVecCompareInverted(inst, regs);
+                break;
+
+            case PseudoKind::VecShiftCount:
+                emitVecShiftCount(inst, regs);
                 break;
 
             case PseudoKind::VecMul32:

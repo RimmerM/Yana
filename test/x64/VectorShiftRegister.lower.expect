@@ -1,0 +1,86 @@
+
+shl32<complex>(%v: i32x4, %n: Int): i32x4 {
+  b_0 {
+    %r = shl %v, %n: i32x4
+    ret %r
+  }
+}
+
+shr16<complex>(%v: i16x8, %n: Int): i16x8 {
+  b_0 {
+    %r = shr %v, %n: i16x8
+    ret %r
+  }
+}
+
+sar32<complex>(%v: i32x4, %n: Int): i32x4 {
+  b_0 {
+    %r = sar %v, %n: i32x4
+    ret %r
+  }
+}
+
+shl64<complex>(%v: i64x2, %n: Long): i64x2 {
+  b_0 {
+    %r = shl %v, %n: i64x2
+    ret %r
+  }
+}
+
+shr64<complex>(%v: i64x2, %n: Long): i64x2 {
+  b_0 {
+    %r = shr %v, %n: i64x2
+    ret %r
+  }
+}
+
+splatCount<complex>(%v: i32x4, %n: Int): i32x4 {
+  b_0 {
+    %c = vsplat %n: i32x4
+    %r = shl %v, %c: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: shl32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410ff2c7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shr16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shr uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410fd1c7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: sar32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sar uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410fe2c7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shl64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, rdi] creates=[xmm0]  => 664c0f6eff66410ff3c7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shr64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shr uses=[xmm0, rdi] creates=[xmm0]  => 664c0f6eff66410fd3c7
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: splatCount ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410ff2c7
+  ret uses=[xmm0] creates=[]  => c3

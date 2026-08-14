@@ -156,15 +156,11 @@ block #0:
 block start:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
   vreduce_bits uses=[xmm0] creates=[rcx]  => 660fd7c8
-  imm uses=[] creates=[-]  => 
-  cmp_neq uses=[rcx, -] creates=[-]  => 85c9
-  je uses=[-] creates=[]  => 7501
+  cttz uses=[rcx] creates=[rcx]  => 0fbcc9
+  je uses=[rcx] creates=[]  => 7501
 block miss:
   ret uses=[rax] creates=[]  => c3
 block hit:
-  imm uses=[] creates=[-]  => 
-  or uses=[rcx, -] creates=[rcx]  => 81c900000100
-  cttz uses=[rcx] creates=[rcx]  => 0fbcc9
   add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => c3
 

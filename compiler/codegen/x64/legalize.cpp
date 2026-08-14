@@ -984,7 +984,8 @@ void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction&
 }
 
 TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement, RegScratch& scratch)
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& pool,
+    RegScratch& scratch)
 {
     if(!scratch.legalize) scratch.legalize = new LegalizeScratch();
 
@@ -992,7 +993,11 @@ TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, con
     // walk hands out is a register of its own: two of them naming one register would look like a copy
     // cycle the real pass does not have, and would be measured as a demand for a scratch register
     // nothing needs. The records this produces are discarded - only the counts are read.
-    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widest(), scratch);
+    //
+    // Over the *chosen* registers (§42), which is what `pool` is here for: `takeTemp` steps over a
+    // position whose register this instruction's own expansion clobbers, so a measurement taken over
+    // a different set of registers would step over a different set of clobbers.
+    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widestLike(pool), scratch);
     l.measuring = true;
 
     // Nothing keeps what this produces, so it produces nothing: `measuring` stops the walk from

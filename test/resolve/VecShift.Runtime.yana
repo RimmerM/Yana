@@ -1,0 +1,54 @@
+{-
+   Packed shifts by a count that is not a constant.
+
+   `VecShift.yana` is the same three directions with the count folded into the instruction's
+   immediate byte; this is the other half, where the count is only known at run time. The x64 backend
+   refused every one of these until it grew `FormVShlReg` and its two siblings - the machine's
+   register-count form, whose count sits in the **low quadword** of a vector register and is shared
+   by every lane.
+
+   Two things this asserts that the byte listing in `x64/VectorShiftRegister.lower` cannot:
+
+   - **the count is a number and not a bit pattern.** `pslld` reads a whole quadword as one count, so
+     handing it the splat the language writes (`Integral(a)` types both operands as `a`, so `v `shl`
+     n` arrives as a shift by `vsplat(n)`) would shift every lane out. What has to happen is that the
+     splat comes off and the scalar is moved across the banks with everything above it cleared.
+   - **the three backends agree.** `sar` and `shr` differ only on a negative lane, and a wrong
+     opcode extension is an answer rather than a fault.
+
+   Every count here is below its lane's width, which is the range all three backends define: at or
+   above it x86 answers zero and LLVM answers poison, and that disagreement is not this fixture's
+   business.
+-}
+let &counter = 0 :: Int
+
+-- Opaque: the global is written as well as read, so no pass can fold the count into a constant.
+fn opaque(n: Int) -> Int:
+    counter = counter + n
+    if counter > 1000:
+        return 1
+    return n
+
+fn shifts(a: Vec(Int), n: Int) -> Int:
+    let count = splat(n)
+    let left = a `shl` count
+    let right = a `shr` count
+    let arith = a `sar` count
+
+    return lane(left, 0) + lane(right, 1) + lane(arith, 2)
+
+fn quad(b: Vec(I64), n: I64) -> I64:
+    let up = b `shl` splat(n)
+    let down = up `shr` splat(n - 1)
+    return lane(down, 0)
+
+fn main() -> Int:
+    -- Lane 2 is negative, so `sar` and `shr` disagree about it.
+    let a = withLane(withLane(withLane(splat(64), 0, 5), 1, 100), 2, 0 - 32)
+    let b = splat(3 :: I64)
+
+    let n = opaque(2)
+    let m = (opaque(3) :: I64)
+
+    -- 5 << 2 = 20; 100 >> 2 = 25; -32 >> 2 (arithmetic) = -8; (3 << 3) >> 2 = 6.
+    return shifts(a, n) + (truncate(quad(b, m)) :: Int)

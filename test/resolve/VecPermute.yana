@@ -1,0 +1,50 @@
+{-
+   A 256-bit lane pattern that crosses the two 128-bit halves without moving one whole.
+
+   # extensions: v3
+
+   `reverse` and `rotate` are one `VecShuffle` each, and at four lanes both are one `vpshufd`. At
+   *eight* they are neither: every shuffle AVX2 has works inside each 128-bit half, and the one
+   exception moves halves entire - so a reversal of eight lanes was a compile error on this backend
+   until `lowerWideLanePermutes` turned it into `vpermd` and a pooled index vector.
+
+   The byte listing is in `x64/VectorPermute.lower`; what this asserts is the half a listing cannot,
+   which is that the *right lanes* end up in the right places. A permute whose index vector was
+   written in the wrong order, or relative to the wrong source, is a plausible vector rather than a
+   fault - the same argument `VecInsert.yana` makes about a lane insert, and the reason both have a
+   native `.run.expect` rather than only a golden.
+
+   `Vec(Int)` is eight lanes here because the directive says v3 and `targetVectorBytes` answers 32
+   there - so this fixture is *about* the wide tier without naming a lane count anywhere.
+-}
+let &sink = 0 :: Int
+
+@noinline
+fn reversed(v: Vec(Int)) -> Vec(Int):
+    return reverse(v)
+
+@noinline
+fn rotated(v: Vec(Int)) -> Vec(Int):
+    return rotate(v, 3)
+
+-- Lane `i` holds `i + 1`, so a lane's value names where it came from.
+fn build() -> Vec(Int):
+    return (iota() :: Vec(Int)) + splat(1)
+
+fn main() -> Int:
+    let v = build()
+
+    -- Reversed: lane 0 holds what lane 7 held, which is 8.
+    let a = lane(reversed(v), 0)
+
+    -- Reversed lane 5 holds what lane 2 held, which is 3 - a lane that crossed the middle.
+    let b = lane(reversed(v), 5)
+
+    -- Rotated left by three: lane 0 holds what lane 3 held, which is 4.
+    let c = lane(rotated(v), 0)
+
+    -- And lane 6, which wraps: 6 + 3 = 9, modulo 8 is lane 1, which holds 2.
+    let d = lane(rotated(v), 6)
+
+    -- 8 + 3 + 4 + 2 = 17.
+    return a + b + c + d

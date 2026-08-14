@@ -1,0 +1,81 @@
+# The packed comparison of a **quadword** integer lane, which this backend used to refuse.
+#
+# The refusal was written against a floor that no longer exists: `pcmpeqq` is SSE4.1 and `pcmpgtq` is
+# SSE4.2, and v2 - which is this backend's floor and the level every fixture with no directive is
+# compiled at - contains both. So a 64-bit lane has exactly what the three narrower widths have.
+# What to look for:
+#
+#   - **`pcmpeqq` is `66 0F 38 29` and `pcmpgtq` is `66 0F 38 37`**, in the three-byte map where
+#     `pcmpeqb/w/d` and `pcmpgtb/w/d` are two-byte opcodes. That is the whole reason the inverted
+#     pseudo cannot reach the quadword by adding one to a width: there is no fourth entry in either
+#     run, and a fourth read off the old arithmetic would have emitted a *dword* comparison over
+#     quadword lanes - a wrong answer rather than a fault.
+#   - **`ile` and `neq` are the base comparison, `pcmpeqd` against a scratch, and `pxor`** - the
+#     three-instruction inverted sequence, which now has to pick its opcode's map as well as its
+#     opcode.
+#   - **`ilt` is `pcmpgtq` with its operands exchanged**, which `canonicalizeOperands` does and which
+#     is why there is no third row in the table.
+
+eq(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_eq %a, %b: m64x2
+        ret %r
+    }
+}
+
+gt(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_igt %a, %b: m64x2
+        ret %r
+    }
+}
+
+# The exchange rather than a row of its own.
+lt(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_ilt %a, %b: m64x2
+        ret %r
+    }
+}
+
+# The two complements, which are the pseudo - and the pair that would have been silently wrong had
+# the expansion kept deriving its opcode from the lane width alone.
+neq(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_neq %a, %b: m64x2
+        ret %r
+    }
+}
+
+le(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_ile %a, %b: m64x2
+        ret %r
+    }
+}
+
+# And the unsigned pair, which is the same two instructions with both operands biased by the top bit
+# of every lane first - a splat of a constant, so a pooled `.rodata` load rather than a broadcast.
+ult(%a: i64x2, %b: i64x2): m64x2 {
+    {
+        %r = cmp_lt %a, %b: m64x2
+        ret %r
+    }
+}
+
+# The high half of a product, which is the machine's 16-bit lane and nothing else: `pmulhuw` is
+# `66 0F E4` and `pmulhw` is `66 0F E5`, and they are two rows where every low-half multiply is one
+# for both signednesses.
+mulhi(%a: i16x8, %b: i16x8): i16x8 {
+    {
+        %r = mulhi %a, %b: i16x8
+        ret %r
+    }
+}
+
+imulhi(%a: i16x8, %b: i16x8): i16x8 {
+    {
+        %r = imulhi %a, %b: i16x8
+        ret %r
+    }
+}

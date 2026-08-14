@@ -153,6 +153,11 @@ enum: MachineFormId {
     // instruction and is SSE4.1, and below that the same product is four multiplies' worth of
     // shuffling around `pmuludq`, which multiplies the even lanes only. See PseudoKind::VecMul32.
     FormVMul16, FormVMul32, FormVMul32Sse2, FormVMulF32, FormVMulF64,
+    // The *high* half of a product, which the machine has at a 16-bit lane and at no other: `pmulhw`
+    // and `pmulhuw` are one row each because the top half of a product is the one place a
+    // multiplication's signedness is visible in its bits. There is no `pmulhd` or `pmulhb` at any
+    // feature level, so this pair is the whole family.
+    FormVMulHi16, FormVIMulHi16,
     FormVDivF32, FormVDivF64,
 
     // The bitwise three, at one form each: the machine has one packed `and` and it does not care
@@ -167,20 +172,31 @@ enum: MachineFormId {
     FormVAndF32, FormVAndF64,
     FormVAndNotF32, FormVAndNotF64,
 
-    // Shifts by a constant count every lane shares. The machine also shifts by a count held in the
-    // low quadword of a vector register, and AVX2 by one count per lane - neither is here, because
-    // neither is what the IR's other spelling means: `shl %v, %count` with a register count is a
-    // scalar in a general register, and getting it into a vector one is an expansion this backend
-    // does not have yet. See selectPackedForm, which refuses it rather than choosing between them.
+    // Shifts by a constant count every lane shares. AVX2's one count *per lane* - `vpsllvd` and its
+    // siblings - is still absent, and is the one shift shape `unsupportedVectorReason` refuses; the
+    // register-count rows below are the other spelling of a shared count and not that.
     FormVShl16Imm, FormVShl32Imm, FormVShl64Imm,
     FormVShr16Imm, FormVShr32Imm, FormVShr64Imm,
     FormVSar16Imm, FormVSar32Imm,
 
+    // And the same three by a count held in a register, which the machine *does* have: `psllw xmm,
+    // xmm/m128` reads the low quadword of its second operand as one count every lane shares. One row
+    // per direction and not per width - the three widths differ in the opcode byte alone, which the
+    // expansion reads off the instruction's type, and what a form states is what the allocator
+    // reads. The count arrives in a general register and the instruction wants it in a vector one,
+    // which is the transfer that makes these pseudos.
+    FormVShlReg, FormVShrReg, FormVSarReg,
+
     // Comparison into a mask. The integer ones test one relation each and the rest are reached by
     // swapping the operands; the float ones carry the relation as an immediate predicate, which is
     // why there are two of them and eight of the others.
-    FormVCmpEq8, FormVCmpEq16, FormVCmpEq32,
-    FormVCmpGt8, FormVCmpGt16, FormVCmpGt32,
+    //
+    // The quadword pair is the one that used to be missing and is not the machine's gap: `pcmpeqq`
+    // is SSE4.1 and `pcmpgtq` is SSE4.2, both of which the v2 floor claims. They live in the
+    // three-byte 0F38 map where the three narrower widths are two-byte opcodes, which is the only
+    // thing about them the table has to say.
+    FormVCmpEq8, FormVCmpEq16, FormVCmpEq32, FormVCmpEq64,
+    FormVCmpGt8, FormVCmpGt16, FormVCmpGt32, FormVCmpGt64,
     FormVCmpF32, FormVCmpF64,
     /*
      * The lane-wise minimum and maximum, which is the one packed family with a column per
@@ -342,18 +358,20 @@ enum: MachineFormId {
     FormVWideAdd8, FormVWideAdd16, FormVWideAdd32, FormVWideAdd64, FormVWideAddF32, FormVWideAddF64,
     FormVWideSub8, FormVWideSub16, FormVWideSub32, FormVWideSub64, FormVWideSubF32, FormVWideSubF64,
     FormVWideMul16, FormVWideMul32, FormVWideMulF32, FormVWideMulF64,
+    FormVWideMulHi16, FormVWideIMulHi16,
     FormVWideDivF32, FormVWideDivF64,
 
     FormVWideAnd, FormVWideOr, FormVWideXor, FormVWideAndNot,
     FormVWideAndF32, FormVWideAndF64,
     FormVWideAndNotF32, FormVWideAndNotF64,
 
+    FormVWideShlReg, FormVWideShrReg, FormVWideSarReg,
     FormVWideShl16Imm, FormVWideShl32Imm, FormVWideShl64Imm,
     FormVWideShr16Imm, FormVWideShr32Imm, FormVWideShr64Imm,
     FormVWideSar16Imm, FormVWideSar32Imm,
 
-    FormVWideCmpEq8, FormVWideCmpEq16, FormVWideCmpEq32,
-    FormVWideCmpGt8, FormVWideCmpGt16, FormVWideCmpGt32,
+    FormVWideCmpEq8, FormVWideCmpEq16, FormVWideCmpEq32, FormVWideCmpEq64,
+    FormVWideCmpGt8, FormVWideCmpGt16, FormVWideCmpGt32, FormVWideCmpGt64,
     FormVWideCmpF32, FormVWideCmpF64,
     FormVWideMinI8, FormVWideMinU8, FormVWideMinI16, FormVWideMinU16,
     FormVWideMinI32, FormVWideMinU32, FormVWideMinF32, FormVWideMinF64,
@@ -393,8 +411,15 @@ enum: MachineFormId {
      * `vpbroadcastd`/`vpbroadcastq` replace the shuffle a 128-bit splat takes: there is no in-lane
      * shuffle that reaches the upper half, so the broadcast has to be an instruction that crosses
      * and AVX2 is where one arrives.
+     *
+     * And `vpermd`/`vpermps`, which are the *general* crossing at a 32-bit lane and the reason those
+     * two rows are not the whole story: `vperm2f128` moves halves entire, and any eight-lane pattern
+     * that is neither in-lane nor a half exchange needs an instruction that reads one lane index per
+     * result lane. Both take those indices out of a **vector register**, which is why these are the
+     * one shuffle family here whose pattern is an operand rather than an immediate - see
+     * LowerInst::X86Permute and `lowerWideLanePermutes`.
      */
-    FormVPerm2, FormVExtract128, FormVInsert128,
+    FormVPerm2, FormVPermute32, FormVPermuteF32, FormVExtract128, FormVInsert128,
     FormVWideBroadcast8, FormVWideBroadcast16,
     FormVWideBroadcast32, FormVWideBroadcast64,
     FormVWideBroadcastF32, FormVWideBroadcastF64,
@@ -583,6 +608,8 @@ MachineTarget::MachineTarget() {
     name(OpVAdd, "vadd"_v);
     name(OpVSub, "vsub"_v);
     name(OpVMul, "vmul"_v);
+    name(OpVMulHi, "vmulhi"_v);
+    name(OpVIMulHi, "vimulhi"_v);
     name(OpVDiv, "vdiv"_v);
     name(OpVAnd, "vand"_v);
     name(OpVOr, "vor"_v);
@@ -596,6 +623,7 @@ MachineTarget::MachineTarget() {
     name(OpVMin, "vmin"_v);
     name(OpVMax, "vmax"_v);
     name(OpVShuffle, "vshuffle"_v);
+    name(OpVPermute, "vpermute"_v);
     name(OpVBroadcast, "vbroadcast"_v);
     name(OpVExtract, "vextract"_v);
     name(OpVMaskBits, "vmaskbits"_v);
@@ -1825,6 +1853,19 @@ MachineTarget::MachineTarget() {
         packed(FormVMulF32, OpVMul, "mulps xmm, xmm/m"_v, 0x00, 0x59);
         packed(FormVMulF64, OpVMul, "mulpd xmm, xmm/m"_v, 0x66, 0x59);
 
+        /*
+         * The top half of the product, which is the one arithmetic row where the signedness of the
+         * operands changes the bits - the low half being the same either way, which is why `Mul` and
+         * `IMul` share every row above.
+         *
+         * SSE2 and a 16-bit lane alone. There is no packed multiply of a byte or a quadword at all,
+         * and the 32-bit lane's `pmulld` keeps the low half only: the widening `pmuludq` is where a
+         * 32-bit lane's high half lives, and reaching it is the seven-instruction shuffle
+         * `FormVMul32Sse2` is, run for the other half of the answer. So the family is these two.
+         */
+        packed(FormVMulHi16,  OpVMulHi,  "pmulhuw xmm, xmm/m"_v, 0x66, 0xe4);
+        packed(FormVIMulHi16, OpVIMulHi, "pmulhw xmm, xmm/m"_v,  0x66, 0xe5);
+
         // No packed integer divide exists on any x86. An integer vector division expands lane by
         // lane, per Design-Vector §3.1, which is a transform this backend does not have yet.
         packed(FormVDivF32, OpVDiv, "divps xmm, xmm/m"_v, 0x00, 0x5e);
@@ -1852,10 +1893,8 @@ MachineTarget::MachineTarget() {
          * Shifts by a constant count every lane shares.
          *
          * The opcode byte is shared between the three shift directions and ModRM.reg carries the
-         * extension that says which, exactly as the scalar group-2 shifts do. There is no register
-         * form here: the machine's is a count in the low quadword of a *vector* register, and the
-         * IR's register spelling is a scalar in a general one, so the two do not meet without a
-         * transfer this backend has yet to write.
+         * extension that says which, exactly as the scalar group-2 shifts do. The register-count
+         * rows are below, and are a different opcode rather than this one with an operand swapped.
          */
         auto shiftImm = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 op, U8 extension) {
             auto& form = add(id, opcode, formName);
@@ -1885,12 +1924,47 @@ MachineTarget::MachineTarget() {
         shiftImm(FormVSar32Imm, OpVSar, "psrad xmm, imm8"_v, 0x72, 4);
 
         /*
+         * And the same three by a count that is not a constant, which used to be the one shift shape
+         * this backend refused.
+         *
+         * The machine has it: `psllw xmm, xmm/m128` reads the **low quadword** of its second operand
+         * as one count that every lane shares - not one count per lane, which is AVX2's `vpsllvd` and
+         * a different instruction. So what was missing was never the instruction, it was the
+         * transfer: the IR's shared count is a scalar in a *general* register, and getting it into
+         * the low quadword of a vector one with everything above it clear is a `movd`/`movq`, whose
+         * destination has to be a register that is neither operand.
+         *
+         * Hence a pseudo and a clobber, on exactly `FormVSelect`'s terms. And one row per direction
+         * rather than per lane width: the three widths are `F1`/`F2`/`F3` off one base, which the
+         * expansion reads off the instruction's own type, and nothing about the width changes an
+         * operand, a tie or a clobber - which is all a form states.
+         *
+         * `movd` zero-extends, so a count arrives as an unsigned 64-bit number and a count at or
+         * above the lane width answers zero (all sign bits, for `psra`). That is the same rule the
+         * immediate rows already follow, `pslld xmm, 0xff` being zero and not a mask of the count.
+         */
+        auto shiftReg = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName) {
+            auto& form = add(id, opcode, formName);
+            form.uses.push(anyReg(ClassXmm128));
+            form.uses.push(anyReg());
+            form.defs.push(tiedDef(0, ClassXmm128));
+            form.clobbers.add(vectorReg(15));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecShiftCount,
+            };
+        };
+
+        shiftReg(FormVShlReg, OpVShl, "movd xmm15, r; psllw/d/q xmm, xmm15"_v);
+        shiftReg(FormVShrReg, OpVShr, "movd xmm15, r; psrlw/d/q xmm, xmm15"_v);
+        shiftReg(FormVSarReg, OpVSar, "movd xmm15, r; psraw/d xmm, xmm15"_v);
+
+        /*
          * Comparison into a mask.
          *
          * The integer comparisons are two relations - equal and signed greater - and everything else
          * is reached by swapping the operands or inverting the result, which is what
          * `selectFormForTarget` does rather than this table. There is no unsigned packed compare at
-         * all, and no quadword one before SSE4.1.
+         * all; the quadword pair needs SSE4.1 and SSE4.2 respectively, which is the floor.
          *
          * The float ones are one instruction carrying a predicate as an immediate, which is a
          * *selected* value rather than an operand of the IR: the condition comes from the
@@ -1901,9 +1975,11 @@ MachineTarget::MachineTarget() {
         packed(FormVCmpEq8,  OpVCmp, "pcmpeqb xmm, xmm/m"_v, 0x66, 0x74);
         packed(FormVCmpEq16, OpVCmp, "pcmpeqw xmm, xmm/m"_v, 0x66, 0x75);
         packed(FormVCmpEq32, OpVCmp, "pcmpeqd xmm, xmm/m"_v, 0x66, 0x76);
+        packed(FormVCmpEq64, OpVCmp, "pcmpeqq xmm, xmm/m"_v, 0x66, 0x29, kOpcodeMap0F38, kFeatureBaseline);
         packed(FormVCmpGt8,  OpVCmp, "pcmpgtb xmm, xmm/m"_v, 0x66, 0x64);
         packed(FormVCmpGt16, OpVCmp, "pcmpgtw xmm, xmm/m"_v, 0x66, 0x65);
         packed(FormVCmpGt32, OpVCmp, "pcmpgtd xmm, xmm/m"_v, 0x66, 0x66);
+        packed(FormVCmpGt64, OpVCmp, "pcmpgtq xmm, xmm/m"_v, 0x66, 0x37, kOpcodeMap0F38, kFeatureBaseline);
 
         auto floatCompare = [&](MachineFormId id, StringView formName, U8 prefix) {
             auto& form = add(id, OpVCmp, formName);
@@ -2834,6 +2910,9 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideMulF32, FormVMulF32, "vmulps ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideMulF64, FormVMulF64, "vmulpd ymm, ymm, ymm/m"_v);
 
+        wideTwin(FormVWideMulHi16,  FormVMulHi16,  "vpmulhuw ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideIMulHi16, FormVIMulHi16, "vpmulhw ymm, ymm, ymm/m"_v);
+
         wideTwin(FormVWideDivF32, FormVDivF32, "vdivps ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideDivF64, FormVDivF64, "vdivpd ymm, ymm, ymm/m"_v);
 
@@ -2845,6 +2924,14 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideAndF64, FormVAndF64, "vandpd ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideAndNotF32, FormVAndNotF32, "vandnps ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideAndNotF64, FormVAndNotF64, "vandnpd ymm, ymm, ymm/m"_v);
+
+        // The count operand stays an xmm at this width - `vpsllw ymm, ymm, xmm` is what the machine
+        // has, a shared count being one quadword whatever the vector is - and `widenClass` leaves it
+        // alone for the same reason it leaves a broadcast's general register alone. What widens is
+        // the vector, and the tie stays because a pseudo's bytes are its emitter's.
+        wideTwin(FormVWideShlReg, FormVShlReg, "vmovd xmm15, r; vpsllw/d/q ymm, ymm, xmm15"_v);
+        wideTwin(FormVWideShrReg, FormVShrReg, "vmovd xmm15, r; vpsrlw/d/q ymm, ymm, xmm15"_v);
+        wideTwin(FormVWideSarReg, FormVSarReg, "vmovd xmm15, r; vpsraw/d ymm, ymm, xmm15"_v);
 
         wideTwin(FormVWideShl16Imm, FormVShl16Imm, "vpsllw ymm, ymm, imm8"_v);
         wideTwin(FormVWideShl32Imm, FormVShl32Imm, "vpslld ymm, ymm, imm8"_v);
@@ -2858,9 +2945,11 @@ MachineTarget::MachineTarget() {
         wideTwin(FormVWideCmpEq8,  FormVCmpEq8,  "vpcmpeqb ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpEq16, FormVCmpEq16, "vpcmpeqw ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpEq32, FormVCmpEq32, "vpcmpeqd ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideCmpEq64, FormVCmpEq64, "vpcmpeqq ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpGt8,  FormVCmpGt8,  "vpcmpgtb ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpGt16, FormVCmpGt16, "vpcmpgtw ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpGt32, FormVCmpGt32, "vpcmpgtd ymm, ymm, ymm/m"_v);
+        wideTwin(FormVWideCmpGt64, FormVCmpGt64, "vpcmpgtq ymm, ymm, ymm/m"_v);
         wideTwin(FormVWideCmpF32,  FormVCmpF32,  "vcmpps ymm, ymm, ymm/m, predicate"_v);
         wideTwin(FormVWideCmpF64,  FormVCmpF64,  "vcmppd ymm, ymm, ymm/m, predicate"_v);
 
@@ -2992,6 +3081,52 @@ MachineTarget::MachineTarget() {
             form.encoding.vvvvField = useRef(0);
             form.encoding.patternImmediate = true;
         }
+
+        /*
+         * The general crossing, which is the other half of the answer `vperm2f128` starts.
+         *
+         * `vpermd ymm1, ymm2, ymm3/m256` writes result lane `i` with source lane `ymm2[i] & 7` - one
+         * index per lane, in a register rather than in a byte, and no notion of a 128-bit half at
+         * all. So every eight-lane 32-bit pattern over *one* source is this instruction, including
+         * the ones that are neither in-lane nor a swap of whole halves.
+         *
+         * `vpermps` is the same operation in the float domain, and the domain follows the value
+         * being permuted rather than the indices - which are an integer vector in both rows, a lane
+         * index being a number whatever it is indexing.
+         *
+         * Three-operand and non-destructive, and the indices are `vvvv`: the operand order here is
+         * the machine's, so use 0 is the index vector and use 1 is the vector being permuted. That
+         * is the same order `LowerInstX86Permute` states, for the reason `X86MaskAnd` states its own
+         * in the machine's order - a form and the pass that writes for it agreeing is cheaper than a
+         * form that reorders.
+         *
+         * There is no 128-bit twin. `vpermilps` would be one, and a 128-bit 32-bit-lane pattern is
+         * already `pshufd` in one instruction with no pooled constant at all - so the narrow tier
+         * has nothing to gain and this family exists only at the width where the halves are a
+         * problem.
+         */
+        auto permute = [&](MachineFormId id, StringView formName, U8 opcode) {
+            auto& form = add(id, OpVPermute, formName);
+            form.uses.push(anyReg(ClassYmm256));
+            form.uses.push(anyReg(ClassYmm256));
+            form.defs.push(def(ClassYmm256));
+            form.requiredFeatures = kFeatureAvx | kFeatureAvx2;
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = opcode,
+                .escape = 0x0f, .prefix = 0x66,
+                .regField = defRef(0), .rmField = useRef(1),
+                .width = OperationWidth::FromResult,
+                .widthInPrefix = true,
+                .prefixEncoding = PrefixEncoding::Vex,
+                .opcodeMap = kOpcodeMap0F38,
+                .vectorLength = 1,
+            };
+            form.encoding.vvvvField = useRef(0);
+        };
+
+        permute(FormVPermute32,  "vpermd ymm, ymm, ymm/m"_v,  0x36);
+        permute(FormVPermuteF32, "vpermps ymm, ymm, ymm/m"_v, 0x16);
 
         /*
          * The two halves read on their own, which is how a 256-bit vector and a 128-bit one meet.
@@ -3147,10 +3282,10 @@ MachineTarget::MachineTarget() {
             };
         };
 
-        wideInsert(FormVWideInsert32,  "vextracti128; vpinsrd; vinserti128"_v,  ClassGpr32);
-        wideInsert(FormVWideInsert64,  "vextracti128; vpinsrq; vinserti128"_v,  ClassGpr64);
-        wideInsert(FormVWideInsertF32, "vextractf128; vinsertps; vinserti128"_v, ClassFloat32);
-        wideInsert(FormVWideInsertF64, "vextractf128; vmovsd/vunpcklpd; vinserti128"_v, ClassFloat64);
+        wideInsert(FormVWideInsert32,  "vpinsrd; vinserti128 (vextracti128 for the upper half)"_v,  ClassGpr32);
+        wideInsert(FormVWideInsert64,  "vpinsrq; vinserti128 (vextracti128 for the upper half)"_v,  ClassGpr64);
+        wideInsert(FormVWideInsertF32, "vinsertps; vinserti128 (vextracti128 for the upper half)"_v, ClassFloat32);
+        wideInsert(FormVWideInsertF64, "vmovsd/vunpcklpd; vinserti128 (vextracti128 for the upper half)"_v, ClassFloat64);
     }
 
     /*
@@ -3975,14 +4110,22 @@ static Size operandTempReach(const MachineForm& form, RegisterBankId bank) {
         }
     }
 
-    // The pool is counted from the top of the register file, so a clobber either falls inside it or
-    // does not - and one that does costs a position whether or not the temporary below it is wanted.
-    auto pool = TemporaryReserve::widest();
-    auto available = Size(registers.bank(bank).physicalCount);
+    /*
+     * And the positions a clobber of this form's own would make `takeTemp` step over.
+     *
+     * ~~The pool is counted from the top of the register file, so a clobber either falls inside it or
+     * does not.~~ The pool is chosen per function now (§42), so which registers it holds is not a
+     * property of the table this checks - and this check is about the table. So every clobber in the
+     * bank is counted as though it fell inside, which is the worst case and the only answer that
+     * holds for every function.
+     */
+    Size clobbers = 0;
 
-    for(Size i = 0; i < kMaxOperandTemps && i < available; i++) {
-        if(form.clobbers.has(pool.operandTemp(bank, i))) reach++;
+    for(Size i = 0; i < Size(registers.bank(bank).physicalCount); i++) {
+        if(form.clobbers.has(PhysicalReg { bank, U16(i) })) clobbers++;
     }
+
+    reach += clobbers < kMaxOperandTemps ? clobbers : Size(kMaxOperandTemps);
 
     if(bank == BankGpr && form.addressOperand() >= 0) reach += 2;
 
@@ -4456,8 +4599,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::IDiv:       return OpIDiv;
         case LowerInst::Rem:        return OpRem;
         case LowerInst::IRem:       return OpIRem;
-        case LowerInst::MulHi:      return OpMulHi;
-        case LowerInst::IMulHi:     return OpIMulHi;
+        // The high half, which is packed at a 16-bit lane and scalar everywhere else - and which
+        // keeps its two kinds apart at both, the top of a product being where a multiplication's
+        // signedness first shows in its bits.
+        case LowerInst::MulHi:      return isPackedOp() ? OpVMulHi : OpMulHi;
+        case LowerInst::IMulHi:     return isPackedOp() ? OpVIMulHi : OpIMulHi;
 
         // The six the IR states once and the machine has twice or three times, one operation per
         // bank and per packing. A packed operation is asked about first because a vector of floats
@@ -4553,6 +4699,14 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // instruction the opcode list was missing.
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd*)inst)->isComplemented() ? OpVAndNot : OpVAnd;
+
+        // Its own opcode rather than one of `OpVShuffle`'s forms: what selects between its two rows
+        // is the lane *kind*, where every other shuffle row is selected by a pattern, and an opcode
+        // whose forms are chosen two different ways is one whose selection has to ask which kind of
+        // shuffle it is looking at before it can ask anything else.
+        case LowerInst::X86Permute:
+            return OpVPermute;
+
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
         case LowerInst::X86PushArg: return OpPushArg;
@@ -4915,6 +5069,26 @@ static Maybe<PackedShuffleChoice> wideShuffleChoice(LowerType type, Buffer<U8> p
     return Just(PackedShuffleChoice { FormVPerm2, control, true });
 }
 
+/*
+ * Whether every entry of a shuffle's pattern names the same source.
+ *
+ * The one question `vpermd` adds to this file, and it is asked on both sides of the pass that spends
+ * the answer - `checkVectorSupported` above and `lowerWideLanePermutes` below - which is
+ * `packedCompareRelation`'s argument for why it lives here rather than in either of them.
+ */
+bool shuffleReadsOneSource(LowerInst* inst) {
+    auto shuffle = (LowerInstVecShuffle*)inst;
+    auto lanes = shuffle->result.type.lanes();
+    auto pattern = shuffle->pattern();
+    auto second = pattern[0] >= lanes;
+
+    for(U32 k = 1; k < lanes; k++) {
+        if((pattern[k] >= lanes) != second) return false;
+    }
+
+    return true;
+}
+
 Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst) {
     if(inst->kind != LowerInst::VecShuffle) return {};
 
@@ -5189,6 +5363,29 @@ bool packedMinMaxSupported(LowerType type) {
     return isIntVector(type) && laneBytes(type.lane) < 8;
 }
 
+/*
+ * The scalar every lane of a packed shift shares its count with, or nothing where the count is not
+ * shared at all.
+ *
+ * Two spellings arrive here and mean one thing, exactly as `packedShiftConstantCount` describes: a
+ * `.lower` fixture writes a scalar count and the language writes `vsplat(n)`, `Integral(a)` typing
+ * both operands as `a`. Either is a count the machine's register form can take, since what that form
+ * reads is one quadword and not one count per lane.
+ *
+ * What answers nothing is a count vector that is *not* a splat - a genuinely per-lane count, which
+ * is AVX2's `vpsllv` family and no form here. Nothing in the language produces one today; this is
+ * what keeps a hand-written lower IR from selecting a shared-count form for it.
+ */
+LowerValue* packedShiftSharedCount(LowerBase base, LowerInst* inst) {
+    auto count = base[((LowerInstBinary*)inst)->rhs];
+    if(!isVectorLike(count->type)) return count;
+
+    auto splat = count->inst();
+    if(splat->kind != LowerInst::VecSplat) return nullptr;
+
+    return base[((LowerInstVecSplat*)splat)->from];
+}
+
 LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst) {
     auto count = base[((LowerInstBinary*)inst)->rhs]->inst();
 
@@ -5208,13 +5405,23 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
     // is a feature question and a row is not.
     static const MachineFormId kMul[6] = { 0, FormVMul16, 0, 0, FormVMulF32, FormVMulF64 };
     static const MachineFormId kDiv[6] = { 0, 0, 0, 0, FormVDivF32, FormVDivF64 };
+    // The high half, at the one lane width the machine has it: a row each, since this is where the
+    // two signednesses stop agreeing about the bits.
+    static const MachineFormId kMulHi[6]  = { 0, FormVMulHi16,  0, 0, 0, 0 };
+    static const MachineFormId kIMulHi[6] = { 0, FormVIMulHi16, 0, 0, 0, 0 };
 
     static const MachineFormId kShlImm[6] = { 0, FormVShl16Imm, FormVShl32Imm, FormVShl64Imm, 0, 0 };
     static const MachineFormId kShrImm[6] = { 0, FormVShr16Imm, FormVShr32Imm, FormVShr64Imm, 0, 0 };
     static const MachineFormId kSarImm[6] = { 0, FormVSar16Imm, FormVSar32Imm, 0, 0, 0 };
 
-    static const MachineFormId kCmpEq[6] = { FormVCmpEq8, FormVCmpEq16, FormVCmpEq32, 0, FormVCmpF32, FormVCmpF64 };
-    static const MachineFormId kCmpGt[6] = { FormVCmpGt8, FormVCmpGt16, FormVCmpGt32, 0, FormVCmpF32, FormVCmpF64 };
+    // The register-count rows have no lane column: one form per direction, the width being an opcode
+    // byte the expansion reads rather than anything the allocator does. The widths the machine has
+    // no shift at are refused by `unsupportedVectorReason` before this runs, as they are for the
+    // immediate rows above - the difference is that here there is no zero in a table to fall into.
+    static const MachineFormId kShiftReg[3] = { FormVShlReg, FormVShrReg, FormVSarReg };
+
+    static const MachineFormId kCmpEq[6] = { FormVCmpEq8, FormVCmpEq16, FormVCmpEq32, FormVCmpEq64, FormVCmpF32, FormVCmpF64 };
+    static const MachineFormId kCmpGt[6] = { FormVCmpGt8, FormVCmpGt16, FormVCmpGt32, FormVCmpGt64, FormVCmpF32, FormVCmpF64 };
 
     switch(inst->kind) {
         /*
@@ -5233,6 +5440,8 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Sub:
         case LowerInst::Mul:
         case LowerInst::IMul:
+        case LowerInst::MulHi:
+        case LowerInst::IMulHi:
         case LowerInst::Div: {
             auto type = ((LowerInstBinary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
@@ -5240,6 +5449,10 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             switch(inst->kind) {
                 case LowerInst::Add: return packedForm(kAdd, type);
                 case LowerInst::Sub: return packedForm(kSub, type);
+                // The high half keeps its two kinds apart where the low half merges them, which is
+                // the whole of what these two lines say that the two above them do not.
+                case LowerInst::MulHi:  return packedForm(kMulHi, type);
+                case LowerInst::IMulHi: return packedForm(kIMulHi, type);
                 case LowerInst::Mul:
                 case LowerInst::IMul:
                     // A 32-bit lane's product is `pmulld`, which is SSE4.1 and so is the floor.
@@ -5282,8 +5495,8 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             if(!isVectorLike(type)) return 0;
 
             /*
-             * One constant count for every lane. A count in a register - per lane, or shared - is
-             * the gap the form table names.
+             * One count every lane shares, which is either a constant - the immediate rows - or a
+             * value in a general register that the expansion moves across the banks.
              *
              * Asked of the *value* rather than of `hasEmbeddedRhs`, because this runs before the
              * peephole that embeds a constant as well as after it: the load folding selects a form
@@ -5299,7 +5512,12 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             // `isImm` is the *embedded* question and this one is not it - see above. Read through
             // the splat as well, because `tryFoldLoad` selects a form for every instruction it walks
             // past and that walk starts above `unwrapVectorShiftCounts`.
-            assertTrue(packedShiftConstantCount(base, inst)); // no packed shift by a register count yet
+            if(!packedShiftConstantCount(base, inst)) {
+                assertTrue(packedShiftSharedCount(base, inst)); // a per-lane count vector has no form
+                auto direction = inst->kind == LowerInst::Shl ? 0 : inst->kind == LowerInst::Shr ? 1 : 2;
+
+                return widthForm(kShiftReg[direction], type);
+            }
 
             switch(inst->kind) {
                 case LowerInst::Shl: return packedForm(kShlImm, type);
@@ -5403,6 +5621,22 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             }
 
             return widthForm(masked->isComplemented() ? FormVAndNot : FormVAnd, type);
+        }
+
+        /*
+         * The general lane permutation, whose two rows differ by the *domain* of the value being
+         * permuted and by nothing else - the index vector is an integer vector in both.
+         *
+         * A 256-bit 32-bit lane and nothing else. `lowerWideLanePermutes` is what builds one, and it
+         * builds none at any other shape; this asserts that rather than choosing a neighbouring row,
+         * because there is no neighbouring row to choose - `vpermq` has an immediate pattern and
+         * `vpermb` is AVX-512.
+         */
+        case LowerInst::X86Permute: {
+            auto type = ((LowerInstX86Permute*)inst)->result.type;
+
+            assertTrue(isWideVector(type) && laneBytes(type.lane) == 4);
+            return isFloatVector(type) ? FormVPermuteF32 : FormVPermute32;
         }
 
         /*
@@ -5803,15 +6037,15 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
              * A minimum or a maximum, whose pairwise step is a packed comparison - so it reaches
              * exactly the lane widths one does. That used to be the 32-bit lane alone for the
              * *unsigned* pair, because the bias `biasUnsignedPackedCompares` builds is a splat and
-             * the narrow broadcasts did not exist; both halves are general now, and what is left is
-             * the quadword, where `pcmpgtq` is SSE4.2.
+             * the narrow broadcasts did not exist; ~~what is left is the quadword, where `pcmpgtq`
+             * is SSE4.2~~ - which is the floor, so nothing is left. The pairwise step of a quadword
+             * ordering is `pcmpgtq` and a lane-wise select, neither of which needs a feature this
+             * target does not claim, and there is no lane width here to refuse.
+             *
+             * It is still not a `pminsq`: `packedMinMaxSupported` answers false at this width and
+             * keeps the comparison and the blend the reduction was written as, which is why lifting
+             * the refusal needed no new form beyond the comparison itself.
              */
-            auto ordering = reduce == LowerReduce::Min || reduce == LowerReduce::Max ||
-                            reduce == LowerReduce::IMin || reduce == LowerReduce::IMax;
-
-            if(isIntVector(type) && laneBytes(type.lane) == 8 && ordering) {
-                return Just("the machine has no packed comparison of a quadword integer lane before SSE4.1, so neither has a minimum or a maximum of one"_v);
-            }
 
             return {};
         }
@@ -5885,13 +6119,25 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         case LowerInst::VecShuffle:
             if(!packedShuffleChoice(inst)) {
                 if(isWideVector(type)) {
-                    // The refusal that is specific to this tier, and the one worth naming
-                    // separately: every shuffle AVX2 has works *inside* each 128-bit half, so a
-                    // pattern that moves a lane across the middle is not an instruction unless it
-                    // moves the whole half. `vpermd` would express the general case and takes its
-                    // pattern out of a vector register, which needs the constant pool this backend
-                    // has not opened to vectors.
-                    return Just("no single instruction here expresses this lane pattern at 256 bits - every shuffle at this width works inside each 128-bit half, and the only crossing is an exchange of whole halves"_v);
+                    /*
+                     * The refusal that is specific to this tier: every shuffle AVX2 has works
+                     * *inside* each 128-bit half, so a pattern that moves a lane across the middle
+                     * is not an instruction unless it moves the whole half.
+                     *
+                     * ~~`vpermd` would express the general case and takes its pattern out of a
+                     * vector register, which needs the constant pool this backend has not opened to
+                     * vectors.~~ The pool is open, and `lowerWideLanePermutes` is what spends it: a
+                     * 32-bit lane pattern naming **one** source is `vpermd`/`vpermps` and a pooled
+                     * index vector, so it is let through here and lowered below.
+                     *
+                     * What is still refused is the two-source case at that width, and every pattern
+                     * at a 64-bit lane that is neither in-lane nor a half exchange - `vpermq` states
+                     * its pattern as an immediate and so belongs to `wideShuffleChoice`, which does
+                     * not have it yet.
+                     */
+                    if(laneBytes(type.lane) == 4 && shuffleReadsOneSource(inst)) return {};
+
+                    return Just("no single instruction here expresses this lane pattern at 256 bits - every shuffle at this width works inside each 128-bit half, the only crossing is an exchange of whole halves, and the general permute reads one source where this pattern names two"_v);
                 }
 
                 return Just("no single instruction here expresses this lane pattern - `shufps` takes a run of lanes from each source and the interleaves take one of each, and an 8- or 16-bit lane has nothing beyond those"_v);
@@ -5920,11 +6166,17 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
 
             return {};
 
-        // The high half, which exists at a 16-bit lane (`pmulhw`/`pmulhuw`) and is not in the form
-        // table - so it is refused with the widths that have no instruction at all.
+        // The high half, which exists at a 16-bit lane (`pmulhw`/`pmulhuw`) and nowhere else: there
+        // is no packed multiply of a byte or a quadword at any level, and a 32-bit lane's `pmulld`
+        // keeps the low half alone - the widening `pmuludq` is the only route to its top half and is
+        // an expansion rather than a form. So the refusal is every lane width but the word.
         case LowerInst::MulHi:
         case LowerInst::IMulHi:
-            return Just("this backend has no packed multiply-high yet"_v);
+            if(laneColumn(type) != 1) {
+                return Just("the machine has a packed multiply-high at a 16-bit lane alone - there is none of a byte or a quadword at any feature level, and a 32-bit lane's product keeps its low half only"_v);
+            }
+
+            return {};
 
         case LowerInst::Div:
         case LowerInst::IDiv:
@@ -5941,17 +6193,21 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         case LowerInst::Sar: {
             /*
              * Read through the splat the language's spelling wraps the count in - see
-             * `packedShiftConstantCount`, and `unwrapVectorShiftCounts` in transform.cpp, which is
-             * the pass this stands on the other side of.
+             * `packedShiftSharedCount`, and `unwrapVectorShiftCounts` in transform.cpp, which is the
+             * pass this stands on the other side of.
              *
-             * What is left refused is a count that is not a constant at all. The machine does have a
-             * form for that - the count in the low quadword of a vector register - and reaching it
-             * needs the scalar moved into lane zero with the rest cleared, since `pslld` reads the
-             * whole quadword as one count and a splat would arrive as a number far past the lane
-             * width. That transfer is the missing piece rather than the instruction.
+             * ~~What is left refused is a count that is not a constant at all.~~ A count that is not
+             * a constant is the machine's register form, whose count sits in the low quadword of a
+             * vector register - so what the expansion adds in front of it is the bank crossing, and
+             * `movd` clearing everything above the count is exactly what that form needs.
+             *
+             * What is still refused is a count that is not *shared*: one count per lane is AVX2's
+             * `vpsllv` family and no row here. The language cannot write one - `Integral(a)` types
+             * both operands as the same `a`, so a vector count reaches here as a splat - so this
+             * guards a hand-written lower IR.
              */
-            if(!packedShiftConstantCount(base, inst)) {
-                return Just("a packed shift by a count that is not a constant is not implemented here - the count would have to be moved into lane zero of a vector register with the rest cleared"_v);
+            if(!packedShiftSharedCount(base, inst)) {
+                return Just("a packed shift by one count per lane has no form here - the machine's register count is a single quadword every lane shares, and the per-lane family is AVX2's `vpsllv`"_v);
             }
 
             if(laneBytes(type.lane) == 1) return Just("the machine has no packed shift of a byte lane"_v);
@@ -6000,15 +6256,17 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
             auto relation = packedCompareRelation(((LowerInstCmp*)inst)->getCmp());
 
             /*
-             * There is no packed compare of a quadword lane before SSE4.1 (`pcmpeqq`) and SSE4.2
-             * (`pcmpgtq`), and no *unsigned* packed compare at any level: the four unsigned
-             * relations would each need both operands biased by the sign bit first. Both are refused
-             * here rather than reaching a row that would answer for the neighbouring width.
+             * ~~There is no packed compare of a quadword lane before SSE4.1 (`pcmpeqq`) and SSE4.2
+             * (`pcmpgtq`)~~ - which is a refusal that outlived the floor it was written against.
+             * Both of those levels are inside v2, so the quadword lane has the same two relations
+             * every other integer width has, the three complements built on top of them, and the
+             * four unsigned ones the sign-bit bias turns into those - a bias at a 64-bit lane being
+             * a pooled constant splat like the bias at any other.
+             *
+             * That leaves nothing about an integer lane's *width* to refuse here, and the switch
+             * below - which is about the relation - is the whole of what this arm does.
              */
             if(isFloatVector(type)) return {};
-            if(laneBytes(type.lane) == 8) {
-                return Just("the machine has no packed comparison of a quadword integer lane before SSE4.1"_v);
-            }
 
             // The six a signed lane can be compared with: two the machine has outright, one that
             // reaches `pcmpgt` by an exchange, and three that are the complement of one of those.
@@ -6148,6 +6406,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
          */
         case LowerInst::X86MinMax:
         case LowerInst::X86MaskAnd:
+        case LowerInst::X86Permute:
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:

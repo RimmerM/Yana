@@ -1,0 +1,53 @@
+# The same fusion where the scan is `tzcnt` rather than `bsf` - §42.
+#
+# extensions: v3
+#
+# A 32-byte mask over a byte lane fills its movemask word, so there is no bit to put a sentinel in
+# and §37 already answers it with `tzcnt`, whose result for a zero operand is the operand's width.
+# What this fixture is for is the half that is *not* the same:
+#
+#   - **`tzcnt` says "the operand was zero" in CF and not in ZF.** ZF on a `tzcnt` means the answer
+#     was zero, which is the mask's *first* lane being set - the opposite of empty for the two masks
+#     that matter most. So the branch carries the unsigned `ge`, which the encoder writes as `jae`,
+#     and reading ZF here would be a search that reported a hit exactly when it had found lane zero.
+#   - **there was no sentinel to remove**, so the whole of the rewrite is the fusion: the `test`
+#     goes and the scan moves up into the guard's block.
+#
+# A 32-bit lane at this width is *not* this case - eight movemask bits leave twenty-four above them,
+# so it takes the sentinel and `bsf`, which is what `VectorMaskScan.lower` reads at 128 bits.
+
+searchWide(%a: i8x32, %b: i8x32): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x32
+        %any = vreduce_or %m: Int
+        je %any, hit, miss
+    }
+
+    hit {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    miss {
+        ret -1
+    }
+}
+
+# And the 32-bit lane at the same register width, which leaves room above its eight bits and so is
+# the sentinel sequence after all - `bsf` and `jne`, exactly as at 128 bits.
+searchWideLanes(%a: i32x8, %b: i32x8): Int {
+    start {
+        %m = cmp_eq %a, %b: m32x8
+        %any = vreduce_or %m: Int
+        je %any, hit, miss
+    }
+
+    hit {
+        %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    miss {
+        ret -1
+    }
+}

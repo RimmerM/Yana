@@ -1,0 +1,71 @@
+# The general 256-bit lane permutation, which this backend refused until the vector constant pool
+# could hold the pattern.
+#
+# extensions: v3
+#
+# Every shuffle AVX2 has works inside each 128-bit half, and the one exception - `vperm2f128` - moves
+# halves entire. So an eight-lane pattern that crosses the middle without moving a whole half is not
+# an instruction at this width, and `wideShuffleChoice` answers nothing for it. `vpermd` is the
+# general answer, and what makes it a *pass* rather than a form is that its pattern is one lane index
+# per result lane held in a **vector register**: a form cannot create that operand. What to look for:
+#
+#   - **a `.rodata` load and then `vpermd`/`vpermps`**, with the load's bytes being the pattern -
+#     one 32-bit lane per index, little-endian.
+#   - **the indices are an integer vector even under `vpermps`.** A lane index is a number whatever
+#     domain the lanes it indexes are read in.
+#   - **the in-lane and half-exchange patterns do not reach it.** `inLane` is one `vpshufd` and
+#     `halves` is one `vperm2f128`, both with no pooled constant at all - a permute would be correct
+#     for either and is a load and a register more expensive, so `packedShuffleChoice` is asked
+#     first.
+#   - **a pattern naming both sources is still refused**, `vpermd` reading one vector.
+
+# The interleave, which is one instruction at four lanes and none at eight: lanes 1 and 2 of the
+# result come from the low half and lanes 5 and 6 from the high one, so no half moves as a unit and
+# no result lane stays in its own half.
+crossing(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 0, 4, 1, 5, 2, 6, 3, 7: i32x8
+        ret %r
+    }
+}
+
+# A reversal, which is the pattern with the most crossing in it.
+reverse(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+        ret %r
+    }
+}
+
+# The float domain, which is `vpermps` - the same instruction one opcode byte away, and with the same
+# integer index vector.
+crossingFloat(%a: f32x8): f32x8 {
+    {
+        %r = vshuffle %a, %a, 0, 4, 1, 5, 2, 6, 3, 7: f32x8
+        ret %r
+    }
+}
+
+# The second source named throughout, whose indices are written relative to it - so this must load
+# the same pattern `crossing` does and permute `%b`.
+secondSource(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %b, 8, 12, 9, 13, 10, 14, 11, 15: i32x8
+        ret %r
+    }
+}
+
+# The two that already have an instruction, and must not grow a pooled constant.
+inLane(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+        ret %r
+    }
+}
+
+halves(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 4, 5, 6, 7, 0, 1, 2, 3: i32x8
+        ret %r
+    }
+}
