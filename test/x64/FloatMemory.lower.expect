@@ -150,8 +150,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  itof uses=[rdi] creates=[xmm0]  => f20f2ac7
-  itof uses=[rsi] creates=[xmm1]  => f2480f2ace
+  itof uses=[rdi] creates=[xmm0]  => 0f57c0f20f2ac7
+  itof uses=[rsi] creates=[xmm1]  => 0f57c9f2480f2ace
   add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
   ret uses=[xmm0] creates=[]  => c3
 
@@ -159,8 +159,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  itof uses=[rdi] creates=[xmm0]  => f30f2ac7
-  itof uses=[rsi] creates=[xmm1]  => f3480f2ace
+  itof uses=[rdi] creates=[xmm0]  => 0f57c0f30f2ac7
+  itof uses=[rsi] creates=[xmm1]  => 0f57c9f3480f2ace
   sub uses=[xmm0, xmm1] creates=[xmm0]  => f30f5cc1
   ret uses=[xmm0] creates=[]  => c3
 
@@ -183,7 +183,7 @@ block #1:
   global uses=[] creates=[-]  => 
   load uses=[-] creates=[remat:3]  => 
   imm uses=[] creates=[remat:4]  => 
-  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:3->xmm7]  => f20f103dd1010000660f2ecf
+  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:3->xmm7]  => f20f103df1010000660f2ecf
   select uses=[rcx, rdx, -] creates=[rcx] pre=[remat:4->rcx]  => 48b9ffffffffffffff7f480f42ca
   sext uses=[rax] creates=[rax]  => 4863c0
   add uses=[rax, rcx] creates=[rax]  => 4801c8
@@ -194,7 +194,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
 block #1:
   cast uses=[rax] creates=[rax]  => 8bc0
-  itof uses=[rax] creates=[xmm1]  => f2480f2ac8
+  itof uses=[rax] creates=[xmm1]  => 0f57c9f2480f2ac8
   add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
   imm uses=[] creates=[xmm0]  => 0f57c0
   imm uses=[] creates=[remat:0]  => 
@@ -205,7 +205,7 @@ block #1:
   global uses=[] creates=[-]  => 
   load uses=[-] creates=[remat:1]  => 
   imm uses=[] creates=[remat:2]  => 
-  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:1->xmm7]  => f20f103d97010000660f2ecf
+  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:1->xmm7]  => f20f103db4010000660f2ecf
   select uses=[rcx, rax, -] creates=[rcx] pre=[remat:2->rcx]  => b9ffffffff0f42c8
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
@@ -217,9 +217,9 @@ block #1:
   shr uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 488bc848d1e9
   and uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 488bd04883e201
   or uses=[rcx, rdx] creates=[rcx]  => 4809d1
-  itof uses=[rcx] creates=[xmm1]  => f2480f2ac9
+  itof uses=[rcx] creates=[xmm1]  => 0f57c9f2480f2ac9
   add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f20f58d1
-  itof uses=[rax] creates=[xmm1]  => f2480f2ac8
+  itof uses=[rax] creates=[xmm1]  => 0f57c9f2480f2ac8
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 4885c0
   select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1
@@ -227,7 +227,7 @@ block #1:
   imm uses=[] creates=[xmm0]  => 0f57c0
   cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c0660f2ed00f93c0
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm0]  => f20f10052c010000
+  load uses=[-] creates=[xmm0]  => f20f100546010000
   sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf20f5cc8
   ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
   imm uses=[] creates=[remat:0]  => 
@@ -240,7 +240,7 @@ block #1:
   global uses=[] creates=[-]  => 
   load uses=[-] creates=[remat:2]  => 
   imm uses=[] creates=[remat:3]  => 
-  cmp_ge uses=[xmm2, xmm7] creates=[-] pre=[remat:2->xmm7]  => f20f103d13010000660f2ed7
+  cmp_ge uses=[xmm2, xmm7] creates=[-] pre=[remat:2->xmm7]  => f20f103d2d010000660f2ed7
   select uses=[rax, rcx, -] creates=[rax] pre=[remat:3->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => c3
 
@@ -252,9 +252,9 @@ block #1:
   shr uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 488bc848d1e9
   and uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 488bd04883e201
   or uses=[rcx, rdx] creates=[rcx]  => 4809d1
-  itof uses=[rcx] creates=[xmm1]  => f3480f2ac9
+  itof uses=[rcx] creates=[xmm1]  => 0f57c9f3480f2ac9
   add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f30f58d1
-  itof uses=[rax] creates=[xmm1]  => f3480f2ac8
+  itof uses=[rax] creates=[xmm1]  => 0f57c9f3480f2ac8
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rax, -] creates=[-]  => 4885c0
   select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1

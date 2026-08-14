@@ -4395,6 +4395,135 @@ static bool readsLoopValue(LowerBase base, const LoopInfo& loops, U32 headerInde
     return false;
 }
 
+/*
+ * §48.1 The same conclusion for a second exit that does carry on.
+ *
+ * `terminalExit` above asks for two things at once - every way in comes from the loop, and there is
+ * no way onwards - and only the first of them is the dominance argument. The second is there because
+ * a *successor* of such a block is a reader the first condition says nothing about.
+ *
+ * So the first condition is taken to its own fixpoint instead, and the same question is asked of the
+ * other side as well, because after the rotation there are two merges to point a reader at and each
+ * is only that reader's value where it dominates it:
+ *
+ *   the body's merge   in a block every path into which passes through the loop
+ *   the exit's merge   in a block every path into which passes through the header's exit arm
+ *
+ * Both are the same walk over one seed set, which is what this is. A block joins when it has
+ * predecessors and every one of them is in the seeds or already joined - "every path here passes
+ * through the seeds" - and since the rotation makes the body the block the loop is entered through,
+ * a block the loop is the only way into is one the body dominates.
+ *
+ * **A reader in neither set is what refuses the loop, and `Iter.firstOverOrCount` is why.** Its two
+ * early exits converge on a block that also falls into the block the header's exit arm reaches, so
+ * the count is read where *neither* merge dominates - and rotating it anyway produced a function that
+ * read a register the guard path had never written. That is the check `rotatableLoop` makes below,
+ * and it is over the phis' readers rather than over the exits, because a reader is what needs a
+ * value and an exit is only how one gets there.
+ *
+ * `indexOfVectors` in the SIMD corpus is the shape this is for: a search loop whose found-arm reads
+ * the accumulated index and then jumps to the function's common return, which is one block onwards
+ * and so one block too far for `terminalExit`.
+ */
+static void collectReachedOnlyFrom(LowerBase base, LowerFunction& fun, const IndexSet& seeds,
+                                   const IndexSet& excluded, IndexSet& into)
+{
+    into.reset(fun.blocks.size());
+
+    auto changed = true;
+    while(changed) {
+        changed = false;
+
+        for(auto o: fun.blocks.contents(base)) {
+            auto block = base[o];
+            auto index = Size(block->index);
+
+            if(into[index] || seeds[index] || excluded[index]) continue;
+
+            // The entry block has no predecessors, so the rule below would admit it vacuously.
+            if(block->incoming.isEmpty()) continue;
+
+            auto only = true;
+            for(auto p: block->incoming.contents(base)) {
+                auto pred = Size(base[p]->index);
+                if(seeds[pred] || into[pred]) continue;
+
+                only = false;
+                break;
+            }
+
+            if(!only) continue;
+
+            into.set(index, true);
+            changed = true;
+        }
+    }
+}
+
+/*
+ * Where each of the rotation's three answers is the reader's value, as three sets of blocks.
+ *
+ * Built per candidate loop and reused across them, since every one of them is a walk over the
+ * function's blocks and a loop that is refused has already paid for it.
+ */
+struct RotationRegions {
+    IndexSet inLoop;    // the loop's own blocks
+    IndexSet bodySide;  // outside it, and the loop is the only way in
+    IndexSet exitSide;  // the header's exit arm, and everything it is the only way into
+
+    // What each walk is given as its seeds and its exclusions; named so that the two calls read as
+    // two questions rather than as one function taking four sets.
+    IndexSet seeds;
+    IndexSet excluded;
+};
+
+// Which of the three a read of a header phi arriving from `from` takes, or none at all - which is a
+// reader neither merge dominates, and the reason a loop is refused.
+enum class RotatedRead: U8 { Header, Body, Exit, Nowhere };
+
+static RotatedRead rotatedRead(const RotationRegions& regions, LowerBlock* header, LowerBlock* from) {
+    auto index = Size(from->index);
+
+    if(from == header) return RotatedRead::Header;
+    if(regions.inLoop[index] || regions.bodySide[index]) return RotatedRead::Body;
+    if(regions.exitSide[index]) return RotatedRead::Exit;
+
+    return RotatedRead::Nowhere;
+}
+
+static void buildRotationRegions(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
+                                 U32 headerIndex, LowerBlock* exit, RotationRegions& regions)
+{
+    auto count = fun.blocks.size();
+    auto exitIndex = Size(exit->index);
+
+    regions.inLoop.reset(count);
+    for(auto o: fun.blocks.contents(base)) {
+        auto block = base[o];
+        if(loops.contains(headerIndex, block->index)) regions.inLoop.set(Size(block->index), true);
+    }
+
+    // The body's side. The header's own exit arm is held out of it, and that is the whole of the care
+    // needed: every one of its predecessors is in the loop too, so it would join on the rule above -
+    // and it is precisely the block the rotation gives a *new* predecessor to, the preheader's guard,
+    // whose purpose is to carry the zero-iteration answer.
+    regions.excluded.reset(count);
+    regions.excluded.set(exitIndex, true);
+    collectReachedOnlyFrom(base, fun, regions.inLoop, regions.excluded, regions.bodySide);
+
+    // And the exit's, which is that arm and everything it is in turn the only way into. Excluding
+    // what the body's side already claimed is not a tie-break: a block in both would be one the loop
+    // and the exit are each the only way into, which is a block with no way in at all.
+    regions.seeds.reset(count);
+    regions.seeds.set(exitIndex, true);
+
+    regions.excluded.reset(count);
+    regions.excluded.unionWith(regions.inLoop);
+    regions.excluded.unionWith(regions.bodySide);
+    collectReachedOnlyFrom(base, fun, regions.seeds, regions.excluded, regions.exitSide);
+    regions.exitSide.set(exitIndex, true);
+}
+
 static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex, LowerBlock* block) {
     if(block->outgoing[0] || block->outgoing[1]) return false;
 
@@ -4418,7 +4547,7 @@ static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex,
 }
 
 static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
-                                          LowerBlock* header)
+                                          LowerBlock* header, RotationRegions& regions)
 {
     if(base[header->terminator]->kind != LowerInst::Je) return Nothing();
 
@@ -4473,16 +4602,40 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
     if(loop.body->incoming.size() != 1) return Nothing();
     if(loop.exit->incoming.size() != 1) return Nothing();
 
-    // The header has to be the only way out, or every other way out has to be one that goes nowhere
-    // - see `terminalExit`, which is what makes a header value read at one still have somewhere to
-    // merge.
-    for(auto o: fun.blocks.contents(base)) {
-        auto block = base[o];
-        if(block == header || !loops.contains(index, block->index)) continue;
+    /*
+     * §48.1 Every reader of a header phi has to have one of the two merges dominating it.
+     *
+     * This used to be asked of the *exits* - the header had to be the only way out, or every other
+     * way out had to go nowhere - which is a sufficient condition for the real one and refuses a
+     * search loop whose found-arm carries on into the function's common return. The real one is
+     * asked here instead, of the readers, because a reader is what needs a value and an exit is only
+     * how one gets there.
+     *
+     * A reader in neither region is a read the rotation has nothing to point at, and the loop is
+     * refused. `Iter.firstOverOrCount` is the shape: two early exits converging on a block that the
+     * header's exit arm also falls into, so the count is read where neither merge dominates.
+     */
+    buildRotationRegions(base, fun, loops, index, loop.exit, regions);
 
-        for(auto s: block->outgoing) {
-            if(!s || loops.contains(index, base[s]->index)) continue;
-            if(!terminalExit(base, loops, index, base[s])) return Nothing();
+    for(auto p: header->phis.contents(base)) {
+        auto phi = base[p];
+
+        for(auto u: phi->result.uses.contents(base)) {
+            auto user = base[u];
+            auto used = user->used();
+
+            for(Size slot = 0; slot < used.size(); slot++) {
+                if(base[used[slot]] != &phi->result) continue;
+
+                // For a phi the read happens on the edge it names rather than in the block it sits
+                // in, which is what lets a merge below the loop take the body's answer on one
+                // alternative and the exit's on another.
+                auto from = user->kind == LowerInst::Phi
+                    ? base[((LowerInstPhi*)user)->sources()[slot]]
+                    : base[user->block];
+
+                if(rotatedRead(regions, header, from) == RotatedRead::Nowhere) return Nothing();
+            }
         }
     }
 
@@ -4504,7 +4657,9 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
     return Just(loop);
 }
 
-static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops, const RotatableLoop& loop) {
+static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
+                       const RotatableLoop& loop, const RotationRegions& regions)
+{
     auto& arena = fun.arena;
     auto header = loop.header;
     auto pre = loop.pre;
@@ -4613,10 +4768,12 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
      *   elsewhere in loop  the body's phi, which is now what the loop is entered through
      *   outside the loop   the exit's phi, which merges the guard's answer with the last iteration's
      *
-     * A terminal second exit reads on an edge that leaves the loop and is nevertheless the *body's*
-     * answer: every way into such a block is from inside the loop, so the body dominates it, and the
-     * exit's merge - which is what the guard's zero-iteration answer arrives through - is a value it
-     * was never reached by. See `terminalExit`.
+     * A second exit reads on an edge that leaves the loop and is nevertheless the *body's* answer:
+     * every way into such a block is from inside the loop, so the body dominates it, and the exit's
+     * merge - which is what the guard's zero-iteration answer arrives through - is a value it was
+     * never reached by. See `terminalExit` for the block that goes nowhere and
+     * `collectLoopOnlyBlocks` for the one that carries on into code the loop is still the only way
+     * into.
      */
     // One list for the walk, emptied per phi: the readers are snapshotted because the loop below
     // retargets them, and a list per phi is an allocation per phi - see InstChain.
@@ -4638,12 +4795,18 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
                     ? base[((LowerInstPhi*)user)->sources()[slot]]
                     : base[user->block];
 
-                auto inLoop = loops.contains(headerIndex, from->index) ||
-                              terminalExit(base, loops, headerIndex, from);
+                auto to = &r.exit->result;
+                switch(rotatedRead(regions, header, from)) {
+                    case RotatedRead::Header: to = r.hdr;             break;
+                    case RotatedRead::Body:   to = &r.body->result;   break;
+                    case RotatedRead::Exit:   break;
 
-                auto to = from == header ? r.hdr
-                    : inLoop ? &r.body->result
-                    : &r.exit->result;
+                    // Refused by `rotatableLoop`, which is what makes this unreachable rather than
+                    // a case with an answer.
+                    case RotatedRead::Nowhere:
+                        assertTrue("a header phi is read where neither merge reaches" == nullptr);
+                        break;
+                }
 
                 retargetOperand(base, user, slot, to);
             }
@@ -4852,10 +5015,14 @@ static void rotateFunctionLoops(LowerBase base, LowerFunction& fun) {
         if(loops.isHeader(base[o]->index)) headers.push(o);
     }
 
+    // One set of regions for the function, filled per candidate: each is a walk over every block,
+    // and a loop that is refused has already paid for it - see RotationRegions.
+    RotationRegions regions;
+
     SmallArray<LowerPtr<LowerBlock>, 16> rotated;
     for(auto o: headers) {
-        if(auto loop = rotatableLoop(base, fun, loops, base[o])) {
-            rotateLoop(base, fun, loops, loop.unwrap());
+        if(auto loop = rotatableLoop(base, fun, loops, base[o], regions)) {
+            rotateLoop(base, fun, loops, loop.unwrap(), regions);
             rotated.push(o);
         }
     }
