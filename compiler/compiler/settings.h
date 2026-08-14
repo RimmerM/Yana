@@ -280,6 +280,21 @@ struct CompileSettings {
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.
 
     /*
+     * Whether the ownership passes keep each local's live ranges - OwnershipResult::ranges.
+     *
+     * Off, because `printOwnership` is the only thing in the compiler that reads one and nothing on
+     * a compilation's path to an executable calls it. Building them is not free: the range builder
+     * replays the backward walk *per local per block* to recover liveness at each point inside a
+     * block, which the fixpoint only kept at the two ends - so it is the single largest item in the
+     * ownership stage, and on a small program it was 4% of the whole compile.
+     *
+     * A driver that prints the dump asks for them, which today is the resolve fixture runner. The
+     * facts every other decision is made from - the lattice, the summaries, where a drop goes - are
+     * computed either way; this is the *presentation* of liveness and only that.
+     */
+    bool ownershipRanges = false;
+
+    /*
      * The `explain` query - Analysis-Ambient.md §7.3.
      *
      * A query rather than a compilation mode: it stops after resolution and the ownership passes,

@@ -3586,9 +3586,15 @@ MachineTarget::MachineTarget() {
      * `emitRmExtImm` makes for the register forms, made where an address is what it is written
      * around.
      */
-    auto storeUpdate = [&](MachineFormId first, MachineOpcodeId opcode, const StringView (&names)[6],
+    // Which operation this is, rather than where its forms start and what its opcode is: those two
+    // are the same fact selection reads, and it is stated once - see StoreUpdateOp.
+    auto storeUpdate = [&](LowerInst::Kind kind, const StringView (&names)[6],
                            U8 rmRegOp, U8 extension, bool logical)
     {
+        auto& row = *storeUpdateOpFor(kind);
+        auto first = row.firstForm;
+        auto opcode = row.opcode;
+
         // The four widths, at the ids the list declares in order: byte, word, dword, qword.
         auto reg = [&](MachineFormId id, StringView formName, U8 op, U8 prefix,
                        OperationWidth width)
@@ -3663,11 +3669,11 @@ MachineTarget::MachineTarget() {
         "xor qword [address], r"_v, "xor dword [address], imm"_v, "xor qword [address], imm"_v,
     };
 
-    storeUpdate(FormStoreAdd8, OpStoreAdd, addNames, 0x01, 0, false);
-    storeUpdate(FormStoreSub8, OpStoreSub, subNames, 0x29, 5, false);
-    storeUpdate(FormStoreAnd8, OpStoreAnd, andNames, 0x21, 4, true);
-    storeUpdate(FormStoreOr8,  OpStoreOr,  orNames,  0x09, 1, true);
-    storeUpdate(FormStoreXor8, OpStoreXor, xorNames, 0x31, 6, true);
+    storeUpdate(LowerInst::Add, addNames, 0x01, 0, false);
+    storeUpdate(LowerInst::Sub, subNames, 0x29, 5, false);
+    storeUpdate(LowerInst::And, andNames, 0x21, 4, true);
+    storeUpdate(LowerInst::Or,  orNames,  0x09, 1, true);
+    storeUpdate(LowerInst::Xor, xorNames, 0x31, 6, true);
 
     /*
      * Block operations.
@@ -4689,37 +4695,26 @@ bool validateMachineForms(const MachineTarget& target) {
  * Selection.
  */
 
-// Which of the five in-place updates a folded binary operation became. The mapping is the whole of
-// what `LowerInstX86StoreOp::op` means, and it is stated once here rather than at each of the two
-// places that read it - the opcode below and the form beside it.
-static MachineOpcodeId storeUpdateOpcode(LowerInst::Kind op) {
-    switch(op) {
-        case LowerInst::Add: return OpStoreAdd;
-        case LowerInst::Sub: return OpStoreSub;
-        case LowerInst::And: return OpStoreAnd;
-        case LowerInst::Or:  return OpStoreOr;
-        case LowerInst::Xor: return OpStoreXor;
-        default: break;
-    }
+// The one statement of which operations have an in-place memory form and what each one's is - see
+// StoreUpdateOp, and the registration above, which builds the six forms of each row from it.
+static const StoreUpdateOp kStoreUpdateOps[] = {
+    { LowerInst::Add, OpStoreAdd, FormStoreAdd8 },
+    { LowerInst::Sub, OpStoreSub, FormStoreSub8 },
+    { LowerInst::And, OpStoreAnd, FormStoreAnd8 },
+    { LowerInst::Or,  OpStoreOr,  FormStoreOr8  },
+    { LowerInst::Xor, OpStoreXor, FormStoreXor8 },
+};
 
-    assertTrue("no in-place memory update for this operation" == nullptr);
-    return OpStoreAdd;
+Buffer<const StoreUpdateOp> storeUpdateOps() {
+    return Buffer<const StoreUpdateOp> { kStoreUpdateOps, sizeof(kStoreUpdateOps) / sizeof(StoreUpdateOp) };
 }
 
-// And the first of its six forms, the block being laid out byte, word, dword, qword, dword-immediate
-// and qword-immediate. One place for both halves of the same fact, for the reason above.
-static MachineFormId storeUpdateFirstForm(LowerInst::Kind op) {
-    switch(op) {
-        case LowerInst::Add: return FormStoreAdd8;
-        case LowerInst::Sub: return FormStoreSub8;
-        case LowerInst::And: return FormStoreAnd8;
-        case LowerInst::Or:  return FormStoreOr8;
-        case LowerInst::Xor: return FormStoreXor8;
-        default: break;
+const StoreUpdateOp* storeUpdateOpFor(LowerInst::Kind op) {
+    for(auto& row: kStoreUpdateOps) {
+        if(row.op == op) return &row;
     }
 
-    assertTrue("no in-place memory update for this operation" == nullptr);
-    return FormStoreAdd8;
+    return nullptr;
 }
 
 MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
@@ -4846,7 +4841,8 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // The in-place update, whose operation is the instruction's own field rather than anything
         // read off its operands: the value it combines with the location may be of any width the
         // access truncates to, so the type says nothing about which of the five this is.
-        case LowerInst::X86StoreOp: return storeUpdateOpcode(((LowerInstX86StoreOp*)inst)->getOp());
+        case LowerInst::X86StoreOp:
+            return storeUpdateOpFor(((LowerInstX86StoreOp*)inst)->getOp())->opcode;
 
         case LowerInst::Copy:       return OpBlockCopy;
         case LowerInst::SetPattern: return OpBlockSet;
@@ -6938,7 +6934,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
          */
         case LowerInst::X86StoreOp: {
             auto update = (LowerInstX86StoreOp*)inst;
-            auto first = MachineFormId(storeUpdateFirstForm(update->getOp()));
+            auto first = storeUpdateOpFor(update->getOp())->firstForm;
             auto width = update->getWidth();
 
             if(width >= 4 && isImm(base[update->value])

@@ -1439,6 +1439,30 @@ LowerValue* packedShiftSharedCount(LowerBase base, LowerInst* inst);
 // operation it is.
 MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst);
 
+/*
+ * The five operations that have an in-place memory form, and what each one's is.
+ *
+ * One row per operation, in one place, because four separate lists of the same five kinds is four
+ * lists to keep agreeing: the peephole in transform.cpp asking whether an operation has such a form,
+ * the form registration declaring the six of them, and the two selections naming the opcode and the
+ * first form. Three of those now read this and the fourth builds from it.
+ */
+struct StoreUpdateOp {
+    LowerInst::Kind op;
+    MachineOpcodeId opcode;
+
+    // The first of six forms, declared in the order byte, word, dword, qword, dword-immediate,
+    // qword-immediate - see the registration in machine.cpp, which is what lays them out that way.
+    MachineFormId firstForm;
+};
+
+// Every row, for the registration that builds the forms.
+Buffer<const StoreUpdateOp> storeUpdateOps();
+
+// The row for one operation, or null where it has no in-place memory form - which is also how the
+// question "is this one of the five" is asked.
+const StoreUpdateOp* storeUpdateOpFor(LowerInst::Kind op);
+
 // Checks the form table: that every operand index exists, every tie joins compatible roles, fixed
 // registers are allocatable members of their operand's class, at most one operand can occupy the
 // single r/m field, and the forms of one opcode agree about the flags unless the opcode says they

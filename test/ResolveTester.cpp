@@ -865,6 +865,13 @@ static bool runTest(const String& path, StringView source, bool generate) {
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyExtensionDirective(context.settings, source);
+
+    // The `.own.expect` dump is the only reader of a local's live ranges, and asking for them is
+    // what makes the ownership passes build them at all - see CompileSettings::ownershipRanges.
+    // Set for every fixture rather than only the ones carrying that file, because the ranges have
+    // to be asked for before anything is resolved and which expectations exist is a question about
+    // the fixture directory that this run answers later.
+    context.settings.ownershipRanges = true;
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("ResolveTest", 11);

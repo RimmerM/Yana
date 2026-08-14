@@ -10,9 +10,8 @@
  * which is the whole reason Init and Assign are two instructions.
  */
 static void raiseDemand(Analysis& analysis, const Provenance& roots, const ReprRequirements& what) {
-    for(Size l = 0; l < analysis.localCount; l++) {
-        if(roots.locals[l]) analysis.demand[l].raise(what);
-    }
+    // Over the roots rather than over the frame - see IndexSet::forEach.
+    roots.locals.forEach([&](Size l) { analysis.demand[l].raise(what); });
 }
 
 void computeDemand(Analysis& analysis) {

@@ -67,9 +67,10 @@ void contentsOfPlace(Analysis& analysis, const Place& place, Provenance& into) {
 
     into.reset(analysis.localCount);
 
-    for(Size i = 0; i < analysis.localCount; i++) {
-        if(roots->locals[i]) joinProvenance(into, analysis.contents[i]);
-    }
+    // Over the roots the place actually named rather than over every local the frame has - see
+    // IndexSet::forEach. A place names one root in nearly every case and this runs per instruction
+    // per round, so the difference is the frame's width times the fixpoint.
+    roots->locals.forEach([&](Size i) { joinProvenance(into, analysis.contents[i]); });
 
     if(roots->global || roots->unknown) into.unknown = true;
 }
@@ -84,9 +85,7 @@ void transferredProvenance(Analysis& analysis, ModulePtr<Value> value, Provenanc
 
     if(isMemoryType(analysis.global, type)) {
         auto& roots = provenanceOf(analysis, value);
-        for(Size i = 0; i < analysis.localCount; i++) {
-            if(roots.locals[i]) joinProvenance(into, analysis.contents[i]);
-        }
+        roots.locals.forEach([&](Size i) { joinProvenance(into, analysis.contents[i]); });
 
         if(roots.global || roots.unknown) into.unknown = true;
     } else if(refersToStorage(analysis, type)) {
@@ -327,9 +326,9 @@ static bool flowRound(Analysis& analysis) {
             ScratchProvenance roots(analysis);
             placeProvenance(analysis, place, *roots);
 
-            for(Size l = 0; l < analysis.localCount; l++) {
-                if(roots->locals[l]) changed = joinProvenance(analysis.contents[l], stored) || changed;
-            }
+            roots->locals.forEach([&](Size l) {
+                changed = joinProvenance(analysis.contents[l], stored) || changed;
+            });
         };
 
         /*

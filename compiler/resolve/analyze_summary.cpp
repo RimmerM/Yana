@@ -114,9 +114,8 @@ bool deriveSummary(Analysis& analysis) {
     U64 actual = 0;
     auto invalid = returned->global || returned->unknown;
 
-    for(Size l = 0; l < analysis.localCount; l++) {
-        if(!returned->locals[l]) continue;
-
+    // Over the roots the return value has rather than over the frame - see IndexSet::forEach.
+    returned->locals.forEach([&](Size l) {
         auto slot = analysis.function.localAt(analysis.local, viewedRoot(analysis, U32(l)));
         auto arg = slot.value && analysis.local[slot.value]->kind == Value::Arg
             ? (Arg*)analysis.local[slot.value] : nullptr;
@@ -125,7 +124,7 @@ bool deriveSummary(Analysis& analysis) {
         // owns what it was given, so there is no caller-side root left to keep it alive.
         if(arg && arg->convention != ast::BindType::Sink) actual |= rootBit(arg->index);
         else invalid = true;
-    }
+    });
 
     auto bound = StorageBound::Frame;
     if(invalid) bound = StorageBound::Escapes;

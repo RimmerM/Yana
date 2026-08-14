@@ -183,7 +183,11 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     }
 
     selectStorage(analysis, result);
-    buildRanges(analysis, result);
+
+    // Only where something is going to read them - see CompileSettings::ownershipRanges. Every
+    // decision above is already an instruction in the body or a field of `result`; the ranges are
+    // the dump's, and the dump is a driver's request rather than part of a compilation.
+    if(module.context.settings.ownershipRanges) buildRanges(analysis, result);
 
     // Nothing is rewritten once something has been reported: the IR the diagnostics were derived
     // from is the one worth printing, and inserting drops into a body already known to be wrong

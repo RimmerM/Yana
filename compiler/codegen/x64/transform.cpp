@@ -5,6 +5,30 @@
 // For `setOperand`, which is how a rewritten operand keeps the use lists agreeing with it.
 #include "../../lower/lower_builder.h"
 
+/*
+ * A short list of instructions one rewrite is about: the chain a constant vector is defined by, the
+ * instructions a fold left with no readers, the readers of a value being retargeted.
+ *
+ * One name rather than `Array<LowerInst*>` spelled at each of them, because every one of these has
+ * the same lifetime - one instruction, or one block's walk - and the same shape: a splat and a
+ * handful of lane writes, a comparison and the two constants under it. Inline for that reason and
+ * for the one compiler/util/README.md gives: several of these are built *per instruction*, so an
+ * ordinary array is one allocation per instruction of the function whether or not the fold applies.
+ */
+using InstChain = SmallArray<LowerInst*, 8>;
+
+/*
+ * The two readers of one, stated here because five passes above their definitions call them.
+ *
+ * Both live beside the constant pooling they were written for, far below: the bytes a
+ * `vsplat`/`vwithlane` chain comes to, and the sweep that takes such a chain back out once nothing
+ * reads it. They used to be declared twice, once above each group of callers, which is two places to
+ * keep agreeing with one definition.
+ */
+static bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size,
+                                InstChain& chain);
+static void removeDeadChain(LowerBase base, InstChain& chain);
+
 // Whether running this instruction can change the flags register.
 //
 // Answered from the form selection would give it, which is the same function the final selection
@@ -1221,7 +1245,7 @@ static void replaceUse(LowerBase base, LowerValue* from, LowerInst* user, LowerV
 // The user list is snapshotted because moving a use rewrites the very list it is read from, and a
 // user that reads the value twice appears twice and moves both of its entries across.
 static void replaceAllUses(LowerBase base, LowerValue* from, LowerValue* to) {
-    Array<LowerInst*> users;
+    InstChain users;
     for(auto u: from->uses.contents(base)) users.push(base[u]);
 
     for(auto user: users) {
@@ -1923,8 +1947,8 @@ static LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
  * already a 0/1 rather than the -1/0 a mask lane holds, and whether those bits are the complement of
  * the mask this reduction was written about (§45.3).
  */
-static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
-                                    LowerValue* bits, bool& truth, bool complemented);
+static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
+                                        LowerValue* bits, bool& truth, bool complemented);
 
 /*
  * A reduction of an 8- or 16-bit lane, which is the butterfly above finished in a general register.
@@ -2075,7 +2099,7 @@ static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* so
                                 LowerValue* bits, bool& truth, bool complemented = false) {
     auto type = source->type;
 
-    if(type.isMask()) return expandMaskReduce(e, reduce, source, bits, truth, complemented);
+    if(type.isMask()) return expandMaskBitsReduce(e, reduce, source, bits, truth, complemented);
     return reduceTree(e, reduce, source, type);
 }
 
@@ -2273,15 +2297,6 @@ static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerV
 
     truth = true;
     return e.compare(isAny ? LowerCmp::neq : LowerCmp::eq, bits, e.integer(scalar, wanted));
-}
-
-// Every mask consumer goes through the movemask, at every level this backend describes: `pmovmskb`
-// is SSE2 and the population count `count` reads it with is SSE4.2, which is the floor. There used
-// to be a reduction tree here for a target claiming neither - a select against two splats, summed
-// through the butterfly - and it went with the sub-v2 machines it was written for.
-static LowerValue* expandMaskReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
-                                    LowerValue* bits, bool& truth, bool complemented) {
-    return expandMaskBitsReduce(e, reduce, source, bits, truth, complemented);
 }
 
 /*
@@ -2507,13 +2522,6 @@ static void foldNegatedTruth(LowerBase base, LowerValue* value) {
  * the dead chain here is swept once for the whole function rather than once per block.
  */
 
-// Both defined below, beside the constant pooling they were written for: the bytes a
-// `vsplat`/`vwithlane` chain comes to, and the sweep that takes such a chain back out once nothing
-// reads it. Declared here because the lane range is one of those chains.
-static bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size,
-                                Array<LowerInst*>& chain);
-static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain);
-
 struct LaneRange {
     LowerValue* mask = nullptr;    // the data mask the range is applied to
     LowerValue* count = nullptr;   // how many lanes are live, as a scalar
@@ -2521,7 +2529,7 @@ struct LaneRange {
     LowerInst* compare = nullptr;  // `iota REL splat(count)`
     LowerInst* splat = nullptr;    // the count moved into the vector bank, which is what stops
     bool ordered = false;          // the relation is signed, so a negative count means no lanes
-    Array<LowerInst*> chain;       // the `iota` constant's own chain
+    InstChain chain;       // the `iota` constant's own chain
 };
 
 // Whether these bytes are `0, 1, 2, ...` read at the lane width - `iota`, and the only constant this
@@ -2584,9 +2592,13 @@ static bool matchLaneRangeMask(LowerBase base, LowerValue* source, LaneRange& in
         if(size > kMaxVectorBytes) continue;
 
         U8 bytes[kMaxVectorBytes] = {};
-        Array<LowerInst*> chain;
 
-        if(!constantVectorBytes(base, constant, bytes, size, chain)) continue;
+        // Collected straight into the result rather than into a list of its own and copied across.
+        // Emptied on the way in because this loop has two sides and the failing one has to leave
+        // nothing behind; what `into` holds is only read when this returns true.
+        into.chain.clear();
+
+        if(!constantVectorBytes(base, constant, bytes, size, into.chain)) continue;
         if(!bytesAreIota(bytes, type)) continue;
 
         into.mask = mask;
@@ -2595,8 +2607,6 @@ static bool matchLaneRangeMask(LowerBase base, LowerValue* source, LaneRange& in
         into.compare = compare;
         into.splat = splat->inst();
         into.ordered = relation == LowerCmp::ilt;
-        into.chain.clear();
-        for(auto link: chain) into.chain.push(link);
 
         return true;
     }
@@ -2790,7 +2800,7 @@ static bool foldComplementedCompare(LowerBase base, LowerValue* source) {
     return true;
 }
 
-static void pushFusedRange(Array<LowerInst*>& dead, const LaneRange& range) {
+static void pushFusedRange(InstChain& dead, const LaneRange& range) {
     dead.push(range.combine);
     dead.push(range.compare);
     dead.push(range.splat);
@@ -2821,7 +2831,7 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
      * read is still live when the first of them is done, so a per-block sweep would find it in use
      * and leave the whole vector bank standing.
      */
-    Array<LowerInst*> dead;
+    InstChain dead;
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -3078,11 +3088,6 @@ static Maybe<LowerMinMax> matchPackedMinMax(LowerBase base, LowerInstSelect* sel
     return minMaxForRelation(relation, isFloatVector(type));
 }
 
-// Defined below, beside the constant pooling it was written for: every instruction in the list whose
-// own use list has emptied, removed, to a fixpoint. Declared here because three passes above that
-// point now finish by clearing what they left behind.
-static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain);
-
 static void selectPackedMinMax(Context&, LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -3090,7 +3095,7 @@ static void selectPackedMinMax(Context&, LowerBase base, LowerFunction& fun) {
         // The comparisons this leaves with no readers, cleared after the walk rather than during it:
         // one of them stands immediately *above* the select being rewritten, and removing it there
         // would renumber the instructions this loop is indexing.
-        Array<LowerInst*> dead;
+        InstChain dead;
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
@@ -3929,16 +3934,10 @@ static bool mayWriteMemory(LowerInst* inst) {
 // The five operations the machine can perform through its r/m field, which is the whole of what the
 // form table describes - see OpStoreAdd and the block beside it in machine.cpp.
 static bool isStoreUpdateOp(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Add:
-        case LowerInst::Sub:
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-            return true;
-        default:
-            return false;
-    }
+    // Asked of the form table rather than restated here: which operations have an in-place memory
+    // form is one fact, and it is the same one the opcode and the form selection read. See
+    // StoreUpdateOp.
+    return storeUpdateOpFor(inst->kind) != nullptr;
 }
 
 // Whether every instruction in `[from, to)` of this block leaves memory as it found it. The
@@ -4619,10 +4618,14 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
      * exit's merge - which is what the guard's zero-iteration answer arrives through - is a value it
      * was never reached by. See `terminalExit`.
      */
+    // One list for the walk, emptied per phi: the readers are snapshotted because the loop below
+    // retargets them, and a list per phi is an allocation per phi - see InstChain.
+    InstChain users;
+
     for(auto& r: phis) {
         auto value = &r.header->result;
 
-        Array<LowerInst*> users;
+        users.clear();
         for(auto u: value->uses.contents(base)) users.push(base[u]);
 
         for(auto user: users) {
@@ -5227,7 +5230,7 @@ static LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* byt
  * here rather than folding it into a constant earlier is what keeps the IR's own claim true.
  */
 static bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size,
-                                Array<LowerInst*>& chain) {
+                                InstChain& chain) {
     auto inst = value->inst();
     auto type = value->type;
     auto lane = laneBytes(type.lane);
@@ -5322,7 +5325,7 @@ bool isPooledVectorConstant(LowerBase base, LowerValue* value) {
     if(!type.isVector() && !type.isMask()) return false;
 
     U8 bytes[kMaxVectorBytes] = {};
-    Array<LowerInst*> chain;
+    InstChain chain;
 
     return constantVectorBytes(base, value, bytes, type.byteWidth(), chain);
 }
@@ -5344,7 +5347,7 @@ bool isPooledVectorConstant(LowerBase base, LowerValue* value) {
  * Each is removed only once its own use list is empty, which is what keeps a constant that two
  * chains share, or that something else reads, exactly where it is.
  */
-static void removeDeadChain(LowerBase base, Array<LowerInst*>& chain) {
+static void removeDeadChain(LowerBase base, InstChain& chain) {
     for(Size round = 0; round <= chain.size(); round++) {
         auto moved = false;
 
@@ -5598,7 +5601,7 @@ static bool constantLaneCompare(LowerCmp cmp, LowerLane lane, const U8* lhs, con
  * second copy of the lane walk would be a second chance to disagree about a NaN.
  */
 static bool constantMaskAnswer(LowerBase base, LowerValue* value, bool& answer,
-                               Array<LowerInst*>& chain) {
+                               InstChain& chain) {
     auto inst = value->inst();
     if(inst->kind != LowerInst::Cmp) return false;
 
@@ -5643,15 +5646,19 @@ static void foldConstantMasks(Context&, LowerBase base, LowerFunction& fun) {
         // because either may stand *above* the instruction being folded - removing one there would
         // renumber the instructions the walk is indexing, which is the one thing this loop assumes
         // does not happen.
-        Array<LowerInst*> dead;
+        InstChain dead;
+
+        // Emptied per instruction rather than built per instruction, which is the difference
+        // between one list for the block and one for every instruction in it - see InstChain.
+        InstChain chain;
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
 
             LowerValue* replacement = nullptr;
             LowerValue* condition = nullptr;
-            Array<LowerInst*> chain;
             auto answer = false;
+            chain.clear();
 
             if(inst->kind == LowerInst::Select) {
                 auto select = (LowerInstSelect*)inst;
@@ -5740,7 +5747,10 @@ static void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun) {
         // The constant chain the zero arm was, cleared after the walk for the reason the two passes
         // above clear theirs: it may stand above the select being rewritten, and removing it there
         // would renumber the instructions this loop is indexing.
-        Array<LowerInst*> dead;
+        InstChain dead;
+
+        // One list for the block, emptied per instruction - see InstChain.
+        InstChain chain;
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
@@ -5760,7 +5770,7 @@ static void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun) {
             // `vsplat 0` here, a `.rodata` load once `poolVectorConstants` has run, and a lane chain
             // that happens to come to zero in between. This pass runs above that one, so what it
             // sees is the chain - and `constantVectorBytes` is the reader that knows all three.
-            auto isZeroArm = [&](LowerPtr<LowerValue> arm, Array<LowerInst*>& chain) {
+            auto isZeroArm = [&](LowerPtr<LowerValue> arm, InstChain& chain) {
                 U8 bytes[kMaxVectorBytes] = {};
                 if(!constantVectorBytes(base, base[arm], bytes, size, chain)) return false;
 
@@ -5771,7 +5781,7 @@ static void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun) {
                 return true;
             };
 
-            Array<LowerInst*> chain;
+            chain.clear();
             auto complemented = false;
 
             if(isZeroArm(select->rhs, chain)) {
@@ -5840,7 +5850,7 @@ static void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun) {
  * shared constant may have a scalar reader that does need its register.
  */
 static void replaceWithConstantSplat(LowerBase base, LowerBlock* block, Size at, LowerValue* result,
-                                     LowerType type, bool zero, Array<LowerInst*>& chain) {
+                                     LowerType type, bool zero, InstChain& chain) {
     auto& fun = *base[block->fun];
     auto scalar = scalarFormOf(type);
     auto width = laneBytes(type.lane);
@@ -5863,6 +5873,10 @@ static void replaceWithConstantSplat(LowerBase base, LowerBlock* block, Size at,
 
 static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
     auto& module = *fun.module;
+
+    // One list for the function, emptied per candidate - see InstChain. Every instruction of every
+    // block reaches the walk below, and most of them are not constants at all.
+    InstChain chain;
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -5918,7 +5932,7 @@ static void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun
             auto size = Size(type.byteWidth());
             if(size > kMaxVectorBytes) continue;
 
-            Array<LowerInst*> chain;
+            chain.clear();
             if(!constantVectorBytes(base, result, bytes, size, chain)) continue;
 
             /*
@@ -6752,6 +6766,21 @@ struct TransformPass {
 
     // What holds once this pass has run, and holds for every pass after it.
     U32 establishes;
+
+    /*
+     * Whether this pass has anything to look for in a function with no packed value in it.
+     *
+     * Half the table is vector work, and the overwhelming majority of functions this backend
+     * compiles - every one in the embedded library, for a start - contain not one packed type. Each
+     * of those passes still walks every block and every instruction of every one of them to ask a
+     * question whose answer is decided by the function's types. So the question is asked once, in
+     * `transformFunction`, and the ten that read a packed type are skipped outright when it says no.
+     *
+     * The claim that makes this sound is that nothing above such a pass *creates* a packed value in
+     * a function that had none: the vector work is all lowering of vectors that were already there.
+     * That is checked rather than asserted in prose - see the debug check at the end of the pipeline.
+     */
+    bool vectorsOnly = false;
 };
 
 static const TransformPass kTransformPipeline[] = {
@@ -6760,8 +6789,11 @@ static const TransformPass kTransformPipeline[] = {
     // After nothing, since what it reads is only the multiply-add itself. It used to have to run
     // before the two lane passes as well, the tree it builds ending in a lane extract each of them
     // might rewrite; both went with the sub-v2 machines that needed them.
+    // Not vectors-only, which is worth saying because it sits between two passes that are: a fused
+    // multiply-add is a *float* instruction and a scalar one is as much an Fma as a packed one, so a
+    // machine without FMA3 needs this pass to reach a function with no packed value in it at all.
     { "expandFusedMultiplyAdd"_v,      expandFusedMultiplyAdd,      0 },
-    { "lowerVectorReductions"_v,       lowerVectorReductions,       0 },
+    { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*
      * Above `poolVectorConstants`, which is what turns the mask it builds into a `.rodata` entry the
@@ -6771,33 +6803,33 @@ static const TransformPass kTransformPipeline[] = {
      * Nothing else constrains it: what it reads is a select over a float vector, and no pass above
      * it produces or consumes one.
      */
-    { "expandVectorAbs"_v,             expandVectorAbs,             0 },
+    { "expandVectorAbs"_v,             expandVectorAbs,             0, true },
 
     // **Above `poolVectorConstants`**, which is what the constants it reads have to survive: this
     // asks `constantVectorBytes` for the bytes of a `vsplat`/`vwithlane` chain, and that pass turns
     // one into a `.rodata` load. Above `selectPackedMinMax` as well, so that what the minimum is
     // handed is the load rather than the blend that was standing in front of it.
-    { "foldConstantMasks"_v,           foldConstantMasks,           0 },
+    { "foldConstantMasks"_v,           foldConstantMasks,           0, true },
 
     // After the reduction, every level of whose min/max tree is exactly the compare-and-select this
     // recognizes, and **before `biasUnsignedPackedCompares`**, which rewrites an unsigned comparison
     // into a signed one over two exclusive-ors: what reaches this has to be the relation the program
     // asked for, since the signedness of the comparison is what picks `pminsd` over `pminud`.
-    { "selectPackedMinMax"_v,          selectPackedMinMax,          0 },
+    { "selectPackedMinMax"_v,          selectPackedMinMax,          0, true },
 
     // After both passes that read a select for something else - the minimum takes the pair whose
     // arms are the compared values, and this takes what is left. **Above `poolVectorConstants`**,
     // for the reason `foldConstantMasks` is: the zero arm it recognizes is a `vsplat` chain
     // until that pass turns it into a `.rodata` load.
-    { "selectMaskedVectors"_v,         selectMaskedVectors,         0 },
+    { "selectMaskedVectors"_v,         selectMaskedVectors,         0, true },
 
     // After the reduction, whose unsigned minimum and maximum are comparisons this then biases, and
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
-    { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0 },
+    { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0, true },
 
     // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
     // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
-    { "unwrapVectorShiftCounts"_v,     unwrapVectorShiftCounts,     0 },
+    { "unwrapVectorShiftCounts"_v,     unwrapVectorShiftCounts,     0, true },
 
     /*
      * **Above `selectMemorySources`**, which is what `poolFloatConstants` argues: `foldLoads` runs
@@ -6809,18 +6841,18 @@ static const TransformPass kTransformPipeline[] = {
      * chain into a shift and a `pinsrw` pair and so hid the chain from this pass - `iota` came out
      * one instruction longer. That pass is gone: `pinsrd` is v2.
      */
-    { "poolVectorConstants"_v,         poolVectorConstants,         0 },
+    { "poolVectorConstants"_v,         poolVectorConstants,         0, true },
 
     // Below `poolVectorConstants` and not above it: what this builds is already a `.rodata` load, so
     // there is nothing for that pass to find - and putting it above would hand that pass an index
     // vector to walk for no reason. It has to be above `selectMemorySources` for the reason every
     // pass that builds a load does.
-    { "lowerWideLanePermutes"_v,       lowerWideLanePermutes,       0 },
+    { "lowerWideLanePermutes"_v,       lowerWideLanePermutes,       0, true },
 
     // Directly behind it, so that what is left standing as an instruction is the set this can move:
     // everything with more than one distinct lane became a `.rodata` load one line up, and a load
     // has an address that would have to travel with it.
-    { "sinkVectorConstants"_v,         sinkVectorConstants,         0 },
+    { "sinkVectorConstants"_v,         sinkVectorConstants,         0, true },
 
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectStoreUpdates"_v,          selectStoreUpdates,          0 },
@@ -6847,6 +6879,26 @@ static void forEachOwnedInst(LowerBase base, LowerFunction& fun, F&& f) {
         for(auto i: block->instructions.contents(base)) f(base[i]);
         if(block->terminator) f(base[block->terminator]);
     }
+}
+
+/*
+ * Whether any value in this function is a packed one - see TransformPass::vectorsOnly.
+ *
+ * Over every value the function owns rather than over its instruction lists, because a vector can
+ * arrive as an argument or be merged by a phi without any instruction between them producing one.
+ * The results are what is asked about and not the operands: every operand is some instruction's
+ * result, an argument or a phi, and all three are visited here.
+ */
+static bool functionHasVectors(LowerBase base, LowerFunction& fun) {
+    auto found = false;
+
+    forEachOwnedInst(base, fun, [&](LowerInst* inst) {
+        for(auto& created: inst->created()) {
+            if(isVectorLike(created.type)) found = true;
+        }
+    });
+
+    return found;
 }
 
 static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunction& fun, U32 established) {
@@ -7010,7 +7062,13 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
 
     U32 established = 0;
 
+    // Asked once, here, rather than discovered by each of the ten vector passes walking the whole
+    // function to find nothing - see TransformPass::vectorsOnly.
+    auto vectors = functionHasVectors(base, fun);
+
     for(auto& pass: kTransformPipeline) {
+        if(pass.vectorsOnly && !vectors) continue;
+
         pass.run(ctx, base, fun);
         established |= pass.establishes;
 
@@ -7019,6 +7077,11 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
         // pass that broke the invariant rather than the pipeline that ended up violating it.
         assertTrue(verifyTransformInvariants(ctx, base, fun, established | InvariantStructure));
     }
+
+    // What the skip above assumes, stated where it can fail loudly: a function with no packed value
+    // in it does not acquire one on the way through, so the ten passes that were skipped had nothing
+    // to do rather than something they were not shown. Debug builds only, like every check here.
+    assertTrue(vectors || !functionHasVectors(base, fun));
 
     // Beside the form selection rather than in the pipeline, for the same reason: it writes on the
     // MachineFunction instead of on the IR. Before it rather than after only so that the two facts a

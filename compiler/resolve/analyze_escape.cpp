@@ -24,9 +24,8 @@ enum class Escape: U8 {
 static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind) {
     auto changed = false;
 
-    for(Size l = 0; l < analysis.localCount; l++) {
-        if(!roots.locals[l]) continue;
-
+    // Over what the provenance holds rather than over the frame's locals - see IndexSet::forEach.
+    roots.locals.forEach([&](Size l) {
         if(analysis.escaped.add(l)) {
             analysis.outlives.set(l, true);
             changed = true;
@@ -35,7 +34,7 @@ static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind
         // One root can be both, and being owned elsewhere is the stronger statement: a value handed
         // over is handed over however many other references to it were kept.
         if(kind == Escape::Owned && analysis.transferred.add(l)) changed = true;
-    }
+    });
 
     return changed;
 }
@@ -302,20 +301,25 @@ static bool escapeRound(Analysis& analysis) {
     for(Size l = 0; l < analysis.localCount; l++) {
         if(!analysis.outlives[l]) continue;
 
-        for(Size m = 0; m < analysis.localCount; m++) {
+        // Over what this root contains rather than over every local the frame has, which is what
+        // makes the closure quadratic in the *containment* rather than in the frame - see
+        // IndexSet::forEach. The set being walked is not one the body writes: what is written is
+        // `escaped`, `outlives` and `transferred`, and the outer loop's own fixpoint is what carries
+        // a root reached here back around.
+        analysis.contents[l].locals.forEach([&](Size m) {
             // A root contains itself - that is how a parameter's contents are rooted in the
             // parameter - and that says nothing about escaping.
-            if(m == l) continue;
+            if(m == l) return;
 
             // Owned, always: being reachable through a root that outlives the frame is being
             // part of what that root's teardown releases.
-            if(analysis.contents[l].locals[m] && !(analysis.escaped[m] && analysis.transferred[m])) {
+            if(!(analysis.escaped[m] && analysis.transferred[m])) {
                 analysis.escaped.set(m, true);
                 analysis.outlives.set(m, true);
                 analysis.transferred.set(m, true);
                 changed = true;
             }
-        }
+        });
     }
 
     return changed;

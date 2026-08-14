@@ -127,6 +127,12 @@ void printOwnership(Net::Writer& writer, Context& context, Program& program) {
 
     if(!program.ownership) return;
 
+    // The one thing this dump needs that a compilation does not compute - see
+    // CompileSettings::ownershipRanges. A driver that prints ownership without having asked for the
+    // ranges gets "live never" against every local, which reads as an answer rather than as an
+    // omission, so it is asserted here rather than discovered in a golden file.
+    assertTrue(context.settings.ownershipRanges);
+
     for(auto module: program.modules) {
         for(auto pointer: module->functionOrder.contents(base)) {
             auto found = program.ownership->functions.get(U32(pointer));
