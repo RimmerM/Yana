@@ -77,14 +77,12 @@ function heldValue(h) {
   var v37;
   var v1 = h.$tag;
   if (v1 === 0) {
-    var v43 = h.$p;
-    v37 = (v43 & 1) + (v43 >>> 1 & 1 ? 2 : 0);
+    var v45 = h.$p;
+    v37 = (v45 & 1) + (v45 >>> 1 & 1 ? 2 : 0);
   } else {
-    if (v1 === 1) {
-      v37 = Math.imul(h.$p, 10);
-    } else {
-      v37 = 8;
-    }
+    var v27 = v1 === 1;
+    var v32 = Math.imul(h.$p, 10);
+    v37 = v27 ? v32 : 8;
   }
   return v37;
 }

@@ -66,32 +66,6 @@ compareAddresses<complex>(): Long {
   }
 }
 
-unwrapPointer<complex>(%value: Ptr): Long {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %value, 8: Ptr
-    %p = load %v_6, 8: Ptr
-    %v_7 = bitcast %p: Long
-    %v_8 = cmp_eq %v_7, 0: Int
-    %v_9 = select %v_8, 0, 1: Long
-    jmp b_5
-  }
-
-  b_5 {
-    %v_10 = phi [b_3, %v_9], [b_4, 0]: Long
-    ret %v_10
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %second = alloca 16, 8: Ptr
@@ -139,21 +113,15 @@ main<complex>(): Int {
     %v_26 = add %v_24, %v_25: Long
     %v_27 = add %v_20, %v_26: Long
     %v_28 = add %v_27, 812: Long
-    %empty = alloca 16, 8: Ptr
-    store %empty, 0, 4
-    %full = alloca 16, 8: Ptr
     %v_29 = alloca 1, 1: Ptr
     store %v_29, 0, 1
-    store %full, 1, 4
-    %v_30 = add %full, 8: Ptr
-    store %v_30, %v_29, 8
-    %v_31 = call_complex unwrapPointer, %empty: Long
-    %v_32 = call_complex unwrapPointer, %full: Long
+    %v_30 = bitcast %v_29: Long
+    %v_31 = cmp_eq %v_30, 0: Int
+    %v_32 = select %v_31, 0, 1: Long
     %v_33 = shl %v_32, 1: Long
-    %v_34 = add %v_31, %v_33: Long
-    %result = add %v_28, %v_34: Long
-    %v_35 = cast %result: Int
-    ret %v_35
+    %result = add %v_28, %v_33: Long
+    %v_34 = cast %result: Int
+    ret %v_34
   }
 }
 

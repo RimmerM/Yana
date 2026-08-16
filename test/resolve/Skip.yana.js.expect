@@ -44,15 +44,10 @@ function always(n) {
     v18 = null;
   }
   var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
-  if (v9 === null) {
-    return 0;
-  } else {
-    return v9;
-  }
+  return v9 === null ? 0 : v9;
 }
 
 function valued(n) {
-  var v23;
   var v27;
   if (n < 100) {
     var v29 = null;
@@ -65,12 +60,7 @@ function valued(n) {
       v29 = null;
     }
     var v13 = Try_Maybe_a_a_toOutcome_Int(v29);
-    if (v13 === null) {
-      v23 = 7;
-    } else {
-      v23 = v13;
-    }
-    v27 = v23;
+    v27 = v13 === null ? 7 : v13;
   } else {
     v27 = 0;
   }
@@ -122,11 +112,10 @@ function reasoned(n) {
     }
   }
   var v9 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v21.$tag, $p: v21.$p });
-  if (v9.$tag === 1) {
-    return Math.imul(v9.$p, 10);
-  } else {
-    return v9.$p;
-  }
+  var v12 = v9.$tag === 1;
+  var v17 = Math.imul(v9.$p, 10);
+  var v19 = v9.$p;
+  return v12 ? v17 : v19;
 }
 
 function guarded(open) {
@@ -138,11 +127,7 @@ function guarded(open) {
     v18 = ResolveTest_continuation$18(null);
   }
   var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
-  if (v9 === null) {
-    return 0;
-  } else {
-    return v9;
-  }
+  return v9 === null ? 0 : v9;
 }
 
 function nested(n) {
@@ -153,7 +138,6 @@ function nested(n) {
 }
 
 function written(n) {
-  var v16;
   var v18 = null;
   log = log + 1 | 0;
   if (n > 0) {
@@ -163,12 +147,7 @@ function written(n) {
   } else {
     v18 = null;
   }
-  if (!(v18 === null)) {
-    v16 = v18;
-  } else {
-    v16 = 0;
-  }
-  return v16;
+  return !(v18 === null) ? v18 : 0;
 }
 
 function main() {
@@ -193,21 +172,17 @@ function ResolveTest_continuation$18(env) {
 }
 
 function ResolveTest_continuation$19(env, value$) {
-  var v20 = null;
+  var v22 = null;
   log = log + 1 | 0;
   if (value$ > 0) {
-    var v47 = Math.imul(value$, 2) + value$ | 0;
+    var v49 = Math.imul(value$, 2) + value$ | 0;
     log = log + 100 | 0;
-    v20 = v47;
+    v22 = v49;
   } else {
-    v20 = null;
+    v22 = null;
   }
-  var v11 = Try_Maybe_a_a_toOutcome_Int(v20);
-  if (v11 === null) {
-    return 0;
-  } else {
-    return v11;
-  }
+  var v11 = Try_Maybe_a_a_toOutcome_Int(v22);
+  return v11 === null ? 0 : v11;
 }
 
 function ResolveTest_lambda$21(env, found) {

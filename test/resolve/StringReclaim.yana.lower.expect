@@ -701,29 +701,6 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 }
 
-formatBound<complex>(%bound: Ptr): Long {
-  b_0 {
-    %v_1 = loads %bound, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %bound, 8: Ptr
-    %units = loads %v_6, 8: Long
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %units], [b_4, 0]: Long
-    ret %v_7
-  }
-}
-
 Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
     %v_2 = add %lhs, 12: Ptr
@@ -775,34 +752,22 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
 buildInCallee<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 11, 8
-    %v_3 = call_complex formatBound, %v_1: Long
-    %v_4 = add %v_3, 15: Long
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 11, 8
-    %v_7 = call_complex formatBound, %v_5: Long
-    %v_8 = add %v_4, %v_7: Long
-    %v_9 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_9, %v_8
-    %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$0, 4
-    call_complex pushString, %v_9, %v_10
-    call_complex showSigned, 7, %v_9
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$1, 8
-    call_complex pushString, %v_9, %v_11
-    call_complex showSigned, 9, %v_9
-    %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @string$2, 3
-    call_complex pushString, %v_9, %v_12
-    %v_13 = add %v_9, 12: Ptr
-    %v_14 = load %v_13, 4: Int
-    %units = cast %v_14: Int
-    call_complex Reclaim(String).reclaim, %v_9
+    call_complex newStringOfCapacity, %v_1, 37
+    %v_2 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_2, @string$0, 4
+    call_complex pushString, %v_1, %v_2
+    call_complex showSigned, 7, %v_1
+    %v_3 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_3, @string$1, 8
+    call_complex pushString, %v_1, %v_3
+    call_complex showSigned, 9, %v_1
+    %v_4 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_4, @string$2, 3
+    call_complex pushString, %v_1, %v_4
+    %v_5 = add %v_1, 12: Ptr
+    %v_6 = load %v_5, 4: Int
+    %units = cast %v_6: Int
+    call_complex Reclaim(String).reclaim, %v_1
     ret %units
   }
 }
@@ -810,34 +775,22 @@ buildInCallee<complex>(): Int {
 buildHere<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 11, 8
-    %v_3 = call_complex formatBound, %v_1: Long
-    %v_4 = add %v_3, 15: Long
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 11, 8
-    %v_7 = call_complex formatBound, %v_5: Long
-    %v_8 = add %v_4, %v_7: Long
-    %v_9 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_9, %v_8
-    %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$3, 4
-    call_complex pushString, %v_9, %v_10
-    call_complex showSigned, 7, %v_9
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$4, 8
-    call_complex pushString, %v_9, %v_11
-    call_complex showSigned, 7, %v_9
-    %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @string$5, 3
-    call_complex pushString, %v_9, %v_12
-    %v_13 = add %v_9, 12: Ptr
-    %v_14 = load %v_13, 4: Int
-    %units = cast %v_14: Int
-    call_complex Reclaim(String).reclaim, %v_9
+    call_complex newStringOfCapacity, %v_1, 37
+    %v_2 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_2, @string$3, 4
+    call_complex pushString, %v_1, %v_2
+    call_complex showSigned, 7, %v_1
+    %v_3 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_3, @string$4, 8
+    call_complex pushString, %v_1, %v_3
+    call_complex showSigned, 7, %v_1
+    %v_4 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_4, @string$5, 3
+    call_complex pushString, %v_1, %v_4
+    %v_5 = add %v_1, 12: Ptr
+    %v_6 = load %v_5, 4: Int
+    %units = cast %v_6: Int
+    call_complex Reclaim(String).reclaim, %v_1
     ret %units
   }
 }
@@ -861,34 +814,22 @@ concatHere<complex>(): Int {
 buildUnnamed<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 11, 8
-    %v_3 = call_complex formatBound, %v_1: Long
-    %v_4 = add %v_3, 15: Long
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 11, 8
-    %v_7 = call_complex formatBound, %v_5: Long
-    %v_8 = add %v_4, %v_7: Long
-    %v_9 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_9, %v_8
-    %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$8, 4
-    call_complex pushString, %v_9, %v_10
-    call_complex showSigned, 7, %v_9
-    %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$9, 8
-    call_complex pushString, %v_9, %v_11
-    call_complex showSigned, 9, %v_9
-    %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @string$10, 3
-    call_complex pushString, %v_9, %v_12
-    %v_13 = add %v_9, 12: Ptr
-    %v_14 = load %v_13, 4: Int
-    %units = cast %v_14: Int
-    call_complex Reclaim(String).reclaim, %v_9
+    call_complex newStringOfCapacity, %v_1, 37
+    %v_2 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_2, @string$8, 4
+    call_complex pushString, %v_1, %v_2
+    call_complex showSigned, 7, %v_1
+    %v_3 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_3, @string$9, 8
+    call_complex pushString, %v_1, %v_3
+    call_complex showSigned, 9, %v_1
+    %v_4 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_4, @string$10, 3
+    call_complex pushString, %v_1, %v_4
+    %v_5 = add %v_1, 12: Ptr
+    %v_6 = load %v_5, 4: Int
+    %units = cast %v_6: Int
+    call_complex Reclaim(String).reclaim, %v_1
     ret %units
   }
 }

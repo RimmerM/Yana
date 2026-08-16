@@ -63,7 +63,6 @@ function total(xs$items, xs$length, xs$offset) {
 }
 
 function main() {
-  var v140;
   var v57 = { a: { items: new Int32Array([1, 2]), length: 2 }, b: { items: new Int32Array([3, 4]), length: 2 }, c: { items: new Int32Array([5, 6]), length: 2 }, used: 3 };
   var ring = { items: new Int32Array([10, 20, 30]), length: 3 };
   var arr = { items: new Int32Array([4, 5, 6]), length: 3 };
@@ -73,14 +72,9 @@ function main() {
   var v110 = ring.length;
   var v41 = (v33 + total(ring.items, v110, 0) | 0) + v110 | 0;
   var v131 = Chunked_Chunks_Int_chunks_Int(v57, ResolveTest_continuation$21, { $v: 3 });
-  if (!(v131 === null)) {
-    v140 = v131;
-  } else {
-    v140 = -1;
-  }
-  var v44 = v41 + v140 | 0;
+  var v44 = v41 + (!(v131 === null) ? v131 : -1) | 0;
   var total$2 = { $v: 0 };
-  var v152 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$23, { $v: { $o: total$2, $k: "$v", $s: 1 } });
+  var v149 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$23, { $v: { $o: total$2, $k: "$v", $s: 1 } });
   return v44 + total$2.$v | 0;
 }
 

@@ -94,19 +94,75 @@ bool selectableType(OptContext& opt, TypePtr type);
  * arrived; there is no index to be out of range and no pointer to be null; and a slot holding
  * something the other path had not written yet is a number nobody reads - the select discards it.
  *
- * A projection of any kind is declined rather than reasoned about. `xs[i]` past the end is the
- * canonical way an if-conversion invents a fault, and `p.field` where `p` is a reference that this
- * path never gave one is a `TypeError` on the managed target even where it is only a wasted load on
- * the other.
+ * A projection of any kind is declined rather than reasoned about, with **one exception named
+ * below**. `xs[i]` past the end is the canonical way an if-conversion invents a fault, and `p.field`
+ * where `p` is a reference that this path never gave one is a `TypeError` on the managed target even
+ * where it is only a wasted load on the other.
  */
-bool speculatable(OptContext& opt, Value& value) {
+
+/*
+ * The exception: a payload read whose tag the head has already tested.
+ *
+ *     b3: %t = load %m.discriminant        b3: %t = load %m.discriminant
+ *         %c = cmp_eq %t, 1                    %c = cmp_eq %t, 1
+ *         je %c, b5, b4              ->        %v = load %m@Just
+ *     b5: %v = load %m@Just                    %s = select %c ? %v : 0
+ *     b4: (nothing)
+ *
+ * which is what `if m is Just(v) then v else 0` is, and therefore what every `match` on an option
+ * and every `?` in the language comes out as. Without it the shape that reaches this pass most often
+ * is the one it declines.
+ *
+ * **A single downcast or discriminant step, and the head must already read the discriminant of the
+ * same local.** Both halves are load-bearing, and the reason is what the two targets make of a
+ * projection:
+ *
+ *  - Natively both are a constant offset from a frame slot's address, which is storage this frame
+ *    allocated and every path therefore has - the same argument the whole-local case rests on.
+ *  - On JS a projection is a *property read*, and a property read of `undefined` throws. A
+ *    discriminant is `m.$tag` where the record has a stored tag and **nothing at all** where it is
+ *    niche-folded (`PlaceBits::foldedTag`); a downcast is `m.$p` or nothing on the same split. So
+ *    where the arm's read touches the object, the head's read of the *same* local has already
+ *    touched it on this path, and where it does not, neither does the head's - and a folded
+ *    `Maybe(Point)` is `null` for `Nothing` rather than an object with no `x`.
+ *
+ * The second point is why the chain has to be one step. `%m@Just.x` on a folded `Maybe(Point)` is
+ * `m.x`, which is a property read of `null` on the path where the tag says `Nothing` - the exact
+ * fault the paragraph above declines, reached through a downcast that costs nothing by itself.
+ */
+bool tagTestedPayload(OptContext& opt, ModulePtr<Block> head, const Place& place) {
+    auto& projections = const_cast<Place&>(place).projections;
+    if(place.root != PlaceRoot::Local || projections.size() != 1) return false;
+
+    auto projection = projections.get(opt.local, 0);
+    if(projection.kind != ProjectionKind::Downcast && projection.kind != ProjectionKind::Discriminant) {
+        return false;
+    }
+
+    for(auto pointer: opt.local[head]->instructions(opt.local)) {
+        auto instruction = opt.local[pointer];
+        if(instruction->kind != Value::LoadPlace) continue;
+
+        auto& read = ((InstLoadPlace*)instruction)->place;
+        if(read.root != PlaceRoot::Local || read.local != place.local) continue;
+        if(read.projections.size() != 1) continue;
+
+        if(read.projections.get(opt.local, 0).kind == ProjectionKind::Discriminant) return true;
+    }
+
+    return false;
+}
+
+bool speculatable(OptContext& opt, ModulePtr<Block> head, Value& value) {
     if(value.kind == Value::Div || value.kind == Value::Rem) return false;
     if(isPureValue(value)) return true;
 
     if(value.kind != Value::LoadPlace || !selectableType(opt, value.type)) return false;
 
     auto& place = ((InstLoadPlace&)value).place;
-    return place.root == PlaceRoot::Local && place.projections.isEmpty();
+    if(place.root != PlaceRoot::Local) return false;
+
+    return place.projections.isEmpty() || tagTestedPayload(opt, head, place);
 }
 
 /*
@@ -180,11 +236,11 @@ ModulePtr<Block> armTarget(OptContext& opt, ModulePtr<Block> head, ModulePtr<Blo
 }
 
 // The instructions of one arm, or nothing where one of them may not be made unconditional.
-Maybe<Size> armCost(OptContext& opt, ModulePtr<Block> arm) {
+Maybe<Size> armCost(OptContext& opt, ModulePtr<Block> head, ModulePtr<Block> arm) {
     Size count = 0;
 
     for(auto pointer: opt.local[arm]->instructions(opt.local)) {
-        if(!speculatable(opt, *opt.local[pointer])) return Nothing();
+        if(!speculatable(opt, head, *opt.local[pointer])) return Nothing();
         count++;
     }
 
@@ -300,7 +356,7 @@ Maybe<Size> returnArm(OptContext& opt, ModulePtr<Block> head, ModulePtr<Block> p
     if(!terminator || opt.local[terminator]->kind != Value::Ret) return Nothing();
 
     value = ((InstRet&)*opt.local[terminator]).value;
-    return armCost(opt, pointer);
+    return armCost(opt, head, pointer);
 }
 
 bool convertReturnBranch(OptContext& opt, ModulePtr<Block> pointer) {
@@ -386,7 +442,7 @@ bool convertBranch(OptContext& opt, ModulePtr<Block> pointer) {
     for(auto arm: diamond.arms) {
         if(!arm) continue;
 
-        auto armSize = armCost(opt, arm);
+        auto armSize = armCost(opt, pointer, arm);
         if(!armSize) return false;
 
         cost += armSize.unwrap();

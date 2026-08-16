@@ -50,10 +50,6 @@ function loadVectorTail_Int(from$items, from$length, from$offset, at) {
 }
 
 function productVectors_Array_Int_Int(xs) {
-  var ones$0 = 1;
-  var ones$1 = 1;
-  var ones$2 = 1;
-  var ones$3 = 1;
   var acc = [1, 1, 1, 1];
   var v46 = xs.length;
   var v47 = xs.items;
@@ -61,7 +57,7 @@ function productVectors_Array_Int_Int(xs) {
   L0: for (;;) {
     if ((i + 4 | 0) <= v46) {
       var v110 = loadVector_Int(v47, v46, 0, i);
-      acc = [Math.imul(acc[0], true ? v110[0] : ones$0), Math.imul(acc[1], true ? v110[1] : ones$1), Math.imul(acc[2], true ? v110[2] : ones$2), Math.imul(acc[3], true ? v110[3] : ones$3)];
+      acc = [Math.imul(acc[0], v110[0]), Math.imul(acc[1], v110[1]), Math.imul(acc[2], v110[2]), Math.imul(acc[3], v110[3])];
       i = i + 4 | 0;
       continue L0;
     }
@@ -70,7 +66,7 @@ function productVectors_Array_Int_Int(xs) {
   if (i < v46) {
     var v85 = loadVectorTail_Int(v47, v46, 0, i);
     var v86 = v46 - i | 0;
-    acc = [Math.imul(acc[0], 0 < v86 ? v85[0] : ones$0), Math.imul(acc[1], 1 < v86 ? v85[1] : ones$1), Math.imul(acc[2], 2 < v86 ? v85[2] : ones$2), Math.imul(acc[3], 3 < v86 ? v85[3] : ones$3)];
+    acc = [Math.imul(acc[0], 0 < v86 ? v85[0] : 1), Math.imul(acc[1], 1 < v86 ? v85[1] : 1), Math.imul(acc[2], 2 < v86 ? v85[2] : 1), Math.imul(acc[3], 3 < v86 ? v85[3] : 1)];
   }
   return (acc[0] * acc[1] | 0) * (acc[2] * acc[3] | 0) | 0;
 }
@@ -263,10 +259,10 @@ function main() {
   L0: for (;;) {
     if ((i + 4 | 0) <= v282) {
       var v358 = loadVector_Int(v283, v282, 0, i);
-      var v1587$0 = true ? v358[0] : acc[0];
-      var v1587$1 = true ? v358[1] : acc[1];
-      var v1587$2 = true ? v358[2] : acc[2];
-      var v1587$3 = true ? v358[3] : acc[3];
+      var v1587$0 = v358[0];
+      var v1587$1 = v358[1];
+      var v1587$2 = v358[2];
+      var v1587$3 = v358[3];
       acc = [acc[0] > v1587$0 ? acc[0] : v1587$0, acc[1] > v1587$1 ? acc[1] : v1587$1, acc[2] > v1587$2 ? acc[2] : v1587$2, acc[3] > v1587$3 ? acc[3] : v1587$3];
       i = i + 4 | 0;
       continue L0;
@@ -296,10 +292,10 @@ function main() {
   L1: for (;;) {
     if ((i$1 + 4 | 0) <= v393) {
       var v469 = loadVector_Int(v394, v393, 0, i$1);
-      var v1635$0 = true ? v469[0] : acc$1[0];
-      var v1635$1 = true ? v469[1] : acc$1[1];
-      var v1635$2 = true ? v469[2] : acc$1[2];
-      var v1635$3 = true ? v469[3] : acc$1[3];
+      var v1635$0 = v469[0];
+      var v1635$1 = v469[1];
+      var v1635$2 = v469[2];
+      var v1635$3 = v469[3];
       acc$1 = [acc$1[0] < v1635$0 ? acc$1[0] : v1635$0, acc$1[1] < v1635$1 ? acc$1[1] : v1635$1, acc$1[2] < v1635$2 ? acc$1[2] : v1635$2, acc$1[3] < v1635$3 ? acc$1[3] : v1635$3];
       i$1 = i$1 + 4 | 0;
       continue L1;

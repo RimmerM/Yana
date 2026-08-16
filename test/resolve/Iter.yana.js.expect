@@ -2,22 +2,17 @@
 var log = 0;
 var visited = 0;
 
-// Core
-function teardown$none(value) {
-}
-
 // ResolveTest
 function odds(n) {
   var total = 0;
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v27 = i;
       var v41 = 0;
-      if ((v27 % 2 | 0) === 0) {
+      if ((i % 2 | 0) === 0) {
         v41 = 0;
       } else {
-        total = total + v27 | 0;
+        total = total + i | 0;
         v41 = 0;
       }
       if (v41 !== 1) {
@@ -35,12 +30,11 @@ function upToFive(n) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v27 = i;
       var v41 = 0;
-      if (v27 > 5) {
+      if (i > 5) {
         v41 = 1;
       } else {
-        total = total + v27 | 0;
+        total = total + i | 0;
         v41 = 0;
       }
       if (v41 !== 1) {
@@ -58,10 +52,9 @@ function firstOver(n, bound) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v32 = i;
       var v46 = null;
-      if (v32 > bound) {
-        v46 = v32;
+      if (i > bound) {
+        v46 = i;
       } else {
         v46 = null;
       }
@@ -76,11 +69,7 @@ function firstOver(n, bound) {
     }
     break L0;
   }
-  if (!(v20 === null)) {
-    return v20;
-  } else {
-    return -1;
-  }
+  return !(v20 === null) ? v20 : -1;
 }
 
 function firstOverOrCount(n, bound) {
@@ -89,12 +78,11 @@ function firstOverOrCount(n, bound) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v42 = i;
       var v56 = { $tag: 0, $p: null };
-      if (v42 > bound) {
-        v56 = { $tag: 1, $p: Math.imul(v42, 100) };
+      if (i > bound) {
+        v56 = { $tag: 1, $p: Math.imul(i, 100) };
       } else {
-        if (v42 === 4) {
+        if (i === 4) {
           v56 = { $tag: 1, $p: null };
         } else {
           seen = seen + 1 | 0;
@@ -164,13 +152,12 @@ function firstOddOver(n, bound) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v32 = i;
       var v46 = null;
-      if ((v32 % 2 | 0) === 0) {
+      if ((i % 2 | 0) === 0) {
         v46 = null;
       } else {
-        if (v32 > bound) {
-          v46 = v32;
+        if (i > bound) {
+          v46 = i;
         } else {
           v46 = null;
         }
@@ -186,11 +173,7 @@ function firstOddOver(n, bound) {
     }
     break L0;
   }
-  if (!(v20 === null)) {
-    return v20;
-  } else {
-    return -1;
-  }
+  return !(v20 === null) ? v20 : -1;
 }
 
 function firstPairOver(n, bound) {
@@ -198,10 +181,9 @@ function firstPairOver(n, bound) {
   var i = 0;
   L0: for (;;) {
     if (i < n) {
-      var v37 = i;
       var v51 = { a: 0, b: 0 };
-      if (v37 > bound) {
-        v51 = { a: v37, b: Math.imul(v37, 2) };
+      if (i > bound) {
+        v51 = { a: i, b: Math.imul(i, 2) };
       } else {
         v51 = null;
       }
@@ -239,6 +221,36 @@ function withLens(n) {
   return total;
 }
 
+function loopInLens(n) {
+  var v12 = log + 1 | 0;
+  log = v12;
+  var v33 = null;
+  var i = 0;
+  var v70 = Math.imul(v12, 1000);
+  L0: for (;;) {
+    if (i < n) {
+      var v59 = null;
+      if (i === 2) {
+        v59 = v70 + i | 0;
+      } else {
+        v59 = null;
+      }
+      if (!(v59 === null)) {
+        v33 = v59;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v33 = null;
+    }
+    break L0;
+  }
+  var v32 = !(v33 === null) ? v33 : v12;
+  log = log + 10 | 0;
+  return v32;
+}
+
 function stopAt(n) {
   var i = 0;
   L0: for (;;) {
@@ -263,48 +275,10 @@ function main() {
     }
     break L0;
   }
-  var v36 = (((((((((total + odds(6) | 0) + upToFive(20) | 0) + firstOver(10, 6) | 0) + firstOverOrCount(10, 20) | 0) + grid(3, 2) | 0) + corners(3) | 0) + 16 | 0) + firstOddOver(10, 4) | 0) + firstPairOver(10, 6).b | 0) + withLens(3) | 0;
-  var v64 = { $v: 5 };
-  var v73 = log + 1 | 0;
-  log = v73;
-  var v75 = ResolveTest_continuation$28(v64, v73);
-  log = log + 10 | 0;
-  var v39 = v36 + v75 | 0;
+  var v39 = ((((((((((total + odds(6) | 0) + upToFive(20) | 0) + firstOver(10, 6) | 0) + firstOverOrCount(10, 20) | 0) + grid(3, 2) | 0) + corners(3) | 0) + 16 | 0) + firstOddOver(10, 4) | 0) + firstPairOver(10, 6).b | 0) + withLens(3) | 0) + loopInLens(5) | 0;
   visited = 0;
   stopAt(10);
   return v39 + visited | 0;
-}
-
-function ResolveTest_continuation$28(env, value$) {
-  var v2 = env.$v;
-  var v18 = null;
-  var i = 0;
-  var v55 = Math.imul(value$, 1000);
-  L0: for (;;) {
-    if (i < v2) {
-      var v30 = i;
-      var v44 = null;
-      if (v30 === 2) {
-        v44 = v55 + v30 | 0;
-      } else {
-        v44 = null;
-      }
-      if (!(v44 === null)) {
-        v18 = v44;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      v18 = null;
-    }
-    break L0;
-  }
-  if (!(v18 === null)) {
-    return v18;
-  } else {
-    return value$;
-  }
 }
 
 function ResolveTest_continuation$30(env, value$) {

@@ -77,6 +77,17 @@ struct Candidate {
     IndexSet available; // whether every path into the block has written it
     ValueList entry;
     ValueList exit;
+
+    // The first read, which is where the constant below is blamed on and what its type came from.
+    ModulePtr<Value> read = nullptr;
+
+    // Set for a place nothing in the function ever writes - see `fillUnwritten`. The value every
+    // read of it is answered with, and there is no dataflow left to do once there is one.
+    ModulePtr<Value> initial = nullptr;
+
+    // Whether any block writes the place. The same fact as a non-empty `stores`, recorded while the
+    // survey is walking rather than scanned back out of the set afterwards.
+    bool written = false;
 };
 
 bool isWrite(const Value& instruction) {
@@ -161,6 +172,7 @@ void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candida
             Candidate candidate;
             candidate.place = load.place;
             candidate.type = load.type;
+            candidate.read = (ModulePtr<Value>)pointer;
             into.push(::move(candidate));
         }
     }
@@ -211,6 +223,7 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                     if(opt.local[stored]->type != candidate.type) usable = false;
 
                     candidate.stores.set(block->index, true);
+                    candidate.written = true;
                     return;
                 }
 
@@ -368,6 +381,63 @@ bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reac
 }
 
 /*
+ * A place **nothing in the function writes**, answered with zero.
+ *
+ * `readsAreWritten` declines a place read before anything put something in it, and its comment says
+ * why that used to be a case that should not arise: the resolver initializes before it reads. It
+ * arises now, and deliberately - `splitPhiOfLocals` in opt_scalar.cpp reads every place the copy it
+ * removes was read at, off *each* alternative, and an alternative that is the absent constructor of a
+ * sum has nothing in its payload. `Maybe(Int)`'s `Nothing` arm writes the discriminant and stops, so
+ * a payload read of it is a read of an allocation nobody ever filled in.
+ *
+ * The value of such a read is whatever the allocation happened to contain, and the entitlement to say
+ * "zero" instead comes from that being the whole list of possibilities. The survey above has already
+ * proved every part of it:
+ *
+ *  - the place is inside a **contained** local, so no pointer, borrow or callee can reach it;
+ *  - `surveyCandidate` refused any write to an *overlapping* path, so a whole-local write or an
+ *    aggregate covering it would have declined the candidate rather than gone unnoticed;
+ *  - and no block writes the place itself, which is what `written` records.
+ *
+ * So the storage holds what the allocation left there, unspecified on native and `zeroValue` on JS,
+ * and zero is a legal reading of it on both. That is the same ruling `lower_split.cpp` takes one tier
+ * down for a live cell no write reaches, and for the same reason: the alternative is not a better
+ * value, it is keeping the allocation.
+ *
+ * **The local has to be one this frame allocated.** A parameter's storage is filled in by the caller
+ * before the function starts, so a field of one that this body only reads is not empty at all - it is
+ * the argument. That is the whole of what would go wrong here and it would go wrong silently:
+ * `orZero(m: Maybe(Int))` reads `%m@Just` and writes it nowhere, so the mistake is not an edge case
+ * but every function that takes a record apart. A parameter's slot holds an `Arg` rather than an
+ * `Alloc`, which is the same test `eliminateDeadLocal` makes for the same reason.
+ */
+bool fillUnwritten(OptContext& opt, Candidate& candidate) {
+    if(candidate.written || !candidate.read) return false;
+    if(candidate.place.root != PlaceRoot::Local) return false;
+
+    auto slot = opt.function->localAt(opt.local, candidate.place.local);
+    if(!slot.value || opt.local[slot.value]->kind != Value::Alloc) return false;
+    if(slot.borrowed || slot.closureEnv) return false;
+
+    auto& at = *opt.local[candidate.read];
+
+    // A type this stage has a zero of. Everything else declines rather than being guessed at: what
+    // the constant has to be is a value the backends can spell, and the three below are the ones
+    // `makeConstant` and `makeFloatConstant` are the spelling of.
+    if(foldableInt(opt, candidate.type) || isConstructorIndex(opt, candidate.type)) {
+        candidate.initial = makeConstant(opt, at, candidate.type, 0);
+        return true;
+    }
+
+    if(foldableFloat(opt, candidate.type)) {
+        candidate.initial = makeFloatConstant(opt, at, candidate.type, 0.0);
+        return true;
+    }
+
+    return false;
+}
+
+/*
  * The rewrite: one pass over each block, answering every read from what the place is holding.
  *
  * The writes stay where they are, so this walks the list rather than rebuilding it - the only
@@ -470,7 +540,7 @@ void promotePlaces(OptContext& opt) {
         if(!surveyCandidate(opt, candidate)) continue;
 
         computeAvailability(opt, candidate, reachable);
-        if(!readsAreWritten(opt, candidate, reachable)) continue;
+        if(!readsAreWritten(opt, candidate, reachable) && !fillUnwritten(opt, candidate)) continue;
 
         candidates.push(::move(candidate));
     }
@@ -497,6 +567,13 @@ void promotePlaces(OptContext& opt) {
         auto block = opt.local[blockPointer];
 
         for(auto& candidate: candidates) {
+            // A place nothing writes needs no phi anywhere: every block holds the same constant and
+            // there is nothing for a join to choose between.
+            if(candidate.initial) {
+                candidate.entry[block->index] = candidate.initial;
+                continue;
+            }
+
             if(!candidate.available[block->index]) continue;
 
             auto phi = createInst<InstPhi>(*opt.module, *opt.function, *block, block->source, StringId(),
@@ -522,7 +599,7 @@ void promotePlaces(OptContext& opt) {
         auto block = opt.local[blockPointer];
 
         for(auto& candidate: candidates) {
-            if(!candidate.available[block->index]) continue;
+            if(candidate.initial || !candidate.available[block->index]) continue;
 
             auto phi = (InstPhi*)opt.local[candidate.entry[block->index]];
 

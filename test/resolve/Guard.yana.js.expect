@@ -1,21 +1,5 @@
 "use strict";
 // ResolveTest
-function orZero(m) {
-  if (!(m === null)) {
-    return m + 1 | 0;
-  } else {
-    return 0;
-  }
-}
-
-function orZeroElse(m) {
-  if (!(m === null)) {
-    return m + 2 | 0;
-  } else {
-    return 0;
-  }
-}
-
 function describe(m) {
   if (m <= 2) {
     var v8 = m | 0;
@@ -50,23 +34,11 @@ function onlyRed(m) {
   return 0;
 }
 
-function scoped(m) {
-  if (!(m === null)) {
-    return Math.imul(m, 3);
-  } else {
-    return 0;
-  }
-}
-
 function firstJust(a, b) {
   if (!(a === null)) {
     return a;
   } else {
-    if (!(b === null)) {
-      return b;
-    } else {
-      return 0;
-    }
+    return !(b === null) ? b : 0;
   }
 }
 
@@ -94,6 +66,6 @@ function retry(m, c) {
 }
 
 function main() {
-  return ((((((((((((((((((orZero(1) + orZero(null) | 0) + orZeroElse(1) | 0) + orZeroElse(null) | 0) + describe(0) | 0) + describe(1) | 0) + describe(2) | 0) + describe(3) | 0) + onlyRed(0) | 0) + onlyRed(1) | 0) + onlyRed(2) | 0) + onlyRed(3) | 0) + scoped(4) | 0) + scoped(null) | 0) + firstJust(null, 7) | 0) + firstJust(3, null) | 0) + retry(5, 0) | 0) + retry(null, 0) | 0) + retry(null, 1) | 0) + 24 | 0;
+  return ((((((((((((((describe(0) + 5 | 0) + describe(1) | 0) + describe(2) | 0) + describe(3) | 0) + onlyRed(0) | 0) + onlyRed(1) | 0) + onlyRed(2) | 0) + onlyRed(3) | 0) + 12 | 0) + firstJust(null, 7) | 0) + firstJust(3, null) | 0) + retry(5, 0) | 0) + retry(null, 0) | 0) + retry(null, 1) | 0) + 24 | 0;
 }
 main();

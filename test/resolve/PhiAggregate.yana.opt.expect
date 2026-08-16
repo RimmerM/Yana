@@ -1,0 +1,162 @@
+let image$base: () = <none>
+
+fn pick(%flag: Bool) -> Point {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v2 = alloc : Point
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    jmp b3
+
+  b2:
+    %v6 = alloc : Point
+    aggregate %local1@Point.x = 30, %local1@Point.y = 40
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, %v2], [b2, %v6] : Point
+    ret %v12
+}
+
+fn parts(%flag: Bool) -> Int {
+  b0:
+    %v27 = select %flag ? 1 : 30 : Int
+    %v28 = select %flag ? 2 : 40 : Int
+    %v4 = add %v27, %v28 : Int
+    ret %v4
+}
+
+fn wrap(%value: Int) -> Maybe(Int) {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = %value
+    jmp b3
+
+  b2:
+    %v8 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v5], [b2, %v8] : Maybe(Int)
+    ret %v13
+}
+
+fn orZero(%value: Int) -> Int {
+  b0:
+    %v15 = cmp_gt %value, 0 : Bool
+    %v37 = select %v15 ? %value : 0 : Int
+    ret %v37
+}
+
+fn three(%n: Int) -> Point {
+  b0:
+    %v3 = cmp_gt %n, 10 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Point
+    aggregate %local0@Point.x = 5, %local0@Point.y = 6
+    jmp b5
+
+  b2:
+    %v11 = cmp_gt %n, 0 : Bool
+    je %v11, b3, b4
+
+  b3:
+    %v13 = alloc : Point
+    aggregate %local1@Point.x = 7, %local1@Point.y = 8
+    jmp b5
+
+  b4:
+    %v17 = alloc : Point
+    aggregate %local2@Point.x = 9, %local2@Point.y = 1
+    jmp b5
+
+  b5:
+    %v24 = phi [b1, %v5], [b3, %v13], [b4, %v17] : Point
+    ret %v24
+}
+
+fn product(%n: Int) -> Int {
+  b0:
+    %v9 = cmp_gt %n, 10 : Bool
+    %v12 = cmp_gt %n, 0 : Bool
+    %v39 = select %v12 ? 7 : 9 : Int
+    %v40 = select %v12 ? 8 : 1 : Int
+    %v42 = select %v9 ? 5 : %v39 : Int
+    %v43 = select %v9 ? 6 : %v40 : Int
+    %v4 = mul %v42, %v43 : Int
+    ret %v4
+}
+
+fn whole(%flag: Bool) -> Int {
+  b0:
+    %v30 = select %flag ? 1 : 30 : Int
+    %v31 = select %flag ? 2 : 40 : Int
+    %v23 = add %v30, %v31 : Int
+    %v4 = add %v23, %v30 : Int
+    ret %v4
+}
+
+fn distance(%it$x: Int, %it$y: Int) -> Int {
+  b0:
+    %v3 = add %it$x, %it$y : Int
+    ret %v3
+}
+
+fn guarded(%flag: Bool, %n: Int) -> Int {
+  b0:
+    %v45 = select %flag ? 1 : 30 : Int
+    %v46 = select %flag ? 2 : 40 : Int
+    %v5 = cmp_gt %n, 0 : Bool
+    %v43 = select %v5 ? %v45 : %v46 : Int
+    ret %v43
+}
+
+fn late(%value: Int, %n: Int) -> Int {
+  b0:
+    %m = alloc : Maybe(Int)
+    %v23 = cmp_gt %value, 0 : Bool
+    je %v23, b2, b1
+
+  b1:
+    %v25 = alloc : Maybe(Int)
+    init %local2.discriminant, 0
+    jmp b3
+
+  b2:
+    %v29 = alloc : Maybe(Int)
+    aggregate %local1.discriminant = 1, %local1@Just = %value
+    jmp b3
+
+  b3:
+    %v21 = phi [b2, %v29], [b1, %v25] : Maybe(Int)
+    init %local0, %v21
+    %v5 = cmp_gt %n, 0 : Bool
+    je %v5, b5, b4
+
+  b4:
+    ret 100
+
+  b5:
+    %v7 = load %local0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    %v = load %local0@Just : Int
+    %v35 = select %v9 ? %v : 0 : Int
+    ret %v35
+}
+
+fn main() -> Int {
+  b0:
+    %v43 = call late, 7, 1 : Int
+    %v44 = add %v43, 324 : Int
+    %v49 = call late, 7, -1 : Int
+    %v50 = add %v44, %v49 : Int
+    ret %v50
+}

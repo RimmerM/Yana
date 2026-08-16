@@ -37,19 +37,8 @@ function showSigned(value, to$o, to$k, to$s) {
   }
 }
 
-function formatBound(bound) {
-  var v9;
-  if (!(bound === null)) {
-    v9 = bound;
-  } else {
-    v9 = 0;
-  }
-  return v9;
-}
-
 // ResolveTest
 function oneIntText() {
-  var v4 = formatBound(11);
   var v7 = { $v: "" };
   v7.$v = v7.$v + "n=";
   showSigned(7n, v7, "$v", 1);
@@ -76,10 +65,6 @@ function oneIntText() {
 }
 
 function mixed() {
-  var v7 = formatBound("ab".length);
-  var v10 = formatBound(11);
-  var v13 = formatBound("ab".length);
-  var v16 = formatBound(11);
   var v19 = { $v: "" };
   v19.$v = v19.$v + "ab";
   v19.$v = v19.$v + "-";
@@ -96,7 +81,6 @@ function inLoop() {
   var i = 0;
   L0: for (;;) {
     if (i < 100) {
-      var v15 = formatBound(11);
       var v18 = { $v: "" };
       v18.$v = v18.$v + "iteration ";
       showSigned(BigInt.asIntN(64, BigInt(i)), v18, "$v", 1);
@@ -110,40 +94,29 @@ function inLoop() {
 }
 
 function main() {
-  var v41 = "no holes here".length;
-  var v47 = formatBound(11);
-  var v48 = { $v: "" };
-  v48.$v = v48.$v + "n = ";
-  showSigned(42n, v48, "$v", 1);
-  var v13 = (v41 + v48.$v.length | 0) + oneIntText() | 0;
-  var v65 = formatBound("world".length);
-  var v66 = "";
-  v66 = v66 + "hello ";
-  v66 = v66 + "world";
-  var v21 = (v13 + v66.length | 0) + mixed() | 0;
-  var v82 = formatBound(11);
-  var v83 = { $v: "" };
-  showSigned(-2147483648n, v83, "$v", 1);
-  var v25 = v21 + v83.$v.length | 0;
-  var v95 = formatBound(5);
-  var v100 = formatBound(5);
-  var v101 = "";
-  v101 = v101 + "True";
-  v101 = v101 + "/";
-  v101 = v101 + "False";
-  return ((v25 + v101.length | 0) + inLoop() | 0) + printed() | 0;
-}
-
-function printed() {
-  var v5 = formatBound("format".length);
-  var v8 = formatBound(11);
-  var v11 = { $v: "" };
-  v11.$v = v11.$v + "[";
-  v11.$v = v11.$v + "format";
-  v11.$v = v11.$v + " ran ";
-  showSigned(2n, v11, "$v", 1);
-  v11.$v = v11.$v + " times]\n";
-  console.log(v11.$v);
-  return 0;
+  var v42 = { $v: "" };
+  v42.$v = v42.$v + "n = ";
+  showSigned(42n, v42, "$v", 1);
+  var v13 = (v42.$v.length + 13 | 0) + oneIntText() | 0;
+  var v54 = "";
+  v54 = v54 + "hello ";
+  v54 = v54 + "world";
+  var v21 = (v13 + v54.length | 0) + mixed() | 0;
+  var v67 = { $v: "" };
+  showSigned(-2147483648n, v67, "$v", 1);
+  var v25 = v21 + v67.$v.length | 0;
+  var v75 = "";
+  v75 = v75 + "True";
+  v75 = v75 + "/";
+  v75 = v75 + "False";
+  var v33 = (v25 + v75.length | 0) + inLoop() | 0;
+  var v93 = { $v: "" };
+  v93.$v = v93.$v + "[";
+  v93.$v = v93.$v + "format";
+  v93.$v = v93.$v + " ran ";
+  showSigned(2n, v93, "$v", 1);
+  v93.$v = v93.$v + " times]\n";
+  console.log(v93.$v);
+  return v33;
 }
 main();

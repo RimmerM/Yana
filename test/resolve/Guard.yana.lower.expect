@@ -87,18 +87,16 @@ firstJust<complex>(%a: Ptr, %b: Ptr): Int {
   b_4 {
     %v_5 = loads %b, 4: Int
     %v_6 = cmp_eq %v_5, 1: Int
-    je %v_6, b_3, b_7
+    %v_7 = add %b, 4: Ptr
+    %second = loads %v_7, 4: Int
+    %v_8 = select %v_6, %second, 0: Int
+    ret %v_8
   }
 
   b_3 {
-    %v_8 = phi [b_0, %a], [b_4, %b]: Ptr
-    %v_9 = add %v_8, 4: Ptr
+    %v_9 = add %a, 4: Ptr
     %first = loads %v_9, 4: Int
     ret %first
-  }
-
-  b_7 {
-    ret 0
   }
 }
 

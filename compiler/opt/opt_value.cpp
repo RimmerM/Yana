@@ -685,6 +685,28 @@ void eliminateCommonValues(OptContext& opt) {
 }
 
 /*
+ * Whether one host operation reads and does nothing else.
+ *
+ * `Value::Native` is not `kInstPure` and must not become one: the same kind carries `copyWithin`,
+ * which writes a shared buffer, `console.log`, and the throw. So the question is asked per
+ * operation, and by allowlist rather than by exclusion - a host member added to resolve/host.cpp
+ * that this has never heard of is answered "no", which costs a removal and cannot cost correctness.
+ *
+ * `HostField` and `HostBinary` are read-only as *kinds*: the first is `.length` and the second is
+ * one of the host's own operators over two values. `HostCall` is the one that is mixed, so its two
+ * readers are named. Matched on the member's spelling for the same reason `genHost` matches on it -
+ * the set is closed, `attachIntrinsic` is its only producer, and a second enum here would be a
+ * thing to keep in step with that one.
+ */
+static bool isReadOnlyHostOp(OptContext& opt, InstNative& instruction) {
+    if(instruction.op == NativeOp::HostField || instruction.op == NativeOp::HostBinary) return true;
+    if(instruction.op != NativeOp::HostCall) return false;
+
+    auto text = stringView(opt.context.findName(instruction.method));
+    return text == "charCodeAt"_v || text == "indexOf"_v;
+}
+
+/*
  * A read whose result nothing reads.
  *
  * Reading a place has no effect, so removing one is only a question of whether it could have
@@ -715,6 +737,10 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
         auto& place = ((InstAddress&)instruction).place;
         return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
     }
+
+    // And a host operation that only reads - see isReadOnlyHostOp, and the fold in opt_fold.cpp
+    // that leaves one behind.
+    if(instruction.kind == Value::Native) return isReadOnlyHostOp(opt, (InstNative&)instruction);
 
     if(instruction.kind != Value::LoadPlace) return false;
 
@@ -775,6 +801,25 @@ void eliminateDeadValues(OptContext& opt) {
                 }
 
                 opt.ir().eraseInstruction(pointer);
+                changed = true;
+            }
+
+            /*
+             * And the phis, which are in a list of their own and were therefore never reached by the
+             * walk above - see Block, where the two lists are separate so that "before everything
+             * else" is a property of the IR rather than of insertion order.
+             *
+             * A phi is pure by construction, so the only question about one is whether anything reads
+             * it. `promotePlaces` cleans up after itself and nothing else used to leave one behind,
+             * which is why this went unnoticed; `splitPhiOfLocals` leaves exactly this - the phi of
+             * storage whose readers have all been given a phi of values instead - and a phi kept
+             * alive by nothing keeps every allocation feeding it alive too.
+             */
+            for(Size i = block->phiCount(); i-- > 0;) {
+                auto pointer = block->phiAt(opt.local, i);
+                if(opt.local[pointer]->useCount() != 0) continue;
+
+                opt.ir().erasePhi(pointer);
                 changed = true;
             }
         }

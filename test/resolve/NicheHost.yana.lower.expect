@@ -98,23 +98,11 @@ pairValue<complex>(%p: Ptr): Int {
     %v_14 = add %p, 12: Ptr
     %v_15 = loads %v_14, 4: Int
     %v_16 = cmp_eq %v_15, 0: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    %v_19 = add %p, 16: Ptr
-    %n = loads %v_19, 4: Int
-    jmp b_20
-  }
-
-  b_17 {
-    jmp b_20
-  }
-
-  b_20 {
-    %v_21 = phi [b_17, 7], [b_18, %n]: Int
-    %v_22 = add %v_13, %v_21: Int
-    ret %v_22
+    %v_17 = add %p, 16: Ptr
+    %n = loads %v_17, 4: Int
+    %v_18 = select %v_16, 7, %n: Int
+    %v_19 = add %v_13, %v_18: Int
+    ret %v_19
   }
 }
 

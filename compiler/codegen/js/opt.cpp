@@ -508,10 +508,17 @@ bool substituteAfter(Gen& g, StmtList& list, Size from, Name name, JsPtr<Expr> v
  *    the write lands - `result = f(a) + g()` where `a` is `result` is the shape this is for, and it
  *    is the shape a `+=` over a local comes out as.
  *
- * Nested bodies are declined outright in the second case rather than walked. A loop body reached a
- * second time has run everything in it, so an assignment *after* the use is a barrier *before* it,
- * and a closure runs at a time this cannot name at all. The counting pass is what makes declining
- * cost nothing: a use it cannot reach leaves the declaration alone rather than half-rewritten.
+ * A nested body is walked in the second case only where the statement holding it assigns `b`
+ * *nowhere* - which is the question `assignsName` already had to ask to find the barrier, so it
+ * costs nothing to act on the answer. Inside such a statement `b` denotes one value however control
+ * moves through it, so the order the bodies are reached in does not matter and the unguarded case's
+ * walk applies unchanged. A loop body reached a second time has run everything in it, which is
+ * exactly what that condition rules out; a closure is declined separately, because it runs at a time
+ * this cannot name at all and an assignment *after* it in this list is still in front of it.
+ *
+ * This is the shape a phi read on both sides of a branch comes out as - `var v = w;` followed by an
+ * `if` whose arms are the only readers - so declining every nested body left the copy standing in
+ * the one place it is most often written.
  */
 struct Copy {
     Name from;
@@ -596,20 +603,39 @@ void propagateStmt(Gen& g, JsPtr<Stmt> pointer, Copy& c) {
     if(c.stopped) return;
 
     auto stmt = g.base[pointer];
+
+    // Through the label to what it wraps, so that the closure test below sees the statement it is
+    // a test about - a label carries no header and no body of its own.
+    if(stmt->kind == Stmt::Labelled) return propagateStmt(g, ((LabelledStmt*)stmt)->content, c);
+
     if(auto header = headerOf(g, stmt)) propagateExpr(g, *header, c);
 
     /*
      * The unguarded case walks everything, including the arms of an `if` and the bodies of the
      * closures a factory returns: with nothing able to assign `to`, there is no order to respect.
-     * The guarded case walks none of it and asks one question instead - see the header comment for
-     * why a loop body and a closure are the two shapes an ordered walk cannot answer for.
      */
     if(!c.guarded) {
         eachBody(g, stmt, [&](StmtList& body) { propagateList(g, body, 0, c); });
         return;
     }
 
-    if(assignsName(g, pointer, c.to)) c.stopped = true;
+    /*
+     * The guarded case stops at a statement that assigns `to` anywhere inside it, and otherwise
+     * walks it on the unguarded case's terms: within a statement that assigns `to` nowhere, `to`
+     * denotes one value and no order needs respecting.
+     *
+     * A closure is the exception the condition cannot cover. Its body runs at a time this list's
+     * order does not describe, so an assignment *later* in this list is in front of a use inside
+     * it. Left unwalked rather than made a barrier: the uses it hides go uncounted, which declines
+     * the declaration in `propagateCopy` instead of rewriting half of it.
+     */
+    if(assignsName(g, pointer, c.to)) {
+        c.stopped = true;
+        return;
+    }
+
+    if(stmt->kind == Stmt::Fun) return;
+    eachBody(g, stmt, [&](StmtList& body) { propagateList(g, body, 0, c); });
 }
 
 void propagateList(Gen& g, StmtList& list, Size from, Copy& c) {
@@ -2019,6 +2045,38 @@ bool foldConditions(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
 }
 
 /*
+ * A ternary whose condition is decided - `true ? A : B` is `A`.
+ *
+ * `foldDecidedIf` is the statement half of this and existed first; the expression half did not,
+ * because nothing used to hand a ternary a literal condition. `propagateConstants` does: a packed
+ * `Bool` read out of a constant word decodes to `(1 & 1) !== 0`, which evaluates to `true`, and the
+ * `? 1 : 0` that widens it back to arithmetic is then a ternary over a literal. `Default.yana`
+ * built a whole flag word that way and emitted `(true ? 1 : 0) | (false ? 1 : 0) << 1`.
+ *
+ * The arm that is not taken is dropped whatever is in it, effects included, because a decided
+ * condition means it was never going to be evaluated - this removes dead code rather than moving
+ * live code. Only the two literal conditions are matched: `constantNumber` rejects a negative zero
+ * on its bit pattern, so the one falsy number it declines is declined into leaving the node alone.
+ */
+bool foldDecidedTernary(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Ternary) return false;
+
+    auto& choice = *(TernaryExpr*)expr;
+    auto cond = g.base[choice.cond];
+
+    F64 number;
+    bool taken;
+
+    if(cond->kind == Expr::Bool) taken = ((BoolExpr*)cond)->value;
+    else if(constantNumber(g, choice.cond, number)) taken = number != 0;
+    else return false;
+
+    slot = taken ? choice.then : choice.otherwise;
+    return true;
+}
+
+/*
  * `x ? 1 : 0` on an `x` that is already 0 or 1.
  *
  * The value half of the same redundancy, and `foldTernaryCompare` read the other way round: there a
@@ -2470,7 +2528,8 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     while(foldSignExtend(g, slot, ranges) || foldBitwiseOperand(g, slot) ||
           foldCoercion(g, slot, ranges) ||
           foldConstantOp(g, slot) || foldNumericIdentity(g, slot) ||
-          foldConditions(g, slot, ranges) || foldBooleanWidening(g, slot, ranges)) {
+          foldConditions(g, slot, ranges) || foldDecidedTernary(g, slot) ||
+          foldBooleanWidening(g, slot, ranges)) {
         folded = true;
     }
 

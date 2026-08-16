@@ -92,6 +92,16 @@ static bool compileJs(Context& context, Program& program, const String& outputDi
     auto file = js::genProgram(context, program);
     if(context.diagnostics.errorCount()) return false;
 
+    // The same dump `lowerNative` writes, for the same reason and after the same step: `genProgram`
+    // runs the optimizer over `program` in place, so this is the resolve IR the emitter below read.
+    // The two targets resolve and optimize separately, so a question about a pass in `opt/` has a
+    // different answer on each and this is the only place the JS one can be read.
+    if(context.settings.printIr) {
+        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".opt.ir"_v), [&](Net::Writer& writer) {
+            printProgram(writer, context, program);
+        });
+    }
+
     return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
         js::formatFile(writer, context, *file, false);
     });

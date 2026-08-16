@@ -1,78 +1,8 @@
 @image$base = []
 
-unwrapBool<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = load %value, 1: Long
-    %v_2 = cmp_le %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %inner = load %value, 1: Int
-    %v_6 = select %inner, 1, 0: Int
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %v_6], [b_4, 2]: Int
-    ret %v_7
-  }
-}
-
-resultValue<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = add %value, 4: Ptr
-    %code = loads %v_5, 4: Int
-    %v_6 = sub 0, %code: Int
-    jmp b_7
-  }
-
-  b_3 {
-    %v_8 = add %value, 4: Ptr
-    %inner = loads %v_8, 4: Int
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_3, %inner], [b_4, %v_6]: Int
-    ret %v_9
-  }
-}
-
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, 1, 1
-    %v_2 = call_complex unwrapBool, %v_1: Int
-    %v_3 = add %v_2, 11: Int
-    %v_4 = alloca 1, 1: Ptr
-    store %v_4, 2, 1
-    %v_5 = call_complex unwrapBool, %v_4: Int
-    %v_6 = add %v_3, %v_5: Int
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 11, 4
-    %v_9 = call_complex resultValue, %v_7: Int
-    %v_10 = add %v_6, %v_9: Int
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 0, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 4, 4
-    %v_13 = call_complex resultValue, %v_11: Int
-    %v_14 = add %v_10, %v_13: Int
-    %v_15 = add %v_14, 48: Int
-    ret %v_15
+    ret 69
   }
 }
 

@@ -849,68 +849,63 @@ main<complex>(): Int {
   }
 
   b_165 {
-    jmp b_167
+    jmp b_166
   }
 
   b_166 {
-    jmp b_168
-  }
-
-  b_167 {
-    jmp b_168
-  }
-
-  b_168 {
-    %v_169 = phi [b_166, 0], [b_167, %v_158]: Int
+    %v_167 = phi [b_152, 0], [b_165, 1]: Int
+    %v_168 = phi [b_152, 0], [b_165, %v_158]: Int
+    %v_169 = cmp_eq %v_167, 1: Int
+    %v_170 = select %v_169, %v_168, 0: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_170 = add %v_138, %v_169: Int
-    %v_171 = alloca 16, 8: Ptr
-    %v_172 = alloca 12, 4: Ptr
-    store %v_171, %v_172, 8
-    %v_173 = add %v_171, 8: Ptr
-    %v_174 = load %v_173, 4: Int
-    store %v_173, 3, 4
-    store %v_172, 1, 4
-    %v_175 = add %v_172, 4: Ptr
-    store %v_175, 2, 4
-    %v_176 = add %v_172, 8: Ptr
-    store %v_176, 3, 4
-    %v_177 = add %v_171, 12: Ptr
+    %v_171 = add %v_138, %v_170: Int
+    %v_172 = alloca 16, 8: Ptr
+    %v_173 = alloca 12, 4: Ptr
+    store %v_172, %v_173, 8
+    %v_174 = add %v_172, 8: Ptr
+    %v_175 = load %v_174, 4: Int
+    store %v_174, 3, 4
+    store %v_173, 1, 4
+    %v_176 = add %v_173, 4: Ptr
+    store %v_176, 2, 4
+    %v_177 = add %v_173, 8: Ptr
     store %v_177, 3, 4
-    jmp b_178
-  }
-
-  b_179 {
-    %v_180 = cmp_ilt %v_181, 3: Int
-    je %v_180, b_178, b_182
-  }
-
-  b_182 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_171
-    %v_183 = add %v_170, %v_184: Int
-    ret %v_183
-  }
-
-  b_178 {
-    %v_185 = phi [b_179, %v_184], [b_168, 0]: Int
-    %v_186 = phi [b_179, %v_181], [b_168, 0]: Int
-    %v_187 = sext %v_186: Long
-    %v_188 = cmp_ge %v_187, 3: Int
-    je %v_188, b_39, b_189
-  }
-
-  b_189 {
-    %v_190 = shl %v_187, 2: Long
-    %v_191 = add %v_172, %v_190: Ptr
-    %v_192 = loads %v_191, 4: Int
-    %v_193 = add %v_185, %v_192: Int
-    %v_184 = add %v_193, 1: Int
-    %v_181 = add %v_186, 1: Int
+    %v_178 = add %v_172, 12: Ptr
+    store %v_178, 3, 4
     jmp b_179
   }
 
+  b_180 {
+    %v_181 = cmp_ilt %v_182, 3: Int
+    je %v_181, b_179, b_183
+  }
+
+  b_183 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_172
+    %v_184 = add %v_171, %v_185: Int
+    ret %v_184
+  }
+
+  b_179 {
+    %v_186 = phi [b_180, %v_185], [b_166, 0]: Int
+    %v_187 = phi [b_180, %v_182], [b_166, 0]: Int
+    %v_188 = sext %v_187: Long
+    %v_189 = cmp_ge %v_188, 3: Int
+    je %v_189, b_39, b_190
+  }
+
+  b_190 {
+    %v_191 = shl %v_188, 2: Long
+    %v_192 = add %v_173, %v_191: Ptr
+    %v_193 = loads %v_192, 4: Int
+    %v_194 = add %v_186, %v_193: Int
+    %v_185 = add %v_194, 1: Int
+    %v_182 = add %v_187, 1: Int
+    jmp b_180
+  }
+
   b_39 {
-    %v_194 = syscall 60, 134: Long
+    %v_195 = syscall 60, 134: Long
     unreachable 
   }
 }

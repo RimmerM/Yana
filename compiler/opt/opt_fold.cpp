@@ -198,12 +198,59 @@ struct Folder {
         auto facts = foldableInt(opt, operandType);
         if(!facts && !isConstructorIndex(opt, operandType)) return nullptr;
 
+        auto isSigned = facts && facts.unwrap().isSigned;
+        if(auto folded = foldCompareOfSelect(instruction, isSigned)) return folded;
+
         U64 lhs, rhs;
         if(!operands(instruction, lhs, rhs)) return nullptr;
 
-        auto isSigned = facts && facts.unwrap().isSigned;
         auto answer = compare(instruction.cmp, lhs, rhs, isSigned);
         return constant(instruction, instruction.type, answer ? 1 : 0);
+    }
+
+    /*
+     * A select of two constants, compared against a third - which is the shape a widened boolean is
+     * tested in, and the one thing standing between `viaCall` in Is.yana and the ternary it is.
+     *
+     * Once the record that function built has been scalarized away, what is left of the discriminant
+     * is `select c ? 1 : 0` and what is left of the pattern test is `cmp_eq` of that against `1`. The
+     * comparison has one answer per arm and both are decidable here, so the question is only which of
+     * the four possible pairs it came out as.
+     *
+     * Three of them are answerable with a value that already exists: both arms agreeing is a
+     * constant, and agreeing with the condition is the condition. The fourth is `!c`, which is an
+     * instruction rather than a value - `xor c, True` - and this pass inserts none; see foldFunction,
+     * whose walk is an index over a list nothing is added to. It is declined rather than worked
+     * around, and what it costs is one `xor` that was going to be emitted anyway.
+     */
+    ModulePtr<Value> foldCompareOfSelect(InstCmp& instruction, bool isSigned) {
+        auto onLeft = opt.local[instruction.lhs]->kind == Value::Select;
+        auto value = opt.local[onLeft ? instruction.lhs : instruction.rhs];
+        if(value->kind != Value::Select) return nullptr;
+
+        auto& select = (InstSelect&)*value;
+        auto whenTrue = constantValueOf(opt, select.whenTrue);
+        auto whenFalse = constantValueOf(opt, select.whenFalse);
+        auto against = constantValueOf(opt, onLeft ? instruction.rhs : instruction.lhs);
+        if(!whenTrue || !whenFalse || !against) return nullptr;
+
+        // The operand order the comparison was written in, since four of the six orderings are not
+        // symmetric and the select may be on either side of one.
+        auto answer = [&](U64 arm) {
+            return onLeft ? compare(instruction.cmp, arm, against.unwrap(), isSigned)
+                          : compare(instruction.cmp, against.unwrap(), arm, isSigned);
+        };
+
+        auto ifTrue = answer(whenTrue.unwrap());
+        if(ifTrue == answer(whenFalse.unwrap())) {
+            return constant(instruction, instruction.type, ifTrue ? 1 : 0);
+        }
+
+        // The condition itself, at the comparison's own type - which is `Bool` for both, but asked
+        // rather than assumed, since what is being handed back is one value in place of another.
+        if(ifTrue && opt.local[select.cond]->type == instruction.type) return select.cond;
+
+        return nullptr;
     }
 
     /*
@@ -873,9 +920,142 @@ struct Folder {
         return condition.unwrap() ? select.whenTrue : select.whenFalse;
     }
 
+    /*
+     * An arm that is itself a select on the *same* condition, which is a value that arm can never be.
+     *
+     * `select c ? (select c ? x : y) : z` reaches the inner select only where `c` held, so what it
+     * produces there is `x` and `y` is unreachable; the mirror image on the false arm reaches `z`
+     * only where it did not. This is a rewrite in place rather than a replacement value for the
+     * reason `reassociate` is: what changes is which operands this instruction has, not what it
+     * computes to.
+     *
+     * If-conversion is what makes the shape, and the two selects are usually not written together -
+     * one comes from a diamond whose value the other one tests. `viaCall` in Is.yana is that: a
+     * discriminant that is `c` widened, and a payload guarded by the same `c` one step later.
+     */
+    bool collapseSelectArms(ModulePtr<Inst> pointer, InstSelect& select) {
+        auto changed = false;
+
+        auto& whenTrue = *opt.local[select.whenTrue];
+        if(whenTrue.kind == Value::Select && ((InstSelect&)whenTrue).cond == select.cond) {
+            opt.ir().replaceOperand(pointer, select.whenTrue, ((InstSelect&)whenTrue).whenTrue);
+            changed = true;
+        }
+
+        auto& whenFalse = *opt.local[select.whenFalse];
+        if(whenFalse.kind == Value::Select && ((InstSelect&)whenFalse).cond == select.cond) {
+            opt.ir().replaceOperand(pointer, select.whenFalse, ((InstSelect&)whenFalse).whenFalse);
+            changed = true;
+        }
+
+        if(changed) opt.changed = true;
+        return changed;
+    }
+
+    /*
+     * The host string operations over literals - Implementation-String.md parts 3 and 8, folded.
+     *
+     * These are `InstNative`s rather than calls because `@platform(js)`'s `length`, `stringUnit` and
+     * `+` on a `String` are one host member each, so a literal reaching one arrives here as an
+     * operand and not as anything a backend can see through. The native bodies are ordinary Yana -
+     * a field read, a pointer read, an allocating loop - and none of them is this instruction, so
+     * this pass only ever fires on a JS build even though nothing here says so.
+     *
+     * **`+` folds for any content and the other two only for ASCII**, which is the same split part 3
+     * makes for a different reason. Joining two strings is a statement about *content* and is
+     * encoding-agnostic - the document says exactly that, and the compiler holds a literal as the
+     * UTF-8 bytes the lexer decoded, so concatenating those bytes is concatenating the strings.
+     * `length` and `charCodeAt` answer in the *host's* unit, which is a UTF-16 code unit and is only
+     * the byte this holds where every byte is below 0x80. Above that the answer is a decode this
+     * declines to perform rather than a number it may invent.
+     */
+    StringView literalText(ModulePtr<Value> value) {
+        auto constant = opt.local[value];
+        if(!constant || constant->kind != Value::ConstString) return StringView { nullptr, 0 };
+
+        auto text = opt.context.findName(((ConstString*)constant)->text);
+        return StringView { text.text(), text.size() };
+    }
+
+    static bool isAscii(StringView text) {
+        for(Size i = 0; i < text.length; i++) {
+            if((U8)text.ptr[i] >= 0x80) return false;
+        }
+
+        return true;
+    }
+
+    // A folded count or unit, at the instruction's own type on rule 1 above. Declined rather than
+    // wrapped where the type cannot hold the number, since what the target would have stored there
+    // is the operation's own answer and not a truncation of it.
+    ModulePtr<Value> stringNumber(Value& instruction, U64 number) {
+        auto facts = foldableInt(opt, instruction.type);
+        if(!facts) return nullptr;
+
+        if(narrowToWidth(number, facts.unwrap()) != number) return nullptr;
+        return constant(instruction, instruction.type, number);
+    }
+
+    ModulePtr<Value> foldHostString(InstNative& instruction) {
+        auto method = opt.context.findName(instruction.method);
+        auto name = StringView { method.text(), method.size() };
+
+        if(instruction.op == NativeOp::HostBinary && name == "+"_v && instruction.args.size() == 2) {
+            auto left = literalText(instruction.args.get(opt.local, 0));
+            auto right = literalText(instruction.args.get(opt.local, 1));
+            if(!left.ptr || !right.ptr) return nullptr;
+
+            StringBuilder joined(U32(left.length + right.length));
+            joined.append(left.ptr, left.length);
+            joined.append(right.ptr, right.length);
+
+            // `addQualifiedName` rather than the unqualified one, because this is the one interning
+            // site whose text is *built* here: the unqualified form keeps the caller's pointer, and
+            // every other caller hands it a lexeme that outlives the compilation. The one-segment
+            // path copies into the context's own arena and hashes the bytes the same way, so the
+            // StringId is the one a literal of this content would already have had.
+            auto text = opt.context.addQualifiedName(joined.text(), joined.size(), 1);
+            auto block = opt.local[instruction.block];
+            auto folded = addConstant<ConstString>(*opt.module, *opt.function, *block, instruction.source,
+                                                   instruction.type, text);
+            return (ModulePtr<Value>)(folded - opt.local);
+        }
+
+        // `hostLength` on a host array is the other reader of `HostField`, and a literal operand is
+        // what tells the two apart: an array is never one.
+        if(instruction.op == NativeOp::HostField && name == "length"_v && instruction.args.size() == 1) {
+            auto text = literalText(instruction.args.get(opt.local, 0));
+            if(!text.ptr || !isAscii(text)) return nullptr;
+
+            return stringNumber(instruction, text.length);
+        }
+
+        if(instruction.op == NativeOp::HostCall && name == "charCodeAt"_v && instruction.args.size() == 2) {
+            auto text = literalText(instruction.args.get(opt.local, 0));
+            if(!text.ptr || !isAscii(text)) return nullptr;
+
+            // An out-of-range read answers `NaN` on the host, which is not an integer this may
+            // write - the same limit the floating side declines a NaN for.
+            auto index = constantValueOf(opt, instruction.args.get(opt.local, 1));
+            if(!index || index.unwrap() >= text.length) return nullptr;
+
+            return stringNumber(instruction, (U8)text.ptr[index.unwrap()]);
+        }
+
+        return nullptr;
+    }
+
     ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
-        if(instruction.kind == Value::Select) return foldSelect((InstSelect&)instruction);
+        if(instruction.kind == Value::Native) return foldHostString((InstNative&)instruction);
+        if(instruction.kind == Value::Select) {
+            // The arms first, because collapsing one is what can make the two agree - which is the
+            // first answer `foldSelect` gives.
+            auto& select = (InstSelect&)instruction;
+            collapseSelectArms(pointer, select);
+            return foldSelect(select);
+        }
+
         if(instruction.kind == Value::TypeMetric) return foldMetric(instruction);
 
         /*

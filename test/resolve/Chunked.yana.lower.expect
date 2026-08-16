@@ -655,29 +655,28 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_88 {
-    jmp b_90
+    jmp b_89
   }
 
   b_15 {
-    %v_91 = syscall 60, 134: Long
+    %v_90 = syscall 60, 134: Long
     unreachable 
   }
 
   b_58 {
-    jmp b_90
+    jmp b_89
   }
 
   b_26 {
-    jmp b_90
+    jmp b_89
   }
 
   b_89 {
-    ret 18446744073709551615
-  }
-
-  b_90 {
-    %v_92 = phi [b_88, %v_81], [b_58, %v_51], [b_26, %v_19]: Int
-    ret %v_92
+    %v_91 = phi [b_62, 0], [b_88, 1], [b_58, 1], [b_26, 1]: Int
+    %v_92 = phi [b_62, 0], [b_88, %v_81], [b_58, %v_51], [b_26, %v_19]: Int
+    %v_93 = cmp_eq %v_91, 1: Int
+    %v_94 = select %v_93, %v_92, 18446744073709551615: Int
+    ret %v_94
   }
 }
 

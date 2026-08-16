@@ -1,0 +1,83 @@
+-- SROA over a phi of aggregate locals - `splitPhiOfLocals` in compiler/opt/opt_scalar.cpp.
+--
+-- Inlining a function that builds a record on one arm and a different one on the other leaves the
+-- caller holding a phi of two allocations with a whole-aggregate copy under it. Neither of the two
+-- rules beside that one reaches it: the copy's source is a phi rather than a local's storage, so
+-- there is no place to project a field out of, and where the type is a *sum* its fields are not a
+-- shape this stage may write into at all - which storage a constructor's payload occupies is
+-- `compiler/repr`'s decision.
+--
+-- Turning the phi round removes both: one phi per place the copy is read at, loaded in the
+-- predecessor that produced it. Nothing is written into a sum's storage, because the reads that
+-- were legal off the copy are the same reads off the thing copied.
+
+data Point {x: Int, y: Int}
+
+-- The single-constructor case. `pick` inlines, and what is left is two selects and an add - neither
+-- `Point` is ever built.
+fn pick(flag: Bool) -> Point = if flag then Point {x: 1, y: 2} else Point {x: 30, y: 40}
+
+fn parts(flag: Bool) -> Int:
+    let p = pick(flag)
+    return p.x + p.y
+
+-- The sum, which is the case the field-wise split cannot reach. The payload of the arm that did not
+-- match is storage nothing ever wrote, and answering a read of it with zero - `fillUnwritten` in
+-- opt_promote.cpp - is what lets that allocation go too. This collapses to `value > 0 ? value : 0`.
+fn wrap(value: Int) -> Maybe(Int) = if value > 0 then Just(value) else Nothing
+
+fn orZero(value: Int) -> Int = if wrap(value) is Just(v) then v else 0
+
+-- Three ways into the join rather than two, since nothing about the rewrite is about there being
+-- two of them.
+fn three(n: Int) -> Point = if:
+    n > 10 -> Point {x: 5, y: 6}
+    n > 0 -> Point {x: 7, y: 8}
+    else -> Point {x: 9, y: 1}
+
+fn product(n: Int) -> Int:
+    let p = three(n)
+    return p.x * p.y
+
+-- A record handed *whole* to a call, which looks like the shape the rule declines and is not: the
+-- reader is the call rather than a load, so what has to happen first is `opt_arg.cpp` splitting
+-- `distance`'s parameter into two scalars. Once it has, the call reads two fields like anything
+-- else, and this collapses with the rest of them. Kept for the ordering as much as for the answer.
+fn whole(flag: Bool) -> Int:
+    let p = pick(flag)
+    return distance(p) + p.x
+
+fn distance(it: Point) -> Int = it.x + it.y
+
+-- A read *below* the join, which the phi rule declines: moving that load onto the edges would hoist
+-- it above the branch that guards it, and the rule rests on the two running in exactly the same
+-- cases. This is what the second half of the pair is for - `sinkWriteIntoPredecessors` moves the
+-- *write* instead, which needs nothing hoisted, and the field writes it becomes are promoted across
+-- the blocks by opt_promote.cpp. Also collapses to selects.
+fn guarded(flag: Bool, n: Int) -> Int:
+    let p = pick(flag)
+
+    if n > 0:
+        return p.x
+
+    return p.y
+
+-- And the one that is genuinely declined, which is both limits at once: the read is below the join,
+-- so the phi rule will not move it, and the type is a sum, so the sink has nothing to split the copy
+-- it would leave into. The record is still built here. What this asserts is the answer, which does
+-- not depend on which of the three happened.
+fn late(value: Int, n: Int) -> Int:
+    let m = wrap(value)
+
+    if n > 0:
+        return if m is Just(v) then v else 0
+
+    return 100
+
+fn main() -> Int =
+    parts(True) + parts(False) +
+    orZero(11) + orZero(0) * 100 +
+    product(50) + product(5) + product(-1) +
+    whole(True) + whole(False) +
+    guarded(True, 1) + guarded(False, -1) +
+    late(7, 1) + late(7, -1)

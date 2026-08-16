@@ -4,30 +4,20 @@ fn orZero(%m: Maybe(Int)) -> Int {
   b0:
     %v1 = load %m.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b1
-
-  b1:
-    ret 0
-
-  b2:
     %v = load %m@Just : Int
     %v10 = add %v, 1 : Int
-    ret %v10
+    %v12 = select %v3 ? %v10 : 0 : Int
+    ret %v12
 }
 
 fn orZeroElse(%m: Maybe(Int)) -> Int {
   b0:
     %v1 = load %m.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b1
-
-  b1:
-    ret 0
-
-  b2:
     %v = load %m@Just : Int
     %v10 = add %v, 2 : Int
-    ret %v10
+    %v12 = select %v3 ? %v10 : 0 : Int
+    ret %v12
 }
 
 fn describe(%m: Maybe(Color)) -> Int {
@@ -100,15 +90,10 @@ fn scoped(%m: Maybe(Int)) -> Int {
   b0:
     %v1 = load %m.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b1
-
-  b1:
-    ret 0
-
-  b2:
     %v = load %m@Just : Int
     %v10 = mul %v, 3 : Int
-    ret %v10
+    %v12 = select %v3 ? %v10 : 0 : Int
+    ret %v12
 }
 
 fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
@@ -120,18 +105,13 @@ fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
   b1:
     %v12 = load %b.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b4, b3
+    %second = load %b@Just : Int
+    %v21 = select %v14 ? %second : 0 : Int
+    ret %v21
 
   b2:
     %first = load %a@Just : Int
     ret %first
-
-  b3:
-    ret 0
-
-  b4:
-    %second = load %b@Just : Int
-    ret %second
 }
 
 fn retry(%m: Maybe(Int), %c: Color) -> Int {

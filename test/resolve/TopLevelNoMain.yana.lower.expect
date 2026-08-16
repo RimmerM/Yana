@@ -696,29 +696,6 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 }
 
-formatBound<complex>(%bound: Ptr): Long {
-  b_0 {
-    %v_1 = loads %bound, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = add %bound, 8: Ptr
-    %units = loads %v_6, 8: Long
-    jmp b_5
-  }
-
-  b_5 {
-    %v_7 = phi [b_3, %units], [b_4, 0]: Long
-    ret %v_7
-  }
-}
-
 main$<complex>() {
   b_0 {
     %v_1 = loads @tally, 4: Int
@@ -728,66 +705,48 @@ main$<complex>() {
     %v_3 = add %v_1, %v_2: Int
     store @final, %v_3, 4
     %v_4 = alloca 16, 8: Ptr
-    store %v_4, 1, 4
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, 11, 8
-    %v_6 = call_complex formatBound, %v_4: Long
-    %v_7 = add %v_6, 22: Long
+    call_complex newStringOfCapacity, %v_4, 55
+    %v_5 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_5, @string$0, 6
+    call_complex pushString, %v_4, %v_5
+    call_complex showSigned, 42, %v_4
+    %v_6 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_6, @string$1, 9
+    call_complex pushString, %v_4, %v_6
+    %v_7 = sext %v_1: Long
+    call_complex showSigned, %v_7, %v_4
     %v_8 = alloca 16, 8: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 8: Ptr
-    store %v_9, 11, 8
-    %v_10 = call_complex formatBound, %v_8: Long
-    %v_11 = add %v_7, %v_10: Long
-    %v_12 = alloca 16, 8: Ptr
-    store %v_12, 1, 4
-    %v_13 = add %v_12, 8: Ptr
-    store %v_13, 11, 8
-    %v_14 = call_complex formatBound, %v_12: Long
-    %v_15 = add %v_11, %v_14: Long
-    %v_16 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_16, %v_15
-    %v_17 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_17, @string$0, 6
-    call_complex pushString, %v_16, %v_17
-    call_complex showSigned, 42, %v_16
-    %v_18 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_18, @string$1, 9
-    call_complex pushString, %v_16, %v_18
-    %v_19 = sext %v_1: Long
-    call_complex showSigned, %v_19, %v_16
-    %v_20 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_20, @string$2, 7
-    call_complex pushString, %v_16, %v_20
-    %v_21 = sext %v_3: Long
-    call_complex showSigned, %v_21, %v_16
-    %v_22 = load %v_16, 8: Ptr
-    %v_23 = add %v_16, 12: Ptr
-    %v_24 = load %v_23, 4: Int
-    %units = cast %v_24: Int
-    %v_25 = sext %units: Long
-    %v_26 = bitcast %v_22: Long
-    %v_27 = syscall 1, 1, %v_26, %v_25: Long
-    %v_28 = add %v_16, 8: Ptr
-    %v_29 = load %v_28, 4: Long
-    %v_30 = shr %v_29, 30: Long
-    %v_31 = cast %v_30: Int
-    %v_32 = cast %v_31: Int
-    %v_33 = cmp_eq %v_32, 1: Int
-    je %v_33, b_34, b_35
+    call_complex stringLiteral, %v_8, @string$2, 7
+    call_complex pushString, %v_4, %v_8
+    %v_9 = sext %v_3: Long
+    call_complex showSigned, %v_9, %v_4
+    %v_10 = load %v_4, 8: Ptr
+    %v_11 = add %v_4, 12: Ptr
+    %v_12 = load %v_11, 4: Int
+    %units = cast %v_12: Int
+    %v_13 = sext %units: Long
+    %v_14 = bitcast %v_10: Long
+    %v_15 = syscall 1, 1, %v_14, %v_13: Long
+    %v_16 = add %v_4, 8: Ptr
+    %v_17 = load %v_16, 4: Long
+    %v_18 = shr %v_17, 30: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = cast %v_19: Int
+    %v_21 = cmp_eq %v_20, 1: Int
+    je %v_21, b_22, b_23
   }
 
-  b_35 {
-    jmp b_36
+  b_23 {
+    jmp b_24
   }
 
-  b_34 {
-    %v_37 = load %v_16, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_36
+  b_22 {
+    %v_25 = load %v_4, 8: Ptr
+    call_complex freeHeap, %v_25
+    jmp b_24
   }
 
-  b_36 {
+  b_24 {
     ret 
   }
 }

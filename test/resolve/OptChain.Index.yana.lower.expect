@@ -458,82 +458,34 @@ main<complex>(): Int {
     call_complex indexed, %v_1, 4
     %v_2 = loads %v_1, 4: Int
     %v_3 = cmp_eq %v_2, 1: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_4 {
-    %v_7 = add %v_1, 4: Ptr
-    %v = loads %v_7, 4: Int
-    jmp b_6
-  }
-
-  b_6 {
-    %v_8 = phi [b_4, %v], [b_5, 0]: Int
-    %v_9 = alloca 8, 4: Ptr
-    call_complex indexed, %v_9, 18446744073709551615
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = cmp_eq %v_10, 1: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_12 {
-    %v_15 = add %v_9, 4: Ptr
-    %v = loads %v_15, 4: Int
-    jmp b_14
-  }
-
-  b_14 {
-    %v_16 = phi [b_12, %v], [b_13, 0]: Int
-    %v_17 = alloca 8, 4: Ptr
-    call_complex sum, %v_17, 5
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    jmp b_22
-  }
-
-  b_20 {
-    %v_23 = add %v_17, 4: Ptr
-    %v = loads %v_23, 4: Int
-    jmp b_22
-  }
-
-  b_22 {
-    %v_24 = phi [b_20, %v], [b_21, 0]: Int
-    %v_25 = alloca 8, 4: Ptr
-    call_complex sum, %v_25, 18446744073709551615
-    %v_26 = loads %v_25, 4: Int
-    %v_27 = cmp_eq %v_26, 1: Int
-    je %v_27, b_28, b_29
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_28 {
-    %v_31 = add %v_25, 4: Ptr
-    %v = loads %v_31, 4: Int
-    jmp b_30
-  }
-
-  b_30 {
-    %v_32 = phi [b_28, %v], [b_29, 0]: Int
-    %v_33 = add %v_8, %v_16: Int
-    %v_34 = add %v_33, %v_24: Int
-    %v_35 = add %v_34, %v_32: Int
-    ret %v_35
+    %v_4 = add %v_1, 4: Ptr
+    %v = loads %v_4, 4: Int
+    %v_5 = select %v_3, %v, 0: Int
+    %v_6 = alloca 8, 4: Ptr
+    call_complex indexed, %v_6, 18446744073709551615
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    %v_9 = add %v_6, 4: Ptr
+    %v = loads %v_9, 4: Int
+    %v_10 = select %v_8, %v, 0: Int
+    %v_11 = alloca 8, 4: Ptr
+    call_complex sum, %v_11, 5
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = cmp_eq %v_12, 1: Int
+    %v_14 = add %v_11, 4: Ptr
+    %v = loads %v_14, 4: Int
+    %v_15 = select %v_13, %v, 0: Int
+    %v_16 = alloca 8, 4: Ptr
+    call_complex sum, %v_16, 18446744073709551615
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    %v_19 = add %v_16, 4: Ptr
+    %v = loads %v_19, 4: Int
+    %v_20 = select %v_18, %v, 0: Int
+    %v_21 = add %v_5, %v_10: Int
+    %v_22 = add %v_21, %v_15: Int
+    %v_23 = add %v_22, %v_20: Int
+    ret %v_23
   }
 }
 

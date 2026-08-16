@@ -14,36 +14,18 @@ fn unwrapOr(%value: Maybe(Int), %fallback: Int) -> Int {
   b0:
     %v2 = load %value.discriminant : Int
     %v4 = cmp_eq %v2, 1 : Bool
-    je %v4, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
     %inner = load %value@Just : Int
-    jmp b3
-
-  b3:
-    %v9 = phi [b2, %inner], [b1, %fallback] : Int
-    ret %v9
+    %v11 = select %v4 ? %inner : %fallback : Int
+    ret %v11
 }
 
 fn bump(%value: Maybe(Int)) -> Int {
   b0:
-    %v8 = load %value.discriminant : Int
-    %v10 = cmp_eq %v8, 1 : Bool
-    je %v10, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
+    %v7 = load %value.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
     %inner = load %value@Just : Int
-    jmp b3
-
-  b3:
-    %v7 = phi [b2, %inner], [b1, 0] : Int
-    %v5 = add %v7, 1 : Int
+    %v11 = select %v9 ? %inner : 0 : Int
+    %v5 = add %v11, 1 : Int
     ret %v5
 }
 

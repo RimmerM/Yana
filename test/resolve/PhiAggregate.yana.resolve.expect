@@ -1,0 +1,204 @@
+let image$base: () = <none>
+
+fn pick(%flag: Bool) -> Point {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v2 = alloc : Point
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    jmp b3
+
+  b2:
+    %v6 = alloc : Point
+    aggregate %local1@Point.x = 30, %local1@Point.y = 40
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, %v2], [b2, %v6] : Point
+    ret %v12
+}
+
+fn parts(%flag: Bool) -> Int {
+  b0:
+    %p = call pick, %flag : Point
+    %v2 = load %local0@Point.x : Int
+    %v3 = load %local0@Point.y : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}
+
+fn wrap(%value: Int) -> Maybe(Int) {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = %value
+    jmp b3
+
+  b2:
+    %v8 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v5], [b2, %v8] : Maybe(Int)
+    ret %v13
+}
+
+fn orZero(%value: Int) -> Int {
+  b0:
+    %v1 = call wrap, %value : Maybe(Int)
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %local0@Just : Int
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %v], [b1, 0] : Int
+    ret %v10
+}
+
+fn three(%n: Int) -> Point {
+  b0:
+    %v3 = cmp_gt %n, 10 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Point
+    aggregate %local0@Point.x = 5, %local0@Point.y = 6
+    jmp b5
+
+  b2:
+    %v11 = cmp_gt %n, 0 : Bool
+    je %v11, b3, b4
+
+  b3:
+    %v13 = alloc : Point
+    aggregate %local1@Point.x = 7, %local1@Point.y = 8
+    jmp b5
+
+  b4:
+    %v17 = alloc : Point
+    aggregate %local2@Point.x = 9, %local2@Point.y = 1
+    jmp b5
+
+  b5:
+    %v24 = phi [b1, %v5], [b3, %v13], [b4, %v17] : Point
+    ret %v24
+}
+
+fn product(%n: Int) -> Int {
+  b0:
+    %p = call three, %n : Point
+    %v2 = load %local0@Point.x : Int
+    %v3 = load %local0@Point.y : Int
+    %v4 = mul %v2, %v3 : Int
+    ret %v4
+}
+
+fn whole(%flag: Bool) -> Int {
+  b0:
+    %p = call pick, %flag : Point
+    %v2 = call distance, %p : Int
+    %v3 = load %local0@Point.x : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}
+
+fn distance(%it: Point) -> Int {
+  b0:
+    %v1 = load %it@Point.x : Int
+    %v2 = load %it@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn guarded(%flag: Bool, %n: Int) -> Int {
+  b0:
+    %p = call pick, %flag : Point
+    %v5 = cmp_gt %n, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %local0@Point.x : Int
+    ret %v7
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load %local0@Point.y : Int
+    ret %v10
+}
+
+fn late(%value: Int, %n: Int) -> Int {
+  b0:
+    %m = call wrap, %value : Maybe(Int)
+    %v5 = cmp_gt %n, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %local0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b4, b3
+
+  b2:
+    jmp b6
+
+  b3:
+    jmp b5
+
+  b4:
+    %v = load %local0@Just : Int
+    jmp b5
+
+  b5:
+    %v15 = phi [b4, %v], [b3, 0] : Int
+    ret %v15
+
+  b6:
+    ret 100
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call parts, True : Int
+    %v3 = call parts, False : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call orZero, 11 : Int
+    %v7 = add %v4, %v6 : Int
+    %v9 = call orZero, 0 : Int
+    %v12 = mul %v9, 100 : Int
+    %v13 = add %v7, %v12 : Int
+    %v15 = call product, 50 : Int
+    %v16 = add %v13, %v15 : Int
+    %v18 = call product, 5 : Int
+    %v19 = add %v16, %v18 : Int
+    %v22 = neg 1 : Int
+    %v23 = call product, %v22 : Int
+    %v24 = add %v19, %v23 : Int
+    %v26 = call whole, True : Int
+    %v27 = add %v24, %v26 : Int
+    %v29 = call whole, False : Int
+    %v30 = add %v27, %v29 : Int
+    %v33 = call guarded, True, 1 : Int
+    %v34 = add %v30, %v33 : Int
+    %v38 = neg 1 : Int
+    %v39 = call guarded, False, %v38 : Int
+    %v40 = add %v34, %v39 : Int
+    %v43 = call late, 7, 1 : Int
+    %v44 = add %v40, %v43 : Int
+    %v48 = neg 1 : Int
+    %v49 = call late, 7, %v48 : Int
+    %v50 = add %v44, %v49 : Int
+    ret %v50
+}

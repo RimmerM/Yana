@@ -150,7 +150,10 @@ bool splittableDestination(OptContext& opt, const IndexSet& contained, const Pla
 }
 
 /*
- * Replacing a whole-aggregate write with one write per field.
+ * Whether a whole-aggregate write of this value into this destination is one the split below can
+ * perform - which is the same question the sink two functions down has to ask about a value it is
+ * *considering* writing there, and the reason this is a predicate rather than a run of early
+ * returns inside the rewrite.
  *
  * Only where the source is a local's own storage, because that is the only source whose fields are
  * places this can name. A call result or a copy is a value of an aggregate type and there is nothing
@@ -161,19 +164,12 @@ bool splittableDestination(OptContext& opt, const IndexSet& contained, const Pla
  * exactly as the whole-value write relocated all of them, so the two differ only where relocating is
  * a call rather than the bytes - an authored `Sink`, or a member with one - and a type with either
  * needs a teardown by construction.
- *
- * The destination may be a field rather than a whole local, which is what takes a *nested* record
- * apart: `Early {later: Later {value: 6}}` builds the inner record in a temporary and writes the
- * whole of it into `later`, so the outer record survives until that write is one write per field of
- * the inner one. The paths line up because an `Init`'s value has its place's type, so the fields
- * being walked are the fields of the storage being written either way.
  */
-bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& write) {
-    auto type = opt.local[write.value]->type;
+bool splittableSource(OptContext& opt, const Place& destination, ModulePtr<Value> value) {
+    auto type = opt.local[value]->type;
     if(!type || needsTeardown(*opt.module, type)) return false;
 
-    auto source = allocatedLocal(opt, write.value);
-    if(!source) return false;
+    if(!allocatedLocal(opt, value)) return false;
 
     auto fields = fieldsOf(opt, type);
     if(!fields.exists()) return false;
@@ -192,13 +188,30 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
      * should leave a packed aggregate whole is a real question with a different answer at stake, and
      * it wants its own measurement rather than being changed on the way past.
      */
-    if(write.place.projections.isNotEmpty()) {
+    if(const_cast<Place&>(destination).projections.isNotEmpty()) {
         for(U16 i = 0; i < U16(fields.count); i++) {
             auto field = opt.repr.fieldOf(fields.content, i);
             if(field && field->isPacked()) return false;
         }
     }
 
+    return true;
+}
+
+/*
+ * Replacing a whole-aggregate write with one write per field.
+ *
+ * The destination may be a field rather than a whole local, which is what takes a *nested* record
+ * apart: `Early {later: Later {value: 6}}` builds the inner record in a temporary and writes the
+ * whole of it into `later`, so the outer record survives until that write is one write per field of
+ * the inner one. The paths line up because an `Init`'s value has its place's type, so the fields
+ * being walked are the fields of the storage being written either way.
+ */
+bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& write) {
+    if(!splittableSource(opt, write.place, write.value)) return false;
+
+    auto source = allocatedLocal(opt, write.value).unwrap();
+    auto fields = fieldsOf(opt, opt.local[write.value]->type);
     auto destination = write.place;
 
     InstList replacement;
@@ -206,7 +219,7 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
         auto member = fieldType(opt, fields, i);
 
         auto loaded = createInst<InstLoadPlace>(*opt.module, *opt.function, block, write.source, StringId(),
-                                                member, fieldPlace(opt, Place::inLocal(source.unwrap()), fields, i));
+                                                member, fieldPlace(opt, Place::inLocal(source), fields, i));
 
         auto stored = createInst<InstInit>(*opt.module, *opt.function, block, write.source, StringId(),
                                            opt.program.scalar.unit,
@@ -220,6 +233,274 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
     opt.ir().insert(block, index, replacement);
 
     // The write itself, now that what replaces it is in front of it.
+    opt.ir().eraseInstruction((ModulePtr<Inst>)(&write - opt.local));
+
+    opt.changed = true;
+    return true;
+}
+
+/*
+ * SROA over a phi of aggregate locals.
+ *
+ * This is the shape an inlined function returning a record leaves behind, and it is the one aggregate
+ * the two rules above cannot get at between them. `wrap` in Is.yana builds a `Maybe(Int)` in one arm
+ * and another in the other, and inlining it into `viaCall` leaves the join holding
+ *
+ *      %v13 = phi [b2, %v21], [b1, %v17] : Maybe(Int)
+ *      init %local0, %v13
+ *      %v2 = load %local0.discriminant
+ *      %v  = load %local0@Just
+ *
+ * `splitAggregateWrite` declines that write twice over. A phi is not a local's storage, so there is
+ * no place to project a field out of; and `Maybe(Int)` is a **sum**, whose fields are not a shape
+ * this stage may write into at all - which storage a constructor's payload occupies is
+ * `compiler/repr`'s decision, and `splittableDestination` says so at length. So the record stays in
+ * memory, every read of it stays a load, and two allocations survive a function whose whole body is
+ * `value > 0 ? value : 0`.
+ *
+ * Both of those go away by turning the phi round: instead of merging the *storage* and reading the
+ * merged copy, read each alternative in the predecessor that produced it and merge the **values**.
+ * One phi per place the destination is read at, which is a phi of loadable values rather than a phi
+ * of allocations, and nothing is ever written into a sum's storage - the reads that were legal off
+ * the copy are the same reads off the thing copied.
+ *
+ * The other way round is to sink the copy onto the edges, which is smaller - no phi is invented - and
+ * strictly weaker: what it leaves in each predecessor is a whole-aggregate write, which is the rule
+ * above, which declines a sum. It is the right transform for a single-constructor record and this one
+ * subsumes it wherever the reads are in the join.
+ *
+ * ## What makes it sound
+ *
+ * **The copy is the phi's only reader, and it writes a whole local.** With another reader the phi
+ * survives and so does every allocation feeding it, so there is nothing to gain; with a *nested*
+ * destination the storage being read is not the storage the phi named.
+ *
+ * **Every reader of that local is a load in this block.** This is the clause that makes moving the
+ * loads onto the edges an identity rather than speculation: a load in the join runs exactly when the
+ * join runs, and the join runs exactly when one of its predecessors ran. A read further down would be
+ * one this hoists above the branch that guards it, which on a niche-folded representation is a load
+ * through a payload that is not there.
+ *
+ * **Every predecessor leaves exactly one way, and it is here.** The other half of that identity: a
+ * load placed at the end of a block with a second successor also runs on the path that never reached
+ * the join. `soleSuccessor` answers null for `je %c, X, X` too, where there are two edges rather than
+ * one.
+ *
+ * **Every alternative is a local nothing outside its own predecessor touches.** The load is moved to
+ * the end of that predecessor, so what it has to be worth is that the storage says the same thing
+ * there as it did at the join. Nothing writes it after the block that built it - every user of the
+ * allocation is in that block, or is the phi - so it does. This is stronger than containment and
+ * cheaper to check, and it is the condition that actually matters: containment is about callees,
+ * while what could go wrong here is a store in the join itself.
+ */
+bool splitPhiOfLocals(OptContext& opt, const IndexSet& contained, Block& block,
+                      ModulePtr<InstPhi> pointer) {
+    auto here = (ModulePtr<Block>)(&block - opt.local);
+    auto phi = opt.local[pointer];
+
+    if(!phi->type || needsTeardown(*opt.module, phi->type)) return false;
+    if(phi->useCount() != 1) return false;
+
+    ModulePtr<Inst> user = nullptr;
+    for(auto each: phi->uses(opt.local)) user = each;
+
+    auto instruction = opt.local[user];
+    if(instruction->kind != Value::Init && instruction->kind != Value::Assign) return false;
+    if(instruction->block != here) return false;
+
+    auto& write = (InstInit&)*instruction;
+    if(write.value != (ModulePtr<Value>)pointer) return false;
+    if(write.place.root != PlaceRoot::Local || write.place.projections.isNotEmpty()) return false;
+
+    auto destination = write.place.local;
+    if(destination >= contained.size() || !contained[destination]) return false;
+
+    auto slot = opt.function->localAt(opt.local, destination);
+    if(!slot.value || opt.local[slot.value]->kind != Value::Alloc) return false;
+
+    /*
+     * The alternatives, one per incoming edge and in that order rather than in the phi's own - which
+     * is the order the phis built below have to be in, since that is how lowering and codegen/js
+     * match an alternative to the edge it arrives over. The two agree today; reading the edges is
+     * what keeps this from depending on that.
+     */
+    auto& inputs = ((InstPhi*)phi)->inputs;
+    if(inputs.size() != block.predecessorCount() || inputs.size() == 0) return false;
+
+    SmallArray<U32, 4> sources;
+    for(Size i = 0; i < block.predecessorCount(); i++) {
+        auto predecessor = block.predecessorAt(opt.local, i);
+        if(opt.local[predecessor]->soleSuccessor() != here) return false;
+
+        Maybe<U32> source;
+        for(Size at = 0; at < inputs.size(); at++) {
+            auto input = inputs.get(opt.local, at);
+            if(input.block != predecessor) continue;
+
+            // A phi naming itself is a loop-carried alternative, and there is no block to read one
+            // out of - the value arriving over the back edge is the phi's own from the last time.
+            if(input.value == (ModulePtr<Value>)pointer) return false;
+
+            source = allocatedLocal(opt, input.value);
+            break;
+        }
+
+        if(!source) return false;
+
+        auto& alternative = *opt.local[opt.function->localAt(opt.local, source.unwrap()).value];
+        for(auto each: alternative.uses(opt.local)) {
+            if(each == (ModulePtr<Inst>)pointer) continue;
+            if(opt.local[each]->block != predecessor) return false;
+        }
+
+        sources.push(source.unwrap());
+    }
+
+    SmallArray<ModulePtr<Inst>, 8> reads;
+    for(auto each: opt.local[slot.value]->uses(opt.local)) {
+        if(each == user) continue;
+
+        auto& read = *opt.local[each];
+        if(read.kind != Value::LoadPlace || read.block != here) return false;
+
+        auto& load = (InstLoadPlace&)read;
+        if(!staysInFrame(opt, contained, load.place)) return false;
+        if(load.place.local != destination) return false;
+        if(!holdsLoadableValue(opt, load.type)) return false;
+
+        // A read of the *whole* local is declined for opt_promote.cpp's reason rather than for one of
+        // this rule's: such a place is a scalar local, which both targets already have a better form
+        // for, and the phi this would build is worse than the `var` JS already has. It cannot arise
+        // for the aggregates this exists for - a whole-aggregate read is not a loadable value - so
+        // this is what keeps the two passes saying one thing about scalars.
+        if(load.place.projections.isEmpty()) return false;
+
+        reads.push(each);
+    }
+
+    if(reads.isEmpty()) return false;
+
+    // One phi per place, not per read: two reads of `%local0.discriminant` are one merged value, and
+    // CSE cannot say so afterwards because two phis are two definitions rather than one expression.
+    struct Merged {
+        Place place;
+        TypePtr type;
+        ModulePtr<Value> value;
+    };
+
+    SmallArray<Merged, 8> merged;
+
+    for(auto each: reads) {
+        auto& load = (InstLoadPlace&)*opt.local[each];
+
+        ModulePtr<Value> value = nullptr;
+        for(auto& done: merged) {
+            if(done.type == load.type && samePlace(opt, done.place, load.place)) value = done.value;
+        }
+
+        if(!value) {
+            auto joined = createInst<InstPhi>(*opt.module, *opt.function, block, load.source,
+                                              StringId(), load.type);
+
+            for(Size i = 0; i < sources.size(); i++) {
+                auto predecessor = block.predecessorAt(opt.local, i);
+
+                // The same path off another root. A `Place` is a root and a projection list, and the
+                // list is the one the read already names - the alternatives have the destination's
+                // type, so the path that walked one walks the other.
+                auto place = load.place;
+                place.local = sources[i];
+
+                auto lifted = createInst<InstLoadPlace>(*opt.module, *opt.function,
+                                                        *opt.local[predecessor], load.source,
+                                                        StringId(), load.type, place);
+
+                opt.ir().append(*opt.local[predecessor], lifted);
+                joined->inputs.push(opt.program.arena,
+                                    PhiInput { predecessor, (ModulePtr<Value>)(lifted - opt.local) });
+            }
+
+            // Detached until its alternatives exist, for the reason IrEditor::append states: appending
+            // is what records them as uses.
+            opt.ir().append(block, joined);
+
+            value = (ModulePtr<Value>)(joined - opt.local);
+            merged.push(Merged { load.place, load.type, value });
+        }
+
+        opt.ir().replaceValue((ModulePtr<Value>)each, value);
+        opt.ir().eraseInstruction(each);
+    }
+
+    /*
+     * The copy and the phi are left where they are. Nothing reads the destination any more, so
+     * `eliminateDeadLocal` below removes the write and the allocation on this same pass, and the phi
+     * that then reads nothing goes in `eliminateDeadValues` - which is also what releases the
+     * alternatives, since being named by the phi was the last thing keeping them alive.
+     */
+    opt.changed = true;
+    return true;
+}
+
+/*
+ * The same copy, sunk onto the edges instead - which is what is left where the rule above declines.
+ *
+ * Its clause about the readers is the one that costs coverage: a read *below* the join is one the
+ * phi form would have to hoist above whatever guards it. Nothing has to move for a **write** to sink,
+ * though, so the shape that rule leaves alone is one this one can still take apart, one step less
+ * directly: a copy at the end of each predecessor is a whole-aggregate write of a local's storage,
+ * which `splitAggregateWrite` turns into field writes on the next round, and opt_promote.cpp then
+ * carries those across the blocks the reads are in.
+ *
+ * Strictly weaker where both apply, so it runs second. What it produces is stores into the
+ * destination, which have to be promoted away again; and `splittableSource` declines a *sum*
+ * outright, since a field-wise write into one is a representation decision this stage may not take -
+ * see `splittableDestination`. So this is the single-constructor record whose readers are spread
+ * over blocks, and nothing else.
+ *
+ * The soundness clauses are the phi rule's minus the readers. The write must be the first instruction
+ * in the block, so there is nothing above it to reorder against and no read of the destination that
+ * would now see the value; and every predecessor must leave exactly one way, so a copy at the end of
+ * one runs on the paths the join ran on and no others. That second clause is also what makes the
+ * destination's storage reachable: a place written at the top of the join is rooted in something that
+ * dominates the join, and a predecessor whose only exit is the join lies on every path to it.
+ */
+bool sinkWriteIntoPredecessors(OptContext& opt, Block& block, InstInit& write) {
+    auto here = (ModulePtr<Block>)(&block - opt.local);
+
+    auto value = opt.local[write.value];
+    if(value->kind != Value::Phi) return false;
+    if(value->block != here || value->useCount() != 1) return false;
+
+    auto& phi = (InstPhi&)*value;
+    if(phi.inputs.size() == 0) return false;
+
+    for(Size i = 0; i < phi.inputs.size(); i++) {
+        auto input = phi.inputs.get(opt.local, i);
+
+        // A phi naming itself is a loop-carried alternative, and the block it arrives from is one
+        // this write would then run in on every iteration rather than once.
+        if(input.value == write.value) return false;
+        if(opt.local[input.block]->soleSuccessor() != here) return false;
+
+        // Asked of each of them before anything moves: a copy that lands in a predecessor and is
+        // then not split is strictly worse than the one it replaced.
+        if(!splittableSource(opt, write.place, input.value)) return false;
+    }
+
+    for(Size i = 0; i < phi.inputs.size(); i++) {
+        auto input = phi.inputs.get(opt.local, i);
+        auto predecessor = opt.local[input.block];
+
+        auto copy = createInst<InstInit>(*opt.module, *opt.function, *predecessor, write.source,
+                                         StringId(), opt.program.scalar.unit, write.place,
+                                         input.value, write.kind);
+
+        // `append` puts a non-terminator on the end of the instruction list, which is in front of the
+        // jump - a terminator is not in that list at all. See Block, where the two are separate.
+        opt.ir().append(*predecessor, copy);
+    }
+
     opt.ir().eraseInstruction((ModulePtr<Inst>)(&write - opt.local));
 
     opt.changed = true;
@@ -380,6 +661,36 @@ bool splitAggregate(OptContext& opt, Block& block, Size index, InstAggregate& ag
 
 void scalarizeLocals(OptContext& opt) {
     auto& contained = containmentOf(opt);
+
+    /*
+     * The phis, ahead of the walk rather than inside it, and the reason is which blocks it writes.
+     * What it produces lands in the *predecessors* of the block it is looking at, which the walk
+     * below has already passed - so doing it in place would leave every one of those loads for the
+     * next round of the fixed point. Here they are all in place before the first block is split.
+     */
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[blockPointer];
+
+        // The count taken up front, because what the rule appends is phis of its own: they land on
+        // the end of this list, so the loop would otherwise walk each one and decline it.
+        auto split = false;
+        for(Size i = 0, count = block->phiCount(); i < count; i++) {
+            split = splitPhiOfLocals(opt, contained, *block, block->phiAt(opt.local, i)) || split;
+        }
+
+        // Only where the phi rule did not fire, and only on the block's first instruction, which is
+        // the copy's whole shape - see the note on `sinkWriteIntoPredecessors`, which is the weaker
+        // of the two and takes what the other declined.
+        if(split || block->instructionCount() == 0) continue;
+
+        auto instruction = opt.local[block->instructionAt(opt.local, 0)];
+        if(instruction->kind != Value::Init && instruction->kind != Value::Assign) continue;
+
+        auto& write = (InstInit&)*instruction;
+        if(!splittableDestination(opt, contained, write.place)) continue;
+
+        sinkWriteIntoPredecessors(opt, *block, write);
+    }
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
