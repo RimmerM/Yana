@@ -173,7 +173,8 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
 
         auto& web = placement.webs[placement.webOf[id]];
 
-        // Every place this value is put, home and windows alike.
+        // Every place this value is put, home and segments alike.
+        checkLegal(id, v, at);
         for(auto& segment: web.segments) checkLegal(id, v, segment.location);
 
         // What a copy of it is made of has to be what a copy of it is made of: legalization reads
@@ -183,32 +184,21 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                 funName, name(id), U32(web.regClass), U32(classForType(v->type)));
         }
 
-        // The segments have to be in order and disjoint, and a *change* of location has to be
-        // contiguous with what it changes from - there is nowhere to emit the copy otherwise, and
-        // nothing carries a value across a gap, so the far side would expect it somewhere nothing
-        // put it. Two stretches of one location either side of a gap are fine and are what a web
-        // with a hole looks like.
-        for(Size s = 1; s < web.segments.size(); s++) {
-            auto& previous = web.segments[s - 1];
+        // The segments have to be in order, disjoint and non-empty. They are exceptions to the home
+        // rather than a partition of the life, so a gap between two of them is not a hole to explain
+        // - it is the stretch the home covers, and `locationAt` says so.
+        for(Size s = 0; s < web.segments.size(); s++) {
             auto& segment = web.segments[s];
 
-            if(segment.from < previous.to) {
-                fail("%@: %@ has segments %@..%@ and %@..%@, which overlap or run backwards",
-                    funName, name(id), previous.from, previous.to, segment.from, segment.to);
-            } else if(segment.from > previous.to && segment.location != previous.location) {
-                fail("%@: %@ is in %@ up to %@ and in %@ from %@, with nothing in between to move it",
-                    funName, name(id), locationName(previous.location), previous.to,
-                    locationName(segment.location), segment.from);
+            if(segment.to <= segment.from) {
+                fail("%@: %@ has an empty segment at %@..%@",
+                    funName, name(id), segment.from, segment.to);
             }
-        }
 
-        if(web.isSplit()) {
-            if(web.segments[0].from > interval.first()
-                || web.segments[web.segments.size() - 1].to < interval.last())
-            {
-                fail("%@: %@ is live over %@..%@ and its segments cover %@..%@",
-                    funName, name(id), interval.first(), interval.last(),
-                    web.segments[0].from, web.segments[web.segments.size() - 1].to);
+            if(s > 0 && segment.from < web.segments[s - 1].to) {
+                fail("%@: %@ has segments %@..%@ and %@..%@, which overlap or run backwards",
+                    funName, name(id), web.segments[s - 1].from, web.segments[s - 1].to,
+                    segment.from, segment.to);
             }
         }
 
@@ -247,7 +237,7 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         if(!web.isSplit()) continue;
 
         for(auto& segment: web.segments) {
-            if(segment.location == web.home()) continue;
+            if(segment.location == web.home) continue;
 
             Range window { segment.from, segment.to };
             auto windowInterval = LiveInterval { &window, 1 };
@@ -269,7 +259,7 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                 if(v == w || !placement.webs[v].isSplit()) continue;
 
                 for(auto& theirs: placement.webs[v].segments) {
-                    if(theirs.location == placement.webs[v].home()) continue;
+                    if(theirs.location == placement.webs[v].home) continue;
                     if(!sharesLocation(segment.location, theirs.location)) continue;
                     if(theirs.from >= window.to || window.from >= theirs.to) continue;
 
@@ -282,31 +272,104 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
     }
 
     /*
-     * The boundary invariant.
+     * The boundary invariant, in the two halves it now has.
      *
-     * A web is in its home wherever a block begins and wherever one ends. That is what makes a
-     * location change something that happens inside a block, between two instructions on one path,
-     * rather than something a CFG edge has to carry - and so what lets every consumer of a placement
-     * go on treating a block boundary as a place where nothing moves.
+     * **The shape of every segment.** An in-block segment covers neither its block's entry point nor
+     * its exit point, so a web merely passing through a block is in its home at both ends of it. A
+     * region segment covers only *whole* block spans. Between them those rule out the one shape that
+     * is silently wrong: a segment running from inside one block to inside another, which reads as
+     * one location over a run of the layout - and the layout is not the CFG.
      *
-     * It holds by construction (see planSplit), which is exactly why it is checked: a split that
-     * stopped honouring it would produce code that is correct on the path the allocator happened to
-     * walk and wrong on the others.
+     * **What each edge carries.** Where a web's location at a predecessor's exit differs from its
+     * location at a successor's entry, the difference is a copy, and that copy has to have somewhere
+     * to stand: the predecessor's terminator batch if it has one successor, the successor's entry
+     * batch if it has one predecessor. An edge that is neither is a critical edge, and placement must
+     * not have produced a difference on one.
+     *
+     * Both hold by construction - see planSplit, splitAroundClusters and promoteIntoRegions - which
+     * is exactly why they are checked: a split that stopped honouring either would produce code that
+     * is correct on the path the allocator happened to walk and wrong on the others.
      */
+    Array<Range> blockSpans; // parallel to the block list, in the linear numbering's own order
+
     for(auto offset: fun.blocks.contents(base)) {
         auto set = live.getBlock(base[offset]);
+        blockSpans.push(Range { beforeInst(set->firstIndex), afterInst(set->lastIndex) + 1 });
+    }
 
-        for(Size w = 0; w < placement.webs.size(); w++) {
-            auto& web = placement.webs[w];
-            if(!web.isSplit()) continue;
+    // The block span containing `point`, by binary search over the tiling above.
+    auto spanOf = [&](U32 point) -> Size {
+        Size lo = 0, hi = blockSpans.size();
 
-            auto entry = web.locationAt(beforeInst(set->firstIndex));
-            auto exit = web.locationAt(afterInst(set->lastIndex));
+        while(lo < hi) {
+            auto mid = (lo + hi) / 2;
+            if(blockSpans[mid].to <= point) lo = mid + 1;
+            else if(blockSpans[mid].from > point) hi = mid;
+            else return mid;
+        }
 
-            if(entry != web.home() || exit != web.home()) {
-                fail("%@: %@ is split across a boundary of block %@: it is in %@ on entry and %@ on exit, and its home is %@",
-                    funName, name(LiveId(w)), U32(base[offset]->index),
-                    locationName(entry), locationName(exit), locationName(web.home()));
+        return blockSpans.size();
+    };
+
+    for(Size w = 0; w < placement.webs.size(); w++) {
+        auto& web = placement.webs[w];
+
+        for(auto& segment: web.segments) {
+            auto index = spanOf(segment.from);
+            if(index == blockSpans.size()) {
+                fail("%@: %@ has a segment starting at %@, which is in no block",
+                    funName, name(LiveId(w)), segment.from);
+                continue;
+            }
+
+            auto& span = blockSpans[index];
+
+            if(segment.inBlock()) {
+                // Strictly inside: past the entry point, and ending at or before the exit point,
+                // which is the terminator's `after`. Both are positions a copy has nowhere to go.
+                if(segment.from <= span.from || segment.to > span.to - 1) {
+                    fail("%@: %@ has an in-block segment at %@..%@, and block %@ spans %@..%@",
+                        funName, name(LiveId(w)), segment.from, segment.to,
+                        U32(index), span.from, span.to);
+                }
+            } else {
+                auto last = spanOf(segment.to - 1);
+
+                if(segment.from != span.from || last == blockSpans.size()
+                    || segment.to != blockSpans[last].to)
+                {
+                    fail("%@: %@ has a region segment at %@..%@, which is not a whole number of blocks",
+                        funName, name(LiveId(w)), segment.from, segment.to);
+                }
+            }
+        }
+    }
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto from = base[offset];
+        auto exitPoint = afterInst(live.getBlock(from)->lastIndex);
+
+        auto singleSuccessor = !from->outgoing[0] || !from->outgoing[1]
+            || from->outgoing[0] == from->outgoing[1];
+
+        for(auto successorOffset: from->outgoing) {
+            if(!successorOffset) continue;
+
+            auto to = base[successorOffset];
+            if(singleSuccessor || to->incoming.size() == 1) continue;
+
+            auto entryPoint = beforeInst(live.getBlock(to)->firstIndex);
+
+            for(Size w = 0; w < placement.webs.size(); w++) {
+                auto& web = placement.webs[w];
+                if(!web.isSplit()) continue;
+
+                MachineLocation at, want;
+                if(!web.edgeTransfer(exitPoint, entryPoint, at, want)) continue;
+
+                fail("%@: %@ is in %@ leaving block %@ and in %@ entering block %@, which is a critical edge with nowhere to put the copy",
+                    funName, name(LiveId(w)), locationName(at), U32(from->index),
+                    locationName(want), U32(to->index));
             }
         }
     }
@@ -567,6 +630,18 @@ struct MachineState {
         mask.iterate([&](PhysicalReg reg) {
             if(reg.index < kMaxRegistersPerBank) regs[reg.bank][reg.index] = kNullLive;
         });
+    }
+
+    // A block's exit state, taken as the starting point for one of its edges. The successor's own
+    // entry copies then run over the copy rather than over the shared state, since a block with two
+    // successors hands each of them the same exit state and only one of them may have copies.
+    void copyFrom(const MachineState& other) {
+        for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+            for(Size i = 0; i < kMaxRegistersPerBank; i++) regs[bank][i] = other.regs[bank][i];
+        }
+
+        slots.clear();
+        for(auto id: other.slots) slots.push(id);
     }
 };
 
@@ -1184,7 +1259,21 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
 
         for(auto successor: block->outgoing) {
             if(!successor) continue;
-            v.checkEdge(state, block, base[successor]);
+
+            // The successor's entry copies are part of this edge and run after it, so they run here:
+            // over a copy of the exit state, since the other arm of a branch gets the same one and
+            // must not see them. Where there are none - which is nearly always - this is the state
+            // the block left, one array copy later.
+            auto to = base[successor];
+            MachineState edgeState;
+            edgeState.copyFrom(state);
+
+            auto succRegs = regs.legalized.blocks.get(to);
+            if(succRegs.isJust() && succRegs.unwrap().entryMoves.size() != 0) {
+                v.applyMoves(edgeState, succRegs.unwrap().entryMoves, base[to->terminator]);
+            }
+
+            v.checkEdge(edgeState, block, to);
         }
     }
 

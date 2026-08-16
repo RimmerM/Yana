@@ -258,7 +258,14 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     // the edge metadata, and nothing on the loop below touches either.
     // Kept in the result rather than local: emission weighs a jump against the same numbers (§7.2),
     // and the move-assignment reuses whatever buffer the previous function grew.
-    result.frequency = fun.buildFrequencies(base);
+    // Which loops there are, for the one decision that is stated over a *set of blocks* rather than
+    // over a stretch of the numbering: promoting a homeless web into a register for a loop (§5.10).
+    // Built here for the same reason the frequencies are - it is a function of the CFG, and nothing
+    // on the loop below touches that - and handed to them, since deriving them is what the loops are
+    // the expensive half of.
+    auto loops = fun.buildLoops(base);
+
+    result.frequency = fun.buildFrequencies(base, loops);
     auto& frequency = result.frequency;
 
     // Whether rbp is this function's frame pointer or one more register to hand out. Asked once,
@@ -289,7 +296,7 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     Size shrinks = 0;
 
     for(;;) {
-        computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
+        computePlacement(base, fun, *live, machine, constraints, frequency, loops, framePointer,
             temporaries, displacedFrom, scratch, placement);
         bool again = false;
 
@@ -310,7 +317,7 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
         // popped for a temporary no instruction asks for. See kMaxReserveShrinks.
         TemporaryReserve demand;
         if(placement.requiresLegalizationTemps) {
-            demand = measureTemporaryReserve(base, fun, machine, constraints, placement, temporaries, scratch);
+            demand = measureTemporaryReserve(base, fun, *live, machine, constraints, placement, temporaries, scratch);
         }
 
         if(temporaries.growTo(demand)) {
@@ -345,7 +352,7 @@ void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const M
     // eventually read it.
     assertTrue(verifyPlacement(ctx, base, fun, *live, machine, constraints, placement, framePointer));
 
-    legalizeFunction(base, fun, machine, constraints, placement, temporaries, scratch, result.legalized);
+    legalizeFunction(base, fun, *live, machine, constraints, placement, temporaries, scratch, result.legalized);
 
     // Which of the registers the function writes its caller expects to get back untouched. Both
     // halves count: the ones placement handed to webs or found instructions clobbering, and the

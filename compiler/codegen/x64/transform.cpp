@@ -1145,6 +1145,28 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
     }
 }
 
+/*
+ * Which edges are split, and why it is every critical one rather than only the ones a phi transfer
+ * needs.
+ *
+ * A phi transfer needs an insertion point on its edge, and so does a *location change* - a web that
+ * is in a register inside a loop and in its home outside it has to be carried across every edge of
+ * the boundary (§5.10 of place.cpp). The two are the same requirement, and a critical edge - a
+ * branching predecessor into a joining successor - is exactly the shape that has no such point:
+ * a copy at the end of the predecessor runs on the way to both successors, and one at the head of the
+ * successor runs on the way in from all of them.
+ *
+ * Splitting only the phi edges left the second half unserved, and the measurement is what says how
+ * much: **193 of `Matrix`'s 257 region candidates were refused for want of an insertion point**, which
+ * is three quarters of everything that survived every other test. A loop's exit edge is critical
+ * almost by construction - the block after a loop joins the path that ran it with the path that
+ * skipped it.
+ *
+ * What it costs is a block per critical edge, and the answer to that is already here: §3.2.3 emits
+ * nothing for a block whose whole content is a jump, so an edge nothing lands on costs no byte and no
+ * label. What is left is that the *layout* sees the extra blocks, which is measured rather than
+ * assumed - see §49 of test/bench/findings.md.
+ */
 static void splitPhiEdges(LowerBase base, LowerFunction& fun) {
     // Snapshotted because splitting appends to the block list, and a freshly created split block
     // has a single successor and so can never itself need splitting.
@@ -1154,11 +1176,18 @@ static void splitPhiEdges(LowerBase base, LowerFunction& fun) {
     for(auto offset: original) {
         auto pred = base[offset];
 
-        // Only a block with two successors can reach a phi on a path it might not take.
+        // Only a block with two successors can reach a successor on a path it might not take.
         if(!pred->outgoing[0] || !pred->outgoing[1]) continue;
 
         for(Size edge = 0; edge < 2; edge++) {
-            if(base[pred->outgoing[edge]]->phis.isNotEmpty()) splitEdge(base, fun, pred, edge);
+            auto succ = base[pred->outgoing[edge]];
+
+            // A successor with one predecessor already has an insertion point of its own: the head of
+            // the block, which only this edge reaches. Splitting there would add a jump for nothing.
+            // Both arms reaching one block counts as two predecessors, which `incoming` records twice.
+            if(succ->phis.isEmpty() && succ->incoming.size() < 2) continue;
+
+            splitEdge(base, fun, pred, edge);
         }
     }
 }

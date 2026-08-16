@@ -565,6 +565,25 @@ struct InstRegs {
 // Register assignments for every instruction in one block, in the order:
 // block->instructions (in order), followed by exactly one entry for block->terminator.
 struct BlockRegs {
+    /*
+     * Copies emitted at the block's entry, before its first instruction's own `moves`.
+     *
+     * The one insertion point a block did not have. It carries the half of edge resolution that
+     * cannot go in the predecessor: where a predecessor branches, a copy at its end would run on the
+     * way to *both* successors, so the copy goes at the start of the successor instead - which is
+     * sound exactly when the successor has one predecessor. See collectEdgeTransitions.
+     *
+     * It runs *before* the first instruction's `moves`, and that ordering is the definition rather
+     * than an accident: both sets stand at the block's entry point, and this one is what establishes
+     * the location `locationAt(beforeInst(firstIndex))` names, which the operand copies behind it
+     * then read from. The entry block's argument copies have the same relationship to the phi
+     * transfers behind them.
+     *
+     * Empty for almost every block, and a block whose only content is one of these is no longer a
+     * block that emits nothing - see `emitsNothing` in gen.cpp.
+     */
+    SmallBuffer<RegMove> entryMoves;
+
     // Inline for a block of up to sixteen instructions, which most of them are: this is built once
     // per block of every function, and an InstRegs is four words now that its lists are runs in the
     // arena - see commitSlice.
@@ -742,11 +761,44 @@ struct Remat {
  * identity that is never emitted. `webOf` says which web a value belongs to; the web holds the
  * location.
  *
- * A web's location is a list of *segments* - a location and the stretch of program points over
- * which it holds. Most webs have exactly one, covering the whole of their life. A web that was
- * *split* has several: one location it keeps at every point but a few, and a different one over each
- * short stretch that would otherwise have destroyed it - see the boundary invariant below.
+ * A web has one *home* - the location it keeps wherever nothing says otherwise - and a list of
+ * *segments*, each of which is an exception to it over a stretch of program points. Most webs have
+ * no segments at all. A web that was *split* has one per stretch that would otherwise have destroyed
+ * it, or per stretch it borrows a register over - see the boundary invariant below.
+ *
+ * The home is a field rather than the first segment's location. It was positional once, which forced
+ * every producer to build an alternating home/exception list and made "the location everywhere else"
+ * something to be reconstructed rather than something stated.
  */
+
+/*
+ * Which of the three kinds of exception a segment is. What distinguishes them is not where they are
+ * but *what entering and leaving one costs*, and how far one may reach:
+ *
+ *   Window  (§5.8) a web that has a register steps out of it into the frame across what would
+ *                  destroy it. Entering stores and leaving reloads, and both are real: the register
+ *                  is where the value was. Lies wholly inside one block.
+ *   Cached  (§5.9) a web that has none steps into one over a cluster of its reads. Entering loads
+ *                  and leaving costs nothing at all - the home never stopped holding the value, so
+ *                  the copy back would write what is already there. Lies wholly inside one block.
+ *   Region  (§5.10) the same idea over a set of *whole blocks*: a homeless web borrows a register for
+ *                  a loop, and the copies that establish it stand on the CFG edges into the region
+ *                  rather than between two instructions. Leaving is free on the same terms Cached is.
+ *   RegionMoved    the same, for a web something *writes* inside the region. The home no longer holds
+ *                  the value while the register does, so every edge out of the region stores it back
+ *                  - which is Window's arithmetic at a region's scale.
+ *
+ * The two in-block kinds may not touch a block boundary; the two region kinds cover only whole ones.
+ * Nothing may *define* a member of the web inside a Cached or a Region segment, which is what makes
+ * the value at the far end the same value that went in - and RegionMoved is exactly the kind that
+ * lifts that restriction by paying for it. `verifyPlacement` checks all of that.
+ */
+enum class SegmentKind : U8 {
+    Window,
+    Cached,
+    Region,
+    RegionMoved,
+};
 
 struct AllocationSegment {
     // Program points, half-open - see beforeInst/afterInst in lower.h.
@@ -754,57 +806,70 @@ struct AllocationSegment {
     U32 to = 0;
 
     MachineLocation location;
+    SegmentKind kind = SegmentKind::Window;
 
-    /*
-     * Set on a segment the web was *copied* into rather than moved into: its home goes on holding
-     * the value for the whole of it, so entering costs one load and leaving costs nothing at all.
-     *
-     * That is the difference between the two kinds of split there are. A web live across a call
-     * steps out of a register into the frame and has to step back (§5.8): the register is where the
-     * value was, so the store and the reload are both real. A web with no register at all steps into
-     * one over a cluster of its uses (§5.9): the slot it came from is nobody else's for the whole of
-     * its life, so it still holds the value when the cluster ends and the copy back would write what
-     * is already there.
-     *
-     * Nothing may *define* a member of the web inside such a segment - splitAroundClusters refuses
-     * one that would - which is what makes the value at the far end the same value that went in.
-     * `collectTransitions` in legalize.cpp is what reads this.
-     */
-    bool cached = false;
+    bool covers(U32 point) const { return point >= from && point < to; }
+
+    // Whether leaving this segment costs anything. The home holds the value throughout the two kinds
+    // that answer true, so there is nothing to carry back out of them - see the kinds above, and
+    // `collectTransitions` and `collectEdgeTransitions` in legalize.cpp, which are the two readers.
+    bool leavesFree() const {
+        return kind == SegmentKind::Cached || kind == SegmentKind::Region;
+    }
+
+    // Whether this segment is one of the two that live inside a single block. The distinction decides
+    // which of the two transition walks owns its boundaries: an in-block segment's are copies between
+    // two instructions, a region's are copies on CFG edges.
+    bool inBlock() const {
+        return kind == SegmentKind::Window || kind == SegmentKind::Cached;
+    }
+
+    // Whether a member of the web may be written inside it. The two that answer false are the two
+    // whose whole soundness is that the home never stopped holding the value.
+    bool allowsDefinition() const {
+        return kind == SegmentKind::Window || kind == SegmentKind::RegionMoved;
+    }
 };
 
 /*
- * Where one web lives, as a list of segments.
+ * Where one web lives: a home, and the exceptions to it.
  *
- * The first segment's location is the web's *home*: the one it keeps everywhere the split segments
- * do not say otherwise, and - this is the part everything else rests on - the one it is in at every
- * block entry and every block exit.
+ * **The boundary invariant.** A web's location at a block's entry point and at its exit point is
+ * whatever its segments say there, and that answer is single-valued *per block* - which is what makes
+ * it something a CFG edge can be asked about. Two rules keep it so:
  *
- * **The boundary invariant.** No split segment ever covers a block's entry point or its exit point.
- * A web therefore arrives at every block and leaves it in its home, whatever it does in between, so
- * a location change can never straddle a CFG edge and two arms of a branch cannot disagree about
- * where a value is. That is the same guarantee the single-location rule used to give, kept while
- * the location stops being single, and it is what makes the result still independent of how the
- * blocks are laid out.
+ *   - an in-block segment (Window, Cached) never covers a block's entry or exit point, so a web is
+ *     in its home at both ends of every block it merely passes through;
+ *   - a Region segment covers only *whole* block spans, so a block is either entirely inside one or
+ *     entirely outside it.
  *
- * It holds by construction rather than by inspection: a split segment runs from `afterInst(lo)` to
- * `afterInst(hi) + 1` for instructions lo..hi of one block, neither of which may be that block's
- * terminator - so the earliest point one can start at is one past a block's entry and the latest it
- * can end at is the terminator's own `before`. `verifyPlacement` checks it anyway, because it is the
- * assumption every consumer of a placement makes and the one whose violation would be silent.
+ * What that rules out is a segment running from inside one block to inside another, which reads as
+ * one location over a run of the *layout* - and the layout is not the CFG. The block in between may
+ * be reached from elsewhere, and the block it ends in may be reached from a block where the web is
+ * in its home. `verifyPlacement` checks the shape of every segment against the block spans, because
+ * it is the assumption every consumer of a placement makes and the one whose violation would be
+ * silent.
  *
- * A boundary at point `p` is a copy attached to instruction `(p - 1) / 2` - to its `moves` when p is
- * odd and to its `postMoves` when p is even, which are the two slots either side of the instruction
- * and so the two program points a boundary can fall between. That is the whole of what legalization
- * has to know about splitting; see collectTransitions in legalize.cpp.
+ * Where a boundary becomes a copy follows from which kind of segment it bounds. An in-block boundary
+ * at point `p` is a copy attached to instruction `(p - 1) / 2` - to its `moves` when p is odd and to
+ * its `postMoves` when p is even, which are the two slots either side of the instruction and so the
+ * two program points a boundary can fall between; `collectTransitions` in legalize.cpp is what places
+ * it. A region's boundary is a copy on a CFG edge, and `collectEdgeTransitions` is what places that.
  */
 struct WebAllocation {
-    // Sorted and disjoint, and together covering the whole stretch between the web's first and last
-    // live points - holes included, since a hole is a stretch the web is somewhere without needing
-    // to be. Empty for a web that never needed a location at all.
+    // Where the web is wherever no segment says otherwise. Invalid for a web that was never placed,
+    // which is what `Placer::placed` asks.
     //
-    // Two inline. Almost every web has exactly one segment - `isSplit` is the exception - and there
-    // is one of these per value in the function.
+    // A field rather than the first segment's location, which is what it used to be. Positional made
+    // every producer build an alternating home/exception list to keep a home segment first and last,
+    // and made "the location everywhere else" something to be reconstructed rather than stated.
+    MachineLocation home;
+
+    // The exceptions to it, sorted and disjoint. Empty for almost every web; a split one has one per
+    // stretch it spends somewhere else.
+    //
+    // Two inline: there is one of these per value in the function, and a web that is split at all is
+    // usually split around one or two things.
     SmallArray<AllocationSegment, 2> segments;
 
     // What a copy of this web is made of. On the web rather than derived from a member's type for
@@ -812,34 +877,60 @@ struct WebAllocation {
     // and it is what lets a split transition be read off a placement without the IR beside it.
     RegisterClassId regClass = ClassGpr64;
 
-    // The location this web occupies at `point`.
+    // The location this web occupies at `point`: whichever segment covers it, and the home otherwise.
     //
-    // A point the web is not live at answers with the location of the segment that begins next,
-    // which is what a *result* asks for: it is resolved at its instruction's `before` point but does
-    // not exist until the `after` one. A point inside a hole answers likewise, and unambiguously -
-    // nothing carries a value across a hole, so the segments on either side of one hold the same
-    // location.
+    // A point the web is not live at is answered like any other, which is what a *result* asks for:
+    // it is resolved at its instruction's `before` point but does not exist until the `after` one. A
+    // point inside a hole answers the home, and unambiguously - nothing carries a value across a
+    // hole, so there is nothing there for a segment to be an exception to.
     MachineLocation locationAt(U32 point) const {
-        if(segments.isEmpty()) return MachineLocation::invalid();
-
         for(auto& segment: segments) {
-            if(segment.to > point) return segment.location;
+            if(segment.covers(point)) return segment.location;
         }
 
-        return segments[segments.size() - 1].location;
+        return home;
     }
 
-    // The location this web keeps everywhere a split segment does not say otherwise, and the one it
-    // is in at every block boundary - see the invariant above.
-    MachineLocation home() const {
-        return segments.isEmpty() ? MachineLocation::invalid() : segments[0].location;
+    // The segment covering `point`, or null where the home is what covers it. What the two transition
+    // walks ask when they need the segment's *kind* and not only its location - whether leaving it
+    // costs anything.
+    const AllocationSegment* segmentAt(U32 point) const {
+        for(auto& segment: segments) {
+            if(segment.covers(point)) return &segment;
+        }
+
+        return nullptr;
     }
 
-    bool isSplit() const { return segments.size() > 1; }
+    /*
+     * The copy this web needs on an edge, given where the predecessor exits and where the successor
+     * is entered. False where it needs none.
+     *
+     * One statement of the rule, because three places ask it and a disagreement between any two of
+     * them is silent: the resolver that emits the copy, the verifier that checks the edge has
+     * somewhere to put one, and the placement pass that has to refuse a region whose edges have not.
+     *
+     * Leaving a segment costs nothing where `leavesFree` says so - the home never stopped holding the
+     * value - but only where the home is where the value is going. A region handing over to another
+     * register still has to hand it over.
+     */
+    bool edgeTransfer(U32 exitPoint, U32 entryPoint, MachineLocation& from, MachineLocation& to) const {
+        from = locationAt(exitPoint);
+        to = locationAt(entryPoint);
+        if(from == to) return false;
+
+        auto leaving = segmentAt(exitPoint);
+        if(to == home && leaving && leaving->leavesFree()) return false;
+
+        return true;
+    }
+
+    bool isSplit() const { return segments.isNotEmpty(); }
 
     // Empties the web without giving up the storage its segment list grew into - see
-    // Placement::clear. A web starts unplaced, which is what an empty segment list means.
+    // Placement::clear. A web starts unplaced, which is what an invalid home means.
     void clear() {
+        home = MachineLocation::invalid();
         segments.clear();
         regClass = ClassGpr64;
     }
@@ -947,10 +1038,11 @@ struct Placement {
         return locationOf(id, point);
     }
 
-    // The location this value's web keeps everywhere its split segments do not say otherwise, and
-    // the one it is in at every block boundary - see WebAllocation.
+    // The location this value's web keeps everywhere its segments do not say otherwise - see
+    // WebAllocation. *Not* the location at a block boundary, which a region segment may differ at:
+    // ask `locationOf` at the boundary point for that.
     MachineLocation homeOf(LiveId id) const {
-        return id < webOf.size() ? webs[webOf[id]].home() : MachineLocation::invalid();
+        return id < webOf.size() ? webs[webOf[id]].home : MachineLocation::invalid();
     }
 
     // Empties the placement for the next function, keeping every buffer it grew into. `webs` is
@@ -1621,13 +1713,13 @@ struct RegScratch {
 // every decision that trades one part of the function against another is weighed by; it depends on
 // the CFG alone, so one is computed per allocation rather than per pass.
 void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
+    const Constraints& constraints, const FunctionFrequencyInfo& frequency, const LoopInfo& loops, bool framePointer,
     const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom, RegScratch& scratch,
     Placement& out);
 
 // Resolves every instruction against a completed placement, handing out scratch registers from
 // `temporaries` - which has to be one measureTemporaryReserve produced for this same placement.
-void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+void legalizeFunction(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries,
     RegScratch& scratch, LegalizedFunction& out);
 
@@ -1635,7 +1727,7 @@ void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction&
 // legalizing it and recording what was asked for, rather than by a second rule that mirrors the
 // first: the two would be a pair of answers to one question, and the one that is wrong is the one
 // that leaves an instruction with nowhere to bring a spilled operand.
-TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const Placement& placement, const TemporaryReserve& pool,
     RegScratch& scratch);
 

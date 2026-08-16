@@ -1,0 +1,265 @@
+# Region promotion.
+#
+# The third split, and the first one whose boundary is a CFG edge rather than a gap between two
+# instructions. `Split.lower` is a web that has a register stepping out of it across what would
+# destroy it; `Cluster.lower` is a web that has none stepping into one over a stretch of one block.
+# Both are inside a block by construction, and both had to be, because a web's location used to be
+# the same at every block entry and every block exit.
+#
+# That restriction is gone. A web's location may now differ between a predecessor's exit and a
+# successor's entry, and the difference is a copy on the edge - merged into the same parallel copy the
+# phi transfers already use where the predecessor has one successor, and into the successor's own
+# entry batch where it does not. `collectEdgeTransitions` in legalize.cpp is what places them, and
+# `verifyPlacement` checks that every edge carrying one had somewhere to put it.
+#
+# What that buys is the case neither of the other two can reach: a homeless web read inside a **loop**.
+# A cluster window's load stands inside the block and is paid at that block's weight; a region's stands
+# outside the loop and is paid at the preheader's. So the same reads are worth a region wherever they
+# are worth a window, and by a factor of the trip count.
+#
+# Two kinds, and the difference is whether anything writes the web inside the region:
+#
+#   - **cached**: nothing does, so the home never stops holding the value and leaving the region costs
+#     nothing at all. One load on the way in, and no store anywhere.
+#   - **moved**: something does, so the home stops holding it and every edge out of the region stores
+#     it back. That is `Split.lower`'s arithmetic at a region's scale, and it is what a loop-carried
+#     accumulator that got no register is.
+#
+# The Clobber convention destroys every register but rbp, so exactly one value can cross one of its
+# calls in a register and everything else that outlives the call is homeless - which is what puts a
+# web in front of this pass at all.
+#
+# **None of these takes a region, and that is the record this file is here to keep.** Every shape
+# small enough to write by hand is answered by one of the two splits before it, and the reason is
+# structural rather than accidental: §5.8 wins outright wherever a register is free over the web's
+# whole interval, because its window costs a store and a reload *outside* the loop where a region
+# costs a load and the register for the loop's whole length. What is left for a region is the case
+# where no register is free over the whole interval **for a reason that is not a clobber** - which
+# takes more simultaneously-live webs than a legible fixture has - and where one is free over the
+# loop alone. That is a property of a whole function's pressure, and it is reproduced by real
+# programs (21 regions over the ten of `test/bench/programs`, 27 over `test/resolve`) and not by
+# these.
+#
+# So what these assert is the machinery rather than the policy: the edge-split blocks the promotion
+# needs, the copies that stand in them, and that the placement of every one of these functions is
+# unchanged by the pass. `verifyPlacement` and `verifyAllocation` are what check a taken region, and
+# they run over every function of both corpora above.
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+callee(%x: Int): Int {
+    { ret %x }
+}
+
+# The closest a hand-written fixture gets, and what it demonstrates is the paragraph above.
+#
+# Ten values live across a call in `entry` take every preserved register and die in `preloop`, before
+# the loop begins; `%target` is defined after them and is live all the way to `tail`, and is read once
+# an iteration as a load's address. Inside the loop the ten are dead and their registers are free,
+# which is the shape a region wants - and `%target` still takes rbp for its whole life, because ten
+# webs is not enough to exhaust a file of fifteen and §5.8 needs only one register to be free.
+#
+# The call inside the loop is what stops a cluster window from answering instead: it makes every
+# caller-saved register unusable in the body, so the window §5.9 would open has nowhere to open in.
+regionUnderPressure(%n: Int, %p: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        %a0 = load %p, 0: Long
+        %a1 = load %p, 8: Long
+        %a2 = load %p, 16: Long
+        %a3 = load %p, 24: Long
+        %a4 = load %p, 32: Long
+        %a5 = load %p, 40: Long
+        %a6 = load %p, 48: Long
+        %a7 = load %p, 56: Long
+        %a8 = load %p, 64: Long
+        %a9 = load %p, 72: Long
+        %target = load %p, 200: Ptr
+        %r0 = call_complex callee, %n: Int
+        jmp preloop
+    }
+
+    preloop {
+        %u0 = add %zero, %a0: Long
+        %u1 = add %u0, %a1: Long
+        %u2 = add %u1, %a2: Long
+        %u3 = add %u2, %a3: Long
+        %u4 = add %u3, %a4: Long
+        %u5 = add %u4, %a5: Long
+        %u6 = add %u5, %a6: Long
+        %u7 = add %u6, %a7: Long
+        %u8 = add %u7, %a8: Long
+        %u9 = add %u8, %a9: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [preloop, %zero], [body, %i2]: Long
+        %acc = phi [preloop, %u9], [body, %acc2]: Long
+        je %n, tail, body
+    }
+
+    body {
+        %w = load %target, 0: Long
+        %r1 = call_complex callee, %n: Int
+        %acc2 = add %acc, %w: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    tail {
+        %z = load %target, 8: Long
+        %f = add %acc, %z: Long
+        ret %f
+    }
+}
+
+# A cached region: three pointers live across a call and read once each per iteration, in *different*
+# blocks of the loop. No window can help - each block holds one read, and one read never pays for a
+# load - and each of the three takes a register over the loop instead, loaded once in the preheader.
+#
+# The load appears as `pre=[stack:k->rN]` on the preheader's terminator, in the same batch as the phi
+# transfers, and nothing comes back the other way on the exit edge.
+regionCached(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        %r = call_clobber sink, %n: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [latch, %i2]: Long
+        %acc = phi [entry, %zero], [latch, %acc3]: Long
+        je %n, exit, first
+    }
+
+    first {
+        %a = load %p, 8: Long
+        %acc1 = add %acc, %a: Long
+        jmp second
+    }
+
+    second {
+        %b = load %q, 8: Long
+        %acc2 = add %acc1, %b: Long
+        jmp latch
+    }
+
+    latch {
+        %c = load %t, 8: Long
+        %acc3 = add %acc2, %c: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# A moved region: the accumulator itself. `%acc` is a phi web that is read *and written* every
+# iteration, and under this convention it cannot have a register across the call in the entry block -
+# so every iteration reloads it and stores it back.
+#
+# The region gives it one over the loop and pays for it twice: a load on the edge in and a store on
+# the edge out. Two instructions outside the loop against two per iteration inside it, which is the
+# trade the whole pass exists for. The store is what makes this a `RegionMoved` rather than a cached
+# one, and it is why the exit edge needs an insertion point of its own.
+regionMoved(%n: Int, %p: Ptr, %q: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        %r = call_clobber sink, %n: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je %n, exit, body
+    }
+
+    body {
+        %a = load %p, 8: Long
+        %b = load %q, 8: Long
+        %s = add %a, %b: Long
+        %acc2 = add %acc, %s: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        %z = add %acc, 1L: Long
+        ret %z
+    }
+}
+
+# What a region is refused for. The web is read once in the loop and nothing else, so the one read it
+# saves cannot pay for the load that would establish the register - the unweighted comparison, which
+# is the one a region's shape makes hard: its copies stand outside the loop and occupy their bytes
+# whether the loop runs eight times or eight million.
+regionTooThin(%n: Int, %p: Ptr, %q: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        %r = call_clobber sink, %n: Int
+        %g = load %q, 8: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je %n, exit, body
+    }
+
+    body {
+        %a = load %p, 8: Long
+        %acc2 = add %acc, %a: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        %z = add %acc, %g: Long
+        ret %z
+    }
+}
+
+# The block a region does *not* cover. `%t` is read only in `first`, and is dead in the rest of the
+# loop - so the region is `first` alone rather than the whole body, and what the register has to
+# survive is what `first` clobbers rather than what the loop does. Covering the loop entire is what
+# refused 199 of `Matrix`'s candidates before this was narrowed.
+regionLiveBlocksOnly(%n: Int, %p: Ptr, %t: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        %r = call_clobber sink, %n: Int
+        %t1 = load %t, 8: Long
+        %t2 = load %t, 8: Long
+        %tv = add %t1, %t2: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [latch, %i2]: Long
+        %acc = phi [entry, %zero], [latch, %acc2]: Long
+        je %n, exit, first
+    }
+
+    first {
+        %x1 = add %acc, %tv: Long
+        %x2 = add %x1, %tv: Long
+        jmp latch
+    }
+
+    latch {
+        %a = load %p, 8: Long
+        %acc2 = add %x2, %a: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}

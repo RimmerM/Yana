@@ -408,6 +408,10 @@ static U64 edgeFrequency(LowerBase base, const LoopInfo& loops, const FunctionFr
 
 FunctionFrequencyInfo LowerFunction::buildFrequencies(LowerBase base) {
     auto loops = buildLoops(base);
+    return buildFrequencies(base, loops);
+}
+
+FunctionFrequencyInfo LowerFunction::buildFrequencies(LowerBase base, const LoopInfo& loops) {
     auto postorder = buildPostorder(base);
     auto blockList = blocks.contents(base);
 

@@ -231,26 +231,42 @@ static void collectTransitions(const Placement& placement, Array<SegmentTransiti
     for(Size w = 0; w < placement.webs.size(); w++) {
         auto& web = placement.webs[w];
 
-        for(Size i = 1; i < web.segments.size(); i++) {
-            auto& previous = web.segments[i - 1];
+        for(Size i = 0; i < web.segments.size(); i++) {
             auto& segment = web.segments[i];
-            if(segment.location == previous.location) continue;
+
+            // A segment that names the home is no exception at all, and a region's boundaries are
+            // copies on CFG edges rather than copies between two instructions - collectEdgeTransitions
+            // owns those. Between them these two are what keeps the two walks from both claiming one
+            // boundary.
+            if(segment.location == web.home || !segment.inBlock()) continue;
+
+            // Two segments of one location meeting at a point are one stretch, and neither end of the
+            // join is a boundary: the copy out and the copy back in would be the same copy twice.
+            // Nothing produces that today; skipping it is what keeps this walk total rather than
+            // resting on that.
+            auto joinedBefore = i > 0 && web.segments[i - 1].to == segment.from
+                && web.segments[i - 1].location == segment.location;
+            auto joinedAfter = i + 1 < web.segments.size() && web.segments[i + 1].from == segment.to
+                && web.segments[i + 1].location == segment.location;
+
+            if(!joinedBefore) {
+                out.push(SegmentTransition {
+                    .index = (segment.from - 1) / 2,
+                    .post = (segment.from & 1) == 0,
+                    .move = RegMove { web.home, segment.location, web.regClass },
+                });
+            }
 
             // Leaving a segment the web was *copied* into costs nothing: its home never stopped
             // holding the value, so the copy back would write what is already there. See
-            // AllocationSegment::cached, and §5.9 of place.cpp for why that is sound.
-            if(previous.cached) continue;
-
-            // Nothing carries a value across a hole, so two segments with a hole between them are
-            // two stretches of one location and never a boundary. Placement builds them that way;
-            // reaching here with a gap would mean a value expected somewhere nothing put it.
-            assertTrue(segment.from == previous.to);
-
-            out.push(SegmentTransition {
-                .index = (segment.from - 1) / 2,
-                .post = (segment.from & 1) == 0,
-                .move = RegMove { previous.location, segment.location, web.regClass },
-            });
+            // AllocationSegment::leavesFree, and §5.9 of place.cpp for why that is sound.
+            if(!segment.leavesFree() && !joinedAfter) {
+                out.push(SegmentTransition {
+                    .index = (segment.to - 1) / 2,
+                    .post = (segment.to & 1) == 0,
+                    .move = RegMove { segment.location, web.home, web.regClass },
+                });
+            }
         }
     }
 
@@ -266,6 +282,124 @@ static void collectTransitions(const Placement& placement, Array<SegmentTransiti
         }
 
         out[j] = entry;
+    }
+}
+
+/*
+ * Edge transitions.
+ *
+ * The other half of the same idea, for the boundaries an in-block segment cannot have. A web with a
+ * Region segment is in one location inside the region's blocks and in its home outside them, so the
+ * difference stands on the CFG edges into and out of the region rather than between two
+ * instructions - and the location at a block's two ends is what those edges compare.
+ *
+ * Where the copy goes has exactly two answers, and which one applies is a property of the edge:
+ *
+ *   - **the predecessor has one successor.** Control reaching the end of it goes here and nowhere
+ *     else, so the copy joins the terminator's batch - the same batch the phi transfers are
+ *     sequenced in. They belong together: both describe the state at the successor's entry against
+ *     the state at the predecessor's exit, so they are one simultaneous set and sequenceMoves is
+ *     what orders them. A phi whose source web is itself being resolved here is then two reads of
+ *     one source, which a parallel copy handles;
+ *   - **otherwise the successor has one predecessor.** Control entering it came from here and
+ *     nowhere else, so the copy goes at the start of the successor instead - BlockRegs::entryMoves,
+ *     which exists for this. By splitPhiEdges' guarantee a successor with phis always takes the
+ *     first case, so this batch never has to be sequenced against a phi transfer.
+ *
+ * An edge that is neither - a predecessor that branches into a successor that joins - has nowhere to
+ * put a copy at all, and placement is what must not produce a difference on one. `verifyPlacement`
+ * checks that independently; the assertion here is the second statement of it.
+ *
+ * Leaving a segment costs nothing wherever `leavesFree` says so, exactly as it does between two
+ * instructions: the home never stopped holding the value. That is what makes a read-only promotion
+ * one load on the way in and nothing at all on the way out.
+ */
+
+// The copies each block carries, by where they are emitted. Indexed by block index, which orderBlocks
+// keeps equal to the block's position in the list.
+struct EdgeTransitions {
+    // Appended to the block's own terminator batch, beside its phi transfers.
+    ArrayList<RegMove, 2> atExit;
+
+    // Emitted before the block's first instruction - see BlockRegs::entryMoves.
+    ArrayList<RegMove, 2> atEntry;
+
+    // Set while any web has a region segment at all. Almost no function does, and the walk is skipped
+    // outright where none has: it is a pass over every edge and every value live on it.
+    bool any = false;
+
+    void reset(Size blocks) {
+        atExit.reset(blocks);
+        atEntry.reset(blocks);
+        any = false;
+    }
+};
+
+static void collectEdgeTransitions(LowerBase base, LowerFunction& fun, Liveness& live,
+    const Placement& placement, EdgeTransitions& out, Array<U32>& seen)
+{
+    out.reset(fun.blocks.size());
+
+    for(Size w = 0; w < placement.webs.size(); w++) {
+        for(auto& segment: placement.webs[w].segments) {
+            if(!segment.inBlock()) { out.any = true; break; }
+        }
+
+        if(out.any) break;
+    }
+
+    if(!out.any) return;
+
+    // Which webs this edge has already been answered for. A web may have several values live on one
+    // edge - a phi coalesced with what feeds it is the ordinary case - and the question is about the
+    // web. Stamped with an edge counter rather than cleared, since there are as many edges as blocks.
+    seen.clear();
+    for(Size i = 0; i < placement.webs.size(); i++) seen.push(0);
+    U32 stamp = 0;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto from = base[offset];
+        auto fromSet = live.getBlock(from);
+        auto exitPoint = afterInst(fromSet->lastIndex);
+
+        // Both arms reaching one block is a single successor for this purpose: whichever way the
+        // branch goes, control arrives there.
+        auto singleSuccessor = !from->outgoing[0] || !from->outgoing[1]
+            || from->outgoing[0] == from->outgoing[1];
+
+        for(auto successorOffset: from->outgoing) {
+            if(!successorOffset) continue;
+
+            auto to = base[successorOffset];
+            auto toSet = live.getBlock(to);
+            auto entryPoint = beforeInst(toSet->firstIndex);
+            stamp++;
+
+            toSet->liveIn.iterate(toSet->valueCount, [&](Size raw) {
+                auto id = LiveId(raw);
+
+                // Live on *this* edge, which is what has to be carried across it. A value live out of
+                // the predecessor on some other edge is not this edge's business.
+                if(!fromSet->liveOut.get(fromSet->valueCount, raw)) return;
+
+                auto webId = placement.webOf[id];
+                if(seen[Size(webId)] == stamp) return;
+                seen[Size(webId)] = stamp;
+
+                auto& web = placement.webs[webId];
+                MachineLocation at, want;
+                if(!web.edgeTransfer(exitPoint, entryPoint, at, want)) return;
+
+                if(singleSuccessor) {
+                    out.atExit[from->index].push(RegMove { at, want, web.regClass });
+                } else {
+                    // The refusal placement is responsible for. A predecessor that branches into a
+                    // successor that joins is a critical edge, and a copy on one has nowhere to go.
+                    assertTrue(to->incoming.size() == 1);
+                    out.atEntry[to->index].push(RegMove { at, want, web.regClass });
+                }
+            });
+        }
     }
 }
 
@@ -405,6 +539,16 @@ struct LegalizeScratch {
     // The copies that cross a split web's segment boundaries, in instruction order.
     Array<SegmentTransition> transitions;
 
+    // ... and the ones that cross a CFG edge, per block. `edgeSeen` is the per-edge dedupe the walk
+    // stamps.
+    EdgeTransitions edges;
+    Array<U32> edgeSeen;
+
+    // The entry copies of the block being resolved: the edge's list copied into `edgeIn` so that the
+    // sequencer takes it, and sequenced into `blockEntry` before being committed.
+    Array<RegMove> edgeIn;
+    Array<RegMove> blockEntry;
+
     // Where each folded address resolved to - see Legalizer::addresses.
     HashMap<LowerInst*, MachineAddress> addresses;
 
@@ -525,17 +669,26 @@ struct Legalizer {
     Array<SegmentTransition>& transitions;
     Size transitionCursor = 0;
 
-    Legalizer(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    // Liveness, for the one question this pass asks of it: which webs are live on an edge, and so
+    // which of them an edge transition has to carry. Everything else here is answered by the
+    // placement.
+    Liveness& live;
+
+    // The copies on the CFG edges, collected once for the function - see collectEdgeTransitions.
+    EdgeTransitions& edges;
+
+    Legalizer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
         const Constraints& constraints, const Placement& placement, const TemporaryReserve& reserve,
         RegScratch& regScratch):
         base(base), fun(fun), machine(machine), constraints(constraints), placement(placement),
         scratch(*regScratch.legalize), records(regScratch.records), shapes(regScratch.legalize->shapes),
         reserve(reserve), addresses(regScratch.legalize->addresses),
-        transitions(regScratch.legalize->transitions)
+        transitions(regScratch.legalize->transitions), live(live), edges(regScratch.legalize->edges)
     {
         addresses.reset();
         transitions.clear();
         collectTransitions(placement, transitions);
+        collectEdgeTransitions(base, fun, live, placement, edges, regScratch.legalize->edgeSeen);
     }
 
     // The record just resolved, copied into the arena at the length it turned out to be. Everything
@@ -618,10 +771,14 @@ struct Legalizer {
     // placement ran to completion before any of this did. One query serves an instruction's operands
     // and its results alike, since a web occupies one location for the whole of an instruction - a
     // split that ended a segment in the middle of one would have nowhere legal to put the transfer.
-    MachineLocation homeOf(LowerValue* v, U32 index) {
-        auto home = placement.locationOf(v, beforeInst(index));
-        assertTrue(home.isValid()); // a value placement never reached
-        return home;
+    //
+    // A *point* query and not the web's home, which are two different questions the moment a segment
+    // can differ at a block boundary. It was called `homeOf` while the two agreed, and what that hid
+    // is in `resolvePhis` below.
+    MachineLocation locationAt(LowerValue* v, U32 index) {
+        auto at = placement.locationOf(v, beforeInst(index));
+        assertTrue(at.isValid()); // a value placement never reached
+        return at;
     }
 
     // Where the encoder reads operand `i`, given that the destructive destination (if any) has
@@ -766,7 +923,7 @@ struct Legalizer {
         auto tied = machine.formOf(inst).tiedResult();
 
         if(tied >= 0 && Size(tied) < used.size() && created.size() > 0 && !isImplicit(&created[0])) {
-            destructiveReg = homeOf(&created[0], index);
+            destructiveReg = locationAt(&created[0], index);
 
             if(destructiveReg.isStack()) {
                 // The result lives in the frame. Where the encoding has a form that writes its
@@ -776,7 +933,7 @@ struct Legalizer {
                 // accumulator looks like once it has been spilled.
                 auto choice = directMemoryOperands(base, machine, inst);
                 auto operandHome = choice.hasReadWrite()
-                    ? homeOf(base[used[choice.readWrite]], index)
+                    ? locationAt(base[used[choice.readWrite]], index)
                     : MachineLocation::invalid();
 
                 memoryDest = takesInPlace(choice, operandHome, destructiveReg);
@@ -806,8 +963,8 @@ struct Legalizer {
             auto regClass = classForType(v->type);
 
             out.uses.push(ResolvedOperand::location(location, regClass));
-            if(location.isValid() && location != homeOf(v, index)) {
-                pending.push(RegMove { homeOf(v, index), location, regClass });
+            if(location.isValid() && location != locationAt(v, index)) {
+                pending.push(RegMove { locationAt(v, index), location, regClass });
             }
         }
 
@@ -826,7 +983,7 @@ struct Legalizer {
             }
 
             auto want = wantForResult(shape, i);
-            auto home = homeOf(&v, index);
+            auto home = locationAt(&v, index);
 
             // Where the encoder has to write it, which is the home unless the home is a frame slot
             // this instruction has no destination form for, or the encoding forces a particular
@@ -866,7 +1023,17 @@ struct Legalizer {
     // The copies carrying this block's outgoing values into a successor's phi locations. A phi that
     // shares a web with the value arriving over this edge is already where it needs to be, and the
     // transfer is an identity that sequenceMoves drops.
+    //
+    // **The two ends are read at two different points**, and that is not a nicety. The value leaves
+    // from wherever it is at the *predecessor's terminator*; the phi has to arrive wherever it is at
+    // the *successor's entry*. Those were the same number for as long as a web had one location at
+    // every boundary, and a single query answered both - which is what hid this. A region segment
+    // covering the successor and not the predecessor makes them differ, and asking the predecessor's
+    // point for both would copy the value into where the phi lives everywhere *except* in the block
+    // that reads it.
     void resolvePhis(LowerBlock* block, LowerBlock* successor, U32 index, Array<RegMove>& pending) {
+        auto entryPoint = beforeInst(live.getBlock(successor)->firstIndex);
+
         for(auto p: successor->phis.contents(base)) {
             auto phi = base[p];
             auto& result = phi->result;
@@ -883,8 +1050,9 @@ struct Legalizer {
             // Not an edge this phi takes a value from.
             if(!value || isImplicit(value)) continue;
 
-            auto from = homeOf(value, index);
-            auto to = homeOf(&result, index);
+            auto from = locationAt(value, index);
+            auto to = placement.locationOf(&result, entryPoint);
+            assertTrue(to.isValid()); // a phi placement never reached
             if(from != to) pending.push(RegMove { from, to, classForType(result.type) });
         }
     }
@@ -933,6 +1101,23 @@ static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, Legal
         auto block = base[offset];
         BlockRegs blockRegs;
 
+        // The edge copies that had to go at this end of their edge - see collectEdgeTransitions.
+        // Sequenced as a batch of their own, and emitted before the first instruction's own copies:
+        // both stand at the block's entry point, and this one is what establishes the locations the
+        // operand copies behind it read from.
+        if(l.edges.any && l.edges.atEntry[block->index].isNotEmpty()) {
+            auto& pending = l.scratch.edgeIn;
+            auto& entry = l.scratch.blockEntry;
+            pending.clear();
+            entry.clear();
+
+            for(auto& move: l.edges.atEntry[block->index]) pending.push(move);
+
+            auto temps = l.moveTemps();
+            sequenceMoves(temps, pending, entry, l.scratch.done);
+            if(!l.measuring) blockRegs.entryMoves = commitSlice(l.records, entry);
+        }
+
         for(auto i: block->instructions.contents(base)) {
             l.resolveInst(base[i], index);
 
@@ -959,6 +1144,12 @@ static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, Legal
             l.resolvePhis(block, base[successor], index, pending);
         }
 
+        // The edge copies that go at *this* end of their edge, in the same batch as the phi
+        // transfers: the two are one simultaneous set - see collectEdgeTransitions.
+        if(l.edges.any) {
+            for(auto& move: l.edges.atExit[block->index]) pending.push(move);
+        }
+
         auto temps = l.moveTemps();
         auto& terminatorMoves = l.scratch.regs.moves;
         if(index == 0) sequenceMoves(temps, entryMoves, terminatorMoves, l.scratch.done);
@@ -973,17 +1164,17 @@ static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, Legal
     result.writtenPhysical = l.written;
 }
 
-void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+void legalizeFunction(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries,
     RegScratch& scratch, LegalizedFunction& out)
 {
     if(!scratch.legalize) scratch.legalize = new LegalizeScratch();
 
-    Legalizer l(base, fun, machine, constraints, placement, temporaries, scratch);
+    Legalizer l(base, fun, live, machine, constraints, placement, temporaries, scratch);
     runLegalizer(l, base, fun, out);
 }
 
-TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const Placement& placement, const TemporaryReserve& pool,
     RegScratch& scratch)
 {
@@ -997,7 +1188,7 @@ TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, con
     // Over the *chosen* registers (§42), which is what `pool` is here for: `takeTemp` steps over a
     // position whose register this instruction's own expansion clobbers, so a measurement taken over
     // a different set of registers would step over a different set of clobbers.
-    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widestLike(pool), scratch);
+    Legalizer l(base, fun, live, machine, constraints, placement, TemporaryReserve::widestLike(pool), scratch);
     l.measuring = true;
 
     // Nothing keeps what this produces, so it produces nothing: `measuring` stops the walk from

@@ -1,5 +1,17 @@
 #include "gen.h"
 #include "x64_util.h"
+#include <cstdio>
+#include <cstdlib>
+
+// §5.10's instrumentation, read once. What it reports is which regions were considered and which were
+// taken, which is how the shape of a program's homeless webs is measured rather than assumed - see
+// §49 of test/bench/findings.md, where removing one gate on the strength of it was the whole result.
+static const bool kRegionDebug = getenv("YANA_REGION_DEBUG") != nullptr;
+
+// And the switch that turns §5.10 off, so that one binary can compile the corpus both ways. Two
+// binaries would differ in their own layout as well as in what they emit, and this pass is worth less
+// than that difference is - see §13.0 of test/bench/findings.md.
+static const bool kRegionOff = getenv("YANA_NO_REGION") != nullptr;
 
 /*
  * Placement.
@@ -220,13 +232,19 @@ struct ClobberSite {
 struct RegisterClaim {
     LiveId web = LiveId(0);
 
-    // Meaningful only when `partial`. Half-open, in program points, and one point wider at the low
-    // end than the segment it stands for: the copy that establishes the register is emitted in the
-    // *previous* instruction's parallel copy, so the register has to be nobody else's there too.
-    Range stretch;
-
-    // False for the whole-life claim above, where the web's own interval is the claim.
-    bool partial = false;
+    // Where the stretches this claim covers sit in PlacementScratch::claimRanges - sorted, disjoint,
+    // and in program points. `count == 0` is the whole-life claim above, whose stretches are the
+    // web's own interval and are not copied anywhere.
+    //
+    // An offset rather than a pointer, because the store grows while claims are being handed out and
+    // a view into it would move under the claims already made.
+    //
+    // A partial claim is always one point wider than the segment it stands for at whichever end the
+    // copy establishing the register is emitted at: that copy stands in the *previous* instruction's
+    // parallel copy, or in the predecessor block's, so the register has to be nobody else's there
+    // too. See occupyRanges' two callers.
+    U32 offset = 0;
+    U32 count = 0;
 };
 
 /*
@@ -258,6 +276,48 @@ struct WebRead {
 struct ClusterWindow {
     Range range;
     MachineLocation at;
+};
+
+/*
+ * What promoteIntoRegions works over - see §5.10, which is where both are explained.
+ */
+
+// One loop, as the region search reads it: what the reads inside it are worth, whether they are
+// spread over more than one of its blocks, and whether anything defines the web in it.
+struct RegionCandidate {
+    BlockIndex header = kNullBlock;
+
+    /*
+     * What the reads inside it are worth, in the two currencies a region has to be paid in - and
+     * this is the one place in the allocator where they have to be counted separately.
+     *
+     * A region's copies stand *outside* the loop by construction, and its savings are *inside* it. So
+     * the weighted comparison - which is the right question for time, and the only one every other
+     * decision here needs - divides the two by the trip count and passes on very nearly anything. The
+     * unweighted one is the question about bytes: two copies occupy their bytes whether the loop runs
+     * eight times or eight million.
+     *
+     * Taking a region on the weighted comparison alone cost **+14 bytes of 10831** over the ten
+     * programs for a time difference this machine cannot resolve. Requiring both is what leaves the
+     * accumulator whose reload and store are two whole instructions and refuses the one whose read was
+     * already folded into an `add [m], r`.
+     */
+    U32 benefit = 0;       // weighted by how often each read runs
+    U32 staticBenefit = 0; // and not
+
+    U32 lastBlock = ~U32(0);
+    U16 blocks = 0;     // distinct blocks with a read in them
+    bool defines = false;
+};
+
+// One edge the region's boundary crosses, and where its copy would stand.
+struct RegionEntry {
+    // The block *outside* the region: the predecessor on an edge in, the successor on an edge out.
+    LowerBlock* pred = nullptr;
+    U32 weight = 1;
+
+    bool predSide = false; // the predecessor's terminator batch rather than the successor's head
+    bool leaving = false;  // an edge out of the region, which only a moved one has
 };
 
 /*
@@ -364,6 +424,11 @@ struct PlacementScratch {
     ArrayList<LiveId> slotWebs;
     Array<ClobberSite> clobberSites;
 
+    // The stretches every partial RegisterClaim names, appended to and never removed from within one
+    // function. One store rather than a list per claim: a claim is two integers into it, so handing
+    // out a register over a set of blocks costs no allocation of its own.
+    Array<Range> claimRanges;
+
     // Where the four walks get the instruction shape they each ask for per instruction. A pool
     // rather than one shape, because two of them nest - see Scratch.
     ScratchPool<InstShape> shapes;
@@ -398,12 +463,20 @@ struct PlacementScratch {
     ArrayList<WebRead, 4> reads;
     Array<ClusterWindow> clusterWindows;
 
+    // promoteIntoRegions: the loops one web's reads fall in, the stretches a region's register is
+    // claimed over, which blocks it covers, and the edges across its boundary.
+    Array<RegionCandidate> regionCandidates;
+    Array<Range> regionRanges;
+    Array<U8> regionMembers;
+    Array<RegionEntry> regionEntries;
+
     void reset(Size valueCount) {
         webs.reset(valueCount);
         tieConflicts.reset(valueCount);
         slotOccupants.reset(0);
         slotWebs.reset(0);
         clobberSites.clear();
+        claimRanges.clear();
 
         for(auto& bank: occupants) {
             for(auto& reg: bank) reg.clear();
@@ -620,53 +693,39 @@ struct Placer {
     U32 currentWeight = 1;
 
     // Where a web lives, and whether it has been given anywhere yet. Both read the result directly:
-    // a web's home is its first segment, so there is no second record of it to disagree. An unplaced
+    // a web's home is a field of it, so there is no second record of it to disagree. An unplaced
     // web answers an invalid location rather than asserting, because a hint offered before its
     // source has been reached is a hint that is simply not taken.
-    bool placed(LiveId webId) const { return !out.webs[webId].segments.isEmpty(); }
-    MachineLocation homeOfWeb(LiveId webId) const { return out.webs[webId].home(); }
+    bool placed(LiveId webId) const { return out.webs[webId].home.isValid(); }
+    MachineLocation homeOfWeb(LiveId webId) const { return out.webs[webId].home; }
 
-    // Gives a web the location it will keep. One segment covering everything its interval does,
-    // which is the whole of the persistent-location rule: a web is in one place wherever it is live.
+    // Gives a web the location it will keep everywhere. No segments at all, which is what a web with
+    // one location is: a segment is an exception, and this one has none.
     MachineLocation setHome(LiveId webId, RegisterClassId cls, MachineLocation location) {
-        auto interval = webs[webId].interval();
         out.webs[webId].regClass = cls;
-
-        out.webs[webId].segments.push(AllocationSegment {
-            .from = interval.isEmpty() ? 0 : interval.first(),
-            .to = interval.isEmpty() ? 0 : interval.last(),
-            .location = location,
-        });
-
+        out.webs[webId].home = location;
         return location;
     }
 
-    // Gives a split web its home and the location it steps into over each window, as the alternating
-    // segment list the two describe. Windows are sorted, disjoint and strictly inside the interval -
-    // planSplit builds them from clobber sites the web is live *across*, so there is always a live
-    // point on either side of each - which is what makes every odd segment a home segment and the
-    // first and last of them home segments in particular.
+    // Gives a split web its home and the location it steps into over each window. Windows are sorted
+    // and disjoint - planSplit builds them from clobber sites the web is live *across*, so there is a
+    // live point on either side of each.
     template<class Windows>
     MachineLocation setSplit(LiveId webId, RegisterClassId cls, MachineLocation home,
         const Windows& windows, MachineLocation windowLocation)
     {
-        auto interval = webs[webId].interval();
-        assertTrue(!interval.isEmpty() && !windows.isEmpty());
+        assertTrue(!windows.isEmpty());
+        setHome(webId, cls, home);
 
         auto& segments = out.webs[webId].segments;
-        out.webs[webId].regClass = cls;
-
-        auto at = interval.first();
 
         for(auto& window: windows) {
-            assertTrue(window.from > at && window.to < interval.last()); // strictly inside
-
-            segments.push(AllocationSegment { .from = at, .to = window.from, .location = home });
-            segments.push(AllocationSegment { .from = window.from, .to = window.to, .location = windowLocation });
-            at = window.to;
+            segments.push(AllocationSegment {
+                .from = window.from, .to = window.to,
+                .location = windowLocation, .kind = SegmentKind::Window,
+            });
         }
 
-        segments.push(AllocationSegment { .from = at, .to = interval.last(), .location = home });
         return home;
     }
 
@@ -705,6 +764,11 @@ struct Placer {
             if(!(units & 1)) continue;
 
             for(auto& claim: occupants[reg.bank][i]) {
+                // A web never conflicts with itself. New only because a web may now hold a register
+                // over more than one disjoint stretch - a region and a cluster, or two regions - and
+                // the second ask would otherwise fail against the first.
+                if(claim.web == webId) continue;
+
                 if(claimOf(claim).overlaps(interval)) return false;
                 if(tiesConflict(webId, claim.web)) return false;
             }
@@ -713,9 +777,10 @@ struct Placer {
         return true;
     }
 
-    // The stretch a claim holds its register over, as an interval the overlap test takes.
+    // The stretches a claim holds its register over, as an interval the overlap test takes.
     LiveInterval claimOf(const RegisterClaim& claim) const {
-        return claim.partial ? LiveInterval { &claim.stretch, 1 } : webs[claim.web].interval();
+        if(claim.count == 0) return webs[claim.web].interval();
+        return LiveInterval { scratch.claimRanges.pointer() + claim.offset, claim.count };
     }
 
     // A register a web has been given is held for the whole of that web's interval, windows
@@ -724,10 +789,11 @@ struct Placer {
     // fit is nothing: a window is one instruction wide, and the only value whose whole life fits
     // inside one is a result nothing reads.
     //
-    // `occupyStretch` is the other kind of claim, and the one a window in a *register* rather than
-    // in the frame needs: it hands out only the stretch, so the rest of the register's life is still
-    // free for whoever else asks. See §5.9 - it is the only caller, and it runs once the walk below
-    // has finished, so nothing here has to reason about a partial claim being displaced.
+    // `occupyRanges` is the other kind of claim, and the one a segment in a *register* rather than
+    // in the frame needs: it hands out only the stretches, so the rest of the register's life is
+    // still free for whoever else asks. Its two callers are §5.9 and §5.10, both of which run once
+    // the walk below has finished, so nothing here has to reason about a partial claim being
+    // displaced.
     void occupy(RegisterClassId cls, PhysicalReg reg, LiveId webId) {
         auto units = targetRegisters().viewOf(cls, reg).units;
 
@@ -736,13 +802,19 @@ struct Placer {
         }
     }
 
-    void occupyStretch(RegisterClassId cls, PhysicalReg reg, LiveId webId, Range stretch) {
+    // The ranges are copied into the claim store, so the caller's buffer is its own again afterwards.
+    void occupyRanges(RegisterClassId cls, PhysicalReg reg, LiveId webId, const Range* ranges, Size count) {
+        assertTrue(count > 0); // a claim over nothing is the whole-life claim by accident
+
+        auto offset = U32(scratch.claimRanges.size());
+        for(Size i = 0; i < count; i++) scratch.claimRanges.push(ranges[i]);
+
         auto units = targetRegisters().viewOf(cls, reg).units;
 
         for(Size i = 0; units; i++, units >>= 1) {
             if(units & 1) {
                 occupants[reg.bank][i].push(RegisterClaim {
-                    .web = webId, .stretch = stretch, .partial = true,
+                    .web = webId, .offset = offset, .count = U32(count),
                 });
             }
         }
@@ -1085,7 +1157,7 @@ struct Placer {
     bool displaces(LiveId webId, const RegisterClaim& claim, const LiveInterval& interval) const {
         // Cluster claims are handed out after the walk that displaces anything has finished, so
         // there is no such thing as displacing one and nothing here has to price it.
-        assertTrue(!claim.partial);
+        assertTrue(claim.count == 0);
         return webs[claim.web].interval().overlaps(interval) || tiesConflict(webId, claim.web);
     }
 
@@ -2019,7 +2091,7 @@ static void reclaimDisplaced(Placer& a) {
             // back would need the slot list rebuilt for a frame that is at most one slot wider.
             a.occupy(cls, reg, webId);
             a.written.add(reg);
-            a.out.webs[webId].segments[0].location = MachineLocation::physical(reg);
+            a.out.webs[webId].home = MachineLocation::physical(reg);
             break;
         }
     }
@@ -2057,7 +2129,7 @@ static void reclaimDisplaced(Placer& a) {
  *
  * **The register is claimed over the stretch and not over the web's life.** A web reaching here is
  * by construction one no register was free for over its whole interval, so a claim on the whole of
- * it would find nothing every time. `occupyStretch` is what hands out the narrower claim, and it is
+ * it would find nothing every time. `occupyRanges` is what hands out the narrower claim, and it is
  * the "per-segment occupancy" §9 of the README named as this item's prerequisite.
  *
  * **What the register has to survive is what the window covers**, rather than what the web outlives.
@@ -2130,20 +2202,40 @@ static void collectWebReads(Placer& a, const Array<LiveId>& candidates) {
             // barrier for that read too - a result is resolved at its instruction's `before` point,
             // the same point the reads are, so a window ending there would define into the register
             // and leave the home holding the old value.
+            // The same two questions computeSpillCosts asks, because the saving has to be stated
+            // against the price that pass put on this very read.
+            auto choice = directMemoryOperands(a.base, a.machine, inst);
+            auto inPlace = isInPlace(a, inst, choice);
+            auto folded = inPlace ? choice.readWrite : choice.read;
+
             for(auto& created: inst->created()) {
                 if(isImplicit(&created)) continue;
 
                 auto id = created.liveId();
                 if(id == kNullLive || !wanted[Size(a.out.webOf[id])]) continue;
 
-                reads[a.out.webOf[id]].push(WebRead { .index = index, .span = span, .defines = true });
-            }
+                auto webId = a.out.webOf[id];
+                auto home = a.homeOfWeb(webId);
 
-            // The same two questions computeSpillCosts asks, because the saving has to be stated
-            // against the price that pass put on this very read.
-            auto choice = directMemoryOperands(a.base, a.machine, inst);
-            auto inPlace = isInPlace(a, inst, choice);
-            auto folded = inPlace ? choice.readWrite : choice.read;
+                /*
+                 * What a definition would save if the web were in a register, which §5.10 needs and
+                 * §5.9 does not - a cluster window may not cover one at all.
+                 *
+                 * A result whose home is a slot is written to a register and carried there behind the
+                 * instruction, so a register saves the store outright. Unless the instruction wrote it
+                 * *in place* - `add [m], r`, where the slot is the destination and there is no
+                 * separate store - in which case a register buys a shorter encoding and nothing more,
+                 * which is the same distinction the read below draws and the one that decides whether
+                 * a region pays for itself in bytes. And a recipe's definition emits nothing at all,
+                 * so there is nothing there to save.
+                 */
+                auto saving = !home.isStack() ? 0
+                    : (inPlace && choice.readWrite >= 0 ? kFoldedUseCost : kStoreCost);
+
+                reads[webId].push(WebRead {
+                    .index = index, .span = span, .saving = saving, .defines = true,
+                });
+            }
 
             auto used = inst->used();
             for(Size k = 0; k < used.size(); k++) {
@@ -2162,8 +2254,16 @@ static void collectWebReads(Placer& a, const Array<LiveId>& candidates) {
                 // The second is the one this had to learn separately - `shape` does not say it, and
                 // charging it a whole reload turned `mov [slot],%eax ; mov [slot],%ecx` in `Sort`
                 // into a load and two copies, which is one instruction *more* for the same bytes.
+                //
+                // **Unless the result is the same web**, and that exception is the whole of what a
+                // loop accumulator is. `s = s + x` puts operand zero and the result in one web, so
+                // with the web in a register the copy in front of the instruction is `r <- r` and is
+                // never emitted at all - where with the web in a slot it is a real load. So a register
+                // buys a whole instruction there rather than a shorter encoding, and pricing it as a
+                // constrained read refused the innermost accumulator of `Matrix`'s multiply.
                 auto tied = I32(k) == a.machine.formOf(inst).tiedResult()
-                    && inst->createdCount > 0 && !isImplicit(&inst->created()[0]);
+                    && inst->createdCount > 0 && !isImplicit(&inst->created()[0])
+                    && a.out.webOf[inst->created()[0].liveId()] != webId;
 
                 auto constrained = tied || shape.uses[k].kind == ArgLocation::Register;
                 auto home = a.homeOfWeb(webId);
@@ -2196,23 +2296,75 @@ static RegSet clusterBlockedAt(Placer& a, U32 index, bool last) {
     return last ? clobber.operandMask : clobber.mask;
 }
 
-static void splitAroundClusters(Placer& a) {
-    auto& candidates = a.scratch.clusterWebs;
+/*
+ * §5.10 - a register over a region of blocks.
+ *
+ * §5.9 is this question asked of a cluster of reads inside one block. This is the same question asked
+ * of reads that are one per block, which §23 of `test/bench/findings.md` measured as the whole of
+ * what is left: 37% of what `Matrix`'s homeless webs pay and 66% of `Sort`'s. A window cannot reach
+ * them, because a window may not cross a block boundary and there is no cluster inside any one block
+ * to be worth a load.
+ *
+ * A **region** is the answer, and it is the same trade one tier up. The web borrows a register over a
+ * set of whole blocks - a loop - and the copy that establishes it stands on the CFG edges into the
+ * region rather than between two instructions:
+ *
+ *      preheader:  mov rbx, [slot]      ─┬─  one load, outside the loop
+ *      header:     ... read rbx          │
+ *      body:       ... read rbx          ├─  and every read inside it is a register read
+ *      latch:      ... read rbx         ─┴─
+ *
+ * Three things it inherits from §5.9 unchanged, and each is what makes the arithmetic work:
+ *
+ * **Nothing is stored back.** The home is a frame slot no other web may have for this web's whole
+ * life, or a recipe, which is available everywhere - so it goes on holding the value while the
+ * register holds it too, and leaving the region costs nothing at all. That is what `SegmentKind` says
+ * and what `leavesFree` reads. The rule that makes it true is that no member of the web may be
+ * *defined* anywhere in the region, which is the `defines` gate below. A region whose members are
+ * written would need a store on every edge out of it, and that is not this.
+ *
+ * **The register is claimed over the region rather than over the web's life.** Any web reaching here
+ * is one no register was free for over the whole of it. `occupyRanges` is what hands out the narrower
+ * claim, and the claim is the region's block spans *plus the terminator of every predecessor the
+ * entry copy stands in* - the register is written there, one block outside the region, and leaving
+ * that point out is the same defect as handing one register to two webs.
+ *
+ * **What the register has to survive is what the region covers.** `info.avoid` is the union over the
+ * web's whole life, so a value live across a call avoids everything a call destroys and the set is
+ * useless here. The mask is rebuilt from the clobber sites inside the region's blocks.
+ *
+ * What is new is the edge, and with it the one refusal. A copy on an edge has somewhere to stand only
+ * where the predecessor has a single successor - it joins the terminator's batch, beside the phi
+ * transfers - or where the successor has a single predecessor, where it goes at the head of the
+ * successor. An edge that is neither is a **critical edge**, and a region with one among its entry
+ * edges is refused outright rather than repaired: splicing a block onto it after the layout has been
+ * decided re-creates the edge that block was the split of, and every stage downstream of the block
+ * list is derived from a list that is final by the time this runs.
+ *
+ * Exit edges need no such check, because a region is left for free. That is what makes the refusal
+ * narrow enough to be worth having: the edges it has to be able to reach are the ones *into* a loop,
+ * and a loop is entered from its preheader.
+ *
+ * This runs after `reclaimDisplaced` and before `splitAroundClusters`. Both halves matter, and are
+ * §5.9's own reasons read once more: a whole-life register beats any number of regions, so a web must
+ * be offered one first; and a region is the coarser answer, so it is offered before a cluster and a
+ * read it covers is a barrier to one.
+ */
+
+// Every web that came out of the walk without a register, hottest first - the candidates both of the
+// two passes below work over, and the order `reclaimDisplaced` takes and for the same reason: two of
+// them can want the one register that is left, and the one paying more for it should ask first.
+static void collectHomelessWebs(Placer& a, Array<LiveId>& candidates) {
     candidates.clear();
 
     for(Size w = 0; w < a.out.webs.size(); w++) {
         auto& web = a.out.webs[w];
-        if(web.segments.isEmpty() || web.home().isPhysical()) continue;
+        if(!web.home.isValid() || web.home.isPhysical()) continue;
         if(a.webs[w].interval().isEmpty()) continue;
 
         candidates.push(LiveId(w));
     }
 
-    if(candidates.isEmpty()) return;
-
-    // Most to gain first, which is the same order `reclaimDisplaced` takes and for the same reason:
-    // two webs can want the one register that is left over a stretch, and the one paying more for
-    // it should ask first.
     for(Size i = 1; i < candidates.size(); i++) {
         auto id = candidates[i];
         auto cost = a.webs[id].homelessCost();
@@ -2221,9 +2373,390 @@ static void splitAroundClusters(Placer& a) {
         for(; j > 0 && a.webs[candidates[j - 1]].homelessCost() < cost; j--) candidates[j] = candidates[j - 1];
         candidates[j] = id;
     }
+}
 
-    collectWebReads(a, candidates);
+static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const LoopInfo& loops) {
+    if(kRegionOff) return;
 
+    auto blockList = a.fun.blocks.contents(a.base);
+
+    // Nothing to promote into. Every region here is a loop, so a function with none pays one test.
+    bool anyLoop = false;
+    for(Size b = 0; b < blockList.size() && !anyLoop; b++) anyLoop = loops.header[BlockIndex(b)] != kNullBlock;
+
+    if(!anyLoop) return;
+
+    auto& convention = a.constraints.getConvention(a.fun.callType);
+    auto& regions = a.scratch.regionCandidates;
+    auto& ranges = a.scratch.regionRanges;
+    auto& members = a.scratch.regionMembers;
+    auto& entries = a.scratch.regionEntries;
+
+    for(auto webId: candidates) {
+        auto& reads = a.scratch.reads[webId];
+        if(reads.size() < 2) continue;
+
+        /*
+         * What each loop containing a read is worth, accumulated by walking every read's loop chain
+         * outward. A read inside an inner loop is a read inside every loop around it, which is what
+         * makes the outer loop a candidate too - and the innermost one is tried first, since it is
+         * the one whose blocks the register is held over for the shortest stretch.
+         */
+        regions.clear();
+
+        auto candidateFor = [&](BlockIndex header) -> RegionCandidate& {
+            for(auto& region: regions) {
+                if(region.header == header) return region;
+            }
+
+            regions.push(RegionCandidate { .header = header });
+            return regions[regions.size() - 1];
+        };
+
+        for(auto& read: reads) {
+            auto block = BlockIndex(a.base[blockList[read.span]]->index);
+
+            for(auto h = loops.header[block]; h != kNullBlock; h = loops.parent[h]) {
+                auto& region = candidateFor(h);
+
+                // A definition inside the region is worth the store it no longer makes - a homeless
+                // web's result is written to a scratch register and carried to its slot behind the
+                // instruction - and it is what makes the region one that has to store back on the way
+                // out. Both, and they are the two halves of the same fact.
+                if(read.defines) {
+                    region.defines = true;
+                    region.benefit += a.scratch.spans[read.span].weight * read.saving;
+                    region.staticBenefit += read.saving;
+                    continue;
+                }
+
+                region.benefit += a.scratch.spans[read.span].weight * read.saving;
+                region.staticBenefit += read.saving;
+
+                if(region.lastBlock != U32(block)) {
+                    region.lastBlock = U32(block);
+                    region.blocks++;
+                }
+            }
+        }
+
+        // Innermost first, which is smallest first: `depth` is the length of the chain above, so a
+        // deeper header is inside a shallower one wherever the two share a block at all.
+        for(Size i = 1; i < regions.size(); i++) {
+            auto entry = regions[i];
+            auto j = i;
+
+            while(j > 0 && loops.depth[regions[j - 1].header] < loops.depth[entry.header]) {
+                regions[j] = regions[j - 1];
+                j--;
+            }
+
+            regions[j] = entry;
+        }
+
+        auto cls = a.out.webs[webId].regClass;
+        auto bank = targetRegisters().regClass(cls).bank;
+        auto home = a.out.webs[webId].home;
+        auto entryCost = clusterEntryCost(home);
+
+        for(auto& region: regions) {
+            /*
+             * Two things are asked, and what is *not* asked is the point of both.
+             *
+             * **Not that the reads be spread over more than one of the region's blocks.** That gate
+             * was written first, on the reasoning that one block's worth of reads is §5.9's; it is
+             * wrong, and the measurement is what said so - it refused three quarters of everything
+             * that reached here. A cluster's load stands *inside* the block and is paid at that
+             * block's weight, where a region's stands outside the loop and is paid at the
+             * preheader's. So a cluster of reads in one block of a loop is exactly where a region
+             * beats a window, and it beats it by the trip count.
+             *
+             * **Not that nothing writes the web inside the region.** That gate was written first too,
+             * and refused three quarters of what was left - 193 of `Matrix`'s 257 candidates. A web
+             * something writes inside the region takes a `RegionMoved` segment instead: the home
+             * stops holding the value while the register does, so every edge *out* of the region
+             * stores it back, and every definition inside it saves the store it would otherwise have
+             * made. It is Window's arithmetic at a region's scale, and it is where the value is.
+             *
+             * What is asked is that the home be a *slot*. A recipe is not a place a store can be
+             * made, and a web with a recipe has exactly one definition to make it out of - so a
+             * recipe web whose definition is inside the region cannot be moved into one at all.
+             */
+            auto moved = region.defines;
+
+            if(kRegionDebug) {
+                fprintf(stderr, "CAND: web %u header %u moved %u blocks %u benefit %u\n",
+                    U32(webId), U32(region.header), U32(moved), U32(region.blocks), region.benefit);
+            }
+
+            if(region.benefit == 0) continue;
+            if(moved && !home.isStack()) continue;
+
+            /*
+             * The region's blocks, as the ranges the register is claimed over and the mask it has to
+             * survive. Merged as they are collected, since a loop's blocks are usually - but not
+             * always - a contiguous run of the layout.
+             *
+             * **A block of the loop the web is dead in is not part of the region**, and leaving those
+             * out is what made this pass find registers at all: over the loop entire, `no-register`
+             * refused 199 of `Matrix`'s candidates, because a region covering a block the web has
+             * nothing to do with still has to dodge everything that block clobbers.
+             *
+             * The set is closed without having to be closed by construction, which is the property
+             * that makes it safe. A block of the loop left out has the web dead throughout it, so the
+             * web is live on no edge into or out of it and no edge there carries a copy. And a block
+             * *in* the region cannot have a predecessor in the loop that was left out: the web is
+             * live into it, so it is live out of that predecessor, so that predecessor is in.
+             */
+            auto interval = a.webs[webId].interval();
+
+            ranges.clear();
+            members.clear();
+            for(Size b = 0; b < blockList.size(); b++) members.push(0);
+
+            RegSet blocked;
+            bool covered = false; // an earlier region of this same web already holds these blocks
+
+            for(Size b = 0; b < blockList.size(); b++) {
+                if(!loops.contains(region.header, BlockIndex(b))) continue;
+
+                auto set = a.live.getBlock(a.base[blockList[b]]);
+                auto span = Range { beforeInst(set->firstIndex), afterInst(set->lastIndex) + 1 };
+
+                LiveInterval blockSpan { &span, 1 };
+                if(!interval.overlaps(blockSpan)) continue;
+
+                if(a.out.webs[webId].segmentAt(span.from)) { covered = true; break; }
+                members[b] = 1;
+
+                if(ranges.size() > 0 && ranges[ranges.size() - 1].to == span.from) {
+                    ranges[ranges.size() - 1].to = span.to;
+                } else {
+                    ranges.push(span);
+                }
+
+                /*
+                 * And the mask is per instruction rather than per block, on exactly the distinction
+                 * computeAvoidSets draws. An instruction the web is live *across* has to leave the
+                 * register alone, so its whole clobber set is in the way. An instruction that merely
+                 * reads the web and is the last to do so has only the parallel copy in front of it in
+                 * the way - at a call those are very different sets, and it is the difference between
+                 * "this loop contains a call" and "this value is live across it".
+                 */
+                for(U32 i = set->firstIndex; i <= set->lastIndex; i++) {
+                    if(interval.crosses(i)) blocked |= clusterBlockedAt(a, i, false);
+                    else if(interval.covers(beforeInst(i))) blocked |= clusterBlockedAt(a, i, true);
+                }
+            }
+
+            if(covered || ranges.isEmpty()) {
+                if(kRegionDebug) fprintf(stderr, "  REJECT covered/empty\n");
+                continue;
+            }
+
+            // Which blocks the region ended up covering, for the edge walk below: a block of the loop
+            // the web is dead in is outside it, so "in the loop" is no longer the same question. Kept
+            // per block rather than read back off `ranges`, which the edge points below widen.
+            auto inRegion = [&](LowerBlock* block) { return members[block->index] != 0; };
+
+            // Whether the web is live on this edge, and so whether it has anything to carry. The web's
+            // interval covering both ends is implied by any member being live on the edge, which is
+            // what the resolver actually asks - so this never misses a copy the resolver emits.
+            auto liveOnEdge = [&](LowerBlock* from, LowerBlock* to) {
+                return interval.covers(afterInst(a.live.getBlock(from)->lastIndex))
+                    && interval.covers(beforeInst(a.live.getBlock(to)->firstIndex));
+            };
+
+            /*
+             * The edges the region's boundary crosses. Each needs somewhere to put a copy, and a
+             * critical edge has nowhere; one of those refuses the whole region rather than part of
+             * it, since the value has to arrive by every path in and leave by every path out.
+             *
+             * Edges *out* are only collected for a moved region. A cached one is left for free, which
+             * is what keeps the refusal narrow enough to be worth having: the edges a cached region
+             * has to be able to reach are the ones into a loop, and a loop is entered from its
+             * preheader.
+             */
+            entries.clear();
+            bool reachable = true;
+
+            for(Size b = 0; b < blockList.size() && reachable; b++) {
+                if(!loops.contains(region.header, BlockIndex(b))) continue;
+
+                auto inside = a.base[blockList[b]];
+                if(!inRegion(inside)) continue;
+
+                for(auto predOffset: inside->incoming.contents(a.base)) {
+                    auto pred = a.base[predOffset];
+                    if(inRegion(pred) || !liveOnEdge(pred, inside)) continue;
+
+                    auto single = !pred->outgoing[0] || !pred->outgoing[1]
+                        || pred->outgoing[0] == pred->outgoing[1];
+
+                    if(!single && inside->incoming.size() != 1) { reachable = false; break; }
+
+                    entries.push(RegionEntry {
+                        .pred = pred, .weight = a.weightOf(pred), .predSide = single, .leaving = false,
+                    });
+                }
+
+                if(!moved) continue;
+
+                for(auto successor: inside->outgoing) {
+                    if(!successor) continue;
+
+                    auto outside = a.base[successor];
+                    if(inRegion(outside) || !liveOnEdge(inside, outside)) continue;
+
+                    auto single = !inside->outgoing[0] || !inside->outgoing[1]
+                        || inside->outgoing[0] == inside->outgoing[1];
+
+                    if(!single && outside->incoming.size() != 1) { reachable = false; break; }
+
+                    entries.push(RegionEntry {
+                        .pred = outside, .weight = a.weightOf(outside), .predSide = single, .leaving = true,
+                    });
+                }
+            }
+
+            if(!reachable || entries.isEmpty()) {
+                if(kRegionDebug) fprintf(stderr, "  REJECT %s\n", reachable ? "no-entries" : "critical-edge");
+                continue;
+            }
+
+            /*
+             * The copies at the boundary stand one block outside the region at two of the four
+             * combinations, and both of those are points the register is live at and the claim would
+             * otherwise not cover - a register handed out twice, which is the defect §5.9's own
+             * `- 1` exists against.
+             *
+             * An entry copy in a predecessor's terminator batch *writes* the register there, and the
+             * terminator then runs - so its clobbers are part of the mask too. An exit copy at a
+             * successor's head *reads* it there, where nothing has run yet and nothing can clobber.
+             */
+            U32 price = 0;
+            U32 staticPrice = 0;
+
+            for(auto& entry: entries) {
+                auto cost = entry.leaving ? kStoreCost : entryCost;
+                price += entry.weight * cost;
+                staticPrice += cost;
+
+                if(!entry.leaving && entry.predSide) {
+                    auto set = a.live.getBlock(entry.pred);
+                    ranges.push(Range { beforeInst(set->lastIndex), afterInst(set->lastIndex) + 1 });
+                    blocked |= clusterBlockedAt(a, set->lastIndex, false);
+                } else if(entry.leaving && !entry.predSide) {
+                    auto set = a.live.getBlock(entry.pred);
+                    ranges.push(Range { beforeInst(set->firstIndex), beforeInst(set->firstIndex) + 1 });
+                }
+            }
+
+            // Sorted and merged, which the terminator points above may have broken: a predecessor of
+            // a loop header sits before it in the layout, and one of a rotated loop need not.
+            for(Size i = 1; i < ranges.size(); i++) {
+                auto entry = ranges[i];
+                auto j = i;
+
+                while(j > 0 && ranges[j - 1].from > entry.from) { ranges[j] = ranges[j - 1]; j--; }
+                ranges[j] = entry;
+            }
+
+            Size merged = 0;
+
+            for(Size i = 1; i < ranges.size(); i++) {
+                if(ranges[i].from <= ranges[merged].to) {
+                    if(ranges[i].to > ranges[merged].to) ranges[merged].to = ranges[i].to;
+                } else {
+                    ranges[++merged] = ranges[i];
+                }
+            }
+
+            while(ranges.size() > merged + 1) ranges.pop();
+
+            // Both currencies, and the second is the one that refuses most of what reaches here - see
+            // RegionCandidate. Time: the weighted saving beats the weighted cost. Size: the copies do
+            // not occupy more bytes than the reads they remove, which is the unweighted comparison and
+            // the one a region's shape makes hard, since its copies stand outside the loop.
+            if(region.benefit <= price || region.staticBenefit < staticPrice) {
+                if(kRegionDebug) {
+                    fprintf(stderr, "  REJECT price benefit %u price %u static %u/%u\n",
+                        region.benefit, price, region.staticBenefit, staticPrice);
+                }
+
+                continue;
+            }
+
+            // First-fit over the same order everything else takes, so the register a region lands on
+            // is one no other web wanted over these blocks and one this function already destroys if
+            // there is any such left.
+            LiveInterval want { ranges.pointer(), U32(ranges.size()) };
+            auto found = kNoRegister;
+
+            for(Size k = 0; k < a.orderCount[bank]; k++) {
+                auto reg = PhysicalReg { bank, U16(a.order[bank][k]) };
+                if(!a.allocatable.has(reg) || blocked.has(reg)) continue;
+                if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) continue;
+                if(!a.isFree(webId, cls, reg, want)) continue;
+
+                found = a.order[bank][k];
+                break;
+            }
+
+            if(found == kNoRegister) {
+                if(kRegionDebug) fprintf(stderr, "  REJECT no-register\n");
+                continue;
+            }
+
+            auto reg = PhysicalReg { bank, U16(found) };
+            auto saved = convention.calleeSaved.has(reg) && !a.written.has(reg) ? 2 * kStoreCost : 0;
+            if(region.benefit <= price + saved) {
+                if(kRegionDebug) fprintf(stderr, "  REJECT saved-price\n");
+                continue;
+            }
+
+            if(kRegionDebug) {
+                fprintf(stderr, "REGION: web %u header %u benefit %u price %u reg %u blocks %u entries %u\n",
+                    U32(webId), U32(region.header), region.benefit, price + saved,
+                    U32(found), U32(region.blocks), U32(entries.size()));
+            }
+
+            a.occupyRanges(cls, reg, webId, ranges.pointer(), ranges.size());
+            a.written.add(reg);
+
+            // The segments are the region's *block spans* and not the claim, which is one point wider
+            // at each predecessor-side entry edge: a segment says where the value is, and at that
+            // point it is still on its way there. Blocks that are adjacent in the layout become one
+            // segment, which is what a loop usually is.
+            auto& segments = a.out.webs[webId].segments;
+            auto open = false;
+
+            for(Size b = 0; b < blockList.size(); b++) {
+                auto block = a.base[blockList[b]];
+
+                if(!inRegion(block)) { open = false; continue; }
+
+                auto set = a.live.getBlock(block);
+                auto span = Range { beforeInst(set->firstIndex), afterInst(set->lastIndex) + 1 };
+
+                if(open) {
+                    segments[segments.size() - 1].to = span.to;
+                    continue;
+                }
+
+                segments.push(AllocationSegment {
+                    .from = span.from, .to = span.to,
+                    .location = MachineLocation::physical(reg),
+                    .kind = moved ? SegmentKind::RegionMoved : SegmentKind::Region,
+                });
+
+                open = true;
+            }
+        }
+    }
+}
+
+static void splitAroundClusters(Placer& a, const Array<LiveId>& candidates) {
     auto& convention = a.constraints.getConvention(a.fun.callType);
     auto& windows = a.scratch.clusterWindows;
 
@@ -2233,9 +2766,16 @@ static void splitAroundClusters(Placer& a) {
 
         auto cls = a.out.webs[webId].regClass;
         auto bank = targetRegisters().regClass(cls).bank;
-        auto home = a.out.webs[webId].home();
+        auto home = a.out.webs[webId].home;
         auto entryCost = clusterEntryCost(home);
         windows.clear();
+
+        // A read the region pass above already put in a register is nothing this can improve, and a
+        // window over one would be a second segment of the same web overlapping the first. So it is a
+        // barrier here, exactly as a definition is.
+        auto promoted = [&](const WebRead& read) {
+            return a.out.webs[webId].segmentAt(beforeInst(read.index)) != nullptr;
+        };
 
         Size i = 0;
         while(i + 1 < reads.size()) {
@@ -2244,7 +2784,7 @@ static void splitAroundClusters(Placer& a) {
 
             // A definition is a barrier rather than a start, and so is a read at a block's first
             // instruction: the load would have to go in the previous block's terminator.
-            if(first.defines || first.index <= span.firstIndex) { i++; continue; }
+            if(first.defines || first.index <= span.firstIndex || promoted(first)) { i++; continue; }
 
             // ... as is a definition at this instruction or the one before it. The load joins the
             // previous instruction's parallel copy, which would then both read the slot and be the
@@ -2263,7 +2803,7 @@ static void splitAroundClusters(Placer& a) {
             U32 bestGain = 0;
 
             for(Size j = i; j < reads.size(); j++) {
-                if(reads[j].defines || reads[j].span != first.span) break;
+                if(reads[j].defines || reads[j].span != first.span || promoted(reads[j])) break;
 
                 auto hi = reads[j].index;
                 for(; masked < hi; masked++) crossed |= clusterBlockedAt(a, masked, false);
@@ -2297,7 +2837,10 @@ static void splitAroundClusters(Placer& a) {
                     break;
                 }
 
-                if(found == kNoRegister) continue;
+                if(found == kNoRegister) {
+                if(kRegionDebug) fprintf(stderr, "  REJECT no-register\n");
+                continue;
+            }
 
                 auto reg = PhysicalReg { bank, U16(found) };
                 auto price = convention.calleeSaved.has(reg) && !a.written.has(reg) ? 2 * kStoreCost : 0;
@@ -2313,7 +2856,7 @@ static void splitAroundClusters(Placer& a) {
             auto reg = PhysicalReg { bank, U16(best) };
             auto stretch = Range { stretchFrom, afterInst(reads[bestEnd].index) };
 
-            a.occupyStretch(cls, reg, webId, stretch);
+            a.occupyRanges(cls, reg, webId, &stretch, 1);
             a.written.add(reg);
             windows.push(ClusterWindow {
                 .range = Range { beforeInst(lo), stretch.to },
@@ -2329,36 +2872,26 @@ static void splitAroundClusters(Placer& a) {
 
         if(windows.isEmpty()) continue;
 
-        // The segment list, home and windows alternating - the same shape setSplit builds, with the
-        // home in the frame and the windows in registers rather than the other way round.
-        auto interval = a.webs[webId].interval();
+        // One segment per window: the home is already the web's and every point no window covers
+        // answers with it, including the ones past the web's last live point that a window's end may
+        // reach. Appended rather than assigned - a region segment from the pass above is a segment of
+        // this same web - and sorted afterwards, since the two kinds interleave in point order.
         auto& segments = a.out.webs[webId].segments;
-        segments.clear();
-
-        auto at = interval.first();
 
         for(auto& window: windows) {
-            // Never below: a read is at or after the web's first live point, and the second window
-            // of a web starts past the instruction the first one closed on. Equal is legal and is
-            // what a web whose life begins at its first read looks like - the home segment in front
-            // of the window is then empty, which `home()` and the segment checks both take.
-            assertTrue(window.range.from >= at);
-            segments.push(AllocationSegment { .from = at, .to = window.range.from, .location = home });
             segments.push(AllocationSegment {
-                .from = window.range.from, .to = window.range.to, .location = window.at, .cached = true,
+                .from = window.range.from, .to = window.range.to,
+                .location = window.at, .kind = SegmentKind::Cached,
             });
-
-            at = window.range.to;
         }
 
-        // The last window can end one point past the web's last live point, since it has to cover
-        // the `before` of the read that closed it and the interval ends there. The trailing home
-        // segment is then empty - and still has to exist, because `locationAt` answers every point
-        // past the end with the *last* segment's location and that answer has to be the home. It is
-        // what the boundary invariant is checked against.
-        segments.push(AllocationSegment {
-            .from = at, .to = at > interval.last() ? at : interval.last(), .location = home,
-        });
+        for(Size i = 1; i < segments.size(); i++) {
+            auto entry = segments[i];
+            auto j = i;
+
+            while(j > 0 && segments[j - 1].from > entry.from) { segments[j] = segments[j - 1]; j--; }
+            segments[j] = entry;
+        }
     }
 }
 
@@ -2416,7 +2949,7 @@ static void collectFrameObjects(Placer& a) {
 }
 
 void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
+    const Constraints& constraints, const FunctionFrequencyInfo& frequency, const LoopInfo& loops, bool framePointer,
     const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom, RegScratch& scratch,
     Placement& out)
 {
@@ -2465,11 +2998,26 @@ void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const 
 
     assertTrue(index == live.instCount); // the walk here and buildRanges' numbering must agree
 
-    // After the walk and nowhere else - see the comment on each of them. The order is the one thing
-    // that matters between the two: a whole-life register beats any number of cluster segments, so
-    // a web has to have been offered one before it is offered the other.
+    /*
+     * After the walk and nowhere else - see the comment on each of them. The order is the one thing
+     * that matters between the three, and it is one rule read twice: the coarser answer is offered
+     * first, because it is strictly better where it applies.
+     *
+     * A whole-life register beats any number of segments, so a web is offered one before either of
+     * the two below. A region covers a read in every block of a loop for one load outside it, where a
+     * cluster covers the reads of one block for a load inside it - so a region is offered before a
+     * cluster, and a read a region took is a barrier to one.
+     */
     reclaimDisplaced(a);
-    splitAroundClusters(a);
+
+    auto& homeless = a.scratch.clusterWebs;
+    collectHomelessWebs(a, homeless);
+
+    if(homeless.isNotEmpty()) {
+        collectWebReads(a, homeless);
+        promoteIntoRegions(a, homeless, loops);
+        splitAroundClusters(a, homeless);
+    }
 
     // Everything else was written straight into `out` as the walk went; these two are the placer's
     // running totals, and are only the answer once it has finished.

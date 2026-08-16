@@ -3256,11 +3256,16 @@ static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block, 
 
     auto found = regs.legalized.blocks.get(block);
     assertTrue(found.isJust());
+    auto& blockRegs = found.unwrap();
+
+    // An edge copy at this block's own entry is content like any other, and skipping the block would
+    // drop it - which is a value that never arrives rather than a jump that could have been shorter.
+    if(blockRegs.entryMoves.size() != 0) return false;
 
     // The terminator is the only entry a block with no instructions has, and a phi transfer is what
     // would be in its `moves` - see BlockRegs. For a return those moves are the copies that place
     // the returned values, which is exactly what makes such a block one that still emits something.
-    auto& termRegs = found.unwrap().insts[0];
+    auto& termRegs = blockRegs.insts[0];
     return termRegs.moves.size() == 0 && termRegs.postMoves.size() == 0;
 }
 
@@ -3821,6 +3826,16 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             (i == host || (host == blocks.size() && emitter.next == nullptr));
         emitter.ownEpilogue = ownEpilogue[i];
 
+        // The copies an edge into this block left at this end of it - see BlockRegs::entryMoves.
+        // Before the first instruction and before its own operand copies, which is what makes the
+        // location they establish the one those copies then read from.
+        //
+        // Their bytes are reported as part of the first record of the block rather than as one of
+        // their own, which is what keeps them inside the range a golden compares: they belong to no
+        // instruction, and a range nothing reports is a range no fixture can catch a change in.
+        // `blockStart` above is where they begin, `startBlock` having emitted nothing.
+        genMoves(to, frame, objects, remats, blockRegs.entryMoves);
+
         // Operand placement, the instruction itself, then result placement - uniform for every
         // instruction, so nothing that emits code has to remember to handle its own moves.
         computeFlagsRead(base, machine, b, flagsRead);
@@ -3828,7 +3843,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         for(Size j = 0; j < insts.size(); j++) {
             auto inst = base[insts[j]];
             auto& instRegs = blockRegs.insts[j];
-            auto start = U32(to.buffer.offset());
+            auto start = j == 0 ? blockStart : U32(to.buffer.offset());
 
             // §31.3: the copy and the operation as one `lea`, where the operation is one the addressing
             // unit can perform and the copy is the only thing in front of it.
@@ -3841,7 +3856,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             if(onInst) ranges.push(EmittedRange { inst, &instRegs, start, U32(to.buffer.offset()) });
         }
 
-        auto termStart = U32(to.buffer.offset());
+        auto termStart = insts.size() == 0 ? blockStart : U32(to.buffer.offset());
         auto terminator = base[b->terminator];
         auto& termRegs = blockRegs.insts[insts.size()];
 

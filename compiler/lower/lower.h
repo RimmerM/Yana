@@ -776,6 +776,11 @@ struct LowerFunction {
     // metadata, so a pass that changes either invalidates it, and one that changes neither cannot.
     FunctionFrequencyInfo buildFrequencies(LowerBase base);
 
+    // The same, over loops the caller already has. `buildLoops` is the expensive half and the x64
+    // allocator needs the answer for itself (§5.10 of codegen/x64/README.md), so the two are one
+    // walk rather than two.
+    FunctionFrequencyInfo buildFrequencies(LowerBase base, const LoopInfo& loops);
+
     StringId name {};
     LocationId source = kNullLocation;
 

@@ -1,0 +1,363 @@
+
+sink<clobber>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+callee<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+regionUnderPressure<complex>(%n: Int, %p: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    %a0 = load %p, 1: Long
+    %a1 = load %p, 8: Long
+    %a2 = load %p, 16: Long
+    %a3 = load %p, 8: Long
+    %a4 = load %p, 32: Long
+    %a5 = load %p, 8: Long
+    %a6 = load %p, 16: Long
+    %a7 = load %p, 8: Long
+    %a8 = load %p, 64: Long
+    %a9 = load %p, 8: Long
+    %target = load %p, 8: Ptr
+    %r0 = call_complex callee, %n: Int
+    jmp preloop
+  }
+
+  preloop {
+    %u0 = add %zero, %a0: Long
+    %u1 = add %u0, %a1: Long
+    %u2 = add %u1, %a2: Long
+    %u3 = add %u2, %a3: Long
+    %u4 = add %u3, %a4: Long
+    %u5 = add %u4, %a5: Long
+    %u6 = add %u5, %a6: Long
+    %u7 = add %u6, %a7: Long
+    %u8 = add %u7, %a8: Long
+    %u9 = add %u8, %a9: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [preloop, %zero], [body, %i2]: Long
+    %acc = phi [preloop, %u9], [body, %acc2]: Long
+    je %n, tail, body
+  }
+
+  body {
+    %w = load %target, 1: Long
+    %r1 = call_complex callee, %n: Int
+    %acc2 = add %acc, %w: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  tail {
+    %z = load %target, 8: Long
+    %f = add %acc, %z: Long
+    ret %f
+  }
+}
+
+regionCached<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    %r = call_clobber sink, %n: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [latch, %i2]: Long
+    %acc = phi [entry, %zero], [latch, %acc3]: Long
+    je %n, exit, first
+  }
+
+  first {
+    %a = load %p, 8: Long
+    %acc1 = add %acc, %a: Long
+    jmp second
+  }
+
+  second {
+    %b = load %q, 8: Long
+    %acc2 = add %acc1, %b: Long
+    jmp latch
+  }
+
+  latch {
+    %c = load %t, 8: Long
+    %acc3 = add %acc2, %c: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    ret %acc
+  }
+}
+
+regionMoved<complex>(%n: Int, %p: Ptr, %q: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    %r = call_clobber sink, %n: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [body, %i2]: Long
+    %acc = phi [entry, %zero], [body, %acc2]: Long
+    je %n, exit, body
+  }
+
+  body {
+    %a = load %p, 8: Long
+    %b = load %q, 8: Long
+    %s = add %a, %b: Long
+    %acc2 = add %acc, %s: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    %z = add %acc, 1: Long
+    ret %z
+  }
+}
+
+regionTooThin<complex>(%n: Int, %p: Ptr, %q: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    %r = call_clobber sink, %n: Int
+    %g = load %q, 8: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [body, %i2]: Long
+    %acc = phi [entry, %zero], [body, %acc2]: Long
+    je %n, exit, body
+  }
+
+  body {
+    %a = load %p, 8: Long
+    %acc2 = add %acc, %a: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    %z = add %acc, %g: Long
+    ret %z
+  }
+}
+
+regionLiveBlocksOnly<complex>(%n: Int, %p: Ptr, %t: Ptr): Long {
+  entry {
+    %zero = cast 0: Long
+    %r = call_clobber sink, %n: Int
+    %t1 = load %t, 8: Long
+    %t2 = load %t, 8: Long
+    %tv = add %t1, %t2: Long
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, %zero], [latch, %i2]: Long
+    %acc = phi [entry, %zero], [latch, %acc2]: Long
+    je %n, exit, first
+  }
+
+  first {
+    %x1 = add %acc, %tv: Long
+    %x2 = add %x1, %tv: Long
+    jmp latch
+  }
+
+  latch {
+    %a = load %p, 8: Long
+    %acc2 = add %x2, %a: Long
+    %i2 = add %i, 1: Long
+    jmp head
+  }
+
+  exit {
+    ret %acc
+  }
+}
+
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: callee ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: regionUnderPressure ---
+  prologue  => 535541544155415641574883ec38
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->rax]  => 8bdf488bc6
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[r12]  => 4531e4
+  load uses=[rax] creates=[rsi] post=[rsi->stack:0]  => 480fb63048893424
+  load uses=[rax] creates=[rsi] post=[rsi->stack:1]  => 488b304889742408
+  load uses=[rax] creates=[rsi] post=[rsi->stack:2]  => 488b304889742410
+  load uses=[rax] creates=[rsi] post=[rsi->stack:3]  => 488b304889742418
+  load uses=[rax] creates=[rsi] post=[rsi->stack:4]  => 488b304889742420
+  load uses=[rax] creates=[rsi] post=[rsi->stack:5]  => 488b304889742428
+  load uses=[rax] creates=[rsi] post=[rsi->stack:6]  => 488b304889742430
+  load uses=[rax] creates=[r13]  => 4c8b28
+  load uses=[rax] creates=[r14]  => 4c8b30
+  load uses=[rax] creates=[r15]  => 4c8b38
+  load uses=[rax] creates=[rbp]  => 488b28
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 8bfbe88fffffff
+  jmp uses=[] creates=[]  => 
+block preloop:
+  add uses=[rax, stack:0] creates=[rax] pre=[r12->rax]  => 498bc448030424
+  add uses=[rax, stack:1] creates=[rax]  => 4803442408
+  add uses=[rax, stack:2] creates=[rax]  => 4803442410
+  add uses=[rax, stack:3] creates=[rax]  => 4803442418
+  add uses=[rax, stack:4] creates=[rax]  => 4803442420
+  add uses=[rax, stack:5] creates=[rax]  => 4803442428
+  add uses=[rax, stack:6] creates=[rax]  => 4803442430
+  add uses=[rax, r13] creates=[rax]  => 4c01e8
+  add uses=[rax, r14] creates=[rax]  => 4c01f0
+  add uses=[r13, r15] creates=[r13] pre=[rax->r13]  => 4c8be84d01fd
+  je uses=[rbx] creates=[]  => 85db7516
+block body:
+  load uses=[rbp] creates=[r14]  => 4c0fb67500
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 8bfbe84effffff
+  add uses=[r13, r14] creates=[r13]  => 4d01f5
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12]  => 49ffc4
+  je uses=[rbx] creates=[]  => 85db74ea
+block tail:
+  x86_addr scale=1 disp=0 uses=[rbp] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[r13->rax]  => 498bc548034500
+  ret uses=[rax] creates=[]  => 4883c438415f415e415d415c5d5bc3
+
+--- codegen: regionCached ---
+  prologue  => 535541544155415641574883ec20
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rax, rdx<->rcx]  => 8bef488bc64887ca
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rsi]  => 31f6
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rbp->rdi, rax->stack:0, rcx->stack:1, rdx->stack:2, rsi->stack:3] post=[rax->rdi, stack:0->rax, stack:1->rcx, stack:2->rdx, stack:3->rsi]  => 8bfd4889042448894c240848895424104889742418e8defeffff8bf8488b0424488b4c2408488b542410488b742418
+  je uses=[rbp] creates=[]  => 85ed7516
+block #2:
+  jmp uses=[] creates=[] pre=[rsi->rdi]  => 488bfe
+block first:
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 480338
+  jmp uses=[] creates=[]  => 
+block second:
+  x86_addr scale=1 disp=0 uses=[rcx] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 480339
+  jmp uses=[] creates=[]  => 
+block latch:
+  x86_addr scale=1 disp=0 uses=[rdx] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 48033a
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => 48ffc6
+  je uses=[rbp] creates=[]  => 85ed74f0
+block #7:
+  jmp uses=[] creates=[] pre=[rdi->rsi]  => 488bf7
+block exit:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc64883c420415f415e415d415c5d5bc3
+
+--- codegen: regionMoved ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rax, rdx->rcx]  => 8bef488bc6488bca
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rdx]  => 31d2
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rbp->rdi, rax->stack:0, rcx->stack:1, rdx->stack:2] post=[rax->rsi, stack:0->rax, stack:1->rcx, stack:2->rdx]  => 8bfd4889042448894c24084889542410e863feffff8bf0488b0424488b4c2408488b542410
+  je uses=[rbp] creates=[]  => 85ed7516
+block #2:
+  jmp uses=[] creates=[] pre=[rdx->rsi]  => 488bf2
+block body:
+  load uses=[rax] creates=[rdi]  => 488b38
+  x86_addr scale=1 disp=0 uses=[rcx] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 480339
+  add uses=[rsi, rdi] creates=[rsi]  => 4801fe
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => 48ffc2
+  je uses=[rbp] creates=[]  => 85ed74f0
+block #5:
+  jmp uses=[] creates=[] pre=[rsi->rdx]  => 488bd6
+block exit:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdx->rax]  => 488d4201
+  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
+
+--- codegen: regionTooThin ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rax, rdx->stack:1]  => 8bef488bc64889542408
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rcx]  => 31c9
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rbp->rdi, rax->stack:0, rcx->stack:2] post=[rax->rdx, stack:0->rax, stack:2->rcx]  => 8bfd4889042448894c2410e8f6fdffff8bd0488b0424488b4c2410
+  load uses=[rsi] creates=[rdx] pre=[stack:1->rsi]  => 488b742408488b16
+  je uses=[rbp] creates=[]  => 85ed7510
+block #2:
+  jmp uses=[] creates=[] pre=[rcx->rdi]  => 488bf9
+block body:
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 480338
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => 48ffc1
+  je uses=[rbp] creates=[]  => 85ed74f6
+block #5:
+  jmp uses=[] creates=[] pre=[rdi->rcx]  => 488bcf
+block exit:
+  add uses=[rax, rdx] creates=[rax] pre=[rcx->rax]  => 488d0411
+  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
+
+--- codegen: regionLiveBlocksOnly ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbp, rsi->rax, rdx->stack:1]  => 8bef488bc64889542408
+block entry:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rcx]  => 31c9
+  fun uses=[] creates=[-]  => 
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rbp->rdi, rax->stack:0, rcx->stack:2] post=[rax->rdx, stack:0->rax, stack:1->rsi, stack:2->rcx]  => 8bfd4889042448894c2410e886fdffff8bd0488b0424488b742408488b4c2410
+  load uses=[rsi] creates=[rdx]  => 488b16
+  x86_addr scale=1 disp=0 uses=[rsi] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx]  => 480316
+  je uses=[rbp] creates=[]  => 85ed7516
+block #2:
+  jmp uses=[] creates=[] pre=[rcx->rsi]  => 488bf1
+block first:
+  add uses=[rsi, rdx] creates=[rsi]  => 4801d6
+  add uses=[rsi, rdx] creates=[rsi]  => 4801d6
+  jmp uses=[] creates=[]  => 
+block latch:
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => 480330
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx]  => 48ffc1
+  je uses=[rbp] creates=[]  => 85ed74f0
+block #6:
+  jmp uses=[] creates=[] pre=[rsi->rcx]  => 488bce
+block exit:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c418415f415e415d415c5d5bc3
