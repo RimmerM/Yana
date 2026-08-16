@@ -8,26 +8,26 @@ function checkCondition(failed) {
 
 function sumVectors_Array_Int_Int(xs) {
   var acc = [0, 0, 0, 0];
-  var v198 = xs.length;
-  var v199 = xs.items;
+  var v60 = xs.length;
+  var v61 = xs.items;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v198) {
-      var v115 = loadVector_Int(v199, v198, 0, i);
-      acc = [acc[0] + v115[0] | 0, acc[1] + v115[1] | 0, acc[2] + v115[2] | 0, acc[3] + v115[3] | 0];
+    if ((i + 4 | 0) <= v60) {
+      var v124 = loadVector_Int(v61, v60, 0, i);
+      acc = [acc[0] + v124[0] | 0, acc[1] + v124[1] | 0, acc[2] + v124[2] | 0, acc[3] + v124[3] | 0];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
-  if (i < v198) {
-    var v75 = v198 - i | 0;
-    var live$0 = 0 < v75;
-    var live$1 = 1 < v75;
-    var live$2 = 2 < v75;
-    var live$3 = 3 < v75;
-    var v91 = loadVectorTail_Int(v199, v198, 0, i);
-    acc = [acc[0] + (live$0 ? v91[0] : 0) | 0, acc[1] + (live$1 ? v91[1] : 0) | 0, acc[2] + (live$2 ? v91[2] : 0) | 0, acc[3] + (live$3 ? v91[3] : 0) | 0];
+  if (i < v60) {
+    var v84 = v60 - i | 0;
+    var live$0 = 0 < v84;
+    var live$1 = 1 < v84;
+    var live$2 = 2 < v84;
+    var live$3 = 3 < v84;
+    var v100 = loadVectorTail_Int(v61, v60, 0, i);
+    acc = [acc[0] + (live$0 ? v100[0] : 0) | 0, acc[1] + (live$1 ? v100[1] : 0) | 0, acc[2] + (live$2 ? v100[2] : 0) | 0, acc[3] + (live$3 ? v100[3] : 0) | 0];
   }
   return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
 }
@@ -55,22 +55,22 @@ function productVectors_Array_Int_Int(xs) {
   var ones$2 = 1;
   var ones$3 = 1;
   var acc = [1, 1, 1, 1];
-  var v59 = xs.length;
-  var v60 = xs.items;
+  var v46 = xs.length;
+  var v47 = xs.items;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v59) {
-      var v111 = loadVector_Int(v60, v59, 0, i);
-      acc = [Math.imul(acc[0], true ? v111[0] : ones$0), Math.imul(acc[1], true ? v111[1] : ones$1), Math.imul(acc[2], true ? v111[2] : ones$2), Math.imul(acc[3], true ? v111[3] : ones$3)];
+    if ((i + 4 | 0) <= v46) {
+      var v110 = loadVector_Int(v47, v46, 0, i);
+      acc = [Math.imul(acc[0], true ? v110[0] : ones$0), Math.imul(acc[1], true ? v110[1] : ones$1), Math.imul(acc[2], true ? v110[2] : ones$2), Math.imul(acc[3], true ? v110[3] : ones$3)];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
-  if (i < v59) {
-    var v86 = loadVectorTail_Int(v60, v59, 0, i);
-    var v87 = v59 - i | 0;
-    acc = [Math.imul(acc[0], 0 < v87 ? v86[0] : ones$0), Math.imul(acc[1], 1 < v87 ? v86[1] : ones$1), Math.imul(acc[2], 2 < v87 ? v86[2] : ones$2), Math.imul(acc[3], 3 < v87 ? v86[3] : ones$3)];
+  if (i < v46) {
+    var v85 = loadVectorTail_Int(v47, v46, 0, i);
+    var v86 = v46 - i | 0;
+    acc = [Math.imul(acc[0], 0 < v86 ? v85[0] : ones$0), Math.imul(acc[1], 1 < v86 ? v85[1] : ones$1), Math.imul(acc[2], 2 < v86 ? v85[2] : ones$2), Math.imul(acc[3], 3 < v86 ? v85[3] : ones$3)];
   }
   return (acc[0] * acc[1] | 0) * (acc[2] * acc[3] | 0) | 0;
 }
@@ -160,43 +160,43 @@ function indexOfVectors_Array_Int_Int(xs, wanted) {
 
 function sumVectors_Array_Float_Float(xs) {
   var acc = [0, 0, 0, 0];
-  var v240 = xs.length;
-  var v241 = xs.items;
+  var v60 = xs.length;
+  var v61 = xs.items;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v240) {
-      acc = [Math.fround(acc[0] + v241[i]), Math.fround(acc[1] + v241[i + 1 | 0]), Math.fround(acc[2] + v241[i + 2 | 0]), Math.fround(acc[3] + v241[i + 3 | 0])];
+    if ((i + 4 | 0) <= v60) {
+      acc = [Math.fround(acc[0] + v61[i]), Math.fround(acc[1] + v61[i + 1 | 0]), Math.fround(acc[2] + v61[i + 2 | 0]), Math.fround(acc[3] + v61[i + 3 | 0])];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
-  if (i < v240) {
-    var v84 = Math.fround(v240 - i | 0);
-    var live$0 = 0 < v84;
-    var live$1 = 1 < v84;
-    var live$2 = 2 < v84;
-    var live$3 = 3 < v84;
-    var v138 = v240 - 1;
-    var v141 = v241[i > v138 ? v138 : i];
-    var v144 = i + 1 | 0;
-    var v147 = v241[v144 > v138 ? v138 : v144];
-    var v150 = i + 2 | 0;
-    var v153 = v241[v150 > v138 ? v138 : v150];
-    var v156 = i + 3 | 0;
-    var v159 = v241[v156 > v138 ? v138 : v156];
-    acc = [Math.fround(acc[0] + (live$0 ? v141 : 0)), Math.fround(acc[1] + (live$1 ? v147 : 0)), Math.fround(acc[2] + (live$2 ? v153 : 0)), Math.fround(acc[3] + (live$3 ? v159 : 0))];
+  if (i < v60) {
+    var v93 = Math.fround(v60 - i | 0);
+    var live$0 = 0 < v93;
+    var live$1 = 1 < v93;
+    var live$2 = 2 < v93;
+    var live$3 = 3 < v93;
+    var v147 = v60 - 1;
+    var v150 = v61[i > v147 ? v147 : i];
+    var v153 = i + 1 | 0;
+    var v156 = v61[v153 > v147 ? v147 : v153];
+    var v159 = i + 2 | 0;
+    var v162 = v61[v159 > v147 ? v147 : v159];
+    var v165 = i + 3 | 0;
+    var v168 = v61[v165 > v147 ? v147 : v165];
+    acc = [Math.fround(acc[0] + (live$0 ? v150 : 0)), Math.fround(acc[1] + (live$1 ? v156 : 0)), Math.fround(acc[2] + (live$2 ? v162 : 0)), Math.fround(acc[3] + (live$3 ? v168 : 0))];
   }
   return Math.fround(Math.fround(acc[0] + acc[1]) + Math.fround(acc[2] + acc[3]));
 }
 
 function occurrencesElements_Array_String_String(xs, wanted) {
   var total = 0;
-  var v89 = xs.length;
+  var v33 = xs.length;
   var i = 0;
   L0: for (;;) {
-    if (i < v89) {
-      checkCondition(i >>> 0 >= v89);
+    if (i < v33) {
+      checkCondition(i >>> 0 >= v33);
       if (xs[i] === wanted) {
         total = total + 1 | 0;
       }

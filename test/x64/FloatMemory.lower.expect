@@ -180,11 +180,10 @@ block #1:
   imm uses=[] creates=[remat:2]  => 
   cmp_uno uses=[xmm1, xmm1] creates=[-]  => 660f2ec9
   select uses=[rdx, rcx, -] creates=[rdx] pre=[remat:2->rdx]  => ba00000000480f4bd1
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[remat:3]  => 
-  imm uses=[] creates=[remat:4]  => 
-  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:3->xmm7]  => f20f103df1010000660f2ecf
-  select uses=[rcx, rdx, -] creates=[rcx] pre=[remat:4->rcx]  => 48b9ffffffffffffff7f480f42ca
+  imm uses=[] creates=[remat:3]  => 
+  x86_addr [rip + $f064$43e0000000000000] uses=[] creates=[-]  => 
+  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0de1010000
+  select uses=[rcx, rdx, -] creates=[rcx] pre=[remat:3->rcx]  => 48b9ffffffffffffff7f480f42ca
   sext uses=[rax] creates=[rax]  => 4863c0
   add uses=[rax, rcx] creates=[rax]  => 4801c8
   ret uses=[rax] creates=[]  => c3
@@ -202,11 +201,10 @@ block #1:
   ftoi uses=[xmm1] creates=[rax]  => f2480f2cc1
   cast uses=[rax] creates=[rax]  => 
   select uses=[rax, rdi, -] creates=[rax] pre=[remat:0->rdi]  => bf000000000f42c7
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[remat:1]  => 
-  imm uses=[] creates=[remat:2]  => 
-  cmp_ge uses=[xmm1, xmm7] creates=[-] pre=[remat:1->xmm7]  => f20f103db4010000660f2ecf
-  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:2->rcx]  => b9ffffffff0f42c8
+  imm uses=[] creates=[remat:1]  => 
+  x86_addr [rip + $f064$41f0000000000000] uses=[] creates=[-]  => 
+  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0da4010000
+  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:1->rcx]  => b9ffffffff0f42c8
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
 --- codegen: unsigned64 ---
@@ -227,7 +225,7 @@ block #1:
   imm uses=[] creates=[xmm0]  => 0f57c0
   cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c0660f2ed00f93c0
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm0]  => f20f100546010000
+  load uses=[-] creates=[xmm0]  => f20f100536010000
   sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf20f5cc8
   ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
   imm uses=[] creates=[remat:0]  => 
@@ -237,11 +235,10 @@ block #1:
   select uses=[rcx, rdx, -] creates=[rcx]  => 480f42ca
   imm uses=[] creates=[remat:1]  => 
   select uses=[rcx, rdi, rax] creates=[rcx] pre=[remat:1->rdi]  => bf0000000085c0480f44cf
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[remat:2]  => 
-  imm uses=[] creates=[remat:3]  => 
-  cmp_ge uses=[xmm2, xmm7] creates=[-] pre=[remat:2->xmm7]  => f20f103d2d010000660f2ed7
-  select uses=[rax, rcx, -] creates=[rax] pre=[remat:3->rax]  => 48c7c0ffffffff480f42c1
+  imm uses=[] creates=[remat:2]  => 
+  x86_addr [rip + $f064$43f0000000000000] uses=[] creates=[-]  => 
+  cmp_ge uses=[xmm2, -] creates=[-]  => 660f2e151d010000
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:2->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: unsigned64Float ---

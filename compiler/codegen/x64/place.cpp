@@ -169,6 +169,10 @@ struct WebInfo {
     MachineLocation preferred;
     U32 preferredWeight = 0;
 
+    // Whether anything in the function reads a member of this web. A web nothing reads is given no
+    // home at all - see markReadWebs and placeInst.
+    bool anyRead = false;
+
     LiveInterval interval() const { return intervalOf(ranges); }
 
     // What losing its register would actually cost this web, which is whichever of the two homeless
@@ -187,6 +191,7 @@ struct WebInfo {
         canRemat = false;
         preferred = MachineLocation::invalid();
         preferredWeight = 0;
+        anyRead = false;
     }
 };
 
@@ -1881,12 +1886,74 @@ static MachineLocation copyHint(Placer& a, LowerInst* inst, U32 index, Size oper
     return a.homeOfWeb(webId);
 }
 
+/*
+ * Which webs anything in the function reads.
+ *
+ * A web nothing reads is given no home, exactly as an argument nothing reads is (`placeArgs`), and
+ * for the same reason: a home is a location held from the definition, and a definition whose value
+ * is never looked at has nothing to hold it for. What it costs where it is not free is a copy - a
+ * call whose return value is discarded is written into rax by the convention and then carried into
+ * whatever register the walk gave the result, which is an instruction emitted to produce a value the
+ * program does not have a use for.
+ *
+ * The liveness cannot answer this on its own. A definition nothing reads still gets a range, of zero
+ * length at its own instruction - `buildRanges` ends a range at the last *mention* and a definition
+ * is one - so an empty interval is not what a dead result has, and `uses` is where the fact is.
+ *
+ * Asked per web rather than per value, because a value that is never read on its own may still be one
+ * definition of a quantity that is: a result coalesced with a phi, or with the source of a copy, is
+ * the everyday case. One read anywhere in the web is a home for all of it.
+ */
+static void markReadWebs(Placer& a) {
+    auto note = [&](LowerPtr<LowerValue> used) {
+        auto v = a.base[used];
+        if(isImplicit(v) || v->liveId() == kNullLive) return;
+
+        a.webs[a.webIdOf(v)].anyRead = true;
+    };
+
+    for(auto offset: a.fun.blocks.contents(a.base)) {
+        auto block = a.base[offset];
+
+        // A phi's operands are read on the edges rather than in the block holding it, which makes no
+        // difference here: what is being collected is whether the value is read at all.
+        for(auto p: block->phis.contents(a.base)) {
+            for(auto u: a.base[p]->used()) note(u);
+        }
+
+        for(auto i: block->instructions.contents(a.base)) {
+            for(auto u: a.base[i]->used()) note(u);
+        }
+
+        for(auto u: a.base[block->terminator]->used()) note(u);
+    }
+}
+
 static void placeInst(Placer& a, LowerInst* inst, U32 index) {
     Scratch<InstShape> held(a.shapes);
     auto& shape = *held;
     shapeOf(a.base, a.machine, a.constraints, a.fun, inst, shape);
     auto used = inst->used();
     auto created = inst->created();
+
+    /*
+     * A result nothing reads, produced where the encoding insists on producing it.
+     *
+     * Such a value is given no home at all - see markReadWebs - so legalization writes it into the
+     * register the form names and carries it nowhere. A call whose return value is discarded is the
+     * whole of what this is for: the convention puts it in rax, and a home anywhere else is a copy
+     * out of rax emitted to preserve a value the program has no use for.
+     *
+     * **Only where the form names a register**, which is what keeps this from needing anything held
+     * back. A result the form has no opinion about would have to be written *somewhere*, and the only
+     * somewhere left is a scratch register - which is a register reserved over the whole function so
+     * that a dead value has a place to be discarded into, and that is a worse trade than the copy.
+     * The same argument rules out the destructive case, where the tied operand is copied into the
+     * result's register in front of the instruction: with no home there is nothing to copy it into.
+     */
+    auto unreadAtFixedRegister = [&](LowerValue& v, Size i) {
+        return !a.webs[a.webIdOf(&v)].anyRead && wantForResult(shape, i).isValid();
+    };
 
     // Which operand the result is written over, if any. Almost every form here ties operand zero -
     // two-address arithmetic reads and writes its first source - but `pblendvb` preserves its
@@ -1938,6 +2005,7 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
         auto& v = created[i];
         if(isImplicit(&v)) continue;
         if(i == 0 && tiedPlaced) continue;
+        if(unreadAtFixedRegister(v, i)) continue;
 
         auto want = wantForResult(shape, i);
         a.assign(&v, RegSet {}, want.isValid() ? want : copyHint(a, inst, index));
@@ -2963,6 +3031,7 @@ void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const 
     // dodge, since they share a location. Costs after both, since a web is what carries them and an
     // in-place read-modify-write is a property of two values being one web.
     buildWebs(a);
+    markReadWebs(a);
     computeAvoidSets(a);
     computeSpillCosts(a);
 

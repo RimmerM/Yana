@@ -166,30 +166,46 @@ firstOf<complex>(%m: Ptr): Int {
   }
 }
 
-wrap<complex>(%v_0: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = cmp_igt %value, 0: Int
-    je %v_2, b_3, b_4
+viaCall<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %value, 0: Int
+    je %v_1, b_2, b_3
   }
 
   b_3 {
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, %value, 4
-    jmp b_7
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 0, 4
+    jmp b_5
   }
 
-  b_4 {
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 0, 4
-    jmp b_7
+  b_2 {
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, %value, 4
+    jmp b_5
   }
 
-  b_7 {
-    %v_9 = phi [b_3, %v_5], [b_4, %v_8]: Ptr
-    copy %v_0, %v_9, 8
-    ret 
+  b_5 {
+    %v_8 = phi [b_2, %v_6], [b_3, %v_4]: Ptr
+    %v_9 = load %v_8, 4: Int
+    %v_10 = add %v_8, 4: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cmp_eq %v_9, 1: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_13 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_13, %v_11], [b_14, 0]: Int
+    ret %v_16
   }
 }
 
@@ -277,48 +293,12 @@ main<complex>(): Int {
     %v_56 = imul %v_55, 100: Int
     %v_57 = add %v_53, %v_56: Int
     %v_58 = add %v_57, 256: Int
-    %v_59 = alloca 8, 4: Ptr
-    call_complex wrap, %v_59, 128
-    %v_60 = loads %v_59, 4: Int
-    %v_61 = cmp_eq %v_60, 1: Int
-    je %v_61, b_62, b_63
-  }
-
-  b_63 {
-    jmp b_64
-  }
-
-  b_62 {
-    %v_65 = add %v_59, 4: Ptr
-    %v = loads %v_65, 4: Int
-    jmp b_64
-  }
-
-  b_64 {
-    %v_66 = phi [b_62, %v], [b_63, 0]: Int
-    %v_67 = add %v_58, %v_66: Int
-    %v_68 = alloca 8, 4: Ptr
-    call_complex wrap, %v_68, 0
-    %v_69 = loads %v_68, 4: Int
-    %v_70 = cmp_eq %v_69, 1: Int
-    je %v_70, b_71, b_72
-  }
-
-  b_72 {
-    jmp b_73
-  }
-
-  b_71 {
-    %v_74 = add %v_68, 4: Ptr
-    %v = loads %v_74, 4: Int
-    jmp b_73
-  }
-
-  b_73 {
-    %v_75 = phi [b_71, %v], [b_72, 0]: Int
-    %v_76 = imul %v_75, 100: Int
-    %v_77 = add %v_67, %v_76: Int
-    ret %v_77
+    %v_59 = call_complex viaCall, 128: Int
+    %v_60 = add %v_58, %v_59: Int
+    %v_61 = call_complex viaCall, 0: Int
+    %v_62 = imul %v_61, 100: Int
+    %v_63 = add %v_60, %v_62: Int
+    ret %v_63
   }
 }
 

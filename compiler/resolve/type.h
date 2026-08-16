@@ -1301,15 +1301,20 @@ struct ScalarTypes {
     TypePtr stringContent = nullptr;
 
     /*
-     * `U8`, `U16`, `U32` and `U64`, indexed by the logarithm of their byte width.
+     * `I8`, `I16`, `I32` and `I64`, indexed by the logarithm of their byte width.
      *
-     * Here for one reader: a mask's identity is its lane width and lane count rather than the
-     * element it was produced from (Design-Vector §2.4), so `resolveVectorType` normalizes a mask's
-     * content to the unsigned integer of that width and `Mask(Float)` and `Mask(I32)` become one
-     * interned type. That normalization can be asked for from any module, and only Core knows these
-     * types by name.
+     * Here for one reader, and it is a *lane number* rather than a lane: `maskUpTo` compares the
+     * lane indices against the live count, and both of those are small exact integers whatever the
+     * vector is over - so the comparison is built at the lane's width in the integer domain and the
+     * mask reinterpreted, rather than converted into the lane's own type and compared there. Signed
+     * rather than unsigned because that is the relation the machines have: an unsigned packed
+     * comparison is a bias and two exclusive-ors on x64, and nothing here is ever negative.
+     *
+     * Asked for from any module - the intrinsic runs where the call is - and only Core knows these
+     * types by name. It replaces an unsigned family that was left behind when a mask stopped
+     * normalizing its element (see `resolveVectorType`) and that nothing had read since.
      */
-    TypePtr unsignedLanes[4] = {};
+    TypePtr signedLanes[4] = {};
 };
 
 // The five Core classes the resolver has to know by name rather than by lookup, because the

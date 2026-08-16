@@ -656,7 +656,14 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // a temporary and copied there. Which of those temporaries the value could have been built
         // in directly is a question about storage rather than about ownership, which is why it is
         // asked here rather than in opt_scalar.cpp. See lower_forward.h.
-        forwardCopyDestinations(lower.lower, *target);
+        //
+        // Handed the hidden result pointer, where this function has one, so that a copy into it from a
+        // temporary a call filled can be forwarded - see lower_forward.h, which is the whole of why
+        // this pass needs to be told which parameter that is.
+        auto placeOf = lower.returnPlaces.getValue(functionPointer);
+        auto returnPlace = placeOf ? placeOf.unwrap() : LowerPtr<LowerValue>(nullptr);
+
+        forwardCopyDestinations(lower.lower, *target, returnPlace);
 
         // Then the slots that are still whole aggregates, cut into the fields their own accesses
         // name - see lower_split.h. Behind the forwarding, which has already removed the copies with
@@ -678,7 +685,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // shape; the second run is a per-block scan over a function most of whose copies the first
         // run already took, and it is what the first run cannot be moved behind, since promotion has
         // strictly less to do for every copy that has already gone.
-        forwardCopyDestinations(lower.lower, *target);
+        forwardCopyDestinations(lower.lower, *target, returnPlace);
 
         // Then the calls this function makes to itself with nothing left to do afterwards, which
         // become a loop round its own body - see lower_tail.h. Behind the promotion, because what
@@ -708,6 +715,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // folds against it.
         threadDecidedBranches(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // And the counters a loop carries two of because two things wanted one - see lower_cse.h.
+        // In front of the analysis below rather than beside the CSE, because what it leaves is one
+        // value where there were two and everything computed from either of them is then a pair the
+        // CSE collects. It removes phis and the steps they held alive, and no blocks, so the loop
+        // structure built below is the same one either way.
+        mergeCongruentPhis(lower.lower, lower.to, *target);
 
         /*
          * And the five passes that read the loop structure and the dominator tree, which is one
@@ -740,11 +754,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // below are the ones paying for the answer being right.
         if(rewired) analysis.rebuild(lower.lower, *target);
 
-        // And the reads a loop repeats because its address does not change and nothing in it writes
-        // - see lower_licm.h, and §10 item 1 of test/bench/findings.md for why the resolve-tier
-        // hoister above cannot reach these. Behind the CSE so that a loop reading one address twice
-        // is shown one load.
-        hoistLoopLoads(lower.lower, lower.to, *target, analysis);
+        // And what a loop repeats because it was written inside it - the reads whose address does
+        // not change while nothing in the loop writes, and the arithmetic whose operands do not
+        // change at all. See lower_licm.h, and §10 item 1 and §50.2 of test/bench/findings.md for
+        // why the resolve-tier hoister above cannot reach either. Behind the CSE so that a loop
+        // reading one address twice is shown one load.
+        hoistLoopInvariants(lower.lower, lower.to, *target, analysis);
 
         // The multiply that is left because its other operand is the loop's own counter, which is
         // not a strength reduction of one operation into another but of a whole recurrence - see

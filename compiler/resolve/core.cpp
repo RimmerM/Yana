@@ -1043,16 +1043,16 @@ void defineCore(Program& program) {
      * `targetVectorBytes` rather than from a body. `resolveApp` recognizes the names; see
      * Program::vecTypeName for what reserving them costs.
      *
-     * The unsigned family beside them is what a mask's element is normalized to, which is how
-     * `Mask(Float)` and `Mask(I32)` become one interned type (§2.4).
+     * The signed family beside them is the integer of each lane width, which is what a lane *number*
+     * is counted in - see `ScalarTypes::signedLanes` and `maskUpTo`.
      */
     program.vecTypeName = context.addQualifiedName("Vec", 3, 1);
     program.maskTypeName = context.addQualifiedName("Mask", 4, 1);
 
-    program.scalar.unsignedLanes[0] = coreType(*module, "U8"_v);
-    program.scalar.unsignedLanes[1] = coreType(*module, "U16"_v);
-    program.scalar.unsignedLanes[2] = coreType(*module, "U32"_v);
-    program.scalar.unsignedLanes[3] = coreType(*module, "U64"_v);
+    program.scalar.signedLanes[0] = coreType(*module, "I8"_v);
+    program.scalar.signedLanes[1] = coreType(*module, "I16"_v);
+    program.scalar.signedLanes[2] = coreType(*module, "I32"_v);
+    program.scalar.signedLanes[3] = coreType(*module, "I64"_v);
 
     resolveModuleDecls(*module, *ast, nullptr);
 

@@ -333,14 +333,12 @@ captured<complex>(%v_0: Ptr, %h: Ptr) {
 
 retag<complex>(%v_0: Ptr, %p: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = add %p, 8: Ptr
-    %v_4 = loads %v_3, 8: Long
-    %v_5 = add %v_4, 1: Long
-    call_complex moveInit$Pair, %v_2, %p
-    %v_6 = add %v_2, 8: Ptr
-    store %v_6, %v_5, 8
-    copy %v_0, %v_2, 16
+    %v_2 = add %p, 8: Ptr
+    %v_3 = loads %v_2, 8: Long
+    %v_4 = add %v_3, 1: Long
+    call_complex moveInit$Pair, %v_0, %p
+    %v_5 = add %v_0, 8: Ptr
+    store %v_5, %v_4, 8
     ret 
   }
 }
@@ -636,18 +634,14 @@ ResolveTest.lambda$14<complex>(%env: Ptr): Long {
 
 relocate(Handle)<complex>(%v_0: Ptr, %x: Ptr) {
   b_1 {
-    %y = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %y, %x
-    copy %v_0, %y, 8
+    call_complex Sink(Handle).sink, %v_0, %x
     ret 
   }
 }
 
 relocate(Pair)<complex>(%v_0: Ptr, %x: Ptr) {
   b_1 {
-    %y = alloca 16, 8: Ptr
-    call_complex moveInit$Pair, %y, %x
-    copy %v_0, %y, 16
+    call_complex moveInit$Pair, %v_0, %x
     ret 
   }
 }

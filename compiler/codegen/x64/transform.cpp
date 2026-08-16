@@ -2440,6 +2440,154 @@ static LowerValue* placeSharedMaskBits(LowerBase base, LowerFunction& fun, Lower
 }
 
 /*
+ * §52 A mask two arms join, read as the bits its two arms already computed.
+ *
+ * `if any(hits) then return at + firstSet(hits)` written in a loop *and* in the tail after it is two
+ * such tests branching into one block, and the merge of the two arms is a phi of the two masks:
+ *
+ *   b_loop: %h1 = cmp ... ; %b1 = movmsk %h1 ; test %b1 ; jne b_hit
+ *   b_tail: %h2 = and ... ; %b2 = movmsk %h2 ; test %b2 ; jne b_hit
+ *   b_hit:  %h  = phi [b_loop, %h1], [b_tail, %h2]
+ *           %b  = movmsk %h                        <- a third movemask of a mask already measured
+ *           bsf (%b | sentinel)
+ *
+ * §37 places one movemask per mask and that is exactly what it did here: three masks, three
+ * movemasks. What it cannot see is that the third is a *join* of the other two - and a movemask
+ * distributes over one, because it is a function of its operand alone. So the phi moves into the
+ * scalar domain: `%b = phi [b_loop, %b1], [b_tail, %b2]`, and the vector phi dies with it.
+ *
+ * **Each alternative's bits are reused rather than computed**, which is what makes this free rather
+ * than a trade. An arm that branches here on `any` has measured its own mask to do it, so the bits
+ * this joins are the ones the guard already holds - `existingMaskBits` finds that movemask, and a
+ * placement below the definition is the fallback for an arm whose own reduction has not been reached
+ * yet. Either way no movemask is added; one is removed, and the phi that replaces it holds a general
+ * register where the old one held a vector across the join.
+ *
+ * The bits of a *complemented* mask (§45.3) are the complement of the bits asked about, so the
+ * alternatives have to agree about that: the flag is carried out to the caller, which records it for
+ * the joined value exactly as it would for a shared one. Disagreement is a refusal rather than an
+ * exclusive-or per arm, since nothing produces one - a complement comes from the shape of the
+ * comparison, and the arms of a search are the same shape.
+ */
+
+// A movemask of this mask that every reader of the mask can see. Only one in the definition's own
+// block is accepted: the definition dominates wherever the mask is live, so a movemask beside it
+// does too, and one *elsewhere* would need the dominator tree to justify.
+static LowerValue* existingMaskBits(LowerBase base, LowerValue* mask) {
+    for(auto use: mask->uses.contents(base)) {
+        auto inst = base[use];
+        if(inst->kind != LowerInst::VecReduce) continue;
+        if(((LowerInstVecReduce*)inst)->getReduce() != LowerReduce::Bits) continue;
+        if(base[inst->block] != base[mask->inst()->block]) continue;
+
+        return &((LowerInstVecReduce*)inst)->result;
+    }
+
+    return nullptr;
+}
+
+// Whether any reduction reads this mask through the movemask - which is what says that a movemask
+// placed for it now is work an expansion below was going to do anyway.
+static bool hasMaskBitsReader(LowerBase base, LowerValue* mask) {
+    for(auto use: mask->uses.contents(base)) {
+        if(maskBitsSource(base, base[use]) == mask) return true;
+    }
+
+    return false;
+}
+
+/*
+ * The mask sources a function's reductions have settled, and how each was settled.
+ *
+ * A function has a handful of these at most - one per mask a search or a tally reads - so the lookup
+ * is a walk rather than a map. `bits` is the movemask placed once where every consumer can see it,
+ * where one was placed at all; `complemented` says the comparison under it was rewritten to the
+ * relation the machine has (§45.3), so the bits every consumer reads are the opposite of the ones it
+ * asked about. An entry may carry the second without the first.
+ */
+struct SharedMaskBits {
+    LowerValue* source;
+    LowerValue* bits;
+    bool complemented;
+};
+
+using SharedMaskList = SmallArray<SharedMaskBits, 8>;
+
+static LowerValue* placeJoinedMaskBits(LowerBase base, LowerFunction& fun, LowerValue* source,
+                                       SharedMaskList& shared, bool& complemented)
+{
+    auto phi = (LowerInstPhi*)source->inst();
+    auto block = base[phi->block];
+    auto count = Size(phi->usedCount);
+
+    // The bits each alternative contributes, null where one is still to be placed. Every alternative
+    // is settled before *any* movemask is placed, because a refusal after the first would leave the
+    // arm's own bits somewhere the arm did not choose.
+    SmallArray<LowerValue*, 8> alternatives;
+    auto complementedAll = false;
+
+    for(Size i = 0; i < count; i++) {
+        auto incoming = base[phi->used()[i]];
+        if(!incoming->type.isMask()) return nullptr;
+
+        LowerValue* bits = nullptr;
+        auto flipped = false;
+
+        for(auto& entry: shared) {
+            if(entry.source != incoming) continue;
+
+            bits = entry.bits;
+            flipped = entry.complemented;
+            break;
+        }
+
+        if(!bits) bits = existingMaskBits(base, incoming);
+
+        if(!bits) {
+            LowerBlock* at = nullptr;
+            Size index = 0;
+
+            // An alternative no reduction reads is one whose movemask would be new work, and the
+            // join saves exactly one - so paying for it per arm is a trade rather than a saving. One
+            // with nowhere to put a movemask is an argument, which `positionBelowDefinition` refuses
+            // for reasons of its own.
+            if(!hasMaskBitsReader(base, incoming)) return nullptr;
+            if(!positionBelowDefinition(base, incoming, at, index)) return nullptr;
+        }
+
+        if(i && flipped != complementedAll) return nullptr;
+
+        complementedAll = flipped;
+        alternatives.push(bits);
+    }
+
+    for(Size i = 0; i < count; i++) {
+        if(alternatives[i]) continue;
+
+        auto incoming = base[phi->used()[i]];
+        alternatives[i] = placeSharedMaskBits(base, fun, incoming);
+
+        // Recorded, so that the arm's own reduction reads this movemask rather than emitting a
+        // second one where it stands - which is what makes the placement free.
+        shared.push(SharedMaskBits { incoming, alternatives[i], false });
+    }
+
+    auto joined = makePhi(fun.arena, LowerType::Int32, U32(count));
+    auto used = joined->used();
+    auto sources = joined->sources();
+
+    for(Size i = 0; i < count; i++) {
+        used[i] = alternatives[i] - base;
+        sources[i] = phi->sources()[i];
+    }
+
+    block->addInst(base, joined);
+
+    complemented = complementedAll;
+    return &joined->result;
+}
+
+/*
  * `none`, which arrives as `any` and a negation and leaves as one comparison.
  *
  * The library writes `none(m)` as `any(m)` exclusive-ored with one - the negation of a `Bool` is
@@ -2829,6 +2977,10 @@ static bool foldComplementedCompare(LowerBase base, LowerValue* source) {
     return true;
 }
 
+// A phi this file emptied, taken back out - defined with the rotation's own phi helpers below, and
+// read here because a joined mask leaves one behind.
+static bool dropUnusedPhi(LowerBase base, LowerBlock* block, LowerInstPhi*& phi);
+
 static void pushFusedRange(InstChain& dead, const LaneRange& range) {
     dead.push(range.combine);
     dead.push(range.compare);
@@ -2837,18 +2989,14 @@ static void pushFusedRange(InstChain& dead, const LaneRange& range) {
 }
 
 static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) {
-    /*
-     * The mask sources this walk has settled, and how it settled them. A function has a handful of
-     * these at most - one per mask a search or a tally reads - so the lookup is a walk rather than a
-     * map.
-     *
-     * `bits` is the movemask placed once below the mask's definition, where one was placed at all;
-     * `complemented` says the comparison under it was rewritten to the relation the machine has
-     * (§45.3), so the bits every consumer reads are the opposite of the ones it asked about. An
-     * entry may carry the second without the first.
-     */
-    struct SharedBits { LowerValue* source; LowerValue* bits; bool complemented; };
-    SmallArray<SharedBits, 8> shared;
+    // What this walk has settled, per mask - see SharedMaskBits, which the joined placement below
+    // reads and writes as well.
+    SharedMaskList shared;
+
+    // The mask phis a joined placement emptied, swept once the walk is done: each loses its last
+    // reader when the reduction that read it is expanded, and a phi nothing reads is still a live
+    // range the allocator would carry a vector register through the join for.
+    SmallArray<LowerInstPhi*, 4> joined;
 
     /*
      * What a fused lane range leaves behind: the `and`, the comparison that built the range, the
@@ -2862,6 +3010,21 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
      */
     InstChain dead;
 
+    /*
+     * The function is walked twice, and what the second pass is for is the *joins* - a reduction
+     * whose mask is a phi, which §52's placement answers out of the bits its alternatives already
+     * hold. Those bits are what an arm's own guard computed, and an arm below this one in the block
+     * order has not been expanded when the join is reached: taken in one pass, the join would find
+     * nothing to reuse in half of its predecessors and would place a movemask that the arm was about
+     * to place for itself.
+     *
+     * Nothing else about the two passes differs, and there is no third: a *chain* of joins - a mask
+     * phi whose own alternative is one - settles in whichever order the second pass reaches them,
+     * and both orders are right. One that has already been joined is in `shared` and its bits are
+     * reused; one that has not is measured where it stands, which is the movemask its own reduction
+     * was going to place anyway.
+     */
+    for(Size pass = 0; pass < 2; pass++)
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -2879,6 +3042,10 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
             // because the walk placed it: a mask defined in this block by an instruction above this
             // one is where a shared movemask goes, and expanding it again would not terminate.
             if(reduce->getReduce() == LowerReduce::Bits) { i++; continue; }
+
+            // Which pass this reduction belongs to - see above.
+            auto join = source->type.isMask() && isPhi(source->inst());
+            if(join != (pass == 1)) { i++; continue; }
 
             /*
              * The bits this reduction reads, and the three ways there are to one.
@@ -2904,7 +3071,7 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
              * comparison itself: a later consumer looking at it would find the relation already
              * flipped and read the bits the wrong way round.
              */
-            SharedBits* settled = nullptr;
+            SharedMaskBits* settled = nullptr;
             for(auto& entry: shared) {
                 if(entry.source == source) { settled = &entry; break; }
             }
@@ -2915,7 +3082,27 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
             LaneRange range;
             auto fused = false; // this reduction applies the range itself, where it stands
 
-            if(!settled && maskBitsSource(base, inst)) {
+            /*
+             * A mask a phi joins, answered out of its alternatives' own bits - §52. Taken before the
+             * three below and instead of them: a phi is not a comparison, so neither the lane range
+             * nor the complement has anything to read, and the movemask this places is a *phi* of
+             * placements rather than one of its own.
+             */
+            if(!settled && join && maskBitsSource(base, inst)) {
+                bits = placeJoinedMaskBits(base, fun, source, shared, complemented);
+
+                if(bits) {
+                    shared.push(SharedMaskBits { source, bits, complemented });
+
+                    // Once per phi however many reductions read it: the second would be a sweep of
+                    // an instruction the first had already taken out of its block.
+                    if(!joined.containsValue((LowerInstPhi*)source->inst())) {
+                        joined.push((LowerInstPhi*)source->inst());
+                    }
+                }
+            }
+
+            if(!bits && !settled && maskBitsSource(base, inst)) {
                 auto rangeable = false;
                 auto readers = maskBitsReaders(base, source, rangeable);
 
@@ -2927,7 +3114,7 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
                     // §45.1. A refusal falls through to the plain shared movemask below.
                     bits = placeFusedRangeBits(base, fun, source, range);
                     if(bits) {
-                        shared.push(SharedBits { source, bits, false });
+                        shared.push(SharedMaskBits { source, bits, false });
                         pushFusedRange(dead, range);
                     }
                 } else if(ranged) {
@@ -2940,7 +3127,7 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
                 if(!bits && !fused) {
                     complemented = foldComplementedCompare(base, source);
                     if(readers > 1) bits = placeSharedMaskBits(base, fun, source);
-                    if(bits || complemented) shared.push(SharedBits { source, bits, complemented });
+                    if(bits || complemented) shared.push(SharedMaskBits { source, bits, complemented });
                 }
             }
 
@@ -3005,6 +3192,14 @@ static void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) 
     // share exactly where it is - and `iota` in a function with two masked tails is exactly that
     // constant.
     removeDeadChain(base, dead);
+
+    // And the vector phis the joins replaced, each of which is empty exactly when every reduction
+    // that read it has been expanded - which is now. One that still has a reader stays: a mask a
+    // select or a store also reads is a value the join shared rather than removed.
+    for(auto phi: joined) {
+        auto block = base[phi->block];
+        dropUnusedPhi(base, block, phi);
+    }
 }
 
 /*
@@ -3625,11 +3820,16 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
  *
  * Three things bound it, and each of the three is load-bearing:
  *
- *  - **The load has to be the instruction immediately above.** That is what makes the motion free of
- *    any question about what may have written memory in between - nothing runs between the two - and
- *    it is what leaves the address where it has to be: an X86Address sits immediately in front of
- *    the access that folds it, and taking the load out from between them is what puts it in front of
- *    the consumer instead.
+ *  - **Nothing between the load and its reader may write memory.** Where the two are adjacent that is
+ *    free, and it is all this asked for at first. Lifting it is §3.1.2's sink: the load is moved down
+ *    to its reader rather than the reader moved up, so what has to hold is the same thing
+ *    `foldStoreUpdates` asks of the same stretch - `mayWriteMemory` over every instruction between,
+ *    with a call not on the whitelist. The load's *address* travels with it, since an X86Address has
+ *    to stand immediately in front of whatever dereferences it, and that is what needs the address to
+ *    have no other reader: one left behind would be reading a value defined below it.
+ *
+ *    The distance is bounded (kMaxLoadSinkDistance) because the search walks up from the reader, so
+ *    an unbounded one would make the pass quadratic in a block that folds nothing.
  *  - **The encoding reads exactly the bytes the load read.** A narrow load extends into its result,
  *    which an operand of an ALU instruction has no room to do, and an access at any other width
  *    would read a neighbouring value. This is the rule directMemoryOperands applies to a frame slot,
@@ -3640,6 +3840,56 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
  *    collectTieConflicts in place.cpp; a fixed-register operand is not, which is what keeps the
  *    group-3 `mul` and `div` shapes out of this.
  */
+
+/*
+ * Whether running this instruction can write memory.
+ *
+ * A whitelist of the kinds that provably cannot, on the terms `touchesMemory` in lower_forward.cpp
+ * states: a kind added later is answered "yes" and costs a rewrite rather than correctness. It is
+ * the *write* half of that question rather than the whole of it, which is what lets a load stand
+ * between the two accesses being fused - and one always does, `b[k]` being read in the same
+ * expression.
+ */
+static bool mayWriteMemory(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Arg:
+        case LowerInst::Global:
+        case LowerInst::Fun:
+        case LowerInst::Imm:
+        case LowerInst::Nop:
+        case LowerInst::Select:
+        case LowerInst::Alloca:
+        case LowerInst::Phi:
+        case LowerInst::VecSplat:
+        case LowerInst::VecLane:
+        case LowerInst::VecWithLane:
+        case LowerInst::VecShuffle:
+        case LowerInst::VecReduce:
+        case LowerInst::Load:
+        case LowerInst::X86Address:
+        case LowerInst::X86Lea:
+        case LowerInst::X86MinMax:
+        case LowerInst::X86MaskAnd:
+        case LowerInst::X86Permute:
+
+        // `Fma` is neither unary nor binary, so the fallback would answer *yes* for it - which is
+        // the rule this is written to and is wrong here, an FMA being arithmetic like any other.
+        case LowerInst::Fma:
+            return false;
+        default:
+            return !isUnary(inst) && !isBinary(inst) && !isCast(inst);
+    }
+}
+
+/*
+ * How far above its reader a load may stand and still be folded into it.
+ *
+ * The search walks up from the reader, so this is what keeps the pass linear in the block rather
+ * than quadratic over one that folds nothing. Sixteen is well past what the shapes this catches
+ * need: what separates a load from its reader is the *other* operand's computation, which for an
+ * array element is an index cast, a shift and an add.
+ */
+static constexpr Size kMaxLoadSinkDistance = 16;
 
 // Whether exchanging this operation's operands leaves it computing the same thing. The same set
 // trySwapOperands uses, and restricted to the integer bank for the same reason: a float addition is
@@ -3728,44 +3978,73 @@ static bool hasFixedOperands(const MachineForm& form) {
     return false;
 }
 
-// Folds the load above `index` into the instruction at it. Answers where that instruction ended up,
-// or Nothing when it was left alone - in which case nothing has been changed at all: the operand
-// exchange a commutative operation may need is made at the end, with every question already
-// answered, so that a fold which does not happen leaves no trace of having been considered.
-static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
-    if(index == 0) return Nothing();
-
+/*
+ * Folds the load feeding operand `at` of the instruction at `index` into it. Answers where that
+ * instruction ended up, or Nothing where it was left alone - in which case nothing has been changed
+ * at all: the operand exchange a commutative operation may need is made at the end, with every
+ * question already answered, so that a fold which does not happen leaves no trace of having been
+ * considered. That is what lets the caller try one operand and then the other.
+ */
+static Maybe<Size> tryFoldLoadOperand(LowerBase base, LowerFunction& fun, LowerBlock* block,
+    Size index, const MachineForm& twin, Size memory, Size at)
+{
     auto inst = base[block->instructions.get(base, index)];
-    auto& form = machineTarget().form(selectForm(base, inst));
-
-    // Nothing to fold into: either a form with no memory-capable operand, or one already on its
-    // twin - a folded operand is one the form reads as an address, and there is one r/m field.
-    if(!form.memorySource) return Nothing();
-
-    auto& twin = machineTarget().form(form.memorySource);
-    if(hasFixedOperands(twin)) return Nothing();
-
-    auto memory = Size(form.memoryUse());
-    auto above = base[block->instructions.get(base, index - 1)];
-    if(above->kind != LowerInst::Load) return Nothing();
-
-    auto load = (LowerInstLoad*)above;
-    auto value = &load->result;
-
-    // One reader, and it has to be this instruction. `add %v, %v` reads it in both positions and
-    // only one of them can be the address, which a use count of one already excludes.
-    if(isImplicit(value) || value->uses.size() != 1) return Nothing();
-
     auto used = inst->used();
-    auto at = used.size();
-    for(Size i = 0; i < used.size(); i++) {
-        if(base[used[i]] == value) at = i;
+    auto value = base[used[at]];
+    auto load = (LowerInstLoad*)value->inst();
+
+    /*
+     * Where the load stands, and whether the stretch between it and here leaves memory alone.
+     *
+     * One walk answers both: upwards from the reader to the load, refusing at the first instruction
+     * that could change what the load would read. A load in another block, or further up than the
+     * bound, is one this declines to look for.
+     */
+    if(base[load->block] != block) return Nothing();
+
+    auto loadAt = index;
+    for(Size steps = 0; ; steps++) {
+        if(loadAt == 0 || steps > kMaxLoadSinkDistance) return Nothing();
+
+        loadAt--;
+        auto above = base[block->instructions.get(base, loadAt)];
+        if(above == (LowerInst*)load) break;
+        if(mayWriteMemory(above)) return Nothing();
     }
+
+    // Whether this is a *sink* rather than the adjacent fold §3.1.2 started as, which is the one
+    // thing below that has to be decided rather than assumed: a sunk load takes its address down
+    // with it, and an address with another reader may not travel.
+    auto sunk = loadAt != index - 1;
 
     // Which operand holds it has to be the one the encoding can dereference, or an operand a
     // commutative operation can exchange into it - which is the shape `arr[i] + sum` arrives in.
     auto exchange = at != memory;
     if(exchange && !(isCommutativeInt(inst) && used.size() == 2 && at < used.size())) return Nothing();
+
+    /*
+     * An operand the encoding was carrying as an immediate has nowhere to go.
+     *
+     * The memory twin names a register in the field the constant occupied, so the fold displaces it
+     * into one - and materializing a constant is exactly the instruction the fold removed, at more
+     * bytes. `%v = load %p ; add %v, 1` is `mov (%rdx),%edx ; inc %edx` and folds to
+     * `mov $1,%ecx ; add (%rdx),%ecx`: the same two instructions, three bytes longer, and the
+     * constant now holds a register across them.
+     *
+     * Unreachable while the load had to be adjacent - the `imm` that defines the constant stands
+     * between the two - so this is a rule the sink needs and the adjacent fold never met.
+     *
+     * Asked of the twin rather than of the operand, because a great many twins carry both at once:
+     * `cmp [m], $0` is one instruction and folding a load into it displaces nothing. Only a twin with
+     * no immediate field at all has nowhere to put one. The operand's *kind* rather than `isImm`,
+     * which reads a flag no pass has set this early - embedding an immediate is a decision
+     * `selectMachineInstructions` makes below here.
+     */
+    if(twin.immediateWidth() == ImmediateWidth::None) {
+        for(Size i = 0; i < used.size(); i++) {
+            if(i != at && base[used[i]]->inst()->kind == LowerInst::Imm) return Nothing();
+        }
+    }
 
     // The bytes the encoding reads are the bytes the load read, unextended.
     if(load->getWidth() != accessWidthOf(value->type)) return Nothing();
@@ -3797,10 +4076,15 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
 
         pooledSymbol = target;
     } else if(isMem(address)) {
-        // Where the address fold put it, which is what removing the load turns into "immediately
-        // above the consumer". Checked rather than assumed: an address anywhere else would reach the
-        // encoder holding whatever the instructions in between had left in its registers.
-        if(index < 2 || base[block->instructions.get(base, index - 2)] != address->inst()) return Nothing();
+        // Where the address fold put it: immediately in front of the load it serves. Checked rather
+        // than assumed, an address anywhere else being one whose registers the instructions in
+        // between could have written.
+        if(loadAt == 0 || base[block->instructions.get(base, loadAt - 1)] != address->inst()) return Nothing();
+
+        // A sunk load takes its address with it, so an address something else reads may not go: the
+        // reader left behind would be reading a value defined below it. Where the two are adjacent
+        // the address does not move and nothing is asked of its other readers.
+        if(sunk && address->uses.size() != 1) return Nothing();
     } else if(isImplicit(address)) {
         // A pointer the encoding swallowed has no register for an address to be built around.
         return Nothing();
@@ -3843,29 +4127,87 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
         // Both removals were above the consumer and the address goes back immediately in front of
         // it, so where everything ended up is asked rather than counted: the `global` need not have
         // been adjacent to the load it fed.
-        auto at = indexOfInst(base, block, inst);
-        insertInstAt(base, block, at, computed);
+        auto here = indexOfInst(base, block, inst);
+        insertInstAt(base, block, here, computed);
 
-        return Just(at + 1);
+        return Just(here + 1);
     }
 
-    if(!isMem(address)) {
+    // The load goes first, wherever it stood: it is what the address was in front of, and taking it
+    // out is what lets the address end up in front of the consumer instead.
+    auto computedHere = !isMem(address);
+
+    if(computedHere) {
         // A pointer that reached the load in a register becomes `[reg]`, so that the operand says
         // what it is without a flag beside it.
-        auto computed = new (fun.arena) LowerInstX86Address(
+        address = &(new (fun.arena) LowerInstX86Address(
             LowerInst::X86Address, StringId(), address - base, nullptr, 1, 0
-        );
-
-        insertInstAt(base, block, index - 1, computed);
-        address = &computed->result;
-        index++;
+        ))->result;
     }
 
     replaceUse(base, value, inst, address);
     inst->used()[memory] = address - base;
     removeInst(base, load);
 
-    return Just(index - 1);
+    // And the address is put immediately in front of the consumer. For an adjacent fold that is
+    // where it already is - the load having been between them - so only a sink moves anything.
+    if(computedHere) {
+        insertInstAt(base, block, indexOfInst(base, block, inst), address->inst());
+    } else if(sunk) {
+        auto producer = address->inst();
+        removeInst(base, producer);
+        insertInstAt(base, block, indexOfInst(base, block, inst), producer);
+    }
+
+    return Just(indexOfInst(base, block, inst));
+}
+
+/*
+ * Folds a load into the instruction at `index`, whichever of its operands one feeds.
+ *
+ * The operand the encoding dereferences is offered first and every other one after it, because the
+ * two answers are not interchangeable: reaching another operand needs an exchange, which only a
+ * commutative operation has, and the load feeding that one may be somewhere this cannot fold from at
+ * all. `abs(v[i]) `is where that matters - the `and` reads the element and a mask loaded outside the
+ * loop, the mask is in the r/m position, and stopping at the first operand that *looks* like a
+ * candidate refused the whole fold and left the element's load in the loop.
+ */
+static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
+    if(index == 0) return Nothing();
+
+    auto inst = base[block->instructions.get(base, index)];
+    auto& form = machineTarget().form(selectForm(base, inst));
+
+    // Nothing to fold into: either a form with no memory-capable operand, or one already on its
+    // twin - a folded operand is one the form reads as an address, and there is one r/m field.
+    if(!form.memorySource) return Nothing();
+
+    auto& twin = machineTarget().form(form.memorySource);
+    if(hasFixedOperands(twin)) return Nothing();
+
+    auto memory = Size(form.memoryUse());
+    auto used = inst->used();
+
+    // A load with one reader, and that reader is this instruction. `add %v, %v` reads it in both
+    // positions and only one of them can be the address, which a use count of one already excludes.
+    auto candidate = [&](Size i) {
+        auto operand = base[used[i]];
+        if(operand->inst()->kind != LowerInst::Load) return false;
+
+        return !isImplicit(operand) && operand->uses.size() == 1;
+    };
+
+    if(memory < used.size() && candidate(memory)) {
+        if(auto folded = tryFoldLoadOperand(base, fun, block, index, twin, memory, memory)) return folded;
+    }
+
+    for(Size i = 0; i < used.size(); i++) {
+        if(i == memory || !candidate(i)) continue;
+
+        if(auto folded = tryFoldLoadOperand(base, fun, block, index, twin, memory, i)) return folded;
+    }
+
+    return Nothing();
 }
 
 static void foldLoads(LowerBase base, LowerFunction& fun) {
@@ -3919,46 +4261,6 @@ static void foldLoads(LowerBase base, LowerFunction& fun) {
  * run the tail of the load's block, and the two spans that have to be clean are that tail and the
  * head of the store's own block.
  */
-
-/*
- * Whether running this instruction can write memory.
- *
- * A whitelist of the kinds that provably cannot, on the terms `touchesMemory` in lower_forward.cpp
- * states: a kind added later is answered "yes" and costs a rewrite rather than correctness. It is
- * the *write* half of that question rather than the whole of it, which is what lets a load stand
- * between the two accesses being fused - and one always does, `b[k]` being read in the same
- * expression.
- */
-static bool mayWriteMemory(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Arg:
-        case LowerInst::Global:
-        case LowerInst::Fun:
-        case LowerInst::Imm:
-        case LowerInst::Nop:
-        case LowerInst::Select:
-        case LowerInst::Alloca:
-        case LowerInst::Phi:
-        case LowerInst::VecSplat:
-        case LowerInst::VecLane:
-        case LowerInst::VecWithLane:
-        case LowerInst::VecShuffle:
-        case LowerInst::VecReduce:
-        case LowerInst::Load:
-        case LowerInst::X86Address:
-        case LowerInst::X86Lea:
-        case LowerInst::X86MinMax:
-        case LowerInst::X86MaskAnd:
-        case LowerInst::X86Permute:
-
-        // `Fma` is neither unary nor binary, so the fallback would answer *yes* for it - which is
-        // the rule this is written to and is wrong here, an FMA being arithmetic like any other.
-        case LowerInst::Fma:
-            return false;
-        default:
-            return !isUnary(inst) && !isBinary(inst) && !isCast(inst);
-    }
-}
 
 // The five operations the machine can perform through its r/m field, which is the whole of what the
 // form table describes - see OpStoreAdd and the block beside it in machine.cpp.
@@ -4277,19 +4579,6 @@ static Size phiSourceIndex(LowerBase base, LowerInstPhi* phi, LowerBlock* from) 
     return 0;
 }
 
-// An unattached phi with room for `count` alternatives - filled in and added to a block by the
-// caller, the way lower_promote.cpp's builds one, because adding it is what registers its reads.
-static LowerInstPhi* makeRotationPhi(Region<LowerRegion>& arena, LowerType type, Size count) {
-    auto storage = arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * count +
-        sizeof(LowerPtr<LowerBlock>) * count);
-
-    auto phi = new (storage) LowerInstPhi(StringId(), type);
-    phi->usedCount = U8(count);
-    return phi;
-}
-
 // Everything an instruction reads stops counting it as a reader. The instruction itself is dropped
 // from wherever it is listed by the caller - see removeInst, which is this plus that.
 static void detachOperands(LowerBase base, LowerInst* inst) {
@@ -4324,7 +4613,7 @@ static void growPhi(LowerBase base, LowerFunction& fun, LowerBlock* block, Size 
     auto old = base[block->phis.get(base, index)];
     auto count = Size(old->usedCount);
 
-    auto phi = makeRotationPhi(arena, old->result.type, count + 1);
+    auto phi = makePhi(arena, old->result.type, U32(count + 1));
     phi->result.name = old->result.name;
     phi->source = old->source;
     phi->block = block - base;
@@ -4760,8 +5049,8 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
     // rotated header holds is stated in terms of them: a phi advanced by the latch reads, at the
     // point the latch now sits, the body's phi rather than the header's.
     for(auto& r: phis) {
-        r.body = makeRotationPhi(arena, r.header->result.type, 2);
-        r.exit = makeRotationPhi(arena, r.header->result.type, 2);
+        r.body = makePhi(arena, r.header->result.type, 2);
+        r.exit = makePhi(arena, r.header->result.type, 2);
     }
 
     auto inBody = [&](LowerValue* v) -> LowerValue* {
@@ -6640,9 +6929,18 @@ static LowerInstCmp* maskEmptinessTest(LowerBase base, LowerInst* terminator) {
     return cmp;
 }
 
-// The scan at the top of a guarded block, with the sentinel that may stand in front of it. Answers
-// nothing unless it reads exactly the mask the guard tested.
-static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue* bits, MaskScanGuard& out) {
+/*
+ * The scan at the top of a guarded block, with the sentinel that may stand in front of it.
+ *
+ * `bits` names the value it has to read where the caller knows one - a single predecessor's guard
+ * tested a value, and a scan of anything else is not this shape - and is null where the caller does
+ * not, in which case the scan's own operand is taken and answered back. That second form is what a
+ * *join* needs: which value it reads is what says which phi has to be proved nonzero, so the shape
+ * is read first and the proof asked for afterwards.
+ */
+static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue*& bits, MaskScanGuard& out) {
+    auto expected = bits;
+
     for(auto offset: block->instructions.contents(base)) {
         auto inst = base[offset];
 
@@ -6658,12 +6956,14 @@ static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue* bits, Ma
             // The sentinel and nothing else: an `or` of *this* mask with a constant, read by one
             // instruction. Anything else in the block is left alone and ends the search, since a
             // scan below it would no longer be the first thing the block does.
-            if(base[binary->lhs] != bits || rhs->kind != LowerInst::Imm) return false;
+            if(rhs->kind != LowerInst::Imm) return false;
+            if(expected && base[binary->lhs] != expected) return false;
             if(binary->result.uses.size() != 1) return false;
             if(out.sentinel) return false;
 
             out.sentinel = inst;
-            bits = &binary->result;
+            bits = base[binary->lhs];
+            expected = &binary->result;
             continue;
         }
 
@@ -6671,7 +6971,10 @@ static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue* bits, Ma
 
         auto which = ((LowerInstIntrinsic*)inst)->getIntrinsic();
         if(which != LowerIntrinsic::Cttz && which != LowerIntrinsic::CttzWidth) return false;
-        if(base[inst->used()[0]] != bits) return false;
+
+        auto operand = base[inst->used()[0]];
+        if(expected && operand != expected) return false;
+        if(!out.sentinel) bits = operand;
 
         out.scan = inst;
         return true;
@@ -6680,34 +6983,89 @@ static bool findMaskScan(LowerBase base, LowerBlock* block, LowerValue* bits, Ma
     return false;
 }
 
+// Whether `from` ends in a branch that reaches `block` exactly when `bits` is nonzero, and the
+// comparison it reads to do it. Which arm that is depends on the relation: `neq` holds where the
+// value is nonzero, so the `then` arm is the nonzero one and `eq` is the other way round.
+static LowerInstCmp* branchOnNonzero(LowerBase base, LowerBlock* from, LowerBlock* block,
+                                     LowerValue* bits, bool& nonzeroIsThen) {
+    auto cmp = maskEmptinessTest(base, base[from->terminator]);
+    if(!cmp || base[cmp->lhs] != bits) return nullptr;
+
+    auto je = (LowerInstJe*)base[from->terminator];
+
+    nonzeroIsThen = cmp->getCmp() == LowerCmp::neq;
+    if(base[nonzeroIsThen ? je->then : je->otherwise] != block) return nullptr;
+
+    return cmp;
+}
+
+/*
+ * §52 The same proof through a join: every way in, and not only the one.
+ *
+ * A search written as a loop and a masked tail branches into one hit block from both, and the bits
+ * it scans are the phi of the two arms' bitmaps that `placeJoinedMaskBits` built. What the sentinel
+ * is there for is that `bsf` is undefined at zero - and each arm branches here only where its *own*
+ * alternative is nonzero, so the phi is nonzero however the block was entered.
+ *
+ * That is the single-predecessor proof with the quantifier moved and nothing else: it is still read
+ * locally, still one branch per edge, and still no dominator tree. What it does not extend to is the
+ * fusion below it - the scan cannot stand in two blocks at once, so a join keeps its `test` per arm
+ * and loses only the sentinel.
+ */
+static bool isJoinedNonzero(LowerBase base, LowerBlock* block, LowerValue* bits) {
+    auto phi = bits->inst();
+    if(!isPhi(phi) || base[phi->block] != block) return false;
+
+    auto sources = ((LowerInstPhi*)phi)->sources();
+    if(sources.size() != block->incoming.size()) return false;
+
+    for(Size i = 0; i < sources.size(); i++) {
+        auto nonzeroIsThen = false;
+        if(!branchOnNonzero(base, base[sources[i]], block, base[phi->used()[i]], nonzeroIsThen)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /*
  * The whole shape, recognized from the guarded block.
  *
- * Read from the *guarded* block rather than from the guard, because that is the side the single
- * predecessor is a property of - and the single predecessor is the whole proof. A guard whose taken
- * arm has two ways into it proves nothing about the mask on the second one.
+ * Read from the *guarded* block rather than from the guard, because that is the side the proof is a
+ * property of: what makes "the branch was taken" true of every entry to a block is a statement about
+ * every edge into it, which the block is where to ask about.
  */
 static bool findMaskScanGuard(LowerBase base, LowerBlock* block, MaskScanGuard& out) {
-    if(block->incoming.size() != 1) return false;
+    LowerValue* bits = nullptr;
 
-    auto from = base[block->incoming.get(base, 0)];
-    auto cmp = maskEmptinessTest(base, base[from->terminator]);
-    if(!cmp) return false;
+    if(block->incoming.size() == 1) {
+        auto from = base[block->incoming.get(base, 0)];
 
-    auto je = (LowerInstJe*)base[from->terminator];
-    auto bits = base[cmp->lhs];
+        // The single predecessor's own test names the value, and `branchOnNonzero` then says whether
+        // this block is the arm on which it is the nonzero one.
+        auto test = maskEmptinessTest(base, base[from->terminator]);
+        if(!test) return false;
 
-    // Which arm this block is, and whether it is the one the mask is nonzero on. `neq` holds where
-    // the mask is nonzero, so the `then` arm is the nonzero one; `eq` is the other way round.
-    auto nonzeroIsThen = cmp->getCmp() == LowerCmp::neq;
-    auto nonzeroArm = base[nonzeroIsThen ? je->then : je->otherwise];
-    if(nonzeroArm != block) return false;
+        bits = base[test->lhs];
 
-    out.compare = cmp;
+        auto cmp = branchOnNonzero(base, from, block, bits, out.nonzeroIsThen);
+        if(!cmp) return false;
+
+        out.compare = cmp;
+        out.bits = bits;
+
+        return findMaskScan(base, block, bits, out);
+    }
+
+    // A join, where the scan is found first and the phi it reads is what has to be proved - see
+    // `isJoinedNonzero`. `compare` stays null, which is what tells the rewrite that there is one
+    // guard per edge and no single branch to fold the scan into.
+    if(!findMaskScan(base, block, bits, out)) return false;
+    if(!isJoinedNonzero(base, block, bits)) return false;
+
     out.bits = bits;
-    out.nonzeroIsThen = nonzeroIsThen;
-
-    return findMaskScan(base, block, bits, out);
+    return true;
 }
 
 // Moves an instruction to just above `into`'s terminator. Only the lists change: every value it
@@ -6746,8 +7104,15 @@ static void fuseMaskScanIntoGuard(LowerBase base, LowerBlock* block) {
     }
 
     /*
-     * And the fusion. Three conditions, each of which is a way the branch could stop being the only
-     * thing that reads the comparison's answer or the scan could stop being liftable:
+     * And the fusion, which is the half a *join* does not get: there is one guard per edge and the
+     * scan stands in one block, so what a second predecessor would have to read is a scan its own
+     * branch does not precede. The sentinel above is the whole of what a join takes.
+     */
+    if(!found.compare) return;
+
+    /*
+     * Three conditions, each of which is a way the branch could stop being the only thing that reads
+     * the comparison's answer or the scan could stop being liftable:
      *
      * - the comparison is read by the branch and by nothing else, since it is about to disappear;
      * - the guard's block ends with the branch that reads it, which is what puts the scan's new

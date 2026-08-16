@@ -56,6 +56,30 @@ guarded<complex>(%a: i8x16, %b: i8x16, %n: Int): Int {
   }
 }
 
+joined<complex>(%a: i8x16, %b: i8x16, %c: i8x16): Int {
+  start {
+    %m = cmp_eq %a, %b: m8x16
+    %any = vreduce_or %m: Int
+    je %any, hit, tail
+  }
+
+  tail {
+    %t = cmp_eq %a, %c: m8x16
+    %anyTail = vreduce_or %t: Int
+    je %anyTail, hit, miss
+  }
+
+  hit {
+    %j = phi [start, %m], [tail, %t]: m8x16
+    %f = vreduce_first %j: Int
+    ret %f
+  }
+
+  miss {
+    ret 18446744073709551615
+  }
+}
+
 
 --- codegen: search ---
 block #0:
@@ -105,5 +129,27 @@ block miss:
 block hit:
   imm uses=[] creates=[-]  => 
   or uses=[rax, -] creates=[rax]  => 81c800000100
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: joined ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_eq uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660f74d9
+  vreduce_bits uses=[xmm3] creates=[rax]  => 660fd7c3
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7512
+block tail:
+  cmp_eq uses=[xmm0, xmm2] creates=[xmm0]  => 660f74c2
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7506
+block miss:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
+block hit:
   cttz uses=[rax] creates=[rax]  => 0fbcc0
   ret uses=[rax] creates=[]  => c3

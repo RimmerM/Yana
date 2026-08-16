@@ -766,41 +766,42 @@ fn Collections.continuation$1(Array(Float), Float, ())(%env: %{width: Int, body:
   b6:
     %v36 = load %i : Int
     %v37 = sub %n, %v36 : Int
-    %v39 = vsplat 0 : Vec(Float)
-    %v41 = vwithlane %v39, 1, 1 : Vec(Float)
-    %v43 = vwithlane %v41, 2, 2 : Vec(Float)
-    %v45 = vwithlane %v43, 3, 3 : Vec(Float)
-    %v46 = cast %v37 : Float
-    %v47 = vsplat %v46 : Vec(Float)
-    %live = cmp_lt %v45, %v47 : Mask(Float)
-    %v49 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
-    %v50 = load [%v49] : (value$: Vec(Float)) -> Outcome((), ())
-    %v51 = load %i : Int
-    %v52 = cast %v51 : I64
-    %v53 = call loadVectorTail(Float), %value$, %v52 : Vec(Float)
-    %v54 = load [%env].empty : Vec(Float)
-    %v55 = select %live ? %v53 : %v54 : Vec(Float)
-    %v56 = calldyn %v50, %v55 : Outcome((), ())
-    %v57 = load %local3.discriminant : Int
-    %v59 = cmp_eq %v57, 1 : Bool
-    je %v59, b8, b9
+    %v39 = vsplat 0 : Vec(I32)
+    %v41 = vwithlane %v39, 1, 1 : Vec(I32)
+    %v43 = vwithlane %v41, 2, 2 : Vec(I32)
+    %v45 = vwithlane %v43, 3, 3 : Vec(I32)
+    %v46 = cast %v37 : I32
+    %v47 = vsplat %v46 : Vec(I32)
+    %v48 = cmp_lt %v45, %v47 : Mask(I32)
+    %live = bitcast %v48 : Mask(Float)
+    %v50 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v51 = load [%v50] : (value$: Vec(Float)) -> Outcome((), ())
+    %v52 = load %i : Int
+    %v53 = cast %v52 : I64
+    %v54 = call loadVectorTail(Float), %value$, %v53 : Vec(Float)
+    %v55 = load [%env].empty : Vec(Float)
+    %v56 = select %live ? %v54 : %v55 : Vec(Float)
+    %v57 = calldyn %v51, %v56 : Outcome((), ())
+    %v58 = load %local3.discriminant : Int
+    %v60 = cmp_eq %v58, 1 : Bool
+    je %v60, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v62 = alloc : Outcome((), Outcome((), ()))
+    %v63 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 1
-    init %local6@Exit, %v56
-    ret %v62
+    init %local6@Exit, %v57
+    ret %v63
 
   b9:
     jmp b10
 
   b10:
-    %v68 = alloc : Outcome((), Outcome((), ()))
+    %v69 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v68
+    ret %v69
 }
 
 fn loadVector(Float)(%from: Flat(Float), %at: I64) -> Vec(Float) {
@@ -1493,20 +1494,21 @@ fn ResolveTest.continuation$17(Array(Float), Float)(%env: %{acc: &mut Vec(Float)
     %v4 = load [%env].acc : &mut Vec(Float)
     %v5 = load [%env].acc : &mut Vec(Float)
     %v6 = load [%v5] : Vec(Float)
-    %v8 = vsplat 0 : Vec(Float)
-    %v10 = vwithlane %v8, 1, 1 : Vec(Float)
-    %v12 = vwithlane %v10, 2, 2 : Vec(Float)
-    %v14 = vwithlane %v12, 3, 3 : Vec(Float)
-    %v15 = cast %live : Float
-    %v16 = vsplat %v15 : Vec(Float)
-    %v17 = cmp_lt %v14, %v16 : Mask(Float)
-    %v18 = load [%env].acc : &mut Vec(Float)
-    %v19 = load [%v18] : Vec(Float)
-    %v20 = select %v17 ? %v : %v19 : Vec(Float)
-    %v21 = cmp_gt %v6, %v20 : Mask(Float)
-    %v22 = select %v21 ? %v6 : %v20 : Vec(Float)
-    assign [%v4], %v22
-    %v24 = alloc : Outcome((), ())
+    %v8 = vsplat 0 : Vec(I32)
+    %v10 = vwithlane %v8, 1, 1 : Vec(I32)
+    %v12 = vwithlane %v10, 2, 2 : Vec(I32)
+    %v14 = vwithlane %v12, 3, 3 : Vec(I32)
+    %v15 = cast %live : I32
+    %v16 = vsplat %v15 : Vec(I32)
+    %v17 = cmp_lt %v14, %v16 : Mask(I32)
+    %v18 = bitcast %v17 : Mask(Float)
+    %v19 = load [%env].acc : &mut Vec(Float)
+    %v20 = load [%v19] : Vec(Float)
+    %v21 = select %v18 ? %v : %v20 : Vec(Float)
+    %v22 = cmp_gt %v6, %v21 : Mask(Float)
+    %v23 = select %v22 ? %v6 : %v21 : Vec(Float)
+    assign [%v4], %v23
+    %v25 = alloc : Outcome((), ())
     init %local1.discriminant, 0
-    ret %v24
+    ret %v25
 }

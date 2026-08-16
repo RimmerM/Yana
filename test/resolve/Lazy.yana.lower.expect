@@ -150,81 +150,27 @@ main<complex>(): Int {
 
   b_37 {
     %v_39 = phi [b_29, %v_32], [b_36, %v_38]: Int
-    %v_40 = alloca 16, 8: Ptr
-    store %v_40, ResolveTest.deferred$15, 8
+    %v_40 = add %v_39, 2048: Int
     %v_41 = bitcast 0: Ptr
-    %v_42 = add %v_40, 8: Ptr
-    store %v_42, %v_41, 8
-    %v_43 = alloca 4, 4: Ptr
-    call_complex Logic(Mask).&&, %v_43, 0, %v_40
-    %v_44 = loads %v_43, 4: Int
-    %v_45 = cmp_eq %v_44, 0: Int
-    je %v_45, b_46, b_47
+    %v_42 = alloca 4, 4: Ptr
+    call_complex ResolveTest.deferred$16, %v_42, %v_41
+    %rhs$bits = loads %v_42, 4: Int
+    %v_43 = and %rhs$bits, 7: Int
+    %v_44 = cmp_eq %v_43, 3: Int
+    je %v_44, b_45, b_46
+  }
+
+  b_45 {
+    %v_47 = add %v_40, 4096: Int
+    jmp b_46
   }
 
   b_46 {
-    %v_48 = add %v_39, 2048: Int
-    jmp b_47
-  }
-
-  b_47 {
-    %v_49 = phi [b_37, %v_39], [b_46, %v_48]: Int
-    %v_50 = alloca 16, 8: Ptr
-    store %v_50, ResolveTest.deferred$16, 8
-    %v_51 = bitcast 0: Ptr
-    %v_52 = add %v_50, 8: Ptr
-    store %v_52, %v_51, 8
-    %v_53 = alloca 4, 4: Ptr
-    call_complex Logic(Mask).&&, %v_53, 7, %v_50
-    %v_54 = loads %v_53, 4: Int
-    %v_55 = cmp_eq %v_54, 3: Int
-    je %v_55, b_56, b_57
-  }
-
-  b_56 {
-    %v_58 = add %v_49, 4096: Int
-    jmp b_57
-  }
-
-  b_57 {
-    %v_59 = phi [b_47, %v_49], [b_56, %v_58]: Int
-    %v_60 = imul %v_59, 100: Int
-    %v_61 = loads @effects, 4: Int
-    %v_62 = add %v_60, %v_61: Int
-    ret %v_62
-  }
-}
-
-Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
-  b_1 {
-    %lhs = alloca 4, 4: Ptr
-    store %lhs, %lhs$bits, 4
-    %v_2 = cmp_eq %lhs$bits, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_4 {
-    %v_6 = add %rhs, 8: Ptr
-    %v_7 = load %rhs, 8: Ptr
-    %v_8 = load %v_6, 8: Ptr
-    %v_9 = alloca 4, 4: Ptr
-    call_complex %v_7, %v_9, %v_8
-    %lhs$bits = loads %lhs, 4: Int
-    %rhs$bits = loads %v_9, 4: Int
-    %v_10 = alloca 4, 4: Ptr
-    %v_11 = and %lhs$bits, %rhs$bits: Int
-    store %v_10, %v_11, 4
-    jmp b_5
-  }
-
-  b_5 {
-    %v_12 = phi [b_3, %lhs], [b_4, %v_10]: Ptr
-    copy %v_0, %v_12, 4
-    ret 
+    %v_48 = phi [b_37, %v_40], [b_45, %v_47]: Int
+    %v_49 = imul %v_48, 100: Int
+    %v_50 = loads @effects, 4: Int
+    %v_51 = add %v_49, %v_50: Int
+    ret %v_51
   }
 }
 
@@ -234,16 +180,6 @@ ResolveTest.deferred$14<complex>(%env: Ptr): Int {
     %v_2 = add %v_1, 1: Int
     store @effects, %v_2, 4
     ret 7
-  }
-}
-
-ResolveTest.deferred$15<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    %v_2 = loads @effects, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @effects, %v_3, 4
-    store %v_0, 3, 4
-    ret 
   }
 }
 

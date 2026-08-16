@@ -186,12 +186,11 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => c5fe6f15d8000000
-  vsplat uses=[rdi] creates=[xmm3]  => c5f96edfc4e27d58db
-  cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e566da
+  vsplat uses=[rdi] creates=[xmm2]  => c5f96ed7c4e27d58d2
+  x86_addr [rip + $v256$0000000001000000020000000300000004000000050000000600000007000000] uses=[] creates=[-]  => 
+  cmp_igt uses=[xmm2, -] creates=[xmm2]  => c5ed6615cf000000
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
-  and uses=[xmm0, xmm3] creates=[xmm0]  => c5fddbc3
+  and uses=[xmm0, xmm2] creates=[xmm0]  => c5fddbc2
   vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
   popcnt uses=[rax] creates=[rax]  => f30fb8c0
   ret uses=[rax] creates=[]  => c3
@@ -246,14 +245,13 @@ block found:
 block #0:
   jmp uses=[] creates=[]  => 
 block entry:
-  global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => c5fe6f1548000000
   imm uses=[] creates=[-]  => 
   and uses=[rdi, -] creates=[rdi]  => 81e7ff000000
-  vsplat uses=[rdi] creates=[xmm3]  => c5f96edfc4e27d58db
-  cmp_igt uses=[xmm3, xmm2] creates=[xmm3]  => c5e566da
+  vsplat uses=[rdi] creates=[xmm2]  => c5f96ed7c4e27d58d2
+  x86_addr [rip + $v256$0000000001000000020000000300000004000000050000000600000007000000] uses=[] creates=[-]  => 
+  cmp_igt uses=[xmm2, -] creates=[xmm2]  => c5ed661539000000
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => c5fd76c1
-  and uses=[xmm0, xmm3] creates=[xmm0]  => c5fddbc3
+  and uses=[xmm0, xmm2] creates=[xmm0]  => c5fddbc2
   vreduce_bits uses=[xmm0] creates=[rax]  => c5fc50c0
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rax, -] creates=[rcx]  => 31c981f8ff0000000f94c1

@@ -157,18 +157,17 @@ define fastcc float @dot(ptr %"xs$items", i64 %"xs$length", ptr %"ys$items", i64
 
 20:                                               ; preds = %8
   %21 = sub i32 %n, %4
-  %22 = sitofp i32 %21 to float
-  %.splatinsert = insertelement <4 x float> poison, float %22, i32 0
-  %.splat = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
-  %live = fcmp olt <4 x float> <float 0.000000e+00, float 1.000000e+00, float 2.000000e+00, float 3.000000e+00>, %.splat
+  %.splatinsert = insertelement <4 x i32> poison, i32 %21, i32 0
+  %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
+  %22 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
   %23 = sext i32 %4 to i64
   %24 = shl i64 %23, 2
   %25 = getelementptr i8, ptr %"xs$items", i64 %24
   %26 = load <4 x float>, ptr %25, align 1
-  %x = select <4 x i1> %live, <4 x float> %26, <4 x float> zeroinitializer
+  %x = select <4 x i1> %22, <4 x float> %26, <4 x float> zeroinitializer
   %27 = getelementptr i8, ptr %"ys$items", i64 %24
   %28 = load <4 x float>, ptr %27, align 1
-  %y = select <4 x i1> %live, <4 x float> %28, <4 x float> zeroinitializer
+  %y = select <4 x i1> %22, <4 x float> %28, <4 x float> zeroinitializer
   %29 = call <4 x float> @llvm.fma.v4f32(<4 x float> %x, <4 x float> %y, <4 x float> %3)
   br label %31
 

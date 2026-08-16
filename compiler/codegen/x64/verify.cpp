@@ -1248,6 +1248,24 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
             v.buildEntryState(state, block);
         }
 
+        /*
+         * §7.2.3: a copy this block used to begin with, run by its predecessor instead.
+         *
+         * The entry state is derived from the placement, which says where a value lives and not what
+         * has already been copied where - so it is the state this block would have had before the
+         * hoist. Running the predecessor's exit copies over it reconstructs the one the emitted code
+         * actually arrives in, and it is exactly that: control cannot reach here by any other route,
+         * which is a condition of the hoist rather than an assumption here.
+         */
+        if(block->incoming.size() == 1) {
+            auto predecessor = base[block->incoming.get(base, 0)];
+            auto predRegs = regs.legalized.blocks.get(predecessor);
+
+            if(predRegs.isJust() && predRegs.unwrap().exitMoves.size() != 0) {
+                v.applyMoves(state, predRegs.unwrap().exitMoves, base[predecessor->terminator]);
+            }
+        }
+
         auto index = live.getBlock(block)->firstIndex;
 
         for(Size i = 0; i < insts.size(); i++) {
@@ -1257,6 +1275,18 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
 
         v.checkInst(state, base[block->terminator], blockRegs.insts[insts.size()], index);
 
+        /*
+         * §7.2.3's copies are deliberately *not* applied here, and that is the one place this
+         * verifier's model and the emitted code part company.
+         *
+         * A hoisted copy is a transfer the successor was going to make, performed one block early -
+         * so at this block's exit it has already overwritten a register the placement still says
+         * holds the value it is carrying, and running it over the state would make every edge check
+         * below disagree with the allocation. The edges are therefore checked against the state the
+         * placement describes, which is the state that was there before the hoist, and the copies are
+         * applied where their effect is read: at the entry to the block they were taken out of, which
+         * this walk reaches with one predecessor and no other way in.
+         */
         for(auto successor: block->outgoing) {
             if(!successor) continue;
 

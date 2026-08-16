@@ -9,7 +9,12 @@
    `{Vec(Int), Mask(U32)}` and the second position then contradicted the first.
 
    They are distinct types now, related by `Bitcast` at one shape, which is the language's ordinary
-   spelling for reinterpretation at equal widths. The instance emits nothing.
+   spelling for reinterpretation at equal widths. The instance emits nothing - and the `.lower`
+   expectation is where that stops being a claim about the emitted code and becomes visible: a mask's
+   lane *kind* does not exist below the resolve tier (`maskType` normalizes it away, since the width
+   and the count are a mask's whole identity), so the cast arrives as an identity and the folder
+   removes it. The resolve expectation beside it still has it, which is the point: the two types are
+   distinct where the type system is.
 -}
 
 -- The case the normalization existed for, written out: a mask made by comparing floats, applied to

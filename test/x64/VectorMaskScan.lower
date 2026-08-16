@@ -10,9 +10,12 @@
 #   - **the scan stands in the *guard's* block**, above the branch that reads its flags. Hoisting it
 #     is speculation of the cheapest kind - `bsf` does not fault, does not touch memory, and the
 #     register it writes is dead on the arm that did not want it.
-#   - **`guarded` is the shape that keeps its sentinel.** Its scan is reached from two places, so
-#     one predecessor's branch proves nothing about the mask on the other, and both rewrites decline
-#     together.
+#   - **`guarded` is the shape that keeps its sentinel.** Its scan is reached from two places and
+#     one of them says nothing about the mask, so both rewrites decline together.
+#   - **`joined` is the shape §52 added**, where every way in *does* say something: two arms each
+#     branch here on their own mask, so there are two proofs rather than none. It loses the sentinel
+#     and keeps its two tests, and the movemask its scan reads is a **phi of the two arms' own
+#     bitmaps** rather than a third `pmovmskb` of the vector the arms joined.
 #
 # The wide half of this is in `VectorMaskScan.Wide.lower`, where the scan is `tzcnt` and the flag
 # that answers is CF rather than ZF.
@@ -72,6 +75,38 @@ guarded(%a: i8x16, %b: i8x16, %n: Int): Int {
 
     hit {
         %f = vreduce_first %m: Int
+        ret %f
+    }
+
+    miss {
+        ret -1
+    }
+}
+
+# §52 The join: a loop and the masked tail after it, each testing its own mask and branching into one
+# hit block, which is what a search written out by hand compiles to once the two exits are merged.
+#
+# Three movemasks arrive here - one per arm and one of the phi - and two leave: a movemask is a
+# function of its operand, so it distributes over the join, and the phi moves into the scalar domain.
+# The sentinel goes with it, because here both proofs hold: every edge into `hit` is an arm branching
+# on its own alternative being nonzero. The two `test`s stay - a scan cannot stand in two blocks at
+# once, so the fusion above it is the one half a join does not get.
+joined(%a: i8x16, %b: i8x16, %c: i8x16): Int {
+    start {
+        %m = cmp_eq %a, %b: m8x16
+        %any = vreduce_or %m: Int
+        je %any, hit, tail
+    }
+
+    tail {
+        %t = cmp_eq %a, %c: m8x16
+        %anyTail = vreduce_or %t: Int
+        je %anyTail, hit, miss
+    }
+
+    hit {
+        %j = phi [start, %m], [tail, %t]: m8x16
+        %f = vreduce_first %j: Int
         ret %f
     }
 

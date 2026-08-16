@@ -1,20 +1,11 @@
 "use strict";
-// Core
-function teardown$none(value) {
-}
-
 // ResolveTest
 function flags() {
   var score = 0;
-  var v15 = { $v: 0 };
-  v15.$v = v15.$v & 4294967292 | 1;
-  var v78 = ResolveTest_deferred$14({ $o: v15, $k: "$v", $s: 1 });
-  if (Eq_Flags_eq_eq((v78 & 1 | (v78 >>> 1 & 1) << 1) >>> 0, 1)) {
+  if (Eq_Flags_eq_eq(((true ? 1 : 0) | (false ? 1 : 0) << 1) >>> 0, 1)) {
     score = score + 256 | 0;
   }
-  var v33 = { $v: 0 };
-  v33.$v = v33.$v & 4294967292 | 3;
-  if (Eq_Flags_eq_eq(((ResolveTest_deferred$15({ $o: v33, $k: "$v", $s: 1 }) >>> 1 & 1) << 1 | 1) >>> 0, 3)) {
+  if (Eq_Flags_eq_eq(3, 3)) {
     score = score + 512 | 0;
   }
   if (Eq_Flags_eq_eq(2, 2)) {
@@ -36,18 +27,5 @@ function Eq_Flags_eq_eq(lhs, rhs) {
     v11 = v4;
   }
   return v11;
-}
-
-function ResolveTest_deferred$14(env) {
-  return $b2u$get(env.$o[env.$k], env.$s);
-}
-
-function ResolveTest_deferred$15(env) {
-  return $b2u$get(env.$o[env.$k], env.$s);
-}
-
-// bit ranges of a word wider than the host's operators - see codegen/js/place.cpp
-function $b2u$get(w, s) {
-  return Math.floor(w / s) & 3;
 }
 main();

@@ -181,13 +181,11 @@ block #1:
   x86_addr scale=1 disp=-8 uses=[rdi] creates=[-]  => 
   load uses=[-] creates=[rax]  => 488b47f8
   imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=-100000 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 488b8f6079feff
   imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=-100000 uses=[rdi] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 4803876079feff
   x86_addr scale=1 disp=100000 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rdx]  => 488b97a0860100
-  add uses=[rax, rcx] creates=[rax]  => 4801c8
-  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  add uses=[rax, -] creates=[rax]  => 480387a0860100
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: loadScaledIndex ---

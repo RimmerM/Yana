@@ -562,6 +562,9 @@ struct LegalizeScratch {
     Array<RegMove> entryMoves;
     Array<RegMove> phiMoves;
 
+    // The copies §7.2.3 takes out of both arms of one branch, before they are committed.
+    Array<RegMove> hoisted;
+
     // Which of the transfers sequenceMoves has already emitted. One buffer serves the whole pass:
     // sequencing a parallel copy never sequences another.
     IndexSet done;
@@ -983,7 +986,14 @@ struct Legalizer {
             }
 
             auto want = wantForResult(shape, i);
-            auto home = locationAt(&v, index);
+
+            // Not `locationAt`: a result nothing reads has no home at all (markReadWebs in
+            // place.cpp), which is the one case where an invalid answer here is not a placement
+            // that failed to reach something. Placement only leaves one homeless where the form
+            // names the register it is produced in, so `want` below is what answers for it and
+            // there is nothing to carry anywhere afterwards - which is the whole of the saving: a
+            // call whose return value is discarded leaves it in rax and emits nothing.
+            auto home = placement.locationOf(&v, beforeInst(index));
 
             // Where the encoder has to write it, which is the home unless the home is a frame slot
             // this instruction has no destination form for, or the encoding forces a particular
@@ -993,12 +1003,13 @@ struct Legalizer {
             if(want.isValid()) at = want;
             else if(home.isStack()) at = takeTemp(bankForType(v.type));
 
+            assertTrue(at.isValid()); // a result with neither a home nor a register the form names
             out.creates.push(ResolvedOperand::location(at, regClass));
 
             // A result produced somewhere other than its home is carried there afterwards. For a
             // fixed register nothing live can be sitting in the way: it is part of this
             // instruction's written set, which every web crossing the instruction avoids.
-            if(at != home) pendingPost.push(RegMove { at, home, regClass });
+            if(home.isValid() && at != home) pendingPost.push(RegMove { at, home, regClass });
         }
 
         // A constant materialization carries the value it defines rather than an operand of its
@@ -1076,6 +1087,169 @@ struct Legalizer {
         }
     }
 };
+
+/*
+ * §7.2.3 Two arms that begin the same way.
+ *
+ * A conditional branch whose successors both start with the same copy has written that copy twice:
+ *
+ *     jle  .body                 vmovaps %ymm0, %ymm2
+ *     vmovaps %ymm0, %ymm2  ->    jle  .body
+ *     jmp  .join                 jmp  .join
+ *   .body:                     .body:
+ *     vmovaps %ymm0, %ymm2       ...
+ *     ...
+ *
+ * The shape is not exotic and is not a failure of coalescing: the arms of a rotated loop's guard
+ * both establish the accumulator's register - one for the loop body's first iteration, the other for
+ * the phi that skips it - and the two copies are the same copy because the value and its home are
+ * the same on both paths. `productVectors` in `test/resolve/VecBulk.yana` is where it was found, and
+ * every bulk operation in that file has one.
+ *
+ * ## What makes it sound
+ *
+ * The copy is emitted at the block's *exit* - after the terminator's own operand copies, before the
+ * branch - which is the one program point common to both paths and later than everything either
+ * block's own copies establish. Four conditions, and each closes a way the motion could lose
+ * something:
+ *
+ *  - **Both successors have this block as their only predecessor.** A copy taken out of a block
+ *    reached from anywhere else would stop happening on that other path.
+ *  - **The destination is not something the terminator names.** The copy now runs in front of the
+ *    branch rather than behind it, so a register the branch reads - its condition, or a base of an
+ *    address it folds - would be overwritten before it was read. The terminator's own copies are
+ *    checked as well, at both ends: they run first, and one whose destination this overwrote would
+ *    have been made for nothing.
+ *  - **Register to register, in one class.** Two reasons, and the second is the load-bearing one. A
+ *    copy through the frame or out of a recipe may need a scratch register, and the two sequences it
+ *    would be spliced between have each already been given theirs. And the copy lands between the
+ *    block's *comparison* and the branch that reads its flags - a block ending in a conditional
+ *    branch nearly always holds one - so it may not write them: a register copy is a `mov` or a
+ *    `movaps` and writes none, where a recipe materialization can be anything the recipe is.
+ *  - **Nothing follows the terminator.** A result carried out of a fixed register (`postMoves`) is
+ *    emitted after the branch has been taken, which is not a place anything on both paths can be.
+ *
+ * The source needs no condition at all. Every hoisted copy stands after this block's own copies and
+ * in the order the two arms had them, so what each reads is exactly what it read where it was.
+ *
+ * ## Where it runs
+ *
+ * On the records, after the walk that built them and before anything reads them - so a block left
+ * with nothing to emit is a block `computeBypass` can take out, which is the second half of the
+ * saving where an arm was one copy and a jump.
+ */
+static bool sameCopy(const RegMove& a, const RegMove& b) {
+    if(a.swap || b.swap) return false;
+    if(a.regClass != b.regClass) return false;
+    if(!a.from.isPhysical() || !a.to.isPhysical()) return false;
+
+    return a.from == b.from && a.to == b.to;
+}
+
+// Every register the terminator's record names, at either end of its copies and in its own operands,
+// results and folded address. A hoisted copy stands between the copies and the instruction, so a
+// destination anywhere in here is one it would destroy.
+static bool terminatorNames(const InstRegs& term, MachineLocation at) {
+    for(auto& move: term.moves) {
+        if(move.from == at || move.to == at) return true;
+    }
+
+    for(auto& use: term.uses) {
+        if(use.at == at) return true;
+    }
+
+    for(auto& create: term.creates) {
+        if(create.at == at) return true;
+    }
+
+    if(term.hasAddress && at.isPhysical() && at.bank == BankGpr) {
+        auto& address = term.address;
+        if(address.hasBase && address.base == at.index) return true;
+        if(address.hasIndex && address.index == at.index) return true;
+    }
+
+    return false;
+}
+
+/*
+ * The copies an arm runs before anything else, and where they are kept.
+ *
+ * Two lists can hold them and the difference is where the arm came from. A block reached over an
+ * edge that carried a location change has them in its `entryMoves`; a block that *is* the edge - the
+ * split block a critical edge became, whose whole content is a phi transfer and a jump - has them in
+ * its terminator's `moves`. The rotated loop guard that motivated this produces one of each: the arm
+ * entering the body and the arm skipping it are both edge blocks.
+ *
+ * Nothing else qualifies. A prefix taken out of the copies in front of a real instruction would have
+ * to reason about `emitAsLea`, which reads that list and folds it into the instruction behind it;
+ * and a block whose terminator is itself a branch has a comparison standing between its copies and
+ * its exit.
+ */
+struct ArmPrefix {
+    SmallBuffer<RegMove>* moves = nullptr;
+};
+
+static ArmPrefix armPrefixOf(LowerBase base, BlockRegs& regs, LowerBlock* block) {
+    if(regs.entryMoves.size() != 0) return ArmPrefix { &regs.entryMoves };
+    if(block->instructions.isNotEmpty()) return ArmPrefix {};
+    if(base[block->terminator]->kind != LowerInst::Jmp) return ArmPrefix {};
+
+    // The terminator's record is the only one a block with no instructions has, and `postMoves`
+    // there would be something running behind the jump.
+    auto& term = regs.insts[0];
+    if(term.postMoves.size() != 0) return ArmPrefix {};
+
+    return ArmPrefix { &term.moves };
+}
+
+static void hoistCommonEntryMoves(Legalizer& l, LowerBase base, LowerFunction& fun, LegalizedFunction& result) {
+    auto& hoisted = l.scratch.hoisted;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+        if(!block->outgoing[0] || !block->outgoing[1]) continue;
+
+        auto left = base[block->outgoing[0]];
+        auto right = base[block->outgoing[1]];
+        if(left == right) continue;
+        if(left->incoming.size() != 1 || right->incoming.size() != 1) continue;
+
+        auto here = result.blocks.get(block);
+        auto atLeft = result.blocks.get(left);
+        auto atRight = result.blocks.get(right);
+        if(!here.isJust() || !atLeft.isJust() || !atRight.isJust()) continue;
+
+        auto& blockRegs = here.unwrap();
+        auto& term = blockRegs.insts[blockRegs.insts.size() - 1];
+        if(term.postMoves.size() != 0) continue;
+
+        auto leftArm = armPrefixOf(base, atLeft.unwrap(), left);
+        auto rightArm = armPrefixOf(base, atRight.unwrap(), right);
+        if(!leftArm.moves || !rightArm.moves) continue;
+
+        hoisted.clear();
+        Size taken = 0;
+
+        while(taken < leftArm.moves->size() && taken < rightArm.moves->size()) {
+            auto& move = (*leftArm.moves)[taken];
+            if(!sameCopy(move, (*rightArm.moves)[taken])) break;
+            if(terminatorNames(term, move.to)) break;
+
+            hoisted.push(move);
+            taken++;
+        }
+
+        if(hoisted.isEmpty()) continue;
+
+        auto drop = [&](SmallBuffer<RegMove>& moves) {
+            moves = SmallBuffer<RegMove> { moves.data() + taken, moves.size() - taken };
+        };
+
+        drop(*leftArm.moves);
+        drop(*rightArm.moves);
+        blockRegs.exitMoves = commitSlice(l.records, hoisted);
+    }
+}
 
 // The one walk, run either to produce the instruction records or to measure what producing them
 // costs in scratch registers - see measureTemporaryReserve. The two are the same pass because a
@@ -1160,6 +1334,10 @@ static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, Legal
 
         if(!l.measuring) result.blocks.add(block, ::move(blockRegs));
     }
+
+    // §7.2.3, over the finished records: it reads two blocks at once, so it cannot be part of a walk
+    // that has only reached one of them.
+    if(!l.measuring) hoistCommonEntryMoves(l, base, fun, result);
 
     result.writtenPhysical = l.written;
 }

@@ -1,11 +1,5 @@
 @image$base = []
 
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
 flags<complex>(): Int {
   b_0 {
     %rw = alloca 1, 1: Ptr
@@ -18,70 +12,66 @@ flags<complex>(): Int {
     store %v_2, 0, 1
     copy %v_2, %r, 1
     %v_3 = alloca 1, 1: Ptr
-    call_complex ResolveTest.deferred$14, %v_3, %v_2
-    %v_4 = alloca 1, 1: Ptr
-    store %v_4, 0, 1
-    %v_5 = load %v_3, 1: Int
-    %v_6 = and %v_5, 1: Int
-    %v_7 = cast %v_6: Int
-    %v_8 = shr %v_5, 1: Int
-    %v_9 = and %v_8, 1: Int
-    %v_10 = cast %v_9: Int
-    %v_11 = cast %v_7: Int
-    %v_12 = cast %v_10: Int
-    %v_13 = shl %v_12, 1: Int
-    %v_14 = or %v_11, %v_13: Int
-    store %v_4, %v_14, 1
-    %v_15 = call_complex Eq(Flags).==, %v_4, %r: Int
-    je %v_15, b_16, b_17
+    store %v_3, 0, 1
+    %v_4 = load %v_2, 1: Int
+    %v_5 = and %v_4, 1: Int
+    %v_6 = cast %v_5: Int
+    %v_7 = shr %v_4, 1: Int
+    %v_8 = and %v_7, 1: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = cast %v_6: Int
+    %v_11 = cast %v_9: Int
+    %v_12 = shl %v_11, 1: Int
+    %v_13 = or %v_10, %v_12: Int
+    store %v_3, %v_13, 1
+    %v_14 = call_complex Eq(Flags).==, %v_3, %r: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    jmp b_16
   }
 
   b_16 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_18 = phi [b_0, 0], [b_16, 256]: Int
+    %v_17 = phi [b_0, 0], [b_15, 256]: Int
+    %v_18 = alloca 1, 1: Ptr
+    store %v_18, 0, 1
+    copy %v_18, %rw, 1
     %v_19 = alloca 1, 1: Ptr
     store %v_19, 0, 1
-    copy %v_19, %rw, 1
-    %v_20 = alloca 1, 1: Ptr
-    call_complex ResolveTest.deferred$15, %v_20, %v_19
-    %v_21 = alloca 1, 1: Ptr
-    store %v_21, 0, 1
-    %v_22 = load %v_20, 1: Int
-    %v_23 = shr %v_22, 1: Int
-    %v_24 = and %v_23, 1: Int
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Int
-    %v_27 = shl %v_26, 1: Int
-    %v_28 = or %v_27, 1: Int
-    store %v_21, %v_28, 1
-    %v_29 = call_complex Eq(Flags).==, %v_21, %rw: Int
-    je %v_29, b_30, b_31
+    %v_20 = load %v_18, 1: Int
+    %v_21 = shr %v_20, 1: Int
+    %v_22 = and %v_21, 1: Int
+    %v_23 = cast %v_22: Int
+    %v_24 = cast %v_23: Int
+    %v_25 = shl %v_24, 1: Int
+    %v_26 = or %v_25, 1: Int
+    store %v_19, %v_26, 1
+    %v_27 = call_complex Eq(Flags).==, %v_19, %rw: Int
+    je %v_27, b_28, b_29
   }
 
-  b_30 {
-    %v_32 = add %v_18, 512: Int
-    jmp b_31
+  b_28 {
+    %v_30 = add %v_17, 512: Int
+    jmp b_29
   }
 
-  b_31 {
-    %v_33 = phi [b_17, %v_18], [b_30, %v_32]: Int
-    %v_34 = alloca 1, 1: Ptr
-    store %v_34, 2, 1
-    %v_35 = call_complex Eq(Flags).==, %v_1, %v_34: Int
-    je %v_35, b_36, b_37
+  b_29 {
+    %v_31 = phi [b_16, %v_17], [b_28, %v_30]: Int
+    %v_32 = alloca 1, 1: Ptr
+    store %v_32, 2, 1
+    %v_33 = call_complex Eq(Flags).==, %v_1, %v_32: Int
+    je %v_33, b_34, b_35
   }
 
-  b_36 {
-    %v_38 = add %v_33, 1024: Int
-    jmp b_37
+  b_34 {
+    %v_36 = add %v_31, 1024: Int
+    jmp b_35
   }
 
-  b_37 {
-    %v_39 = phi [b_31, %v_33], [b_36, %v_38]: Int
-    ret %v_39
+  b_35 {
+    %v_37 = phi [b_29, %v_31], [b_34, %v_36]: Int
+    ret %v_37
   }
 }
 
@@ -123,22 +113,6 @@ Eq(Flags).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   b_17 {
     %v_18 = phi [b_8, %v_16], [b_9, %v_7]: Int
     ret %v_18
-  }
-}
-
-@closure$ResolveTest.deferred$14 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.deferred$14<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    copy %v_0, %env, 1
-    ret 
-  }
-}
-
-@closure$ResolveTest.deferred$15 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.deferred$15<complex>(%v_0: Ptr, %env: Ptr) {
-  b_1 {
-    copy %v_0, %env, 1
-    ret 
   }
 }
 

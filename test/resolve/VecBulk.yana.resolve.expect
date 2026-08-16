@@ -1060,41 +1060,42 @@ fn Collections.continuation$1(Array(Float), Float, ())(%env: %{width: Int, body:
   b6:
     %v36 = load %i : Int
     %v37 = sub %n, %v36 : Int
-    %v39 = vsplat 0 : Vec(Float)
-    %v41 = vwithlane %v39, 1, 1 : Vec(Float)
-    %v43 = vwithlane %v41, 2, 2 : Vec(Float)
-    %v45 = vwithlane %v43, 3, 3 : Vec(Float)
-    %v46 = cast %v37 : Float
-    %v47 = vsplat %v46 : Vec(Float)
-    %live = cmp_lt %v45, %v47 : Mask(Float)
-    %v49 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
-    %v50 = load [%v49] : (value$: Vec(Float)) -> Outcome((), ())
-    %v51 = load %i : Int
-    %v52 = cast %v51 : I64
-    %v53 = call loadVectorTail(Float), %value$, %v52 : Vec(Float)
-    %v54 = load [%env].empty : Vec(Float)
-    %v55 = select %live ? %v53 : %v54 : Vec(Float)
-    %v56 = calldyn %v50, %v55 : Outcome((), ())
-    %v57 = load %local3.discriminant : Int
-    %v59 = cmp_eq %v57, 1 : Bool
-    je %v59, b8, b9
+    %v39 = vsplat 0 : Vec(I32)
+    %v41 = vwithlane %v39, 1, 1 : Vec(I32)
+    %v43 = vwithlane %v41, 2, 2 : Vec(I32)
+    %v45 = vwithlane %v43, 3, 3 : Vec(I32)
+    %v46 = cast %v37 : I32
+    %v47 = vsplat %v46 : Vec(I32)
+    %v48 = cmp_lt %v45, %v47 : Mask(I32)
+    %live = bitcast %v48 : Mask(Float)
+    %v50 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v51 = load [%v50] : (value$: Vec(Float)) -> Outcome((), ())
+    %v52 = load %i : Int
+    %v53 = cast %v52 : I64
+    %v54 = call loadVectorTail(Float), %value$, %v53 : Vec(Float)
+    %v55 = load [%env].empty : Vec(Float)
+    %v56 = select %live ? %v54 : %v55 : Vec(Float)
+    %v57 = calldyn %v51, %v56 : Outcome((), ())
+    %v58 = load %local3.discriminant : Int
+    %v60 = cmp_eq %v58, 1 : Bool
+    je %v60, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v62 = alloc : Outcome((), Outcome((), ()))
+    %v63 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 1
-    init %local6@Exit, %v56
-    ret %v62
+    init %local6@Exit, %v57
+    ret %v63
 
   b9:
     jmp b10
 
   b10:
-    %v68 = alloc : Outcome((), Outcome((), ()))
+    %v69 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v68
+    ret %v69
 }
 
 fn loadVector(Float)(%from: Flat(Float), %at: I64) -> Vec(Float) {

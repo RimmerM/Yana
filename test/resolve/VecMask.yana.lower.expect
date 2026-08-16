@@ -7,44 +7,42 @@ main<complex>(): Int {
     %ints = vsplat 7: i32x4
     %others = vsplat 3: i32x4
     %v_1 = cmp_lt %a, %b: m32x4
-    %v_2 = bitcast %v_1: m32x4
-    %v_3 = select %v_2, %ints, %others: i32x4
-    %v_4 = cmp_ilt %others, %ints: m32x4
-    %v_5 = bitcast %v_4: m32x4
-    %v_6 = select %v_5, %a, %b: f32x4
-    %v_7 = vsplat 0: i32x4
-    %v_8 = vwithlane %v_7, 1, 1: i32x4
-    %v_9 = vwithlane %v_8, 2, 2: i32x4
-    %v_10 = vwithlane %v_9, 3, 3: i32x4
-    %v_11 = cmp_ilt %v_10, %others: m32x4
-    %kept = select %v_11, %v_10, %v_7: i32x4
-    %v_12 = vreduce_or %v_11: Int
-    %v_13 = xor %v_12, 1: Int
-    je %v_13, b_14, b_15
+    %v_2 = select %v_1, %ints, %others: i32x4
+    %v_3 = cmp_ilt %others, %ints: m32x4
+    %v_4 = select %v_3, %a, %b: f32x4
+    %v_5 = vsplat 0: i32x4
+    %v_6 = vwithlane %v_5, 1, 1: i32x4
+    %v_7 = vwithlane %v_6, 2, 2: i32x4
+    %v_8 = vwithlane %v_7, 3, 3: i32x4
+    %v_9 = cmp_ilt %v_8, %others: m32x4
+    %kept = select %v_9, %v_8, %v_5: i32x4
+    %v_10 = vreduce_or %v_9: Int
+    %v_11 = xor %v_10, 1: Int
+    je %v_11, b_12, b_13
   }
 
-  b_15 {
-    %v_16 = vreduce_add %kept: Int
-    %v_17 = imul %v_16, 10: Int
-    %v_18 = vreduce_add %v_11: Int
-    %v_19 = add %v_17, %v_18: Int
-    jmp b_20
+  b_13 {
+    %v_14 = vreduce_add %kept: Int
+    %v_15 = imul %v_14, 10: Int
+    %v_16 = vreduce_add %v_9: Int
+    %v_17 = add %v_15, %v_16: Int
+    jmp b_18
   }
 
-  b_14 {
-    jmp b_20
+  b_12 {
+    jmp b_18
   }
 
-  b_20 {
-    %counted = phi [b_15, %v_19], [b_14, 18446744073709551615]: Int
-    %v_21 = vlane %v_3, 0: Int
-    %v_22 = imul %v_21, 100000: Int
-    %v_23 = vlane %v_6, 0: Float
-    %v_24 = cmp_eq %v_23, 1: Int
-    %v_25 = imul %v_24, 10000: Int
-    %v_26 = add %v_22, %v_25: Int
-    %v_27 = add %v_26, %counted: Int
-    ret %v_27
+  b_18 {
+    %counted = phi [b_13, %v_17], [b_12, 18446744073709551615]: Int
+    %v_19 = vlane %v_2, 0: Int
+    %v_20 = imul %v_19, 100000: Int
+    %v_21 = vlane %v_4, 0: Float
+    %v_22 = cmp_eq %v_21, 1: Int
+    %v_23 = imul %v_22, 10000: Int
+    %v_24 = add %v_20, %v_23: Int
+    %v_25 = add %v_24, %counted: Int
+    ret %v_25
   }
 }
 

@@ -1130,6 +1130,43 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
         for(auto blockPtr: fun.blocks.contents(base)) {
             auto block = base[blockPtr];
 
+            /*
+             * The phis first, because they are where a dead chain usually begins.
+             *
+             * A phi is a pure choice between its alternatives and computes nothing else, so one
+             * nothing reads is exactly as dead as an addition nothing reads - and until this was
+             * here, nothing removed one: the sweep below walks `instructions`, and a phi is not in
+             * that list (see LowerBlock::addInst). What that cost is the *operands*, which stay
+             * alive as long as the phi naming them does. `indexOfVectors` in Core is the shape - the
+             * position an early `return Just(..)` would have handed back is joined with the one the
+             * exhausted-scan path computes, and on the path that returns `Nothing` the join is read
+             * by nobody, so the addition feeding it was written out on every no-match tail.
+             *
+             * Two phis that only read each other are not removed, and the loop below is why: each is
+             * a use of the other, so neither is ever seen with an empty use list. That is a whole
+             * dead cycle left in place rather than an unsound removal, and it is the one thing a
+             * use-count sweep cannot see.
+             */
+            SmallArray<LowerInstPhi*, 8> deadPhis;
+            for(auto phiPtr: block->phis.contents(base)) {
+                auto phi = base[phiPtr];
+                if(phi->result.uses.isEmpty()) deadPhis.push(phi);
+            }
+
+            for(auto phi: deadPhis) {
+                detach(base, (LowerInst*)phi);
+
+                for(Size i = 0; i < block->phis.size(); i++) {
+                    if(base[block->phis.get(base, i)] != phi) continue;
+
+                    block->phis.remove(base, i);
+                    break;
+                }
+
+                changed = true;
+                dropped = true;
+            }
+
             SmallArray<LowerPtr<LowerInst>, 32> kept;
             auto rewrote = false;
 

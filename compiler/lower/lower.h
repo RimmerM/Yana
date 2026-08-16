@@ -166,8 +166,26 @@ inline LowerType vectorType(LowerLane lane, U32 lanes) {
     return LowerType { lane, laneShiftFor(lanes), false };
 }
 
+/*
+ * A mask over lanes of this kind, which keeps the lane's *width* and not its kind.
+ *
+ * Design-Vector §2.4 makes the lane width and count a mask's whole identity, and `writeType` has
+ * always written one that way - `m32x4` for a comparison of two `f32x4` and for one of two `i32x4`
+ * alike. Normalizing here is what makes that a property of the type rather than of the spelling: the
+ * three places that build a mask from an operand's lane all come through this function, as does the
+ * parser reading `m32x4` back, so a float-laned mask cannot be constructed and the round trip
+ * through the printed form is exact.
+ *
+ * What it buys is a reinterpretation that is not there. `maskUpTo` over a `Mask(Float)` compares
+ * lane numbers in the integer domain and the mask it answers is the one the caller asked for, with
+ * no `bitcast` between two types that were only ever different names for the same bits - which the
+ * printer would have written as an identity cast, since it could not tell them apart either.
+ */
 inline LowerType maskType(LowerLane lane, U32 lanes) {
-    return LowerType { lane, laneShiftFor(lanes), true };
+    auto width = lane == LowerLane::Float32 ? LowerLane::Int32
+               : lane == LowerLane::Float64 ? LowerLane::Int64 : lane;
+
+    return LowerType { width, laneShiftFor(lanes), true };
 }
 
 inline constexpr LowerType LowerType::Int32 { LowerLane::Int32, 0, false };

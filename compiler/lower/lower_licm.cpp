@@ -49,6 +49,59 @@ bool writesStorage(LowerInst* inst) {
     }
 }
 
+/*
+ * Whether a computation may fault where nothing has established that it does not.
+ *
+ * The four dividing operations and nothing else, which is the whole difference between `isRepeatable`
+ * and what may be *moved*. That list is written for two readers who ask at a point the instruction
+ * already runs at - see lower_fold.h, which states exactly why a division is safe for both of them -
+ * and this reader moves it to a point it did not run at. A loop that tests its divisor and divides
+ * behind the test is the shape the distinction is for.
+ */
+bool mayFault(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Div: case LowerInst::IDiv:
+        case LowerInst::Rem: case LowerInst::IRem:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * Whether moving this computation buys anything, which is a narrower question than whether it may be
+ * moved - and the one that decides whether this pass is worth having. Measured rather than reasoned:
+ * hoisting everything invariant costs **Matrix +1.4 ms and Sort +5.2 ms** against hoisting the two
+ * kinds below.
+ *
+ * **An address is free where it stands.** `add %xs, 8` reaching a load is a displacement in that
+ * load's addressing mode - `foldAddresses` in codegen/x64/transform.cpp puts it there, and the SIB
+ * byte holds a scale beside it - so the loop does not execute it at all. Hoisting one trades a byte
+ * of encoding for a register live across the whole loop, and `Sort.yana`'s partition loop is five
+ * `add %xs, 8` and two `add %v_1, 12` of exactly that shape. It is the same gate `lower_induction.h`
+ * states for the scale of a reduced address, arrived at from the other side: an addressing mode the
+ * machine encodes for nothing is not a computation the loop repeats.
+ *
+ * A pointer result is the whole of the test, and it is deliberately a *type* question rather than a
+ * search over the users. An address is what a pointer-typed value is in this IR - the lowering builds
+ * one per field access and per element - and the one place a pointer arrives without being an address
+ * is a call's return value, which is not repeatable and never reaches here.
+ *
+ * **A comparison is free where it stands too, and for the same kind of reason.** One whose readers
+ * are branches is carried in the flags - `canCarryInFlags` in codegen/x64/transform.cpp - so the loop
+ * spends a `cmp` and a `jcc` and no register at all. Moved to the preheader it is out of every flags
+ * window there is, which makes it a `setcc` into a register, that register live across the loop, and
+ * a `test` in front of the branch that used to read the flags directly. That is one instruction more
+ * in the loop rather than one fewer.
+ *
+ * **A `Set` is not a computation.** It is a copy the register allocator's coalescing removes where it
+ * can, so hoisting one moves a copy rather than removing it.
+ */
+bool worthHoisting(LowerInst* inst) {
+    if(inst->kind == LowerInst::Set || inst->kind == LowerInst::Cmp) return false;
+    return ((LowerInstSingle*)inst)->result.type != LowerType::Pointer;
+}
+
 // How far an instruction reaches past its own base address, for the two kinds that touch memory.
 // Zero for everything else, which is what makes the search below a filter rather than a switch.
 //
@@ -138,10 +191,105 @@ LowerBlock* preheaderOf(LowerBase base, const LoopInfo& loops, LowerBlock* heade
     return pre;
 }
 
+/*
+ * Whether this loop contains no loop of its own.
+ *
+ * The gate on hoisting a *computation*, and the second of the two things measurement decided rather
+ * than reasoning - see `worthHoisting` for the first. `Matrix.multiply` is a three-deep nest with an
+ * invariant multiply at two of the three levels, and hoisting them is worth **-0.9%** for the inner
+ * one and **+1.4%** for both:
+ *
+ *  - `k * n` sits in the innermost loop and leaves it. That takes an `imul` out of the block the
+ *    program spends its time in - 19 instructions to 18 - and it is §50.2's measurement, reproduced.
+ *  - `row * n` sits one level out, in the `k` loop, and is already read from inside the innermost
+ *    one. Hoisting it removes nothing from the innermost loop; what it changes is that the product
+ *    now has to survive the `k` loop's back edge as well, and the `k` loop is where this function's
+ *    pressure already is - `row` itself is spilled to make room, and the whole of the inner loop's
+ *    gain is handed back.
+ *
+ * That is the general shape rather than this program's accident. What a hoist buys is one instruction
+ * per iteration of the loop it leaves; what it costs is a value live across every iteration of every
+ * loop *inside* that one. Leaving an innermost loop is the case where the second term is empty, and
+ * it is also the case where the first term is largest, because the innermost loop is the hot one.
+ *
+ * Multi-level hoisting falls out of this rather than being forbidden by it - just not in one step. A
+ * value leaving an innermost loop lands in that loop's preheader, and if the enclosing loop then has
+ * no other loop in it, the next round takes it out of that one too. What cannot happen is a value
+ * being carried across a loop it was not already inside.
+ *
+ * A load is not held to this. Its rule is `safeToSpeculate` and its saving is a memory access rather
+ * than an arithmetic instruction, which is a different trade and one already measured (§10 item 1).
+ */
+bool isInnermost(LowerBase base, LowerFunction& fun, const LoopInfo& loops, BlockIndex header) {
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+        if(block->index == header) continue;
+        if(loops.contains(header, block->index) && loops.isHeader(block->index)) return false;
+    }
+
+    return true;
+}
+
+// Whether a value is defined outside the loop, which is the whole of "it does not change between
+// iterations" for a value in SSA form. An argument belongs to no block and is outside every loop
+// there is.
+bool definedOutside(LowerBase base, const LoopInfo& loops, BlockIndex header, LowerValue* value) {
+    auto definition = value->inst()->block;
+    return !definition || !loops.contains(header, base[definition]->index);
+}
+
+/*
+ * Whether every operand of `inst` is one the preheader can read, collecting the immediates that have
+ * to travel with it.
+ *
+ * An `Imm` inside the loop is admitted and pushed onto `constants`: it has no operands of its own, so
+ * the only thing standing between it and the preheader is that nobody moved it. Recorded rather than
+ * moved on sight because the caller may still decline the instruction for another operand, and a
+ * constant relocated for a hoist that did not happen is a `mov` bought for nothing.
+ */
+bool operandsAvailable(LowerBase base, const LoopInfo& loops, BlockIndex header, LowerInst* inst,
+                       SmallArray<LowerInst*, 8>& constants) {
+    auto used = inst->used();
+
+    for(Size i = 0; i < used.length; i++) {
+        auto value = base[used.ptr[i]];
+        if(definedOutside(base, loops, header, value)) continue;
+
+        auto definition = value->inst();
+        if(definition->kind != LowerInst::Imm) return false;
+
+        constants.push(definition);
+    }
+
+    return true;
+}
+
+/*
+ * Moving one instruction to the end of the preheader's instruction list, which is in front of that
+ * block's terminator: a terminator is not in the instruction list. The instruction keeps its operands
+ * and its result, so every reader of it stays pointed at the same value - and the preheader dominates
+ * the whole loop, so every one of them is still dominated by the definition.
+ *
+ * Through `detach` first, because `addInst` is what *records* an instruction's uses: adding one that
+ * is already in its operands' use lists would put it there twice, and the validator counts both
+ * directions.
+ *
+ * The block it came from still names it. `inst->block` is the preheader once this returns, and that
+ * is what the sweep at the end of each loop filters the loop's instruction lists on - which is what
+ * lets a constant be taken out of a block the walk has already passed.
+ */
+void moveToPreheader(LowerBase base, LowerBlock* preheader, LowerInst* inst) {
+    if(inst->block == preheader - base) return;
+
+    detach(base, inst);
+    inst->block = nullptr;
+    preheader->addInst(base, inst);
+}
+
 } // namespace
 
-void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
-                    const LoopAnalysis& analysis)
+void hoistLoopInvariants(LowerBase base, LowerModule& module, LowerFunction& fun,
+                         const LoopAnalysis& analysis)
 {
     if(fun.blocks.size() < 2) return;
 
@@ -152,10 +300,11 @@ void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
     auto& dominators = analysis.dominators;
 
     /*
-     * Innermost first, and repeated until nothing moves. A load leaving an inner loop lands in that
+     * Innermost first, and repeated until nothing moves. A value leaving an inner loop lands in that
      * loop's preheader, which is a block the enclosing loop contains - so carrying it the rest of
      * the way out is another round rather than another rule, and the walk below is in no particular
-     * order to begin with.
+     * order to begin with. That is also what orders the preheader: an operand hoisted this round is
+     * outside the loop next round, and its reader is appended behind it.
      */
     auto changed = true;
     while(changed) {
@@ -168,7 +317,8 @@ void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
             auto preheader = preheaderOf(base, loops, header);
             if(!preheader) continue;
 
-            // What the loop does to storage, once per loop rather than once per candidate.
+            // What the loop does to storage, once per loop rather than once per candidate. Only the
+            // loads are held to it; a computation reads nothing that a store could change.
             auto writes = false;
             for(auto blockPtr: fun.blocks.contents(base)) {
                 auto block = base[blockPtr];
@@ -181,8 +331,61 @@ void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
                 if(writes) break;
             }
 
-            if(writes) continue;
+            // And whether a computation leaving it would have to be carried across a loop of its
+            // own, which is the gate the arithmetic is held to and the loads are not. Once per loop,
+            // for the reason above.
+            auto innermost = isInnermost(base, fun, loops, header->index);
+            auto moved = false;
 
+            for(auto blockPtr: fun.blocks.contents(base)) {
+                auto block = base[blockPtr];
+                if(!loops.contains(header->index, block->index)) continue;
+
+                for(auto instPtr: block->instructions.contents(base)) {
+                    auto inst = base[instPtr];
+
+                    // A constant moved out from under this walk by an earlier candidate. Its own
+                    // block still lists it and the sweep below is what takes it off; until then it
+                    // is simply not here any more.
+                    if(inst->block != blockPtr) continue;
+
+                    // Inline: the immediates one candidate would have to take with it, which is at
+                    // most one per operand.
+                    SmallArray<LowerInst*, 8> constants;
+
+                    if(inst->kind == LowerInst::Load) {
+                        if(writes) continue;
+
+                        auto load = (LowerInstLoad*)inst;
+                        auto from = base[load->from];
+
+                        // The address has to be the same one every iteration. An address is not an
+                        // immediate, so nothing travels with this one.
+                        if(!definedOutside(base, loops, header->index, from)) continue;
+
+                        auto address = addressOf(base, from);
+                        if(!safeToSpeculate(base, fun, dominators, preheader, address, load->getWidth())) {
+                            continue;
+                        }
+                    } else if(innermost && isRepeatable(inst) && !mayFault(inst) && worthHoisting(inst)) {
+                        if(!operandsAvailable(base, loops, header->index, inst, constants)) continue;
+                    } else {
+                        continue;
+                    }
+
+                    // The constants first, so that the preheader defines them in front of the reader
+                    // that needed them moved.
+                    for(auto constant: constants) moveToPreheader(base, preheader, constant);
+                    moveToPreheader(base, preheader, inst);
+                    moved = true;
+                }
+            }
+
+            if(!moved) continue;
+
+            // What is left of each block in the loop, which is everything that still says it is
+            // there. Done once per loop rather than once per block, because a constant leaves a
+            // block the walk above may already have finished with.
             for(auto blockPtr: fun.blocks.contents(base)) {
                 auto block = base[blockPtr];
                 if(!loops.contains(header->index, block->index)) continue;
@@ -190,57 +393,17 @@ void hoistLoopLoads(LowerBase base, LowerModule& module, LowerFunction& fun,
                 // Inline: one of these per block, holding the instructions that stay while the list
                 // it came from is rebuilt - the same shape lower_fold.cpp and lower_cse.cpp use.
                 SmallArray<LowerPtr<LowerInst>, 32> kept;
-                auto moved = false;
-
                 for(auto instPtr: block->instructions.contents(base)) {
-                    auto inst = base[instPtr];
-
-                    if(inst->kind != LowerInst::Load) {
-                        kept.push(instPtr);
-                        continue;
-                    }
-
-                    auto load = (LowerInstLoad*)inst;
-                    auto from = base[load->from];
-
-                    // The address has to be the same one every iteration, which for a value in SSA
-                    // form is simply where it was defined. An argument belongs to no block and is
-                    // outside every loop there is.
-                    auto definition = from->inst()->block;
-                    if(definition && loops.contains(header->index, base[definition]->index)) {
-                        kept.push(instPtr);
-                        continue;
-                    }
-
-                    auto address = addressOf(base, from);
-                    if(!safeToSpeculate(base, fun, dominators, preheader, address, load->getWidth())) {
-                        kept.push(instPtr);
-                        continue;
-                    }
-
-                    /*
-                     * Appended to the preheader, which puts it in front of that block's terminator:
-                     * a terminator is not in the instruction list. The instruction keeps its
-                     * operands and its result, so every reader of it stays pointed at the same
-                     * value - and the preheader dominates the whole loop, so every one of them is
-                     * still dominated by the definition.
-                     *
-                     * Through `detach` first, because `addInst` is what *records* an instruction's
-                     * uses: adding one that is already in its operands' use lists would put it there
-                     * twice, and the validator counts both directions.
-                     */
-                    detach(base, inst);
-                    inst->block = nullptr;
-                    preheader->addInst(base, inst);
-                    moved = true;
+                    if(base[instPtr]->block == blockPtr) kept.push(instPtr);
                 }
 
-                if(!moved) continue;
+                if(kept.size() == block->instructions.size()) continue;
 
                 block->instructions.clear();
                 for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
-                changed = true;
             }
+
+            changed = true;
         }
     }
 }

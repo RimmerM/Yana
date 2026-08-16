@@ -313,24 +313,23 @@ heaped<complex>(%c: Int, %d: Int): Int {
   }
 
   b_18 {
-    %v_20 = phi [b_13, 1], [b_19, %v_6]: Int
-    %v_21 = loads @live, 4: Int
-    ret %v_21
+    %v_20 = loads @live, 4: Int
+    ret %v_20
   }
 
   b_8 {
-    %v_22 = and %v_6, 255: Int
-    je %v_22, b_23, b_24
+    %v_21 = and %v_6, 255: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_22 {
+    %v_24 = loads @live, 4: Int
+    %v_25 = sub %v_24, 1: Int
+    store @live, %v_25, 4
+    jmp b_23
   }
 
   b_23 {
-    %v_25 = loads @live, 4: Int
-    %v_26 = sub %v_25, 1: Int
-    store @live, %v_26, 4
-    jmp b_24
-  }
-
-  b_24 {
     call_complex freeHeap, %g
     jmp b_19
   }

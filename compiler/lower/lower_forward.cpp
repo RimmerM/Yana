@@ -399,7 +399,7 @@ void eraseInst(LowerBase base, LowerInst* inst) {
  * the copy. The last is the only part that walks instructions the copy does not name.
  */
 bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
-                HashMap<U32, U32>& reaching, LowerInstCopy& copy) {
+                HashMap<U32, U32>& reaching, LowerPtr<LowerValue> returnPlace, LowerInstCopy& copy) {
     auto source = base[copy.from];
     auto destination = base[copy.to];
     if(source == destination) return false;
@@ -575,18 +575,29 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
      *
      * It cannot be answered by looking at what the call does, so it is answered by what the call can
      * name: the destination has to be storage of this frame whose address has reached nothing but
-     * plain accesses by the time the call runs. A parameter or a global is refused outright here -
-     * they are exactly the destinations the escape argument above needs nothing for, and exactly the
-     * ones this needs something it cannot have.
+     * plain accesses by the time the call runs. A global and every parameter but one are refused
+     * outright here - they are exactly the destinations the escape argument above needs nothing for,
+     * and exactly the ones this needs something it cannot have. The one is this function's own hidden
+     * result pointer, which is answered below.
      */
     if(lastCall != maxLimit<Size>) {
-        if(!destinationBase) return false;
-
-        // Built here rather than once per function: it is one walk of the CFG, and it is wanted only
-        // by the shape that gets this far - a copy whose temporary a call filled, which is a handful
-        // of sites in a program and none at all in most functions.
-        blocksReaching(base, block, reaching);
-        if(!addressHiddenBefore(base, block, position, reaching, destinationBase, lastCall)) return false;
+        /*
+         * The one destination outside this frame that answers it, and the answer is the caller's
+         * rather than anything provable here: a hidden result pointer names storage that call site
+         * allocated for this call and nothing else - see lower_forward.h - so the callee being handed
+         * it has no second route to it. Every other parameter and every global is refused, as before.
+         */
+        if(!destinationBase) {
+            if(copy.to != returnPlace || destinationKind != LowerInst::Arg) return false;
+        } else {
+            // Built here rather than once per function: it is one walk of the CFG, and it is wanted
+            // only by the shape that gets this far - a copy whose temporary a call filled, which is
+            // a handful of sites in a program and none at all in most functions.
+            blocksReaching(base, block, reaching);
+            if(!addressHiddenBefore(base, block, position, reaching, destinationBase, lastCall)) {
+                return false;
+            }
+        }
     }
 
     for(auto i = first; i < Size(here.unwrap()); i++) {
@@ -658,7 +669,7 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
 
 }
 
-void forwardCopyDestinations(LowerBase base, LowerFunction& fun) {
+void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace) {
     HashMap<U32, U32> position;
     HashMap<U32, U32> reaching;
 
@@ -684,7 +695,7 @@ void forwardCopyDestinations(LowerBase base, LowerFunction& fun) {
                 auto inst = base[block->instructions.get(base, i)];
                 if(inst->kind != LowerInst::Copy) continue;
 
-                if(tryForward(base, fun, *block, position, reaching, *(LowerInstCopy*)inst)) {
+                if(tryForward(base, fun, *block, position, reaching, returnPlace, *(LowerInstCopy*)inst)) {
                     changed = true;
                     break;
                 }

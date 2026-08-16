@@ -427,38 +427,87 @@ static ModulePtr<Value> emitFirstSet(ExprResolver& resolver, Buffer<ModulePtr<Va
 /*
  * `maskUpTo(n)` - the first `n` lanes set, which is the tail mask.
  *
- * `iota() .< splat(n)` in the mask's own lane width, and the whole reason it is an intrinsic is that
+ * `iota() .< splat(n)` at the mask's lane width, and the whole reason it is an intrinsic is that
  * last clause: `splat` converts its argument to the lane type through the ordinary conversion, and
  * an `Int` does not reach a lane narrower than one. So `Vec(I16)`'s tail mask has no spelling in
  * source, and every wider one has a spelling only because the conversion happens to widen. Here the
  * count is a lane index - bounded by the lane count, so by 64 - and what the cast means is settled.
  *
- * The comparison is in the mask's *own* lane type, which since the normalization was dropped is the
- * element the mask was made from rather than an unsigned integer of its width - so `maskUpTo` over a
- * `Mask(Float)` compares floats and over a `Mask(I16)` compares signed halves. Every one of them is
- * exact: what is compared is a lane index against a lane count, both bounded by `kMaxVectorLanes`,
- * so no lane type this language admits can round or wrap one. A count outside `0..lanes` answers
- * all-clear or all-set rather than something in between, which is what a caller that clamps its own
- * remainder already relies on.
+ * ## §52 The comparison is built in the integer domain, whatever the mask is over
+ *
+ * Both operands are lane *numbers*: the indices `0, 1, 2, ...` and how many lanes are live. Neither
+ * is a value of the vector's element type in any sense other than that the comparison used to be
+ * written there, and both are bounded by `kMaxVectorLanes` - so the two domains answer the same
+ * mask, bit for bit, and the integer one is where the machine is cheaper. Over a `Mask(Float)` the
+ * float domain costs, on x64:
+ *
+ *     vxorps ; vcvtsi2ss ; vpbroadcastd ; vcmpltps      the count converted, then compared as floats
+ *
+ * against the integer domain's `vmovd ; vpbroadcastd ; vpcmpgtd`, which folds `iota`'s own constant
+ * into the comparison's memory operand and needs no dependency-breaking `vxorps` in front of a
+ * conversion that is not there. It is also what puts a float tail on the same footing as an integer
+ * one everywhere below: the lane-range fold in the x64 backend (§41.3) reads an *integer* comparison
+ * against `iota` and had no reason to refuse a float one other than that it could not recognize it.
+ *
+ * Signed rather than unsigned, because `pcmpgt` is signed and the unsigned relation is a bias and
+ * two exclusive-ors on top of it - and nothing here is ever negative. A count outside `0..lanes`
+ * answers all-clear or all-set rather than something in between, exactly as the float comparison
+ * did, which is what a caller that clamps its own remainder already relies on.
+ *
+ * An integer lane is already in that domain and keeps its own type, signedness and all: an unsigned
+ * lane compares its indices unsigned, which is the same answer for numbers this small, and moving it
+ * to the signed twin would be a second type in the IR for nothing.
+ *
+ * The mask that comes back is a mask over the *index* vector, and the one the caller asked for is
+ * over the element - the same bits under a different name, which is what `bitcast` is the language's
+ * spelling for (see `resolveVectorType` on why the two are no longer one interned type). It costs
+ * nothing at either backend: a mask's lane *kind* stops existing one tier down, where `maskType`
+ * normalizes it away and the fold removes what is then an identity.
  */
+
+// The type a lane *number* is counted in for a vector of this element: the element itself where it
+// is already an integer, and the signed integer of the same width where it is a float.
+static TypePtr laneIndexType(ExprResolver& resolver, TypePtr lane) {
+    if(!isFloat(resolver.global, lane)) return lane;
+
+    // On JS a mask is `lanes` host booleans and a lane comparison is a scalar `<` in either domain,
+    // so there is nothing here to win - and a 64-bit integer lane is refused outright on that target
+    // (a `bigint` is not a lane), so `Mask(Double)` would be a diagnostic rather than a saving.
+    if(isJsMode(resolver.context.settings.mode)) return lane;
+
+    // A float is four bytes or eight, so the two rungs below are the whole of the mapping. A missing
+    // one is Core not having been built yet, which answers the lane itself and changes nothing.
+    auto index = resolver.module.scalar.signedLanes[laneStride(resolver.global, lane) == 8 ? 3 : 2];
+
+    return index ? index : lane;
+}
+
 static ModulePtr<Value> emitMaskUpTo(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
     auto lane = vectorLane(resolver.global, type);
     auto lanes = vectorLanes(resolver.global, type);
     if(!lane || !lanes) return nullptr;
 
-    auto indices = resolveVectorType(resolver.module, lane, lanes, false, source);
+    auto index = laneIndexType(resolver, lane);
+    auto indices = resolveVectorType(resolver.module, index, lanes, false, source);
     if(!isVectorType(resolver.global, indices)) return nullptr;
+
+    auto mask = index == lane ? type : maskFor(resolver.module, indices);
+    if(!mask) return nullptr;
 
     auto iota = emitIota(resolver, { nullptr, 0 }, indices, source, StringId());
     if(!iota) return nullptr;
 
-    // The count in the lane's own width. A `Cast` rather than a conversion, for the reason above:
+    // The count at the index's own width. A `Cast` rather than a conversion, for the reason above:
     // this is the one place that knows the value is a lane index and so cannot lose anything.
-    auto limit = resolver.ref(resolver.emit<InstUnary>(source, StringId(), lane, Value::Cast, args[0]));
+    auto limit = resolver.ref(resolver.emit<InstUnary>(source, StringId(), index, Value::Cast, args[0]));
     auto splat = resolver.ref(resolver.emit<InstVecSplat>(source, StringId(), indices, limit));
 
-    return resolver.ref(resolver.emit<InstCmp>(source, name, type, iota, splat, CompareOp::Lt));
+    auto compare = resolver.ref(resolver.emit<InstCmp>(source, mask == type ? name : StringId(), mask,
+                                                       iota, splat, CompareOp::Lt));
+
+    if(mask == type) return compare;
+    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Bitcast, compare));
 }
 
 /*

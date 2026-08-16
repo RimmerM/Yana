@@ -166,5 +166,30 @@
  *
  * Like promotion, it leaves its litter to `removeDeadConstants` in lower_fold.h - the byte count of
  * an allocation that no longer exists is an immediate nothing reads.
+ *
+ * ## The one parameter that may be a destination a call fills
+ *
+ * §7.4 refuses a parameter, and the reason is that nothing can be shown about what a callee can
+ * reach. `returnPlace` is the exception, and it is an exception because of what the *caller* did:
+ * lowering builds a call's hidden result storage as a fresh `alloca` at the call site and never as
+ * anything else - see lower_call.cpp - so the pointer a function receives to return through names
+ * storage of its caller's frame that holds no value yet and that nothing else in that frame has the
+ * address of. A callee handed it therefore cannot reach it by any other route, which is precisely
+ * what §7.4 asks and cannot otherwise get.
+ *
+ * What that buys is the forwarding thunk, from the other side of the fork than opt_inline.cpp's:
+ *
+ *      f(%ret, %self):                      f(%ret, %self):
+ *        %t = alloca 16                       call g, %ret, %self
+ *        call g, %t, %self             ->     ret
+ *        copy %ret, %t, 16
+ *        ret
+ *
+ * `findAscii` in Core is that function, and so is every `@noinline` or exported wrapper the inliner
+ * declines to remove. The frame, the temporary and the sixteen-byte copy all go, and what is left is
+ * a call in tail position - which is the shape the backend's own tail handling wants.
+ *
+ * Null where the function returns in a register or returns nothing, which makes the rule above
+ * unreachable for every function that has no such parameter.
  */
-void forwardCopyDestinations(LowerBase base, LowerFunction& fun);
+void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace);

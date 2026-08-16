@@ -2497,9 +2497,16 @@ struct Emitter {
         // against itself clears the whole vector, which is one two-byte instruction where the pair
         // below is ten. Negative zero is *not* this - its sign bit is set - and the bit test says so
         // rather than a comparison against 0.0, which would read the two as equal.
+        //
+        // `vxorps` where the target has AVX, for the rule vectorClassNeedsVex states: nothing that
+        // writes a vector register may be a legacy SSE instruction there. The legacy form leaves the
+        // upper half of its register alone, so materializing a zero after anything has dirtied one
+        // pays the transition - and which of those it stands between is a property of the schedule
+        // rather than of this instruction, so it cannot be reasoned about here. Two-address under
+        // the prefix: the source is the destination, so `vvvv` names it.
         auto destination = reg(regs.creates[0]);
         if(bits == 0) {
-            genRegReg(to, false, destination, destination, 0x57, 0x0f); // xorps xmm, xmm
+            genPackedTwoAddress(false, destination, destination, 0x57, 0x0f, 0); // (v)xorps xmm, xmm
             return;
         }
 
@@ -3865,6 +3872,14 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         // placing the returned values, and everything up to here is the block's *content* - what
         // §7.2.1 compares, with the jump to the epilogue left out of it.
         genMoves(to, frame, objects, remats, termRegs.moves);
+
+        // §7.2.3: the copies both arms of this branch began with, written once here instead. After
+        // the terminator's own copies, so nothing they establish is disturbed, and in front of the
+        // branch, which is the last point on both paths. A block with any of these ends in a
+        // conditional branch and so is never a return tail, which is why they fall inside `content`
+        // rather than being excluded from the comparison below.
+        genMoves(to, frame, objects, remats, blockRegs.exitMoves);
+
         auto contentEnd = U32(to.buffer.offset());
         emitter.emitInst(terminator, termRegs);
         genMoves(to, frame, objects, remats, termRegs.postMoves);

@@ -349,33 +349,34 @@ fn dot(%xs: Flat(Float), %ys: Flat(Float)) -> Float {
   b4:
     %v33 = load %i : Int
     %v34 = sub %n, %v33 : Int
-    %v36 = vsplat 0 : Vec(Float)
-    %v38 = vwithlane %v36, 1, 1 : Vec(Float)
-    %v40 = vwithlane %v38, 2, 2 : Vec(Float)
-    %v42 = vwithlane %v40, 3, 3 : Vec(Float)
-    %v43 = cast %v34 : Float
-    %v44 = vsplat %v43 : Vec(Float)
-    %live = cmp_lt %v42, %v44 : Mask(Float)
-    %v46 = load %i : Int
-    %v47 = cast %v46 : I64
-    %v48 = call loadVectorTail(Float), %xs, %v47 : Vec(Float)
-    %x = select %live ? %v48 : %empty : Vec(Float)
-    %v50 = load %i : Int
-    %v51 = cast %v50 : I64
-    %v52 = call loadVectorTail(Float), %ys, %v51 : Vec(Float)
-    %y = select %live ? %v52 : %empty : Vec(Float)
-    %v54 = load %acc : Vec(Float)
-    %v55 = fma %x %y %v54 : Vec(Float)
-    assign %acc, %v55
+    %v36 = vsplat 0 : Vec(I32)
+    %v38 = vwithlane %v36, 1, 1 : Vec(I32)
+    %v40 = vwithlane %v38, 2, 2 : Vec(I32)
+    %v42 = vwithlane %v40, 3, 3 : Vec(I32)
+    %v43 = cast %v34 : I32
+    %v44 = vsplat %v43 : Vec(I32)
+    %v45 = cmp_lt %v42, %v44 : Mask(I32)
+    %live = bitcast %v45 : Mask(Float)
+    %v47 = load %i : Int
+    %v48 = cast %v47 : I64
+    %v49 = call loadVectorTail(Float), %xs, %v48 : Vec(Float)
+    %x = select %live ? %v49 : %empty : Vec(Float)
+    %v51 = load %i : Int
+    %v52 = cast %v51 : I64
+    %v53 = call loadVectorTail(Float), %ys, %v52 : Vec(Float)
+    %y = select %live ? %v53 : %empty : Vec(Float)
+    %v55 = load %acc : Vec(Float)
+    %v56 = fma %x %y %v55 : Vec(Float)
+    assign %acc, %v56
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v59 = load %acc : Vec(Float)
-    %v60 = vreduce_add %v59 : Float
-    ret %v60
+    %v60 = load %acc : Vec(Float)
+    %v61 = vreduce_add %v60 : Float
+    ret %v61
 }
 
 fn indexOf(%xs: Flat(Int), %needle: Int) -> Int {

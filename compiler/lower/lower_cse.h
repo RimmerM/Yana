@@ -74,3 +74,54 @@
  */
 bool eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun,
                            const LoopAnalysis& analysis);
+
+/*
+ * The counters a loop carries two of, merged into one.
+ *
+ * The pass above answers a computation from an earlier one that dominates it, and a loop's counter is
+ * the one thing it can never reach: the value a header phi holds is not computed anywhere that
+ * dominates the header, it is *chosen* there, and two phis choosing the same thing are two
+ * computations neither of which came first. So a loop advancing two values in step keeps both, one
+ * add each, one register each, for the whole of the loop.
+ *
+ * `indexOfVectors` in Core - compiler/resolve/core.cpp - is the shape, and it is not an accident of
+ * that function. The iteration protocol hands the body a chunk and the offset it came from, and the
+ * body keeps a running position of its own; at a byte lane on AVX2 both advance by 32, so the vector
+ * search's inner loop is
+ *
+ *     %at  = phi [pre, 0], [latch, %at2]        add %eax, %r8d
+ *     %off = phi [pre, 0], [latch, %off2]       add %edx, %r8d
+ *     ...                                       mov %edx, %r9d
+ *     %at2  = add %at,  32                      add %r8d, %r9d
+ *     %off2 = add %off, 32                      cmp %ecx, %r9d
+ *
+ * two recurrences with one value between them. Merging them is one add and one register out of the
+ * hot loop, and the survivor serves both the addressing and the position the search returns.
+ *
+ * ## What makes two of them the same
+ *
+ * They choose R-equal values on every incoming edge, where R is equality plus the assumption that
+ * these two phis are themselves equal. That assumption is what the question needs to be answerable at
+ * all - `%at2` and `%off2` agree exactly when `%at` and `%off` do - and discharging it is sound for
+ * the reason any greatest-fixpoint argument is: the entry edge of a loop names values that are not
+ * the phis, so the induction has a base case, and every later iteration follows from the one before.
+ * See `Congruence`.
+ *
+ * Structural rather than syntactic, because the two steps are two instructions in two blocks: the
+ * comparison is `sameOperand`, the same one the CSE uses, which is what makes `add %at, 32` in one
+ * block and `add %off, 32` in another one computation. It descends through arithmetic only and never
+ * through a load - two loads of one address are equal only where nothing wrote between them, which is
+ * a fact about a path rather than about the pair.
+ *
+ * The alternatives are matched by source block rather than by position, and a predecessor named twice
+ * is declined outright.
+ *
+ * ## Where it runs
+ *
+ * In front of `eliminateCommonValues`, which is the whole reason it is a separate pass rather than a
+ * step inside one: what the merge leaves behind is one value where there were two, and everything
+ * computed from either of them - a sign extension, an address, a comparison - becomes a pair the CSE
+ * can then collect. Behind `threadDecidedBranches` and the folds, so that a phi left with one
+ * alternative is already that alternative rather than a join to compare.
+ */
+void mergeCongruentPhis(LowerBase base, LowerModule& module, LowerFunction& fun);

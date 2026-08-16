@@ -584,6 +584,20 @@ struct BlockRegs {
      */
     SmallBuffer<RegMove> entryMoves;
 
+    /*
+     * Copies emitted at the block's exit: after the terminator's own operand copies and immediately
+     * in front of the terminator itself.
+     *
+     * The mirror of `entryMoves`, and built by exactly one thing - `hoistCommonEntryMoves`, which
+     * moves a copy that stood at the head of *both* arms of a conditional branch back into the block
+     * they branch from. Emitted where they are because that is the one point on both paths: after
+     * this block's own copies, so nothing they establish is disturbed, and before the branch, which
+     * is where the two paths part.
+     *
+     * Empty for every block that does not end in a conditional branch, and for nearly all of those.
+     */
+    SmallBuffer<RegMove> exitMoves;
+
     // Inline for a block of up to sixteen instructions, which most of them are: this is built once
     // per block of every function, and an InstRegs is four words now that its lists are runs in the
     // arena - see commitSlice.

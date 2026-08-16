@@ -88,8 +88,11 @@ bool isRepeatable(LowerInst* inst);
  * the comparison narrowing in `foldFunctionConstants` takes a reader off an addition without removing
  * the addition, which is the same situation arrived at from the other side.
  *
- * Only the kinds above, so that this stays a sweep behind a rewrite rather than a dead-code pass with
- * an opinion about calls, loads and stores. Iterated, because dropping one value is what makes its
+ * Only the kinds above, plus the phis, so that this stays a sweep behind a rewrite rather than a
+ * dead-code pass with an opinion about calls, loads and stores. A phi is one of the kinds above in
+ * everything but where it is stored - it computes a value out of its alternatives and does nothing
+ * else - and it is the one this list used to be missing, so a value read only by a join that nobody
+ * reads survived every sweep in the pipeline. Iterated, because dropping one value is what makes its
  * operands dead in turn.
  */
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);

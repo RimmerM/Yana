@@ -13,9 +13,15 @@
 #   - the operations with no tie to drop - the comparisons and the transfers - differ from their
 #     legacy spelling in the prefix alone.
 #
-# What is deliberately unchanged is everything with no VEX form: the conversions, the constant
-# materialization and the select still write legacy SSE, which costs nothing while no instruction
-# here leaves a dirty upper half of a ymm register.
+# What is deliberately unchanged is everything with no VEX form: the conversions, the general
+# constant materialization and the select still write legacy SSE, which costs nothing while no
+# instruction here leaves a dirty upper half of a ymm register.
+#
+# The one constant that is *not* left alone is positive zero. It is materialized rather than pooled -
+# `xorps xmm, xmm` is two bytes where a load is eight - so unlike every other constant here it is an
+# instruction that writes a vector register, and the rule those follow is this file's subject: a
+# legacy write leaves the upper half alone, and which instructions it stands between is a property of
+# the schedule rather than of the constant. See `zero` below.
 
 arith64(%a: Double, %b: Double): Double {
     {
@@ -74,6 +80,19 @@ negate(%a: Double, %b: Float): Double {
         %m = neg %b: Float
         %w = cast %m: Double
         %r = add %n, %w: Double
+        ret %r
+    }
+}
+
+# Positive zero at both widths, which is the one constant with an encoding of its own: `vxorps`
+# rather than `xorps`, with the source named in vvvv because the prefix no longer implies it. Added
+# to and multiplied by an argument so that neither is folded away and both survive to be emitted.
+zero(%a: Double, %b: Float): Double {
+    {
+        %z = add %a, 0.0: Double
+        %y = mul %b, 0.0F: Float
+        %w = cast %y: Double
+        %r = add %z, %w: Double
         ret %r
     }
 }

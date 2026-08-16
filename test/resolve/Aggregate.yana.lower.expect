@@ -28,36 +28,6 @@ choiceValue<complex>(%choice: Ptr): Int {
   }
 }
 
-selectedPair<complex>(%v_0: Ptr, %value: Int) {
-  b_1 {
-    %v_2 = cast %value: Int
-    %v_3 = cmp_eq %v_2, 1: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 0, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 0, 4
-    jmp b_8
-  }
-
-  b_4 {
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 3, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, 4, 4
-    jmp b_8
-  }
-
-  b_8 {
-    %v_11 = phi [b_4, %v_9], [b_5, %v_6]: Ptr
-    copy %v_0, %v_11, 8
-    ret 
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
@@ -74,16 +44,8 @@ main<complex>(): Int {
     store %v_7, 3, 4
     %v_8 = call_complex choiceValue, %v_5: Int
     %v_9 = add %v_4, %v_8: Int
-    %v_10 = add %v_9, 19: Int
-    %v_11 = alloca 8, 4: Ptr
-    call_complex selectedPair, %v_11, 1
-    %pair$x = loads %v_11, 4: Int
-    %v_12 = add %v_11, 4: Ptr
-    %pair$y = loads %v_12, 4: Int
-    %v_13 = add %pair$x, %pair$y: Int
-    %v_14 = add %v_10, %v_13: Int
-    %v_15 = add %v_14, 3: Int
-    ret %v_15
+    %v_10 = add %v_9, 29: Int
+    ret %v_10
   }
 }
 

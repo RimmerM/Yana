@@ -17,9 +17,17 @@ function sometimesLeaves(x) {
 function insideArm(x) {
   B0: {
     if (x > 0) {
-      var v12 = scope_Outcome_Int(ResolveTest_continuation$16, { $v: x });
-      if (!(v12 === null)) {
-        return v12;
+      log = log + 1 | 0;
+      var v32 = null;
+      if (x > 100) {
+        v32 = 0;
+      } else {
+        log = log + 1000 | 0;
+        v32 = null;
+      }
+      log = log + 100 | 0;
+      if (!(v32 === null)) {
+        return v32;
       }
     }
   }
@@ -53,22 +61,6 @@ function ResolveTest_continuation$15(env) {
   } else {
     return v1 + 2 | 0;
   }
-}
-
-function ResolveTest_continuation$16(env) {
-  if (env.$v > 100) {
-    return 0;
-  } else {
-    log = log + 1000 | 0;
-    return null;
-  }
-}
-
-function scope_Outcome_Int(body$c, body$e) {
-  log = log + 1 | 0;
-  var v5 = body$c(body$e);
-  log = log + 100 | 0;
-  return v5;
 }
 
 function ResolveTest_continuation$17(env, value$) {

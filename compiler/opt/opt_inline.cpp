@@ -1539,6 +1539,21 @@ struct Inliner {
              * is strictly better: the callee builds the result in the caller's storage directly and
              * no copy is emitted at all. This is what an adaptor's `Outcome` needs, and every one of
              * them has a `ret` per arm.
+             *
+             * **And a single `ret` of something that is not an allocation falls back to it rather
+             * than declining, which is what makes a forwarding thunk inlinable at all.** The shape is
+             * `fn f(..) -> T = g(..)` with `T` a memory type, and it is what most of the ASCII tier
+             * in Core is: `findAscii` is one `call indexOfVectors` and a `ret` of its result, so the
+             * returned value is a *call* rather than an allocation this body made, and the rename had
+             * nothing to rename. Refusing it meant the wrapper stayed - a frame, a temporary, a
+             * sixteen-byte copy into the caller's return slot and a second call - around a body of
+             * one instruction, at both of `VecString.scan`'s searches.
+             *
+             * The fallback costs nothing where the callee is one block, which a thunk is:
+             * `spliceStraightLine` hands the caller the cloned call itself and the caller's slot is
+             * repointed at it, so no copy is emitted and the result is built in the caller's storage
+             * exactly as the rename would have built it. Where the body branches, the copy is the one
+             * a `ret` of a memory value already is.
              */
             if(type && isMemoryType(opt.global, type)) {
                 if(candidate.returns.size() != 1) {
@@ -1547,7 +1562,10 @@ struct Inliner {
                 }
 
                 auto returned = opt.local[ret.value];
-                if(returned->kind != Value::Alloc) return Nothing();
+                if(returned->kind != Value::Alloc) {
+                    candidate.copiedResult = true;
+                    continue;
+                }
 
                 candidate.resultLocal = ((InstAlloc&)*returned).local;
                 if(candidate.resultLocal >= callee->localCount()) return Nothing();

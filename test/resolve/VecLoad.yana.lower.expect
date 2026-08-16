@@ -164,32 +164,33 @@ dot<complex>(%xs$items: Ptr, %xs$length: Long, %ys$items: Ptr, %ys$length: Long)
 
   b_11 {
     %v_19 = sub %n, %v_5: Int
-    %v_20 = vwithlane %empty, 1, 1: f32x4
-    %v_21 = vwithlane %v_20, 2, 2: f32x4
-    %v_22 = vwithlane %v_21, 3, 3: f32x4
-    %v_23 = itof %v_19: Float
-    %v_24 = vsplat %v_23: f32x4
-    %live = cmp_lt %v_22, %v_24: m32x4
-    %v_25 = sext %v_5: Long
-    %v_26 = shl %v_25, 2: Long
-    %v_27 = add %xs$items, %v_26: Ptr
-    %v_28 = loadx %v_27, 16: f32x4
-    %x = select %live, %v_28, %empty: f32x4
-    %v_29 = add %ys$items, %v_26: Ptr
+    %v_20 = vsplat 0: i32x4
+    %v_21 = vwithlane %v_20, 1, 1: i32x4
+    %v_22 = vwithlane %v_21, 2, 2: i32x4
+    %v_23 = vwithlane %v_22, 3, 3: i32x4
+    %v_24 = cast %v_19: Int
+    %v_25 = vsplat %v_24: i32x4
+    %v_26 = cmp_ilt %v_23, %v_25: m32x4
+    %v_27 = sext %v_5: Long
+    %v_28 = shl %v_27, 2: Long
+    %v_29 = add %xs$items, %v_28: Ptr
     %v_30 = loadx %v_29, 16: f32x4
-    %y = select %live, %v_30, %empty: f32x4
-    %v_31 = fma %x, %y, %v_2: f32x4
-    jmp b_32
+    %x = select %v_26, %v_30, %empty: f32x4
+    %v_31 = add %ys$items, %v_28: Ptr
+    %v_32 = loadx %v_31, 16: f32x4
+    %y = select %v_26, %v_32, %empty: f32x4
+    %v_33 = fma %x, %y, %v_2: f32x4
+    jmp b_34
   }
 
   b_12 {
-    jmp b_32
+    jmp b_34
   }
 
-  b_32 {
-    %v_33 = phi [b_11, %v_31], [b_12, %v_2]: f32x4
-    %v_34 = vreduce_add %v_33: Float
-    ret %v_34
+  b_34 {
+    %v_35 = phi [b_11, %v_33], [b_12, %v_2]: f32x4
+    %v_36 = vreduce_add %v_35: Float
+    ret %v_36
   }
 }
 

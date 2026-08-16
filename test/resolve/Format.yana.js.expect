@@ -1,9 +1,5 @@
 "use strict";
 // Text
-function newStringOfCapacity(capacity) {
-  return "";
-}
-
 function showSigned(value, to$o, to$k, to$s) {
   if (value === 0n) {
     var v91 = to$o[to$k] + String.fromCharCode(48);
@@ -13,7 +9,7 @@ function showSigned(value, to$o, to$k, to$s) {
     if (value > 0n) {
       remaining = BigInt.asIntN(64, 0n - remaining);
     }
-    var digits = newStringOfCapacity(20);
+    var digits = "";
     L0: for (;;) {
       if (remaining < 0n) {
         digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
@@ -23,17 +19,17 @@ function showSigned(value, to$o, to$k, to$s) {
       break L0;
     }
     if (value < 0n) {
-      var v99 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v99;
+      var v100 = to$o[to$k] + String.fromCharCode(45);
+      to$o[to$k] = v100;
     }
     var i = digits.length;
     L1: for (;;) {
       if (i > 0) {
         var v79 = i - 1 | 0;
         i = v79;
-        var v102 = digits.charCodeAt(v79);
-        var v105 = to$o[to$k] + String.fromCharCode(v102);
-        to$o[to$k] = v105;
+        var v103 = digits.charCodeAt(v79);
+        var v106 = to$o[to$k] + String.fromCharCode(v103);
+        to$o[to$k] = v106;
         continue L1;
       }
       break L1;
@@ -53,7 +49,8 @@ function formatBound(bound) {
 
 // ResolveTest
 function oneIntText() {
-  var v7 = { $v: newStringOfCapacity(formatBound(11) + 3 | 0) };
+  var v4 = formatBound(11);
+  var v7 = { $v: "" };
   v7.$v = v7.$v + "n=";
   showSigned(7n, v7, "$v", 1);
   v7.$v = v7.$v + "!";
@@ -79,7 +76,11 @@ function oneIntText() {
 }
 
 function mixed() {
-  var v19 = { $v: newStringOfCapacity((((formatBound("ab".length) + 3 | 0) + formatBound(11) | 0) + formatBound("ab".length) | 0) + formatBound(11) | 0) };
+  var v7 = formatBound("ab".length);
+  var v10 = formatBound(11);
+  var v13 = formatBound("ab".length);
+  var v16 = formatBound(11);
+  var v19 = { $v: "" };
   v19.$v = v19.$v + "ab";
   v19.$v = v19.$v + "-";
   showSigned(12n, v19, "$v", 1);
@@ -90,20 +91,13 @@ function mixed() {
   return v19.$v.length;
 }
 
-function boolean() {
-  var v10 = newStringOfCapacity((formatBound(5) + 1 | 0) + formatBound(5) | 0);
-  v10 = v10 + "True";
-  v10 = v10 + "/";
-  v10 = v10 + "False";
-  return v10.length;
-}
-
 function inLoop() {
   var total = 0;
   var i = 0;
   L0: for (;;) {
     if (i < 100) {
-      var v18 = { $v: newStringOfCapacity(formatBound(11) + 10 | 0) };
+      var v15 = formatBound(11);
+      var v18 = { $v: "" };
       v18.$v = v18.$v + "iteration ";
       showSigned(BigInt.asIntN(64, BigInt(i)), v18, "$v", 1);
       total = total + v18.$v.length | 0;
@@ -117,21 +111,33 @@ function inLoop() {
 
 function main() {
   var v41 = "no holes here".length;
-  var v51 = { $v: newStringOfCapacity(formatBound(11) + 4 | 0) };
-  v51.$v = v51.$v + "n = ";
-  showSigned(42n, v51, "$v", 1);
-  var v13 = (v41 + v51.$v.length | 0) + oneIntText() | 0;
-  var v71 = newStringOfCapacity(formatBound("world".length) + 6 | 0);
-  v71 = v71 + "hello ";
-  v71 = v71 + "world";
-  var v21 = (v13 + v71.length | 0) + mixed() | 0;
-  var v88 = { $v: newStringOfCapacity(formatBound(11)) };
-  showSigned(-2147483648n, v88, "$v", 1);
-  return (((v21 + v88.$v.length | 0) + boolean() | 0) + inLoop() | 0) + printed() | 0;
+  var v47 = formatBound(11);
+  var v48 = { $v: "" };
+  v48.$v = v48.$v + "n = ";
+  showSigned(42n, v48, "$v", 1);
+  var v13 = (v41 + v48.$v.length | 0) + oneIntText() | 0;
+  var v65 = formatBound("world".length);
+  var v66 = "";
+  v66 = v66 + "hello ";
+  v66 = v66 + "world";
+  var v21 = (v13 + v66.length | 0) + mixed() | 0;
+  var v82 = formatBound(11);
+  var v83 = { $v: "" };
+  showSigned(-2147483648n, v83, "$v", 1);
+  var v25 = v21 + v83.$v.length | 0;
+  var v95 = formatBound(5);
+  var v100 = formatBound(5);
+  var v101 = "";
+  v101 = v101 + "True";
+  v101 = v101 + "/";
+  v101 = v101 + "False";
+  return ((v25 + v101.length | 0) + inLoop() | 0) + printed() | 0;
 }
 
 function printed() {
-  var v11 = { $v: newStringOfCapacity((formatBound("format".length) + 14 | 0) + formatBound(11) | 0) };
+  var v5 = formatBound("format".length);
+  var v8 = formatBound(11);
+  var v11 = { $v: "" };
   v11.$v = v11.$v + "[";
   v11.$v = v11.$v + "format";
   v11.$v = v11.$v + " ran ";

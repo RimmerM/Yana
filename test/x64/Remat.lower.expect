@@ -157,7 +157,7 @@ block #0:
 block #1:
   imm uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e8b3ffffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[stack:0->rax]  => 48890424e8b3ffffff488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488d4c1500
@@ -173,7 +173,7 @@ block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->rax]  => 488bee488bc2
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e853ffffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[stack:0->rax]  => 48890424e853ffffff488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488d4c1500
@@ -181,7 +181,7 @@ block #1:
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
   add uses=[rax, rbp] creates=[rax]  => 4801e8
   x86_addr [rip + table] uses=[] creates=[-]  => 
-  add uses=[rax, -] creates=[rax]  => 480305ee010000
+  add uses=[rax, -] creates=[rax]  => 480305e0010000
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: functionAcrossCall ---
@@ -191,7 +191,7 @@ block #0:
 block #1:
   fun uses=[] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e8f3feffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[stack:0->rax]  => 48890424e803ffffff488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488d4c1500
@@ -199,7 +199,7 @@ block #1:
   add uses=[rbp, rdx] creates=[rbp]  => 4801d5
   add uses=[rsi, rbp] creates=[rsi] pre=[rax->rsi]  => 488d3428
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3dddfeffffe8e8feffff
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[remat:0->rdi]  => 488d3deffeffffe8fafeffff
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: localAcrossCall ---
@@ -210,7 +210,7 @@ block #1:
   imm uses=[] creates=[-]  => 
   alloca uses=[-] creates=[remat:0]  => 
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:1] post=[rax->rcx, stack:1->rax]  => 4889442420e892feffff8bc8488b442420
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:1] post=[stack:1->rax]  => 4889442420e8a2feffff488b442420
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488d4c1500
@@ -228,7 +228,7 @@ block #0:
 block #1:
   imm uses=[] creates=[rsi] post=[rsi->stack:1]  => 48beefcdab89674523014889742408
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[rax->rcx, stack:0->rax]  => 48890424e824feffff8bc8488b0424
+  call_clobber uses=[-, rdi] creates=[rax] pre=[rax->stack:0] post=[stack:0->rax]  => 48890424e834feffff488b0424
   add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 488d4c0500
   add uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx]  => 488d1408
   add uses=[rcx, rdx] creates=[rcx] pre=[rbp->rcx]  => 488d4c1500

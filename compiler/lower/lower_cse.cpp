@@ -3,7 +3,34 @@
 
 namespace {
 
-bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth);
+/*
+ * A pair of values the comparison below is allowed to *assume* are equal.
+ *
+ * Empty for the CSE itself, which asks whether two computations that have already happened agree and
+ * has nothing to assume. `mergeCongruentPhis` is the one caller that fills it in, and it is what makes
+ * a question about a cycle answerable at all: two counters advancing in step are equal exactly when
+ * their steps are equal, and their steps are equal exactly when the counters are - so the recursion
+ * has to be allowed to close, and the hypothesis is where it closes.
+ *
+ * Assuming and then checking is sound here for the reason it is sound in any greatest-fixpoint
+ * argument. Every alternative of the two phis is compared under the assumption, and the assumption is
+ * discharged only if every one of them holds; a pair that is *not* equal has some alternative where
+ * the disagreement is reached without going back through the pair, and that alternative fails. What
+ * cannot happen is the two being unified on the strength of nothing but each other, because the
+ * entry edge of a loop names values that are not the phis.
+ */
+struct Congruence {
+    LowerPtr<LowerValue> first = nullptr;
+    LowerPtr<LowerValue> second = nullptr;
+
+    bool holds(LowerPtr<LowerValue> a, LowerPtr<LowerValue> b) const {
+        if(!first) return false;
+        return (a == first && b == second) || (a == second && b == first);
+    }
+};
+
+bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, const Congruence& assumed,
+                     Size depth);
 
 /*
  * How far `sameOperand` looks below the operands it is comparing.
@@ -43,10 +70,11 @@ static constexpr Size kMaxOperandDepth = 4;
  * is what holds it. Descending into one here would be asserting it without having asked.
  */
 bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue> second,
-                 Size depth = 0)
+                 const Congruence& assumed = Congruence(), Size depth = 0)
 {
     if(first == second) return true;
     if(!first || !second) return false;
+    if(assumed.holds(first, second)) return true;
 
     auto a = base[first];
     auto b = base[second];
@@ -62,7 +90,7 @@ bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue
     if(depth >= kMaxOperandDepth) return false;
     if(!isRepeatable(left) || !isRepeatable(right)) return false;
 
-    return sameComputation(base, left, right, depth + 1);
+    return sameComputation(base, left, right, assumed, depth + 1);
 }
 
 // Commutative in the sense this pass needs: the operands may be compared as a pair rather than in
@@ -118,7 +146,9 @@ static bool sameLoadedClass(LowerInst::Kind kind, LowerType a, LowerType b) {
     return wordClass(a) && wordClass(b);
 }
 
-bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0) {
+bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
+                     const Congruence& assumed = Congruence(), Size depth = 0)
+{
     if(a->kind != b->kind) return false;
 
     auto left = ((LowerInstSingle*)a)->created().ptr;
@@ -126,7 +156,7 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b, Size depth = 0)
     if(!sameLoadedClass(a->kind, left->type, right->type)) return false;
 
     auto same = [&](LowerPtr<LowerValue> x, LowerPtr<LowerValue> y) {
-        return sameOperand(base, x, y, depth);
+        return sameOperand(base, x, y, assumed, depth);
     };
 
     // A load says which storage it reads in its width and its signedness as well as in its address,
@@ -660,7 +690,94 @@ bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& f
     return true;
 }
 
+/*
+ * Whether two phis of one block choose the same value on every edge, given that they may assume each
+ * other.
+ *
+ * The alternatives are matched by *source block* rather than by position. Two phis of one block are
+ * built from one predecessor list and in practice agree on its order, but nothing in this IR says
+ * they must, and a pass that read the wrong pair would unify two counters that step differently.
+ *
+ * A block appearing twice in the incoming list - which is what a `Je` whose arms were later merged
+ * leaves - is declined rather than resolved: the two entries may legitimately carry different values,
+ * and picking the first is picking one of them.
+ */
+bool alternativesAgree(LowerBase base, LowerInstPhi* a, LowerInstPhi* b, const Congruence& assumed) {
+    auto usedA = a->used();
+    auto usedB = b->used();
+    if(usedA.length != usedB.length) return false;
+
+    auto sourcesA = a->sources();
+    auto sourcesB = b->sources();
+
+    for(Size i = 0; i < usedA.length; i++) {
+        auto matched = false;
+
+        for(Size j = 0; j < usedB.length; j++) {
+            if(sourcesB[j] != sourcesA[i]) continue;
+            if(matched) return false;
+
+            if(!sameOperand(base, usedA.ptr[i], usedB.ptr[j], assumed)) return false;
+            matched = true;
+        }
+
+        if(!matched) return false;
+    }
+
+    return true;
+}
+
 } // namespace
+
+void mergeCongruentPhis(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    auto changed = true;
+
+    while(changed) {
+        changed = false;
+
+        for(auto blockPtr: fun.blocks.contents(base)) {
+            auto block = base[blockPtr];
+            if(block->phis.size() < 2) continue;
+
+            // Inline: the block's phis, copied because the walk below removes from the list it is
+            // reading. A block with more than a handful is a join of an aggregate, which the split
+            // and the promotion above have usually already taken apart.
+            SmallArray<LowerInstPhi*, 8> phis;
+            for(auto phiPtr: block->phis.contents(base)) phis.push(base[phiPtr]);
+
+            for(Size i = 0; i < phis.size(); i++) {
+                auto keep = phis[i];
+                if(!keep) continue;
+
+                for(Size j = i + 1; j < phis.size(); j++) {
+                    auto drop = phis[j];
+                    if(!drop || drop->result.type != keep->result.type) continue;
+
+                    Congruence assumed { &keep->result - base, &drop->result - base };
+                    if(!alternativesAgree(base, keep, drop, assumed)) continue;
+
+                    replaceUses(base, module.arena, &drop->result - base, &keep->result - base);
+                    detach(base, (LowerInst*)drop);
+
+                    for(Size k = 0; k < block->phis.size(); k++) {
+                        if(base[block->phis.get(base, k)] != drop) continue;
+
+                        block->phis.remove(base, k);
+                        break;
+                    }
+
+                    phis[j] = nullptr;
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    // What the merge orphaned: the step of the counter that went is an addition whose only reader was
+    // the phi naming it, and the phi is gone. Which is also what removes the phi that a merged pair
+    // fed into one level out, since the sweep now collects those too - see removeDeadValues.
+    removeDeadValues(base, module.arena, fun);
+}
 
 bool eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& fun,
                            const LoopAnalysis& analysis)

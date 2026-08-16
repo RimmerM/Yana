@@ -356,23 +356,22 @@ maybeReplaced<complex>(%c: Int, %d: Int): Int {
   }
 
   b_14 {
-    %v_16 = phi [b_13, 1], [b_15, %v_6]: Int
-    %v_17 = loads @drops, 4: Int
-    %v_18 = sub %v_17, %start: Int
-    ret %v_18
+    %v_16 = loads @drops, 4: Int
+    %v_17 = sub %v_16, %start: Int
+    ret %v_17
   }
 
   b_8 {
-    %v_19 = and %v_6, 255: Int
-    je %v_19, b_20, b_21
+    %v_18 = and %v_6, 255: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    call_complex Drop(Guard).drop, %g
+    jmp b_20
   }
 
   b_20 {
-    call_complex Drop(Guard).drop, %g
-    jmp b_21
-  }
-
-  b_21 {
     jmp b_15
   }
 }
@@ -459,40 +458,39 @@ pair<complex>(%c: Int): Int {
 
   b_5 {
     %v_6 = phi [b_3, 0], [b_4, 1]: Int
-    %v_7 = phi [b_3, 0], [b_4, 1]: Int
-    %v_8 = loads @live, 4: Int
-    %v_9 = add %v_8, 1: Int
-    store @live, %v_9, 4
-    %v_10 = and %v_6, 255: Int
-    je %v_10, b_11, b_12
+    %v_7 = loads @live, 4: Int
+    %v_8 = add %v_7, 1: Int
+    store @live, %v_8, 4
+    %v_9 = and %v_6, 255: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    call_complex Drop(Guard).drop, %x
+    jmp b_11
   }
 
   b_11 {
-    call_complex Drop(Guard).drop, %x
-    jmp b_12
-  }
-
-  b_12 {
     store %x, 3, 4
     call_complex Drop(Guard).drop, %x
-    %v_13 = loads @live, 4: Int
-    %v_14 = add %v_13, 1: Int
-    store @live, %v_14, 4
-    %v_15 = and %v_7, 255: Int
-    je %v_15, b_16, b_17
+    %v_12 = loads @live, 4: Int
+    %v_13 = add %v_12, 1: Int
+    store @live, %v_13, 4
+    %v_14 = and %v_6, 255: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    call_complex Drop(Guard).drop, %y
+    jmp b_16
   }
 
   b_16 {
-    call_complex Drop(Guard).drop, %y
-    jmp b_17
-  }
-
-  b_17 {
     store %y, 4, 4
     call_complex Drop(Guard).drop, %y
-    %v_18 = loads @drops, 4: Int
-    %v_19 = sub %v_18, %start: Int
-    ret %v_19
+    %v_17 = loads @drops, 4: Int
+    %v_18 = sub %v_17, %start: Int
+    ret %v_18
   }
 }
 
@@ -546,23 +544,22 @@ heaped<complex>(%c: Int, %d: Int): Int {
   }
 
   b_14 {
-    %v_16 = phi [b_13, 1], [b_15, %v_6]: Int
-    %v_17 = loads @drops, 4: Int
-    %v_18 = sub %v_17, %start: Int
-    ret %v_18
+    %v_16 = loads @drops, 4: Int
+    %v_17 = sub %v_16, %start: Int
+    ret %v_17
   }
 
   b_8 {
-    %v_19 = and %v_6, 255: Int
-    je %v_19, b_20, b_21
+    %v_18 = and %v_6, 255: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    call_complex Drop(Guard).drop, %g
+    jmp b_20
   }
 
   b_20 {
-    call_complex Drop(Guard).drop, %g
-    jmp b_21
-  }
-
-  b_21 {
     call_complex freeHeap, %g
     jmp b_15
   }
