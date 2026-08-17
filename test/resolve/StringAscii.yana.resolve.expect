@@ -117,108 +117,108 @@ fn Collections.continuation$12(String, U8)(%env: %{sought: Vec(U8), at: &mut Int
 fn vectorsMasked(String, U8, Maybe(I64))(%self: String, %body: (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))) -> Outcome((), Maybe(I64)) {
   b0:
     %v3 = vsplat 0 : Vec(U8)
-    %v5 = alloc : {width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}
-    init %local2.width, 16
-    %v7 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
-    init %local2.body, %v7
-    %v9 = addressof %local2 : %()
-    %v10 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64)))
-    %v11 = symbol Collections.continuation$0(String, U8, Maybe(I64)) : %()
-    init %local3.code, %v11
-    init %local3.env, %v9
-    %v14 = call Chunked(String, U8).chunks(Outcome((), Maybe(I64))), %self, %v10 : Outcome((), Outcome((), Maybe(I64)))
-    %v15 = load %local4.discriminant : Int
-    %v17 = cmp_eq %v15, 1 : Bool
-    je %v17, b1, b2
+    %width = cast 16 : I64
+    %v6 = alloc : {width: I64, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}
+    init %local2.width, %width
+    %v8 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    init %local2.body, %v8
+    %v10 = addressof %local2 : %()
+    %v11 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64)))
+    %v12 = symbol Collections.continuation$0(String, U8, Maybe(I64)) : %()
+    init %local3.code, %v12
+    init %local3.env, %v10
+    %v15 = call Chunked(String, U8).chunks(Outcome((), Maybe(I64))), %self, %v11 : Outcome((), Outcome((), Maybe(I64)))
+    %v16 = load %local4.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
 
   b1:
-    %v19 = move %local4@Exit : Outcome((), Maybe(I64))
-    ret %v19
+    %v20 = move %local4@Exit : Outcome((), Maybe(I64))
+    ret %v20
 
   b2:
-    %v21 = alloc : Outcome((), Maybe(I64))
+    %v22 = alloc : Outcome((), Maybe(I64))
     init %local5.discriminant, 0
-    ret %v21
+    ret %v22
 }
 
-fn Collections.continuation$0(String, U8, Maybe(I64))(%env: %{width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}, %value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64))) {
+fn Collections.continuation$0(String, U8, Maybe(I64))(%env: %{width: I64, body: &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))}, %value$: Flat(U8)) -> Outcome((), Outcome((), Maybe(I64))) {
   b0:
     %v2 = load %value$@Flat.length : I64
-    %n = cast %v2 : Int
-    %i = alloc : Int
+    %v3 = load [%env].width : I64
+    %last = sub %v2, %v3 : I64
+    %i = alloc : I64
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
-    %v9 = load [%env].width : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = cmp_le %v10, %n : Bool
-    je %v11, b3, b2
+    %v9 = load %i : I64
+    %v10 = cmp_le %v9, %last : Bool
+    je %v10, b3, b2
 
   b2:
-    %v13 = load %i : Int
-    %v14 = cmp_lt %v13, %n : Bool
-    je %v14, b6, b7
+    %v12 = load %i : I64
+    %v13 = cmp_lt %v12, %v2 : Bool
+    je %v13, b6, b7
 
   b3:
-    %v16 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
-    %v17 = load [%v16] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
-    %v18 = alloc : {Vec(U8), Int}
-    %v19 = load %i : Int
-    %v20 = cast %v19 : I64
-    %v21 = call loadVector(U8), %value$, %v20 : Vec(U8)
-    %v22 = load [%env].width : Int
-    aggregate %local2.0 = %v21, %local2.1 = %v22
-    %v24 = calldyn %v17, %v18 : Outcome((), Maybe(I64))
-    %v25 = load %local3.discriminant : Int
-    %v27 = cmp_eq %v25, 1 : Bool
-    je %v27, b4, b5
+    %v15 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v16 = load [%v15] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v17 = alloc : {Vec(U8), Int}
+    %v18 = load %i : I64
+    %v19 = call loadVector(U8), %value$, %v18 : Vec(U8)
+    %v20 = load [%env].width : I64
+    %v21 = cast %v20 : Int
+    aggregate %local2.0 = %v19, %local2.1 = %v21
+    %v23 = calldyn %v16, %v17 : Outcome((), Maybe(I64))
+    %v24 = load %local3.discriminant : Int
+    %v26 = cmp_eq %v24, 1 : Bool
+    je %v26, b4, b5
 
   b4:
-    %v29 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    %v28 = alloc : Outcome((), Outcome((), Maybe(I64)))
     init %local7.discriminant, 1
-    init %local7@Exit, %v24
-    ret %v29
+    init %local7@Exit, %v23
+    ret %v28
 
   b5:
-    %v34 = load %i : Int
-    %v35 = load [%env].width : Int
-    %v36 = add %v34, %v35 : Int
-    assign %i, %v36
+    %v33 = load %i : I64
+    %v34 = load [%env].width : I64
+    %v35 = add %v33, %v34 : I64
+    assign %i, %v35
     jmp b1
 
   b6:
-    %v39 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
-    %v40 = load [%v39] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
-    %v41 = alloc : {Vec(U8), Int}
-    %v42 = load %i : Int
-    %v43 = cast %v42 : I64
-    %v44 = call loadVectorTail(U8), %value$, %v43 : Vec(U8)
-    %v45 = load %i : Int
-    %v46 = sub %n, %v45 : Int
-    aggregate %local4.0 = %v44, %local4.1 = %v46
-    %v48 = calldyn %v40, %v41 : Outcome((), Maybe(I64))
-    %v49 = load %local5.discriminant : Int
-    %v51 = cmp_eq %v49, 1 : Bool
-    je %v51, b8, b9
+    %v38 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v39 = load [%v38] : (value$: {Vec(U8), Int}) -> Outcome((), Maybe(I64))
+    %v40 = alloc : {Vec(U8), Int}
+    %v41 = load %i : I64
+    %v42 = call loadVectorTail(U8), %value$, %v41 : Vec(U8)
+    %v43 = load %i : I64
+    %v44 = sub %v2, %v43 : I64
+    %v45 = cast %v44 : Int
+    aggregate %local4.0 = %v42, %local4.1 = %v45
+    %v47 = calldyn %v39, %v40 : Outcome((), Maybe(I64))
+    %v48 = load %local5.discriminant : Int
+    %v50 = cmp_eq %v48, 1 : Bool
+    je %v50, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v54 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    %v53 = alloc : Outcome((), Outcome((), Maybe(I64)))
     init %local8.discriminant, 1
-    init %local8@Exit, %v48
-    ret %v54
+    init %local8@Exit, %v47
+    ret %v53
 
   b9:
     jmp b10
 
   b10:
-    %v60 = alloc : Outcome((), Outcome((), Maybe(I64)))
+    %v59 = alloc : Outcome((), Outcome((), Maybe(I64)))
     init %local6.discriminant, 0
-    ret %v60
+    ret %v59
 }
 
 fn loadVector(U8)(%from: Flat(U8), %at: I64) -> Vec(U8) {
@@ -328,108 +328,108 @@ fn Collections.continuation$10(String, U8)(%env: %{total: &mut Int, sought: Vec(
 fn vectorsMasked(String, U8, ())(%self: String, %body: (value$: {Vec(U8), Int}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = vsplat 0 : Vec(U8)
-    %v5 = alloc : {width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}
-    init %local2.width, 16
-    %v7 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
-    init %local2.body, %v7
-    %v9 = addressof %local2 : %()
-    %v10 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), ()))
-    %v11 = symbol Collections.continuation$0(String, U8, ()) : %()
-    init %local3.code, %v11
-    init %local3.env, %v9
-    %v14 = call Chunked(String, U8).chunks(Outcome((), ())), %self, %v10 : Outcome((), Outcome((), ()))
-    %v15 = load %local4.discriminant : Int
-    %v17 = cmp_eq %v15, 1 : Bool
-    je %v17, b1, b2
+    %width = cast 16 : I64
+    %v6 = alloc : {width: I64, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}
+    init %local2.width, %width
+    %v8 = borrow %body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    init %local2.body, %v8
+    %v10 = addressof %local2 : %()
+    %v11 = alloc : (value$: Flat(U8)) -> Outcome((), Outcome((), ()))
+    %v12 = symbol Collections.continuation$0(String, U8, ()) : %()
+    init %local3.code, %v12
+    init %local3.env, %v10
+    %v15 = call Chunked(String, U8).chunks(Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
+    %v16 = load %local4.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
 
   b1:
-    %v19 = move %local4@Exit : Outcome((), ())
-    ret %v19
+    %v20 = move %local4@Exit : Outcome((), ())
+    ret %v20
 
   b2:
-    %v21 = alloc : Outcome((), ())
+    %v22 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v21
+    ret %v22
 }
 
-fn Collections.continuation$0(String, U8, ())(%env: %{width: Int, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}, %value$: Flat(U8)) -> Outcome((), Outcome((), ())) {
+fn Collections.continuation$0(String, U8, ())(%env: %{width: I64, body: &(value$: {Vec(U8), Int}) -> Outcome((), ())}, %value$: Flat(U8)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
-    %n = cast %v2 : Int
-    %i = alloc : Int
+    %v3 = load [%env].width : I64
+    %last = sub %v2, %v3 : I64
+    %i = alloc : I64
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
-    %v9 = load [%env].width : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = cmp_le %v10, %n : Bool
-    je %v11, b3, b2
+    %v9 = load %i : I64
+    %v10 = cmp_le %v9, %last : Bool
+    je %v10, b3, b2
 
   b2:
-    %v13 = load %i : Int
-    %v14 = cmp_lt %v13, %n : Bool
-    je %v14, b6, b7
+    %v12 = load %i : I64
+    %v13 = cmp_lt %v12, %v2 : Bool
+    je %v13, b6, b7
 
   b3:
-    %v16 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
-    %v17 = load [%v16] : (value$: {Vec(U8), Int}) -> Outcome((), ())
-    %v18 = alloc : {Vec(U8), Int}
-    %v19 = load %i : Int
-    %v20 = cast %v19 : I64
-    %v21 = call loadVector(U8), %value$, %v20 : Vec(U8)
-    %v22 = load [%env].width : Int
-    aggregate %local2.0 = %v21, %local2.1 = %v22
-    %v24 = calldyn %v17, %v18 : Outcome((), ())
-    %v25 = load %local3.discriminant : Int
-    %v27 = cmp_eq %v25, 1 : Bool
-    je %v27, b4, b5
+    %v15 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v16 = load [%v15] : (value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v17 = alloc : {Vec(U8), Int}
+    %v18 = load %i : I64
+    %v19 = call loadVector(U8), %value$, %v18 : Vec(U8)
+    %v20 = load [%env].width : I64
+    %v21 = cast %v20 : Int
+    aggregate %local2.0 = %v19, %local2.1 = %v21
+    %v23 = calldyn %v16, %v17 : Outcome((), ())
+    %v24 = load %local3.discriminant : Int
+    %v26 = cmp_eq %v24, 1 : Bool
+    je %v26, b4, b5
 
   b4:
-    %v29 = alloc : Outcome((), Outcome((), ()))
+    %v28 = alloc : Outcome((), Outcome((), ()))
     init %local7.discriminant, 1
-    init %local7@Exit, %v24
-    ret %v29
+    init %local7@Exit, %v23
+    ret %v28
 
   b5:
-    %v34 = load %i : Int
-    %v35 = load [%env].width : Int
-    %v36 = add %v34, %v35 : Int
-    assign %i, %v36
+    %v33 = load %i : I64
+    %v34 = load [%env].width : I64
+    %v35 = add %v33, %v34 : I64
+    assign %i, %v35
     jmp b1
 
   b6:
-    %v39 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
-    %v40 = load [%v39] : (value$: {Vec(U8), Int}) -> Outcome((), ())
-    %v41 = alloc : {Vec(U8), Int}
-    %v42 = load %i : Int
-    %v43 = cast %v42 : I64
-    %v44 = call loadVectorTail(U8), %value$, %v43 : Vec(U8)
-    %v45 = load %i : Int
-    %v46 = sub %n, %v45 : Int
-    aggregate %local4.0 = %v44, %local4.1 = %v46
-    %v48 = calldyn %v40, %v41 : Outcome((), ())
-    %v49 = load %local5.discriminant : Int
-    %v51 = cmp_eq %v49, 1 : Bool
-    je %v51, b8, b9
+    %v38 = load [%env].body : &(value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v39 = load [%v38] : (value$: {Vec(U8), Int}) -> Outcome((), ())
+    %v40 = alloc : {Vec(U8), Int}
+    %v41 = load %i : I64
+    %v42 = call loadVectorTail(U8), %value$, %v41 : Vec(U8)
+    %v43 = load %i : I64
+    %v44 = sub %v2, %v43 : I64
+    %v45 = cast %v44 : Int
+    aggregate %local4.0 = %v42, %local4.1 = %v45
+    %v47 = calldyn %v39, %v40 : Outcome((), ())
+    %v48 = load %local5.discriminant : Int
+    %v50 = cmp_eq %v48, 1 : Bool
+    je %v50, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v54 = alloc : Outcome((), Outcome((), ()))
+    %v53 = alloc : Outcome((), Outcome((), ()))
     init %local8.discriminant, 1
-    init %local8@Exit, %v48
-    ret %v54
+    init %local8@Exit, %v47
+    ret %v53
 
   b9:
     jmp b10
 
   b10:
-    %v60 = alloc : Outcome((), Outcome((), ()))
+    %v59 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 0
-    ret %v60
+    ret %v59
 }
 
 fn stringLiteral(%bytes: %U8, %length: Int) -> String {

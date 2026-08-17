@@ -96,6 +96,37 @@ bool addNativeEntry(Context& context, llvm::Module& module, StringId entryName) 
     }
 
     builder.CreateRet(status);
+
+    /*
+     * And everything else stops being visible outside the module, which is what makes it a program.
+     *
+     * Every function this backend writes was given external linkage, and that is a statement with
+     * consequences: `opt` may not delete a function once it has inlined it, may not specialise one
+     * for the arguments its only caller passes, and may not narrow one's convention - because for
+     * all it knows something outside is going to call it by name. Nothing is. Both LLVM modes go
+     * through the whole program at once and both end here, so `main` is the one symbol a linker or a
+     * C caller can name and the rest are this module's own.
+     *
+     * What it was worth, on the ten-program corpus: `growHeap` alone was paying for `mapMemory`
+     * inline at two call sites *and* keeping the out-of-line copy, and the corpus as a whole was
+     * 26922 bytes of functions against 22814 with this - a sixth of the module, present because of a
+     * linkage keyword. See §58 of test/bench/findings.md.
+     *
+     * A declaration is left alone: `memcpy` and the handful of intrinsics LLVM introduces itself are
+     * bodies that live somewhere else, and internal linkage on one is a definition that is not there.
+     * Globals go the same way and for the same reason - a table nothing outside reads is a table
+     * whose contents can be propagated into its readers.
+     */
+    for(auto& function: module) {
+        if(function.isDeclaration() || &function == main) continue;
+        function.setLinkage(llvm::GlobalValue::InternalLinkage);
+    }
+
+    for(auto& global: module.globals()) {
+        if(global.isDeclaration()) continue;
+        global.setLinkage(llvm::GlobalValue::InternalLinkage);
+    }
+
     return true;
 }
 

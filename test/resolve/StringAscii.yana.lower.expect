@@ -7,120 +7,120 @@ indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
     %sought = vsplat %wanted: i8x16
     %v_2 = add %xs, 12: Ptr
     %v_3 = load %v_2, 4: Int
-    %v_4 = load %xs, 8: Ptr
-    %n = cast %v_3: Int
-    %v_5 = vsplat 0: i8x16
-    %v_6 = vwithlane %v_5, 1, 1: i8x16
-    %v_7 = vwithlane %v_6, 2, 2: i8x16
-    %v_8 = vwithlane %v_7, 3, 3: i8x16
-    %v_9 = vwithlane %v_8, 4, 4: i8x16
-    %v_10 = vwithlane %v_9, 5, 5: i8x16
-    %v_11 = vwithlane %v_10, 6, 6: i8x16
-    %v_12 = vwithlane %v_11, 7, 7: i8x16
-    %v_13 = vwithlane %v_12, 8, 8: i8x16
-    %v_14 = vwithlane %v_13, 9, 9: i8x16
-    %v_15 = vwithlane %v_14, 10, 10: i8x16
-    %v_16 = vwithlane %v_15, 11, 11: i8x16
-    %v_17 = vwithlane %v_16, 12, 12: i8x16
-    %v_18 = vwithlane %v_17, 13, 13: i8x16
-    %v_19 = vwithlane %v_18, 14, 14: i8x16
-    %v_20 = vwithlane %v_19, 15, 15: i8x16
-    %v_21 = vsplat 16: i8x16
-    %v_22 = cmp_lt %v_20, %v_21: m8x16
-    %v_23 = imm 16: Int
-    jmp b_24
+    %v_4 = cast %v_3: Long
+    %v_5 = load %xs, 8: Ptr
+    %v_6 = imm 16: Long
+    %last = sub %v_4, %v_6: Long
+    %v_7 = vsplat 0: i8x16
+    %v_8 = vwithlane %v_7, 1, 1: i8x16
+    %v_9 = vwithlane %v_8, 2, 2: i8x16
+    %v_10 = vwithlane %v_9, 3, 3: i8x16
+    %v_11 = vwithlane %v_10, 4, 4: i8x16
+    %v_12 = vwithlane %v_11, 5, 5: i8x16
+    %v_13 = vwithlane %v_12, 6, 6: i8x16
+    %v_14 = vwithlane %v_13, 7, 7: i8x16
+    %v_15 = vwithlane %v_14, 8, 8: i8x16
+    %v_16 = vwithlane %v_15, 9, 9: i8x16
+    %v_17 = vwithlane %v_16, 10, 10: i8x16
+    %v_18 = vwithlane %v_17, 11, 11: i8x16
+    %v_19 = vwithlane %v_18, 12, 12: i8x16
+    %v_20 = vwithlane %v_19, 13, 13: i8x16
+    %v_21 = vwithlane %v_20, 14, 14: i8x16
+    %v_22 = vwithlane %v_21, 15, 15: i8x16
+    %v_23 = vsplat 16: i8x16
+    %v_24 = cmp_lt %v_22, %v_23: m8x16
+    jmp b_25
   }
 
-  b_24 {
-    %v_25 = phi [b_1, 0], [b_26, %v_27]: Int
-    %v_28 = add %v_25, %v_23: Int
-    %v_29 = cmp_ile %v_28, %n: Int
-    je %v_29, b_30, b_31
-  }
-
-  b_31 {
-    %v_32 = cmp_ilt %v_25, %n: Int
-    je %v_32, b_33, b_34
-  }
-
-  b_34 {
-    jmp b_35
+  b_25 {
+    %v_26 = phi [b_1, 0], [b_27, %v_28]: Int
+    %v_29 = phi [b_1, 0], [b_27, %v_30]: Long
+    %v_31 = cmp_ile %v_29, %last: Int
+    je %v_31, b_32, b_33
   }
 
   b_33 {
-    %v_36 = sext %v_25: Long
-    %v_37 = add %v_4, %v_36: Ptr
-    %v_38 = loadx %v_37, 16: i8x16
-    %v_39 = sub %n, %v_25: Int
-    %v_40 = cmp_eq %v_38, %sought: m8x16
-    %v_41 = cast %v_39: Int
-    %v_42 = and %v_41, 255: Int
-    %v_43 = vsplat %v_42: i8x16
-    %v_44 = cmp_lt %v_20, %v_43: m8x16
-    %hits = and %v_40, %v_44: m8x16
-    %v_45 = vreduce_or %hits: Int
-    je %v_45, b_46, b_47
+    %v_34 = cmp_ilt %v_29, %v_4: Int
+    je %v_34, b_35, b_36
   }
 
-  b_47 {
-    jmp b_48
-  }
-
-  b_46 {
-    %v_49 = vreduce_first %hits: Int
-    %v_50 = add %v_25, %v_49: Int
-    %v_51 = sext %v_50: Long
-    jmp b_52
-  }
-
-  b_48 {
-    jmp b_35
+  b_36 {
+    jmp b_37
   }
 
   b_35 {
+    %v_38 = add %v_5, %v_29: Ptr
+    %v_39 = loadx %v_38, 16: i8x16
+    %v_40 = sub %v_4, %v_29: Long
+    %v_41 = cmp_eq %v_39, %sought: m8x16
+    %v_42 = cast %v_40: Int
+    %v_43 = and %v_42, 255: Int
+    %v_44 = vsplat %v_43: i8x16
+    %v_45 = cmp_lt %v_22, %v_44: m8x16
+    %hits = and %v_41, %v_45: m8x16
+    %v_46 = vreduce_or %hits: Int
+    je %v_46, b_47, b_48
+  }
+
+  b_48 {
+    jmp b_49
+  }
+
+  b_47 {
+    %v_50 = vreduce_first %hits: Int
+    %v_51 = add %v_26, %v_50: Int
+    %v_52 = sext %v_51: Long
     jmp b_53
   }
 
-  b_52 {
+  b_49 {
+    jmp b_37
+  }
+
+  b_37 {
     jmp b_54
   }
 
-  b_30 {
-    %v_55 = sext %v_25: Long
-    %v_56 = add %v_4, %v_55: Ptr
+  b_53 {
+    jmp b_55
+  }
+
+  b_32 {
+    %v_56 = add %v_5, %v_29: Ptr
     %v_57 = load %v_56, 16: i8x16
     %v_58 = cmp_eq %v_57, %sought: m8x16
-    %hits = and %v_58, %v_22: m8x16
+    %hits = and %v_58, %v_24: m8x16
     %v_59 = vreduce_or %hits: Int
     je %v_59, b_60, b_61
   }
 
   b_61 {
-    %v_27 = add %v_25, %v_23: Int
-    jmp b_26
+    %v_28 = add %v_26, 16: Int
+    jmp b_27
   }
 
   b_60 {
     %v_62 = vreduce_first %hits: Int
-    %v_63 = add %v_25, %v_62: Int
+    %v_63 = add %v_26, %v_62: Int
     %v_64 = sext %v_63: Long
     jmp b_65
   }
 
-  b_26 {
-    jmp b_24
+  b_27 {
+    %v_30 = add %v_29, %v_6: Long
+    jmp b_25
   }
 
   b_65 {
-    jmp b_54
-  }
-
-  b_53 {
-    jmp b_66
+    jmp b_55
   }
 
   b_54 {
-    %v_67 = phi [b_52, %v_51], [b_65, %v_64]: Long
+    jmp b_66
+  }
+
+  b_55 {
+    %v_67 = phi [b_53, %v_52], [b_65, %v_64]: Long
     jmp b_68
   }
 
@@ -150,74 +150,72 @@ occurrencesVectors(String, U8)<complex>(%xs: Ptr, %wanted: Int): Int {
     %sought = vsplat %wanted: i8x16
     %v_1 = add %xs, 12: Ptr
     %v_2 = load %v_1, 4: Int
-    %v_3 = load %xs, 8: Ptr
-    %n = cast %v_2: Int
-    %v_4 = vsplat 0: i8x16
-    %v_5 = vwithlane %v_4, 1, 1: i8x16
-    %v_6 = vwithlane %v_5, 2, 2: i8x16
-    %v_7 = vwithlane %v_6, 3, 3: i8x16
-    %v_8 = vwithlane %v_7, 4, 4: i8x16
-    %v_9 = vwithlane %v_8, 5, 5: i8x16
-    %v_10 = vwithlane %v_9, 6, 6: i8x16
-    %v_11 = vwithlane %v_10, 7, 7: i8x16
-    %v_12 = vwithlane %v_11, 8, 8: i8x16
-    %v_13 = vwithlane %v_12, 9, 9: i8x16
-    %v_14 = vwithlane %v_13, 10, 10: i8x16
-    %v_15 = vwithlane %v_14, 11, 11: i8x16
-    %v_16 = vwithlane %v_15, 12, 12: i8x16
-    %v_17 = vwithlane %v_16, 13, 13: i8x16
-    %v_18 = vwithlane %v_17, 14, 14: i8x16
-    %v_19 = vwithlane %v_18, 15, 15: i8x16
-    %v_20 = vsplat 16: i8x16
-    %v_21 = cmp_lt %v_19, %v_20: m8x16
-    %v_22 = imm 16: Int
-    jmp b_23
+    %v_3 = cast %v_2: Long
+    %v_4 = load %xs, 8: Ptr
+    %v_5 = imm 16: Long
+    %last = sub %v_3, %v_5: Long
+    %v_6 = vsplat 0: i8x16
+    %v_7 = vwithlane %v_6, 1, 1: i8x16
+    %v_8 = vwithlane %v_7, 2, 2: i8x16
+    %v_9 = vwithlane %v_8, 3, 3: i8x16
+    %v_10 = vwithlane %v_9, 4, 4: i8x16
+    %v_11 = vwithlane %v_10, 5, 5: i8x16
+    %v_12 = vwithlane %v_11, 6, 6: i8x16
+    %v_13 = vwithlane %v_12, 7, 7: i8x16
+    %v_14 = vwithlane %v_13, 8, 8: i8x16
+    %v_15 = vwithlane %v_14, 9, 9: i8x16
+    %v_16 = vwithlane %v_15, 10, 10: i8x16
+    %v_17 = vwithlane %v_16, 11, 11: i8x16
+    %v_18 = vwithlane %v_17, 12, 12: i8x16
+    %v_19 = vwithlane %v_18, 13, 13: i8x16
+    %v_20 = vwithlane %v_19, 14, 14: i8x16
+    %v_21 = vwithlane %v_20, 15, 15: i8x16
+    %v_22 = vsplat 16: i8x16
+    %v_23 = cmp_lt %v_21, %v_22: m8x16
+    jmp b_24
   }
 
-  b_23 {
-    %v_24 = phi [b_0, 0], [b_25, %v_26]: Int
-    %v_27 = phi [b_0, 0], [b_25, %v_28]: Int
-    %v_29 = add %v_27, %v_22: Int
-    %v_30 = cmp_ile %v_29, %n: Int
-    je %v_30, b_25, b_31
+  b_24 {
+    %v_25 = phi [b_0, 0], [b_26, %v_27]: Int
+    %v_28 = phi [b_0, 0], [b_26, %v_29]: Long
+    %v_30 = cmp_ile %v_28, %last: Int
+    je %v_30, b_26, b_31
   }
 
   b_31 {
-    %v_32 = cmp_ilt %v_27, %n: Int
+    %v_32 = cmp_ilt %v_28, %v_3: Int
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = sext %v_27: Long
-    %v_36 = add %v_3, %v_35: Ptr
-    %v_37 = loadx %v_36, 16: i8x16
-    %v_38 = sub %n, %v_27: Int
-    %v_39 = cmp_eq %v_37, %sought: m8x16
-    %v_40 = cast %v_38: Int
-    %v_41 = and %v_40, 255: Int
-    %v_42 = vsplat %v_41: i8x16
-    %v_43 = cmp_lt %v_19, %v_42: m8x16
-    %v_44 = and %v_39, %v_43: m8x16
-    %v_45 = vreduce_add %v_44: Int
-    %v_46 = add %v_24, %v_45: Int
+    %v_35 = add %v_4, %v_28: Ptr
+    %v_36 = loadx %v_35, 16: i8x16
+    %v_37 = sub %v_3, %v_28: Long
+    %v_38 = cmp_eq %v_36, %sought: m8x16
+    %v_39 = cast %v_37: Int
+    %v_40 = and %v_39, 255: Int
+    %v_41 = vsplat %v_40: i8x16
+    %v_42 = cmp_lt %v_21, %v_41: m8x16
+    %v_43 = and %v_38, %v_42: m8x16
+    %v_44 = vreduce_add %v_43: Int
+    %v_45 = add %v_25, %v_44: Int
     jmp b_34
   }
 
   b_34 {
-    %v_47 = phi [b_31, %v_24], [b_33, %v_46]: Int
-    ret %v_47
+    %v_46 = phi [b_31, %v_25], [b_33, %v_45]: Int
+    ret %v_46
   }
 
-  b_25 {
-    %v_48 = sext %v_27: Long
-    %v_49 = add %v_3, %v_48: Ptr
-    %v_50 = load %v_49, 16: i8x16
-    %v_51 = cmp_eq %v_50, %sought: m8x16
-    %v_52 = and %v_51, %v_21: m8x16
-    %v_53 = vreduce_add %v_52: Int
-    %v_26 = add %v_24, %v_53: Int
-    %v_28 = add %v_27, %v_22: Int
-    jmp b_23
+  b_26 {
+    %v_47 = add %v_4, %v_28: Ptr
+    %v_48 = load %v_47, 16: i8x16
+    %v_49 = cmp_eq %v_48, %sought: m8x16
+    %v_50 = and %v_49, %v_23: m8x16
+    %v_51 = vreduce_add %v_50: Int
+    %v_27 = add %v_25, %v_51: Int
+    %v_29 = add %v_28, %v_5: Long
+    jmp b_24
   }
 }
 

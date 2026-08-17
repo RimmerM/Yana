@@ -1398,6 +1398,32 @@ struct AsmBranch {
 };
 
 /*
+ * §7.3 Room reserved in front of a loop, whose size relaxation decides.
+ *
+ * A loop head that lands across an instruction-fetch boundary is measured at up to 40% slower than
+ * the same bytes one boundary over (§55.2 of test/bench/findings.md), and which side of a boundary
+ * it falls on is otherwise decided by the total size of everything emitted before it. `llc` aligns
+ * substantially every loop head it emits and this backend used to align none, so a single reading of
+ * the two compared one's placement policy with the other's luck.
+ *
+ * The bytes cannot be counted when the block is emitted, for the same reason a branch's length
+ * cannot: every branch below the loop is still going to shrink, and shrinking one moves the loop.
+ * So the maximum is reserved here and `relaxBranches` decides how much of it to keep, at the point
+ * where the layout is settled and the loop's extent is known - which is also what lets the decision
+ * be made on the loop's *size*, since by then there is one.
+ *
+ * The reserved bytes are written as single-byte nops and rewritten as one multi-byte nop by the
+ * compaction, so what survives is one instruction rather than a run of them. Only a fallthrough into
+ * the loop executes it, and it does so once.
+ */
+struct AsmPad {
+    U32 start;          // the first reserved byte
+    U32 end;            // one past the last, which is the block's first byte
+    LowerBlock* block;  // the loop header this precedes
+    U32 keep = 0;       // what relaxation decided to keep
+};
+
+/*
  * An absolute address inside emitted constant data - LowerDataRelocation, after placement.
  *
  * Kept apart from AsmRelocation because it is a different kind of fixup: that one is a rel32 in an
@@ -1483,6 +1509,10 @@ struct AsmModule {
         auto mask = U64(functionAlignment()) - 1;
         while((buffer.offset() + prefix) & mask) buffer.writeByte(0xcc);
 
+        // The displacement, after the boundary rather than before it, so that every entry point
+        // lands at the same offset past its own multiple. See functionDisplacement.
+        for(U32 i = 0; i < functionDisplacement(); i++) buffer.writeByte(0xcc);
+
         if(fun->prefix) emitData(base, base[fun->prefix]);
         functionOffsets.add(fun, U32(buffer.offset()));
     }
@@ -1509,6 +1539,31 @@ struct AsmModule {
 
         auto value = U32(atoi(set));
         return value >= 16 && (value & (value - 1)) == 0 ? value : 16;
+    }
+
+    /*
+     * The second half of that control, and the one that reaches *inside* a function.
+     *
+     * `YANA_FUNC_ALIGN` pins where a function starts; it does not change where a loop inside it sits
+     * relative to the 32- and 64-byte lines the front end fetches in, since the loop's offset from
+     * the entry point is fixed by the code. `YANA_FUNC_PAD` displaces every entry point by the same
+     * number of bytes past its boundary, so a sweep of it moves every loop head in the image through
+     * the line together while leaving each function's internal layout byte-identical.
+     *
+     * It exists because this backend emits no loop-head alignment at all and llc emits one on
+     * substantially every loop, so a single reading of the corpus compares our alignment luck with
+     * their alignment policy. Swept, the best reading is what the code is worth; the spread is what
+     * the policy is worth. A short loop that straddles a 64-byte line measures up to 40% slower than
+     * the same bytes one boundary over - see findings.md §55.
+     *
+     * Measurement only, like the boundary above: shipping builds set neither.
+     */
+    static U32 functionDisplacement() {
+        auto set = getenv("YANA_FUNC_PAD");
+        if(!set) return 0;
+
+        auto value = U32(atoi(set));
+        return value < functionAlignment() ? value : 0;
     }
 
     // Appends a global's data to the buffer and records the offset its address-loads resolve to.

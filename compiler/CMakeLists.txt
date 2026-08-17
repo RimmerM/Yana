@@ -208,6 +208,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_cse.cpp
     lower/lower_licm.h
     lower/lower_licm.cpp
+    lower/lower_recover.h
+    lower/lower_recover.cpp
     lower/lower_strength.h
     lower/lower_strength.cpp
     lower/lower_induction.h

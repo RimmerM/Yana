@@ -15,6 +15,7 @@
 #include "../lower/lower_store.h"
 #include "../lower/lower_cse.h"
 #include "../lower/lower_licm.h"
+#include "../lower/lower_recover.h"
 #include "../lower/lower_strength.h"
 #include "../lower/lower_induction.h"
 #include "../lower/lower_merge.h"
@@ -739,6 +740,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // it can see, and in front of the loop pass so that what that pass is shown is one multiply
         // rather than three.
         auto rewired = eliminateCommonValues(lower.lower, lower.to, *target, analysis);
+
+        // Then the load a guard's slow arm invalidated and its fast arm did not, which is what the
+        // pass above has just retired for the second time - see lower_recover.h. Directly behind it,
+        // because what is left in a join after it is either partially redundant or not redundant at
+        // all, and in front of everything below because the value it recovers is one the loop passes
+        // then see as loop-invariant rather than as a load.
+        recoverPartialLoads(lower.lower, lower.to, *target);
 
         // Then the loads that read back a word the store above them still has in a register, and the
         // stores nothing between the two can have observed - which is what writing two `@bits` fields

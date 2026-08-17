@@ -87,12 +87,14 @@ block #0:
 block start:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
   vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
-  cttz uses=[rax] creates=[rax]  => 0fbcc0
-  je uses=[rax] creates=[]  => 7506
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7506
 block miss:
   imm uses=[] creates=[remat:0]  => 
   ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8ffffffffc3
 block hit:
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: searchInverted ---
@@ -102,9 +104,11 @@ block start:
   cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
   vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
   imm uses=[] creates=[-]  => 
-  cttz uses=[rax] creates=[rax]  => 0fbcc0
-  je uses=[rax] creates=[]  => 7401
+  cmp_eq uses=[rax, -] creates=[-]  => 85c0
+  imm uses=[] creates=[-]  => 
+  je uses=[-] creates=[]  => 7404
 block hit:
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
   ret uses=[rax] creates=[]  => c3
 block miss:
   imm uses=[] creates=[remat:0]  => 

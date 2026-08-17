@@ -447,37 +447,38 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
 
   b_11 {
     call_complex growArray(U8), %self, %v_3
-    jmp b_12
+    %v_12 = load %v_4, 4: Long
+    %v_13 = imm 1073741823: Long
+    %v_14 = and %v_12, %v_13: Long
+    %v_15 = cast %v_14: Int
+    %v_16 = cast %v_15: Long
+    jmp b_17
   }
 
   b_10 {
-    jmp b_12
+    jmp b_17
   }
 
-  b_12 {
-    %v_13 = add %self, 8: Ptr
-    %v_14 = load %v_13, 4: Long
-    %v_15 = and %v_14, 1073741823: Long
-    %v_16 = cast %v_15: Int
-    %v_17 = cast %v_16: Long
-    %v_18 = cmp_ige %count, %v_17: Int
-    je %v_18, b_19, b_20
+  b_17 {
+    %v_18 = phi [b_10, %v_8], [b_11, %v_16]: Long
+    %v_19 = cmp_ige %count, %v_18: Int
+    je %v_19, b_20, b_21
   }
 
-  b_20 {
-    %v_21 = load %self, 8: Ptr
-    %v_22 = add %v_21, %count: Ptr
-    store %v_22, %item, 1
-    %v_23 = cast %v_3: Int
-    %v_24 = and %v_23, 1073741823: Int
-    %v_25 = cast %v_24: Int
-    %v_26 = add %self, 12: Ptr
-    store %v_26, %v_25, 4
+  b_21 {
+    %v_22 = load %self, 8: Ptr
+    %v_23 = add %v_22, %count: Ptr
+    store %v_23, %item, 1
+    %v_24 = cast %v_3: Int
+    %v_25 = and %v_24, 1073741823: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = add %self, 12: Ptr
+    store %v_27, %v_26, 4
     ret 
   }
 
-  b_19 {
-    %v_27 = syscall 60, 134: Long
+  b_20 {
+    %v_28 = syscall 60, 134: Long
     unreachable 
   }
 }

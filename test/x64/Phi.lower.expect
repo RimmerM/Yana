@@ -183,12 +183,13 @@ block start:
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => ffc7
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+  align  => 666666660f1f840000000000
 block head:
-  add uses=[rcx, rdi] creates=[rcx] pre=[rax->rcx]  => 8bc801f9
+  add uses=[rcx, rdi] creates=[rcx] pre=[rax->rcx]  => 8d0c38
   cmp_le uses=[rcx, rsi] creates=[-]  => 39f1
   je uses=[-] creates=[]  => 7704
 block #3:
-  jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1ebf4
+  jmp uses=[] creates=[] pre=[rcx->rax]  => 8bc1ebf5
 block end:
   ret uses=[rax] creates=[]  => c3
 
@@ -218,6 +219,7 @@ block a:
 --- codegen: swap ---
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+  align  => 6666666666660f1f840000000000
 block head:
   cmp_le uses=[rax, rdx] creates=[-]  => 39d0
   je uses=[-] creates=[]  => 7704
@@ -232,15 +234,16 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 85d2
-  je uses=[-] creates=[]  => 7416
+  je uses=[-] creates=[]  => 7430
+  align  => 666666666666660f1f84000000000066666666660f1f840000000000
 block body:
-  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74801f0
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488d0437
   sub uses=[rcx, rdi] creates=[rcx] pre=[rsi->rcx]  => 488bce4829f9
   imm uses=[] creates=[-]  => 
   sub uses=[rdx, -] creates=[rdx]  => ffca
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 
-  je uses=[-] creates=[]  => 488bf9488bf075ea
+  je uses=[-] creates=[]  => 488bf9488bf075ec
 block done:
   sub uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74829f0
   ret uses=[rax] creates=[]  => c3

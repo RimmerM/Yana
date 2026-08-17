@@ -45,10 +45,24 @@ static constexpr U64 kElfLoadAddress = 0x400000;
 // pages still produces a file for a kernel with 4 KiB ones.
 static constexpr U32 kElfPageSize = 4096;
 
-// The file offset the image's first byte lands at: the ELF header and the program headers, rounded
-// up so that an image whose own offsets assume 16-byte alignment keeps it. Every offset inside an
-// image is this much less than the file offset it ends up at, and exactly this much less than the
-// address, which is what lets a rel32 computed over the image stay correct in the file.
+/*
+ * The file offset the image's first byte lands at: the ELF header and the program headers, rounded
+ * up. Every offset inside an image is this much less than the file offset it ends up at, and exactly
+ * this much less than the address, which is what lets a rel32 computed over the image stay correct
+ * in the file.
+ *
+ * **Rounded to a cache line and not to sixteen**, and that is a requirement of the image rather
+ * than a preference of the file. A backend that aligns anything *inside* a function reasons in
+ * offsets into the image it is building - it has no address to reason in, the image not being
+ * placed yet - so an alignment it computes means what it says only where the image's own first byte
+ * is at least as aligned as the thing being aligned. §7.3 of codegen/x64/gen.cpp places a loop head
+ * inside a 64-byte fetch line, and at the old 240 this was 48 short of one: the pass computed a head
+ * on a line boundary and the loader put it 48 bytes into one, which is the one placement §58.6 of
+ * test/bench/findings.md exists to avoid. It cost `Text` 29% on half the layouts it could land in.
+ *
+ * The other consumer of an image - test/ResolveTester.cpp, which mmaps it and calls into it - places
+ * offset 0 on a page, so it satisfies this and every coarser statement of it for free.
+ */
 U32 elfCodeOffset();
 
 // The address the image's first byte is mapped at. Whoever fills in an image's absolute addresses

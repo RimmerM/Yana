@@ -177,7 +177,8 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 7d06
+  je uses=[-] creates=[]  => 7d10
+  align  => 66660f1f840000000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
@@ -193,7 +194,8 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 7d06
+  je uses=[-] creates=[]  => 7d10
+  align  => 66660f1f840000000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
@@ -209,6 +211,7 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   jmp uses=[] creates=[]  => 
+  align  => 6666666666660f1f840000000000
 block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
   je uses=[-] creates=[]  => 7d0d
@@ -234,9 +237,10 @@ block start:
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
 block outer:
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 7d16
+  je uses=[-] creates=[]  => 7d19
 block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
+  align  => 0f1f00
 block innerHead:
   cmp_ige uses=[r8, rsi] creates=[-]  => 4139f0
   je uses=[-] creates=[]  => 7d08
@@ -250,7 +254,7 @@ block outerEnd:
   add uses=[rdx, -] creates=[rdx]  => ffc2
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => ebe6
+  jmp uses=[] creates=[]  => ebe3
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 
@@ -261,7 +265,8 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 7d06
+  je uses=[-] creates=[]  => 7d10
+  align  => 66660f1f840000000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
@@ -277,7 +282,8 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 7d0f
+  je uses=[-] creates=[]  => 7d19
+  align  => 66660f1f840000000000
 block test:
   je uses=[rsi] creates=[]  => 85f67504
 block odd:

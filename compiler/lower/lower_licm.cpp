@@ -265,6 +265,65 @@ bool operandsAvailable(LowerBase base, const LoopInfo& loops, BlockIndex header,
 }
 
 /*
+ * Whether a load's address is the same every iteration, collecting the arithmetic that has to travel
+ * with it - §58.4 of test/bench/findings.md.
+ *
+ * `definedOutside` alone is what this used to ask, and it refuses the shape the corpus's loads are
+ * actually in. `Sort`'s partition scan reads the container's length through `%v = add %xs, 8` and the
+ * `add` sits *in the loop*, because that is where the subscript that needed it was written. The
+ * address is invariant - `%xs` is a parameter and the offset is a literal - but the load's operand is
+ * a value defined inside, so the load was declined and the length reloaded on every iteration. The
+ * x64 load fold then folds it into the compare's memory operand, which is why this costs a memory
+ * access per iteration rather than an instruction and why reading the disassembly does not show it.
+ *
+ * The arithmetic is not hoisted on its own account and must not be: `worthHoisting` refuses an
+ * address deliberately, because a displacement is free where it stands and hoisting one buys a live
+ * range and sells nothing. What changes here is that it is no longer on its own account - it is the
+ * price of taking the load out, and the load is a memory access per iteration. So it travels with
+ * its reader exactly as an immediate does, and for the same reason: it is recorded rather than moved
+ * on sight, since the caller may still decline the load on `safeToSpeculate` and an address
+ * relocated for a hoist that did not happen is the `lea` this pass exists not to buy.
+ *
+ * Only address arithmetic is followed, and only where every leaf is invariant. That is `Add` and the
+ * `Imm` it reads - an indexed address has an operand the loop advances and fails at the leaf, which
+ * is the same refusal `definedOutside` gave and the reason no element access reaches this.
+ *
+ * The walk pushes an instruction *after* its own operands, so the caller moving the list in order
+ * puts every definition in front of its reader.
+ *
+ * **It is worth no measurable time and no bytes, and is kept anyway.** Over the sixteen benchmark
+ * programs it moves one byte, and over the 186 `test/resolve` executables it moves none; `Sort` is
+ * the only row in either whose code changes, and its scans are short and their operand is in L1. It
+ * stays because the pass's own statement of what it is for - "a read whose address does not change
+ * between iterations is one read, done once" - was not true of the commonest address the lowering
+ * emits, which is a gap rather than a trade.
+ */
+bool invariantAddress(LowerBase base, const LoopInfo& loops, BlockIndex header, LowerValue* value,
+                      SmallArray<LowerInst*, 8>& carried, Size depth = 0)
+{
+    if(definedOutside(base, loops, header, value)) return true;
+
+    // Address arithmetic is a short chain - a base and a constant offset, sometimes twice. The limit
+    // is what keeps a cyclic or pathological one from walking, since a phi is not admitted anyway.
+    if(depth >= 4) return false;
+
+    auto inst = value->inst();
+    if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Imm) return false;
+
+    auto used = inst->used();
+    for(Size i = 0; i < used.length; i++) {
+        if(!invariantAddress(base, loops, header, base[used.ptr[i]], carried, depth + 1)) return false;
+    }
+
+    // Already carried by another operand of the same load, which an address reading one immediate
+    // twice would produce. Moving it twice is harmless and listing it twice is not worth the risk.
+    for(auto seen: carried) if(seen == inst) return true;
+
+    carried.push(inst);
+    return true;
+}
+
+/*
  * Moving one instruction to the end of the preheader's instruction list, which is in front of that
  * block's terminator: a terminator is not in the instruction list. The instruction keeps its operands
  * and its result, so every reader of it stays pointed at the same value - and the preheader dominates
@@ -359,9 +418,10 @@ void hoistLoopInvariants(LowerBase base, LowerModule& module, LowerFunction& fun
                         auto load = (LowerInstLoad*)inst;
                         auto from = base[load->from];
 
-                        // The address has to be the same one every iteration. An address is not an
-                        // immediate, so nothing travels with this one.
-                        if(!definedOutside(base, loops, header->index, from)) continue;
+                        // The address has to be the same one every iteration - and where it is
+                        // computed inside the loop out of things that are, the computation comes
+                        // out with the load. See `invariantAddress`.
+                        if(!invariantAddress(base, loops, header->index, from, constants)) continue;
 
                         auto address = addressOf(base, from);
                         if(!safeToSpeculate(base, fun, dominators, preheader, address, load->getWidth())) {

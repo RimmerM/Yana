@@ -259,6 +259,12 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
         LowerBlock* currentBlock = nullptr;
         bool seenPrologue = false;
 
+        // Where the last reported range ended, which is how the one thing in a function that belongs
+        // to no instruction *and* to no block becomes visible: the padding in front of a loop head
+        // (§7.3). It is emitted between two blocks and reported by nothing, so it is read off the
+        // gap - a range no fixture can catch a change in is exactly what this file exists to avoid.
+        U32 lastEnd = trace.entries.size() ? trace.entries[0].start : 0;
+
         for(auto& e: trace.entries) {
             // The prologue belongs to the function rather than to any block, and is reported with a
             // null instruction (see InstEmitCallback). So is a *shared* epilogue, which is the other
@@ -270,11 +276,18 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
                 seenPrologue = true;
                 for(auto off = e.start; off < e.end; off++) writeHex(writer, asm_.buffer.buffer[off]);
                 writer.writeByte('\n');
+                lastEnd = e.end;
                 continue;
             }
 
             auto block = base[e.inst->block];
             if(block != currentBlock) {
+                if(e.start > lastEnd) {
+                    writer.writeString("  align  => "_v);
+                    for(auto off = lastEnd; off < e.start; off++) writeHex(writer, asm_.buffer.buffer[off]);
+                    writer.writeByte('\n');
+                }
+
                 currentBlock = block;
                 writer.writeString("block "_v);
                 if(block->name) writer.writeString(context.findName(block->name));
@@ -297,6 +310,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
                 writeHex(writer, asm_.buffer.buffer[off]);
             }
             writer.writeByte('\n');
+            lastEnd = e.end;
         }
     }
 }

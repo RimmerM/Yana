@@ -4915,6 +4915,18 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
      * condition is one where that trade has already stopped paying. The other 17 cannot be answered
      * at all - an edge into the exit from *outside* the loop means the header does not dominate it,
      * and there is no value for the merge to carry.
+     *
+     * **§58.4 asked it of what the merge is for instead, and measured that out too.** What an extra
+     * predecessor actually breaks is one thing: the merge built in the exit block is a two-source
+     * phi carrying the guard's zero-iteration answer and the last iteration's, and a block with
+     * three ways in cannot hold one - so where nothing reads a header phi on the exit's side there
+     * is no such phi to build and the count stops mattering. That is not the twenty above; it is the
+     * *abort arm*, whose predecessors are one per bounds check in the function once
+     * `mergeIdenticalExits` has made the copies one block. Built, together with the reader relaxation
+     * below it, it is **+158 bytes over the 186 `test/resolve` executables and no measurable time on
+     * the corpus**, and it changes not one byte of the sixteen benchmark programs on its own. Third
+     * relaxation of this condition to be built and taken back out; the condition is where it is
+     * because the loops it refuses are the ones whose trade has already stopped paying.
      */
     if(base[loop.pre->terminator]->kind != LowerInst::Jmp) return Nothing();
     if(loop.body->incoming.size() != 1) return Nothing();
@@ -4959,13 +4971,31 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
 
     if(header->instructions.size() > kMaxRotatedHeader) return Nothing();
 
+    /*
+     * Read only where it is computed. A phi reader is refused whatever block it sits in, since what
+     * it reads the value on is an edge - including the latch edge, which leaves the header by a
+     * route the block of the reader does not show.
+     *
+     * **§58.4 relaxed this and measured it out, and the refusal is a measurement now rather than a
+     * caution.** A bounds check makes the header's question and the body's work one instruction -
+     * the `sext` that widens the index to compare it against the length is the `sext` the body
+     * addresses with - so admitting a body-side reader is what lets a checked scan rotate. The
+     * repair is real and was built: the reader takes a merge of the preheader's copy and the
+     * header's, which is `RotatedPhi` with an instruction in the phi's place. `Sort`'s two partition
+     * scans then rotate, and `Sort` measures **217.3 -> 223.4 ms** for it, layout controlled.
+     *
+     * The reason is the trade rather than the repair. A rotation buys one jump per *iteration* and
+     * pays a copy of the header's test per *entry*, and a scan of the form `while xs[i] < pivot: i =
+     * i + 1` is entered once per partition step and runs two or three times. Where the header is a
+     * bounds check the copy is three instructions, so the loop has to run four times before the
+     * trade breaks even. Nothing here knows a trip count, and the loops this rule refuses are
+     * precisely the ones whose headers do enough work to be worth duplicating - which is the same
+     * verdict §29 and §44 reached about three other relaxations of this pass.
+     */
     for(auto i: header->instructions.contents(base)) {
         auto inst = base[i];
         if(!isRotatableHeaderInst(inst)) return Nothing();
 
-        // Read only where it is computed. A phi reader is refused whatever block it sits in, since
-        // what it reads the value on is an edge - including the latch edge, which leaves the header
-        // by a route the block of the reader does not show.
         for(auto u: inst->created().ptr->uses.contents(base)) {
             auto user = base[u];
             if(user->kind == LowerInst::Phi || base[user->block] != header) return Nothing();
@@ -7109,6 +7139,31 @@ static void fuseMaskScanIntoGuard(LowerBase base, LowerBlock* block) {
      * branch does not precede. The sentinel above is the whole of what a join takes.
      */
     if(!found.compare) return;
+
+    /*
+     * §57 And it is refused where the scan is `bsf`, which is every tier below AVX2.
+     *
+     * The two forms of this scan are not two encodings of one instruction. `tzcnt` is a plain
+     * three-cycle operation whose flags say what its operand was; `bsf` is the older one, it cannot
+     * pair with the branch that reads it the way a `test` does, and putting it between the movemask
+     * and the branch lengthens the path every iteration of a search waits on. Both were measured on
+     * `VecString`'s inner loop with everything else - the index arithmetic, the register assignment,
+     * the loop's alignment - held identical, over a 64 KiB buffer:
+     *
+     *   findAscii, SSE     ours 1.75 ms   scan on the exit 1.35 ms   (-23%)
+     *   findAscii, AVX2    ours 0.85 ms   scan on the exit 0.79 ms   (-7%)
+     *
+     * `countAscii`, whose consumer is `popcnt` and which therefore has no scan in its loop at all,
+     * is a tie with `llc` at both tiers - which is what says this is the scan and not the loop
+     * around it. §48.2 measured the AVX2 half against llc's whole shape and found the fusion ahead,
+     * and that reading stands; what it did not separate is this one instruction.
+     *
+     * So the fusion keeps the tier it was measured on and loses the one it was not. What is left
+     * behind here is the `test` the fusion would have removed - two bytes, against a scan in the
+     * dependency path of a branch that a search executes once per vector. See §57 of
+     * test/bench/findings.md.
+     */
+    if(((LowerInstIntrinsic*)found.scan)->getIntrinsic() != LowerIntrinsic::CttzWidth) return;
 
     /*
      * Three conditions, each of which is a way the branch could stop being the only thing that reads

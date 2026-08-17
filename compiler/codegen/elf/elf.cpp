@@ -70,8 +70,14 @@ static U64 alignUp(U64 value, U64 alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
+// A cache line, and see elf.h for why the image's first byte has to be on one rather than merely on
+// a sixteen. Named here rather than taken from the backend, because it is a property of the machine
+// the file is written for and not of the compiler that wrote it.
+static constexpr U64 kElfCodeAlignment = 64;
+
 U32 elfCodeOffset() {
-    return U32(alignUp(kElfHeaderSize + U64(kProgramHeaderCount) * kProgramHeaderSize, 16));
+    return U32(alignUp(kElfHeaderSize + U64(kProgramHeaderCount) * kProgramHeaderSize,
+                       kElfCodeAlignment));
 }
 
 U32 elfDataPadding(U32 codeSize) {

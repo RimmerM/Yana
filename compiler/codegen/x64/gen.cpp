@@ -1226,6 +1226,9 @@ struct Emitter {
     // Every jump this function emits, in the order they were written - the input to relaxBranches.
     SmallArray<AsmBranch, 32> branches;
 
+    // And the room reserved in front of each loop head, likewise in emission order (§7.3).
+    SmallArray<AsmPad, 16> pads;
+
     // Whether the returns of this function share one epilogue (§7.2), and whether it is what follows
     // the block being emitted - which is the fallthrough rule for it, exactly as `next` is for a
     // block. The two are separate questions: the epilogue sits behind one chosen return rather than
@@ -3049,28 +3052,31 @@ struct Emitter {
      *    folding is the one most likely to have a reader. `flagsRead` is the block's own answer; see
      *    computeFlagsRead.
      *
-     * ## And why it is refused in a loop
+     * ## It used to be refused in a loop, and that refusal went stale
      *
-     * The fold is a size win everywhere and a *speed* win only outside one, which is not what the
-     * instruction count says and is what the corpus says. Applied to every block it is 64 bytes off
-     * the ten programs and **+12.7 ms**, and all of the time is `Matrix`: 154.6 → 168.9 ms for nine
-     * bytes, with every other program flat or slightly better.
+     * The fold was gated on `kEntryFrequency` - taken in a block that runs no more often than the
+     * function is entered, declined in a loop body - and the measurement behind the gate was 64 bytes
+     * off the ten programs for **+12.7 ms**, all of the time on `Matrix`: 154.6 → 168.9 ms.
      *
-     * `multiply`'s innermost loop is why, and the reason is that the two instructions this replaces
-     * are not both executed. A register-to-register `mov` is resolved at rename on this machine - no
-     * port, no latency - so `mov ; add` issues one operation that any of four ALU ports can run,
-     * while the `lea` replacing it issues one that only two of them can. That loop already holds an
-     * `imul`, which is port 1 only, so a copy that cost nothing becomes contention for the port the
-     * multiply is waiting on. Outside a loop there is nothing to contend with, and the instruction
-     * and its bytes are simply gone.
+     * The reasoning was about ports and is still true as far as it goes. A register-to-register `mov`
+     * is resolved at rename on this machine - no port, no latency - so `mov ; add` issues one
+     * operation that any of four ALU ports can run, while the `lea` replacing it issues one that only
+     * two of them can. `multiply`'s innermost loop already holds an `imul`, which is port 1 only, so
+     * a copy that cost nothing became contention for the port the multiply was waiting on.
      *
-     * So the gate is the block's frequency and `kEntryFrequency` is the line: a block that runs no
-     * more often than the function is entered pays for its bytes once, and a loop body does not. That
-     * keeps `Tree.build`'s copies - a recursive function with no loop in it - and declines `Matrix`'s.
+     * What changed is not the argument but the population it applies to. §17.2's copy coalescing and
+     * §5.9's cluster splitting both remove exactly the placement copy this fold consumes, so what is
+     * left for it by the time the emitter runs is a different and much smaller set of sites - and the
+     * gate now costs what it used to save. Re-measured against the same corpus with layout controlled
+     * (`YANA_FUNC_ALIGN=256` over eight displacements, best of each), the gate is **+8.4 ms for -13
+     * bytes**: `Sieve` 135.3 → 138.4, `Matrix` 148.7 → 153.1, everything else inside a millisecond.
+     * So it is gone. See §57 of test/bench/findings.md.
+     *
+     * The lesson is worth more than the instruction: a refusal is a measurement, and a measurement
+     * about a pass that has since been rewritten underneath it is not evidence any more.
      */
     bool emitAsLea(LowerInst* inst, const InstRegs& regs, bool flagsRead) {
         if(flagsRead) return false;
-        if(frequency && frequency->frequencyOf(base[inst->block]->index) > kEntryFrequency) return false;
 
         // Exactly the copy this is about: one register-to-register move in front of the instruction,
         // and nothing behind it. Anything else is an operand placement this does not replace.
@@ -3432,6 +3438,21 @@ static bool worthJumpingToEpilogue(const FunctionFrequencyInfo& frequency, Block
 }
 
 /*
+ * §7.3 What a loop head is aligned to, and how big a loop stops being worth aligning.
+ *
+ * Sixteen is what `llc` uses on this target and what the measurement in §55 of
+ * test/bench/findings.md was made against. The window limit is the half that is not llc's: a loop of
+ * a few hundred bytes crosses every fetch boundary there is however its first byte is placed, so
+ * padding one costs up to fifteen bytes and buys nothing, and this corpus is read on size as well as
+ * on time. Two windows is thirty-two bytes of loop; four measured the same on time and 71 bytes
+ * larger, and eight larger again, so the limit is where it stops buying anything.
+ *
+ * Zero turns the whole of §7.3 off, reservations included.
+ */
+static constexpr U32 kLoopAlignment = 16;
+static constexpr U32 kLoopAlignMaxWindows = 2;
+
+/*
  * §7.1 Branch relaxation.
  *
  * AMD64 has two encodings of every jump - a one-byte displacement and a four-byte one - and the
@@ -3498,11 +3519,106 @@ struct FunctionExtent {
     U32 epilogue;     // where the shared epilogue landed; unused when there is none
 };
 
+/*
+ * Nops filling exactly `bytes`, which is what a reserved run is rewritten as (§7.3).
+ *
+ * The forms up to nine are the ones every x86-64 assembler emits; above that the operand-size prefix
+ * is repeated, which is what binutils does and what the decoders here are built for. As few
+ * instructions as possible rather than a run of one-byte ones, because a fallthrough into the loop
+ * executes them.
+ *
+ * **Fifteen bytes is where one instruction stops being possible**, that being the architectural
+ * limit on an instruction's length, so a longer run is written as several. It is reachable since
+ * §58.6: choosing the boundary from the loop's extent asks for up to `kLoopAlignMaxPad`, and a
+ * thirty-one-byte nop is not an encoding.
+ */
+static constexpr U32 kMaxInstructionBytes = 15;
+
+static void writeNop(AsmModule& to, U32 bytes) {
+    static const Byte forms[10][9] = {
+        {},
+        { 0x90 },
+        { 0x66, 0x90 },
+        { 0x0f, 0x1f, 0x00 },
+        { 0x0f, 0x1f, 0x40, 0x00 },
+        { 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+        { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+        { 0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00 },
+        { 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        { 0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    };
+
+    auto prefixes = bytes > 9 ? bytes - 9 : 0;
+    for(U32 i = 0; i < prefixes; i++) to.buffer.writeByte(0x66);
+
+    auto body = bytes - prefixes;
+    for(U32 i = 0; i < body; i++) to.buffer.writeByte(forms[body][i]);
+}
+
+static void writeNopRun(AsmModule& to, U32 bytes) {
+    while(bytes > kMaxInstructionBytes) {
+        writeNop(to, kMaxInstructionBytes);
+        bytes -= kMaxInstructionBytes;
+    }
+
+    writeNop(to, bytes);
+}
+
+/*
+ * §7.3 How much of a loop's reservation to keep, given where the loop landed and how big it is.
+ *
+ * Alignment is only ever worth its bytes to a loop small enough for the boundary to be what decides
+ * how many fetches an iteration takes. A loop of several hundred bytes crosses every boundary there
+ * is whatever is done to its first byte, so padding it buys nothing and costs up to fifteen bytes -
+ * and this corpus is measured on size as well as on time. The limit is stated in fetch windows
+ * rather than in bytes so that it says what it means.
+ *
+ * **The boundary is chosen from the loop's extent rather than fixed at sixteen**, and §58.6 is what
+ * that is worth. Sixteen alone puts a head at 0, 16, 32 or 48 within the cache line, and a loop of
+ * twenty bytes landing at 48 spans two lines - so a quarter of the placements a fixed boundary
+ * admits are the placement it exists to avoid. `Text.hashOf` is the demonstration and the two
+ * numbers are not close: built at `YANA_FUNC_PAD=0` its loop is `0x401010..0x401023` and the program
+ * runs 74.4 ms; at `YANA_FUNC_PAD=32` it is `0x401030..0x401043`, the same six instructions across
+ * two lines, and 96.3 ms.
+ *
+ * So the head is walked up in sixteens until the body fits inside one line. It never takes more than
+ * one further step and cannot take one at all below two windows: a loop of at most sixteen bytes
+ * fits from any sixteen-byte boundary, and one of at most thirty-two fails only from 48, where a
+ * single sixteen puts it at 0. `kLoopAlignMaxPad` states that as the reservation's size, and the
+ * walk is written to be bounded by it rather than by the case analysis - the two agree today and the
+ * reservation is what a wrong answer here would overrun.
+ *
+ * A loop too large to place is left where it fell rather than aligned to sixteen: past two windows
+ * it spans the same number of lines either way, so the sixteen would be bytes for nothing.
+ *
+ * **`write` is an offset into the image and the question is about an address**, so this reads the
+ * two as congruent and whoever places the image owes it that. `elfCodeOffset` is where that is
+ * stated and paid; it used to round the image's first byte to sixteen, which put every line
+ * boundary this pass computed 48 bytes away from a real one - a bug that looks exactly like the
+ * pass not working, since a fixed sixteen is insensitive to the constant and only this is not.
+ */
+static constexpr U32 kFetchLine = 64;
+static constexpr U32 kLoopAlignMaxPad = 2 * kLoopAlignment - 1;
+
+static U32 loopPadding(U32 write, U32 size) {
+    if(size > kLoopAlignMaxWindows * kLoopAlignment) return 0;
+
+    auto pad = (kLoopAlignment - (write & (kLoopAlignment - 1))) & (kLoopAlignment - 1);
+
+    while(((write + pad) & (kFetchLine - 1)) + size > kFetchLine) {
+        if(pad + kLoopAlignment > kLoopAlignMaxPad) return pad;
+        pad += kLoopAlignment;
+    }
+
+    return pad;
+}
+
 static void relaxBranches(AsmModule& to, SmallArray<AsmBranch, 32>& branches,
+                          SmallArray<AsmPad, 16>& pads,
                           const FunctionExtent& extent, SmallArray<EmittedRange, 128>& ranges)
 {
     auto count = branches.size();
-    if(count == 0) return;
+    if(count == 0 && pads.size() == 0) return;
 
     // What each branch's target is in the layout as first written. These do not change: it is the
     // mapping onto the new layout that does, and it is computed from these.
@@ -3570,42 +3686,146 @@ static void relaxBranches(AsmModule& to, SmallArray<AsmBranch, 32>& branches,
     rebuild();
 
     /*
-     * The compaction. `write` never runs ahead of `read`, since a branch either keeps its length or
-     * loses bytes, so the spans move towards the front of the buffer and overlap in the safe
-     * direction - `moveMem` states that rather than relying on it.
+     * §7.3 The loops, now that the branches are settled.
+     *
+     * The assignment above was reached with every reservation at its full size, which is what makes
+     * taking bytes *out* of one safe: removing bytes between a branch and its target can only bring
+     * the two closer, and a branch already found to be in range stays in range. The reverse ordering
+     * would not work - deciding the padding first and the branches after would let a branch that had
+     * been lengthened push a loop across the boundary the padding had just bought it.
+     *
+     * How big each loop is, so the decision can be made on it. A back edge is always a jump - it
+     * goes backwards, so nothing falls into its target - which is why the branch list is enough to
+     * find the bottom of a loop, and the two lists are walked together because both are in emission
+     * order. `extent` is measured in the layout as first written; every removal between the head and
+     * the bottom only shortens it, so this over-states rather than under-states.
+     */
+    auto padCount = U32(pads.size());
+    SmallArray<U32, 16> loopExtent(padCount);
+    for(Size i = 0; i < pads.size(); i++) loopExtent.push(pads[i].end);
+
+    for(Size i = 0; i < count; i++) {
+        if(!branches[i].block) continue;
+
+        for(Size j = 0; j < pads.size(); j++) {
+            if(pads[j].block != branches[i].block) continue;
+            if(branches[i].start < pads[j].end) continue;   // not a back edge, whatever else it is
+            if(branches[i].site + 4 > loopExtent[j]) loopExtent[j] = branches[i].site + 4;
+        }
+    }
+
+    /*
+     * One forward pass settling every reservation, and the combined table the rewrite is driven
+     * from. A reservation's own size depends only on where the bytes in front of it end up, so one
+     * pass in emission order answers all of them.
+     *
+     * `shrunk` is `removed` with the reservations folded in - the two lists interleave, both being
+     * in emission order, and what the rewrite needs is one sequence.
+     */
+    auto items = count + pads.size();
+    auto itemCount = U32(items);
+    auto itemSlots = itemCount + 1;
+    SmallArray<U32, 64> itemEnd(itemCount);
+    SmallArray<U32, 65> shrunk(itemSlots);
+    shrunk.push(0);
+
+    {
+        Size b = 0, p = 0;
+        U32 write = extent.codeStart;
+
+        while(b < count || p < pads.size()) {
+            auto takePad = b >= count || (p < pads.size() && pads[p].start < branches[b].start);
+
+            if(takePad) {
+                auto& pad = pads[p];
+                write += pad.start - (p + b == 0 ? extent.codeStart : itemEnd[p + b - 1]);
+                pad.keep = loopPadding(write, loopExtent[p] - pad.end);
+
+                itemEnd.push(pad.end);
+                shrunk.push(shrunk[p + b] + (pad.end - pad.start) - pad.keep);
+                write += pad.keep;
+                p++;
+            } else {
+                auto& branch = branches[b];
+                write += branch.start - (p + b == 0 ? extent.codeStart : itemEnd[p + b - 1]);
+
+                auto longSize = branch.site + 4 - branch.start;
+                auto keep = branch.isShort ? 2 : (branch.shortOpcode == 0xeb ? 5u : 6u);
+
+                itemEnd.push(branch.site + 4);
+                shrunk.push(shrunk[p + b] + longSize - keep);
+                write += keep;
+                b++;
+            }
+        }
+    }
+
+    // The same question `moved` answers, over the combined table. An item ending exactly at the
+    // offset counts as being in front of it, which for a reservation is what puts the block's first
+    // byte after its padding rather than inside it.
+    auto placed = [&](U32 at) {
+        Size low = 0, high = items;
+
+        while(low < high) {
+            auto middle = (low + high) / 2;
+            if(itemEnd[middle] <= at) low = middle + 1;
+            else high = middle;
+        }
+
+        return at - shrunk[low];
+    };
+
+    /*
+     * The compaction. `write` never runs ahead of `read`, since neither a branch nor a reservation
+     * ever occupies more bytes than it was written with, so the spans move towards the front of the
+     * buffer and overlap in the safe direction - `moveMem` states that rather than relying on it.
      */
     auto bytes = to.buffer.buffer;
     auto emitted = U32(to.buffer.offset());
     U32 read = extent.codeStart;
     U32 write = extent.codeStart;
+    Size b = 0, p = 0;
 
-    for(Size i = 0; i < count; i++) {
-        auto& branch = branches[i];
+    while(b < count || p < pads.size()) {
+        auto takePad = b >= count || (p < pads.size() && pads[p].start < branches[b].start);
+        auto start = takePad ? pads[p].start : branches[b].start;
 
-        if(auto span = branch.start - read) {
+        if(auto span = start - read) {
             moveMem(bytes + read, bytes + write, span);
             write += span;
         }
 
-        assertTrue(write == moved(branch.start)); // the mapping and the rewrite disagree
+        assertTrue(write == placed(start)); // the mapping and the rewrite disagree
         to.buffer.offset(write);
 
-        auto target = moved(targets[i]);
-
-        if(branch.isShort) {
-            to.buffer.writeByte(branch.shortOpcode);
-            to.buffer.writeByte(U8(I8(I64(target) - I64(write + 2))));
-        } else if(branch.shortOpcode == 0xeb) {
-            to.buffer.writeByte(0xe9);
-            to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 5)));
+        if(takePad) {
+            writeNopRun(to, pads[p].keep);
+            read = pads[p].end;
+            p++;
         } else {
-            to.buffer.writeByte(0x0f);
-            to.buffer.writeByte(U8(0x80 + (branch.shortOpcode - 0x70)));
-            to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 6)));
+            auto& branch = branches[b];
+            auto target = placed(targets[b]);
+
+            if(branch.isShort) {
+                auto delta = I64(target) - I64(write + 2);
+                assertTrue(delta >= -128 && delta <= 127); // relaxation and the final layout disagree
+
+                to.buffer.writeByte(branch.shortOpcode);
+                to.buffer.writeByte(U8(I8(delta)));
+            } else if(branch.shortOpcode == 0xeb) {
+                to.buffer.writeByte(0xe9);
+                to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 5)));
+            } else {
+                to.buffer.writeByte(0x0f);
+                to.buffer.writeByte(U8(0x80 + (branch.shortOpcode - 0x70)));
+                to.buffer.writeInt<LittleEndian>(U32(I32(target) - I32(write + 6)));
+            }
+
+            read = branch.site + 4;
+            b++;
         }
 
         write = U32(to.buffer.offset());
-        read = branch.site + 4;
     }
 
     if(auto tail = emitted - read) {
@@ -3618,17 +3838,17 @@ static void relaxBranches(AsmModule& to, SmallArray<AsmBranch, 32>& branches,
     // Everything the old layout was recorded in. Nothing outside this function is in any of them:
     // the extent's three indices are where it started, and a function is never revisited.
     for(Size i = extent.firstBlock; i < to.blocks.size(); i++) {
-        to.blocks[i].startOffset = moved(to.blocks[i].startOffset);
-        to.blocks[i].endOffset = moved(to.blocks[i].endOffset);
+        to.blocks[i].startOffset = placed(to.blocks[i].startOffset);
+        to.blocks[i].endOffset = placed(to.blocks[i].endOffset);
     }
 
     for(Size i = extent.firstReloc; i < to.relocations.size(); i++) {
-        to.relocations[i].siteOffset = moved(to.relocations[i].siteOffset);
+        to.relocations[i].siteOffset = placed(to.relocations[i].siteOffset);
     }
 
     for(auto& range: ranges) {
-        range.start = moved(range.start);
-        range.end = moved(range.end);
+        range.start = placed(range.start);
+        range.end = placed(range.end);
     }
 }
 
@@ -3798,6 +4018,34 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         auto b = base[blocks[i]];
 
         /*
+         * §7.3 Room in front of a loop head, whose size relaxation decides.
+         *
+         * A loop head in the sense that matters to instruction fetch is a block something jumps
+         * *backwards* to, which is a question about the emitted order rather than about the CFG - so
+         * it is asked of the order: a predecessor at this position or later reaches this block by a
+         * backward jump. That is the same set `LoopInfo` would name on a reducible graph and the
+         * right set on any other, and it costs one walk of the incoming edges rather than a
+         * postorder and a dominator solve. The entry block is excluded because the function's own
+         * boundary has already aligned it.
+         *
+         * The bytes are reserved and not counted; see AsmPad. A return tail is never a loop head - a
+         * block control leaves the function from has no successors to close a loop through - so the
+         * §7.2.1 rewind below can never strand a reservation.
+         */
+        if(kLoopAlignment && i != 0) {
+            auto backwards = false;
+            for(auto in: b->incoming.contents(base)) {
+                if(Size(base[in]->index) >= i) { backwards = true; break; }
+            }
+
+            if(backwards) {
+                auto start = U32(to.buffer.offset());
+                for(U32 j = 0; j < kLoopAlignMaxPad; j++) to.buffer.writeByte(0x90);
+                emitter.pads.push(AsmPad { start, U32(to.buffer.offset()), b });
+            }
+        }
+
+        /*
          * Where this block began, and what the lists holding its side effects looked like - which is
          * what §7.2.1 rewinds to if the block turns out to be a copy of one already emitted. The
          * three marks are the whole of what a block contributes besides bytes: the jumps it wrote,
@@ -3952,7 +4200,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         }
     }
 
-    relaxBranches(to, emitter.branches, extent, ranges);
+    relaxBranches(to, emitter.branches, emitter.pads, extent, ranges);
 
     for(auto& range: ranges) onInst(onInstCtx, range.inst, *range.regs, range.start, range.end);
 }

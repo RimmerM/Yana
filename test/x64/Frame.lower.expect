@@ -239,12 +239,13 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[r13]  => 4531ed
   cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
-  je uses=[-] creates=[]  => 7d19
+  je uses=[-] creates=[]  => 7d22
 block #3:
   jmp uses=[] creates=[] pre=[r13->r14]  => 458bf5
+  align  => 660f1f840000000000
 block body:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce881ffffff
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce878ffffff
   add uses=[r14, rax] creates=[r14]  => 4101c6
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13]  => 41ffc5
@@ -278,7 +279,7 @@ block #1:
   alloca uses=[-] creates=[rbx]  => 488d1c24
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e82fffffff
+  call_complex uses=[-, rdi] creates=[rax]  => e81fffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
   ret uses=[rax] creates=[]  => 4883c4085bc3

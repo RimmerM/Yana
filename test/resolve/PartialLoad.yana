@@ -1,0 +1,100 @@
+{-
+   A load one arm of a guard invalidated and the other did not - see lower_recover.h.
+
+   `push` is the shape and the reason the pass exists, but `push` is also a hundred lines of library
+   behind an inliner, so the cases here are written out in the source instead: what each one asserts
+   is a property of the *shape*, and the shape has to be visible in the file to be worth asserting.
+
+   Four of them, and each is a different answer:
+
+    - `recovered` is the diamond. The guard reads the field, one arm writes through a pointer the
+      compiler cannot see past, and the join reads it again. What must come out is one load in the
+      writing arm, one phi, and no load at all on the path that skipped it.
+    - `bothArmsWrite` is where there is nothing to recover: neither edge carries the guard's value,
+      so the join keeps its own load and the pass declines.
+    - `neitherArmWrites` is where the ordinary CSE has already answered: the join's load is gone
+      before this pass sees it, and it has nothing to do.
+    - `chained` is the half that makes the transform worth its phi. What reads the load in the join
+      is arithmetic the guard also performed, so the whole chain moves and one phi carries the
+      finished value rather than the raw word.
+
+   The answers are what the fixture is really for: the two builds are compiled at different
+   optimization levels and run against each other, so a phi placed on the wrong edge or an operand
+   left pointing into the join is a wrong number rather than a golden diff.
+-}
+
+data Box {value: Int, other: Int}
+
+-- Something the optimizer cannot see through, so the store below is a write it has to assume.
+fn opaque(box: &Box, to: Int) -> {}:
+    box.value = to
+
+-- The diamond: the guard reads `value`, one arm writes it, the join reads it again.
+fn recovered(box: &Box, grow: Bool) -> Int:
+    let &total = 0 :: Int
+
+    if box.value < 100 && grow:
+        opaque(box, box.value + 1000)
+
+    total = total + box.value
+    return total
+
+-- Both arms write, so neither edge carries the guard's value and there is nothing to recover.
+fn bothArmsWrite(box: &Box, which: Bool) -> Int:
+    if box.value < 100 && which:
+        opaque(box, box.value + 1)
+    else:
+        opaque(box, box.value + 2)
+
+    return box.value
+
+-- Neither arm writes, so the load in the join was fully redundant and is gone before this pass runs.
+fn neitherArmWrites(box: &Box, which: Bool) -> Int:
+    let &side = 0 :: Int
+
+    if box.value < 100 && which:
+        side = 1
+    else:
+        side = 2
+
+    return box.value + side
+
+-- The chain: what reads the load in the join is arithmetic the guard performed as well.
+fn chained(box: &Box, grow: Bool) -> Int:
+    if (box.value `and` 1023) * 3 > 100 && grow:
+        opaque(box, 7)
+
+    return (box.value `and` 1023) * 3
+
+fn main() -> Int:
+    let &a = Box {value: 5, other: 0}
+    if recovered(a, True) != 1005 then return -1
+
+    let &b = Box {value: 5, other: 0}
+    if recovered(b, False) != 5 then return -2
+
+    let &c = Box {value: 500, other: 0}
+    if recovered(c, True) != 500 then return -3
+
+    let &d = Box {value: 5, other: 0}
+    if bothArmsWrite(d, True) != 6 then return -4
+
+    let &e = Box {value: 5, other: 0}
+    if bothArmsWrite(e, False) != 7 then return -5
+
+    let &f = Box {value: 5, other: 0}
+    if neitherArmWrites(f, True) != 6 then return -6
+
+    let &g = Box {value: 5, other: 0}
+    if neitherArmWrites(g, False) != 7 then return -7
+
+    let &h = Box {value: 50, other: 0}
+    if chained(h, True) != 21 then return -8
+
+    let &i = Box {value: 5, other: 0}
+    if chained(i, True) != 15 then return -9
+
+    let &j = Box {value: 50, other: 0}
+    if chained(j, False) != 150 then return -10
+
+    return 0

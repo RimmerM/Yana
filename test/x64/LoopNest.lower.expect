@@ -73,9 +73,10 @@ block start:
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
 block outer:
   cmp_ilt uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 7d12
+  je uses=[-] creates=[]  => 7d15
 block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
+  align  => 0f1f00
 block inner:
   add uses=[rdx, r8] creates=[rdx]  => 4401c2
   imm uses=[] creates=[-]  => 
@@ -85,7 +86,7 @@ block inner:
 block outerEnd:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => ebea
+  jmp uses=[] creates=[]  => ebe7
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 
@@ -97,12 +98,13 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[r12]  => 4531e4
   cmp_ilt uses=[r12, rbx] creates=[-]  => 4139dc
-  je uses=[-] creates=[]  => 7d19
+  je uses=[-] creates=[]  => 7d27
 block #3:
   jmp uses=[] creates=[] pre=[r12->r13]  => 458bec
+  align  => 6666666666660f1f840000000000
 block body:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce826000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce818000000
   add uses=[r13, rax] creates=[r13]  => 4101c5
   imm uses=[] creates=[-]  => 
   add uses=[r12, -] creates=[r12]  => 41ffc4

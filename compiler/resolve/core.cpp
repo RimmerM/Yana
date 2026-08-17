@@ -1621,39 +1621,64 @@ instance Chunked(Flat(a), a):
    sixty-four bytes, `maskUpTo(live)` folds to all-set on every full-width iteration, and §4.4 wants
    the tail mask read out of a table indexed by exactly this number.
 
+   **The chunk index is a `Size` and the test is against `n - width`, and those two lines are worth
+   more than everything else in this iterator put together** - §58.5 of test/bench/findings.md.
+   Written the obvious way, `let &i = 0 :: Int` with `while i + width <= n`, this loop costs two
+   instructions that have nothing to do with the work:
+
+     - `i` is an `Int`, so every `loadVector(chunk, i :: Size)` sign-extends it into the address and
+       the loop carries a `movslq` it did not ask for. `widenInductionVariables` exists for exactly
+       this and cannot take it: its no-wrap proofs want a strict test with a step of one, and a chunk
+       walk has an inclusive test with a step of four, eight or sixteen.
+     - `i + width <= n` recomputes the *next* index to test it, so the loop carries a second `add`
+       (emitted as a `lea`) beside the one that steps. Hoisting `n - width` out makes the test read
+       the index the step already produced.
+
+   Measured on `maximum` over `[Int]` at v2, with each loop transcribed out of the linked binaries
+   into `test/bench/chunkloop.s`: 1.66x against `llc -Os` as emitted, 1.39x with the `lea` gone,
+   1.34x with the index widened, and **0.96x with both**. Neither alone is worth much and together
+   they are worth all of it - which is the reason this reads the way it does rather than the way it
+   would be written.
+
+   `Size` is `I64` natively and `Int` on JS, so `n - width` is a signed subtraction on both and goes
+   negative rather than wrapping when a chunk is shorter than one vector - which is the case the test
+   has to reject, and does. It is the same guard `i + width <= n` made at `i = 0`.
+
    Native only for now, and the reason is not vectors: an `iter fn` that yields from inside a `for`
    captures the continuation it was handed, and a reference to a function value the JS backend
    flattened into two variables has no object to name. Every adaptor in the language has that gap.
 -}
 pub iter fn (Chunked(c, a)) vectorsMasked(self: c) -> {Vec(a), Int}:
-    let width = lanes(zero() :: Vec(a))
+    let width = lanes(zero() :: Vec(a)) :: Size
 
     for chunk in chunks(self):
-        let n = truncate(length(chunk)) :: Int
-        let &i = 0 :: Int
+        let n = length(chunk)
+        let last = n - width
+        let &i = 0 :: Size
 
-        while i + width <= n:
-            yield {loadVector(chunk, i :: Size), width}
+        while i <= last:
+            yield {loadVector(chunk, i), truncate(width) :: Int}
             i = i + width
 
         if i < n:
-            yield {loadVectorTail(chunk, i :: Size), n - i}
+            yield {loadVectorTail(chunk, i), truncate(n - i) :: Int}
 
 pub iter fn (Chunked(c, a)) vectors(self: c) -> Vec(a):
     let empty = zero() :: Vec(a)
-    let width = lanes(empty)
+    let width = lanes(empty) :: Size
 
     for chunk in chunks(self):
-        let n = truncate(length(chunk)) :: Int
-        let &i = 0 :: Int
+        let n = length(chunk)
+        let last = n - width
+        let &i = 0 :: Size
 
-        while i + width <= n:
-            yield loadVector(chunk, i :: Size)
+        while i <= last:
+            yield loadVector(chunk, i)
             i = i + width
 
         if i < n:
-            let live = maskUpTo(n - i) :: Mask(a)
-            yield select(live, loadVectorTail(chunk, i :: Size), empty)
+            let live = maskUpTo(truncate(n - i) :: Int) :: Mask(a)
+            yield select(live, loadVectorTail(chunk, i), empty)
 
 {-
    The bulk operations - Implementation-Vector.md §9 items 6 and 7, Design-Vector §4.3.

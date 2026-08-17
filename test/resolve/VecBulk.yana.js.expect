@@ -10,9 +10,10 @@ function sumVectors_Array_Int_Int(xs) {
   var acc = [0, 0, 0, 0];
   var v60 = xs.length;
   var v61 = xs.items;
+  var last = v60 - 4;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v60) {
+    if (i <= last) {
       var v124 = loadVector_Int(v61, v60, 0, i);
       acc = [acc[0] + v124[0] | 0, acc[1] + v124[1] | 0, acc[2] + v124[2] | 0, acc[3] + v124[3] | 0];
       i = i + 4 | 0;
@@ -53,9 +54,10 @@ function productVectors_Array_Int_Int(xs) {
   var acc = [1, 1, 1, 1];
   var v46 = xs.length;
   var v47 = xs.items;
+  var last = v46 - 4;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v46) {
+    if (i <= last) {
       var v110 = loadVector_Int(v47, v46, 0, i);
       acc = [Math.imul(acc[0], v110[0]), Math.imul(acc[1], v110[1]), Math.imul(acc[2], v110[2]), Math.imul(acc[3], v110[3])];
       i = i + 4 | 0;
@@ -78,9 +80,10 @@ function indexOfVectors_Array_Int_Int(xs, wanted) {
   var v66 = xs.length;
   var v67 = xs.items;
   var v71 = { $tag: 0, $p: null };
+  var last = v66 - 4;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v66) {
+    if (i <= last) {
       var v118 = loadVector_Int(v67, v66, 0, i);
       var v286 = { $tag: 0, $p: null };
       var v290$0 = v118[0] === wanted;
@@ -158,9 +161,10 @@ function sumVectors_Array_Float_Float(xs) {
   var acc = [0, 0, 0, 0];
   var v60 = xs.length;
   var v61 = xs.items;
+  var last = v60 - 4;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v60) {
+    if (i <= last) {
       acc = [Math.fround(acc[0] + v61[i]), Math.fround(acc[1] + v61[i + 1 | 0]), Math.fround(acc[2] + v61[i + 2 | 0]), Math.fround(acc[3] + v61[i + 3 | 0])];
       i = i + 4 | 0;
       continue L0;
@@ -255,9 +259,10 @@ function main() {
   var acc = [0, 0, 0, 0];
   var v282 = xs.length;
   var v283 = xs.items;
+  var last = v282 - 4;
   var i = 0;
   L0: for (;;) {
-    if ((i + 4 | 0) <= v282) {
+    if (i <= last) {
       var v358 = loadVector_Int(v283, v282, 0, i);
       var v1587$0 = v358[0];
       var v1587$1 = v358[1];
@@ -288,9 +293,10 @@ function main() {
   var acc$1 = [100, 100, 100, 100];
   var v393 = xs.length;
   var v394 = xs.items;
+  var last$1 = v393 - 4;
   var i$1 = 0;
   L1: for (;;) {
-    if ((i$1 + 4 | 0) <= v393) {
+    if (i$1 <= last$1) {
       var v469 = loadVector_Int(v394, v393, 0, i$1);
       var v1635$0 = v469[0];
       var v1635$1 = v469[1];
@@ -325,9 +331,10 @@ function main() {
   var total = 0;
   var v504 = xs.length;
   var v505 = xs.items;
+  var last$2 = v504 - 4;
   var i$2 = 0;
   L2: for (;;) {
-    if ((i$2 + 4 | 0) <= v504) {
+    if (i$2 <= last$2) {
       var v580 = loadVector_Int(v505, v504, 0, i$2);
       total = total + ((v580[0] === sought$0 && true ? 1 : 0) + (v580[1] === sought$1 && true ? 1 : 0) + ((v580[2] === sought$2 && true ? 1 : 0) + (v580[3] === sought$3 && true ? 1 : 0))) | 0;
       i$2 = i$2 + 4 | 0;
