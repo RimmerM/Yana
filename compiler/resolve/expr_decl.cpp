@@ -374,6 +374,37 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
 }
 
 ModulePtr<Value> ExprResolver::resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assignment) {
+    /*
+     * `m[k] = v` on a container that inserts - Implementation-Map.md §7.
+     *
+     * Intercepted here rather than inside `resolvePlace`, because what `IndexInsert` needs is the
+     * *value* as well as the index and a place has neither. One resolution of the container answers
+     * both forms: `resolveSubscript` emits the whole assignment where the instance exists and hands
+     * back the ordinary `getMut` borrow where it does not, so nothing below this is duplicated and
+     * nothing is resolved twice.
+     *
+     * `m[k] += 1` is deliberately not this: a compound assignment reads the element before it writes
+     * one, so there is a value to borrow and trapping on an absent key is the right answer.
+     */
+    if(assignment.target.kind == ast::Expr::Sub) {
+        auto handled = false;
+        auto borrowed = resolveSubscript(assignment.target, *parse[assignment.target.sub], true,
+                                         &assignment.value, &handled);
+
+        if(handled) return borrowed;
+        if(!borrowed) return nullptr;
+
+        auto element = Place::inBorrow(borrowed);
+        auto held = placeType(element);
+        auto written = resolve(assignment.value, held);
+        if(!written) return nullptr;
+
+        if(!isMemoryType(global, held)) written = convert(written, held, expr.source);
+
+        assign(element, written, expr.source);
+        return nullptr;
+    }
+
     auto place = resolvePlace(assignment.target);
     if(!place) return nullptr;
 

@@ -424,6 +424,23 @@ struct Gen {
     // The place walk reads this to answer `local@Fun.code` with a variable rather than a property.
     IndexSet flatFuns;
 
+    // And which locals whose *value* is a narrow reference are carried as that reference's parts
+    // rather than as a `{$o,$k,$s}` object - see prepareRefLocals. The parts themselves are in
+    // `flatRefs`, keyed on the allocation, exactly as a flat function local's are in `funParts`.
+    IndexSet flatRefLocals;
+
+    /*
+     * And which of those hold nothing but the absent constructor - the `Nothing` temporary an arm
+     * that found no entry builds, which nothing ever writes a reference into.
+     *
+     * Such a local is *one* variable: the key and the shift have no value to hold, and declaring
+     * them would leave a copy of two undefined variables in every arm that hands one on. What makes
+     * leaving them out sound is the invariant the whole flattening rests on - the key and the shift
+     * are read only where the owner is not null - so a destination that keeps its stale key after
+     * being overwritten with one of these keeps a key nothing may read.
+     */
+    IndexSet flatRefTagOnly;
+
 
     // Which locals are stored as a one-property box, by local index. See gen.cpp's file comment.
     IndexSet boxed;
@@ -1261,6 +1278,22 @@ JsPtr<Expr> materializeVec(Gen& g, VecParts parts);
 // Whether some use of a flattened reference needs it to be one value after all - a return, a store,
 // a capture. Defined in gen.cpp beside the other use-list questions.
 bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
+
+/*
+ * Whether a local of this type is one `prepareRefLocals` may hold as a reference's parts.
+ *
+ * Two shapes, and they are one shape at the representation: a `&T` whose pointee is not an object,
+ * which *is* the triple; and a niche-folded optional over one, which is the triple or `null`. The
+ * second is what `find` hands back, and the reason the absent niche is the only one admitted is that
+ * `$o === null` has to be the whole of the tag test - a pattern niche is a range over the payload's
+ * own bits, and the payload here is an object rather than a number.
+ */
+bool refLocalIsFlat(Gen& g, TypePtr type);
+
+// The parts of a place rooted in such a local, or nothing where the place is not one - the read and
+// the write halves, on exactly the terms funPartsOfPlace and destinationFunParts state.
+Maybe<RefParts> refPartsOfPlace(Gen& g, const Place& place);
+Maybe<RefParts> destinationRefParts(Gen& g, const Place& place);
 
 // Whether the parameter at one argument position of a call takes its reference flat. The emitter and
 // the question above both decide a reference argument's arity from this, and they have to agree.

@@ -625,11 +625,10 @@ static llvm::Intrinsic::ID reduceIntrinsic(LowerReduce reduce, bool isFloat) {
         case LowerReduce::And:  return llvm::Intrinsic::vector_reduce_and;
         case LowerReduce::Or:   return llvm::Intrinsic::vector_reduce_or;
 
-        // Written by the x64 backend for itself and never by anything above one - see the note on
-        // the kind. Listed rather than defaulted so that the -Wswitch sweep keeps saying something
-        // about this switch, which is the whole reason it has no `default`.
+        // Not an intrinsic here either: `genVecReduce` answers it above with the bitcast that is its
+        // whole expansion, exactly as it answers `FirstSet` - so this table is never asked.
         case LowerReduce::Bits:
-            assertTrue("a movemask reduction reached the LLVM backend" == nullptr);
+            assertTrue("a movemask reduction has no reduce intrinsic" == nullptr);
             break;
 
         // Not an intrinsic on this side either: `genVecReduce` answers it above with the bitcast and
@@ -671,6 +670,23 @@ static void genVecReduce(FunGen& f, LowerInstVecReduce& inst) {
      * count exactly. That is one `tzcnt` on a target that has one and a scan plus a correction on a
      * target that does not, which is LLVM's choice to make rather than ours.
      */
+    /*
+     * The mask as a number, which is what `Native.bits` names and what `FirstSet` below scans.
+     *
+     * The same bitcast, without the trailing-zero count on top: `<N x i1>` to an `iN` is the
+     * movemask this backend never has to name, and lane `i` lands in bit `i` on every little-endian
+     * target LLVM has. Nothing above the lane count is set, which is the kind's own promise, so the
+     * zero extension into the `i32` the result is stated at is all that follows it.
+     */
+    if(reduce == LowerReduce::Bits) {
+        auto bits = f.builder.CreateBitCast(from, llvm::IntegerType::get(f.gen.llvm, source.lanes()));
+        auto value = f.builder.CreateZExt(bits, typeOf(f.gen, inst.result.type));
+
+        nameResult(f, value, inst.result);
+        f.define(inst.result, value);
+        return;
+    }
+
     if(reduce == LowerReduce::FirstSet) {
         auto lanes = source.lanes();
         auto width = lanes <= 32 ? 32 : 64;

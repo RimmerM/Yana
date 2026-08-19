@@ -1137,6 +1137,21 @@ enum class NativeOp: U8 {
     Syscall,
 
     /*
+     * `trailingZeros(n)` - the number of zero bits below the lowest set bit, which is `bsf` at this
+     * project's baseline and `tzcnt` above it.
+     *
+     * **Undefined at zero**, which is the lower IR's `Cttz` and the machine's, and is stated on the
+     * declaration rather than papered over: the operand of the one loop that wants it -
+     * Implementation-Map.md §4.1's walk over a group's matching lanes - is the loop's own condition,
+     * so a zero can never reach it. Answering the width instead is `CttzWidth`, which is `tzcnt` and
+     * so needs a feature level above the floor; a definedness nothing needs is not worth a dispatch.
+     *
+     * A `NativeOp` rather than a `Value::Kind` for the reason the three above it are: a fixed
+     * operation, a flat argument list, and a meaning nothing else in this IR shares.
+     */
+    TrailingZeros,
+
+    /*
      * The host - Implementation-Containers.md §14.1.
      *
      * The back half of an FFI without its front half: an operation whose meaning belongs to the
@@ -1378,6 +1393,26 @@ enum class ReduceOp: U8 {
      * where the movemask is two. See §34 item 2 of test/bench/findings.md.
      */
     FirstSet,
+
+    /*
+     * The lanes of a mask as the bits of an integer - lane `i` in bit `i`, and nothing above the
+     * lane count. `pmovmskb` and the one operation in this enum that is not portable.
+     *
+     * The lower IR has had it since §37 - one movemask serves `any`, `all`, `count` and `firstSet`
+     * at once - with the rule that a *backend* writes it for itself and nothing above one does,
+     * because a target without the instruction should never see the kind rather than owe it an
+     * expansion. This is that rule held one layer higher instead of broken: `Native.bits` is
+     * `@platform(native)`, so the only code that can name it is code that has already said it is
+     * writing for a machine, and the JS backend never resolves a declaration that could produce one.
+     * The LLVM backend answers it with the same bitcast `FirstSet` uses, minus the bit scan.
+     *
+     * What it buys is the loop over *several* matching lanes, which is Implementation-Map.md §4.1's
+     * probe: `hits & (hits - 1)` clears the lane just tested in two integer instructions, where the
+     * same loop written over a `Mask` is a `firstSet` and a lane-clearing mask operation per
+     * iteration. Its result is an `Int` for the reason `FirstSet`'s is - sixteen or thirty-two bits
+     * of answer are not a value the lane type holds.
+     */
+    Bits,
 };
 
 // Every lane of the result is the same scalar. `type` is the vector; the operand is one lane of it.

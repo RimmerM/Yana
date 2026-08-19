@@ -1720,7 +1720,16 @@ struct ExprResolver {
     // `target` is known to be one; the length is checked against it rather than inferred.
     ModulePtr<Value> resolveFixedArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
                                        TypePtr target);
-    ModulePtr<Value> resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript, bool mutable_);
+    /*
+     * `xs[i]`, and `xs[i] = v` where the container inserts.
+     *
+     * `assigned` is the right-hand side of an assignment whose target is this subscript, and it is
+     * what lets one resolution of the container answer both forms: with an `IndexInsert` instance
+     * the whole assignment is emitted here and `handled` says so, and without one the ordinary
+     * `getMut` borrow comes back for the caller to write through. Both are null for a read.
+     */
+    ModulePtr<Value> resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript, bool mutable_,
+                                      const ast::Expr* assigned = nullptr, bool* handled = nullptr);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
     ModulePtr<Value> resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update, TypePtr target);

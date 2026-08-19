@@ -31,8 +31,28 @@ Provenance& provenanceOf(Analysis& analysis, ModulePtr<Value> value) {
 // Whether a value is the kind of thing that can refer to storage at all. A scalar computed into a
 // register refers to nothing, and saying so keeps arithmetic out of the fixpoint entirely.
 bool refersToStorage(Analysis& analysis, TypePtr type) {
-    return isMemoryType(analysis.global, type) || isPointer(analysis.global, type) ||
-           isBorrow(analysis.global, type);
+    if(isMemoryType(analysis.global, type) || isPointer(analysis.global, type) ||
+       isBorrow(analysis.global, type)) {
+        return true;
+    }
+
+    /*
+     * A *register* type that still holds a reference, which is a shape the three tests above cannot
+     * see: `Maybe(&T)` is one word once Repr folds `Nothing` into the null address, so it is direct,
+     * it is not itself a borrow, and it names the callee's argument storage exactly as a bare `&T`
+     * would.
+     *
+     * Missing it is a use-after-free rather than a missed optimization. `find(m, key) -> Maybe(&v)`
+     * declares `return self`, and with no provenance to carry the drop of `m` was placed at the
+     * call - so the borrow the caller then read through named storage that had already been handed
+     * back. What fixed that case was `analyze_effects.cpp`'s walk out of the local a call wrote its
+     * result into; this is the same fact stated where provenance reads it, so that escape analysis
+     * cannot place on a frame storage something reaches through one of these either.
+     *
+     * Asked last because it walks the type: everything above it is one comparison, and a memory type
+     * has already answered yes without needing the walk.
+     */
+    return containsBorrowLike(analysis.module, type);
 }
 
 // The roots a place names. A projection stays inside the storage its root names, so the path is

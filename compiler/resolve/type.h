@@ -1344,6 +1344,14 @@ struct CoreClasses {
     // itself goes through the ordinary overload set like every other class function.
     GlobalPtr<TypeClass> index = nullptr;
 
+    // And what `m[k] = v` dispatches through, where the container has an instance of it -
+    // Implementation-Map.md §7. Known by name for the same reason `index` is, and consulted at the
+    // same place: an assignment through a subscript prefers this and falls back to `getMut`, so
+    // `Array`'s assignment is unchanged and a map's inserts instead of trapping on a key it has not
+    // got. Null on a program whose `Collections` did not declare it, which is every program that
+    // predates the map.
+    GlobalPtr<TypeClass> indexInsert = nullptr;
+
     // The ownership classes. They are known by name for the same reason the five above are:
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
     // to is a lookup of these.

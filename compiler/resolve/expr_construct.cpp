@@ -784,6 +784,31 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
     auto held = valueType(value);
 
     /*
+     * A value that is *already* the mutable borrow the callee asked for.
+     *
+     * Inside a generic body a field of the generic record is a `Borrow` instruction rather than a
+     * projection, because the offset is not a number until the record has been instantiated - so
+     * `resize(self.index, n)` in a body generic in `k` arrives here holding `&mut Run(U8)` where the
+     * callee said `Run(U8)`. That is not a conversion and there is no temporary in it: the borrow is
+     * rooted in the caller's own storage and is exactly what the callee is owed, so it is handed
+     * over as it stands.
+     *
+     * Only the *mutable* borrow of exactly the expected type, and nothing weaker. An immutable one
+     * is the ordinary argument error this function exists to report, and a borrow of some other type
+     * is the conversion it refuses.
+     *
+     * It never came up until `Map(k, v)` had a field whose type mentions none of its parameters:
+     * `Array(a)`'s `Run(a)` is generic, so the call is deferred as an `InstGenCall` and reaches
+     * `emitDirectCall` at instantiation with the check already behind it. `Run(U8)` is concrete, so
+     * the call is resolved where it is written - in the generic body, where the place does not exist
+     * yet.
+     */
+    if(held && expected && global[held]->kind == Type::Borrow) {
+        auto borrow = (BorrowType*)global[held];
+        if(borrow->mut && sameType(borrow->to, expected)) return value;
+    }
+
+    /*
      * A mutable slice of an owned array - Implementation-Containers.md §4.1.
      *
      * `sort(&xs)` where `sort` said `&xs: [T]` is the one other conversion a `&` argument allows,
@@ -2130,7 +2155,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
  * wrote itself.
  */
 ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript,
-                                                bool mutable_) {
+                                                bool mutable_, const ast::Expr* assigned, bool* handled) {
     auto source = expr.source;
     auto args = subscript.args;
 
@@ -2236,6 +2261,40 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
             context.diagnostics.error("cannot index %@ - it has no instance of `Index`, so it says nothing about what a key or an element of it is"_v,
                                       source, describeType(context, global, held));
             return nullptr;
+        }
+    }
+
+    /*
+     * `m[k] = v` where the container has an `IndexInsert` instance - Implementation-Map.md §7.
+     *
+     * The assignment is the *whole* expression here rather than a write through a borrow, and that
+     * is the point: `getMut` has to answer a borrow, and an absent key has nothing to borrow and no
+     * zero value to invent for an arbitrary element type. So a container that can insert says so
+     * with an instance, and a container that cannot - `Array(a)`, every fixed array, every slice -
+     * has none and reaches exactly the `getMut` below that it always did.
+     *
+     * Asked after the container is resolved and of the same converted type the `Index` check above
+     * used, so nothing is resolved twice and a fixed array is judged as the slice it reaches a class
+     * through. `resolveDetermined` fills the element type in from the instance's own dependency,
+     * which is what the value is then resolved against.
+     */
+    if(assigned && handled) {
+        if(auto insertClass = module.program.coreClasses.indexInsert) {
+            TypeList asked;
+            asked.push(indexed);
+            asked.push(nullptr);
+            asked.push(nullptr);
+
+            if(!isGeneric(global, indexed) && resolveDetermined(module, insertClass, asked)) {
+                auto element = asked.size() > 2 ? asked[2] : nullptr;
+                auto written = resolve(*assigned, element);
+                if(!written) return nullptr;
+
+                ResolvedArg inserted[] = { container, index, written };
+                *handled = true;
+
+                return emitCall(context.addUnqualifiedName("insertAt", 8), { inserted, 3 }, source);
+            }
         }
     }
 

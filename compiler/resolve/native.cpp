@@ -120,6 +120,52 @@ pub fn borrowMut(return it: %a) -> &a
 @platform(native) pub fn vectorPast(from: %a) -> Vec(a)
 @platform(native) pub fn setVectorAt(to: %a, value: Vec(a)) -> {}
 
+{-
+   The three operations a Swiss probe is written in, at a width the target did not choose -
+   Implementation-Map.md §4.1 and §4.2.
+
+   **Sixteen lanes, written out, and that is the whole point of them.** `Vec(U8)` is thirty-two
+   lanes at `x86-64-v3` and sixty-four at v4, and native findings §9.2 measured a thirty-two-lane
+   control group against a sixteen-lane one over the whole map corpus: lookup does not move, misses
+   get 8-10% worse and build 7-8%. The cause is the control byte rather than the vector unit - it
+   holds seven hash bits, so a group test false-positives at 1/128 per full lane and each one costs a
+   key compare, which doubling the width doubles. **So the vector library's "widest tier available"
+   rule is a pessimization for a probe**, and these are how a probe says so.
+
+   `loadGroup` and `splatGroup` are `vectorAt` and `splat` at a stated result type, which is what
+   pins the count: both intrinsics build their instruction at the type the declaration names, so
+   there is nothing here but a signature. They are not const-generic because nothing supplies a count
+   in a *result* position (Implementation-Const-Generics.md §1.7), and a probe wants exactly one
+   width anyway.
+
+   `loadGroup` never overreads: §1's index run ends in a cloned copy of its first sixteen control
+   bytes, so a sixteen-byte load at any slot reads sixteen bytes that are inside the allocation. That
+   is what the clone is *for*, and it is why this is `vectorAt` and not `vectorPast`.
+-}
+@platform(native) pub fn loadGroup(from: %U8) -> Vec(U8, 16)
+@platform(native) pub fn splatGroup(value: U8) -> Vec(U8, 16)
+
+{-
+   A mask read as an integer - the movemask, and Implementation-Map.md §4.1's step 4.
+
+   `bits(m)` has lane `i` of the mask in bit `i` and nothing above the lane count, which is what
+   makes the loop over *several* matching lanes two integer instructions: `hits & (hits - 1)` clears
+   the lane just tested. Written over a `Mask` instead, the same loop is a `firstSet` and a
+   lane-clearing mask operation per iteration.
+
+   **In `Native` and not in `Core`, and the reason is the same one `firstSet` exists for.**
+   test/bench/findings.md §37 made `firstSet` a reduction kind because "which lane matched" is a
+   `pmovmskb` and a bit scan on x86 and something else everywhere else - and it names the other half
+   of that argument: on the JavaScript backend, where a lane is a variable and there is no mask to
+   scan, `firstSet` emits the chain of conditionals that is the same answer. A movemask has no such
+   answer. It is a machine fact, so it sits beside the pointer operations, reachable only from code
+   that has already said it is writing for a machine.
+
+   Const-generic in the lane count, because a mask's width is the width of whatever produced it and
+   a probe's is not the target's natural one.
+-}
+@platform(native) pub fn (n: Int) bits(mask: Mask(a, n)) -> Int
+
 -- The size and alignment of a value's type, in bytes.
 pub fn sizeOf(it: a) -> I64
 pub fn alignOf(it: a) -> I64
@@ -129,6 +175,24 @@ pub fn alignOf(it: a) -> I64
 pub fn +(it: %a, count: I64) -> %a
 pub fn -(it: %a, count: I64) -> %a
 pub fn difference(from: %a, to: %a) -> I64
+
+{-
+   The top half of a 64x64 product - Implementation-Map.md §3.1.
+
+   `a * b` is the low half and this is the high one, so the two together are the whole 128-bit
+   product. What wants it is the map's hash: `lo ^ hi` of a widening multiply is wyhash's and xxh3's
+   core, it is nonlinear where a CRC is not (§3.1 measures what that costs), and it is one
+   instruction on every 64-bit machine - `mul`/`mulx` on x86-64, `umulh` beside `mul` on AArch64.
+
+   `@platform(native)`, and that is the whole of the portability story rather than a gap in it. A
+   target that has no widening multiply is in JS's position and takes JS's answer, which is an int32
+   mixer written in `Math.imul`; nothing anywhere expands this out of thirty-two-bit pieces, because
+   a hash that had to would not be worth having.
+
+   Here rather than in `Core` because `Core` is where the language's own arithmetic is and this is a
+   machine fact - the same line `bitcast` and the pointer operations sit on the far side of.
+-}
+@platform(native) pub fn mulHigh(lhs: U64, rhs: U64) -> U64
 
 {-
    Memory and the operating system.
@@ -142,6 +206,19 @@ pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
 -- The system call intrinsic, at each arity a call needs. Design.md's "Interfacing the OS" builds
 -- the OS interface as a thin template over exactly this; the arguments and the result are plain
 -- integers because that is what the kernel ABI passes, and a pointer reaches one through `bitcast`.
+{-
+   The lowest set bit's index - `bsf` at this project's baseline, `tzcnt` above it.
+
+   **Undefined when the operand is zero**, which is the machine's rule and is stated here rather
+   than hidden behind a branch nobody asked for. The loop this exists for -
+   Implementation-Map.md §4.1's walk over the matching lanes of a control group - has `hits != 0`
+   as its own condition, so the zero never arrives.
+
+   It goes with `bits` above and is the same kind of thing: one instruction at every level this
+   project targets, and nothing in `Core` names it.
+-}
+@platform(native) pub fn trailingZeros(value: Int) -> Int
+
 pub fn syscall0(number: I64) -> I64
 pub fn syscall1(number: I64, a: I64) -> I64
 pub fn syscall2(number: I64, a: I64, b: I64) -> I64
@@ -748,6 +825,39 @@ static ModulePtr<Value> pointerAsVector(ExprResolver& resolver, ModulePtr<Value>
     return resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Bitcast, pointer));
 }
 
+/*
+ * `bits` - the movemask, and the one reduction kind that is a machine's rather than the language's.
+ *
+ * `ReduceOp::Bits` and nothing else; the width comes from the mask the caller handed over and the
+ * result is the `Int` the signature states, for the reason `firstSet`'s is one - sixteen or
+ * thirty-two bits of answer are not a value the lane type holds.
+ */
+/*
+ * `splatGroup` - `Core.splat` with the count stated instead of asked for.
+ *
+ * The same instruction and the same conversion of the operand into the lane type; what differs is
+ * only that the result type is written in the declaration, so nothing has to infer a count in a
+ * position §1.7 of Implementation-Const-Generics.md says nothing supplies one in. A copy of four
+ * lines rather than an export, because the *reason* it exists is this module's - see the group
+ * declarations above.
+ */
+static ModulePtr<Value> emitGroupSplat(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto lane = vectorLane(resolver.global, type);
+    auto value = lane ? resolver.convert(args[0], lane, source) : args[0];
+    if(!value) return nullptr;
+
+    return resolver.ref(resolver.emit<InstVecSplat>(source, name, type, value));
+}
+
+static ModulePtr<Value> emitMaskBits(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto mask = resolver.valueType(args[0]);
+    if(!vectorLanes(resolver.global, mask)) return nullptr;
+
+    return resolver.ref(resolver.emit<InstVecReduce>(source, name, type, args[0], ReduceOp::Bits));
+}
+
 static ModulePtr<Value> emitVectorAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
     auto address = pointerAsVector(resolver, args[0], type, source);
@@ -909,6 +1019,20 @@ static ModulePtr<Value> emitPointerOffset(ExprResolver& resolver, Buffer<ModuleP
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, kind, args[0], offset));
 }
 
+/*
+ * The top half of a widening multiply - Implementation-Map.md §3.1's one new primitive.
+ *
+ * The map's hash is wyhash's and xxh3's core, `lo(a*b) ^ hi(a*b)`, and the low half is `*`. This is
+ * the other half: one `InstBinary` at the operand type, which lower_inst.cpp turns into the
+ * `MulHi`/`IMulHi` the reciprocal in lower_strength.cpp has always emitted. Nothing synthesizes it
+ * out of thirty-two-bit pieces, which is why the declaration is `@platform(native)` - a target
+ * without the instruction takes the JS answer, an int32 mixer of its own.
+ */
+static ModulePtr<Value> emitMulHigh(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                    LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstBinary>(source, name, type, Value::MulHi, args[0], args[1]));
+}
+
 static ModulePtr<Value> emitDifference(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                        LocationId source, StringId name) {
     auto bytes = resolver.ref(resolver.emit<InstBinary>(source, StringId(), type, Value::Sub, args[1], args[0]));
@@ -1029,6 +1153,13 @@ static void attachPointerIntrinsics(Module& module) {
         attachIntrinsic(module, "vectorAt"_v, emitVectorAt);
         attachIntrinsic(module, "vectorPast"_v, emitVectorPast);
         attachIntrinsic(module, "setVectorAt"_v, emitSetVectorAt);
+
+        // The pinned-width three - see the declarations. `loadGroup` and `splatGroup` are the two
+        // intrinsics beside them with the result type stated rather than asked for, so they need no
+        // emit of their own; `bits` is the one kind above the lower IR that only a machine has.
+        attachIntrinsic(module, "loadGroup"_v, emitVectorAt);
+        attachIntrinsic(module, "splatGroup"_v, emitGroupSplat);
+        attachIntrinsic(module, "bits"_v, emitMaskBits);
     }
 
     // `borrowMut` is declared `-> &a` like its immutable sibling, because the grammar has one
@@ -1047,6 +1178,8 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);
     attachIntrinsic(module, "difference"_v, emitDifference);
 
+    if(!isJsMode(module.context.settings.mode)) attachIntrinsic(module, "mulHigh"_v, emitMulHigh);
+
     attachIntrinsic(module, "newRun"_v, emitNewRun);
 
     attachIntrinsic(module, "copyMemory"_v, emitNativeOp<NativeOp::CopyMemory>);
@@ -1058,6 +1191,10 @@ static void attachPointerIntrinsics(Module& module) {
     };
 
     for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
+
+    if(!isJsMode(module.context.settings.mode)) {
+        attachIntrinsic(module, "trailingZeros"_v, emitNativeOp<NativeOp::TrailingZeros>);
+    }
 }
 
 static ast::Module* parseEmbedded(Context& context, const char* text, StringView name) {

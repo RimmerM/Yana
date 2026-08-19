@@ -1,0 +1,58 @@
+{-
+   What a map *is*, on both targets - Implementation-Map.md §1 and §6, asserted as layout rather than
+   as behaviour.
+
+   Three things this is the only fixture that can see:
+
+   **The entries run is `Array(Entry(k, v))` and costs exactly §1's two words.** That section writes
+   the field as a run plus a count of the map's own; the container is the same two words with growth,
+   bounds and teardown already written, which is why it is spelled as the container.
+
+   **The index differs by target, and so does where a pair lives.** `Run(U8)` natively - one
+   allocation holding control bytes, their cloned group and the entry numbers - and an `Array(I32)`
+   of entry numbers on JS, where there is no `movemask` and a sixteen-lane compare would be sixteen
+   loads. The entries run is one `Array(Entry(k, v))` there and the parallel `Array(k)`/`Array(v)`
+   of §6 here, because `Array(a)` on this target is a `TypedArray` wherever the element kind allows
+   one and a single run of a two-field record is a host array of one object per entry.
+
+   This dump is the *native* declarations read at the JS repr target, which is what makes it the
+   wrong place to look for that second difference: `@platform` picks the field set during
+   resolution, so the rows below are the native ones sized as this target would size them. The
+   `.js.expect` beside it is where the JS layout is asserted, and `Map.yana` is where it runs.
+
+   **`Maybe(&v)` is one word.** §10 leaves it open, and it is what `find` hands back: Repr's niche
+   computation folds `Nothing` into the null address, which is the same fold `Maybe(%a)` gets. If it
+   were ever two, every lookup would return two words and the signature should become a `Bool` and an
+   out-parameter instead - so this is the number that decides that question rather than a guess about
+   it.
+
+   `Entry(String, Int)` is here beside `Entry(Int, Int)` because the interesting property is where the
+   two targets *differ*: a `String` is two words natively and a host value on JS, so an entry holding
+   one is where the layouts diverge. It is also the key type whose JS run is *not* typed - a string
+   has no `TypedArray` lane - which is the one place §6's typed runs come back to a tagged array.
+-}
+
+fn touchInt(m: Map(Int, Int)) -> Int:
+    let &n = 0 :: Int
+    match find(m, 1):
+        Just(v) -> n = v
+        Nothing -> n = 0 - 1
+
+    return n
+
+fn touchString(m: Map(String, Int)) -> Int:
+    let &n = 0 :: Int
+    match find(m, "a"):
+        Just(v) -> n = v
+        Nothing -> n = 0 - 1
+
+    return n
+
+fn main() -> Int:
+    let &a = emptyMap() :: Map(Int, Int)
+    insert(a, 1, 5)
+
+    let &b = emptyMap() :: Map(String, Int)
+    insert(b, "a", 6)
+
+    return touchInt(a) + touchString(b)

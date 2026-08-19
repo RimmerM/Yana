@@ -1,0 +1,69 @@
+# The map's probe, as instruction selection sees it - Implementation-Map.md §4.1 and §4.2, and the
+# assertion §9 of that document asks for by name.
+#
+# Three facts about the emitted bytes, and none of them is visible one layer up:
+#
+#   - the group is a **16-byte** load and a **16-lane** compare, at every feature level. `Vec(U8)` is
+#     thirty-two lanes at x86-64-v3 and sixty-four at v4, and native findings §9.2 measured a
+#     thirty-two-lane control group against a sixteen-lane one over the whole map corpus: lookup does
+#     not move, misses get 8-10% worse and build 7-8%, because a control byte holds seven hash bits
+#     and doubling the lanes doubles the false-positive rate. `Native.loadGroup` and
+#     `Native.splatGroup` are what pin it, and this is where the pin is checked.
+#   - the tag test is `pcmpeqb` and **one** `pmovmskb`. The walk over several matching lanes is then
+#     integer arithmetic on the bitmap - `hits & (hits - 1)` - rather than a mask operation per lane.
+#   - the group load never overreads. §1's index run ends in a cloned copy of its first sixteen
+#     control bytes, so a sixteen-byte load at any slot is inside the allocation and this is
+#     `vectorAt` rather than `vectorPast`.
+#
+# Transcribed from `resolve/Map.yana.lower.expect` rather than invented: the shape here is what
+# `indexFind(Int, Int)` lowers to, with the entry compare and the miss arm cut down to what makes the
+# group test reachable. The full path is asserted by that fixture; this one is about the bytes.
+
+# The tag match and the walk over its bits. `%control` is the head of the index run and `%pos` the
+# slot the hash started at - both already masked by the caller.
+probeGroup(%control: Ptr, %pos: Long, %tag: Int): Long {
+    b_0 {
+        %group = load %control, 16: i8x16
+        %splat = vsplat %tag: i8x16
+        %hits = cmp_eq %group, %splat: m8x16
+        %bits = vreduce_bits %hits: Int
+        jmp b_1
+    }
+
+    b_1 {
+        %live = phi [b_0, %bits], [b_2, %next]: Int
+        %any = cmp_neq %live, 0: Int
+        je %any, b_3, b_4
+    }
+
+    # The lane, and the slot it names. `cttz` is `bsf` at this project's baseline.
+    b_3 {
+        %lane = cttz %live: Int
+        %wide = sext %lane: Long
+        %slot = add %pos, %wide: Long
+        ret %slot
+    }
+
+    # Clearing the lane just tested: two integer instructions and no second movemask.
+    b_2 {
+        %less = sub %live, 1: Int
+        %next = and %live, %less: Int
+        jmp b_1
+    }
+
+    b_4 { jmp b_2 }
+}
+
+# The empty test that ends a miss, over the same group. Written as a second consumer of one mask so
+# that the movemask is placed once - §37 of test/bench/findings.md, which is what makes `any` and the
+# tag walk share an instruction rather than each emitting a `pmovmskb`.
+probeEmpty(%control: Ptr): Int {
+    b_0 {
+        %group = load %control, 16: i8x16
+        %empty = vsplat 128: i8x16
+        %free = cmp_eq %group, %empty: m8x16
+        %bits = vreduce_bits %free: Int
+        %none = cmp_eq %bits, 0: Int
+        ret %none
+    }
+}

@@ -81,6 +81,29 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     // (to, count, pattern), which is the order its printed form uses.
                     result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSetPattern(args[0], args[2], args[1]));
                     break;
+                /*
+                 * The bit scan - one intrinsic in, one value out.
+                 *
+                 * Built by hand rather than through `block.addInst`, for the reason the x64
+                 * builder's `intrinsic` gives: `LowerInstIntrinsic`'s results live past the
+                 * instruction rather than inside it, because an intrinsic may answer none or
+                 * several, so the allocation is the instruction plus its one result and its one
+                 * operand. See `handleIntrinsic` in lower_resolve.cpp, which builds the same shape
+                 * when reading one back in.
+                 */
+                case NativeOp::TrailingZeros: {
+                    auto type = lowerType(lower.global, instruction.type);
+                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
+                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
+
+                    new (inst) LowerInstIntrinsic(LowerIntrinsic::Cttz, 1, 1);
+                    inst->used().ptr[0] = args[0];
+                    new (inst->created().ptr) LowerValue(inst, type, instruction.name);
+
+                    result = block.addInst(lower.lower, (LowerInst*)inst);
+                    break;
+                }
+
                 case NativeOp::Syscall: {
                     // The kernel is the callee, so there is no function operand: the number is
                     // operand zero, exactly as the lower IR's own syscall form has it.
@@ -269,6 +292,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
+        case Value::MulHi:
         case Value::Div:
         case Value::Rem:
         case Value::Shl:
@@ -339,6 +363,12 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     break;
                 case LowerInst::IMul:
                     result = binary<LowerInst::IMul>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
+                    break;
+                case LowerInst::MulHi:
+                    result = binary<LowerInst::MulHi>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
+                    break;
+                case LowerInst::IMulHi:
+                    result = binary<LowerInst::IMulHi>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
                     break;
                 case LowerInst::Div:
                     result = binary<LowerInst::Div>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
@@ -496,6 +526,10 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 // The one kind with no signedness to read and no lane type to read it off: what it
                 // answers is an index into the lanes rather than one of them.
                 case ReduceOp::FirstSet: op = LowerReduce::FirstSet; break;
+
+                // The movemask, which this IR only ever holds because `Native.bits` put it here - see
+                // the kind. Its lowered twin is the one the x64 expansion writes for itself.
+                case ReduceOp::Bits: op = LowerReduce::Bits; break;
             }
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(

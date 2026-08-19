@@ -233,6 +233,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case ReduceOp::And: return "vreduce_and"_v;
                 case ReduceOp::Or:  return "vreduce_or"_v;
                 case ReduceOp::FirstSet: return "vreduce_first"_v;
+                case ReduceOp::Bits: return "vreduce_bits"_v;
             }
             break;
         case Value::Drop:
@@ -258,6 +259,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
                 case NativeOp::SetMemory: return "setmemory"_v;
                 case NativeOp::Syscall: return "syscall"_v;
+                case NativeOp::TrailingZeros: return "cttz"_v;
                 case NativeOp::HostCall: return "hostcall"_v;
                 case NativeOp::HostField: return "hostfield"_v;
                 case NativeOp::HostArray: return "hostarray"_v;
@@ -497,6 +499,7 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
+        case Value::MulHi:
         case Value::Div:
         case Value::Rem:
         case Value::Shl:

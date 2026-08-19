@@ -499,6 +499,156 @@ void prepareFunLocals(Gen& g, Function& function) {
 }
 
 /*
+ * Which locals holding a narrow reference are carried as that reference's parts.
+ *
+ * The counterpart of `prepareFunLocals` above and the same shape of rule, with the default the other
+ * way round: a reference's natural form here *is* the `{$o,$k,$s}` object, so this starts from the
+ * types that could be flat and takes away every local that has a use the parts cannot serve.
+ *
+ * What it buys is the allocation. `find(m, key)` hands back a `Maybe(&v)`, which is one word the
+ * niche folds onto the reference - so the inlined body builds a triple in the arm that found
+ * something, writes it into the merged local, and the `match` reads it straight back out. Nothing
+ * escapes and nothing needs one value, and the object was allocated per lookup anyway because a
+ * local is one variable. Held as three, both arms assign variables and the tag test is `$o === null`.
+ *
+ * Four disqualifications, and each names a use the three variables cannot answer:
+ *
+ *  - **a borrow or an address of it**, for `prepareFunLocals`' reason: three variables are not an
+ *    object, so there is nothing for a reference to this storage to name. This is also what keeps
+ *    the boxed locals out, since `prepareLocals` boxes exactly what a surviving borrow names.
+ *  - **any use that is not a place**, which is a call taking the storage, a move, an exchange. Read
+ *    off `eachPlace` returning nothing for the instruction rather than enumerated, so a kind added
+ *    later is declined rather than silently mishandled.
+ *  - **a projection that is not free on a folded record.** A `Discriminant` and a `Downcast` are
+ *    both nothing at all here - the record *is* its payload - so a place carrying only those is the
+ *    same three variables. Anything else names storage inside the reference, which these do not have.
+ *  - **a local a `Drop` names**, since a teardown reads the storage as one value.
+ *
+ * Run after `prepareLocals`, which is what fills `g.boxed`.
+ */
+void prepareRefLocals(Gen& g, Function& function) {
+    g.flatRefLocals.reset(function.localCount());
+    g.flatRefTagOnly.reset(function.localCount());
+
+    for(Size i = 0; i < function.localCount(); i++) {
+        auto slot = function.localAt(g.local, i);
+        if(slot.borrowed) continue;
+        if(i < g.boxed.size() && g.boxed[i]) continue;
+        if(!refLocalIsFlat(g, slot.type)) continue;
+
+        /*
+         * Storage this frame *allocated*, and nothing else.
+         *
+         * A slot whose value is a call result or an argument is a name for a value somebody else
+         * built, and that value is the object. Flattening one would answer its parts with
+         * `refPartsOfExpr` - `v.$o`, `v.$k` off the object - which is right for every part but the
+         * tag: an absent constructor is `null` there, and `null.$o` throws rather than comparing
+         * unequal. `let found = find(m, k)` is the shape, and it read as a *miscompile* rather than
+         * as a missing optimization.
+         */
+        if(!slot.value || g.local[slot.value]->kind != Value::Alloc) continue;
+
+        g.flatRefLocals.set(i, true);
+        g.flatRefTagOnly.set(i, true);
+    }
+
+    eachInstruction(g, function, [&](Value& instruction) {
+        auto decline = [&](const Place& place) {
+            if(place.root != PlaceRoot::Local || place.local >= g.flatRefLocals.size()) return;
+            g.flatRefLocals.set(place.local, false);
+        };
+
+        switch(instruction.kind) {
+            case Value::Borrow: decline(((InstBorrow&)instruction).place); return;
+            case Value::Address: decline(((InstAddress&)instruction).place); return;
+            case Value::Drop: decline(((InstDrop&)instruction).place); return;
+            case Value::LoadPlace:
+            case Value::Init:
+            case Value::Assign:
+            case Value::Aggregate:
+            case Value::Alloc:
+                break;
+            default:
+                // Everything else is declined wherever it names one of these locals at all - see the
+                // second rule above. `eachPlace` is the enumeration, so this needs no list of kinds.
+                eachPlace(instruction, [&](const Place& place) { decline(place); });
+                return;
+        }
+
+        eachPlace(instruction, [&](const Place& place) {
+            if(place.root != PlaceRoot::Local || place.local >= g.flatRefLocals.size()) return;
+            if(!g.flatRefLocals[place.local]) return;
+
+            auto projections = place.projections;
+            auto tag = false;
+
+            for(Size i = 0; i < projections.size(); i++) {
+                auto projection = projections.get(g.local, i);
+                if(projection.kind == ProjectionKind::Discriminant) {
+                    tag = true;
+                } else if(projection.kind != ProjectionKind::Downcast) {
+                    g.flatRefLocals.set(place.local, false);
+                    return;
+                }
+            }
+
+            // A place that is not the tag names the reference, so this local holds one - see
+            // Gen::flatRefTagOnly. An `Alloc` names the whole local and says nothing either way.
+            if(!tag && instruction.kind != Value::Alloc) g.flatRefTagOnly.set(place.local, false);
+        });
+    });
+
+    /*
+     * And the uses of the allocation *as a value*, which the place scan above cannot see.
+     *
+     * `eachPlace` enumerates where an instruction reads and writes; a `ret %v7` or a `call f, %v7`
+     * names the storage without naming a place in it, so neither appears there. Those are exactly
+     * the positions that need the reference to be one value - and one value is what a flattened
+     * local does not have. Worse than not having it: a folded optional holding `Nothing` is `null`,
+     * and the object `materializeRef` would build out of the parts is `{$o: null, …}`, which every
+     * `x === null` downstream reads as a reference. `return Nothing` compiled to exactly that.
+     *
+     * One use is allowed, and it is the one the whole rule exists for: a whole-value write into
+     * *another* local held the same way, which `storeInto` performs part by part. That makes the
+     * question mutually recursive - the destination may yet be disqualified - so it is a fixpoint,
+     * and it terminates because a round only ever takes locals away.
+     */
+    auto settled = false;
+    while(!settled) {
+        settled = true;
+
+        for(Size i = 0; i < function.localCount(); i++) {
+            if(!g.flatRefLocals[i]) continue;
+
+            auto storage = function.localAt(g.local, i).value;
+
+            for(auto usePointer: g.local[storage]->uses(g.local)) {
+                auto& use = *g.local[usePointer];
+                auto served = false;
+
+                if((use.kind == Value::Init || use.kind == Value::Assign) &&
+                   ((InstInit&)use).value == storage) {
+                    auto& write = (InstInit&)use;
+                    served = write.place.root == PlaceRoot::Local &&
+                             write.place.local < g.flatRefLocals.size() &&
+                             g.flatRefLocals[write.place.local];
+                } else {
+                    eachPlace(use, [&](const Place& place) {
+                        if(place.root == PlaceRoot::Local && place.local == i) served = true;
+                    });
+                }
+
+                if(served) continue;
+
+                g.flatRefLocals.set(i, false);
+                settled = false;
+                break;
+            }
+        }
+    }
+}
+
+/*
  * The locals whose whole value one `InstAggregate` writes - see Gen::builtWhole.
  *
  * Two conditions. `wholeLocalPlan` must call the aggregate eligible, which is the whole of the
@@ -548,6 +698,7 @@ static I32 localSlotOf(Gen& g, Function& function, ModulePtr<Value> value) {
 StmtList genBody(Gen& g, Function& function) {
     prepareLocals(g, function);
     prepareFunLocals(g, function);
+    prepareRefLocals(g, function);
     prepareBuiltLocals(g, function);
     prepareCfg(g, function);
 

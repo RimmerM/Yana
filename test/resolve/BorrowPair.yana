@@ -1,0 +1,25 @@
+-- Can a plain record be *applied* at borrow types, in a generic body? This is the shape a map with
+-- parallel key and value runs has to yield from `pairs`, since neither target has an `Entry` in
+-- storage to borrow.
+data Pair(a, b) {first: a, second: b}
+data Box(a) {item: a}
+
+fn make(x: &Int, y: &Int) -> Pair(&Int, &Int) = Pair {first: x, second: y}
+
+-- The generic form: the borrows come out of accessors rather than in as parameters, which is how
+-- the map's iterator gets them.
+fn firstOf(return self: Box(a)) -> &a = self.item
+
+fn viewed(return self: Box(a), return other: Box(a)) -> Pair(&a, &a) =
+    Pair {first: firstOf(self), second: firstOf(other)}
+
+fn main() -> Int:
+    let &a = 3 :: Int
+    let &b = 4 :: Int
+    let p = make(a, b)
+
+    let x = Box {item: 5 :: Int}
+    let y = Box {item: 6 :: Int}
+    let q = viewed(x, y)
+
+    return p.first + p.second + q.first + q.second

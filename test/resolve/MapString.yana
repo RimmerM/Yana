@@ -1,0 +1,105 @@
+{-
+   A map whose key owns storage and whose value has a teardown - Implementation-Map.md §1.1.
+
+   `Map.yana` is the probe and the index; this is the ownership half, and everything it asserts is a
+   count read at a point where the placement decides it rather than a shape in a golden. A drop that
+   never ran and a drop that ran twice both produce an `InstDrop` that looks right.
+
+   Four things have to hold and each fails independently:
+
+    - **The map's teardown walks the dense prefix.** `count` entries, no occupancy test, and the
+      index run holding nothing droppable - which is what keeps a map out of the ownership question
+      entirely.
+    - **A displaced value is handed back rather than dropped.** `insert` over a key that exists
+      answers the old value, so whoever called it decides when that dies.
+    - **A removed entry hands back its key as well as its value**, and the key is a `String` that
+      owns its bytes - so a `removeKey` whose answer is discarded releases both exactly once.
+    - **The key already in the map is the one kept.** Two strings that `==` calls equal are one key,
+      so an insert over an existing key releases the key it was handed rather than the one it holds.
+
+   String keys also put the map on the other side of §2's threshold table: a `String` scans to
+   thirty-two entries before an index is worth allocating, where an `Int` scans to eight. Both
+   regimes are exercised below.
+-}
+
+let &live = 0 :: Int
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held) -> {}:
+        live = live - 1
+
+fn hold(n: Int) -> Held:
+    live = live + 1
+    return Held {n: n}
+
+-- A key that owns its bytes: a fresh run per call, not a literal's borrowed one.
+fn key(n: Int) -> String:
+    let &s = newStringOfCapacity(16 :: Size)
+    pushString(s, "k-")
+    show(n, s)
+    return s
+
+fn build(n: Int) -> Map(String, Held):
+    let &m = emptyMap() :: Map(String, Held)
+    let &i = 0 :: Int
+
+    while i < n:
+        insert(m, key(i), hold(i))
+        i = i + 1
+
+    return m
+
+fn main() -> Int:
+    -- Below the scan threshold for a string key, where there is no index at all.
+    let &small = build(4)
+    if (truncate(length(small)) :: Int) != 4 then return 0 - 1
+    if live != 4 then return 0 - 2
+
+    -- Replacing a value hands the old one back, and the `Maybe` holding it dies at the end of this
+    -- statement - so the count is one lower afterwards and the map still holds four.
+    insert(small, key(2), hold(20))
+    if live != 4 then return 0 - 3
+    if (truncate(length(small)) :: Int) != 4 then return 0 - 4
+
+    match find(small, key(2)):
+        Just(h) -> if h.n != 20 then return 0 - 5
+        Nothing -> return 0 - 6
+
+    -- And past the threshold, where the index exists and every removal re-points a slot.
+    let &m = build(200)
+    if live != 204 then return 0 - 7
+
+    let &i = 0 :: Int
+    while i < 200:
+        removeKey(m, key(i))
+        i = i + 2
+
+    if (truncate(length(m)) :: Int) != 100 then return 0 - 8
+    if live != 104 then return 0 - 9
+
+    i = 0
+    while i < 200:
+        if containsKey(m, key(i)) != (i % 2 != 0) then return 0 - 10
+        i = i + 1
+
+    -- `clear` releases every entry and keeps the storage.
+    clear(m)
+    if live != 4 then return 0 - 11
+    if (truncate(length(m)) :: Int) != 0 then return 0 - 12
+
+    insert(m, key(1), hold(1))
+    if live != 5 then return 0 - 13
+
+    {-
+       The last count is read after both maps are gone, which is the only way to see the teardown
+       run: `touch` is what gives each of them a use after the read above, so nothing was released
+       early, and a map that leaked and a map that never held anything both answer zero here.
+    -}
+    let inside = live
+    let held = touch(small) + touch(m)
+
+    return inside * 100 + live * 10 + held + 1
+
+fn touch(it: Map(String, Held)) -> Int = 0

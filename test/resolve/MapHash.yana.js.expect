@@ -1,0 +1,328 @@
+"use strict";
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function reserve_I32(self, wanted) {
+  if (!(wanted <= self.items.length)) {
+    growJsArray_I32(self, wanted);
+  }
+}
+
+function growJsArray_I32(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function hashKey_Point(key$x, key$y) {
+  var v21 = Math.imul((Math.imul((key$x ^ 2166136261) >>> 0, 16777619) ^ key$y) >>> 0, 16777619) >>> 0;
+  var v26 = Math.imul((v21 ^ v21 >>> 16) >>> 0, 2246822507) >>> 0;
+  var v31 = Math.imul((v26 ^ v26 >>> 13) >>> 0, 3266489909) >>> 0;
+  return (v31 ^ v31 >>> 16) >>> 0;
+}
+
+function findEntry_Point_Int(self, key$x, key$y, h) {
+  if (self.mask === 0) {
+    return scanEntries_Point_Int(self, key$x, key$y);
+  } else {
+    return indexFind_Point_Int(self, key$x, key$y, h);
+  }
+}
+
+function scanEntries_Point_Int(self, key$x, key$y) {
+  var v46 = self.keys.length;
+  var at = 0;
+  L0: for (;;) {
+    if (at < v46) {
+      var v48 = self.keys;
+      var lhs$x = v48[at].x;
+      var lhs$y = v48[at].y;
+      var v52 = lhs$x === key$x;
+      if (v52 ? lhs$y === key$y : v52) {
+        return at;
+      } else {
+        at = at + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function indexFind_Point_Int(self, key$x, key$y, h) {
+  var v4 = self.mask;
+  var slot = h & v4;
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      var at = self.index.items[slot];
+      if (at === -1) {
+        return -1;
+      } else {
+        B1: {
+          if (at >= 0) {
+            var v101 = self.keys;
+            var lhs$x = v101[at].x;
+            var lhs$y = v101[at].y;
+            var v105 = lhs$x === key$x;
+            if (v105 ? lhs$y === key$y : v105) {
+              return at;
+            }
+          }
+        }
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function appendEntry_Point_Int(self, key, value, h) {
+  var v66 = self.keys.length;
+  var key$1 = { x: key.x, y: key.y };
+  push_Point(self.keys, { x: key$1.x, y: key$1.y });
+  push_Int(self.values, value);
+  var v12 = self.mask;
+  if (v12 === 0) {
+    var v18 = v66 + 1;
+    if (v18 > 64) {
+      var slots = 16;
+      L0: for (;;) {
+        if ((slots - (slots >>> 3) | 0) < v18) {
+          slots = slots + slots | 0;
+          continue L0;
+        }
+        break L0;
+      }
+      indexRebuild_Point_Int(self, slots);
+    }
+  } else {
+    var v76 = v12 + 1;
+    if (self.live + 1 > v76 - (v76 >>> 3)) {
+      indexRebuild_Point_Int(self, Math.imul(v66 + 1, 2) > v76 ? v76 + v76 | 0 : v76);
+    } else {
+      indexPlace_Point_Int(self, v66, h);
+    }
+  }
+}
+
+function push_Point(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  self[count] = item;
+  var v18 = v7 & 1073741823;
+  if (self.length !== v18) {
+    self.length = v18;
+  }
+}
+
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function indexRebuild_Point_Int(self, slots) {
+  reserve_I32(self.index, slots);
+  var v9 = slots & 1073741823;
+  self.index.length = v9;
+  self.mask = slots - 1 & 1073741823;
+  var slot = 0;
+  L0: for (;;) {
+    if (slot < v9) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      self.index.items[slot] = -1;
+      slot = slot + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  self.live = 0;
+  var v77 = self.keys.length;
+  var at = 0;
+  L1: for (;;) {
+    if (at < v77) {
+      var v74 = self.keys;
+      indexPlace_Point_Int(self, at, hashKey_Point(v74[at].x, v74[at].y));
+      at = at + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function indexPlace_Point_Int(self, at, h) {
+  var v4 = self.mask;
+  var slot = h & v4;
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      var v25 = self.index.length;
+      checkCondition(slot >>> 0 >= v25);
+      var v30 = self.index.items;
+      var taken = v30[slot];
+      if (taken < 0) {
+        checkCondition(slot >>> 0 >= v25);
+        v30[slot] = at | 0;
+        if (taken === -1) {
+          self.live = self.live + 1 & 1073741823;
+        }
+        return;
+      } else {
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      throw "yana: a runtime check failed";
+    }
+    break L0;
+  }
+}
+
+// ResolveTest
+function main() {
+  var a = hashKey_Point(1, 2);
+  if (a === hashKey_Point(2, 1)) {
+    return -2;
+  } else {
+    if (a !== hashKey_Point(1, 2)) {
+      return -3;
+    } else {
+      var v249 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+      var v250 = [];
+      if (v250.length !== 0) {
+        v250.length = 0;
+      }
+      var v254 = { items: new Int32Array([]), length: 0 };
+      var v258 = { items: new Int32Array([]), length: 0 };
+      v249.keys = v250;
+      v249.values = v254;
+      v249.index = v258;
+      v249.live = 0;
+      v249.mask = 0;
+      var i = 0;
+      L0: for (;;) {
+        if (i < 40) {
+          var v68 = Math.imul(i, 2);
+          var v63 = { x: i, y: v68 };
+          var v72 = { x: v63.x, y: v63.y };
+          var h = hashKey_Point(i, v68);
+          var at = findEntry_Point_Int(v249, v72.x, v72.y, h);
+          if (at >= 0) {
+            v249.values.items[at] = i;
+          } else {
+            appendEntry_Point_Int(v249, { x: v72.x, y: v72.y }, i, h);
+          }
+          i = i + 1 | 0;
+          continue L0;
+        }
+        break L0;
+      }
+      if (v249.keys.length !== 40) {
+        return -4;
+      } else {
+        var v271$o = null;
+        var v271$k;
+        var v271$s;
+        var at$1 = findEntry_Point_Int(v249, 7, 14, hashKey_Point(7, 14));
+        if (at$1 < 0) {
+          v271$o = null;
+        } else {
+          v271$o = v249.values.items;
+          v271$k = at$1;
+          v271$s = 1;
+        }
+        if (!(v271$o === null)) {
+          if (v271$o[v271$k] !== 7) {
+            return -5;
+          } else {
+            if (findEntry_Point_Int(v249, 7, 15, hashKey_Point(7, 15)) >= 0) {
+              return -7;
+            } else {
+              var v140 = { x: 7, y: 14 };
+              var v147 = { x: v140.x, y: v140.y };
+              var h$1 = hashKey_Point(7, 14);
+              var at$2 = findEntry_Point_Int(v249, v147.x, v147.y, h$1);
+              if (at$2 >= 0) {
+                v249.values.items[at$2] = 70;
+              } else {
+                appendEntry_Point_Int(v249, { x: v147.x, y: v147.y }, 70, h$1);
+              }
+              var v361 = v249.keys.length;
+              if (v361 !== 40) {
+                return -8;
+              } else {
+                var first = -1;
+                var last = -1;
+                var at$3 = 0;
+                L1: for (;;) {
+                  if (at$3 < v361) {
+                    var v341 = v249.keys;
+                    if (first < 0) {
+                      first = v341[at$3].x;
+                    }
+                    last = v341[at$3].x;
+                    at$3 = at$3 + 1 | 0;
+                    continue L1;
+                  }
+                  break L1;
+                }
+                return first !== 0 ? -9 : last !== 39 ? -10 : 1;
+              }
+            }
+          }
+        } else {
+          return -6;
+        }
+      }
+    }
+  }
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main();

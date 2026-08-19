@@ -106,6 +106,9 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
         case Value::Add: return LowerInst::Add;
         case Value::Sub: return LowerInst::Sub;
         case Value::Mul: return floating ? LowerInst::Mul : (signed_ ? LowerInst::IMul : LowerInst::Mul);
+        // No float form: `mulhi` is the top half of an integer product and nothing else, which is
+        // why `floating` is not consulted here as it is one line above.
+        case Value::MulHi: return signed_ ? LowerInst::IMulHi : LowerInst::MulHi;
         case Value::Div: return floating ? LowerInst::Div : (signed_ ? LowerInst::IDiv : LowerInst::Div);
         case Value::Rem: return signed_ ? LowerInst::IRem : LowerInst::Rem;
         case Value::Shl: return LowerInst::Shl;
@@ -175,6 +178,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
+        case Value::MulHi:
         case Value::Div:
         case Value::Rem:
         case Value::Shl:

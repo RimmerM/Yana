@@ -1,0 +1,82 @@
+
+probeGroup<complex>(%control: Ptr, %pos: Long, %tag: Int): Long {
+  b_0 {
+    %group = load %control, 16: i8x16
+    %splat = vsplat %tag: i8x16
+    %hits = cmp_eq %group, %splat: m8x16
+    %bits = vreduce_bits %hits: Int
+    jmp b_1
+  }
+
+  b_1 {
+    %live = phi [b_0, %bits], [b_2, %next]: Int
+    %any = cmp_neq %live, 0: Int
+    je %any, b_3, b_4
+  }
+
+  b_3 {
+    %lane = cttz %live: Int
+    %wide = sext %lane: Long
+    %slot = add %pos, %wide: Long
+    ret %slot
+  }
+
+  b_2 {
+    %less = sub %live, 1: Int
+    %next = and %live, %less: Int
+    jmp b_1
+  }
+
+  b_4 {
+    jmp b_2
+  }
+}
+
+probeEmpty<complex>(%control: Ptr): Int {
+  b_0 {
+    %group = load %control, 16: i8x16
+    %empty = vsplat 128: i8x16
+    %free = cmp_eq %group, %empty: m8x16
+    %bits = vreduce_bits %free: Int
+    %none = cmp_eq %bits, 0: Int
+    ret %none
+  }
+}
+
+
+--- codegen: probeGroup ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block b_0:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  vsplat uses=[rdx] creates=[xmm1]  => 660f6eca66450fefff66410f3800cf
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 85c0
+  je uses=[-] creates=[]  => 7507
+block b_2:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8d48ff
+  and uses=[rax, rcx] creates=[rax]  => 21c8
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[-]  => 
+  je uses=[-] creates=[]  => 74f9
+block b_3:
+  cttz uses=[rax] creates=[rax]  => 0fbcc0
+  sext uses=[rax] creates=[rax]  => 4863c0
+  add uses=[rsi, rax] creates=[rsi]  => 4801c6
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: probeEmpty ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block b_0:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d14000000
+  cmp_eq uses=[xmm0, xmm1] creates=[xmm0]  => 660f74c1
+  vreduce_bits uses=[xmm0] creates=[rax]  => 660fd7c0
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rax, -] creates=[rax]  => 85c00f94c00fb6c0
+  ret uses=[rax] creates=[]  => c3

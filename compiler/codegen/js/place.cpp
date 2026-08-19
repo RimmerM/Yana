@@ -84,6 +84,12 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer) {
      */
     if(auto parts = g.funParts.get(U32(pointer))) return materializeFun(g, parts.unwrap());
 
+    // And a narrow reference being carried as its parts, for the same positions. A *parameter* that
+    // needs an object has one built once at the top of the body and registered above, so what
+    // reaches here is a local `prepareRefLocals` flattened and a value loaded out of one - neither of
+    // which exists before the writes that fill it, which is why this is built at the use.
+    if(auto parts = g.flatRefs.get(U32(pointer))) return materializeRef(g, parts.unwrap());
+
     // And a vector being carried as its lanes, for the same three positions - see VecParts. Built
     // here rather than beside the lanes for the same reason: a lane is an expression over whatever
     // its operands hold *there*, and an array built earlier would hold what they held earlier.
@@ -245,7 +251,8 @@ namespace {
 
 TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
                   PlaceBits* bits = nullptr, FunParts* funParts = nullptr,
-                  bool* hostProperty = nullptr, bool* packedWord = nullptr) {
+                  bool* hostProperty = nullptr, bool* packedWord = nullptr,
+                  RefParts* refParts = nullptr) {
     TypePtr type = nullptr;
     PlaceBits within;
 
@@ -263,6 +270,11 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
     // The two words of the root, where the root is a function value held as two variables. Valid
     // only for that root, and consumed by the first `Type::Fun` field step - see the local case.
     FunParts rootFun;
+
+    // And the parts of the root, where the root is a local this body holds as a reference's parts -
+    // see prepareRefLocals. Every projection such a place can carry is free on a folded record, so
+    // this survives the walk untouched and is joined up at the end.
+    RefParts rootRef;
 
     /*
      * Whether this reference names a *run* of values rather than one.
@@ -416,6 +428,20 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                  */
                 rootFun = parts.unwrap();
                 *expr = nullptr;
+            } else if(place.local < g.flatRefLocals.size() && g.flatRefLocals[place.local] &&
+                      !g.boxed[place.local]) {
+                /*
+                 * A local held as a reference's parts, which is storage with no object behind it -
+                 * see prepareRefLocals.
+                 *
+                 * The owner is what the walk carries, and that is not an arbitrary choice among the
+                 * three: the one projection such a place can take is the folded discriminant, whose
+                 * test is `$o === null`, so leaving the owner here is what makes `decodeNicheTag`
+                 * read the right variable without knowing this root exists. Every other place is the
+                 * whole value, which the end of the walk hands over as the parts or joins up.
+                 */
+                rootRef = refPartsOf(g, root.value);
+                *expr = rootRef.owner;
             } else {
                 *expr = useValue(g, root.value);
                 if(place.local < g.boxed.size() && g.boxed[place.local]) {
@@ -715,6 +741,20 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
             *funParts = rootFun;
         } else if(expr) {
             *expr = materializeFun(g, rootFun);
+        }
+    }
+
+    /*
+     * The same for a reference held as its parts, with one exclusion the function-value case has no
+     * counterpart to: a place that landed on the *folded tag* is not the reference at all, and what
+     * the caller wants there is the owner this walk is already carrying so that `decodeNicheTag` can
+     * compare it against `null`.
+     */
+    if(rootRef.valid() && !within.foldedTag) {
+        if(refParts) {
+            *refParts = rootRef;
+        } else if(expr) {
+            *expr = materializeRef(g, rootRef);
         }
     }
 
@@ -1149,6 +1189,35 @@ TypePtr foldedPayload(Gen& g, TypePtr record) {
 }
 
 /*
+ * Declared in build.h, which is where the argument for it lives.
+ */
+bool refLocalIsFlat(Gen& g, TypePtr type) {
+    if(!type) return false;
+
+    auto reference = type;
+
+    // A niche-folded optional over a reference is the reference or `null`, so it is the same three
+    // variables with one of them standing in for the tag. Only an absent niche: a pattern one is a
+    // range over the payload's bits, and these payloads are objects rather than numbers.
+    if(g.global[type]->kind == Type::Record) {
+        auto& repr = g.repr.of(type);
+        if(!repr.isNicheFolded() || !repr.encoding.niche.isAbsent()) return false;
+
+        reference = foldedPayload(g, type);
+        if(!reference) return false;
+    }
+
+    if(g.global[reference]->kind != Type::Borrow) return false;
+
+    auto pointee = ((BorrowType*)g.global[reference])->to;
+
+    // A function value's reference is an owner and two keys rather than an owner and a key, and
+    // nothing here would be wrong about it - but `refPartsOf` reads `isFunValue` off the *pointee*
+    // to know which, and a folded optional's local type is the record. Left out rather than guessed.
+    return pointee && refIsTriple(g, pointee) && !isFunValue(g, pointee);
+}
+
+/*
  * Reading a folded tag: which constructor this value is.
  *
  * Two shapes, from the two kinds of niche, and they are the same sentence about different things. An
@@ -1269,6 +1338,28 @@ Maybe<FunParts> destinationFunParts(Gen& g, const Place& place) {
     if(parts.valid()) return Just(parts);
 
     return Nothing();
+}
+
+/*
+ * The same pair for a reference held as its parts, and here the two are one function: a place rooted
+ * in such a local is assignable part by part and readable part by part, so a read that finds nothing
+ * and a write that finds nothing are both "this is not one of those locals" rather than two answers.
+ *
+ * `Nothing` rather than a fall back to the object, which is what separates this from
+ * `funPartsOfPlace`: a caller that wants the object asks `placeExpr`, and the walk builds one there.
+ */
+Maybe<RefParts> refPartsOfPlace(Gen& g, const Place& place) {
+    JsPtr<Expr> expr = nullptr;
+    RefParts parts;
+
+    walkJsPlace(g, place, &expr, maxLimit<Size>, nullptr, nullptr, nullptr, nullptr, &parts);
+    if(parts.valid()) return Just(parts);
+
+    return Nothing();
+}
+
+Maybe<RefParts> destinationRefParts(Gen& g, const Place& place) {
+    return refPartsOfPlace(g, place);
 }
 
 /*

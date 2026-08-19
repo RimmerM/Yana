@@ -39,8 +39,11 @@ fn computed(v: Vec(Float, Int)) -> Int = 0
 -- parse at all, which is a parser message and not this one.
 fn number(x: Maybe(4)) -> Int = 0
 
--- `Mask` takes the lane type it masks and no count - the count follows from the width.
-fn maskCount(m: Mask(Float, 4)) -> Int = 0
+-- `Mask` takes the same two arguments a vector does - `Mask(Float, 4)` is the mask of a
+-- `Vec(Float, 4)` and is accepted; what it will not take is a count that is not one, on exactly the
+-- terms the vector spelling above will not. `Native.bits` is the declaration that needed the pair
+-- (Implementation-Map.md §4.1), and the internal form was always general.
+fn maskCount(m: Mask(Float, 3)) -> Int = 0
 
 -- A vector arrives as a copy, so there is no caller storage for a `return` to root a borrow in -
 -- §2.5's second consequence, and a new diagnostic that follows from `isDirectType` alone.

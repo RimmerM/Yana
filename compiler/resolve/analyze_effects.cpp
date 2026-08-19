@@ -127,6 +127,36 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
                 pending.push(place.pointer);
             }
+        } else if(produced.kind == Value::LoadPlace &&
+                  containsBorrowLike(analysis.module, produced.type) &&
+                  !isMemoryType(analysis.global, produced.type)) {
+            /*
+             * A *register* value holding a borrow, read back out of the storage a call wrote it
+             * into - and the one shape the three branches below cannot see.
+             *
+             * `find(m, key) -> Maybe(&v)` declares `return self`, so the borrow inside the result is
+             * rooted in the map. But the result is one word once Repr folds `Nothing` into the null
+             * address, so it is *direct*: the call's result is a local, the match reads the payload
+             * back out of that local, and the read is neither an aggregate load nor a pointer one.
+             * Without this the walk stops at the local and the map is dead one instruction after the
+             * call - so the drop pass releases it, and the borrow the match then reads through names
+             * storage that has been handed back.
+             *
+             * Pushing the local's *defining* value is what closes it: for a call that value is the
+             * call, and the `Value::Call` arm below reads the `return` group off its summary exactly
+             * as it does for a bare `&T` result. For anything else - a local an `alloc` defined - it
+             * is a value with no roots to contribute and the walk ends there anyway.
+             */
+            auto& place = ((InstLoadPlace&)produced).place;
+            auto root = rootLocal(analysis, place);
+            useSlot(analysis, effects, root);
+
+            if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+                pending.push(place.pointer);
+            } else if(root != maxLimit<U32>) {
+                auto slot = analysis.function.localAt(analysis.local, root);
+                if(slot.value) pending.push(slot.value);
+            }
         } else if(produced.kind == Value::LoadPlace && isMemoryType(analysis.global, produced.type)) {
             /*
              * A loaded aggregate *is* its place rather than a copy of it - findPlace answers with
@@ -410,6 +440,7 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Add:
             case Value::Sub:
             case Value::Mul:
+            case Value::MulHi:
             case Value::Div:
             case Value::Rem:
             case Value::Shl:
@@ -452,15 +483,42 @@ static void deriveEffects(Analysis& analysis) {
 
                 break;
 
-            case Value::Call:
-                // A default-convention argument is a borrow, so passing one keeps the caller's
-                // slot alive for the call without handing it over. A `->` argument was already
-                // turned into an InstMove before it got here, and that is where the handover is.
-                for(auto arg: ((InstCall&)instruction).args.contents(local)) {
+            case Value::Call: {
+                /*
+                 * A default-convention argument is a borrow, so passing one keeps the caller's slot
+                 * alive for the call without handing it over.
+                 *
+                 * A `->` argument is a handover, and it is recorded here as well as by the
+                 * `InstMove` the resolver emits in front of it. **The move is not always there**:
+                 * `cloneGenCall` turns a `gencall` into a direct call at instantiation, and an
+                 * argument that was a constructed aggregate in the generic body arrives already
+                 * built, so nothing put a move in front of it. Without this the frame goes on owning
+                 * what the callee took - `push(xs, Cell {key: a})` in a body generic in `k` dropped
+                 * the cell the array was holding, which is a use-after-free at every caller and
+                 * reads as every entry being the same one.
+                 *
+                 * Saying it twice costs nothing: `moves` is a set of slots, and `transferFrom`
+                 * declines anything with no teardown to hand over.
+                 */
+                auto& call = (InstCall&)instruction;
+                auto callee = call.callee ? local[call.callee] : nullptr;
+                U16 position = 0;
+
+                for(auto arg: call.args.contents(local)) {
                     useValue(analysis, effects, arg);
+
+                    auto declared = callee && position < callee->args.size()
+                        ? local[callee->args.get(local, position)] : nullptr;
+
+                    if(declared && declared->convention == ast::BindType::Sink) {
+                        transferFrom(analysis, effects, arg);
+                    }
+
+                    position++;
                 }
 
                 break;
+            }
 
             case Value::CallDyn: {
                 // The callee's code and environment are read out of the function value, which is

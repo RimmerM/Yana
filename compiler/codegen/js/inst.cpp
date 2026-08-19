@@ -249,6 +249,34 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
         return;
     }
 
+    /*
+     * A reference written into storage this body holds as that reference's parts, on exactly the
+     * terms above: there is no single slot to name, so the source is taken apart rather than built
+     * and nothing is allocated on either side.
+     *
+     * The source may be the `null` of an absent constructor rather than a reference - the `Nothing`
+     * arm of the `Maybe(&v)` this exists for - and that arrives here as a write of the *folded tag*
+     * instead, which `assignPlace` has already taken. What reaches this is a payload or a whole
+     * value, both of which are a reference.
+     */
+    if(auto destination = destinationRefParts(g, place)) {
+        auto parts = destination.unwrap();
+        auto from = refPartsOf(g, value);
+
+        emitExpr(g, assign(g, parts.owner, from.owner));
+
+        /*
+         * And the key and the shift, where both sides have them. A source holding nothing but the
+         * absent constructor has neither - see Gen::flatRefTagOnly - so what it copies is the owner
+         * alone, which is sound on the invariant the flattening rests on: the owner this write does
+         * copy is `null`, and neither of the other two is ever read where the owner is null.
+         */
+        if(parts.key && from.key) emitExpr(g, assign(g, parts.key, from.key));
+        if(parts.scale && from.scale) emitExpr(g, assign(g, parts.scale, from.scale));
+
+        return;
+    }
+
     if(assignPlace(g, place, type, useValue(g, value))) return;
 
     auto elided = false;
@@ -2558,6 +2586,47 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             }
 
             /*
+             * Storage for a reference the body holds as its parts - see prepareRefLocals. Two or
+             * three variables, and no object at any point in the local's life.
+             *
+             * The owner starts `null` for the same reason the two words above do, and here it also
+             * *means* something: `null` is the absent niche, so a local a predecessor left as
+             * `Nothing` reads as `Nothing` whether that arm wrote the tag or never ran. The key and
+             * the shift start undeclared-but-declared, since nothing reads either while the owner
+             * says there is no reference.
+             */
+            if(allocation.local < g.flatRefLocals.size() && g.flatRefLocals[allocation.local] && !boxed) {
+                auto owner = partName(g, instruction, "$o"_v);
+                emit(g, make<DeclStmt>(g, owner, nullValue(g), false));
+
+                RefParts parts;
+                parts.owner = variable(g, owner);
+
+                /*
+                 * The key and the shift only where a reference is ever written here - see
+                 * Gen::flatRefTagOnly. A local holding nothing but the absent constructor has no
+                 * value for either, and declaring them would leave two `var`s nothing assigns.
+                 *
+                 * Safe to leave out only because no flattened local is ever built back into an
+                 * object: `prepareRefLocals`' second rule declines every use that would ask for one.
+                 */
+                if(!g.flatRefTagOnly[allocation.local]) {
+                    auto key = partName(g, instruction, "$k"_v);
+                    emit(g, make<DeclStmt>(g, key, JsPtr<Expr>(nullptr), false));
+                    parts.key = variable(g, key);
+
+                    if(narrowRefCarriesScale(g)) {
+                        auto scale = partName(g, instruction, "$s"_v);
+                        emit(g, make<DeclStmt>(g, scale, JsPtr<Expr>(nullptr), false));
+                        parts.scale = variable(g, scale);
+                    }
+                }
+
+                g.flatRefs.add(U32(value), parts);
+                break;
+            }
+
+            /*
              * Storage an `InstAggregate` builds whole, which is declared holding nothing.
              *
              * `var v;` rather than a manufactured value of the type, because the aggregate assigns a
@@ -2611,6 +2680,19 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              */
             if(isFunValue(g, instruction.type)) {
                 g.funParts.add(U32(value), funPartsOfPlace(g, loadInst.place));
+                break;
+            }
+
+            /*
+             * And a reference read out of a local held as its parts stays those parts, on the same
+             * terms: joining them into an object here would put back the allocation the flattening
+             * removed, one per read of the local rather than one per local.
+             *
+             * `match find(m, k): Just(v) -> …` is the shape - the load of the payload is what binds
+             * `v`, and every use of `v` below it is a dereference, which wants the parts.
+             */
+            if(auto parts = refPartsOfPlace(g, loadInst.place)) {
+                g.flatRefs.add(U32(value), parts.unwrap());
                 break;
             }
 

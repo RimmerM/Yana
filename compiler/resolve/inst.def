@@ -108,6 +108,20 @@ YANA_INST(Abs,          InstUnary,       "abs"_v,         kInstResult | kInstPur
 YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
 YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
 YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)
+/*
+ * The top half of a product twice as wide as its operands - Implementation-Map.md §3.1's one new
+ * primitive, and the only thing the multiply-fold that hashes a key needs that the language could
+ * not already say.
+ *
+ * One instruction on every 64-bit machine this targets - `mul`/`mulx` on x86-64, `umulh` beside
+ * `mul` on AArch64 - and there is deliberately no expansion out of 32-bit pieces: a backend that
+ * cannot do it in one is a backend `Native.mulHigh` is not declared on, which is what
+ * `@platform(native)` on that declaration says. The lower IR has had `MulHi`/`IMulHi` since the
+ * reciprocal in lower_strength.cpp needed them; this is the same pair reachable from source.
+ *
+ * Signedness is the operand type's, exactly as `Mul`'s choice between `IMul` and `Mul` is.
+ */
+YANA_INST(MulHi,        InstBinary,      "mulhi"_v,       kInstResult | kInstPure)
 YANA_INST(Div,          InstBinary,      "div"_v,         kInstResult | kInstPure)
 YANA_INST(Rem,          InstBinary,      "rem"_v,         kInstResult | kInstPure)
 YANA_INST(Shl,          InstBinary,      "shl"_v,         kInstResult | kInstPure)

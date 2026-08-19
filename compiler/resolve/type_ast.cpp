@@ -265,9 +265,17 @@ static Maybe<TypePtr> resolveVectorApp(Module& module, const ast::AppType& app, 
     auto args = app.args;
     auto count = args.size();
 
-    if(count < 1 || count > (isMask ? 1u : 2u)) {
+    /*
+     * Both spellings take the same two arguments, and a mask takes the count for the reason a vector
+     * does: it is the shape of the vector it masks, so a mask over a lane count the target did not
+     * choose has to be nameable wherever such a vector is. `Native.bits` is the declaration that
+     * needed it - a movemask is written over whatever width the group is - and the internal form was
+     * already general, since `VectorType` carries `content`, `count` and `isMask` and only this
+     * check said one of the three was fixed.
+     */
+    if(count < 1 || count > 2) {
         module.context.diagnostics.error(isMask
-            ? "`Mask` takes one type argument: the lane type of the vector it masks"_v
+            ? "`Mask` takes a lane type, and optionally a lane count - `Mask(Float)` for the target's natural width, `Mask(Float, 4)` for exactly four"_v
             : "`Vec` takes a lane type, and optionally a lane count - `Vec(Float)` for the target's natural width, `Vec(Float, 4)` for exactly four"_v,
             source);
         return Just(module.scalar.error);

@@ -1042,6 +1042,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
+        case Value::MulHi:
         case Value::Div:
         case Value::Rem:
         case Value::Shl:
