@@ -78,9 +78,10 @@ function findEntry_Int_Int(self, key, h) {
 function scanEntries_Int_Int(self, key) {
   var v27 = self.keys.length;
   var at = 0;
+  var v32 = self.keys.items;
   L0: for (;;) {
     if (at < v27) {
-      if (self.keys.items[at] === key) {
+      if (v32[at] === key) {
         return at;
       } else {
         at = at + 1 | 0;
@@ -259,19 +260,19 @@ function removeKey_Int_Int(self, key) {
       }
     }
     var last$1 = self.keys.length - 1;
-    var v79 = self.keys.items;
-    var doomedKey = v79[at];
-    var v83 = self.values.items;
-    var doomedValue = v83[at];
+    var v78 = self.keys.items;
+    var doomedKey = v78[at];
+    var v82 = self.values.items;
+    var doomedValue = v82[at];
     if (at !== last$1) {
-      var v90 = v79[last$1];
-      var v91 = v83[last$1];
-      v79[at] = v90;
-      self.values.items[at] = v91;
+      var v89 = v78[last$1];
+      var v90 = v82[last$1];
+      v78[at] = v89;
+      self.values.items[at] = v90;
     }
-    var v99 = last$1 & 1073741823;
-    self.keys.length = v99;
-    self.values.length = v99;
+    var v98 = last$1 & 1073741823;
+    self.keys.length = v98;
+    self.values.length = v98;
     return { key: doomedKey, value: doomedValue };
   }
 }
@@ -397,19 +398,19 @@ function main() {
     i = 0;
     L1: for (;;) {
       if (i < 300) {
-        var v943$o = null;
-        var v943$k;
-        var v943$s;
+        var v934$o = null;
+        var v934$k;
+        var v934$s;
         var at = findEntry_Int_Int(m, i, hashKey_Int(i));
         if (at < 0) {
-          v943$o = null;
+          v934$o = null;
         } else {
-          v943$o = m.values.items;
-          v943$k = at;
-          v943$s = 1;
+          v934$o = m.values.items;
+          v934$k = at;
+          v934$s = 1;
         }
-        if (!(v943$o === null)) {
-          if (v943$o[v943$k] !== Math.imul(i, 3)) {
+        if (!(v934$o === null)) {
+          if (v934$o[v934$k] !== Math.imul(i, 3)) {
             return -2;
           } else {
             i = i + 1 | 0;
@@ -468,30 +469,30 @@ function main() {
                       if (m.values.items[at$2] !== 7) {
                         return -10;
                       } else {
-                        var v648 = insert_Int_Int(m, 901, 11);
+                        var v646 = insert_Int_Int(m, 901, 11);
                         var at$3 = findEntry_Int_Int(m, 901, hashKey_Int(901));
                         checkCondition(at$3 < 0);
                         if (m.values.items[at$3] !== 11) {
                           return -11;
                         } else {
-                          var v658 = insert_Int_Int(m, 901, 12);
+                          var v655 = insert_Int_Int(m, 901, 12);
                           var at$4 = findEntry_Int_Int(m, 901, hashKey_Int(901));
                           checkCondition(at$4 < 0);
-                          if (m.values.items[at$4] !== 12) {
+                          var v661 = m.values.items;
+                          if (v661[at$4] !== 12) {
                             return -12;
                           } else {
-                            var v668 = m.keys.length;
-                            if (v668 !== 202) {
+                            var v664 = m.keys.length;
+                            if (v664 !== 202) {
                               return -13;
                             } else {
                               var seen = 0;
                               var sum = 0;
                               var at$5 = 0;
                               L4: for (;;) {
-                                if (at$5 < v668) {
-                                  var v689 = m.values.items;
+                                if (at$5 < v664) {
                                   seen = seen + 1 | 0;
-                                  sum = sum + v689[at$5] | 0;
+                                  sum = sum + v661[at$5] | 0;
                                   at$5 = at$5 + 1 | 0;
                                   continue L4;
                                 }
@@ -516,34 +517,34 @@ function main() {
                                           return -19;
                                         } else {
                                           var v397 = insert_Int_Int(m, 42, 43);
-                                          var v713$o = null;
-                                          var v713$k;
-                                          var v713$s;
+                                          var v707$o = null;
+                                          var v707$k;
+                                          var v707$s;
                                           var at$6 = findEntry_Int_Int(m, 42, hashKey_Int(42));
                                           if (at$6 < 0) {
-                                            v713$o = null;
+                                            v707$o = null;
                                           } else {
-                                            v713$o = m.values.items;
-                                            v713$k = at$6;
-                                            v713$s = 1;
+                                            v707$o = m.values.items;
+                                            v707$k = at$6;
+                                            v707$s = 1;
                                           }
-                                          if (!(v713$o === null)) {
-                                            if (v713$o[v713$k] !== 43) {
+                                          if (!(v707$o === null)) {
+                                            if (v707$o[v707$k] !== 43) {
                                               return -20;
                                             } else {
-                                              var v733$o = null;
-                                              var v733$k;
-                                              var v733$s;
+                                              var v726$o = null;
+                                              var v726$k;
+                                              var v726$s;
                                               var at$7 = findEntry_Int_Int(m, 42, hashKey_Int(42));
                                               if (at$7 < 0) {
-                                                v733$o = null;
+                                                v726$o = null;
                                               } else {
-                                                v733$o = m.values.items;
-                                                v733$k = at$7;
-                                                v733$s = 1;
+                                                v726$o = m.values.items;
+                                                v726$k = at$7;
+                                                v726$s = 1;
                                               }
-                                              if (!(v733$o === null)) {
-                                                v733$o[v733$k] = v733$o[v733$k] + 1 | 0;
+                                              if (!(v726$o === null)) {
+                                                v726$o[v726$k] = v726$o[v726$k] + 1 | 0;
                                                 var at$8 = findEntry_Int_Int(m, 42, hashKey_Int(42));
                                                 checkCondition(at$8 < 0);
                                                 if (m.values.items[at$8] !== 44) {

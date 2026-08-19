@@ -45,13 +45,13 @@ function findEntry_Point_Int(self, key$x, key$y, h) {
 function scanEntries_Point_Int(self, key$x, key$y) {
   var v46 = self.keys.length;
   var at = 0;
+  var v47 = self.keys;
   L0: for (;;) {
     if (at < v46) {
-      var v48 = self.keys;
-      var lhs$x = v48[at].x;
-      var lhs$y = v48[at].y;
-      var v52 = lhs$x === key$x;
-      if (v52 ? lhs$y === key$y : v52) {
+      var lhs$x = v47[at].x;
+      var lhs$y = v47[at].y;
+      var v51 = lhs$x === key$x;
+      if (v51 ? lhs$y === key$y : v51) {
         return at;
       } else {
         at = at + 1 | 0;
@@ -77,11 +77,11 @@ function indexFind_Point_Int(self, key$x, key$y, h) {
       } else {
         B1: {
           if (at >= 0) {
-            var v101 = self.keys;
-            var lhs$x = v101[at].x;
-            var lhs$y = v101[at].y;
-            var v105 = lhs$x === key$x;
-            if (v105 ? lhs$y === key$y : v105) {
+            var v100 = self.keys;
+            var lhs$x = v100[at].x;
+            var lhs$y = v100[at].y;
+            var v104 = lhs$x === key$x;
+            if (v104 ? lhs$y === key$y : v104) {
               return at;
             }
           }
@@ -288,20 +288,20 @@ function main() {
               } else {
                 appendEntry_Point_Int(v249, { x: v147.x, y: v147.y }, 70, h$1);
               }
-              var v361 = v249.keys.length;
-              if (v361 !== 40) {
+              var v358 = v249.keys.length;
+              if (v358 !== 40) {
                 return -8;
               } else {
                 var first = -1;
                 var last = -1;
                 var at$3 = 0;
+                var v339 = v249.keys;
                 L1: for (;;) {
-                  if (at$3 < v361) {
-                    var v341 = v249.keys;
+                  if (at$3 < v358) {
                     if (first < 0) {
-                      first = v341[at$3].x;
+                      first = v339[at$3].x;
                     }
-                    last = v341[at$3].x;
+                    last = v339[at$3].x;
                     at$3 = at$3 + 1 | 0;
                     continue L1;
                   }

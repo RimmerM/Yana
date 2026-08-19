@@ -53,49 +53,45 @@ function idsOf(xs$items, xs$length, xs$offset) {
 function container() {
   add_eq_Int(live, "$v", 1, 1);
   add_eq_Int(live, "$v", 1, 1);
-  var v4 = [1, 2];
-  if (v4.length !== 2) {
-    v4.length = 2;
+  var v5 = [1, 2, 3];
+  add_eq_Int(live, "$v", 1, 1);
+  if (v5.length !== 3) {
+    v5.length = 3;
   }
   add_eq_Int(live, "$v", 1, 1);
-  v4[2] = 3;
-  if (v4.length !== 3) {
-    v4.length = 3;
-  }
-  add_eq_Int(live, "$v", 1, 1);
-  Drop_Handle_drop(v4[0]);
-  v4[0] = 4;
+  Drop_Handle_drop(v5[0]);
+  v5[0] = 4;
   if (live.$v !== 3) {
-    Reclaim_Array_a_reclaim_Handle(v4);
+    Reclaim_Array_a_reclaim_Handle(v5);
     return -1;
   } else {
     if (closed !== 1) {
-      Reclaim_Array_a_reclaim_Handle(v4);
+      Reclaim_Array_a_reclaim_Handle(v5);
       return -2;
     } else {
       var score = 0;
-      var v176 = null;
-      var count = v4.length;
+      var v175 = null;
+      var count = v5.length;
       if (1 >= count) {
-        v176 = null;
+        v175 = null;
       } else {
-        var doomed = v4[1];
-        v4.copyWithin(1, 2, count);
-        var v198 = count - 1 & 1073741823;
-        if (v4.length !== v198) {
-          v4.length = v198;
+        var doomed = v5[1];
+        v5.copyWithin(1, 2, count);
+        var v197 = count - 1 & 1073741823;
+        if (v5.length !== v197) {
+          v5.length = v197;
         }
-        v176 = doomed;
+        v175 = doomed;
       }
-      if (!(v176 === null)) {
-        Drop_Handle_drop(v176);
-        score = v176;
+      if (!(v175 === null)) {
+        Drop_Handle_drop(v175);
+        score = v175;
         if (live.$v !== 2) {
-          Reclaim_Array_a_reclaim_Handle(v4);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return -4;
         } else {
-          var v90 = v4.length;
-          var whole = idsOf(v4, v90, 0);
+          var v90 = v5.length;
+          var whole = idsOf(v5, v90, 0);
           var start = 1;
           if (1 > v90) {
             start = v90;
@@ -107,14 +103,14 @@ function container() {
           if (end > v90) {
             end = v90;
           }
-          var tail = idsOf(v4, end - start | 0, start);
-          Reclaim_Array_a_reclaim_Handle(v4);
+          var tail = idsOf(v5, end - start | 0, start);
+          Reclaim_Array_a_reclaim_Handle(v5);
           return (Math.imul(score, 1000) + Math.imul(whole, 10) | 0) + tail | 0;
         }
       } else {
-        Reclaim_Array_a_reclaim_Handle(v4);
-        if (!(v176 === null)) {
-          Drop_Handle_drop(v176);
+        Reclaim_Array_a_reclaim_Handle(v5);
+        if (!(v175 === null)) {
+          Drop_Handle_drop(v175);
         }
         return -3;
       }

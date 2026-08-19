@@ -66,9 +66,10 @@ function findEntry_Int_Int(self, key, h) {
 function scanEntries_Int_Int(self, key) {
   var v27 = self.keys.length;
   var at = 0;
+  var v32 = self.keys.items;
   L0: for (;;) {
     if (at < v27) {
-      if (self.keys.items[at] === key) {
+      if (v32[at] === key) {
         return at;
       } else {
         at = at + 1 | 0;
@@ -245,19 +246,19 @@ function removeKey_Int_Int(self, key) {
       }
     }
     var last$1 = self.keys.length - 1;
-    var v79 = self.keys.items;
-    var doomedKey = v79[at];
-    var v83 = self.values.items;
-    var doomedValue = v83[at];
+    var v78 = self.keys.items;
+    var doomedKey = v78[at];
+    var v82 = self.values.items;
+    var doomedValue = v82[at];
     if (at !== last$1) {
-      var v90 = v79[last$1];
-      var v91 = v83[last$1];
-      v79[at] = v90;
-      self.values.items[at] = v91;
+      var v89 = v78[last$1];
+      var v90 = v82[last$1];
+      v78[at] = v89;
+      self.values.items[at] = v90;
     }
-    var v99 = last$1 & 1073741823;
-    self.keys.length = v99;
-    self.values.length = v99;
+    var v98 = last$1 & 1073741823;
+    self.keys.length = v98;
+    self.values.length = v98;
     return { key: doomedKey, value: doomedValue };
   }
 }
@@ -332,14 +333,14 @@ function ordered(n) {
   var ok = 1;
   var v74 = m.keys.length;
   var at = 0;
+  var v88 = m.keys.items;
+  var v90 = m.values.items;
   L1: for (;;) {
     if (at < v74) {
-      var v89 = m.keys.items;
-      var v92 = m.values.items;
-      if (v89[at] !== Math.imul(expect, 3)) {
+      if (v88[at] !== Math.imul(expect, 3)) {
         ok = 0;
       }
-      if (v92[at] !== expect) {
+      if (v90[at] !== expect) {
         ok = 0;
       }
       expect = expect + 1 | 0;
@@ -376,15 +377,15 @@ function survives(n) {
   var ok = 1;
   var v90 = m.keys.length;
   var at = 0;
+  var v104 = m.keys.items;
+  var v106 = m.values.items;
   L2: for (;;) {
     if (at < v90) {
-      var v105 = m.keys.items;
-      var v108 = m.values.items;
       seen = seen + 1 | 0;
-      if ((v105[at] % 2 | 0) === 0) {
+      if ((v104[at] % 2 | 0) === 0) {
         ok = 0;
       }
-      if (v108[at] !== v105[at]) {
+      if (v106[at] !== v104[at]) {
         ok = 0;
       }
       at = at + 1 | 0;

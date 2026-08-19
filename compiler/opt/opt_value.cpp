@@ -738,6 +738,25 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
         return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
     }
 
+    /*
+     * And a borrow nothing reads, on the same two roots and for the same reason.
+     *
+     * `collapseBorrows` is what removes a borrow whose readers can name the borrowed place for
+     * themselves, and it opens by declining a borrow with *no* readers - there is nothing to
+     * rewrite, so it has nothing to say about one. That left a dead borrow with no pass that
+     * removes it, which is worse than the live one: every consequence opt_borrow.cpp lists for a
+     * borrowed local still holds. On JS the local is boxed, so `Box {item: 5}` came out as
+     * `{ $v: 5 }.$v`; natively the address stops `promoteStackSlots` holding it in a register; and
+     * `forwardPlaces` will not answer a read of it on either, so a drop flag stored one line above
+     * the branch that tests it stays a branch.
+     *
+     * `BorrowPair.yana` is the fixture, where the whole of `main` is a constant once this runs.
+     */
+    if(instruction.kind == Value::Borrow) {
+        auto& place = ((InstBorrow&)instruction).place;
+        return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
+    }
+
     // And a host operation that only reads - see isReadOnlyHostOp, and the fold in opt_fold.cpp
     // that leaves one behind.
     if(instruction.kind == Value::Native) return isReadOnlyHostOp(opt, (InstNative&)instruction);

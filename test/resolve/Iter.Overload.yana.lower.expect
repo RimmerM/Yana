@@ -1,35 +1,4 @@
 @image$base = []
-mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
-    ret 
-  }
-}
 
 main<complex>(): Int {
   b_0 {
@@ -42,18 +11,6 @@ main<complex>(): Int {
     store %v_4, 20, 4
     %v_5 = add %v_2, 8: Ptr
     store %v_5, 30, 4
-    %v_6 = load %v_1, 4: Int
-    %v_7 = shr %v_6, 30: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    call_complex freeHeap, %v_2
-    jmp b_10
-  }
-
-  b_10 {
     ret 18
   }
 }
