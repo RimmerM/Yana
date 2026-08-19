@@ -32,6 +32,7 @@ struct Flag {
         explain,
         module,
         project,
+        library,
 
         /*
          * Boolean flags.
@@ -68,6 +69,7 @@ Flag flagTable[] = {
     { "explain"_v, 1, Flag::explain },
     { "module"_v, 1, Flag::module },
     { "project"_v, 1, Flag::project },
+    { "lib"_v, 1, Flag::library },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
@@ -551,6 +553,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::noProject:
                 settings.noProject = true;
+                return true;
+            case Flag::library:
+                settings.libraryPath = move(value);
                 return true;
             case Flag::mode:
                 settings.explicitMode = true;

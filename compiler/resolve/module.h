@@ -1317,7 +1317,7 @@ struct Program {
      */
     ModulePtr<Function> entry = nullptr;
 
-    // Core and Native are parsed from source embedded in the compiler, so the program owns those
+    // Core and Native are parsed from `lib/`, not from the module map, so the program owns those
     // ASTs for as long as anything can still resolve against them.
     Array<ast::Module*> embeddedAsts;
 };

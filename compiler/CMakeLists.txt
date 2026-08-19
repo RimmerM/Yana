@@ -5,6 +5,8 @@ set(CORE_SOURCE_FILES
     compiler/context.cpp
     compiler/settings.h
     compiler/settings.cpp
+    compiler/library.h
+    compiler/library.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
     compiler/position.h

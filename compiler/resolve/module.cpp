@@ -450,6 +450,24 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     defineNativeText(*program);
     defineText(*program);
 
+    /*
+     * A library that could not be read is where a compilation stops.
+     *
+     * Each missing module has already reported itself - see parseLibraryModule - so nothing is said
+     * here; what this adds is that the reports are the *end* of the compile rather than a prelude to
+     * a crash. Every pass below assumes `Int` has a `+`, that `[a]` names a type and that a string
+     * literal has somewhere to be built, and none of those is true of a program whose library is
+     * absent. Reported and then resolved anyway, the first program to name any of them segfaulted.
+     *
+     * All six rather than Core alone, because a partial library is a real thing to be handed: a
+     * `-lib` pointing at a directory from an older tree has a `Core.yana` in it and may not have the
+     * rest.
+     */
+    if(!program->core || !program->native || !program->host || !program->collections ||
+       !program->nativeText || !program->text) {
+        return nullptr;
+    }
+
     auto module = program->addModule(root.name, *root.region);
     module->root = true;
     program->root = module;

@@ -1,0 +1,526 @@
+import Native
+import NativeText
+import Host
+
+{-
+   ==========================================================================================
+   `String` - Implementation-String.md parts 3 and 8, and Implementation-Storage.md part B's sink.
+   ==========================================================================================
+
+   Two implementations and one signature, exactly as `Array(a)` has. Nothing below this point is
+   reachable from a program that has not written a string; nothing above it knows which target it is
+   on.
+
+   The guiding principle of that document is that the *default* path - length, indexing, append,
+   concat - costs what the target's own string costs. That is why `length` is a field read rather
+   than a walk, why `stringUnit` does no decoding, and why the whole Unicode tier (code points,
+   grapheme clusters, boundary-safe slicing) is deliberately absent here rather than folded into
+   these: it is parts 4 to 7, and every one of them is layered *on* this without changing it.
+-}
+
+{-
+   How many native units the string holds - part 3's `.length`, O(1) on both targets.
+
+   **This is not a portable number, on purpose.** It is UTF-8 bytes natively and UTF-16 code units on
+   JS, so the same content can answer differently in the two builds - a trade part 3 makes explicitly
+   in exchange for zero overhead, on the grounds that the *complexity class* is the thing that has to
+   be uniform across targets and a constant factor is a documented platform fact. Anyone who needs
+   the same number everywhere asks for a decoded count instead, which is part 6 and is O(n) on both.
+-}
+@platform(native) instance Length(String):
+    -- Two steps rather than one: the stored count is a `@bits(30) U32` and `Size` is `I64` here, and
+    -- a cast straight between them is not one the lower IR accepts. Through the unrefined width
+    -- first, exactly as `resize` reads a run's capacity.
+    fn length(self: String) -> Size:
+        let units = stringData(self).bytes.length :: Int
+        return units :: Size
+
+@platform(js) instance Length(String):
+    fn length(self: String) -> Size = hostStringLength(self)
+
+{-
+   One raw native unit - part 3's `String[i: Int]`.
+
+   **A function and not an `Index` instance**, which is a real limitation rather than an omission and
+   is worth stating where someone will look for the subscript. `Index` hands back a *borrow*, because
+   `xs[i] = v` and `&xs[i]` are the operations that make a subscript worth having - and a string unit
+   is not storage on both targets. On JS it is `charCodeAt`, a number computed from a host string
+   that has no addressable units at all. Core's own note on the class says exactly this: it does not
+   cover a container whose elements are computed rather than stored, and a weaker parent class that
+   yields values is what such a container wants and is not written yet.
+
+   So `s[i]` does not parse into this today; `stringUnit(s, i)` is the accessor. When the read-only
+   parent class lands, this becomes an instance of it and the spelling arrives with no change here.
+
+   No decode, no validation that what comes back is a whole code point. Reading one unit is always
+   safe *as a read*; it just might be one byte of a multi-byte sequence, exactly as indexing one byte
+   out of a `[U8]` promises nothing about the larger structure it belongs to. Bounds are unchecked,
+   which is the same tier `get` on an array is on and goes the same way when `checkBounds`
+   (Implementation-Containers.md §15) lands.
+-}
+@platform(native) pub fn stringUnit(self: String, index: Size) -> Int =
+    (*(stringData(self).bytes.run.items + index)) :: Int
+
+@platform(js) pub fn stringUnit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
+
+{-
+   Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
+   work: joining two strings never inspects their content, only their raw units, whatever those mean.
+
+   The native body is the one allocation in the raw tier. It sizes the result exactly, so a `+` chain
+   allocates once per `+` - which is what makes `Show`'s bound worth having and is exactly the cost
+   Implementation-Storage.md part 8 exists to avoid for interpolation. A program building a string in
+   a loop should reach for the sink below, not for this.
+
+   The JS body is the host's `+`, which the engine implements with a rope and which therefore has the
+   opposite cost profile. That difference is real and is not hidden; it is also the reason `Show`
+   writes into a sink rather than returning a string, so that neither target's `+` is on the hot path.
+-}
+@platform(native) instance Append(String):
+    fn +(lhs: String, rhs: String) -> String:
+        let leftLength = length(lhs)
+        let rightLength = length(rhs)
+
+        let &fresh = newStringOfCapacity(leftLength + rightLength)
+        appendUnits(fresh, stringData(lhs).bytes.run.items, leftLength)
+        appendUnits(fresh, stringData(rhs).bytes.run.items, rightLength)
+
+        return fresh
+
+@platform(js) instance Append(String):
+    fn +(lhs: String, rhs: String) -> String = hostConcat(lhs, rhs)
+
+{-
+   Equality, as a raw unit-wise comparison - part 3.
+
+   *"Always correct regardless of encoding, since encoding is an injective function of content"*, so
+   this is one of the few places the two targets provably cannot disagree: two strings are equal here
+   exactly when they are equal there, whatever each is storing.
+
+   The length test first is not just an optimization - it is what makes the loop's bound safe.
+-}
+@platform(native) instance Eq(String):
+    fn ==(self: String, other: String) -> Bool:
+        let count = length(self)
+        if count != length(other) then return False
+
+        let &i = 0 :: Size
+        while i < count:
+            if stringUnit(self, i) != stringUnit(other, i) then return False
+            i = i + 1
+
+        return True
+
+    fn !=(self: String, other: String) -> Bool = !(self == other)
+
+@platform(js) instance Eq(String):
+    fn ==(self: String, other: String) -> Bool = hostStringEq(self, other)
+    fn !=(self: String, other: String) -> Bool = !hostStringEq(self, other)
+
+{-
+   Ordering, raw unit-wise lexicographic - part 3's *default*, chosen for the same "no overhead"
+   reason `.length` is raw.
+
+   This one *can* diverge between targets, and part 3 says so rather than papering over it: on JS,
+   UTF-16 code-unit order is not code-point order for supplementary-plane characters compared against
+   certain BMP ones. Every ASCII comparison - which is the overwhelming majority of what anyone sorts
+   - agrees on both. Code that needs guaranteed code-point order calls an explicit
+   `compareByCodePoint`, which is part 6's and is not written yet.
+-}
+@platform(native) instance Ord(String):
+    fn compare(self: String, other: String) -> Ordering:
+        let leftLength = length(self)
+        let rightLength = length(other)
+        let &shared = leftLength
+        if rightLength < shared then shared = rightLength
+
+        let &i = 0 :: Size
+        while i < shared:
+            let left = stringUnit(self, i)
+            let right = stringUnit(other, i)
+            if left < right then return LT
+            if left > right then return GT
+            i = i + 1
+
+        -- Every shared unit agreed, so the shorter one is the smaller - which is what makes this
+        -- lexicographic rather than merely a prefix test.
+        if leftLength < rightLength then return LT
+        if leftLength > rightLength then return GT
+        return EQ
+
+@platform(js) instance Ord(String):
+    fn compare(self: String, other: String) -> Ordering:
+        if hostStringLt(self, other) then return LT
+        if hostStringLt(other, self) then return GT
+        return EQ
+
+{-
+   Hashing a string - Implementation-Map.md §3 and §3.1.
+
+   **One body for both targets**, which is unusual in this module and is the honest state rather
+   than a claim about the two: what a string hash costs is the walk over its units, and both targets
+   walk. `stringUnit` is one load natively and one `charCodeAt` on JS, and `../../benchmark/map-js`
+   §9.1 measures that walk as the *whole* cost there - reading the characters and merely adding them
+   costs 30.9 ns per key where FNV-1a costs 24.0, so every candidate mixer lands within 12% of every
+   other and the mixer is not what to spend on.
+
+   The **length goes in first**, through the state fold, so that the two strings a prefix relation
+   separates cannot fold to one value however the units happen to land - and so that the one
+   expensive operation in this instance, the multiply-fold natively, happens once rather than per
+   unit. What runs per unit is FNV-1a's step: one exclusive-or and one 32-bit multiply, which is
+   `Math.imul` on JS and a `lea`-sized `imul` natively.
+
+   **This is not §3.1's native row, and the gap is worth naming.** That row reads a string eight
+   bytes at a time and folds each word with a 64x64 multiply, which is where its 1.97x on a string
+   lookup comes from. Doing that here needs an *unaligned* sixty-four-bit load out of a run of bytes,
+   and the language exposes no such load: `*p` at a `%U64` claims an alignment a string's bytes do
+   not have, and the one overreading load there is (`vectorPast`) is a vector's and carries §8's
+   tail-read guarantee with it. Closing it is a `Native` primitive and a fixture, not a change here.
+
+   `mix32` in the map is what finalizes this, which is what lets the per-unit step stay this cheap:
+   the seven-bit tag is taken from the *top* of the finalized word, so a fold whose entropy sits low
+   is repaired once per lookup rather than once per unit.
+-}
+instance Hash(String):
+    fn hash(value: String, state: U32) -> U32:
+        let n = length(value)
+        let &h = hashWord(state, truncate(n) :: U32)
+        let &i = 0 :: Size
+
+        while i < n:
+            h = (h `xor` (truncate(stringUnit(value, i)) :: U32)) * 16777619
+            i = i + 1
+
+        return h
+
+{-
+   Releasing a string - Implementation-Containers.md §2's placement switch, and nothing else.
+
+   An authored `Reclaim` rather than derived glue, because `String` is a primitive and has no members
+   for a derived walk to recurse into. What it does is exactly `releaseRun`: hand the slots back if
+   and only if they are the allocator's. A literal's run is `runBorrowed`, so this folds to nothing
+   for one; a concatenated or formatted string's is `runFromHeap`, so it frees once.
+
+   A `Reclaim` and not a `Drop`, which is what keeps a string region-placeable: there is no effect at
+   last use, only storage, and storage is exactly the kind of thing a region discharges in bulk.
+
+   No JS instance at all, deliberately. The collector owns every host string, so there is nothing to
+   release and no traversal to run - a string has no elements whose lifetimes could end in something,
+   which is the one thing §14 says does *not* fold away for a container. That asymmetry is the whole
+   of the difference, and it is why this is `@platform`-split rather than a body with a branch in it.
+
+   Implementation-Simplification.md §17 left open whether this should become `Array(U8)`'s derived
+   glue now that the bytes *are* an array. It should not, and the reason is what that glue contains:
+   a walk of every element, and then `releaseRun(value.run)`. At `U8` the walk provably does nothing
+   - a byte's move is a copy and its teardown is empty - so the optimized build would fold it back to
+   the line below, and the unoptimized build would run a loop over every byte of every string. The
+   line below is what the glue reduces to, written directly, and `String.yana.lower.expect` shows it
+   reaching the machine as the placement test and a `freeHeap` with no call left at all.
+-}
+@platform(native) instance Reclaim(String):
+    fn reclaim(->value: String) -> {} = releaseRun(stringData(value).bytes.run)
+
+{-
+   ==========================================================================================
+   The sink - Implementation-Storage.md part B, whose `Storage(StringUnit)` is this.
+   ==========================================================================================
+
+   That document's sink was a `Storage(a)`, the primitive Implementation-Containers.md §0 demoted;
+   what replaced it is "the target's growable string", which is `String` itself. So formatting builds
+   the string *in place* and finishing it is a reinterpretation rather than a copy, which is the
+   property part 7 gives as the reason not to abstract over sinks in the first place.
+
+   Three operations, and each has a native body that manages a run and a JS body that is one
+   concatenation. The bound machinery is real natively and is inert on JS, where the host owns growth
+   and there is no capacity to reserve - which is not a gap: `showBound` still decides *sizes*, and a
+   host that ignores the reservation still gets the right answer, just without the allocation it
+   saves.
+-}
+
+-- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
+-- length is zero until something appends.
+@platform(native) pub fn newStringOfCapacity(capacity: Size) -> String =
+    stringFromData(StringData {bytes: Array {run: newRun(capacity), length: (0 :: Count)}})
+
+@platform(js) pub fn newStringOfCapacity(capacity: Size) -> String = ""
+
+{-
+   Room for `wanted` more units, growing if there is not - the check-and-grow that
+   Implementation-Storage.md part 8's strategy (c) appends through.
+
+   Geometric, so that a format whose bound was `Nothing` still appends in amortized constant time
+   rather than reallocating per unit. `resize` is what relocates, and a *borrowed* run - a literal
+   being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
+-}
+@platform(native) pub fn reserveString(&self: String, wanted: Size) -> {}:
+    -- The container's own growth, which is what this used to be a second copy of. `reserve` takes
+    -- the capacity to reach and this takes the amount to add, which is the only difference between
+    -- the two and the only thing left here.
+    let target = stringDataMut(self)
+    reserve(target.bytes, (target.bytes.length :: Size) + wanted)
+
+@platform(js) pub fn reserveString(&self: String, wanted: Size) -> {} = {}
+
+{-
+   One unit appended - what every `Show` instance ultimately writes through.
+
+   Natively this is a store and a count bump, with the reservation hoisted out by whoever is about to
+   write a known number of units. Part 7's contract is what makes that safe: an instance writes at
+   most `showBound` units, the buffer was sized from the bounds, so the appends are provably in range
+   and the reserve above them is the only check.
+-}
+@platform(native) pub fn pushUnit(&self: String, unit: Int) -> {}:
+    -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
+    -- them written twice until the bytes became an `Array(U8)`.
+    push(stringDataMut(self).bytes, truncate(unit) :: U8)
+
+@platform(js) pub fn pushUnit(&self: String, unit: Int) -> {}:
+    self = hostConcat(self, hostFromCharCode(unit))
+
+-- A whole string appended, which is the common case and is a block copy rather than a loop.
+@platform(native) pub fn pushString(&self: String, other: String) -> {}:
+    appendUnits(self, stringData(other).bytes.run.items, length(other))
+
+@platform(js) pub fn pushString(&self: String, other: String) -> {}:
+    self = hostConcat(self, other)
+
+{-
+   The block copy both of the above are written in terms of. Private to this section: it takes a raw
+   address, so it is exactly as unsafe as `copyMemory` and exactly as unreachable from a program.
+
+   The check is the same one `push` makes and is here for a worse reason. `push` compared the count
+   against the capacity and gave up, which lost an element; this copies a whole block and had no
+   comparison at all, so a `reserveString` the allocator refused was followed by a `copyMemory` of
+   `count` units into a buffer that had not grown to hold them. That is a write past the end of the
+   run, not a lost append - and it was reachable by exactly the route the array's was, since both
+   reserves end at the same `resize`.
+
+   Read off `run.capacity` rather than off `reserveString`, which answers nothing: what has to hold
+   before the copy is that the room is *there*, and that is one comparison against the field the copy
+   is about to run past.
+-}
+@platform(native) pub fn appendUnits(&self: String, from: %U8, count: Size) -> {}:
+    if count <= 0 then return {}
+    reserveString(self, count)
+
+    let target = stringDataMut(self)
+    let wanted = (target.bytes.length :: Size) + count
+    checkCondition((target.bytes.run.capacity :: Size) < wanted)
+
+    copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count))
+    target.bytes.length = truncate(wanted) :: Count
+
+{-
+   ==========================================================================================
+   `Show` - Implementation-Storage.md part 7's instances.
+   ==========================================================================================
+
+   The bounds below are the table that document gives, and each is exact rather than generous: the
+   buffer is sized from them, so a bound larger than the truth wastes the difference and a bound
+   smaller than the truth is the one thing an instance may not do.
+-}
+
+-- `"False"` is five units, which is the longer of the two.
+instance Show(Bool):
+    fn show(value: Bool, &to: String) -> {}:
+        if value then pushString(to, "True")
+        else pushString(to, "False")
+
+    fn showBound(value: Bool) -> Maybe(Size) = Just(5)
+
+{-
+   The integers, written once over the widest signed type they all widen into.
+
+   `showSigned` is the whole implementation and the instances below only say how wide the value can
+   be. One body for both targets, because this is arithmetic and nothing else - `Long` is a machine
+   word natively and a `bigint` on JS, and division and remainder mean the same thing on both.
+
+   **The digits are produced in the negative domain**, which looks backwards and is the point. The
+   most negative value of any width has no positive counterpart, so negating it first gives that same
+   number back and a loop dividing it would emit wrong digits forever. Working downwards from zero
+   makes `-9223372036854775808` an ordinary input rather than a case anyone has to remember. It needs
+   truncating division and a remainder that follows the dividend's sign, which is what both targets
+   do.
+
+   The reversal buffer is a real cost - one temporary string per integer formatted - and it is the
+   obvious thing to remove later: the digits are produced least-significant first and the sink can
+   only be appended to. Writing them into a `[U8 *20]` instead would need no allocation at all, and
+   is left until fixed arrays are reachable from a body this generic.
+
+   Not `pub`: it is how the `Show` instances below are written and not something to call directly,
+   since what a program wants of an integer is `show` and the instance decides the rest.
+-}
+fn showSigned(value: Long, &to: String) -> {}:
+    if value == 0:
+        pushUnit(to, 48)
+        return {}
+
+    -- Downwards from zero, so that every width's most negative value is representable throughout.
+    let &remaining = value
+    if remaining > 0 then remaining = 0 - remaining
+
+    let &digits = newStringOfCapacity(20 :: Size)
+    while remaining < 0:
+        let digit = truncate(0 - (remaining `rem` 10)) :: Int
+        pushUnit(digits, 48 + digit)
+        remaining = remaining / 10
+
+    if value < 0 then pushUnit(to, 45)
+
+    -- Reversed, because the loop above produced them backwards.
+    let &i = length(digits)
+    while i > 0:
+        i = i - 1
+        pushUnit(to, stringUnit(digits, i :: Size))
+
+-- `-2147483648` is eleven units, which is the widest an `Int` gets.
+instance Show(Int):
+    fn show(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
+    fn showBound(value: Int) -> Maybe(Size) = Just(11)
+
+-- `-9223372036854775808` is twenty.
+instance Show(Long):
+    fn show(value: Long, &to: String) -> {} = showSigned(value, to)
+    fn showBound(value: Long) -> Maybe(Size) = Just(20)
+
+{-
+   A string shows as itself, and its bound is a *runtime* value - which is the row that makes the
+   point about `showBound`'s constant-ness not being in the type.
+
+   `Just(11)` for `Int` folds to a literal at a concrete call site and this does not, and neither
+   instance had to say which it was. That is the whole of what the `Maybe(Int)` shape buys, and it is
+   why a format containing one string and three integers still sizes its buffer in one addition.
+-}
+instance Show(String):
+    fn show(value: String, &to: String) -> {} = pushString(to, value)
+    fn showBound(value: String) -> Maybe(Size) = Just(length(value))
+
+{-
+   What one hole contributes to a format's size - Implementation-Storage.md part 8, step 2.
+
+   A plain function rather than something the compiler emits inline, because it is the same three
+   lines at every hole and because this is where `Nothing` becomes a *number*. Strategy (c) - the
+   unbounded case - is not a third code path in the formatter: it is this answering zero, so the
+   buffer is seeded with the bounds that are known and the appends grow past it. That the three
+   strategies are one shape is the whole of part 8's argument, and this is the line that makes it
+   true.
+
+   Zero and not one, and not a guess at a typical size. A seed is a promise about nothing: too small
+   costs one growth, and inventing a number here would cost every bounded format the difference.
+-}
+fn formatBound(bound: Maybe(Size)) -> Size = match bound:
+    Just(units) -> units
+    Nothing -> 0
+
+{-
+   `print` - Implementation-Storage.md part 9.
+
+   The point of the whole scheme, stated as one function: `print("x = {x}\n")` measures, sizes a
+   buffer, formats into it and writes it once. Under strategy (a) the buffer never existed anywhere
+   but the frame, so the first-day program's output path is one `write` and no allocation at all.
+
+   Natively this is `writeFile` on the standard output descriptor, handed the run's base and the
+   count - which is exactly what part 9 says, and is possible only because a growable string *is* a
+   run of units rather than something that has to be flattened first. The result is discarded: what a
+   short write or a closed pipe should do is a question about a `Result` type this does not have yet,
+   and inventing an answer here would be the wrong place to make that decision.
+
+   On JS it is `console.log`, which is not the same operation and is the honest mapping rather than a
+   compromise: the host has no file descriptors, and its line-oriented console is what a program's
+   output goes to. The trailing newline a caller writes is therefore doubled there - `console.log`
+   adds its own - which is a real behavioural difference between the targets and is the reason this
+   is `print` rather than `write`.
+-}
+@platform(native) pub fn print(text: String) -> {}:
+    let bytes = stringData(text)
+    let _ = writeStandardOutput(bytes.bytes.run.items, length(text))
+
+@platform(js) pub fn print(text: String) -> {} = hostLog(text)
+
+{-
+   `Maybe(a)` is **not** an instance here, and the reason is a compiler limitation rather than a
+   design choice - so it is written down rather than quietly left out.
+
+   Implementation-Storage.md part 7's table gives it as the row that shows the bound *composing*:
+   `Nothing` is seven units and `Just(x)` is `showBound(x)` plus six, so an option around a bounded
+   type stays exactly bounded and one around an unbounded type stays unbounded. That is worth having,
+   and the body is four lines.
+
+   What blocks it is that a `&` parameter of a *constrained generic* instance method does not arrive
+   as a place. Written out, `instance (Show(a)) Show(Maybe(a))` rejects its own body with
+
+       a `&` argument must have exactly type String, but this is &mut String
+
+   at every use of the sink - `pushString(to, "Nothing")` included, so it is not about the recursive
+   dispatch. The same body as a concrete `instance Show(Maybe(Int))` compiles, which is what locates
+   the fault: `bindFunctionArgs` binds a `Ref` argument to a place by `convention` alone and is
+   right, so the reference is introduced somewhere on the constrained-instance path between the class
+   signature and the body.
+
+   The consequence is not confined to `Maybe`. It is exactly the shape every *container's* `Show`
+   has - a generic instance constrained on its element's - so this is the thing to fix before more
+   instances are written, rather than a wart on this one. What the composition would have
+   demonstrated is separately visible in the two instances that do exist: `Show(Int)`'s bound is a
+   constant that folds and `Show(String)`'s is a runtime value that does not, which is the property
+   part 7 designed the `Maybe(Int)` shape for.
+-}
+
+{-
+   ==========================================================================================
+   The ASCII tier - Implementation-String.md part 5, Implementation-Vector.md §9 item 8.
+   ==========================================================================================
+
+   Scanning a string for one unit, at raw scan speed and with no decode step anywhere. It is correct
+   without any encoding-awareness because an ASCII unit is **self-synchronizing in both UTF-8 and
+   UTF-16**: a value below 0x80 never appears as part of the encoding of any other code point in
+   either. That is a real property of both encodings rather than something being leaned on loosely,
+   and it is what lets one signature over `CodeUnit` serve a byte scan natively and a UTF-16 scan on
+   JS.
+
+   **Natively these are the bulk operations over the string's own units**, which is the whole of what
+   `instance Chunked(String, CodeUnit)` below buys: `indexOf` over a `Chunked` container is already
+   the vector search - `firstSet` over a hit mask, sixteen units at a time - so the highest-value
+   item in the vector plan is spelled here as three calls to machinery that was built for containers.
+   A string is a container of code units, and saying so is what vectorizes it.
+
+   **On JS they are the host's own**, which Implementation-String.md part 5 rules is "legitimate,
+   encouraged" for exactly this family: searching for one fixed unit has no room for the cross-engine
+   disagreement the decoding tier has to worry about, and `String.prototype.indexOf` is C++ that no
+   `charCodeAt` loop this compiler emits will beat.
+
+   The decoding tier is untouched by all of this and stays scalar.
+-}
+@platform(native) instance Chunked(String, CodeUnit):
+    iter fn chunks(self: String) -> Flat(CodeUnit) = yield elements(stringData(self).bytes)
+
+-- Where the first `unit` is, in units of this target's own encoding, or `Nothing`. The index is a
+-- `Size` in that encoding and means what `stringUnit` means by one, which is the same number on both
+-- targets for ASCII content and deliberately not for anything else.
+@platform(native) pub fn findAscii(self: String, unit: CodeUnit) -> Maybe(Size) = indexOf(self, unit)
+
+@platform(js) pub fn findAscii(self: String, unit: CodeUnit) -> Maybe(Size):
+    let at = hostIndexOf(self, hostFromCharCode(unit :: Int), 0)
+    if at < 0 then return Nothing
+    return Just(at)
+
+-- Whether it is there at all, which is the search with its answer thrown away - one function on both
+-- targets, because the thing that differs is what `findAscii` is.
+pub fn containsAscii(self: String, unit: CodeUnit) -> Bool = findAscii(self, unit) is Just(_)
+
+-- How many there are. Natively one vector pass with a lane-wise compare and a mask count; on JS the
+-- host search stepped along, which is the same C++ scan restarted at each hit.
+@platform(native) pub fn countAscii(self: String, unit: CodeUnit) -> Int = occurrences(self, unit)
+
+@platform(js) pub fn countAscii(self: String, unit: CodeUnit) -> Int:
+    let needle = hostFromCharCode(unit :: Int)
+    let &total = 0
+    let &from = 0 :: Size
+
+    while from >= 0:
+        let at = hostIndexOf(self, needle, from)
+        if at < 0 then return total
+
+        total = total + 1
+        from = at + 1
+
+    return total

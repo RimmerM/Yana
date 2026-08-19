@@ -57,7 +57,21 @@ void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) 
         auto target = module.program.findModule(imported.from);
 
         if(!target) {
+            /*
+             * The project's own files first, and `lib/` second - see findLibraryModule.
+             *
+             * That order is what lets a program shadow a library module by putting a file of that
+             * name in its own source tree, which is the direction that has to work: a library is
+             * shared and a program is not, so the one that can be changed to resolve a collision is
+             * the program, and it should not have to be changed by *renaming* the module it wanted.
+             *
+             * Nothing is asked of the library for a name the program already answered, so a compile
+             * whose imports are all its own never touches the library directory past the seven
+             * modules built before any of this ran.
+             */
             auto source = provider ? provider->getModule(imported.from) : nullptr;
+            if(!source) source = findLibraryModule(module.context, imported.from);
+
             if(!source) {
                 module.context.diagnostics.error("cannot find module %@"_v, imported.source,
                                                  module.context.findName(imported.from));

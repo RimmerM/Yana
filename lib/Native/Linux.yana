@@ -1,0 +1,28 @@
+import Native
+
+-- amd64 Linux call numbers.
+let sysMmap = 9 :: I64
+let sysMunmap = 11 :: I64
+let sysWrite = 1 :: I64
+let sysExit = 60 :: I64
+
+-- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
+let protReadWrite = 3 :: I64
+let mapPrivateAnonymous = 34 :: I64
+
+-- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
+-- refused. mmap reports failure as a small negative value rather than as an error flag, which is
+-- why the result is checked as a number before it becomes a pointer.
+pub fn mapMemory(size: I64) -> %U8:
+    let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
+    if result < 0 then return null()
+
+    return bitcast(result) :: %U8
+
+pub fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, bitcast(from) :: I64, size)
+
+pub fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, bitcast(from) :: I64, count)
+
+pub fn exitProcess(status: I64) -> {}:
+    syscall1(sysExit, status)
+    return

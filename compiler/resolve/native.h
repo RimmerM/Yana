@@ -12,8 +12,8 @@
  * something Core makes available everywhere. The fixed-width integer family is Core's, not this
  * module's: naming a width is not an unsafe act, and on JS it is how a record asks to be packed.
  *
- * It is built next to Core and the same way: declarations parsed from source embedded in the
- * compiler, with the compiler supplying only what the language cannot say about itself. Unlike
+ * It is built next to Core and the same way: declarations read from `lib/Native.yana`, with the
+ * compiler supplying only what the language cannot say about itself. Unlike
  * Core it is not implicitly imported, so a program that never writes `import Native` cannot
  * reach any of it.
  *

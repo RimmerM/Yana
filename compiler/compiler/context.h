@@ -1,6 +1,7 @@
 #pragma once
 
 #include "diagnostics.h"
+#include "library.h"
 #include "settings.h"
 #include <HashMap.h>
 
@@ -230,10 +231,28 @@ inline void* operator new (Size count, LinearArena& arena) {
 }
 
 struct Context {
-    Context(Diagnostics& diagnostics): diagnostics(diagnostics) {}
+    // The library is handed to the diagnostics here and nowhere else, so that every driver that
+    // builds a Context gets library source quotable in its reports without arranging anything.
+    Context(Diagnostics& diagnostics): diagnostics(diagnostics) { diagnostics.library = &library; }
+
+    // And taken back, because a Diagnostics outlives the Context in a language server: `compile`
+    // drops the whole Context and builds a new one on every change, against the same Diagnostics.
+    // Guarded so that a Context destroyed after a newer one was built does not unset the newer one.
+    ~Context() { if(diagnostics.library == &library) diagnostics.library = nullptr; }
 
     Diagnostics& diagnostics;
     CompileSettings settings;
+
+    /*
+     * Where Core and the rest of the standard library are read from - see LibrarySource.
+     *
+     * On the Context rather than passed in, because every entry point into the resolver has to have
+     * one and only two of them have a command line to build one from: `resolveProgram` builds Core
+     * before it looks at the root module, so a driver that forgot to supply a library would produce
+     * a program with no `+`. A default-constructed one finds the library by itself, which is what
+     * makes every test driver in test/ work unchanged.
+     */
+    LibrarySource library;
 
     /*
      * Where name resolution's answers are kept, or null - Implementation-Tooling.md §1.1.

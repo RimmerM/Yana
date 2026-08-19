@@ -185,6 +185,19 @@ struct CompileSettings {
     /// not, since the default is derived from that same target. See localBackendSupported.
     bool explicitBackend = false;
 
+    /*
+     * Where the standard library is, or empty to search for it - see LibrarySource.
+     *
+     * A path rather than a list, because there is one standard library: a search *path* is what a
+     * program's own modules are found through, and this is the one set of modules that is part of
+     * the compiler rather than part of the program.
+     *
+     * Named explicitly it is taken as-is, without the "does it hold a Core.yana" test the searched
+     * candidates get. A directory that was pointed at and is wrong should be reported as the
+     * directory that was pointed at, rather than silently becoming whichever one came next.
+     */
+    Tritium::String libraryPath;
+
     /// Where to look for a `yana.toml`, or empty to look upwards from the working directory.
     /// `noProject` skips the search: a build that has been given every path it needs on the command
     /// line should not change behaviour because of a file in a directory above it.

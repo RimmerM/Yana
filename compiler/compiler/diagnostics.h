@@ -81,6 +81,10 @@ struct SourceManager {
 
 };
 
+// Where the standard library's text is kept - compiler/library.h. Declared rather than included:
+// that header names a StringId, which is declared here.
+struct LibrarySource;
+
 struct SourceProvider {
     virtual StringView getSource(StringId module) = 0;
     virtual const Location* getNode(LocationId node) = 0;
@@ -137,6 +141,17 @@ struct Diagnostics {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
+
+    /*
+     * The standard library's loaded text, or null - set by the Context that owns it.
+     *
+     * A `SourceProvider` answers for the files the *project* is made of, and since the library moved
+     * out of the compiler's own source into `lib/` there is a second set of files a report can point
+     * into. Without this, a type error in `Collections.yana` printed its message and quoted nothing,
+     * which is what a report from an embedded string literal did too - the difference is that there
+     * is now a real file and a real line to show.
+     */
+    LibrarySource* library = nullptr;
 
     U32 warningCount() {return warnings;}
     U32 errorCount() {return errors;}

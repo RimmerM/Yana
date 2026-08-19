@@ -1,4 +1,5 @@
 #include "host.h"
+#include "core.h"
 #include "intrinsic.h"
 #include "name.h"
 #include "../parse/parser.h"
@@ -24,187 +25,7 @@
  *   one shape rather than two and `Array(a)`'s teardown is one rule rather than two.
  */
 
-static const char* kHostSource = R"HOST(
-import Native
-
-{-
-   The host array.
-
-   Every one of these is `@platform(js)`, so on a native build this module declares nothing at all -
-   which is what makes a host operation unreachable rather than merely unused there.
-
-   `%a` is the array, and what a `%a` means on this target is in host.h: an opaque reference to
-   storage, since nothing this target can express does arithmetic on one. That is why these need no
-   type of their own. A `HostArray(a)` newtype was written first and removed: it typed exactly the
-   same programs, and it put a host element in a *record* place rather than a pointer one, which
-   quietly moved every element of every container inside the ownership graph and made a write through
-   one owe a drop the native path does not owe.
--}
-
--- An empty host array - `[]`. The array literal builds its own with the elements in it, since a
--- literal is one node rather than a call plus n pushes; this is what `emptyArray` is.
-@platform(js) pub fn hostArray() -> %a
-
-{-
-   There is deliberately no `hostPush`, and the reason is ownership rather than taste.
-
-   A host operation's arguments are *uses*: the ownership passes read a move out of an `InstMove` or
-   out of an assignment into a place, and an operand of an `InstNative` is neither. So
-   `self.push(item)` appends the value and leaves this frame still owning it, and the frame releases
-   it at the end of the block - an element the array is holding, released while it holds it. It was
-   written, and it read as if it worked, and the counter in `HostArray.yana` is what caught it.
-
-   Appending is `arr[arr.length] = item` instead, which is `hostWrite` below and is an assignment
-   through a place. That is the *same* hand-over the native `store(self.run.items + count, item)` is,
-   read by the same pass, which is the property worth having: a container's two bodies differ in how
-   an element is reached and in nothing about who owns it.
--}
-
--- `self.length`. A `Size`, which on this target is `Int` - and a host array's length is a `uint32`
--- by specification, so there is nothing wider to describe (§4.4).
-@platform(js) pub fn hostLength(self: %a) -> Size
-
-{-
-   Closing a gap - `self.copyWithin(to, from, end)`, the move without the shortening.
-
-   The counterpart of the native build's `copyMemory`, and it is deliberately the *only* one here.
-   A `.splice` was declared beside it and removed: it shortens as well as moves, which is what a
-   container wants when the slot at the end has to stop existing, and no container needs that asked
-   for separately any more. `Array(a)`'s count is `@host` on the row whose elements are host objects,
-   so writing the new count *is* the truncation and the duplicate this leaves behind is released by
-   the statement that records the removal (see `remove` in Collections). On the typed row the
-   elements are numbers, the stale slot is as inert as the bytes `copyMemory` leaves, and the stored
-   count is what says how many are live.
--}
-@platform(js) pub fn hostCopyWithin(self: %a, to: Size, from: Size, end: Size) -> {}
-
-{-
-   Whether this element's array has a capacity that has to be managed - see typedArrayFor.
-
-   A compile-time constant with an argument, and the argument is what carries the question: an
-   intrinsic is handed its result type rather than its type arguments, so the element is read off the
-   array reference it is asked about. `opt_fold` then removes the branch it guards, in both
-   directions, which is what lets `reserve` be one body over two representations rather than a
-   `@platform` split that this target cannot spell - the row is chosen by the *element*, and
-   `@platform` chooses by target.
--}
-@platform(js) pub fn hostFixedCapacity(self: %a) -> Bool
-
-{-
-   A new array of `capacity` elements with this one's contents copied into it.
-
-   Only ever reached where `hostFixedCapacity` said yes, so it is the typed row's growth and nothing
-   else - a host array grows by being written past its end and never calls this.
--}
-@platform(js) pub fn hostGrow(self: %a, capacity: Size) -> %a
-
-{-
-   The element - `self[index]`, in the four positions an element is reached from.
-
-   `hostRead` answers the element *by value*, which is what makes `let ->doomed = hostRead(xs, i)` a
-   move out of the array: it is the same line `*(self.run.items + i)` is on the native side, and it
-   is what a container's teardown and its `remove` are written with.
-
-   `hostAt` and `hostAtMut` answer a borrow, and carry the `return` marker for the reason `borrow`
-   does: the result names storage this function was handed rather than storage of its own.
--}
-@platform(js) pub fn hostRead(self: %a, index: Size) -> a
-@platform(js) pub fn hostWrite(self: %a, index: Size, value: a) -> {}
-@platform(js) pub fn hostAt(return self: %a, index: Size) -> &a
-@platform(js) pub fn hostAtMut(return self: %a, index: Size) -> &a
-
-{-
-   A whole vector out of a host array, and back into one - this target's half of
-   Implementation-Vector.md §12's "a way to read a vector out of a `Flat(a)`".
-
-   There is no memory here and so nothing to load: a vector on this target *is* `lanes` values
-   (Design-Vector §7.2), so a vector read is `lanes` element reads and a vector write is `lanes`
-   element writes. Neither is a loop - the lane count is known where the call is expanded, so each of
-   these is straight-line code of a length the type decided.
-
-   `hostVectorUpTo` is the tail, and it is where the two targets genuinely differ. Natively the tail
-   reads past the end of the object and the guarantee in §8 says that is safe; here there is no
-   guarantee to have, and a read past the end of a host array is `undefined` rather than an
-   unspecified byte - so the index of every lane is held at `limit`, which is the last element that
-   exists. The lanes past the end therefore repeat the last element, which is a value the caller is
-   about to mask off and never a value that is not a number.
--}
-@platform(js) pub fn hostVector(self: %a, index: Size) -> Vec(a)
-@platform(js) pub fn hostVectorUpTo(self: %a, index: Size, limit: Size) -> Vec(a)
-@platform(js) pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
-
-{-
-   The host string - Implementation-String.md part 2's JS column.
-
-   `String` here is the host `string` primitive with no wrapper at all, which is what part 2 asks for
-   and what makes a Yana string free to hand to any host API. So every operation below is the host's
-   own, and none of them allocates anything Yana has to account for: the collector owns every string
-   these produce, which is why `Reclaim(String)` has no JS instance.
-
-   The two that are *not* here are the two a program would expect most. There is no `hostSubstring`
-   and no `hostIndexOf`, because slicing and search are parts 4 and 5 of that document and this
-   change is parts 2, 3 and 8 - the raw tier and concatenation. Adding either is a declaration here
-   and a `HostMember` entry, and nothing else.
--}
-
--- `self.length`, in UTF-16 code units, which part 3 is explicit is *not* the same number the native
--- build answers for the same content. Both are O(1), and that is the property required to be
--- uniform rather than the value.
-@platform(js) pub fn hostStringLength(self: String) -> Size
-
--- `self.charCodeAt(index)` - one raw UTF-16 unit, with no decode and no validation that it is a
--- whole code point. The exact counterpart of the native build's byte read.
-@platform(js) pub fn hostCharCodeAt(self: String, index: Size) -> Int
-
-{-
-   `self.indexOf(needle, from)` - the search this module said it did not have.
-
-   It is here now because the ASCII scanning family is (Implementation-Vector.md §9 item 8), and that
-   family's JS half is the host's own search by ruling rather than by convenience:
-   Implementation-String.md part 5 says lowering it to `String.prototype.indexOf` is "legitimate,
-   encouraged", on the grounds that searching for one fixed unit has no room for cross-engine
-   disagreement the way the grapheme tables do. What it replaces is a `charCodeAt` loop, which clears
-   the §7.2 floor and still loses to the engine's own C++.
-
-   `-1` for "not found" is the host's answer and is what the caller turns into a `Nothing`. Not
-   wrapped here: this module's whole job is to hand over what the host does, and a `Maybe` is a
-   decision the library above it makes.
--}
-@platform(js) pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
-
-{-
-   Concatenation and comparison, as the host's own operators - see NativeOp::HostBinary.
-
-   `<` on two host strings is raw UTF-16 code-unit order, which is exactly the default `Ord(String)`
-   part 3 specifies, wrinkle included: it can disagree with true code-point order for
-   supplementary-plane characters, and part 3 says so and points anyone who needs otherwise at an
-   explicit `compareByCodePoint`. Getting that for free is the argument for the operator node.
--}
-@platform(js) pub fn hostConcat(self: String, other: String) -> String
-@platform(js) pub fn hostStringEq(self: String, other: String) -> Bool
-@platform(js) pub fn hostStringLt(self: String, other: String) -> Bool
-
--- `String.fromCharCode(unit)` - one UTF-16 unit as a one-unit string, which is what appending a unit
--- to a host string has to go through. A call on the host's global rather than on a value, which is
--- why it is the one `HostGlobalCall` here.
-@platform(js) pub fn hostFromCharCode(unit: Int) -> String
-
--- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global
--- rather than on a value, like `String.fromCharCode` above.
-@platform(js) pub fn hostLog(text: String) -> {}
-
-{-
-   `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".
-
-   There is no `abort` in JavaScript and no exit status a script can set; an exception nobody catches
-   ends the program and reports what it carried, which is exactly what a failed check needs to do.
-
-   No argument, and the message is the emitter's. A string literal written here would need `Text`,
-   which is built after this module and imports it - so the one thing this declaration could not
-   carry is the sentence it exists to print.
--}
-@platform(js) pub fn hostFail() -> {}
-)HOST";
+// Host's source is `lib/Host.yana`.
 
 // Declared in host.h, which is where the rule and its two readers are argued. At file scope
 // rather than in the anonymous namespace below because the JS emitter is the other reader.
@@ -460,21 +281,16 @@ ModulePtr<Value> emitHostLengthOf(ExprResolver& resolver, ModulePtr<Value> array
 
 namespace {
 
-static ast::Module* parseHost(Context& context) {
-    auto id = context.addQualifiedName("Host", 4);
-    Lexer lexer(context, context.diagnostics, StringView { kHostSource, stringLength(kHostSource) }, id);
-    Parser parser(context, lexer, id);
-    parser.allowSignatures = true;
-
-    return new ast::Module(parser.parseModule());
-}
-
 } // namespace
 
 void defineHost(Program& program) {
     auto& context = program.context;
 
-    auto ast = parseHost(context);
+    // Every declaration here is a signature with no body - `attachIntrinsic` below is what gives
+    // each one a meaning - so this module is parsed on the same terms as Core and Native.
+    auto ast = parseLibraryModule(context, "Host"_v, true);
+    if(!ast) return;
+
     auto module = program.addModule(ast->name, *ast->region);
     program.embeddedAsts.push(ast);
     program.host = module;

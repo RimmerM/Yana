@@ -22,8 +22,8 @@
  */
 enum class CompileStage: U8 {
     // Lexing and parsing one module, wherever it is reached from: the file a driver hands over, an
-    // import resolved through a ModuleProvider, or one of the library modules the compiler carries
-    // as embedded source and parses while it builds Core, Native and Host.
+    // import resolved through a ModuleProvider, or one of the library modules read from `lib/` while
+    // it builds Core, Native and Host.
     Parse,
 
     // runProgramOwnership: liveness, provenance, drop placement and the summaries they derive.

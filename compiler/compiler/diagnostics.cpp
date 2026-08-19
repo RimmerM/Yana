@@ -1,4 +1,5 @@
 #include "diagnostics.h"
+#include "library.h"
 
 void CollectDiagnostics::message(Level level, StringView text, const Location* where) {
     Diagnostics::message(level, text, where);
@@ -34,6 +35,8 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
     if(!where) return;
 
     auto source = provider.getSource(where->sourceModule);
+    if(source.length == 0 && library) source = library->loaded(where->sourceModule);
+
     auto offset = where->sourceStart.offset;
     if(offset >= source.length) return;
 
