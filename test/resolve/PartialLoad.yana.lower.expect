@@ -80,22 +80,21 @@ chained<complex>(%box: Ptr, %grow: Int): Int {
     %v_3 = imul %v_2, 3: Int
     %v_4 = cmp_igt %v_3, 100: Int
     %v_5 = select %v_4, %grow, %v_4: Int
-    %v_6 = imm 7: Int
-    je %v_5, b_7, b_8
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    store %box, 7, 4
+    jmp b_8
   }
 
   b_7 {
-    store %box, %v_6, 4
-    jmp b_9
+    jmp b_8
   }
 
   b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_8, %v_3], [b_7, 21]: Int
-    ret %v_10
+    %v_9 = phi [b_7, %v_3], [b_6, 21]: Int
+    ret %v_9
   }
 }
 

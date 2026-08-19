@@ -1160,6 +1160,27 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
         }
     }
 
+    return callIndirect(callable, expr, call, target);
+}
+
+/*
+ * A call through a value that has already been produced.
+ *
+ * Split from `resolveIndirectCall` because the dot-call form arrives here with the callable in hand:
+ * it resolved the receiver in order to decide whether this was a field at all, and a field of
+ * function type is exactly this call. Everything below is about the argument list and the function
+ * *type*, and neither of those cares where the value came from.
+ */
+ModulePtr<Value> ExprResolver::callIndirect(ModulePtr<Value> callable, const ast::Expr& expr,
+                                            const ast::AppExpr& call, TypePtr target) {
+    if(!callable) return nullptr;
+
+    if(!isFunction(global, valueType(callable))) {
+        context.diagnostics.error("this expression is not callable - it is %@"_v, expr.source,
+                                  describeType(context, global, valueType(callable)));
+        return nullptr;
+    }
+
     auto signature = (FunType*)global[valueType(callable)];
     auto callArgs = call.args;
 
@@ -1227,7 +1248,8 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
  * to resolve underneath it.
  */
 bool ExprResolver::captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
-                                        const ArgMapping* pushdown, ModulePtr<Function> signature) {
+                                        const ArgMapping* pushdown, ModulePtr<Function> signature,
+                                        Size leading) {
     if(!wantsCompletion(context)) return false;
 
     auto written = arguments.contents(parse);
@@ -1247,8 +1269,8 @@ bool ExprResolver::captureCallArguments(ast::ParseList<ast::TupArg> arguments, c
         // same pushdown the arguments are resolved against, read through the same mapping.
         TypePtr expected = nullptr;
 
-        if(signature && pushdown && index < pushdown->parameters.size()) {
-            auto filled = pushdown->parameters[index];
+        if(signature && pushdown && index + leading < pushdown->parameters.size()) {
+            auto filled = pushdown->parameters[index + leading];
 
             if(filled < local[signature]->args.size()) {
                 expected = local[local[signature]->args.get(local, filled)]->declaredType();
@@ -1296,10 +1318,39 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         return nullptr;
     }
 
+    // `x.f(y)` - Design.md's dot-call form. Ahead of the indirect path because deciding between the
+    // two is what it does: a field of function type is still called indirectly, and everything else
+    // of that name is `f(x, y)`.
+    if(calleeExpr.kind == ast::Expr::Field) {
+        return resolveDotCall(expr, call, *parse[calleeExpr.field], target, convertResult);
+    }
+
     auto named = calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var);
 
     if(!named) return resolveIndirectCall(expr, call, convertResult ? target : nullptr);
 
+    return resolveNamedCall(expr, calleeExpr.var, calleeExpr.source, nullptr, call.args, target,
+                            convertResult);
+}
+
+/*
+ * A call by name, with or without a receiver written to the left of it.
+ *
+ * `receiver` is the dot-call form's first argument, resolved before this was reached - null for an
+ * ordinary call, and the only difference between the two. It is an argument in every other respect:
+ * it occupies position 0 of the set's arity, of the names, of the mapping and of the strictness, so
+ * a default, a named argument and a `&` parameter each mean here what they mean anywhere. That is
+ * why the receiver is prepended rather than carried beside the list - `CallShape::supplied` counts
+ * *trailing* parameters a call site fills, which is the loop's continuation and not this.
+ *
+ * What the receiver does not get is pushdown. Its type had to be known to decide whether this was a
+ * field at all, so it is resolved before the callee is, and no candidate's parameter type can reach
+ * it. Every written argument keeps pushdown exactly as before - see the loop below, which reads the
+ * mapping at `index + leading`.
+ */
+ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId name, LocationId nameSource,
+                                                ModulePtr<Value> receiver, ast::ParseList<ast::TupArg> args_,
+                                                TypePtr target, bool convertResult) {
     /*
      * The overload set, gathered once, at the *callee's* location rather than the call's.
      *
@@ -1312,17 +1363,29 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * whole of it, whether the callee is a lens or an iterator, and - through emitCall - which
      * candidate serves the call.
      */
-    auto callArgs = call.args;
+    auto callArgs = args_;
+    auto leading = receiver ? Size(1) : Size(0);
 
-    // The names the call site wrote, which the set is gathered *with*: which parameter each argument
-    // fills is part of "does this candidate serve the call", so it cannot be asked afterwards. See
-    // OverloadSet::names.
+    /*
+     * The names the call site wrote, which the set is gathered *with*: which parameter each argument
+     * fills is part of "does this candidate serve the call", so it cannot be asked afterwards. See
+     * OverloadSet::names.
+     *
+     * The receiver's own entry is empty, because a receiver is positional by construction - it is
+     * written to the left of the name and there is nowhere to put one. That is also what makes
+     * `x.f(self: y)` the ordinary double-fill error rather than a case anything here has to know
+     * about: two things claim parameter 0 and `mapArguments` reports it.
+     */
     ArgNames names;
-    collectArgNames(callArgs, names);
+    if(leading) names.push(StringId());
+    for(auto arg: callArgs.contents(parse)) names.push(arg.name);
+
+    CallShape shape;
+    if(receiver) shape.receiver = valueType(receiver);
 
     OverloadSet set;
-    gatherOverloads(calleeExpr.var, callArgs.size(), calleeExpr.source, calleeExpr.source, set,
-                    CallShape(), toBuffer(names));
+    gatherOverloads(name, callArgs.size() + leading, nameSource, nameSource, set,
+                    shape, toBuffer(names));
 
     auto direct = set.direct;
 
@@ -1348,7 +1411,8 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // from; `gatherOverloads` already established that it maps.
     ArgMapping pushdown;
     if(declared) {
-        mapArguments(direct, toBuffer(names), callArgs.size(), 0, set.name, expr.source, false, pushdown);
+        mapArguments(direct, toBuffer(names), callArgs.size() + leading, 0, set.name, expr.source,
+                     false, pushdown);
     }
 
     /*
@@ -1358,7 +1422,8 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
      * them ends the call, and a call the author is still typing is exactly the one an editor asks
      * about. See captureCallArguments.
      */
-    if(captureCallArguments(callArgs, set, declared ? &pushdown : nullptr, declared ? direct : nullptr)) {
+    if(captureCallArguments(callArgs, set, declared ? &pushdown : nullptr, declared ? direct : nullptr,
+                            leading)) {
         return nullptr;
     }
 
@@ -1379,12 +1444,12 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     ArgMapping handed;
 
     if(continuationShort && local[continuationShort]->funKind != ast::FunKind::Plain &&
-       mapArguments(continuationShort, toBuffer(names), callArgs.size(), 1, set.name, expr.source,
-                    false, handed)) {
+       mapArguments(continuationShort, toBuffer(names), callArgs.size() + leading, 1, set.name,
+                    expr.source, false, handed)) {
         context.diagnostics.error(local[continuationShort]->funKind == ast::FunKind::Iter
             ? "%@ is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one"_v
             : "%@ is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument"_v,
-            expr.source, context.findName(calleeExpr.var));
+            expr.source, context.findName(name));
         return nullptr;
     }
 
@@ -1399,6 +1464,25 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     ArgList args;
     replaceContents(args, set.strictness);
 
+    /*
+     * The receiver takes position 0, already resolved.
+     *
+     * A `@lazy` position 0 is refused rather than honoured: `@lazy` means the argument is not
+     * evaluated at the call site, and deciding this was a dot-call at all required the receiver's
+     * type, which required evaluating it. Reported here because this is the one place that knows
+     * both facts - that the position is deferred, and that something has already been emitted into
+     * it - and the plain call form is the spelling that still works.
+     */
+    if(leading) {
+        if(args[0].isDeferred()) {
+            context.diagnostics.error("%@ takes its first argument `@lazy`, so it cannot be called with `.` - the receiver would have to be evaluated to find the function, which is what `@lazy` says not to do; write it as %@(...) instead"_v,
+                                      expr.source, context.findName(name), context.findName(name));
+            return nullptr;
+        }
+
+        args[0] = receiver;
+    }
+
     auto written = callArgs.contents(parse);
 
     for(Size index = 0; index < written.size(); index++) {
@@ -1406,16 +1490,21 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         // this loop has ended, so what is remembered has to be the node in the parse arena.
         auto arg = written.pointerAt(index);
 
+        // Where this argument sits in the callee's list, which is one to the right of where it was
+        // written when a receiver came first. Everything below is indexed by the position rather
+        // than by the writing order for that reason.
+        auto position = index + leading;
+
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
         // force happens and therefore the only place that can convert it.
-        if(args[index].isDeferred()) {
-            args[index].promise.expr = &arg->value;
+        if(args[position].isDeferred()) {
+            args[position].promise.expr = &arg->value;
             continue;
         }
 
-        auto filled = declared && index < pushdown.parameters.size() ? pushdown.parameters[index]
-                                                                     : ArgMapping::kDefaulted;
+        auto filled = declared && position < pushdown.parameters.size() ? pushdown.parameters[position]
+                                                                        : ArgMapping::kDefaulted;
         auto parameter = declared && filled < local[direct]->args.size()
             ? local[local[direct]->args.get(local, filled)] : nullptr;
 
@@ -1426,7 +1515,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         auto expected = parameter && !parameter->isMutableBorrow() ? parameter->declaredType()
                                                                    : TypePtr(nullptr);
 
-        args[index] = resolveArgument(arg->value, expected);
+        args[position] = resolveArgument(arg->value, expected);
     }
 
     /*
@@ -1445,6 +1534,67 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     auto result = emitCall(set, toBuffer(args), expr.source, target, StringId());
 
     return convertResult && target ? convert(result, target, expr.source) : result;
+}
+
+/*
+ * `x.f(y)` - Design.md's dot-call form, which is `f(x, y)` for every `f` the body can name.
+ *
+ * The receiver is resolved once, at the top, and handed to whichever half wins. That is the whole
+ * shape of this function and the reason it exists rather than the two halves each doing their own
+ * lookup: resolving is emission, so a probe that resolved the receiver and then gave up would leave
+ * its instructions behind and the winning half would emit them again.
+ *
+ * **The field wins.** A record whose field holds a function is called through that field, as it was
+ * before this form existed - `test/resolve/Lambda.yana` is that case, and it must not change meaning
+ * because a module elsewhere declares a function of the same name. The consequence is stated rather
+ * than hidden: adding a field to a record shadows a dot-call on that record's type, which is the
+ * same shape as a local binding shadowing a declaration and is checked the same way, by asking the
+ * *nearer* thing first.
+ *
+ * Universal, and that includes this module's private functions. There is no `impl` block and no
+ * per-type namespace: what a body can call, a body can call with a dot. It costs nothing in
+ * ambiguity to say so, because a plain function does not overload - `findFunction` is a lookup by
+ * name with at most one answer, and two visible ones are already an ambiguity at every call site
+ * that names it, dot or not. See Design.md's R1.
+ */
+ModulePtr<Value> ExprResolver::resolveDotCall(const ast::Expr& expr, const ast::AppExpr& call,
+                                              const ast::FieldExpr& field, TypePtr target,
+                                              bool convertResult) {
+    auto& calleeExpr = unwrapNested(call.callee);
+    auto& selected = field.field;
+
+    auto receiver = resolve(field.target);
+    if(!receiver) return nullptr;
+
+    // Already broken, and whatever broke it said so. Neither half of the choice below is a second
+    // fact about this expression - see fieldOf, whose guard this is.
+    if(global[valueType(receiver)]->kind == Type::Error) return receiver;
+
+    /*
+     * The choice, and the only place it is made.
+     *
+     * A field position that is not a plain name is a field position and nothing else: `t.0(x)` is a
+     * tuple index holding a callable, and the cursor sentinel is an editor asking what may be
+     * written here - which `projectField` answers, because the receiver's type is what the answer is
+     * made of. Neither is a name a function could have.
+     *
+     * A binding of this name is deliberately *not* consulted either: `f` in `x.f(y)` is a member
+     * position, not a scope one, so a local called `map` does not become every value's `.map`. That
+     * is the one place this form departs from `resolveCall`'s "a binding shadows a declaration"
+     * rule, and it departs from it because the two are not in the same namespace to begin with.
+     */
+    auto asField = selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var) ||
+                   hasFieldNamed(valueType(receiver), selected.var);
+
+    if(asField) {
+        auto callable = fieldOf(receiver, calleeExpr, field);
+        if(!callable) return nullptr;
+
+        return callIndirect(callable, expr, call, convertResult ? target : nullptr);
+    }
+
+    return resolveNamedCall(expr, selected.var, selected.source, receiver, call.args, target,
+                            convertResult);
 }
 
 /*
@@ -2017,6 +2167,19 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
 
         if(reportWrongKind()) return;
         if(reportNames()) return;
+
+        /*
+         * A dot-call that found neither half, which is two answers rather than one - see
+         * CallShape::receiver. Both are named because both were looked for, and the rule is stated
+         * because this is the message that teaches it: the author who wrote `x.f(y)` and has neither
+         * a field nor a function needs to know that either would have served.
+         */
+        if(set.shape.receiver) {
+            context.diagnostics.error("%@ has no field %@, and no function %@ is visible here - `a.b(c)` reaches either a field of function type or `b(a, c)`"_v,
+                                      source, describeType(context, global, set.shape.receiver),
+                                      context.findName(callName), context.findName(callName));
+            return;
+        }
 
         context.diagnostics.error(set.shape.isLoop()
             ? "unknown iterator %@ - a `for` loop names an `iter fn`, or a class function declared as one"_v

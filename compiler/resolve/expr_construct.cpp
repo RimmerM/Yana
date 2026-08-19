@@ -1842,8 +1842,75 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
     return Nothing();
 }
 
+/*
+ * Whether a receiver of this type has a field of this name, asked without reporting and without
+ * taking a place.
+ *
+ * The same walk `projectField` performs, and it has to stay the same walk: this is what decides
+ * whether `x.f(y)` is a field of function type called indirectly or Design.md's dot-call form
+ * `f(x, y)`, so a type this says yes about must be one the projection below can actually reach. The
+ * two are kept adjacent for that reason rather than shared, because they answer different questions
+ * about the same walk - this one has no place to project and nothing to report.
+ *
+ * The generic case is `genPropertySlot` rather than `requireProperty`: a *declared* field constraint
+ * is a promise that the receiver has the field, and its absence is not. That is the whole precedence
+ * rule for a generic receiver - `fn (a.name: String) greet(v: a)` selects the field and a body
+ * without the constraint selects the function - and it is why the probe must not be the requiring
+ * form, which would report the constraint as missing before the dot-call path was ever tried.
+ */
+bool ExprResolver::hasFieldNamed(TypePtr type, StringId field) {
+    if(!type || !field) return false;
+
+    // One step through a reference, exactly as the projection takes one. The rungs that cannot be
+    // followed yet are deliberately not stepped through: `reportUnfollowedReference` is the better
+    // message for a field of one, and it still fires because the dot-call path falls back to the
+    // field path when it finds no function.
+    if(isPointer(global, type)) type = ((PtrType*)global[type])->to;
+    else if(isBorrow(global, type)) type = ((BorrowType*)global[type])->to;
+
+    if(!type) return false;
+
+    if(global[type]->kind == Type::Gen) {
+        auto env = functionGen(global, function);
+        return env && genPropertySlot(module, *env, type, field) != maxLimit<U16>;
+    }
+
+    // A single-constructor record is what direct selection reaches through; a multi-constructor one
+    // has to be matched on first, so it has no field of this name to offer under its own name.
+    if(global[type]->kind == Type::Record) {
+        auto record = (RecordType*)global[type];
+        if(record->layout != RecordType::Single || record->constructors.size() == 0) return false;
+
+        type = record->constructors.get(global, 0).content;
+    }
+
+    if(!type || global[type]->kind != Type::Tup) return false;
+
+    auto tuple = (TupType*)global[type];
+    for(Size i = 0; i < tuple->fields.size(); i++) {
+        if(tuple->fields.get(global, i).name == field) return true;
+    }
+
+    return false;
+}
+
 ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::FieldExpr& field) {
     auto value = resolve(field.target);
+    if(!value) return nullptr;
+
+    return fieldOf(value, expr, field);
+}
+
+/*
+ * The projection half of a field read, over a receiver that has already been resolved.
+ *
+ * Split from `resolveField` because the dot-call form resolves the receiver *before* it knows
+ * whether this is a field at all - see resolveDotCall. Resolving is emission, so the receiver has to
+ * be resolved once and handed to whichever half wins; asking `resolveField` again would emit the
+ * target's instructions a second time.
+ */
+ModulePtr<Value> ExprResolver::fieldOf(ModulePtr<Value> value, const ast::Expr& expr,
+                                       const ast::FieldExpr& field) {
     if(!value) return nullptr;
 
     // Already broken, and whatever broke it said so. A field of an error is not a second fact about

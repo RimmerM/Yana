@@ -1,0 +1,49 @@
+-- What `x.f(y)` will not accept, and why each one is a rule rather than an omission.
+--
+-- The dot form is `f(x, y)` for every `f` a body can name - Design.md's dot-call form - so most of
+-- what can go wrong with it is what can go wrong with the call it is, and is reported by the same
+-- machinery. What is collected here is the part that is about the *form*: the two places a name in
+-- member position means something a name in callee position does not.
+
+data Point {x: Int, y: Int}
+data Shape = Circle {r: Int} | Square {s: Int}
+
+fn scaled(p: Point, k: Int) -> Int = p.x * k
+
+-- Neither half. The message names both, because both were looked for: an author who wrote this has
+-- no field and no function, and either would have served.
+fn noHalf(p: Point) -> Int = p.nope(1)
+
+-- A multi-constructor receiver has no fields at all - it has to be matched on before a field of it
+-- means anything - so this is the same answer with only one half ever possible.
+fn overSum(s: Shape) -> Int = s.nope(1)
+
+-- The same, on a receiver whose type is this body's own variable. A *declared* field constraint is
+-- a promise that the receiver has the field, and its absence is not - which is the whole precedence
+-- rule for a generic receiver, and the reason the probe is `genPropertySlot` rather than the form
+-- that would report a missing constraint before the function half was ever tried.
+fn overGeneric(v: a) -> Int = v.nope(1)
+
+-- The receiver is argument 0, so the count includes it. "given 3" is what it is: the whole of what
+-- the form means is that the thing to the left of the dot is an argument.
+fn tooMany(p: Point) -> Int = p.scaled(1, 2)
+
+-- Two things claiming parameter 0, which is the ordinary double-fill and is reported as one. A
+-- receiver is positional by construction - it is written to the left of the name, and there is
+-- nowhere to put a name on it - so there is no spelling in which this is what the author meant.
+fn doubleFill(p: Point) -> Int = p.scaled(p: p, k: 2)
+
+-- `@lazy` in position 0 is refused rather than honoured. Deciding this was a dot-call at all
+-- required the receiver's *type*, which required evaluating it, and not evaluating it is exactly
+-- what `@lazy` declares. The plain form is the spelling that still works, and the message says so.
+fn lazyFirst(@lazy v: Int, k: Int) -> Int = v + k
+
+fn callsLazy(n: Int) -> Int = n.lazyFirst(2)
+
+-- A field of function type is called through the field, so a call of one that does not fit is an
+-- error about the *value* rather than about any function of the name.
+data Step {run: (Int) -> Int}
+
+fn run(s: Step, a: Int, b: Int) -> Int = a + b
+
+fn fieldArity(s: Step) -> Int = s.run(1, 2)

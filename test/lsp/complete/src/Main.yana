@@ -13,8 +13,14 @@ import Shapes
 import Hidden(hiddenPair)
 import qualified Util as U
 
--- What follows a `.` is the receiver's fields and nothing else. The first caret is on the field
--- name's first byte, which is a cursor that has typed the dot and nothing after it.
+-- What follows a `.` is the receiver's fields, then every visible function a dot-call could reach -
+-- §8.1's third kind, both halves. The first caret is on the field name's first byte, which is a
+-- cursor that has typed the dot and nothing after it.
+--
+-- The ranking is what this marker is really about: the fields first, then this module's functions,
+-- then everything reached through an import. A field is what the receiver *has* and a dot-call is
+-- what the program can do to it - and where both answer to one name the field is what the resolver
+-- selects, so it is what the list has to put first.
 fn corner(p: Point) -> Int:
     let across = p.x
 --                 ^member
@@ -36,6 +42,21 @@ fn typing(p: Point) -> Int:
     p.
 --    ^dot
     return p.x
+
+-- Not exported, and offered all the same. A dot-call reaches every function this *body* can name,
+-- which is what makes the form universal rather than a per-type namespace: the import half of the
+-- visibility rule is asked of imports, and a private function of this module is not one.
+fn privately(p: Point) -> Int = p.x - p.y
+
+-- A multi-constructor receiver has no fields to offer - it has to be matched on before a field of
+-- it means anything - and every dot-call a single-constructor one has. So the two halves are not
+-- one answer: the fields are skipped here and the functions are not, which is why `area`, `scale`
+-- and `shifted` are the whole of this list.
+fn overShape(s: Shape) -> Int:
+    let scaled = s.scale(2)
+--                 ^memberSum
+
+    return scaled
 
 -- An expected type ranks the answer above everything that merely shares its prefix, and the
 -- expected type of an argument is the parameter it fills.

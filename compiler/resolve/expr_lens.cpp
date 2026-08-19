@@ -550,9 +550,14 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
  * statement boundary for its arguments in the same way `let` is for its initializer.
  */
 void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, const ArgMapping* mapping,
-                                          ast::ParseList<ast::TupArg> arguments, ArgList& values) {
+                                          ast::ParseList<ast::TupArg> arguments, ArgList& values,
+                                          Size leading) {
     auto target = callee ? local[callee] : nullptr;
-    Size position = 0;
+
+    // Where the written list starts in the callee's parameters, which is one to the right of zero
+    // when a dot-call's receiver already occupies position 0 - see findLoopIterator. The receiver
+    // itself was pushed by the caller, since it is resolved before the callee is known.
+    Size position = leading;
 
     for(auto arg: arguments.contents(parse)) {
         // Through the mapping, since a named argument's expected type is the type of the parameter

@@ -505,54 +505,53 @@ ownerEdges<complex>(): Int {
   b_14 {
     call_complex growArray(Int), %v_1, %v_11
     %v_15 = load %v_3, 4: Int
-    %v_16 = imm 1073741823: Int
-    %v_17 = and %v_15, %v_16: Int
-    %v_18 = cast %v_17: Long
-    jmp b_19
+    %v_16 = and %v_15, 1073741823: Int
+    %v_17 = cast %v_16: Long
+    jmp b_18
   }
 
   b_13 {
-    jmp b_19
+    jmp b_18
   }
 
-  b_19 {
-    %v_20 = phi [b_13, %v_10], [b_14, %v_18]: Long
-    %v_21 = cmp_ige 3, %v_20: Int
-    je %v_21, b_22, b_23
-  }
-
-  b_23 {
-    %v_24 = load %v_1, 8: Ptr
-    %v_25 = add %v_24, 12: Ptr
-    store %v_25, 40, 4
-    %v_26 = add %v_1, 12: Ptr
-    store %v_26, 4, 4
-    %v_27 = alloca 8, 4: Ptr
-    call_complex remove(Int), %v_27, %v_1, 3
-    %v_28 = add %v_1, 12: Ptr
-    %v_29 = load %v_28, 4: Int
-    %v_30 = cast %v_29: Long
-    %v_31 = cmp_eq %v_30, 0: Int
-    je %v_31, b_22, b_32
-  }
-
-  b_32 {
-    %v_33 = load %v_1, 8: Ptr
-    %v_34 = loads %v_33, 4: Int
-    %v_35 = cmp_ge 2, %v_30: Int
-    je %v_35, b_22, b_36
-  }
-
-  b_36 {
-    %v_37 = add %v_33, 8: Ptr
-    %v_38 = loads %v_37, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_39 = add %v_34, %v_38: Int
-    ret %v_39
+  b_18 {
+    %v_19 = phi [b_13, %v_10], [b_14, %v_17]: Long
+    %v_20 = cmp_ige 3, %v_19: Int
+    je %v_20, b_21, b_22
   }
 
   b_22 {
-    %v_40 = syscall 60, 134: Long
+    %v_23 = load %v_1, 8: Ptr
+    %v_24 = add %v_23, 12: Ptr
+    store %v_24, 40, 4
+    %v_25 = add %v_1, 12: Ptr
+    store %v_25, 4, 4
+    %v_26 = alloca 8, 4: Ptr
+    call_complex remove(Int), %v_26, %v_1, 3
+    %v_27 = add %v_1, 12: Ptr
+    %v_28 = load %v_27, 4: Int
+    %v_29 = cast %v_28: Long
+    %v_30 = cmp_eq %v_29, 0: Int
+    je %v_30, b_21, b_31
+  }
+
+  b_31 {
+    %v_32 = load %v_1, 8: Ptr
+    %v_33 = loads %v_32, 4: Int
+    %v_34 = cmp_ge 2, %v_29: Int
+    je %v_34, b_21, b_35
+  }
+
+  b_35 {
+    %v_36 = add %v_32, 8: Ptr
+    %v_37 = loads %v_36, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_38 = add %v_33, %v_37: Int
+    ret %v_38
+  }
+
+  b_21 {
+    %v_39 = syscall 60, 134: Long
     unreachable 
   }
 }

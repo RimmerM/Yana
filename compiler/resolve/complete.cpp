@@ -1,6 +1,8 @@
 #include "complete.h"
 #include "expr.h"
 #include "name.h"
+#include "solve.h"
+#include "generic.h"
 
 /*
  * What is in scope at the cursor, collected once - Implementation-Tooling.md §8.
@@ -254,14 +256,13 @@ static void collectVisible(Collector& into, Module& module) {
 /*
  * §8.1's third kind: what follows a `.`.
  *
- * The fields of the receiver, and only those. §8.1 also asks for every visible function whose first
- * parameter accepts the receiver - Yana's `x.f(y)` as `f(x, y)` - and that half is deliberately not
- * here: the resolver has no such rule (`resolveField` projects a field and nothing else), so every
- * name it added would complete to a program that does not compile. It belongs with the language
- * feature, not before it.
+ * The fields of the receiver, then every visible function a dot-call could reach - Yana's `x.f(y)`
+ * as `f(x, y)`. Both halves, now that the resolver has the rule; this comment used to say the
+ * second was deliberately absent, and the feature it was waiting for is `resolveDotCall`.
  *
  * A reference is followed one step, exactly as field selection follows one, so `p.` on a `&Point`
- * offers what `p.x` would have reached.
+ * offers what `p.x` would have reached - and, for the same step, what a function declaring `Point`
+ * would accept.
  */
 // The named fields of one tuple, as items belonging to `owner`. Shared by the two positions that
 // offer fields - after a `.`, and inside the braces of a construction - so that a field looks the
@@ -280,6 +281,200 @@ static void collectFields(Collector& into, Module& module, TypePtr owner, TypePt
     }
 }
 
+/*
+ * Whether a function declaring this first parameter would accept this receiver.
+ *
+ * Deliberately the same shape as `fitsExpected`, and deliberately no more than that: nothing here
+ * searches for a conversion, because a name whose first parameter merely *could* be converted to is
+ * how a ranked list becomes an unranked one. What it adds is the two things a receiver position has
+ * that an ordinary expected type does not.
+ *
+ * The first is that a type variable accepts anything. `fn twice(v: a, f: (a) -> a)` really is
+ * callable as `n.twice(f)` for every `n`, so offering it is the honest answer even though it makes
+ * every generic function a member of every type - which is what "universal" costs, and it is a cost
+ * in list length rather than in correctness.
+ *
+ * The second is that a reference is followed one step on each side, exactly as selection follows
+ * one: `p` of type `&Point` reaches `fn scaled(p: Point, k: Int)`, and a `&` parameter is declared
+ * at the type it borrows, so `stepped` is compared as well as the receiver itself.
+ */
+static bool bindsReceiver(ExprResolver& resolver, GenEnv* env, TypePtr parameter, TypePtr receiver,
+                          TypeList& bound) {
+    if(!parameter || !receiver) return false;
+
+    Solution solution;
+    Solver solver(resolver, solution, env ? env->types.size() : 0);
+
+    // `widen` is true for the same reason it is true of any argument: needing a conversion is part
+    // of fitting, and a receiver is an argument. The asymmetry solve.h describes is about results.
+    if(!solver.bind(parameter, receiver, true)) return false;
+
+    replaceContents(bound, solution.types);
+    return true;
+}
+
+/*
+ * Whether the constraints a generic signature carries hold for what binding the receiver decided.
+ *
+ * Binding says the *shape* fits; a constraint says the program implements what the body will ask
+ * for. `fn contains(xs: c, wanted: a)` binds `c` to any receiver at all and needs `Chunked(c, a)` to
+ * compile, so checking only the shape offers it after every `.` in the program - which is exactly
+ * the "completes to a program that does not compile" this list exists not to do.
+ *
+ * Both lists, and the second is the one that bites: `classes` is what the author wrote and
+ * `dispatched` is what the body turned out to need - see GenEnv - and a signature like `contains`
+ * declares nothing and requires something all the same.
+ *
+ * Two things are deliberately passed rather than failed. A constraint whose arguments the receiver
+ * left open is not judged, because nothing here decided them and the remaining arguments still can;
+ * that is the same one-directional reading `matchInstance`'s null protocol has. And an inferred
+ * requirement is only recorded once its function has been resolved, which a completion request does
+ * for the enclosing function alone - so a callee nothing has reached yet is over-offered rather than
+ * under-offered, which is the safe direction for a list the author reads and types past.
+ */
+static bool constraintsHold(Module& module, GenEnv* env, Buffer<TypePtr> bound) {
+    if(!env) return true;
+
+    auto global = *module.types;
+
+    auto holds = [&](ClassConstraint& constraint) {
+        TypeList args;
+        auto known = false;
+
+        for(auto declared: constraint.args.contents(global)) {
+            auto argument = substituteType(module, declared, bound, kNullLocation);
+            auto decided = argument && !isGeneric(global, argument);
+
+            known = known || decided;
+            args.push(decided ? argument : TypePtr(nullptr));
+        }
+
+        if(!known) return true;
+        return findInstance(module, constraint.typeClass, toBuffer(args)) != nullptr;
+    };
+
+    for(auto constraint: env->classes.contents(global)) {
+        if(!holds(constraint)) return false;
+    }
+
+    for(auto constraint: env->dispatched.contents(global)) {
+        if(!holds(constraint)) return false;
+    }
+
+    return true;
+}
+
+static bool acceptsReceiver(ExprResolver& resolver, Module& module, GenEnv* env, TypePtr parameter,
+                            TypePtr receiver, TypePtr stepped) {
+    TypeList bound;
+
+    if(bindsReceiver(resolver, env, parameter, receiver, bound) &&
+       constraintsHold(module, env, toBuffer(bound))) {
+        return true;
+    }
+
+    return bindsReceiver(resolver, env, parameter, stepped, bound) &&
+           constraintsHold(module, env, toBuffer(bound));
+}
+
+// The first parameter of a signature, or null where it declares none - a nullary function is not
+// something a receiver can be written to the left of.
+static TypePtr firstParameter(ModuleBase local, ModulePtr<Function> signature) {
+    if(!signature) return nullptr;
+
+    auto declaration = local[signature];
+    if(declaration->args.size() == 0) return nullptr;
+
+    return local[declaration->args.get(local, 0)]->declaredType();
+}
+
+/*
+ * §8.1's third kind, second half: every visible function a dot-call could reach.
+ *
+ * This is the half the comment above used to say was deliberately absent, and the condition it
+ * named has been met: `x.f(y)` is `f(x, y)` for every `f` a body can name, so a function whose first
+ * parameter accepts the receiver completes to a program that compiles.
+ *
+ * **Universal includes this module's private functions.** The import half of the visibility rule is
+ * asked of imports only - a `pub` a declaring module withheld, and a name an import list excluded -
+ * because a private function of *this* module is callable from this body, and the offer has to match
+ * what the resolver will accept rather than some narrower idea of what is polite.
+ *
+ * The class half is asked through `findInstance` rather than by matching the signature: a class
+ * function is reachable exactly when the program implements its class for the receiver, and the
+ * receiver is put in the position the first parameter names. A class whose first parameter is not
+ * one of its own variables is compared structurally like anything else.
+ */
+static void collectDotCallables(Collector& into, Module& module, TypePtr receiver, TypePtr stepped) {
+    auto global = *module.types;
+    auto& context = module.context;
+
+    forEachVisible(context, module, [&](const VisibleModule& visible) {
+        auto owner = visible.module;
+        auto local = *owner->arena;
+
+        // Nearer first, which is both the shadowing rule and the ranking - the same two ranks
+        // `collectVisible` uses, and one rung below the fields, which stay nearest of all.
+        auto rank = visible.import ? U8(RankImported) : U8(RankModule);
+
+        auto offer = [&](const Symbol& symbol, bool exported) {
+            if(visible.import && !exported) return;
+            if(visible.import && !Module::visible(*visible.import, symbol.name)) return;
+
+            into.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);
+        };
+
+        for(auto entry: owner->functions.entries()) {
+            // The same two exclusions collectVisible applies: a class function's signature is
+            // reached through its class, and an instance implementation has a synthesized name
+            // nothing can write.
+            auto function = local[entry.value];
+            if(function->signature || function->instanceOf) continue;
+
+            auto env = functionGen(global, *function);
+            if(!acceptsReceiver(into.resolver, module, env, firstParameter(local, entry.value),
+                                receiver, stepped)) continue;
+
+            offer(functionSymbol(*owner, entry.value), function->exported);
+        }
+
+        // A member is exported with its class, which is the same rule findClassFunctions applies.
+        for(auto& reference: owner->classFunctions) {
+            auto typeClass = global[reference.typeClass];
+            if(reference.index >= typeClass->functions.size()) continue;
+
+            auto entry = typeClass->functions.get(global, reference.index);
+            auto parameter = firstParameter(local, entry.fun);
+            if(!parameter) continue;
+
+            /*
+             * What binding the first parameter to the receiver decides about the class's own
+             * variables, and then whether the program implements the class for those.
+             *
+             * The solve is what puts the receiver in the right position - `fn each(self: c)` of
+             * `class Container(c, a)` binds `c` and leaves `a` open - and the open positions are
+             * passed to the instance table as nulls, which is `matchInstance`'s existing protocol
+             * for a class keyed on more parameters than the caller decides. Both halves are needed:
+             * a signature that fits with no instance is a name that would not compile here, which is
+             * exactly what this list must not offer.
+             */
+            auto env = typeClass->gen ? global[typeClass->gen] : nullptr;
+            TypeList bound;
+
+            if(!bindsReceiver(into.resolver, env, parameter, receiver, bound) &&
+               !bindsReceiver(into.resolver, env, parameter, stepped, bound)) {
+                continue;
+            }
+
+            if(!findInstance(module, reference.typeClass, toBuffer(bound))) continue;
+            if(!constraintsHold(module, env, toBuffer(bound))) continue;
+
+            offer(classFunSymbol(*owner, reference.typeClass, reference.index),
+                  exportedSymbol(*owner, reference.typeClass));
+        }
+    });
+}
+
 static void collectMembers(Collector& into, Module& module, TypePtr receiver) {
     auto global = *module.types;
     auto type = receiver;
@@ -288,21 +483,41 @@ static void collectMembers(Collector& into, Module& module, TypePtr receiver) {
     if(isPointer(global, type)) type = ((PtrType*)global[type])->to;
     else if(isBorrow(global, type)) type = ((BorrowType*)global[type])->to;
 
+    // What a `.` reaches through one reference, which both halves below need: the fields are the
+    // target's, and a function declaring the target's type accepts a reference to it.
+    auto stepped = type;
+
     auto owner = type;
     auto ownerSource = kNullLocation;
 
-    // A single-constructor record is what direct field selection reaches through, which is the same
-    // condition projectField applies - a multi-constructor one has to be matched on first, so it has
-    // no fields to offer under its own name.
+    /*
+     * A single-constructor record is what direct field selection reaches through, which is the same
+     * condition projectField applies - a multi-constructor one has to be matched on first, so it has
+     * no fields to offer under its own name.
+     *
+     * It no longer ends the answer, though. A multi-constructor receiver has no fields and every
+     * dot-call a single-constructor one has, so the functions are collected either way and only the
+     * fields are skipped - which is exactly what `s.nope(1)` on a `Shape` reports.
+     */
+    auto fields = true;
+
     if(type && global[type]->kind == Type::Record) {
         auto record = (RecordType*)global[type];
-        if(record->layout != RecordType::Single || record->constructors.size() == 0) return;
 
-        ownerSource = global[record->base(global)]->source;
-        type = record->constructors.get(global, 0).content;
+        if(record->layout != RecordType::Single || record->constructors.size() == 0) {
+            fields = false;
+        } else {
+            ownerSource = global[record->base(global)]->source;
+            type = record->constructors.get(global, 0).content;
+        }
     }
 
-    collectFields(into, module, owner, type, ownerSource, RankLocal);
+    // The fields first and nearest. A field is what the receiver *has*, and a dot-call is what the
+    // program can do to it - and where both answer to one name the field is what the resolver
+    // selects, so it is what the list has to put first. See resolveDotCall.
+    if(fields) collectFields(into, module, owner, type, ownerSource, RankLocal);
+
+    collectDotCallables(into, module, receiver, stepped);
 }
 
 /*

@@ -483,6 +483,17 @@ struct CallShape {
      */
     bool dispatches = true;
 
+    /*
+     * The type of a dot-call's receiver - null for every other call, and read by nothing but the
+     * diagnostic.
+     *
+     * "unknown function f" is the wrong thing to tell someone who wrote `x.f(y)`: they asked for two
+     * things, a field of `x` and a function taking one, and the message has to say that both were
+     * looked for. The type is carried rather than looked up again because this is the only place
+     * that still knows it - selection has long since finished with the arguments.
+     */
+    TypePtr receiver = nullptr;
+
     bool isLoop() const { return kind == ast::FunKind::Iter; }
 };
 
@@ -1133,6 +1144,19 @@ struct ExprResolver {
     ModulePtr<Value> resolvePrecedence(InfixChain& chain, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
+    /*
+     * A call by name, with or without a receiver written to the left of it - Design.md's dot-call
+     * form. `receiver` is null for an ordinary call and is argument 0 for `x.f(y)`; it is already
+     * resolved, because deciding the form required its type. See resolveDotCall.
+     */
+    ModulePtr<Value> resolveNamedCall(const ast::Expr& expr, StringId name, LocationId nameSource,
+                                      ModulePtr<Value> receiver, ast::ParseList<ast::TupArg> args_,
+                                      TypePtr target, bool convertResult);
+
+    // `x.f(y)`: the field of function type where the receiver has one, and `f(x, y)` otherwise.
+    ModulePtr<Value> resolveDotCall(const ast::Expr& expr, const ast::AppExpr& call,
+                                    const ast::FieldExpr& field, TypePtr target, bool convertResult);
+
     // One written argument, and what its absence means if it produces nothing. The two are one
     // question - see ResolvedArg - and the only thing that can separate a `{}` from a failure is
     // whether resolving it reported, which is why every call site that resolves an argument asks it
@@ -1209,6 +1233,11 @@ struct ExprResolver {
     // A call whose callee is a value rather than a name - a binding of function type, or any
     // expression at all in callee position. Null when the call is not one of those.
     ModulePtr<Value> resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
+
+    // The same call, over a callable that has already been produced - which is how the dot-call form
+    // reaches it, holding the field it read off the receiver.
+    ModulePtr<Value> callIndirect(ModulePtr<Value> callable, const ast::Expr& expr,
+                                  const ast::AppExpr& call, TypePtr target);
     /*
      * `nameSource` is where the callee's *name* was written, which is not `source`: `source` is the
      * whole call, and an editor asking about the name under the cursor needs the name.
@@ -1451,16 +1480,22 @@ struct ExprResolver {
     //
     // `mapping` is how the written arguments reach that callee's parameters, and is read only where
     // `callee` is - a named argument's expected type is the type of the parameter it names.
+    // `leading` is how many positions the caller already filled - 1 for a dot-call's receiver, which
+    // it pushed itself because it had to resolve it before the callee was known.
     void resolveHandedArguments(ModulePtr<Function> callee, const ArgMapping* mapping,
-                                ast::ParseList<ast::TupArg> arguments, ArgList& values);
+                                ast::ParseList<ast::TupArg> arguments, ArgList& values,
+                                Size leading = 0);
 
     // The name each written argument gave, or 0 - see ArgNames. One per position, in written order.
     void collectArgNames(ast::ParseList<ast::TupArg> arguments, ArgNames& out);
 
     // An editor's cursor at one of a call's arguments - see expr_call.cpp. True when it captured,
     // which ends the call: the sentinel names nothing for the resolving loop to resolve.
+    // `leading` is how many parameters the call site filled before the written list - 1 for a
+    // dot-call's receiver - since the mapping is indexed by position and not by writing order.
     bool captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
-                              const ArgMapping* pushdown, ModulePtr<Function> signature);
+                              const ArgMapping* pushdown, ModulePtr<Function> signature,
+                              Size leading = 0);
 
     /*
      * `x?` - Implementation-Semantics.md part 5's early exit.
@@ -1741,6 +1776,15 @@ struct ExprResolver {
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
     TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, ValueList& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
+
+    // The projection half of a field read, over a receiver already resolved. The dot-call form needs
+    // the receiver before it knows whether this is a field at all, and resolving is emission - see
+    // resolveDotCall.
+    ModulePtr<Value> fieldOf(ModulePtr<Value> value, const ast::Expr& expr, const ast::FieldExpr& field);
+
+    // Whether a receiver of this type has a field of this name - the same walk projectField performs,
+    // asked without reporting and without taking a place. What decides field-or-dot-call.
+    bool hasFieldNamed(TypePtr type, StringId field);
 
     // Whether the cursor is in a field-name position of this construction, and the completion
     // request was answered with its fields - Implementation-Tooling.md §8.1. False in every

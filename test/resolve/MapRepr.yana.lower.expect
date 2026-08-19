@@ -1151,38 +1151,37 @@ push(Entry(Int, Int))<complex>(%self: Ptr, %item: Ptr) {
   b_11 {
     call_complex growArray(Entry(Int, Int)), %self, %v_3
     %v_12 = load %v_4, 4: Long
-    %v_13 = imm 1073741823: Long
-    %v_14 = and %v_12, %v_13: Long
-    %v_15 = cast %v_14: Int
-    %v_16 = cast %v_15: Long
-    jmp b_17
+    %v_13 = and %v_12, 1073741823: Long
+    %v_14 = cast %v_13: Int
+    %v_15 = cast %v_14: Long
+    jmp b_16
   }
 
   b_10 {
-    jmp b_17
+    jmp b_16
   }
 
-  b_17 {
-    %v_18 = phi [b_10, %v_8], [b_11, %v_16]: Long
-    %v_19 = cmp_ige %count, %v_18: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = load %self, 8: Ptr
-    %v_23 = shl %count, 3: Long
-    %v_24 = add %v_22, %v_23: Ptr
-    copy %v_24, %item, 8
-    %v_25 = cast %v_3: Int
-    %v_26 = and %v_25, 1073741823: Int
-    %v_27 = cast %v_26: Int
-    %v_28 = add %self, 12: Ptr
-    store %v_28, %v_27, 4
-    ret 
+  b_16 {
+    %v_17 = phi [b_10, %v_8], [b_11, %v_15]: Long
+    %v_18 = cmp_ige %count, %v_17: Int
+    je %v_18, b_19, b_20
   }
 
   b_20 {
-    %v_29 = syscall 60, 134: Long
+    %v_21 = load %self, 8: Ptr
+    %v_22 = shl %count, 3: Long
+    %v_23 = add %v_21, %v_22: Ptr
+    copy %v_23, %item, 8
+    %v_24 = cast %v_3: Int
+    %v_25 = and %v_24, 1073741823: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = add %self, 12: Ptr
+    store %v_27, %v_26, 4
+    ret 
+  }
+
+  b_19 {
+    %v_28 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -1565,38 +1564,37 @@ push(Entry(String, Int))<complex>(%self: Ptr, %item: Ptr) {
   b_11 {
     call_complex growArray(Entry(String, Int)), %self, %v_3
     %v_12 = load %v_4, 4: Long
-    %v_13 = imm 1073741823: Long
-    %v_14 = and %v_12, %v_13: Long
-    %v_15 = cast %v_14: Int
-    %v_16 = cast %v_15: Long
-    jmp b_17
+    %v_13 = and %v_12, 1073741823: Long
+    %v_14 = cast %v_13: Int
+    %v_15 = cast %v_14: Long
+    jmp b_16
   }
 
   b_10 {
-    jmp b_17
+    jmp b_16
   }
 
-  b_17 {
-    %v_18 = phi [b_10, %v_8], [b_11, %v_16]: Long
-    %v_19 = cmp_ige %count, %v_18: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = load %self, 8: Ptr
-    %v_23 = imul %count, 24: Long
-    %v_24 = add %v_22, %v_23: Ptr
-    copy %v_24, %item, 20
-    %v_25 = cast %v_3: Int
-    %v_26 = and %v_25, 1073741823: Int
-    %v_27 = cast %v_26: Int
-    %v_28 = add %self, 12: Ptr
-    store %v_28, %v_27, 4
-    ret 
+  b_16 {
+    %v_17 = phi [b_10, %v_8], [b_11, %v_15]: Long
+    %v_18 = cmp_ige %count, %v_17: Int
+    je %v_18, b_19, b_20
   }
 
   b_20 {
-    %v_29 = syscall 60, 134: Long
+    %v_21 = load %self, 8: Ptr
+    %v_22 = imul %count, 24: Long
+    %v_23 = add %v_21, %v_22: Ptr
+    copy %v_23, %item, 20
+    %v_24 = cast %v_3: Int
+    %v_25 = and %v_24, 1073741823: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = add %self, 12: Ptr
+    store %v_27, %v_26, 4
+    ret 
+  }
+
+  b_19 {
+    %v_28 = syscall 60, 134: Long
     unreachable 
   }
 }

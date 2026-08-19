@@ -1,0 +1,425 @@
+let image$base: () = <none>
+
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$14(()) before ResolveTest.continuation$14(()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn scaled(%p: Point, %k: Int) -> Int {
+  b0:
+    %v2 = load %p@Point.x : Int
+    %v3 = mul %v2, %k : Int
+    %v4 = load %p@Point.y : Int
+    %v5 = add %v3, %v4 : Int
+    ret %v5
+}
+
+fn bump(%p: Point, %by: Int) -> () {
+  b0:
+    %v2 = load %p : Point
+    %v3 = load %p@Point.x : Int
+    %v4 = add %v3, %by : Int
+    assign %p@Point.x, %v4
+    ret
+}
+
+fn offset(%p: Point, %dx: Int, %dy: Int) -> Int {
+  b0:
+    %v3 = load %p@Point.x : Int
+    %v4 = add %v3, %dx : Int
+    %v5 = load %p@Point.y : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = add %v6, %dy : Int
+    ret %v7
+}
+
+fn applyTwice(%v: a, %f: (a) -> a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = calldyn %f, %v : a
+    %v3 = calldyn %f, %v2 : a
+    ret %v3
+}
+
+fn run(%s: Step, %x: Int) -> Int {
+  b0:
+    ret 1000
+}
+
+fn viaField(%s: Step, %x: Int) -> Int {
+  b0:
+    %v2 = load %s@Step.run : (Int) -> Int
+    %v3 = calldyn %v2, %x : Int
+    %v4 = load %s@Step.weight : Int
+    %v5 = mul %v3, %v4 : Int
+    ret %v5
+}
+
+fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v22 = alloc : Outcome((), $r)
+    init %local3.discriminant, 0
+    ret %v22
+
+  b3:
+    %v9 = load %i : Int
+    %v10 = calldyn %body, %v9 : Outcome((), $r)
+    %v11 = load %local2.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b4, b5
+
+  b4:
+    ret %v10
+
+  b5:
+    %v16 = load %i : Int
+    %v19 = add %v16, 1 : Int
+    assign %i, %v19
+    jmp b1
+}
+
+fn evens(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), Outcome((), $r))
+    #2 type {body: &(value$: Int) -> Outcome((), $r)}
+    #3 type (value$: Int) -> Outcome((), Outcome((), $r))
+    #4 type Outcome((), $r)
+  }
+
+  b0:
+    %v2 = alloc : {body: &(value$: Int) -> Outcome((), $r)}
+    %v3 = borrow %body : &(value$: Int) -> Outcome((), $r)
+    init %local1.body, %v3
+    %v5 = addressof %local1 : %()
+    %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), $r))
+    %v7 = symbol ResolveTest.continuation$14 : %()
+    init %local2.code, %v7
+    init %local2.env, %v5
+    %v10 = gencall upTo(Outcome((), $r)), %limit, %v6 : Outcome((), Outcome((), $r))
+    %v11 = load %local3.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = move %local3@Exit : Outcome((), $r)
+    ret %v15
+
+  b2:
+    %v17 = alloc : Outcome((), $r)
+    init %local4.discriminant, 0
+    ret %v17
+}
+
+fn main() -> Int {
+  b0:
+    %p = alloc : Point
+    aggregate %local0@Point.x = 3, %local0@Point.y = 4
+    %a = call scaled, %p, 2 : Int
+    %b = call offset, %p, 1, 10 : Int
+    %c = call offset, %p, 1, 7 : Int
+    %v13 = call scaled, %p, 2 : Int
+    %v14 = alloc : (Int) -> Int
+    %v15 = symbol ResolveTest.lambda$15 : %()
+    init %local1.code, %v15
+    %v18 = cast 0 : %()
+    init %local1.env, %v18
+    %d = call applyTwice(Int), %v13, %v14 : Int
+    %v21 = alloc : Point
+    aggregate %q@Point.x = 1, %q@Point.y = 1
+    %v25 = load %q : Point
+    %v27 = borrow_mut %q : &mut Point
+    call bump, %v27, 5
+    %step = alloc : Step
+    %v31 = alloc : (Int) -> Int
+    %v32 = symbol ResolveTest.lambda$16 : %()
+    init %local4.code, %v32
+    %v35 = cast 0 : %()
+    init %local4.env, %v35
+    aggregate %local3@Step.weight = 2, %local3@Step.run = %v31
+    %v38 = load %local3@Step.run : (Int) -> Int
+    %v40 = calldyn %v38, 6 : Int
+    %v41 = load %local3@Step.weight : Int
+    drop_derived %local3 via drop$Step reclaim reclaim$Step
+    %e = mul %v40, %v41 : Int
+    %f = call Describe(Point).describe, %p : Int
+    %sum = alloc : Int
+    init %sum, 0
+    %v48 = alloc : {sum: &mut Int}
+    %v49 = borrow_mut %sum : &mut Int
+    init %local6.sum, %v49
+    %v51 = addressof %local6 : %()
+    %v52 = alloc : (value$: Int) -> Outcome((), ())
+    %v53 = symbol ResolveTest.continuation$17 : %()
+    init %local7.code, %v53
+    init %local7.env, %v51
+    %v57 = call evens(()), 10, %v52 : Outcome((), ())
+    %v58 = add %a, %b : Int
+    %v59 = add %v58, %c : Int
+    %v60 = add %v59, %d : Int
+    %v61 = load %q : Point
+    %v62 = load %q@Point.x : Int
+    %v63 = add %v60, %v62 : Int
+    %v64 = add %v63, %e : Int
+    %v65 = add %v64, %f : Int
+    %v66 = load %sum : Int
+    %v67 = add %v65, %v66 : Int
+    ret %v67
+}
+
+fn Describe(Point).describe(%v: Point) -> Int {
+  b0:
+    %v1 = load %v@Point.x : Int
+    %v4 = mul %v1, 10 : Int
+    %v5 = load %v@Point.y : Int
+    %v6 = add %v4, %v5 : Int
+    ret %v6
+}
+
+fn ResolveTest.continuation$14(%env: %{body: &(value$: Int) -> Outcome((), $r)}, %value$: Int) -> Outcome((), Outcome((), $r)) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), Outcome((), $r))
+    #2 type {body: &(value$: Int) -> Outcome((), $r)}
+    #3 type (value$: Int) -> Outcome((), Outcome((), $r))
+    #4 type Outcome((), $r)
+  }
+
+  b0:
+    %v4 = rem %value$, 2 : Int
+    %v7 = cmp_eq %v4, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = load [%env].body : &(value$: Int) -> Outcome((), $r)
+    %v10 = load [%v9] : (value$: Int) -> Outcome((), $r)
+    %v11 = calldyn %v10, %value$ : Outcome((), $r)
+    %v12 = load %local0.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b4
+
+  b2:
+    jmp b5
+
+  b3:
+    %v22 = alloc : Outcome((), Outcome((), $r))
+    init %local2.discriminant, 1
+    init %local2@Exit, %v11
+    ret %v22
+
+  b4:
+    jmp b5
+
+  b5:
+    %v18 = alloc : Outcome((), Outcome((), $r))
+    init %local1.discriminant, 0
+    ret %v18
+}
+
+fn ResolveTest.lambda$15(%env: %{}, %v: Int) -> Int {
+  b0:
+    %v4 = add %v, 1 : Int
+    ret %v4
+}
+
+fn applyTwice(Int)(%v: Int, %f: (Int) -> Int) -> Int {
+  b0:
+    %v2 = calldyn %f, %v : Int
+    %v3 = calldyn %f, %v2 : Int
+    ret %v3
+}
+
+fn ResolveTest.lambda$16(%env: %{}, %x: Int) -> Int {
+  b0:
+    %v4 = sub %x, 1 : Int
+    ret %v4
+}
+
+fn ResolveTest.continuation$17(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].sum : &mut Int
+    %v3 = load [%env].sum : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value$ : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn evens(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = alloc : {body: &(value$: Int) -> Outcome((), ())}
+    %v3 = borrow %body : &(value$: Int) -> Outcome((), ())
+    init %local1.body, %v3
+    %v5 = addressof %local1 : %()
+    %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
+    %v7 = symbol ResolveTest.continuation$14(()) : %()
+    init %local2.code, %v7
+    init %local2.env, %v5
+    %v10 = call upTo(Outcome((), ())), %limit, %v6 : Outcome((), Outcome((), ()))
+    %v11 = load %local3.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = move %local3@Exit : Outcome((), ())
+    ret %v15
+
+  b2:
+    %v17 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v17
+}
+
+fn ResolveTest.continuation$14(())(%env: %{body: &(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v3 = rem %value$, 2 : Int
+    %v5 = cmp_eq %v3, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v8 = load [%v7] : (value$: Int) -> Outcome((), ())
+    %v9 = calldyn %v8, %value$ : Outcome((), ())
+    %v10 = load %local0.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b3, b4
+
+  b2:
+    jmp b5
+
+  b3:
+    %v15 = alloc : Outcome((), Outcome((), ()))
+    init %local2.discriminant, 1
+    init %local2@Exit, %v9
+    ret %v15
+
+  b4:
+    jmp b5
+
+  b5:
+    %v21 = alloc : Outcome((), Outcome((), ()))
+    init %local1.discriminant, 0
+    ret %v21
+}
+
+fn upTo(Outcome((), ()))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), Outcome((), ()))
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), Outcome((), ()))
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn drop$Step(%value: Step) -> () {
+  b0:
+    drop_derived %value@Step.run via drop$(Int) -> Int
+    ret
+}
+
+fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %()
+    %v11 = tableslot : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$Step(%value: Step) -> () {
+  b0:
+    drop_derived %value@Step.run reclaim reclaim$(Int) -> Int
+    ret
+}
+
+fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %()
+    %v11 = tableslot : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}

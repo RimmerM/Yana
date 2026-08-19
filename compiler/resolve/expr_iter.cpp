@@ -12,6 +12,7 @@
 #include "generic.h"
 #include "name.h"
 #include "witness.h"
+#include "complete.h"
 
 /*
  * Which iterator a `for` loop names, or nothing after saying why this one cannot be named.
@@ -37,7 +38,73 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     auto& application = *parse[source.app];
     auto& calleeExpr = unwrapNested(application.callee);
 
-    if(calleeExpr.kind != ast::Expr::Var || findBinding(calleeExpr.var)) {
+    /*
+     * Which name the loop reaches its iterator by, and what it wrote to the left of it.
+     *
+     * Two spellings reach the same rule: `f(as)` names the iterator directly, and `x.f(as)` is
+     * Design.md's dot-call form, which is `f(x, as)` and therefore just as much a named `iter fn`.
+     * The receiver becomes argument 0 exactly as it does in an ordinary call - see resolveDotCall,
+     * whose choice this repeats, and which is why the field half is asked first here too.
+     *
+     * This is what `xs.filtered(p)` needs, and it is worth being precise about which half of the
+     * old rejection it removes: a *single stage* is now an ordinary named call and works. A chain -
+     * `xs.filter(p).map(f)` - still does not, because its outer receiver is an iterator travelling
+     * as a value, which is the erased callback ABI and is unaffected by anything here. The test
+     * below now says which of the two was written rather than reporting the second reason for both.
+     */
+    // Braced: `StringId name;` is uninitialized - see diagnostics.h. The empty one is what `!name`
+    // below tests, and an optimized build is where reading the other kind crashes.
+    StringId name {};
+    LocationId nameSource = kNullLocation;
+    ModulePtr<Value> receiver = nullptr;
+
+    if(calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var)) {
+        name = calleeExpr.var;
+        nameSource = calleeExpr.source;
+    } else if(calleeExpr.kind == ast::Expr::Field) {
+        auto& field = *parse[calleeExpr.field];
+        auto& selected = field.field;
+
+        /*
+         * Whether an iterator of this name exists at all, asked *before* the receiver is resolved
+         * and with no occurrence recorded.
+         *
+         * The order is the whole point. `upTo(n).twice()` names nothing, and resolving its receiver
+         * to find that out reports "upTo is an iterator, so this call has no body - write it as the
+         * source of a `for` loop", which is precisely what the author did write. So the name is
+         * asked first: no iterator of it means this was never a dot-call, the receiver is left
+         * alone, and the adaptor-chain message below is the one that stands.
+         */
+        auto iteratorNamed = [&](StringId candidate) {
+            auto plain = findFunction(module, candidate, selected.source, kNullLocation);
+            if(plain && local[plain]->funKind == ast::FunKind::Iter) return true;
+
+            ClassFunList found;
+            findClassFunctions(module, candidate, selected.source, found);
+
+            for(auto& entry: found) {
+                auto declared = global[entry.typeClass]->functions.get(global, entry.index);
+                if(declared.fun && local[declared.fun]->funKind == ast::FunKind::Iter) return true;
+            }
+
+            return false;
+        };
+
+        if(selected.kind == ast::Expr::Var && !isCursorSentinel(context, selected.var) &&
+           iteratorNamed(selected.var)) {
+            receiver = resolve(field.target);
+            if(!receiver || global[valueType(receiver)]->kind == Type::Error) return nullptr;
+
+            // A field of function type is a value, and a value is the case below. Only a name that
+            // is *not* a field of the receiver is the dot-call form.
+            if(!hasFieldNamed(valueType(receiver), selected.var)) {
+                name = selected.var;
+                nameSource = selected.source;
+            }
+        }
+    }
+
+    if(!name) {
         // `xs.filter(p).map(f)` lands here, since the callee of the outer call is not a name: an
         // adaptor takes the iterator it wraps as an argument, and passing one needs the erased
         // callback ABI - a function value says nothing about which of its arguments is the
@@ -46,6 +113,8 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
                                   loop.from.source);
         return nullptr;
     }
+
+    auto leading = receiver ? Size(1) : Size(0);
 
     /*
      * The overload set, and one selection over it - Design.md's R5, run by the same function an
@@ -63,12 +132,16 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     shape.kind = ast::FunKind::Iter;
     shape.requiresKind = true;
     shape.supplied = 1;
+    if(receiver) shape.receiver = valueType(receiver);
 
+    // The receiver's own entry is empty, because a receiver is positional by construction - it is
+    // written to the left of the name and there is nowhere to put one. See resolveNamedCall.
     ArgNames names;
-    collectArgNames(application.args, names);
+    if(leading) names.push(StringId());
+    for(auto arg: application.args.contents(parse)) names.push(arg.name);
 
     OverloadSet set;
-    gatherOverloads(calleeExpr.var, application.args.size(), source.source, calleeExpr.source, set, shape,
+    gatherOverloads(name, application.args.size() + leading, source.source, nameSource, set, shape,
                     toBuffer(names));
 
     /*
@@ -81,15 +154,17 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     ArgMapping mapping;
     const ArgMapping* pushdownMapping = nullptr;
 
-    if(pushdown && mapArguments(pushdown, toBuffer(names), application.args.size(),
+    if(pushdown && mapArguments(pushdown, toBuffer(names), application.args.size() + leading,
                                 pushdown == set.direct ? shape.supplied : 0, set.name, source.source,
                                 false, mapping)) {
         pushdownMapping = &mapping;
     }
 
     // Resolved once, whichever half serves the loop - resolving is emission, so there is no
-    // resolving a second time and no discarding the first.
-    resolveHandedArguments(pushdown, pushdownMapping, application.args, values);
+    // resolving a second time and no discarding the first. The receiver is already resolved, and is
+    // pushed here rather than by `resolveHandedArguments` for exactly that reason.
+    if(leading) values.push(receiver);
+    resolveHandedArguments(pushdown, pushdownMapping, application.args, values, leading);
     if(anyArgumentFailed(toBuffer(values))) return nullptr;
 
     ResolvedCallee selected;

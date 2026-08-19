@@ -1,0 +1,127 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = fun ResolveTest.lambda$15: Ptr
+    %v_2 = bitcast 0: Ptr
+    %v_3 = call_complex %v_1, %v_2, 10: Int
+    %v_4 = call_complex %v_1, %v_2, %v_3: Int
+    %step = alloca 20, 8: Ptr
+    %v_5 = bitcast 0: Ptr
+    %v_6 = add %step, 16: Ptr
+    store %v_6, 2, 4
+    store %step, ResolveTest.lambda$16, 8
+    %v_7 = add %step, 8: Ptr
+    store %v_7, %v_5, 8
+    %v_8 = load %step, 8: Ptr
+    %v_9 = call_complex %v_8, %v_5, 6: Int
+    call_complex drop$(Int) -> Int, %step
+    call_complex reclaim$(Int) -> Int, %step
+    %e = shl %v_9, 1: Int
+    jmp b_10
+  }
+
+  b_11 {
+    %v_12 = cmp_ilt %v_13, 10: Int
+    je %v_12, b_10, b_14
+  }
+
+  b_14 {
+    %v_15 = add %v_4, 49: Int
+    %v_16 = add %v_15, %e: Int
+    %v_17 = add %v_16, 34: Int
+    %v_18 = add %v_17, %v_19: Int
+    ret %v_18
+  }
+
+  b_10 {
+    %v_20 = phi [b_11, %v_19], [b_0, 0]: Int
+    %v_21 = phi [b_11, %v_13], [b_0, 0]: Int
+    %v_22 = sar %v_21, 31: Int
+    %v_23 = shr %v_22, 31: Int
+    %v_24 = add %v_21, %v_23: Int
+    %v_25 = and %v_24, 4294967294: Int
+    %v_26 = sub %v_21, %v_25: Int
+    %v_27 = cmp_eq %v_26, 0: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = add %v_20, %v_21: Int
+    jmp b_29
+  }
+
+  b_29 {
+    %v_19 = phi [b_10, %v_20], [b_28, %v_30]: Int
+    %v_13 = add %v_21, 1: Int
+    jmp b_11
+  }
+}
+
+ResolveTest.lambda$15<complex>(%env: Ptr, %v: Int): Int {
+  b_0 {
+    %v_1 = add %v, 1: Int
+    ret %v_1
+  }
+}
+
+ResolveTest.lambda$16<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = sub %x, 1: Int
+    ret %v_1
+  }
+}
+
+drop$(Int) -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 8: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_12 = sext %v_11: Long
+    %v_13 = add %v_12, @image$base: Ptr
+    call_complex %v_13, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+reclaim$(Int) -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 8: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = sext %v_12: Long
+    %v_14 = add %v_13, @image$base: Ptr
+    call_complex %v_14, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+

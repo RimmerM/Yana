@@ -1,0 +1,96 @@
+-- `x.f(y)` as `f(x, y)` - Design.md's dot-call form.
+--
+-- Universal, and that means universal: what a body can call, a body can call with a dot. There is
+-- no `impl` block and no per-type namespace, and it costs nothing in ambiguity to say so - a plain
+-- function does not overload, so `findFunction` has at most one answer and two visible ones are
+-- already an ambiguity at every call site that names them, dot or not. See Design.md's R1.
+--
+-- The receiver is argument 0 and is an argument in every other respect: a `&` parameter borrows it,
+-- a `->` parameter consumes it, a default is still a default and a named argument still names the
+-- parameter it names. What it does not get is pushdown, because its type is what decided that this
+-- was a dot-call rather than a field - see resolveDotCall.
+
+data Point {x: Int, y: Int}
+
+fn scaled(p: Point, k: Int) -> Int = p.x * k + p.y
+
+-- A `&` receiver. The borrow is the ordinary argument convention, taken off the place the receiver
+-- already had rather than off a copy of it.
+fn bump(&p: Point, by: Int) -> {}:
+    p.x = p.x + by
+
+-- Defaults and names, which the dot form reaches because the receiver occupies position 0 of the
+-- same mapping every other call uses.
+fn offset(p: Point, dx: Int = 1, dy: Int = 10) -> Int = p.x + dx + p.y + dy
+
+-- A generic first parameter accepts any receiver, which is what makes every such function a member
+-- of every type.
+fn applyTwice(v: a, f: (a) -> a) -> a = f(f(v))
+
+-- The field wins. `Step` has a field called `run`, and this function is called `run` too - so
+-- `s.run(x)` is the field, exactly as it was before the dot form existed. A record shadowing a
+-- function for its own type is the same shape as a local binding shadowing a declaration, and is
+-- resolved the same way: by asking the nearer thing first.
+data Step {weight: Int, run: (Int) -> Int}
+
+fn run(s: Step, x: Int) -> Int = 1000
+
+fn viaField(s: Step, x: Int) -> Int = s.run(x) * s.weight
+
+-- A class function is reached by the same lookup an ordinary call uses, so the dot form finds it
+-- with nothing added - and R4's qualification is available here too, since `Integral.and` is one
+-- name to the lexer rather than a field of a name.
+class Describe(a):
+    fn describe(v: a) -> Int
+
+instance Describe(Point):
+    fn describe(v: Point) -> Int = v.x * 10 + v.y
+
+-- An `iter fn` named through the dot form is a named iterator like any other, which is what a `for`
+-- loop needs. A single stage, not a chain: `xs.filter(p).map(f)` still needs the erased callback
+-- ABI, because its outer receiver is an iterator travelling as a value.
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+iter fn evens(limit: Int) -> Int:
+    for x in upTo(limit):
+        if x % 2 == 0: yield x
+
+fn main() -> Int:
+    let p = Point {x: 3, y: 4}
+
+    -- 3 * 2 + 4 = 10
+    let a = p.scaled(2)
+
+    -- 3 + 1 + 4 + 10 = 18
+    let b = p.offset()
+
+    -- 3 + 1 + 4 + 7 = 15
+    let c = p.offset(dy: 7)
+
+    -- The receiver of a chain is what the step before it produced, so this is scaled(p, 2) handed
+    -- to applyTwice - 10 + 1 + 1 = 12.
+    let d = p.scaled(2).applyTwice((v: Int) -> v + 1)
+
+    let &q = Point {x: 1, y: 1}
+    q.bump(5)
+
+    let step = Step {weight: 2, run: (x) -> x - 1}
+
+    -- The field, so 5 rather than 1000.
+    let e = step.run(6) * step.weight
+
+    -- 3 * 10 + 4 = 34
+    let f = p.describe()
+
+    let &sum = 0 :: Int
+    for x in 10.evens():
+        sum = sum + x
+
+    -- 10 + 18 + 15 + 12 + 6 + 10 + 34 + 20 = 125. Under 256 deliberately: `main`'s result is an
+    -- exit code, so a fixture that runs has to fit in eight bits to be compared at all.
+    return a + b + c + d + q.x + e + f + sum

@@ -273,6 +273,23 @@ void unlink(LowerBase base, LowerBlock* from, LowerInst* inst) {
     assertTrue(false); // the instruction was not in the block it says it is in
 }
 
+/*
+ * And the other half of the move: onto the end of the arm's list, above the terminator that is held
+ * beside it.
+ *
+ * By hand rather than through `addInst`, and that is the whole of the difference between the two.
+ * `addInst` registers every operand as a *new* read, which is right for an instruction being created
+ * and wrong for one being moved: these operands already name this instruction, `setOperand` above
+ * having kept each use list right as it replaced them one at a time. Going through `addInst` leaves
+ * every one of them naming it twice - a use list with more entries than there are readers, which is
+ * what `verifyTransformInvariants` in the x64 backend counts and rejects. See the same argument, and
+ * the same by-hand move, in `foldIntoPredecessor`.
+ */
+void relink(LowerBase base, Region<LowerRegion>& arena, LowerBlock* to, LowerInst* inst) {
+    inst->block = to - base;
+    to->instructions.push(arena, inst - base);
+}
+
 bool recoverJoin(LowerBase base, LowerModule& module, LowerBlock* join) {
     Diamond shape;
     if(!findDiamond(base, join, shape)) return false;
@@ -395,8 +412,7 @@ bool recoverJoin(LowerBase base, LowerModule& module, LowerBlock* join) {
         }
 
         unlink(base, join, inst);
-        inst->block = nullptr;
-        shape.dirty->addInst(base, inst);
+        relink(base, module.arena, shape.dirty, inst);
 
         subst.entries.push(Recovered { &phi->result - base, kept - base, moved - base });
         changed = true;
