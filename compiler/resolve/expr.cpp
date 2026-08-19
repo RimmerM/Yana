@@ -989,6 +989,14 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
                                expr.source, false);
             }
 
+            // A map literal, for the same reason and with one more of it: `[:]` says nothing at all
+            // about what it holds, so an ascription that arrived after the fact would have had
+            // nothing to build. See resolveMap.
+            if(coerce.target.kind == ast::Expr::Map) {
+                return convert(resolveMap(coerce.target, coerce.target.map, type), type,
+                               expr.source, false);
+            }
+
             // A lambda has no type of its own either: its argument types and its result are read
             // off the position it appears in, and `::` is what supplies one where nothing else
             // does. Through the parentheses, because `::` binds looser than the lambda arrow and
@@ -1095,6 +1103,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         }
         case ast::Expr::Array:
             return resolveArray(expr, expr.arr, target);
+        case ast::Expr::Map:
+            return resolveMap(expr, expr.map, target);
         case ast::Expr::Format:
             return resolveFormat(expr);
         case ast::Expr::Sub: {

@@ -1,0 +1,105 @@
+{-
+   A map literal whose keys and values own storage - Implementation-Map.md §7, the half `MapString`
+   is to `Map`.
+
+   `MapLiteral.yana` asserts what the literal builds; this asserts what it *hands over*. Every entry
+   of `[k1: v1, k2: v2]` is a value the frame constructed and the map then owns, so a literal is n
+   handovers followed by a map with a teardown - and a handover that did not happen and one that
+   happened twice both produce IR that looks right. What separates them is a counter read where the
+   placement decides the answer, which is this file.
+
+   Five things, each failing on its own:
+
+    - **Every entry the literal was given is released exactly once**, when the map it went into
+      dies - not at the literal, where the frame still holds them, and not twice.
+    - **A key that owns its bytes reaches the map.** `insertAt` takes its key with `->` for exactly
+      this reason: a lookup only reads the key it probes with, but an insert that misses *stores*
+      it, and borrowed storage cannot outlive the call. Written as a read this was a diagnostic
+      inside Collections rather than at the assignment, and it was invisible for every key a copy
+      answers for - `m[1] = 2` compiled and `m["a"] = 2` did not.
+    - **Two equal keys in one literal release the loser.** The later entry wins, so the earlier
+      value is displaced and dies with the `Maybe` that carried it out - which is `insert`'s existing
+      rule reached through the literal.
+    - **`m[k] = v` over a key the map already holds** releases the value it replaced, and over an
+      absent one releases nothing.
+    - **An empty literal owns nothing and still tears down**, which is the case with no entries to
+      get wrong and the one a leak would hide in.
+
+   Both targets: the counts are the map's promise rather than either platform's.
+-}
+
+let &live = 0 :: Int
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held) -> {}:
+        live = live - 1
+
+fn hold(n: Int) -> Held:
+    live = live + 1
+    return Held {n: n}
+
+-- A key that owns its bytes: a fresh run per call rather than a literal's borrowed one.
+fn key(n: Int) -> String:
+    let &s = newStringOfCapacity(16 :: Size)
+    pushString(s, "k-")
+    show(n, s)
+    return s
+
+fn take(m: Map(String, Held)) -> Int = 0
+
+fn main() -> Int:
+    {-
+       Three entries built by hand and handed over. `live` is three inside the scope and the map
+       still holds three, which is what a handover that never happened would fail: the frame would
+       have released all three at the literal and the map would be reading storage it does not own.
+    -}
+    let &m = [key(1): hold(1), key(2): hold(2), key(3): hold(3)]
+    if (truncate(length(m)) :: Int) != 3 then return 0 - 1
+    if live != 3 then return 0 - 2
+
+    match find(m, key(2)):
+        Just(h) -> if h.n != 2 then return 0 - 3
+        Nothing -> return 0 - 4
+
+    -- An absent key inserts and releases nothing.
+    m[key(4)] = hold(4)
+    if (truncate(length(m)) :: Int) != 4 then return 0 - 5
+    if live != 4 then return 0 - 6
+
+    -- A present one replaces, and the value it displaced dies with the `Maybe` that carried it out
+    -- of `insert` - so the count comes back down and the map does not grow.
+    m[key(4)] = hold(40)
+    if (truncate(length(m)) :: Int) != 4 then return 0 - 7
+    if live != 4 then return 0 - 8
+    if m[key(4)].n != 40 then return 0 - 9
+
+    {-
+       The same rule inside one literal. Two equal keys are one entry, so the first value is
+       displaced by the second and released at the insert that displaced it - three entries written,
+       two alive, two held.
+    -}
+    let &dup = [key(9): hold(9), key(8): hold(8), key(9): hold(90)]
+    if (truncate(length(dup)) :: Int) != 2 then return 0 - 10
+    if live != 6 then return 0 - 11
+    if dup[key(9)].n != 90 then return 0 - 12
+
+    -- An empty literal owns nothing, and is a map rather than a value that only type-checks.
+    let &none = [:] :: [String: Held]
+    if (truncate(length(none)) :: Int) != 0 then return 0 - 13
+    if live != 6 then return 0 - 14
+
+    none[key(0)] = hold(0)
+    if live != 7 then return 0 - 15
+
+    {-
+       And the teardown, which is the only assertion here that cannot be made from inside the scope:
+       `take` is what gives each map a use after the read above, so nothing was released early, and
+       the count afterwards is what says every entry died exactly once. Seven live before, zero
+       after, and a map that leaked and a map that released twice answer differently from both.
+    -}
+    let inside = live
+    let held = take(m) + take(dup) + take(none)
+
+    return inside * 10 + live + held + 1

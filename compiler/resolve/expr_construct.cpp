@@ -2146,6 +2146,155 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
 }
 
 /*
+ * `[k1: v1, k2: v2]` and `[:]` - Implementation-Map.md §7.
+ *
+ * Not built in place the way an array literal is, and the difference is the whole reason this
+ * function is short: an array's elements are its representation, so the literal writes the run
+ * itself; a map's are an insertion order, a probe and an index, none of which the resolver knows
+ * about. So the literal is `newMap(n)` and `n` inserts, which is what §7 specifies, and what the
+ * map's own code does with them stays the map's business.
+ *
+ * The sizing is the one thing that *is* this function's business. A literal is the single
+ * construction site where the entry count is a compile-time constant, so it goes in at
+ * `newMap(n)` - worth 1.8-2.2x over the life of a small map (§4.5) - and no insert here ever
+ * reaches the growth path.
+ */
+ModulePtr<Value> ExprResolver::resolveMap(const ast::Expr& expr, ast::ParseList<ast::MapArg> entries,
+                                          TypePtr target) {
+    auto source = expr.source;
+
+    if(!module.program.mapType) {
+        context.diagnostics.error("maps are not available in this module"_v, source);
+        return nullptr;
+    }
+
+    // The expected type decides both argument types where there is one, so that `[:] :: [Int: Int]`
+    // and a literal in an argument position work; otherwise the first entry decides and the rest are
+    // converted to it. Exactly `resolveArray`'s rule, with two types instead of one.
+    TypePtr key = nullptr;
+    TypePtr value = nullptr;
+    auto expected = mapKeyValue(module, target, key, value);
+
+    struct Pair {
+        ModulePtr<Value> key = nullptr;
+        ModulePtr<Value> value = nullptr;
+    };
+
+    SmallArray<Pair, 8> pairs;
+
+    /*
+     * Every entry resolved before the map is made, which is `resolveFormat`'s ordering and is here
+     * for the first of its two reasons: the written expressions run left to right exactly once, and
+     * the first pair is also what says what the map holds when nothing else does. The temporaries
+     * stay live across the `newMap` call and are handed over one at a time below.
+     */
+    for(auto entry: entries.contents(parse)) {
+        Pair pair;
+
+        /*
+         * Converted here rather than left to `insertAt`, which is what makes a mixed literal say
+         * what is wrong with it. The member is selected by an instance over three types, so an entry
+         * at the wrong one reports "no instance of IndexInsert for (Map(Int, Int), String, Int)" -
+         * a class nobody wrote and a triple nobody spelled - where the array literal, which converts
+         * every element into the run, says "cannot convert String to Int". The first entry is the
+         * one that needs no conversion, because it is what settled the type.
+         */
+        pair.key = resolve(entry.key, key);
+        if(!pair.key) return nullptr;
+
+        if(key) pair.key = convert(pair.key, key, entry.key.source);
+        else key = settleType(valueType(pair.key));
+        if(!pair.key) return nullptr;
+
+        pair.value = resolve(entry.value, value);
+        if(!pair.value) return nullptr;
+
+        if(value) pair.value = convert(pair.value, value, entry.value.source);
+        else value = settleType(valueType(pair.value));
+        if(!pair.value) return nullptr;
+
+        pairs.push(pair);
+    }
+
+    if(!key || !value) {
+        context.diagnostics.error("cannot tell what this empty map holds - give it an expected type"_v, source);
+        return nullptr;
+    }
+
+    TypePtr args[] = { key, value };
+    auto mapType = expected ? target : instantiateRecord(module, module.program.mapType, { args, 2 }, source);
+    if(!mapType || global[mapType]->kind != Type::Record) return nullptr;
+
+    /*
+     * The map itself, at the literal's own count - see above.
+     *
+     * `newMap` says nothing about `k` and `v` in its arguments, so the result type is the only thing
+     * that decides them and it is passed as the call's target. That is the same way `Nothing ::
+     * Maybe(%U8)` picks its instantiation, and it is why an empty literal with no expected type is
+     * refused above rather than here: there would be nothing to hand over.
+     */
+    auto count = makeInt(source, module.scalar.size, pairs.size());
+    ResolvedArg made[] = { count };
+
+    auto created = emitCall(context.addUnqualifiedName("newMap", 6), { made, 1 }, source, mapType);
+    if(!created) return nullptr;
+
+    /*
+     * The map's own storage, and a `Ref` one - `resolveFormat`'s sink, and it is a Ref for that
+     * function's first reason: `insertAt` takes a `&`, and a borrow is writable only where the place
+     * under it is, which a call result's own local is not. The copy is a temporary's, so the
+     * optimizer removes it wherever the storage can be adopted - the emitted JS is `newMap(3)` into
+     * one variable and three inserts against it.
+     */
+    auto storage = allocate(mapType, source, StringId(), ast::BindType::Ref);
+    if(!storage) return nullptr;
+
+    initialize(placeFor(storage, source), created, source);
+
+    /*
+     * The inserts, in written order.
+     *
+     * Through `insertAt` rather than `insert`, which is the same member `m[k] = v` reaches and is
+     * the one of the two that answers `{}`: `insert` hands back the value it replaced, and a literal
+     * that discarded a `Maybe(v)` per entry would be dropping a value at every one of them. Two keys
+     * that are equal is therefore the assignment's rule and not a new one - the later entry wins.
+     */
+    auto insertAt = context.addUnqualifiedName("insertAt", 8);
+    for(auto& pair: pairs) {
+        /*
+         * The receiver is a *read of the place*, which is what resolving a variable produces and is
+         * what `m[k] = v` hands the same member one function below. Not the allocation itself, and
+         * the difference only shows in a generic body.
+         *
+         * A generic body defers the call, so `cloneGenCall` re-runs the argument conversion at
+         * instantiation - and it runs it after the local table has been *copied* but before the
+         * values that back its slots are filled in, which happens once every instruction is cloned.
+         * `findPlace` of a cloned allocation therefore answers nothing, and the map literal was
+         * refused with "a `&` argument must name storage that can be written back to" - a message
+         * about a `&` the program did not write, inside a body whose concrete twin compiles. A
+         * `LoadPlace` carries its place in the instruction, so it clones into an answer rather than
+         * a lookup. The read itself is dead and both the optimizer and `dropUnusedRead` know it.
+         */
+        ResolvedArg inserted[] = { load(placeFor(storage, source), source), pair.key, pair.value };
+        if(!emitCall(insertAt, { inserted, 3 }, source)) return nullptr;
+    }
+
+    /*
+     * The storage itself, which is what an array literal answers and is **not** what `resolveFormat`
+     * answers - and the difference is worth the sentence, because the sink above is that function's.
+     *
+     * A load is a read of a place, and a read of a place holding a value with a teardown is a copy
+     * unless something marks the local moved - so a literal that departed as one was refused
+     * wherever the destination is an aggregate operand rather than a binding: a field of a
+     * construction, and a global. Both are ordinary places to write a map literal, and both are
+     * where a format string is still refused today for exactly this reason. Handing back the
+     * allocation makes the literal an owned temporary, which is the same thing `[1, 2, 3]` hands
+     * back one function above.
+     */
+    return storage;
+}
+
+/*
  * `xs[i]`.
  *
  * Sugar for the accessor, in both directions: a read is `get`, and an assignment target is

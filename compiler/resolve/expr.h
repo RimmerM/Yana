@@ -1716,6 +1716,11 @@ struct ExprResolver {
     // Collections rather than anything the IR knows about - see expr_construct.cpp.
     ModulePtr<Value> resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items, TypePtr target);
 
+    // `[k1: v1]` and `[:]` - Implementation-Map.md §7's `newMap(n)` plus n inserts. Like the array
+    // literal it is calls into Collections rather than anything the IR knows about, and unlike it
+    // the container's representation stays the library's - see expr_construct.cpp.
+    ModulePtr<Value> resolveMap(const ast::Expr& expr, ast::ParseList<ast::MapArg> entries, TypePtr target);
+
     // The same literal where the expected type is a `[T *n]` - Implementation-Containers.md §8.
     // `target` is known to be one; the length is checked against it rather than inferred.
     ModulePtr<Value> resolveFixedArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,

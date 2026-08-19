@@ -1,0 +1,175 @@
+{-
+   The map literal - Implementation-Map.md §7 - and the two bracket spellings that come with it.
+
+   `[k1: v1, k2: v2]` builds through `newMap(n)` and n inserts, and `[K: V]` is `Map(K, V)` written
+   the way the literal is. Neither is a representation the compiler knows: a literal is calls into
+   Collections, so what is asserted here is that the calls are the right ones and are made in the
+   right order, and the layout stays `MapRepr.yana`'s business.
+
+   Ten things, each of which fails on its own:
+
+    - **A literal with an expected type, and one without.** The expected type decides both argument
+      types where there is one; otherwise the first entry decides and the rest convert to it. That
+      is `resolveArray`'s rule with two types instead of one, and the empty literal is where the two
+      halves separate - `[:]` says nothing at all, so it is the one form that *needs* the context.
+    - **The empty literal is a usable map**, not a value that only type-checks. Inserting into one
+      and reading it back is the whole of that difference.
+    - **`m[k]`, and `m[k] = v` over both an absent key and a present one.** The absent one inserts,
+      which is what `IndexInsert` exists for; the present one replaces and does not grow the map.
+    - **Two equal keys in one literal are one entry, and the later wins.** The literal's inserts are
+      the assignment's rule applied n times rather than a rule of its own.
+    - **A literal past the scan threshold.** Twelve `Int` keys where eight is where an index starts,
+      so the sized construction of §4.5 builds the index at `newMap` rather than growing into it -
+      and every key still finds its own value afterwards, which is what a wrong count would break.
+    - **Insertion order.** §5's promise holds for a literal for the same reason it holds for n
+      written inserts, because that is what a literal is.
+    - **Both bracket spellings reach one type**, in a signature and in an ascription.
+    - **Nested values.** A map of arrays and a map of maps, which is where the value type stops
+      being a scalar and the literal has to hand over ownership rather than copy.
+    - **Every position a literal can be written in**: a binding, an argument, an ascription, a
+      field of a construction and a global initializer. The last two are what say the literal hands
+      back the storage it built rather than a read of it - see the note beside the field below.
+    - **A literal inside a generic body**, which is the one context where the calls it makes are
+      deferred and re-made at instantiation - so it is where a receiver that is an allocation rather
+      than a read of one stops working. See `single` and `pair` below.
+
+   Both targets, since none of it is a property of either.
+-}
+
+-- `[K: V]` in a signature, which is the same type `Map(K, V)` names there.
+fn total(m: [Int: Int]) -> Int:
+    let &sum = 0 :: Int
+    for e in pairs(m):
+        sum = sum + e.value
+
+    return sum
+
+-- And in a field, where a written type is all there is to go on.
+data Table {rows: [Int: Int]}
+
+{-
+   The same three literals in a body generic in both of the map's arguments, which is the context
+   where every call the literal makes is deferred and made again at instantiation. What that catches
+   is the receiver: the inserts name the map's storage, and a *read of the place* is what survives
+   cloning - a cloned allocation is looked up in a local table whose values have not been filled in
+   yet, so it answers nothing and the literal is refused with a message about a `&` nobody wrote.
+
+   `emptyOf` is the empty one, where the expected type comes from the caller through the return type
+   and there is not even an entry to defer.
+-}
+fn (Hash(k)) single(->key: k, ->value: v) -> [k: v] = [key: value]
+
+fn (Hash(k)) pair(->k1: k, ->v1: v, ->k2: k, ->v2: v) -> [k: v]:
+    let &m = [k1: v1] :: [k: v]
+    insertAt(m, k2, v2)
+    return m
+
+fn (Hash(k)) emptyOf() -> [k: v] = [:]
+
+-- And at a global, whose initializer runs at startup like any other - the one position where a
+-- literal has no enclosing frame to be a temporary of.
+let &shared = [5: 50] :: [Int: Int]
+
+fn main() -> Int:
+    -- A literal at an expected type, read back through the subscript.
+    let &m = [1: 10, 2: 20, 3: 30] :: [Int: Int]
+    if (truncate(length(m)) :: Int) != 3 then return 0 - 1
+    if m[1] + m[2] + m[3] != 60 then return 0 - 2
+
+    -- The assignment form over an absent key inserts, and over a present one replaces.
+    m[4] = 40
+    m[1] = 100
+    if (truncate(length(m)) :: Int) != 4 then return 0 - 3
+    if m[1] != 100 then return 0 - 4
+    if m[4] != 40 then return 0 - 5
+
+    -- No ascription at all: the first entry says what the map holds and the rest convert to it.
+    let inferred = [7: 70]
+    if total(inferred) != 70 then return 0 - 6
+
+    -- The empty literal, which has nothing of its own to go on - and which is a map that works
+    -- rather than one that merely resolves.
+    let &empty = [:] :: [Int: Int]
+    if (truncate(length(empty)) :: Int) != 0 then return 0 - 7
+
+    empty[1] = 5
+    if empty[1] != 5 then return 0 - 8
+    if (truncate(length(empty)) :: Int) != 1 then return 0 - 9
+
+    -- The other spelling of the same type, on both sides of the ascription.
+    let ascribed = [8: 80] :: Map(Int, Int)
+    if total(ascribed) != 80 then return 0 - 10
+
+    -- In an argument position, where the parameter is what supplies the expected type.
+    if total([1: 1, 2: 2]) != 3 then return 0 - 11
+
+    {-
+       And in a field, whose declared type does the same - written, initialized from a literal and
+       subscripted through, which is the set of positions a field type has to answer in.
+
+       The field initializer is the position that says the literal hands back its *storage* rather
+       than a read of it: a construction argument is an aggregate operand, and a read of a place
+       holding a value with a teardown is a copy there rather than a move. A format string is still
+       refused in exactly this position for exactly that reason - `Named {s: "x{n}"}` does not
+       compile - so what is asserted here is that a map literal is not.
+    -}
+    let &table = Table {rows: [9: 90]}
+    table.rows[8] = 80
+    if table.rows[9] + table.rows[8] != 170 then return 0 - 12
+
+    -- Two equal keys are one entry and the later one wins.
+    let dup = [1: 10, 2: 20, 1: 30]
+    if (truncate(length(dup)) :: Int) != 2 then return 0 - 13
+    if dup[1] != 30 then return 0 - 14
+    if dup[2] != 20 then return 0 - 15
+
+    {-
+       Twelve entries, which is past the eight an `Int` key scans to - so this literal is the one
+       that builds an index at construction. A count that reached `newMap` wrong would either leave
+       the map scanning past its threshold or size the index for the wrong number of entries, and
+       both are invisible until a key is looked up.
+    -}
+    let &big = [0: 0, 1: 10, 2: 20, 3: 30, 4: 40, 5: 50, 6: 60, 7: 70, 8: 80, 9: 90, 10: 100, 11: 110]
+    if (truncate(length(big)) :: Int) != 12 then return 0 - 16
+
+    let &i = 0 :: Int
+    let &found = 0 :: Int
+    while i < 12:
+        if big[i] == i * 10 then found = found + 1
+        i = i + 1
+
+    if found != 12 then return 0 - 17
+
+    -- The literal's own order, which is written order because a literal is n inserts.
+    let ordered = [3: 1, 1: 2, 2: 3]
+    let &seen = 0 :: Int
+    for e in pairs(ordered):
+        seen = seen * 10 + e.key
+
+    if seen != 312 then return 0 - 18
+
+    -- The global, which is the same literal built once at startup.
+    shared[6] = 60
+    if shared[5] + shared[6] != 110 then return 0 - 19
+
+    -- The three generic bodies, at two different key types so that the specialization is what is
+    -- exercised rather than one instantiation reused.
+    let one = single(1, 10)
+    let two = pair("x", 1, "y", 2)
+    let none = emptyOf() :: [Int: Int]
+    if one[1] + two["x"] + two["y"] + (truncate(length(none)) :: Int) != 13 then return 0 - 20
+
+    -- A value that owns storage, so each entry is handed over rather than copied.
+    let lists = [1: [10, 11], 2: [20]] :: [Int: [Int]]
+    let &elements = 0 :: Int
+    for e in pairs(lists):
+        elements = elements + (truncate(length(e.value)) :: Int)
+
+    if elements != 3 then return 0 - 21
+
+    -- And a value that is itself a map, where the inner literal's expected type comes from the
+    -- outer one's.
+    let nested = [1: [2: 3]] :: [Int: [Int: Int]]
+    if nested[1][2] != 3 then return 0 - 22
+
+    return 1

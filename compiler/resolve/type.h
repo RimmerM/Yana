@@ -1494,6 +1494,16 @@ TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
 
 /*
+ * And the fifth, which is the map's - `Map(K, V)`'s two arguments, or false for anything that is not
+ * one. The same test-and-read `arrayElement` is, with two answers instead of one.
+ *
+ * Both come out of one call rather than two, because a caller wanting either almost always wants
+ * both and asking twice would walk the record twice for one answer. False for the generic
+ * declaration itself, on the same terms as `arrayElement`: what it recognizes is an instantiation.
+ */
+bool mapKeyValue(Module& module, TypePtr type, TypePtr& key, TypePtr& value);
+
+/*
  * A container of somebody else's, and what it says it is - Implementation-Containers.md §5.
  *
  * `contiguousElement` is the element type of a `Contiguous` instance for this type, which is what

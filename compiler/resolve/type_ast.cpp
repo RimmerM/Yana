@@ -898,6 +898,20 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             auto element = resolveType(module, *module.parse[type.arr.type], env);
             return instantiateRecord(module, module.program.arrayType, { &element, 1 }, type.source);
         }
+        case ast::Type::Map: {
+            // `[K: V]` is `Map(K, V)`, on exactly the terms `[T]` is `Array(T)` above: a spelling in
+            // the grammar for a record declared in Collections - Implementation-Map.md §7.
+            if(!module.program.mapType) {
+                return errorType(module, type.source, "maps are not available in this module"_v);
+            }
+
+            TypePtr args[] = {
+                resolveType(module, *module.parse[type.map.from], env),
+                resolveType(module, *module.parse[type.map.to], env),
+            };
+
+            return instantiateRecord(module, module.program.mapType, { args, 2 }, type.source);
+        }
         case ast::Type::Borrow: {
             auto to = resolveType(module, *module.parse[type.to], env);
 

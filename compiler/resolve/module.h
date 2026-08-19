@@ -1253,6 +1253,13 @@ struct Program {
     Module* collections = nullptr;
     GlobalPtr<RecordType> arrayType = nullptr;
 
+    // And the map, which `[k: v]` and `[K: V]` resolve to - Implementation-Map.md §7. Recorded on
+    // the same terms as `arrayType` and for the same reason: the spelling is grammar and what it
+    // means is a library record, so the literal needs a pointer to the declaration rather than a
+    // name to look up. Null in a build whose Collections declared no `Map`, which is what the
+    // literal's diagnostic reports.
+    GlobalPtr<RecordType> mapType = nullptr;
+
     // Native itself. Its *names* are private to whoever imports it, and its *instances* are not -
     // see findInstances. A module that never wrote `import Native` still ends up owning a `Run(a)`
     // the moment it writes an array literal, and what reclaiming one means cannot depend on whether

@@ -3273,12 +3273,19 @@ instance (Hash(k)) Index(Map(k, v), k, v):
 
    It is the smaller of the two available answers. The other is making every container's `getMut`
    fallible, which changes `Array` too.
+
+   **The key is a `->` and not a read**, which is the one place this member differs from `get` and
+   `getMut` beside it. A lookup only *reads* the key it probes with, so those two take one by the
+   borrow convention; an insert that misses **stores** it, and storage that outlives the call cannot
+   be borrowed. Written as a read this was a diagnostic inside the library rather than at the
+   assignment - `insert` declares `->key: k`, so the body handed borrowed storage to a sink - and it
+   was invisible for every key a copy answers for: `m[1] = 2` compiled and `m["a"] = 2` did not.
 -}
 pub class IndexInsert(c -> k, v):
-  fn insertAt(&self: c, index: k, ->value: v) -> {}
+  fn insertAt(&self: c, ->index: k, ->value: v) -> {}
 
 instance (Hash(k)) IndexInsert(Map(k, v), k, v):
-    fn insertAt(&self: Map(k, v), index: k, ->value: v) -> {} = insert(self, index, value)
+    fn insertAt(&self: Map(k, v), ->index: k, ->value: v) -> {} = insert(self, index, value)
 )COLLECTIONS";
 
 /*
@@ -3369,6 +3376,12 @@ void defineCollections(Program& program) {
     program.collections = module;
     auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
     if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
+
+    // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
+    // `@platform` selection has already run over the declarations, so whichever of the two `Map`
+    // declarations this target kept is the one the literal instantiates.
+    auto map = module->namedTypes.get(context.addQualifiedName("Map", 3, 1));
+    if(map) program.mapType = (RecordType*)(*program.types)[map.unwrap()] - *program.types;
 
     // §5's two, looked up here for the reason Core's are looked up where they are declared: what
     // asks for them is the resolver rather than a name a program wrote. See CoreClasses.

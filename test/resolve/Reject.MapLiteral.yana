@@ -1,0 +1,47 @@
+{-
+   What a map literal refuses - Implementation-Map.md §7.
+
+   `MapLiteral.yana` is what it builds; this is the four things it will not, and each of them is a
+   position where the alternative is a map whose type nothing decided.
+-}
+
+data Point {x: Int, y: Int}
+
+-- Nothing at all says what this holds. `[:]` has no entry to read a key or a value off, so unlike
+-- every other literal here there is no first element to settle the two types from - which is the
+-- one form that *needs* an expected type rather than merely accepting one.
+fn noContext() -> Int:
+    let m = [:]
+    return 0
+
+-- An ascription that is not a map. The literal is built at `Map(Int, Int)` and the conversion is
+-- what refuses, which keeps the diagnostic about the mistake: this is a map literal at the wrong
+-- type rather than an `Int` written strangely.
+fn wrongType() -> Int:
+    let m = [1: 2] :: Int
+    return 0
+
+{-
+   A second key that is not the first key's type, and a second value that is not the first value's.
+
+   Reported twice, and the first of the two is the one that names the mistake: every entry is
+   converted into the settled type here rather than left to `insertAt`, because the member is
+   selected by an instance over three types and an entry at the wrong one would otherwise report a
+   class nobody wrote about a triple nobody spelled. The class's own refusal follows it, on the same
+   terms every failed conversion into a concrete parameter doubles here.
+-}
+fn mixedKeys() -> Int:
+    let m = [1: 2, "a": 3]
+    return 0
+
+fn mixedValues() -> Int:
+    let m = [1: 2, 2: "b"]
+    return 0
+
+-- A key with no `Hash` instance, which is `newMap`'s constraint rather than the literal's: a map is
+-- built by hashing its keys whether the entries came from a literal or from n written inserts.
+fn noHash() -> Int:
+    let m = [Point {x: 1, y: 2}: 3]
+    return 0
+
+fn main() -> Int = 0

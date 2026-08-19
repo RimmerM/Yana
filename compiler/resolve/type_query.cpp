@@ -111,6 +111,19 @@ TypePtr arrayElement(Module& module, TypePtr type) {
     return instanceArgument(module, module.program.arrayType, type);
 }
 
+bool mapKeyValue(Module& module, TypePtr type, TypePtr& key, TypePtr& value) {
+    auto global = *module.types;
+    auto map = module.program.mapType;
+    if(!map || !type || global[type]->kind != Type::Record) return false;
+
+    auto record = (RecordType*)global[type];
+    if(record->instanceOf != map || record->instanceArgs.size() != 2) return false;
+
+    key = record->instanceArgs.get(global, 0);
+    value = record->instanceArgs.get(global, 1);
+    return true;
+}
+
 RecordType* inlineRefinement(Module& module, TypePtr type) {
     if(!arrayElement(module, type)) return nullptr;
 

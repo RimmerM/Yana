@@ -1,0 +1,1126 @@
+"use strict";
+var shared = { keys: { items: null, length: 0 }, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+
+// Core
+function mix32(value) {
+  var v13 = Math.imul((value ^ value >>> 16) >>> 0, 2246822507) >>> 0;
+  var v25 = Math.imul((v13 ^ v13 >>> 13) >>> 0, 3266489909) >>> 0;
+  return (v25 ^ v25 >>> 16) >>> 0;
+}
+
+// Collections
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function slotFor(h, mask) {
+  return h & mask;
+}
+
+function indexSlotsFor(wanted) {
+  var slots = 16;
+  L0: for (;;) {
+    if ((slots - (slots >>> 3) | 0) < wanted) {
+      slots = slots + slots | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return slots;
+}
+
+function reserve_I32(self, wanted) {
+  if (!(wanted <= self.items.length)) {
+    growJsArray_I32(self, wanted);
+  }
+}
+
+function growJsArray_I32(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function newMap_Int_Int(capacity) {
+  var self = { keys: { items: new Int32Array([]), length: 0 }, values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
+  reserveMap_Int_Int(self, capacity);
+  return self;
+}
+
+function reserveMap_Int_Int(self, wanted) {
+  reserve_Int(self.keys, wanted);
+  reserve_Int(self.values, wanted);
+  if (wanted > 8) {
+    B0: {
+      B1: {
+        var slots = indexSlotsFor(wanted);
+        var v37 = self.mask;
+        if (!(slots > v37 + 1)) {
+          if (v37) {
+            break B0;
+          }
+        }
+      }
+      indexRebuild_Int_Int(self, slots);
+    }
+  }
+}
+
+function reserve_Int(self, wanted) {
+  if (!(wanted <= self.items.length)) {
+    growJsArray_Int(self, wanted);
+  }
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+function indexRebuild_Int_Int(self, slots) {
+  reserve_I32(self.index, slots);
+  var v9 = slots & 1073741823;
+  self.index.length = v9;
+  self.mask = slots - 1 & 1073741823;
+  var slot = 0;
+  L0: for (;;) {
+    if (slot < v9) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      self.index.items[slot] = -1;
+      slot = slot + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  self.live = 0;
+  var v82 = self.keys.length;
+  var at = 0;
+  L1: for (;;) {
+    if (at < v82) {
+      indexPlace_Int_Int(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
+      at = at + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function hashKey_Int(key) {
+  return mix32(Math.imul((key ^ 2166136261) >>> 0, 16777619) >>> 0);
+}
+
+function indexPlace_Int_Int(self, at, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      var v25 = self.index.length;
+      checkCondition(slot >>> 0 >= v25);
+      var v30 = self.index.items;
+      var taken = v30[slot];
+      if (taken < 0) {
+        checkCondition(slot >>> 0 >= v25);
+        v30[slot] = at | 0;
+        if (taken === -1) {
+          self.live = self.live + 1 & 1073741823;
+        }
+        return;
+      } else {
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      throw "yana: a runtime check failed";
+    }
+    break L0;
+  }
+}
+
+function IndexInsert_Map_k_v_k_v_insertAt_Int_Int(self, index, value) {
+  var h = hashKey_Int(index);
+  var at = findEntry_Int_Int(self, index, h);
+  if (at >= 0) {
+    self.values.items[at] = value;
+  } else {
+    appendEntry_Int_Int(self, index, value, h);
+  }
+}
+
+function findEntry_Int_Int(self, key, h) {
+  if (self.mask === 0) {
+    return scanEntries_Int_Int(self, key);
+  } else {
+    return indexFind_Int_Int(self, key, h);
+  }
+}
+
+function scanEntries_Int_Int(self, key) {
+  var v27 = self.keys.length;
+  var at = 0;
+  var v32 = self.keys.items;
+  L0: for (;;) {
+    if (at < v27) {
+      if (v32[at] === key) {
+        return at;
+      } else {
+        at = at + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function indexFind_Int_Int(self, key, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      var at = self.index.items[slot];
+      if (at === -1) {
+        return -1;
+      } else {
+        B1: {
+          if (at >= 0) {
+            if (self.keys.items[at] === key) {
+              return at;
+            }
+          }
+        }
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function appendEntry_Int_Int(self, key, value, h) {
+  var v65 = self.keys.length;
+  push_Int(self.keys, key);
+  push_Int(self.values, value);
+  var v11 = self.mask;
+  if (v11 === 0) {
+    var v17 = v65 + 1;
+    if (v17 > 8) {
+      indexRebuild_Int_Int(self, indexSlotsFor(v17));
+    }
+  } else {
+    var v74 = v11 + 1;
+    if (self.live + 1 > v74 - (v74 >>> 3)) {
+      indexRebuild_Int_Int(self, Math.imul(v65 + 1, 2) > v74 ? v74 + v74 | 0 : v74);
+    } else {
+      indexPlace_Int_Int(self, v65, h);
+    }
+  }
+}
+
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function reserveMap_String_Int(self, wanted) {
+  reserve_String(self.keys, wanted);
+  reserve_Int(self.values, wanted);
+  if (wanted > 32) {
+    B0: {
+      B1: {
+        var slots = indexSlotsFor(wanted);
+        var v37 = self.mask;
+        if (!(slots > v37 + 1)) {
+          if (v37) {
+            break B0;
+          }
+        }
+      }
+      indexRebuild_String_Int(self, slots);
+    }
+  }
+}
+
+function reserve_String(self, wanted) {
+}
+
+function indexRebuild_String_Int(self, slots) {
+  reserve_I32(self.index, slots);
+  var v9 = slots & 1073741823;
+  self.index.length = v9;
+  self.mask = slots - 1 & 1073741823;
+  var slot = 0;
+  L0: for (;;) {
+    if (slot < v9) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      self.index.items[slot] = -1;
+      slot = slot + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  self.live = 0;
+  var v78 = self.keys.length;
+  var at = 0;
+  L1: for (;;) {
+    if (at < v78) {
+      indexPlace_String_Int(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
+      at = at + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function indexPlace_String_Int(self, at, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      var v25 = self.index.length;
+      checkCondition(slot >>> 0 >= v25);
+      var v30 = self.index.items;
+      var taken = v30[slot];
+      if (taken < 0) {
+        checkCondition(slot >>> 0 >= v25);
+        v30[slot] = at | 0;
+        if (taken === -1) {
+          self.live = self.live + 1 & 1073741823;
+        }
+        return;
+      } else {
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      throw "yana: a runtime check failed";
+    }
+    break L0;
+  }
+}
+
+function IndexInsert_Map_k_v_k_v_insertAt_String_Int(self, index, value) {
+  var v6 = insert_String_Int(self, index, value);
+}
+
+function insert_String_Int(self, key, value) {
+  var v32 = mix32(Hash_String_hash(key, 2166136261));
+  var at = findEntry_String_Int(self, key, v32);
+  if (at >= 0) {
+    var v33 = self.values.items;
+    var v15 = v33[at];
+    v33[at] = value;
+    return v15;
+  } else {
+    appendEntry_String_Int(self, key, value, v32);
+    return null;
+  }
+}
+
+function findEntry_String_Int(self, key, h) {
+  if (self.mask === 0) {
+    return scanEntries_String_Int(self, key);
+  } else {
+    return indexFind_String_Int(self, key, h);
+  }
+}
+
+function scanEntries_String_Int(self, key) {
+  var v27 = self.keys.length;
+  var at = 0;
+  L0: for (;;) {
+    if (at < v27) {
+      if (self.keys[at] === key) {
+        return at;
+      } else {
+        at = at + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function indexFind_String_Int(self, key, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      var at = self.index.items[slot];
+      if (at === -1) {
+        return -1;
+      } else {
+        B1: {
+          if (at >= 0) {
+            if (self.keys[at] === key) {
+              return at;
+            }
+          }
+        }
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function appendEntry_String_Int(self, key, value, h) {
+  var v66 = self.keys.length;
+  appendPair_String_Int(self, key, value);
+  var v12 = self.mask;
+  if (v12 === 0) {
+    var v18 = v66 + 1;
+    if (v18 > 32) {
+      indexRebuild_String_Int(self, indexSlotsFor(v18));
+    }
+  } else {
+    var v71 = v12 + 1;
+    if (self.live + 1 > v71 - (v71 >>> 3)) {
+      indexRebuild_String_Int(self, Math.imul(v66 + 1, 2) > v71 ? v71 + v71 | 0 : v71);
+    } else {
+      indexPlace_String_Int(self, v66, h);
+    }
+  }
+}
+
+function appendPair_String_Int(self, key, value) {
+  push_String(self.keys, key);
+  push_Int(self.values, value);
+}
+
+function push_String(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  self[count] = item;
+  var v18 = v7 & 1073741823;
+  if (self.length !== v18) {
+    self.length = v18;
+  }
+}
+
+function reserveMap_Int_Array_Int(self, wanted) {
+  reserve_Int(self.keys, wanted);
+  reserve_Array_Int(self.values, wanted);
+  if (wanted > 8) {
+    B0: {
+      B1: {
+        var slots = indexSlotsFor(wanted);
+        var v37 = self.mask;
+        if (!(slots > v37 + 1)) {
+          if (v37) {
+            break B0;
+          }
+        }
+      }
+      indexRebuild_Int_Array_Int(self, slots);
+    }
+  }
+}
+
+function reserve_Array_Int(self, wanted) {
+}
+
+function indexRebuild_Int_Array_Int(self, slots) {
+  reserve_I32(self.index, slots);
+  var v9 = slots & 1073741823;
+  self.index.length = v9;
+  self.mask = slots - 1 & 1073741823;
+  var slot = 0;
+  L0: for (;;) {
+    if (slot < v9) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      self.index.items[slot] = -1;
+      slot = slot + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  self.live = 0;
+  var v75 = self.keys.length;
+  var at = 0;
+  L1: for (;;) {
+    if (at < v75) {
+      indexPlace_Int_Array_Int(self, at, hashKey_Int(self.keys.items[at]));
+      at = at + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function indexPlace_Int_Array_Int(self, at, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      var v25 = self.index.length;
+      checkCondition(slot >>> 0 >= v25);
+      var v30 = self.index.items;
+      var taken = v30[slot];
+      if (taken < 0) {
+        checkCondition(slot >>> 0 >= v25);
+        v30[slot] = at | 0;
+        if (taken === -1) {
+          self.live = self.live + 1 & 1073741823;
+        }
+        return;
+      } else {
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      throw "yana: a runtime check failed";
+    }
+    break L0;
+  }
+}
+
+function IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(self, index, value) {
+  var v6 = insert_Int_Array_Int(self, index, value);
+}
+
+function insert_Int_Array_Int(self, key, value) {
+  var at;
+  var h = hashKey_Int(key);
+  if (self.mask === 0) {
+    at = scanEntries_Int_Array_Int(self, key);
+  } else {
+    at = indexFind_Int_Array_Int(self, key, h);
+  }
+  if (at >= 0) {
+    var v14 = self.values[at];
+    v14.items = value.items;
+    v14.length = value.length;
+    return v14;
+  } else {
+    appendEntry_Int_Array_Int(self, key, value, h);
+    return null;
+  }
+}
+
+function scanEntries_Int_Array_Int(self, key) {
+  var v27 = self.keys.length;
+  var at = 0;
+  var v32 = self.keys.items;
+  L0: for (;;) {
+    if (at < v27) {
+      if (v32[at] === key) {
+        return at;
+      } else {
+        at = at + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function indexFind_Int_Array_Int(self, key, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      var at = self.index.items[slot];
+      if (at === -1) {
+        return -1;
+      } else {
+        B1: {
+          if (at >= 0) {
+            if (self.keys.items[at] === key) {
+              return at;
+            }
+          }
+        }
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function appendEntry_Int_Array_Int(self, key, value, h) {
+  var v66 = self.keys.length;
+  appendPair_Int_Array_Int(self, key, value);
+  var v12 = self.mask;
+  if (v12 === 0) {
+    var v18 = v66 + 1;
+    if (v18 > 8) {
+      indexRebuild_Int_Array_Int(self, indexSlotsFor(v18));
+    }
+  } else {
+    var v71 = v12 + 1;
+    if (self.live + 1 > v71 - (v71 >>> 3)) {
+      indexRebuild_Int_Array_Int(self, Math.imul(v66 + 1, 2) > v71 ? v71 + v71 | 0 : v71);
+    } else {
+      indexPlace_Int_Array_Int(self, v66, h);
+    }
+  }
+}
+
+function appendPair_Int_Array_Int(self, key, value) {
+  push_Int(self.keys, key);
+  push_Array_Int(self.values, value);
+}
+
+function push_Array_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  self[count] = item;
+  var v18 = v7 & 1073741823;
+  if (self.length !== v18) {
+    self.length = v18;
+  }
+}
+
+function reserveMap_Int_Map_Int_Int(self, wanted) {
+  reserve_Int(self.keys, wanted);
+  reserve_Map_Int_Int(self.values, wanted);
+  if (wanted > 8) {
+    B0: {
+      B1: {
+        var slots = indexSlotsFor(wanted);
+        var v37 = self.mask;
+        if (!(slots > v37 + 1)) {
+          if (v37) {
+            break B0;
+          }
+        }
+      }
+      indexRebuild_Int_Map_Int_Int(self, slots);
+    }
+  }
+}
+
+function reserve_Map_Int_Int(self, wanted) {
+}
+
+function indexRebuild_Int_Map_Int_Int(self, slots) {
+  reserve_I32(self.index, slots);
+  var v9 = slots & 1073741823;
+  self.index.length = v9;
+  self.mask = slots - 1 & 1073741823;
+  var slot = 0;
+  L0: for (;;) {
+    if (slot < v9) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      self.index.items[slot] = -1;
+      slot = slot + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  self.live = 0;
+  var v75 = self.keys.length;
+  var at = 0;
+  L1: for (;;) {
+    if (at < v75) {
+      indexPlace_Int_Map_Int_Int(self, at, hashKey_Int(self.keys.items[at]));
+      at = at + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function indexPlace_Int_Map_Int_Int(self, at, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      var v25 = self.index.length;
+      checkCondition(slot >>> 0 >= v25);
+      var v30 = self.index.items;
+      var taken = v30[slot];
+      if (taken < 0) {
+        checkCondition(slot >>> 0 >= v25);
+        v30[slot] = at | 0;
+        if (taken === -1) {
+          self.live = self.live + 1 & 1073741823;
+        }
+        return;
+      } else {
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      throw "yana: a runtime check failed";
+    }
+    break L0;
+  }
+}
+
+function IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(self, index, value) {
+  var v6 = insert_Int_Map_Int_Int(self, index, value);
+}
+
+function insert_Int_Map_Int_Int(self, key, value) {
+  var h = hashKey_Int(key);
+  var at = findEntry_Int_Map_Int_Int(self, key, h);
+  if (at >= 0) {
+    var v14 = self.values[at];
+    v14.keys = value.keys;
+    v14.values = value.values;
+    v14.index = value.index;
+    v14.live = value.live;
+    v14.mask = value.mask;
+    return v14;
+  } else {
+    appendEntry_Int_Map_Int_Int(self, key, value, h);
+    return null;
+  }
+}
+
+function findEntry_Int_Map_Int_Int(self, key, h) {
+  if (self.mask === 0) {
+    return scanEntries_Int_Map_Int_Int(self, key);
+  } else {
+    return indexFind_Int_Map_Int_Int(self, key, h);
+  }
+}
+
+function scanEntries_Int_Map_Int_Int(self, key) {
+  var v27 = self.keys.length;
+  var at = 0;
+  var v32 = self.keys.items;
+  L0: for (;;) {
+    if (at < v27) {
+      if (v32[at] === key) {
+        return at;
+      } else {
+        at = at + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function indexFind_Int_Map_Int_Int(self, key, h) {
+  var v4 = self.mask;
+  var slot = slotFor(h, v4);
+  var visited = 0;
+  L0: for (;;) {
+    if (visited <= v4) {
+      checkCondition(slot >>> 0 >= self.index.length);
+      var at = self.index.items[slot];
+      if (at === -1) {
+        return -1;
+      } else {
+        B1: {
+          if (at >= 0) {
+            if (self.keys.items[at] === key) {
+              return at;
+            }
+          }
+        }
+        slot = slot + 1 & v4;
+        visited = visited + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return -1;
+    }
+    break L0;
+  }
+}
+
+function appendEntry_Int_Map_Int_Int(self, key, value, h) {
+  var v66 = self.keys.length;
+  appendPair_Int_Map_Int_Int(self, key, value);
+  var v12 = self.mask;
+  if (v12 === 0) {
+    var v18 = v66 + 1;
+    if (v18 > 8) {
+      indexRebuild_Int_Map_Int_Int(self, indexSlotsFor(v18));
+    }
+  } else {
+    var v71 = v12 + 1;
+    if (self.live + 1 > v71 - (v71 >>> 3)) {
+      indexRebuild_Int_Map_Int_Int(self, Math.imul(v66 + 1, 2) > v71 ? v71 + v71 | 0 : v71);
+    } else {
+      indexPlace_Int_Map_Int_Int(self, v66, h);
+    }
+  }
+}
+
+function appendPair_Int_Map_Int_Int(self, key, value) {
+  push_Int(self.keys, key);
+  push_Map_Int_Int(self.values, value);
+}
+
+function push_Map_Int_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  self[count] = item;
+  var v18 = v7 & 1073741823;
+  if (self.length !== v18) {
+    self.length = v18;
+  }
+}
+
+// Text
+function Hash_String_hash(value, state) {
+  var v31 = value.length;
+  var h = Math.imul((state ^ v31) >>> 0, 16777619) >>> 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v31) {
+      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return h;
+}
+
+// ResolveTest
+function total(m) {
+  var sum = 0;
+  var v17 = m.keys.length;
+  var at = 0;
+  L0: for (;;) {
+    if (at < v17) {
+      sum = sum + m.values.items[at] | 0;
+      at = at + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function main() {
+  var v8 = newMap_Int_Int(3);
+  IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v8, 1, 10);
+  IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v8, 2, 20);
+  IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v8, 3, 30);
+  if (v8.keys.length !== 3) {
+    return -1;
+  } else {
+    var at = findEntry_Int_Int(v8, 1, mix32(67918732));
+    checkCondition(at < 0);
+    var v38 = v8.values.items[at];
+    var at$1 = findEntry_Int_Int(v8, 2, mix32(118251589));
+    checkCondition(at$1 < 0);
+    var v45 = v38 + v8.values.items[at$1] | 0;
+    var at$2 = findEntry_Int_Int(v8, 3, mix32(101473970));
+    checkCondition(at$2 < 0);
+    if ((v45 + v8.values.items[at$2] | 0) !== 60) {
+      return -2;
+    } else {
+      IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v8, 4, 40);
+      IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v8, 1, 100);
+      if (v8.keys.length !== 4) {
+        return -3;
+      } else {
+        var at$3 = findEntry_Int_Int(v8, 1, mix32(67918732));
+        checkCondition(at$3 < 0);
+        if (v8.values.items[at$3] !== 100) {
+          return -4;
+        } else {
+          var at$4 = findEntry_Int_Int(v8, 4, mix32(17585875));
+          checkCondition(at$4 < 0);
+          if (v8.values.items[at$4] !== 40) {
+            return -5;
+          } else {
+            var inferred = newMap_Int_Int(1);
+            IndexInsert_Map_k_v_k_v_insertAt_Int_Int(inferred, 7, 70);
+            if (total(inferred) !== 70) {
+              return -6;
+            } else {
+              var v149 = newMap_Int_Int(0);
+              if (v149.keys.length) {
+                return -7;
+              } else {
+                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v149, 1, 5);
+                var at$5 = findEntry_Int_Int(v149, 1, mix32(67918732));
+                checkCondition(at$5 < 0);
+                if (v149.values.items[at$5] !== 5) {
+                  return -8;
+                } else {
+                  if (v149.keys.length !== 1) {
+                    return -9;
+                  } else {
+                    var ascribed = newMap_Int_Int(1);
+                    IndexInsert_Map_k_v_k_v_insertAt_Int_Int(ascribed, 8, 80);
+                    if (total(ascribed) !== 80) {
+                      return -10;
+                    } else {
+                      var v229 = newMap_Int_Int(2);
+                      IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v229, 1, 1);
+                      IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v229, 2, 2);
+                      if (total(v229) !== 3) {
+                        return -11;
+                      } else {
+                        var v254 = newMap_Int_Int(1);
+                        IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v254, 9, 90);
+                        IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v254, 8, 80);
+                        var at$6 = findEntry_Int_Int(v254, 9, mix32(202139684));
+                        checkCondition(at$6 < 0);
+                        var v273 = v254.values.items[at$6];
+                        var at$7 = findEntry_Int_Int(v254, 8, mix32(218917303));
+                        checkCondition(at$7 < 0);
+                        if ((v273 + v254.values.items[at$7] | 0) !== 170) {
+                          return -12;
+                        } else {
+                          var dup = newMap_Int_Int(3);
+                          IndexInsert_Map_k_v_k_v_insertAt_Int_Int(dup, 1, 10);
+                          IndexInsert_Map_k_v_k_v_insertAt_Int_Int(dup, 2, 20);
+                          IndexInsert_Map_k_v_k_v_insertAt_Int_Int(dup, 1, 30);
+                          if (dup.keys.length !== 2) {
+                            return -13;
+                          } else {
+                            var at$8 = findEntry_Int_Int(dup, 1, mix32(67918732));
+                            checkCondition(at$8 < 0);
+                            if (dup.values.items[at$8] !== 30) {
+                              return -14;
+                            } else {
+                              var at$9 = findEntry_Int_Int(dup, 2, mix32(118251589));
+                              checkCondition(at$9 < 0);
+                              if (dup.values.items[at$9] !== 20) {
+                                return -15;
+                              } else {
+                                var v385 = newMap_Int_Int(12);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 0, 0);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 1, 10);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 2, 20);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 3, 30);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 4, 40);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 5, 50);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 6, 60);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 7, 70);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 8, 80);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 9, 90);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 10, 100);
+                                IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v385, 11, 110);
+                                if (v385.keys.length !== 12) {
+                                  return -16;
+                                } else {
+                                  var i = 0;
+                                  var found = 0;
+                                  L0: for (;;) {
+                                    if (i < 12) {
+                                      var at$10 = findEntry_Int_Int(v385, i, hashKey_Int(i));
+                                      checkCondition(at$10 < 0);
+                                      if (v385.values.items[at$10] === Math.imul(i, 10)) {
+                                        found = found + 1 | 0;
+                                      }
+                                      i = i + 1 | 0;
+                                      continue L0;
+                                    }
+                                    break L0;
+                                  }
+                                  if (found !== 12) {
+                                    return -17;
+                                  } else {
+                                    var ordered = newMap_Int_Int(3);
+                                    IndexInsert_Map_k_v_k_v_insertAt_Int_Int(ordered, 3, 1);
+                                    IndexInsert_Map_k_v_k_v_insertAt_Int_Int(ordered, 1, 2);
+                                    IndexInsert_Map_k_v_k_v_insertAt_Int_Int(ordered, 2, 3);
+                                    var seen = 0;
+                                    var v886 = ordered.keys.length;
+                                    var at$11 = 0;
+                                    var v900 = ordered.keys.items;
+                                    L1: for (;;) {
+                                      if (at$11 < v886) {
+                                        seen = Math.imul(seen, 10) + v900[at$11] | 0;
+                                        at$11 = at$11 + 1 | 0;
+                                        continue L1;
+                                      }
+                                      break L1;
+                                    }
+                                    if (seen !== 312) {
+                                      return -18;
+                                    } else {
+                                      IndexInsert_Map_k_v_k_v_insertAt_Int_Int(shared, 6, 60);
+                                      var at$12 = findEntry_Int_Int(shared, 5, mix32(808256));
+                                      checkCondition(at$12 < 0);
+                                      var v543 = shared.values.items[at$12];
+                                      var at$13 = findEntry_Int_Int(shared, 6, mix32(51141113));
+                                      checkCondition(at$13 < 0);
+                                      if ((v543 + shared.values.items[at$13] | 0) !== 110) {
+                                        return -19;
+                                      } else {
+                                        var v946 = newMap_Int_Int(1);
+                                        IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v946, 1, 10);
+                                        var two = pair_String_Int("x", 1, "y", 2);
+                                        var v952 = newMap_Int_Int(0);
+                                        var at$14 = findEntry_Int_Int(v946, 1, mix32(67918732));
+                                        checkCondition(at$14 < 0);
+                                        var v579 = v946.values.items[at$14];
+                                        var at$15 = findEntry_String_Int(two, "x", mix32(Hash_String_hash("x", 2166136261)));
+                                        checkCondition(at$15 < 0);
+                                        var v584 = v579 + two.values.items[at$15] | 0;
+                                        var at$16 = findEntry_String_Int(two, "y", mix32(Hash_String_hash("y", 2166136261)));
+                                        checkCondition(at$16 < 0);
+                                        if (((v584 + two.values.items[at$16] | 0) + v952.keys.length | 0) !== 13) {
+                                          return -20;
+                                        } else {
+                                          var v607 = { items: new Int32Array([10, 11]), length: 2 };
+                                          var v617 = { items: new Int32Array([20]), length: 1 };
+                                          var v990 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                                          var v991 = { items: new Int32Array([]), length: 0 };
+                                          var v995 = [];
+                                          if (v995.length !== 0) {
+                                            v995.length = 0;
+                                          }
+                                          var v999 = { items: new Int32Array([]), length: 0 };
+                                          v990.keys = v991;
+                                          v990.values = v995;
+                                          v990.index = v999;
+                                          v990.live = 0;
+                                          v990.mask = 0;
+                                          reserveMap_Int_Array_Int(v990, 2);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v990, 1, v607);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v990, 2, v617);
+                                          var elements = 0;
+                                          var v1017 = v990.keys.length;
+                                          var at$17 = 0;
+                                          var v1033 = v990.values;
+                                          L2: for (;;) {
+                                            if (at$17 < v1017) {
+                                              elements = elements + v1033[at$17].length | 0;
+                                              at$17 = at$17 + 1 | 0;
+                                              continue L2;
+                                            }
+                                            break L2;
+                                          }
+                                          if (elements !== 3) {
+                                            return -21;
+                                          } else {
+                                            var v665 = newMap_Int_Int(1);
+                                            IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v665, 2, 3);
+                                            var v1049 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                                            var v1050 = { items: new Int32Array([]), length: 0 };
+                                            var v1054 = [];
+                                            if (v1054.length !== 0) {
+                                              v1054.length = 0;
+                                            }
+                                            var v1058 = { items: new Int32Array([]), length: 0 };
+                                            v1049.keys = v1050;
+                                            v1049.values = v1054;
+                                            v1049.index = v1058;
+                                            v1049.live = 0;
+                                            v1049.mask = 0;
+                                            reserveMap_Int_Map_Int_Int(v1049, 1);
+                                            IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(v1049, 1, v665);
+                                            var at$18 = findEntry_Int_Map_Int_Int(v1049, 1, mix32(67918732));
+                                            checkCondition(at$18 < 0);
+                                            var v1079 = v1049.values;
+                                            var at$19 = findEntry_Int_Int(v1079[at$18], 2, mix32(118251589));
+                                            checkCondition(at$19 < 0);
+                                            return v1079[at$18].values.items[at$19] !== 3 ? -22 : 1;
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function main$() {
+  var v4 = newMap_Int_Int(1);
+  IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v4, 5, 50);
+  shared = v4;
+  return main();
+}
+
+function pair_String_Int(k1, v1, k2, v2) {
+  var v19 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+  var v20 = [];
+  if (v20.length !== 0) {
+    v20.length = 0;
+  }
+  var v24 = { items: new Int32Array([]), length: 0 };
+  var v28 = { items: new Int32Array([]), length: 0 };
+  v19.keys = v20;
+  v19.values = v24;
+  v19.index = v28;
+  v19.live = 0;
+  v19.mask = 0;
+  reserveMap_String_Int(v19, 1);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k1, v1);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k2, v2);
+  return v19;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main$();
