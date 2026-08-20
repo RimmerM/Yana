@@ -79,7 +79,7 @@ bool mayFault(LowerInst* inst) {
  * kinds below.
  *
  * **An address is free where it stands.** `add %xs, 8` reaching a load is a displacement in that
- * load's addressing mode - `foldAddresses` in codegen/x64/transform.cpp puts it there, and the SIB
+ * load's addressing mode - `foldAddresses` in codegen/x64/transform_address.cpp puts it there, and the SIB
  * byte holds a scale beside it - so the loop does not execute it at all. Hoisting one trades a byte
  * of encoding for a register live across the whole loop, and `Sort.yana`'s partition loop is five
  * `add %xs, 8` and two `add %v_1, 12` of exactly that shape. It is the same gate `lower_induction.h`
@@ -92,7 +92,7 @@ bool mayFault(LowerInst* inst) {
  * is a call's return value, which is not repeatable and never reaches here.
  *
  * **A comparison is free where it stands too, and for the same kind of reason.** One whose readers
- * are branches is carried in the flags - `canCarryInFlags` in codegen/x64/transform.cpp - so the loop
+ * are branches is carried in the flags - `canCarryInFlags` in codegen/x64/transform_peephole.cpp - so the loop
  * spends a `cmp` and a `jcc` and no register at all. Moved to the preheader it is out of every flags
  * window there is, which makes it a `setcc` into a register, that register live across the loop, and
  * a `test` in front of the branch that used to read the flags directly. That is one instruction more

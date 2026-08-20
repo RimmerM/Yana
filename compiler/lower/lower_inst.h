@@ -236,7 +236,7 @@ struct LowerInst {
          * is a comparison and a select (`emitMinMax` in resolve/simd.cpp), which is what every
          * target that lacks the instruction needs anyway and what LLVM's own selection folds. x86
          * has the instruction at most lane widths, so the x64 backend recognizes the pair and writes
-         * this in their place - see `selectPackedMinMax` in codegen/x64/transform.cpp.
+         * this in their place - see `selectPackedMinMax` in codegen/x64/transform_constant.cpp.
          *
          * **The operand order is the machine's and is load-bearing at a float lane.** `minps a, b`
          * answers `a < b ? a : b`, which is `b` when either operand is a NaN and `b` when both are
@@ -258,7 +258,7 @@ struct LowerInst {
          *
          * It is what the two multiplies the machine does not have are built out of. A quadword
          * product is three of these and the shifts and adds of long multiplication
-         * (`expandQuadwordMul` in codegen/x64/transform.cpp); a 32-bit lane's *high* half is two,
+         * (`expandQuadwordMul` in codegen/x64/transform_expand.cpp); a 32-bit lane's *high* half is two,
          * one per pair of lanes. Both are the standard sequences and neither is expressible without
          * naming the instruction, a form being unable to change how many lanes its result has.
          *
@@ -330,7 +330,7 @@ struct LowerInst {
          * **A store rather than an operation, which is why it defines nothing.** The result is in
          * memory; there is no value here for anything below to read, and an instruction that
          * produced one would have the allocator hold a register for a number the encoding never
-         * writes. `foldStoreUpdates` in codegen/x64/transform.cpp is what recognizes the three, and
+         * writes. `foldStoreUpdates` in codegen/x64/transform_address.cpp is what recognizes the three, and
          * the conditions it holds them to are stated there.
          *
          * The operand order is the machine's: the location is the destination and the left-hand
@@ -348,11 +348,11 @@ struct LowerInst {
          * `sext` for itself and `(x << 16) >> 16` is the idiom a JS engine recognizes, so those two
          * backends want exactly the two instructions they are given.
          *
-         * x86 does not. The shifts are two-address (`tiedDef`, see `shift` in codegen/x64/machine.cpp),
+         * x86 does not. The shifts are two-address (`tiedDef`, see `shift` in codegen/x64/machine_forms_scalar.cpp),
          * so a source with another reader needs a copy in front of them; they are six bytes and two
          * uops where `movsx` is three or four bytes and one; and they write the flags, which a
          * sign-extension standing between a comparison and its branch has no business doing.
-         * `selectSignExtends` in codegen/x64/transform.cpp recognizes the pair and writes this.
+         * `selectSignExtends` in codegen/x64/transform_peephole.cpp recognizes the pair and writes this.
          *
          * `sourceBytes` is how much of the operand is read - one, two, or four. It is the
          * instruction's own rather than the type's for the reason `X86MulWide`'s signedness is: the
@@ -583,7 +583,7 @@ struct LowerInstCmp: LowerInstBinary {
      *
      * `a - 1 != 0` is the shape: the subtraction set the zero flag from its own result, and the
      * comparison below it recomputes what is standing right there. Set by the x64 compare folding
-     * (`tryElideCompare` in codegen/x64/transform.cpp) and read by its form selection; nothing
+     * (`tryElideCompare` in codegen/x64/transform_peephole.cpp) and read by its form selection; nothing
      * outside that backend writes it, and nothing anywhere reads it to mean anything else.
      *
      * It lives here for the same reason `LowerInstJe::setEmbeddedCmp` and `LowerValue::Implicit` do:
@@ -955,7 +955,7 @@ struct LowerInstX86StoreOp: LowerInst {
 
 // Set on Copy/SetPattern by a target-specific transform to record which of the two available
 // encodings the backend will use, so that the register constraints and the encoder cannot disagree
-// about it. See selectBlockOpEncoding in codegen/x64/transform.cpp: the unrolled form works out of
+// about it. See selectBlockOpEncoding in codegen/x64/transform_peephole.cpp: the unrolled form works out of
 // whatever registers the operands already occupy, while the rep-prefixed form demands fixed ones.
 static constexpr U8 kBlockOpUnrolled = 1;
 

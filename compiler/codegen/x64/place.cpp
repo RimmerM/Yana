@@ -1336,7 +1336,7 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
         // then compute the result into the very register the address is about to be read through.
         //
         // Reachable since a load can be folded into a destructive operation (foldLoads in
-        // transform.cpp); before that, the only instructions with a folded address were the ones
+        // transform_address.cpp); before that, the only instructions with a folded address were the ones
         // with no copy in front of them.
         auto address = a.machine.formOf(inst).addressOperand();
         if(address >= 0 && isMem(a.base[used[address]])) {

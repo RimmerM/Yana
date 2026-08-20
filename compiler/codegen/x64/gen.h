@@ -1216,7 +1216,7 @@ inline RegisterClassId widestVectorClass() {
  * and a general register has no upper half for anything to be dirty in.
  *
  * The form table answers the same question through `MachineForm::alternative` - see the VEX tier in
- * machine.cpp. This is for the bytes that no form describes: the copies, the spills and the reloads
+ * the machine_forms_*.cpp files. This is for the bytes that no form describes: the copies, the spills and the reloads
  * `kClassMoves` writes, and the expansions a pseudo's own emitter writes.
  */
 inline bool vectorClassNeedsVex(RegisterClassId regClass) {

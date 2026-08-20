@@ -17,7 +17,7 @@
  *
  * Everything else an instruction does to the register file - which operands it forces into
  * particular registers, what it clobbers, which result it writes over which operand, which operand
- * may stay in a frame slot - comes from its selected MachineForm; see machine.cpp. shapeOf at the
+ * may stay in a frame slot - comes from its selected MachineForm; see machine_select.cpp. shapeOf at the
  * bottom of this file is where the two meet.
  */
 

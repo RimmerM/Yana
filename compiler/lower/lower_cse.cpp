@@ -335,7 +335,7 @@ bool writesStorage(LowerInst* inst) {
  * loop costs a register the allocator may not have.
  *
  * It is also exactly the shape the x64 backend's loop rotation declines to rotate - see
- * `isRotatableHeaderInst` in codegen/x64/transform.cpp, whose "a header instruction read anywhere but
+ * `isRotatableHeaderInst` in codegen/x64/transform_loop.cpp, whose "a header instruction read anywhere but
  * the header is declined" is this sentence read from the other end. So a header value handed to the
  * body does not merely cost a register; it costs the rotation as well, which is a jump per iteration
  * of the loop it belongs to.
@@ -645,7 +645,7 @@ void removeBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
  * is a narrowing rather than the general rule, and it is what keeps this to the one thing it has to
  * do. A dropped arm with successors of its own can leave a whole region unreachable, and the x64
  * block ordering asserts that no such region exists (`assertTrue(postorder.size() == fun.blocks.size())`
- * in codegen/x64/transform.cpp), so anything more general owes a reachability sweep and a repair for
+ * in codegen/x64/transform_loop.cpp), so anything more general owes a reachability sweep and a repair for
  * every phi in what it disconnected. A block with no outgoing edges owes neither: nothing names it
  * but the branch above, so once that branch stops naming it, it is gone.
  *

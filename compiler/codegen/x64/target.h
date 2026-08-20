@@ -121,7 +121,7 @@ static constexpr FeatureSet kFeatureBmi1 = 1 << 8;
  * - so the lane range a masked tail is written over stops being a *vector* (a splat of the count, a
  * comparison against `iota`, and an `and` per consumer, with `iota` and its bias held in registers
  * for the whole function) and becomes one general-register instruction below the movemask every
- * consumer already goes through. See `matchLaneRangeMask` and `laneRangeIndex` in transform.cpp,
+ * consumer already goes through. See `matchLaneRangeMask` and `laneRangeIndex` in transform_reduce.cpp,
  * which `lowerVectorReductions` reads.
  *
  * The index is read from the low byte of its operand and an index at or above the operand width
@@ -148,7 +148,7 @@ static constexpr FeatureSet kFeatureFma3 = 1 << 6;
  *
  * A process-wide value rather than a parameter, for the same reason `targetRegisters()` is one: it
  * is read by form selection, which is asked the same question from a dozen places that have an
- * instruction in front of them and no settings - see selectForm and the peepholes in transform.cpp
+ * instruction in front of them and no settings - see selectForm in machine_select.cpp and the peepholes in transform_peephole.cpp
  * that ask what a form writes. `setTargetFeatures` is called once per function by transformFunction,
  * which is the narrowest point every path through this backend passes.
  *
@@ -681,7 +681,7 @@ inline RegSet framePointerRegs() {
  * because the pool is a contiguous block off the top of the register file and the reserve has to
  * hold back what was stepped over as well as what was taken.
  *
- * So this is the sum of the two, and `operandTempReach` in machine.cpp is what adds them up - for
+ * So this is the sum of the two, and `operandTempReach` in machine_validate.cpp is what adds them up - for
  * every form in the table, when the table is built. That check is the point: this number is one
  * number for a whole backend, and both times it has been wrong the form that outgrew it looked
  * perfectly ordinary next to the ones that did not.

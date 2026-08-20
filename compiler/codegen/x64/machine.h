@@ -124,7 +124,7 @@ enum : MachineOpcodeId {
 
     // The magnitude of every lane, at an integer lane alone: `pabsb`/`pabsw`/`pabsd`, one instruction
     // and non-destructive. A float lane's magnitude is an `and` against a pooled sign mask and so is
-    // `OpVAnd` by the time anything here sees it - see `expandVectorAbs` in transform.cpp.
+    // `OpVAnd` by the time anything here sees it - see `expandVectorAbs` in transform_expand.cpp.
     OpVAbs,
 
     /*
@@ -222,7 +222,7 @@ enum : MachineOpcodeId {
      *
      * Where SSE4.1 earns its place is the 32- and 64-bit integer lane. `pinsrw` is the baseline's
      * only insert and reaches a *word*, so a wider lane is the pair or the quadruple of words it is
-     * made of - which is `lowerLaneInserts` in transform.cpp, the mirror of `lowerLaneExtracts`.
+     * made of - which is `lowerLaneInserts` in transform_expand.cpp, the mirror of `lowerLaneExtracts`.
      */
     OpVInsert,
 
@@ -277,7 +277,7 @@ enum : MachineOpcodeId {
      * `packedTrailingByte` supplies the mode the way it supplies a compare's predicate.
      *
      * `LowerInst::Round` is deliberately *not* one of them. It ties away from zero, this instruction
-     * has no encoding for that (immediate 0 is ties-to-even), and `expandRoundAway` in transform.cpp
+     * has no encoding for that (immediate 0 is ties-to-even), and `expandRoundAway` in transform_expand.cpp
      * has rewritten it before selection ever runs.
      */
     OpRound,
@@ -302,7 +302,7 @@ enum : MachineOpcodeId {
      * of the result against zero is answered and an arithmetic one's is not - and a claim like that
      * belongs to an operation rather than to an encoding of one.
      *
-     * See LowerInst::X86StoreOp, and `foldStoreUpdates` in transform.cpp for what reaches them.
+     * See LowerInst::X86StoreOp, and `foldStoreUpdates` in transform_address.cpp for what reaches them.
      */
     OpStoreAdd,
     OpStoreSub,
@@ -328,7 +328,7 @@ enum : MachineOpcodeId {
 // The intrinsics take the opcodes above the described ones, one each, in the order the IR names them
 // - see LowerIntrinsic. An intrinsic is a machine operation like any other; what is different about
 // it is only that its description comes from the registry at the bottom of this file rather than
-// from the table in machine.cpp, so that adding one is a row of data.
+// from the table in the machine_forms_*.cpp files, so that adding one is a row of data.
 static constexpr Size kMachineOpcodeCount = kDescribedOpcodeCount + kLowerIntrinsicCount;
 
 inline MachineOpcodeId opcodeForIntrinsic(LowerIntrinsic id) {
@@ -839,7 +839,7 @@ struct EncodingDescriptor {
 
     // The r/m operand is an 8-bit register, which needs a REX prefix to name spl/bpl/sil/dil rather
     // than ah/ch/dh/bh - the same rule `MemForm::byteRegField` applies to the ModRM.reg field, on
-    // the other one. Only a byte-source `movsx` sets it; see FormSext8 in machine.cpp.
+    // the other one. Only a byte-source `movsx` sets it; see FormSext8 in machine_forms_scalar.cpp.
     bool byteRmField = false;
 
     /*
@@ -943,7 +943,7 @@ struct MachineForm {
      * coarser question.
      *
      * What it is for is the comparison a form like this has already performed - see
-     * `tryElideCompare` in transform.cpp, which is the only reader.
+     * `tryElideCompare` in transform_peephole.cpp, which is the only reader.
      */
     bool resultInFlags = false;
 
@@ -971,7 +971,7 @@ struct MachineForm {
     // Zero for a form that has no such twin.
     //
     // Which of the two an instruction takes is decided by the value in that operand and by nothing
-    // else: an X86Address there is one a load fold put there (foldLoads in transform.cpp), and an
+    // else: an X86Address there is one a load fold put there (foldLoads in transform_address.cpp), and an
     // X86Address is the one value that can only ever be an address. `memorySourceOf` is the twin's
     // own back-pointer, and is what marks it as the one exception to the rule that every form of an
     // opcode names the same operand as its address (validateMachineForms).
@@ -1076,7 +1076,7 @@ struct MachineOpcodeDesc {
 
     // Set when which form is chosen changes whether the instruction writes the flags. Every other
     // opcode's forms have to agree on it, which validateMachineForms checks - because the compare
-    // folding in transform.cpp asks what an instruction does to the flags while the peephole passes
+    // folding in transform_peephole.cpp asks what an instruction does to the flags while the peephole passes
     // are still deciding which form it will take, and that question only has one answer if the forms
     // all give the same one.
     //
@@ -1319,7 +1319,7 @@ bool shuffleReadsOneSource(LowerInst* inst);
  *
  * Four of the eight have no instruction and no predicate of their own and are reached by exchanging
  * the operands instead: `gt` is `lt` read backwards, `ge` is `le`, and `ilt` is `igt`. That exchange
- * is `orderPackedCompare`'s, in transform.cpp.
+ * is `orderPackedCompare`'s, in transform_peephole.cpp.
  *
  * Asked twice for the reason `packedShufflePattern` is, and the reason is sharper here because the
  * two askers stand on opposite sides of the pass that makes the change: `checkVectorSupported` runs
@@ -1337,7 +1337,7 @@ LowerCmp packedCompareRelation(LowerCmp cmp);
  * a vector constant to say "not this". A float comparison is never one of them: `cmpps` carries all
  * eight relations in its predicate byte.
  *
- * Exported because `foldComplementedCompare` in transform.cpp asks exactly this question about a
+ * Exported because `foldComplementedCompare` in transform_reduce.cpp asks exactly this question about a
  * mask nothing but a reduction reads, and answers it with a scalar exclusive-or or with a different
  * immediate instead. Two statements of which relations are complemented would be two answers to the
  * question of what that pass is allowed to rewrite. Takes the relation *after*
@@ -1348,7 +1348,7 @@ bool packedCompareIsInverted(LowerType type, LowerCmp cmp);
 /*
  * Whether this machine has a packed minimum and maximum at this vector's lane.
  *
- * Asked by `selectPackedMinMax` in transform.cpp, which is what builds the instruction, and answered
+ * Asked by `selectPackedMinMax` in transform_constant.cpp, which is what builds the instruction, and answered
  * here for `packedCompareRelation`'s reason: what the form table has a row for and what a pass may
  * write down have to be one statement, or the pass produces an instruction `selectPackedForm` then
  * asserts on. The gaps are the machine's - the quadword integer lane at both signednesses, which is
@@ -1401,7 +1401,7 @@ U8 broadcastLaneByte(LowerType type, U8 index);
 /*
  * Whether this value is a constant vector that `poolVectorConstants` will replace with a load.
  *
- * Implemented in transform.cpp, beside the pass it speaks for, and read by the refusals above it:
+ * Implemented in transform_constant.cpp, beside the pass it speaks for, and read by the refusals above it:
  * an instruction that pass removes is not one this backend has to have a form for. See the comment
  * there for why the two have to ask one function rather than each deciding.
  */
@@ -1472,7 +1472,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst);
  * The five operations that have an in-place memory form, and what each one's is.
  *
  * One row per operation, in one place, because four separate lists of the same five kinds is four
- * lists to keep agreeing: the peephole in transform.cpp asking whether an operation has such a form,
+ * lists to keep agreeing: the peephole in transform_address.cpp asking whether an operation has such a form,
  * the form registration declaring the six of them, and the two selections naming the opcode and the
  * first form. Three of those now read this and the fourth builds from it.
  */
@@ -1481,7 +1481,7 @@ struct StoreUpdateOp {
     MachineOpcodeId opcode;
 
     // The first of six forms, declared in the order byte, word, dword, qword, dword-immediate,
-    // qword-immediate - see the registration in machine.cpp, which is what lays them out that way.
+    // qword-immediate - see the registration in machine_forms_memory.cpp, which is what lays them out that way.
     MachineFormId firstForm;
 };
 

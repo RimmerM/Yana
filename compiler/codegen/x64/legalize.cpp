@@ -811,7 +811,7 @@ struct Legalizer {
 
         // A global whose address never had to exist: `[rip + g]` is what the access is emitted as,
         // so the symbol is the address rather than something copied into a register first. The
-        // peephole in transform.cpp is what decided that, and left the value with no location at
+        // peephole in transform_peephole.cpp is what decided that, and left the value with no location at
         // all - which is why this is asked here rather than of the placement.
         if(value->inst()->kind == LowerInst::Global && isImplicit(value)) {
             return MachineAddress::atSymbol(nullptr, base[((LowerInstGlobal*)value->inst())->target]);

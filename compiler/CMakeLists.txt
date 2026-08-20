@@ -281,11 +281,27 @@ set(X64_SOURCE_FILES
     codegen/x64/target.h
     codegen/x64/target.cpp
     codegen/x64/machine.h
+    codegen/x64/machine_internal.h
     codegen/x64/machine.cpp
+    codegen/x64/machine_forms_scalar.cpp
+    codegen/x64/machine_forms_packed.cpp
+    codegen/x64/machine_forms_tiers.cpp
+    codegen/x64/machine_forms_memory.cpp
+    codegen/x64/machine_validate.cpp
+    codegen/x64/machine_select.cpp
+    codegen/x64/machine_vector.cpp
     codegen/x64/intrinsic.cpp
     codegen/x64/gen.h
     codegen/x64/gen.cpp
+    codegen/x64/transform_internal.h
     codegen/x64/transform.cpp
+    codegen/x64/transform_edit.cpp
+    codegen/x64/transform_peephole.cpp
+    codegen/x64/transform_address.cpp
+    codegen/x64/transform_loop.cpp
+    codegen/x64/transform_expand.cpp
+    codegen/x64/transform_reduce.cpp
+    codegen/x64/transform_constant.cpp
     codegen/x64/place.cpp
     codegen/x64/legalize.cpp
     codegen/x64/register.cpp

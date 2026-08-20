@@ -20,7 +20,7 @@
  *     je %ok, abort, body
  *
  * Both survive to the machine, and they are the same register whenever `%x` has no bit 31 -
- * `isNonNegative32` in codegen/x64/transform.cpp is that question asked of a definition's kind, and
+ * `isNonNegative32` in codegen/x64/transform_peephole.cpp is that question asked of a definition's kind, and
  * §11.5 landed the half of it that a definition can answer for itself. This is the other half, and
  * it is not a property of `%x` at all: what says bit 31 is clear is the *branch*, on the arm where
  * `%u64 <u %length` and `%length` is a `@bits(30)` field. Neither half of that survives lowering -

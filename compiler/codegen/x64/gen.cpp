@@ -6,7 +6,7 @@
  *
  * This is the last stage, and it decides nothing. Which operation was selected, which form of it,
  * which register or frame slot every operand is in, which constant an immediate carries and what
- * address a memory operand names were all settled upstream - by selection (machine.cpp), by
+ * address a memory operand names were all settled upstream - by selection (machine_select.cpp), by
  * placement (place.cpp) and by legalization (legalize.cpp) - and arrive here as a selected
  * MachineForm and an InstRegs of resolved operands.
  *
@@ -439,7 +439,7 @@ static void genRegExt(AsmModule& to, bool is64, U8 rm, U8 opCode, U8 ext, U8 esc
  * ordered relations false and this one true, which is exactly IEEE inequality.
  *
  * `gt` and `ge` have no predicate: they are `lt` and `le` with the operands the other way round, and
- * `orderPackedCompare` in transform.cpp is what puts them that way round before this is reached.
+ * `orderPackedCompare` in transform_peephole.cpp is what puts them that way round before this is reached.
  */
 static U8 packedComparePredicate(LowerCmp cmp) {
     switch(cmp) {
@@ -835,7 +835,7 @@ static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
  *
  * What is gained is the invariant. A legacy SSE instruction leaves the upper half of the register it
  * writes untouched, and a program that executes one while any upper half is dirty pays for it on
- * every part this backend targets (see the VEX tier in machine.cpp). Vector copies, spills and
+ * every part this backend targets (see the VEX tier in machine_forms_tiers.cpp). Vector copies, spills and
  * reloads are the most frequent vector instructions a function runs, so a table that stayed legacy
  * here would be the whole of the invariant undone by the one form nothing selects through
  * `alternative`.
@@ -1284,7 +1284,7 @@ struct Emitter {
      * An internal call needs none, and that is a claim about what this backend emits rather than an
      * assumption: **no instruction inside a program built with AVX is a legacy SSE encoding.** Every
      * form that touches a vector register has a prefixed alternative selection takes in its place
-     * (the VEX tier in machine.cpp), the copies and spills carry the prefix too (moveEncoding), the
+     * (the VEX tier in machine_forms_tiers.cpp), the copies and spills carry the prefix too (moveEncoding), the
      * pseudo expansions ask the target directly (packedNeedsVex), and validateMachineForms fails the
      * build if a form is added that breaks it. Since only a legacy encoding pays for a dirty upper
      * half, nothing this compiler generates can. What is on the other side of a foreign boundary is
@@ -1520,7 +1520,7 @@ struct Emitter {
 
         /*
          * The destination is in `vvvv` for a vector-prefixed form and in r/m for a legacy one - see
-         * `dropTie` in machine.cpp, which is where the two shapes are described. So this family has
+         * `dropTie` in machine_internal.h, which is where the two shapes are described. So this family has
          * to write the prefix itself rather than through `genRegExt`: the extension in ModRM.reg is
          * not a register and contributes no R bit, and the operand in r/m is the *source* once the
          * tie has gone.
@@ -2851,7 +2851,7 @@ struct Emitter {
                 auto fromReg = reg(regs.uses[1]);
 
                 // r11 is reserved as a scratch register for this encoding - the unrolled form
-                // declares it as both a temporary and a clobber (machine.cpp), which is what
+                // declares it as both a temporary and a clobber (machine_forms_memory.cpp), which is what
                 // guarantees no live value occupies it at this instruction.
                 U8 scratch = (U8)IntRegister::r11;
                 U64 offset = 0;
