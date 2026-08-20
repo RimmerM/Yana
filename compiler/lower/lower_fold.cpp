@@ -179,6 +179,13 @@ bool isNoOpReinterpretation(LowerInst::Kind kind, LowerValue* arg, LowerType typ
 Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, LowerType type) {
     if(isNoOpReinterpretation(kind, arg, type)) return Folded::forward(arg);
 
+    // The bytes put back the way they came, which is the one identity this operation has and the
+    // shape a program that reads a format and writes it again is made of. Ahead of the constant
+    // question below because neither of the two is one.
+    if(kind == LowerInst::Bswap && arg->inst()->kind == LowerInst::Bswap && arg->type == type) {
+        return Folded::forward(base[((LowerInstUnary*)arg->inst())->from]);
+    }
+
     if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
 
     U64 value;
@@ -187,6 +194,15 @@ Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, Low
     switch(kind) {
         case LowerInst::Neg: return Folded::value((U64(0) - value) & maskOf(widthOf(type)));
         case LowerInst::Not: return Folded::value(~value & maskOf(widthOf(type)));
+        case LowerInst::Bswap: {
+            // At the type's own width, which is the whole of what makes this well defined: `bswap`
+            // of an `Int32` reverses four bytes and of an `Int64` eight, and a constant folded at
+            // the wrong one of those is a different number rather than a wrong-looking one.
+            U64 swapped = 0;
+            for(U32 i = 0; i < widthOf(type); i += 8) swapped = (swapped << 8) | ((value >> i) & 0xff);
+
+            return Folded::value(swapped);
+        }
         default: return Folded::nothing();
     }
 }
@@ -1103,6 +1119,10 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
         case LowerInst::Cmp:
         case LowerInst::Select:
+
+        // A pure function of one operand, and the reason it is a kind rather than an intrinsic:
+        // this list is what an intrinsic is not on.
+        case LowerInst::Bswap:
 
         // The two floating-point operations, which are pure functions of their operands exactly as
         // the arithmetic above is. `Sqrt` needs nothing else - it is a Unary and every pass that

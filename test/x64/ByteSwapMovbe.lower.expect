@@ -1,0 +1,188 @@
+
+swap32<complex>(%a: Int): Int {
+  b_0 {
+    %s = bswap %a: Int
+    ret %s
+  }
+}
+
+swap64<complex>(%a: Long): Long {
+  b_0 {
+    %s = bswap %a: Long
+    ret %s
+  }
+}
+
+swapLoad<complex>(%p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %s = bswap %v: Int
+    ret %s
+  }
+}
+
+swapLoad64<complex>(%p: Ptr): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = bswap %v: Long
+    ret %s
+  }
+}
+
+swapLoadIndexed<complex>(%p: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 4: Int
+    %s = bswap %v: Int
+    ret %s
+  }
+}
+
+swapStore<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %s = bswap %v: Int
+    store %p, %s, 4
+    ret 
+  }
+}
+
+swapStore64<complex>(%p: Ptr, %v: Long) {
+  b_0 {
+    %s = bswap %v: Long
+    store %p, %s, 8
+    ret 
+  }
+}
+
+swapLoadShared<complex>(%p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %s = bswap %v: Int
+    %t = add %s, %v: Int
+    ret %t
+  }
+}
+
+swapStoreShared<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %s = bswap %v: Int
+    store %p, %s, 4
+    ret %s
+  }
+}
+
+swapLoadApart<complex>(%p: Ptr, %i: Long, %j: Long): Long {
+  b_0 {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %v = load %q, 8: Long
+    %k = mul %j, 3: Long
+    %m = add %k, 7: Long
+    %s = bswap %v: Long
+    %t = add %s, %m: Long
+    ret %t
+  }
+}
+
+swapStoreIndexed<complex>(%p: Ptr, %i: Long, %v: Long) {
+  b_0 {
+    %o = shl %i, 3: Long
+    %q = add %p, %o: Ptr
+    %s = bswap %v: Long
+    store %q, %s, 8
+    ret 
+  }
+}
+
+
+--- codegen: swap32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swap64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 488bc7480fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_movbe_load uses=[rdi] creates=[rax]  => 0f38f007
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoad64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_movbe_load uses=[rdi] creates=[rax]  => 480f38f007
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoadIndexed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  x86_movbe_load uses=[-] creates=[rax]  => 0f38f004b7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapStore ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_movbe_store uses=[rdi, rsi] creates=[]  => 0f38f137
+  ret uses=[] creates=[]  => c3
+
+--- codegen: swapStore64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_movbe_store uses=[rdi, rsi] creates=[]  => 480f38f137
+  ret uses=[] creates=[]  => c3
+
+--- codegen: swapLoadShared ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 8b3f
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapStoreShared ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rsi->rax]  => 8bc60fc8
+  store uses=[rdi, rax] creates=[]  => 8907
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoadApart ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rax, rsi] creates=[-]  => 
+  x86_movbe_load uses=[-] creates=[rcx]  => 480f38f00cf0
+  imm uses=[] creates=[remat:0]  => 
+  mul uses=[rax, rdi] creates=[rax] pre=[rdx->rax, remat:0->rdi]  => 488bc2bf0300000048f7e7
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 4883c007
+  add uses=[rcx, rax] creates=[rcx]  => 4801c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: swapStoreIndexed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  x86_movbe_store uses=[-, rdx] creates=[]  => 480f38f114f7
+  ret uses=[] creates=[]  => c3

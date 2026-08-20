@@ -218,6 +218,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "neg"_v;
         case LowerInst::Not:
             return "not"_v;
+        case LowerInst::Bswap:
+            return "bswap"_v;
         case LowerInst::Abs:
             return "abs"_v;
         case LowerInst::Sqrt:
@@ -310,6 +312,10 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "x86_permute"_v;
         case LowerInst::X86StoreOp:
             return nameForStoreOp(((LowerInstX86StoreOp&)inst).getOp());
+        case LowerInst::X86MovbeLoad:
+            return "x86_movbe_load"_v;
+        case LowerInst::X86MovbeStore:
+            return "x86_movbe_store"_v;
         case LowerInst::Call:
             return nameForCall(((LowerInstCall&)inst).getCallType());
         case LowerInst::Je:

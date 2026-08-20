@@ -652,6 +652,33 @@ static JsPtr<Expr> roundingLane(Gen& g, Value::Kind kind, JsPtr<Expr> value) {
 }
 
 /*
+ * The byte reversal, which is a call to one of three helpers - see Gen::byteSwapHelpers.
+ *
+ * The width comes from the *type* rather than from the value's host representation, and the two do
+ * not agree: a 16-bit swap and a 32-bit one are both `number` arithmetic here, and reversing four
+ * bytes of a value that has two is a different answer rather than a slower one. The resolve verifier
+ * has already refused every width that is not 16, 32 or 64, so there is no fourth case to answer.
+ *
+ * The helper answers the raw reversal and the caller coerces, which is what lets one function serve
+ * both signednesses of a width: `>>> 0`, `| 0`, `& 0xffff` and `BigInt.asIntN` are the type's own
+ * normal form, and applying it is the same statement every other arithmetic instruction here makes.
+ */
+static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
+    auto bits = ((IntType*)g.global[type])->bits;
+    auto slot = bits == 16 ? 0 : bits == 32 ? 1 : 2;
+
+    if(!g.byteSwapHelpers[slot].text) {
+        auto name = bits == 16 ? "$swap16"_v : bits == 32 ? "$swap32"_v : "$swap64"_v;
+        g.byteSwapHelpers[slot] = uniqueName(g, name, false);
+    }
+
+    auto node = make<CallExpr>(g, variable(g, g.byteSwapHelpers[slot]));
+    node->args.push(g.file.arena, value);
+    node->pure = true;
+    return asExpr(g, node);
+}
+
+/*
  * One value's bits read as another type of the same width.
  *
  * Two shapes. Two integer types of one width are the same host value in two normal forms, so the
@@ -1980,6 +2007,68 @@ void emitRoundAwayHelper(Gen& g) {
 }
 
 /*
+ * The three byte reversals - see Gen::byteSwapHelpers.
+ *
+ *     function $swap16(v) { return ((v & 255) << 8) | ((v >> 8) & 255) }
+ *     function $swap32(v) { return ((v & 255) << 24) | (((v >> 8) & 255) << 16) | ((v >> 8) & 65280) | ((v >> 24) & 255) }
+ *     function $swap64(v) { return ((v & 255n) << 56n) | ... | ((v >> 56n) & 255n) }
+ *
+ * One shape for all three, and `>>` throughout rather than `>>>`. That is not a preference: `>>>`
+ * does not exist for a `bigint` at all, and for the two narrow widths it would be the *wrong* half
+ * of the pair anyway - what makes a shift-down safe here is the mask that follows it, which clears
+ * the sign bits a negative `I16` or `I32` brings down whichever shift brought them.
+ *
+ * Each byte is masked to itself before it is placed, so no term ever holds a bit belonging to
+ * another. What the emitted text costs is a few operators more than the compact idiom; what it buys
+ * is that the same three lines are right for a signed operand, an unsigned one and a `bigint`.
+ *
+ * The answer is the raw reversal at the helper's width, and the caller's coercion is what takes it
+ * back to the type's own normal form - which is what lets one helper serve both signednesses.
+ */
+void emitByteSwapHelpers(Gen& g) {
+    auto define = [&](Size slot, U32 bits) {
+        auto& name = g.byteSwapHelpers[slot];
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        auto argument = literalName(g, "v"_v);
+        auto value = variable(g, argument);
+        function->args.push(g.file.arena, argument);
+
+        auto wide = bits == 64;
+        auto constant = [&](U64 n) { return wide ? bigInt(g, n, false) : number(g, F64(n)); };
+        auto shift = [&](BinaryOp op, JsPtr<Expr> of, U32 by) {
+            return by ? binary(g, op, of, constant(by)) : of;
+        };
+
+        JsPtr<Expr> result = nullptr;
+
+        for(U32 i = 0; i < bits / 8; i++) {
+            // Where this byte is and where the reversal puts it. A byte travelling up is masked
+            // where it stands and shifted after; one travelling down is shifted first and masked in
+            // its new place, so that neither the mask nor the shifted value is ever wider than the
+            // type.
+            auto from = i * 8;
+            auto to = bits - 8 - from;
+
+            auto term = to >= from
+                ? shift(BinaryOp::Shl,
+                        binary(g, BinaryOp::And, shift(BinaryOp::Sar, value, from), constant(0xff)), to)
+                : binary(g, BinaryOp::And, shift(BinaryOp::Sar, value, from - to), constant(U64(0xff) << to));
+
+            result = result ? binary(g, BinaryOp::Or, result, term) : term;
+        }
+
+        function->body = collect(g, [&] { emit(g, make<ReturnStmt>(g, result)); });
+        emit(g, function);
+    };
+
+    define(0, 16);
+    define(1, 32);
+    define(2, 64);
+}
+
+/*
  * `function $div(a, b) { return b ? a / b : b }` and `function $rem(a, b) { return b ? a % b : a }`.
  *
  * The zero arm of the division returns the *divisor* rather than a written zero, which is what lets
@@ -3135,6 +3224,11 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
 
             break;
         }
+        case Value::ByteSwap:
+            define(g, value, coerce(g, instruction.type,
+                                    byteSwapCall(g, instruction.type,
+                                                 useValue(g, ((InstUnary&)instruction).from))));
+            break;
         case Value::Add:
         case Value::Sub:
         case Value::Mul:

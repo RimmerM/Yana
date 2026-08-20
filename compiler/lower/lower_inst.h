@@ -82,6 +82,24 @@ struct LowerInst {
         Neg = FirstUnaryArith,  // Negates the source: int, float
         Not,                    // Inverts all bits in source: int
 
+        /*
+         * The bytes of an integer in the opposite order - `bswap`, `rev`, `llvm.bswap`.
+         *
+         * A kind rather than the shift-and-mask tree it can be built from, and a *unary arithmetic*
+         * one rather than an intrinsic. Both halves of that matter. `LowerIntrinsic` means "emit
+         * this operation" and is opaque to everything above the encoder - `writesStorage` in
+         * lower_licm.cpp answers yes to every intrinsic, so a byte swap written as one would be
+         * pinned inside the loop that reads a binary format, which is the only loop that has any.
+         * As a unary it is repeatable, hoistable and CSE-able for nothing, `isUnary` being what
+         * every pass asks.
+         *
+         * **Int32 or Int64, and nothing narrower.** This IR has no 16-bit scalar, so `Bswap` is
+         * always the whole of its register: the 16-bit swap a program can write is expanded above
+         * this seam (see `Value::ByteSwap` in resolve/inst.def and its arm in lower_calc.cpp), and
+         * a backend never has to ask how much of the register the answer is.
+         */
+        Bswap,
+
         // The square root of a float or of every lane of a vector of them. One kind rather than a
         // vector one and a scalar one, for the reason the arithmetic above is one kind: what differs
         // is the operand's type and nothing else.
@@ -361,7 +379,31 @@ struct LowerInst {
          * is only ever reached at a 64-bit result, there being no 32-to-32 encoding of it.
          */
         X86Sext,
-        LastInst = X86Sext,
+
+        /*
+         * A load and a store that reverse the bytes on the way - `movbe`, which is x86-64-v3.
+         *
+         * Backend-private on `X86StoreOp`'s terms, and for the same reason: the portable spelling is
+         * the pair this replaces - a `Load` and a `Bswap`, or a `Bswap` and a `Store` - and there is
+         * nothing wrong with it. LLVM folds that pair into a `movbe` for itself where its target has
+         * one, and JS has no memory to fold into at all, so both of those backends want exactly the
+         * two instructions they were given.
+         *
+         * What the fold buys here is the whole point of the instruction: a value read from a binary
+         * format is byte-reversed on the way out of memory, with no register holding the unreversed
+         * one and no second instruction to reverse it. It is the same trade `foldLoads` makes for
+         * every other operation with an r/m operand, and it needs a kind of its own only because
+         * `bswap` itself has no memory form to be the twin of - the opcode is a different one.
+         *
+         * `getWidth` is the access, 2, 4 or 8 bytes, exactly as a `Load`'s is. There is no sign flag
+         * and no narrower width: a `movbe` is the whole of its register, and a program that reversed
+         * two bytes never reached this - see `Value::ByteSwap` in resolve/inst.def for where a 16-bit
+         * swap is spent. `selectByteSwapMemory` in codegen/x64/transform_address.cpp is what writes
+         * both of these, and the feature test is there rather than here.
+         */
+        X86MovbeLoad,
+        X86MovbeStore,
+        LastInst = X86MovbeStore,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -1150,7 +1192,10 @@ struct LowerInstX86MaskAnd: LowerInstSingle {
  * write one down, print it and parse it back.
  */
 enum class LowerIntrinsic: U16 {
-    Bswap,   // reverse the byte order of an integer
+    // A byte reversal is *not* here, and the absence is the point: `bswap` is `LowerInst::Bswap`, an
+    // ordinary unary this IR's own passes can fold, hoist and combine. An intrinsic is opaque to all
+    // three - see the note on that kind, and §3.1.3 of codegen/x64/README.md for the memory forms
+    // that opacity would also have cost.
     Popcnt,  // count the set bits of an integer
 
     /*
@@ -1265,6 +1310,40 @@ struct LowerInstIntrinsic: LowerInst {
     // LowerInst::used contains the operand list and LowerInst::created the results, both in the
     // order the intrinsic's description states.
     LowerIntrinsic intrinsic;
+};
+
+/*
+ * `movbe r, [address]` and `movbe [address], r` - see LowerInst::X86MovbeLoad.
+ *
+ * Written exactly as the `Load` and `Store` they were folded out of, one field lighter: there is no
+ * sign to extend, a reversal being defined only where the value is the whole of its register.
+ */
+struct LowerInstX86MovbeLoad: LowerInstSingle {
+    LowerInstX86MovbeLoad(LowerPtr<LowerValue> from, StringId name, LowerType type, U32 width):
+        LowerInstSingle(X86MovbeLoad, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+struct LowerInstX86MovbeStore: LowerInst {
+    LowerInstX86MovbeStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width):
+        LowerInst(X86MovbeStore), to(to), value(value)
+    {
+        usedCount = 2;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> to, value;
 };
 
 struct LowerInstCall: LowerInst {

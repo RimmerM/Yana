@@ -1,0 +1,119 @@
+{-
+   `swapEndian` - the byte reversal, which is one instruction on every machine this compiles for.
+
+   # extensions: v3
+
+   The class is source (`lib/Core.yana`) and its integer instances are generated one `ByteSwap` at a
+   time (`defineEndian` in resolve/intrinsic.cpp), so what this asserts is the whole path: the
+   instance selection, the instruction, the two backends' spellings of it and the two folds that see
+   through it.
+
+   Compiled at v3 so that the native run exercises `movbe` - the reversal folded into the access it
+   reverses - and not only `bswap`. The byte listings for both are in test/x64/ByteSwap.lower and
+   test/x64/ByteSwapMovbe.lower; what those cannot say is whether the answer is right, which is what
+   the numbers here are for.
+
+   Each case contributes a distinct power of two and `main` is 16383 when they all pass, so a failure
+   names itself in binary.
+
+   The three shapes worth separating, because they go through different code:
+
+   - a reversal of a *value*, which is `bswap` natively and `$swap32`/`$swap64` on JS;
+   - a reversal at 16 bits, which is neither: the lower IR has no 16-bit scalar, so `lowerCalc`
+     spends it as the shift pair the library used to be written as, and the signed rung is where
+     that is easy to get wrong - `shr` reads a narrow value's storage, which is sign-extended;
+   - a reversal beside a memory access, which is what `movbe` exists for.
+
+   `@noinline` on the sources is what keeps the first two from being answered by the constant fold
+   instead: `opt_fold` reverses a constant for itself, and a fixture where every case folded would
+   assert the folder twice and the instruction never. `folded` below is the opposite assertion - that
+   the two paths agree - and it is the one case here written without an opaque operand.
+-}
+
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+@noinline fn opaqueU16(x: U16) -> U16 = x
+@noinline fn opaqueI16(x: I16) -> I16 = x
+@noinline fn opaqueInt(x: Int) -> Int = x
+@noinline fn opaqueLong(x: Long) -> Long = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- The four bytes of `0x12345678`, the other way round.
+fn word() -> Int = check(swapEndian(opaqueU32(305419896)) == 2018915346, 1)
+
+-- Two bytes, which is the width that is expanded rather than reversed.
+fn short() -> Int = check((widen(swapEndian(opaqueU16(truncate(258) :: U16))) :: Int) == 513, 2)
+
+{-
+   The same at a *signed* 16-bit type, where the value is held sign-extended in its register.
+
+   `0xff00` is -256 as an `I16`, and reversing it answers `0x00ff` - a positive 255. Shifting the
+   register right without masking first brings the sign extension down into the answer's second
+   byte and gives -1; the JS helper has the same trap at the same place and needs the same mask,
+   `>>>` there being no help since the value is a negative `number` either way.
+-}
+fn signedShort() -> Int:
+    let value = opaqueI16(bitcast(truncate(65280) :: U16) :: I16)
+    return check((widen(swapEndian(value)) :: Int) == 255, 4)
+
+-- Eight bytes, `0x0102030405060708` reversed.
+fn wide() -> Int =
+    check(swapEndian(opaqueU64(72623859790382856)) == 578437695752307201, 8)
+
+-- The two canonical widths, which reach their instances through `Int` and `Long` rather than through
+-- the fixed-width family.
+fn canonical() -> Int =
+    check(swapEndian(opaqueInt(1)) == 16777216, 16) +
+    check(swapEndian(opaqueLong(1)) == 72057594037927936, 32)
+
+-- The signed fixed widths, whose instances are the unsigned ones' at the same width.
+fn signedWidths() -> Int =
+    check(swapEndian(bitcast(opaqueU32(1)) :: I32) == 16777216, 64) +
+    check(swapEndian(bitcast(opaqueU64(1)) :: I64) == 72057594037927936, 128)
+
+-- A reversal of a reversal is what went in, which both folds are asked to see: `opt_fold` collapses
+-- the pair here, and `foldUnaryValue` collapses whatever survives into the lower IR.
+fn roundTrip() -> Int:
+    let value = opaqueU64(1311768467463790320)
+    return check(swapEndian(swapEndian(value)) == value, 256)
+
+{-
+   And the shape `movbe` exists for: a value reversed on its way out of memory, and one reversed on
+   its way in.
+
+   The array is written through an opaque value so that nothing here is answered by reading the
+   literal that went in - what is being asserted is that the access and the reversal, folded into one
+   instruction natively, are still the two things they were.
+-}
+fn throughMemory() -> Int:
+    let &words = [0, 0] :: [U32]
+
+    words[0] = opaqueU32(305419896)
+    let read = check(swapEndian(words[0]) == 2018915346, 512)
+
+    words[1] = swapEndian(opaqueU32(305419896))
+    return read + check(words[1] == 2018915346, 1024)
+
+-- The constant path, which is the one case here that is *meant* to fold: the answer has to be the
+-- one the instruction would have given.
+fn folded() -> Int = check(swapEndian(truncate(305419896) :: U32) == 2018915346, 2048)
+
+{-
+   And the same reversal reached through a *witness* rather than by name.
+
+   A generated instance is a real function as well as an expansion at the call site, and this is the
+   build that tells the two apart: a fixture with a `.run.expect` is compiled a second time with
+   specialization declined, so `swapVia` is then one body with the instance passed to it, calling the
+   `Endian` method through the table. That is the least-travelled path and the one where an instance
+   whose body was only ever a call-site expansion would have nothing to call.
+-}
+@noinline fn (Endian(a)) swapVia(value: a) -> a = swapEndian(value)
+
+fn generic() -> Int =
+    check(swapVia(opaqueU32(305419896)) == 2018915346, 4096) +
+    check(swapVia(opaqueU64(1)) == 72057594037927936, 8192)
+
+fn main() -> Int =
+    word() + short() + signedShort() + wide() + canonical() + signedWidths() +
+    roundTrip() + throughMemory() + folded() + generic()

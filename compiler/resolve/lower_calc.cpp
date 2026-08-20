@@ -284,6 +284,51 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             }
             break;
         }
+        /*
+         * The byte reversal, and the one width that does not survive this seam.
+         *
+         * At 32 and 64 bits it is a unary instruction on both sides, exactly as `Abs` is: every
+         * backend has the operation and what it does with one is its own business.
+         *
+         * At 16 it cannot be, because the lower IR has no 16-bit scalar - `lowerType` answers
+         * `Int32` for every integer below the 64-bit family - so an instruction there would say
+         * "reverse four bytes" whatever the program wrote. So this is where the swap is spent, and
+         * it is spent in the terms the seam already has for a narrow type: the operand is masked
+         * where it is held sign-extended (`shr` reads a narrow value's *storage*, which is
+         * `zeroExtendsShiftOperand`'s rule at a different operation), the two halves are shifted
+         * past each other, and `truncateToWidth` removes the byte that ends up above them and puts
+         * the declared width's sign back. Four instructions, against the five the library's own
+         * `((v shl 8) and 65280) or ((v shr 8) and 255)` came to.
+         */
+        case Value::ByteSwap: {
+            auto& unaryInst = (InstUnary&)instruction;
+            auto from = mappedValue(lower, unaryInst.from);
+            auto type = lowerType(lower.global, instruction.type);
+
+            if(((IntType*)lower.global[instruction.type])->bits > 16) {
+                result = unary<LowerInst::Bswap>(
+                    lower.lower, lower.to, block, lower.lower[from], type, instruction.name
+                );
+                break;
+            }
+
+            auto value = signedType(lower.global, instruction.type)
+                       ? maskToWidth(lower, block, from, instruction.type, type)
+                       : from;
+
+            auto eight = immediate(lower, 8, type);
+
+            auto up = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
+                                             lower.lower[eight], type, StringId())->created().ptr - lower.lower;
+            auto down = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[value],
+                                               lower.lower[eight], type, StringId())->created().ptr - lower.lower;
+
+            result = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[up],
+                                           lower.lower[down], type, StringId());
+
+            result = truncateToWidth(lower, block, result, instruction.type, type, instruction.name);
+            break;
+        }
         // The two floating-point operations that are neither the unary pair above nor the binary
         // group below: one operand and no arithmetic beside it, and three operands and no other
         // instruction of that arity in this IR.

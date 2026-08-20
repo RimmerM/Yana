@@ -50,7 +50,8 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
     auto features = kBaselineFeatures;
 
     if(settings.extensions.level >= TargetExtensions::V3) {
-        features |= kFeatureAvx | kFeatureAvx2 | kFeatureBmi1 | kFeatureBmi2 | kFeatureFma3;
+        features |= kFeatureAvx | kFeatureAvx2 | kFeatureBmi1 | kFeatureBmi2 | kFeatureFma3
+                  | kFeatureMovbe;
     }
 
     /*

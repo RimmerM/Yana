@@ -53,6 +53,7 @@ MachineTarget::MachineTarget() {
     name(OpBitcast, "bitcast"_v, true);
     name(OpNeg, "neg"_v);
     name(OpNot, "not"_v);
+    name(OpBswap, "bswap"_v);
     name(OpAdd, "add"_v);
     name(OpSub, "sub"_v);
     name(OpMul, "mul"_v);
@@ -130,6 +131,8 @@ MachineTarget::MachineTarget() {
 
     name(OpLoad, "load"_v);
     name(OpStore, "store"_v);
+    name(OpMovbeLoad, "movbeload"_v);
+    name(OpMovbeStore, "movbestore"_v);
 
     // The in-place updates, which write the flags at every form they have - the arithmetic they
     // perform is the same arithmetic wherever its destination lives.

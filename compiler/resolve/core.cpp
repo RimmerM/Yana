@@ -309,6 +309,10 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         defineNum(module, type);
         defineIntegral(module, type);
         defineTruth(module, type, emitTruthy);
+
+        // Every width but the two that have nothing to reverse and the one whose bytes are not all
+        // its own - see defineEndian, which is where the set is argued.
+        if(isByteSwappable(global, type)) defineEndian(module, type);
     }
 
     // The conversion ladder, over these types and the two integer types they sit alongside. The
@@ -487,6 +491,11 @@ void defineCore(Program& program) {
 
     defineIntegral(*module, program.scalar.int_);
     defineIntegral(*module, program.scalar.long_);
+
+    // And the byte reversal at the two canonical widths, which the loop above cannot reach: `Int`
+    // and `Long` are the scalar module's types rather than the fixed-width family's.
+    defineEndian(*module, program.scalar.int_);
+    defineEndian(*module, program.scalar.long_);
 
     /*
      * The same instances over the vector of each are **not** here - simd.cpp generates them where

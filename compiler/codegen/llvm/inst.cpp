@@ -208,6 +208,12 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
             value = isFloatLike(inst.result.type) ? f.builder.CreateFNeg(from, name)
                                                   : f.builder.CreateNeg(from, name);
             break;
+        // `llvm.bswap`, which LLVM lowers to `bswap` or `movbe` for itself. It was reached through
+        // the intrinsic path until `Bswap` was a kind of its own; the name it is given here is the
+        // same one, and what changed is that everything above this backend can now see through it.
+        case LowerInst::Bswap:
+            value = f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::bswap, from, nullptr, name);
+            break;
         case LowerInst::Sqrt:
             // One intrinsic for the scalar and the vector alike - `llvm.sqrt` is overloaded on its
             // operand type, so a `<4 x float>` is the same call with a different type argument.
@@ -964,6 +970,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Set:
         case LowerInst::Neg:
         case LowerInst::Not:
+        case LowerInst::Bswap:
         case LowerInst::Sqrt:
         case LowerInst::Abs:
         case LowerInst::Trunc:
@@ -1057,6 +1064,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
         case LowerInst::X86StoreOp:
+        case LowerInst::X86MovbeLoad:
+        case LowerInst::X86MovbeStore:
             // Created by the x64 backend's own transforms, which run on a copy of the IR this
             // backend never sees. Reaching one means two targets were run over one module.
             f.context.diagnostics.error("llvm: a target-lowered instruction reached the LLVM backend"_v, inst.source);

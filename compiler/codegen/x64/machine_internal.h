@@ -79,6 +79,7 @@ enum: MachineFormId {
 
     FormNeg,
     FormNot,
+    FormBswap,
 
     FormAddReg, FormAddImm, FormAddMem,
     FormSubReg, FormSubImm, FormSubMem,
@@ -501,6 +502,11 @@ enum: MachineFormId {
     // where their originals are.
     FormLoadF32Vex, FormLoadF64Vex,
     FormStoreF32Vex, FormStoreF64Vex,
+
+    // The byte-reversing accesses, at the two widths a reversal can reach them from - see the block
+    // that builds them for why the machine's third width is not here.
+    FormMovbeLoad32, FormMovbeLoad64,
+    FormMovbeStore32, FormMovbeStore64,
 
     /*
      * The in-place memory updates, six per operation: one per access width, and the two immediate

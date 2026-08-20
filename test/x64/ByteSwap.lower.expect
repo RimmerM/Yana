@@ -1,0 +1,109 @@
+
+swap32<complex>(%a: Int): Int {
+  b_0 {
+    %s = bswap %a: Int
+    ret %s
+  }
+}
+
+swap64<complex>(%a: Long): Long {
+  b_0 {
+    %s = bswap %a: Long
+    ret %s
+  }
+}
+
+swapAndKeep<complex>(%a: Int): Int {
+  b_0 {
+    %s = bswap %a: Int
+    %t = add %s, %a: Int
+    ret %t
+  }
+}
+
+swapLoad<complex>(%p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %s = bswap %v: Int
+    ret %s
+  }
+}
+
+swapLoad64<complex>(%p: Ptr): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %s = bswap %v: Long
+    ret %s
+  }
+}
+
+swapStore<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %s = bswap %v: Int
+    store %p, %s, 4
+    ret 
+  }
+}
+
+roundTrip<complex>(%a: Int): Int {
+  b_0 {
+    %s = bswap %a: Int
+    %t = bswap %s: Int
+    ret %t
+  }
+}
+
+
+--- codegen: swap32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swap64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 488bc7480fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapAndKeep ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 8b3f
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapLoad64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 488bc7480fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: swapStore ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rsi] creates=[rsi]  => 0fce
+  store uses=[rdi, rsi] creates=[]  => 8937
+  ret uses=[] creates=[]  => c3
+
+--- codegen: roundTrip ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rdi] creates=[rdi]  => 0fcf
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  ret uses=[rax] creates=[]  => c3

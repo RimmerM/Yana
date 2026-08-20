@@ -1,0 +1,149 @@
+@image$base = []
+
+opaqueU32<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueU64<complex>(%x: Long): Long {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueU16<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueI16<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueInt<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueLong<complex>(%x: Long): Long {
+  b_0 {
+    ret %x
+  }
+}
+
+throughMemory<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = load %v_1, 4: Int
+    store %v_1, 2, 4
+    store %v_2, 0, 4
+    %v_4 = add %v_2, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = call_complex opaqueU32, 305419896: Int
+    store %v_2, %v_5, 4
+    %v_6 = bswap %v_5: Int
+    %v_7 = cmp_eq %v_6, 2018915346: Int
+    %v_8 = select %v_7, 512, 0: Int
+    %v_9 = add %v_2, 4: Ptr
+    %v_10 = call_complex opaqueU32, 305419896: Int
+    %v_11 = bswap %v_10: Int
+    store %v_9, %v_11, 4
+    %v_12 = cmp_eq %v_11, 2018915346: Int
+    %v_13 = select %v_12, 1024, 0: Int
+    %v_14 = add %v_8, %v_13: Int
+    ret %v_14
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex opaqueU32, 305419896: Int
+    %v_2 = bswap %v_1: Int
+    %v_3 = cmp_eq %v_2, 2018915346: Int
+    %v_4 = call_complex opaqueU16, 258: Int
+    %v_5 = imm 8: Int
+    %v_6 = shl %v_4, %v_5: Int
+    %v_7 = shr %v_4, %v_5: Int
+    %v_8 = or %v_6, %v_7: Int
+    %v_9 = and %v_8, 65535: Int
+    %v_10 = cast %v_9: Int
+    %v_11 = cmp_eq %v_10, 513: Int
+    %v_12 = select %v_11, 2, 0: Int
+    %v_13 = add %v_3, %v_12: Int
+    %value = call_complex opaqueI16, 18446744073709551360: Int
+    %v_14 = and %value, 65535: Int
+    %v_15 = imm 8: Int
+    %v_16 = shl %v_14, %v_15: Int
+    %v_17 = shr %v_14, %v_15: Int
+    %v_18 = or %v_16, %v_17: Int
+    %v_19 = imm 16: Int
+    %v_20 = shl %v_18, %v_19: Int
+    %v_21 = sar %v_20, %v_19: Int
+    %v_22 = cast %v_21: Int
+    %v_23 = cmp_eq %v_22, 255: Int
+    %v_24 = select %v_23, 4, 0: Int
+    %v_25 = add %v_13, %v_24: Int
+    %v_26 = call_complex opaqueU64, 72623859790382856: Long
+    %v_27 = bswap %v_26: Long
+    %v_28 = cmp_eq %v_27, 578437695752307201: Int
+    %v_29 = select %v_28, 8, 0: Int
+    %v_30 = add %v_25, %v_29: Int
+    %v_31 = call_complex opaqueInt, 1: Int
+    %v_32 = bswap %v_31: Int
+    %v_33 = cmp_eq %v_32, 16777216: Int
+    %v_34 = select %v_33, 16, 0: Int
+    %v_35 = call_complex opaqueLong, 1: Long
+    %v_36 = bswap %v_35: Long
+    %v_37 = cmp_eq %v_36, 72057594037927936: Int
+    %v_38 = select %v_37, 32, 0: Int
+    %v_39 = add %v_34, %v_38: Int
+    %v_40 = add %v_30, %v_39: Int
+    %v_41 = call_complex opaqueU32, 1: Int
+    %v_42 = bswap %v_41: Int
+    %v_43 = cmp_eq %v_42, 16777216: Int
+    %v_44 = select %v_43, 64, 0: Int
+    %v_45 = call_complex opaqueU64, 1: Long
+    %v_46 = bswap %v_45: Long
+    %v_47 = cmp_eq %v_46, 72057594037927936: Int
+    %v_48 = select %v_47, 128, 0: Int
+    %v_49 = add %v_44, %v_48: Int
+    %v_50 = add %v_40, %v_49: Int
+    %value = call_complex opaqueU64, 1311768467463790320: Long
+    %v_51 = add %v_50, 256: Int
+    %v_52 = call_complex throughMemory: Int
+    %v_53 = add %v_51, %v_52: Int
+    %v_54 = add %v_53, 2048: Int
+    %v_55 = call_complex opaqueU32, 305419896: Int
+    %v_56 = call_complex swapVia(U32), %v_55: Int
+    %v_57 = cmp_eq %v_56, 2018915346: Int
+    %v_58 = select %v_57, 4096, 0: Int
+    %v_59 = call_complex opaqueU64, 1: Long
+    %v_60 = call_complex swapVia(U64), %v_59: Long
+    %v_61 = cmp_eq %v_60, 72057594037927936: Int
+    %v_62 = select %v_61, 8192, 0: Int
+    %v_63 = add %v_58, %v_62: Int
+    %v_64 = add %v_54, %v_63: Int
+    ret %v_64
+  }
+}
+
+swapVia(U32)<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = bswap %value: Int
+    ret %v_1
+  }
+}
+
+swapVia(U64)<complex>(%value: Long): Long {
+  b_0 {
+    %v_1 = bswap %value: Long
+    ret %v_1
+  }
+}
+

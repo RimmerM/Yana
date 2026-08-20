@@ -1,0 +1,77 @@
+# The byte reversal, at the baseline.
+#
+# `bswap` is one instruction and destructive - it writes over the register it read - so a reversal
+# whose operand outlives it gets the same copy in front of it that `neg` and `not` do. That is the
+# whole of what this file is about at v2; ByteSwapMovbe.lower is the same functions one level up,
+# where a reversal beside a memory access stops being an instruction at all.
+#
+# What to look for:
+#
+#   - `0f c8+r`, the register in the opcode byte rather than in a ModRM field. There is no r/m form
+#     of this instruction, so an operand the allocator left in the frame is loaded first - unlike
+#     `neg`, which is negated in place.
+#   - no flags. A comparison whose flags a reversal stands between still reaches its branch.
+#   - the load and the store below stay two instructions each: `movbe` is x86-64-v3, and this file
+#     is the level that does not have it.
+
+# One reversal, in and out of a register.
+swap32(%a: Int): Int {
+    {
+        %s = bswap %a: Int
+        ret %s
+    }
+}
+
+swap64(%a: Long): Long {
+    {
+        %s = bswap %a: Long
+        ret %s
+    }
+}
+
+# The operand is read again afterwards, so the reversal cannot write over it: a copy stands in front.
+swapAndKeep(%a: Int): Int {
+    {
+        %s = bswap %a: Int
+        %t = add %s, %a: Int
+        ret %t
+    }
+}
+
+# A value read the other way round out of memory, which is the shape `movbe` exists for. Two
+# instructions here.
+swapLoad(%p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %s = bswap %v: Int
+        ret %s
+    }
+}
+
+swapLoad64(%p: Ptr): Long {
+    {
+        %v = load %p, 8: Long
+        %s = bswap %v: Long
+        ret %s
+    }
+}
+
+# And the same in the other direction.
+swapStore(%p: Ptr, %v: Int) {
+    {
+        %s = bswap %v: Int
+        store %p, %s, 4
+        ret
+    }
+}
+
+# Two reversals in a row. The IR builder folds this pair away wherever one is *built* - see
+# foldUnaryValue - but a fixture is parsed rather than built, so what the backend is handed here is
+# the pair itself, and what it does with a pair is emit both.
+roundTrip(%a: Int): Int {
+    {
+        %s = bswap %a: Int
+        %t = bswap %s: Int
+        ret %t
+    }
+}

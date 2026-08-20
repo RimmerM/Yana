@@ -6,7 +6,6 @@
  * registry; this is only enough to write one down and read it back - see LowerIntrinsic.
  */
 static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
-    [Size(LowerIntrinsic::Bswap)]  = { "bswap"_v, 1, 1 },
     [Size(LowerIntrinsic::Popcnt)] = { "popcnt"_v, 1, 1 },
     [Size(LowerIntrinsic::Cttz)]      = { "cttz"_v, 1, 1 },
     [Size(LowerIntrinsic::CttzWidth)] = { "cttz_width"_v, 1, 1 },

@@ -93,6 +93,7 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
 
     switch(a.kind) {
         case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
+        case Value::ByteSwap:
         case Value::Sqrt: case Value::Abs:
         case Value::Trunc: case Value::Floor: case Value::Ceil: case Value::Round:
             return same(((InstUnary&)a).from, ((InstUnary&)b).from);

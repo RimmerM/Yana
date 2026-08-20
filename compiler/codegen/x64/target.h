@@ -131,6 +131,25 @@ static constexpr FeatureSet kFeatureBmi1 = 1 << 8;
 static constexpr FeatureSet kFeatureBmi2 = 1 << 9;
 
 /*
+ * MOVBE - the byte-reversing load and store, and v3 like everything beside it.
+ *
+ * A bit of its own rather than a wider reading of BMI1 or BMI2, on the argument the file opens with:
+ * it is a separate fact about the instruction set - one Atom generation had `movbe` and none of the
+ * rest of v3 - and a level that ever splits them should find them written down separately.
+ *
+ * What it buys is a register and an instruction at every access to a value stored the other way
+ * round, which is every binary format a program reads or writes: `bswap` after a load is two
+ * instructions and a register holding a value nobody wanted, and this is one instruction and no
+ * register. See `selectByteSwapMemory`.
+ *
+ * The hazard is the ordinary one for a feature claimed wrongly, and here it is the *loud* kind
+ * rather than the silent kind `tzcnt` has: `0f 38 f0` decodes as nothing at all on a processor
+ * without MOVBE, so a wrong claim faults rather than answering differently. That is why the fold is
+ * refused where the feature is absent instead of the form being selected and legalized afterwards.
+ */
+static constexpr FeatureSet kFeatureMovbe = 1 << 10;
+
+/*
  * The fused multiply-add, at every width and both lane kinds - v3, with the rest.
  *
  * It was a flag beside the SSE ladder when the ladder had a rung for AVX-without-AVX2, since Sandy

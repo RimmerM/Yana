@@ -193,6 +193,20 @@ static void selectAddressesAndLeas(Context&, LowerBase base, LowerFunction& fun)
     foldLeas(base, fun);
 }
 
+// Folds a byte reversal and the access it reverses into one `movbe`, where the target has it.
+//
+// Below `selectAddressesAndLeas`, so that what the access inherits is the whole addressing mode
+// rather than a pointer some `lea` had to materialize - the same order `selectMemorySources` is in,
+// and for the same reason. Above `selectMachineInstructions`, which is where a value stops being
+// purely semantic.
+//
+// Expects: addresses selected.  Establishes: no byte reversal reaches allocation beside an access
+// that could have performed it. Mutates: the instruction lists and the affected use lists.
+// Invalidates: instruction positions within a block.
+static void selectByteSwapAccesses(Context&, LowerBase base, LowerFunction& fun) {
+    selectByteSwapMemory(base, fun);
+}
+
 // Folds a load into the instruction that consumes it, where the encoding has a form that reads its
 // operand out of memory: `add rax, [rdi + rcx*8]` in place of a load and an add.
 //
@@ -559,6 +573,7 @@ static const TransformPass kTransformPipeline[] = {
      */
     { "selectSignExtends"_v,           selectSignExtends,           0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
+    { "selectByteSwapAccesses"_v,      selectByteSwapAccesses,      0 },
     { "poolFloatConstants"_v,          poolFloatConstants,          0 },
     { "selectMemorySources"_v,         selectMemorySources,         0 },
     { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },

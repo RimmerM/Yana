@@ -58,6 +58,12 @@ enum : MachineOpcodeId {
     OpBitcast,
     OpNeg,
     OpNot,
+
+    // The byte reversal. An opcode of its own rather than a form of `OpMove`, because the two are
+    // different instructions that happen to share a shape: this one is destructive, writes no flags
+    // and has no memory operand at all - `movbe` is a different opcode, not this one reaching an
+    // address. See LowerInst::Bswap.
+    OpBswap,
     OpAdd,
     OpSub,
     OpMul,
@@ -292,6 +298,20 @@ enum : MachineOpcodeId {
     OpAlloca,
     OpLoad,
     OpStore,
+
+    /*
+     * `movbe` - a load and a store that reverse the bytes on the way, x86-64-v3.
+     *
+     * Two opcodes rather than two forms of one, on `OpLoad` and `OpStore`'s own terms: what a form
+     * table row describes is one operation's encodings, and a load and a store are two operations.
+     * They are *not* forms of `OpBswap` either, for the reason given there.
+     *
+     * See LowerInst::X86MovbeLoad, and `selectByteSwapMemory` in transform_address.cpp for what
+     * reaches them - which is where the feature test lives, since a target below v3 has to keep the
+     * two instructions it was given.
+     */
+    OpMovbeLoad,
+    OpMovbeStore,
 
     /*
      * The five that read a location, combine it with a value and write it back - `add [m], r`.
@@ -1147,7 +1167,7 @@ struct IntrinsicEffects {
 };
 
 struct IntrinsicDescriptor {
-    LowerIntrinsic id = LowerIntrinsic::Bswap;
+    LowerIntrinsic id = LowerIntrinsic::Popcnt;
     FeatureSet requiredFeatures = kFeatureBaseline;
 
     MachineOpcodeId opcode = OpNone;

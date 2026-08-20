@@ -1,0 +1,125 @@
+# The same reversals with `movbe` available.
+#
+# extensions: v3
+#
+# `movbe` is a load or a store that reverses the bytes on the way through - `0f 38 f0 /r` reading and
+# `0f 38 f1 /r` writing - so the pair ByteSwap.lower emits for an access becomes one instruction, and
+# the register that held the value the wrong way round is never occupied.
+#
+# What to look for, reading this beside ByteSwap.lower:
+#
+#   - `swapLoad`, `swapLoad64` and `swapStore` are one instruction each, with the whole addressing
+#     mode inside them: the fold runs after the address selection, so a scaled index folds in exactly
+#     as it would into a `mov`.
+#   - `swap32` and `swap64` are unchanged. A reversal with no access beside it is still a `bswap`;
+#     this level adds a memory form, not a better register one.
+#   - `swapAndKeep` is unchanged as well - the load feeding it is read twice, so the access has to
+#     happen anyway.
+
+swap32(%a: Int): Int {
+    {
+        %s = bswap %a: Int
+        ret %s
+    }
+}
+
+swap64(%a: Long): Long {
+    {
+        %s = bswap %a: Long
+        ret %s
+    }
+}
+
+swapLoad(%p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %s = bswap %v: Int
+        ret %s
+    }
+}
+
+swapLoad64(%p: Ptr): Long {
+    {
+        %v = load %p, 8: Long
+        %s = bswap %v: Long
+        ret %s
+    }
+}
+
+# The addressing mode travels with the fold: `base + index*4` is part of the `movbe` rather than an
+# `lea` in front of it.
+swapLoadIndexed(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 4: Int
+        %s = bswap %v: Int
+        ret %s
+    }
+}
+
+swapStore(%p: Ptr, %v: Int) {
+    {
+        %s = bswap %v: Int
+        store %p, %s, 4
+        ret
+    }
+}
+
+swapStore64(%p: Ptr, %v: Long) {
+    {
+        %s = bswap %v: Long
+        store %p, %s, 8
+        ret
+    }
+}
+
+# The load is read twice, so it stays: folding it into the reversal would put the access back for the
+# other reader. This is `foldLoads`' single-reader rule at a different instruction.
+swapLoadShared(%p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %s = bswap %v: Int
+        %t = add %s, %v: Int
+        ret %t
+    }
+}
+
+# A store of a value that is reversed *and* read elsewhere: the reversal stands, and the store is an
+# ordinary one.
+swapStoreShared(%p: Ptr, %v: Int): Int {
+    {
+        %s = bswap %v: Int
+        store %p, %s, 4
+        ret %s
+    }
+}
+
+# The reversal is not adjacent to the access it folds into. The `movbe` goes where the *load* was, so
+# the addressing mode it inherits is still the one standing immediately in front of it and the
+# arithmetic in between is untouched - see §3.1.4 of the backend README for why folding upward is
+# what makes that true without a question about the instructions in between.
+swapLoadApart(%p: Ptr, %i: Long, %j: Long): Long {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 8: Long
+        %k = mul %j, 3L: Long
+        %m = add %k, 7L: Long
+        %s = bswap %v: Long
+        %t = add %s, %m: Long
+        ret %t
+    }
+}
+
+# The store's own address, built the same way: the reversal above it disappears and the `movbe`
+# stands where the store did, directly below the address that serves it.
+swapStoreIndexed(%p: Ptr, %i: Long, %v: Long) {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %s = bswap %v: Long
+        store %q, %s, 8
+        ret
+    }
+}

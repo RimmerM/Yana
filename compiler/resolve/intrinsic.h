@@ -150,6 +150,11 @@ void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
 void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
 ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type);
 ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type);
+
+// `Endian`, for the integer types that have a whole number of bytes to reverse - `isByteSwappable`
+// is that test, and defineEndian's comment is why it is not every integer type.
+ModulePtr<ClassInstance> defineEndian(Module& module, TypePtr type);
+bool isByteSwappable(GlobalBase global, TypePtr type);
 void defineLogic(Module& module, TypePtr type);
 void defineTruth(Module& module, TypePtr type, Emit emit);
 

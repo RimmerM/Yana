@@ -258,6 +258,52 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
     vexTwin(FormStoreF64Vex, FormStoreF64, "vmovsd [address], xmm"_v, false);
 
     /*
+     * `movbe` - the access that reverses the bytes on its way through, x86-64-v3.
+     *
+     * `0f 38 f0 /r` reads a location into a register byte-reversed and `0f 38 f1 /r` writes one the
+     * same way; the width is the operand size, so the 16-bit rows are the 32-bit encoding under a
+     * `66` prefix exactly as the ordinary `mov word` is.
+     *
+     * What these rows are for is the *register* they remove rather than the instruction: a value
+     * read out of a binary format arrives already the right way round, with nothing holding the
+     * unreversed one and no second instruction to reverse it. `selectByteSwapMemory` in
+     * transform_address.cpp is what moves a `Load` and a `Bswap` onto one of these, and it is where
+     * the feature is tested - a target below v3 keeps the two instructions it was given, which is
+     * what `requiredFeatures` here would otherwise turn into an unencodable selection.
+     *
+     * **Two widths, not three.** The machine has a 16-bit `movbe` as well - the same encoding under a
+     * `66` prefix - and there is no way to reach it from this IR: a 16-bit reversal is spent above
+     * the lower IR, which has no scalar type narrower than `Int32` to carry one (see
+     * `Value::ByteSwap` in resolve/inst.def). A row nobody can select is a row nothing tests, so the
+     * width that has no producer has no form either, and adding one is part of carrying the narrow
+     * reversal down rather than something already waiting for it.
+     */
+    auto movbe = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 op,
+                     U8 prefix, OperationWidth width, bool store)
+    {
+        auto& form = add(id, opcode, formName);
+        form.uses.push(address());
+        if(store) form.uses.push(anyReg());
+        else form.defs.push(def());
+
+        form.requiredFeatures = kFeatureMovbe;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = op, .escape = 0x0f, .prefix = prefix,
+            .regField = store ? useRef(1) : defRef(0),
+            .width = width,
+        };
+
+        form.encoding.opcodeMap = kOpcodeMap0F38;
+    };
+
+    movbe(FormMovbeLoad32, OpMovbeLoad, "movbe r32, [address]"_v, 0xf0, 0, OperationWidth::Fixed32, false);
+    movbe(FormMovbeLoad64, OpMovbeLoad, "movbe r64, [address]"_v, 0xf0, 0, OperationWidth::Fixed64, false);
+
+    movbe(FormMovbeStore32, OpMovbeStore, "movbe dword [address], r"_v, 0xf1, 0, OperationWidth::Fixed32, true);
+    movbe(FormMovbeStore64, OpMovbeStore, "movbe qword [address], r"_v, 0xf1, 0, OperationWidth::Fixed64, true);
+
+    /*
      * §45.2 The in-place memory updates - `add [rdi + rcx*4], edx`.
      *
      * Shaped exactly like the stores above and encoded by the same family: an `address()` operand,

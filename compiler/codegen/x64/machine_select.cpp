@@ -97,6 +97,15 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Not:
             return isPackedOp() ? OpVNot : OpNot;
 
+        // The byte reversal, which has no packed spelling to choose between: a lane-wise one is a
+        // shuffle against a pattern, and the IR has already refused a vector operand.
+        case LowerInst::Bswap: return OpBswap;
+
+        // The two accesses that reverse on the way. Written only where the feature is present, so
+        // reaching one of these is already a decision - see selectByteSwapMemory.
+        case LowerInst::X86MovbeLoad:  return OpMovbeLoad;
+        case LowerInst::X86MovbeStore: return OpMovbeStore;
+
         // The magnitude of an integer lane. A float one never reaches here: `expandVectorAbs` has
         // turned it into an `and` against a pooled mask, which is `OpVAnd`.
         case LowerInst::Abs: return OpVAbs;
@@ -559,6 +568,22 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Not:
             requireIntLike(base[((LowerInstUnary*)inst)->from]->type);
             return FormNot;
+
+        // One form at both widths, the operand size being the whole of what separates them - and
+        // there is no narrow row to pick, `bswap r16` being undefined on this architecture and no
+        // 16-bit swap reaching the backend.
+        case LowerInst::Bswap:
+            requireIntLike(base[((LowerInstUnary*)inst)->from]->type);
+            return FormBswap;
+
+        // The access width is the register's, `selectByteSwapMemory` having refused a narrower one:
+        // what a reversal reverses is the whole of its operand, so a load of fewer bytes than the
+        // reversal reads is a different value rather than a narrower form.
+        case LowerInst::X86MovbeLoad:
+            return ((LowerInstX86MovbeLoad*)inst)->getWidth() == 4 ? FormMovbeLoad32 : FormMovbeLoad64;
+
+        case LowerInst::X86MovbeStore:
+            return ((LowerInstX86MovbeStore*)inst)->getWidth() == 4 ? FormMovbeStore32 : FormMovbeStore64;
 
         case LowerInst::And: return hasEmbeddedRhs(base, inst) ? FormAndImm : FormAndReg;
         case LowerInst::Or:  return hasEmbeddedRhs(base, inst) ? FormOrImm : FormOrReg;

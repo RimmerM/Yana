@@ -64,6 +64,27 @@ YANA_INST(Bitcast,      InstUnary,       "bitcast"_v,     kInstResult | kInstPur
 YANA_INST(Neg,          InstUnary,       "neg"_v,         kInstResult | kInstPure)
 YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPure)
 /*
+ * The bytes of an integer in the opposite order - `bswap`, `movbe`, `llvm.bswap`, `rev`.
+ *
+ * A kind on `Sqrt`'s grounds rather than `Abs`'s: the expansion exists, is exactly equivalent, and
+ * is simply not what any target does. `swapEndian` was eight source instances of shifts and masks
+ * until this row existed - four instructions at 32 bits and eleven at 64, where every machine this
+ * compiles for reverses a register in one - and a peephole that had to find that tree again would
+ * be looking for a shape the optimizer is free to rearrange first.
+ *
+ * **An integer, at 16, 32 or 64 bits.** Not a vector: reversing the bytes of a lane is `pshufb`
+ * against a pattern rather than this instruction widened, and nothing asks for one. Not a `@bits`
+ * refinement either - `WideInt` is 53 bits in a 64-bit register, and which eight bytes a 53-bit
+ * value's are is not a question this operation has an answer to. `verifyFunction` says both.
+ *
+ * The 16-bit case is the one that does not survive the seam. The lower IR's narrowest scalar is
+ * `Int32` (see lowerType), so a 16-bit swap cannot be *written* below here at all, and `lowerCalc`
+ * expands it into the shift pair beside the narrowing every other 16-bit operation already gets -
+ * which is why the width lives in this instruction's type rather than in a field. Below the seam a
+ * `Bswap` is always its register's full width, and `movbe` therefore never reaches a 16-bit load.
+ */
+YANA_INST(ByteSwap,     InstUnary,       "byteswap"_v,    kInstResult | kInstPure)
+/*
  * The two floating-point operations no arrangement of the arithmetic above expresses.
  *
  * `Sqrt` is here because nothing in this compiler had a square root at any width, which is what made

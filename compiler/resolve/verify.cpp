@@ -954,6 +954,38 @@ void Verifier::verifyInstruction(Value& instruction) {
             break;
         }
 
+        /*
+         * The byte reversal, whose two rules are the two things the operation has to be able to
+         * name: which bytes there are, and that they are the whole of the value.
+         *
+         * A scalar integer of 16, 32 or 64 bits. A vector is refused because a lane-wise reversal is
+         * a shuffle against a pattern rather than this instruction widened; a `@bits` refinement is
+         * refused because its declared width is not a whole number of bytes of anything - `WideInt`
+         * occupies 53 bits of a 64-bit register, and neither reading is what a caller means.
+         *
+         * Asked here for the reason the two rules below are: this is the last stage where the type
+         * is a language type. `lowerCalc` spends the 16-bit case on the way out, so what reaches the
+         * lower validator is an `Int32` or an `Int64` with nothing left to say which width the
+         * program wrote.
+         */
+        case Value::ByteSwap: {
+            auto type = instruction.type ? global[instruction.type] : nullptr;
+
+            if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
+                fail(instruction.source, "%%@ reverses the bytes of a value that is not a scalar integer"_v,
+                     instruction.id);
+            } else {
+                auto& integer = *(IntType*)type;
+
+                if(integer.canonical || (integer.bits != 16 && integer.bits != 32 && integer.bits != 64)) {
+                    fail(instruction.source, "%%@ reverses the bytes of a %@-bit integer, which is not a whole number of them"_v,
+                         instruction.id, integer.bits);
+                }
+            }
+
+            break;
+        }
+
         case Value::Sqrt:
         case Value::Trunc:
         case Value::Floor:

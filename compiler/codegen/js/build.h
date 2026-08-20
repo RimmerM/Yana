@@ -374,6 +374,22 @@ struct Gen {
     Name roundAwayHelper;
 
     /*
+     * `$swap16`, `$swap32` and `$swap64` - the byte reversal, which this host has no operator for at
+     * any width.
+     *
+     * One helper per width rather than one per type: what a swap does depends on how many bytes
+     * there are and on nothing else, so the two signednesses of a width share a helper and the
+     * caller's own coercion is what puts the sign back. Indexed by width - 16, 32 and 64 are slots
+     * 0, 1 and 2 - because the alternative is three names spelled out at every site that asks.
+     *
+     * Helpers rather than an inline expression for `roundAwayHelper`'s reason, doubled: the operand
+     * appears four times in the 32-bit shape and eight in the 64-bit one, and an operand here is an
+     * expression that may hold a call. Named lazily on floatBitsHelper's terms, so a program that
+     * never swaps emits none of them.
+     */
+    Name byteSwapHelpers[3];
+
+    /*
      * `$div` and `$rem` - the two divisors the language answers for, where the host does not.
      *
      * `x / 0` is 0 and `x % 0` is `x` (doc/spec/types.md, and the ruling beside `Div` in
@@ -1018,6 +1034,9 @@ void emitFloatBitsHelpers(Gen& g);
 
 // `function $round(v) { return v < 0 ? -Math.round(-v) : Math.round(v) }` - see Gen::roundAwayHelper.
 void emitRoundAwayHelper(Gen& g);
+
+// The byte reversals a program asked for, one function per width. See Gen::byteSwapHelpers.
+void emitByteSwapHelpers(Gen& g);
 
 // `function $div(a, b) { return b ? a / b : b }` and `$rem`, where a program asked for one. See
 // Gen::divideByZeroHelper.

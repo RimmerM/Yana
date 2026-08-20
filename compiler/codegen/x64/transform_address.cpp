@@ -1065,6 +1065,130 @@ static Maybe<Size> tryFoldStoreUpdate(LowerBase base, LowerFunction& fun, LowerB
     return Just(indexOfInst(base, block, update));
 }
 
+/*
+ * `movbe` - the byte reversal folded into the access that was going to be reversed.
+ *
+ *     mov  eax, [rdi]                  movbe eax, [rdi]
+ *     bswap eax                 =>
+ *
+ * Two rewrites, one per direction, and both are the same trade `foldLoads` makes everywhere else:
+ * an instruction and a *register* go away, the register being the one that held the value the wrong
+ * way round for the length of the reversal. What makes this a pass rather than a memory twin of the
+ * `bswap` form is that `bswap` has no memory encoding at all - `movbe` is a different opcode, in a
+ * different map, with the destination in ModRM.reg and no tie - so there is nothing for the twin
+ * derivation to derive.
+ *
+ * Three conditions on the load side:
+ *
+ *  - **The load has one reader and it is this reversal.** Otherwise the load stands anyway and this
+ *    adds an access rather than removing one.
+ *  - **The access is the whole register.** A narrow load *extends* into its destination, and what
+ *    `movbe` reverses is the operand size - so a two-byte load feeding a 32-bit reversal is four
+ *    bytes reversed rather than two, which is a different number. (No 16-bit reversal reaches this
+ *    backend at all - see `Value::ByteSwap` - so what this refuses is a program that loaded fewer
+ *    bytes than it reversed, which the reversal's own operand type is the record of.)
+ *  - **An overread load is refused**, its width being a promise about the access rather than about
+ *    the value - see LowerInstLoad::isOverread.
+ *
+ * What is deliberately *not* a condition is anything about what lies between the two, and that is
+ * because of where the access is put: the `movbe` goes where the **load** was, not where the
+ * reversal was. Nothing about the memory access moves, so no question about intervening writes
+ * arises - and, more to the point, the address the load reads stays exactly where it is. §3.1.2's
+ * sink has to move an `X86Address` down with the load it serves, and refuse the move when something
+ * else reads it, precisely because the registers the address is built from could be written by what
+ * lies between; folding upward asks none of that. What moves instead is the *reversal*, which is
+ * pure and whose one operand is defined immediately above it.
+ *
+ * The store side is the mirror: the `movbe` goes where the store was and the reversal above it is
+ * deleted, its operand dominating the store it now feeds directly.
+ *
+ * **The feature test is here**, and it is the whole of why this is a pass and not a form selected on
+ * the way past: `0f 38 f0` is not an encoding at all below x86-64-v3, so a target that does not have
+ * it has to keep the two instructions it was given rather than have a form refused later.
+ */
+static Maybe<Size> tryFoldByteSwapLoad(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
+    auto inst = base[block->instructions.get(base, index)];
+    if(inst->kind != LowerInst::Bswap) return Nothing();
+
+    auto reversal = (LowerInstUnary*)inst;
+    auto source = base[reversal->from];
+
+    if(source->inst()->kind != LowerInst::Load || isImplicit(source)) return Nothing();
+    if(source->uses.size() != 1) return Nothing();
+
+    auto load = (LowerInstLoad*)source->inst();
+    auto width = is64Bit(reversal->result.type) ? 8u : 4u;
+
+    // In this block, since that is where the access is put - see the header. A load in a block above
+    // is left alone rather than reached into, which costs the fold nothing that has been measured: a
+    // reversal is written beside the access it reverses.
+    if(base[load->block] != block) return Nothing();
+    if(load->getWidth() != width || load->isOverread()) return Nothing();
+
+    /*
+     * Committed: everything below changes the function.
+     */
+    auto movbe = new (fun.arena) LowerInstX86MovbeLoad(
+        load->from, reversal->result.name, reversal->result.type, width
+    );
+
+    insertInstAt(base, block, indexOfInst(base, block, load), movbe);
+    replaceUses(base, fun.arena, inst->created().ptr - base, movbe->created().ptr - base);
+
+    // The reversal first: it is the load's only reader, so the load is dead only once it has gone.
+    // Nothing sweeps dead values between here and allocation - an instruction nothing reads is an
+    // instruction that gets emitted.
+    removeInst(base, inst);
+    removeInst(base, load);
+
+    // Where the access ended up, which is *above* where the walk was: the instructions between it
+    // and the reversal it replaced are examined a second time, which each of them answers the same
+    // way. Every fold removes two instructions and adds one, so there is nothing here to circle in.
+    return Just(indexOfInst(base, block, movbe));
+}
+
+static Maybe<Size> tryFoldByteSwapStore(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
+    auto inst = base[block->instructions.get(base, index)];
+    if(inst->kind != LowerInst::Store) return Nothing();
+
+    auto store = (LowerInstStore*)inst;
+    auto stored = base[store->value];
+    auto reversal = stored->inst();
+
+    if(reversal->kind != LowerInst::Bswap || isImplicit(stored)) return Nothing();
+    if(stored->uses.size() != 1 || base[reversal->block] != block) return Nothing();
+    if(store->getWidth() != (is64Bit(stored->type) ? 8u : 4u)) return Nothing();
+
+    /*
+     * Committed: everything below changes the function.
+     */
+    auto movbe = new (fun.arena) LowerInstX86MovbeStore(
+        store->to, ((LowerInstUnary*)reversal)->from, store->getWidth()
+    );
+
+    insertInstAt(base, block, index, movbe);
+
+    removeInst(base, store);
+    removeInst(base, reversal);
+
+    return Just(indexOfInst(base, block, movbe));
+}
+
+void selectByteSwapMemory(LowerBase base, LowerFunction& fun) {
+    if((kFeatureMovbe & ~targetFeatures()) != 0) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            // Each fold removes an instruction that stood above the one it replaced, so where the
+            // access ended up is asked rather than counted - the same reason `foldStoreUpdates` asks.
+            if(auto folded = tryFoldByteSwapLoad(base, fun, block, i)) { i = folded.unwrap(); continue; }
+            if(auto folded = tryFoldByteSwapStore(base, fun, block, i)) i = folded.unwrap();
+        }
+    }
+}
+
 void foldStoreUpdates(LowerBase base, LowerFunction& fun) {
     // Which blocks are in a loop, which is the whole of what decides where this fires - see the
     // table above. Built once for the function; nothing here creates or renumbers a block, so the

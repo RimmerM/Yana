@@ -457,6 +457,33 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
     return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 9 });
 }
 
+/*
+ * `Endian`, whose one method is one instruction - and which is generated here rather than written in
+ * `lib/Core.yana` for the reason every other integer instance is.
+ *
+ * The class stays source, and that is the half worth keeping: a user's own type may be an instance
+ * of it, and R1 admits one plain function per (name, arity) so a `swapEndian` per width could never
+ * have been eight functions. What was source and is not any more are the *bodies* - eight shift and
+ * mask trees that every target then had to recognize again to reach the instruction it has.
+ *
+ * Generated for 16, 32 and 64 bits, which is exactly the set that had an instance before. `U8` and
+ * `I8` have nothing to swap, and `WideInt` is 53 bits in a 64-bit register - which eight bytes a
+ * 53-bit value's are is a question this operation has no answer to, so it keeps not having one.
+ */
+ModulePtr<ClassInstance> defineEndian(Module& module, TypePtr type) {
+    IntrinsicMethod methods[] = { { "swapEndian"_v, 1, emitUnary<Value::ByteSwap> } };
+    return generateInstance(module, classNamed(module, "Endian"_v), { &type, 1 }, { methods, 1 });
+}
+
+// Whether a type is one this operation has an answer for - a whole number of bytes, and the whole of
+// the value. See defineEndian, and the `ByteSwap` row in inst.def.
+bool isByteSwappable(GlobalBase global, TypePtr type) {
+    if(global[type]->kind != Type::Int) return false;
+
+    auto& integer = *(IntType*)global[type];
+    return !integer.canonical && (integer.bits == 16 || integer.bits == 32 || integer.bits == 64);
+}
+
 void defineLogic(Module& module, TypePtr type) {
     IntrinsicMethod methods[] = {
         { "&&"_v, 2, nullptr, emitLogicalAnd },

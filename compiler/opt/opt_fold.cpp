@@ -375,6 +375,23 @@ struct Folder {
     }
 
     ModulePtr<Value> foldUnary(InstUnary& instruction, const IntFacts& facts) {
+        /*
+         * A byte reversal of a byte reversal is what went in - the one identity this operation has,
+         * and the shape any program that reads a format and writes it back is made of.
+         *
+         * Ahead of the constant question because it is not one, and stated here as well as in
+         * lower_fold.cpp because the two tiers see different programs: this one runs before inlining
+         * decides anything, so the pair it collapses is usually one `swapEndian` in a caller and one
+         * in the callee it was handed to.
+         */
+        if(instruction.kind == Value::ByteSwap) {
+            auto inner = opt.local[instruction.from];
+
+            if(inner->kind == Value::ByteSwap && inner->type == instruction.type) {
+                return ((InstUnary&)*inner).from;
+            }
+        }
+
         auto from = constantValueOf(opt, instruction.from);
         if(!from) return nullptr;
 
@@ -402,6 +419,22 @@ struct Folder {
                  */
                 if(!facts.fillsRegister() && !facts.isSigned) return nullptr;
                 return constant(instruction, instruction.type, narrowToWidth(~from.unwrap(), facts));
+            /*
+             * The bytes reversed, at the *declared* width and not the register's.
+             *
+             * `narrowToWidth` then puts the value back in the form every fold here computes in, which
+             * for a signed 16-bit type is sign-extended - so a swap whose answer has its top bit set
+             * comes back negative, exactly as the emitted shift pair leaves it.
+             *
+             * No width test is needed: `verifyFunction` has already refused every width that is not
+             * 16, 32 or 64, so `bits` is a whole number of bytes wherever this is reached.
+             */
+            case Value::ByteSwap: {
+                U64 swapped = 0;
+                for(U32 i = 0; i < facts.bits; i += 8) swapped = (swapped << 8) | ((from.unwrap() >> i) & 0xff);
+
+                return constant(instruction, instruction.type, narrowToWidth(swapped, facts));
+            }
             default:
                 return nullptr;
         }
@@ -1116,6 +1149,7 @@ struct Folder {
         switch(instruction.kind) {
             case Value::Neg:
             case Value::Not:
+            case Value::ByteSwap:
                 return foldUnary((InstUnary&)instruction, facts.unwrap());
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:

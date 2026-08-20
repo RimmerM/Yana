@@ -405,6 +405,37 @@ void MachineFormBuilder::registerScalarForms() {
     unaryArith(FormNeg, OpNeg, "neg r/m"_v, 3, FlagsEffect::Def);
     unaryArith(FormNot, OpNot, "not r/m"_v, 2, FlagsEffect::None);
 
+    /*
+     * BSWAP r (0f c8+r) - the byte reversal, and the one unary here whose operand cannot be a frame
+     * slot.
+     *
+     * The register is part of the opcode byte rather than named in a ModRM field, which is what
+     * `EncodingFamily::OpcodeReg` says and is also why there is no `bswap [m]` to declare as a
+     * memory twin: the encoding has nowhere to put an address. A value the allocator left in the
+     * frame is therefore loaded first, exactly as it is for any other form with no r/m operand -
+     * and where the value came *out* of memory in the first place, `selectByteSwapMemory` has
+     * already turned the pair into a `movbe` and this form is not reached at all.
+     *
+     * Destructive like the two-address ALU operations, and it writes no flags: the whole of the
+     * instruction is the permutation.
+     *
+     * **32 and 64 bits only**, which is all the IR can hand it - `bswap r16` is undefined on this
+     * architecture, and the 16-bit swap a program can write was spent above the lower IR precisely
+     * because there is no register width here to hold one.
+     */
+    {
+        auto& form = add(FormBswap, OpBswap, "bswap r"_v);
+        form.uses.push(anyReg());
+        form.defs.push(tiedDef(0));
+        form.flagsEffect = FlagsEffect::None;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::OpcodeReg,
+            .opcode = 0xc8, .escape = 0x0f,
+            .rmField = useRef(0),
+            .width = OperationWidth::FromUse0,
+        };
+    }
+
     // `neg` sets ZF from the result the way the group-1 operations do; `not` writes no flag at all,
     // which is why a comparison of its result against zero is a comparison and not a redundancy.
     forms[FormNeg].resultInFlags = true;

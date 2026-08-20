@@ -147,6 +147,9 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::Cmp:
         case LowerInst::Select:
 
+        // The byte reversal, which carries nothing beside its operand either.
+        case LowerInst::Bswap:
+
         // Both floating-point kinds, which carry nothing beside their operands - so two of them in
         // two copies of a block are the same computation exactly when their operands are, which is
         // what the caller compares next.

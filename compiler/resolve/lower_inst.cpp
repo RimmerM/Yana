@@ -172,6 +172,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Bitcast:
         case Value::Neg:
         case Value::Not:
+        case Value::ByteSwap:
         case Value::Sqrt:
         case Value::Abs:
         case Value::Trunc:

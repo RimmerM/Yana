@@ -10,7 +10,7 @@
  * The operations named directly rather than described.
  *
  * An intrinsic means "emit this machine operation", so the question here is only whether LLVM has a
- * name for the same operation. Where it does - `bswap`, `ctpop`, the fences, `prefetch` - the
+ * name for the same operation. Where it does - `ctpop`, the fences, `prefetch` - the
  * intrinsic is used, because LLVM knows what those do and can move, fold and select them. Where it
  * does not, the operation is inline assembly with the operands pinned to the registers the encoding
  * demands, which is the same statement the x64 registry makes as fixed-register constraints (see
@@ -77,10 +77,6 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
     auto created = inst.created();
 
     switch(inst.getIntrinsic()) {
-        case LowerIntrinsic::Bswap:
-            defineResults(f, inst, f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::bswap, argOf(f, inst, 0)));
-            return true;
-
         case LowerIntrinsic::Popcnt:
             defineResults(f, inst, f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, argOf(f, inst, 0)));
             return true;

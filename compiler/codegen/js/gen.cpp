@@ -1691,6 +1691,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     emitSaturationHelpers(g);
     emitFloatBitsHelpers(g);
     emitRoundAwayHelper(g);
+    emitByteSwapHelpers(g);
     emitDivisionHelpers(g);
     emitGrowHelper(g);
 

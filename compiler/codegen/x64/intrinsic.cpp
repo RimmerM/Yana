@@ -13,8 +13,6 @@
  * different of the allocator, and none of them appears by name in placement, in legalization or in
  * the encoder:
  *
- *   bswap    an ordinary destructive register operation, and the one existing target-specific
- *            instruction this path replaced.
  *   popcnt   reads one operand out of a frame slot where the allocator left it there, exactly as an
  *            `add` does, because it says so with the same constraint.
  *   cpuid    forces two operands into fixed registers and produces four results in fixed registers,
@@ -83,22 +81,6 @@ void addIntrinsics(MachineTarget& target) {
 
         return IntrinsicBuilder { form, desc };
     };
-
-    {
-        // BSWAP r (0f c8+r) reverses the byte order of its register in place, so it is destructive
-        // like the two-address ALU operations and needs nothing else said about it.
-        auto b = add(LowerIntrinsic::Bswap, "bswap r"_v, kFeatureBaseline);
-        b.form.uses.push(anyReg());
-        b.form.defs.push(tiedDef(0));
-        b.form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::OpcodeReg,
-            .opcode = 0xc8, .escape = 0x0f,
-            .rmField = useRef(0),
-        };
-
-        b.desc.operands.push(integerRule());
-        b.desc.results.push(integerRule());
-    }
 
     {
         // POPCNT r, r/m (f3 0f b8) counts the set bits of its operand into a register that need not

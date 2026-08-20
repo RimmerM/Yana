@@ -62,46 +62,6 @@ fn Signed(Float).abs(%value: Float) -> Float {
     ret %v10
 }
 
-fn Endian(U16).swapEndian(%value: U16) -> U16 {
-  b0:
-    %v3 = shl %value, 8 : U16
-    %v6 = and %v3, 65280 : U16
-    %v9 = shr %value, 8 : U16
-    %v12 = and %v9, 255 : U16
-    %v13 = or %v6, %v12 : U16
-    ret %v13
-}
-
-fn Endian(U32).swapEndian(%value: U32) -> U32 {
-  b0:
-    %v3 = shl %value, 24 : U32
-    %v6 = and %value, 65280 : U32
-    %v9 = shl %v6, 8 : U32
-    %v10 = or %v3, %v9 : U32
-    %v13 = shr %value, 8 : U32
-    %v16 = and %v13, 65280 : U32
-    %v17 = or %v10, %v16 : U32
-    %v20 = shr %value, 24 : U32
-    %v21 = or %v17, %v20 : U32
-    ret %v21
-}
-
-fn Endian(I32).swapEndian(%value: I32) -> I32 {
-  b0:
-    %v1 = bitcast %value : U32
-    %v2 = call Endian(U32).swapEndian, %v1 : U32
-    %v3 = bitcast %v2 : I32
-    ret %v3
-}
-
-fn Endian(Int).swapEndian(%value: Int) -> Int {
-  b0:
-    %v1 = cast %value : U32
-    %v2 = call Endian(U32).swapEndian, %v1 : U32
-    %v3 = cast %v2 : Int
-    ret %v3
-}
-
 fn Ord.min(Int)(%lhs: Int, %rhs: Int) -> Int {
   b0:
     %v3 = cmp_le %lhs, %rhs : Bool
@@ -363,15 +323,15 @@ fn limits() -> Int {
 fn bytes() -> Int {
   b0:
     %v2 = cast 305419896 : U32
-    %word = call Endian(U32).swapEndian, %v2 : U32
+    %word = byteswap %v2 : U32
     %v6 = cast 258 : U16
-    %short = call Endian(U16).swapEndian, %v6 : U16
+    %short = byteswap %v6 : U16
     %v10 = cast 1 : I32
-    %signedWord = call Endian(I32).swapEndian, %v10 : I32
-    %plain = call Endian(Int).swapEndian, 1 : Int
+    %signedWord = byteswap %v10 : I32
+    %plain = byteswap 1 : Int
     %original = cast 123456789 : U32
-    %v18 = call Endian(U32).swapEndian, %original : U32
-    %v19 = call Endian(U32).swapEndian, %v18 : U32
+    %v18 = byteswap %original : U32
+    %v19 = byteswap %v18 : U32
     %v20 = cmp_eq %v19, %original : Bool
     je %v20, b1, b2
 

@@ -1,0 +1,408 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn releaseRun(U32)(%self: Run(U32)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %U32
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Reclaim(Array(a)).reclaim(U32)(%value: Array(U32)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(U32)
+    call releaseRun(U32), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(U32)
+    %v14 = load %value@Array.run@Run.items : %U32
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof U32 : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %U32
+    %v20 = load [%v19] : U32
+    %doomed = alloc : U32
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn opaqueU32(%x: U32) -> U32 {
+  b0:
+    ret %x
+}
+
+fn opaqueU64(%x: U64) -> U64 {
+  b0:
+    ret %x
+}
+
+fn opaqueU16(%x: U16) -> U16 {
+  b0:
+    ret %x
+}
+
+fn opaqueI16(%x: I16) -> I16 {
+  b0:
+    ret %x
+}
+
+fn opaqueInt(%x: Int) -> Int {
+  b0:
+    ret %x
+}
+
+fn opaqueLong(%x: Long) -> Long {
+  b0:
+    ret %x
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn word() -> Int {
+  b0:
+    %v1 = call opaqueU32, 305419896 : U32
+    %v2 = byteswap %v1 : U32
+    %v5 = cmp_eq %v2, 2018915346 : Bool
+    %v7 = call check, %v5, 1 : Int
+    ret %v7
+}
+
+fn short() -> Int {
+  b0:
+    %v2 = cast 258 : U16
+    %v3 = call opaqueU16, %v2 : U16
+    %v4 = byteswap %v3 : U16
+    %v5 = cast %v4 : Int
+    %v8 = cmp_eq %v5, 513 : Bool
+    %v10 = call check, %v8, 2 : Int
+    ret %v10
+}
+
+fn signedShort() -> Int {
+  b0:
+    %v2 = cast 65280 : U16
+    %v3 = bitcast %v2 : I16
+    %value = call opaqueI16, %v3 : I16
+    %v5 = byteswap %value : I16
+    %v6 = cast %v5 : Int
+    %v9 = cmp_eq %v6, 255 : Bool
+    %v11 = call check, %v9, 4 : Int
+    ret %v11
+}
+
+fn wide() -> Int {
+  b0:
+    %v1 = call opaqueU64, 72623859790382856 : U64
+    %v2 = byteswap %v1 : U64
+    %v5 = cmp_eq %v2, 578437695752307201 : Bool
+    %v7 = call check, %v5, 8 : Int
+    ret %v7
+}
+
+fn canonical() -> Int {
+  b0:
+    %v1 = call opaqueInt, 1 : Int
+    %v2 = byteswap %v1 : Int
+    %v5 = cmp_eq %v2, 16777216 : Bool
+    %v7 = call check, %v5, 16 : Int
+    %v9 = call opaqueLong, 1 : Long
+    %v10 = byteswap %v9 : Long
+    %v13 = cmp_eq %v10, 72057594037927936 : Bool
+    %v15 = call check, %v13, 32 : Int
+    %v16 = add %v7, %v15 : Int
+    ret %v16
+}
+
+fn signedWidths() -> Int {
+  b0:
+    %v1 = call opaqueU32, 1 : U32
+    %v2 = bitcast %v1 : I32
+    %v3 = byteswap %v2 : I32
+    %v6 = cmp_eq %v3, 16777216 : Bool
+    %v8 = call check, %v6, 64 : Int
+    %v10 = call opaqueU64, 1 : U64
+    %v11 = bitcast %v10 : I64
+    %v12 = byteswap %v11 : I64
+    %v15 = cmp_eq %v12, 72057594037927936 : Bool
+    %v17 = call check, %v15, 128 : Int
+    %v18 = add %v8, %v17 : Int
+    ret %v18
+}
+
+fn roundTrip() -> Int {
+  b0:
+    %value = call opaqueU64, 1311768467463790320 : U64
+    %v2 = byteswap %value : U64
+    %v3 = byteswap %v2 : U64
+    %v4 = cmp_eq %v3, %value : Bool
+    %v6 = call check, %v4, 256 : Int
+    ret %v6
+}
+
+fn throughMemory() -> Int {
+  b0:
+    %v2 = alloc : Array(U32)
+    %v5 = alloc *2 : U32
+    %v6 = addressof %local1 : %U32
+    init %words@Array.run@Run.items, %v6
+    init %words@Array.run@Run.capacity, 2
+    init %words@Array.run@Run.ownsHeap, 0
+    aggregate [%v6][0] = 0, [%v6][1] = 0
+    init %words@Array.length, 2
+    %v15 = load %words : Array(U32)
+    %v18 = borrow_mut %words : &mut Array(U32)
+    %v19 = load [%v18]@Array.length : @bits(30) U32
+    %v20 = cast 0 : U64
+    %v21 = cast %v19 : U64
+    %v22 = cmp_ge %v20, %v21 : Bool
+    call checkCondition, %v22
+    %v24 = load [%v18]@Array.run@Run.items : %U32
+    %v25 = strideof U32 : Long
+    %v26 = mul 0, %v25 : Long
+    %v27 = add %v24, %v26 : %U32
+    %v28 = borrow_mut [%v27] : &mut U32
+    %v30 = call opaqueU32, 305419896 : U32
+    assign [%v28], %v30
+    %v32 = load %words : Array(U32)
+    %v35 = borrow %words : &Array(U32)
+    %v36 = load [%v35]@Array.length : @bits(30) U32
+    %v37 = cast 0 : U64
+    %v38 = cast %v36 : U64
+    %v39 = cmp_ge %v37, %v38 : Bool
+    call checkCondition, %v39
+    %v41 = load [%v35]@Array.run@Run.items : %U32
+    %v42 = strideof U32 : Long
+    %v43 = mul 0, %v42 : Long
+    %v44 = add %v41, %v43 : %U32
+    %v45 = borrow [%v44] : &U32
+    %v46 = load [%v45] : U32
+    %v47 = byteswap %v46 : U32
+    %v50 = cmp_eq %v47, 2018915346 : Bool
+    %read = call check, %v50, 512 : Int
+    %v53 = load %words : Array(U32)
+    %v56 = borrow_mut %words : &mut Array(U32)
+    %v57 = load [%v56]@Array.length : @bits(30) U32
+    %v58 = cast 1 : U64
+    %v59 = cast %v57 : U64
+    %v60 = cmp_ge %v58, %v59 : Bool
+    call checkCondition, %v60
+    %v62 = load [%v56]@Array.run@Run.items : %U32
+    %v63 = strideof U32 : Long
+    %v64 = mul 1, %v63 : Long
+    %v65 = add %v62, %v64 : %U32
+    %v66 = borrow_mut [%v65] : &mut U32
+    %v68 = call opaqueU32, 305419896 : U32
+    %v69 = byteswap %v68 : U32
+    assign [%v66], %v69
+    %v71 = load %words : Array(U32)
+    %v74 = borrow %words : &Array(U32)
+    %v75 = load [%v74]@Array.length : @bits(30) U32
+    %v76 = cast 1 : U64
+    %v77 = cast %v75 : U64
+    %v78 = cmp_ge %v76, %v77 : Bool
+    call checkCondition, %v78
+    %v80 = load [%v74]@Array.run@Run.items : %U32
+    %v81 = strideof U32 : Long
+    %v82 = mul 1, %v81 : Long
+    %v83 = add %v80, %v82 : %U32
+    %v84 = borrow [%v83] : &U32
+    %v85 = load [%v84] : U32
+    drop %words reclaim Reclaim(Array(a)).reclaim(U32)
+    %v88 = cmp_eq %v85, 2018915346 : Bool
+    %v90 = call check, %v88, 1024 : Int
+    %v91 = add %read, %v90 : Int
+    ret %v91
+}
+
+fn folded() -> Int {
+  b0:
+    %v2 = cast 305419896 : U32
+    %v3 = byteswap %v2 : U32
+    %v6 = cmp_eq %v3, 2018915346 : Bool
+    %v8 = call check, %v6, 2048 : Int
+    ret %v8
+}
+
+(Endian(a)) fn swapVia(%value: a) -> a {
+  schema {
+    #0 type a
+    #1 class Endian(a)
+  }
+
+  b0:
+    %v1 = gencall Endian(a).swapEndian, %value : a
+    ret %v1
+}
+
+fn generic() -> Int {
+  b0:
+    %v1 = call opaqueU32, 305419896 : U32
+    %v2 = call swapVia(U32), %v1 : U32
+    %v5 = cmp_eq %v2, 2018915346 : Bool
+    %v7 = call check, %v5, 4096 : Int
+    %v9 = call opaqueU64, 1 : U64
+    %v10 = call swapVia(U64), %v9 : U64
+    %v13 = cmp_eq %v10, 72057594037927936 : Bool
+    %v15 = call check, %v13, 8192 : Int
+    %v16 = add %v7, %v15 : Int
+    ret %v16
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call word : Int
+    %v1 = call short : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call signedShort : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call wide : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call canonical : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call signedWidths : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call roundTrip : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call throughMemory : Int
+    %v14 = add %v12, %v13 : Int
+    %v15 = call folded : Int
+    %v16 = add %v14, %v15 : Int
+    %v17 = call generic : Int
+    %v18 = add %v16, %v17 : Int
+    ret %v18
+}
+
+fn swapVia(U32)(%value: U32) -> U32 {
+  b0:
+    %v1 = byteswap %value : U32
+    ret %v1
+}
+
+fn swapVia(U64)(%value: U64) -> U64 {
+  b0:
+    %v1 = byteswap %value : U64
+    ret %v1
+}

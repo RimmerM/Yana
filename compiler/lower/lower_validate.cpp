@@ -195,6 +195,31 @@ static bool validateUnary(Diagnostics* diagnostics, LowerBase base, LowerInstUna
 }
 
 /*
+ * A byte reversal, whose one rule beyond agreeing with its operand is that there is a whole number
+ * of bytes to reverse.
+ *
+ * `Int32` or `Int64`, which is every scalar integer this IR has - the point being that a *narrower*
+ * one does not exist here, so nothing below this can be handed a 16-bit swap by mistake. A vector is
+ * refused for the reason the resolve verifier refuses one: reversing every lane is a shuffle against
+ * a pattern, not this instruction at a wider type.
+ */
+static bool validateBswap(Diagnostics* diagnostics, LowerBase base, LowerInstUnary* inst) {
+    auto result = inst->result.type;
+
+    if(result != LowerType::Int32 && result != LowerType::Int64) {
+        diagnostics->error("a byte reversal is defined on 32- and 64-bit integers only"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->from]->type != result) {
+        diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * A square root, and the three-operand multiply-add.
  *
  * Both are floats and nothing else, at any width and any lane count: a square root of an integer is
@@ -1114,6 +1139,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, true);
         case LowerInst::Not:
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, false);
+        case LowerInst::Bswap:
+            return validateBswap(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Sqrt:
             return validateSqrt(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Trunc:
@@ -1195,6 +1222,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
         case LowerInst::X86StoreOp:
+        case LowerInst::X86MovbeLoad:
+        case LowerInst::X86MovbeStore:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;
     }

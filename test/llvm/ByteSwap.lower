@@ -1,0 +1,27 @@
+# The byte reversal through the LLVM backend.
+#
+# `llvm.bswap` is what it becomes, overloaded on the operand type - so one arm serves both widths,
+# exactly as `llvm.sqrt` serves the scalar and the vector. It reached this backend as an *intrinsic*
+# until `Bswap` was a kind of its own; the name emitted is the same one, and what changed is that
+# every pass above the backends can now fold, hoist and combine it.
+#
+# What LLVM then does with a reversal beside a memory access is its own business: it selects `movbe`
+# where the target it is given has one, which is the same fold codegen/x64 writes by hand in
+# `selectByteSwapMemory`. That is the whole reason this is one call here and a pass there.
+
+swap(%a: Int, %b: Long): Int {
+    {
+        %s = bswap %a: Int
+        %w = bswap %b: Long
+        ret %s
+    }
+}
+
+# A reversal of a value read from memory, which is the shape the fold exists for on both backends.
+swapLoad(%p: Ptr): Long {
+    {
+        %v = loads %p, 8: Long
+        %s = bswap %v: Long
+        ret %s
+    }
+}
