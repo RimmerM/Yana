@@ -1482,6 +1482,20 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         }
 
         /*
+         * The two rotations, which have a packed form only at AVX-512 (`vprold`) and are refused
+         * nowhere anyway: `expandVectorRotate` turns one into the two shifts above and an `or`, all
+         * three of which this arm has just finished saying are supported at every lane width.
+         *
+         * A separate arm rather than a label on the shifts, because what makes them supported is not
+         * the same fact: a shift is a form or an expansion of one, and a rotation never reaches a
+         * form at all below v4. This check runs at the top of `transformFunction` and so sees the
+         * rotation the expansion is about to remove, which is why the arm has to exist.
+         */
+        case LowerInst::Rol:
+        case LowerInst::Ror:
+            return {};
+
+        /*
          * A conversion between the two lane kinds, which at this register width is one pair.
          *
          * The IR's rule is that a `Cast` between vectors preserves the lane *count*, so a conversion

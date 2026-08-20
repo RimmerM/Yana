@@ -1,0 +1,63 @@
+# The same three counts with BMI1 and LZCNT available.
+#
+# extensions: v3
+#
+# `tzcnt` is `f3 0f bc` and `lzcnt` is `f3 0f bd` - each one the baseline's bit scan with a prefix,
+# and each one *defined* at zero where the scan is not: they answer the operand's width, which is
+# exactly what the language says `trailingZeros` and `leadingZeros` answer. So the expansion
+# BitCount.lower shows disappears entirely and every function here is one instruction.
+#
+# What to look for, reading this beside BitCount.lower:
+#
+#   - `trailing` and `leading` are one instruction each, with no `cmp` and no `cmov`. The zero case
+#     is not dropped, it is the instruction's.
+#   - `leading` has no subtraction either: `lzcnt` is the count and `bsr` was the index.
+#   - `count` is unchanged. `popcnt` is v2 and this level adds nothing to it.
+#   - the prefix is what the feature buys and it is also the hazard: a processor without these
+#     decodes `f3` as nothing and runs the bare scan, answering a different function with no fault.
+#     See kFeatureBmi1 and kFeatureLzcnt in codegen/x64/target.h.
+
+count(%x: Int): Int {
+    {
+        %r = popcnt %x: Int
+        ret %r
+    }
+}
+
+trailing(%x: Int): Int {
+    {
+        %r = cttz_width %x: Int
+        ret %r
+    }
+}
+
+leading(%x: Int): Int {
+    {
+        %r = clz_width %x: Int
+        ret %r
+    }
+}
+
+trailing64(%x: Long): Long {
+    {
+        %r = cttz_width %x: Long
+        ret %r
+    }
+}
+
+leading64(%x: Long): Long {
+    {
+        %r = clz_width %x: Long
+        ret %r
+    }
+}
+
+# The r/m side of the form, which both scans have for `popcnt`'s reason: the count reads its operand
+# wherever the allocator left it, so a value that came out of memory is not copied on the way.
+leadingLoaded(%p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %r = clz_width %v: Int
+        ret %r
+    }
+}

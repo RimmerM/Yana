@@ -448,13 +448,15 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
         { "shl"_v, 2, emitBinary<Value::Shl> },
         { "shr"_v, 2, emitBinary<Value::Shr> },
         { "sar"_v, 2, emitBinary<Value::Sar> },
+        { "rol"_v, 2, emitBinary<Value::Rol> },
+        { "ror"_v, 2, emitBinary<Value::Ror> },
         { "and"_v, 2, emitBinary<Value::And> },
         { "or"_v, 2, emitBinary<Value::Or> },
         { "xor"_v, 2, emitBinary<Value::Xor> },
         { "not"_v, 1, emitUnary<Value::Not> },
     };
 
-    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 9 });
+    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 11 });
 }
 
 /*
@@ -482,6 +484,57 @@ bool isByteSwappable(GlobalBase global, TypePtr type) {
 
     auto& integer = *(IntType*)global[type];
     return !integer.canonical && (integer.bits == 16 || integer.bits == 32 || integer.bits == 64);
+}
+
+/*
+ * `bitWidth` - the one member of `Bits` that is not an instruction, and the reason it is a member.
+ *
+ * `width - leadingZeros(value)`, with the width written as a constant of the instance's own type.
+ * That is what a source body could not have said: a subexpression made only of literals resolves on
+ * its own and takes `default FromInt`, so a generic body's `leadingZeros(0)` is an `Int` whatever
+ * `a` is. Here the type is in hand and the width is read off it.
+ *
+ * Two instructions and usually fewer: a constant argument folds the whole thing away, and a
+ * `bitWidth` beside a `leadingZeros` of the same value shares the count through CSE.
+ */
+static ModulePtr<Value> emitBitWidth(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId resultName) {
+    auto bits = ((IntType*)resolver.global[type])->bits;
+    auto width = resolver.makeInt(source, type, bits);
+    auto zeros = resolver.ref(resolver.emit<InstUnary>(source, StringId(), type,
+                                                       Value::LeadingZeros, args[0]));
+
+    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, Value::Sub, width, zeros));
+}
+
+/*
+ * `Bits`, whose four methods are three instructions and a subtraction - generated here beside
+ * `Endian`, and for every one of its reasons.
+ *
+ * The class stays source, which is the half worth keeping: a newtype over a word is a plausible
+ * instance of it and R1 admits one plain function per (name, arity), so a `countBits` per width
+ * could never have been six functions. What is generated are the bodies, which as source would have
+ * been the five-step SWAR fold and two smear chains that every backend then had to recognize again
+ * to reach the instruction it already has.
+ */
+ModulePtr<ClassInstance> defineBits(Module& module, TypePtr type) {
+    IntrinsicMethod methods[] = {
+        { "countBits"_v, 1, emitUnary<Value::CountBits> },
+        { "leadingZeros"_v, 1, emitUnary<Value::LeadingZeros> },
+        { "trailingZeros"_v, 1, emitUnary<Value::TrailingZeros> },
+        { "bitWidth"_v, 1, emitBitWidth },
+    };
+
+    return generateInstance(module, classNamed(module, "Bits"_v), { &type, 1 }, { methods, 4 });
+}
+
+// The widths the counts are declared over - 32 and 64, which is the set every target has an
+// instruction for and the set `lowerType` has a scalar for. See defineBits and the note in inst.def.
+bool hasBitCounts(GlobalBase global, TypePtr type) {
+    if(global[type]->kind != Type::Int) return false;
+
+    auto& integer = *(IntType*)global[type];
+    return integer.bits == 32 || integer.bits == 64;
 }
 
 void defineLogic(Module& module, TypePtr type) {

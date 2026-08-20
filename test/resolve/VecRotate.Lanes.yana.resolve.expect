@@ -1,0 +1,116 @@
+let image$base: () = <none>
+
+let &counter: Int = 0
+
+fn opaque(%n: Int) -> Int {
+  b0:
+    %v1 = load counter : Int
+    %v4 = add %v1, 1 : Int
+    assign counter, %v4
+    %v6 = load counter : Int
+    %v9 = cmp_gt %v6, 1000 : Bool
+    je %v9, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
+fn check(%v: Vec(Int), %expected: Int) -> Int {
+  b0:
+    %v4 = vlane %v, 0 : Int
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    ret %v11
+}
+
+fn checkLong(%v: Vec(Long), %expected: Long) -> Int {
+  b0:
+    %v4 = vlane %v, 0 : Long
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %words = vsplat 305419896 : Vec(Int)
+    %longs = vsplat 81985529216486895 : Vec(Long)
+    %n = alloc : Int
+    init %n, 0
+    %v8 = load %n : Int
+    %v11 = vsplat 4 : Vec(Int)
+    %v12 = rol %words, %v11 : Vec(Int)
+    %v14 = call check, %v12, 591751041 : Int
+    %v15 = add %v8, %v14 : Int
+    assign %n, %v15
+    %v17 = load %n : Int
+    %v20 = vsplat 4 : Vec(Int)
+    %v21 = ror %words, %v20 : Vec(Int)
+    %v26 = sub 0, 2128394905 : Int
+    %v27 = call check, %v21, %v26 : Int
+    %v28 = add %v17, %v27 : Int
+    assign %n, %v28
+    %v30 = load %n : Int
+    %v33 = vsplat 0 : Vec(Int)
+    %v34 = rol %words, %v33 : Vec(Int)
+    %v36 = call check, %v34, 305419896 : Int
+    %v37 = add %v30, %v36 : Int
+    assign %n, %v37
+    %v39 = load %n : Int
+    %v42 = vsplat 32 : Vec(Int)
+    %v43 = rol %words, %v42 : Vec(Int)
+    %v45 = call check, %v43, 305419896 : Int
+    %v46 = add %v39, %v45 : Int
+    assign %n, %v46
+    %v48 = load %n : Int
+    %v51 = vsplat 36 : Vec(Int)
+    %v52 = rol %words, %v51 : Vec(Int)
+    %v54 = call check, %v52, 591751041 : Int
+    %v55 = add %v48, %v54 : Int
+    assign %n, %v55
+    %v57 = load %n : Int
+    %v59 = vsplat 8 : Vec(Long)
+    %v60 = rol %longs, %v59 : Vec(Long)
+    %v62 = call checkLong, %v60, 2541551405711093505 : Int
+    %v63 = add %v57, %v62 : Int
+    assign %n, %v63
+    %v65 = load %n : Int
+    %v67 = vsplat 64 : Vec(Long)
+    %v68 = rol %longs, %v67 : Vec(Long)
+    %v70 = call checkLong, %v68, 81985529216486895 : Int
+    %v71 = add %v65, %v70 : Int
+    assign %n, %v71
+    %v73 = load %n : Int
+    %v75 = call opaque, 2 : Int
+    %v76 = vsplat %v75 : Vec(Int)
+    %v77 = rol %words, %v76 : Vec(Int)
+    %v79 = call check, %v77, 1221679584 : Int
+    %v80 = add %v73, %v79 : Int
+    assign %n, %v80
+    %v82 = load %n : Int
+    ret %v82
+}

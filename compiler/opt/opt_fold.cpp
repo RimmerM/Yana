@@ -351,6 +351,33 @@ struct Folder {
                 }
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
                 break;
+            /*
+             * The rotations, which have an answer at *every* distance where the three shifts above
+             * decline past the width: the count is defined modulo it (inst.def rules on it), so
+             * `rol(x, 32)` at a `U32` is `x` and there is no target disagreement to stay out of.
+             *
+             * The operand is masked first for `Shr`'s reason and more sharply: a signed narrow value
+             * is held sign-extended, and a rotation that carried those bits round would bring the
+             * register's sign into the *low* end of the answer. `wrap` puts the declared width's
+             * sign back on the way out.
+             */
+            case Value::Rol:
+            case Value::Ror: {
+                auto width = facts.bits;
+                if(!known) {
+                    if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                    break;
+                }
+
+                auto mask = width >= 64 ? ~U64(0) : (U64(1) << width) - 1;
+                auto value = lhs & mask;
+                auto count = rhs % width;
+                auto back = (width - count) % width;
+
+                return wrap(instruction.kind == Value::Rol
+                    ? ((value << count) | (value >> back))
+                    : ((value >> count) | (value << back)));
+            }
             case Value::And:
                 if(known) return wrap(lhs & rhs);
                 if(isConstantValue(instruction.rhs, 0)) return zero();
@@ -434,6 +461,39 @@ struct Folder {
                 for(U32 i = 0; i < facts.bits; i += 8) swapped = (swapped << 8) | ((from.unwrap() >> i) & 0xff);
 
                 return constant(instruction, instruction.type, narrowToWidth(swapped, facts));
+            }
+            /*
+             * The three bit counts, folded at the *declared* width for the reason the swap above is:
+             * `from` arrives sign-extended for a signed type, so the register holds bits above the
+             * width that are the sign rather than the value, and counting them would answer a
+             * different function of the same input than the machine does.
+             *
+             * The mask is what removes them, and it is exact because `verifyFunction` has already
+             * refused every width but 32 and 64 - a 64-bit mask is `~0` and needs no special case
+             * only because the shift that would build it is the one C++ leaves undefined.
+             *
+             * Each answer is small and non-negative, so `narrowToWidth` is the identity on it at
+             * every width this reaches; it is written anyway, because that is the form every
+             * constant in this file is stored in and an exception is a thing to have to remember.
+             */
+            case Value::CountBits:
+            case Value::LeadingZeros:
+            case Value::TrailingZeros: {
+                auto mask = facts.bits >= 64 ? ~U64(0) : (U64(1) << facts.bits) - 1;
+                auto value = from.unwrap() & mask;
+                U64 answer = 0;
+
+                if(instruction.kind == Value::CountBits) {
+                    for(auto rest = value; rest; rest &= rest - 1) answer++;
+                } else if(!value) {
+                    answer = facts.bits;
+                } else if(instruction.kind == Value::TrailingZeros) {
+                    while(!((value >> answer) & 1)) answer++;
+                } else {
+                    while(!((value >> (facts.bits - 1 - answer)) & 1)) answer++;
+                }
+
+                return constant(instruction, instruction.type, narrowToWidth(answer, facts));
             }
             default:
                 return nullptr;
@@ -1150,9 +1210,13 @@ struct Folder {
             case Value::Neg:
             case Value::Not:
             case Value::ByteSwap:
+            case Value::CountBits:
+            case Value::LeadingZeros:
+            case Value::TrailingZeros:
                 return foldUnary((InstUnary&)instruction, facts.unwrap());
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: {
                 auto& binary = (InstBinary&)instruction;
                 if(auto folded = foldBinary(binary, facts.unwrap())) return folded;

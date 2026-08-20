@@ -265,6 +265,8 @@ void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun);
 void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);
+void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
+void expandVectorRotate(Context&, LowerBase base, LowerFunction& fun);
 void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun);
 
 /*

@@ -644,85 +644,85 @@ indexFind(Int, Int)<complex>(%self: Ptr, %key: Int, %h: Int): Long {
     %mask = cast %v_5: Int
     %v_8 = and %h, %mask: Int
     %v_9 = sext %v_8: Long
-    jmp b_10
+    %v_10 = add %self, 16: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    %v_12 = add %mask, 17: Long
+    %v_13 = add %v_11, %v_12: Ptr
+    %v_14 = load %self, 8: Ptr
+    jmp b_15
   }
 
-  b_10 {
-    %v_11 = phi [b_0, %v_9], [b_12, %v_13]: Long
-    %v_14 = phi [b_0, 0], [b_12, %v_15]: Long
-    %v_16 = cmp_ile %v_14, %mask: Int
-    je %v_16, b_17, b_18
+  b_15 {
+    %v_16 = phi [b_0, %v_9], [b_17, %v_18]: Long
+    %v_19 = phi [b_0, 0], [b_17, %v_20]: Long
+    %v_21 = cmp_ile %v_19, %mask: Int
+    je %v_21, b_22, b_23
   }
 
-  b_18 {
+  b_23 {
     ret 18446744073709551615
   }
 
-  b_17 {
-    %v_19 = add %self, 16: Ptr
-    %v_20 = load %v_19, 8: Ptr
-    %v_21 = add %v_20, %v_11: Ptr
-    %group = load %v_21, 16: i8x16
-    %v_22 = cmp_eq %group, %tag: m8x16
-    %v_23 = vreduce_bits %v_22: Int
-    %v_24 = add %mask, 17: Long
-    jmp b_25
+  b_22 {
+    %v_24 = add %v_11, %v_16: Ptr
+    %group = load %v_24, 16: i8x16
+    %v_25 = cmp_eq %group, %tag: m8x16
+    %v_26 = vreduce_bits %v_25: Int
+    jmp b_27
   }
 
-  b_25 {
-    %v_26 = phi [b_17, %v_23], [b_27, %v_28]: Int
-    %v_29 = cmp_neq %v_26, 0: Int
-    je %v_29, b_30, b_31
+  b_27 {
+    %v_28 = phi [b_22, %v_26], [b_29, %v_30]: Int
+    %v_31 = cmp_neq %v_28, 0: Int
+    je %v_31, b_32, b_33
   }
 
-  b_31 {
-    %v_32 = cmp_eq %group, %empty: m8x16
-    %v_33 = vreduce_bits %v_32: Int
-    %v_34 = cmp_neq %v_33, 0: Int
-    je %v_34, b_18, b_35
+  b_33 {
+    %v_34 = cmp_eq %group, %empty: m8x16
+    %v_35 = vreduce_bits %v_34: Int
+    %v_36 = cmp_neq %v_35, 0: Int
+    je %v_36, b_23, b_37
   }
 
-  b_30 {
-    %v_36 = cttz %v_26: Int
-    %v_37 = sext %v_36: Long
-    %v_38 = add %v_11, %v_37: Long
-    %slot = and %v_38, %mask: Long
-    %v_39 = add %v_20, %v_24: Ptr
-    %v_40 = shl %slot, 2: Long
-    %v_41 = add %v_39, %v_40: Ptr
-    %v_42 = load %v_41, 4: Int
-    %v_43 = cast %v_42: Long
-    %v_44 = load %self, 8: Ptr
-    %v_45 = shl %v_43, 3: Long
-    %v_46 = add %v_44, %v_45: Ptr
+  b_32 {
+    %v_38 = cttz_width %v_28: Int
+    %v_39 = sext %v_38: Long
+    %v_40 = add %v_16, %v_39: Long
+    %slot = and %v_40, %mask: Long
+    %v_41 = shl %slot, 2: Long
+    %v_42 = add %v_13, %v_41: Ptr
+    %v_43 = load %v_42, 4: Int
+    %v_44 = cast %v_43: Long
+    %v_45 = shl %v_44, 3: Long
+    %v_46 = add %v_14, %v_45: Ptr
     %v_47 = loads %v_46, 4: Int
     %v_48 = cmp_eq %v_47, %key: Int
     je %v_48, b_49, b_50
   }
 
   b_49 {
-    ret %v_43
+    ret %v_44
   }
 
   b_50 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_51 = sub %v_28, 1: Int
+    %v_30 = and %v_28, %v_51: Int
     jmp b_27
   }
 
-  b_27 {
-    %v_51 = sub %v_26, 1: Int
-    %v_28 = and %v_26, %v_51: Int
-    jmp b_25
+  b_37 {
+    jmp b_17
   }
 
-  b_35 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_15 = add %v_14, 16: Long
-    %v_52 = add %v_11, %v_15: Long
-    %v_13 = and %v_52, %mask: Long
-    jmp b_10
+  b_17 {
+    %v_20 = add %v_19, 16: Long
+    %v_52 = add %v_16, %v_20: Long
+    %v_18 = and %v_52, %mask: Long
+    jmp b_15
   }
 }
 
@@ -1072,7 +1072,7 @@ indexFreeSlot(Int, Int)<complex>(%self: Ptr, %h: Int): Long {
   }
 
   b_22 {
-    %v_24 = cttz %free: Int
+    %v_24 = cttz_width %free: Int
     %v_25 = sext %v_24: Long
     %v_26 = add %v_11, %v_25: Long
     %v_27 = and %v_26, %mask: Long
@@ -1260,57 +1260,57 @@ indexSlotOf(Int, Int)<complex>(%self: Ptr, %key: Int, %h: Int): Long {
     %mask = cast %v_5: Int
     %v_8 = and %h, %mask: Int
     %v_9 = sext %v_8: Long
-    jmp b_10
+    %v_10 = add %self, 16: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    %v_12 = add %mask, 17: Long
+    %v_13 = add %v_11, %v_12: Ptr
+    %v_14 = load %self, 8: Ptr
+    jmp b_15
   }
 
-  b_10 {
-    %v_11 = phi [b_0, %v_9], [b_12, %v_13]: Long
-    %v_14 = phi [b_0, 0], [b_12, %v_15]: Long
-    %v_16 = cmp_ile %v_14, %mask: Int
-    je %v_16, b_17, b_18
+  b_15 {
+    %v_16 = phi [b_0, %v_9], [b_17, %v_18]: Long
+    %v_19 = phi [b_0, 0], [b_17, %v_20]: Long
+    %v_21 = cmp_ile %v_19, %mask: Int
+    je %v_21, b_22, b_23
   }
 
-  b_18 {
+  b_23 {
     ret 18446744073709551615
   }
 
-  b_17 {
-    %v_19 = add %self, 16: Ptr
-    %v_20 = load %v_19, 8: Ptr
-    %v_21 = add %v_20, %v_11: Ptr
-    %group = load %v_21, 16: i8x16
-    %v_22 = cmp_eq %group, %tag: m8x16
-    %v_23 = vreduce_bits %v_22: Int
-    %v_24 = add %mask, 17: Long
-    jmp b_25
+  b_22 {
+    %v_24 = add %v_11, %v_16: Ptr
+    %group = load %v_24, 16: i8x16
+    %v_25 = cmp_eq %group, %tag: m8x16
+    %v_26 = vreduce_bits %v_25: Int
+    jmp b_27
   }
 
-  b_25 {
-    %v_26 = phi [b_17, %v_23], [b_27, %v_28]: Int
-    %v_29 = cmp_neq %v_26, 0: Int
-    je %v_29, b_30, b_31
+  b_27 {
+    %v_28 = phi [b_22, %v_26], [b_29, %v_30]: Int
+    %v_31 = cmp_neq %v_28, 0: Int
+    je %v_31, b_32, b_33
   }
 
-  b_31 {
-    %v_32 = cmp_eq %group, %empty: m8x16
-    %v_33 = vreduce_bits %v_32: Int
-    %v_34 = cmp_neq %v_33, 0: Int
-    je %v_34, b_18, b_35
+  b_33 {
+    %v_34 = cmp_eq %group, %empty: m8x16
+    %v_35 = vreduce_bits %v_34: Int
+    %v_36 = cmp_neq %v_35, 0: Int
+    je %v_36, b_23, b_37
   }
 
-  b_30 {
-    %v_36 = cttz %v_26: Int
-    %v_37 = sext %v_36: Long
-    %v_38 = add %v_11, %v_37: Long
-    %slot = and %v_38, %mask: Long
-    %v_39 = add %v_20, %v_24: Ptr
-    %v_40 = shl %slot, 2: Long
-    %v_41 = add %v_39, %v_40: Ptr
-    %v_42 = load %v_41, 4: Int
-    %v_43 = cast %v_42: Long
-    %v_44 = load %self, 8: Ptr
-    %v_45 = shl %v_43, 3: Long
-    %v_46 = add %v_44, %v_45: Ptr
+  b_32 {
+    %v_38 = cttz_width %v_28: Int
+    %v_39 = sext %v_38: Long
+    %v_40 = add %v_16, %v_39: Long
+    %slot = and %v_40, %mask: Long
+    %v_41 = shl %slot, 2: Long
+    %v_42 = add %v_13, %v_41: Ptr
+    %v_43 = load %v_42, 4: Int
+    %v_44 = cast %v_43: Long
+    %v_45 = shl %v_44, 3: Long
+    %v_46 = add %v_14, %v_45: Ptr
     %v_47 = loads %v_46, 4: Int
     %v_48 = cmp_eq %v_47, %key: Int
     je %v_48, b_49, b_50
@@ -1321,24 +1321,24 @@ indexSlotOf(Int, Int)<complex>(%self: Ptr, %key: Int, %h: Int): Long {
   }
 
   b_50 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_51 = sub %v_28, 1: Int
+    %v_30 = and %v_28, %v_51: Int
     jmp b_27
   }
 
-  b_27 {
-    %v_51 = sub %v_26, 1: Int
-    %v_28 = and %v_26, %v_51: Int
-    jmp b_25
+  b_37 {
+    jmp b_17
   }
 
-  b_35 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_15 = add %v_14, 16: Long
-    %v_52 = add %v_11, %v_15: Long
-    %v_13 = and %v_52, %mask: Long
-    jmp b_10
+  b_17 {
+    %v_20 = add %v_19, 16: Long
+    %v_52 = add %v_16, %v_20: Long
+    %v_18 = and %v_52, %mask: Long
+    jmp b_15
   }
 }
 
@@ -1356,52 +1356,52 @@ indexRepoint(Int, Int)<complex>(%self: Ptr, %from: Long, %to: Long, %h: Int) {
     %mask = cast %v_5: Int
     %v_8 = and %h, %mask: Int
     %v_9 = sext %v_8: Long
-    jmp b_10
+    %v_10 = add %self, 16: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    %v_12 = add %mask, 17: Long
+    %v_13 = add %v_11, %v_12: Ptr
+    jmp b_14
   }
 
-  b_10 {
-    %v_11 = phi [b_0, %v_9], [b_12, %v_13]: Long
-    %v_14 = phi [b_0, 0], [b_12, %v_15]: Long
-    %v_16 = cmp_ile %v_14, %mask: Int
-    je %v_16, b_17, b_18
+  b_14 {
+    %v_15 = phi [b_0, %v_9], [b_16, %v_17]: Long
+    %v_18 = phi [b_0, 0], [b_16, %v_19]: Long
+    %v_20 = cmp_ile %v_18, %mask: Int
+    je %v_20, b_21, b_22
   }
 
-  b_18 {
+  b_22 {
     ret 
   }
 
-  b_17 {
-    %v_19 = add %self, 16: Ptr
-    %v_20 = load %v_19, 8: Ptr
-    %v_21 = add %v_20, %v_11: Ptr
-    %group = load %v_21, 16: i8x16
-    %v_22 = cmp_eq %group, %tag: m8x16
-    %v_23 = vreduce_bits %v_22: Int
-    %v_24 = add %mask, 17: Long
-    jmp b_25
+  b_21 {
+    %v_23 = add %v_11, %v_15: Ptr
+    %group = load %v_23, 16: i8x16
+    %v_24 = cmp_eq %group, %tag: m8x16
+    %v_25 = vreduce_bits %v_24: Int
+    jmp b_26
   }
 
-  b_25 {
-    %v_26 = phi [b_17, %v_23], [b_27, %v_28]: Int
-    %v_29 = cmp_neq %v_26, 0: Int
-    je %v_29, b_30, b_12
+  b_26 {
+    %v_27 = phi [b_21, %v_25], [b_28, %v_29]: Int
+    %v_30 = cmp_neq %v_27, 0: Int
+    je %v_30, b_31, b_16
   }
 
-  b_12 {
-    %v_15 = add %v_14, 16: Long
-    %v_31 = add %v_11, %v_15: Long
-    %v_13 = and %v_31, %mask: Long
-    jmp b_10
+  b_16 {
+    %v_19 = add %v_18, 16: Long
+    %v_32 = add %v_15, %v_19: Long
+    %v_17 = and %v_32, %mask: Long
+    jmp b_14
   }
 
-  b_30 {
-    %v_32 = cttz %v_26: Int
-    %v_33 = sext %v_32: Long
-    %v_34 = add %v_11, %v_33: Long
-    %slot = and %v_34, %mask: Long
-    %v_35 = add %v_20, %v_24: Ptr
+  b_31 {
+    %v_33 = cttz_width %v_27: Int
+    %v_34 = sext %v_33: Long
+    %v_35 = add %v_15, %v_34: Long
+    %slot = and %v_35, %mask: Long
     %v_36 = shl %slot, 2: Long
-    %v_37 = add %v_35, %v_36: Ptr
+    %v_37 = add %v_13, %v_36: Ptr
     %v_38 = load %v_37, 4: Int
     %v_39 = cast %v_38: Long
     %v_40 = cmp_eq %v_39, %from: Int
@@ -1417,13 +1417,13 @@ indexRepoint(Int, Int)<complex>(%self: Ptr, %from: Long, %to: Long, %h: Int) {
   }
 
   b_42 {
-    jmp b_27
+    jmp b_28
   }
 
-  b_27 {
-    %v_46 = sub %v_26, 1: Int
-    %v_28 = and %v_26, %v_46: Int
-    jmp b_25
+  b_28 {
+    %v_46 = sub %v_27, 1: Int
+    %v_29 = and %v_27, %v_46: Int
+    jmp b_26
   }
 }
 

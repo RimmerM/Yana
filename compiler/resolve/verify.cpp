@@ -986,6 +986,36 @@ void Verifier::verifyInstruction(Value& instruction) {
             break;
         }
 
+        /*
+         * The three bit counts, whose two rules are the byte reversal's two rules at a different
+         * width set - see the note in inst.def, which is where the set is argued.
+         *
+         * A scalar integer of 32 or 64 bits. A vector is refused because a per-lane population count
+         * is a nibble-table shuffle rather than this instruction widened; a narrower width is
+         * refused because the lower IR has no scalar below `Int32` to hold one, so the answer would
+         * be its storage's rather than its own; a `@bits` refinement is refused because a
+         * leading-zero count is a question about a width `WideInt` does not have.
+         */
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros: {
+            auto type = instruction.type ? global[instruction.type] : nullptr;
+
+            if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
+                fail(instruction.source, "%%@ counts the bits of a value that is not a scalar integer"_v,
+                     instruction.id);
+            } else {
+                auto& integer = *(IntType*)type;
+
+                if(integer.bits != 32 && integer.bits != 64) {
+                    fail(instruction.source, "%%@ counts the bits of a %@-bit integer, which is not a width this operation has"_v,
+                         instruction.id, integer.bits);
+                }
+            }
+
+            break;
+        }
+
         case Value::Sqrt:
         case Value::Trunc:
         case Value::Floor:

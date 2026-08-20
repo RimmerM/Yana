@@ -467,6 +467,20 @@ static const TransformPass kTransformPipeline[] = {
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*
+     * After the reduction, which is the other producer of a defined-at-zero bit scan - `firstSet`
+     * off a movemask that fills its word. That one emits `CttzWidth` only where it has asserted
+     * BMI1, so this finds nothing of its there and everything of `Value::TrailingZeros`' and
+     * `Value::LeadingZeros`' below the level that has the instructions. Running it after rather
+     * than before is what makes the coverage a fact about the order instead of about that pass.
+     *
+     * Above every pass that rewrites a select, for `expandRoundAway`'s reason: the one this builds
+     * is an ordinary compare-and-select from here down and nothing below needs to know where it came
+     * from. Not vectors-only - a bit count is integer work and most functions holding one hold no
+     * packed value at all.
+     */
+    { "expandBitScans"_v,              expandBitScans,              0 },
+
+    /*
      * Above `poolVectorConstants`, which is what turns the mask it builds into a `.rodata` entry the
      * `andps` reads out of memory, and above the two passes below - both of which rewrite a select,
      * and this one has to see the absolute value's before either has taken it for something else.
@@ -500,6 +514,17 @@ static const TransformPass kTransformPipeline[] = {
 
     // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
     // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
+    /*
+     * **Above `unwrapVectorShiftCounts` and above `expandByteShifts`**, which is the whole of its
+     * placement: what it emits is a pair of ordinary packed shifts, and those two passes are what
+     * take a shared count's splat off one and expand an 8-bit lane's. Emitting the rotation's
+     * arithmetic here means neither of them had to learn that a rotation exists.
+     *
+     * Vectors only, and the scalar pair is *not* expanded at all: `rol`/`ror` on a general register
+     * are baseline x86, so the scalar case goes straight to a form.
+     */
+    { "expandVectorRotate"_v,          expandVectorRotate,          0, true },
+
     { "unwrapVectorShiftCounts"_v,     unwrapVectorShiftCounts,     0, true },
 
     /*

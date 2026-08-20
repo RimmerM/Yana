@@ -85,6 +85,37 @@ YANA_INST(Not,          InstUnary,       "not"_v,         kInstResult | kInstPur
  */
 YANA_INST(ByteSwap,     InstUnary,       "byteswap"_v,    kInstResult | kInstPure)
 /*
+ * The three counting operations over the bits of an integer - `popcnt`, `lzcnt`, `tzcnt`,
+ * `llvm.ctpop`/`llvm.ctlz`/`llvm.cttz`, `cnt`/`clz`/`rbit` on AArch64.
+ *
+ * Kinds on `ByteSwap`'s grounds: an expansion exists for each of them, none of the expansions is
+ * what any target does, and a peephole hunting for the tree afterwards would be hunting for a shape
+ * the optimizer is free to rearrange first. A population count written in source is the five-step
+ * SWAR fold; a leading-zero count is a five-step smear and then that; and every machine this
+ * compiles for answers each of them in one or two instructions.
+ *
+ * **All three are total, and that is the ruling.** `CountBits` of zero is zero, and both zero
+ * counts answer the operand's **declared width** - 32 for a `U32`, 64 for a `U64`. That is the
+ * `x/0` decision at a different operation (see `Div`): x86's bare `bsf`/`bsr` leave the destination
+ * *unwritten* for a zero operand, which is not a value the language can name and not one a type
+ * can exclude, so the alternative to a total answer is undefined behaviour reachable from safe
+ * source. `tzcnt` and `lzcnt` answer the width already; `Native.bits`' probe loop, which is the one
+ * caller that knows its operand is non-zero, pays the guard and the x64 backend spends it as a
+ * `cmov` rather than a branch. See `expandBitScans` in codegen/x64/transform_expand.cpp.
+ *
+ * **A scalar integer of 32 or 64 bits**, which is exactly the set Tritium's `countBits` /
+ * `findFirstBit` / `findLastBit` are declared over and exactly the set the machine has. Not a
+ * vector: a per-lane population count is `pshufb` against a nibble table rather than this
+ * instruction widened, and nothing asks for one. Not a narrower width either - `lowerType`'s
+ * narrowest scalar is `Int32`, so a `U8`'s count would be its storage's count minus a correction at
+ * every width, and widening first says the same thing where the caller can see it. Not a `@bits`
+ * refinement, for `ByteSwap`'s reason: `WideInt` is 53 bits in a 64-bit register and a leading-zero
+ * count is a question about a width it does not have. `verifyFunction` says all of it.
+ */
+YANA_INST(CountBits,    InstUnary,       "countbits"_v,   kInstResult | kInstPure)
+YANA_INST(LeadingZeros, InstUnary,       "clz"_v,         kInstResult | kInstPure)
+YANA_INST(TrailingZeros,InstUnary,       "ctz"_v,         kInstResult | kInstPure)
+/*
  * The two floating-point operations no arrangement of the arithmetic above expresses.
  *
  * `Sqrt` is here because nothing in this compiler had a square root at any width, which is what made
@@ -223,6 +254,32 @@ YANA_INST(Rem,          InstBinary,      "rem"_v,         kInstResult | kInstPur
 YANA_INST(Shl,          InstBinary,      "shl"_v,         kInstResult | kInstPure)
 YANA_INST(Shr,          InstBinary,      "shr"_v,         kInstResult | kInstPure)
 YANA_INST(Sar,          InstBinary,      "sar"_v,         kInstResult | kInstPure)
+/*
+ * The two rotations, beside the three shifts and unlike them in exactly one way: nothing leaves the
+ * value. What a shift drops off the end, a rotation brings back at the other.
+ *
+ * Kinds rather than the shift tree they can be built from, on `ByteSwap`'s grounds. `rol` and `ror`
+ * are one group-2 instruction on every x86 since the 8086, they are `llvm.fshl`/`llvm.fshr` over a
+ * repeated operand, and they are `ROR` on AArch64. The expansion is four instructions and a mask,
+ * and a peephole hunting for it afterwards would be hunting for a shape the optimizer is free to
+ * rearrange first - which is not hypothetical here: `(v shl c) | (v shr (w - c))` is three
+ * commutative operations and a subtraction, and reassociation moves all of them.
+ *
+ * **The count is taken modulo the type's width**, and that is the ruling. `rol(x, 32)` at a `U32` is
+ * `x`, not zero - which is where a rotation stops behaving like the shifts above it, whose count at
+ * or past the width this language leaves to the target. It is stated rather than inherited because
+ * it is the one thing about a rotation that a machine could plausibly answer differently, and every
+ * machine that matters happens to agree: x86 masks the count register to 5 or 6 bits, which for
+ * these two opcodes *is* the modulus, and `llvm.fshl` is defined with the same modulus.
+ *
+ * An integer or a vector of integers, at every width - which is wider than `CountBits` and its two
+ * neighbours reach, and for a reason that is worth the difference. A count *of* the bits of a `U8`
+ * is a question about the eight bits its value has, and its register holds thirty-two; a rotation
+ * *within* those eight is a shift pair the seam can write out exactly, so `lowerCalc` writes it and
+ * the narrow widths keep the operation.
+ */
+YANA_INST(Rol,          InstBinary,      "rol"_v,         kInstResult | kInstPure)
+YANA_INST(Ror,          InstBinary,      "ror"_v,         kInstResult | kInstPure)
 YANA_INST(And,          InstBinary,      "and"_v,         kInstResult | kInstPure)
 YANA_INST(Or,           InstBinary,      "or"_v,          kInstResult | kInstPure)
 YANA_INST(Xor,          InstBinary,      "xor"_v,         kInstResult | kInstPure)

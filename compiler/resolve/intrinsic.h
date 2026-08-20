@@ -155,6 +155,11 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type);
 // is that test, and defineEndian's comment is why it is not every integer type.
 ModulePtr<ClassInstance> defineEndian(Module& module, TypePtr type);
 bool isByteSwappable(GlobalBase global, TypePtr type);
+
+// `Bits`, for the integer types the counts are declared over - `hasBitCounts` is that test, and
+// defineBits' comment is why it is 32 and 64 and nothing else.
+ModulePtr<ClassInstance> defineBits(Module& module, TypePtr type);
+bool hasBitCounts(GlobalBase global, TypePtr type);
 void defineLogic(Module& module, TypePtr type);
 void defineTruth(Module& module, TypePtr type, Emit emit);
 

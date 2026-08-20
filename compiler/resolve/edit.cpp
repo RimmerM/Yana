@@ -94,6 +94,9 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Neg:
         case Value::Not:
         case Value::ByteSwap:
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros:
         case Value::Sqrt:
         case Value::Abs:
         case Value::Trunc:
@@ -123,6 +126,8 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Shl:
         case Value::Shr:
         case Value::Sar:
+        case Value::Rol:
+        case Value::Ror:
         case Value::And:
         case Value::Or:
         case Value::Xor:

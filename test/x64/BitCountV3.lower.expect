@@ -1,0 +1,87 @@
+
+count<complex>(%x: Int): Int {
+  b_0 {
+    %r = popcnt %x: Int
+    ret %r
+  }
+}
+
+trailing<complex>(%x: Int): Int {
+  b_0 {
+    %r = cttz_width %x: Int
+    ret %r
+  }
+}
+
+leading<complex>(%x: Int): Int {
+  b_0 {
+    %r = clz_width %x: Int
+    ret %r
+  }
+}
+
+trailing64<complex>(%x: Long): Long {
+  b_0 {
+    %r = cttz_width %x: Long
+    ret %r
+  }
+}
+
+leading64<complex>(%x: Long): Long {
+  b_0 {
+    %r = clz_width %x: Long
+    ret %r
+  }
+}
+
+leadingLoaded<complex>(%p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %r = clz_width %v: Int
+    ret %r
+  }
+}
+
+
+--- codegen: count ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  popcnt uses=[rdi] creates=[rax]  => f30fb8c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: trailing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cttz_width uses=[rdi] creates=[rax]  => f30fbcc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: leading ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  clz_width uses=[rdi] creates=[rax]  => f30fbdc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: trailing64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cttz_width uses=[rdi] creates=[rax]  => f3480fbcc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: leading64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  clz_width uses=[rdi] creates=[rax]  => f3480fbdc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: leadingLoaded ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 8b3f
+  clz_width uses=[rdi] creates=[rax]  => f30fbdc7
+  ret uses=[rax] creates=[]  => c3

@@ -1,0 +1,152 @@
+let image$base: () = <none>
+
+let &counter: Int = 0
+
+fn opaque(%n: Int) -> Int {
+  b0:
+    %v1 = load counter : Int
+    %v4 = add %v1, 1 : Int
+    assign counter, %v4
+    %v6 = load counter : Int
+    %v9 = cmp_gt %v6, 1000 : Bool
+    je %v9, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
+fn pattern() -> Vec(I8) {
+  b0:
+    %v4 = sub 0, 1888223487 : Int
+    %v5 = vsplat %v4 : Vec(Int)
+    %v6 = bitcast %v5 : Vec(I8)
+    ret %v6
+}
+
+fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
+  b0:
+    %v2 = bitcast %v : Vec(Int)
+    %v5 = vlane %v2, 0 : Int
+    %v6 = cmp_eq %v5, %expected : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, 1], [b2, 0] : Int
+    ret %v12
+}
+
+fn checkWords(%v: Vec(Int), %expected: Int) -> Int {
+  b0:
+    %v4 = vlane %v, 0 : Int
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %bytes = call pattern : Vec(I8)
+    %words = vsplat 305419896 : Vec(Int)
+    %n = alloc : Int
+    init %n, 0
+    %v7 = load %n : Int
+    %v10 = vsplat 4 : Vec(Int)
+    %v11 = rol %words, %v10 : Vec(Int)
+    %v13 = call checkWords, %v11, 591751041 : Int
+    %v14 = add %v7, %v13 : Int
+    assign %n, %v14
+    %v16 = load %n : Int
+    %v19 = vsplat 4 : Vec(Int)
+    %v20 = ror %words, %v19 : Vec(Int)
+    %v25 = sub 0, 2128394905 : Int
+    %v26 = call checkWords, %v20, %v25 : Int
+    %v27 = add %v16, %v26 : Int
+    assign %n, %v27
+    %v29 = load %n : Int
+    %v32 = vsplat 0 : Vec(Int)
+    %v33 = rol %words, %v32 : Vec(Int)
+    %v35 = call checkWords, %v33, 305419896 : Int
+    %v36 = add %v29, %v35 : Int
+    assign %n, %v36
+    %v38 = load %n : Int
+    %v41 = vsplat 32 : Vec(Int)
+    %v42 = rol %words, %v41 : Vec(Int)
+    %v44 = call checkWords, %v42, 305419896 : Int
+    %v45 = add %v38, %v44 : Int
+    assign %n, %v45
+    %v47 = load %n : Int
+    %v50 = vsplat 0 : Vec(Int)
+    %v51 = ror %words, %v50 : Vec(Int)
+    %v53 = call checkWords, %v51, 305419896 : Int
+    %v54 = add %v47, %v53 : Int
+    assign %n, %v54
+    %v56 = load %n : Int
+    %v59 = vsplat 36 : Vec(Int)
+    %v60 = rol %words, %v59 : Vec(Int)
+    %v62 = call checkWords, %v60, 591751041 : Int
+    %v63 = add %v56, %v62 : Int
+    assign %n, %v63
+    %v65 = load %n : Int
+    %v67 = vsplat 1 : Vec(I8)
+    %v68 = rol %bytes, %v67 : Vec(I8)
+    %v70 = call checkBytes, %v68, 535232258 : Int
+    %v71 = add %v65, %v70 : Int
+    assign %n, %v71
+    %v73 = load %n : Int
+    %v75 = vsplat 3 : Vec(I8)
+    %v76 = rol %bytes, %v75 : Vec(I8)
+    %v78 = call checkBytes, %v76, 2090598152 : Int
+    %v79 = add %v73, %v78 : Int
+    assign %n, %v79
+    %v81 = load %n : Int
+    %v83 = vsplat 3 : Vec(I8)
+    %v84 = ror %bytes, %v83 : Vec(I8)
+    %v89 = sub 0, 244383968 : Int
+    %v90 = call checkBytes, %v84, %v89 : Int
+    %v91 = add %v81, %v90 : Int
+    assign %n, %v91
+    %v93 = load %n : Int
+    %v95 = vsplat 8 : Vec(I8)
+    %v96 = rol %bytes, %v95 : Vec(I8)
+    %v101 = sub 0, 1888223487 : Int
+    %v102 = call checkBytes, %v96, %v101 : Int
+    %v103 = add %v93, %v102 : Int
+    assign %n, %v103
+    %k = call opaque, 2 : Int
+    %v107 = load %n : Int
+    %v108 = vsplat %k : Vec(Int)
+    %v109 = rol %words, %v108 : Vec(Int)
+    %v111 = call checkWords, %v109, 1221679584 : Int
+    %v112 = add %v107, %v111 : Int
+    assign %n, %v112
+    %v114 = load %n : Int
+    %v115 = cast %k : I8
+    %v116 = vsplat %v115 : Vec(I8)
+    %v117 = rol %bytes, %v116 : Vec(I8)
+    %v119 = call checkBytes, %v117, 1053687556 : Int
+    %v120 = add %v114, %v119 : Int
+    assign %n, %v120
+    %v122 = load %n : Int
+    ret %v122
+}

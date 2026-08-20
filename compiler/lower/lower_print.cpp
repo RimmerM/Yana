@@ -260,6 +260,10 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "shr"_v;
         case LowerInst::Sar:
             return "sar"_v;
+        case LowerInst::Rol:
+            return "rol"_v;
+        case LowerInst::Ror:
+            return "ror"_v;
         case LowerInst::And:
             return "and"_v;
         case LowerInst::Or:

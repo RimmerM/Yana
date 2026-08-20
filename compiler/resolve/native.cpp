@@ -467,10 +467,6 @@ static void attachPointerIntrinsics(Module& module) {
     };
 
     for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
-
-    if(!isJsMode(module.context.settings.mode)) {
-        attachIntrinsic(module, "trailingZeros"_v, emitNativeOp<NativeOp::TrailingZeros>);
-    }
 }
 
 void defineNative(Program& program) {

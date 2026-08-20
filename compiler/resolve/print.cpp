@@ -259,7 +259,6 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
                 case NativeOp::SetMemory: return "setmemory"_v;
                 case NativeOp::Syscall: return "syscall"_v;
-                case NativeOp::TrailingZeros: return "cttz"_v;
                 case NativeOp::HostCall: return "hostcall"_v;
                 case NativeOp::HostField: return "hostfield"_v;
                 case NativeOp::HostArray: return "hostarray"_v;
@@ -481,6 +480,9 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Neg:
         case Value::Not:
         case Value::ByteSwap:
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros:
         case Value::Sqrt:
         case Value::Abs:
         case Value::Trunc:
@@ -510,6 +512,8 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Shl:
         case Value::Shr:
         case Value::Sar:
+        case Value::Rol:
+        case Value::Ror:
         case Value::And:
         case Value::Or:
         case Value::Xor:

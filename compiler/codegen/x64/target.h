@@ -150,6 +150,27 @@ static constexpr FeatureSet kFeatureBmi2 = 1 << 9;
 static constexpr FeatureSet kFeatureMovbe = 1 << 10;
 
 /*
+ * LZCNT - the leading-zero count, and v3 with everything beside it.
+ *
+ * A bit of its own rather than a wider reading of BMI1, on the argument the file opens with: on
+ * Intel it arrived with BMI1 and on AMD it arrived four generations earlier, as the one bit of ABM
+ * that outlived that extension, so they are separate facts about the instruction set even though
+ * every part this backend describes has both or neither.
+ *
+ * What it buys is the zero case and one subtraction. `bsr` is baseline and answers the *index* of
+ * the highest set bit, so a leading-zero count off it is `width - 1 - bsr` and is undefined at zero;
+ * `lzcnt` is the count itself and answers the width at zero, which is what the language's
+ * `leadingZeros` is defined to do. `expandBitScans` is the fallback, and it is four instructions
+ * against this one.
+ *
+ * The hazard is `tzcnt`'s exactly, and it is the silent kind: `lzcnt` is `f3 0f bd`, which a
+ * processor without the feature decodes as `bsr` and runs - answering an index where the program
+ * wanted a count, with no fault to notice. So this is claimed from a level that implies it rather
+ * than detected, beside `kFeatureBmi1` and for its reason.
+ */
+static constexpr FeatureSet kFeatureLzcnt = 1 << 11;
+
+/*
  * The fused multiply-add, at every width and both lane kinds - v3, with the rest.
  *
  * It was a flag beside the SSE ladder when the ladder had a rung for AVX-without-AVX2, since Sandy

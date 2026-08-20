@@ -77,6 +77,14 @@ enum : MachineOpcodeId {
     OpShl,
     OpShr,
     OpSar,
+
+    // The two rotations, which are the shifts' own group-2 encodings at two more opcode extensions -
+    // `/0` and `/1` against the shifts' `/4`, `/5` and `/7`. Opcodes of their own rather than forms
+    // of `OpShl`, because the extension is what the *opcode* is here: nothing but the form's
+    // encoding distinguishes a shift from a rotation, and an opcode that meant either would leave
+    // every peephole asking a form which one it had. See LowerInst::Rol.
+    OpRol,
+    OpRor,
     OpAnd,
     OpOr,
     OpXor,

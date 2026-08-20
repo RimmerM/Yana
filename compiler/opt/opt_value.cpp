@@ -94,6 +94,7 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
     switch(a.kind) {
         case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
         case Value::ByteSwap:
+        case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
         case Value::Sqrt: case Value::Abs:
         case Value::Trunc: case Value::Floor: case Value::Ceil: case Value::Round:
             return same(((InstUnary&)a).from, ((InstUnary&)b).from);
@@ -119,6 +120,7 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
             [[fallthrough]];
         case Value::Sub: case Value::Div: case Value::Rem:
         case Value::Shl: case Value::Shr: case Value::Sar:
+        case Value::Rol: case Value::Ror:
             return same(((InstBinary&)a).lhs, ((InstBinary&)b).lhs) &&
                    same(((InstBinary&)a).rhs, ((InstBinary&)b).rhs);
         case Value::Cmp:

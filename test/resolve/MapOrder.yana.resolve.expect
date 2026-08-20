@@ -963,7 +963,7 @@ fn indexFind(Int, Int)(%self: Map(Int, Int), %key: Int, %h: U32) -> I64 {
   b6:
     %v49 = load %pos : I64
     %v50 = load %hits : Int
-    %v51 = cttz %v50 : Int
+    %v51 = ctz %v50 : Int
     %v52 = cast %v51 : I64
     %v53 = add %v49, %v52 : I64
     %slot = and %v53, %mask : I64
@@ -1402,7 +1402,7 @@ fn indexFreeSlot(Int, Int)(%self: Map(Int, Int), %h: U32) -> I64 {
 
   b4:
     %v37 = load %pos : I64
-    %v38 = cttz %free : Int
+    %v38 = ctz %free : Int
     %v39 = cast %v38 : I64
     %v40 = add %v37, %v39 : I64
     %v41 = and %v40, %mask : I64
@@ -1661,7 +1661,7 @@ fn indexSlotOf(Int, Int)(%self: Map(Int, Int), %key: Int, %h: U32) -> I64 {
   b6:
     %v49 = load %pos : I64
     %v50 = load %hits : Int
-    %v51 = cttz %v50 : Int
+    %v51 = ctz %v50 : Int
     %v52 = cast %v51 : I64
     %v53 = add %v49, %v52 : I64
     %slot = and %v53, %mask : I64
@@ -1769,7 +1769,7 @@ fn indexRepoint(Int, Int)(%self: Map(Int, Int), %from: I64, %to: I64, %h: U32) -
   b6:
     %v57 = load %pos : I64
     %v58 = load %hits : Int
-    %v59 = cttz %v58 : Int
+    %v59 = ctz %v58 : Int
     %v60 = cast %v59 : I64
     %v61 = add %v57, %v60 : I64
     %slot = and %v61, %mask : I64

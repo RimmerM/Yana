@@ -1,0 +1,114 @@
+{-
+   `rol` and `ror` - the two rotations, beside the three shifts in `Integral` and unlike them in the
+   one way the name says: nothing leaves the value.
+
+   The class is source (`lib/Core.yana`) and its integer instances are generated one instruction at a
+   time (`defineIntegral` in resolve/intrinsic.cpp), so what this asserts is the whole path: the
+   instance selection, the instruction, the two backends' spellings of it, the constant fold, and the
+   three shapes the operation takes on the way down.
+
+   Those three shapes are what the cases below are grouped by, because they are different code:
+
+   - **32 and 64 bits** are one instruction, `rol`/`ror` on x86 and `llvm.fshl`/`llvm.fshr`;
+   - **every narrower scalar** is spent in `lowerCalc`, because the lower IR's narrowest scalar is
+     `Int32` and an instruction there would rotate within thirty-two bits whatever width the program
+     wrote. `WideInt` is that case at 53, where the count's modulus is not a mask;
+   - **a vector** is one instruction only at AVX-512, and `expandVectorRotate` is the pair of shifts
+     and an `or` everywhere else.
+
+   **The count is taken modulo the width, and half these cases are about that.** A rotation by the
+   width is the identity where a shift by it is not, and a rotation by more than the width is the
+   remainder - which is what x86's count masking and `llvm.fshl` both do, and what the narrow
+   expansion has to reproduce rather than inherit. A count of zero is the other end of the same
+   question: it is the distance where an expansion's second shift wants the *whole* width, which is
+   the one distance a host or a machine is liable to disagree about.
+
+   Each case contributes a distinct power of two and `main` is 4194303 when they all pass, so a
+   failure names itself in binary.
+
+   `@noinline` on the sources is what keeps these from being answered by the constant fold instead;
+   `folded` below is the opposite assertion, that the two paths agree.
+-}
+
+@noinline fn opaqueInt(x: Int) -> Int = x
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+@noinline fn opaqueU8(x: U8) -> U8 = x
+@noinline fn opaqueU16(x: U16) -> U16 = x
+@noinline fn opaqueI16(x: I16) -> I16 = x
+@noinline fn opaqueWide(x: WideInt) -> WideInt = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- 32 bits, where the machine's own instruction is what runs. `0x12345678` rotated left by four is
+-- `0x23456781`, and right by four is `0x81234567`.
+fn word() -> Int =
+    check((opaqueU32(305419896) `rol` 4) == 591751041, 1) +
+    check((opaqueU32(305419896) `ror` 4) == 2166572391, 2)
+
+-- The modulus, at the two distances that test it: the width itself is the identity, and anything
+-- above it is the remainder.
+fn wordModulus() -> Int =
+    check((opaqueU32(305419896) `rol` 32) == 305419896, 4) +
+    check((opaqueU32(305419896) `rol` 36) == 591751041, 8) +
+    check((opaqueU32(305419896) `ror` 0) == 305419896, 16) +
+    check((opaqueU32(305419896) `ror` 64) == 305419896, 32)
+
+-- A rotation all the way round the other way is the one back, at every distance.
+fn wordInverse() -> Int:
+    let value = opaqueU32(3735928559)
+    return check(((value `rol` 7) `ror` 7) == value, 64) +
+           check((value `rol` 7) == (value `ror` 25), 128)
+
+-- 64 bits, the other width with an instruction. `0x0123456789abcdef` rotated left by eight.
+fn wide() -> Int =
+    check((opaqueU64(81985529216486895) `rol` 8) == 2541551405711093505, 256) +
+    check((opaqueU64(81985529216486895) `ror` 8) == 17222085231038278605, 512) +
+    check((opaqueU64(81985529216486895) `rol` 64) == 81985529216486895, 1024)
+
+{-
+   The narrow widths, which are the shift pair `lowerCalc` writes rather than an instruction.
+
+   `0xB4` rotated left by two is `0xD2`: the two bits that leave the top come back at the bottom, and
+   the whole question is whether they came from *eight* bits or from the thirty-two the register has.
+   A signed narrow operand is the case that answers it out loud - an `I16` holding `0x8001` is
+   negative and is held sign-extended, so a rotation that read its storage would bring the register's
+   own sign bits round into the answer.
+-}
+fn narrow() -> Int =
+    check((opaqueU8(180) `rol` 2) == 210, 2048) +
+    check((opaqueU8(180) `ror` 2) == 45, 4096) +
+    check((opaqueU8(180) `rol` 8) == 180, 8192) +
+    check((opaqueU16(258) `rol` 8) == 513, 16384)
+
+fn narrowSigned() -> Int:
+    let value = opaqueI16(bitcast(truncate(32769) :: U16) :: I16)
+
+    -- 0x8001 rotated left by one is 0x0003, a small positive; anything wider in the register would
+    -- show up here as extra bits below the top.
+    return check((widen(value `rol` 1) :: Int) == 3, 32768) +
+           check((value `ror` 1) == value `rol` 15, 65536)
+
+{-
+   `WideInt`, which is the one width whose modulus is not a mask.
+
+   53 is not a power of two, so `count and 52` is not `count mod 53` and the lowering has to divide -
+   which is also the only place the two targets could have disagreed, JS reducing a `number` and
+   native a masked register. A rotation by 53 is the identity and a rotation by 54 is a rotation by
+   one, which is the whole of what is being asked.
+-}
+fn wideNumber() -> Int:
+    let value = opaqueWide(1)
+    return check((value `rol` 53) == 1, 131072) +
+           check((value `rol` 54) == 2, 262144) +
+           check(((value `rol` 52) `rol` 1) == 1, 524288)
+
+-- The constant path, which is the one group here that is *meant* to fold: the answer has to be the
+-- one the instruction would have given, at the modulus as well as below it.
+fn folded() -> Int =
+    check(((305419896 :: U32) `rol` 4) == 591751041, 1048576) +
+    check(((305419896 :: U32) `rol` 32) == 305419896, 2097152)
+
+fn main() -> Int =
+    word() + wordModulus() + wordInverse() + wide() + narrow() + narrowSigned() +
+    wideNumber() + folded()

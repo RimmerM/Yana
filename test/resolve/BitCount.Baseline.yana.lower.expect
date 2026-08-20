@@ -1,0 +1,90 @@
+@image$base = []
+
+opaqueInt<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueLong<complex>(%x: Long): Long {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueU32<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueU64<complex>(%x: Long): Long {
+  b_0 {
+    ret %x
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex opaqueInt, 305419896: Int
+    %v_2 = popcnt %v_1: Int
+    %v_3 = cmp_eq %v_2, 13: Int
+    %v_4 = call_complex opaqueInt, 305419896: Int
+    %v_5 = clz_width %v_4: Int
+    %v_6 = cmp_eq %v_5, 3: Int
+    %v_7 = select %v_6, 2, 0: Int
+    %v_8 = add %v_3, %v_7: Int
+    %v_9 = call_complex opaqueInt, 305419896: Int
+    %v_10 = cttz_width %v_9: Int
+    %v_11 = cmp_eq %v_10, 3: Int
+    %v_12 = select %v_11, 4, 0: Int
+    %v_13 = add %v_8, %v_12: Int
+    %v_14 = call_complex opaqueInt, 0: Int
+    %v_15 = popcnt %v_14: Int
+    %v_16 = cmp_eq %v_15, 0: Int
+    %v_17 = select %v_16, 8, 0: Int
+    %v_18 = call_complex opaqueInt, 0: Int
+    %v_19 = clz_width %v_18: Int
+    %v_20 = cmp_eq %v_19, 32: Int
+    %v_21 = select %v_20, 16, 0: Int
+    %v_22 = add %v_17, %v_21: Int
+    %v_23 = call_complex opaqueInt, 0: Int
+    %v_24 = cttz_width %v_23: Int
+    %v_25 = cmp_eq %v_24, 32: Int
+    %v_26 = select %v_25, 32, 0: Int
+    %v_27 = add %v_22, %v_26: Int
+    %v_28 = add %v_13, %v_27: Int
+    %v_29 = call_complex opaqueU32, 4294967295: Int
+    %v_30 = clz_width %v_29: Int
+    %v_31 = cmp_eq %v_30, 0: Int
+    %v_32 = select %v_31, 64, 0: Int
+    %v_33 = call_complex opaqueU32, 2147483648: Int
+    %v_34 = cttz_width %v_33: Int
+    %v_35 = cmp_eq %v_34, 31: Int
+    %v_36 = select %v_35, 128, 0: Int
+    %v_37 = add %v_32, %v_36: Int
+    %v_38 = add %v_28, %v_37: Int
+    %v_39 = call_complex opaqueLong, 72623859790382856: Long
+    %v_40 = popcnt %v_39: Long
+    %v_41 = cmp_eq %v_40, 13: Int
+    %v_42 = select %v_41, 256, 0: Int
+    %v_43 = call_complex opaqueLong, 72623859790382856: Long
+    %v_44 = clz_width %v_43: Long
+    %v_45 = cmp_eq %v_44, 7: Int
+    %v_46 = select %v_45, 512, 0: Int
+    %v_47 = add %v_42, %v_46: Int
+    %v_48 = add %v_38, %v_47: Int
+    %v_49 = call_complex opaqueU64, 0: Long
+    %v_50 = clz_width %v_49: Long
+    %v_51 = cmp_eq %v_50, 64: Int
+    %v_52 = select %v_51, 1024, 0: Int
+    %v_53 = call_complex opaqueU64, 0: Long
+    %v_54 = cttz_width %v_53: Long
+    %v_55 = cmp_eq %v_54, 64: Int
+    %v_56 = select %v_55, 2048, 0: Int
+    %v_57 = add %v_52, %v_56: Int
+    %v_58 = add %v_48, %v_57: Int
+    ret %v_58
+  }
+}
+

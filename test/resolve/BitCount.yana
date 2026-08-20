@@ -1,0 +1,125 @@
+{-
+   `countBits`, `leadingZeros` and `trailingZeros` - the three bit counts, which are one instruction
+   each on every machine this compiles for.
+
+   The class is source (`lib/Core.yana`) and its integer instances are generated one instruction at a
+   time (`defineBits` in resolve/intrinsic.cpp), so what this asserts is the whole path: the instance
+   selection, the instruction, the two backends' spellings of it, the constant fold and the three
+   library functions written on top.
+
+   Compiled at the default level, which on this host is v3 or better - so the native run exercises
+   `popcnt`, `tzcnt` and `lzcnt` directly. What it therefore does *not* exercise is the baseline
+   expansion, where `tzcnt` and `lzcnt` do not exist and the answer is a bit scan and a conditional
+   move; test/x64/BitCount.lower is that level, and the byte listings for both are there. What those
+   cannot say is whether the answer is right, which is what the numbers here are for.
+
+   **The zero cases are the point of half this file.** All three counts are total - `countBits(0)` is
+   0 and both zero counts answer the type's width - and that is the one property no machine agrees
+   on: `bsf` and `bsr` leave their destination unwritten there, `tzcnt` and `lzcnt` answer the width,
+   and JavaScript has an answer for exactly one of the three. So each width is asked at zero as well
+   as at a value, and a target that dropped the guard fails here rather than in whatever program
+   next passed one through.
+
+   Each case contributes a distinct power of two and `main` is 2147483647 when they all pass, so a
+   failure names itself in binary.
+
+   `@noinline` on the sources is what keeps the first cases from being answered by the constant fold
+   instead: `opt_fold` counts a constant for itself, and a fixture where every case folded would
+   assert the folder twice and the instruction never. `folded` below is the opposite assertion - that
+   the two paths agree - and it is the one group here written without an opaque operand.
+-}
+
+@noinline fn opaqueInt(x: Int) -> Int = x
+@noinline fn opaqueLong(x: Long) -> Long = x
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+@noinline fn opaqueI32(x: I32) -> I32 = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- `0x12345678`: thirteen bits set, three zeros above the highest and three below the lowest.
+fn word() -> Int =
+    check(countBits(opaqueInt(305419896)) == 13, 1) +
+    check(leadingZeros(opaqueInt(305419896)) == 3, 2) +
+    check(trailingZeros(opaqueInt(305419896)) == 3, 4)
+
+-- The zero operand, which is where the three targets disagree and the language does not.
+fn zero() -> Int =
+    check(countBits(opaqueInt(0)) == 0, 8) +
+    check(leadingZeros(opaqueInt(0)) == 32, 16) +
+    check(trailingZeros(opaqueInt(0)) == 32, 32)
+
+-- And the other end: every bit set, at an unsigned type whose value fills the register.
+fn full() -> Int =
+    check(countBits(opaqueU32(4294967295)) == 32, 64) +
+    check(leadingZeros(opaqueU32(4294967295)) == 0, 128) +
+    check(trailingZeros(opaqueU32(4294967295)) == 0, 256)
+
+-- `0x0102030405060708` - the same thirteen bits at 64, where JS leaves the `number` domain entirely
+-- and every one of these is arithmetic over a `bigint`'s two halves.
+fn wide() -> Int =
+    check(countBits(opaqueLong(72623859790382856)) == 13, 512) +
+    check(leadingZeros(opaqueLong(72623859790382856)) == 7, 1024) +
+    check(trailingZeros(opaqueLong(72623859790382856)) == 3, 2048)
+
+fn wideZero() -> Int =
+    check(countBits(opaqueU64(0)) == 0, 4096) +
+    check(leadingZeros(opaqueU64(0)) == 64, 8192) +
+    check(trailingZeros(opaqueU64(0)) == 64, 16384)
+
+{-
+   A *signed* operand whose top bit is set, which is the case a count written over a value's
+   mathematical reading rather than over its bits gets wrong.
+
+   -1 is every bit set at `I32`, so the answers are the unsigned ones and not the negative number's:
+   32 bits, no leading zeros, no trailing zeros. On JS it is a negative `number`, where the SWAR fold
+   is right only because every operator in it is ToInt32 and `Math.clz32` is ToUint32.
+-}
+fn signed() -> Int:
+    let value = opaqueI32(0 - 1)
+    return check(countBits(value) == 32, 32768) +
+           check(leadingZeros(value) == 0, 65536) +
+           check(trailingZeros(value) == 0, 131072)
+
+{-
+   The three library functions written over the class - `bitWidth`, `isPowerOf2` and `nextPowerOf2`.
+
+   `bitWidth` is what makes the class usable in a body generic in `a`: it names the type's width as
+   `leadingZeros(0)`, which no literal could have said, and the whole call folds to that width before
+   any target sees it.
+-}
+fn derived() -> Int =
+    check(bitWidth(opaqueInt(305419896)) == 29, 262144) +
+    check(bitWidth(opaqueInt(0)) == 0, 524288) +
+    check(isPowerOf2(opaqueInt(1024)), 1048576) +
+    check(!isPowerOf2(opaqueInt(1023)), 2097152) +
+    check(!isPowerOf2(opaqueInt(0)), 4194304) +
+    check(nextPowerOf2(opaqueInt(1000)) == 1024, 8388608) +
+    check(nextPowerOf2(opaqueInt(1024)) == 1024, 16777216) +
+    check(nextPowerOf2(opaqueInt(0)) == 1, 33554432)
+
+-- The constant path, which is the one group here that is *meant* to fold: the answer has to be the
+-- one the instruction would have given, at a value and at zero alike.
+fn folded() -> Int =
+    check(countBits(305419896) == 13, 67108864) +
+    check(leadingZeros(1) == 31, 134217728) +
+    check(trailingZeros(0) == 32, 268435456)
+
+{-
+   And the same counts reached through a *witness* rather than by name.
+
+   A generated instance is a real function as well as an expansion at the call site, and this is the
+   build that tells the two apart: a fixture with a `.run.expect` is compiled a second time with
+   specialization declined, so these are then one body each with the instance passed in, calling the
+   `Bits` method through the table. That is the least-travelled path and the one where an instance
+   whose body was only ever a call-site expansion would have nothing to call.
+-}
+@noinline fn (Bits(a)) countVia(value: a) -> a = countBits(value)
+@noinline fn (Bits(a)) leadingVia(value: a) -> a = leadingZeros(value)
+
+fn generic() -> Int =
+    check(countVia(opaqueU32(4294967295)) == 32, 536870912) +
+    check(leadingVia(opaqueU64(1)) == 63, 1073741824)
+
+fn main() -> Int =
+    word() + zero() + full() + wide() + wideZero() + signed() + derived() + folded() + generic()

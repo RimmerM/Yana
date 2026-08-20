@@ -1,0 +1,50 @@
+{-
+   The same counts at the floor, where two of the three have no instruction.
+
+   # extensions: v2
+
+   `popcnt` is v2 and is always there; `tzcnt` and `lzcnt` are v3, and what this level has is `bsf`
+   and `bsr` - the same scans with **no answer at zero**, which is precisely the case the language
+   defines. `expandBitScans` in codegen/x64/transform_expand.cpp stands in for them with a scan, a
+   comparison and a conditional move, and test/x64/BitCount.lower is the byte listing of that.
+
+   What a byte listing cannot say is whether the answer is right, which is what this file is for. It
+   is BitCount.yana's cases at the one level where the instruction does not do the work, and the
+   zero cases are the whole reason it exists as a separate fixture: an expansion that dropped the
+   guard, or selected the wrong arm of the move, passes every non-zero test here.
+
+   Each case contributes a distinct power of two and `main` is 4095 when they all pass.
+-}
+
+@noinline fn opaqueInt(x: Int) -> Int = x
+@noinline fn opaqueLong(x: Long) -> Long = x
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn word() -> Int =
+    check(countBits(opaqueInt(305419896)) == 13, 1) +
+    check(leadingZeros(opaqueInt(305419896)) == 3, 2) +
+    check(trailingZeros(opaqueInt(305419896)) == 3, 4)
+
+-- The arm the conditional move exists for.
+fn zero() -> Int =
+    check(countBits(opaqueInt(0)) == 0, 8) +
+    check(leadingZeros(opaqueInt(0)) == 32, 16) +
+    check(trailingZeros(opaqueInt(0)) == 32, 32)
+
+-- And the arm it does not take, at the extreme where the scan answers its highest index.
+fn full() -> Int =
+    check(leadingZeros(opaqueU32(4294967295)) == 0, 64) +
+    check(trailingZeros(opaqueU32(2147483648)) == 31, 128)
+
+fn wide() -> Int =
+    check(countBits(opaqueLong(72623859790382856)) == 13, 256) +
+    check(leadingZeros(opaqueLong(72623859790382856)) == 7, 512)
+
+fn wideZero() -> Int =
+    check(leadingZeros(opaqueU64(0)) == 64, 1024) +
+    check(trailingZeros(opaqueU64(0)) == 64, 2048)
+
+fn main() -> Int = word() + zero() + full() + wide() + wideZero()

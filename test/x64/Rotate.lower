@@ -1,0 +1,64 @@
+# The two rotations, which are the shifts' own encodings at two more opcode extensions.
+#
+# `rol` is group 2 `/0` and `ror` is `/1`, against `shl`'s `/4`, `shr`'s `/5` and `sar`'s `/7` - so
+# the three encodings each of them has are the three each of those has, built by the same lambda in
+# machine_forms_scalar.cpp and selected by the same table in machine_select.cpp.
+#
+# What to look for:
+#
+#   - the extension is the whole of the difference. `c1 /0 ib` against `c1 /4 ib` is one bit of one
+#     ModRM byte, which is why these are opcodes of their own rather than forms of `OpShl`.
+#   - `rotateByOne` is `d1 /0` with no immediate byte at all, the same short form a shift by one has.
+#   - `rotateByCl` puts the count in cl and nowhere else, and the entry copy that gets it there is
+#     the form's `fixedReg` constraint rather than anything in the expansion.
+#   - the subject is `r/m`, so `rotateInFrame` rotates a spilled value in place with no reload -
+#     again exactly the shifts' behaviour.
+#   - nothing here is `lea`. `shl r, 1` is also `x + x` and the address peephole in gen.cpp takes it;
+#     a rotation by one is not an addition and the peephole asks for `OpShl` by name.
+
+rotateLeft(%x: Int): Int {
+    {
+        %r = rol %x, 7: Int
+        ret %r
+    }
+}
+
+rotateRight(%x: Int): Int {
+    {
+        %r = ror %x, 7: Int
+        ret %r
+    }
+}
+
+rotateLeft64(%x: Long): Long {
+    {
+        %r = rol %x, 7: Long
+        ret %r
+    }
+}
+
+# The count in a register, which is cl and only cl.
+rotateByCl(%x: Int, %c: Int): Int {
+    {
+        %r = rol %x, %c: Int
+        ret %r
+    }
+}
+
+# The one-byte encoding, which a distance of one has and no other distance does.
+rotateByOne(%x: Int): Int {
+    {
+        %r = ror %x, 1: Int
+        ret %r
+    }
+}
+
+# The operand is read again afterwards, so the rotation cannot write over it: a copy stands in front,
+# exactly as one stands in front of a shift whose subject outlives it.
+rotateAndKeep(%x: Int): Int {
+    {
+        %r = rol %x, 3: Int
+        %t = add %r, %x: Int
+        ret %t
+    }
+}

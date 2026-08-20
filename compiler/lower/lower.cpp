@@ -9,6 +9,8 @@ static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::Popcnt)] = { "popcnt"_v, 1, 1 },
     [Size(LowerIntrinsic::Cttz)]      = { "cttz"_v, 1, 1 },
     [Size(LowerIntrinsic::CttzWidth)] = { "cttz_width"_v, 1, 1 },
+    [Size(LowerIntrinsic::Bsr)]       = { "bsr"_v, 1, 1 },
+    [Size(LowerIntrinsic::ClzWidth)]  = { "clz_width"_v, 1, 1 },
 
     // The value and the bit count, in that order, and the value with everything above that count
     // cleared.

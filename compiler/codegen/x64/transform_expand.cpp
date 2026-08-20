@@ -1556,3 +1556,202 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
         }
     }
 }
+
+/*
+ * The two bit scans whose zero case the machine may not have an instruction for.
+ *
+ * `CttzWidth` is `tzcnt` and `ClzWidth` is `lzcnt`, and both are v3. Below that level the machine
+ * still has the *scans* - `bsf` and `bsr` are baseline, and have been since the 386 - and what it
+ * has no encoding for is the answer to a zero operand: a scan leaves its destination unwritten
+ * there, where the language's `trailingZeros` and `leadingZeros` are defined to answer the operand's
+ * width (resolve/inst.def rules on it).
+ *
+ * So this is `expandRoundAway`'s case at an integer operation: the language committed to an answer,
+ * one level of the target has the instruction for it and the floor does not, and the gap is spent
+ * here rather than in the library so that neither LLVM nor JS pays for x64's feature ladder.
+ *
+ * ## What is emitted
+ *
+ *     t = bsf x            or   b = bsr x;  t = (width - 1) - b
+ *     z = x == 0
+ *     r = select(z, width, t)
+ *
+ * Two or four instructions, and the last of them is a `cmov` rather than a branch - the select is an
+ * ordinary one from here down, and `expandRoundAway` leaves its own the same way. Nothing about the
+ * scan's undefined answer escapes: the select discards it in exactly the case it is undefined in.
+ *
+ * The subtraction is written `(width - 1) - bsr` rather than as an exclusive-or with `width - 1`,
+ * which is the same value for every index a scan can answer and one byte shorter. It is not written
+ * that way because the two disagree on the undefined path - `bsr` of zero may leave any bits at all
+ * in the register, and an exclusive-or would carry them into the arm the select is about to drop,
+ * where a subtraction of a garbage index is equally garbage but the *flags* it writes are not read.
+ * Neither is wrong; the subtraction is the one that reads as what it means.
+ *
+ * Not `vectorsOnly`: a bit count is an integer operation and reaches a function with no packed value
+ * in it at all - which is most of them.
+ */
+void expandBitScans(Context&, LowerBase base, LowerFunction& fun) {
+    auto features = targetFeatures();
+    auto haveTzcnt = (features & kFeatureBmi1) != 0;
+    auto haveLzcnt = (features & kFeatureLzcnt) != 0;
+
+    if(haveTzcnt && haveLzcnt) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Intrinsic) continue;
+
+            auto intrinsic = (LowerInstIntrinsic*)inst;
+            auto which = intrinsic->getIntrinsic();
+            auto leading = which == LowerIntrinsic::ClzWidth;
+
+            if(which != LowerIntrinsic::CttzWidth && !leading) continue;
+            if(leading ? haveLzcnt : haveTzcnt) continue;
+
+            auto result = intrinsic->created().ptr;
+            auto type = result->type;
+            auto value = base[intrinsic->used().ptr[0]];
+            auto width = is64Bit(type) ? 64 : 32;
+
+            Expansion e { base, fun, block, i };
+
+            auto scanned = e.intrinsic(leading ? LowerIntrinsic::Bsr : LowerIntrinsic::Cttz,
+                                       type, value);
+            auto counted = leading
+                ? e.binary(LowerInst::Sub, type, e.integer(type, U64(width - 1)), scanned)
+                : scanned;
+
+            auto empty = e.compare(LowerCmp::eq, value, e.integer(type, 0));
+            auto answered = e.select(type, empty, e.integer(type, U64(width)), counted);
+
+            replaceAllUses(base, result, answered);
+            removeInst(base, inst);
+
+            // Past what was added, and back one for the instruction that is no longer there - the
+            // bookkeeping `expandRoundAway` does, and for its reason.
+            i = e.at - 1;
+        }
+    }
+}
+
+/*
+ * A rotation over a vector, which x86 has only at AVX-512.
+ *
+ * `vprold`/`vprolq` (and the per-lane `vprolvd`) are EVEX, and nothing below that level has a packed
+ * rotation at any lane width. So this is `expandFusedMultiplyAdd`'s case at an integer operation:
+ * the IR states the operation once because a target may have it, and the target that does not
+ * expands it into what it always meant.
+ *
+ *     rol(v, c) = (v << (c & (w - 1))) | (v >> ((w - c) & (w - 1)))
+ *
+ * with `w` the *lane* width, not the register's. Both masks are needed and neither is the machine's
+ * own: a packed shift does not mask its count the way a general-register shift does - it *saturates*,
+ * answering all-zero lanes for a count at or past the lane width - so a count of `w` would give zero
+ * where the operation is defined to give the value back. Masking the second one is what turns the
+ * zero count's `w` into a 0, and masking the first is the modulus the kind promises.
+ *
+ * ## The count is reduced where it *lives*, and that is the whole of the pass's difficulty
+ *
+ * A shared count reaches here as a splat, because `Integral(a)` types both operands as the same `a`
+ * and `unwrapVectorShiftCounts` has not run yet. The arithmetic above must not be done to the splat:
+ * a shift whose count is an `and` of a splat is no longer a shift whose count *is* a splat, so that
+ * pass would not unwrap it, and a packed shift with a per-lane count is `vpsllv` - which v2 does not
+ * have at all, so the whole thing would be scalarized into four `vlane`/`shl`/`vwithlane` triples
+ * per direction. Measured before this read through the splat: forty-two instructions for one
+ * rotation by a constant.
+ *
+ * So the reduction happens on the *scalar* behind the splat, and the shifts are handed that scalar
+ * directly - which is exactly the shape `unwrapVectorShiftCounts` would have left, so everything
+ * below this pass sees an ordinary shared-count shift. The orphaned splat is removed here for the
+ * reason it is removed there: while it stands it is a second reader of the count, and a constant
+ * something else needs in a register is a constant `canEmbedImm` will not embed.
+ *
+ * A count that is genuinely per-lane - two vectors, which the language can write - keeps the vector
+ * arithmetic and is scalarized below, which is the honest cost of an operation the machine has no
+ * form for at this level.
+ *
+ * A *constant* count is reduced here rather than left to a fold, because no fold runs between this
+ * pass and selection: both distances are computed and emitted as immediates, leaving the two shifts
+ * and the `or` that a hand-written rotation would be.
+ */
+void expandVectorRotate(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Rol && inst->kind != LowerInst::Ror) continue;
+
+            auto rotate = (LowerInstBinary*)inst;
+            auto type = rotate->result.type;
+            if(!isVectorLike(type)) continue;
+
+            auto value = base[rotate->lhs];
+            auto count = base[rotate->rhs];
+            auto left = inst->kind == LowerInst::Rol;
+            auto width = U64(laneBytes(type.lane)) * 8;
+
+            // The scalar behind a shared count, or nothing where the count is one per lane.
+            auto splat = count->inst()->kind == LowerInst::VecSplat ? count : nullptr;
+            auto shared = splat ? base[((LowerInstVecSplat*)splat->inst())->from] : nullptr;
+            auto written = shared && shared->inst()->kind == LowerInst::Imm
+                         ? (LowerImm*)shared->inst() : nullptr;
+
+            Expansion e { base, fun, block, i };
+
+            LowerValue* forward;
+            LowerValue* backward;
+
+            if(written) {
+                auto n = written->i & (width - 1);
+                forward = e.integer(shared->type, n);
+                backward = e.integer(shared->type, (width - n) & (width - 1));
+            } else {
+                // The count's own shape: the scalar where one is shared, the vector where each lane
+                // has its own. The two differ only in where the constants have to be splatted.
+                auto countType = shared ? shared->type : count->type;
+                auto source = shared ? shared : count;
+
+                auto constant = [&](U64 n) {
+                    auto scalar = e.integer(scalarFormOf(countType), n);
+                    return isVectorLike(countType) ? e.splat(countType, scalar) : scalar;
+                };
+
+                auto mask = constant(width - 1);
+
+                forward = e.binary(LowerInst::And, countType, source, mask);
+                backward = e.binary(LowerInst::And, countType,
+                                    e.binary(LowerInst::Sub, countType, constant(width), source), mask);
+            }
+
+            auto up = e.binary(LowerInst::Shl, type, value, left ? forward : backward);
+            auto down = e.binary(LowerInst::Shr, type, value, left ? backward : forward);
+            auto joined = e.binary(LowerInst::Or, type, up, down);
+
+            replaceAllUses(base, &rotate->result, joined);
+            removeInst(base, inst);
+
+            // Past what was added and back one for the instruction that is gone - `expandRoundAway`'s
+            // bookkeeping, and for its reason.
+            i = e.at - 1;
+
+            // And the splat this read through, on `unwrapVectorShiftCounts`' terms exactly: it goes
+            // only if nothing else reads it, and the constant under it goes only if it is one.
+            auto removeAndTrack = [&](LowerInst* dead) {
+                if(base[dead->block] == block) i--;
+                removeInst(base, dead);
+            };
+
+            if(!splat || !splat->uses.isEmpty()) continue;
+
+            removeAndTrack(splat->inst());
+
+            if(shared->uses.isEmpty() && shared->inst()->kind == LowerInst::Imm) {
+                removeAndTrack(shared->inst());
+            }
+        }
+    }
+}

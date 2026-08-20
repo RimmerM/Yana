@@ -102,11 +102,32 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
         }
 
         /*
+         * The leading count, which is `cttz`'s case at the other end of the word and takes the same
+         * flag: the language's `leadingZeros` answers the operand's width at zero, so the zero
+         * operand is not poison and `llvm.ctlz` is told so. What the target does with that - one
+         * `lzcnt`, or a `bsr` and a correction - is its own lowering, which is exactly the division
+         * of labour the x64 backend has to make for itself in `expandBitScans`.
+         */
+        case LowerIntrinsic::ClzWidth: {
+            auto operand = argOf(f, inst, 0);
+            llvm::Value* args[] = { operand, f.builder.getFalse() };
+
+            defineResults(f, inst, f.builder.CreateIntrinsic(llvm::Intrinsic::ctlz,
+                                                             { operand->getType() }, args));
+            return true;
+        }
+
+        /*
          * Written by the x64 backend for itself and never by anything above one - see the note on
          * the kind, and `LowerReduce::Bits`, which is here for the same reason and refused the same
          * way. Expanding it would mean choosing what an out-of-range index does, and the whole point
          * of the kind is that x86's answer to that is the one being spent.
+         *
+         * `Bsr` joins them for the same reason at a different operation: it answers an *index*, is
+         * undefined at zero, and exists so that `expandBitScans` has a name for the instruction the
+         * x64 baseline has. Nothing above a backend writes one, so nothing here has to lower one.
          */
+        case LowerIntrinsic::Bsr:
         case LowerIntrinsic::Bzhi:
             f.context.diagnostics.error("llvm: a target-lowered intrinsic reached the LLVM backend"_v,
                                         inst.source);

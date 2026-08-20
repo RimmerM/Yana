@@ -1171,6 +1171,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar:
+        case LowerInst::Rol:
+        case LowerInst::Ror:
             return validateShift(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::And:
         case LowerInst::Or:

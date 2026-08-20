@@ -1,0 +1,44 @@
+# The three bit counts through the LLVM backend.
+#
+# `llvm.ctpop`, `llvm.ctlz` and `llvm.cttz`, each overloaded on the operand type so one arm serves
+# both widths - the shape `llvm.bswap` has next door.
+#
+# The two zero counts take a second argument saying whether a zero operand is *poison*, and that
+# argument is the whole reason the IR has two kinds for each end of the word rather than one and a
+# flag read off the target. `CttzWidth` and `ClzWidth` promise the operand's width at zero, which is
+# what `Core.Bits` is defined to answer, so both pass `false` here and LLVM's own lowering decides
+# whether that is one `tzcnt` or a scan and a correction. `Cttz` promises nothing and passes `true`;
+# it is what `Native.bits`' probe loop reaches, where the operand cannot be zero.
+#
+# `Bsr` has no arm at all and is refused, beside `bzhi`: it answers an *index* rather than a count
+# and exists only so the x64 backend has a name for the instruction its baseline has. Nothing above
+# a backend writes one, so there is nothing here to lower.
+
+counts(%a: Int, %b: Long): Int {
+    {
+        %p = popcnt %a: Int
+        %q = popcnt %b: Long
+        %r = add %p, %a: Int
+        ret %r
+    }
+}
+
+# The defined pair, which is what a source `trailingZeros` and `leadingZeros` become.
+defined(%a: Int, %b: Long): Int {
+    {
+        %t = cttz_width %a: Int
+        %l = clz_width %a: Int
+        %u = cttz_width %b: Long
+        %m = clz_width %b: Long
+        %r = add %t, %l: Int
+        ret %r
+    }
+}
+
+# And the undefined one, which is the same operation with the other promise.
+scan(%a: Int): Int {
+    {
+        %t = cttz %a: Int
+        ret %t
+    }
+}

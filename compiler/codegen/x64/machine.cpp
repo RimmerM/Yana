@@ -67,6 +67,8 @@ MachineTarget::MachineTarget() {
     name(OpShl, "shl"_v);
     name(OpShr, "shr"_v);
     name(OpSar, "sar"_v);
+    name(OpRol, "rol"_v);
+    name(OpRor, "ror"_v);
     name(OpAnd, "and"_v);
     name(OpOr, "or"_v);
     name(OpXor, "xor"_v);

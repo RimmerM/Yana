@@ -1,0 +1,112 @@
+
+rotateByConstant<complex>(%v: i32x4): i32x4 {
+  b_0 {
+    %c = vsplat 5: i32x4
+    %r = rol %v, %c: i32x4
+    ret %r
+  }
+}
+
+rotateRightByConstant<complex>(%v: i32x4): i32x4 {
+  b_0 {
+    %c = vsplat 5: i32x4
+    %r = ror %v, %c: i32x4
+    ret %r
+  }
+}
+
+rotateByValue<complex>(%v: i32x4, %n: Int): i32x4 {
+  b_0 {
+    %c = vsplat %n: i32x4
+    %r = rol %v, %c: i32x4
+    ret %r
+  }
+}
+
+rotateWide<complex>(%v: i64x2, %n: Long): i64x2 {
+  b_0 {
+    %c = vsplat %n: i64x2
+    %r = rol %v, %c: i64x2
+    ret %r
+  }
+}
+
+rotateBytes<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %c = vsplat 3: i8x16
+    %r = rol %v, %c: i8x16
+    ret %r
+  }
+}
+
+
+--- codegen: rotateByConstant ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm1, -] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f72f105
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f72d01b
+  or uses=[xmm1, xmm0] creates=[xmm1]  => 660febc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: rotateRightByConstant ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm1, -] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f72f11b
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f72d005
+  or uses=[xmm1, xmm0] creates=[xmm1]  => 660febc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: rotateByValue ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc783e01f
+  imm uses=[] creates=[remat:0]  => 
+  sub uses=[rcx, rdi] creates=[rcx] pre=[remat:0->rcx]  => b92000000029f9
+  and uses=[rcx, -] creates=[rcx]  => 83e11f
+  shl uses=[xmm1, rax] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c866440f6ef866410ff2cf
+  shr uses=[xmm0, rcx] creates=[xmm0]  => 66440f6ef966410fd2c7
+  or uses=[xmm1, xmm0] creates=[xmm1]  => 660febc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: rotateWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc74883e03f
+  imm uses=[] creates=[remat:0]  => 
+  sub uses=[rcx, rdi] creates=[rcx] pre=[remat:0->rcx]  => b9400000004829f9
+  and uses=[rcx, -] creates=[rcx]  => 4883e13f
+  shl uses=[xmm1, rax] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8664c0f6ef866410ff3cf
+  shr uses=[xmm0, rcx] creates=[xmm0]  => 664c0f6ef966410fd3c7
+  or uses=[xmm1, xmm0] creates=[xmm1]  => 660febc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: rotateBytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d28000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1530000000
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shl uses=[xmm3, -] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660f71f303
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  and uses=[xmm3, xmm2] creates=[xmm3]  => 660fdbda
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f71d005
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  or uses=[xmm3, xmm0] creates=[xmm3]  => 660febd8
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 0f28c3c3

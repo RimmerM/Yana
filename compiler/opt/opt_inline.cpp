@@ -871,11 +871,13 @@ struct Inliner {
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::ByteSwap:
+            case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
             case Value::Sqrt: case Value::Abs: case Value::Fma:
             case Value::Trunc: case Value::Floor:
             case Value::Ceil: case Value::Round:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
             // A callee this stage already if-converted. `settle` runs the whole round on a callee
             // before a site is judged against it, so a body reaching here can hold one - and a
@@ -1616,11 +1618,13 @@ struct Inliner {
         if(!answer) switch(instruction.kind) {
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::ByteSwap:
+            case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
             case Value::Sqrt: case Value::Abs: case Value::Fma:
             case Value::Trunc: case Value::Floor:
             case Value::Ceil: case Value::Round:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
             // A select of decided arms on a decided condition is decided, which is `foldSelect`'s
             // rule read forwards: the site knows which arm survives, so a branch below it on the
@@ -2322,6 +2326,7 @@ struct Inliner {
             }
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::ByteSwap:
+            case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
             case Value::Sqrt: case Value::Abs:
             case Value::Trunc: case Value::Floor:
             case Value::Ceil: case Value::Round: {
@@ -2380,6 +2385,7 @@ struct Inliner {
             }
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: {
                 auto& binary = (InstBinary&)instruction;
                 return (Inst*)createInst<InstBinary>(module, function, into, source, name, type,

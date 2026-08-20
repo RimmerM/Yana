@@ -80,6 +80,12 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Shl:        return isPackedOp() ? OpVShl : OpShl;
         case LowerInst::Shr:        return isPackedOp() ? OpVShr : OpShr;
         case LowerInst::Sar:        return isPackedOp() ? OpVSar : OpSar;
+
+        // The rotations, which have no packed opcode at all: `expandVectorRotate` has rewritten a
+        // vector one into shifts and an `or` long before selection, so only the scalar pair can
+        // reach here. Asserted rather than answered, for `expandRoundAway`'s reason.
+        case LowerInst::Rol:        assertTrue(!isPackedOp()); return OpRol;
+        case LowerInst::Ror:        assertTrue(!isPackedOp()); return OpRor;
         case LowerInst::And:        return isPackedOp() ? OpVAnd : OpAnd;
         case LowerInst::Or:         return isPackedOp() ? OpVOr : OpOr;
         case LowerInst::Xor:        return isPackedOp() ? OpVXor : OpXor;
@@ -673,11 +679,17 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         // A shift by one has an encoding that carries no immediate byte at all.
         case LowerInst::Shl:
         case LowerInst::Shr:
-        case LowerInst::Sar: {
+        case LowerInst::Sar:
+        case LowerInst::Rol:
+        case LowerInst::Ror: {
+            // Indexed by the distance from `Shl`, which is why the two rotations sit immediately
+            // after `Sar` in the kind enum and why the note on them there says so.
             static const struct { MachineFormId imm, one, cl; } shifts[] = {
                 { FormShlImm, FormShlOne, FormShlCl },
                 { FormShrImm, FormShrOne, FormShrCl },
                 { FormSarImm, FormSarOne, FormSarCl },
+                { FormRolImm, FormRolOne, FormRolCl },
+                { FormRorImm, FormRorOne, FormRorCl },
             };
 
             auto& forms = shifts[inst->kind - LowerInst::Shl];

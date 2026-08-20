@@ -104,6 +104,8 @@ enum: MachineFormId {
     FormShlImm, FormShlOne, FormShlCl,
     FormShrImm, FormShrOne, FormShrCl,
     FormSarImm, FormSarOne, FormSarCl,
+    FormRolImm, FormRolOne, FormRolCl,
+    FormRorImm, FormRorOne, FormRorCl,
 
     FormCmpReg,
     FormCmpRegSet,

@@ -1,0 +1,113 @@
+
+count<complex>(%x: Int): Int {
+  b_0 {
+    %r = popcnt %x: Int
+    ret %r
+  }
+}
+
+trailing<complex>(%x: Int): Int {
+  b_0 {
+    %r = cttz_width %x: Int
+    ret %r
+  }
+}
+
+leading<complex>(%x: Int): Int {
+  b_0 {
+    %r = clz_width %x: Int
+    ret %r
+  }
+}
+
+trailing64<complex>(%x: Long): Long {
+  b_0 {
+    %r = cttz_width %x: Long
+    ret %r
+  }
+}
+
+leading64<complex>(%x: Long): Long {
+  b_0 {
+    %r = clz_width %x: Long
+    ret %r
+  }
+}
+
+countAndKeep<complex>(%x: Int): Int {
+  b_0 {
+    %r = clz_width %x: Int
+    %t = add %r, %x: Int
+    ret %t
+  }
+}
+
+
+--- codegen: count ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  popcnt uses=[rdi] creates=[rax]  => f30fb8c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: trailing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cttz uses=[rdi] creates=[rax]  => 0fbcc7
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  imm uses=[] creates=[remat:0]  => 
+  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:0->rcx]  => b9200000000f45c8
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+
+--- codegen: leading ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bsr uses=[rdi] creates=[rax]  => 0fbdc7
+  imm uses=[] creates=[remat:0]  => 
+  sub uses=[rcx, rax] creates=[rcx] pre=[remat:0->rcx]  => b91f00000029c1
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:1->rax]  => b8200000000f45c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: trailing64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cttz uses=[rdi] creates=[rax]  => 480fbcc7
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 4885ff
+  imm uses=[] creates=[remat:0]  => 
+  select uses=[rcx, rax, -] creates=[rcx] pre=[remat:0->rcx]  => b940000000480f45c8
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: leading64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bsr uses=[rdi] creates=[rax]  => 480fbdc7
+  imm uses=[] creates=[remat:0]  => 
+  sub uses=[rcx, rax] creates=[rcx] pre=[remat:0->rcx]  => b93f0000004829c1
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 4885ff
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:1->rax]  => b840000000480f45c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: countAndKeep ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bsr uses=[rdi] creates=[rax]  => 0fbdc7
+  imm uses=[] creates=[remat:0]  => 
+  sub uses=[rcx, rax] creates=[rcx] pre=[remat:0->rcx]  => b91f00000029c1
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:1->rax]  => b8200000000f45c1
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3

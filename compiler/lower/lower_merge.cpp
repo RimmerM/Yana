@@ -141,6 +141,8 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar:
+        case LowerInst::Rol:
+        case LowerInst::Ror:
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:

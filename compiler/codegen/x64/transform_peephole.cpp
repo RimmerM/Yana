@@ -336,9 +336,17 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
             return narrow;
 
         /*
-         * The intrinsics whose answer is a bit *count* rather than a value: `popcnt` and the two bit
+         * The intrinsics whose answer is a bit *count* rather than a value: `popcnt` and the bit
          * scans all answer at most 64, so every bit above the low byte is clear whatever width the
          * instruction ran at. A cast of one of these is a name for the register rather than a `mov`.
+         *
+         * **`Bsr` is deliberately not among them, and `Cttz` is only because of what it promises.**
+         * `bsf` and `bsr` leave the destination *unwritten* for a zero operand, so a 32-bit one does
+         * not clear the upper half of its register and what is above the answer is whatever was
+         * there before. `Cttz`'s contract is that its operand is never zero (see the row in
+         * intrinsic.cpp, and every emitter of it), so the case cannot arise; `Bsr` is emitted by
+         * `expandBitScans` with an operand that may well be zero, and the select downstream is what
+         * discards the answer rather than anything about the register.
          */
         case LowerInst::Intrinsic: {
             if(!isIntLike(type)) return false;
@@ -346,7 +354,8 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
             auto which = ((LowerInstIntrinsic*)inst)->getIntrinsic();
             return which == LowerIntrinsic::Popcnt
                 || which == LowerIntrinsic::Cttz
-                || which == LowerIntrinsic::CttzWidth;
+                || which == LowerIntrinsic::CttzWidth
+                || which == LowerIntrinsic::ClzWidth;
         }
 
         // Anything loaded at four bytes or fewer lands in a register the load itself filled: the

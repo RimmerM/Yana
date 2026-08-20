@@ -1137,21 +1137,6 @@ enum class NativeOp: U8 {
     Syscall,
 
     /*
-     * `trailingZeros(n)` - the number of zero bits below the lowest set bit, which is `bsf` at this
-     * project's baseline and `tzcnt` above it.
-     *
-     * **Undefined at zero**, which is the lower IR's `Cttz` and the machine's, and is stated on the
-     * declaration rather than papered over: the operand of the one loop that wants it -
-     * Implementation-Map.md §4.1's walk over a group's matching lanes - is the loop's own condition,
-     * so a zero can never reach it. Answering the width instead is `CttzWidth`, which is `tzcnt` and
-     * so needs a feature level above the floor; a definedness nothing needs is not worth a dispatch.
-     *
-     * A `NativeOp` rather than a `Value::Kind` for the reason the three above it are: a fixed
-     * operation, a flat argument list, and a meaning nothing else in this IR shares.
-     */
-    TrailingZeros,
-
-    /*
      * The host - Implementation-Containers.md §14.1.
      *
      * The back half of an FFI without its front half: an operation whose meaning belongs to the

@@ -390,6 +390,37 @@ struct Gen {
     Name byteSwapHelpers[3];
 
     /*
+     * `$popcount32` / `$ctz32` and their three 64-bit partners - the population count and the two
+     * zero counts, which the host answers exactly one of.
+     *
+     * `Math.clz32` is the one JavaScript has, and it is why there is no `$clz32`: a 32-bit leading
+     * count is that call and nothing else, so the slot for it stays empty and the site emits the
+     * call inline. Everything else is a helper for `byteSwapHelpers`' reason - the operand appears
+     * three or four times in each shape, and an operand here may be a call.
+     *
+     * Indexed by `bitCountHelperSlot`: the operation, then the width. The 64-bit three are the
+     * `bigint` domain and are written over the two halves rather than over the whole, because
+     * `Math.clz32` is the fast path and a `bigint` loop is not - see `emitBitCountHelpers`.
+     */
+    Name bitCountHelpers[6];
+
+    /*
+     * `$rol32` and its nine partners - the two rotations, at each of the five widths a scalar
+     * `Integral` instance is generated for (8, 16, 32, 53 and 64) and at each lane width a vector
+     * reaches through the same call.
+     *
+     * A helper for `byteSwapHelpers`' reason and one more of its own. The operand appears twice in
+     * every shape and an operand here may be a call, which is the first reason; the second is that
+     * the three host domains a rotation crosses - an `int32` operator set below 33 bits, wide.cpp's
+     * helpers to 53, and `bigint` above - each need a different body, and a function is where three
+     * bodies can share one name at the call site.
+     *
+     * Indexed by `rotateHelperSlot`: the direction, then the width. Named lazily, so a program that
+     * rotates nothing emits none of them.
+     */
+    Name rotateHelpers[10];
+
+    /*
      * `$div` and `$rem` - the two divisors the language answers for, where the host does not.
      *
      * `x / 0` is 0 and `x % 0` is `x` (doc/spec/types.md, and the ruling beside `Div` in
@@ -1037,6 +1068,39 @@ void emitRoundAwayHelper(Gen& g);
 
 // The byte reversals a program asked for, one function per width. See Gen::byteSwapHelpers.
 void emitByteSwapHelpers(Gen& g);
+
+// The bit counts a program asked for, one function per (operation, width). See
+// Gen::bitCountHelpers.
+void emitBitCountHelpers(Gen& g);
+
+// The rotations a program asked for, one function per (direction, width). See Gen::rotateHelpers.
+void emitRotateHelpers(Gen& g);
+
+/*
+ * Which of the ten slots one (direction, width) is, or `kNoRotateHelper` for a width no instance is
+ * generated at.
+ *
+ * The five widths are the ones `defineIntegerTypes` creates plus the two canonical ones, which is
+ * where the list comes from rather than from anything about JavaScript: a `@bits` refinement
+ * dispatches to the instances of the type it refines, so a rotation of a `@bits(40) U64` arrives
+ * here as a 64-bit one and no sixth width exists.
+ */
+static const Size kNoRotateHelper = ~Size(0);
+
+inline Size rotateHelperSlot(Value::Kind kind, U32 bits) {
+    auto width = bits == 8 ? 0 : bits == 16 ? 1 : bits == 32 ? 2 : bits == 53 ? 3 : bits == 64 ? 4 : -1;
+    if(width < 0) return kNoRotateHelper;
+
+    return Size((kind == Value::Rol ? 0 : 5) + width);
+}
+
+// Which of the six slots one (operation, width) is. The operation, then the width - so the two
+// widths of a count sit beside each other and the unused slot (a 32-bit leading count, which is
+// `Math.clz32` and no helper) is simply never filled.
+inline Size bitCountHelperSlot(Value::Kind kind, bool wide) {
+    auto op = kind == Value::CountBits ? 0 : kind == Value::LeadingZeros ? 1 : 2;
+    return Size(op * 2 + (wide ? 1 : 0));
+}
 
 // `function $div(a, b) { return b ? a / b : b }` and `$rem`, where a program asked for one. See
 // Gen::divideByZeroHelper.

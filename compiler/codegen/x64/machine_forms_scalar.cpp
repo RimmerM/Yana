@@ -624,6 +624,13 @@ void MachineFormBuilder::registerScalarForms() {
     shift(FormShrImm, FormShrOne, FormShrCl, OpShr, "shr r/m, imm"_v, "shr r/m, 1"_v, "shr r/m, cl"_v, 5);
     shift(FormSarImm, FormSarOne, FormSarCl, OpSar, "sar r/m, imm"_v, "sar r/m, 1"_v, "sar r/m, cl"_v, 7);
 
+    // The rotations are the same three encodings at extensions 0 and 1, so they are the same
+    // builder and nothing about them is a special case anywhere below this line. `rol r/m, 1` is
+    // the one-byte form for the same reason `shl r/m, 1` is - and unlike `shl`, it is *not* also an
+    // `lea`, which is why the address-folding peephole in gen.cpp asks for `OpShl` by name.
+    shift(FormRolImm, FormRolOne, FormRolCl, OpRol, "rol r/m, imm"_v, "rol r/m, 1"_v, "rol r/m, cl"_v, 0);
+    shift(FormRorImm, FormRorOne, FormRorCl, OpRor, "ror r/m, imm"_v, "ror r/m, 1"_v, "ror r/m, cl"_v, 1);
+
     /*
      * Comparison.
      *

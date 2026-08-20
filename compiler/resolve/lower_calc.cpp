@@ -104,29 +104,6 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     // (to, count, pattern), which is the order its printed form uses.
                     result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSetPattern(args[0], args[2], args[1]));
                     break;
-                /*
-                 * The bit scan - one intrinsic in, one value out.
-                 *
-                 * Built by hand rather than through `block.addInst`, for the reason the x64
-                 * builder's `intrinsic` gives: `LowerInstIntrinsic`'s results live past the
-                 * instruction rather than inside it, because an intrinsic may answer none or
-                 * several, so the allocation is the instruction plus its one result and its one
-                 * operand. See `handleIntrinsic` in lower_resolve.cpp, which builds the same shape
-                 * when reading one back in.
-                 */
-                case NativeOp::TrailingZeros: {
-                    auto type = lowerType(lower.global, instruction.type);
-                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
-                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
-
-                    new (inst) LowerInstIntrinsic(LowerIntrinsic::Cttz, 1, 1);
-                    inst->used().ptr[0] = args[0];
-                    new (inst->created().ptr) LowerValue(inst, type, instruction.name);
-
-                    result = block.addInst(lower.lower, (LowerInst*)inst);
-                    break;
-                }
-
                 case NativeOp::Syscall: {
                     // The kernel is the callee, so there is no function operand: the number is
                     // operand zero, exactly as the lower IR's own syscall form has it.
@@ -329,6 +306,48 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             result = truncateToWidth(lower, block, result, instruction.type, type, instruction.name);
             break;
         }
+        /*
+         * The three bit counts, which are one intrinsic each and no arithmetic around them.
+         *
+         * Nothing here masks or truncates, unlike the byte reversal above, and both halves of that
+         * are the width rule in inst.def doing its job: the operand is 32 or 64 bits, so it fills
+         * its register and its storage *is* its value, and the answer is between 0 and 64, so it is
+         * in range of every type this can be asked at and needs no narrowing on the way out.
+         *
+         * Both zero counts lower to the **defined** form - `CttzWidth`, `ClzWidth` - because the
+         * language's answer at zero is the width (inst.def rules on it) and those are the kinds that
+         * say so. Whether the machine has an instruction for that or has to build it out of a bit
+         * scan and a conditional move is the target's question, and `expandBitScans` in the x64
+         * backend is where it is answered; the LLVM backend hands the same fact to `llvm.cttz` and
+         * `llvm.ctlz` as an argument and lets the target lower it.
+         *
+         * Built by hand rather than through `unary<>`, for the reason the x64 builder's `intrinsic`
+         * gives: `LowerInstIntrinsic`'s results live past the instruction rather than inside it,
+         * because an intrinsic may answer none or several, so the allocation is the instruction plus
+         * its one result and its one operand. See `handleIntrinsic` in lower_resolve.cpp, which
+         * builds the same shape when reading one back in.
+         */
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros: {
+            auto& unaryInst = (InstUnary&)instruction;
+            auto from = mappedValue(lower, unaryInst.from);
+            auto type = lowerType(lower.global, instruction.type);
+
+            auto which = instruction.kind == Value::CountBits    ? LowerIntrinsic::Popcnt
+                       : instruction.kind == Value::LeadingZeros ? LowerIntrinsic::ClzWidth
+                                                                 : LowerIntrinsic::CttzWidth;
+
+            auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
+                sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
+
+            new (inst) LowerInstIntrinsic(which, 1, 1);
+            inst->used().ptr[0] = from;
+            new (inst->created().ptr) LowerValue(inst, type, instruction.name);
+
+            result = block.addInst(lower.lower, (LowerInst*)inst);
+            break;
+        }
         // The two floating-point operations that are neither the unary pair above nor the binary
         // group below: one operand and no arithmetic beside it, and three operands and no other
         // instruction of that arity in this IR.
@@ -390,6 +409,95 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFma(
                 instruction.name, lowerType(lower.global, instruction.type),
                 mappedValue(lower, fma.a), mappedValue(lower, fma.b), mappedValue(lower, fma.c)));
+            break;
+        }
+        /*
+         * The two rotations, and the widths that do not survive this seam.
+         *
+         * At 32 and 64 bits, and over a vector at any lane width, it is one instruction on both
+         * sides: the machine has `rol`/`ror` and `vprold`, and what a backend without the packed one
+         * does about it is its own business (`expandVectorRotate`).
+         *
+         * **Every narrower scalar is spent here**, which is the byte reversal's case at a different
+         * operation and for the same reason: `lowerType` answers `Int32` for every integer below the
+         * 64-bit family, so an instruction there would rotate within *thirty-two* bits whatever width
+         * the program wrote. `@bits(30) U32` and `WideInt` are the same case, and the fact that the
+         * expansion is written against the declared width rather than against a register is why they
+         * are ordinary rather than refused - unlike `CountBits`, which has no such rewrite and is
+         * declared at two widths only.
+         *
+         * The expansion is the definition:
+         *
+         *     n = count & (w - 1)          the modulus, which the machine's own masking is at 32/64
+         *     rol(v, n) = (v << n) | (v >> (w - n))
+         *
+         * with three things the seam requires. The operand is **masked to its width first**, because
+         * a signed narrow value is held sign-extended and a rotation that carried those bits round
+         * would bring the register's sign into the low end of the answer - `zeroExtendsShiftOperand`'s
+         * rule, which is sharper here than at `shr` because *both* halves read the storage.
+         * `truncateToWidth` puts the declared width's sign back at the end. And `w - n` reaches `w`
+         * at a zero count, which is a shift the register is wide enough to have an answer for: the
+         * masked operand has `w` bits and `w` is below 32, so it shifts out to zero rather than
+         * being undefined.
+         */
+        case Value::Rol:
+        case Value::Ror: {
+            auto& rotate = (InstBinary&)instruction;
+            auto type = lowerType(lower.global, instruction.type);
+            auto lhs = mappedValue(lower, rotate.lhs);
+            auto rhs = mappedValue(lower, rotate.rhs);
+            auto left = instruction.kind == Value::Rol;
+
+            if(!narrowerThanRegister(lower.global, instruction.type)) {
+                result = left
+                    ? binary<LowerInst::Rol>(lower.lower, lower.to, block, lower.lower[lhs],
+                                             lower.lower[rhs], type, instruction.name)
+                    : binary<LowerInst::Ror>(lower.lower, lower.to, block, lower.lower[lhs],
+                                             lower.lower[rhs], type, instruction.name);
+                break;
+            }
+
+            auto bits = ((IntType*)lower.global[instruction.type])->bits;
+            auto value = maskToWidth(lower, block, lhs, instruction.type, type);
+            auto width = immediate(lower, bits, type);
+
+            /*
+             * The count, reduced modulo the width - and the width here is not always a power of two,
+             * which is the one thing that makes this more than a mask.
+             *
+             * Eight and sixteen mask, because a power of two's `w - 1` *is* its modulus and it is
+             * the same operation the machine performs on its own count register. `WideInt` is 53
+             * bits and is the only type that reaches this without one, so it divides: the count is
+             * first masked to the width, which is what makes it the **unsigned** reading the modulus
+             * is defined over - a negative count is a bit pattern here, exactly as it is to `rol cl`
+             * and to `llvm.fshl` - and the remainder of that is in range by construction.
+             */
+            LowerPtr<LowerValue> count;
+
+            if((bits & (bits - 1)) == 0) {
+                auto mask = immediate(lower, bits - 1, type);
+                count = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[rhs],
+                                               lower.lower[mask], type, StringId())->created().ptr - lower.lower;
+            } else {
+                auto unsignedCount = maskToWidth(lower, block, rhs, instruction.type, type);
+                count = binary<LowerInst::Rem>(lower.lower, lower.to, block, lower.lower[unsignedCount],
+                                               lower.lower[width], type, StringId())->created().ptr - lower.lower;
+            }
+            auto back = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[width],
+                                               lower.lower[count], type, StringId())->created().ptr - lower.lower;
+
+            auto up = left ? count : back;
+            auto down = left ? back : count;
+
+            auto high = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
+                                               lower.lower[up], type, StringId())->created().ptr - lower.lower;
+            auto low = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[value],
+                                              lower.lower[down], type, StringId())->created().ptr - lower.lower;
+
+            result = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[high],
+                                           lower.lower[low], type, StringId());
+
+            result = truncateToWidth(lower, block, result, instruction.type, type, instruction.name);
             break;
         }
         case Value::Add:

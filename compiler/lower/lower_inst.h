@@ -164,6 +164,27 @@ struct LowerInst {
         Shl,
         Shr,
         Sar,
+
+        /*
+         * The two rotations, which are the shifts' shape and not their semantics: nothing leaves the
+         * value, and what falls off one end comes back at the other.
+         *
+         * **The count is taken modulo the operand's width**, which is the one thing about a rotation
+         * that has to be said here rather than left to a target. It is what x86's `rol`/`ror` do -
+         * the count register is masked to 5 or 6 bits, and for these two that mask *is* the modulus -
+         * and it is what `llvm.fshl`/`llvm.fshr` are defined as. A rotation by the width is therefore
+         * the identity rather than zero, which is where it parts company with `Shl` beside it.
+         *
+         * Placed immediately after `Sar` because `selectForm` indexes its shift table by the
+         * distance from `Shl`; the two are the same group-2 encodings at two more opcode extensions.
+         *
+         * An integer or a vector of integers, on the same terms the shifts are - and a vector one is
+         * a rotation *per lane*, which x86 has only at AVX-512 (`vprold`). `expandVectorRotate` is
+         * the pair of shifts and an `or` everywhere else, and it is a backend's expansion rather than
+         * this IR's because a target that has the instruction should reach it.
+         */
+        Rol,
+        Ror,
         And,                // int & int, ptr & int
         Or,                 // int | int, ptr | int
         Xor,                // int ^ int, ptr ^ int
@@ -1214,6 +1235,28 @@ enum class LowerIntrinsic: U16 {
      */
     Cttz,
     CttzWidth,
+
+    /*
+     * The other end of the word, in the same two kinds and for the same reason - and the pair is
+     * *not* symmetric with the one above, which is x86's doing rather than a choice made here.
+     *
+     * `Bsr` answers the **index of the highest set bit**, not a count of anything: 31 for an `i32`
+     * whose top bit is set, 0 for the value 1, and nothing at all for zero. That is `bsr`, it is
+     * baseline, and the leading-zero count a caller wants is `width - 1 - Bsr(x)` - one subtraction
+     * that the expansion below pays and the instruction above does not.
+     *
+     * `ClzWidth` answers the **leading-zero count** with the operand's width at zero, which is
+     * `lzcnt` and needs LZCNT (v3, beside BMI1). It is what `Value::LeadingZeros` becomes, and
+     * `expandBitScans` in the x64 backend is what turns it back into `Bsr` and a correction on a
+     * target that has no such level.
+     *
+     * There is deliberately no poison-at-zero leading count to pair with `Cttz`: nothing produces
+     * one. `Bsr` is here because the expansion needs a name for what it emits, and it is written
+     * only by a backend that has the instruction - `LowerIntrinsic::Bzhi`'s case exactly, and
+     * refused by the LLVM backend the same way.
+     */
+    Bsr,
+    ClzWidth,
 
     /*
      * The low `index` bits of a value, with everything above them cleared - `bzhi`, BMI2.

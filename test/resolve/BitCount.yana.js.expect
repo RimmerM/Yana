@@ -1,0 +1,78 @@
+"use strict";
+// Core
+function nextPowerOf2_Int(value) {
+  return value <= 1 ? 1 : 1 << 32 - (Math.clz32(value - 1 | 0) | 0);
+}
+
+// ResolveTest
+function opaqueInt(x) {
+  return x;
+}
+
+function opaqueLong(x) {
+  return x;
+}
+
+function opaqueU32(x) {
+  return x;
+}
+
+function opaqueU64(x) {
+  return x;
+}
+
+function opaqueI32(x) {
+  return x;
+}
+
+function derived() {
+  var v20 = ((32 - (Math.clz32(opaqueInt(305419896)) | 0) | 0) === 29 ? 262144 : 0) + ((32 - (Math.clz32(opaqueInt(0)) | 0) | 0) === 0 ? 524288 : 0);
+  var v22 = opaqueInt(1024);
+  var v76 = v22 !== 0;
+  var v26 = v20 + ((v76 ? (v22 & v22 - 1) === 0 : v76) ? 1048576 : 0);
+  var v28 = opaqueInt(1023);
+  var v86 = v28 !== 0;
+  var v34 = v26 + ((v86 ? (v28 & v28 - 1) === 0 : v86) ^ 1 ? 2097152 : 0);
+  var v36 = opaqueInt(0);
+  var v96 = v36 !== 0;
+  return v34 + ((v96 ? (v36 & v36 - 1) === 0 : v96) ^ 1 ? 4194304 : 0) + (nextPowerOf2_Int(opaqueInt(1000)) === 1024 ? 8388608 : 0) + (nextPowerOf2_Int(opaqueInt(1024)) === 1024 ? 16777216 : 0) + (nextPowerOf2_Int(opaqueInt(0)) === 1 ? 33554432 : 0);
+}
+
+function main() {
+  var v8 = (($popcount32(opaqueInt(305419896)) | 0) === 13 ? 1 : 0) + ((Math.clz32(opaqueInt(305419896)) | 0) === 3 ? 2 : 0) + (($ctz32(opaqueInt(305419896)) | 0) === 3 ? 4 : 0) + ((($popcount32(opaqueInt(0)) | 0) === 0 ? 8 : 0) + ((Math.clz32(opaqueInt(0)) | 0) === 32 ? 16 : 0) + (($ctz32(opaqueInt(0)) | 0) === 32 ? 32 : 0)) + (($popcount32(opaqueU32(4294967295)) >>> 0 === 32 ? 64 : 0) + (Math.clz32(opaqueU32(4294967295)) >>> 0 === 0 ? 128 : 0) + ($ctz32(opaqueU32(4294967295)) >>> 0 === 0 ? 256 : 0)) + ((BigInt.asIntN(64, $popcount64(opaqueLong(72623859790382856n))) === 13n ? 512 : 0) + (BigInt.asIntN(64, $clz64(opaqueLong(72623859790382856n))) === 7n ? 1024 : 0) + (BigInt.asIntN(64, $ctz64(opaqueLong(72623859790382856n))) === 3n ? 2048 : 0)) + ((BigInt.asUintN(64, $popcount64(opaqueU64(0n))) === 0n ? 4096 : 0) + (BigInt.asUintN(64, $clz64(opaqueU64(0n))) === 64n ? 8192 : 0) + (BigInt.asUintN(64, $ctz64(opaqueU64(0n))) === 64n ? 16384 : 0));
+  var value = opaqueI32(-1);
+  return ((v8 + ((($popcount32(value) | 0) === 32 ? 32768 : 0) + ((Math.clz32(value) | 0) === 0 ? 65536 : 0) + (($ctz32(value) | 0) === 0 ? 131072 : 0)) + derived() | 0) + 469762048 | 0) + ((countVia_U32(opaqueU32(4294967295)) === 32 ? 536870912 : 0) + (leadingVia_U64(opaqueU64(1n)) === 63n ? 1073741824 : 0)) | 0;
+}
+
+function countVia_U32(value) {
+  return $popcount32(value) >>> 0;
+}
+
+function leadingVia_U64(value) {
+  return BigInt.asUintN(64, $clz64(value));
+}
+
+function $popcount32(v) {
+  var a = v - (v >>> 1 & 1431655765);
+  var b = (a & 858993459) + (a >>> 2 & 858993459);
+  return Math.imul(b + (b >>> 4) & 252645135, 16843009) >>> 24;
+}
+
+function $ctz32(v) {
+  return v ? 31 - Math.clz32(v & -v) : 32;
+}
+
+function $popcount64(v) {
+  return BigInt($popcount32(Number(v & 4294967295n)) + $popcount32(Number(v >> 32n & 4294967295n)));
+}
+
+function $clz64(v) {
+  var h = Number(v >> 32n & 4294967295n);
+  return BigInt(h ? Math.clz32(h) : 32 + Math.clz32(Number(v & 4294967295n)));
+}
+
+function $ctz64(v) {
+  var l = Number(v & 4294967295n);
+  return BigInt(l ? $ctz32(l) : 32 + $ctz32(Number(v >> 32n & 4294967295n)));
+}
+main();

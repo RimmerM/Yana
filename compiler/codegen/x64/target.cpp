@@ -51,7 +51,7 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
 
     if(settings.extensions.level >= TargetExtensions::V3) {
         features |= kFeatureAvx | kFeatureAvx2 | kFeatureBmi1 | kFeatureBmi2 | kFeatureFma3
-                  | kFeatureMovbe;
+                  | kFeatureMovbe | kFeatureLzcnt;
     }
 
     /*

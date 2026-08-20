@@ -1,0 +1,79 @@
+{-
+   Rotations over a vector, which x86 has an instruction for only at AVX-512.
+
+   `vprold` and `vprolq` are EVEX, so below v4 there is no packed rotation at any lane width and
+   `expandVectorRotate` in codegen/x64/transform_expand.cpp is the pair of shifts and an `or` that
+   one always meant. What this file asserts is that the expansion is the operation - at a lane width
+   the machine has shifts for, at one it does not, and at the two counts where an expansion is most
+   likely to be wrong.
+
+   **The two counts that matter are zero and the width.** A rotation by either is the identity, and
+   an expansion reaches both through its *second* shift, whose distance is `w - n` - which is `w` at
+   a zero count. A packed shift does not mask its count the way a general-register shift does; it
+   saturates, answering all-zero lanes at or past the lane width. So an expansion that forgot to
+   reduce the second distance answers 0 where the operation answers the value back, and these are the
+   cases that say so.
+
+   **The byte lane is the other half.** `psllw` is the narrowest packed shift x86 has, so an 8-bit
+   rotation is an expansion whose shifts are themselves expanded - `expandByteShifts` runs below
+   `expandVectorRotate` precisely so that neither pass had to learn about the other. The byte pattern
+   is `VecByteShift.yana`'s, chosen for the same reason: every byte carries into its neighbour, so a
+   mask dropped anywhere in either expansion shows up here.
+
+   The result is read four bytes at a time for that fixture's reason - `lane` at a byte lane reads
+   its 32-bit neighbourhood rather than the byte - which makes each byte check an assertion about
+   four lanes at once.
+
+   **Native only, for `VecByteShift.yana`'s reason.** Reading a byte lane back needs a bitcast to a
+   vector of a different lane width, which has no JavaScript form at all - a lane is a `number`
+   there rather than a run of bits. `VecRotate.Lanes.yana` is the half that both targets can run.
+
+   Each check contributes 1 and `main` is their count, which is 12.
+-}
+
+let &counter = 0 :: Int
+
+-- Opaque: the global is written as well as read, so no pass can fold the count into a constant.
+@noinline
+fn opaque(n: Int) -> Int:
+    counter = counter + 1
+    if counter > 1000:
+        return 1
+    return n
+
+-- 0x8f73ff01: the bytes 0x01, 0xff, 0x73, 0x8f from lane zero up, two of them negative.
+fn pattern() -> Vec(I8) = bitcast(splat(0 - 1888223487) :: Vec(Int))
+
+fn checkBytes(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn checkWords(v: Vec(Int), expected: Int) -> Int = if lane(v, 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let bytes = pattern()
+    let words = splat(305419896) :: Vec(Int)
+    let &n = 0 :: Int
+
+    -- A 32-bit lane, which is the width the machine has both shifts for.
+    n = n + checkWords(words `rol` splat(4), 591751041)
+    n = n + checkWords(words `ror` splat(4), 0 - 2128394905)
+
+    -- The modulus, at both ends. A count of zero and a count of the width are the identity, and the
+    -- second shift of the expansion wants the whole lane width at each of them.
+    n = n + checkWords(words `rol` splat(0), 305419896)
+    n = n + checkWords(words `rol` splat(32), 305419896)
+    n = n + checkWords(words `ror` splat(0), 305419896)
+    n = n + checkWords(words `rol` splat(36), 591751041)
+
+    -- The same at a byte lane, where each shift of the expansion is itself expanded.
+    n = n + checkBytes(bytes `rol` splat(1 :: I8), 535232258)
+    n = n + checkBytes(bytes `rol` splat(3 :: I8), 2090598152)
+    n = n + checkBytes(bytes `ror` splat(3 :: I8), 0 - 244383968)
+    n = n + checkBytes(bytes `rol` splat(8 :: I8), 0 - 1888223487)
+
+    -- And a count only known at run time, where neither the mask nor the subtraction folds.
+    let k = opaque(2)
+    n = n + checkWords(words `rol` splat(k), 1221679584)
+    n = n + checkBytes(bytes `rol` splat(truncate(k) :: I8), 1053687556)
+
+    return n

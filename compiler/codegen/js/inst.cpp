@@ -679,6 +679,92 @@ static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
 }
 
 /*
+ * The three bit counts, which are a call to one of five helpers - or, in the one case the host
+ * answers directly, to `Math.clz32`.
+ *
+ * The width comes from the type and decides the domain as much as the arithmetic: 32 bits is a
+ * `number` and 64 is a `bigint`, and the resolve verifier has already refused every other width, so
+ * there is no third case. The answer is at the operand's own type, which is what `coerce` at the
+ * call site puts back - a `U64`'s count is a `bigint` even though it is at most 64, because that is
+ * what its type is here.
+ *
+ * `leadingZeros` at 32 bits is `Math.clz32`, whose argument goes through ToUint32 - so a negative
+ * `I32` counts the bits of its two's complement pattern, which is the same value the machine
+ * counts. That is the whole of the 32-bit case and is why it has no helper.
+ */
+static JsPtr<Expr> bitCountCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value) {
+    auto wide = ((IntType*)g.global[type])->bits == 64;
+
+    if(kind == Value::LeadingZeros && !wide) return hostCall(g, "Math"_v, "clz32"_v, value);
+
+    auto want = [&](Value::Kind of, bool at) {
+        auto slot = bitCountHelperSlot(of, at);
+        if(g.bitCountHelpers[slot].text) return;
+
+        auto name = of == Value::CountBits    ? (at ? "$popcount64"_v : "$popcount32"_v)
+                  : of == Value::LeadingZeros ? "$clz64"_v
+                                              : (at ? "$ctz64"_v : "$ctz32"_v);
+
+        g.bitCountHelpers[slot] = uniqueName(g, name, false);
+    };
+
+    want(kind, wide);
+
+    // The 64-bit population and trailing counts are written over their operand's two halves and
+    // call the 32-bit helper on each, so asking for one asks for the other. The leading count needs
+    // no such partner: its halves go to `Math.clz32`, which is the host's own.
+    if(wide && kind != Value::LeadingZeros) want(kind, false);
+
+    auto slot = bitCountHelperSlot(kind, wide);
+
+    auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[slot]));
+    node->args.push(g.file.arena, value);
+    node->pure = true;
+    return asExpr(g, node);
+}
+
+/*
+ * A rotation, which is a call to one of ten helpers - see Gen::rotateHelpers.
+ *
+ * The width comes from the *type* and decides both the modulus and the host domain the body works
+ * in. The helper answers the raw rotation at that width and the caller coerces, which is what lets
+ * one function serve both signednesses - `>>> 0`, `| 0`, `& 0xffff` and `BigInt.asIntN` are the
+ * type's own normal form, and applying it is the same statement every arithmetic instruction here
+ * makes.
+ *
+ * Serves a lane as well as a scalar: `laneBinary` calls this with the *lane* type, and a lane of a
+ * `Vec(U8)` is an eight-bit rotation for the same reason a `U8` is.
+ */
+static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value, JsPtr<Expr> count) {
+    auto integer = intType(g, type);
+    auto bits = integer ? U32(((IntType*)g.global[canonicalType(g.global, type)])->bits) : 0;
+    auto slot = rotateHelperSlot(kind, bits);
+
+    if(slot == kNoRotateHelper) {
+        g.context.diagnostics.error("internal error: a rotation at a width with no instance"_v, LocationId());
+        return value;
+    }
+
+    if(!g.rotateHelpers[slot].text) {
+        char buffer[16];
+        Size length = 0;
+        buffer[length++] = '$';
+        buffer[length++] = 'r';
+        buffer[length++] = 'o';
+        buffer[length++] = kind == Value::Rol ? 'l' : 'r';
+        length += show(U64(bits), buffer + length, sizeof(buffer) - length);
+
+        g.rotateHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
+    }
+
+    auto node = make<CallExpr>(g, variable(g, g.rotateHelpers[slot]));
+    node->args.push(g.file.arena, value);
+    node->args.push(g.file.arena, count);
+    node->pure = true;
+    return asExpr(g, node);
+}
+
+/*
  * One value's bits read as another type of the same width.
  *
  * Two shapes. Two integer types of one width are the same host value in two normal forms, so the
@@ -2025,6 +2111,252 @@ void emitRoundAwayHelper(Gen& g) {
  * The answer is the raw reversal at the helper's width, and the caller's coercion is what takes it
  * back to the type's own normal form - which is what lets one helper serve both signednesses.
  */
+/*
+ * The five bit-count helpers - see Gen::bitCountHelpers.
+ *
+ *     function $popcount32(v) { var a = v - ((v >>> 1) & 0x55555555)
+ *                               var b = (a & 0x33333333) + ((a >>> 2) & 0x33333333)
+ *                               var c = (b + (b >>> 4)) & 0x0f0f0f0f
+ *                               return Math.imul(c, 0x01010101) >>> 24 }
+ *     function $ctz32(v)      { return v ? 31 - Math.clz32(v & -v) : 32 }
+ *     function $popcount64(v) { return BigInt($popcount32(Number(v & 0xffffffffn))
+ *                                           + $popcount32(Number((v >> 32n) & 0xffffffffn))) }
+ *     function $clz64(v)      { var h = Number((v >> 32n) & 0xffffffffn)
+ *                               return BigInt(h ? Math.clz32(h)
+ *                                               : 32 + Math.clz32(Number(v & 0xffffffffn))) }
+ *     function $ctz64(v)      { var l = Number(v & 0xffffffffn)
+ *                               return BigInt(l ? $ctz32(l)
+ *                                               : 32 + $ctz32(Number((v >> 32n) & 0xffffffffn))) }
+ *
+ * ## The 32-bit pair
+ *
+ * `$popcount32` is the five-step SWAR fold, and every operator in it is one JS has at exactly 32
+ * bits: `>>>` and `&` are ToUint32 and ToInt32, so a negative `I32` folds as its two's complement
+ * pattern with no coercion written anywhere, and `Math.imul` is the one exact 32-bit multiply the
+ * host has - the ordinary `*` would round the byte-summing product, whose true value passes 2^53.
+ * The final `>>> 24` is what makes the answer non-negative at every input.
+ *
+ * `$ctz32` is `Math.clz32` of the lowest set bit isolated, which is `v & -v` - the shortest thing
+ * the host expresses, since it has no trailing-zero count of its own. The ternary is not the zero
+ * guard it looks like: `31 - Math.clz32(0)` is -1, and the language's answer at zero is the width.
+ *
+ * ## The 64-bit three, and why they are written over halves
+ *
+ * A `bigint` has bitwise operators, so each of these *could* be a loop or a shift chain in the
+ * `bigint` domain. They are not, because `bigint` arithmetic is heap arithmetic on every engine and
+ * `Math.clz32` is a single machine instruction behind an intrinsic. Splitting once - two masks, two
+ * `Number` conversions - and then working in the fast domain is a bounded number of cheap operations
+ * where the loop is an unbounded number of expensive ones.
+ *
+ * `v & 0xffffffffn` is the low half for a negative operand as much as for a positive one, because a
+ * `bigint`'s bitwise operators are defined on the two's complement representation extended
+ * infinitely - so an `I64` needs no separate case, exactly as the byte reversal above needs none.
+ *
+ * The result is a `bigint` because the operand's type is 64 bits wide and that is what a value of it
+ * is on this target. It is at most 64 either way; the conversion is about the type, not the range.
+ */
+void emitBitCountHelpers(Gen& g) {
+    auto define = [&](Value::Kind kind, bool wide, void (*body)(Gen&, JsPtr<Expr>)) {
+        auto& name = g.bitCountHelpers[bitCountHelperSlot(kind, wide)];
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        auto argument = literalName(g, "v"_v);
+        function->args.push(g.file.arena, argument);
+        function->body = collect(g, [&] { body(g, variable(g, argument)); });
+
+        emit(g, function);
+    };
+
+    // The one thing the three wide bodies share: a half of the operand, as a `number`.
+    static auto half = [](Gen& g, JsPtr<Expr> value, bool high) {
+        auto shifted = high ? binary(g, BinaryOp::Sar, value, bigInt(g, 32, false)) : value;
+        return globalCall(g, "Number"_v,
+                          binary(g, BinaryOp::And, shifted, bigInt(g, 0xffffffff, false)));
+    };
+
+    define(Value::CountBits, false, [](Gen& g, JsPtr<Expr> v) {
+        auto step = [&](JsPtr<Expr> of, U32 shift, U32 mask, bool before) {
+            auto down = binary(g, BinaryOp::Shr, of, number(g, F64(shift)));
+            return before ? binary(g, BinaryOp::And, down, number(g, F64(mask)))
+                          : binary(g, BinaryOp::Add, of, down);
+        };
+
+        auto a = declare(g, literalName(g, "a"_v),
+                         binary(g, BinaryOp::Sub, v, step(v, 1, 0x55555555, true)));
+        auto b = declare(g, literalName(g, "b"_v),
+                         binary(g, BinaryOp::Add, binary(g, BinaryOp::And, a, number(g, F64(0x33333333))),
+                                step(a, 2, 0x33333333, true)));
+        auto c = declare(g, literalName(g, "c"_v),
+                         binary(g, BinaryOp::And, step(b, 4, 0, false), number(g, F64(0x0f0f0f0f))));
+
+        emit(g, make<ReturnStmt>(g, binary(g, BinaryOp::Shr,
+                                           hostCall(g, "Math"_v, "imul"_v, c, number(g, F64(0x01010101))),
+                                           number(g, 24))));
+    });
+
+    define(Value::TrailingZeros, false, [](Gen& g, JsPtr<Expr> v) {
+        auto lowest = binary(g, BinaryOp::And, v, unary(g, UnaryOp::Neg, v));
+        auto index = binary(g, BinaryOp::Sub, number(g, 31), hostCall(g, "Math"_v, "clz32"_v, lowest));
+
+        emit(g, make<ReturnStmt>(g, ternary(g, v, index, number(g, 32))));
+    });
+
+    define(Value::CountBits, true, [](Gen& g, JsPtr<Expr> v) {
+        auto count = [&](bool high) {
+            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(Value::CountBits, false)]));
+            node->args.push(g.file.arena, half(g, v, high));
+            node->pure = true;
+            return asExpr(g, node);
+        };
+
+        emit(g, make<ReturnStmt>(g, globalCall(g, "BigInt"_v,
+                                               binary(g, BinaryOp::Add, count(false), count(true)))));
+    });
+
+    define(Value::LeadingZeros, true, [](Gen& g, JsPtr<Expr> v) {
+        auto high = declare(g, literalName(g, "h"_v), half(g, v, true));
+        auto below = binary(g, BinaryOp::Add, number(g, 32),
+                            hostCall(g, "Math"_v, "clz32"_v, half(g, v, false)));
+
+        emit(g, make<ReturnStmt>(g, globalCall(g, "BigInt"_v,
+            ternary(g, high, hostCall(g, "Math"_v, "clz32"_v, high), below))));
+    });
+
+    define(Value::TrailingZeros, true, [](Gen& g, JsPtr<Expr> v) {
+        auto scan = [&](JsPtr<Expr> of) {
+            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(Value::TrailingZeros, false)]));
+            node->args.push(g.file.arena, of);
+            node->pure = true;
+            return asExpr(g, node);
+        };
+
+        auto low = declare(g, literalName(g, "l"_v), half(g, v, false));
+        auto above = binary(g, BinaryOp::Add, number(g, 32), scan(half(g, v, true)));
+
+        emit(g, make<ReturnStmt>(g, globalCall(g, "BigInt"_v, ternary(g, low, scan(low), above))));
+    });
+}
+
+/*
+ * The ten rotations - see Gen::rotateHelpers.
+ *
+ *     function $rol32(v, c) { var n = c & 31;  return n ? (v << n) | (v >>> (32 - n)) : v }
+ *     function $rol16(v, c) { var n = c & 15;  var x = v & 65535
+ *                             return n ? (x << n) | (x >>> (16 - n)) : v }
+ *     function $rol53(v, c) { var n = (c < 0 ? c + 9007199254740992 : c) % 53
+ *                             return n ? $w53i$or($w53i$shl(v, n), $w53i$shr(v, 53 - n)) : v }
+ *     function $rol64(v, c) { var n = BigInt.asUintN(64, c) % 64n
+ *                             return n ? (v << n) | (BigInt.asUintN(64, v) >> (64n - n)) : v }
+ *
+ * ## The ternary is the whole argument, and it is not the zero case
+ *
+ * Every body guards on `n` and answers the operand unchanged for a zero count. That is not a
+ * shortcut for a common case: it is what keeps the *other* arm's shift distances inside `[1, w-1]`,
+ * where every host domain agrees about them. A count of zero would otherwise want a shift by the
+ * full width, which is where the three domains stop agreeing - JS masks `>>>` to five bits, wide.cpp
+ * would be asked for a distance it does not describe, and a `bigint` shift by 64 is the one that
+ * *is* well defined. Guarding once is shorter than arguing three times.
+ *
+ * ## The modulus, and where the width is not a power of two
+ *
+ * Two of the five widths mask (`c & (w - 1)`), because a power of two's mask is its modulus and it
+ * is the same operation the machine performs on its count register. `WideInt` is 53 bits and is the
+ * one that cannot: the count is read as unsigned - which is what a negative `number` in the band
+ * means as a bit pattern, and what `llvm.fshl` and the machine both do - and then reduced. The
+ * native lowering does exactly this pair, with `maskToWidth` and a remainder.
+ *
+ * ## The three domains
+ *
+ * Below 33 bits the host operators are the operation and the mask is where the width lives: `v` may
+ * be a negative `number` standing for a 16-bit pattern, so it is masked before either shift and the
+ * caller's coercion signs the answer. At exactly 32 no mask is needed - the `int32` the operators
+ * work in *is* the value. From 33 to 53 the operators do not exist and wide.cpp's helpers are what
+ * a shift is; above that a value is a `bigint`, whose `>>` is arithmetic, so the right half reads
+ * the unsigned form first for the reason the scalar `shr` does.
+ */
+void emitRotateHelpers(Gen& g) {
+    auto define = [&](Value::Kind kind, U32 bits) {
+        auto slot = rotateHelperSlot(kind, bits);
+        auto& name = g.rotateHelpers[slot];
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        auto valueName = literalName(g, "v"_v);
+        auto countName = literalName(g, "c"_v);
+        function->args.push(g.file.arena, valueName);
+        function->args.push(g.file.arena, countName);
+
+        auto left = kind == Value::Rol;
+        auto wide = bits == 64;
+
+        function->body = collect(g, [&] {
+            auto value = variable(g, valueName);
+            auto count = variable(g, countName);
+            auto constant = [&](U64 n) { return wide ? bigInt(g, n, false) : number(g, F64(n)); };
+
+            // The count, reduced. A power of two masks; 53 reads the count unsigned and divides.
+            JsPtr<Expr> reduced;
+
+            if(wide) {
+                reduced = binary(g, BinaryOp::Rem,
+                                 hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), count),
+                                 constant(64));
+            } else if(bits == 53) {
+                auto unsignedCount = ternary(g, binary(g, BinaryOp::Lt, count, number(g, 0)),
+                                             binary(g, BinaryOp::Add, count, number(g, 9007199254740992.0)),
+                                             count);
+
+                reduced = binary(g, BinaryOp::Rem, unsignedCount, number(g, F64(bits)));
+            } else {
+                reduced = binary(g, BinaryOp::And, count, number(g, F64(bits - 1)));
+            }
+
+            auto n = declare(g, literalName(g, "n"_v), reduced);
+            auto back = binary(g, BinaryOp::Sub, constant(bits), n);
+
+            // The value's own bits, which below 32 are not all of the register's: a negative
+            // `number` standing for a narrow pattern carries ones above its width, and a rotation
+            // would bring them round into the answer where a shift only pushes them out.
+            JsPtr<Expr> bitsOfValue = value;
+            if(bits < 32) {
+                bitsOfValue = declare(g, literalName(g, "x"_v),
+                                      binary(g, BinaryOp::And, value, number(g, F64((U64(1) << bits) - 1))));
+            }
+
+            JsPtr<Expr> up, down;
+
+            if(bits <= 32) {
+                up = binary(g, BinaryOp::Shl, bitsOfValue, left ? n : back);
+                down = binary(g, BinaryOp::Shr, bitsOfValue, left ? back : n);
+            } else if(bits == 53) {
+                up = wideCallAt(g, WideOp::Shl, bits, true, value, left ? n : back);
+                down = wideCallAt(g, WideOp::Shr, bits, true, value, left ? back : n);
+            } else {
+                // `>>` on a `bigint` is arithmetic and there is no `>>>`, so the half travelling down
+                // reads the unsigned form - the scalar `shr` does the same thing at the same width.
+                auto unsignedValue = hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), value);
+
+                up = binary(g, BinaryOp::Shl, value, left ? n : back);
+                down = binary(g, BinaryOp::Sar, unsignedValue, left ? back : n);
+            }
+
+            auto joined = bits == 53
+                ? wideCallAt(g, WideOp::Or, bits, true, up, down)
+                : binary(g, BinaryOp::Or, up, down);
+
+            emit(g, make<ReturnStmt>(g, ternary(g, n, joined, value)));
+        });
+
+        emit(g, function);
+    };
+
+    static const U32 widths[] = { 8, 16, 32, 53, 64 };
+
+    for(auto bits: widths) define(Value::Rol, bits);
+    for(auto bits: widths) define(Value::Ror, bits);
+}
+
 void emitByteSwapHelpers(Gen& g) {
     auto define = [&](Size slot, U32 bits) {
         auto& name = g.byteSwapHelpers[slot];
@@ -2470,6 +2802,12 @@ static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
 
             return simple(BinaryOp::Rem);
         case Value::Shl: return simple(BinaryOp::Shl);
+        // A rotation within the lane, which is the scalar helper at the lane's own width - see
+        // `rotateCall`. Nothing native reaches this: `expandVectorRotate` rewrites a packed rotation
+        // into shifts long before selection, so a vector rotates only where the lanes are already
+        // ordinary variables.
+        case Value::Rol:
+        case Value::Ror: return coerce(g, type, rotateCall(g, kind, type, lhs, rhs));
         case Value::Shr:
             // A logical right shift of a 64-bit lane goes through the unsigned reading first, for
             // the reason the scalar path does it: `>>>` is not defined on BigInt at all, and a lane
@@ -2867,6 +3205,7 @@ bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
     switch(instruction.kind) {
         case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
         case Value::Shl: case Value::Shr: case Value::Sar:
+        case Value::Rol: case Value::Ror:
         case Value::And: case Value::Or: case Value::Xor:
             genVecBinary(g, pointer, (InstBinary&)instruction);
             return true;
@@ -3227,6 +3566,20 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::ByteSwap:
             define(g, value, coerce(g, instruction.type,
                                     byteSwapCall(g, instruction.type,
+                                                 useValue(g, ((InstUnary&)instruction).from))));
+            break;
+        case Value::Rol:
+        case Value::Ror:
+            define(g, value, coerce(g, instruction.type,
+                                    rotateCall(g, instruction.kind, instruction.type,
+                                               useValue(g, ((InstBinary&)instruction).lhs),
+                                               useValue(g, ((InstBinary&)instruction).rhs))));
+            break;
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros:
+            define(g, value, coerce(g, instruction.type,
+                                    bitCountCall(g, instruction.kind, instruction.type,
                                                  useValue(g, ((InstUnary&)instruction).from))));
             break;
         case Value::Add:

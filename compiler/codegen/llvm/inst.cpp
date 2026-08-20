@@ -484,7 +484,9 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
 
         case LowerInst::Shl:
         case LowerInst::Shr:
-        case LowerInst::Sar: {
+        case LowerInst::Sar:
+        case LowerInst::Rol:
+        case LowerInst::Ror: {
             // The IR lets the amount be either integer width; LLVM wants both operands alike. A
             // vector shifts either by a vector of counts or by one count in a general register that
             // every lane shares, and LLVM has only the first - so the shared count is splatted,
@@ -498,6 +500,23 @@ static void genBinary(FunGen& f, LowerInstBinary& inst) {
                                                      f.builder.CreateZExtOrTrunc(rhs, vector->getElementType()));
             } else {
                 amount = f.builder.CreateZExtOrTrunc(rhs, lhs->getType());
+            }
+
+            /*
+             * The rotations are the funnel shifts over a *repeated* operand, which is what
+             * `llvm.fshl(x, x, c)` means and is how every LLVM front end spells a rotation - the
+             * target then selects `rol` where it has one and the shift pair where it does not.
+             *
+             * The modulus comes free and is the same one this IR promises: `fshl` is defined to take
+             * its count modulo the operand's width, so a rotation by the width is the identity here
+             * exactly as it is on the machine.
+             */
+            if(inst.kind == LowerInst::Rol || inst.kind == LowerInst::Ror) {
+                auto which = inst.kind == LowerInst::Rol ? llvm::Intrinsic::fshl : llvm::Intrinsic::fshr;
+                llvm::Value* args[] = { lhs, lhs, amount };
+
+                value = f.builder.CreateIntrinsic(which, { lhs->getType() }, args, nullptr, name);
+                break;
             }
 
             if(inst.kind == LowerInst::Shl) value = f.builder.CreateShl(lhs, amount, name);
@@ -995,6 +1014,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Shl:
         case LowerInst::Shr:
         case LowerInst::Sar:
+        case LowerInst::Rol:
+        case LowerInst::Ror:
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:

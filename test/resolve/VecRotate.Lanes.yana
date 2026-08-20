@@ -1,0 +1,47 @@
+{-
+   Rotations over the two lane widths both targets can read back one lane at a time.
+
+   `VecRotate.yana` is the fuller file and is native-only: its byte-lane checks read the answer
+   through a bitcast to a vector of a different lane width, which has no JavaScript form. This is the
+   part that does not need one, so it runs on both - which is what makes it the assertion that the
+   *two* expansions agree, x64's `expandVectorRotate` and the JavaScript backend's per-lane helper,
+   neither of which is the other's.
+
+   Both counts that test the modulus are here for the reason they are there: zero and the lane width
+   are the two distances an expansion's second shift asks for the whole width at, and a packed shift
+   saturates where a general-register one masks.
+
+   Each check contributes 1 and `main` is their count, which is 8.
+-}
+
+let &counter = 0 :: Int
+
+@noinline
+fn opaque(n: Int) -> Int:
+    counter = counter + 1
+    if counter > 1000:
+        return 1
+    return n
+
+fn check(v: Vec(Int), expected: Int) -> Int = if lane(v, 0) == expected then 1 else 0
+fn checkLong(v: Vec(Long), expected: Long) -> Int = if lane(v, 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let words = splat(305419896) :: Vec(Int)
+    let longs = splat(81985529216486895 :: Long) :: Vec(Long)
+    let &n = 0 :: Int
+
+    n = n + check(words `rol` splat(4), 591751041)
+    n = n + check(words `ror` splat(4), 0 - 2128394905)
+    n = n + check(words `rol` splat(0), 305419896)
+    n = n + check(words `rol` splat(32), 305419896)
+    n = n + check(words `rol` splat(36), 591751041)
+
+    -- A 64-bit lane, which on JS is a `bigint` per lane and on the machine is the quadword shift.
+    n = n + checkLong(longs `rol` splat(8 :: Long), 2541551405711093505)
+    n = n + checkLong(longs `rol` splat(64 :: Long), 81985529216486895)
+
+    -- And a count only known at run time, where neither the mask nor the subtraction folds.
+    n = n + check(words `rol` splat(opaque(2)), 1221679584)
+
+    return n

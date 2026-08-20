@@ -128,6 +128,26 @@ bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
         case LowerInst::Shr: if(b >= bits) return false; into = a >> b; break;
         case LowerInst::Sar: if(b >= bits) return false; into = U64(sa >> b); break;
 
+        /*
+         * The rotations, which unlike the three above have an answer for *every* distance: the count
+         * is defined modulo the width (see the kinds), so there is no out-of-range case to decline.
+         *
+         * `a` arrives masked to the width already - `foldBinaryValue`'s callers narrow it - so the
+         * halves are the value's own bits and nothing above them travels. The `% bits` before the
+         * shifts is the modulus and the `(bits - n) % bits` is what keeps a zero count from shifting
+         * by the whole width, which is the one distance C++ leaves undefined.
+         */
+        case LowerInst::Rol: {
+            auto n = b % bits;
+            into = (a << n) | (a >> ((bits - n) % bits));
+            break;
+        }
+        case LowerInst::Ror: {
+            auto n = b % bits;
+            into = (a >> n) | (a << ((bits - n) % bits));
+            break;
+        }
+
         case LowerInst::And: into = a & b; break;
         case LowerInst::Or:  into = a | b; break;
         case LowerInst::Xor: into = a ^ b; break;
@@ -314,6 +334,15 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
         case LowerInst::Shr:
         case LowerInst::Sar:
             if(knownRhs && b == 0) return forward(lhs);
+            if(knownLhs && a == 0) return Folded::value(0);
+            break;
+
+        // The same two identities for a rotation, and the zero-count one has to test the count
+        // *modulo the width* rather than against zero: a rotation by the width is the identity where
+        // a shift by it is not, which is the whole difference between the two kinds.
+        case LowerInst::Rol:
+        case LowerInst::Ror:
+            if(knownRhs && (b % bits) == 0) return forward(lhs);
             if(knownLhs && a == 0) return Folded::value(0);
             break;
 
@@ -1116,6 +1145,7 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::Rem:   case LowerInst::IRem:
         case LowerInst::MulHi: case LowerInst::IMulHi:
         case LowerInst::Shl:   case LowerInst::Shr: case LowerInst::Sar:
+        case LowerInst::Rol:   case LowerInst::Ror:
         case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
         case LowerInst::Cmp:
         case LowerInst::Select:

@@ -1,0 +1,40 @@
+# The two rotations through the LLVM backend.
+#
+# `llvm.fshl` and `llvm.fshr` over a *repeated* operand, which is what a rotation is to LLVM and how
+# every front end spells one: a funnel shift of `(x, x)` by `c`. The target then selects `rol` where
+# it has one and the shift pair where it does not, which is the same division of labour the x64
+# backend has to make for itself in `expandVectorRotate`.
+#
+# The modulus comes free and is the same one this IR promises: `fshl` is defined to take its count
+# modulo the operand's width, so a rotation by the width is the identity here exactly as it is on
+# the machine and exactly as `lower_fold` computes it.
+#
+# A vector is one call as well - `fshl` is overloaded on the whole operand type, so the lane width is
+# in the mangled name and nothing here has to expand anything. The shared count is splatted first for
+# the reason a shared shift count is: this IR lets the count be a scalar and LLVM wants both operands
+# alike.
+
+rotate(%x: Int, %y: Long, %c: Int): Int {
+    {
+        %a = rol %x, 7: Int
+        %b = ror %x, %c: Int
+        %d = rol %y, 9: Long
+        %r = add %a, %b: Int
+        ret %r
+    }
+}
+
+rotateVector(%v: i32x4, %c: i32x4): i32x4 {
+    {
+        %a = rol %v, %c: i32x4
+        ret %a
+    }
+}
+
+# A shared count over a vector, which is the scalar this IR allows and the splat LLVM requires.
+rotateVectorShared(%v: i32x4, %n: Int): i32x4 {
+    {
+        %a = ror %v, %n: i32x4
+        ret %a
+    }
+}

@@ -114,6 +114,8 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
         case Value::Shl: return LowerInst::Shl;
         case Value::Shr: return LowerInst::Shr;
         case Value::Sar: return LowerInst::Sar;
+        case Value::Rol: return LowerInst::Rol;
+        case Value::Ror: return LowerInst::Ror;
         case Value::And: return LowerInst::And;
         case Value::Or: return LowerInst::Or;
         case Value::Xor: return LowerInst::Xor;
@@ -173,6 +175,9 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Neg:
         case Value::Not:
         case Value::ByteSwap:
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros:
         case Value::Sqrt:
         case Value::Abs:
         case Value::Trunc:
@@ -189,6 +194,8 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Shl:
         case Value::Shr:
         case Value::Sar:
+        case Value::Rol:
+        case Value::Ror:
         case Value::And:
         case Value::Or:
         case Value::Xor:

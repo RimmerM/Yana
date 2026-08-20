@@ -161,6 +161,57 @@ void addIntrinsics(MachineTarget& target) {
 
     {
         /*
+         * BSR r, r/m (0f bd) answers the index of the *highest* set bit - the same shape BSF has
+         * above, at the other end of the word, and with the same undefined destination for a zero
+         * operand.
+         *
+         * **Not a leading-zero count**, which is the whole reason both this and LZCNT below exist as
+         * separate rows rather than one: `bsr` of 1 is 0 and `lzcnt` of 1 is 31, and turning one
+         * into the other is a subtraction from `width - 1`. `expandBitScans` is what pays it, on a
+         * target with no LZCNT, and this is the row it selects.
+         *
+         * Baseline, and written by that expansion alone - nothing above the backend produces one.
+         */
+        auto b = add(LowerIntrinsic::Bsr, "bsr r, r/m"_v, kFeatureBaseline);
+        b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+        b.form.defs.push(def());
+        b.form.flagsEffect = FlagsEffect::Def;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xbd, .escape = 0x0f,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::FromUse0,
+        };
+
+        b.desc.operands.push(integerRule());
+        b.desc.results.push(integerRule());
+    }
+
+    {
+        /*
+         * LZCNT r, r/m (f3 0f bd) is the count rather than the index, with the zero case defined at
+         * the operand's width - which is `TZCNT`'s relationship to `BSF` said at the other end, and
+         * carries `TZCNT`'s hazard with it: a processor without the feature ignores the `f3` and
+         * runs `bsr`, so a wrong claim answers an index where a count was wanted and faults nowhere.
+         * `kFeatureLzcnt` is claimed from a level for that reason; see the note on it in target.h.
+         */
+        auto b = add(LowerIntrinsic::ClzWidth, "lzcnt r, r/m"_v, kFeatureLzcnt);
+        b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+        b.form.defs.push(def());
+        b.form.flagsEffect = FlagsEffect::Def;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xbd, .escape = 0x0f, .prefix = 0xf3,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::FromUse0,
+        };
+
+        b.desc.operands.push(integerRule());
+        b.desc.results.push(integerRule());
+    }
+
+    {
+        /*
          * BZHI r32a, r/m32, r32b (VEX.LZ.0F38.W0 F5 /r) copies the low `r32b` bits of its source and
          * clears everything above them - BMI2, and the first VEX-prefixed *general-register*
          * encoding in this table.

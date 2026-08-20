@@ -1,0 +1,48 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @rotate(i32 %x, i64 %y, i32 %c) {
+  br label %1
+
+1:                                                ; preds = %0
+  %a = call i32 @llvm.fshl.i32(i32 %x, i32 %x, i32 7)
+  %b = call i32 @llvm.fshr.i32(i32 %x, i32 %x, i32 %c)
+  %d = call i64 @llvm.fshl.i64(i64 %y, i64 %y, i64 9)
+  %r = add i32 %a, %b
+  ret i32 %r
+}
+
+define fastcc <4 x i32> @rotateVector(<4 x i32> %v, <4 x i32> %c) {
+  br label %1
+
+1:                                                ; preds = %0
+  %a = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %v, <4 x i32> %v, <4 x i32> %c)
+  ret <4 x i32> %a
+}
+
+define fastcc <4 x i32> @rotateVectorShared(<4 x i32> %v, i32 %n) {
+  br label %1
+
+1:                                                ; preds = %0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %n, i32 0
+  %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
+  %a = call <4 x i32> @llvm.fshr.v4i32(<4 x i32> %v, <4 x i32> %v, <4 x i32> %.splat)
+  ret <4 x i32> %a
+}
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare i32 @llvm.fshl.i32(i32, i32, i32) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare i32 @llvm.fshr.i32(i32, i32, i32) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare i64 @llvm.fshl.i64(i64, i64, i64) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare <4 x i32> @llvm.fshl.v4i32(<4 x i32>, <4 x i32>, <4 x i32>) #0
+
+; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+declare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>) #0
+
+attributes #0 = { nocallback nofree nosync nounwind readnone speculatable willreturn }

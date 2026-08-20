@@ -1,0 +1,62 @@
+# A rotation over a vector, which this backend has no instruction for at any level it describes.
+#
+# `vprold`/`vprolq` are AVX-512 and `vprolvd` is the per-lane form of the same; below that x86 has
+# no packed rotation at all. So `expandVectorRotate` writes the identity out -
+#
+#     rol(v, c) = (v << (c & (w - 1))) | (v >> ((w - c) & (w - 1)))
+#
+# - with `w` the *lane* width, and leaves the two shifts to the passes that already handle them.
+#
+# What to look for:
+#
+#   - **both masks survive at a runtime count and both vanish at a constant one.** A packed shift
+#     saturates rather than masking - a count at or past the lane width answers all-zero lanes - so
+#     the second distance has to be reduced or a zero count would answer zero. `rotateByConstant`
+#     is the same expansion with `lower_fold` having done the arithmetic, which is two shifts and an
+#     `or` and nothing else.
+#   - the count reaches the shifts as a *scalar*: `unwrapVectorShiftCounts` runs immediately after
+#     this pass and takes the splat off, which is the whole reason the expansion sits where it does
+#     rather than below it.
+#   - `rotateBytes` is the byte lane, where each of the two shifts is itself expanded by
+#     `expandByteShifts` into a word shift and a mask. Two passes, neither of which knows about the
+#     other.
+
+rotateByConstant(%v: i32x4): i32x4 {
+    {
+        %c = vsplat 5: i32x4
+        %r = rol %v, %c: i32x4
+        ret %r
+    }
+}
+
+rotateRightByConstant(%v: i32x4): i32x4 {
+    {
+        %c = vsplat 5: i32x4
+        %r = ror %v, %c: i32x4
+        ret %r
+    }
+}
+
+rotateByValue(%v: i32x4, %n: Int): i32x4 {
+    {
+        %c = vsplat %n: i32x4
+        %r = rol %v, %c: i32x4
+        ret %r
+    }
+}
+
+rotateWide(%v: i64x2, %n: Long): i64x2 {
+    {
+        %c = vsplat %n: i64x2
+        %r = rol %v, %c: i64x2
+        ret %r
+    }
+}
+
+rotateBytes(%v: i8x16): i8x16 {
+    {
+        %c = vsplat 3: i8x16
+        %r = rol %v, %c: i8x16
+        ret %r
+    }
+}

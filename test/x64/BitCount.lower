@@ -1,0 +1,65 @@
+# The three bit counts at the baseline, which is where two of them have no instruction.
+#
+# `popcnt` is v2 and so is always there. `tzcnt` and `lzcnt` are v3, and what this level has instead
+# is `bsf` and `bsr` - the same scans with *no answer* for a zero operand, where the language's
+# `trailingZeros` and `leadingZeros` are defined to give the operand's width. `expandBitScans` in
+# codegen/x64/transform_expand.cpp is what pays the difference, and this file is what it costs.
+#
+# BitCountV3.lower is the same functions one level up, where each of the three is one instruction.
+#
+# What to look for:
+#
+#   - `count` is a single `popcnt` here and at v3 alike: nothing about it is a feature question.
+#   - `trailing` is `bsf`, a `cmp` against zero and a `cmov` - three instructions and no branch, the
+#     select being an ordinary compare-and-select from the expansion down.
+#   - `leading` is that plus a subtraction from 31 (or 63), because `bsr` answers the *index* of the
+#     highest set bit and a leading-zero count is `width - 1 -` that.
+#   - the `cmp` reads the *original* operand and not the scan's result, which is what makes the
+#     answer right at zero rather than merely defined: `bsf` may leave anything at all in the
+#     destination there, and nothing downstream reads it.
+#   - both widths, since the constant the expansion folds in is the operand's own.
+
+count(%x: Int): Int {
+    {
+        %r = popcnt %x: Int
+        ret %r
+    }
+}
+
+trailing(%x: Int): Int {
+    {
+        %r = cttz_width %x: Int
+        ret %r
+    }
+}
+
+leading(%x: Int): Int {
+    {
+        %r = clz_width %x: Int
+        ret %r
+    }
+}
+
+trailing64(%x: Long): Long {
+    {
+        %r = cttz_width %x: Long
+        ret %r
+    }
+}
+
+leading64(%x: Long): Long {
+    {
+        %r = clz_width %x: Long
+        ret %r
+    }
+}
+
+# The operand is read again afterwards, which the expansion needs anyway - the comparison reads it -
+# so nothing extra is copied here that the scan did not already require.
+countAndKeep(%x: Int): Int {
+    {
+        %r = clz_width %x: Int
+        %t = add %r, %x: Int
+        ret %t
+    }
+}

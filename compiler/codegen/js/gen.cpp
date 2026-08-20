@@ -1683,7 +1683,13 @@ Ptr<File> genProgram(Context& context, Program& program) {
 
     // Bit ranges first: one of those bodies may ask for a wide helper, and `emitWideHelpers` walks
     // a list that is allowed to grow underneath it while the reverse is not true.
+    //
+    // The rotations are between them for exactly that reason and not for tidiness: a 53-bit rotation
+    // is written in terms of wide.cpp's shifts, so its body asks for three wide helpers that have to
+    // be on the list before it is walked. Emitted below `emitBitHelpers` rather than above it
+    // because it asks that pass for nothing and nothing asks it.
     emitBitHelpers(g);
+    emitRotateHelpers(g);
     emitWideHelpers(g);
 
     // Neither of these asks for anything or is asked for by anything, so their position is free;
@@ -1692,6 +1698,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     emitFloatBitsHelpers(g);
     emitRoundAwayHelper(g);
     emitByteSwapHelpers(g);
+    emitBitCountHelpers(g);
     emitDivisionHelpers(g);
     emitGrowHelper(g);
 

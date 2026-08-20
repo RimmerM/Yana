@@ -1,0 +1,92 @@
+
+rotateLeft<complex>(%x: Int): Int {
+  b_0 {
+    %r = rol %x, 7: Int
+    ret %r
+  }
+}
+
+rotateRight<complex>(%x: Int): Int {
+  b_0 {
+    %r = ror %x, 7: Int
+    ret %r
+  }
+}
+
+rotateLeft64<complex>(%x: Long): Long {
+  b_0 {
+    %r = rol %x, 7: Long
+    ret %r
+  }
+}
+
+rotateByCl<complex>(%x: Int, %c: Int): Int {
+  b_0 {
+    %r = rol %x, %c: Int
+    ret %r
+  }
+}
+
+rotateByOne<complex>(%x: Int): Int {
+  b_0 {
+    %r = ror %x, 1: Int
+    ret %r
+  }
+}
+
+rotateAndKeep<complex>(%x: Int): Int {
+  b_0 {
+    %r = rol %x, 3: Int
+    %t = add %r, %x: Int
+    ret %t
+  }
+}
+
+
+--- codegen: rotateLeft ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  rol uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1c007
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateRight ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1c807
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateLeft64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  rol uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748c1c007
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateByCl ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rcx]  => 8bce
+block #1:
+  rol uses=[rax, rcx] creates=[rax] pre=[rdi->rax]  => 8bc7d3c0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateByOne ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7d1c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateAndKeep ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  rol uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1c003
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3

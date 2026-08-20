@@ -1,0 +1,110 @@
+"use strict";
+// ResolveTest
+function opaqueU32(x) {
+  return x;
+}
+
+function opaqueU64(x) {
+  return x;
+}
+
+function opaqueU8(x) {
+  return x;
+}
+
+function opaqueU16(x) {
+  return x;
+}
+
+function opaqueI16(x) {
+  return x;
+}
+
+function opaqueWide(x) {
+  return x;
+}
+
+function main() {
+  var v2 = ($rol32(opaqueU32(305419896), 4) >>> 0 === 591751041 ? 1 : 0) + ($ror32(opaqueU32(305419896), 4) >>> 0 === 2166572391 ? 2 : 0) + (($rol32(opaqueU32(305419896), 32) >>> 0 === 305419896 ? 4 : 0) + ($rol32(opaqueU32(305419896), 36) >>> 0 === 591751041 ? 8 : 0) + (opaqueU32(305419896) === 305419896 ? 16 : 0) + ($ror32(opaqueU32(305419896), 64) >>> 0 === 305419896 ? 32 : 0));
+  var value = opaqueU32(3735928559);
+  var v75 = $rol32(value, 7) >>> 0;
+  var v8 = v2 + (($ror32(v75, 7) >>> 0 === value ? 64 : 0) + (v75 === $ror32(value, 25) >>> 0 ? 128 : 0)) + ((BigInt.asUintN(64, $rol64(opaqueU64(81985529216486895n), 8n)) === 2541551405711093505n ? 256 : 0) + (BigInt.asUintN(64, $ror64(opaqueU64(81985529216486895n), 8n)) === 17222085231038278605n ? 512 : 0) + (BigInt.asUintN(64, $rol64(opaqueU64(81985529216486895n), 64n)) === 81985529216486895n ? 1024 : 0)) + ((($rol8(opaqueU8(180), 2) & 255) === 210 ? 2048 : 0) + (($ror8(opaqueU8(180), 2) & 255) === 45 ? 4096 : 0) + (($rol8(opaqueU8(180), 8) & 255) === 180 ? 8192 : 0) + (($rol16(opaqueU16(258), 8) & 65535) === 513 ? 16384 : 0));
+  var value$1 = opaqueI16(-32767);
+  var v10 = v8 + (($rol16(value$1, 1) << 16 >> 16 === 3 ? 32768 : 0) + ($ror16(value$1, 1) << 16 >> 16 === $rol16(value$1, 15) << 16 >> 16 ? 65536 : 0));
+  var value$2 = opaqueWide(1);
+  return v10 + (($w53i$wrap($rol53(value$2, 53)) === 1 ? 131072 : 0) + ($w53i$wrap($rol53(value$2, 54)) === 2 ? 262144 : 0) + ($w53i$wrap($rol53($w53i$wrap($rol53(value$2, 52)), 1)) === 1 ? 524288 : 0)) + 3145728;
+}
+
+function $rol8(v, c) {
+  var n = c & 7;
+  var x = v & 255;
+  return n ? x << n | x >>> 8 - n : v;
+}
+
+function $rol16(v, c) {
+  var n = c & 15;
+  var x = v & 65535;
+  return n ? x << n | x >>> 16 - n : v;
+}
+
+function $rol32(v, c) {
+  var n = c & 31;
+  return n ? v << n | v >>> 32 - n : v;
+}
+
+function $rol53(v, c) {
+  var n = (c < 0 ? c + 9007199254740992 : c) % 53;
+  return n ? $w53i$or($w53i$shl(v, n), $w53i$shr(v, 53 - n)) : v;
+}
+
+function $rol64(v, c) {
+  var n = BigInt.asUintN(64, c) % 64n;
+  return n ? v << n | BigInt.asUintN(64, v) >> 64n - n : v;
+}
+
+function $ror8(v, c) {
+  var n = c & 7;
+  var x = v & 255;
+  return n ? x << 8 - n | x >>> n : v;
+}
+
+function $ror16(v, c) {
+  var n = c & 15;
+  var x = v & 65535;
+  return n ? x << 16 - n | x >>> n : v;
+}
+
+function $ror32(v, c) {
+  var n = c & 31;
+  return n ? v << 32 - n | v >>> n : v;
+}
+
+function $ror64(v, c) {
+  var n = BigInt.asUintN(64, c) % 64n;
+  return n ? v << 64n - n | BigInt.asUintN(64, v) >> n : v;
+}
+
+// integers of 33 to 53 bits - see codegen/js/wide.cpp
+function $w53i$wrap(a) {
+  var v = a % 9007199254740992;
+  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
+}
+
+function $w53i$shl(a, b) {
+  var s = b >= 32 ? (a << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 32 - b) & 2097151) * 4294967296 + (a << b >>> 0);
+  return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
+}
+
+function $w53i$shr(a, b) {
+  return b === 0 ? a : b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
+}
+
+function $w53i$or(a, b) {
+  var v = (($wi$hi(a) | $wi$hi(b)) & 2097151) * 4294967296 + ((a | b) >>> 0);
+  return v >= 4503599627370496 ? v - 9007199254740992 : v;
+}
+
+function $wi$hi(a) {
+  return Math.floor(a * 2.3283064365386963E-10);
+}
+main();

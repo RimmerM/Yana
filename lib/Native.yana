@@ -169,19 +169,6 @@ pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
 -- The system call intrinsic, at each arity a call needs. Design.md's "Interfacing the OS" builds
 -- the OS interface as a thin template over exactly this; the arguments and the result are plain
 -- integers because that is what the kernel ABI passes, and a pointer reaches one through `bitcast`.
-{-
-   The lowest set bit's index - `bsf` at this project's baseline, `tzcnt` above it.
-
-   **Undefined when the operand is zero**, which is the machine's rule and is stated here rather
-   than hidden behind a branch nobody asked for. The loop this exists for -
-   Implementation-Map.md §4.1's walk over the matching lanes of a control group - has `hits != 0`
-   as its own condition, so the zero never arrives.
-
-   It goes with `bits` above and is the same kind of thing: one instruction at every level this
-   project targets, and nothing in `Core` names it.
--}
-@platform(native) pub fn trailingZeros(value: Int) -> Int
-
 pub fn syscall0(number: I64) -> I64
 pub fn syscall1(number: I64, a: I64) -> I64
 pub fn syscall2(number: I64, a: I64, b: I64) -> I64

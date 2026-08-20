@@ -1,0 +1,34 @@
+"use strict";
+var counter = 0;
+
+// ResolveTest
+function opaque(n) {
+  var v4 = counter + 1 | 0;
+  counter = v4;
+  if (v4 > 1000) {
+    return 1;
+  } else {
+    return n;
+  }
+}
+
+function main() {
+  var longs$0 = 81985529216486895n;
+  return (($rol32(305419896, 4) | 0) === 591751041 ? 1 : 0) + (($ror32(305419896, 4) | 0) === -2128394905 ? 1 : 0) + (($rol32(305419896, 0) | 0) === 305419896 ? 1 : 0) + (($rol32(305419896, 32) | 0) === 305419896 ? 1 : 0) + (($rol32(305419896, 36) | 0) === 591751041 ? 1 : 0) + (BigInt.asIntN(64, $rol64(longs$0, 8n)) === 2541551405711093505n ? 1 : 0) + (BigInt.asIntN(64, $rol64(longs$0, 64n)) === 81985529216486895n ? 1 : 0) + (($rol32(305419896, opaque(2)) | 0) === 1221679584 ? 1 : 0);
+}
+
+function $rol32(v, c) {
+  var n = c & 31;
+  return n ? v << n | v >>> 32 - n : v;
+}
+
+function $rol64(v, c) {
+  var n = BigInt.asUintN(64, c) % 64n;
+  return n ? v << n | BigInt.asUintN(64, v) >> 64n - n : v;
+}
+
+function $ror32(v, c) {
+  var n = c & 31;
+  return n ? v << 32 - n | v >>> n : v;
+}
+main();

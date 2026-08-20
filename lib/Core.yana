@@ -17,6 +17,8 @@ infixl 6 `and`
 infixl 6 `shl`
 infixl 6 `shr`
 infixl 6 `sar`
+infixl 6 `rol`
+infixl 6 `ror`
 infixl 7 +
 infixl 7 -
 infixl 8 *
@@ -340,6 +342,23 @@ pub class (Num(a)) Integral(a):
   fn shl(lhs: a, rhs: a) -> a
   fn shr(lhs: a, rhs: a) -> a
   fn sar(lhs: a, rhs: a) -> a
+
+  -- The two rotations, beside the three shifts and differing from them in the one way the name says:
+  -- what leaves one end comes back at the other, so no bit of the value is lost at any distance.
+  --
+  -- **The count is taken modulo the type's width**, which is where they part company with the shifts
+  -- above. `x \`shl\` 32` at a `U32` is whatever the target's shift does with a count its register
+  -- cannot hold; `x \`rol\` 32` is `x`, on every target, because that is what the instruction does
+  -- and what resolve/inst.def rules the operation to be.
+  --
+  -- Members of this class rather than of `Bits`, and at every width rather than at the two the
+  -- machine has counting instructions for: a rotation *within* a `U8`'s eight bits is a pair of
+  -- shifts the compiler can write out exactly, where a count *of* them is a question about a value
+  -- whose register is four times as wide. `lowerCalc` writes that pair; at 32 and 64 bits, and over
+  -- a vector, this is one instruction.
+  fn rol(value: a, count: a) -> a
+  fn ror(value: a, count: a) -> a
+
   fn and(lhs: a, rhs: a) -> a
   fn or(lhs: a, rhs: a) -> a
   fn xor(lhs: a, rhs: a) -> a
@@ -405,6 +424,63 @@ pub class (Num(a), Ord(a)) Signed(a):
 -- resolve/intrinsic.cpp.
 pub class (Integral(a)) Endian(a):
   fn swapEndian(value: a) -> a
+
+{-
+   Counting the bits of an integer - Tritium's `countBits`, `findFirstBit` and `findLastBit`, said
+   once over a type variable and answered by an instruction on every target.
+
+   A class rather than three plain functions for `Endian`'s reason and one more of its own. R1
+   admits one plain function per (name, arity) and there are six integer types with an answer here,
+   so a `countBits` per width could never have been six functions; and a user's own newtype over a
+   word is a plausible instance, which a class admits and a fixed set of overloads does not.
+
+   **All three are total, and the answer at zero is stated rather than left to the machine.**
+   `countBits(0)` is 0, and both zero counts answer the type's own width - 32 for a `U32`, 64 for a
+   `U64`. That is the same ruling `/` and `%` take for a zero divisor: x86's bare `bsf` and `bsr`
+   leave their destination *unwritten* at zero, which is not a value this language can name, so the
+   alternative to a defined answer is undefined behaviour reachable from safe source. Every target
+   has an instruction with the defined semantics at some level, and where one does not the compiler
+   spends a conditional move rather than passing the gap on - see `expandBitScans` in
+   codegen/x64/transform_expand.cpp.
+
+   **Instanced at 32 and 64 bits and at no other width**, which is exactly the set Tritium declares
+   these over and exactly the set the machine has. `U8` and `U16` widen first, and the widening is
+   written where the caller can see it: a narrow value is held in a wider register here, so a count
+   of its *storage* and a count of its value are different numbers and the conversion is the place
+   that difference is settled. `WideInt` is 53 bits in a 64-bit register and is excluded for the
+   reason `Endian` excludes it - a leading-zero count is a question about a width it does not have.
+
+   `trailingZeros` is Tritium's `findFirstBit` under the name the answer has rather than the one the
+   search has, and `bitWidth(v) - 1` below is its `findLastBit`. Both of those are undefined at zero
+   there and neither is here, which is the whole of the difference.
+-}
+pub class (Integral(a)) Bits(a):
+  fn countBits(value: a) -> a
+  fn leadingZeros(value: a) -> a
+  fn trailingZeros(value: a) -> a
+
+  -- How many bits it takes to write the value - 0 for zero, 1 for one, 32 for a `U32` with its top
+  -- bit set. Tritium's `findLastBit` is this minus one, and this is the form that has an answer at
+  -- zero.
+  --
+  -- **A member rather than a function beside the class, because it is the one of the four that has
+  -- to name the type's own width.** It is `width - leadingZeros(value)`, and a body generic in `a`
+  -- has no way to write that width down: `leadingZeros(0)` would say it, except that a subexpression
+  -- made only of literals resolves on its own and takes `default FromInt`, so the `0` is an `Int`
+  -- and the subtraction has nothing that fits. An instance knows the width, so the instance is where
+  -- it is written - and the generated one writes it as a constant, which folds the whole expression
+  -- to nothing at a constant argument and to one subtraction at any other.
+  fn bitWidth(value: a) -> a
+
+-- Whether exactly one bit is set - `Math.h`'s `isPowerOf2`, and the test an allocator's size class
+-- and `alignUp`'s undocumented precondition are both about. Zero has no bits set and is not one.
+pub fn (Num(a), Integral(a), Eq(a)) isPowerOf2(value: a) -> Bool = value != 0 && (value `and` (value - 1)) == 0
+
+-- The smallest power of two at or above the value, which is what a table doubling its capacity
+-- wants. 1 for 0 and for 1, since there is no power of two below one, and **a value above the
+-- largest power of two the type holds wraps to 0** rather than saturating - the shift is the
+-- language's shift, and a saturating answer would be a comparison in the hot path of every growth.
+pub fn (Bits(a), Num(a), Ord(a)) nextPowerOf2(value: a) -> a = if value <= 1 then 1 else 1 `shl` bitWidth(value - 1)
 
 -- The value brought inside a pair of bounds. Written in terms of `min` and `max` rather than two
 -- comparisons so that a type overriding either gets the behaviour it defined, and ordered so that a
