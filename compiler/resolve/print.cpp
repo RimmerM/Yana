@@ -481,7 +481,11 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Neg:
         case Value::Not:
         case Value::Sqrt:
-        case Value::Abs: {
+        case Value::Abs:
+        case Value::Trunc:
+        case Value::Floor:
+        case Value::Ceil:
+        case Value::Round: {
             print.writer.writeByte(' ');
             printValue(print, *print.local[((InstUnary&)inst).from]);
             break;

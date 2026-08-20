@@ -257,6 +257,18 @@ enum : MachineOpcodeId {
      * `213` suffix says.
      */
     OpSqrt,
+
+    /*
+     * `roundss`/`roundsd`/`roundps`/`roundpd` - one instruction for all four IEEE directed
+     * roundings, which one it is being a trailing immediate rather than part of the opcode. So this
+     * is one op serving three of the IR's four rounding kinds, on `OpVCmp`'s model exactly:
+     * `packedTrailingByte` supplies the mode the way it supplies a compare's predicate.
+     *
+     * `LowerInst::Round` is deliberately *not* one of them. It ties away from zero, this instruction
+     * has no encoding for that (immediate 0 is ties-to-even), and `expandRoundAway` in transform.cpp
+     * has rewritten it before selection ever runs.
+     */
+    OpRound,
     OpFma,
 
     // `vzeroupper`, which a function that wrote a ymm or zmm register owes before every call to one

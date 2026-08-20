@@ -1,0 +1,3652 @@
+let image$base: () = <none>
+
+fn Ord.max(Float)(%lhs: Float, %rhs: Float) -> Float {
+  b0:
+    %v3 = cmp_ge %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : Float
+    ret %v2
+}
+
+fn Ord.min(Float)(%lhs: Float, %rhs: Float) -> Float {
+  b0:
+    %v3 = cmp_le %lhs, %rhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %lhs], [b2, %rhs] : Float
+    ret %v2
+}
+
+fn Ord.max(Double)(%lhs: Double, %rhs: Double) -> Double {
+  b0:
+    %v3 = cmp_ge %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : Double
+    ret %v2
+}
+
+fn Ord.min(Double)(%lhs: Double, %rhs: Double) -> Double {
+  b0:
+    %v3 = cmp_le %lhs, %rhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %lhs], [b2, %rhs] : Double
+    ret %v2
+}
+
+fn nearDouble(%got: Double, %want: Double) -> Int {
+  b0:
+    %difference = sub %got, %want : Double
+    %v5 = cmp_lt %difference, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v9 = sub 0, %difference : Double
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %size = phi [b1, %v9], [b2, %difference] : Double
+    %v15 = cmp_lt %want, 0 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v19 = sub 0, %want : Double
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %scale = phi [b4, %v19], [b5, %want] : Double
+    %v26 = cmp_gt %scale, 1 : Bool
+    je %v26, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = phi [b7, %scale], [b8, 1] : Double
+    %v34 = mul 1E-12, %v32 : Double
+    %v35 = cmp_le %size, %v34 : Bool
+    je %v35, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v41 = phi [b10, 1], [b11, 0] : Int
+    ret %v41
+}
+
+fn nearFloat(%got: Float, %want: Float) -> Int {
+  b0:
+    %difference = sub %got, %want : Float
+    %v5 = cmp_lt %difference, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v9 = sub 0, %difference : Float
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %size = phi [b1, %v9], [b2, %difference] : Float
+    %v15 = cmp_lt %want, 0 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v19 = sub 0, %want : Float
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %scale = phi [b4, %v19], [b5, %want] : Float
+    %v26 = cmp_gt %scale, 1 : Bool
+    je %v26, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = phi [b7, %scale], [b8, 1] : Float
+    %v34 = mul 0.000003000000106112566, %v32 : Float
+    %v35 = cmp_le %size, %v34 : Bool
+    je %v35, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v41 = phi [b10, 1], [b11, 0] : Int
+    ret %v41
+}
+
+fn primitives() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = trunc 2.7 : Double
+    %v8 = call nearDouble, %v6, 2 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v16 = sub 0, 2.700000047683716 : Float
+    %v17 = cast %v16 : Double
+    %v18 = trunc %v17 : Double
+    %v23 = sub 0, 2 : Double
+    %v24 = call nearDouble, %v18, %v23 : Int
+    %v25 = add %v11, %v24 : Int
+    assign %n, %v25
+    %v27 = load %n : Int
+    %v29 = call Real(Double, Bool).exponentOf, 8 : Double
+    %v31 = call nearDouble, %v29, 3 : Int
+    %v32 = add %v27, %v31 : Int
+    assign %n, %v32
+    %v34 = load %n : Int
+    %v36 = call Real(Double, Bool).significandOf, 8 : Double
+    %v38 = call nearDouble, %v36, 1 : Int
+    %v39 = add %v34, %v38 : Int
+    assign %n, %v39
+    %v41 = load %n : Int
+    %v45 = call Real(Double, Bool).scaleByExponent, 1, 10 : Double
+    %v47 = call nearDouble, %v45, 1024 : Int
+    %v48 = add %v41, %v47 : Int
+    assign %n, %v48
+    %v50 = load %n : Int
+    %v56 = sub 0, 2 : Float
+    %v57 = cast %v56 : Double
+    %v58 = call Real(Double, Bool).scaleByExponent, 3, %v57 : Double
+    %v60 = call nearDouble, %v58, 0.75 : Int
+    %v61 = add %v50, %v60 : Int
+    assign %n, %v61
+    %v63 = load %n : Int
+    %v67 = call Real(Double, Bool).scaleByExponent, 1, 3000 : Double
+    %v70 = cmp_gt %v67, 1E308 : Bool
+    je %v70, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v78 = phi [b1, 1], [b2, 0] : Int
+    %v79 = add %v63, %v78 : Int
+    assign %n, %v79
+    %v81 = load %n : Int
+    ret %v81
+}
+
+fn rounding() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = floor 2.7 : Double
+    %v8 = call nearDouble, %v6, 2 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v16 = sub 0, 2.0999999046325684 : Float
+    %v17 = cast %v16 : Double
+    %v18 = floor %v17 : Double
+    %v23 = sub 0, 3 : Double
+    %v24 = call nearDouble, %v18, %v23 : Int
+    %v25 = add %v11, %v24 : Int
+    assign %n, %v25
+    %v27 = load %n : Int
+    %v29 = ceil 2.1 : Double
+    %v31 = call nearDouble, %v29, 3 : Int
+    %v32 = add %v27, %v31 : Int
+    assign %n, %v32
+    %v34 = load %n : Int
+    %v39 = sub 0, 2.700000047683716 : Float
+    %v40 = cast %v39 : Double
+    %v41 = ceil %v40 : Double
+    %v46 = sub 0, 2 : Double
+    %v47 = call nearDouble, %v41, %v46 : Int
+    %v48 = add %v34, %v47 : Int
+    assign %n, %v48
+    %v50 = load %n : Int
+    %v52 = round 2.5 : Double
+    %v54 = call nearDouble, %v52, 3 : Int
+    %v55 = add %v50, %v54 : Int
+    assign %n, %v55
+    %v57 = load %n : Int
+    %v62 = sub 0, 2.5 : Float
+    %v63 = cast %v62 : Double
+    %v64 = round %v63 : Double
+    %v69 = sub 0, 3 : Double
+    %v70 = call nearDouble, %v64, %v69 : Int
+    %v71 = add %v57, %v70 : Int
+    assign %n, %v71
+    %v73 = load %n : Int
+    %v75 = round 0.49999999999999994 : Double
+    %v77 = call nearDouble, %v75, 0 : Int
+    %v78 = add %v73, %v77 : Int
+    assign %n, %v78
+    %v80 = load %n : Int
+    %v84 = call Real.mod(Double, Bool), 7, 3 : Double
+    %v86 = call nearDouble, %v84, 1 : Int
+    %v87 = add %v80, %v86 : Int
+    assign %n, %v87
+    %v89 = load %n : Int
+    %v94 = sub 0, 7 : Float
+    %v95 = cast %v94 : Double
+    %v98 = call Real.mod(Double, Bool), %v95, 3 : Double
+    %v103 = sub 0, 1 : Double
+    %v104 = call nearDouble, %v98, %v103 : Int
+    %v105 = add %v89, %v104 : Int
+    assign %n, %v105
+    %v107 = load %n : Int
+    ret %v107
+}
+
+fn exponentials() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = call Real.exp(Double, Bool), 0 : Double
+    %v8 = call nearDouble, %v6, 1 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v13 = call Real.exp(Double, Bool), 1 : Double
+    %v15 = call nearDouble, %v13, 2.718281828459045 : Int
+    %v16 = add %v11, %v15 : Int
+    assign %n, %v16
+    %v18 = load %n : Int
+    %v20 = call Real.exp(Double, Bool), 20 : Double
+    %v22 = call nearDouble, %v20, 4.851651954097903E8 : Int
+    %v23 = add %v18, %v22 : Int
+    assign %n, %v23
+    %v25 = load %n : Int
+    %v30 = sub 0, 5 : Float
+    %v31 = cast %v30 : Double
+    %v32 = call Real.exp(Double, Bool), %v31 : Double
+    %v34 = call nearDouble, %v32, 0.006737946999085467 : Int
+    %v35 = add %v25, %v34 : Int
+    assign %n, %v35
+    %v37 = load %n : Int
+    %v39 = call Real.exp2(Double, Bool), 10 : Double
+    %v41 = call nearDouble, %v39, 1024 : Int
+    %v42 = add %v37, %v41 : Int
+    assign %n, %v42
+    %v44 = load %n : Int
+    %v46 = call Real.exp2(Double, Bool), 0.5 : Double
+    %v48 = call nearDouble, %v46, 1.4142135623730951 : Int
+    %v49 = add %v44, %v48 : Int
+    assign %n, %v49
+    %v51 = load %n : Int
+    %v53 = call Real.exp(Double, Bool), 1000 : Double
+    %v56 = cmp_gt %v53, 1E308 : Bool
+    je %v56, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v64 = phi [b1, 1], [b2, 0] : Int
+    %v65 = add %v51, %v64 : Int
+    assign %n, %v65
+    %v67 = load %n : Int
+    %v72 = sub 0, 1000 : Float
+    %v73 = cast %v72 : Double
+    %v74 = call Real.exp(Double, Bool), %v73 : Double
+    %v77 = cmp_eq %v74, 0 : Bool
+    je %v77, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v85 = phi [b4, 1], [b5, 0] : Int
+    %v86 = add %v67, %v85 : Int
+    assign %n, %v86
+    %v88 = load %n : Int
+    ret %v88
+}
+
+fn logarithms() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = call Real.log(Double, Bool), 2.718281828459045 : Double
+    %v8 = call nearDouble, %v6, 1 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v13 = call Real.log(Double, Bool), 1000 : Double
+    %v15 = call nearDouble, %v13, 6.907755278982137 : Int
+    %v16 = add %v11, %v15 : Int
+    assign %n, %v16
+    %v18 = load %n : Int
+    %v20 = call Real.log2(Double, Bool), 8 : Double
+    %v23 = cmp_eq %v20, 3 : Bool
+    je %v23, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v31 = phi [b1, 1], [b2, 0] : Int
+    %v32 = add %v18, %v31 : Int
+    assign %n, %v32
+    %v34 = load %n : Int
+    %v36 = call Real.log2(Double, Bool), 1024 : Double
+    %v39 = cmp_eq %v36, 10 : Bool
+    je %v39, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v47 = phi [b4, 1], [b5, 0] : Int
+    %v48 = add %v34, %v47 : Int
+    assign %n, %v48
+    %v50 = load %n : Int
+    %v52 = call Real.log10(Double, Bool), 1000 : Double
+    %v54 = call nearDouble, %v52, 3 : Int
+    %v55 = add %v50, %v54 : Int
+    assign %n, %v55
+    %atZero = call Real.log(Double, Bool), 0 : Double
+    %v59 = load %n : Int
+    %v62 = cmp_lt %atZero, 0 : Bool
+    je %v62, b7, b8
+
+  b7:
+    %v66 = div 1, %atZero : Double
+    %v69 = cmp_eq %v66, 0 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v72 = phi [b7, %v69], [b8, %v62] : Bool
+    je %v72, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v80 = phi [b10, 1], [b11, 0] : Int
+    %v81 = add %v59, %v80 : Int
+    assign %n, %v81
+    %v83 = load %n : Int
+    ret %v83
+}
+
+fn powers() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v8 = call Real.pow(Double, Bool), 2, 10 : Double
+    %v10 = call nearDouble, %v8, 1024 : Int
+    %v11 = add %v4, %v10 : Int
+    assign %n, %v11
+    %v13 = load %n : Int
+    %v17 = call Real.pow(Double, Bool), 2, 0.5 : Double
+    %v19 = call nearDouble, %v17, 1.4142135623730951 : Int
+    %v20 = add %v13, %v19 : Int
+    assign %n, %v20
+    %v22 = load %n : Int
+    %v27 = sub 0, 2 : Float
+    %v28 = cast %v27 : Double
+    %v31 = call Real.pow(Double, Bool), %v28, 3 : Double
+    %v36 = sub 0, 8 : Double
+    %v37 = call nearDouble, %v31, %v36 : Int
+    %v38 = add %v22, %v37 : Int
+    assign %n, %v38
+    %v40 = load %n : Int
+    %v45 = sub 0, 2 : Float
+    %v46 = cast %v45 : Double
+    %v49 = call Real.pow(Double, Bool), %v46, 2 : Double
+    %v51 = call nearDouble, %v49, 4 : Int
+    %v52 = add %v40, %v51 : Int
+    assign %n, %v52
+    %v54 = load %n : Int
+    %v59 = sub 0, 2 : Float
+    %v60 = cast %v59 : Double
+    %v63 = call Real.pow(Double, Bool), %v60, 0.5 : Double
+    %v68 = sub 0, 2 : Float
+    %v69 = cast %v68 : Double
+    %v72 = call Real.pow(Double, Bool), %v69, 0.5 : Double
+    %v73 = cmp_ne %v63, %v72 : Bool
+    je %v73, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v81 = phi [b1, 1], [b2, 0] : Int
+    %v82 = add %v54, %v81 : Int
+    assign %n, %v82
+    %v84 = load %n : Int
+    %v88 = call Real.pow(Double, Bool), 0, 0 : Double
+    %v90 = call nearDouble, %v88, 1 : Int
+    %v91 = add %v84, %v90 : Int
+    assign %n, %v91
+    %v93 = load %n : Int
+    %v95 = call Real.cbrt(Double, Bool), 27 : Double
+    %v97 = call nearDouble, %v95, 3 : Int
+    %v98 = add %v93, %v97 : Int
+    assign %n, %v98
+    %v100 = load %n : Int
+    %v105 = sub 0, 27 : Float
+    %v106 = cast %v105 : Double
+    %v107 = call Real.cbrt(Double, Bool), %v106 : Double
+    %v112 = sub 0, 3 : Double
+    %v113 = call nearDouble, %v107, %v112 : Int
+    %v114 = add %v100, %v113 : Int
+    assign %n, %v114
+    %v116 = load %n : Int
+    %v120 = call Real.hypot(Double, Bool), 3, 4 : Double
+    %v122 = call nearDouble, %v120, 5 : Int
+    %v123 = add %v116, %v122 : Int
+    assign %n, %v123
+    %v125 = load %n : Int
+    ret %v125
+}
+
+fn angles() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = call Real.sin(Double, Bool), 1 : Double
+    %v8 = call nearDouble, %v6, 0.8414709848078965 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v13 = call Real.cos(Double, Bool), 1 : Double
+    %v15 = call nearDouble, %v13, 0.5403023058681398 : Int
+    %v16 = add %v11, %v15 : Int
+    assign %n, %v16
+    %v18 = load %n : Int
+    %v20 = call Real.sin(Double, Bool), 3 : Double
+    %v22 = call nearDouble, %v20, 0.1411200080598672 : Int
+    %v23 = add %v18, %v22 : Int
+    assign %n, %v23
+    %v25 = load %n : Int
+    %v27 = call Real.cos(Double, Bool), 3 : Double
+    %v32 = sub 0, 0.9899924966004454 : Double
+    %v33 = call nearDouble, %v27, %v32 : Int
+    %v34 = add %v25, %v33 : Int
+    assign %n, %v34
+    %v36 = load %n : Int
+    %v38 = call Real.tan(Double, Bool), 1 : Double
+    %v40 = call nearDouble, %v38, 1.5574077246549023 : Int
+    %v41 = add %v36, %v40 : Int
+    assign %n, %v41
+    %v43 = load %n : Int
+    %v45 = call Real.sin(Double, Bool), 100 : Double
+    %v50 = sub 0, 0.5063656411097588 : Double
+    %v51 = call nearDouble, %v45, %v50 : Int
+    %v52 = add %v43, %v51 : Int
+    assign %n, %v52
+    %v54 = load %n : Int
+    %v56 = call Real.atan(Double, Bool), 1 : Double
+    %v58 = call nearDouble, %v56, 0.7853981633974483 : Int
+    %v59 = add %v54, %v58 : Int
+    assign %n, %v59
+    %v61 = load %n : Int
+    %v67 = sub 0, 1 : Float
+    %v68 = cast %v67 : Double
+    %v69 = call Real.atan2(Double, Bool), 1, %v68 : Double
+    %v71 = call nearDouble, %v69, 2.356194490192345 : Int
+    %v72 = add %v61, %v71 : Int
+    assign %n, %v72
+    %v74 = load %n : Int
+    %v79 = sub 0, 1 : Float
+    %v80 = cast %v79 : Double
+    %v83 = call Real.atan2(Double, Bool), %v80, 0 : Double
+    %v88 = sub 0, 1.5707963267948966 : Double
+    %v89 = call nearDouble, %v83, %v88 : Int
+    %v90 = add %v74, %v89 : Int
+    assign %n, %v90
+    %v92 = load %n : Int
+    %v94 = call Real.asin(Double, Bool), 0.5 : Double
+    %v96 = call nearDouble, %v94, 0.5235987755982988 : Int
+    %v97 = add %v92, %v96 : Int
+    assign %n, %v97
+    %v99 = load %n : Int
+    %v101 = call Real.acos(Double, Bool), 0.5 : Double
+    %v103 = call nearDouble, %v101, 1.0471975511965976 : Int
+    %v104 = add %v99, %v103 : Int
+    assign %n, %v104
+    %v106 = load %n : Int
+    %v108 = call Real.asin(Double, Bool), 1 : Double
+    %v110 = call nearDouble, %v108, 1.5707963267948966 : Int
+    %v111 = add %v106, %v110 : Int
+    assign %n, %v111
+    %v113 = load %n : Int
+    %v118 = sub 0, 1 : Float
+    %v119 = cast %v118 : Double
+    %v120 = call Real.acos(Double, Bool), %v119 : Double
+    %v122 = call nearDouble, %v120, 3.141592653589793 : Int
+    %v123 = add %v113, %v122 : Int
+    assign %n, %v123
+    %v125 = load %n : Int
+    %v126 = call pi(Double, Bool) : Double
+    %v128 = call nearDouble, %v126, 3.141592653589793 : Int
+    %v129 = add %v125, %v128 : Int
+    assign %n, %v129
+    %v131 = load %n : Int
+    %v133 = call toRadians(Double, Bool), 180 : Double
+    %v135 = call nearDouble, %v133, 3.141592653589793 : Int
+    %v136 = add %v131, %v135 : Int
+    assign %n, %v136
+    %v138 = load %n : Int
+    %v140 = call toDegrees(Double, Bool), 3.141592653589793 : Double
+    %v142 = call nearDouble, %v140, 180 : Int
+    %v143 = add %v138, %v142 : Int
+    assign %n, %v143
+    %v145 = load %n : Int
+    ret %v145
+}
+
+fn atFloat() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v4 = load %n : Int
+    %v6 = call Real.exp(Float, Bool), 1 : Float
+    %v8 = call nearFloat, %v6, 2.7182817459106445 : Int
+    %v9 = add %v4, %v8 : Int
+    assign %n, %v9
+    %v11 = load %n : Int
+    %v13 = call Real.log(Float, Bool), 10 : Float
+    %v15 = call nearFloat, %v13, 2.3025851249694824 : Int
+    %v16 = add %v11, %v15 : Int
+    assign %n, %v16
+    %v18 = load %n : Int
+    %v20 = call Real.log2(Float, Bool), 8 : Float
+    %v22 = call nearFloat, %v20, 3 : Int
+    %v23 = add %v18, %v22 : Int
+    assign %n, %v23
+    %v25 = load %n : Int
+    %v27 = call Real.sin(Float, Bool), 1 : Float
+    %v29 = call nearFloat, %v27, 0.8414709568023682 : Int
+    %v30 = add %v25, %v29 : Int
+    assign %n, %v30
+    %v32 = load %n : Int
+    %v34 = call Real.cos(Float, Bool), 1 : Float
+    %v36 = call nearFloat, %v34, 0.5403023362159729 : Int
+    %v37 = add %v32, %v36 : Int
+    assign %n, %v37
+    %v39 = load %n : Int
+    %v41 = call Real.tan(Float, Bool), 0.5 : Float
+    %v43 = call nearFloat, %v41, 0.5463024973869324 : Int
+    %v44 = add %v39, %v43 : Int
+    assign %n, %v44
+    %v46 = load %n : Int
+    %v48 = call Real.atan(Float, Bool), 1 : Float
+    %v50 = call nearFloat, %v48, 0.7853981852531433 : Int
+    %v51 = add %v46, %v50 : Int
+    assign %n, %v51
+    %v53 = load %n : Int
+    %v55 = call Real.asin(Float, Bool), 0.5 : Float
+    %v57 = call nearFloat, %v55, 0.5235987901687622 : Int
+    %v58 = add %v53, %v57 : Int
+    assign %n, %v58
+    %v60 = load %n : Int
+    %v64 = call Real.pow(Float, Bool), 2, 10 : Float
+    %v66 = call nearFloat, %v64, 1024 : Int
+    %v67 = add %v60, %v66 : Int
+    assign %n, %v67
+    %v69 = load %n : Int
+    %v71 = call Real.cbrt(Float, Bool), 27 : Float
+    %v73 = call nearFloat, %v71, 3 : Int
+    %v74 = add %v69, %v73 : Int
+    assign %n, %v74
+    %v76 = load %n : Int
+    %v80 = call Real.hypot(Float, Bool), 3, 4 : Float
+    %v82 = call nearFloat, %v80, 5 : Int
+    %v83 = add %v76, %v82 : Int
+    assign %n, %v83
+    %v85 = load %n : Int
+    %v90 = sub 0, 2.5 : Float
+    %v91 = floor %v90 : Float
+    %v96 = sub 0, 3 : Float
+    %v97 = call nearFloat, %v91, %v96 : Int
+    %v98 = add %v85, %v97 : Int
+    assign %n, %v98
+    %v100 = load %n : Int
+    ret %v100
+}
+
+fn atVector() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %one = vsplat 1 : Vec(Float)
+    %ten = vsplat 10 : Vec(Float)
+    %v10 = load %n : Int
+    %v11 = call Real.exp(Vec(Float), Mask(Float)), %one : Vec(Float)
+    %v14 = vlane %v11, 0 : Float
+    %v16 = call nearFloat, %v14, 2.7182817459106445 : Int
+    %v17 = add %v10, %v16 : Int
+    assign %n, %v17
+    %v19 = load %n : Int
+    %v20 = call Real.log(Vec(Float), Mask(Float)), %ten : Vec(Float)
+    %v23 = vlane %v20, 0 : Float
+    %v25 = call nearFloat, %v23, 2.3025851249694824 : Int
+    %v26 = add %v19, %v25 : Int
+    assign %n, %v26
+    %v28 = load %n : Int
+    %v29 = call Real.sin(Vec(Float), Mask(Float)), %one : Vec(Float)
+    %v32 = vlane %v29, 0 : Float
+    %v34 = call nearFloat, %v32, 0.8414709568023682 : Int
+    %v35 = add %v28, %v34 : Int
+    assign %n, %v35
+    %v37 = load %n : Int
+    %v38 = call Real.cos(Vec(Float), Mask(Float)), %one : Vec(Float)
+    %v41 = vlane %v38, 0 : Float
+    %v43 = call nearFloat, %v41, 0.5403023362159729 : Int
+    %v44 = add %v37, %v43 : Int
+    assign %n, %v44
+    %v46 = load %n : Int
+    %v47 = call Real.atan(Vec(Float), Mask(Float)), %one : Vec(Float)
+    %v50 = vlane %v47, 0 : Float
+    %v52 = call nearFloat, %v50, 0.7853981852531433 : Int
+    %v53 = add %v46, %v52 : Int
+    assign %n, %v53
+    %v55 = load %n : Int
+    %v58 = vsplat 0.5 : Vec(Float)
+    %v59 = call Real.asin(Vec(Float), Mask(Float)), %v58 : Vec(Float)
+    %v62 = vlane %v59, 0 : Float
+    %v64 = call nearFloat, %v62, 0.5235987901687622 : Int
+    %v65 = add %v55, %v64 : Int
+    assign %n, %v65
+    %v67 = load %n : Int
+    %v70 = vsplat 2 : Vec(Float)
+    %v71 = call Real.pow(Vec(Float), Mask(Float)), %v70, %ten : Vec(Float)
+    %v74 = vlane %v71, 0 : Float
+    %v76 = call nearFloat, %v74, 1024 : Int
+    %v77 = add %v67, %v76 : Int
+    assign %n, %v77
+    %v79 = load %n : Int
+    %v82 = vsplat 27 : Vec(Float)
+    %v83 = call Real.cbrt(Vec(Float), Mask(Float)), %v82 : Vec(Float)
+    %v86 = vlane %v83, 0 : Float
+    %v88 = call nearFloat, %v86, 3 : Int
+    %v89 = add %v79, %v88 : Int
+    assign %n, %v89
+    %v91 = load %n : Int
+    %v94 = vsplat 0.5 : Vec(Float)
+    %v95 = call Real.exp2(Vec(Float), Mask(Float)), %v94 : Vec(Float)
+    %v98 = vlane %v95, 0 : Float
+    %v100 = call nearFloat, %v98, 1.4142136573791504 : Int
+    %v101 = add %v91, %v100 : Int
+    assign %n, %v101
+    %v103 = load %n : Int
+    %v108 = sub 0, 2.5 : Float
+    %v109 = vsplat %v108 : Vec(Float)
+    %v110 = floor %v109 : Vec(Float)
+    %v113 = vlane %v110, 0 : Float
+    %v118 = sub 0, 3 : Float
+    %v119 = call nearFloat, %v113, %v118 : Int
+    %v120 = add %v103, %v119 : Int
+    assign %n, %v120
+    %v122 = load %n : Int
+    %v125 = vsplat 2.700000047683716 : Vec(Float)
+    %v126 = trunc %v125 : Vec(Float)
+    %v129 = vlane %v126, 0 : Float
+    %v131 = call nearFloat, %v129, 2 : Int
+    %v132 = add %v122, %v131 : Int
+    assign %n, %v132
+    %v134 = load %n : Int
+    %v135 = call Real.sin(Vec(Float), Mask(Float)), %one : Vec(Float)
+    %v136 = vreduce_add %v135 : Float
+    %v138 = cast 4 : Float
+    %v139 = div %v136, %v138 : Float
+    %v142 = cmp_gt %v139, 0.8414000272750854 : Bool
+    je %v142, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v150 = phi [b1, 1], [b2, 0] : Int
+    %v151 = add %v134, %v150 : Int
+    assign %n, %v151
+    %oneDouble = vsplat 1 : Vec(Double)
+    %twoAndAHalf = vsplat 2.5 : Vec(Double)
+    %v157 = load %n : Int
+    %v158 = call Real(Vec(Double), Mask(Double)).exponentOf, %twoAndAHalf : Vec(Double)
+    %v161 = vlane %v158, 0 : Double
+    %v163 = call nearDouble, %v161, 1 : Int
+    %v164 = add %v157, %v163 : Int
+    assign %n, %v164
+    %v166 = load %n : Int
+    %v167 = call Real(Vec(Double), Mask(Double)).significandOf, %twoAndAHalf : Vec(Double)
+    %v170 = vlane %v167, 0 : Double
+    %v172 = call nearDouble, %v170, 1.25 : Int
+    %v173 = add %v166, %v172 : Int
+    assign %n, %v173
+    %v175 = load %n : Int
+    %v177 = vsplat 3 : Vec(Double)
+    %v178 = call Real(Vec(Double), Mask(Double)).scaleByExponent, %twoAndAHalf, %v177 : Vec(Double)
+    %v181 = vlane %v178, 0 : Double
+    %v183 = call nearDouble, %v181, 20 : Int
+    %v184 = add %v175, %v183 : Int
+    assign %n, %v184
+    %v186 = load %n : Int
+    %v187 = call Real.exp(Vec(Double), Mask(Double)), %oneDouble : Vec(Double)
+    %v190 = vlane %v187, 0 : Double
+    %v192 = call nearDouble, %v190, 2.718281828459045 : Int
+    %v193 = add %v186, %v192 : Int
+    assign %n, %v193
+    %v195 = load %n : Int
+    %v197 = vsplat 10 : Vec(Double)
+    %v198 = call Real.log(Vec(Double), Mask(Double)), %v197 : Vec(Double)
+    %v201 = vlane %v198, 0 : Double
+    %v203 = call nearDouble, %v201, 2.302585092994046 : Int
+    %v204 = add %v195, %v203 : Int
+    assign %n, %v204
+    %v206 = load %n : Int
+    %v207 = call Real.sin(Vec(Double), Mask(Double)), %oneDouble : Vec(Double)
+    %v210 = vlane %v207, 0 : Double
+    %v212 = call nearDouble, %v210, 0.8414709848078965 : Int
+    %v213 = add %v206, %v212 : Int
+    assign %n, %v213
+    %v215 = load %n : Int
+    %v217 = vsplat 2 : Vec(Double)
+    %v219 = vsplat 10 : Vec(Double)
+    %v220 = call Real.pow(Vec(Double), Mask(Double)), %v217, %v219 : Vec(Double)
+    %v223 = vlane %v220, 0 : Double
+    %v225 = call nearDouble, %v223, 1024 : Int
+    %v226 = add %v215, %v225 : Int
+    assign %n, %v226
+    %v228 = load %n : Int
+    %v229 = round %twoAndAHalf : Vec(Double)
+    %v232 = vlane %v229, 0 : Double
+    %v234 = call nearDouble, %v232, 3 : Int
+    %v235 = add %v228, %v234 : Int
+    assign %n, %v235
+    %v237 = load %n : Int
+    ret %v237
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call primitives : Int
+    %v3 = cmp_eq %v0, 7 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    %v12 = call rounding : Int
+    %v15 = cmp_eq %v12, 9 : Bool
+    je %v15, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v23 = phi [b4, 2], [b5, 0] : Int
+    %v24 = add %v11, %v23 : Int
+    %v25 = call exponentials : Int
+    %v28 = cmp_eq %v25, 8 : Bool
+    je %v28, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v36 = phi [b7, 4], [b8, 0] : Int
+    %v37 = add %v24, %v36 : Int
+    %v38 = call logarithms : Int
+    %v41 = cmp_eq %v38, 6 : Bool
+    je %v41, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v49 = phi [b10, 8], [b11, 0] : Int
+    %v50 = add %v37, %v49 : Int
+    %v51 = call powers : Int
+    %v54 = cmp_eq %v51, 9 : Bool
+    je %v54, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v62 = phi [b13, 16], [b14, 0] : Int
+    %v63 = add %v50, %v62 : Int
+    %v64 = call angles : Int
+    %v67 = cmp_eq %v64, 16 : Bool
+    je %v67, b16, b17
+
+  b16:
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v75 = phi [b16, 32], [b17, 0] : Int
+    %v76 = add %v63, %v75 : Int
+    %v77 = call atFloat : Int
+    %v80 = cmp_eq %v77, 12 : Bool
+    je %v80, b19, b20
+
+  b19:
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v88 = phi [b19, 64], [b20, 0] : Int
+    %v89 = add %v76, %v88 : Int
+    %v90 = call atVector : Int
+    %v93 = cmp_eq %v90, 20 : Bool
+    je %v93, b22, b23
+
+  b22:
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v101 = phi [b22, 128], [b23, 0] : Int
+    %v102 = add %v89, %v101 : Int
+    ret %v102
+}
+
+fn clampFloatExponent(%exponent: Float) -> Float {
+  b0:
+    %v5 = sub 0, 126 : Float
+    %v6 = call Ord.max(Float), %exponent, %v5 : Float
+    %v9 = call Ord.min(Float), %v6, 127 : Float
+    ret %v9
+}
+
+fn clampDoubleExponent(%exponent: Double) -> Double {
+  b0:
+    %v5 = sub 0, 1022 : Float
+    %v6 = cast %v5 : Double
+    %v7 = call Ord.max(Double), %exponent, %v6 : Double
+    %v10 = call Ord.min(Double), %v7, 1023 : Double
+    ret %v10
+}
+
+fn clampVecFloatExponent(%exponent: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v5 = sub 0, 126 : Float
+    %v6 = vsplat %v5 : Vec(Float)
+    %v7 = cmp_gt %exponent, %v6 : Mask(Float)
+    %v8 = select %v7 ? %exponent : %v6 : Vec(Float)
+    %v11 = vsplat 127 : Vec(Float)
+    %v12 = cmp_lt %v8, %v11 : Mask(Float)
+    %v13 = select %v12 ? %v8 : %v11 : Vec(Float)
+    ret %v13
+}
+
+fn clampVecDoubleExponent(%exponent: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v5 = sub 0, 1022 : Double
+    %v6 = vsplat %v5 : Vec(Double)
+    %v7 = cmp_gt %exponent, %v6 : Mask(Double)
+    %v8 = select %v7 ? %exponent : %v6 : Vec(Double)
+    %v10 = vsplat 1023 : Vec(Double)
+    %v11 = cmp_lt %v8, %v10 : Mask(Double)
+    %v12 = select %v11 ? %v8 : %v10 : Vec(Double)
+    ret %v12
+}
+
+fn powerOfTwoFloat(%exponent: Float) -> Float {
+  b0:
+    %v1 = cast %exponent : Int
+    %v2 = cast %v1 : I32
+    %v5 = add %v2, 127 : I32
+    %v8 = shl %v5, 23 : I32
+    %v9 = bitcast %v8 : Float
+    ret %v9
+}
+
+fn powerOfTwoDouble(%exponent: Double) -> Double {
+  b0:
+    %v1 = cast %exponent : Long
+    %v2 = cast %v1 : I64
+    %v5 = add %v2, 1023 : I64
+    %v8 = shl %v5, 52 : I64
+    %v9 = bitcast %v8 : Double
+    ret %v9
+}
+
+fn exponentOfDouble(%value: Double) -> Double {
+  b0:
+    %bits = bitcast %value : I64
+    %v4 = shr %bits, 52 : I64
+    %v7 = and %v4, 2047 : I64
+    %v8 = cast %v7 : Long
+    %v9 = cast %v8 : Double
+    %v12 = sub %v9, 1023 : Double
+    ret %v12
+}
+
+fn significandOfDouble(%value: Double) -> Double {
+  b0:
+    %v1 = bitcast %value : I64
+    %v4 = and %v1, 4503599627370495 : I64
+    %v7 = or %v4, 4607182418800017408 : I64
+    %v8 = bitcast %v7 : Double
+    ret %v8
+}
+
+fn infinityDouble() -> Double {
+  b0:
+    %v1 = bitcast 9218868437227405312 : Double
+    ret %v1
+}
+
+fn powerOfTwoVecFloat(%exponent: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = cast %exponent : Vec(Int)
+    %v5 = vsplat 127 : Vec(Int)
+    %v6 = add %v1, %v5 : Vec(Int)
+    %v10 = vsplat 23 : Vec(Int)
+    %v11 = shl %v6, %v10 : Vec(Int)
+    %v12 = bitcast %v11 : Vec(Float)
+    ret %v12
+}
+
+fn wholeVecDoubleBits(%value: Vec(Double)) -> Vec(Long) {
+  b0:
+    %v4 = vsplat 4.503599627370496E15 : Vec(Double)
+    %v5 = add %value, %v4 : Vec(Double)
+    %v6 = bitcast %v5 : Vec(Long)
+    %v10 = vsplat 4503599627370495 : Vec(Long)
+    %v11 = and %v6, %v10 : Vec(Long)
+    ret %v11
+}
+
+fn vecDoubleFromWholeBits(%bits: Vec(Long)) -> Vec(Double) {
+  b0:
+    %v4 = vsplat 4841369599423283200 : Vec(Long)
+    %v5 = or %bits, %v4 : Vec(Long)
+    %v6 = bitcast %v5 : Vec(Double)
+    %v10 = vsplat 4.503599627370496E15 : Vec(Double)
+    %v11 = sub %v6, %v10 : Vec(Double)
+    ret %v11
+}
+
+fn powerOfTwoVecDouble(%exponent: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v4 = vsplat 1023 : Vec(Double)
+    %v5 = add %exponent, %v4 : Vec(Double)
+    %v6 = call wholeVecDoubleBits, %v5 : Vec(Long)
+    %v10 = vsplat 52 : Vec(Long)
+    %v11 = shl %v6, %v10 : Vec(Long)
+    %v12 = bitcast %v11 : Vec(Double)
+    ret %v12
+}
+
+fn Real(Float, Bool).scaleByExponent(%value: Float, %exponent: Float) -> Float {
+  b0:
+    %first = call clampFloatExponent, %exponent : Float
+    %v3 = sub %exponent, %first : Float
+    %second = call clampFloatExponent, %v3 : Float
+    %v5 = call powerOfTwoFloat, %first : Float
+    %v6 = mul %value, %v5 : Float
+    %v7 = call powerOfTwoFloat, %second : Float
+    %v8 = mul %v6, %v7 : Float
+    ret %v8
+}
+
+fn Real(Float, Bool).exponentOf(%value: Float) -> Float {
+  b0:
+    %bits = bitcast %value : I32
+    %v4 = shr %bits, 23 : I32
+    %v7 = and %v4, 255 : I32
+    %v8 = cast %v7 : Int
+    %v9 = cast %v8 : Float
+    %v12 = sub %v9, 127 : Float
+    ret %v12
+}
+
+fn Real(Float, Bool).significandOf(%value: Float) -> Float {
+  b0:
+    %v1 = bitcast %value : I32
+    %v4 = and %v1, 8388607 : I32
+    %v7 = or %v4, 1065353216 : I32
+    %v8 = bitcast %v7 : Float
+    ret %v8
+}
+
+fn Real(Float, Bool).infinity() -> Float {
+  b0:
+    %v2 = cast 2139095040 : I32
+    %v3 = bitcast %v2 : Float
+    ret %v3
+}
+
+fn Real(Double, Bool).scaleByExponent(%value: Double, %exponent: Double) -> Double {
+  b0:
+    %first = call clampDoubleExponent, %exponent : Double
+    %v3 = sub %exponent, %first : Double
+    %second = call clampDoubleExponent, %v3 : Double
+    %v5 = call powerOfTwoDouble, %first : Double
+    %v6 = mul %value, %v5 : Double
+    %v7 = call powerOfTwoDouble, %second : Double
+    %v8 = mul %v6, %v7 : Double
+    ret %v8
+}
+
+fn Real(Double, Bool).exponentOf(%value: Double) -> Double {
+  b0:
+    %v1 = call exponentOfDouble, %value : Double
+    ret %v1
+}
+
+fn Real(Double, Bool).significandOf(%value: Double) -> Double {
+  b0:
+    %v1 = call significandOfDouble, %value : Double
+    ret %v1
+}
+
+fn Real(Double, Bool).infinity() -> Double {
+  b0:
+    %v0 = call infinityDouble : Double
+    ret %v0
+}
+
+fn Real(Vec(Float), Mask(Float)).scaleByExponent(%value: Vec(Float), %exponent: Vec(Float)) -> Vec(Float) {
+  b0:
+    %first = call clampVecFloatExponent, %exponent : Vec(Float)
+    %v3 = sub %exponent, %first : Vec(Float)
+    %second = call clampVecFloatExponent, %v3 : Vec(Float)
+    %v5 = call powerOfTwoVecFloat, %first : Vec(Float)
+    %v6 = mul %value, %v5 : Vec(Float)
+    %v7 = call powerOfTwoVecFloat, %second : Vec(Float)
+    %v8 = mul %v6, %v7 : Vec(Float)
+    ret %v8
+}
+
+fn Real(Vec(Float), Mask(Float)).exponentOf(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %bits = bitcast %value : Vec(Int)
+    %v5 = vsplat 23 : Vec(Int)
+    %v6 = shr %bits, %v5 : Vec(Int)
+    %v10 = vsplat 255 : Vec(Int)
+    %v11 = and %v6, %v10 : Vec(Int)
+    %v12 = cast %v11 : Vec(Float)
+    %v16 = vsplat 127 : Vec(Float)
+    %v17 = sub %v12, %v16 : Vec(Float)
+    ret %v17
+}
+
+fn Real(Vec(Float), Mask(Float)).significandOf(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = bitcast %value : Vec(Int)
+    %v5 = vsplat 8388607 : Vec(Int)
+    %v6 = and %v1, %v5 : Vec(Int)
+    %v10 = vsplat 1065353216 : Vec(Int)
+    %v11 = or %v6, %v10 : Vec(Int)
+    %v12 = bitcast %v11 : Vec(Float)
+    ret %v12
+}
+
+fn Real(Vec(Float), Mask(Float)).infinity() -> Vec(Float) {
+  b0:
+    %v2 = vsplat 2139095040 : Vec(Int)
+    %v3 = bitcast %v2 : Vec(Float)
+    ret %v3
+}
+
+fn Real(Vec(Double), Mask(Double)).scaleByExponent(%value: Vec(Double), %exponent: Vec(Double)) -> Vec(Double) {
+  b0:
+    %first = call clampVecDoubleExponent, %exponent : Vec(Double)
+    %v3 = sub %exponent, %first : Vec(Double)
+    %second = call clampVecDoubleExponent, %v3 : Vec(Double)
+    %v5 = call powerOfTwoVecDouble, %first : Vec(Double)
+    %v6 = mul %value, %v5 : Vec(Double)
+    %v7 = call powerOfTwoVecDouble, %second : Vec(Double)
+    %v8 = mul %v6, %v7 : Vec(Double)
+    ret %v8
+}
+
+fn Real(Vec(Double), Mask(Double)).exponentOf(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %bits = bitcast %value : Vec(Long)
+    %v5 = vsplat 52 : Vec(Long)
+    %v6 = shr %bits, %v5 : Vec(Long)
+    %v10 = vsplat 2047 : Vec(Long)
+    %v11 = and %v6, %v10 : Vec(Long)
+    %v12 = call vecDoubleFromWholeBits, %v11 : Vec(Double)
+    %v16 = vsplat 1023 : Vec(Double)
+    %v17 = sub %v12, %v16 : Vec(Double)
+    ret %v17
+}
+
+fn Real(Vec(Double), Mask(Double)).significandOf(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = bitcast %value : Vec(Long)
+    %v5 = vsplat 4503599627370495 : Vec(Long)
+    %v6 = and %v1, %v5 : Vec(Long)
+    %v10 = vsplat 4607182418800017408 : Vec(Long)
+    %v11 = or %v6, %v10 : Vec(Long)
+    %v12 = bitcast %v11 : Vec(Double)
+    ret %v12
+}
+
+fn Real(Vec(Double), Mask(Double)).infinity() -> Vec(Double) {
+  b0:
+    %v1 = vsplat 9218868437227405312 : Vec(Long)
+    %v2 = bitcast %v1 : Vec(Double)
+    ret %v2
+}
+
+fn Real.mod(Double, Bool)(%lhs: Double, %rhs: Double) -> Double {
+  b0:
+    %v2 = call modulusOf(Double, Bool), %lhs, %rhs : Double
+    ret %v2
+}
+
+fn modulusOf(Double, Bool)(%lhs: Double, %rhs: Double) -> Double {
+  b0:
+    %v2 = div %lhs, %rhs : Double
+    %v3 = trunc %v2 : Double
+    %v4 = mul %v3, %rhs : Double
+    %v5 = sub %lhs, %v4 : Double
+    ret %v5
+}
+
+fn Real.exp(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call expOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn expOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = mul %value, 1.4426950408889634 : Double
+    %n = round %v3 : Double
+    %v7 = mul %n, 0.693115234375 : Double
+    %v8 = sub %value, %v7 : Double
+    %v11 = mul %n, 0.000031948089599609375 : Double
+    %v12 = sub %v8, %v11 : Double
+    %v15 = mul %n, 1.9044819055125117E-9 : Double
+    %v16 = add %v12, %v15 : Double
+    %v19 = mul %n, 1.724176357242868E-13 : Double
+    %v20 = add %v16, %v19 : Double
+    %v23 = mul %n, 2.3188373964033726E-17 : Double
+    %v24 = sub %v20, %v23 : Double
+    %v27 = mul %n, 2.094421310984266E-21 : Double
+    %r = sub %v24, %v27 : Double
+    %v29 = call expSeries(Double, Bool), %r : Double
+    %core = call Real(Double, Bool).scaleByExponent, %v29, %n : Double
+    %v31 = call magnitudeOf(Double, Bool), %value : Double
+    %v34 = cmp_gt %v31, 800 : Bool
+    %v35 = call expSaturated(Double, Bool), %value : Double
+    %v36 = select %v34 ? %v35 : %core : Double
+    ret %v36
+}
+
+fn expSeries(Double, Bool)(%r: Double) -> Double {
+  b0:
+    %v3 = mul %r, 4.779477332387385E-14 : Double
+    %v6 = add 7.647163731819816E-13, %v3 : Double
+    %v7 = mul %r, %v6 : Double
+    %v10 = add 1.1470745597729725E-11, %v7 : Double
+    %v11 = mul %r, %v10 : Double
+    %v14 = add 1.6059043836821616E-10, %v11 : Double
+    %v15 = mul %r, %v14 : Double
+    %v18 = add 2.08767569878681E-9, %v15 : Double
+    %v19 = mul %r, %v18 : Double
+    %v22 = add 2.505210838544172E-8, %v19 : Double
+    %v23 = mul %r, %v22 : Double
+    %v26 = add 0.00000027557319223985894, %v23 : Double
+    %v27 = mul %r, %v26 : Double
+    %v30 = add 0.0000027557319223985893, %v27 : Double
+    %v31 = mul %r, %v30 : Double
+    %v34 = add 0.0000248015873015873, %v31 : Double
+    %v35 = mul %r, %v34 : Double
+    %v38 = add 0.0001984126984126984, %v35 : Double
+    %v39 = mul %r, %v38 : Double
+    %v42 = add 0.001388888888888889, %v39 : Double
+    %v43 = mul %r, %v42 : Double
+    %v46 = add 0.008333333333333333, %v43 : Double
+    %v47 = mul %r, %v46 : Double
+    %v50 = add 0.041666666666666664, %v47 : Double
+    %v51 = mul %r, %v50 : Double
+    %v54 = add 0.16666666666666666, %v51 : Double
+    %v55 = mul %r, %v54 : Double
+    %tail = add 0.5, %v55 : Double
+    %v61 = add 1, %r : Double
+    %v62 = mul %r, %r : Double
+    %v63 = mul %v62, %tail : Double
+    %v64 = add %v61, %v63 : Double
+    ret %v64
+}
+
+fn magnitudeOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = cmp_le %value, 0 : Bool
+    %v6 = sub 0, %value : Double
+    %v7 = select %v3 ? %v6 : %value : Double
+    ret %v7
+}
+
+fn expSaturated(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    %v4 = call infinityLike(Double, Bool), %value : Double
+    %v5 = call zeroLike(Double, Bool), %value : Double
+    %v6 = select %v3 ? %v4 : %v5 : Double
+    ret %v6
+}
+
+fn infinityLike(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call Real(Double, Bool).infinity : Double
+    ret %v1
+}
+
+fn zeroLike(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = mul %value, 0 : Double
+    %v4 = call magnitudeOf(Double, Bool), %v3 : Double
+    ret %v4
+}
+
+fn Real.exp2(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call exp2Of(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn exp2Of(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %n = round %value : Double
+    %f = sub %value, %n : Double
+    %v5 = mul %f, 0.693115234375 : Double
+    %v8 = mul %f, 0.000031946184945309415 : Double
+    %r = add %v5, %v8 : Double
+    %v10 = call expSeries(Double, Bool), %r : Double
+    %core = call Real(Double, Bool).scaleByExponent, %v10, %n : Double
+    %v12 = call magnitudeOf(Double, Bool), %value : Double
+    %v15 = cmp_gt %v12, 1200 : Bool
+    %v16 = call expSaturated(Double, Bool), %value : Double
+    %v17 = select %v15 ? %v16 : %core : Double
+    ret %v17
+}
+
+fn Real.log(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call logOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn logOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %e = call logExponent(Double, Bool), %value : Double
+    %v2 = call logSignificand(Double, Bool), %value : Double
+    %series = call logSeries(Double, Bool), %v2 : Double
+    %v6 = mul %e, 0.693115234375 : Double
+    %v7 = add %series, %v6 : Double
+    %v10 = mul %e, 0.000031946184945309415 : Double
+    %answer = add %v7, %v10 : Double
+    %v12 = call logGuard(Double, Bool), %value, %answer : Double
+    ret %v12
+}
+
+fn logExponent(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %raw = call Real(Double, Bool).exponentOf, %value : Double
+    %v2 = call Real(Double, Bool).significandOf, %value : Double
+    %v5 = cmp_gt %v2, 1.414213562373095 : Bool
+    %v8 = add %raw, 1 : Double
+    %v9 = select %v5 ? %v8 : %raw : Double
+    ret %v9
+}
+
+fn logSignificand(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %raw = call Real(Double, Bool).significandOf, %value : Double
+    %v4 = cmp_gt %raw, 1.414213562373095 : Bool
+    %v7 = mul %raw, 0.5 : Double
+    %v8 = select %v4 ? %v7 : %raw : Double
+    ret %v8
+}
+
+fn logSeries(Double, Bool)(%significand: Double) -> Double {
+  b0:
+    %v3 = sub %significand, 1 : Double
+    %v6 = add %significand, 1 : Double
+    %s = div %v3, %v6 : Double
+    %z = mul %s, %s : Double
+    %v11 = mul %z, 0.04 : Double
+    %v14 = add 0.043478260869565216, %v11 : Double
+    %v15 = mul %z, %v14 : Double
+    %v18 = add 0.047619047619047616, %v15 : Double
+    %v19 = mul %z, %v18 : Double
+    %v22 = add 0.05263157894736842, %v19 : Double
+    %v23 = mul %z, %v22 : Double
+    %v26 = add 0.058823529411764705, %v23 : Double
+    %v27 = mul %z, %v26 : Double
+    %v30 = add 0.06666666666666667, %v27 : Double
+    %v31 = mul %z, %v30 : Double
+    %v34 = add 0.07692307692307693, %v31 : Double
+    %v35 = mul %z, %v34 : Double
+    %v38 = add 0.09090909090909091, %v35 : Double
+    %v39 = mul %z, %v38 : Double
+    %v42 = add 0.1111111111111111, %v39 : Double
+    %v43 = mul %z, %v42 : Double
+    %v46 = add 0.14285714285714285, %v43 : Double
+    %v47 = mul %z, %v46 : Double
+    %v50 = add 0.2, %v47 : Double
+    %v51 = mul %z, %v50 : Double
+    %tail = add 0.3333333333333333, %v51 : Double
+    %v57 = mul 2, %s : Double
+    %v60 = mul 2, %s : Double
+    %v61 = mul %v60, %z : Double
+    %v62 = mul %v61, %tail : Double
+    %v63 = add %v57, %v62 : Double
+    ret %v63
+}
+
+fn logGuard(Double, Bool)(%value: Double, %answer: Double) -> Double {
+  b0:
+    %v2 = call infinityLike(Double, Bool), %value : Double
+    %atZero = sub %value, %v2 : Double
+    %v6 = cmp_gt %value, 0 : Bool
+    %v9 = cmp_eq %value, 0 : Bool
+    %v10 = call notANumberLike(Double, Bool), %value : Double
+    %v11 = select %v9 ? %atZero : %v10 : Double
+    %v12 = select %v6 ? %answer : %v11 : Double
+    ret %v12
+}
+
+fn notANumberLike(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call zeroLike(Double, Bool), %value : Double
+    %v2 = call infinityLike(Double, Bool), %value : Double
+    %v3 = mul %v1, %v2 : Double
+    ret %v3
+}
+
+fn Real.log2(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call log2Of(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn log2Of(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %e = call logExponent(Double, Bool), %value : Double
+    %v2 = call logSignificand(Double, Bool), %value : Double
+    %v3 = call logSeries(Double, Bool), %v2 : Double
+    %v6 = mul %v3, 1.4426950408889634 : Double
+    %answer = add %v6, %e : Double
+    %v8 = call logGuard(Double, Bool), %value, %answer : Double
+    ret %v8
+}
+
+fn Real.log10(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call log10Of(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn log10Of(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call logOf(Double, Bool), %value : Double
+    %v4 = mul %v1, 0.4342944819032518 : Double
+    ret %v4
+}
+
+fn Real.pow(Double, Bool)(%base: Double, %exponent: Double) -> Double {
+  b0:
+    %v2 = call powerOf(Double, Bool), %base, %exponent : Double
+    ret %v2
+}
+
+fn powerOf(Double, Bool)(%base: Double, %exponent: Double) -> Double {
+  b0:
+    %v2 = call magnitudeOf(Double, Bool), %base : Double
+    %v3 = call log2Of(Double, Bool), %v2 : Double
+    %v4 = mul %exponent, %v3 : Double
+    %size = call exp2Of(Double, Bool), %v4 : Double
+    %v6 = trunc %exponent : Double
+    %whole = cmp_eq %v6, %exponent : Bool
+    %v10 = call modulusOf(Double, Bool), %exponent, 2 : Double
+    %odd = cmp_ne %v10, 0 : Bool
+    %v16 = sub 0, %size : Double
+    %signed = select %odd ? %v16 : %size : Double
+    %v20 = cmp_lt %base, 0 : Bool
+    %v21 = call notANumberLike(Double, Bool), %base : Double
+    %v22 = select %whole ? %signed : %v21 : Double
+    %answer = select %v20 ? %v22 : %size : Double
+    %v26 = cmp_lt %exponent, 0 : Bool
+    %v27 = call infinityLike(Double, Bool), %base : Double
+    %v28 = call zeroLike(Double, Bool), %base : Double
+    %atZero = select %v26 ? %v27 : %v28 : Double
+    %v32 = cmp_eq %exponent, 0 : Bool
+    %v35 = cmp_eq %base, 0 : Bool
+    %v36 = select %v35 ? %atZero : %answer : Double
+    %v39 = select %v32 ? 1 : %v36 : Double
+    ret %v39
+}
+
+fn Real.cbrt(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call cubeRootOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn cubeRootOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %size = call magnitudeOf(Double, Bool), %value : Double
+    %v2 = call log2Of(Double, Bool), %size : Double
+    %v5 = mul %v2, 0.3333333333333333 : Double
+    %guess = call exp2Of(Double, Bool), %v5 : Double
+    %v7 = mul %guess, %guess : Double
+    %v8 = div %size, %v7 : Double
+    %v9 = sub %guess, %v8 : Double
+    %v12 = mul %v9, 0.3333333333333333 : Double
+    %once = sub %guess, %v12 : Double
+    %v14 = mul %once, %once : Double
+    %v15 = div %size, %v14 : Double
+    %v16 = sub %once, %v15 : Double
+    %v19 = mul %v16, 0.3333333333333333 : Double
+    %twice = sub %once, %v19 : Double
+    %v23 = cmp_eq %value, 0 : Bool
+    %v24 = call zeroLike(Double, Bool), %value : Double
+    %v25 = call signOfOther(Double, Bool), %twice, %value : Double
+    %v26 = select %v23 ? %v24 : %v25 : Double
+    ret %v26
+}
+
+fn signOfOther(Double, Bool)(%size: Double, %like: Double) -> Double {
+  b0:
+    %v4 = cmp_lt %like, 0 : Bool
+    %v5 = call magnitudeOf(Double, Bool), %size : Double
+    %v8 = sub 0, %v5 : Double
+    %v9 = call magnitudeOf(Double, Bool), %size : Double
+    %v10 = select %v4 ? %v8 : %v9 : Double
+    ret %v10
+}
+
+fn Real.hypot(Double, Bool)(%x: Double, %y: Double) -> Double {
+  b0:
+    %v2 = call hypotenuseOf(Double, Bool), %x, %y : Double
+    ret %v2
+}
+
+fn hypotenuseOf(Double, Bool)(%x: Double, %y: Double) -> Double {
+  b0:
+    %ax = call magnitudeOf(Double, Bool), %x : Double
+    %ay = call magnitudeOf(Double, Bool), %y : Double
+    %v4 = cmp_gt %ax, %ay : Bool
+    %larger = select %v4 ? %ax : %ay : Double
+    %v6 = cmp_gt %ax, %ay : Bool
+    %smaller = select %v6 ? %ay : %ax : Double
+    %ratio = div %smaller, %larger : Double
+    %v11 = cmp_eq %larger, 0 : Bool
+    %v12 = call zeroLike(Double, Bool), %larger : Double
+    %v13 = mul %ratio, %ratio : Double
+    %v16 = add 1, %v13 : Double
+    %v17 = sqrt %v16 : Double
+    %v18 = mul %larger, %v17 : Double
+    %v19 = select %v11 ? %v12 : %v18 : Double
+    ret %v19
+}
+
+fn Real.sin(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call sineOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn sineOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = mul %value, 0.6366197723675814 : Double
+    %n = round %v3 : Double
+    %v7 = call quadrantIndex(Double, Bool), %n, 0 : Double
+    %v8 = call reducedAngle(Double, Bool), %value, %n : Double
+    %v9 = call quadrantOf(Double, Bool), %v7, %v8 : Double
+    ret %v9
+}
+
+fn quadrantIndex(Double, Bool)(%n: Double, %offset: Double) -> Double {
+  b0:
+    %shifted = add %n, %offset : Double
+    %v5 = mul %shifted, 0.25 : Double
+    %v6 = floor %v5 : Double
+    %v9 = mul 4, %v6 : Double
+    %v10 = sub %shifted, %v9 : Double
+    ret %v10
+}
+
+fn reducedAngle(Double, Bool)(%value: Double, %n: Double) -> Double {
+  b0:
+    %v4 = mul %n, 1.57080078125 : Double
+    %v5 = sub %value, %v4 : Double
+    %v8 = mul %n, 0.000004453584551811218 : Double
+    %v9 = add %v5, %v8 : Double
+    %v12 = mul %n, 8.706138032721356E-10 : Double
+    %v13 = add %v9, %v12 : Double
+    %v16 = mul %n, 6.222800053024002E-14 : Double
+    %v17 = sub %v13, %v16 : Double
+    %v20 = mul %n, 5.7208605257555445E-18 : Double
+    %v21 = sub %v17, %v20 : Double
+    %v24 = mul %n, 3.2818390803041373E-22 : Double
+    %v25 = sub %v21, %v24 : Double
+    ret %v25
+}
+
+fn quadrantOf(Double, Bool)(%quadrant: Double, %r: Double) -> Double {
+  b0:
+    %z = mul %r, %r : Double
+    %v3 = mul %r, %z : Double
+    %v4 = call sineSeries(Double, Bool), %z : Double
+    %v5 = mul %v3, %v4 : Double
+    %sine = sub %r, %v5 : Double
+    %v9 = mul 0.5, %z : Double
+    %v12 = sub 1, %v9 : Double
+    %v13 = mul %z, %z : Double
+    %v14 = call cosineSeries(Double, Bool), %z : Double
+    %v15 = mul %v13, %v14 : Double
+    %cosine = add %v12, %v15 : Double
+    %v19 = cmp_eq %quadrant, 2 : Bool
+    %v22 = sub 0, %sine : Double
+    %v25 = sub 0, %cosine : Double
+    %upper = select %v19 ? %v22 : %v25 : Double
+    %v29 = cmp_eq %quadrant, 0 : Bool
+    %v32 = cmp_eq %quadrant, 1 : Bool
+    %v33 = select %v32 ? %cosine : %upper : Double
+    %v34 = select %v29 ? %sine : %v33 : Double
+    ret %v34
+}
+
+fn sineSeries(Double, Bool)(%z: Double) -> Double {
+  b0:
+    %v3 = mul %z, 1.957294106339126E-20 : Double
+    %v6 = sub 8.22063524662433E-18, %v3 : Double
+    %v7 = mul %z, %v6 : Double
+    %v10 = sub 2.811457254345521E-15, %v7 : Double
+    %v11 = mul %z, %v10 : Double
+    %v14 = sub 7.647163731819816E-13, %v11 : Double
+    %v15 = mul %z, %v14 : Double
+    %v18 = sub 1.6059043836821616E-10, %v15 : Double
+    %v19 = mul %z, %v18 : Double
+    %v22 = sub 2.505210838544172E-8, %v19 : Double
+    %v23 = mul %z, %v22 : Double
+    %v26 = sub 0.0000027557319223985893, %v23 : Double
+    %v27 = mul %z, %v26 : Double
+    %v30 = sub 0.0001984126984126984, %v27 : Double
+    %v31 = mul %z, %v30 : Double
+    %v34 = sub 0.008333333333333333, %v31 : Double
+    %v35 = mul %z, %v34 : Double
+    %v38 = sub 0.16666666666666666, %v35 : Double
+    ret %v38
+}
+
+fn cosineSeries(Double, Bool)(%z: Double) -> Double {
+  b0:
+    %v3 = mul %z, 4.110317623312165E-19 : Double
+    %v6 = sub 1.5619206968586225E-16, %v3 : Double
+    %v7 = mul %z, %v6 : Double
+    %v10 = sub 4.779477332387385E-14, %v7 : Double
+    %v11 = mul %z, %v10 : Double
+    %v14 = sub 1.1470745597729725E-11, %v11 : Double
+    %v15 = mul %z, %v14 : Double
+    %v18 = sub 2.08767569878681E-9, %v15 : Double
+    %v19 = mul %z, %v18 : Double
+    %v22 = sub 0.00000027557319223985894, %v19 : Double
+    %v23 = mul %z, %v22 : Double
+    %v26 = sub 0.0000248015873015873, %v23 : Double
+    %v27 = mul %z, %v26 : Double
+    %v30 = sub 0.001388888888888889, %v27 : Double
+    %v31 = mul %z, %v30 : Double
+    %v34 = sub 0.041666666666666664, %v31 : Double
+    ret %v34
+}
+
+fn Real.cos(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call cosineOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn cosineOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = mul %value, 0.6366197723675814 : Double
+    %n = round %v3 : Double
+    %v7 = call quadrantIndex(Double, Bool), %n, 1 : Double
+    %v8 = call reducedAngle(Double, Bool), %value, %n : Double
+    %v9 = call quadrantOf(Double, Bool), %v7, %v8 : Double
+    ret %v9
+}
+
+fn Real.tan(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call tangentOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn tangentOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v3 = mul %value, 0.6366197723675814 : Double
+    %n = round %v3 : Double
+    %r = call reducedAngle(Double, Bool), %value, %n : Double
+    %v8 = call quadrantIndex(Double, Bool), %n, 0 : Double
+    %v9 = call quadrantOf(Double, Bool), %v8, %r : Double
+    %v12 = call quadrantIndex(Double, Bool), %n, 1 : Double
+    %v13 = call quadrantOf(Double, Bool), %v12, %r : Double
+    %v14 = div %v9, %v13 : Double
+    ret %v14
+}
+
+fn Real.atan(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call arcTangentOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn arcTangentOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %size = call magnitudeOf(Double, Bool), %value : Double
+    %v4 = cmp_gt %size, 1 : Bool
+    %v7 = div 1, %size : Double
+    %folded = select %v4 ? %v7 : %size : Double
+    %steep = cmp_gt %folded, 0.2679491924311227 : Bool
+    %v14 = mul %folded, 1.7320508075688772 : Double
+    %v17 = sub %v14, 1 : Double
+    %v20 = add %folded, 1.7320508075688772 : Double
+    %reduced = div %v17, %v20 : Double
+    %v22 = call zeroLike(Double, Bool), %value : Double
+    %base = select %steep ? 0.5235987755982988 : %v22 : Double
+    %v26 = select %steep ? %reduced : %folded : Double
+    %v27 = call arcTangentCore(Double, Bool), %v26 : Double
+    %core = add %base, %v27 : Double
+    %v31 = cmp_gt %size, 1 : Bool
+    %v34 = sub 1.5707963267948966, %core : Double
+    %whole = select %v31 ? %v34 : %core : Double
+    %v38 = cmp_lt %value, 0 : Bool
+    %v41 = sub 0, %whole : Double
+    %v42 = select %v38 ? %v41 : %whole : Double
+    ret %v42
+}
+
+fn arcTangentCore(Double, Bool)(%u: Double) -> Double {
+  b0:
+    %z = mul %u, %u : Double
+    %v2 = mul %u, %z : Double
+    %v3 = call arcTangentSeries(Double, Bool), %z : Double
+    %v4 = mul %v2, %v3 : Double
+    %v5 = sub %u, %v4 : Double
+    ret %v5
+}
+
+fn arcTangentSeries(Double, Bool)(%z: Double) -> Double {
+  b0:
+    %v3 = mul %z, 0.02857142857142857 : Double
+    %v6 = sub 0.030303030303030304, %v3 : Double
+    %v7 = mul %z, %v6 : Double
+    %v10 = sub 0.03225806451612903, %v7 : Double
+    %v11 = mul %z, %v10 : Double
+    %v14 = sub 0.034482758620689655, %v11 : Double
+    %v15 = mul %z, %v14 : Double
+    %v18 = sub 0.037037037037037035, %v15 : Double
+    %v19 = mul %z, %v18 : Double
+    %v22 = sub 0.04, %v19 : Double
+    %v23 = mul %z, %v22 : Double
+    %v26 = sub 0.043478260869565216, %v23 : Double
+    %v27 = mul %z, %v26 : Double
+    %v30 = sub 0.047619047619047616, %v27 : Double
+    %v31 = mul %z, %v30 : Double
+    %v34 = sub 0.05263157894736842, %v31 : Double
+    %v35 = mul %z, %v34 : Double
+    %v38 = sub 0.058823529411764705, %v35 : Double
+    %v39 = mul %z, %v38 : Double
+    %v42 = sub 0.06666666666666667, %v39 : Double
+    %v43 = mul %z, %v42 : Double
+    %v46 = sub 0.07692307692307693, %v43 : Double
+    %v47 = mul %z, %v46 : Double
+    %v50 = sub 0.09090909090909091, %v47 : Double
+    %v51 = mul %z, %v50 : Double
+    %v54 = sub 0.1111111111111111, %v51 : Double
+    %v55 = mul %z, %v54 : Double
+    %v58 = sub 0.14285714285714285, %v55 : Double
+    %v59 = mul %z, %v58 : Double
+    %v62 = sub 0.2, %v59 : Double
+    %v63 = mul %z, %v62 : Double
+    %v66 = sub 0.3333333333333333, %v63 : Double
+    ret %v66
+}
+
+fn Real.atan2(Double, Bool)(%y: Double, %x: Double) -> Double {
+  b0:
+    %v2 = call arcTangent2Of(Double, Bool), %y, %x : Double
+    ret %v2
+}
+
+fn arcTangent2Of(Double, Bool)(%y: Double, %x: Double) -> Double {
+  b0:
+    %v2 = div %y, %x : Double
+    %base = call arcTangentOf(Double, Bool), %v2 : Double
+    %v6 = cmp_lt %y, 0 : Bool
+    %v9 = sub %base, 3.141592653589793 : Double
+    %v12 = add %base, 3.141592653589793 : Double
+    %shifted = select %v6 ? %v9 : %v12 : Double
+    %v16 = cmp_lt %x, 0 : Bool
+    %general = select %v16 ? %shifted : %base : Double
+    %v20 = cmp_eq %y, 0 : Bool
+    %v21 = call zeroLike(Double, Bool), %y : Double
+    %v24 = call signOfOther(Double, Bool), 1.5707963267948966, %y : Double
+    %vertical = select %v20 ? %v21 : %v24 : Double
+    %v28 = cmp_eq %x, 0 : Bool
+    %v29 = select %v28 ? %vertical : %general : Double
+    ret %v29
+}
+
+fn Real.asin(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call arcSineOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn arcSineOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = mul %value, %value : Double
+    %square = sub 1, %v1 : Double
+    %v7 = cmp_lt %square, 0 : Bool
+    %v8 = call zeroLike(Double, Bool), %square : Double
+    %v9 = select %v7 ? %v8 : %square : Double
+    %v10 = sqrt %v9 : Double
+    %v11 = call arcTangent2Of(Double, Bool), %value, %v10 : Double
+    ret %v11
+}
+
+fn Real.acos(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = call arcCosineOf(Double, Bool), %value : Double
+    ret %v1
+}
+
+fn arcCosineOf(Double, Bool)(%value: Double) -> Double {
+  b0:
+    %v1 = mul %value, %value : Double
+    %square = sub 1, %v1 : Double
+    %v7 = cmp_lt %square, 0 : Bool
+    %v8 = call zeroLike(Double, Bool), %square : Double
+    %v9 = select %v7 ? %v8 : %square : Double
+    %v10 = sqrt %v9 : Double
+    %v11 = call arcTangent2Of(Double, Bool), %v10, %value : Double
+    ret %v11
+}
+
+fn pi(Double, Bool)() -> Double {
+  b0:
+    ret 3.141592653589793
+}
+
+fn toRadians(Double, Bool)(%degrees: Double) -> Double {
+  b0:
+    %v3 = mul %degrees, 0.017453292519943295 : Double
+    ret %v3
+}
+
+fn toDegrees(Double, Bool)(%radians: Double) -> Double {
+  b0:
+    %v3 = mul %radians, 57.29577951308232 : Double
+    ret %v3
+}
+
+fn Real.exp(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call expOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn expOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = mul %value, 1.4426950216293335 : Float
+    %n = round %v3 : Float
+    %v7 = mul %n, 0.693115234375 : Float
+    %v8 = sub %value, %v7 : Float
+    %v11 = mul %n, 0.000031948089599609375 : Float
+    %v12 = sub %v8, %v11 : Float
+    %v15 = mul %n, 1.9044819055125117E-9 : Float
+    %v16 = add %v12, %v15 : Float
+    %v19 = mul %n, 1.724176357242868E-13 : Float
+    %v20 = add %v16, %v19 : Float
+    %v23 = mul %n, 2.3188373964033726E-17 : Float
+    %v24 = sub %v20, %v23 : Float
+    %v27 = mul %n, 2.094421310984266E-21 : Float
+    %r = sub %v24, %v27 : Float
+    %v29 = call expSeries(Float, Bool), %r : Float
+    %core = call Real(Float, Bool).scaleByExponent, %v29, %n : Float
+    %v31 = call magnitudeOf(Float, Bool), %value : Float
+    %v34 = cmp_gt %v31, 800 : Bool
+    %v35 = call expSaturated(Float, Bool), %value : Float
+    %v36 = select %v34 ? %v35 : %core : Float
+    ret %v36
+}
+
+fn expSeries(Float, Bool)(%r: Float) -> Float {
+  b0:
+    %v3 = mul %r, 4.7794772561329454E-14 : Float
+    %v6 = add 7.647163609812713E-13, %v3 : Float
+    %v7 = mul %r, %v6 : Float
+    %v10 = add 1.147074536050896E-11, %v7 : Float
+    %v11 = mul %r, %v10 : Float
+    %v14 = add 1.6059044372074283E-10, %v11 : Float
+    %v15 = mul %r, %v14 : Float
+    %v18 = add 2.0876755879584152E-9, %v15 : Float
+    %v19 = mul %r, %v18 : Float
+    %v22 = add 2.5052107943679403E-8, %v19 : Float
+    %v23 = mul %r, %v22 : Float
+    %v26 = add 0.0000002755731998149713, %v23 : Float
+    %v27 = mul %r, %v26 : Float
+    %v30 = add 0.0000027557318844628753, %v27 : Float
+    %v31 = mul %r, %v30 : Float
+    %v34 = add 0.000024801587642286904, %v31 : Float
+    %v35 = mul %r, %v34 : Float
+    %v38 = add 0.00019841270113829523, %v35 : Float
+    %v39 = mul %r, %v38 : Float
+    %v42 = add 0.0013888889225199819, %v39 : Float
+    %v43 = mul %r, %v42 : Float
+    %v46 = add 0.008333333767950535, %v43 : Float
+    %v47 = mul %r, %v46 : Float
+    %v50 = add 0.0416666679084301, %v47 : Float
+    %v51 = mul %r, %v50 : Float
+    %v54 = add 0.1666666716337204, %v51 : Float
+    %v55 = mul %r, %v54 : Float
+    %tail = add 0.5, %v55 : Float
+    %v61 = add 1, %r : Float
+    %v62 = mul %r, %r : Float
+    %v63 = mul %v62, %tail : Float
+    %v64 = add %v61, %v63 : Float
+    ret %v64
+}
+
+fn magnitudeOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = cmp_le %value, 0 : Bool
+    %v6 = sub 0, %value : Float
+    %v7 = select %v3 ? %v6 : %value : Float
+    ret %v7
+}
+
+fn expSaturated(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    %v4 = call infinityLike(Float, Bool), %value : Float
+    %v5 = call zeroLike(Float, Bool), %value : Float
+    %v6 = select %v3 ? %v4 : %v5 : Float
+    ret %v6
+}
+
+fn infinityLike(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call Real(Float, Bool).infinity : Float
+    ret %v1
+}
+
+fn zeroLike(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = mul %value, 0 : Float
+    %v4 = call magnitudeOf(Float, Bool), %v3 : Float
+    ret %v4
+}
+
+fn Real.log(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call logOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn logOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %e = call logExponent(Float, Bool), %value : Float
+    %v2 = call logSignificand(Float, Bool), %value : Float
+    %series = call logSeries(Float, Bool), %v2 : Float
+    %v6 = mul %e, 0.693115234375 : Float
+    %v7 = add %series, %v6 : Float
+    %v10 = mul %e, 0.00003194618329871446 : Float
+    %answer = add %v7, %v10 : Float
+    %v12 = call logGuard(Float, Bool), %value, %answer : Float
+    ret %v12
+}
+
+fn logExponent(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %raw = call Real(Float, Bool).exponentOf, %value : Float
+    %v2 = call Real(Float, Bool).significandOf, %value : Float
+    %v5 = cmp_gt %v2, 1.4142135381698608 : Bool
+    %v8 = add %raw, 1 : Float
+    %v9 = select %v5 ? %v8 : %raw : Float
+    ret %v9
+}
+
+fn logSignificand(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %raw = call Real(Float, Bool).significandOf, %value : Float
+    %v4 = cmp_gt %raw, 1.4142135381698608 : Bool
+    %v7 = mul %raw, 0.5 : Float
+    %v8 = select %v4 ? %v7 : %raw : Float
+    ret %v8
+}
+
+fn logSeries(Float, Bool)(%significand: Float) -> Float {
+  b0:
+    %v3 = sub %significand, 1 : Float
+    %v6 = add %significand, 1 : Float
+    %s = div %v3, %v6 : Float
+    %z = mul %s, %s : Float
+    %v11 = mul %z, 0.03999999910593033 : Float
+    %v14 = add 0.043478261679410934, %v11 : Float
+    %v15 = mul %z, %v14 : Float
+    %v18 = add 0.0476190485060215, %v15 : Float
+    %v19 = mul %z, %v18 : Float
+    %v22 = add 0.05263157933950424, %v19 : Float
+    %v23 = mul %z, %v22 : Float
+    %v26 = add 0.05882352963089943, %v23 : Float
+    %v27 = mul %z, %v26 : Float
+    %v30 = add 0.06666667014360428, %v27 : Float
+    %v31 = mul %z, %v30 : Float
+    %v34 = add 0.07692307978868484, %v31 : Float
+    %v35 = mul %z, %v34 : Float
+    %v38 = add 0.09090909361839294, %v35 : Float
+    %v39 = mul %z, %v38 : Float
+    %v42 = add 0.1111111119389534, %v39 : Float
+    %v43 = mul %z, %v42 : Float
+    %v46 = add 0.1428571492433548, %v43 : Float
+    %v47 = mul %z, %v46 : Float
+    %v50 = add 0.20000000298023224, %v47 : Float
+    %v51 = mul %z, %v50 : Float
+    %tail = add 0.3333333432674408, %v51 : Float
+    %v57 = mul 2, %s : Float
+    %v60 = mul 2, %s : Float
+    %v61 = mul %v60, %z : Float
+    %v62 = mul %v61, %tail : Float
+    %v63 = add %v57, %v62 : Float
+    ret %v63
+}
+
+fn logGuard(Float, Bool)(%value: Float, %answer: Float) -> Float {
+  b0:
+    %v2 = call infinityLike(Float, Bool), %value : Float
+    %atZero = sub %value, %v2 : Float
+    %v6 = cmp_gt %value, 0 : Bool
+    %v9 = cmp_eq %value, 0 : Bool
+    %v10 = call notANumberLike(Float, Bool), %value : Float
+    %v11 = select %v9 ? %atZero : %v10 : Float
+    %v12 = select %v6 ? %answer : %v11 : Float
+    ret %v12
+}
+
+fn notANumberLike(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call zeroLike(Float, Bool), %value : Float
+    %v2 = call infinityLike(Float, Bool), %value : Float
+    %v3 = mul %v1, %v2 : Float
+    ret %v3
+}
+
+fn Real.log2(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call log2Of(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn log2Of(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %e = call logExponent(Float, Bool), %value : Float
+    %v2 = call logSignificand(Float, Bool), %value : Float
+    %v3 = call logSeries(Float, Bool), %v2 : Float
+    %v6 = mul %v3, 1.4426950216293335 : Float
+    %answer = add %v6, %e : Float
+    %v8 = call logGuard(Float, Bool), %value, %answer : Float
+    ret %v8
+}
+
+fn Real.sin(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call sineOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn sineOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = mul %value, 0.6366197466850281 : Float
+    %n = round %v3 : Float
+    %v7 = call quadrantIndex(Float, Bool), %n, 0 : Float
+    %v8 = call reducedAngle(Float, Bool), %value, %n : Float
+    %v9 = call quadrantOf(Float, Bool), %v7, %v8 : Float
+    ret %v9
+}
+
+fn quadrantIndex(Float, Bool)(%n: Float, %offset: Float) -> Float {
+  b0:
+    %shifted = add %n, %offset : Float
+    %v5 = mul %shifted, 0.25 : Float
+    %v6 = floor %v5 : Float
+    %v9 = mul 4, %v6 : Float
+    %v10 = sub %shifted, %v9 : Float
+    ret %v10
+}
+
+fn reducedAngle(Float, Bool)(%value: Float, %n: Float) -> Float {
+  b0:
+    %v4 = mul %n, 1.57080078125 : Float
+    %v5 = sub %value, %v4 : Float
+    %v8 = mul %n, 0.000004453584551811218 : Float
+    %v9 = add %v5, %v8 : Float
+    %v12 = mul %n, 8.706138032721356E-10 : Float
+    %v13 = add %v9, %v12 : Float
+    %v16 = mul %n, 6.222800053024002E-14 : Float
+    %v17 = sub %v13, %v16 : Float
+    %v20 = mul %n, 5.7208605257555445E-18 : Float
+    %v21 = sub %v17, %v20 : Float
+    %v24 = mul %n, 3.2818390803041373E-22 : Float
+    %v25 = sub %v21, %v24 : Float
+    ret %v25
+}
+
+fn quadrantOf(Float, Bool)(%quadrant: Float, %r: Float) -> Float {
+  b0:
+    %z = mul %r, %r : Float
+    %v3 = mul %r, %z : Float
+    %v4 = call sineSeries(Float, Bool), %z : Float
+    %v5 = mul %v3, %v4 : Float
+    %sine = sub %r, %v5 : Float
+    %v9 = mul 0.5, %z : Float
+    %v12 = sub 1, %v9 : Float
+    %v13 = mul %z, %z : Float
+    %v14 = call cosineSeries(Float, Bool), %z : Float
+    %v15 = mul %v13, %v14 : Float
+    %cosine = add %v12, %v15 : Float
+    %v19 = cmp_eq %quadrant, 2 : Bool
+    %v22 = sub 0, %sine : Float
+    %v25 = sub 0, %cosine : Float
+    %upper = select %v19 ? %v22 : %v25 : Float
+    %v29 = cmp_eq %quadrant, 0 : Bool
+    %v32 = cmp_eq %quadrant, 1 : Bool
+    %v33 = select %v32 ? %cosine : %upper : Float
+    %v34 = select %v29 ? %sine : %v33 : Float
+    ret %v34
+}
+
+fn sineSeries(Float, Bool)(%z: Float) -> Float {
+  b0:
+    %v3 = mul %z, 1.9572941524685808E-20 : Float
+    %v6 = sub 8.220635078476521E-18, %v3 : Float
+    %v7 = mul %z, %v6 : Float
+    %v10 = sub 2.8114573589663704E-15, %v7 : Float
+    %v11 = mul %z, %v10 : Float
+    %v14 = sub 7.647163609812713E-13, %v11 : Float
+    %v15 = mul %z, %v14 : Float
+    %v18 = sub 1.6059044372074283E-10, %v15 : Float
+    %v19 = mul %z, %v18 : Float
+    %v22 = sub 2.5052107943679403E-8, %v19 : Float
+    %v23 = mul %z, %v22 : Float
+    %v26 = sub 0.0000027557318844628753, %v23 : Float
+    %v27 = mul %z, %v26 : Float
+    %v30 = sub 0.00019841270113829523, %v27 : Float
+    %v31 = mul %z, %v30 : Float
+    %v34 = sub 0.008333333767950535, %v31 : Float
+    %v35 = mul %z, %v34 : Float
+    %v38 = sub 0.1666666716337204, %v35 : Float
+    ret %v38
+}
+
+fn cosineSeries(Float, Bool)(%z: Float) -> Float {
+  b0:
+    %v3 = mul %z, 4.110317590937049E-19 : Float
+    %v6 = sub 1.5619206814541513E-16, %v3 : Float
+    %v7 = mul %z, %v6 : Float
+    %v10 = sub 4.7794772561329454E-14, %v7 : Float
+    %v11 = mul %z, %v10 : Float
+    %v14 = sub 1.147074536050896E-11, %v11 : Float
+    %v15 = mul %z, %v14 : Float
+    %v18 = sub 2.0876755879584152E-9, %v15 : Float
+    %v19 = mul %z, %v18 : Float
+    %v22 = sub 0.0000002755731998149713, %v19 : Float
+    %v23 = mul %z, %v22 : Float
+    %v26 = sub 0.000024801587642286904, %v23 : Float
+    %v27 = mul %z, %v26 : Float
+    %v30 = sub 0.0013888889225199819, %v27 : Float
+    %v31 = mul %z, %v30 : Float
+    %v34 = sub 0.0416666679084301, %v31 : Float
+    ret %v34
+}
+
+fn Real.cos(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call cosineOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn cosineOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = mul %value, 0.6366197466850281 : Float
+    %n = round %v3 : Float
+    %v7 = call quadrantIndex(Float, Bool), %n, 1 : Float
+    %v8 = call reducedAngle(Float, Bool), %value, %n : Float
+    %v9 = call quadrantOf(Float, Bool), %v7, %v8 : Float
+    ret %v9
+}
+
+fn Real.tan(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call tangentOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn tangentOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v3 = mul %value, 0.6366197466850281 : Float
+    %n = round %v3 : Float
+    %r = call reducedAngle(Float, Bool), %value, %n : Float
+    %v8 = call quadrantIndex(Float, Bool), %n, 0 : Float
+    %v9 = call quadrantOf(Float, Bool), %v8, %r : Float
+    %v12 = call quadrantIndex(Float, Bool), %n, 1 : Float
+    %v13 = call quadrantOf(Float, Bool), %v12, %r : Float
+    %v14 = div %v9, %v13 : Float
+    ret %v14
+}
+
+fn Real.atan(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call arcTangentOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn arcTangentOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %size = call magnitudeOf(Float, Bool), %value : Float
+    %v4 = cmp_gt %size, 1 : Bool
+    %v7 = div 1, %size : Float
+    %folded = select %v4 ? %v7 : %size : Float
+    %steep = cmp_gt %folded, 0.2679491937160492 : Bool
+    %v14 = mul %folded, 1.7320507764816284 : Float
+    %v17 = sub %v14, 1 : Float
+    %v20 = add %folded, 1.7320507764816284 : Float
+    %reduced = div %v17, %v20 : Float
+    %v22 = call zeroLike(Float, Bool), %value : Float
+    %base = select %steep ? 0.5235987901687622 : %v22 : Float
+    %v26 = select %steep ? %reduced : %folded : Float
+    %v27 = call arcTangentCore(Float, Bool), %v26 : Float
+    %core = add %base, %v27 : Float
+    %v31 = cmp_gt %size, 1 : Bool
+    %v34 = sub 1.5707963705062866, %core : Float
+    %whole = select %v31 ? %v34 : %core : Float
+    %v38 = cmp_lt %value, 0 : Bool
+    %v41 = sub 0, %whole : Float
+    %v42 = select %v38 ? %v41 : %whole : Float
+    ret %v42
+}
+
+fn arcTangentCore(Float, Bool)(%u: Float) -> Float {
+  b0:
+    %z = mul %u, %u : Float
+    %v2 = mul %u, %z : Float
+    %v3 = call arcTangentSeries(Float, Bool), %z : Float
+    %v4 = mul %v2, %v3 : Float
+    %v5 = sub %u, %v4 : Float
+    ret %v5
+}
+
+fn arcTangentSeries(Float, Bool)(%z: Float) -> Float {
+  b0:
+    %v3 = mul %z, 0.02857142873108387 : Float
+    %v6 = sub 0.03030303120613098, %v3 : Float
+    %v7 = mul %z, %v6 : Float
+    %v10 = sub 0.032258063554763794, %v7 : Float
+    %v11 = mul %z, %v10 : Float
+    %v14 = sub 0.03448275849223137, %v11 : Float
+    %v15 = mul %z, %v14 : Float
+    %v18 = sub 0.03703703731298447, %v15 : Float
+    %v19 = mul %z, %v18 : Float
+    %v22 = sub 0.03999999910593033, %v19 : Float
+    %v23 = mul %z, %v22 : Float
+    %v26 = sub 0.043478261679410934, %v23 : Float
+    %v27 = mul %z, %v26 : Float
+    %v30 = sub 0.0476190485060215, %v27 : Float
+    %v31 = mul %z, %v30 : Float
+    %v34 = sub 0.05263157933950424, %v31 : Float
+    %v35 = mul %z, %v34 : Float
+    %v38 = sub 0.05882352963089943, %v35 : Float
+    %v39 = mul %z, %v38 : Float
+    %v42 = sub 0.06666667014360428, %v39 : Float
+    %v43 = mul %z, %v42 : Float
+    %v46 = sub 0.07692307978868484, %v43 : Float
+    %v47 = mul %z, %v46 : Float
+    %v50 = sub 0.09090909361839294, %v47 : Float
+    %v51 = mul %z, %v50 : Float
+    %v54 = sub 0.1111111119389534, %v51 : Float
+    %v55 = mul %z, %v54 : Float
+    %v58 = sub 0.1428571492433548, %v55 : Float
+    %v59 = mul %z, %v58 : Float
+    %v62 = sub 0.20000000298023224, %v59 : Float
+    %v63 = mul %z, %v62 : Float
+    %v66 = sub 0.3333333432674408, %v63 : Float
+    ret %v66
+}
+
+fn Real.asin(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call arcSineOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn arcSineOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = mul %value, %value : Float
+    %square = sub 1, %v1 : Float
+    %v7 = cmp_lt %square, 0 : Bool
+    %v8 = call zeroLike(Float, Bool), %square : Float
+    %v9 = select %v7 ? %v8 : %square : Float
+    %v10 = sqrt %v9 : Float
+    %v11 = call arcTangent2Of(Float, Bool), %value, %v10 : Float
+    ret %v11
+}
+
+fn arcTangent2Of(Float, Bool)(%y: Float, %x: Float) -> Float {
+  b0:
+    %v2 = div %y, %x : Float
+    %base = call arcTangentOf(Float, Bool), %v2 : Float
+    %v6 = cmp_lt %y, 0 : Bool
+    %v9 = sub %base, 3.1415927410125732 : Float
+    %v12 = add %base, 3.1415927410125732 : Float
+    %shifted = select %v6 ? %v9 : %v12 : Float
+    %v16 = cmp_lt %x, 0 : Bool
+    %general = select %v16 ? %shifted : %base : Float
+    %v20 = cmp_eq %y, 0 : Bool
+    %v21 = call zeroLike(Float, Bool), %y : Float
+    %v24 = call signOfOther(Float, Bool), 1.5707963705062866, %y : Float
+    %vertical = select %v20 ? %v21 : %v24 : Float
+    %v28 = cmp_eq %x, 0 : Bool
+    %v29 = select %v28 ? %vertical : %general : Float
+    ret %v29
+}
+
+fn signOfOther(Float, Bool)(%size: Float, %like: Float) -> Float {
+  b0:
+    %v4 = cmp_lt %like, 0 : Bool
+    %v5 = call magnitudeOf(Float, Bool), %size : Float
+    %v8 = sub 0, %v5 : Float
+    %v9 = call magnitudeOf(Float, Bool), %size : Float
+    %v10 = select %v4 ? %v8 : %v9 : Float
+    ret %v10
+}
+
+fn Real.pow(Float, Bool)(%base: Float, %exponent: Float) -> Float {
+  b0:
+    %v2 = call powerOf(Float, Bool), %base, %exponent : Float
+    ret %v2
+}
+
+fn powerOf(Float, Bool)(%base: Float, %exponent: Float) -> Float {
+  b0:
+    %v2 = call magnitudeOf(Float, Bool), %base : Float
+    %v3 = call log2Of(Float, Bool), %v2 : Float
+    %v4 = mul %exponent, %v3 : Float
+    %size = call exp2Of(Float, Bool), %v4 : Float
+    %v6 = trunc %exponent : Float
+    %whole = cmp_eq %v6, %exponent : Bool
+    %v10 = call modulusOf(Float, Bool), %exponent, 2 : Float
+    %odd = cmp_ne %v10, 0 : Bool
+    %v16 = sub 0, %size : Float
+    %signed = select %odd ? %v16 : %size : Float
+    %v20 = cmp_lt %base, 0 : Bool
+    %v21 = call notANumberLike(Float, Bool), %base : Float
+    %v22 = select %whole ? %signed : %v21 : Float
+    %answer = select %v20 ? %v22 : %size : Float
+    %v26 = cmp_lt %exponent, 0 : Bool
+    %v27 = call infinityLike(Float, Bool), %base : Float
+    %v28 = call zeroLike(Float, Bool), %base : Float
+    %atZero = select %v26 ? %v27 : %v28 : Float
+    %v32 = cmp_eq %exponent, 0 : Bool
+    %v35 = cmp_eq %base, 0 : Bool
+    %v36 = select %v35 ? %atZero : %answer : Float
+    %v39 = select %v32 ? 1 : %v36 : Float
+    ret %v39
+}
+
+fn exp2Of(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %n = round %value : Float
+    %f = sub %value, %n : Float
+    %v5 = mul %f, 0.693115234375 : Float
+    %v8 = mul %f, 0.00003194618329871446 : Float
+    %r = add %v5, %v8 : Float
+    %v10 = call expSeries(Float, Bool), %r : Float
+    %core = call Real(Float, Bool).scaleByExponent, %v10, %n : Float
+    %v12 = call magnitudeOf(Float, Bool), %value : Float
+    %v15 = cmp_gt %v12, 1200 : Bool
+    %v16 = call expSaturated(Float, Bool), %value : Float
+    %v17 = select %v15 ? %v16 : %core : Float
+    ret %v17
+}
+
+fn modulusOf(Float, Bool)(%lhs: Float, %rhs: Float) -> Float {
+  b0:
+    %v2 = div %lhs, %rhs : Float
+    %v3 = trunc %v2 : Float
+    %v4 = mul %v3, %rhs : Float
+    %v5 = sub %lhs, %v4 : Float
+    ret %v5
+}
+
+fn Real.cbrt(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %v1 = call cubeRootOf(Float, Bool), %value : Float
+    ret %v1
+}
+
+fn cubeRootOf(Float, Bool)(%value: Float) -> Float {
+  b0:
+    %size = call magnitudeOf(Float, Bool), %value : Float
+    %v2 = call log2Of(Float, Bool), %size : Float
+    %v5 = mul %v2, 0.3333333432674408 : Float
+    %guess = call exp2Of(Float, Bool), %v5 : Float
+    %v7 = mul %guess, %guess : Float
+    %v8 = div %size, %v7 : Float
+    %v9 = sub %guess, %v8 : Float
+    %v12 = mul %v9, 0.3333333432674408 : Float
+    %once = sub %guess, %v12 : Float
+    %v14 = mul %once, %once : Float
+    %v15 = div %size, %v14 : Float
+    %v16 = sub %once, %v15 : Float
+    %v19 = mul %v16, 0.3333333432674408 : Float
+    %twice = sub %once, %v19 : Float
+    %v23 = cmp_eq %value, 0 : Bool
+    %v24 = call zeroLike(Float, Bool), %value : Float
+    %v25 = call signOfOther(Float, Bool), %twice, %value : Float
+    %v26 = select %v23 ? %v24 : %v25 : Float
+    ret %v26
+}
+
+fn Real.hypot(Float, Bool)(%x: Float, %y: Float) -> Float {
+  b0:
+    %v2 = call hypotenuseOf(Float, Bool), %x, %y : Float
+    ret %v2
+}
+
+fn hypotenuseOf(Float, Bool)(%x: Float, %y: Float) -> Float {
+  b0:
+    %ax = call magnitudeOf(Float, Bool), %x : Float
+    %ay = call magnitudeOf(Float, Bool), %y : Float
+    %v4 = cmp_gt %ax, %ay : Bool
+    %larger = select %v4 ? %ax : %ay : Float
+    %v6 = cmp_gt %ax, %ay : Bool
+    %smaller = select %v6 ? %ay : %ax : Float
+    %ratio = div %smaller, %larger : Float
+    %v11 = cmp_eq %larger, 0 : Bool
+    %v12 = call zeroLike(Float, Bool), %larger : Float
+    %v13 = mul %ratio, %ratio : Float
+    %v16 = add 1, %v13 : Float
+    %v17 = sqrt %v16 : Float
+    %v18 = mul %larger, %v17 : Float
+    %v19 = select %v11 ? %v12 : %v18 : Float
+    ret %v19
+}
+
+fn Real.exp(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call expOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn expOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 1.4426950216293335 : Vec(Float)
+    %v4 = mul %value, %v3 : Vec(Float)
+    %n = round %v4 : Vec(Float)
+    %v8 = vsplat 0.693115234375 : Vec(Float)
+    %v9 = mul %n, %v8 : Vec(Float)
+    %v10 = sub %value, %v9 : Vec(Float)
+    %v13 = vsplat 0.000031948089599609375 : Vec(Float)
+    %v14 = mul %n, %v13 : Vec(Float)
+    %v15 = sub %v10, %v14 : Vec(Float)
+    %v18 = vsplat 1.9044819055125117E-9 : Vec(Float)
+    %v19 = mul %n, %v18 : Vec(Float)
+    %v20 = add %v15, %v19 : Vec(Float)
+    %v23 = vsplat 1.724176357242868E-13 : Vec(Float)
+    %v24 = mul %n, %v23 : Vec(Float)
+    %v25 = add %v20, %v24 : Vec(Float)
+    %v28 = vsplat 2.3188373964033726E-17 : Vec(Float)
+    %v29 = mul %n, %v28 : Vec(Float)
+    %v30 = sub %v25, %v29 : Vec(Float)
+    %v33 = vsplat 2.094421310984266E-21 : Vec(Float)
+    %v34 = mul %n, %v33 : Vec(Float)
+    %r = sub %v30, %v34 : Vec(Float)
+    %v36 = call expSeries(Vec(Float), Mask(Float)), %r : Vec(Float)
+    %core = call Real(Vec(Float), Mask(Float)).scaleByExponent, %v36, %n : Vec(Float)
+    %v38 = call magnitudeOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v41 = vsplat 800 : Vec(Float)
+    %v42 = cmp_gt %v38, %v41 : Mask(Float)
+    %v43 = call expSaturated(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v44 = select %v42 ? %v43 : %core : Vec(Float)
+    ret %v44
+}
+
+fn expSeries(Vec(Float), Mask(Float))(%r: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 4.7794772561329454E-14 : Vec(Float)
+    %v4 = mul %r, %v3 : Vec(Float)
+    %v7 = vsplat 7.647163609812713E-13 : Vec(Float)
+    %v8 = add %v7, %v4 : Vec(Float)
+    %v9 = mul %r, %v8 : Vec(Float)
+    %v12 = vsplat 1.147074536050896E-11 : Vec(Float)
+    %v13 = add %v12, %v9 : Vec(Float)
+    %v14 = mul %r, %v13 : Vec(Float)
+    %v17 = vsplat 1.6059044372074283E-10 : Vec(Float)
+    %v18 = add %v17, %v14 : Vec(Float)
+    %v19 = mul %r, %v18 : Vec(Float)
+    %v22 = vsplat 2.0876755879584152E-9 : Vec(Float)
+    %v23 = add %v22, %v19 : Vec(Float)
+    %v24 = mul %r, %v23 : Vec(Float)
+    %v27 = vsplat 2.5052107943679403E-8 : Vec(Float)
+    %v28 = add %v27, %v24 : Vec(Float)
+    %v29 = mul %r, %v28 : Vec(Float)
+    %v32 = vsplat 0.0000002755731998149713 : Vec(Float)
+    %v33 = add %v32, %v29 : Vec(Float)
+    %v34 = mul %r, %v33 : Vec(Float)
+    %v37 = vsplat 0.0000027557318844628753 : Vec(Float)
+    %v38 = add %v37, %v34 : Vec(Float)
+    %v39 = mul %r, %v38 : Vec(Float)
+    %v42 = vsplat 0.000024801587642286904 : Vec(Float)
+    %v43 = add %v42, %v39 : Vec(Float)
+    %v44 = mul %r, %v43 : Vec(Float)
+    %v47 = vsplat 0.00019841270113829523 : Vec(Float)
+    %v48 = add %v47, %v44 : Vec(Float)
+    %v49 = mul %r, %v48 : Vec(Float)
+    %v52 = vsplat 0.0013888889225199819 : Vec(Float)
+    %v53 = add %v52, %v49 : Vec(Float)
+    %v54 = mul %r, %v53 : Vec(Float)
+    %v57 = vsplat 0.008333333767950535 : Vec(Float)
+    %v58 = add %v57, %v54 : Vec(Float)
+    %v59 = mul %r, %v58 : Vec(Float)
+    %v62 = vsplat 0.0416666679084301 : Vec(Float)
+    %v63 = add %v62, %v59 : Vec(Float)
+    %v64 = mul %r, %v63 : Vec(Float)
+    %v67 = vsplat 0.1666666716337204 : Vec(Float)
+    %v68 = add %v67, %v64 : Vec(Float)
+    %v69 = mul %r, %v68 : Vec(Float)
+    %v72 = vsplat 0.5 : Vec(Float)
+    %tail = add %v72, %v69 : Vec(Float)
+    %v76 = vsplat 1 : Vec(Float)
+    %v77 = add %v76, %r : Vec(Float)
+    %v78 = mul %r, %r : Vec(Float)
+    %v79 = mul %v78, %tail : Vec(Float)
+    %v80 = add %v77, %v79 : Vec(Float)
+    ret %v80
+}
+
+fn magnitudeOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0 : Vec(Float)
+    %v4 = cmp_le %value, %v3 : Mask(Float)
+    %v7 = vsplat 0 : Vec(Float)
+    %v8 = sub %v7, %value : Vec(Float)
+    %v9 = select %v4 ? %v8 : %value : Vec(Float)
+    ret %v9
+}
+
+fn expSaturated(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0 : Vec(Float)
+    %v4 = cmp_gt %value, %v3 : Mask(Float)
+    %v5 = call infinityLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v6 = call zeroLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v7 = select %v4 ? %v5 : %v6 : Vec(Float)
+    ret %v7
+}
+
+fn infinityLike(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call Real(Vec(Float), Mask(Float)).infinity : Vec(Float)
+    ret %v1
+}
+
+fn zeroLike(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0 : Vec(Float)
+    %v4 = mul %value, %v3 : Vec(Float)
+    %v5 = call magnitudeOf(Vec(Float), Mask(Float)), %v4 : Vec(Float)
+    ret %v5
+}
+
+fn Real.log(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call logOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn logOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %e = call logExponent(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v2 = call logSignificand(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %series = call logSeries(Vec(Float), Mask(Float)), %v2 : Vec(Float)
+    %v6 = vsplat 0.693115234375 : Vec(Float)
+    %v7 = mul %e, %v6 : Vec(Float)
+    %v8 = add %series, %v7 : Vec(Float)
+    %v11 = vsplat 0.00003194618329871446 : Vec(Float)
+    %v12 = mul %e, %v11 : Vec(Float)
+    %answer = add %v8, %v12 : Vec(Float)
+    %v14 = call logGuard(Vec(Float), Mask(Float)), %value, %answer : Vec(Float)
+    ret %v14
+}
+
+fn logExponent(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %raw = call Real(Vec(Float), Mask(Float)).exponentOf, %value : Vec(Float)
+    %v2 = call Real(Vec(Float), Mask(Float)).significandOf, %value : Vec(Float)
+    %v5 = vsplat 1.4142135381698608 : Vec(Float)
+    %v6 = cmp_gt %v2, %v5 : Mask(Float)
+    %v9 = vsplat 1 : Vec(Float)
+    %v10 = add %raw, %v9 : Vec(Float)
+    %v11 = select %v6 ? %v10 : %raw : Vec(Float)
+    ret %v11
+}
+
+fn logSignificand(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %raw = call Real(Vec(Float), Mask(Float)).significandOf, %value : Vec(Float)
+    %v4 = vsplat 1.4142135381698608 : Vec(Float)
+    %v5 = cmp_gt %raw, %v4 : Mask(Float)
+    %v8 = vsplat 0.5 : Vec(Float)
+    %v9 = mul %raw, %v8 : Vec(Float)
+    %v10 = select %v5 ? %v9 : %raw : Vec(Float)
+    ret %v10
+}
+
+fn logSeries(Vec(Float), Mask(Float))(%significand: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 1 : Vec(Float)
+    %v4 = sub %significand, %v3 : Vec(Float)
+    %v7 = vsplat 1 : Vec(Float)
+    %v8 = add %significand, %v7 : Vec(Float)
+    %s = div %v4, %v8 : Vec(Float)
+    %z = mul %s, %s : Vec(Float)
+    %v13 = vsplat 0.03999999910593033 : Vec(Float)
+    %v14 = mul %z, %v13 : Vec(Float)
+    %v17 = vsplat 0.043478261679410934 : Vec(Float)
+    %v18 = add %v17, %v14 : Vec(Float)
+    %v19 = mul %z, %v18 : Vec(Float)
+    %v22 = vsplat 0.0476190485060215 : Vec(Float)
+    %v23 = add %v22, %v19 : Vec(Float)
+    %v24 = mul %z, %v23 : Vec(Float)
+    %v27 = vsplat 0.05263157933950424 : Vec(Float)
+    %v28 = add %v27, %v24 : Vec(Float)
+    %v29 = mul %z, %v28 : Vec(Float)
+    %v32 = vsplat 0.05882352963089943 : Vec(Float)
+    %v33 = add %v32, %v29 : Vec(Float)
+    %v34 = mul %z, %v33 : Vec(Float)
+    %v37 = vsplat 0.06666667014360428 : Vec(Float)
+    %v38 = add %v37, %v34 : Vec(Float)
+    %v39 = mul %z, %v38 : Vec(Float)
+    %v42 = vsplat 0.07692307978868484 : Vec(Float)
+    %v43 = add %v42, %v39 : Vec(Float)
+    %v44 = mul %z, %v43 : Vec(Float)
+    %v47 = vsplat 0.09090909361839294 : Vec(Float)
+    %v48 = add %v47, %v44 : Vec(Float)
+    %v49 = mul %z, %v48 : Vec(Float)
+    %v52 = vsplat 0.1111111119389534 : Vec(Float)
+    %v53 = add %v52, %v49 : Vec(Float)
+    %v54 = mul %z, %v53 : Vec(Float)
+    %v57 = vsplat 0.1428571492433548 : Vec(Float)
+    %v58 = add %v57, %v54 : Vec(Float)
+    %v59 = mul %z, %v58 : Vec(Float)
+    %v62 = vsplat 0.20000000298023224 : Vec(Float)
+    %v63 = add %v62, %v59 : Vec(Float)
+    %v64 = mul %z, %v63 : Vec(Float)
+    %v67 = vsplat 0.3333333432674408 : Vec(Float)
+    %tail = add %v67, %v64 : Vec(Float)
+    %v71 = vsplat 2 : Vec(Float)
+    %v72 = mul %v71, %s : Vec(Float)
+    %v75 = vsplat 2 : Vec(Float)
+    %v76 = mul %v75, %s : Vec(Float)
+    %v77 = mul %v76, %z : Vec(Float)
+    %v78 = mul %v77, %tail : Vec(Float)
+    %v79 = add %v72, %v78 : Vec(Float)
+    ret %v79
+}
+
+fn logGuard(Vec(Float), Mask(Float))(%value: Vec(Float), %answer: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v2 = call infinityLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %atZero = sub %value, %v2 : Vec(Float)
+    %v6 = vsplat 0 : Vec(Float)
+    %v7 = cmp_gt %value, %v6 : Mask(Float)
+    %v10 = vsplat 0 : Vec(Float)
+    %v11 = cmp_eq %value, %v10 : Mask(Float)
+    %v12 = call notANumberLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v13 = select %v11 ? %atZero : %v12 : Vec(Float)
+    %v14 = select %v7 ? %answer : %v13 : Vec(Float)
+    ret %v14
+}
+
+fn notANumberLike(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call zeroLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v2 = call infinityLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v3 = mul %v1, %v2 : Vec(Float)
+    ret %v3
+}
+
+fn Real.sin(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call sineOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn sineOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0.6366197466850281 : Vec(Float)
+    %v4 = mul %value, %v3 : Vec(Float)
+    %n = round %v4 : Vec(Float)
+    %v8 = vsplat 0 : Vec(Float)
+    %v9 = call quadrantIndex(Vec(Float), Mask(Float)), %n, %v8 : Vec(Float)
+    %v10 = call reducedAngle(Vec(Float), Mask(Float)), %value, %n : Vec(Float)
+    %v11 = call quadrantOf(Vec(Float), Mask(Float)), %v9, %v10 : Vec(Float)
+    ret %v11
+}
+
+fn quadrantIndex(Vec(Float), Mask(Float))(%n: Vec(Float), %offset: Vec(Float)) -> Vec(Float) {
+  b0:
+    %shifted = add %n, %offset : Vec(Float)
+    %v5 = vsplat 0.25 : Vec(Float)
+    %v6 = mul %shifted, %v5 : Vec(Float)
+    %v7 = floor %v6 : Vec(Float)
+    %v10 = vsplat 4 : Vec(Float)
+    %v11 = mul %v10, %v7 : Vec(Float)
+    %v12 = sub %shifted, %v11 : Vec(Float)
+    ret %v12
+}
+
+fn reducedAngle(Vec(Float), Mask(Float))(%value: Vec(Float), %n: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v4 = vsplat 1.57080078125 : Vec(Float)
+    %v5 = mul %n, %v4 : Vec(Float)
+    %v6 = sub %value, %v5 : Vec(Float)
+    %v9 = vsplat 0.000004453584551811218 : Vec(Float)
+    %v10 = mul %n, %v9 : Vec(Float)
+    %v11 = add %v6, %v10 : Vec(Float)
+    %v14 = vsplat 8.706138032721356E-10 : Vec(Float)
+    %v15 = mul %n, %v14 : Vec(Float)
+    %v16 = add %v11, %v15 : Vec(Float)
+    %v19 = vsplat 6.222800053024002E-14 : Vec(Float)
+    %v20 = mul %n, %v19 : Vec(Float)
+    %v21 = sub %v16, %v20 : Vec(Float)
+    %v24 = vsplat 5.7208605257555445E-18 : Vec(Float)
+    %v25 = mul %n, %v24 : Vec(Float)
+    %v26 = sub %v21, %v25 : Vec(Float)
+    %v29 = vsplat 3.2818390803041373E-22 : Vec(Float)
+    %v30 = mul %n, %v29 : Vec(Float)
+    %v31 = sub %v26, %v30 : Vec(Float)
+    ret %v31
+}
+
+fn quadrantOf(Vec(Float), Mask(Float))(%quadrant: Vec(Float), %r: Vec(Float)) -> Vec(Float) {
+  b0:
+    %z = mul %r, %r : Vec(Float)
+    %v3 = mul %r, %z : Vec(Float)
+    %v4 = call sineSeries(Vec(Float), Mask(Float)), %z : Vec(Float)
+    %v5 = mul %v3, %v4 : Vec(Float)
+    %sine = sub %r, %v5 : Vec(Float)
+    %v9 = vsplat 0.5 : Vec(Float)
+    %v10 = mul %v9, %z : Vec(Float)
+    %v13 = vsplat 1 : Vec(Float)
+    %v14 = sub %v13, %v10 : Vec(Float)
+    %v15 = mul %z, %z : Vec(Float)
+    %v16 = call cosineSeries(Vec(Float), Mask(Float)), %z : Vec(Float)
+    %v17 = mul %v15, %v16 : Vec(Float)
+    %cosine = add %v14, %v17 : Vec(Float)
+    %v21 = vsplat 2 : Vec(Float)
+    %v22 = cmp_eq %quadrant, %v21 : Mask(Float)
+    %v25 = vsplat 0 : Vec(Float)
+    %v26 = sub %v25, %sine : Vec(Float)
+    %v29 = vsplat 0 : Vec(Float)
+    %v30 = sub %v29, %cosine : Vec(Float)
+    %upper = select %v22 ? %v26 : %v30 : Vec(Float)
+    %v34 = vsplat 0 : Vec(Float)
+    %v35 = cmp_eq %quadrant, %v34 : Mask(Float)
+    %v38 = vsplat 1 : Vec(Float)
+    %v39 = cmp_eq %quadrant, %v38 : Mask(Float)
+    %v40 = select %v39 ? %cosine : %upper : Vec(Float)
+    %v41 = select %v35 ? %sine : %v40 : Vec(Float)
+    ret %v41
+}
+
+fn sineSeries(Vec(Float), Mask(Float))(%z: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 1.9572941524685808E-20 : Vec(Float)
+    %v4 = mul %z, %v3 : Vec(Float)
+    %v7 = vsplat 8.220635078476521E-18 : Vec(Float)
+    %v8 = sub %v7, %v4 : Vec(Float)
+    %v9 = mul %z, %v8 : Vec(Float)
+    %v12 = vsplat 2.8114573589663704E-15 : Vec(Float)
+    %v13 = sub %v12, %v9 : Vec(Float)
+    %v14 = mul %z, %v13 : Vec(Float)
+    %v17 = vsplat 7.647163609812713E-13 : Vec(Float)
+    %v18 = sub %v17, %v14 : Vec(Float)
+    %v19 = mul %z, %v18 : Vec(Float)
+    %v22 = vsplat 1.6059044372074283E-10 : Vec(Float)
+    %v23 = sub %v22, %v19 : Vec(Float)
+    %v24 = mul %z, %v23 : Vec(Float)
+    %v27 = vsplat 2.5052107943679403E-8 : Vec(Float)
+    %v28 = sub %v27, %v24 : Vec(Float)
+    %v29 = mul %z, %v28 : Vec(Float)
+    %v32 = vsplat 0.0000027557318844628753 : Vec(Float)
+    %v33 = sub %v32, %v29 : Vec(Float)
+    %v34 = mul %z, %v33 : Vec(Float)
+    %v37 = vsplat 0.00019841270113829523 : Vec(Float)
+    %v38 = sub %v37, %v34 : Vec(Float)
+    %v39 = mul %z, %v38 : Vec(Float)
+    %v42 = vsplat 0.008333333767950535 : Vec(Float)
+    %v43 = sub %v42, %v39 : Vec(Float)
+    %v44 = mul %z, %v43 : Vec(Float)
+    %v47 = vsplat 0.1666666716337204 : Vec(Float)
+    %v48 = sub %v47, %v44 : Vec(Float)
+    ret %v48
+}
+
+fn cosineSeries(Vec(Float), Mask(Float))(%z: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 4.110317590937049E-19 : Vec(Float)
+    %v4 = mul %z, %v3 : Vec(Float)
+    %v7 = vsplat 1.5619206814541513E-16 : Vec(Float)
+    %v8 = sub %v7, %v4 : Vec(Float)
+    %v9 = mul %z, %v8 : Vec(Float)
+    %v12 = vsplat 4.7794772561329454E-14 : Vec(Float)
+    %v13 = sub %v12, %v9 : Vec(Float)
+    %v14 = mul %z, %v13 : Vec(Float)
+    %v17 = vsplat 1.147074536050896E-11 : Vec(Float)
+    %v18 = sub %v17, %v14 : Vec(Float)
+    %v19 = mul %z, %v18 : Vec(Float)
+    %v22 = vsplat 2.0876755879584152E-9 : Vec(Float)
+    %v23 = sub %v22, %v19 : Vec(Float)
+    %v24 = mul %z, %v23 : Vec(Float)
+    %v27 = vsplat 0.0000002755731998149713 : Vec(Float)
+    %v28 = sub %v27, %v24 : Vec(Float)
+    %v29 = mul %z, %v28 : Vec(Float)
+    %v32 = vsplat 0.000024801587642286904 : Vec(Float)
+    %v33 = sub %v32, %v29 : Vec(Float)
+    %v34 = mul %z, %v33 : Vec(Float)
+    %v37 = vsplat 0.0013888889225199819 : Vec(Float)
+    %v38 = sub %v37, %v34 : Vec(Float)
+    %v39 = mul %z, %v38 : Vec(Float)
+    %v42 = vsplat 0.0416666679084301 : Vec(Float)
+    %v43 = sub %v42, %v39 : Vec(Float)
+    ret %v43
+}
+
+fn Real.cos(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call cosineOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn cosineOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0.6366197466850281 : Vec(Float)
+    %v4 = mul %value, %v3 : Vec(Float)
+    %n = round %v4 : Vec(Float)
+    %v8 = vsplat 1 : Vec(Float)
+    %v9 = call quadrantIndex(Vec(Float), Mask(Float)), %n, %v8 : Vec(Float)
+    %v10 = call reducedAngle(Vec(Float), Mask(Float)), %value, %n : Vec(Float)
+    %v11 = call quadrantOf(Vec(Float), Mask(Float)), %v9, %v10 : Vec(Float)
+    ret %v11
+}
+
+fn Real.atan(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call arcTangentOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn arcTangentOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %size = call magnitudeOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v4 = vsplat 1 : Vec(Float)
+    %v5 = cmp_gt %size, %v4 : Mask(Float)
+    %v8 = vsplat 1 : Vec(Float)
+    %v9 = div %v8, %size : Vec(Float)
+    %folded = select %v5 ? %v9 : %size : Vec(Float)
+    %v13 = vsplat 0.2679491937160492 : Vec(Float)
+    %steep = cmp_gt %folded, %v13 : Mask(Float)
+    %v17 = vsplat 1.7320507764816284 : Vec(Float)
+    %v18 = mul %folded, %v17 : Vec(Float)
+    %v21 = vsplat 1 : Vec(Float)
+    %v22 = sub %v18, %v21 : Vec(Float)
+    %v25 = vsplat 1.7320507764816284 : Vec(Float)
+    %v26 = add %folded, %v25 : Vec(Float)
+    %reduced = div %v22, %v26 : Vec(Float)
+    %v28 = call zeroLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v31 = vsplat 0.5235987901687622 : Vec(Float)
+    %base = select %steep ? %v31 : %v28 : Vec(Float)
+    %v33 = select %steep ? %reduced : %folded : Vec(Float)
+    %v34 = call arcTangentCore(Vec(Float), Mask(Float)), %v33 : Vec(Float)
+    %core = add %base, %v34 : Vec(Float)
+    %v38 = vsplat 1 : Vec(Float)
+    %v39 = cmp_gt %size, %v38 : Mask(Float)
+    %v42 = vsplat 1.5707963705062866 : Vec(Float)
+    %v43 = sub %v42, %core : Vec(Float)
+    %whole = select %v39 ? %v43 : %core : Vec(Float)
+    %v47 = vsplat 0 : Vec(Float)
+    %v48 = cmp_lt %value, %v47 : Mask(Float)
+    %v51 = vsplat 0 : Vec(Float)
+    %v52 = sub %v51, %whole : Vec(Float)
+    %v53 = select %v48 ? %v52 : %whole : Vec(Float)
+    ret %v53
+}
+
+fn arcTangentCore(Vec(Float), Mask(Float))(%u: Vec(Float)) -> Vec(Float) {
+  b0:
+    %z = mul %u, %u : Vec(Float)
+    %v2 = mul %u, %z : Vec(Float)
+    %v3 = call arcTangentSeries(Vec(Float), Mask(Float)), %z : Vec(Float)
+    %v4 = mul %v2, %v3 : Vec(Float)
+    %v5 = sub %u, %v4 : Vec(Float)
+    ret %v5
+}
+
+fn arcTangentSeries(Vec(Float), Mask(Float))(%z: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v3 = vsplat 0.02857142873108387 : Vec(Float)
+    %v4 = mul %z, %v3 : Vec(Float)
+    %v7 = vsplat 0.03030303120613098 : Vec(Float)
+    %v8 = sub %v7, %v4 : Vec(Float)
+    %v9 = mul %z, %v8 : Vec(Float)
+    %v12 = vsplat 0.032258063554763794 : Vec(Float)
+    %v13 = sub %v12, %v9 : Vec(Float)
+    %v14 = mul %z, %v13 : Vec(Float)
+    %v17 = vsplat 0.03448275849223137 : Vec(Float)
+    %v18 = sub %v17, %v14 : Vec(Float)
+    %v19 = mul %z, %v18 : Vec(Float)
+    %v22 = vsplat 0.03703703731298447 : Vec(Float)
+    %v23 = sub %v22, %v19 : Vec(Float)
+    %v24 = mul %z, %v23 : Vec(Float)
+    %v27 = vsplat 0.03999999910593033 : Vec(Float)
+    %v28 = sub %v27, %v24 : Vec(Float)
+    %v29 = mul %z, %v28 : Vec(Float)
+    %v32 = vsplat 0.043478261679410934 : Vec(Float)
+    %v33 = sub %v32, %v29 : Vec(Float)
+    %v34 = mul %z, %v33 : Vec(Float)
+    %v37 = vsplat 0.0476190485060215 : Vec(Float)
+    %v38 = sub %v37, %v34 : Vec(Float)
+    %v39 = mul %z, %v38 : Vec(Float)
+    %v42 = vsplat 0.05263157933950424 : Vec(Float)
+    %v43 = sub %v42, %v39 : Vec(Float)
+    %v44 = mul %z, %v43 : Vec(Float)
+    %v47 = vsplat 0.05882352963089943 : Vec(Float)
+    %v48 = sub %v47, %v44 : Vec(Float)
+    %v49 = mul %z, %v48 : Vec(Float)
+    %v52 = vsplat 0.06666667014360428 : Vec(Float)
+    %v53 = sub %v52, %v49 : Vec(Float)
+    %v54 = mul %z, %v53 : Vec(Float)
+    %v57 = vsplat 0.07692307978868484 : Vec(Float)
+    %v58 = sub %v57, %v54 : Vec(Float)
+    %v59 = mul %z, %v58 : Vec(Float)
+    %v62 = vsplat 0.09090909361839294 : Vec(Float)
+    %v63 = sub %v62, %v59 : Vec(Float)
+    %v64 = mul %z, %v63 : Vec(Float)
+    %v67 = vsplat 0.1111111119389534 : Vec(Float)
+    %v68 = sub %v67, %v64 : Vec(Float)
+    %v69 = mul %z, %v68 : Vec(Float)
+    %v72 = vsplat 0.1428571492433548 : Vec(Float)
+    %v73 = sub %v72, %v69 : Vec(Float)
+    %v74 = mul %z, %v73 : Vec(Float)
+    %v77 = vsplat 0.20000000298023224 : Vec(Float)
+    %v78 = sub %v77, %v74 : Vec(Float)
+    %v79 = mul %z, %v78 : Vec(Float)
+    %v82 = vsplat 0.3333333432674408 : Vec(Float)
+    %v83 = sub %v82, %v79 : Vec(Float)
+    ret %v83
+}
+
+fn Real.asin(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call arcSineOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn arcSineOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = mul %value, %value : Vec(Float)
+    %v4 = vsplat 1 : Vec(Float)
+    %square = sub %v4, %v1 : Vec(Float)
+    %v8 = vsplat 0 : Vec(Float)
+    %v9 = cmp_lt %square, %v8 : Mask(Float)
+    %v10 = call zeroLike(Vec(Float), Mask(Float)), %square : Vec(Float)
+    %v11 = select %v9 ? %v10 : %square : Vec(Float)
+    %v12 = sqrt %v11 : Vec(Float)
+    %v13 = call arcTangent2Of(Vec(Float), Mask(Float)), %value, %v12 : Vec(Float)
+    ret %v13
+}
+
+fn arcTangent2Of(Vec(Float), Mask(Float))(%y: Vec(Float), %x: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v2 = div %y, %x : Vec(Float)
+    %base = call arcTangentOf(Vec(Float), Mask(Float)), %v2 : Vec(Float)
+    %v6 = vsplat 0 : Vec(Float)
+    %v7 = cmp_lt %y, %v6 : Mask(Float)
+    %v10 = vsplat 3.1415927410125732 : Vec(Float)
+    %v11 = sub %base, %v10 : Vec(Float)
+    %v14 = vsplat 3.1415927410125732 : Vec(Float)
+    %v15 = add %base, %v14 : Vec(Float)
+    %shifted = select %v7 ? %v11 : %v15 : Vec(Float)
+    %v19 = vsplat 0 : Vec(Float)
+    %v20 = cmp_lt %x, %v19 : Mask(Float)
+    %general = select %v20 ? %shifted : %base : Vec(Float)
+    %v24 = vsplat 0 : Vec(Float)
+    %v25 = cmp_eq %y, %v24 : Mask(Float)
+    %v26 = call zeroLike(Vec(Float), Mask(Float)), %y : Vec(Float)
+    %v29 = vsplat 1.5707963705062866 : Vec(Float)
+    %v30 = call signOfOther(Vec(Float), Mask(Float)), %v29, %y : Vec(Float)
+    %vertical = select %v25 ? %v26 : %v30 : Vec(Float)
+    %v34 = vsplat 0 : Vec(Float)
+    %v35 = cmp_eq %x, %v34 : Mask(Float)
+    %v36 = select %v35 ? %vertical : %general : Vec(Float)
+    ret %v36
+}
+
+fn signOfOther(Vec(Float), Mask(Float))(%size: Vec(Float), %like: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v4 = vsplat 0 : Vec(Float)
+    %v5 = cmp_lt %like, %v4 : Mask(Float)
+    %v6 = call magnitudeOf(Vec(Float), Mask(Float)), %size : Vec(Float)
+    %v9 = vsplat 0 : Vec(Float)
+    %v10 = sub %v9, %v6 : Vec(Float)
+    %v11 = call magnitudeOf(Vec(Float), Mask(Float)), %size : Vec(Float)
+    %v12 = select %v5 ? %v10 : %v11 : Vec(Float)
+    ret %v12
+}
+
+fn Real.pow(Vec(Float), Mask(Float))(%base: Vec(Float), %exponent: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v2 = call powerOf(Vec(Float), Mask(Float)), %base, %exponent : Vec(Float)
+    ret %v2
+}
+
+fn powerOf(Vec(Float), Mask(Float))(%base: Vec(Float), %exponent: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v2 = call magnitudeOf(Vec(Float), Mask(Float)), %base : Vec(Float)
+    %v3 = call log2Of(Vec(Float), Mask(Float)), %v2 : Vec(Float)
+    %v4 = mul %exponent, %v3 : Vec(Float)
+    %size = call exp2Of(Vec(Float), Mask(Float)), %v4 : Vec(Float)
+    %v6 = trunc %exponent : Vec(Float)
+    %whole = cmp_eq %v6, %exponent : Mask(Float)
+    %v10 = vsplat 2 : Vec(Float)
+    %v11 = call modulusOf(Vec(Float), Mask(Float)), %exponent, %v10 : Vec(Float)
+    %v14 = vsplat 0 : Vec(Float)
+    %odd = cmp_ne %v11, %v14 : Mask(Float)
+    %v18 = vsplat 0 : Vec(Float)
+    %v19 = sub %v18, %size : Vec(Float)
+    %signed = select %odd ? %v19 : %size : Vec(Float)
+    %v23 = vsplat 0 : Vec(Float)
+    %v24 = cmp_lt %base, %v23 : Mask(Float)
+    %v25 = call notANumberLike(Vec(Float), Mask(Float)), %base : Vec(Float)
+    %v26 = select %whole ? %signed : %v25 : Vec(Float)
+    %answer = select %v24 ? %v26 : %size : Vec(Float)
+    %v30 = vsplat 0 : Vec(Float)
+    %v31 = cmp_lt %exponent, %v30 : Mask(Float)
+    %v32 = call infinityLike(Vec(Float), Mask(Float)), %base : Vec(Float)
+    %v33 = call zeroLike(Vec(Float), Mask(Float)), %base : Vec(Float)
+    %atZero = select %v31 ? %v32 : %v33 : Vec(Float)
+    %v37 = vsplat 0 : Vec(Float)
+    %v38 = cmp_eq %exponent, %v37 : Mask(Float)
+    %v41 = vsplat 0 : Vec(Float)
+    %v42 = cmp_eq %base, %v41 : Mask(Float)
+    %v43 = select %v42 ? %atZero : %answer : Vec(Float)
+    %v46 = vsplat 1 : Vec(Float)
+    %v47 = select %v38 ? %v46 : %v43 : Vec(Float)
+    ret %v47
+}
+
+fn log2Of(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %e = call logExponent(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v2 = call logSignificand(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v3 = call logSeries(Vec(Float), Mask(Float)), %v2 : Vec(Float)
+    %v6 = vsplat 1.4426950216293335 : Vec(Float)
+    %v7 = mul %v3, %v6 : Vec(Float)
+    %answer = add %v7, %e : Vec(Float)
+    %v9 = call logGuard(Vec(Float), Mask(Float)), %value, %answer : Vec(Float)
+    ret %v9
+}
+
+fn exp2Of(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %n = round %value : Vec(Float)
+    %f = sub %value, %n : Vec(Float)
+    %v5 = vsplat 0.693115234375 : Vec(Float)
+    %v6 = mul %f, %v5 : Vec(Float)
+    %v9 = vsplat 0.00003194618329871446 : Vec(Float)
+    %v10 = mul %f, %v9 : Vec(Float)
+    %r = add %v6, %v10 : Vec(Float)
+    %v12 = call expSeries(Vec(Float), Mask(Float)), %r : Vec(Float)
+    %core = call Real(Vec(Float), Mask(Float)).scaleByExponent, %v12, %n : Vec(Float)
+    %v14 = call magnitudeOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v17 = vsplat 1200 : Vec(Float)
+    %v18 = cmp_gt %v14, %v17 : Mask(Float)
+    %v19 = call expSaturated(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v20 = select %v18 ? %v19 : %core : Vec(Float)
+    ret %v20
+}
+
+fn modulusOf(Vec(Float), Mask(Float))(%lhs: Vec(Float), %rhs: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v2 = div %lhs, %rhs : Vec(Float)
+    %v3 = trunc %v2 : Vec(Float)
+    %v4 = mul %v3, %rhs : Vec(Float)
+    %v5 = sub %lhs, %v4 : Vec(Float)
+    ret %v5
+}
+
+fn Real.cbrt(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call cubeRootOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn cubeRootOf(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %size = call magnitudeOf(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v2 = call log2Of(Vec(Float), Mask(Float)), %size : Vec(Float)
+    %v5 = vsplat 0.3333333432674408 : Vec(Float)
+    %v6 = mul %v2, %v5 : Vec(Float)
+    %guess = call exp2Of(Vec(Float), Mask(Float)), %v6 : Vec(Float)
+    %v8 = mul %guess, %guess : Vec(Float)
+    %v9 = div %size, %v8 : Vec(Float)
+    %v10 = sub %guess, %v9 : Vec(Float)
+    %v13 = vsplat 0.3333333432674408 : Vec(Float)
+    %v14 = mul %v10, %v13 : Vec(Float)
+    %once = sub %guess, %v14 : Vec(Float)
+    %v16 = mul %once, %once : Vec(Float)
+    %v17 = div %size, %v16 : Vec(Float)
+    %v18 = sub %once, %v17 : Vec(Float)
+    %v21 = vsplat 0.3333333432674408 : Vec(Float)
+    %v22 = mul %v18, %v21 : Vec(Float)
+    %twice = sub %once, %v22 : Vec(Float)
+    %v26 = vsplat 0 : Vec(Float)
+    %v27 = cmp_eq %value, %v26 : Mask(Float)
+    %v28 = call zeroLike(Vec(Float), Mask(Float)), %value : Vec(Float)
+    %v29 = call signOfOther(Vec(Float), Mask(Float)), %twice, %value : Vec(Float)
+    %v30 = select %v27 ? %v28 : %v29 : Vec(Float)
+    ret %v30
+}
+
+fn Real.exp2(Vec(Float), Mask(Float))(%value: Vec(Float)) -> Vec(Float) {
+  b0:
+    %v1 = call exp2Of(Vec(Float), Mask(Float)), %value : Vec(Float)
+    ret %v1
+}
+
+fn Real.exp(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = call expOf(Vec(Double), Mask(Double)), %value : Vec(Double)
+    ret %v1
+}
+
+fn expOf(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 1.4426950408889634 : Vec(Double)
+    %v4 = mul %value, %v3 : Vec(Double)
+    %n = round %v4 : Vec(Double)
+    %v8 = vsplat 0.693115234375 : Vec(Double)
+    %v9 = mul %n, %v8 : Vec(Double)
+    %v10 = sub %value, %v9 : Vec(Double)
+    %v13 = vsplat 0.000031948089599609375 : Vec(Double)
+    %v14 = mul %n, %v13 : Vec(Double)
+    %v15 = sub %v10, %v14 : Vec(Double)
+    %v18 = vsplat 1.9044819055125117E-9 : Vec(Double)
+    %v19 = mul %n, %v18 : Vec(Double)
+    %v20 = add %v15, %v19 : Vec(Double)
+    %v23 = vsplat 1.724176357242868E-13 : Vec(Double)
+    %v24 = mul %n, %v23 : Vec(Double)
+    %v25 = add %v20, %v24 : Vec(Double)
+    %v28 = vsplat 2.3188373964033726E-17 : Vec(Double)
+    %v29 = mul %n, %v28 : Vec(Double)
+    %v30 = sub %v25, %v29 : Vec(Double)
+    %v33 = vsplat 2.094421310984266E-21 : Vec(Double)
+    %v34 = mul %n, %v33 : Vec(Double)
+    %r = sub %v30, %v34 : Vec(Double)
+    %v36 = call expSeries(Vec(Double), Mask(Double)), %r : Vec(Double)
+    %core = call Real(Vec(Double), Mask(Double)).scaleByExponent, %v36, %n : Vec(Double)
+    %v38 = call magnitudeOf(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v41 = vsplat 800 : Vec(Double)
+    %v42 = cmp_gt %v38, %v41 : Mask(Double)
+    %v43 = call expSaturated(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v44 = select %v42 ? %v43 : %core : Vec(Double)
+    ret %v44
+}
+
+fn expSeries(Vec(Double), Mask(Double))(%r: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 4.779477332387385E-14 : Vec(Double)
+    %v4 = mul %r, %v3 : Vec(Double)
+    %v7 = vsplat 7.647163731819816E-13 : Vec(Double)
+    %v8 = add %v7, %v4 : Vec(Double)
+    %v9 = mul %r, %v8 : Vec(Double)
+    %v12 = vsplat 1.1470745597729725E-11 : Vec(Double)
+    %v13 = add %v12, %v9 : Vec(Double)
+    %v14 = mul %r, %v13 : Vec(Double)
+    %v17 = vsplat 1.6059043836821616E-10 : Vec(Double)
+    %v18 = add %v17, %v14 : Vec(Double)
+    %v19 = mul %r, %v18 : Vec(Double)
+    %v22 = vsplat 2.08767569878681E-9 : Vec(Double)
+    %v23 = add %v22, %v19 : Vec(Double)
+    %v24 = mul %r, %v23 : Vec(Double)
+    %v27 = vsplat 2.505210838544172E-8 : Vec(Double)
+    %v28 = add %v27, %v24 : Vec(Double)
+    %v29 = mul %r, %v28 : Vec(Double)
+    %v32 = vsplat 0.00000027557319223985894 : Vec(Double)
+    %v33 = add %v32, %v29 : Vec(Double)
+    %v34 = mul %r, %v33 : Vec(Double)
+    %v37 = vsplat 0.0000027557319223985893 : Vec(Double)
+    %v38 = add %v37, %v34 : Vec(Double)
+    %v39 = mul %r, %v38 : Vec(Double)
+    %v42 = vsplat 0.0000248015873015873 : Vec(Double)
+    %v43 = add %v42, %v39 : Vec(Double)
+    %v44 = mul %r, %v43 : Vec(Double)
+    %v47 = vsplat 0.0001984126984126984 : Vec(Double)
+    %v48 = add %v47, %v44 : Vec(Double)
+    %v49 = mul %r, %v48 : Vec(Double)
+    %v52 = vsplat 0.001388888888888889 : Vec(Double)
+    %v53 = add %v52, %v49 : Vec(Double)
+    %v54 = mul %r, %v53 : Vec(Double)
+    %v57 = vsplat 0.008333333333333333 : Vec(Double)
+    %v58 = add %v57, %v54 : Vec(Double)
+    %v59 = mul %r, %v58 : Vec(Double)
+    %v62 = vsplat 0.041666666666666664 : Vec(Double)
+    %v63 = add %v62, %v59 : Vec(Double)
+    %v64 = mul %r, %v63 : Vec(Double)
+    %v67 = vsplat 0.16666666666666666 : Vec(Double)
+    %v68 = add %v67, %v64 : Vec(Double)
+    %v69 = mul %r, %v68 : Vec(Double)
+    %v72 = vsplat 0.5 : Vec(Double)
+    %tail = add %v72, %v69 : Vec(Double)
+    %v76 = vsplat 1 : Vec(Double)
+    %v77 = add %v76, %r : Vec(Double)
+    %v78 = mul %r, %r : Vec(Double)
+    %v79 = mul %v78, %tail : Vec(Double)
+    %v80 = add %v77, %v79 : Vec(Double)
+    ret %v80
+}
+
+fn magnitudeOf(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 0 : Vec(Double)
+    %v4 = cmp_le %value, %v3 : Mask(Double)
+    %v7 = vsplat 0 : Vec(Double)
+    %v8 = sub %v7, %value : Vec(Double)
+    %v9 = select %v4 ? %v8 : %value : Vec(Double)
+    ret %v9
+}
+
+fn expSaturated(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 0 : Vec(Double)
+    %v4 = cmp_gt %value, %v3 : Mask(Double)
+    %v5 = call infinityLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v6 = call zeroLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v7 = select %v4 ? %v5 : %v6 : Vec(Double)
+    ret %v7
+}
+
+fn infinityLike(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = call Real(Vec(Double), Mask(Double)).infinity : Vec(Double)
+    ret %v1
+}
+
+fn zeroLike(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 0 : Vec(Double)
+    %v4 = mul %value, %v3 : Vec(Double)
+    %v5 = call magnitudeOf(Vec(Double), Mask(Double)), %v4 : Vec(Double)
+    ret %v5
+}
+
+fn Real.log(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = call logOf(Vec(Double), Mask(Double)), %value : Vec(Double)
+    ret %v1
+}
+
+fn logOf(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %e = call logExponent(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v2 = call logSignificand(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %series = call logSeries(Vec(Double), Mask(Double)), %v2 : Vec(Double)
+    %v6 = vsplat 0.693115234375 : Vec(Double)
+    %v7 = mul %e, %v6 : Vec(Double)
+    %v8 = add %series, %v7 : Vec(Double)
+    %v11 = vsplat 0.000031946184945309415 : Vec(Double)
+    %v12 = mul %e, %v11 : Vec(Double)
+    %answer = add %v8, %v12 : Vec(Double)
+    %v14 = call logGuard(Vec(Double), Mask(Double)), %value, %answer : Vec(Double)
+    ret %v14
+}
+
+fn logExponent(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %raw = call Real(Vec(Double), Mask(Double)).exponentOf, %value : Vec(Double)
+    %v2 = call Real(Vec(Double), Mask(Double)).significandOf, %value : Vec(Double)
+    %v5 = vsplat 1.414213562373095 : Vec(Double)
+    %v6 = cmp_gt %v2, %v5 : Mask(Double)
+    %v9 = vsplat 1 : Vec(Double)
+    %v10 = add %raw, %v9 : Vec(Double)
+    %v11 = select %v6 ? %v10 : %raw : Vec(Double)
+    ret %v11
+}
+
+fn logSignificand(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %raw = call Real(Vec(Double), Mask(Double)).significandOf, %value : Vec(Double)
+    %v4 = vsplat 1.414213562373095 : Vec(Double)
+    %v5 = cmp_gt %raw, %v4 : Mask(Double)
+    %v8 = vsplat 0.5 : Vec(Double)
+    %v9 = mul %raw, %v8 : Vec(Double)
+    %v10 = select %v5 ? %v9 : %raw : Vec(Double)
+    ret %v10
+}
+
+fn logSeries(Vec(Double), Mask(Double))(%significand: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 1 : Vec(Double)
+    %v4 = sub %significand, %v3 : Vec(Double)
+    %v7 = vsplat 1 : Vec(Double)
+    %v8 = add %significand, %v7 : Vec(Double)
+    %s = div %v4, %v8 : Vec(Double)
+    %z = mul %s, %s : Vec(Double)
+    %v13 = vsplat 0.04 : Vec(Double)
+    %v14 = mul %z, %v13 : Vec(Double)
+    %v17 = vsplat 0.043478260869565216 : Vec(Double)
+    %v18 = add %v17, %v14 : Vec(Double)
+    %v19 = mul %z, %v18 : Vec(Double)
+    %v22 = vsplat 0.047619047619047616 : Vec(Double)
+    %v23 = add %v22, %v19 : Vec(Double)
+    %v24 = mul %z, %v23 : Vec(Double)
+    %v27 = vsplat 0.05263157894736842 : Vec(Double)
+    %v28 = add %v27, %v24 : Vec(Double)
+    %v29 = mul %z, %v28 : Vec(Double)
+    %v32 = vsplat 0.058823529411764705 : Vec(Double)
+    %v33 = add %v32, %v29 : Vec(Double)
+    %v34 = mul %z, %v33 : Vec(Double)
+    %v37 = vsplat 0.06666666666666667 : Vec(Double)
+    %v38 = add %v37, %v34 : Vec(Double)
+    %v39 = mul %z, %v38 : Vec(Double)
+    %v42 = vsplat 0.07692307692307693 : Vec(Double)
+    %v43 = add %v42, %v39 : Vec(Double)
+    %v44 = mul %z, %v43 : Vec(Double)
+    %v47 = vsplat 0.09090909090909091 : Vec(Double)
+    %v48 = add %v47, %v44 : Vec(Double)
+    %v49 = mul %z, %v48 : Vec(Double)
+    %v52 = vsplat 0.1111111111111111 : Vec(Double)
+    %v53 = add %v52, %v49 : Vec(Double)
+    %v54 = mul %z, %v53 : Vec(Double)
+    %v57 = vsplat 0.14285714285714285 : Vec(Double)
+    %v58 = add %v57, %v54 : Vec(Double)
+    %v59 = mul %z, %v58 : Vec(Double)
+    %v62 = vsplat 0.2 : Vec(Double)
+    %v63 = add %v62, %v59 : Vec(Double)
+    %v64 = mul %z, %v63 : Vec(Double)
+    %v67 = vsplat 0.3333333333333333 : Vec(Double)
+    %tail = add %v67, %v64 : Vec(Double)
+    %v71 = vsplat 2 : Vec(Double)
+    %v72 = mul %v71, %s : Vec(Double)
+    %v75 = vsplat 2 : Vec(Double)
+    %v76 = mul %v75, %s : Vec(Double)
+    %v77 = mul %v76, %z : Vec(Double)
+    %v78 = mul %v77, %tail : Vec(Double)
+    %v79 = add %v72, %v78 : Vec(Double)
+    ret %v79
+}
+
+fn logGuard(Vec(Double), Mask(Double))(%value: Vec(Double), %answer: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v2 = call infinityLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %atZero = sub %value, %v2 : Vec(Double)
+    %v6 = vsplat 0 : Vec(Double)
+    %v7 = cmp_gt %value, %v6 : Mask(Double)
+    %v10 = vsplat 0 : Vec(Double)
+    %v11 = cmp_eq %value, %v10 : Mask(Double)
+    %v12 = call notANumberLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v13 = select %v11 ? %atZero : %v12 : Vec(Double)
+    %v14 = select %v7 ? %answer : %v13 : Vec(Double)
+    ret %v14
+}
+
+fn notANumberLike(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = call zeroLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v2 = call infinityLike(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v3 = mul %v1, %v2 : Vec(Double)
+    ret %v3
+}
+
+fn Real.sin(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v1 = call sineOf(Vec(Double), Mask(Double)), %value : Vec(Double)
+    ret %v1
+}
+
+fn sineOf(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 0.6366197723675814 : Vec(Double)
+    %v4 = mul %value, %v3 : Vec(Double)
+    %n = round %v4 : Vec(Double)
+    %v8 = vsplat 0 : Vec(Double)
+    %v9 = call quadrantIndex(Vec(Double), Mask(Double)), %n, %v8 : Vec(Double)
+    %v10 = call reducedAngle(Vec(Double), Mask(Double)), %value, %n : Vec(Double)
+    %v11 = call quadrantOf(Vec(Double), Mask(Double)), %v9, %v10 : Vec(Double)
+    ret %v11
+}
+
+fn quadrantIndex(Vec(Double), Mask(Double))(%n: Vec(Double), %offset: Vec(Double)) -> Vec(Double) {
+  b0:
+    %shifted = add %n, %offset : Vec(Double)
+    %v5 = vsplat 0.25 : Vec(Double)
+    %v6 = mul %shifted, %v5 : Vec(Double)
+    %v7 = floor %v6 : Vec(Double)
+    %v10 = vsplat 4 : Vec(Double)
+    %v11 = mul %v10, %v7 : Vec(Double)
+    %v12 = sub %shifted, %v11 : Vec(Double)
+    ret %v12
+}
+
+fn reducedAngle(Vec(Double), Mask(Double))(%value: Vec(Double), %n: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v4 = vsplat 1.57080078125 : Vec(Double)
+    %v5 = mul %n, %v4 : Vec(Double)
+    %v6 = sub %value, %v5 : Vec(Double)
+    %v9 = vsplat 0.000004453584551811218 : Vec(Double)
+    %v10 = mul %n, %v9 : Vec(Double)
+    %v11 = add %v6, %v10 : Vec(Double)
+    %v14 = vsplat 8.706138032721356E-10 : Vec(Double)
+    %v15 = mul %n, %v14 : Vec(Double)
+    %v16 = add %v11, %v15 : Vec(Double)
+    %v19 = vsplat 6.222800053024002E-14 : Vec(Double)
+    %v20 = mul %n, %v19 : Vec(Double)
+    %v21 = sub %v16, %v20 : Vec(Double)
+    %v24 = vsplat 5.7208605257555445E-18 : Vec(Double)
+    %v25 = mul %n, %v24 : Vec(Double)
+    %v26 = sub %v21, %v25 : Vec(Double)
+    %v29 = vsplat 3.2818390803041373E-22 : Vec(Double)
+    %v30 = mul %n, %v29 : Vec(Double)
+    %v31 = sub %v26, %v30 : Vec(Double)
+    ret %v31
+}
+
+fn quadrantOf(Vec(Double), Mask(Double))(%quadrant: Vec(Double), %r: Vec(Double)) -> Vec(Double) {
+  b0:
+    %z = mul %r, %r : Vec(Double)
+    %v3 = mul %r, %z : Vec(Double)
+    %v4 = call sineSeries(Vec(Double), Mask(Double)), %z : Vec(Double)
+    %v5 = mul %v3, %v4 : Vec(Double)
+    %sine = sub %r, %v5 : Vec(Double)
+    %v9 = vsplat 0.5 : Vec(Double)
+    %v10 = mul %v9, %z : Vec(Double)
+    %v13 = vsplat 1 : Vec(Double)
+    %v14 = sub %v13, %v10 : Vec(Double)
+    %v15 = mul %z, %z : Vec(Double)
+    %v16 = call cosineSeries(Vec(Double), Mask(Double)), %z : Vec(Double)
+    %v17 = mul %v15, %v16 : Vec(Double)
+    %cosine = add %v14, %v17 : Vec(Double)
+    %v21 = vsplat 2 : Vec(Double)
+    %v22 = cmp_eq %quadrant, %v21 : Mask(Double)
+    %v25 = vsplat 0 : Vec(Double)
+    %v26 = sub %v25, %sine : Vec(Double)
+    %v29 = vsplat 0 : Vec(Double)
+    %v30 = sub %v29, %cosine : Vec(Double)
+    %upper = select %v22 ? %v26 : %v30 : Vec(Double)
+    %v34 = vsplat 0 : Vec(Double)
+    %v35 = cmp_eq %quadrant, %v34 : Mask(Double)
+    %v38 = vsplat 1 : Vec(Double)
+    %v39 = cmp_eq %quadrant, %v38 : Mask(Double)
+    %v40 = select %v39 ? %cosine : %upper : Vec(Double)
+    %v41 = select %v35 ? %sine : %v40 : Vec(Double)
+    ret %v41
+}
+
+fn sineSeries(Vec(Double), Mask(Double))(%z: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 1.957294106339126E-20 : Vec(Double)
+    %v4 = mul %z, %v3 : Vec(Double)
+    %v7 = vsplat 8.22063524662433E-18 : Vec(Double)
+    %v8 = sub %v7, %v4 : Vec(Double)
+    %v9 = mul %z, %v8 : Vec(Double)
+    %v12 = vsplat 2.811457254345521E-15 : Vec(Double)
+    %v13 = sub %v12, %v9 : Vec(Double)
+    %v14 = mul %z, %v13 : Vec(Double)
+    %v17 = vsplat 7.647163731819816E-13 : Vec(Double)
+    %v18 = sub %v17, %v14 : Vec(Double)
+    %v19 = mul %z, %v18 : Vec(Double)
+    %v22 = vsplat 1.6059043836821616E-10 : Vec(Double)
+    %v23 = sub %v22, %v19 : Vec(Double)
+    %v24 = mul %z, %v23 : Vec(Double)
+    %v27 = vsplat 2.505210838544172E-8 : Vec(Double)
+    %v28 = sub %v27, %v24 : Vec(Double)
+    %v29 = mul %z, %v28 : Vec(Double)
+    %v32 = vsplat 0.0000027557319223985893 : Vec(Double)
+    %v33 = sub %v32, %v29 : Vec(Double)
+    %v34 = mul %z, %v33 : Vec(Double)
+    %v37 = vsplat 0.0001984126984126984 : Vec(Double)
+    %v38 = sub %v37, %v34 : Vec(Double)
+    %v39 = mul %z, %v38 : Vec(Double)
+    %v42 = vsplat 0.008333333333333333 : Vec(Double)
+    %v43 = sub %v42, %v39 : Vec(Double)
+    %v44 = mul %z, %v43 : Vec(Double)
+    %v47 = vsplat 0.16666666666666666 : Vec(Double)
+    %v48 = sub %v47, %v44 : Vec(Double)
+    ret %v48
+}
+
+fn cosineSeries(Vec(Double), Mask(Double))(%z: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v3 = vsplat 4.110317623312165E-19 : Vec(Double)
+    %v4 = mul %z, %v3 : Vec(Double)
+    %v7 = vsplat 1.5619206968586225E-16 : Vec(Double)
+    %v8 = sub %v7, %v4 : Vec(Double)
+    %v9 = mul %z, %v8 : Vec(Double)
+    %v12 = vsplat 4.779477332387385E-14 : Vec(Double)
+    %v13 = sub %v12, %v9 : Vec(Double)
+    %v14 = mul %z, %v13 : Vec(Double)
+    %v17 = vsplat 1.1470745597729725E-11 : Vec(Double)
+    %v18 = sub %v17, %v14 : Vec(Double)
+    %v19 = mul %z, %v18 : Vec(Double)
+    %v22 = vsplat 2.08767569878681E-9 : Vec(Double)
+    %v23 = sub %v22, %v19 : Vec(Double)
+    %v24 = mul %z, %v23 : Vec(Double)
+    %v27 = vsplat 0.00000027557319223985894 : Vec(Double)
+    %v28 = sub %v27, %v24 : Vec(Double)
+    %v29 = mul %z, %v28 : Vec(Double)
+    %v32 = vsplat 0.0000248015873015873 : Vec(Double)
+    %v33 = sub %v32, %v29 : Vec(Double)
+    %v34 = mul %z, %v33 : Vec(Double)
+    %v37 = vsplat 0.001388888888888889 : Vec(Double)
+    %v38 = sub %v37, %v34 : Vec(Double)
+    %v39 = mul %z, %v38 : Vec(Double)
+    %v42 = vsplat 0.041666666666666664 : Vec(Double)
+    %v43 = sub %v42, %v39 : Vec(Double)
+    ret %v43
+}
+
+fn Real.pow(Vec(Double), Mask(Double))(%base: Vec(Double), %exponent: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v2 = call powerOf(Vec(Double), Mask(Double)), %base, %exponent : Vec(Double)
+    ret %v2
+}
+
+fn powerOf(Vec(Double), Mask(Double))(%base: Vec(Double), %exponent: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v2 = call magnitudeOf(Vec(Double), Mask(Double)), %base : Vec(Double)
+    %v3 = call log2Of(Vec(Double), Mask(Double)), %v2 : Vec(Double)
+    %v4 = mul %exponent, %v3 : Vec(Double)
+    %size = call exp2Of(Vec(Double), Mask(Double)), %v4 : Vec(Double)
+    %v6 = trunc %exponent : Vec(Double)
+    %whole = cmp_eq %v6, %exponent : Mask(Double)
+    %v10 = vsplat 2 : Vec(Double)
+    %v11 = call modulusOf(Vec(Double), Mask(Double)), %exponent, %v10 : Vec(Double)
+    %v14 = vsplat 0 : Vec(Double)
+    %odd = cmp_ne %v11, %v14 : Mask(Double)
+    %v18 = vsplat 0 : Vec(Double)
+    %v19 = sub %v18, %size : Vec(Double)
+    %signed = select %odd ? %v19 : %size : Vec(Double)
+    %v23 = vsplat 0 : Vec(Double)
+    %v24 = cmp_lt %base, %v23 : Mask(Double)
+    %v25 = call notANumberLike(Vec(Double), Mask(Double)), %base : Vec(Double)
+    %v26 = select %whole ? %signed : %v25 : Vec(Double)
+    %answer = select %v24 ? %v26 : %size : Vec(Double)
+    %v30 = vsplat 0 : Vec(Double)
+    %v31 = cmp_lt %exponent, %v30 : Mask(Double)
+    %v32 = call infinityLike(Vec(Double), Mask(Double)), %base : Vec(Double)
+    %v33 = call zeroLike(Vec(Double), Mask(Double)), %base : Vec(Double)
+    %atZero = select %v31 ? %v32 : %v33 : Vec(Double)
+    %v37 = vsplat 0 : Vec(Double)
+    %v38 = cmp_eq %exponent, %v37 : Mask(Double)
+    %v41 = vsplat 0 : Vec(Double)
+    %v42 = cmp_eq %base, %v41 : Mask(Double)
+    %v43 = select %v42 ? %atZero : %answer : Vec(Double)
+    %v46 = vsplat 1 : Vec(Double)
+    %v47 = select %v38 ? %v46 : %v43 : Vec(Double)
+    ret %v47
+}
+
+fn log2Of(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %e = call logExponent(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v2 = call logSignificand(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v3 = call logSeries(Vec(Double), Mask(Double)), %v2 : Vec(Double)
+    %v6 = vsplat 1.4426950408889634 : Vec(Double)
+    %v7 = mul %v3, %v6 : Vec(Double)
+    %answer = add %v7, %e : Vec(Double)
+    %v9 = call logGuard(Vec(Double), Mask(Double)), %value, %answer : Vec(Double)
+    ret %v9
+}
+
+fn exp2Of(Vec(Double), Mask(Double))(%value: Vec(Double)) -> Vec(Double) {
+  b0:
+    %n = round %value : Vec(Double)
+    %f = sub %value, %n : Vec(Double)
+    %v5 = vsplat 0.693115234375 : Vec(Double)
+    %v6 = mul %f, %v5 : Vec(Double)
+    %v9 = vsplat 0.000031946184945309415 : Vec(Double)
+    %v10 = mul %f, %v9 : Vec(Double)
+    %r = add %v6, %v10 : Vec(Double)
+    %v12 = call expSeries(Vec(Double), Mask(Double)), %r : Vec(Double)
+    %core = call Real(Vec(Double), Mask(Double)).scaleByExponent, %v12, %n : Vec(Double)
+    %v14 = call magnitudeOf(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v17 = vsplat 1200 : Vec(Double)
+    %v18 = cmp_gt %v14, %v17 : Mask(Double)
+    %v19 = call expSaturated(Vec(Double), Mask(Double)), %value : Vec(Double)
+    %v20 = select %v18 ? %v19 : %core : Vec(Double)
+    ret %v20
+}
+
+fn modulusOf(Vec(Double), Mask(Double))(%lhs: Vec(Double), %rhs: Vec(Double)) -> Vec(Double) {
+  b0:
+    %v2 = div %lhs, %rhs : Vec(Double)
+    %v3 = trunc %v2 : Vec(Double)
+    %v4 = mul %v3, %rhs : Vec(Double)
+    %v5 = sub %lhs, %v4 : Vec(Double)
+    ret %v5
+}

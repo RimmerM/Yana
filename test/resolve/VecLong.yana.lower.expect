@@ -1,0 +1,47 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %a = vsplat 7: i64x2
+    %b = vsplat 3: i64x2
+    %c = vsplat 18446744073709551607: i64x2
+    %v_1 = add %a, %b: i64x2
+    %v_2 = vlane %v_1, 0: Long
+    %v_3 = sub %a, %b: i64x2
+    %v_4 = vlane %v_3, 0: Long
+    %v_5 = add %v_2, %v_4: Long
+    %v_6 = and %a, %b: i64x2
+    %v_7 = vlane %v_6, 0: Long
+    %v_8 = add %v_5, %v_7: Long
+    %v_9 = or %a, %b: i64x2
+    %v_10 = vlane %v_9, 0: Long
+    %v_11 = add %v_8, %v_10: Long
+    %v_12 = xor %a, %b: i64x2
+    %v_13 = vlane %v_12, 0: Long
+    %v_14 = add %v_11, %v_13: Long
+    %v_15 = shl %a, %b: i64x2
+    %v_16 = vlane %v_15, 0: Long
+    %v_17 = add %v_14, %v_16: Long
+    %v_18 = shr %a, %b: i64x2
+    %v_19 = vlane %v_18, 0: Long
+    %v_20 = add %v_17, %v_19: Long
+    %v_21 = vsplat 0: i64x2
+    %v_22 = sub %v_21, %c: i64x2
+    %v_23 = vlane %v_22, 0: Long
+    %v_24 = add %v_20, %v_23: Long
+    %v_25 = vreduce_add %a: Long
+    %v_26 = add %v_24, %v_25: Long
+    %v_27 = vreduce_imax %a: Long
+    %v_28 = add %v_26, %v_27: Long
+    %v_29 = vreduce_imin %c: Long
+    %v_30 = add %v_28, %v_29: Long
+    %wide = vsplat 4294967296: i64x2
+    %v_31 = vsplat 32: i64x2
+    %v_32 = shr %wide, %v_31: i64x2
+    %v_33 = vlane %v_32, 0: Long
+    %v_34 = add %v_30, %v_33: Long
+    %v_35 = cast %v_34: Int
+    ret %v_35
+  }
+}
+

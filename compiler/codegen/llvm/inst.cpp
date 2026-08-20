@@ -216,6 +216,27 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
             break;
 
         /*
+         * The four roundings, each of which LLVM names directly and overloads on the operand type
+         * exactly as `llvm.sqrt` is overloaded - so a `<4 x double>` is the same call.
+         *
+         * `llvm.round` is the ties-**away**-from-zero one, which is the rule resolve/inst.def rules
+         * on and is not `llvm.roundeven`. Picking the wrong one of that pair is invisible except at
+         * an exact half, which is why the two are named here rather than reached through a table.
+         */
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round: {
+            auto intrinsic = inst.kind == LowerInst::Trunc ? llvm::Intrinsic::trunc
+                           : inst.kind == LowerInst::Floor ? llvm::Intrinsic::floor
+                           : inst.kind == LowerInst::Ceil  ? llvm::Intrinsic::ceil
+                                                           : llvm::Intrinsic::round;
+
+            value = f.builder.CreateIntrinsic(intrinsic, { from->getType() }, { from }, nullptr, name);
+            break;
+        }
+
+        /*
          * The magnitude, which is two intrinsics rather than one because LLVM spells the integer and
          * the floating-point cases separately.
          *
@@ -945,6 +966,10 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Not:
         case LowerInst::Sqrt:
         case LowerInst::Abs:
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
             genUnary(f, (LowerInstUnary&)inst);
             break;
         case LowerInst::Fma:

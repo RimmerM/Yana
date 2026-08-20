@@ -1,0 +1,75 @@
+let image$base: () = <none>
+
+fn main() -> Int {
+  b0:
+    %a = vsplat 7 : Vec(Long)
+    %b = vsplat 3 : Vec(Long)
+    %v8 = sub 0, 9 : Int
+    %v9 = cast %v8 : Long
+    %c = vsplat %v9 : Vec(Long)
+    %n = alloc : Long
+    init %n, 0
+    %v14 = load %n : Long
+    %v15 = add %a, %b : Vec(Long)
+    %v18 = vlane %v15, 0 : Long
+    %v19 = add %v14, %v18 : Long
+    assign %n, %v19
+    %v21 = load %n : Long
+    %v22 = sub %a, %b : Vec(Long)
+    %v25 = vlane %v22, 0 : Long
+    %v26 = add %v21, %v25 : Long
+    assign %n, %v26
+    %v28 = load %n : Long
+    %v29 = and %a, %b : Vec(Long)
+    %v32 = vlane %v29, 0 : Long
+    %v33 = add %v28, %v32 : Long
+    assign %n, %v33
+    %v35 = load %n : Long
+    %v36 = or %a, %b : Vec(Long)
+    %v39 = vlane %v36, 0 : Long
+    %v40 = add %v35, %v39 : Long
+    assign %n, %v40
+    %v42 = load %n : Long
+    %v43 = xor %a, %b : Vec(Long)
+    %v46 = vlane %v43, 0 : Long
+    %v47 = add %v42, %v46 : Long
+    assign %n, %v47
+    %v49 = load %n : Long
+    %v50 = shl %a, %b : Vec(Long)
+    %v53 = vlane %v50, 0 : Long
+    %v54 = add %v49, %v53 : Long
+    assign %n, %v54
+    %v56 = load %n : Long
+    %v57 = shr %a, %b : Vec(Long)
+    %v60 = vlane %v57, 0 : Long
+    %v61 = add %v56, %v60 : Long
+    assign %n, %v61
+    %v63 = load %n : Long
+    %v67 = vsplat 0 : Vec(Long)
+    %v68 = sub %v67, %c : Vec(Long)
+    %v71 = vlane %v68, 0 : Long
+    %v72 = add %v63, %v71 : Long
+    assign %n, %v72
+    %v74 = load %n : Long
+    %v75 = vreduce_add %a : Long
+    %v76 = add %v74, %v75 : Long
+    assign %n, %v76
+    %v78 = load %n : Long
+    %v79 = vreduce_max %a : Long
+    %v80 = add %v78, %v79 : Long
+    assign %n, %v80
+    %v82 = load %n : Long
+    %v83 = vreduce_min %c : Long
+    %v84 = add %v82, %v83 : Long
+    assign %n, %v84
+    %wide = vsplat 4294967296 : Vec(Long)
+    %v88 = load %n : Long
+    %v90 = vsplat 32 : Vec(Long)
+    %v91 = shr %wide, %v90 : Vec(Long)
+    %v94 = vlane %v91, 0 : Long
+    %v95 = add %v88, %v94 : Long
+    assign %n, %v95
+    %v97 = load %n : Long
+    %v98 = cast %v97 : Int
+    ret %v98
+}

@@ -349,8 +349,14 @@ void defineFromInt(Module& module, TypePtr type) {
     generateInstance(module, classNamed(module, "FromInt"_v), { &type, 1 }, { methods, 1 });
 }
 
+// The same split `defineFromInt` makes, and for the same reason: a decimal literal in every lane is
+// the only answer that is not arbitrary, and a body generic over a float type needs `0.5` to mean
+// something whether the substitution was a `Float` or a `Vec(Float)`. Math's shared approximations
+// are what asked for it - every coefficient in one is a written decimal.
 void defineFromDecimal(Module& module, TypePtr type) {
-    IntrinsicMethod methods[] = { { "fromDecimal"_v, 1, emitFromLiteral } };
+    auto emit = isVectorType(*module.types, type) ? emitVectorFromLiteral : emitFromLiteral;
+    IntrinsicMethod methods[] = { { "fromDecimal"_v, 1, emit } };
+
     generateInstance(module, classNamed(module, "FromDecimal"_v), { &type, 1 }, { methods, 1 });
 }
 

@@ -329,6 +329,7 @@ enum: MachineFormId {
      * roundings rather than one, which Design-Vector §3.3 permits outright.
      */
     FormSqrt32, FormSqrt64, FormVSqrtF32, FormVSqrtF64,
+    FormRound32, FormRound64, FormVRoundF32, FormVRoundF64,
     FormFma32, FormFma64, FormVFmaF32, FormVFmaF64,
 
     // A vector moved between a register and memory, at the two spellings the machine has for it.
@@ -395,6 +396,7 @@ enum: MachineFormId {
     FormVWideBitcast, FormVWideMove,
     FormVWideCastIToF32, FormVWideCastFToI32,
     FormVWideSqrtF32, FormVWideSqrtF64,
+    FormVWideRoundF32, FormVWideRoundF64,
     FormVWideFmaF32, FormVWideFmaF64,
     FormVWideLoad, FormVWideLoadInt,
     FormVWideStore, FormVWideStoreInt,
@@ -650,6 +652,7 @@ MachineTarget::MachineTarget() {
     name(OpVNot, "vnot"_v);
     name(OpVNeg, "vneg"_v);
     name(OpSqrt, "sqrt"_v);
+    name(OpRound, "round"_v);
     name(OpFma, "fma"_v);
     name(OpVZeroUpper, "vzeroupper"_v);
 
@@ -2722,6 +2725,36 @@ MachineTarget::MachineTarget() {
         squareRoot(FormVSqrtF64, "sqrtpd xmm, xmm"_v, 0x66, ClassXmm128);
 
         /*
+         * The directed roundings, at four widths and four opcodes that differ in one nibble.
+         *
+         * `66 0F 3A 08..0B` - `roundps`, `roundpd`, `roundss`, `roundsd` in that order - each with
+         * the 66 prefix and each in the `0F3A` map, which is the one three-byte map whose members
+         * all carry a trailing immediate. That immediate is the rounding mode and is supplied by
+         * `packedTrailingByte` from the IR kind, which is why three IR kinds share one form per
+         * width instead of there being twelve of them.
+         *
+         * SSE4.1, which is inside the v2 floor this backend already required before the level enum
+         * existed - so `kFeatureBaseline`, exactly as `pcmpeqq` above is.
+         *
+         * `mergesIntoDestination` for the scalar pair on `sqrtss`'s grounds: `roundss` writes one
+         * lane and leaves the rest, so its VEX spelling has to name where the rest comes from.
+         */
+        auto rounding = [&](MachineFormId id, StringView formName, U8 prefix, U8 opcode, RegisterClassId cls) {
+            auto& form = add(id, OpRound, formName);
+            form.uses.push(anyReg(cls));
+            form.defs.push(def(cls));
+            form.encoding = sseRegRm(prefix, opcode, defRef(0), useRef(0), OperationWidth::FromResult);
+            form.encoding.opcodeMap = kOpcodeMap0F3A;
+            form.encoding.patternImmediate = true;
+            form.encoding.mergesIntoDestination = cls == ClassFloat32 || cls == ClassFloat64;
+        };
+
+        rounding(FormRound32,   "roundss xmm, xmm, mode"_v, 0x66, 0x0a, ClassFloat32);
+        rounding(FormRound64,   "roundsd xmm, xmm, mode"_v, 0x66, 0x0b, ClassFloat64);
+        rounding(FormVRoundF32, "roundps xmm, xmm, mode"_v, 0x66, 0x08, ClassXmm128);
+        rounding(FormVRoundF64, "roundpd xmm, xmm, mode"_v, 0x66, 0x09, ClassXmm128);
+
+        /*
          * The fused multiply-add.
          *
          * `vfmadd213` computes `dst = src1 * dst + src2` - the digits name which operand is which -
@@ -3057,6 +3090,8 @@ MachineTarget::MachineTarget() {
 
         wideTwin(FormVWideSqrtF32, FormVSqrtF32, "vsqrtps ymm, ymm"_v);
         wideTwin(FormVWideSqrtF64, FormVSqrtF64, "vsqrtpd ymm, ymm"_v);
+        wideTwin(FormVWideRoundF32, FormVRoundF32, "vroundps ymm, ymm, mode"_v);
+        wideTwin(FormVWideRoundF64, FormVRoundF64, "vroundpd ymm, ymm, mode"_v);
 
         // The one pair whose source was already VEX-encoded and already three-operand, so what the
         // twin changes is `L` alone. `requiredFeatures` picks up AVX2 beside the AVX and FMA3 the
@@ -4798,6 +4833,17 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Sqrt: return OpSqrt;
         case LowerInst::Fma:  return OpFma;
 
+        // The three directed roundings, which are one instruction with the mode in a trailing byte -
+        // so one op here, exactly as the four square roots are one. `Round` is absent because
+        // `expandRoundAway` has already replaced it; reaching this with one is the bug that assert
+        // is for.
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:  return OpRound;
+        case LowerInst::Round:
+            assertTrue("a ties-away round expandRoundAway did not rewrite" == nullptr);
+            return OpNop;
+
         // A shuffle one `pshufd` expresses. The refusal is `selectPackedForm`'s rather than this
         // one's, because which shuffles those are is a property of the *pattern* and not of the
         // kind - so the opcode is answered here and the form is what does or does not exist.
@@ -5378,6 +5424,22 @@ U8 broadcastLaneByte(LowerType type, U8 index) {
 
 U8 packedTrailingByte(LowerInst* inst) {
     switch(inst->kind) {
+        /*
+         * The rounding mode `roundsd` and its three siblings take - bits 1:0 name the direction and
+         * bit 3 suppresses the precision exception.
+         *
+         * The suppression bit is set on all three, and it is not decoration: these are exact
+         * operations by definition, so an inexact flag raised by one is a flag no program asked for
+         * and one that a later `fetestexcept` would read as its own arithmetic's. It is what LLVM
+         * emits for `llvm.trunc`/`llvm.floor`/`llvm.ceil` and what the mode field is for.
+         *
+         * `LowerInst::Round` has no row: ties-away is not one of the four directions this byte can
+         * name, and `expandRoundAway` is what stands in for the encoding that does not exist.
+         */
+        case LowerInst::Trunc: return 0x0b;
+        case LowerInst::Floor: return 0x09;
+        case LowerInst::Ceil:  return 0x0a;
+
         case LowerInst::VecShuffle: {
             // `unwrap` rather than a check: the form was selected *because* this answered, so one
             // that does not now is a pattern something rewrote behind the selection. And a form
@@ -5876,6 +5938,19 @@ static MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
             if(isVectorLike(type)) return widthForm(laneBytes(type.lane) == 4 ? FormVFmaF32 : FormVFmaF64, type);
             return type == LowerType::Float32 ? FormFma32 : FormFma64;
+        }
+
+        // The three directed roundings, answered here at every width for `Sqrt`'s reason: `roundss`
+        // and `roundps` are one instruction family, so one switch answers for the whole of it. Which
+        // of the three a form is selected for is not a question the form knows - the mode is the
+        // trailing byte, and `packedTrailingByte` reads it off the kind.
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil: {
+            auto type = ((LowerInstUnary*)inst)->result.type;
+
+            if(isVectorLike(type)) return widthForm(laneBytes(type.lane) == 4 ? FormVRoundF32 : FormVRoundF64, type);
+            return type == LowerType::Float32 ? FormRound32 : FormRound64;
         }
 
         // A copy, and a conversion between the two lane kinds. Both are ordinary forms; they are
@@ -6478,6 +6553,13 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         // it does not. Neither is ever refused - the validator has already held both to a float.
         case LowerInst::Sqrt:
         case LowerInst::Fma:
+        // The three directed roundings, which have a form at both packed widths, and the ties-away
+        // one, which `expandRoundAway` has removed before this runs. None is ever refused - the
+        // validator has already held all four to a float.
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
             return {};
 
         /*
@@ -6577,6 +6659,10 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
             assertTrue("a packed instruction selectPackedForm did not answer for" == nullptr);
             return FormNop;
 

@@ -95,6 +95,10 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Not:
         case Value::Sqrt:
         case Value::Abs:
+        case Value::Trunc:
+        case Value::Floor:
+        case Value::Ceil:
+        case Value::Round:
             addUse(((InstUnary*)inst)->from, inst);
             break;
         case Value::Fma: {

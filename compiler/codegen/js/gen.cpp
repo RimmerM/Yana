@@ -1690,6 +1690,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     // last keeps the declarations they emit out of the way of everything that hoists.
     emitSaturationHelpers(g);
     emitFloatBitsHelpers(g);
+    emitRoundAwayHelper(g);
     emitGrowHelper(g);
 
     genEntryCall(g);

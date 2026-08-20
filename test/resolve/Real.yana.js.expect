@@ -1,0 +1,1325 @@
+"use strict";
+// ResolveTest
+function nearDouble(got, want) {
+  var difference = got - want;
+  var size = difference < 0 ? 0 - difference : difference;
+  var scale = want < 0 ? 0 - want : want;
+  return size <= 1E-12 * (scale > 1 ? scale : 1) ? 1 : 0;
+}
+
+function nearFloat(got, want) {
+  var difference = Math.fround(got - want);
+  var size = difference < 0 ? Math.fround(0 - difference) : difference;
+  var scale = want < 0 ? Math.fround(0 - want) : want;
+  return size <= Math.fround(0.000003000000106112566 * (scale > 1 ? scale : 1)) ? 1 : 0;
+}
+
+function primitives() {
+  var v25 = nearDouble(Math.trunc(2.7), 2) + nearDouble(Math.trunc(-2.700000047683716), -2) | 0;
+  var rest = { $v: 8 };
+  var exponent = { $v: 0 };
+  splitDouble(rest, "$v", 1, exponent, "$v", 1);
+  var v32 = v25 + nearDouble(exponent.$v, 3) | 0;
+  var rest$1 = { $v: 8 };
+  splitDouble(rest$1, "$v", 1, { $v: 0 }, "$v", 1);
+  return (((v32 + nearDouble(rest$1.$v, 1) | 0) + nearDouble(powerOfTwoDouble(10) * powerOfTwoDouble(0), 1024) | 0) + nearDouble(Real_Double_Bool_scaleByExponent(3, -2), 0.75) | 0) + (powerOfTwoDouble(1023) * powerOfTwoDouble(1023) > 1E308 ? 1 : 0) | 0;
+}
+
+function rounding() {
+  return (((((((nearDouble(2, 2) + nearDouble(-3, -3) | 0) + nearDouble(Math.ceil(2.1), 3) | 0) + nearDouble(Math.ceil(-2.700000047683716), -2) | 0) + nearDouble($round(2.5), 3) | 0) + nearDouble($round(-2.5), -3) | 0) + nearDouble($round(0.49999999999999994), 0) | 0) + nearDouble(7 - Math.trunc(2.3333333333333335) * 3, 1) | 0) + nearDouble(-7 - Math.trunc(-2.3333333333333335) * 3, -1) | 0;
+}
+
+function exponentials() {
+  var n = $round(0);
+  var v8 = nearDouble(Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(0 - n * 0.693115234375 - n * 0.000031948089599609375 + n * 1.9044819055125117E-9 + n * 1.724176357242868E-13 - n * 2.3188373964033726E-17 - n * 2.094421310984266E-21), n), 1);
+  var n$1 = $round(1.4426950408889634);
+  var v16 = v8 + nearDouble(Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(1 - n$1 * 0.693115234375 - n$1 * 0.000031948089599609375 + n$1 * 1.9044819055125117E-9 + n$1 * 1.724176357242868E-13 - n$1 * 2.3188373964033726E-17 - n$1 * 2.094421310984266E-21), n$1), 2.718281828459045) | 0;
+  var n$2 = $round(28.85390081777927);
+  var v23 = v16 + nearDouble(Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(20 - n$2 * 0.693115234375 - n$2 * 0.000031948089599609375 + n$2 * 1.9044819055125117E-9 + n$2 * 1.724176357242868E-13 - n$2 * 2.3188373964033726E-17 - n$2 * 2.094421310984266E-21), n$2), 4.851651954097903E8) | 0;
+  var n$3 = $round(-7.213475204444817);
+  var v49 = ((v23 + nearDouble(Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(-5 - n$3 * 0.693115234375 - n$3 * 0.000031948089599609375 + n$3 * 1.9044819055125117E-9 + n$3 * 1.724176357242868E-13 - n$3 * 2.3188373964033726E-17 - n$3 * 2.094421310984266E-21), n$3), 0.006737946999085467) | 0) + nearDouble(exp2Of_Double_Bool(10), 1024) | 0) + nearDouble(exp2Of_Double_Bool(0.5), 1.4142135623730951) | 0;
+  var n$4 = $round(1442.6950408889634);
+  var core$4 = Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(1000 - n$4 * 0.693115234375 - n$4 * 0.000031948089599609375 + n$4 * 1.9044819055125117E-9 + n$4 * 1.724176357242868E-13 - n$4 * 2.3188373964033726E-17 - n$4 * 2.094421310984266E-21), n$4);
+  var v65 = v49 + (1E308 * 10 > 1E308 ? 1 : 0) | 0;
+  var n$5 = $round(-1442.6950408889634);
+  var core$5 = Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(-1000 - n$5 * 0.693115234375 - n$5 * 0.000031948089599609375 + n$5 * 1.9044819055125117E-9 + n$5 * 1.724176357242868E-13 - n$5 * 2.3188373964033726E-17 - n$5 * 2.094421310984266E-21), n$5);
+  return v65 + 1 | 0;
+}
+
+function logarithms() {
+  var v72;
+  var rest = { $v: 2.718281828459045 };
+  var exponent = { $v: 0 };
+  splitDouble(rest, "$v", 1, exponent, "$v", 1);
+  var v112 = exponent.$v;
+  var rest$1 = { $v: 2.718281828459045 };
+  splitDouble(rest$1, "$v", 1, { $v: 0 }, "$v", 1);
+  var v102 = rest$1.$v > 1.414213562373095 ? v112 + 1 : v112;
+  var rest$2 = { $v: 2.718281828459045 };
+  splitDouble(rest$2, "$v", 1, { $v: 0 }, "$v", 1);
+  var v138 = rest$2.$v;
+  var v8 = nearDouble(logSeries_Double_Bool(v138 > 1.414213562373095 ? v138 * 0.5 : v138) + v102 * 0.693115234375 + v102 * 0.000031946184945309415, 1);
+  var rest$3 = { $v: 1000 };
+  var exponent$3 = { $v: 0 };
+  splitDouble(rest$3, "$v", 1, exponent$3, "$v", 1);
+  var v191 = exponent$3.$v;
+  var rest$4 = { $v: 1000 };
+  splitDouble(rest$4, "$v", 1, { $v: 0 }, "$v", 1);
+  var v181 = rest$4.$v > 1.414213562373095 ? v191 + 1 : v191;
+  var rest$5 = { $v: 1000 };
+  splitDouble(rest$5, "$v", 1, { $v: 0 }, "$v", 1);
+  var v217 = rest$5.$v;
+  var v16 = v8 + nearDouble(logSeries_Double_Bool(v217 > 1.414213562373095 ? v217 * 0.5 : v217) + v181 * 0.693115234375 + v181 * 0.000031946184945309415, 6.907755278982137) | 0;
+  var rest$6 = { $v: 8 };
+  var exponent$6 = { $v: 0 };
+  splitDouble(rest$6, "$v", 1, exponent$6, "$v", 1);
+  var v267 = exponent$6.$v;
+  var rest$7 = { $v: 8 };
+  splitDouble(rest$7, "$v", 1, { $v: 0 }, "$v", 1);
+  var v257 = rest$7.$v > 1.414213562373095 ? v267 + 1 : v267;
+  var rest$8 = { $v: 8 };
+  splitDouble(rest$8, "$v", 1, { $v: 0 }, "$v", 1);
+  var v293 = rest$8.$v;
+  var v32 = v16 + (logSeries_Double_Bool(v293 > 1.414213562373095 ? v293 * 0.5 : v293) * 1.4426950408889634 + v257 === 3 ? 1 : 0) | 0;
+  var rest$9 = { $v: 1024 };
+  var exponent$9 = { $v: 0 };
+  splitDouble(rest$9, "$v", 1, exponent$9, "$v", 1);
+  var v343 = exponent$9.$v;
+  var rest$10 = { $v: 1024 };
+  splitDouble(rest$10, "$v", 1, { $v: 0 }, "$v", 1);
+  var v333 = rest$10.$v > 1.414213562373095 ? v343 + 1 : v343;
+  var rest$11 = { $v: 1024 };
+  splitDouble(rest$11, "$v", 1, { $v: 0 }, "$v", 1);
+  var v369 = rest$11.$v;
+  var v48 = v32 + (logSeries_Double_Bool(v369 > 1.414213562373095 ? v369 * 0.5 : v369) * 1.4426950408889634 + v333 === 10 ? 1 : 0) | 0;
+  var rest$12 = { $v: 1000 };
+  var exponent$12 = { $v: 0 };
+  splitDouble(rest$12, "$v", 1, exponent$12, "$v", 1);
+  var v425 = exponent$12.$v;
+  var rest$13 = { $v: 1000 };
+  splitDouble(rest$13, "$v", 1, { $v: 0 }, "$v", 1);
+  var v415 = rest$13.$v > 1.414213562373095 ? v425 + 1 : v425;
+  var rest$14 = { $v: 1000 };
+  splitDouble(rest$14, "$v", 1, { $v: 0 }, "$v", 1);
+  var v451 = rest$14.$v;
+  var v55 = v48 + nearDouble((logSeries_Double_Bool(v451 > 1.414213562373095 ? v451 * 0.5 : v451) + v415 * 0.693115234375 + v415 * 0.000031946184945309415) * 0.4342944819032518, 3) | 0;
+  splitDouble({ $v: 0 }, "$v", 1, { $v: 0 }, "$v", 1);
+  splitDouble({ $v: 0 }, "$v", 1, { $v: 0 }, "$v", 1);
+  var rest$17 = { $v: 0 };
+  splitDouble(rest$17, "$v", 1, { $v: 0 }, "$v", 1);
+  var v530 = rest$17.$v;
+  var series$3 = logSeries_Double_Bool(v530 > 1.414213562373095 ? v530 * 0.5 : v530);
+  var atZero = 0 - 1E308 * 10;
+  var v62 = atZero < 0;
+  if (v62) {
+    v72 = 1 / atZero === 0;
+  } else {
+    v72 = v62;
+  }
+  return v55 + (v72 ? 1 : 0) | 0;
+}
+
+function powers() {
+  var v20 = nearDouble(exp2Of_Double_Bool(10 * log2Of_Double_Bool(2)), 1024) + nearDouble(exp2Of_Double_Bool(0.5 * log2Of_Double_Bool(2)), 1.4142135623730951) | 0;
+  var size$2 = exp2Of_Double_Bool(3 * log2Of_Double_Bool(2));
+  var v38 = v20 + nearDouble(Math.trunc(3) === 3 ? 3 - Math.trunc(1.5) * 2 !== 0 ? 0 - size$2 : size$2 : 0 * (1E308 * 10), -8) | 0;
+  var size$3 = exp2Of_Double_Bool(2 * log2Of_Double_Bool(2));
+  var v52 = v38 + nearDouble(Math.trunc(2) === 2 ? 2 - Math.trunc(1) * 2 !== 0 ? 0 - size$3 : size$3 : 0 * (1E308 * 10), 4) | 0;
+  var size$4 = exp2Of_Double_Bool(0.5 * log2Of_Double_Bool(2));
+  var v370 = Math.trunc(0.5) === 0.5 ? 0.5 - Math.trunc(0.25) * 2 !== 0 ? 0 - size$4 : size$4 : 0 * (1E308 * 10);
+  var size$5 = exp2Of_Double_Bool(0.5 * log2Of_Double_Bool(2));
+  var v82 = v52 + (v370 !== (Math.trunc(0.5) === 0.5 ? 0.5 - Math.trunc(0.25) * 2 !== 0 ? 0 - size$5 : size$5 : 0 * (1E308 * 10)) ? 1 : 0) | 0;
+  var size$6 = exp2Of_Double_Bool(0 * log2Of_Double_Bool(0));
+  var v91 = v82 + nearDouble(1, 1) | 0;
+  var guess = exp2Of_Double_Bool(log2Of_Double_Bool(27) * 0.3333333333333333);
+  var once = guess - (guess - 27 / (guess * guess)) * 0.3333333333333333;
+  var twice = once - (once - 27 / (once * once)) * 0.3333333333333333;
+  var v553 = magnitudeOf_Double_Bool(twice);
+  var v98 = v91 + nearDouble(magnitudeOf_Double_Bool(twice), 3) | 0;
+  var guess$1 = exp2Of_Double_Bool(log2Of_Double_Bool(27) * 0.3333333333333333);
+  var once$1 = guess$1 - (guess$1 - 27 / (guess$1 * guess$1)) * 0.3333333333333333;
+  var twice$1 = once$1 - (once$1 - 27 / (once$1 * once$1)) * 0.3333333333333333;
+  var v588 = 0 - magnitudeOf_Double_Bool(twice$1);
+  var v589 = magnitudeOf_Double_Bool(twice$1);
+  return (v98 + nearDouble(v588, -3) | 0) + nearDouble(4 * Math.sqrt(1.5625), 5) | 0;
+}
+
+function angles() {
+  var n = $round(0.6366197723675814);
+  var shifted = n + 0;
+  var v8 = nearDouble(quadrantOf_Double_Bool(shifted - 4 * Math.floor(shifted * 0.25), reducedAngle_Double_Bool(1, n)), 0.8414709848078965);
+  var n$1 = $round(0.6366197723675814);
+  var shifted$1 = n$1 + 1;
+  var v16 = v8 + nearDouble(quadrantOf_Double_Bool(shifted$1 - 4 * Math.floor(shifted$1 * 0.25), reducedAngle_Double_Bool(1, n$1)), 0.5403023058681398) | 0;
+  var n$2 = $round(1.909859317102744);
+  var shifted$2 = n$2 + 0;
+  var v23 = v16 + nearDouble(quadrantOf_Double_Bool(shifted$2 - 4 * Math.floor(shifted$2 * 0.25), reducedAngle_Double_Bool(3, n$2)), 0.1411200080598672) | 0;
+  var n$3 = $round(1.909859317102744);
+  var shifted$3 = n$3 + 1;
+  var v34 = v23 + nearDouble(quadrantOf_Double_Bool(shifted$3 - 4 * Math.floor(shifted$3 * 0.25), reducedAngle_Double_Bool(3, n$3)), -0.9899924966004454) | 0;
+  var n$4 = $round(0.6366197723675814);
+  var r = reducedAngle_Double_Bool(1, n$4);
+  var shifted$4 = n$4 + 0;
+  var v214 = quadrantOf_Double_Bool(shifted$4 - 4 * Math.floor(shifted$4 * 0.25), r);
+  var shifted$5 = n$4 + 1;
+  var v41 = v34 + nearDouble(v214 / quadrantOf_Double_Bool(shifted$5 - 4 * Math.floor(shifted$5 * 0.25), r), 1.5574077246549023) | 0;
+  var n$5 = $round(63.66197723675814);
+  var shifted$6 = n$5 + 0;
+  return ((((((((((v41 + nearDouble(quadrantOf_Double_Bool(shifted$6 - 4 * Math.floor(shifted$6 * 0.25), reducedAngle_Double_Bool(100, n$5)), -0.5063656411097588) | 0) + nearDouble(arcTangentOf_Double_Bool(1), 0.7853981633974483) | 0) + nearDouble(arcTangent2Of_Double_Bool(1, -1), 2.356194490192345) | 0) + nearDouble(arcTangent2Of_Double_Bool(-1, 0), -1.5707963267948966) | 0) + nearDouble(arcTangent2Of_Double_Bool(0.5, Math.sqrt(0.75)), 0.5235987755982988) | 0) + nearDouble(arcTangent2Of_Double_Bool(Math.sqrt(0.75), 0.5), 1.0471975511965976) | 0) + nearDouble(arcTangent2Of_Double_Bool(1, Math.sqrt(0)), 1.5707963267948966) | 0) + nearDouble(arcTangent2Of_Double_Bool(Math.sqrt(0), -1), 3.141592653589793) | 0) + nearDouble(3.141592653589793, 3.141592653589793) | 0) + nearDouble(3.141592653589793, 3.141592653589793) | 0) + nearDouble(180, 180) | 0;
+}
+
+function atFloat() {
+  var n = Math.fround($round(1.4426950216293335));
+  var v23 = (nearFloat(Real_Float_Bool_scaleByExponent(expSeries_Float_Bool(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(1 - Math.fround(n * 0.693115234375)) - Math.fround(n * 0.000031948089599609375)) + Math.fround(n * 1.9044819055125117E-9)) + Math.fround(n * 1.724176357242868E-13)) - Math.fround(n * 2.3188373964033726E-17)) - Math.fround(n * 2.094421310984266E-21))), n), 2.7182817459106445) + nearFloat(Math.fround(Math.fround(logSeries_Float_Bool(1.25) + 2.079345703125) + 0.00009583854989614338), 2.3025851249694824) | 0) + nearFloat(Math.fround(Math.fround(logSeries_Float_Bool(1) * 1.4426950216293335) + 3), 3) | 0;
+  var n$1 = Math.fround($round(0.6366197466850281));
+  var shifted = Math.fround(n$1 + 0);
+  var v30 = v23 + nearFloat(quadrantOf_Float_Bool(Math.fround(shifted - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted * 0.25))))), reducedAngle_Float_Bool(1, n$1)), 0.8414709568023682) | 0;
+  var n$2 = Math.fround($round(0.6366197466850281));
+  var shifted$1 = Math.fround(n$2 + 1);
+  var v37 = v30 + nearFloat(quadrantOf_Float_Bool(Math.fround(shifted$1 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$1 * 0.25))))), reducedAngle_Float_Bool(1, n$2)), 0.5403023362159729) | 0;
+  var n$3 = Math.fround($round(0.31830987334251404));
+  var r$1 = reducedAngle_Float_Bool(0.5, n$3);
+  var shifted$2 = Math.fround(n$3 + 0);
+  var v313 = quadrantOf_Float_Bool(Math.fround(shifted$2 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$2 * 0.25))))), r$1);
+  var shifted$3 = Math.fround(n$3 + 1);
+  var v51 = (v37 + nearFloat(Math.fround(v313 / quadrantOf_Float_Bool(Math.fround(shifted$3 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$3 * 0.25))))), r$1)), 0.5463024973869324) | 0) + nearFloat(arcTangentOf_Float_Bool(1), 0.7853981852531433) | 0;
+  var v341 = Math.fround(Math.sqrt(0.75));
+  var base = arcTangentOf_Float_Bool(Math.fround(0.5 / v341));
+  var v67 = (v51 + nearFloat(v341 === 0 ? 1.5707963705062866 : v341 < 0 ? Math.fround(base + 3.1415927410125732) : base, 0.5235987901687622) | 0) + nearFloat(exp2Of_Float_Bool(Math.fround(10 * Math.fround(Math.fround(logSeries_Float_Bool(1) * 1.4426950216293335) + 1))), 1024) | 0;
+  var guess = exp2Of_Float_Bool(Math.fround(Math.fround(Math.fround(logSeries_Float_Bool(0.84375) * 1.4426950216293335) + 5) * 0.3333333432674408));
+  var once = Math.fround(guess - Math.fround(Math.fround(guess - Math.fround(27 / Math.fround(guess * guess))) * 0.3333333432674408));
+  var twice = Math.fround(once - Math.fround(Math.fround(once - Math.fround(27 / Math.fround(once * once))) * 0.3333333432674408));
+  var v475 = magnitudeOf_Float_Bool(twice);
+  return ((v67 + nearFloat(magnitudeOf_Float_Bool(twice), 3) | 0) + nearFloat(Math.fround(4 * Math.fround(Math.sqrt(1.5625))), 5) | 0) + nearFloat(Math.fround(-3), -3) | 0;
+}
+
+function atVector() {
+  var v16 = nearFloat(expOf_Vec_Float_Mask_Float([1, 1, 1, 1])[0], 2.7182817459106445);
+  var e = logExponent_Vec_Float_Mask_Float([10, 10, 10, 10]);
+  var series = logSeries_Vec_Float_Mask_Float(logSignificand_Vec_Float_Mask_Float([10, 10, 10, 10]));
+  var v26 = v16 + nearFloat(logGuard_Vec_Float_Mask_Float([10, 10, 10, 10], [Math.fround(Math.fround(series[0] + Math.fround(e[0] * 0.693115234375)) + Math.fround(e[0] * 0.00003194618329871446)), Math.fround(Math.fround(series[1] + Math.fround(e[1] * 0.693115234375)) + Math.fround(e[1] * 0.00003194618329871446)), Math.fround(Math.fround(series[2] + Math.fround(e[2] * 0.693115234375)) + Math.fround(e[2] * 0.00003194618329871446)), Math.fround(Math.fround(series[3] + Math.fround(e[3] * 0.693115234375)) + Math.fround(e[3] * 0.00003194618329871446))])[0], 2.3025851249694824) | 0;
+  var v256$0 = Math.fround(1 * 0.6366197466850281);
+  var v256$1 = Math.fround(1 * 0.6366197466850281);
+  var v256$2 = Math.fround(1 * 0.6366197466850281);
+  var v256$3 = Math.fround(1 * 0.6366197466850281);
+  var n$0 = Math.fround($round(v256$0));
+  var n$1 = Math.fround($round(v256$1));
+  var n$2 = Math.fround($round(v256$2));
+  var n$3 = Math.fround($round(v256$3));
+  var v35 = v26 + nearFloat(quadrantOf_Vec_Float_Mask_Float(quadrantIndex_Vec_Float_Mask_Float([n$0, n$1, n$2, n$3], [0, 0, 0, 0]), reducedAngle_Vec_Float_Mask_Float([1, 1, 1, 1], [n$0, n$1, n$2, n$3]))[0], 0.8414709568023682) | 0;
+  var v266$0 = Math.fround(1 * 0.6366197466850281);
+  var v266$1 = Math.fround(1 * 0.6366197466850281);
+  var v266$2 = Math.fround(1 * 0.6366197466850281);
+  var v266$3 = Math.fround(1 * 0.6366197466850281);
+  var n$0$1 = Math.fround($round(v266$0));
+  var n$1$1 = Math.fround($round(v266$1));
+  var n$2$1 = Math.fround($round(v266$2));
+  var n$3$1 = Math.fround($round(v266$3));
+  var v53 = (v35 + nearFloat(quadrantOf_Vec_Float_Mask_Float(quadrantIndex_Vec_Float_Mask_Float([n$0$1, n$1$1, n$2$1, n$3$1], [1, 1, 1, 1]), reducedAngle_Vec_Float_Mask_Float([1, 1, 1, 1], [n$0$1, n$1$1, n$2$1, n$3$1]))[0], 0.5403023362159729) | 0) + nearFloat(arcTangentOf_Vec_Float_Mask_Float([1, 1, 1, 1])[0], 0.7853981852531433) | 0;
+  var v58$0 = 0.5;
+  var v58$1 = 0.5;
+  var v58$2 = 0.5;
+  var v58$3 = 0.5;
+  var v275$0 = Math.fround(v58$0 * v58$0);
+  var v275$1 = Math.fround(v58$1 * v58$1);
+  var v275$2 = Math.fround(v58$2 * v58$2);
+  var v275$3 = Math.fround(v58$3 * v58$3);
+  var square$0 = Math.fround(1 - v275$0);
+  var square$1 = Math.fround(1 - v275$1);
+  var square$2 = Math.fround(1 - v275$2);
+  var square$3 = Math.fround(1 - v275$3);
+  var v281$0 = square$0 < 0;
+  var v281$1 = square$1 < 0;
+  var v281$2 = square$2 < 0;
+  var v281$3 = square$3 < 0;
+  var v282 = zeroLike_Vec_Float_Mask_Float([square$0, square$1, square$2, square$3]);
+  var v132 = (((((v53 + nearFloat(arcTangent2Of_Vec_Float_Mask_Float([v58$0, v58$1, v58$2, v58$3], [Math.fround(Math.sqrt(v281$0 ? v282[0] : square$0)), Math.fround(Math.sqrt(v281$1 ? v282[1] : square$1)), Math.fround(Math.sqrt(v281$2 ? v282[2] : square$2)), Math.fround(Math.sqrt(v281$3 ? v282[3] : square$3))])[0], 0.5235987901687622) | 0) + nearFloat(powerOf_Vec_Float_Mask_Float([2, 2, 2, 2], [10, 10, 10, 10])[0], 1024) | 0) + nearFloat(cubeRootOf_Vec_Float_Mask_Float([27, 27, 27, 27])[0], 3) | 0) + nearFloat(exp2Of_Vec_Float_Mask_Float([0.5, 0.5, 0.5, 0.5])[0], 1.4142136573791504) | 0) + nearFloat(Math.fround(-3), -3) | 0) + nearFloat(Math.fround(Math.trunc(2.700000047683716)), 2) | 0;
+  var v292$0 = Math.fround(1 * 0.6366197466850281);
+  var v292$1 = Math.fround(1 * 0.6366197466850281);
+  var v292$2 = Math.fround(1 * 0.6366197466850281);
+  var v292$3 = Math.fround(1 * 0.6366197466850281);
+  var n$0$2 = Math.fround($round(v292$0));
+  var n$1$2 = Math.fround($round(v292$1));
+  var n$2$2 = Math.fround($round(v292$2));
+  var n$3$2 = Math.fround($round(v292$3));
+  var v298 = quadrantOf_Vec_Float_Mask_Float(quadrantIndex_Vec_Float_Mask_Float([n$0$2, n$1$2, n$2$2, n$3$2], [0, 0, 0, 0]), reducedAngle_Vec_Float_Mask_Float([1, 1, 1, 1], [n$0$2, n$1$2, n$2$2, n$3$2]));
+  var v151 = v132 + (Math.fround(Math.fround(Math.fround(v298[0] + v298[1]) + Math.fround(v298[2] + v298[3])) / 4) > 0.8414000272750854 ? 1 : 0) | 0;
+  var twoAndAHalf$0 = 2.5;
+  var twoAndAHalf$1 = 2.5;
+  var v193 = (((v151 + nearDouble(Real_Vec_Double_Mask_Double_exponentOf([twoAndAHalf$0, twoAndAHalf$1])[0], 1) | 0) + nearDouble(Real_Vec_Double_Mask_Double_significandOf([twoAndAHalf$0, twoAndAHalf$1])[0], 1.25) | 0) + nearDouble(Real_Vec_Double_Mask_Double_scaleByExponent([twoAndAHalf$0, twoAndAHalf$1], [3, 3])[0], 20) | 0) + nearDouble(expOf_Vec_Double_Mask_Double([1, 1])[0], 2.718281828459045) | 0;
+  var e$1 = logExponent_Vec_Double_Mask_Double([10, 10]);
+  var series$1 = logSeries_Vec_Double_Mask_Double(logSignificand_Vec_Double_Mask_Double([10, 10]));
+  var v204 = v193 + nearDouble(logGuard_Vec_Double_Mask_Double([10, 10], [series$1[0] + e$1[0] * 0.693115234375 + e$1[0] * 0.000031946184945309415, series$1[1] + e$1[1] * 0.693115234375 + e$1[1] * 0.000031946184945309415])[0], 2.302585092994046) | 0;
+  var v316$0 = 1 * 0.6366197723675814;
+  var v316$1 = 1 * 0.6366197723675814;
+  var n$0$3 = $round(v316$0);
+  var n$1$3 = $round(v316$1);
+  var shifted$0 = n$0$3 + 0;
+  var shifted$1 = n$1$3 + 0;
+  return ((v204 + nearDouble(quadrantOf_Vec_Double_Mask_Double([shifted$0 - 4 * Math.floor(shifted$0 * 0.25), shifted$1 - 4 * Math.floor(shifted$1 * 0.25)], [1 - n$0$3 * 1.57080078125 + n$0$3 * 0.000004453584551811218 + n$0$3 * 8.706138032721356E-10 - n$0$3 * 6.222800053024002E-14 - n$0$3 * 5.7208605257555445E-18 - n$0$3 * 3.2818390803041373E-22, 1 - n$1$3 * 1.57080078125 + n$1$3 * 0.000004453584551811218 + n$1$3 * 8.706138032721356E-10 - n$1$3 * 6.222800053024002E-14 - n$1$3 * 5.7208605257555445E-18 - n$1$3 * 3.2818390803041373E-22])[0], 0.8414709848078965) | 0) + nearDouble(powerOf_Vec_Double_Mask_Double([2, 2], [10, 10])[0], 1024) | 0) + nearDouble($round(twoAndAHalf$0), 3) | 0;
+}
+
+function main() {
+  return (primitives() === 7 ? 1 : 0) + (rounding() === 9 ? 2 : 0) + (exponentials() === 8 ? 4 : 0) + (logarithms() === 6 ? 8 : 0) + (powers() === 9 ? 16 : 0) + (angles() === 16 ? 32 : 0) + (atFloat() === 12 ? 64 : 0) + (atVector() === 20 ? 128 : 0);
+}
+
+// Math
+function clampVecFloatExponent(exponent) {
+  var v7$0 = exponent[0] > -126;
+  var v7$1 = exponent[1] > -126;
+  var v7$2 = exponent[2] > -126;
+  var v7$3 = exponent[3] > -126;
+  var v8$0 = v7$0 ? exponent[0] : -126;
+  var v8$1 = v7$1 ? exponent[1] : -126;
+  var v8$2 = v7$2 ? exponent[2] : -126;
+  var v8$3 = v7$3 ? exponent[3] : -126;
+  return [v8$0 < 127 ? v8$0 : 127, v8$1 < 127 ? v8$1 : 127, v8$2 < 127 ? v8$2 : 127, v8$3 < 127 ? v8$3 : 127];
+}
+
+function clampVecDoubleExponent(exponent) {
+  var v7$0 = exponent[0] > -1022;
+  var v7$1 = exponent[1] > -1022;
+  var v8$0 = v7$0 ? exponent[0] : -1022;
+  var v8$1 = v7$1 ? exponent[1] : -1022;
+  return [v8$0 < 1023 ? v8$0 : 1023, v8$1 < 1023 ? v8$1 : 1023];
+}
+
+function powerOfTwoDouble(exponent) {
+  var v54;
+  var negative = exponent < 0;
+  var n = negative ? 0 - exponent : exponent;
+  var base = 2;
+  var scale = 1;
+  L0: for (;;) {
+    if (n > 0) {
+      var scaled = n * 0.5;
+      var nearest = scaled + 4.503599627370496E15 - 4.503599627370496E15;
+      var v67 = nearest > scaled ? nearest - 1 : nearest;
+      if (n - v67 - v67 > 0.5) {
+        scale = scale * base;
+      }
+      base = base * base;
+      n = v67;
+      continue L0;
+    }
+    break L0;
+  }
+  if (negative) {
+    v54 = 1 / scale;
+  } else {
+    v54 = scale;
+  }
+  return v54;
+}
+
+function stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, up, step) {
+  L0: for (;;) {
+    if (value$o[value$k] >= up) {
+      value$o[value$k] = value$o[value$k] / up;
+      exponent$o[exponent$k] = exponent$o[exponent$k] + step;
+      continue L0;
+    }
+    break L0;
+  }
+  L1: for (;;) {
+    if (value$o[value$k] < 1) {
+      value$o[value$k] = value$o[value$k] * up;
+      exponent$o[exponent$k] = exponent$o[exponent$k] - step;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function splitDouble(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s) {
+  var v2 = value$o[value$k];
+  var v5 = v2 <= 0;
+  if (!(v5 ? v5 : v2 - v2 !== 0)) {
+    stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, 1.157920892373162E77, 256);
+    stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, 1.8446744073709552E19, 64);
+    stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, 65536, 16);
+    stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, 16, 4);
+    stripExponent(value$o, value$k, value$s, exponent$o, exponent$k, exponent$s, 2, 1);
+  }
+}
+
+function powerOfTwoVecFloat(exponent) {
+  var v1$0 = Math.min(Math.max(Math.trunc(exponent[0]), -2.147483648E9), 2.147483647E9) | 0;
+  var v1$1 = Math.min(Math.max(Math.trunc(exponent[1]), -2.147483648E9), 2.147483647E9) | 0;
+  var v1$2 = Math.min(Math.max(Math.trunc(exponent[2]), -2.147483648E9), 2.147483647E9) | 0;
+  var v1$3 = Math.min(Math.max(Math.trunc(exponent[3]), -2.147483648E9), 2.147483647E9) | 0;
+  return [Math.fround($bc$i2f(v1$0 + 127 << 23)), Math.fround($bc$i2f(v1$1 + 127 << 23)), Math.fround($bc$i2f(v1$2 + 127 << 23)), Math.fround($bc$i2f(v1$3 + 127 << 23))];
+}
+
+function powerOfTwoVecDouble(exponent) {
+  var v5$0 = exponent[0] + 1023;
+  var v5$1 = exponent[1] + 1023;
+  var v16$0 = v5$0 + 4503599627370496;
+  var v16$1 = v5$1 + 4503599627370496;
+  var v17$0 = BigInt.asIntN(64, $bc$d2l(v16$0));
+  var v17$1 = BigInt.asIntN(64, $bc$d2l(v16$1));
+  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v17$0 & 4503599627370495n) << 52n)), $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v17$1 & 4503599627370495n) << 52n))];
+}
+
+function Real_Float_Bool_scaleByExponent(value, exponent) {
+  var v12 = -126 >= exponent ? -126 : exponent;
+  var v15 = v12 <= 127 ? v12 : 127;
+  var v3 = Math.fround(exponent - v15);
+  var v18 = -126 >= v3 ? -126 : v3;
+  return Math.fround(Math.fround(value * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v15), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v18 <= 127 ? v18 : 127), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23)));
+}
+
+function Real_Double_Bool_scaleByExponent(value, exponent) {
+  var v12 = -1022 >= exponent ? -1022 : exponent;
+  var v15 = v12 <= 1023 ? v12 : 1023;
+  var v3 = exponent - v15;
+  var v18 = -1022 >= v3 ? -1022 : v3;
+  return value * powerOfTwoDouble(v15) * powerOfTwoDouble(v18 <= 1023 ? v18 : 1023);
+}
+
+function Real_Double_Bool_significandOf(value) {
+  var rest = { $v: value };
+  splitDouble(rest, "$v", 1, { $v: 0 }, "$v", 1);
+  return rest.$v;
+}
+
+function Real_Vec_Float_Mask_Float_scaleByExponent(value, exponent) {
+  var first = clampVecFloatExponent(exponent);
+  var second = clampVecFloatExponent([Math.fround(exponent[0] - first[0]), Math.fround(exponent[1] - first[1]), Math.fround(exponent[2] - first[2]), Math.fround(exponent[3] - first[3])]);
+  var v5 = powerOfTwoVecFloat(first);
+  var v6$0 = Math.fround(value[0] * v5[0]);
+  var v6$1 = Math.fround(value[1] * v5[1]);
+  var v6$2 = Math.fround(value[2] * v5[2]);
+  var v6$3 = Math.fround(value[3] * v5[3]);
+  var v7 = powerOfTwoVecFloat(second);
+  return [Math.fround(v6$0 * v7[0]), Math.fround(v6$1 * v7[1]), Math.fround(v6$2 * v7[2]), Math.fround(v6$3 * v7[3])];
+}
+
+function Real_Vec_Float_Mask_Float_significandOf(value) {
+  var v1$0 = $bc$f2i(value[0]) | 0;
+  var v1$1 = $bc$f2i(value[1]) | 0;
+  var v1$2 = $bc$f2i(value[2]) | 0;
+  var v1$3 = $bc$f2i(value[3]) | 0;
+  return [Math.fround($bc$i2f(v1$0 & 8388607 | 1065353216)), Math.fround($bc$i2f(v1$1 & 8388607 | 1065353216)), Math.fround($bc$i2f(v1$2 & 8388607 | 1065353216)), Math.fround($bc$i2f(v1$3 & 8388607 | 1065353216))];
+}
+
+function Real_Vec_Double_Mask_Double_scaleByExponent(value, exponent) {
+  var first = clampVecDoubleExponent(exponent);
+  var second = clampVecDoubleExponent([exponent[0] - first[0], exponent[1] - first[1]]);
+  var v5 = powerOfTwoVecDouble(first);
+  var v6$0 = value[0] * v5[0];
+  var v6$1 = value[1] * v5[1];
+  var v7 = powerOfTwoVecDouble(second);
+  return [v6$0 * v7[0], v6$1 * v7[1]];
+}
+
+function Real_Vec_Double_Mask_Double_exponentOf(value) {
+  var bits$0 = BigInt.asIntN(64, $bc$d2l(value[0]));
+  var bits$1 = BigInt.asIntN(64, $bc$d2l(value[1]));
+  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, bits$0) >> 52n) & 2047n) | 4841369599423283200n)) - 4503599627370496 - 1023, $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, bits$1) >> 52n) & 2047n) | 4841369599423283200n)) - 4503599627370496 - 1023];
+}
+
+function Real_Vec_Double_Mask_Double_significandOf(value) {
+  var v1$0 = BigInt.asIntN(64, $bc$d2l(value[0]));
+  var v1$1 = BigInt.asIntN(64, $bc$d2l(value[1]));
+  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v1$0 & 4503599627370495n) | 4607182418800017408n)), $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v1$1 & 4503599627370495n) | 4607182418800017408n))];
+}
+
+function expSeries_Double_Bool(r) {
+  return 1 + r + r * r * (0.5 + r * (0.16666666666666666 + r * (0.041666666666666664 + r * (0.008333333333333333 + r * (0.001388888888888889 + r * (0.0001984126984126984 + r * (0.0000248015873015873 + r * (0.0000027557319223985893 + r * (0.00000027557319223985894 + r * (2.505210838544172E-8 + r * (2.08767569878681E-9 + r * (1.6059043836821616E-10 + r * (1.1470745597729725E-11 + r * (7.647163731819816E-13 + r * 4.779477332387385E-14))))))))))))));
+}
+
+function magnitudeOf_Double_Bool(value) {
+  return value <= 0 ? 0 - value : value;
+}
+
+function exp2Of_Double_Bool(value) {
+  var n = $round(value);
+  var f = value - n;
+  var core = Real_Double_Bool_scaleByExponent(expSeries_Double_Bool(f * 0.693115234375 + f * 0.000031946184945309415), n);
+  var v15 = magnitudeOf_Double_Bool(value) > 1200;
+  var v20 = value > 0;
+  var v23 = 1E308 * 10;
+  var v26 = magnitudeOf_Double_Bool(value * 0);
+  return v15 ? v20 ? v23 : v26 : core;
+}
+
+function logSeries_Double_Bool(significand) {
+  var s = (significand - 1) / (significand + 1);
+  var z = s * s;
+  var tail = 0.3333333333333333 + z * (0.2 + z * (0.14285714285714285 + z * (0.1111111111111111 + z * (0.09090909090909091 + z * (0.07692307692307693 + z * (0.06666666666666667 + z * (0.058823529411764705 + z * (0.05263157894736842 + z * (0.047619047619047616 + z * (0.043478260869565216 + z * 0.04))))))))));
+  var v57 = 2 * s;
+  return v57 + v57 * z * tail;
+}
+
+function log2Of_Double_Bool(value) {
+  var rest = { $v: value };
+  var exponent = { $v: 0 };
+  splitDouble(rest, "$v", 1, exponent, "$v", 1);
+  var v31 = exponent.$v;
+  var v16 = Real_Double_Bool_significandOf(value) > 1.414213562373095 ? v31 + 1 : v31;
+  var raw = Real_Double_Bool_significandOf(value);
+  var answer = logSeries_Double_Bool(raw > 1.414213562373095 ? raw * 0.5 : raw) * 1.4426950408889634 + v16;
+  var atZero = value - 1E308 * 10;
+  var v37 = value > 0;
+  var v39 = value === 0;
+  var v42 = magnitudeOf_Double_Bool(value * 0);
+  return v37 ? answer : v39 ? atZero : v42 * (1E308 * 10);
+}
+
+function reducedAngle_Double_Bool(value, n) {
+  return value - n * 1.57080078125 + n * 0.000004453584551811218 + n * 8.706138032721356E-10 - n * 6.222800053024002E-14 - n * 5.7208605257555445E-18 - n * 3.2818390803041373E-22;
+}
+
+function quadrantOf_Double_Bool(quadrant, r) {
+  var z = r * r;
+  var sine = r - r * z * (0.16666666666666666 - z * (0.008333333333333333 - z * (0.0001984126984126984 - z * (0.0000027557319223985893 - z * (2.505210838544172E-8 - z * (1.6059043836821616E-10 - z * (7.647163731819816E-13 - z * (2.811457254345521E-15 - z * (8.22063524662433E-18 - z * 1.957294106339126E-20)))))))));
+  var cosine = 1 - 0.5 * z + z * z * (0.041666666666666664 - z * (0.001388888888888889 - z * (0.0000248015873015873 - z * (0.00000027557319223985894 - z * (2.08767569878681E-9 - z * (1.1470745597729725E-11 - z * (4.779477332387385E-14 - z * (1.5619206968586225E-16 - z * 4.110317623312165E-19))))))));
+  return quadrant === 0 ? sine : quadrant === 1 ? cosine : quadrant === 2 ? 0 - sine : 0 - cosine;
+}
+
+function arcTangentOf_Double_Bool(value) {
+  var size = magnitudeOf_Double_Bool(value);
+  var v4 = size > 1;
+  var folded = v4 ? 1 / size : size;
+  var steep = folded > 0.2679491924311227;
+  var reduced = (folded * 1.7320508075688772 - 1) / (folded + 1.7320508075688772);
+  var v46 = magnitudeOf_Double_Bool(value * 0);
+  var base = steep ? 0.5235987755982988 : v46;
+  var v26 = steep ? reduced : folded;
+  var z = v26 * v26;
+  var core = base + (v26 - v26 * z * arcTangentSeries_Double_Bool(z));
+  var whole = v4 ? 1.5707963267948966 - core : core;
+  return value < 0 ? 0 - whole : whole;
+}
+
+function arcTangentSeries_Double_Bool(z) {
+  return 0.3333333333333333 - z * (0.2 - z * (0.14285714285714285 - z * (0.1111111111111111 - z * (0.09090909090909091 - z * (0.07692307692307693 - z * (0.06666666666666667 - z * (0.058823529411764705 - z * (0.05263157894736842 - z * (0.047619047619047616 - z * (0.043478260869565216 - z * (0.04 - z * (0.037037037037037035 - z * (0.034482758620689655 - z * (0.03225806451612903 - z * (0.030303030303030304 - z * 0.02857142857142857)))))))))))))));
+}
+
+function arcTangent2Of_Double_Bool(y, x) {
+  var base = arcTangentOf_Double_Bool(y / x);
+  var v6 = y < 0;
+  var general = x < 0 ? v6 ? base - 3.141592653589793 : base + 3.141592653589793 : base;
+  var v20 = y === 0;
+  var v33 = magnitudeOf_Double_Bool(y * 0);
+  return x === 0 ? v20 ? v33 : v6 ? -1.5707963267948966 : 1.5707963267948966 : general;
+}
+
+function expSeries_Float_Bool(r) {
+  return Math.fround(Math.fround(1 + r) + Math.fround(Math.fround(r * r) * Math.fround(0.5 + Math.fround(r * Math.fround(0.1666666716337204 + Math.fround(r * Math.fround(0.0416666679084301 + Math.fround(r * Math.fround(0.008333333767950535 + Math.fround(r * Math.fround(0.0013888889225199819 + Math.fround(r * Math.fround(0.00019841270113829523 + Math.fround(r * Math.fround(0.000024801587642286904 + Math.fround(r * Math.fround(0.0000027557318844628753 + Math.fround(r * Math.fround(0.0000002755731998149713 + Math.fround(r * Math.fround(2.5052107943679403E-8 + Math.fround(r * Math.fround(2.0876755879584152E-9 + Math.fround(r * Math.fround(1.6059044372074283E-10 + Math.fround(r * Math.fround(1.147074536050896E-11 + Math.fround(r * Math.fround(7.647163609812713E-13 + Math.fround(r * 4.7794772561329454E-14))))))))))))))))))))))))))))));
+}
+
+function magnitudeOf_Float_Bool(value) {
+  return value <= 0 ? Math.fround(0 - value) : value;
+}
+
+function logSeries_Float_Bool(significand) {
+  var s = Math.fround(Math.fround(significand - 1) / Math.fround(significand + 1));
+  var z = Math.fround(s * s);
+  var tail = Math.fround(0.3333333432674408 + Math.fround(z * Math.fround(0.20000000298023224 + Math.fround(z * Math.fround(0.1428571492433548 + Math.fround(z * Math.fround(0.1111111119389534 + Math.fround(z * Math.fround(0.09090909361839294 + Math.fround(z * Math.fround(0.07692307978868484 + Math.fround(z * Math.fround(0.06666667014360428 + Math.fround(z * Math.fround(0.05882352963089943 + Math.fround(z * Math.fround(0.05263157933950424 + Math.fround(z * Math.fround(0.0476190485060215 + Math.fround(z * Math.fround(0.043478261679410934 + Math.fround(z * 0.03999999910593033))))))))))))))))))))));
+  var v57 = Math.fround(2 * s);
+  return Math.fround(v57 + Math.fround(Math.fround(v57 * z) * tail));
+}
+
+function reducedAngle_Float_Bool(value, n) {
+  return Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value - Math.fround(n * 1.57080078125)) + Math.fround(n * 0.000004453584551811218)) + Math.fround(n * 8.706138032721356E-10)) - Math.fround(n * 6.222800053024002E-14)) - Math.fround(n * 5.7208605257555445E-18)) - Math.fround(n * 3.2818390803041373E-22));
+}
+
+function quadrantOf_Float_Bool(quadrant, r) {
+  var z = Math.fround(r * r);
+  var sine = Math.fround(r - Math.fround(Math.fround(r * z) * Math.fround(0.1666666716337204 - Math.fround(z * Math.fround(0.008333333767950535 - Math.fround(z * Math.fround(0.00019841270113829523 - Math.fround(z * Math.fround(0.0000027557318844628753 - Math.fround(z * Math.fround(2.5052107943679403E-8 - Math.fround(z * Math.fround(1.6059044372074283E-10 - Math.fround(z * Math.fround(7.647163609812713E-13 - Math.fround(z * Math.fround(2.8114573589663704E-15 - Math.fround(z * Math.fround(8.220635078476521E-18 - Math.fround(z * 1.9572941524685808E-20))))))))))))))))))));
+  var cosine = Math.fround(Math.fround(1 - Math.fround(0.5 * z)) + Math.fround(Math.fround(z * z) * Math.fround(0.0416666679084301 - Math.fround(z * Math.fround(0.0013888889225199819 - Math.fround(z * Math.fround(0.000024801587642286904 - Math.fround(z * Math.fround(0.0000002755731998149713 - Math.fround(z * Math.fround(2.0876755879584152E-9 - Math.fround(z * Math.fround(1.147074536050896E-11 - Math.fround(z * Math.fround(4.7794772561329454E-14 - Math.fround(z * Math.fround(1.5619206814541513E-16 - Math.fround(z * 4.110317590937049E-19))))))))))))))))));
+  return quadrant === 0 ? sine : quadrant === 1 ? cosine : quadrant === 2 ? Math.fround(0 - sine) : Math.fround(0 - cosine);
+}
+
+function arcTangentOf_Float_Bool(value) {
+  var size = magnitudeOf_Float_Bool(value);
+  var v4 = size > 1;
+  var folded = v4 ? Math.fround(1 / size) : size;
+  var steep = folded > 0.2679491937160492;
+  var reduced = Math.fround(Math.fround(Math.fround(folded * 1.7320507764816284) - 1) / Math.fround(folded + 1.7320507764816284));
+  var v46 = magnitudeOf_Float_Bool(Math.fround(value * 0));
+  var base = steep ? 0.5235987901687622 : v46;
+  var v26 = steep ? reduced : folded;
+  var z = Math.fround(v26 * v26);
+  var core = Math.fround(base + Math.fround(v26 - Math.fround(Math.fround(v26 * z) * arcTangentSeries_Float_Bool(z))));
+  var whole = v4 ? Math.fround(1.5707963705062866 - core) : core;
+  return value < 0 ? Math.fround(0 - whole) : whole;
+}
+
+function arcTangentSeries_Float_Bool(z) {
+  return Math.fround(0.3333333432674408 - Math.fround(z * Math.fround(0.20000000298023224 - Math.fround(z * Math.fround(0.1428571492433548 - Math.fround(z * Math.fround(0.1111111119389534 - Math.fround(z * Math.fround(0.09090909361839294 - Math.fround(z * Math.fround(0.07692307978868484 - Math.fround(z * Math.fround(0.06666667014360428 - Math.fround(z * Math.fround(0.05882352963089943 - Math.fround(z * Math.fround(0.05263157933950424 - Math.fround(z * Math.fround(0.0476190485060215 - Math.fround(z * Math.fround(0.043478261679410934 - Math.fround(z * Math.fround(0.03999999910593033 - Math.fround(z * Math.fround(0.03703703731298447 - Math.fround(z * Math.fround(0.03448275849223137 - Math.fround(z * Math.fround(0.032258063554763794 - Math.fround(z * Math.fround(0.03030303120613098 - Math.fround(z * 0.02857142873108387))))))))))))))))))))))))))))))));
+}
+
+function exp2Of_Float_Bool(value) {
+  var n = Math.fround($round(value));
+  var f = Math.fround(value - n);
+  var core = Real_Float_Bool_scaleByExponent(expSeries_Float_Bool(Math.fround(Math.fround(f * 0.693115234375) + Math.fround(f * 0.00003194618329871446))), n);
+  var v15 = magnitudeOf_Float_Bool(value) > 1200;
+  var v20 = value > 0;
+  var v22 = Math.fround($bc$i2f(2139095040));
+  var v25 = magnitudeOf_Float_Bool(Math.fround(value * 0));
+  return v15 ? v20 ? v22 : v25 : core;
+}
+
+function expOf_Vec_Float_Mask_Float(value) {
+  var v4$0 = Math.fround(value[0] * 1.4426950216293335);
+  var v4$1 = Math.fround(value[1] * 1.4426950216293335);
+  var v4$2 = Math.fround(value[2] * 1.4426950216293335);
+  var v4$3 = Math.fround(value[3] * 1.4426950216293335);
+  var n$0 = Math.fround($round(v4$0));
+  var n$1 = Math.fround($round(v4$1));
+  var n$2 = Math.fround($round(v4$2));
+  var n$3 = Math.fround($round(v4$3));
+  var core = Real_Vec_Float_Mask_Float_scaleByExponent(expSeries_Vec_Float_Mask_Float([Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[0] - Math.fround(n$0 * 0.693115234375)) - Math.fround(n$0 * 0.000031948089599609375)) + Math.fround(n$0 * 1.9044819055125117E-9)) + Math.fround(n$0 * 1.724176357242868E-13)) - Math.fround(n$0 * 2.3188373964033726E-17)) - Math.fround(n$0 * 2.094421310984266E-21)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[1] - Math.fround(n$1 * 0.693115234375)) - Math.fround(n$1 * 0.000031948089599609375)) + Math.fround(n$1 * 1.9044819055125117E-9)) + Math.fround(n$1 * 1.724176357242868E-13)) - Math.fround(n$1 * 2.3188373964033726E-17)) - Math.fround(n$1 * 2.094421310984266E-21)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[2] - Math.fround(n$2 * 0.693115234375)) - Math.fround(n$2 * 0.000031948089599609375)) + Math.fround(n$2 * 1.9044819055125117E-9)) + Math.fround(n$2 * 1.724176357242868E-13)) - Math.fround(n$2 * 2.3188373964033726E-17)) - Math.fround(n$2 * 2.094421310984266E-21)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[3] - Math.fround(n$3 * 0.693115234375)) - Math.fround(n$3 * 0.000031948089599609375)) + Math.fround(n$3 * 1.9044819055125117E-9)) + Math.fround(n$3 * 1.724176357242868E-13)) - Math.fround(n$3 * 2.3188373964033726E-17)) - Math.fround(n$3 * 2.094421310984266E-21))]), [n$0, n$1, n$2, n$3]);
+  var v38 = magnitudeOf_Vec_Float_Mask_Float(value);
+  var v42$0 = v38[0] > 800;
+  var v42$1 = v38[1] > 800;
+  var v42$2 = v38[2] > 800;
+  var v42$3 = v38[3] > 800;
+  var v48$0 = value[0] > 0;
+  var v48$1 = value[1] > 0;
+  var v48$2 = value[2] > 0;
+  var v48$3 = value[3] > 0;
+  var v55$0 = Math.fround($bc$i2f(2139095040));
+  var v55$1 = Math.fround($bc$i2f(2139095040));
+  var v55$2 = Math.fround($bc$i2f(2139095040));
+  var v55$3 = Math.fround($bc$i2f(2139095040));
+  var v50 = zeroLike_Vec_Float_Mask_Float(value);
+  var v51$0 = v48$0 ? v55$0 : v50[0];
+  var v51$1 = v48$1 ? v55$1 : v50[1];
+  var v51$2 = v48$2 ? v55$2 : v50[2];
+  var v51$3 = v48$3 ? v55$3 : v50[3];
+  return [v42$0 ? v51$0 : core[0], v42$1 ? v51$1 : core[1], v42$2 ? v51$2 : core[2], v42$3 ? v51$3 : core[3]];
+}
+
+function expSeries_Vec_Float_Mask_Float(r) {
+  return [Math.fround(Math.fround(1 + r[0]) + Math.fround(Math.fround(r[0] * r[0]) * Math.fround(0.5 + Math.fround(r[0] * Math.fround(0.1666666716337204 + Math.fround(r[0] * Math.fround(0.0416666679084301 + Math.fround(r[0] * Math.fround(0.008333333767950535 + Math.fround(r[0] * Math.fround(0.0013888889225199819 + Math.fround(r[0] * Math.fround(0.00019841270113829523 + Math.fround(r[0] * Math.fround(0.000024801587642286904 + Math.fround(r[0] * Math.fround(0.0000027557318844628753 + Math.fround(r[0] * Math.fround(0.0000002755731998149713 + Math.fround(r[0] * Math.fround(2.5052107943679403E-8 + Math.fround(r[0] * Math.fround(2.0876755879584152E-9 + Math.fround(r[0] * Math.fround(1.6059044372074283E-10 + Math.fround(r[0] * Math.fround(1.147074536050896E-11 + Math.fround(r[0] * Math.fround(7.647163609812713E-13 + Math.fround(r[0] * 4.7794772561329454E-14)))))))))))))))))))))))))))))), Math.fround(Math.fround(1 + r[1]) + Math.fround(Math.fround(r[1] * r[1]) * Math.fround(0.5 + Math.fround(r[1] * Math.fround(0.1666666716337204 + Math.fround(r[1] * Math.fround(0.0416666679084301 + Math.fround(r[1] * Math.fround(0.008333333767950535 + Math.fround(r[1] * Math.fround(0.0013888889225199819 + Math.fround(r[1] * Math.fround(0.00019841270113829523 + Math.fround(r[1] * Math.fround(0.000024801587642286904 + Math.fround(r[1] * Math.fround(0.0000027557318844628753 + Math.fround(r[1] * Math.fround(0.0000002755731998149713 + Math.fround(r[1] * Math.fround(2.5052107943679403E-8 + Math.fround(r[1] * Math.fround(2.0876755879584152E-9 + Math.fround(r[1] * Math.fround(1.6059044372074283E-10 + Math.fround(r[1] * Math.fround(1.147074536050896E-11 + Math.fround(r[1] * Math.fround(7.647163609812713E-13 + Math.fround(r[1] * 4.7794772561329454E-14)))))))))))))))))))))))))))))), Math.fround(Math.fround(1 + r[2]) + Math.fround(Math.fround(r[2] * r[2]) * Math.fround(0.5 + Math.fround(r[2] * Math.fround(0.1666666716337204 + Math.fround(r[2] * Math.fround(0.0416666679084301 + Math.fround(r[2] * Math.fround(0.008333333767950535 + Math.fround(r[2] * Math.fround(0.0013888889225199819 + Math.fround(r[2] * Math.fround(0.00019841270113829523 + Math.fround(r[2] * Math.fround(0.000024801587642286904 + Math.fround(r[2] * Math.fround(0.0000027557318844628753 + Math.fround(r[2] * Math.fround(0.0000002755731998149713 + Math.fround(r[2] * Math.fround(2.5052107943679403E-8 + Math.fround(r[2] * Math.fround(2.0876755879584152E-9 + Math.fround(r[2] * Math.fround(1.6059044372074283E-10 + Math.fround(r[2] * Math.fround(1.147074536050896E-11 + Math.fround(r[2] * Math.fround(7.647163609812713E-13 + Math.fround(r[2] * 4.7794772561329454E-14)))))))))))))))))))))))))))))), Math.fround(Math.fround(1 + r[3]) + Math.fround(Math.fround(r[3] * r[3]) * Math.fround(0.5 + Math.fround(r[3] * Math.fround(0.1666666716337204 + Math.fround(r[3] * Math.fround(0.0416666679084301 + Math.fround(r[3] * Math.fround(0.008333333767950535 + Math.fround(r[3] * Math.fround(0.0013888889225199819 + Math.fround(r[3] * Math.fround(0.00019841270113829523 + Math.fround(r[3] * Math.fround(0.000024801587642286904 + Math.fround(r[3] * Math.fround(0.0000027557318844628753 + Math.fround(r[3] * Math.fround(0.0000002755731998149713 + Math.fround(r[3] * Math.fround(2.5052107943679403E-8 + Math.fround(r[3] * Math.fround(2.0876755879584152E-9 + Math.fround(r[3] * Math.fround(1.6059044372074283E-10 + Math.fround(r[3] * Math.fround(1.147074536050896E-11 + Math.fround(r[3] * Math.fround(7.647163609812713E-13 + Math.fround(r[3] * 4.7794772561329454E-14))))))))))))))))))))))))))))))];
+}
+
+function magnitudeOf_Vec_Float_Mask_Float(value) {
+  var v4$0 = value[0] <= 0;
+  var v4$1 = value[1] <= 0;
+  var v4$2 = value[2] <= 0;
+  var v4$3 = value[3] <= 0;
+  var v8$0 = Math.fround(0 - value[0]);
+  var v8$1 = Math.fround(0 - value[1]);
+  var v8$2 = Math.fround(0 - value[2]);
+  var v8$3 = Math.fround(0 - value[3]);
+  return [v4$0 ? v8$0 : value[0], v4$1 ? v8$1 : value[1], v4$2 ? v8$2 : value[2], v4$3 ? v8$3 : value[3]];
+}
+
+function zeroLike_Vec_Float_Mask_Float(value) {
+  return magnitudeOf_Vec_Float_Mask_Float([Math.fround(value[0] * 0), Math.fround(value[1] * 0), Math.fround(value[2] * 0), Math.fround(value[3] * 0)]);
+}
+
+function logExponent_Vec_Float_Mask_Float(value) {
+  var bits$0 = $bc$f2i(value[0]) | 0;
+  var bits$1 = $bc$f2i(value[1]) | 0;
+  var bits$2 = $bc$f2i(value[2]) | 0;
+  var bits$3 = $bc$f2i(value[3]) | 0;
+  var v16$0 = bits$0 >>> 23;
+  var v16$1 = bits$1 >>> 23;
+  var v16$2 = bits$2 >>> 23;
+  var v16$3 = bits$3 >>> 23;
+  var v19$0 = v16$0 & 255;
+  var v19$1 = v16$1 & 255;
+  var v19$2 = v16$2 & 255;
+  var v19$3 = v16$3 & 255;
+  var v20$0 = Math.fround(v19$0);
+  var v20$1 = Math.fround(v19$1);
+  var v20$2 = Math.fround(v19$2);
+  var v20$3 = Math.fround(v19$3);
+  var v23$0 = Math.fround(v20$0 - 127);
+  var v23$1 = Math.fround(v20$1 - 127);
+  var v23$2 = Math.fround(v20$2 - 127);
+  var v23$3 = Math.fround(v20$3 - 127);
+  var v2 = Real_Vec_Float_Mask_Float_significandOf(value);
+  return [v2[0] > 1.4142135381698608 ? Math.fround(v23$0 + 1) : v23$0, v2[1] > 1.4142135381698608 ? Math.fround(v23$1 + 1) : v23$1, v2[2] > 1.4142135381698608 ? Math.fround(v23$2 + 1) : v23$2, v2[3] > 1.4142135381698608 ? Math.fround(v23$3 + 1) : v23$3];
+}
+
+function logSignificand_Vec_Float_Mask_Float(value) {
+  var raw = Real_Vec_Float_Mask_Float_significandOf(value);
+  var v5$0 = raw[0] > 1.4142135381698608;
+  var v5$1 = raw[1] > 1.4142135381698608;
+  var v5$2 = raw[2] > 1.4142135381698608;
+  var v5$3 = raw[3] > 1.4142135381698608;
+  var v9$0 = Math.fround(raw[0] * 0.5);
+  var v9$1 = Math.fround(raw[1] * 0.5);
+  var v9$2 = Math.fround(raw[2] * 0.5);
+  var v9$3 = Math.fround(raw[3] * 0.5);
+  return [v5$0 ? v9$0 : raw[0], v5$1 ? v9$1 : raw[1], v5$2 ? v9$2 : raw[2], v5$3 ? v9$3 : raw[3]];
+}
+
+function logSeries_Vec_Float_Mask_Float(significand) {
+  var v4$0 = Math.fround(significand[0] - 1);
+  var v4$1 = Math.fround(significand[1] - 1);
+  var v4$2 = Math.fround(significand[2] - 1);
+  var v4$3 = Math.fround(significand[3] - 1);
+  var v8$0 = Math.fround(significand[0] + 1);
+  var v8$1 = Math.fround(significand[1] + 1);
+  var v8$2 = Math.fround(significand[2] + 1);
+  var v8$3 = Math.fround(significand[3] + 1);
+  var s$0 = Math.fround(v4$0 / v8$0);
+  var s$1 = Math.fround(v4$1 / v8$1);
+  var s$2 = Math.fround(v4$2 / v8$2);
+  var s$3 = Math.fround(v4$3 / v8$3);
+  var z$0 = Math.fround(s$0 * s$0);
+  var z$1 = Math.fround(s$1 * s$1);
+  var z$2 = Math.fround(s$2 * s$2);
+  var z$3 = Math.fround(s$3 * s$3);
+  return [Math.fround(Math.fround(2 * s$0) + Math.fround(Math.fround(Math.fround(2 * s$0) * z$0) * Math.fround(0.3333333432674408 + Math.fround(z$0 * Math.fround(0.20000000298023224 + Math.fround(z$0 * Math.fround(0.1428571492433548 + Math.fround(z$0 * Math.fround(0.1111111119389534 + Math.fround(z$0 * Math.fround(0.09090909361839294 + Math.fround(z$0 * Math.fround(0.07692307978868484 + Math.fround(z$0 * Math.fround(0.06666667014360428 + Math.fround(z$0 * Math.fround(0.05882352963089943 + Math.fround(z$0 * Math.fround(0.05263157933950424 + Math.fround(z$0 * Math.fround(0.0476190485060215 + Math.fround(z$0 * Math.fround(0.043478261679410934 + Math.fround(z$0 * 0.03999999910593033)))))))))))))))))))))))), Math.fround(Math.fround(2 * s$1) + Math.fround(Math.fround(Math.fround(2 * s$1) * z$1) * Math.fround(0.3333333432674408 + Math.fround(z$1 * Math.fround(0.20000000298023224 + Math.fround(z$1 * Math.fround(0.1428571492433548 + Math.fround(z$1 * Math.fround(0.1111111119389534 + Math.fround(z$1 * Math.fround(0.09090909361839294 + Math.fround(z$1 * Math.fround(0.07692307978868484 + Math.fround(z$1 * Math.fround(0.06666667014360428 + Math.fround(z$1 * Math.fround(0.05882352963089943 + Math.fround(z$1 * Math.fround(0.05263157933950424 + Math.fround(z$1 * Math.fround(0.0476190485060215 + Math.fround(z$1 * Math.fround(0.043478261679410934 + Math.fround(z$1 * 0.03999999910593033)))))))))))))))))))))))), Math.fround(Math.fround(2 * s$2) + Math.fround(Math.fround(Math.fround(2 * s$2) * z$2) * Math.fround(0.3333333432674408 + Math.fround(z$2 * Math.fround(0.20000000298023224 + Math.fround(z$2 * Math.fround(0.1428571492433548 + Math.fround(z$2 * Math.fround(0.1111111119389534 + Math.fround(z$2 * Math.fround(0.09090909361839294 + Math.fround(z$2 * Math.fround(0.07692307978868484 + Math.fround(z$2 * Math.fround(0.06666667014360428 + Math.fround(z$2 * Math.fround(0.05882352963089943 + Math.fround(z$2 * Math.fround(0.05263157933950424 + Math.fround(z$2 * Math.fround(0.0476190485060215 + Math.fround(z$2 * Math.fround(0.043478261679410934 + Math.fround(z$2 * 0.03999999910593033)))))))))))))))))))))))), Math.fround(Math.fround(2 * s$3) + Math.fround(Math.fround(Math.fround(2 * s$3) * z$3) * Math.fround(0.3333333432674408 + Math.fround(z$3 * Math.fround(0.20000000298023224 + Math.fround(z$3 * Math.fround(0.1428571492433548 + Math.fround(z$3 * Math.fround(0.1111111119389534 + Math.fround(z$3 * Math.fround(0.09090909361839294 + Math.fround(z$3 * Math.fround(0.07692307978868484 + Math.fround(z$3 * Math.fround(0.06666667014360428 + Math.fround(z$3 * Math.fround(0.05882352963089943 + Math.fround(z$3 * Math.fround(0.05263157933950424 + Math.fround(z$3 * Math.fround(0.0476190485060215 + Math.fround(z$3 * Math.fround(0.043478261679410934 + Math.fround(z$3 * 0.03999999910593033))))))))))))))))))))))))];
+}
+
+function logGuard_Vec_Float_Mask_Float(value, answer) {
+  var v18$0 = Math.fround($bc$i2f(2139095040));
+  var v18$1 = Math.fround($bc$i2f(2139095040));
+  var v18$2 = Math.fround($bc$i2f(2139095040));
+  var v18$3 = Math.fround($bc$i2f(2139095040));
+  var atZero$0 = Math.fround(value[0] - v18$0);
+  var atZero$1 = Math.fround(value[1] - v18$1);
+  var atZero$2 = Math.fround(value[2] - v18$2);
+  var atZero$3 = Math.fround(value[3] - v18$3);
+  var v7$0 = value[0] > 0;
+  var v7$1 = value[1] > 0;
+  var v7$2 = value[2] > 0;
+  var v7$3 = value[3] > 0;
+  var v11$0 = value[0] === 0;
+  var v11$1 = value[1] === 0;
+  var v11$2 = value[2] === 0;
+  var v11$3 = value[3] === 0;
+  var v19 = zeroLike_Vec_Float_Mask_Float(value);
+  var v24$0 = Math.fround($bc$i2f(2139095040));
+  var v24$1 = Math.fround($bc$i2f(2139095040));
+  var v24$2 = Math.fround($bc$i2f(2139095040));
+  var v24$3 = Math.fround($bc$i2f(2139095040));
+  var v21$0 = Math.fround(v19[0] * v24$0);
+  var v21$1 = Math.fround(v19[1] * v24$1);
+  var v21$2 = Math.fround(v19[2] * v24$2);
+  var v21$3 = Math.fround(v19[3] * v24$3);
+  return [v7$0 ? answer[0] : v11$0 ? atZero$0 : v21$0, v7$1 ? answer[1] : v11$1 ? atZero$1 : v21$1, v7$2 ? answer[2] : v11$2 ? atZero$2 : v21$2, v7$3 ? answer[3] : v11$3 ? atZero$3 : v21$3];
+}
+
+function quadrantIndex_Vec_Float_Mask_Float(n, offset) {
+  var shifted$0 = Math.fround(n[0] + offset[0]);
+  var shifted$1 = Math.fround(n[1] + offset[1]);
+  var shifted$2 = Math.fround(n[2] + offset[2]);
+  var shifted$3 = Math.fround(n[3] + offset[3]);
+  return [Math.fround(shifted$0 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$0 * 0.25))))), Math.fround(shifted$1 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$1 * 0.25))))), Math.fround(shifted$2 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$2 * 0.25))))), Math.fround(shifted$3 - Math.fround(4 * Math.fround(Math.floor(Math.fround(shifted$3 * 0.25)))))];
+}
+
+function reducedAngle_Vec_Float_Mask_Float(value, n) {
+  return [Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[0] - Math.fround(n[0] * 1.57080078125)) + Math.fround(n[0] * 0.000004453584551811218)) + Math.fround(n[0] * 8.706138032721356E-10)) - Math.fround(n[0] * 6.222800053024002E-14)) - Math.fround(n[0] * 5.7208605257555445E-18)) - Math.fround(n[0] * 3.2818390803041373E-22)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[1] - Math.fround(n[1] * 1.57080078125)) + Math.fround(n[1] * 0.000004453584551811218)) + Math.fround(n[1] * 8.706138032721356E-10)) - Math.fround(n[1] * 6.222800053024002E-14)) - Math.fround(n[1] * 5.7208605257555445E-18)) - Math.fround(n[1] * 3.2818390803041373E-22)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[2] - Math.fround(n[2] * 1.57080078125)) + Math.fround(n[2] * 0.000004453584551811218)) + Math.fround(n[2] * 8.706138032721356E-10)) - Math.fround(n[2] * 6.222800053024002E-14)) - Math.fround(n[2] * 5.7208605257555445E-18)) - Math.fround(n[2] * 3.2818390803041373E-22)), Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(Math.fround(value[3] - Math.fround(n[3] * 1.57080078125)) + Math.fround(n[3] * 0.000004453584551811218)) + Math.fround(n[3] * 8.706138032721356E-10)) - Math.fround(n[3] * 6.222800053024002E-14)) - Math.fround(n[3] * 5.7208605257555445E-18)) - Math.fround(n[3] * 3.2818390803041373E-22))];
+}
+
+function quadrantOf_Vec_Float_Mask_Float(quadrant, r) {
+  var z$0 = Math.fround(r[0] * r[0]);
+  var z$1 = Math.fround(r[1] * r[1]);
+  var z$2 = Math.fround(r[2] * r[2]);
+  var z$3 = Math.fround(r[3] * r[3]);
+  var v3$0 = Math.fround(r[0] * z$0);
+  var v3$1 = Math.fround(r[1] * z$1);
+  var v3$2 = Math.fround(r[2] * z$2);
+  var v3$3 = Math.fround(r[3] * z$3);
+  var v4 = sineSeries_Vec_Float_Mask_Float([z$0, z$1, z$2, z$3]);
+  var v5$0 = Math.fround(v3$0 * v4[0]);
+  var v5$1 = Math.fround(v3$1 * v4[1]);
+  var v5$2 = Math.fround(v3$2 * v4[2]);
+  var v5$3 = Math.fround(v3$3 * v4[3]);
+  var sine$0 = Math.fround(r[0] - v5$0);
+  var sine$1 = Math.fround(r[1] - v5$1);
+  var sine$2 = Math.fround(r[2] - v5$2);
+  var sine$3 = Math.fround(r[3] - v5$3);
+  var v10$0 = Math.fround(0.5 * z$0);
+  var v10$1 = Math.fround(0.5 * z$1);
+  var v10$2 = Math.fround(0.5 * z$2);
+  var v10$3 = Math.fround(0.5 * z$3);
+  var v14$0 = Math.fround(1 - v10$0);
+  var v14$1 = Math.fround(1 - v10$1);
+  var v14$2 = Math.fround(1 - v10$2);
+  var v14$3 = Math.fround(1 - v10$3);
+  var v15$0 = Math.fround(z$0 * z$0);
+  var v15$1 = Math.fround(z$1 * z$1);
+  var v15$2 = Math.fround(z$2 * z$2);
+  var v15$3 = Math.fround(z$3 * z$3);
+  var v16 = cosineSeries_Vec_Float_Mask_Float([z$0, z$1, z$2, z$3]);
+  var v17$0 = Math.fround(v15$0 * v16[0]);
+  var v17$1 = Math.fround(v15$1 * v16[1]);
+  var v17$2 = Math.fround(v15$2 * v16[2]);
+  var v17$3 = Math.fround(v15$3 * v16[3]);
+  var cosine$0 = Math.fround(v14$0 + v17$0);
+  var cosine$1 = Math.fround(v14$1 + v17$1);
+  var cosine$2 = Math.fround(v14$2 + v17$2);
+  var cosine$3 = Math.fround(v14$3 + v17$3);
+  var v22$0 = quadrant[0] === 2;
+  var v22$1 = quadrant[1] === 2;
+  var v22$2 = quadrant[2] === 2;
+  var v22$3 = quadrant[3] === 2;
+  var v26$0 = Math.fround(0 - sine$0);
+  var v26$1 = Math.fround(0 - sine$1);
+  var v26$2 = Math.fround(0 - sine$2);
+  var v26$3 = Math.fround(0 - sine$3);
+  var v30$0 = Math.fround(0 - cosine$0);
+  var v30$1 = Math.fround(0 - cosine$1);
+  var v30$2 = Math.fround(0 - cosine$2);
+  var v30$3 = Math.fround(0 - cosine$3);
+  var upper$0 = v22$0 ? v26$0 : v30$0;
+  var upper$1 = v22$1 ? v26$1 : v30$1;
+  var upper$2 = v22$2 ? v26$2 : v30$2;
+  var upper$3 = v22$3 ? v26$3 : v30$3;
+  var v35$0 = quadrant[0] === 0;
+  var v35$1 = quadrant[1] === 0;
+  var v35$2 = quadrant[2] === 0;
+  var v35$3 = quadrant[3] === 0;
+  var v39$0 = quadrant[0] === 1;
+  var v39$1 = quadrant[1] === 1;
+  var v39$2 = quadrant[2] === 1;
+  var v39$3 = quadrant[3] === 1;
+  return [v35$0 ? sine$0 : v39$0 ? cosine$0 : upper$0, v35$1 ? sine$1 : v39$1 ? cosine$1 : upper$1, v35$2 ? sine$2 : v39$2 ? cosine$2 : upper$2, v35$3 ? sine$3 : v39$3 ? cosine$3 : upper$3];
+}
+
+function sineSeries_Vec_Float_Mask_Float(z) {
+  return [Math.fround(0.1666666716337204 - Math.fround(z[0] * Math.fround(0.008333333767950535 - Math.fround(z[0] * Math.fround(0.00019841270113829523 - Math.fround(z[0] * Math.fround(0.0000027557318844628753 - Math.fround(z[0] * Math.fround(2.5052107943679403E-8 - Math.fround(z[0] * Math.fround(1.6059044372074283E-10 - Math.fround(z[0] * Math.fround(7.647163609812713E-13 - Math.fround(z[0] * Math.fround(2.8114573589663704E-15 - Math.fround(z[0] * Math.fround(8.220635078476521E-18 - Math.fround(z[0] * 1.9572941524685808E-20)))))))))))))))))), Math.fround(0.1666666716337204 - Math.fround(z[1] * Math.fround(0.008333333767950535 - Math.fround(z[1] * Math.fround(0.00019841270113829523 - Math.fround(z[1] * Math.fround(0.0000027557318844628753 - Math.fround(z[1] * Math.fround(2.5052107943679403E-8 - Math.fround(z[1] * Math.fround(1.6059044372074283E-10 - Math.fround(z[1] * Math.fround(7.647163609812713E-13 - Math.fround(z[1] * Math.fround(2.8114573589663704E-15 - Math.fround(z[1] * Math.fround(8.220635078476521E-18 - Math.fround(z[1] * 1.9572941524685808E-20)))))))))))))))))), Math.fround(0.1666666716337204 - Math.fround(z[2] * Math.fround(0.008333333767950535 - Math.fround(z[2] * Math.fround(0.00019841270113829523 - Math.fround(z[2] * Math.fround(0.0000027557318844628753 - Math.fround(z[2] * Math.fround(2.5052107943679403E-8 - Math.fround(z[2] * Math.fround(1.6059044372074283E-10 - Math.fround(z[2] * Math.fround(7.647163609812713E-13 - Math.fround(z[2] * Math.fround(2.8114573589663704E-15 - Math.fround(z[2] * Math.fround(8.220635078476521E-18 - Math.fround(z[2] * 1.9572941524685808E-20)))))))))))))))))), Math.fround(0.1666666716337204 - Math.fround(z[3] * Math.fround(0.008333333767950535 - Math.fround(z[3] * Math.fround(0.00019841270113829523 - Math.fround(z[3] * Math.fround(0.0000027557318844628753 - Math.fround(z[3] * Math.fround(2.5052107943679403E-8 - Math.fround(z[3] * Math.fround(1.6059044372074283E-10 - Math.fround(z[3] * Math.fround(7.647163609812713E-13 - Math.fround(z[3] * Math.fround(2.8114573589663704E-15 - Math.fround(z[3] * Math.fround(8.220635078476521E-18 - Math.fround(z[3] * 1.9572941524685808E-20))))))))))))))))))];
+}
+
+function cosineSeries_Vec_Float_Mask_Float(z) {
+  return [Math.fround(0.0416666679084301 - Math.fround(z[0] * Math.fround(0.0013888889225199819 - Math.fround(z[0] * Math.fround(0.000024801587642286904 - Math.fround(z[0] * Math.fround(0.0000002755731998149713 - Math.fround(z[0] * Math.fround(2.0876755879584152E-9 - Math.fround(z[0] * Math.fround(1.147074536050896E-11 - Math.fround(z[0] * Math.fround(4.7794772561329454E-14 - Math.fround(z[0] * Math.fround(1.5619206814541513E-16 - Math.fround(z[0] * 4.110317590937049E-19)))))))))))))))), Math.fround(0.0416666679084301 - Math.fround(z[1] * Math.fround(0.0013888889225199819 - Math.fround(z[1] * Math.fround(0.000024801587642286904 - Math.fround(z[1] * Math.fround(0.0000002755731998149713 - Math.fround(z[1] * Math.fround(2.0876755879584152E-9 - Math.fround(z[1] * Math.fround(1.147074536050896E-11 - Math.fround(z[1] * Math.fround(4.7794772561329454E-14 - Math.fround(z[1] * Math.fround(1.5619206814541513E-16 - Math.fround(z[1] * 4.110317590937049E-19)))))))))))))))), Math.fround(0.0416666679084301 - Math.fround(z[2] * Math.fround(0.0013888889225199819 - Math.fround(z[2] * Math.fround(0.000024801587642286904 - Math.fround(z[2] * Math.fround(0.0000002755731998149713 - Math.fround(z[2] * Math.fround(2.0876755879584152E-9 - Math.fround(z[2] * Math.fround(1.147074536050896E-11 - Math.fround(z[2] * Math.fround(4.7794772561329454E-14 - Math.fround(z[2] * Math.fround(1.5619206814541513E-16 - Math.fround(z[2] * 4.110317590937049E-19)))))))))))))))), Math.fround(0.0416666679084301 - Math.fround(z[3] * Math.fround(0.0013888889225199819 - Math.fround(z[3] * Math.fround(0.000024801587642286904 - Math.fround(z[3] * Math.fround(0.0000002755731998149713 - Math.fround(z[3] * Math.fround(2.0876755879584152E-9 - Math.fround(z[3] * Math.fround(1.147074536050896E-11 - Math.fround(z[3] * Math.fround(4.7794772561329454E-14 - Math.fround(z[3] * Math.fround(1.5619206814541513E-16 - Math.fround(z[3] * 4.110317590937049E-19))))))))))))))))];
+}
+
+function arcTangentOf_Vec_Float_Mask_Float(value) {
+  var size = magnitudeOf_Vec_Float_Mask_Float(value);
+  var v5$0 = size[0] > 1;
+  var v5$1 = size[1] > 1;
+  var v5$2 = size[2] > 1;
+  var v5$3 = size[3] > 1;
+  var v9$0 = Math.fround(1 / size[0]);
+  var v9$1 = Math.fround(1 / size[1]);
+  var v9$2 = Math.fround(1 / size[2]);
+  var v9$3 = Math.fround(1 / size[3]);
+  var folded$0 = v5$0 ? v9$0 : size[0];
+  var folded$1 = v5$1 ? v9$1 : size[1];
+  var folded$2 = v5$2 ? v9$2 : size[2];
+  var folded$3 = v5$3 ? v9$3 : size[3];
+  var steep$0 = folded$0 > 0.2679491937160492;
+  var steep$1 = folded$1 > 0.2679491937160492;
+  var steep$2 = folded$2 > 0.2679491937160492;
+  var steep$3 = folded$3 > 0.2679491937160492;
+  var v18$0 = Math.fround(folded$0 * 1.7320507764816284);
+  var v18$1 = Math.fround(folded$1 * 1.7320507764816284);
+  var v18$2 = Math.fround(folded$2 * 1.7320507764816284);
+  var v18$3 = Math.fround(folded$3 * 1.7320507764816284);
+  var v22$0 = Math.fround(v18$0 - 1);
+  var v22$1 = Math.fround(v18$1 - 1);
+  var v22$2 = Math.fround(v18$2 - 1);
+  var v22$3 = Math.fround(v18$3 - 1);
+  var v26$0 = Math.fround(folded$0 + 1.7320507764816284);
+  var v26$1 = Math.fround(folded$1 + 1.7320507764816284);
+  var v26$2 = Math.fround(folded$2 + 1.7320507764816284);
+  var v26$3 = Math.fround(folded$3 + 1.7320507764816284);
+  var reduced$0 = Math.fround(v22$0 / v26$0);
+  var reduced$1 = Math.fround(v22$1 / v26$1);
+  var reduced$2 = Math.fround(v22$2 / v26$2);
+  var reduced$3 = Math.fround(v22$3 / v26$3);
+  var v28 = zeroLike_Vec_Float_Mask_Float(value);
+  var base$0 = steep$0 ? 0.5235987901687622 : v28[0];
+  var base$1 = steep$1 ? 0.5235987901687622 : v28[1];
+  var base$2 = steep$2 ? 0.5235987901687622 : v28[2];
+  var base$3 = steep$3 ? 0.5235987901687622 : v28[3];
+  var v33$0 = steep$0 ? reduced$0 : folded$0;
+  var v33$1 = steep$1 ? reduced$1 : folded$1;
+  var v33$2 = steep$2 ? reduced$2 : folded$2;
+  var v33$3 = steep$3 ? reduced$3 : folded$3;
+  var z$0 = Math.fround(v33$0 * v33$0);
+  var z$1 = Math.fround(v33$1 * v33$1);
+  var z$2 = Math.fround(v33$2 * v33$2);
+  var z$3 = Math.fround(v33$3 * v33$3);
+  var v56$0 = Math.fround(v33$0 * z$0);
+  var v56$1 = Math.fround(v33$1 * z$1);
+  var v56$2 = Math.fround(v33$2 * z$2);
+  var v56$3 = Math.fround(v33$3 * z$3);
+  var v57 = arcTangentSeries_Vec_Float_Mask_Float([z$0, z$1, z$2, z$3]);
+  var v58$0 = Math.fround(v56$0 * v57[0]);
+  var v58$1 = Math.fround(v56$1 * v57[1]);
+  var v58$2 = Math.fround(v56$2 * v57[2]);
+  var v58$3 = Math.fround(v56$3 * v57[3]);
+  var v59$0 = Math.fround(v33$0 - v58$0);
+  var v59$1 = Math.fround(v33$1 - v58$1);
+  var v59$2 = Math.fround(v33$2 - v58$2);
+  var v59$3 = Math.fround(v33$3 - v58$3);
+  var core$0 = Math.fround(base$0 + v59$0);
+  var core$1 = Math.fround(base$1 + v59$1);
+  var core$2 = Math.fround(base$2 + v59$2);
+  var core$3 = Math.fround(base$3 + v59$3);
+  var v39$0 = size[0] > 1;
+  var v39$1 = size[1] > 1;
+  var v39$2 = size[2] > 1;
+  var v39$3 = size[3] > 1;
+  var v43$0 = Math.fround(1.5707963705062866 - core$0);
+  var v43$1 = Math.fround(1.5707963705062866 - core$1);
+  var v43$2 = Math.fround(1.5707963705062866 - core$2);
+  var v43$3 = Math.fround(1.5707963705062866 - core$3);
+  var whole$0 = v39$0 ? v43$0 : core$0;
+  var whole$1 = v39$1 ? v43$1 : core$1;
+  var whole$2 = v39$2 ? v43$2 : core$2;
+  var whole$3 = v39$3 ? v43$3 : core$3;
+  return [value[0] < 0 ? Math.fround(0 - whole$0) : whole$0, value[1] < 0 ? Math.fround(0 - whole$1) : whole$1, value[2] < 0 ? Math.fround(0 - whole$2) : whole$2, value[3] < 0 ? Math.fround(0 - whole$3) : whole$3];
+}
+
+function arcTangentSeries_Vec_Float_Mask_Float(z) {
+  return [Math.fround(0.3333333432674408 - Math.fround(z[0] * Math.fround(0.20000000298023224 - Math.fround(z[0] * Math.fround(0.1428571492433548 - Math.fround(z[0] * Math.fround(0.1111111119389534 - Math.fround(z[0] * Math.fround(0.09090909361839294 - Math.fround(z[0] * Math.fround(0.07692307978868484 - Math.fround(z[0] * Math.fround(0.06666667014360428 - Math.fround(z[0] * Math.fround(0.05882352963089943 - Math.fround(z[0] * Math.fround(0.05263157933950424 - Math.fround(z[0] * Math.fround(0.0476190485060215 - Math.fround(z[0] * Math.fround(0.043478261679410934 - Math.fround(z[0] * Math.fround(0.03999999910593033 - Math.fround(z[0] * Math.fround(0.03703703731298447 - Math.fround(z[0] * Math.fround(0.03448275849223137 - Math.fround(z[0] * Math.fround(0.032258063554763794 - Math.fround(z[0] * Math.fround(0.03030303120613098 - Math.fround(z[0] * 0.02857142873108387)))))))))))))))))))))))))))))))), Math.fround(0.3333333432674408 - Math.fround(z[1] * Math.fround(0.20000000298023224 - Math.fround(z[1] * Math.fround(0.1428571492433548 - Math.fround(z[1] * Math.fround(0.1111111119389534 - Math.fround(z[1] * Math.fround(0.09090909361839294 - Math.fround(z[1] * Math.fround(0.07692307978868484 - Math.fround(z[1] * Math.fround(0.06666667014360428 - Math.fround(z[1] * Math.fround(0.05882352963089943 - Math.fround(z[1] * Math.fround(0.05263157933950424 - Math.fround(z[1] * Math.fround(0.0476190485060215 - Math.fround(z[1] * Math.fround(0.043478261679410934 - Math.fround(z[1] * Math.fround(0.03999999910593033 - Math.fround(z[1] * Math.fround(0.03703703731298447 - Math.fround(z[1] * Math.fround(0.03448275849223137 - Math.fround(z[1] * Math.fround(0.032258063554763794 - Math.fround(z[1] * Math.fround(0.03030303120613098 - Math.fround(z[1] * 0.02857142873108387)))))))))))))))))))))))))))))))), Math.fround(0.3333333432674408 - Math.fround(z[2] * Math.fround(0.20000000298023224 - Math.fround(z[2] * Math.fround(0.1428571492433548 - Math.fround(z[2] * Math.fround(0.1111111119389534 - Math.fround(z[2] * Math.fround(0.09090909361839294 - Math.fround(z[2] * Math.fround(0.07692307978868484 - Math.fround(z[2] * Math.fround(0.06666667014360428 - Math.fround(z[2] * Math.fround(0.05882352963089943 - Math.fround(z[2] * Math.fround(0.05263157933950424 - Math.fround(z[2] * Math.fround(0.0476190485060215 - Math.fround(z[2] * Math.fround(0.043478261679410934 - Math.fround(z[2] * Math.fround(0.03999999910593033 - Math.fround(z[2] * Math.fround(0.03703703731298447 - Math.fround(z[2] * Math.fround(0.03448275849223137 - Math.fround(z[2] * Math.fround(0.032258063554763794 - Math.fround(z[2] * Math.fround(0.03030303120613098 - Math.fround(z[2] * 0.02857142873108387)))))))))))))))))))))))))))))))), Math.fround(0.3333333432674408 - Math.fround(z[3] * Math.fround(0.20000000298023224 - Math.fround(z[3] * Math.fround(0.1428571492433548 - Math.fround(z[3] * Math.fround(0.1111111119389534 - Math.fround(z[3] * Math.fround(0.09090909361839294 - Math.fround(z[3] * Math.fround(0.07692307978868484 - Math.fround(z[3] * Math.fround(0.06666667014360428 - Math.fround(z[3] * Math.fround(0.05882352963089943 - Math.fround(z[3] * Math.fround(0.05263157933950424 - Math.fround(z[3] * Math.fround(0.0476190485060215 - Math.fround(z[3] * Math.fround(0.043478261679410934 - Math.fround(z[3] * Math.fround(0.03999999910593033 - Math.fround(z[3] * Math.fround(0.03703703731298447 - Math.fround(z[3] * Math.fround(0.03448275849223137 - Math.fround(z[3] * Math.fround(0.032258063554763794 - Math.fround(z[3] * Math.fround(0.03030303120613098 - Math.fround(z[3] * 0.02857142873108387))))))))))))))))))))))))))))))))];
+}
+
+function arcTangent2Of_Vec_Float_Mask_Float(y, x) {
+  var base = arcTangentOf_Vec_Float_Mask_Float([Math.fround(y[0] / x[0]), Math.fround(y[1] / x[1]), Math.fround(y[2] / x[2]), Math.fround(y[3] / x[3])]);
+  var v7$0 = y[0] < 0;
+  var v7$1 = y[1] < 0;
+  var v7$2 = y[2] < 0;
+  var v7$3 = y[3] < 0;
+  var v11$0 = Math.fround(base[0] - 3.1415927410125732);
+  var v11$1 = Math.fround(base[1] - 3.1415927410125732);
+  var v11$2 = Math.fround(base[2] - 3.1415927410125732);
+  var v11$3 = Math.fround(base[3] - 3.1415927410125732);
+  var v15$0 = Math.fround(base[0] + 3.1415927410125732);
+  var v15$1 = Math.fround(base[1] + 3.1415927410125732);
+  var v15$2 = Math.fround(base[2] + 3.1415927410125732);
+  var v15$3 = Math.fround(base[3] + 3.1415927410125732);
+  var shifted$0 = v7$0 ? v11$0 : v15$0;
+  var shifted$1 = v7$1 ? v11$1 : v15$1;
+  var shifted$2 = v7$2 ? v11$2 : v15$2;
+  var shifted$3 = v7$3 ? v11$3 : v15$3;
+  var v20$0 = x[0] < 0;
+  var v20$1 = x[1] < 0;
+  var v20$2 = x[2] < 0;
+  var v20$3 = x[3] < 0;
+  var general$0 = v20$0 ? shifted$0 : base[0];
+  var general$1 = v20$1 ? shifted$1 : base[1];
+  var general$2 = v20$2 ? shifted$2 : base[2];
+  var general$3 = v20$3 ? shifted$3 : base[3];
+  var v25$0 = y[0] === 0;
+  var v25$1 = y[1] === 0;
+  var v25$2 = y[2] === 0;
+  var v25$3 = y[3] === 0;
+  var v26 = zeroLike_Vec_Float_Mask_Float(y);
+  var v30 = signOfOther_Vec_Float_Mask_Float([1.5707963705062866, 1.5707963705062866, 1.5707963705062866, 1.5707963705062866], y);
+  var vertical$0 = v25$0 ? v26[0] : v30[0];
+  var vertical$1 = v25$1 ? v26[1] : v30[1];
+  var vertical$2 = v25$2 ? v26[2] : v30[2];
+  var vertical$3 = v25$3 ? v26[3] : v30[3];
+  return [x[0] === 0 ? vertical$0 : general$0, x[1] === 0 ? vertical$1 : general$1, x[2] === 0 ? vertical$2 : general$2, x[3] === 0 ? vertical$3 : general$3];
+}
+
+function signOfOther_Vec_Float_Mask_Float(size, like) {
+  var v5$0 = like[0] < 0;
+  var v5$1 = like[1] < 0;
+  var v5$2 = like[2] < 0;
+  var v5$3 = like[3] < 0;
+  var v6 = magnitudeOf_Vec_Float_Mask_Float(size);
+  var v10$0 = Math.fround(0 - v6[0]);
+  var v10$1 = Math.fround(0 - v6[1]);
+  var v10$2 = Math.fround(0 - v6[2]);
+  var v10$3 = Math.fround(0 - v6[3]);
+  var v11 = magnitudeOf_Vec_Float_Mask_Float(size);
+  return [v5$0 ? v10$0 : v11[0], v5$1 ? v10$1 : v11[1], v5$2 ? v10$2 : v11[2], v5$3 ? v10$3 : v11[3]];
+}
+
+function powerOf_Vec_Float_Mask_Float(base, exponent) {
+  var v3 = log2Of_Vec_Float_Mask_Float(magnitudeOf_Vec_Float_Mask_Float(base));
+  var size = exp2Of_Vec_Float_Mask_Float([Math.fround(exponent[0] * v3[0]), Math.fround(exponent[1] * v3[1]), Math.fround(exponent[2] * v3[2]), Math.fround(exponent[3] * v3[3])]);
+  var v6$0 = Math.fround(Math.trunc(exponent[0]));
+  var v6$1 = Math.fround(Math.trunc(exponent[1]));
+  var v6$2 = Math.fround(Math.trunc(exponent[2]));
+  var v6$3 = Math.fround(Math.trunc(exponent[3]));
+  var whole$0 = v6$0 === exponent[0];
+  var whole$1 = v6$1 === exponent[1];
+  var whole$2 = v6$2 === exponent[2];
+  var whole$3 = v6$3 === exponent[3];
+  var v49$0 = Math.fround(exponent[0] / 2);
+  var v49$1 = Math.fround(exponent[1] / 2);
+  var v49$2 = Math.fround(exponent[2] / 2);
+  var v49$3 = Math.fround(exponent[3] / 2);
+  var v50$0 = Math.fround(Math.trunc(v49$0));
+  var v50$1 = Math.fround(Math.trunc(v49$1));
+  var v50$2 = Math.fround(Math.trunc(v49$2));
+  var v50$3 = Math.fround(Math.trunc(v49$3));
+  var v51$0 = Math.fround(v50$0 * 2);
+  var v51$1 = Math.fround(v50$1 * 2);
+  var v51$2 = Math.fround(v50$2 * 2);
+  var v51$3 = Math.fround(v50$3 * 2);
+  var v52$0 = Math.fround(exponent[0] - v51$0);
+  var v52$1 = Math.fround(exponent[1] - v51$1);
+  var v52$2 = Math.fround(exponent[2] - v51$2);
+  var v52$3 = Math.fround(exponent[3] - v51$3);
+  var odd$0 = v52$0 !== 0;
+  var odd$1 = v52$1 !== 0;
+  var odd$2 = v52$2 !== 0;
+  var odd$3 = v52$3 !== 0;
+  var v19$0 = Math.fround(0 - size[0]);
+  var v19$1 = Math.fround(0 - size[1]);
+  var v19$2 = Math.fround(0 - size[2]);
+  var v19$3 = Math.fround(0 - size[3]);
+  var signed$0 = odd$0 ? v19$0 : size[0];
+  var signed$1 = odd$1 ? v19$1 : size[1];
+  var signed$2 = odd$2 ? v19$2 : size[2];
+  var signed$3 = odd$3 ? v19$3 : size[3];
+  var v24$0 = base[0] < 0;
+  var v24$1 = base[1] < 0;
+  var v24$2 = base[2] < 0;
+  var v24$3 = base[3] < 0;
+  var v53 = zeroLike_Vec_Float_Mask_Float(base);
+  var v56$0 = Math.fround($bc$i2f(2139095040));
+  var v56$1 = Math.fround($bc$i2f(2139095040));
+  var v56$2 = Math.fround($bc$i2f(2139095040));
+  var v56$3 = Math.fround($bc$i2f(2139095040));
+  var v57$0 = Math.fround(v53[0] * v56$0);
+  var v57$1 = Math.fround(v53[1] * v56$1);
+  var v57$2 = Math.fround(v53[2] * v56$2);
+  var v57$3 = Math.fround(v53[3] * v56$3);
+  var v26$0 = whole$0 ? signed$0 : v57$0;
+  var v26$1 = whole$1 ? signed$1 : v57$1;
+  var v26$2 = whole$2 ? signed$2 : v57$2;
+  var v26$3 = whole$3 ? signed$3 : v57$3;
+  var answer$0 = v24$0 ? v26$0 : size[0];
+  var answer$1 = v24$1 ? v26$1 : size[1];
+  var answer$2 = v24$2 ? v26$2 : size[2];
+  var answer$3 = v24$3 ? v26$3 : size[3];
+  var v31$0 = exponent[0] < 0;
+  var v31$1 = exponent[1] < 0;
+  var v31$2 = exponent[2] < 0;
+  var v31$3 = exponent[3] < 0;
+  var v60$0 = Math.fround($bc$i2f(2139095040));
+  var v60$1 = Math.fround($bc$i2f(2139095040));
+  var v60$2 = Math.fround($bc$i2f(2139095040));
+  var v60$3 = Math.fround($bc$i2f(2139095040));
+  var v33 = zeroLike_Vec_Float_Mask_Float(base);
+  var atZero$0 = v31$0 ? v60$0 : v33[0];
+  var atZero$1 = v31$1 ? v60$1 : v33[1];
+  var atZero$2 = v31$2 ? v60$2 : v33[2];
+  var atZero$3 = v31$3 ? v60$3 : v33[3];
+  var v38$0 = exponent[0] === 0;
+  var v38$1 = exponent[1] === 0;
+  var v38$2 = exponent[2] === 0;
+  var v38$3 = exponent[3] === 0;
+  var v42$0 = base[0] === 0;
+  var v42$1 = base[1] === 0;
+  var v42$2 = base[2] === 0;
+  var v42$3 = base[3] === 0;
+  return [v38$0 ? 1 : v42$0 ? atZero$0 : answer$0, v38$1 ? 1 : v42$1 ? atZero$1 : answer$1, v38$2 ? 1 : v42$2 ? atZero$2 : answer$2, v38$3 ? 1 : v42$3 ? atZero$3 : answer$3];
+}
+
+function log2Of_Vec_Float_Mask_Float(value) {
+  var e = logExponent_Vec_Float_Mask_Float(value);
+  var v3 = logSeries_Vec_Float_Mask_Float(logSignificand_Vec_Float_Mask_Float(value));
+  return logGuard_Vec_Float_Mask_Float(value, [Math.fround(Math.fround(v3[0] * 1.4426950216293335) + e[0]), Math.fround(Math.fround(v3[1] * 1.4426950216293335) + e[1]), Math.fround(Math.fround(v3[2] * 1.4426950216293335) + e[2]), Math.fround(Math.fround(v3[3] * 1.4426950216293335) + e[3])]);
+}
+
+function exp2Of_Vec_Float_Mask_Float(value) {
+  var n$0 = Math.fround($round(value[0]));
+  var n$1 = Math.fround($round(value[1]));
+  var n$2 = Math.fround($round(value[2]));
+  var n$3 = Math.fround($round(value[3]));
+  var f$0 = Math.fround(value[0] - n$0);
+  var f$1 = Math.fround(value[1] - n$1);
+  var f$2 = Math.fround(value[2] - n$2);
+  var f$3 = Math.fround(value[3] - n$3);
+  var core = Real_Vec_Float_Mask_Float_scaleByExponent(expSeries_Vec_Float_Mask_Float([Math.fround(Math.fround(f$0 * 0.693115234375) + Math.fround(f$0 * 0.00003194618329871446)), Math.fround(Math.fround(f$1 * 0.693115234375) + Math.fround(f$1 * 0.00003194618329871446)), Math.fround(Math.fround(f$2 * 0.693115234375) + Math.fround(f$2 * 0.00003194618329871446)), Math.fround(Math.fround(f$3 * 0.693115234375) + Math.fround(f$3 * 0.00003194618329871446))]), [n$0, n$1, n$2, n$3]);
+  var v14 = magnitudeOf_Vec_Float_Mask_Float(value);
+  var v18$0 = v14[0] > 1200;
+  var v18$1 = v14[1] > 1200;
+  var v18$2 = v14[2] > 1200;
+  var v18$3 = v14[3] > 1200;
+  var v24$0 = value[0] > 0;
+  var v24$1 = value[1] > 0;
+  var v24$2 = value[2] > 0;
+  var v24$3 = value[3] > 0;
+  var v27$0 = Math.fround($bc$i2f(2139095040));
+  var v27$1 = Math.fround($bc$i2f(2139095040));
+  var v27$2 = Math.fround($bc$i2f(2139095040));
+  var v27$3 = Math.fround($bc$i2f(2139095040));
+  var v28 = zeroLike_Vec_Float_Mask_Float(value);
+  var v29$0 = v24$0 ? v27$0 : v28[0];
+  var v29$1 = v24$1 ? v27$1 : v28[1];
+  var v29$2 = v24$2 ? v27$2 : v28[2];
+  var v29$3 = v24$3 ? v27$3 : v28[3];
+  return [v18$0 ? v29$0 : core[0], v18$1 ? v29$1 : core[1], v18$2 ? v29$2 : core[2], v18$3 ? v29$3 : core[3]];
+}
+
+function cubeRootOf_Vec_Float_Mask_Float(value) {
+  var size = magnitudeOf_Vec_Float_Mask_Float(value);
+  var v2 = log2Of_Vec_Float_Mask_Float(size);
+  var guess = exp2Of_Vec_Float_Mask_Float([Math.fround(v2[0] * 0.3333333432674408), Math.fround(v2[1] * 0.3333333432674408), Math.fround(v2[2] * 0.3333333432674408), Math.fround(v2[3] * 0.3333333432674408)]);
+  var v8$0 = Math.fround(guess[0] * guess[0]);
+  var v8$1 = Math.fround(guess[1] * guess[1]);
+  var v8$2 = Math.fround(guess[2] * guess[2]);
+  var v8$3 = Math.fround(guess[3] * guess[3]);
+  var v9$0 = Math.fround(size[0] / v8$0);
+  var v9$1 = Math.fround(size[1] / v8$1);
+  var v9$2 = Math.fround(size[2] / v8$2);
+  var v9$3 = Math.fround(size[3] / v8$3);
+  var v10$0 = Math.fround(guess[0] - v9$0);
+  var v10$1 = Math.fround(guess[1] - v9$1);
+  var v10$2 = Math.fround(guess[2] - v9$2);
+  var v10$3 = Math.fround(guess[3] - v9$3);
+  var v14$0 = Math.fround(v10$0 * 0.3333333432674408);
+  var v14$1 = Math.fround(v10$1 * 0.3333333432674408);
+  var v14$2 = Math.fround(v10$2 * 0.3333333432674408);
+  var v14$3 = Math.fround(v10$3 * 0.3333333432674408);
+  var once$0 = Math.fround(guess[0] - v14$0);
+  var once$1 = Math.fround(guess[1] - v14$1);
+  var once$2 = Math.fround(guess[2] - v14$2);
+  var once$3 = Math.fround(guess[3] - v14$3);
+  var v16$0 = Math.fround(once$0 * once$0);
+  var v16$1 = Math.fround(once$1 * once$1);
+  var v16$2 = Math.fround(once$2 * once$2);
+  var v16$3 = Math.fround(once$3 * once$3);
+  var v17$0 = Math.fround(size[0] / v16$0);
+  var v17$1 = Math.fround(size[1] / v16$1);
+  var v17$2 = Math.fround(size[2] / v16$2);
+  var v17$3 = Math.fround(size[3] / v16$3);
+  var v18$0 = Math.fround(once$0 - v17$0);
+  var v18$1 = Math.fround(once$1 - v17$1);
+  var v18$2 = Math.fround(once$2 - v17$2);
+  var v18$3 = Math.fround(once$3 - v17$3);
+  var v22$0 = Math.fround(v18$0 * 0.3333333432674408);
+  var v22$1 = Math.fround(v18$1 * 0.3333333432674408);
+  var v22$2 = Math.fround(v18$2 * 0.3333333432674408);
+  var v22$3 = Math.fround(v18$3 * 0.3333333432674408);
+  var twice$0 = Math.fround(once$0 - v22$0);
+  var twice$1 = Math.fround(once$1 - v22$1);
+  var twice$2 = Math.fround(once$2 - v22$2);
+  var twice$3 = Math.fround(once$3 - v22$3);
+  var v27$0 = value[0] === 0;
+  var v27$1 = value[1] === 0;
+  var v27$2 = value[2] === 0;
+  var v27$3 = value[3] === 0;
+  var v28 = zeroLike_Vec_Float_Mask_Float(value);
+  var v29 = signOfOther_Vec_Float_Mask_Float([twice$0, twice$1, twice$2, twice$3], value);
+  return [v27$0 ? v28[0] : v29[0], v27$1 ? v28[1] : v29[1], v27$2 ? v28[2] : v29[2], v27$3 ? v28[3] : v29[3]];
+}
+
+function expOf_Vec_Double_Mask_Double(value) {
+  var v4$0 = value[0] * 1.4426950408889634;
+  var v4$1 = value[1] * 1.4426950408889634;
+  var n$0 = $round(v4$0);
+  var n$1 = $round(v4$1);
+  var core = Real_Vec_Double_Mask_Double_scaleByExponent(expSeries_Vec_Double_Mask_Double([value[0] - n$0 * 0.693115234375 - n$0 * 0.000031948089599609375 + n$0 * 1.9044819055125117E-9 + n$0 * 1.724176357242868E-13 - n$0 * 2.3188373964033726E-17 - n$0 * 2.094421310984266E-21, value[1] - n$1 * 0.693115234375 - n$1 * 0.000031948089599609375 + n$1 * 1.9044819055125117E-9 + n$1 * 1.724176357242868E-13 - n$1 * 2.3188373964033726E-17 - n$1 * 2.094421310984266E-21]), [n$0, n$1]);
+  var v38 = magnitudeOf_Vec_Double_Mask_Double(value);
+  var v42$0 = v38[0] > 800;
+  var v42$1 = v38[1] > 800;
+  var v48$0 = value[0] > 0;
+  var v48$1 = value[1] > 0;
+  var v55$0 = $bc$l2d(9218868437227405312n);
+  var v55$1 = $bc$l2d(9218868437227405312n);
+  var v59 = magnitudeOf_Vec_Double_Mask_Double([value[0] * 0, value[1] * 0]);
+  var v51$0 = v48$0 ? v55$0 : v59[0];
+  var v51$1 = v48$1 ? v55$1 : v59[1];
+  return [v42$0 ? v51$0 : core[0], v42$1 ? v51$1 : core[1]];
+}
+
+function expSeries_Vec_Double_Mask_Double(r) {
+  return [1 + r[0] + r[0] * r[0] * (0.5 + r[0] * (0.16666666666666666 + r[0] * (0.041666666666666664 + r[0] * (0.008333333333333333 + r[0] * (0.001388888888888889 + r[0] * (0.0001984126984126984 + r[0] * (0.0000248015873015873 + r[0] * (0.0000027557319223985893 + r[0] * (0.00000027557319223985894 + r[0] * (2.505210838544172E-8 + r[0] * (2.08767569878681E-9 + r[0] * (1.6059043836821616E-10 + r[0] * (1.1470745597729725E-11 + r[0] * (7.647163731819816E-13 + r[0] * 4.779477332387385E-14)))))))))))))), 1 + r[1] + r[1] * r[1] * (0.5 + r[1] * (0.16666666666666666 + r[1] * (0.041666666666666664 + r[1] * (0.008333333333333333 + r[1] * (0.001388888888888889 + r[1] * (0.0001984126984126984 + r[1] * (0.0000248015873015873 + r[1] * (0.0000027557319223985893 + r[1] * (0.00000027557319223985894 + r[1] * (2.505210838544172E-8 + r[1] * (2.08767569878681E-9 + r[1] * (1.6059043836821616E-10 + r[1] * (1.1470745597729725E-11 + r[1] * (7.647163731819816E-13 + r[1] * 4.779477332387385E-14))))))))))))))];
+}
+
+function magnitudeOf_Vec_Double_Mask_Double(value) {
+  var v4$0 = value[0] <= 0;
+  var v4$1 = value[1] <= 0;
+  var v8$0 = 0 - value[0];
+  var v8$1 = 0 - value[1];
+  return [v4$0 ? v8$0 : value[0], v4$1 ? v8$1 : value[1]];
+}
+
+function logExponent_Vec_Double_Mask_Double(value) {
+  var raw = Real_Vec_Double_Mask_Double_exponentOf(value);
+  var v2 = Real_Vec_Double_Mask_Double_significandOf(value);
+  var v6$0 = v2[0] > 1.414213562373095;
+  var v6$1 = v2[1] > 1.414213562373095;
+  var v10$0 = raw[0] + 1;
+  var v10$1 = raw[1] + 1;
+  return [v6$0 ? v10$0 : raw[0], v6$1 ? v10$1 : raw[1]];
+}
+
+function logSignificand_Vec_Double_Mask_Double(value) {
+  var raw = Real_Vec_Double_Mask_Double_significandOf(value);
+  var v5$0 = raw[0] > 1.414213562373095;
+  var v5$1 = raw[1] > 1.414213562373095;
+  var v9$0 = raw[0] * 0.5;
+  var v9$1 = raw[1] * 0.5;
+  return [v5$0 ? v9$0 : raw[0], v5$1 ? v9$1 : raw[1]];
+}
+
+function logSeries_Vec_Double_Mask_Double(significand) {
+  var v4$0 = significand[0] - 1;
+  var v4$1 = significand[1] - 1;
+  var v8$0 = significand[0] + 1;
+  var v8$1 = significand[1] + 1;
+  var s$0 = v4$0 / v8$0;
+  var s$1 = v4$1 / v8$1;
+  var z$0 = s$0 * s$0;
+  var z$1 = s$1 * s$1;
+  return [2 * s$0 + 2 * s$0 * z$0 * (0.3333333333333333 + z$0 * (0.2 + z$0 * (0.14285714285714285 + z$0 * (0.1111111111111111 + z$0 * (0.09090909090909091 + z$0 * (0.07692307692307693 + z$0 * (0.06666666666666667 + z$0 * (0.058823529411764705 + z$0 * (0.05263157894736842 + z$0 * (0.047619047619047616 + z$0 * (0.043478260869565216 + z$0 * 0.04))))))))))), 2 * s$1 + 2 * s$1 * z$1 * (0.3333333333333333 + z$1 * (0.2 + z$1 * (0.14285714285714285 + z$1 * (0.1111111111111111 + z$1 * (0.09090909090909091 + z$1 * (0.07692307692307693 + z$1 * (0.06666666666666667 + z$1 * (0.058823529411764705 + z$1 * (0.05263157894736842 + z$1 * (0.047619047619047616 + z$1 * (0.043478260869565216 + z$1 * 0.04)))))))))))];
+}
+
+function logGuard_Vec_Double_Mask_Double(value, answer) {
+  var v18$0 = $bc$l2d(9218868437227405312n);
+  var v18$1 = $bc$l2d(9218868437227405312n);
+  var atZero$0 = value[0] - v18$0;
+  var atZero$1 = value[1] - v18$1;
+  var v7$0 = value[0] > 0;
+  var v7$1 = value[1] > 0;
+  var v11$0 = value[0] === 0;
+  var v11$1 = value[1] === 0;
+  var v25 = magnitudeOf_Vec_Double_Mask_Double([value[0] * 0, value[1] * 0]);
+  var v28$0 = $bc$l2d(9218868437227405312n);
+  var v28$1 = $bc$l2d(9218868437227405312n);
+  var v21$0 = v25[0] * v28$0;
+  var v21$1 = v25[1] * v28$1;
+  return [v7$0 ? answer[0] : v11$0 ? atZero$0 : v21$0, v7$1 ? answer[1] : v11$1 ? atZero$1 : v21$1];
+}
+
+function quadrantOf_Vec_Double_Mask_Double(quadrant, r) {
+  var z$0 = r[0] * r[0];
+  var z$1 = r[1] * r[1];
+  var v3$0 = r[0] * z$0;
+  var v3$1 = r[1] * z$1;
+  var v4 = sineSeries_Vec_Double_Mask_Double([z$0, z$1]);
+  var v5$0 = v3$0 * v4[0];
+  var v5$1 = v3$1 * v4[1];
+  var sine$0 = r[0] - v5$0;
+  var sine$1 = r[1] - v5$1;
+  var v10$0 = 0.5 * z$0;
+  var v10$1 = 0.5 * z$1;
+  var v14$0 = 1 - v10$0;
+  var v14$1 = 1 - v10$1;
+  var v15$0 = z$0 * z$0;
+  var v15$1 = z$1 * z$1;
+  var v16 = cosineSeries_Vec_Double_Mask_Double([z$0, z$1]);
+  var v17$0 = v15$0 * v16[0];
+  var v17$1 = v15$1 * v16[1];
+  var cosine$0 = v14$0 + v17$0;
+  var cosine$1 = v14$1 + v17$1;
+  var v22$0 = quadrant[0] === 2;
+  var v22$1 = quadrant[1] === 2;
+  var v26$0 = 0 - sine$0;
+  var v26$1 = 0 - sine$1;
+  var v30$0 = 0 - cosine$0;
+  var v30$1 = 0 - cosine$1;
+  var upper$0 = v22$0 ? v26$0 : v30$0;
+  var upper$1 = v22$1 ? v26$1 : v30$1;
+  var v35$0 = quadrant[0] === 0;
+  var v35$1 = quadrant[1] === 0;
+  var v39$0 = quadrant[0] === 1;
+  var v39$1 = quadrant[1] === 1;
+  return [v35$0 ? sine$0 : v39$0 ? cosine$0 : upper$0, v35$1 ? sine$1 : v39$1 ? cosine$1 : upper$1];
+}
+
+function sineSeries_Vec_Double_Mask_Double(z) {
+  return [0.16666666666666666 - z[0] * (0.008333333333333333 - z[0] * (0.0001984126984126984 - z[0] * (0.0000027557319223985893 - z[0] * (2.505210838544172E-8 - z[0] * (1.6059043836821616E-10 - z[0] * (7.647163731819816E-13 - z[0] * (2.811457254345521E-15 - z[0] * (8.22063524662433E-18 - z[0] * 1.957294106339126E-20)))))))), 0.16666666666666666 - z[1] * (0.008333333333333333 - z[1] * (0.0001984126984126984 - z[1] * (0.0000027557319223985893 - z[1] * (2.505210838544172E-8 - z[1] * (1.6059043836821616E-10 - z[1] * (7.647163731819816E-13 - z[1] * (2.811457254345521E-15 - z[1] * (8.22063524662433E-18 - z[1] * 1.957294106339126E-20))))))))];
+}
+
+function cosineSeries_Vec_Double_Mask_Double(z) {
+  return [0.041666666666666664 - z[0] * (0.001388888888888889 - z[0] * (0.0000248015873015873 - z[0] * (0.00000027557319223985894 - z[0] * (2.08767569878681E-9 - z[0] * (1.1470745597729725E-11 - z[0] * (4.779477332387385E-14 - z[0] * (1.5619206968586225E-16 - z[0] * 4.110317623312165E-19))))))), 0.041666666666666664 - z[1] * (0.001388888888888889 - z[1] * (0.0000248015873015873 - z[1] * (0.00000027557319223985894 - z[1] * (2.08767569878681E-9 - z[1] * (1.1470745597729725E-11 - z[1] * (4.779477332387385E-14 - z[1] * (1.5619206968586225E-16 - z[1] * 4.110317623312165E-19)))))))];
+}
+
+function powerOf_Vec_Double_Mask_Double(base, exponent) {
+  var v2 = magnitudeOf_Vec_Double_Mask_Double(base);
+  var e = logExponent_Vec_Double_Mask_Double(v2);
+  var v51 = logSeries_Vec_Double_Mask_Double(logSignificand_Vec_Double_Mask_Double(v2));
+  var v56 = logGuard_Vec_Double_Mask_Double(v2, [v51[0] * 1.4426950408889634 + e[0], v51[1] * 1.4426950408889634 + e[1]]);
+  var v4$0 = exponent[0] * v56[0];
+  var v4$1 = exponent[1] * v56[1];
+  var n$0 = $round(v4$0);
+  var n$1 = $round(v4$1);
+  var f$0 = v4$0 - n$0;
+  var f$1 = v4$1 - n$1;
+  var core = Real_Vec_Double_Mask_Double_scaleByExponent(expSeries_Vec_Double_Mask_Double([f$0 * 0.693115234375 + f$0 * 0.000031946184945309415, f$1 * 0.693115234375 + f$1 * 0.000031946184945309415]), [n$0, n$1]);
+  var v68 = magnitudeOf_Vec_Double_Mask_Double([v4$0, v4$1]);
+  var v71$0 = v68[0] > 1200;
+  var v71$1 = v68[1] > 1200;
+  var v87$0 = v4$0 > 0;
+  var v87$1 = v4$1 > 0;
+  var v90$0 = $bc$l2d(9218868437227405312n);
+  var v90$1 = $bc$l2d(9218868437227405312n);
+  var v94 = magnitudeOf_Vec_Double_Mask_Double([v4$0 * 0, v4$1 * 0]);
+  var v95$0 = v87$0 ? v90$0 : v94[0];
+  var v95$1 = v87$1 ? v90$1 : v94[1];
+  var v73$0 = v71$0 ? v95$0 : core[0];
+  var v73$1 = v71$1 ? v95$1 : core[1];
+  var v6$0 = Math.trunc(exponent[0]);
+  var v6$1 = Math.trunc(exponent[1]);
+  var whole$0 = v6$0 === exponent[0];
+  var whole$1 = v6$1 === exponent[1];
+  var v74$0 = exponent[0] / 2;
+  var v74$1 = exponent[1] / 2;
+  var v75$0 = Math.trunc(v74$0);
+  var v75$1 = Math.trunc(v74$1);
+  var v76$0 = v75$0 * 2;
+  var v76$1 = v75$1 * 2;
+  var v77$0 = exponent[0] - v76$0;
+  var v77$1 = exponent[1] - v76$1;
+  var odd$0 = v77$0 !== 0;
+  var odd$1 = v77$1 !== 0;
+  var v19$0 = 0 - v73$0;
+  var v19$1 = 0 - v73$1;
+  var signed$0 = odd$0 ? v19$0 : v73$0;
+  var signed$1 = odd$1 ? v19$1 : v73$1;
+  var v24$0 = base[0] < 0;
+  var v24$1 = base[1] < 0;
+  var v99 = magnitudeOf_Vec_Double_Mask_Double([base[0] * 0, base[1] * 0]);
+  var v102$0 = $bc$l2d(9218868437227405312n);
+  var v102$1 = $bc$l2d(9218868437227405312n);
+  var v103$0 = v99[0] * v102$0;
+  var v103$1 = v99[1] * v102$1;
+  var v26$0 = whole$0 ? signed$0 : v103$0;
+  var v26$1 = whole$1 ? signed$1 : v103$1;
+  var answer$0$1 = v24$0 ? v26$0 : v73$0;
+  var answer$1$1 = v24$1 ? v26$1 : v73$1;
+  var v31$0 = exponent[0] < 0;
+  var v31$1 = exponent[1] < 0;
+  var v80$0 = $bc$l2d(9218868437227405312n);
+  var v80$1 = $bc$l2d(9218868437227405312n);
+  var v84 = magnitudeOf_Vec_Double_Mask_Double([base[0] * 0, base[1] * 0]);
+  var atZero$0 = v31$0 ? v80$0 : v84[0];
+  var atZero$1 = v31$1 ? v80$1 : v84[1];
+  var v38$0 = exponent[0] === 0;
+  var v38$1 = exponent[1] === 0;
+  var v42$0 = base[0] === 0;
+  var v42$1 = base[1] === 0;
+  return [v38$0 ? 1 : v42$0 ? atZero$0 : answer$0$1, v38$1 ? 1 : v42$1 ? atZero$1 : answer$1$1];
+}
+
+// a float's bits, which no host operator reaches - see codegen/js/inst.cpp
+const $bcf = new Float32Array(1);
+const $bci = new Int32Array($bcf.buffer);
+
+function $bc$f2i(v) {
+  $bcf[0] = v;
+  return $bci[0];
+}
+
+function $bc$i2f(v) {
+  $bci[0] = v;
+  return $bcf[0];
+}
+
+// a double's bits, which are a `bigint` here - see codegen/js/inst.cpp
+const $bcd = new Float64Array(1);
+const $bcl = new BigInt64Array($bcd.buffer);
+
+function $bc$d2l(v) {
+  $bcd[0] = v;
+  return $bcl[0];
+}
+
+function $bc$l2d(v) {
+  $bcl[0] = v;
+  return $bcd[0];
+}
+
+// `Math.round` ties toward +Infinity and this language ties away from zero - see codegen/js/inst.cpp
+function $round(v) {
+  if (v < 0) {
+    return -Math.round(-v);
+  }
+  return Math.round(v);
+}
+main();

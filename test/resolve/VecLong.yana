@@ -1,0 +1,58 @@
+{-
+   A 64-bit integer lane, which is a `bigint` on JS and a quadword lane natively - Design-Vector
+   §7.3, and the trade that section now records as reversed.
+
+   The lane was refused outright on JS until it wasn't. The argument for refusing it was sound and
+   is still written down: a `bigint` is a heap value off the ordinary arithmetic path, so a vector
+   of them clears no floor §7.2 asks for. What the refusal also did was take `Real(Vec(F64))` with
+   it - every reinterpreting member of that instance reads a double through `Vec(Long)` - so the
+   cost of the rule was a program that did not compile rather than one that ran slowly.
+
+   **What this fixture asserts is that the two targets agree**, which is the property worth having
+   and the one the representation makes easy to lose: every lane here is a `number` natively and a
+   `bigint` under Node, and the answers have to be the same anyway. Three of the lines are here
+   because they are the ones a `bigint` breaks and a `number` does not:
+
+     - `shr` is a *logical* right shift, and `>>>` is not defined on BigInt at all. It goes through
+       `BigInt.asUintN` first, exactly as the scalar path does.
+     - `abs` is `Math.abs` at every other lane width, and `Math.abs` coerces to a number and throws
+       on a bigint. A conditional is the magnitude there.
+     - `horizontalMin`/`horizontalMax` are `Math.min`/`Math.max` elsewhere, and throw for the same
+       reason. A comparison and a select is what they are here - total, since a bigint has no NaN.
+
+   What is *not* here is the set of operations x64 refuses at this lane width and JS supports:
+   `*`, `/`, `%`, `sar` and `abs` are all AVX-512 or expand-lane-by-lane on x86, and
+   `unsupportedVectorReason` says so at the instruction. A fixture that runs on both targets can
+   only assert their intersection, so `abs` is checked through a subtraction from zero instead.
+-}
+
+fn main() -> Int:
+    let a = splat(7 :: Long) :: Vec(Long)
+    let b = splat(3 :: Long) :: Vec(Long)
+    let c = splat(0 - 9 :: Long) :: Vec(Long)
+    let &n = 0 :: Long
+
+    n = n + lane(a + b, 0)
+    n = n + lane(a - b, 0)
+    n = n + lane(a `and` b, 0)
+    n = n + lane(a `or` b, 0)
+    n = n + lane(a `xor` b, 0)
+    n = n + lane(a `shl` b, 0)
+
+    -- The logical shift, which is the one `>>>` cannot spell over a bigint.
+    n = n + lane(a `shr` b, 0)
+
+    -- The magnitude, written as the subtraction x64 can emit at this width.
+    n = n + lane(0 - c, 0)
+
+    -- The three reductions, whose extremum is a comparison here rather than a `Math` call.
+    n = n + horizontalSum(a)
+    n = n + horizontalMax(a)
+    n = n + horizontalMin(c)
+
+    -- A value past 2^32, which is the whole reason the lane is 64 bits: it survives every one of
+    -- the operations above as itself rather than as its low half.
+    let wide = splat(4294967296 :: Long) :: Vec(Long)
+    n = n + lane(wide `shr` splat(32 :: Long), 0)
+
+    return truncate(n) :: Int

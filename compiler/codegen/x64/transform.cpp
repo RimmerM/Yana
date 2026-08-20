@@ -5894,6 +5894,86 @@ static void removeDeadChain(LowerBase base, InstChain& chain) {
 }
 
 /*
+ * `round`, which is the one of the four roundings SSE4.1 cannot encode.
+ *
+ * `roundsd`'s mode field names the four IEEE directions and ties-to-even; it has no ties-**away**,
+ * and ties-away is what this language's `round` is (resolve/inst.def rules on it, and
+ * lib/Math.yana has documented it since before there was an instruction). So this is the one
+ * rounding the backend builds out of the others, and it is built here rather than in the library so
+ * that LLVM and JS - both of which name it directly - do not pay for x64's gap.
+ *
+ * ## The identity
+ *
+ *     t = trunc(x)                  the integer part, toward zero
+ *     c = trunc((x - t) + (x - t))  the carry: ±1 exactly when |fraction| >= 1/2, else ±0
+ *     r = t + c
+ *
+ * `x - t` is exact - a difference of two values within a factor of two of each other is - and the
+ * doubling is exact because the fraction is below one, so nothing here rounds and the comparison
+ * against a half is made by the truncation rather than by a constant. Which is what makes it right
+ * at `0.49999999999999994`, the input the library's old `trunc(x + copysign(0.5, x))` answered 1
+ * for: doubling the largest double below a half gives the largest double below one, and truncating
+ * that is zero. Adding a half to it rounds *up* to exactly 1 before any truncation can look.
+ *
+ * ## The guard, which is about infinity and not about size
+ *
+ * `x - t` is `Inf - Inf` for an infinite argument, which is a NaN, and `Inf + NaN` is a NaN - so an
+ * infinity would come back as one. The test is `t == x`, which is true for every value that is
+ * already integral (both infinities and both zeros among them) and false for a NaN, so a NaN takes
+ * the arithmetic arm and stays a NaN. Testing a *magnitude* against 2^52 would answer the same
+ * thing and would need a different constant per lane width; this needs none.
+ *
+ * Both arms are computed and one is selected. The discarded arm's NaN is a value, not a trap: none
+ * of these operations signals.
+ *
+ * Scalar as well as packed, so this pass is not `vectorsOnly` - `Real(Double).round` is a scalar
+ * `Round` and reaches selection by exactly this path.
+ */
+static void expandRoundAway(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Round) continue;
+
+            auto unary = (LowerInstUnary*)inst;
+            auto type = unary->result.type;
+            auto value = base[unary->from];
+
+            Expansion at { base, fun, block, i };
+
+            auto whole = at.emit(new (fun.arena) LowerInstUnary(LowerInst::Trunc, StringId(), type,
+                                                               value - base));
+            auto fraction = at.binary(LowerInst::Sub, type, value, whole);
+            auto doubled = at.binary(LowerInst::Add, type, fraction, fraction);
+            auto carry = at.emit(new (fun.arena) LowerInstUnary(LowerInst::Trunc, StringId(), type,
+                                                                doubled - base));
+            auto sum = at.binary(LowerInst::Add, type, whole, carry);
+
+            /*
+             * The comparison answers a *mask* of the operand's shape where a scalar one answers a
+             * Bool, and `Expansion::compare` defaults to the scalar form - so a packed round built
+             * through it handed the select a condition in the wrong register bank, which the
+             * allocator then had to move between banks with a `movaps` and could not.
+             */
+            auto integral = isVectorLike(type)
+                ? at.emit(new (fun.arena) LowerInstCmp(StringId(), whole - base, value - base,
+                                                       LowerCmp::eq, maskType(type.lane, type.lanes())))
+                : at.compare(LowerCmp::eq, whole, value);
+
+            auto result = at.select(type, integral, value, sum);
+
+            // The select stands where the round did, so the walk carries on past it - the same
+            // bookkeeping expandVectorAbs does, and for the same reason.
+            replaceAllUses(base, &unary->result, result);
+            removeInst(base, inst);
+            i = at.at - 1;
+        }
+    }
+}
+
+/*
  * The absolute value of a float vector, which is one bit per lane.
  *
  * `LowerInst::Abs` is the magnitude and says nothing about how - see the `Abs` row in
@@ -7409,6 +7489,10 @@ static const TransformPass kTransformPipeline[] = {
     // multiply-add is a *float* instruction and a scalar one is as much an Fma as a packed one, so a
     // machine without FMA3 needs this pass to reach a function with no packed value in it at all.
     { "expandFusedMultiplyAdd"_v,      expandFusedMultiplyAdd,      0 },
+    // Beside it, and not vectors-only for its reason: a scalar `round` is as much a `Round` as a
+    // packed one. Above every pass that rewrites a select, since the one it builds is an ordinary
+    // compare-and-select from here down and nothing below needs to know where it came from.
+    { "expandRoundAway"_v,             expandRoundAway,             0 },
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*

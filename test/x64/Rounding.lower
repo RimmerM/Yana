@@ -1,0 +1,87 @@
+# The four roundings to an integral value - the `Trunc`/`Floor`/`Ceil`/`Round` rows in
+# resolve/inst.def, and what this backend does with each.
+#
+# Three of them are one instruction. `roundss`/`roundsd`/`roundps`/`roundpd` are `66 0F 3A 08..0B`,
+# one opcode per width and packing, with the *mode* in a trailing immediate rather than in the
+# opcode - so all three share one machine op (`OpRound`) and one form per width, and which rounding
+# an instruction is is the byte `packedTrailingByte` supplies:
+#
+#   trunc   0x0b    toward zero
+#   floor   0x09    toward negative infinity
+#   ceil    0x0a    toward positive infinity
+#
+# Bit 3 of each is set, which suppresses the precision exception. These are exact operations by
+# definition, so an inexact flag raised by one is a flag no program asked for and one a later
+# `fetestexcept` would read as its own arithmetic's. It is what LLVM emits for the same three.
+#
+# `round` is the fourth and has no encoding at all: it ties **away from zero**, and this instruction
+# can name ties-to-even and the three directed modes and nothing else. So `expandRoundAway` in
+# transform.cpp rewrites it before selection into
+#
+#     t = trunc(x); c = trunc((x - t) + (x - t)); select(t == x, x, t + c)
+#
+# which is the listing below and is where the ties-away rule actually lives. The doubling is what
+# compares the fraction against a half without a constant to compare against, and the `t == x` guard
+# is about infinity rather than size: `Inf - Inf` is a NaN, and every already-integral value takes
+# the other arm.
+
+trunc64(%v: Double): Double {
+    {
+        %r = trunc %v: Double
+        ret %r
+    }
+}
+
+trunc32(%v: Float): Float {
+    {
+        %r = trunc %v: Float
+        ret %r
+    }
+}
+
+floor64(%v: Double): Double {
+    {
+        %r = floor %v: Double
+        ret %r
+    }
+}
+
+ceil32(%v: Float): Float {
+    {
+        %r = ceil %v: Float
+        ret %r
+    }
+}
+
+# The packed pair, which is the same opcode family with the mandatory prefix and the register class
+# saying how many lanes rather than one.
+truncF32x4(%v: f32x4): f32x4 {
+    {
+        %r = trunc %v: f32x4
+        ret %r
+    }
+}
+
+floorF64x2(%v: f64x2): f64x2 {
+    {
+        %r = floor %v: f64x2
+        ret %r
+    }
+}
+
+# The one that expands. Scalar first, which is the shape `Real(Double).round` reaches.
+round64(%v: Double): Double {
+    {
+        %r = round %v: Double
+        ret %r
+    }
+}
+
+# And packed, where the guard's comparison answers a *mask* rather than a Bool - the one thing about
+# the expansion that is not the scalar sequence unchanged, and the bug the first version of this had.
+roundF32x4(%v: f32x4): f32x4 {
+    {
+        %r = round %v: f32x4
+        ret %r
+    }
+}

@@ -151,6 +151,10 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         // two copies of a block are the same computation exactly when their operands are, which is
         // what the caller compares next.
         case LowerInst::Sqrt:
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
         case LowerInst::Fma:
 
         // Four of the five vector kinds. `VecShuffle` is deliberately not one of them: its pattern

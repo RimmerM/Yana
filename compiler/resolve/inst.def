@@ -105,6 +105,38 @@ YANA_INST(Fma,          InstFma,         "fma"_v,         kInstResult | kInstPur
  * `verifyFunction` says so rather than leaving a case every backend would have to carry untested.
  */
 YANA_INST(Abs,          InstUnary,       "abs"_v,         kInstResult | kInstPure)
+/*
+ * The four roundings to an integral value, which are `Sqrt`'s case again at a different operation.
+ *
+ * All four were shapes in the library until these rows existed. `trunc` was
+ * `widen(truncate(x) :: Long)` under a magnitude guard natively and an add-and-subtract of 2^52 on
+ * JS; `floor` and `ceil` were `trunc` and a correcting compare-and-select; `round` was
+ * `trunc(x + copysign(0.5, x))`. Every target has all four directly - `roundsd`/`roundpd` with an
+ * immediate selecting the mode, `llvm.trunc`/`llvm.floor`/`llvm.ceil`/`llvm.round`, and
+ * `Math.trunc`/`Math.floor`/`Math.ceil`/`Math.round` - so they are here for the reason `Sqrt` is:
+ * the expansion is not what the target does, and a backend using its own instruction would have
+ * disagreed with one that expanded the shape.
+ *
+ * **The tie rule is the ruling, and only `Round` has one to make.** `Trunc` is toward zero, `Floor`
+ * toward negative infinity and `Ceil` toward positive infinity; those three are exactly what IEEE
+ * 754 names and what every target spells in one instruction. `Round` is to nearest with ties
+ * **away from zero** - C's `round`, and what lib/Math.yana already documents `Real.round` as - and
+ * that is deliberately *not* the even-tie rule an FPU's default mode uses, so `round(2.5)` is 3 and
+ * not 2. SSE4.1 has no ties-away encoding (`roundsd` imm 0 is ties-to-even), so the x64 backend
+ * expands that one alone; the rule lives here so the expansion is a target's problem rather than a
+ * difference between targets.
+ *
+ * Fixing the old `round` shape is part of what the rows buy. `trunc(x + copysign(0.5, x))` answers
+ * 1 for 0.49999999999999994, because adding a half to the largest double below a half rounds up to
+ * exactly 1 before the truncation ever runs. Every target's own rounding answers 0.
+ *
+ * All four take a float or a vector of floats, on `Sqrt`'s grounds: rounding an integer to an
+ * integer is the identity, and no machine instruction is asked for it.
+ */
+YANA_INST(Trunc,        InstUnary,       "trunc"_v,       kInstResult | kInstPure)
+YANA_INST(Floor,        InstUnary,       "floor"_v,       kInstResult | kInstPure)
+YANA_INST(Ceil,         InstUnary,       "ceil"_v,        kInstResult | kInstPure)
+YANA_INST(Round,        InstUnary,       "round"_v,       kInstResult | kInstPure)
 YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
 YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
 YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)

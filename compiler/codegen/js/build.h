@@ -344,6 +344,36 @@ struct Gen {
     Name bitsToFloatHelper;
 
     /*
+     * The same pair at 64 bits - a `Float64Array` and a `BigInt64Array` over its buffer.
+     *
+     * Two pairs and not one because the *element type* is what does the reinterpretation, and the
+     * integer side of this one hands back a `bigint` where the 32-bit side hands back a `number`.
+     * A `Vec(F64)` lane read through the 32-bit pair returns the low half as a number, which then
+     * meets `BigInt.asIntN` and throws - which is exactly what happened while `Vec(Long)` was
+     * refused and this pair did not exist.
+     *
+     * Named lazily and independently, so a program that reinterprets only floats emits only the
+     * first pair.
+     */
+    Name doubleBitsBuffer;
+    Name doubleBitsInts;
+    Name doubleToBitsHelper;
+    Name bitsToDoubleHelper;
+
+    /*
+     * `round`, which is the one of the four roundings the host does not already have.
+     *
+     * `Math.round` breaks ties toward **positive infinity** - `Math.round(-1.5)` is -1 - and the
+     * language's `round` breaks them away from zero, so the two disagree at every negative half.
+     * `Math.trunc`, `Math.floor` and `Math.ceil` need no such helper: each is exactly the kind it
+     * implements, at every input including the infinities and the two zeros.
+     *
+     * A helper rather than an inline conditional because the operand appears three times in it, and
+     * a lane here is an expression that may hold a call. Named lazily on floatBitsHelper's terms.
+     */
+    Name roundAwayHelper;
+
+    /*
      * The one helper the typed row of Implementation-Containers.md §14 needs - see NativeOp::HostGrow.
      *
      * Named lazily and once per program, on the same terms as the two above: a program with no typed
@@ -962,6 +992,9 @@ void emitSaturationHelpers(Gen& g);
 // The typed-array pair and the two functions a `Float`/`I32` bitcast goes through, where a program
 // asked for one. See genBitcast in inst.cpp.
 void emitFloatBitsHelpers(Gen& g);
+
+// `function $round(v) { return v < 0 ? -Math.round(-v) : Math.round(v) }` - see Gen::roundAwayHelper.
+void emitRoundAwayHelper(Gen& g);
 
 // The typed array's growth, where a program asked for one. See NativeOp::HostGrow in inst.cpp.
 void emitGrowHelper(Gen& g);

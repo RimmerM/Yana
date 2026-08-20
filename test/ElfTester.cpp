@@ -82,8 +82,11 @@ struct TestProvider: SourceProvider, ModuleProvider {
             if(entry.name == name) return entry.ast;
         }
 
+        // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
+        // so an import this directory does not answer leaves an empty module behind - which then
+        // shadows the library module of that name on every run afterwards, silently.
         auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
-        auto opened = File::openFile(path, readAccess());
+        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
         if(opened.isErr()) return nullptr;
 
         auto file = opened.moveUnwrapOk();

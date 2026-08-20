@@ -172,12 +172,30 @@ pub class Eq(a):
 -- The four comparisons are `compare` read four ways, and `compare` is the fold a derived instance
 -- would have to produce. Lexicographic order over a record is therefore one function rather than
 -- five, which is what makes Ord worth deriving at all.
+--
+-- `min` and `max` are members rather than functions beside the class, and the reason is the pair of
+-- the same names over `Vec(a, n)` further down this file. Design.md's R1 admits one plain function
+-- per (name, arity) *beside* any number of class functions, so a second plain `min` would be a
+-- redeclaration where a class member is an ordinary second candidate - and the vector pair has to
+-- stay a plain function, because it answers a vector from a lanewise comparison and this class's
+-- comparison answers a `Bool`.
+--
+-- Both operands are `->`, for the reason `??`'s is: what this hands back *is* one of them, so a
+-- borrowed operand would be handing out something the frame does not own. For every type that
+-- reaches these in practice - a number, a code unit, a length - the sink is a copy and no call site
+-- can tell; for a `String` it is the difference between working and freeing it twice.
+--
+-- `min` prefers the left operand on a tie and `max` prefers the right, which is what makes
+-- `max(min(x, hi), lo)` and `clamp` agree about a value that is equal to both bounds. It is stated
+-- because it is observable: two values that compare `EQ` need not be interchangeable.
 pub class (Eq(a)) Ord(a):
   fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
   fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
   fn >(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == GT
   fn >=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != LT
   fn compare(lhs: a, rhs: a) -> Ordering
+  fn min(->lhs: a, ->rhs: a) -> a = if lhs <= rhs then lhs else rhs
+  fn max(->lhs: a, ->rhs: a) -> a = if rhs >= lhs then rhs else lhs
 
 {-
    Folding a value into a hash state - Implementation-Map.md §3.
@@ -326,6 +344,217 @@ pub class (Num(a)) Integral(a):
   fn or(lhs: a, rhs: a) -> a
   fn xor(lhs: a, rhs: a) -> a
   fn not(value: a) -> a
+
+{-
+   The two ends of a type's range - `Base.h`'s `maxLimit` / `minLimit` variable templates, said as a
+   class.
+
+   Two nullary members, selected by the type the *result* is asked to be, which is the same
+   selection `zero() :: Vec(Int)` and `truncate(x) :: U8` already use. That is the whole reason this
+   is a class and not a pair of `@platform`-selected constants: a generic body constrained on
+   `Bounded(a)` can name the end of a range it has no way to write a literal for, which is what a
+   parser wants at every overflow test and what `maximum`'s empty-container argument wants.
+
+   **The floating instances answer the largest *finite* value**, not an infinity. Two reasons and
+   both are about what a caller does with it: an accumulator seeded with `minValue()` is compared
+   against, and a comparison against an infinity is fine but an *arithmetic* one is not - a caller
+   that adds to the seed gets a NaN out of an infinity and a number out of `-FLT_MAX`. And there is
+   no portable spelling of an infinity in this language yet, so a class member answering one would
+   have to be an intrinsic where every other member here is a literal.
+
+   Not instanced for `Bool` or `Ordering`. Both have ends, and neither has an `Ord` or an arithmetic
+   for the ends to be useful *to* - the sole caller shape this class exists for is "seed an
+   accumulator at the end of the range", and a two-valued type has `False` for that.
+-}
+pub class Bounded(a):
+  fn minValue() -> a
+  fn maxValue() -> a
+
+{-
+   A type whose values have a sign - `Base.h`'s `hasSign`, and the operation that fact is *for*.
+
+   §2.5 of Analysis-Library.md asks for this as a marker class with `abs` beside it. It carries `abs`
+   instead, for a reason that is not stylistic: an instance with no members has no source spelling -
+   `instance Signed(Int)` wants a body it has nothing to put in - so a marker class is declarable and
+   not instantiable. Carrying the one operation that needs a sign closes that and says the same
+   thing, since a constraint `Signed(a)` is exactly as good a way to spell "this type has a sign".
+
+   `abs` is a member rather than a function for `min`'s reason: `abs` over `Vec(a, n)` is already a
+   plain function of this module, and R1 admits one of those per (name, arity).
+
+   **The body is `<=` and not `<`**, which is the one trap in this class. `-0.0 < 0` is false, so a
+   `<` would hand back the negative zero it was given; `0 - (-0.0)` is `+0.0` and `0 - (+0.0)` is
+   also `+0.0`, so testing `<= 0` and negating is correct for both zeros. simd.cpp's vector `abs`
+   makes the same choice for the same reason, and `1.0 / abs(0.0)` is the only portable way to see
+   which zero came back.
+-}
+pub class (Num(a), Ord(a)) Signed(a):
+  fn abs(value: a) -> a
+
+-- Which way round the bytes of a value go, exchanged - `Mem/Memory.h`'s byte swaps, needed the
+-- moment any binary format is read or written.
+--
+-- A class rather than one function per width, again because R1 admits one plain function per
+-- (name, arity) and there are eight widths. A member of `Integral` would have been the other answer
+-- and is the worse one: every integer instance in this language is generated by the compiler, so a
+-- member there is C++ to write and a class here is source.
+--
+-- The signed instances go through their unsigned partner rather than shifting a signed value,
+-- because `shr` on a value whose top bit is set is the one place the two shifts disagree and a
+-- `bitcast` costs nothing - the pair is the same width by construction, which is the whole of the
+-- rule that generated the rung.
+pub class (Integral(a)) Endian(a):
+  fn swapEndian(value: a) -> a
+
+-- The value brought inside a pair of bounds. Written in terms of `min` and `max` rather than two
+-- comparisons so that a type overriding either gets the behaviour it defined, and ordered so that a
+-- `low` above `high` answers `high` - which is a documented answer rather than a checked error,
+-- since the alternative is a bounds test in the hot path of every clamp.
+pub fn (Ord(a)) clamp(->value: a, ->low: a, ->high: a) -> a = min(max(value, low), high)
+
+-- Which side of zero a value is on, as a value of its own type. `0` for a zero of either sign and
+-- for a NaN, which is the answer a caller multiplying by it wants: it is the only one that keeps
+-- `signum(x) * abs(x)` from inventing a sign the input did not have.
+pub fn (Signed(a)) signum(value: a) -> a = if value > 0 then 1 else if value < 0 then 0 - 1 else 0
+
+-- Rounding up to a **power of two**, which is the form an allocator and a layout want: one add and
+-- one mask, no division anywhere. `alignment` is required to be a power of two and nothing checks
+-- it - a caller that passes 6 gets an answer that is not a multiple of 6 rather than a diagnostic,
+-- on exactly the terms `@reclaimOnly` is trusted.
+pub fn (Num(a), Integral(a)) alignUp(value: a, alignment: a) -> a = (value + alignment - 1) `and` not(alignment - 1)
+
+-- The same intent for an arbitrary multiple, under a name that does not claim to be about
+-- alignment. Two divisions' worth of work against the one above, which is why the two are separate
+-- names rather than one function that tests its argument.
+pub fn (Num(a), Integral(a)) roundUpTo(value: a, multiple: a) -> a = ((value + multiple - 1) / multiple) * multiple
+
+{-
+   The instances, one block per class, written here because the types are the compiler's own: an
+   integer width is created before this source is read (`defineIntegerTypes`) and joins `Num`,
+   `Ord` and `Integral` after it, so a body below may name any of them and a declaration may not.
+
+   Every number in the `Bounded` block is a literal at the type's own width, except `U64`'s maximum:
+   18446744073709551615 does not fit the signed `Long` a literal is read at, so it is written as the
+   complement of zero - which is the same bits and is what every other unsigned maximum could have
+   been written as.
+-}
+instance Bounded(I8):
+    fn minValue() -> I8 = 0 - 127 - 1
+    fn maxValue() -> I8 = 127
+
+instance Bounded(I16):
+    fn minValue() -> I16 = 0 - 32767 - 1
+    fn maxValue() -> I16 = 32767
+
+instance Bounded(I32):
+    fn minValue() -> I32 = 0 - 2147483647 - 1
+    fn maxValue() -> I32 = 2147483647
+
+instance Bounded(I64):
+    fn minValue() -> I64 = 0 - 9223372036854775807 - 1
+    fn maxValue() -> I64 = 9223372036854775807
+
+instance Bounded(Int):
+    fn minValue() -> Int = 0 - 2147483647 - 1
+    fn maxValue() -> Int = 2147483647
+
+instance Bounded(Long):
+    fn minValue() -> Long = 0 - 9223372036854775807 - 1
+    fn maxValue() -> Long = 9223372036854775807
+
+instance Bounded(WideInt):
+    fn minValue() -> WideInt = 0 - 4503599627370495 - 1
+    fn maxValue() -> WideInt = 4503599627370495
+
+instance Bounded(U8):
+    fn minValue() -> U8 = 0
+    fn maxValue() -> U8 = 255
+
+instance Bounded(U16):
+    fn minValue() -> U16 = 0
+    fn maxValue() -> U16 = 65535
+
+instance Bounded(U32):
+    fn minValue() -> U32 = 0
+    fn maxValue() -> U32 = 4294967295
+
+instance Bounded(U64):
+    fn minValue() -> U64 = 0
+    fn maxValue() -> U64 = not(0)
+
+instance Bounded(Float):
+    fn minValue() -> Float = 0.0 - 3.4028234663852886e38
+    fn maxValue() -> Float = 3.4028234663852886e38
+
+instance Bounded(Double):
+    fn minValue() -> Double = 0.0 - 1.7976931348623157e308
+    fn maxValue() -> Double = 1.7976931348623157e308
+
+-- `abs` at every signed width. The unsigned types are deliberately absent: the absolute value of a
+-- `U32` is the value, and an instance saying so would let a generic body constrained on `Signed(a)`
+-- accept a type that has no negative to take the absolute value *of*.
+
+instance Signed(I8):
+    fn abs(value: I8) -> I8 = if value <= 0 then 0 - value else value
+
+instance Signed(I16):
+    fn abs(value: I16) -> I16 = if value <= 0 then 0 - value else value
+
+instance Signed(I32):
+    fn abs(value: I32) -> I32 = if value <= 0 then 0 - value else value
+
+instance Signed(I64):
+    fn abs(value: I64) -> I64 = if value <= 0 then 0 - value else value
+
+instance Signed(Int):
+    fn abs(value: Int) -> Int = if value <= 0 then 0 - value else value
+
+instance Signed(Long):
+    fn abs(value: Long) -> Long = if value <= 0 then 0 - value else value
+
+instance Signed(WideInt):
+    fn abs(value: WideInt) -> WideInt = if value <= 0 then 0 - value else value
+
+instance Signed(Float):
+    fn abs(value: Float) -> Float = if value <= 0.0 then 0.0 - value else value
+
+instance Signed(Double):
+    fn abs(value: Double) -> Double = if value <= 0.0 then 0.0 - value else value
+
+
+-- The byte swaps. `U16` and `U32` are written out; every other rung is one of those two read through
+-- a `bitcast` or a `truncate`, which is what keeps the shifting to two places.
+--
+-- `Int` and `Long` reach their unsigned partner by `truncate` rather than `bitcast`, and that is not
+-- a choice: `defineBitcastLadder` skips the canonical integer types, so `Int` has no rung to `U32`
+-- and the narrowing pair - which is the identity at equal width - is the spelling that exists.
+instance Endian(U16):
+    fn swapEndian(value: U16) -> U16 = ((value `shl` 8) `and` 65280) `or` ((value `shr` 8) `and` 255)
+
+instance Endian(U32):
+    fn swapEndian(value: U32) -> U32 =
+        (value `shl` 24) `or` ((value `and` 65280) `shl` 8) `or` ((value `shr` 8) `and` 65280) `or` (value `shr` 24)
+
+instance Endian(U64):
+    fn swapEndian(value: U64) -> U64:
+        let low = swapEndian(truncate(value) :: U32)
+        let high = swapEndian(truncate(value `shr` 32) :: U32)
+        return ((widen(low) :: U64) `shl` 32) `or` (widen(high) :: U64)
+
+instance Endian(I16):
+    fn swapEndian(value: I16) -> I16 = bitcast(swapEndian(bitcast(value) :: U16)) :: I16
+
+instance Endian(I32):
+    fn swapEndian(value: I32) -> I32 = bitcast(swapEndian(bitcast(value) :: U32)) :: I32
+
+instance Endian(I64):
+    fn swapEndian(value: I64) -> I64 = bitcast(swapEndian(bitcast(value) :: U64)) :: I64
+
+instance Endian(Int):
+    fn swapEndian(value: Int) -> Int = truncate(swapEndian(truncate(value) :: U32)) :: Int
+
+instance Endian(Long):
+    fn swapEndian(value: Long) -> Long = truncate(swapEndian(truncate(value) :: U64)) :: Long
 
 -- For a type that is not Bool the short-circuiting pair and the bitwise pair are the same
 -- operation, so `&&`, `||` and `!` default to `and`, `or` and `not` and an instance writes four
@@ -593,6 +822,27 @@ pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
 -}
 pub fn sqrt(value: a) -> a
 pub fn fma(lhs: a, rhs: a, addend: a) -> a
+
+{-
+   The four roundings to an integral value, on exactly the terms `sqrt` above is declared on: one
+   unconstrained declaration each, covering the scalar and the vector, with the intrinsic reading
+   which it was handed and holding it to a float.
+
+   They were library code until the compiler had instructions for them - `trunc` a member of
+   `Real(a)` that every instance answered in bit arithmetic at its own width, and `floor`, `ceil` and
+   `round` defaults written over it. Every target has all four directly, so what an instance was
+   answering is a question the machine had already settled: `roundsd` and its siblings take the mode
+   as an immediate, LLVM names all four, and three of the four are host functions on JS.
+
+   **`round` breaks a tie away from zero** - `round(2.5)` is 3 - which is C's rule and not the
+   even-tie rule an FPU's default mode uses. It is the one of the four with a choice to make and the
+   one no machine here encodes directly; see resolve/inst.def, which is where the rule is stated and
+   where the reason the other three need no such paragraph is written down.
+-}
+pub fn trunc(value: a) -> a
+pub fn floor(value: a) -> a
+pub fn ceil(value: a) -> a
+pub fn round(value: a) -> a
 
 {-
    The conversions that change the lane *count*. The ones that keep it are `Widen`, `Narrow` and

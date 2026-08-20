@@ -222,6 +222,14 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "abs"_v;
         case LowerInst::Sqrt:
             return "sqrt"_v;
+        case LowerInst::Trunc:
+            return "trunc"_v;
+        case LowerInst::Floor:
+            return "floor"_v;
+        case LowerInst::Ceil:
+            return "ceil"_v;
+        case LowerInst::Round:
+            return "round"_v;
         case LowerInst::Fma:
             return "fma"_v;
         case LowerInst::Add:

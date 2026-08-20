@@ -1030,6 +1030,10 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         case Value::Not:
         case Value::Sqrt:
         case Value::Abs:
+        case Value::Trunc:
+        case Value::Floor:
+        case Value::Ceil:
+        case Value::Round:
             result = resolver.emit<InstUnary>(inst.source, inst.name, type, inst.kind,
                                               cloneValue(clone, ((InstUnary&)inst).from));
             break;

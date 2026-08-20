@@ -871,6 +871,8 @@ struct Inliner {
             case Value::TypeMetric: case Value::Symbol:
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::Sqrt: case Value::Abs: case Value::Fma:
+            case Value::Trunc: case Value::Floor:
+            case Value::Ceil: case Value::Round:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -1613,6 +1615,8 @@ struct Inliner {
         if(!answer) switch(instruction.kind) {
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
             case Value::Sqrt: case Value::Abs: case Value::Fma:
+            case Value::Trunc: case Value::Floor:
+            case Value::Ceil: case Value::Round:
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
@@ -2315,7 +2319,9 @@ struct Inliner {
                                                      symbol.callee, symbol.global);
             }
             case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
-            case Value::Sqrt: case Value::Abs: {
+            case Value::Sqrt: case Value::Abs:
+            case Value::Trunc: case Value::Floor:
+            case Value::Ceil: case Value::Round: {
                 auto& unary = (InstUnary&)instruction;
                 return (Inst*)createInst<InstUnary>(module, function, into, source, name, type,
                                                     instruction.kind, value(unary.from));

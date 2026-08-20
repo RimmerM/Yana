@@ -1,0 +1,92 @@
+-- The small scalars of Analysis-Library.md §2.5: `min`/`max` on `Ord`, `abs` on `Signed`, `clamp`,
+-- `signum`, `Bounded`, `Endian` and the two rounding-up forms.
+--
+-- What this asserts that reading Core cannot is that the new class members coexist with the plain
+-- functions of the same names over `Vec(a, n)`. Design.md's R1 admits one plain function per (name,
+-- arity) *beside* any number of class functions, and `min`, `max` and `abs` are now one of each -
+-- so a call with scalar arguments has to reach the class half and a call with vectors the plain one,
+-- from the same overload set.
+
+fn scalarOrder() -> Int:
+    let low = min(7, 3)
+    let high = max(7, 3)
+    let bounded = clamp(99, 0, 10)
+
+    -- The tie rule, which is stated in Core and is observable: `min` keeps the left operand and
+    -- `max` keeps the right, so a value equal to both bounds comes back once rather than twice.
+    let tie = min(4, 4) + max(4, 4)
+
+    return low + high * 10 + bounded * 100 + tie * 1000
+
+fn vectorOrder() -> Int:
+    let left = splat(3) :: Vec(Int)
+    let right = splat(5) :: Vec(Int)
+
+    -- The plain functions, which take and answer a vector and are selected from the same set the
+    -- scalar calls above went through.
+    let low = horizontalSum(min(left, right)) / lanes(left)
+    let high = horizontalSum(max(left, right)) / lanes(left)
+    let size = horizontalSum(abs(splat(0 - 2) :: Vec(Int))) / lanes(left)
+
+    return low + high * 10 + size * 100
+
+fn signs() -> Int:
+    let magnitude = abs(0 - 5) + abs(5)
+    let direction = signum(0 - 7) + signum(0) * 10 + signum(7) * 100
+
+    -- The float instance's `<=` rather than `<`, which is the one thing about `abs` worth a fixture:
+    -- `abs` written with `<` hands back the negative zero it was given, because `-0.0 < 0` is false.
+    -- Dividing by the answer is the only portable way to see which zero came back - `1.0 / 0.0` is
+    -- +inf for a positive zero and -inf for a negative one - and `(0.0 - 1.0) * 0.0` is the only way
+    -- to *make* a negative zero here, since `0.0 - 0.0` is a positive one under every rounding mode.
+    let positiveZero = if 1.0 / abs(0.0) > 0.0 then 1 else 0
+    let negativeZero = if 1.0 / abs((0.0 - 1.0) * 0.0) > 0.0 then 1 else 0
+
+    return magnitude + direction * 10 + positiveZero * 10000 + negativeZero * 100000
+
+fn limits() -> Int:
+    let smallest = minValue() :: I8
+    let largest = maxValue() :: I8
+    let unsigned = maxValue() :: U8
+
+    -- `U64`'s maximum is the one that cannot be a literal - 18446744073709551615 does not fit the
+    -- signed `Long` a literal is read at - so it is written as the complement of zero.
+    let wide = if (maxValue() :: U64) == not(0 :: U64) then 1 else 0
+
+    -- The floating ends are the largest *finite* values, so halving one stays finite.
+    let finite = if (maxValue() :: Double) * 0.5 > 1.0e307 then 1 else 0
+
+    return (widen(smallest) :: Int) + (widen(largest) :: Int) * 10 +
+        (widen(unsigned) :: Int) * 100 + wide * 100000 + finite * 1000000
+
+fn bytes() -> Int:
+    let word = swapEndian(truncate(305419896) :: U32)
+    let short = swapEndian(truncate(258) :: U16)
+    let signedWord = swapEndian(widen(1) :: I32)
+    let plain = swapEndian(1)
+
+    let original = truncate(123456789) :: U32
+    let roundTrip = if swapEndian(swapEndian(original)) == original then 1 else 0
+
+    return (if word == 2018915346 then 1 else 0) +
+        (if (widen(short) :: Int) == 513 then 1 else 0) * 10 +
+        (if (widen(signedWord) :: Int) == 16777216 then 1 else 0) * 100 +
+        (if plain == 16777216 then 1 else 0) * 1000 +
+        roundTrip * 10000
+
+fn rounding() -> Int:
+    let aligned = alignUp(13, 8) + alignUp(16, 8) * 100
+    let multiple = roundUpTo(13, 5) + roundUpTo(15, 5) * 100
+
+    return aligned + multiple * 10000
+
+-- One bit per group rather than one folded number, because a process exit status is eight bits: a
+-- sum would wrap, and a fixture whose expected value is a wrapped sum says nothing about which line
+-- broke. 63 is every group answering what it should.
+fn main() -> Int:
+    return (if scalarOrder() == 9073 then 1 else 0) +
+        (if vectorOrder() == 253 then 2 else 0) +
+        (if signs() == 111000 then 4 else 0) +
+        (if limits() == 1126642 then 8 else 0) +
+        (if bytes() == 11111 then 16 else 0) +
+        (if rounding() == 15151616 then 32 else 0)

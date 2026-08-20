@@ -702,17 +702,29 @@ TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool i
     }
 
     /*
-     * A 64-bit integer lane on JS, refused rather than scalarized - Design-Vector §7.3.
+     * The lane kinds JS has no representation for, which is now the 33-to-53-bit band and not the
+     * whole of the 8-byte stride - Design-Vector §7.3.
      *
-     * A `Long` there is a `bigint`: a heap value, off the ordinary arithmetic path, and four times
-     * the retained size of a number. A vector of them would clear no floor that §7.2's guarantee
-     * asks for - the scalar code the same programmer would have written is the same `bigint`
-     * arithmetic without the shuffling - so what it would buy is a slower program that compiled.
+     * A 64-bit integer lane **is** supported here, and used to be refused. The refusal's argument
+     * was that a `bigint` is a heap value off the ordinary arithmetic path, so a vector of them
+     * clears no floor §7.2's guarantee asks for. That is still true and is no longer the question:
+     * a program that cannot compile is worse than one that compiles slowly, and refusing the lane
+     * took `Real(Vec(F64))` with it - every one of that instance's bodies reinterprets a double
+     * through `Vec(Long)`. Users already know 64-bit integer work on this target is `bigint` work.
+     *
+     * What is still refused is the band `WideInt` lives in: 33 to 53 bits is a host `number` whose
+     * operators above 32 bits are wide.cpp's helpers, and the *vector* emitters call none of them -
+     * `laneBinary` would emit a plain `+` and a coercion, which is the wrong arithmetic rather than
+     * slow arithmetic. `kMaxNumberBits` in codegen/js/build.h is the same 53 and the same split.
      */
     if(isJsMode(context.settings.mode) && base[content]->kind == Type::Int && stride == 8) {
-        context.diagnostics.error("a vector of %@ has no JavaScript form - a 64-bit integer is a `bigint` on this target and a `bigint` is not a lane"_v,
-                                  source, describeType(context, base, content));
-        return module.scalar.error;
+        auto canonical = (IntType*)base[canonicalType(base, content)];
+
+        if(canonical->bits <= 53) {
+            context.diagnostics.error("a vector of %@ has no JavaScript form - 33 to 53 bits is a host number there, and this target's vector emitters have no arithmetic for one"_v,
+                                      source, describeType(context, base, content));
+            return module.scalar.error;
+        }
     }
 
     /*

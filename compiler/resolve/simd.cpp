@@ -537,6 +537,26 @@ static ModulePtr<Value> emitSqrt(ExprResolver& resolver, Buffer<ModulePtr<Value>
     return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Sqrt, args[0]));
 }
 
+/*
+ * The four roundings to an integral value, which are `emitSqrt` at four kinds.
+ *
+ * One template rather than four functions because nothing separates them here: each is a float or a
+ * vector of them, each answers its operand's type, and which of the four an instruction is is the
+ * kind itself. What the four *mean* is ruled on in resolve/inst.def and differs only at a tie.
+ *
+ * The name is passed through `requireFloating` so that `ceil(1)` names `ceil` in its diagnostic
+ * rather than naming whichever of the four the template was instantiated for first.
+ */
+template<Value::Kind kind>
+static ModulePtr<Value> emitRounding(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto what = kind == Value::Trunc ? "trunc"_v : kind == Value::Floor ? "floor"_v
+              : kind == Value::Ceil  ? "ceil"_v  : "round"_v;
+
+    if(!requireFloating(resolver, type, source, what)) return nullptr;
+    return resolver.ref(resolver.emit<InstUnary>(source, name, type, kind, args[0]));
+}
+
 static ModulePtr<Value> emitFma(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                 LocationId source, StringId name) {
     if(!requireFloating(resolver, type, source, "fma"_v)) return nullptr;
@@ -560,6 +580,10 @@ void defineVectorIntrinsics(Module& core) {
     attachIntrinsic(core, "max"_v, emitMinMax<CompareOp::Gt>);
     attachIntrinsic(core, "abs"_v, emitAbs);
     attachIntrinsic(core, "sqrt"_v, emitSqrt);
+    attachIntrinsic(core, "trunc"_v, emitRounding<Value::Trunc>);
+    attachIntrinsic(core, "floor"_v, emitRounding<Value::Floor>);
+    attachIntrinsic(core, "ceil"_v, emitRounding<Value::Ceil>);
+    attachIntrinsic(core, "round"_v, emitRounding<Value::Round>);
     attachIntrinsic(core, "fma"_v, emitFma);
 
     attachIntrinsic(core, "reverse"_v, emitReverse);
@@ -813,6 +837,22 @@ static ModulePtr<ClassInstance> numericInstance(Module& core, GlobalPtr<TypeClas
         return generateInstance(core, typeClass, { &type, 1 }, { methods, 1 });
     }
 
+    // The decimal literal, on exactly the terms the integer one is here: `Num` does not declare
+    // `FromDecimal` as a superclass, so nothing forces this the way `fromInt` is forced - what asks
+    // for it is a body generic over a float type, where every polynomial coefficient is a written
+    // decimal and has to mean the same thing whether the substitution was `Float` or `Vec(Float)`.
+    // Math's shared approximations are the only caller today and are the whole reason it exists.
+    //
+    // Refused for an integer lane, which is `FromDecimal`'s own rule rather than a vector one: there
+    // is no `FromDecimal(Int)` either, and a lane type answering a question its scalar declines
+    // would be the one place the vector ladder and the scalar one disagreed.
+    if(typeClass == classes.fromDecimal) {
+        if(base[vector->content]->kind != Type::Float) return nullptr;
+
+        IntrinsicMethod methods[] = { { "fromDecimal"_v, 1, emitVectorFromLiteral } };
+        return generateInstance(core, typeClass, { &type, 1 }, { methods, 1 });
+    }
+
     if(typeClass == classes.num) return defineNum(core, type);
 
     // The bitwise half is an integer question, so a float vector reaches `Num` and stops - exactly
@@ -953,9 +993,52 @@ static ModulePtr<Value> emitLaneSelect(ExprResolver& resolver, Buffer<ModulePtr<
  * by trusting it: a head that agrees with the dependency selects, and one that does not selects
  * nothing and is reported as a missing instance.
  */
+/*
+ * And the same class over a *scalar*, whose mask is `Bool` - the one-lane case, generated here
+ * rather than in core.cpp for the reason the vector heads are generated on demand.
+ *
+ * What asks for it is the one thing this whole family exists to make possible: an approximation
+ * written once and instanced for `Float`, `Double` and `Vec(Float)` alike (Analysis-Library.md
+ * §2.4). Such a body has to choose between two values by a comparison, and the only spelling of
+ * that which covers both is `select(x .< y, a, b)` - `if` cannot, because a vector comparison
+ * answers a mask and a condition wants a `Bool`. Without this instance the shared body is
+ * expressible for the vector instances and not for the scalar ones, which is exactly the split the
+ * section says a class removes.
+ *
+ * `select` over a `Bool` condition is the `Select` instruction if-conversion already produces, so
+ * nothing new is emitted and a scalar `select` costs what the `if` it replaces costs. The dotted
+ * comparisons over a scalar are the plain ones - `x .< y` and `x < y` are the same instruction -
+ * and having both spellings is the price of one body serving both shapes.
+ *
+ * Numbers only. `Bool` and a record are comparable and neither is a lane of anything, so a
+ * `Lanewise` over one would be a second spelling of `Eq` with nothing asking for it.
+ */
+static ModulePtr<ClassInstance> scalarLanewiseInstance(Module& core, GlobalPtr<TypeClass> typeClass,
+                                                       TypePtr type, TypePtr asked) {
+    auto base = *core.types;
+    auto kind = base[type]->kind;
+    if(kind != Type::Int && kind != Type::Float) return nullptr;
+
+    auto mask = core.program.scalar.bool_;
+    if(!mask || (asked && asked != mask)) return nullptr;
+
+    IntrinsicMethod methods[] = {
+        { ".=="_v, 2, emitCompare<CompareOp::Eq> },
+        { ".!="_v, 2, emitCompare<CompareOp::Ne> },
+        { ".<"_v,  2, emitCompare<CompareOp::Lt> },
+        { ".<="_v, 2, emitCompare<CompareOp::Le> },
+        { ".>"_v,  2, emitCompare<CompareOp::Gt> },
+        { ".>="_v, 2, emitCompare<CompareOp::Ge> },
+        { "select"_v, 3, emitLaneSelect },
+    };
+
+    TypePtr head[] = { type, mask };
+    return generateInstance(core, typeClass, { head, 2 }, { methods, 7 });
+}
+
 static ModulePtr<ClassInstance> lanewiseInstance(Module& core, GlobalPtr<TypeClass> typeClass,
                                                  TypePtr vector, TypePtr asked) {
-    if(!isVectorType(*core.types, vector)) return nullptr;
+    if(!isVectorType(*core.types, vector)) return scalarLanewiseInstance(core, typeClass, vector, asked);
 
     auto mask = maskFor(core, vector);
     if(!mask || (asked && asked != mask)) return nullptr;

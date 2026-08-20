@@ -72,7 +72,9 @@ table witness$Ord(Int) {
   .2 thunk$Ord(Int).>#2
   .3 thunk$Ord(Int).>=#3
   .4 thunk$Ord(Int).compare#4
-  .5 witness$Eq(Int)
+  .5 thunk$Ord(Int).min#5
+  .6 thunk$Ord(Int).max#6
+  .7 witness$Eq(Int)
 }
 
 table witness$Eq(Int) {
@@ -121,6 +123,38 @@ fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
 fn teardown$none(%value: %()) -> () {
   b0:
     ret
+}
+
+fn Ord.min(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v3 = cmp_le %lhs, %rhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %lhs], [b2, %rhs] : Int
+    ret %v2
+}
+
+fn Ord.max(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v3 = cmp_ge %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : Int
+    ret %v2
 }
 
 fn identity(%value: a) -> a {
@@ -372,6 +406,24 @@ fn thunk$Ord(Int).compare#4(%lhs: %Int, %rhs: %Int) -> Ordering {
     %v3 = load [%rhs] : Int
     %v4 = call Ord(Int).compare, %v2, %v3 : Ordering
     ret %v4
+}
+
+fn thunk$Ord(Int).min#5(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = call Ord.min(Int), %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Ord(Int).max#6(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = call Ord.max(Int), %v3, %v4 : Int
+    init [%result], %v5
+    ret
 }
 
 fn thunk$Eq(Int).==#0(%lhs: %Int, %rhs: %Int) -> Bool {

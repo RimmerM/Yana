@@ -1,0 +1,48 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %left = vsplat 3: i32x4
+    %right = vsplat 5: i32x4
+    %v_1 = cmp_ilt %left, %right: m32x4
+    %v_2 = select %v_1, %left, %right: i32x4
+    %v_3 = vreduce_add %v_2: Int
+    %v_4 = sar %v_3, 31: Int
+    %v_5 = shr %v_4, 30: Int
+    %v_6 = add %v_3, %v_5: Int
+    %low = sar %v_6, 2: Int
+    %v_7 = cmp_igt %left, %right: m32x4
+    %v_8 = select %v_7, %left, %right: i32x4
+    %v_9 = vreduce_add %v_8: Int
+    %v_10 = sar %v_9, 31: Int
+    %v_11 = shr %v_10, 30: Int
+    %v_12 = add %v_9, %v_11: Int
+    %high = sar %v_12, 2: Int
+    %v_13 = vsplat 18446744073709551614: i32x4
+    %v_14 = abs %v_13: i32x4
+    %v_15 = vreduce_add %v_14: Int
+    %v_16 = sar %v_15, 31: Int
+    %v_17 = shr %v_16, 30: Int
+    %v_18 = add %v_15, %v_17: Int
+    %size = sar %v_18, 2: Int
+    %v_19 = imul %high, 10: Int
+    %v_20 = add %low, %v_19: Int
+    %v_21 = imul %size, 100: Int
+    %v_22 = add %v_20, %v_21: Int
+    %v_23 = cmp_eq %v_22, 253: Int
+    %v_24 = select %v_23, 2, 0: Int
+    %v_25 = add %v_24, 1: Int
+    %v_26 = div 1, 0: Float
+    %v_27 = cmp_gt %v_26, 0: Int
+    %v_28 = imul %v_27, 10000: Int
+    %v_29 = add %v_28, 1000: Int
+    %v_30 = imul %v_27, 100000: Int
+    %v_31 = add %v_29, %v_30: Int
+    %v_32 = cmp_eq %v_31, 111000: Int
+    %v_33 = select %v_32, 4, 0: Int
+    %v_34 = add %v_25, %v_33: Int
+    %v_35 = add %v_34, 56: Int
+    ret %v_35
+  }
+}
+

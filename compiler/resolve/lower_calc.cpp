@@ -282,6 +282,41 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             );
             break;
         }
+        /*
+         * The four roundings, which are unary on both sides of this lowering exactly as `Abs` is.
+         *
+         * The inner switch is what `unary`'s compile-time kind costs: the four differ in nothing
+         * but which instantiation is asked for, and the builder wants that as a template argument
+         * so it can range-check it against FirstUnary/LastUnary. x64 has no ties-away instruction
+         * and expands `Round` itself - see inst.def for why the tie rule is ruled on there rather
+         * than left to a backend.
+         */
+        case Value::Trunc:
+        case Value::Floor:
+        case Value::Ceil:
+        case Value::Round: {
+            auto& unaryInst = (InstUnary&)instruction;
+            auto from = lower.lower[mappedValue(lower, unaryInst.from)];
+            auto type = lowerType(lower.global, instruction.type);
+            auto& to = lower.to;
+
+            switch(instruction.kind) {
+                case Value::Trunc:
+                    result = unary<LowerInst::Trunc>(lower.lower, to, block, from, type, instruction.name);
+                    break;
+                case Value::Floor:
+                    result = unary<LowerInst::Floor>(lower.lower, to, block, from, type, instruction.name);
+                    break;
+                case Value::Ceil:
+                    result = unary<LowerInst::Ceil>(lower.lower, to, block, from, type, instruction.name);
+                    break;
+                default:
+                    result = unary<LowerInst::Round>(lower.lower, to, block, from, type, instruction.name);
+                    break;
+            }
+
+            break;
+        }
         case Value::Fma: {
             auto& fma = (InstFma&)instruction;
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFma(

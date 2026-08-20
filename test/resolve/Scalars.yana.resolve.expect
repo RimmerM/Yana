@@ -1,0 +1,503 @@
+let image$base: () = <none>
+
+fn Bounded(I8).minValue() -> I8 {
+  b0:
+    %v4 = sub 0, 127 : I8
+    %v7 = sub %v4, 1 : I8
+    ret %v7
+}
+
+fn Bounded(I8).maxValue() -> I8 {
+  b0:
+    ret 127
+}
+
+fn Bounded(U8).maxValue() -> U8 {
+  b0:
+    ret 255
+}
+
+fn Bounded(U64).maxValue() -> U64 {
+  b0:
+    %v2 = not 0 : U64
+    ret %v2
+}
+
+fn Bounded(Double).maxValue() -> Double {
+  b0:
+    ret 1.7976931348623157E308
+}
+
+fn Signed(Int).abs(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_le %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = sub 0, %value : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v7], [b2, %value] : Int
+    ret %v10
+}
+
+fn Signed(Float).abs(%value: Float) -> Float {
+  b0:
+    %v3 = cmp_le %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = sub 0, %value : Float
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v7], [b2, %value] : Float
+    ret %v10
+}
+
+fn Endian(U16).swapEndian(%value: U16) -> U16 {
+  b0:
+    %v3 = shl %value, 8 : U16
+    %v6 = and %v3, 65280 : U16
+    %v9 = shr %value, 8 : U16
+    %v12 = and %v9, 255 : U16
+    %v13 = or %v6, %v12 : U16
+    ret %v13
+}
+
+fn Endian(U32).swapEndian(%value: U32) -> U32 {
+  b0:
+    %v3 = shl %value, 24 : U32
+    %v6 = and %value, 65280 : U32
+    %v9 = shl %v6, 8 : U32
+    %v10 = or %v3, %v9 : U32
+    %v13 = shr %value, 8 : U32
+    %v16 = and %v13, 65280 : U32
+    %v17 = or %v10, %v16 : U32
+    %v20 = shr %value, 24 : U32
+    %v21 = or %v17, %v20 : U32
+    ret %v21
+}
+
+fn Endian(I32).swapEndian(%value: I32) -> I32 {
+  b0:
+    %v1 = bitcast %value : U32
+    %v2 = call Endian(U32).swapEndian, %v1 : U32
+    %v3 = bitcast %v2 : I32
+    ret %v3
+}
+
+fn Endian(Int).swapEndian(%value: Int) -> Int {
+  b0:
+    %v1 = cast %value : U32
+    %v2 = call Endian(U32).swapEndian, %v1 : U32
+    %v3 = cast %v2 : Int
+    ret %v3
+}
+
+fn Ord.min(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v3 = cmp_le %lhs, %rhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %lhs], [b2, %rhs] : Int
+    ret %v2
+}
+
+fn Ord.max(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v3 = cmp_ge %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : Int
+    ret %v2
+}
+
+fn clamp(Int)(%value: Int, %low: Int, %high: Int) -> Int {
+  b0:
+    %v3 = call Ord.max(Int), %value, %low : Int
+    %v4 = call Ord.min(Int), %v3, %high : Int
+    ret %v4
+}
+
+fn signum(Int)(%value: Int) -> Int {
+  b0:
+    %v5 = cmp_gt %value, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b6
+
+  b2:
+    %v12 = cmp_lt %value, 0 : Bool
+    je %v12, b3, b4
+
+  b3:
+    %v18 = sub 0, 1 : Int
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v1 = phi [b3, %v18], [b4, 0] : Int
+    jmp b6
+
+  b6:
+    %v2 = phi [b1, 1], [b5, %v1] : Int
+    ret %v2
+}
+
+fn alignUp(Int)(%value: Int, %alignment: Int) -> Int {
+  b0:
+    %v2 = add %value, %alignment : Int
+    %v5 = sub %v2, 1 : Int
+    %v8 = sub %alignment, 1 : Int
+    %v9 = not %v8 : Int
+    %v10 = and %v5, %v9 : Int
+    ret %v10
+}
+
+fn roundUpTo(Int)(%value: Int, %multiple: Int) -> Int {
+  b0:
+    %v2 = add %value, %multiple : Int
+    %v5 = sub %v2, 1 : Int
+    %v6 = div %v5, %multiple : Int
+    %v7 = mul %v6, %multiple : Int
+    ret %v7
+}
+
+fn scalarOrder() -> Int {
+  b0:
+    %low = call Ord.min(Int), 7, 3 : Int
+    %high = call Ord.max(Int), 7, 3 : Int
+    %bounded = call clamp(Int), 99, 0, 10 : Int
+    %v21 = call Ord.min(Int), 4, 4 : Int
+    %v26 = call Ord.max(Int), 4, 4 : Int
+    %tie = add %v21, %v26 : Int
+    %v30 = mul %high, 10 : Int
+    %v31 = add %low, %v30 : Int
+    %v34 = mul %bounded, 100 : Int
+    %v35 = add %v31, %v34 : Int
+    %v38 = mul %tie, 1000 : Int
+    %v39 = add %v35, %v38 : Int
+    ret %v39
+}
+
+fn vectorOrder() -> Int {
+  b0:
+    %left = vsplat 3 : Vec(Int)
+    %right = vsplat 5 : Vec(Int)
+    %v6 = cmp_lt %left, %right : Mask(Int)
+    %v7 = select %v6 ? %left : %right : Vec(Int)
+    %v8 = vreduce_add %v7 : Int
+    %low = div %v8, 4 : Int
+    %v11 = cmp_gt %left, %right : Mask(Int)
+    %v12 = select %v11 ? %left : %right : Vec(Int)
+    %v13 = vreduce_add %v12 : Int
+    %high = div %v13, 4 : Int
+    %v20 = sub 0, 2 : Int
+    %v21 = vsplat %v20 : Vec(Int)
+    %v22 = abs %v21 : Vec(Int)
+    %v23 = vreduce_add %v22 : Int
+    %size = div %v23, 4 : Int
+    %v28 = mul %high, 10 : Int
+    %v29 = add %low, %v28 : Int
+    %v32 = mul %size, 100 : Int
+    %v33 = add %v29, %v32 : Int
+    ret %v33
+}
+
+fn signs() -> Int {
+  b0:
+    %v4 = sub 0, 5 : Int
+    %v5 = call Signed(Int).abs, %v4 : Int
+    %v8 = call Signed(Int).abs, 5 : Int
+    %magnitude = add %v5, %v8 : Int
+    %v14 = sub 0, 7 : Int
+    %v15 = call signum(Int), %v14 : Int
+    %v18 = call signum(Int), 0 : Int
+    %v21 = mul %v18, 10 : Int
+    %v22 = add %v15, %v21 : Int
+    %v25 = call signum(Int), 7 : Int
+    %v28 = mul %v25, 100 : Int
+    %direction = add %v22, %v28 : Int
+    %v33 = call Signed(Float).abs, 0 : Float
+    %v35 = div 1, %v33 : Float
+    %v38 = cmp_gt %v35, 0 : Bool
+    je %v38, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %positiveZero = phi [b1, 1], [b2, 0] : Int
+    %v52 = sub 0, 1 : Float
+    %v55 = mul %v52, 0 : Float
+    %v56 = call Signed(Float).abs, %v55 : Float
+    %v58 = div 1, %v56 : Float
+    %v61 = cmp_gt %v58, 0 : Bool
+    je %v61, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %negativeZero = phi [b4, 1], [b5, 0] : Int
+    %v72 = mul %direction, 10 : Int
+    %v73 = add %magnitude, %v72 : Int
+    %v76 = mul %positiveZero, 10000 : Int
+    %v77 = add %v73, %v76 : Int
+    %v80 = mul %negativeZero, 100000 : Int
+    %v81 = add %v77, %v80 : Int
+    ret %v81
+}
+
+fn limits() -> Int {
+  b0:
+    %smallest = call Bounded(I8).minValue : I8
+    %largest = call Bounded(I8).maxValue : I8
+    %unsigned = call Bounded(U8).maxValue : U8
+    %v3 = call Bounded(U64).maxValue : U64
+    %v5 = not 0 : U64
+    %v6 = cmp_eq %v3, %v5 : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %wide = phi [b1, 1], [b2, 0] : Int
+    %v15 = call Bounded(Double).maxValue : Double
+    %v18 = mul %v15, 0.5 : Double
+    %v21 = cmp_gt %v18, 1E307 : Bool
+    je %v21, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %finite = phi [b4, 1], [b5, 0] : Int
+    %v30 = cast %smallest : Int
+    %v31 = cast %largest : Int
+    %v34 = mul %v31, 10 : Int
+    %v35 = add %v30, %v34 : Int
+    %v36 = cast %unsigned : Int
+    %v39 = mul %v36, 100 : Int
+    %v40 = add %v35, %v39 : Int
+    %v43 = mul %wide, 100000 : Int
+    %v44 = add %v40, %v43 : Int
+    %v47 = mul %finite, 1000000 : Int
+    %v48 = add %v44, %v47 : Int
+    ret %v48
+}
+
+fn bytes() -> Int {
+  b0:
+    %v2 = cast 305419896 : U32
+    %word = call Endian(U32).swapEndian, %v2 : U32
+    %v6 = cast 258 : U16
+    %short = call Endian(U16).swapEndian, %v6 : U16
+    %v10 = cast 1 : I32
+    %signedWord = call Endian(I32).swapEndian, %v10 : I32
+    %plain = call Endian(Int).swapEndian, 1 : Int
+    %original = cast 123456789 : U32
+    %v18 = call Endian(U32).swapEndian, %original : U32
+    %v19 = call Endian(U32).swapEndian, %v18 : U32
+    %v20 = cmp_eq %v19, %original : Bool
+    je %v20, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %roundTrip = phi [b1, 1], [b2, 0] : Int
+    %v31 = cmp_eq %word, 2018915346 : Bool
+    je %v31, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v39 = phi [b4, 1], [b5, 0] : Int
+    %v40 = cast %short : Int
+    %v43 = cmp_eq %v40, 513 : Bool
+    je %v43, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v51 = phi [b7, 1], [b8, 0] : Int
+    %v54 = mul %v51, 10 : Int
+    %v55 = add %v39, %v54 : Int
+    %v56 = cast %signedWord : Int
+    %v59 = cmp_eq %v56, 16777216 : Bool
+    je %v59, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v67 = phi [b10, 1], [b11, 0] : Int
+    %v70 = mul %v67, 100 : Int
+    %v71 = add %v55, %v70 : Int
+    %v74 = cmp_eq %plain, 16777216 : Bool
+    je %v74, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v82 = phi [b13, 1], [b14, 0] : Int
+    %v85 = mul %v82, 1000 : Int
+    %v86 = add %v71, %v85 : Int
+    %v89 = mul %roundTrip, 10000 : Int
+    %v90 = add %v86, %v89 : Int
+    ret %v90
+}
+
+fn rounding() -> Int {
+  b0:
+    %v4 = call alignUp(Int), 13, 8 : Int
+    %v9 = call alignUp(Int), 16, 8 : Int
+    %v12 = mul %v9, 100 : Int
+    %aligned = add %v4, %v12 : Int
+    %v18 = call roundUpTo(Int), 13, 5 : Int
+    %v23 = call roundUpTo(Int), 15, 5 : Int
+    %v26 = mul %v23, 100 : Int
+    %multiple = add %v18, %v26 : Int
+    %v30 = mul %multiple, 10000 : Int
+    %v31 = add %aligned, %v30 : Int
+    ret %v31
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call scalarOrder : Int
+    %v3 = cmp_eq %v0, 9073 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    %v12 = call vectorOrder : Int
+    %v15 = cmp_eq %v12, 253 : Bool
+    je %v15, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v23 = phi [b4, 2], [b5, 0] : Int
+    %v24 = add %v11, %v23 : Int
+    %v25 = call signs : Int
+    %v28 = cmp_eq %v25, 111000 : Bool
+    je %v28, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v36 = phi [b7, 4], [b8, 0] : Int
+    %v37 = add %v24, %v36 : Int
+    %v38 = call limits : Int
+    %v41 = cmp_eq %v38, 1126642 : Bool
+    je %v41, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v49 = phi [b10, 8], [b11, 0] : Int
+    %v50 = add %v37, %v49 : Int
+    %v51 = call bytes : Int
+    %v54 = cmp_eq %v51, 11111 : Bool
+    je %v54, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v62 = phi [b13, 16], [b14, 0] : Int
+    %v63 = add %v50, %v62 : Int
+    %v64 = call rounding : Int
+    %v67 = cmp_eq %v64, 15151616 : Bool
+    je %v67, b16, b17
+
+  b16:
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v75 = phi [b16, 32], [b17, 0] : Int
+    %v76 = add %v63, %v75 : Int
+    ret %v76
+}

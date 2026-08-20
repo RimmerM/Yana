@@ -428,6 +428,10 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Not:
             case Value::Sqrt:
             case Value::Abs:
+            case Value::Trunc:
+            case Value::Floor:
+            case Value::Ceil:
+            case Value::Round:
                 useValue(analysis, effects, ((InstUnary&)instruction).from);
                 break;
 

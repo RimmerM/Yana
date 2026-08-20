@@ -1,0 +1,125 @@
+
+trunc64<complex>(%v: Double): Double {
+  b_0 {
+    %r = trunc %v: Double
+    ret %r
+  }
+}
+
+trunc32<complex>(%v: Float): Float {
+  b_0 {
+    %r = trunc %v: Float
+    ret %r
+  }
+}
+
+floor64<complex>(%v: Double): Double {
+  b_0 {
+    %r = floor %v: Double
+    ret %r
+  }
+}
+
+ceil32<complex>(%v: Float): Float {
+  b_0 {
+    %r = ceil %v: Float
+    ret %r
+  }
+}
+
+truncF32x4<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %r = trunc %v: f32x4
+    ret %r
+  }
+}
+
+floorF64x2<complex>(%v: f64x2): f64x2 {
+  b_0 {
+    %r = floor %v: f64x2
+    ret %r
+  }
+}
+
+round64<complex>(%v: Double): Double {
+  b_0 {
+    %r = round %v: Double
+    ret %r
+  }
+}
+
+roundF32x4<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %r = round %v: f32x4
+    ret %r
+  }
+}
+
+
+--- codegen: trunc64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  trunc uses=[xmm0] creates=[xmm0]  => 660f3a0bc00b
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: trunc32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  trunc uses=[xmm0] creates=[xmm0]  => 660f3a0ac00b
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: floor64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  floor uses=[xmm0] creates=[xmm0]  => 660f3a0bc009
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: ceil32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ceil uses=[xmm0] creates=[xmm0]  => 660f3a0ac00a
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: truncF32x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  trunc uses=[xmm0] creates=[xmm0]  => 660f3a08c00b
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: floorF64x2 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  floor uses=[xmm0] creates=[xmm0]  => 660f3a09c009
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: round64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  trunc uses=[xmm0] creates=[xmm1]  => 0f57c9660f3a0bc80b
+  sub uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f5cd1
+  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm2->xmm3]  => 0f28daf20f58da
+  trunc uses=[xmm3] creates=[xmm3]  => 660f3a0bdb0b
+  add uses=[xmm2, xmm3] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f20f58d3
+  cmp_eq uses=[xmm1, xmm0] creates=[rax]  => 31c0660f2ec80f94c07b0231c0
+  select uses=[xmm0, xmm2, rax] creates=[xmm0]  => 85c075030f28c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: roundF32x4 ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm0->xmm1]  => 0f28c8
+block #1:
+  trunc uses=[xmm1] creates=[xmm0]  => 660f3a08c10b
+  sub uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d10f5cd0
+  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm2->xmm3]  => 0f28da0f58da
+  trunc uses=[xmm3] creates=[xmm3]  => 660f3a08db0b
+  add uses=[xmm2, xmm3] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f58d3
+  cmp_eq uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d80fc2d900
+  select uses=[xmm1, xmm2, xmm3] creates=[xmm2]  => 0f28c3660f3810d1
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3

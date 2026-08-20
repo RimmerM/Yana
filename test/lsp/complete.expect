@@ -8,11 +8,13 @@ member at 25:19
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
+  ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
   splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a)
-  sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
-  swap [kind 3, sort 3swap] inserts snippet swap(${1:left}, ${2:right}) -- fn swap(&left: a, &right: a) -> ()
+  ... more items follow
 
 memberTyped at 27:18
   filtered: true
@@ -26,11 +28,13 @@ memberBorrow at 33:31
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
+  ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
   splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a)
-  sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
-  swap [kind 3, sort 3swap] inserts snippet swap(${1:left}, ${2:right}) -- fn swap(&left: a, &right: a) -> ()
+  ... more items follow
 
 dot at 42:6
   filtered: false
@@ -40,11 +44,13 @@ dot at 42:6
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
+  ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
   splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a)
-  sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
-  swap [kind 3, sort 3swap] inserts snippet swap(${1:left}, ${2:right}) -- fn swap(&left: a, &right: a) -> ()
+  ... more items follow
 
 memberSum at 56:19
   filtered: false
@@ -54,12 +60,12 @@ memberSum at 56:19
   overShape [kind 3, sort 2overShape] -- fn overShape(s: Shape) -> Int
   shifting [kind 3, sort 2shifting] -- fn shifting(s: Shape) -> Int
   area [kind 2, sort 3area] -- class fn area(s: a) -> Int -- declared by class Area
+  ceil [kind 3, sort 3ceil] -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] -- fn round(value: a) -> a
   scale [kind 3, sort 3scale] -- fn scale(s: Shape, by: Int) -> Int
-  scaleTwice [kind 3, sort 3scaleTwice] -- fn scaleTwice(s: Shape) -> Int
-  shifted [kind 3, sort 3shifted] -- fn shifted(s: Shape, by: Int = 1) -> Int
-  splat [kind 3, sort 3splat] -- fn splat(value: a) -> Vec(a)
   ... more items follow
 
 callee at 68:20
@@ -126,8 +132,10 @@ empty at 110:0
 field at 125:21
   filtered: true
   side [kind 5, sort 0side] inserts side:  -- field side: Int
+  Signed [kind 8, sort 3Signed] -- class Signed
   Sink [kind 8, sort 3Sink] -- class Sink
   Size [kind 22, sort 3Size] -- data Size
+  signum [kind 3, sort 3signum] inserts snippet signum(${1:value}) -- fn signum(value: a) -> a
   sink [kind 2, sort 3sink] inserts snippet sink(${1:to}, ${2:from}) -- class fn sink(&to: a, ->from: a) -> () -- declared by class Sink
 
 fieldName at 129:22
@@ -203,11 +211,14 @@ updateEmpty at 185:33
   moved [kind 3, sort 2moved] inserts snippet moved(${1:l}) -- fn moved(l: Line) -> Line
   moving [kind 3, sort 2moving] inserts snippet moving(${1:l}) -- fn moving(l: Line) -> Line
   nested [kind 3, sort 2nested] inserts snippet nested(${1:l}) -- fn nested(l: Line) -> Line
+  ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
   splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a)
   sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
-  swap [kind 3, sort 3swap] inserts snippet swap(${1:left}, ${2:right}) -- fn swap(&left: a, &right: a) -> ()
+  ... more items follow
 
 updatePath at 188:40
   filtered: false
@@ -217,9 +228,11 @@ updatePath at 188:40
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
+  ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
+  floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
+  round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
   splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a)
-  sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
-  swap [kind 3, sort 3swap] inserts snippet swap(${1:left}, ${2:right}) -- fn swap(&left: a, &right: a) -> ()
+  ... more items follow
 

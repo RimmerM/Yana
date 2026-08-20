@@ -68,8 +68,12 @@ struct TestProvider: SourceProvider, ModuleProvider {
             if(entry.name == name) return entry.ast;
         }
 
+        // `OpenExisting`, which is not a detail: the default mode *creates* the file, so an import
+        // this directory does not answer used to leave an empty module behind - and an empty module
+        // then shadows the library one of that name on every run afterwards, silently, since the
+        // project's own files are looked at first. `import Math` is what found it.
         auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
-        auto opened = File::openFile(path, readAccess());
+        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
         if(opened.isErr()) return nullptr;
 
         auto file = opened.moveUnwrapOk();

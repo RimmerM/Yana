@@ -1103,6 +1103,10 @@ bool isRepeatable(LowerInst* inst) {
         // each of them by name; see `sameComputation`, which would otherwise have read it as a
         // binary and compared two operands at the wrong offsets.
         case LowerInst::Sqrt:
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
         case LowerInst::Fma:
 
         // All five, and for the same reason the arithmetic above is here: each is a pure function of

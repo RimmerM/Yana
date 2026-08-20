@@ -955,6 +955,10 @@ void Verifier::verifyInstruction(Value& instruction) {
         }
 
         case Value::Sqrt:
+        case Value::Trunc:
+        case Value::Floor:
+        case Value::Ceil:
+        case Value::Round:
         case Value::Fma: {
             auto lane = vectorLane(global, instruction.type);
             auto element = lane ? lane : instruction.type;

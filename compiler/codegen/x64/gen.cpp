@@ -1433,6 +1433,22 @@ struct Emitter {
     MemForm memFormOf(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         return MemForm {
             .escape = e.escape, .prefix = e.prefix, .is64 = is64 || evexWideElement(e),
+            /*
+             * A trailing predicate or pattern byte counts toward the displacement a RIP-relative
+             * operand is measured from - see AsmRelocation, which takes the distance from the *end*
+             * of the instruction.
+             *
+             * The one that made this visible was `vcmpltps xmm, [rip + pool], imm8`: the predicate
+             * byte is written after the whole address, so a displacement that stopped at the
+             * address read the pool entry one byte late and compared against a value shifted by
+             * eight bits. It answered wrongly rather than faulting, which is why the two vector
+             * comparisons that are symmetric - `.==` and `.!=` - looked correct throughout.
+             *
+             * Set here rather than at each call site so that every family reaching an address
+             * inherits it. `emitLoadStore` overrides it where the form carries a real immediate
+             * *operand* instead, which validateMachineForms guarantees is never both.
+             */
+            .trailing = U8(e.conditionImmediate || e.patternImmediate ? 1 : 0),
             .kind = e.prefixEncoding, .map = e.opcodeMap,
             .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
         };
@@ -1600,7 +1616,7 @@ struct Emitter {
         auto memForm = memFormOf(e, regs, is64);
         memForm.opCode = opcode;
         memForm.byteRegField = e.byteRegField;
-        memForm.trailing = e.immField.isNone() ? U8(0) : immediateBytes;
+        if(!e.immField.isNone()) memForm.trailing = immediateBytes;
 
         genMemory(to, regs.address, regField, memForm);
 

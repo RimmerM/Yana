@@ -101,7 +101,25 @@ struct LowerInst {
          * A float lane or a *signed* integer one, the resolver having refused the rest.
          */
         Abs,
-        LastUnaryArith = Abs,
+
+        /*
+         * The two roundings to an integral value - `roundsd`/`roundpd`, `llvm.trunc`/`llvm.round`,
+         * `Math.trunc`/`Math.round`.
+         *
+         * Kinds for `Sqrt`'s reason and not `Abs`'s: the expansions exist and are simply not what
+         * any target does. What makes them two kinds rather than one with a mode is that their tie
+         * rules are decided differently and only one of them is free. `Trunc` is toward zero and
+         * every target spells it in one instruction; `Round` is to nearest with ties **away from
+         * zero**, which SSE4.1 has no encoding for - `roundsd` imm 0 is ties-to-even - so the x64
+         * backend expands it while LLVM and JS name it directly.
+         *
+         * A float lane only. Rounding an integer is the identity and the resolver refuses it.
+         */
+        Trunc,
+        Floor,
+        Ceil,
+        Round,
+        LastUnaryArith = Round,
         LastUnary = LastUnaryArith,
 
         FirstBinary,

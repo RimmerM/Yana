@@ -9,14 +9,14 @@ const genEnv$pick_Int_Bool = [typeDesc$Int, typeDesc$Bool];
 const witness$Num_Int = [thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
 const witness$FromInt_Int = [thunk$FromInt_Int_fromInt_0];
 const genEnv$twice_Int = [typeDesc$Int, witness$Num_Int];
-const witness$Ord_Int = [thunk$Ord_Int_lt_0, thunk$Ord_Int_lt_eq_1, thunk$Ord_Int_gt_2, thunk$Ord_Int_gt_eq_3, thunk$Ord_Int_compare_4, null];
+const witness$Ord_Int = [thunk$Ord_Int_lt_0, thunk$Ord_Int_lt_eq_1, thunk$Ord_Int_gt_2, thunk$Ord_Int_gt_eq_3, thunk$Ord_Int_compare_4, thunk$Ord_Int_min_5, thunk$Ord_Int_max_6, null];
 const witness$Eq_Int = [thunk$Eq_Int_eq_eq_0, thunk$Eq_Int_not_eq_1];
 const genEnv$smaller_Int = [typeDesc$Int, witness$Ord_Int];
 const genEnv$middle_Int = [typeDesc$Int, witness$Ord_Int];
 const genEnv$increment_Int = [typeDesc$Int, witness$Num_Int];
 const genEnv$nothingForwarded_Int = [typeDesc$Int];
 witness$Num_Int[5] = witness$FromInt_Int;
-witness$Ord_Int[5] = witness$Eq_Int;
+witness$Ord_Int[7] = witness$Eq_Int;
 
 // Core
 function teardown$none(value) {
@@ -136,6 +136,18 @@ function thunk$Ord_Int_compare_4(lhs, rhs) {
   var v2 = lhs.$v;
   var v3 = rhs.$v;
   return v2 === v3 ? 1 : v2 > v3 ? 2 : 0;
+}
+
+function thunk$Ord_Int_min_5(result, lhs, rhs) {
+  var v3 = lhs.$v;
+  var v4 = rhs.$v;
+  result.$v = v3 <= v4 ? v3 : v4;
+}
+
+function thunk$Ord_Int_max_6(result, lhs, rhs) {
+  var v3 = lhs.$v;
+  var v4 = rhs.$v;
+  result.$v = v4 >= v3 ? v4 : v3;
 }
 
 function thunk$Eq_Int_eq_eq_0(lhs, rhs) {

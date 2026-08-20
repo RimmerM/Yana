@@ -1116,6 +1116,11 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateUnary(diagnostics, base, (LowerInstUnary*)inst, false);
         case LowerInst::Sqrt:
             return validateSqrt(diagnostics, base, (LowerInstUnary*)inst);
+        case LowerInst::Trunc:
+        case LowerInst::Floor:
+        case LowerInst::Ceil:
+        case LowerInst::Round:
+            return validateSqrt(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Abs:
             return validateAbs(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Fma:
