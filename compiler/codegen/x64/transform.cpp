@@ -481,6 +481,19 @@ static const TransformPass kTransformPipeline[] = {
     { "expandBitScans"_v,              expandBitScans,              0 },
 
     /*
+     * Beside `expandBitScans` and for its reasons: what it produces is ordinary integer arithmetic
+     * and an ordinary select, so it needs only to be above the pass that rewrites a select and above
+     * every fold that would be worth running over what it emits.
+     *
+     * Above `selectBitOps` and unrelated to it. The permutation network this writes is full of
+     * `x & ~m`, which that pass would turn into `andn` - but the network is only written where the
+     * target has no BMI2, and the levels grant BMI1 and BMI2 together, so the two passes never see
+     * each other's work. Not `vectorsOnly`: none of the three is a vector operation and all three
+     * reach a function with no packed value in it.
+     */
+    { "expandBitOperations"_v,         expandBitOperations,         0 },
+
+    /*
      * Above `poolVectorConstants`, which is what turns the mask it builds into a `.rodata` entry the
      * `andps` reads out of memory, and above the two passes below - both of which rewrite a select,
      * and this one has to see the absolute value's before either has taken it for something else.
@@ -582,6 +595,20 @@ static const TransformPass kTransformPipeline[] = {
 
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectStoreUpdates"_v,          selectStoreUpdates,          0 },
+
+    /*
+     * Below `selectStoreUpdates`, and that is the whole of where it may sit. `mask &= ~bit` is a
+     * load, an `and` and a store to one place; the pass above turns those into `and [m], r`, which
+     * is two instructions counting the complement, against three for an `andn` that has no
+     * memory-destination form to be folded into. Taking the `and` out from under that pass would
+     * lose the better of the two.
+     *
+     * Above `selectMemorySources`, so that a load feeding one of the four still folds into the
+     * instruction that replaces the pair - the replacements carry memory twins of their own. And
+     * above `selectMachineInstructions` for `selectSignExtends`' reason: the flags these stop
+     * writing are half of what the rewrite is worth, and the compare folding is where that is spent.
+     */
+    { "selectBitOps"_v,                selectBitOps,                0 },
 
     /*
      * Below every pass that folds a constant shift, so that what is left standing as a pair is a

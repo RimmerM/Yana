@@ -523,9 +523,28 @@ ModulePtr<ClassInstance> defineBits(Module& module, TypePtr type) {
         { "leadingZeros"_v, 1, emitUnary<Value::LeadingZeros> },
         { "trailingZeros"_v, 1, emitUnary<Value::TrailingZeros> },
         { "bitWidth"_v, 1, emitBitWidth },
+        { "bitsUpTo"_v, 2, emitBinary<Value::BitsUpTo> },
     };
 
-    return generateInstance(module, classNamed(module, "Bits"_v), { &type, 1 }, { methods, 4 });
+    return generateInstance(module, classNamed(module, "Bits"_v), { &type, 1 }, { methods, 5 });
+}
+
+/*
+ * `BitPermute`, whose two methods are one instruction each - generated here beside `Bits`, and for
+ * every one of its reasons.
+ *
+ * The same width test guards both classes, which is not a coincidence and is why `hasBitCounts` is
+ * asked for this one too: the widths a permutation is expressible at are the widths the lower IR has
+ * a scalar for, exactly as the counts' are. A separate predicate would have been the same expression
+ * under a second name and one more thing to keep in step.
+ */
+ModulePtr<ClassInstance> defineBitPermute(Module& module, TypePtr type) {
+    IntrinsicMethod methods[] = {
+        { "gatherBits"_v, 2, emitBinary<Value::GatherBits> },
+        { "scatterBits"_v, 2, emitBinary<Value::ScatterBits> },
+    };
+
+    return generateInstance(module, classNamed(module, "BitPermute"_v), { &type, 1 }, { methods, 2 });
 }
 
 // The widths the counts are declared over - 32 and 64, which is the set every target has an

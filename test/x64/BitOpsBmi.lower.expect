@@ -1,0 +1,410 @@
+
+andNot<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %n = not %a: Int
+    %r = and %n, %b: Int
+    ret %r
+  }
+}
+
+andNotSwapped<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %n = not %a: Int
+    %r = and %b, %n: Int
+    ret %r
+  }
+}
+
+andNot64<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %n = not %a: Long
+    %r = and %n, %b: Long
+    ret %r
+  }
+}
+
+andNotKept<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %n = not %a: Int
+    %r = and %n, %b: Int
+    %s = add %r, %n: Int
+    ret %s
+  }
+}
+
+clearLowest<complex>(%x: Int): Int {
+  b_0 {
+    %d = sub %x, 1: Int
+    %r = and %x, %d: Int
+    ret %r
+  }
+}
+
+clearLowest64<complex>(%x: Long): Long {
+  b_0 {
+    %d = sub %x, 1: Long
+    %r = and %x, %d: Long
+    ret %r
+  }
+}
+
+isolateLowest<complex>(%x: Int): Int {
+  b_0 {
+    %n = neg %x: Int
+    %r = and %x, %n: Int
+    ret %r
+  }
+}
+
+isolateLowestFromZero<complex>(%x: Int): Int {
+  b_0 {
+    %z = sub 0, %x: Int
+    %r = and %z, %x: Int
+    ret %r
+  }
+}
+
+maskThroughLowest<complex>(%x: Int): Int {
+  b_0 {
+    %d = sub %x, 1: Int
+    %r = xor %x, %d: Int
+    ret %r
+  }
+}
+
+shiftVariable<complex>(%x: Int, %n: Int): Int {
+  b_0 {
+    %r = shl %x, %n: Int
+    ret %r
+  }
+}
+
+shiftRightVariable<complex>(%x: Int, %n: Int): Int {
+  b_0 {
+    %r = shr %x, %n: Int
+    ret %r
+  }
+}
+
+shiftArithmeticVariable<complex>(%x: Long, %n: Long): Long {
+  b_0 {
+    %r = sar %x, %n: Long
+    ret %r
+  }
+}
+
+shiftImmediate<complex>(%x: Int): Int {
+  b_0 {
+    %r = shl %x, 5: Int
+    ret %r
+  }
+}
+
+rotateRight<complex>(%x: Int): Int {
+  b_0 {
+    %r = ror %x, 7: Int
+    ret %r
+  }
+}
+
+rotateLeft<complex>(%x: Int): Int {
+  b_0 {
+    %r = rol %x, 7: Int
+    ret %r
+  }
+}
+
+rotateRight64<complex>(%x: Long): Long {
+  b_0 {
+    %r = ror %x, 7: Long
+    ret %r
+  }
+}
+
+rotateByOne<complex>(%x: Int): Int {
+  b_0 {
+    %r = ror %x, 1: Int
+    ret %r
+  }
+}
+
+highProduct<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = mulhi %a, %b: Int
+    ret %r
+  }
+}
+
+highProduct64<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %r = mulhi %a, %b: Long
+    ret %r
+  }
+}
+
+highProductSigned<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = imulhi %a, %b: Int
+    ret %r
+  }
+}
+
+andNotLoaded<complex>(%a: Int, %p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %n = not %a: Int
+    %r = and %n, %v: Int
+    ret %r
+  }
+}
+
+clearLowestLoaded<complex>(%p: Ptr): Int {
+  b_0 {
+    %v = load %p, 4: Int
+    %d = sub %v, 1: Int
+    %r = and %v, %d: Int
+    ret %r
+  }
+}
+
+rotateAndKeep<complex>(%x: Int): Int {
+  b_0 {
+    %r = ror %x, 3: Int
+    %t = xor %r, %x: Int
+    ret %t
+  }
+}
+
+rotateSpilled<complex>(%x: Int, %a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+  b_0 {
+    %v0 = call_complex rotateAndKeep, %a: Int
+    %v1 = call_complex rotateAndKeep, %b: Int
+    %v2 = call_complex rotateAndKeep, %c: Int
+    %v3 = call_complex rotateAndKeep, %d: Int
+    %v4 = call_complex rotateAndKeep, %e: Int
+    %v5 = call_complex rotateAndKeep, %v0: Int
+    %v6 = call_complex rotateAndKeep, %v1: Int
+    %v7 = call_complex rotateAndKeep, %v2: Int
+    %r = ror %x, 7: Int
+    %s0 = add %v0, %v1: Int
+    %s1 = add %s0, %v2: Int
+    %s2 = add %s1, %v3: Int
+    %s3 = add %s2, %v4: Int
+    %s4 = add %s3, %v5: Int
+    %s5 = add %s4, %v6: Int
+    %s6 = add %s5, %v7: Int
+    %t = add %r, %s6: Int
+    ret %t
+  }
+}
+
+
+--- codegen: andNot ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_andnot uses=[rdi, rsi] creates=[rax]  => c4e240f2c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: andNotSwapped ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_andnot uses=[rdi, rsi] creates=[rax]  => c4e240f2c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: andNot64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_andnot uses=[rdi, rsi] creates=[rax]  => c4e2c0f2c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: andNotKept ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  not uses=[rdi] creates=[rdi]  => f7d7
+  and uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc721f0
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: clearLowest ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_lowbit_clear uses=[rdi] creates=[rax]  => c4e278f3cf
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: clearLowest64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_lowbit_clear uses=[rdi] creates=[rax]  => c4e2f8f3cf
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: isolateLowest ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_lowbit_isolate uses=[rdi] creates=[rax]  => c4e278f3df
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: isolateLowestFromZero ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_lowbit_isolate uses=[rdi] creates=[rax]  => c4e278f3df
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: maskThroughLowest ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_lowbit_mask uses=[rdi] creates=[rax]  => c4e278f3d7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: shiftVariable ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[rdi, rsi] creates=[rax]  => c4e249f7c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: shiftRightVariable ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shr uses=[rdi, rsi] creates=[rax]  => c4e24bf7c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: shiftArithmeticVariable ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sar uses=[rdi, rsi] creates=[rax]  => c4e2caf7c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: shiftImmediate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1e005
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateRight ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rdi, -] creates=[rax]  => c4e37bf0c707
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateLeft ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rdi, -] creates=[rax]  => c4e37bf0c719
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateRight64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rdi, -] creates=[rax]  => c4e3fbf0c707
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateByOne ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7d1c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: highProduct ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rdx]  => 8bd7
+block #1:
+  mulhi uses=[rdx, rsi] creates=[rax]  => c4e27bf6c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: highProduct64 ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rdx]  => 488bd7
+block #1:
+  mulhi uses=[rdx, rsi] creates=[rax]  => c4e2fbf6c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: highProductSigned ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  imulhi uses=[rax, rsi] creates=[rdx] post=[rdx->rax]  => f7ee8bc2
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: andNotLoaded ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rsi] creates=[-]  => 
+  x86_andnot uses=[rdi, -] creates=[rax]  => c4e240f206
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: clearLowestLoaded ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  x86_lowbit_clear uses=[-] creates=[rax]  => c4e278f30f
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateAndKeep ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rdi, -] creates=[rax]  => c4e37bf0c703
+  xor uses=[rax, rdi] creates=[rax]  => 31f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: rotateSpilled ---
+  prologue  => 535541544155415641574883ec08
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rdi, rdx->rbx, rcx->r12, r8->r13, r9->r14]  => 893c248bfe8bda448be1458be8458bf1
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] post=[rax->r15]  => e8cdffffff448bf8
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi] post=[rax->rbx]  => 8bfbe8c3ffffff8bd8
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi] post=[rax->r12]  => 418bfce8b9ffffff448be0
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r13->rdi] post=[rax->r13]  => 418bfde8aeffffff448be8
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r14->rdi] post=[rax->r14]  => 418bfee8a3ffffff448bf0
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r15->rdi] post=[rax->rbp]  => 418bffe898ffffff8be8
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi] post=[rax->stack:1]  => 8bfbe88fffffff89442404
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 418bfce883ffffff
+  imm uses=[] creates=[-]  => 
+  ror uses=[stack:0, -] creates=[rcx]  => c4e37bf00c2407
+  add uses=[r15, rbx] creates=[r15]  => 4101df
+  add uses=[r15, r12] creates=[r15]  => 4501e7
+  add uses=[r15, r13] creates=[r15]  => 4501ef
+  add uses=[r15, r14] creates=[r15]  => 4501f7
+  add uses=[r15, rbp] creates=[r15]  => 4101ef
+  add uses=[r15, stack:1] creates=[r15]  => 44037c2404
+  add uses=[r15, rax] creates=[r15]  => 4101c7
+  add uses=[rax, r15] creates=[rax] pre=[rcx->rax]  => 428d0439
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3

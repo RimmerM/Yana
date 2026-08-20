@@ -526,7 +526,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
 
 @platform(native) fn exponentOfDouble(value: Double) -> Double:
     let bits = bitcast(value) :: I64
-    return (widen(widen((bits `shr` 52) `and` 2047) :: Long) :: Double) - 1023.0
+    return (widen(widen(bitfield(bits, start: 52, count: 11)) :: Long) :: Double) - 1023.0
 
 @platform(native) fn significandOfDouble(value: Double) -> Double =
     bitcast(((bitcast(value) :: I64) `and` 4503599627370495) `or` 4607182418800017408) :: Double
@@ -625,7 +625,7 @@ instance Real(Float, Bool):
 
     fn exponentOf(value: Float) -> Float:
         let bits = bitcast(value) :: I32
-        return (widen(widen((bits `shr` 23) `and` 255) :: Int) :: Float) - 127.0
+        return (widen(widen(bitfield(bits, start: 23, count: 8)) :: Int) :: Float) - 127.0
 
     fn significandOf(value: Float) -> Float =
         bitcast(((bitcast(value) :: I32) `and` 8388607) `or` 1065353216) :: Float

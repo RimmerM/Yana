@@ -348,6 +348,31 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             result = block.addInst(lower.lower, (LowerInst*)inst);
             break;
         }
+        /*
+         * The three BMI2 operations, which cross this seam as themselves.
+         *
+         * Not in the binary group below, and the difference is that group's `zeroExtendsShiftOperand`
+         * question rather than anything about the arithmetic: these are defined at 32 and 64 bits
+         * only - the verifier says so - so the value in the register is the value, and there is no
+         * narrow width for this stage to mask into place on the way out. What each of them means at
+         * a count or a mask the machine reads differently is the *backend's* to pay; see
+         * `LowerInst::BitsUpTo`, where the difference is stated.
+         */
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits: {
+            auto& binaryInst = (InstBinary&)instruction;
+            auto lhs = lower.lower[mappedValue(lower, binaryInst.lhs)];
+            auto rhs = lower.lower[mappedValue(lower, binaryInst.rhs)];
+            auto type = lowerType(lower.global, instruction.type);
+
+            result = instruction.kind == Value::BitsUpTo
+                ? binary<LowerInst::BitsUpTo>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
+                : instruction.kind == Value::GatherBits
+                ? binary<LowerInst::GatherBits>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
+                : binary<LowerInst::ScatterBits>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name);
+            break;
+        }
         // The two floating-point operations that are neither the unary pair above nor the binary
         // group below: one operand and no arithmetic beside it, and three operands and no other
         // instruction of that arity in this IR.

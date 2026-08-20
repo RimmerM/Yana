@@ -458,6 +458,9 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Ror:
             case Value::And:
             case Value::Or:
+            case Value::BitsUpTo:
+            case Value::GatherBits:
+            case Value::ScatterBits:
             case Value::Xor:
             case Value::Cmp:
                 useValue(analysis, effects, ((InstBinary&)instruction).lhs);

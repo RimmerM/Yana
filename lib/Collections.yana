@@ -1244,7 +1244,7 @@ fn slotFor(h: U32, mask: Count) -> Size = (bitcast(h `and` (mask :: U32)) :: I32
 -- The seven-bit tag, taken from the *top* of the finalized word - Implementation-Map.md §3. The slot
 -- comes from the bottom, which is the opposite of abseil's split and is measured: a byte-at-a-time
 -- hash mixes its low bits best, and `h >> 7` throws them away (findings §12.6).
-fn tagOf(h: U32) -> U8 = truncate((h `shr` 25) `and` 127) :: U8
+fn tagOf(h: U32) -> U8 = truncate(bitfield(h, start: 25, count: 7)) :: U8
 
 -- The finalized hash of a key. `mix32` is what makes a cheap instance merely slow instead of
 -- quadratic: without it a weak `hash` would put every key of a table into one tag.

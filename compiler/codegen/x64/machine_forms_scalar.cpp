@@ -516,6 +516,85 @@ void MachineFormBuilder::registerScalarForms() {
     unitStep(FormSubDec, OpSub, "dec r/m"_v, 1);
 
     /*
+     * The BMI1 pair-replacements - `andn` and the three lowest-bit operations.
+     *
+     * One form each and no legacy alternative to fall back to, which is the difference from the BMI2
+     * rows further down: those are better spellings of an operation the machine already had, and
+     * these are operations it did not. What reaches them is a *rewrite* rather than a selection - a
+     * complement and an `and`, or a decrement and an `and` - so on a target without the feature the
+     * rewrite never happens and the pair stands. See `selectBitPeepholes` in transform_peephole.cpp.
+     *
+     * Both write ZF and SF from the result and clear OF, which is `and`'s claim exactly; `blsi` and
+     * `blsr` also write CF, from the operand rather than from the result. Nothing here reads CF from
+     * an arithmetic instruction, so `signInFlags` is the only claim worth making and it is `and`'s.
+     */
+
+    {
+        // ANDN r32a, r32b, r/m32 (VEX.LZ.0F38.W0 F2 /r) is `~r32b & r/m32`. The *complemented*
+        // operand is VEX.vvvv, which is why the IR kind names it rather than relying on an order:
+        // exchanging the two operands here is a different function, where exchanging `and`'s is not.
+        auto& form = add(FormAndNot, OpAndNot, "andn r, r, r/m"_v);
+        form.uses.push(anyReg());
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::Def;
+        form.resultInFlags = true;
+        form.signInFlags = true;
+        form.requiredFeatures = kFeatureBmi1;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xf2,
+            .regField = defRef(0), .rmField = useRef(1), .vvvvField = useRef(0),
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+    }
+
+    /*
+     * BLSR, BLSI and BLSMSK - VEX.LZ.0F38.W0 F3 at extensions 1, 2 and 3.
+     *
+     * The one shape in this table whose *destination* is VEX.vvvv: the r/m field holds the operand,
+     * ModRM.reg holds the opcode extension, and the register written is the one the prefix names. So
+     * these are the RmExt family with a vector prefix, which is what `emitRmExt` was generalized for
+     * - the extension goes where a register would in every other VEX form here.
+     *
+     * The r/m side is the ordinary memory alternative, on `popcnt`'s terms: an operand the allocator
+     * left in a frame slot is read there rather than reloaded.
+     */
+    auto lowestBit = [&](MachineFormId id, StringView formName, U8 extension) {
+        auto& form = add(id, OpLowBit, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::Def;
+        form.resultInFlags = true;
+        form.signInFlags = true;
+        form.requiredFeatures = kFeatureBmi1;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RmExt,
+            .opcode = 0xf3, .extension = extension,
+            .rmField = useRef(0), .vvvvField = defRef(0),
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+    };
+
+    // In the order the ids declare them, which `add` requires and which is not the order of the
+    // extensions: `blsmsk` is /2 and sits between the other two in the encoding and after them here.
+    lowestBit(FormLowBitClear,   "blsr r, r/m"_v,    1);
+    lowestBit(FormLowBitIsolate, "blsi r, r/m"_v,    3);
+    lowestBit(FormLowBitMask,    "blsmsk r, r/m"_v,  2);
+
+    // And the memory twins, derived exactly as every other one here is. What makes them worth having
+    // is that the rewrite runs *above* the load fold, so nothing is lost to it and something is
+    // gained: `~a & load(p)` stays a memory operand, and the three lowest-bit operations reach one
+    // they could not have before - the pair read its subject twice, so no load feeding it had the
+    // single reader `foldLoads` requires, and the replacement reads it once.
+    memoryTwin(FormAndNotMem, FormAndNot, "andn r, r, [address]"_v);
+    memoryTwin(FormLowBitClearMem, FormLowBitClear, "blsr r, [address]"_v);
+    memoryTwin(FormLowBitIsolateMem, FormLowBitIsolate, "blsi r, [address]"_v);
+    memoryTwin(FormLowBitMaskMem, FormLowBitMask, "blsmsk r, [address]"_v);
+
+    /*
      * Multiply and divide.
      *
      * The group-3 forms read their first operand out of rax and write their result back into it (or,
@@ -555,6 +634,44 @@ void MachineFormBuilder::registerScalarForms() {
     // to be in rdx beforehand.
     group3(FormMulHi, OpMulHi, "mul r/m (high)"_v, IntRegister::rdx, true, 4, EncodingPrelude::None);
     group3(FormIMulHi, OpIMulHi, "imul r/m (high)"_v, IntRegister::rdx, true, 5, EncodingPrelude::None);
+
+    {
+        /*
+         * And the BMI2 spelling of the unsigned one - `mulx r32a, r32b, r/m32`, VEX.LZ.F2.0F38.W0 F6.
+         *
+         * The same product read for the same half, and everything that makes it worth selecting is
+         * what it does *not* do. `mul r/m` reads rax, writes rdx:rax and writes the flags, so a high
+         * product costs two pinned registers and closes the window a comparison's flags survive in;
+         * `mulx` reads rdx, names both of its destinations, and touches no flag at all.
+         *
+         * **Both destinations are this form's one result, and that is what asks for the high half.**
+         * The low half goes to VEX.vvvv and the high half to ModRM.reg, in that order - so naming the
+         * same register twice writes the low half and then overwrites it, which is the encoding's own
+         * way of saying "the top only". A second destination would otherwise be a register the
+         * allocator holds for a number nothing reads.
+         *
+         * An alternative of the form above rather than a row selection reaches by name, so the whole
+         * of what BMI2 changes here is one link. It writes no flags where its original does, which is
+         * why `OpMulHi` is declared flags-selective - see MachineOpcodeDesc::flagsSelective, and the
+         * note in machine.cpp beside the declaration.
+         */
+        auto& form = add(FormMulx, OpMulHi, "mulx r, r, r/m"_v);
+        form.uses.push(fixedReg(IntRegister::rdx));
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::None;
+        form.requiredFeatures = kFeatureBmi2;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xf6, .prefix = 0xf2,
+            .regField = defRef(0), .rmField = useRef(1), .vvvvField = defRef(0),
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+
+        form.alternativeOf = FormMulHi;
+        forms[FormMulHi].alternative = FormMulx;
+    }
 
     {
         // IMUL r, r/m is the two-operand form: the destination doubles as a source, so it is
@@ -630,6 +747,88 @@ void MachineFormBuilder::registerScalarForms() {
     // `lea`, which is why the address-folding peephole in gen.cpp asks for `OpShl` by name.
     shift(FormRolImm, FormRolOne, FormRolCl, OpRol, "rol r/m, imm"_v, "rol r/m, 1"_v, "rol r/m, cl"_v, 0);
     shift(FormRorImm, FormRorOne, FormRorCl, OpRor, "ror r/m, imm"_v, "ror r/m, 1"_v, "ror r/m, cl"_v, 1);
+
+    /*
+     * The BMI2 shifts, which are the four of the fifteen rows above that have a VEX spelling.
+     *
+     * `shlx r32a, r/m32, r32b` and its two siblings are the *variable* shifts written the way every
+     * other three-operand operation on this machine is written, and they are worth selecting for
+     * three separate reasons rather than for the encoding:
+     *
+     *   - the count comes out of any register instead of out of cl. A group-2 shift pins its count,
+     *     so a loop whose distance is a value forces a copy into rcx and keeps every other value out
+     *     of it; nothing here does.
+     *   - there is no tie. `shl r/m, cl` writes its result through the operand it read, so a subject
+     *     with a second reader needs a copy in front of it - the same three bytes `movsx` removed at
+     *     a different operation.
+     *   - they write no flags, which is what lets a shift stand between a comparison and its branch.
+     *
+     * They cost three bytes against the legacy encoding and buy back at least two of them wherever
+     * the count was not already in rcx. The *immediate* shifts have no such spelling at all - there
+     * is no `shlx r, r/m, imm` - which is why only the `cl` forms are linked here.
+     *
+     * `rorx` is the exception on both counts: it is the one BMI2 shift that takes an immediate and
+     * the one that has no register-count form, so it is the alternative of `ror r/m, imm` rather
+     * than of `ror r/m, cl`. `rol` by a constant reaches it too, by way of the rewrite in
+     * transform_peephole.cpp that turns a left rotation into the right one it equals.
+     *
+     * `ror r/m, 1` keeps its legacy form and deliberately: it is two bytes against six, and a
+     * rotation by one is not the shape a hash's rotate-and-mix loop has.
+     *
+     * All four are alternatives, so nothing selects them by name and the whole of what the feature
+     * changes is these links. They write no flags where their originals do, which is why the four
+     * opcodes are declared flags-selective in machine.cpp.
+     */
+
+    auto variableShift = [&](MachineFormId id, MachineFormId sourceId, MachineOpcodeId opcode,
+                             StringView formName, U8 prefix)
+    {
+        auto& form = add(id, opcode, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.uses.push(anyReg());
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::None;
+        form.requiredFeatures = kFeatureBmi2;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xf7, .prefix = prefix,
+            .regField = defRef(0), .rmField = useRef(0), .vvvvField = useRef(1),
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+
+        form.alternativeOf = sourceId;
+        forms[sourceId].alternative = id;
+    };
+
+    // The mandatory prefix is the whole of what separates the three: 66 shifts left, F2 shifts right
+    // logically and F3 shifts right arithmetically, over one opcode.
+    variableShift(FormShlx, FormShlCl, OpShl, "shlx r, r/m, r"_v, 0x66);
+    variableShift(FormShrx, FormShrCl, OpShr, "shrx r, r/m, r"_v, 0xf2);
+    variableShift(FormSarx, FormSarCl, OpSar, "sarx r, r/m, r"_v, 0xf3);
+
+    {
+        // `rorx r32, r/m32, imm8` - VEX.LZ.F2.0F3A.W0 F0 /r ib. The immediate is a byte written
+        // after the whole encoding, address bytes included, which is what `immediateByte` says; it
+        // is not the `imm8` an RmExtImm form carries inside its own opcode's operand list.
+        auto& form = add(FormRorx, OpRor, "rorx r, r/m, imm"_v);
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.uses.push(immediate(ImmediateWidth::Imm8));
+        form.defs.push(def());
+        form.flagsEffect = FlagsEffect::None;
+        form.requiredFeatures = kFeatureBmi2;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0xf0, .prefix = 0xf2,
+            .regField = defRef(0), .rmField = useRef(0), .immField = useRef(1),
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F3A,
+            .immediateByte = true,
+        };
+
+        form.alternativeOf = FormRorImm;
+        forms[FormRorImm].alternative = FormRorx;
+    }
 
     /*
      * Comparison.

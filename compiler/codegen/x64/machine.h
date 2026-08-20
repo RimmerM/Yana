@@ -88,6 +88,20 @@ enum : MachineOpcodeId {
     OpAnd,
     OpOr,
     OpXor,
+
+    /*
+     * The two BMI1 operations that are an `and` with one of its operands rewritten - see
+     * LowerInst::X86AndNot and LowerInst::X86LowBit.
+     *
+     * Opcodes of their own rather than forms of `OpAnd`, for `OpSext`'s reason at a different
+     * operation: an `and` writes every arithmetic flag and these write two, so a form of `OpAnd`
+     * would make that opcode flags-selective for a *rewrite* rather than for a target feature. And
+     * for `OpBswap`'s reason as well - `OpLowBit` takes one operand where an `and` takes two, so
+     * nothing that walks an `and`'s operands could be pointed at it unchanged.
+     */
+    OpAndNot,
+    OpLowBit,
+
     OpCmp,
 
     // Floating point. Opcodes of their own rather than forms of the integer ones, because a float
@@ -864,6 +878,26 @@ struct EncodingDescriptor {
 
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     bool omitWhenSame = false; // emits nothing when source and destination are already the same register
+
+    /*
+     * The encoding ends in a one-byte immediate taken from an *operand*, written after the whole
+     * encoding rather than inside it - the `ib` of `rorx r32, r/m32, imm8`.
+     *
+     * The distinction from the RegRmImm and RmExtImm families, which also carry an immediate, is
+     * where the byte goes and what may stand before it: those two write theirs directly after a
+     * ModRM byte that names two registers, and neither has a memory form. This one is a RegRm
+     * encoding like any other - its r/m operand may be a frame slot with a whole addressing mode in
+     * it - so the immediate is the last thing written, past the SIB and displacement bytes.
+     *
+     * It shares that position with `conditionImmediate` and `patternImmediate` and differs from both
+     * in where the value comes from: those two are a fact about the instruction that no operand
+     * carries, and this is `immField`, an operand the form declared. Which is why it may stand with
+     * an immediate operand where those two may not - see validateMachineForms, which checks it does.
+     *
+     * A RIP-relative displacement is measured from the end of the instruction, so this byte counts
+     * toward it exactly as the other two do - see MemForm::trailing.
+     */
+    bool immediateByte = false;
 
     // The r/m operand is an 8-bit register, which needs a REX prefix to name spl/bpl/sil/dil rather
     // than ah/ch/dh/bh - the same rule `MemForm::byteRegField` applies to the ModRM.reg field, on

@@ -1177,6 +1177,12 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:
+        // The three BMI2 operations, held to the bit operations' rule: two integer operands of the
+        // instruction's own type. The *width* restriction - 32 and 64 bits only - is the resolve
+        // verifier's, which is the last stage at which a language type is still visible.
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
             return validateBit(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Cmp:
             return validateCmp(diagnostics, base, (LowerInstCmp*)inst);
@@ -1226,6 +1232,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86StoreOp:
         case LowerInst::X86MovbeLoad:
         case LowerInst::X86MovbeStore:
+        case LowerInst::X86AndNot:
+        case LowerInst::X86LowBit:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;
     }

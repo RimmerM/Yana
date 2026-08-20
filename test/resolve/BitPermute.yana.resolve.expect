@@ -1,0 +1,425 @@
+let image$base: () = <none>
+
+fn bitfield(U32)(%value: U32, %start: U32, %count: U32) -> U32 {
+  b0:
+    %v3 = shr %value, %start : U32
+    %v4 = bitsupto %v3, %count : U32
+    ret %v4
+}
+
+fn opaqueU32(%x: U32) -> U32 {
+  b0:
+    ret %x
+}
+
+fn opaqueI32(%x: I32) -> I32 {
+  b0:
+    ret %x
+}
+
+fn opaqueU64(%x: U64) -> U64 {
+  b0:
+    ret %x
+}
+
+fn opaqueInt(%x: Int) -> Int {
+  b0:
+    ret %x
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn low() -> Int {
+  b0:
+    %v1 = call opaqueU32, 3735928559 : U32
+    %v4 = bitsupto %v1, 16 : U32
+    %v7 = cmp_eq %v4, 48879 : Bool
+    %v9 = call check, %v7, 1 : Int
+    %v11 = call opaqueU32, 3735928559 : U32
+    %v14 = bitsupto %v11, 4 : U32
+    %v17 = cmp_eq %v14, 15 : Bool
+    %v19 = call check, %v17, 2 : Int
+    %v20 = add %v9, %v19 : Int
+    %v22 = call opaqueU32, 3735928559 : U32
+    %v25 = bitsupto %v22, 1 : U32
+    %v28 = cmp_eq %v25, 1 : Bool
+    %v30 = call check, %v28, 4 : Int
+    %v31 = add %v20, %v30 : Int
+    ret %v31
+}
+
+fn ends() -> Int {
+  b0:
+    %v1 = call opaqueU32, 3735928559 : U32
+    %v4 = bitsupto %v1, 0 : U32
+    %v7 = cmp_eq %v4, 0 : Bool
+    %v9 = call check, %v7, 8 : Int
+    %v11 = call opaqueU32, 3735928559 : U32
+    %v14 = bitsupto %v11, 32 : U32
+    %v17 = cmp_eq %v14, 3735928559 : Bool
+    %v19 = call check, %v17, 16 : Int
+    %v20 = add %v9, %v19 : Int
+    %v22 = call opaqueU32, 3735928559 : U32
+    %v25 = bitsupto %v22, 40 : U32
+    %v28 = cmp_eq %v25, 3735928559 : Bool
+    %v30 = call check, %v28, 32 : Int
+    %v31 = add %v20, %v30 : Int
+    %v33 = call opaqueU32, 3735928559 : U32
+    %v36 = bitsupto %v33, 200 : U32
+    %v39 = cmp_eq %v36, 3735928559 : Bool
+    je %v39, b1, b2
+
+  b1:
+    %v42 = call opaqueU32, 3735928559 : U32
+    %v45 = bitsupto %v42, 256 : U32
+    %v48 = cmp_eq %v45, 3735928559 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v51 = phi [b1, %v48], [b2, %v39] : Bool
+    je %v51, b4, b5
+
+  b4:
+    %v54 = call opaqueU32, 3735928559 : U32
+    %v57 = bitsupto %v54, 260 : U32
+    %v60 = cmp_eq %v57, 3735928559 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v63 = phi [b4, %v60], [b5, %v51] : Bool
+    %v65 = call check, %v63, 64 : Int
+    %v66 = add %v31, %v65 : Int
+    ret %v66
+}
+
+fn wide() -> Int {
+  b0:
+    %v1 = call opaqueU64, 81985529216486895 : U64
+    %v4 = bitsupto %v1, 24 : U64
+    %v7 = cmp_eq %v4, 11259375 : Bool
+    %v9 = call check, %v7, 128 : Int
+    %v11 = call opaqueU64, 81985529216486895 : U64
+    %v14 = bitsupto %v11, 64 : U64
+    %v17 = cmp_eq %v14, 81985529216486895 : Bool
+    %v19 = call check, %v17, 256 : Int
+    %v20 = add %v9, %v19 : Int
+    %v22 = call opaqueU64, 81985529216486895 : U64
+    %v25 = bitsupto %v22, 0 : U64
+    %v28 = cmp_eq %v25, 0 : Bool
+    je %v28, b1, b2
+
+  b1:
+    %v31 = call opaqueU64, 81985529216486895 : U64
+    %v34 = bitsupto %v31, 256 : U64
+    %v37 = cmp_eq %v34, 81985529216486895 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v40 = phi [b1, %v37], [b2, %v28] : Bool
+    %v42 = call check, %v40, 512 : Int
+    %v43 = add %v20, %v42 : Int
+    ret %v43
+}
+
+fn field() -> Int {
+  b0:
+    %v1 = call opaqueU32, 3735928559 : U32
+    %v6 = call bitfield(U32), %v1, 16, 8 : U32
+    %v9 = cmp_eq %v6, 173 : Bool
+    %v11 = call check, %v9, 1024 : Int
+    %v13 = call opaqueU32, 3735928559 : U32
+    %v18 = call bitfield(U32), %v13, 0, 16 : U32
+    %v21 = cmp_eq %v18, 48879 : Bool
+    %v23 = call check, %v21, 2048 : Int
+    %v24 = add %v11, %v23 : Int
+    %v26 = call opaqueU32, 3735928559 : U32
+    %v31 = call bitfield(U32), %v26, 28, 4 : U32
+    %v34 = cmp_eq %v31, 13 : Bool
+    %v36 = call check, %v34, 4096 : Int
+    %v37 = add %v24, %v36 : Int
+    ret %v37
+}
+
+fn permute() -> Int {
+  b0:
+    %v1 = call opaqueU32, 305419896 : U32
+    %v3 = call opaqueU32, 4278255360 : U32
+    %v4 = gatherbits %v1, %v3 : U32
+    %v7 = cmp_eq %v4, 4694 : Bool
+    %v9 = call check, %v7, 8192 : Int
+    %v11 = call opaqueU32, 4694 : U32
+    %v13 = call opaqueU32, 4278255360 : U32
+    %v14 = scatterbits %v11, %v13 : U32
+    %v17 = cmp_eq %v14, 302011904 : Bool
+    %v19 = call check, %v17, 16384 : Int
+    %v20 = add %v9, %v19 : Int
+    %v22 = call opaqueU32, 3735928559 : U32
+    %v24 = call opaqueU32, 65535 : U32
+    %v25 = gatherbits %v22, %v24 : U32
+    %v28 = cmp_eq %v25, 48879 : Bool
+    %v30 = call check, %v28, 32768 : Int
+    %v31 = add %v20, %v30 : Int
+    %v33 = call opaqueU32, 15 : U32
+    %v35 = call opaqueU32, 252645135 : U32
+    %v36 = scatterbits %v33, %v35 : U32
+    %v39 = cmp_eq %v36, 15 : Bool
+    %v41 = call check, %v39, 65536 : Int
+    %v42 = add %v31, %v41 : Int
+    ret %v42
+}
+
+fn inverse() -> Int {
+  b0:
+    %value = call opaqueU32, 305419896 : U32
+    %mask = call opaqueU32, 4278255360 : U32
+    %wideValue = call opaqueU64, 81985529216486895 : U64
+    %wideMask = call opaqueU64, 71776123356119040 : U64
+    %v8 = gatherbits %value, %mask : U32
+    %v9 = scatterbits %v8, %mask : U32
+    %v10 = and %value, %mask : U32
+    %v11 = cmp_eq %v9, %v10 : Bool
+    %v13 = call check, %v11, 131072 : Int
+    %v14 = gatherbits %wideValue, %wideMask : U64
+    %v15 = scatterbits %v14, %wideMask : U64
+    %v16 = and %wideValue, %wideMask : U64
+    %v17 = cmp_eq %v15, %v16 : Bool
+    %v19 = call check, %v17, 262144 : Int
+    %v20 = add %v13, %v19 : Int
+    ret %v20
+}
+
+fn edges() -> Int {
+  b0:
+    %v1 = call opaqueU32, 3735928559 : U32
+    %v3 = call opaqueU32, 0 : U32
+    %v4 = gatherbits %v1, %v3 : U32
+    %v7 = cmp_eq %v4, 0 : Bool
+    %v9 = call check, %v7, 524288 : Int
+    %v11 = call opaqueU32, 3735928559 : U32
+    %v13 = call opaqueU32, 0 : U32
+    %v14 = scatterbits %v11, %v13 : U32
+    %v17 = cmp_eq %v14, 0 : Bool
+    %v19 = call check, %v17, 1048576 : Int
+    %v20 = add %v9, %v19 : Int
+    %v22 = call opaqueU32, 3735928559 : U32
+    %v24 = call opaqueU32, 4294967295 : U32
+    %v25 = gatherbits %v22, %v24 : U32
+    %v28 = cmp_eq %v25, 3735928559 : Bool
+    %v30 = call check, %v28, 2097152 : Int
+    %v31 = add %v20, %v30 : Int
+    %v33 = call opaqueU32, 3735928559 : U32
+    %v35 = call opaqueU32, 4294967295 : U32
+    %v36 = scatterbits %v33, %v35 : U32
+    %v39 = cmp_eq %v36, 3735928559 : Bool
+    %v41 = call check, %v39, 4194304 : Int
+    %v42 = add %v31, %v41 : Int
+    ret %v42
+}
+
+fn signed() -> Int {
+  b0:
+    %v4 = sub 0, 16777216 : I32
+    %byteMask = call opaqueI32, %v4 : I32
+    %v7 = call opaqueI32, 305419896 : I32
+    %v8 = gatherbits %v7, %byteMask : I32
+    %v11 = cmp_eq %v8, 18 : Bool
+    je %v11, b1, b2
+
+  b1:
+    %v18 = sub 0, 16777216 : I32
+    %v19 = gatherbits 305419896, %v18 : I32
+    %v22 = cmp_eq %v19, 18 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v25 = phi [b1, %v22], [b2, %v11] : Bool
+    je %v25, b4, b5
+
+  b4:
+    %v28 = call opaqueI32, 18 : I32
+    %v29 = scatterbits %v28, %byteMask : I32
+    %v32 = cmp_eq %v29, 301989888 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v35 = phi [b4, %v32], [b5, %v25] : Bool
+    je %v35, b7, b8
+
+  b7:
+    %v41 = sub 0, 1 : I32
+    %v42 = call opaqueI32, %v41 : I32
+    %v47 = sub 0, 1 : I32
+    %v48 = call opaqueI32, %v47 : I32
+    %v49 = gatherbits %v42, %v48 : I32
+    %v54 = sub 0, 1 : Int
+    %v55 = cast %v49 : Int
+    %v56 = cmp_eq %v55, %v54 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v59 = phi [b7, %v56], [b8, %v35] : Bool
+    %v61 = call check, %v59, 8388608 : Int
+    ret %v61
+}
+
+fn widePermute() -> Int {
+  b0:
+    %v1 = call opaqueU64, 81985529216486895 : U64
+    %v3 = call opaqueU64, 71776123356119040 : U64
+    %v4 = gatherbits %v1, %v3 : U64
+    %v7 = cmp_eq %v4, 2329003 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v10 = call opaqueU64, 291 : U64
+    %v12 = call opaqueU64, 71776123356119040 : U64
+    %v13 = scatterbits %v10, %v12 : U64
+    %v16 = cmp_eq %v13, 19070976 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = phi [b1, %v16], [b2, %v7] : Bool
+    %v21 = call check, %v19, 16777216 : Int
+    ret %v21
+}
+
+fn morton(%x: U32, %y: U32) -> U32 {
+  b0:
+    %v4 = scatterbits %x, 1431655765 : U32
+    %v7 = scatterbits %y, 2863311530 : U32
+    %v8 = or %v4, %v7 : U32
+    ret %v8
+}
+
+fn interleave() -> Int {
+  b0:
+    %v1 = call opaqueU32, 43981 : U32
+    %v3 = call opaqueU32, 4660 : U32
+    %v4 = call morton, %v1, %v3 : U32
+    %v7 = cmp_eq %v4, 1179474545 : Bool
+    %v9 = call check, %v7, 33554432 : Int
+    ret %v9
+}
+
+fn folded() -> Int {
+  b0:
+    %v3 = bitsupto 3735928559, 16 : U32
+    %v6 = cmp_eq %v3, 48879 : Bool
+    %v8 = call check, %v6, 67108864 : Int
+    %v14 = call bitfield(U32), 3735928559, 16, 8 : U32
+    %v17 = cmp_eq %v14, 173 : Bool
+    %v19 = call check, %v17, 134217728 : Int
+    %v20 = add %v8, %v19 : Int
+    ret %v20
+}
+
+(Bits(a)) fn lowVia(%value: a, %count: a) -> a {
+  schema {
+    #0 type a
+    #1 class Bits(a)
+  }
+
+  b0:
+    %v2 = gencall Bits(a).bitsUpTo, %value, %count : a
+    ret %v2
+}
+
+(BitPermute(a)) fn gatherVia(%value: a, %mask: a) -> a {
+  schema {
+    #0 type a
+    #1 class BitPermute(a)
+  }
+
+  b0:
+    %v2 = gencall BitPermute(a).gatherBits, %value, %mask : a
+    ret %v2
+}
+
+fn generic() -> Int {
+  b0:
+    %v1 = call opaqueU32, 3735928559 : U32
+    %v4 = call lowVia(U32), %v1, 16 : U32
+    %v7 = cmp_eq %v4, 48879 : Bool
+    %v9 = call check, %v7, 268435456 : Int
+    %v11 = call opaqueU32, 305419896 : U32
+    %v13 = call opaqueU32, 4278255360 : U32
+    %v14 = call gatherVia(U32), %v11, %v13 : U32
+    %v17 = cmp_eq %v14, 4694 : Bool
+    %v19 = call check, %v17, 536870912 : Int
+    %v20 = add %v9, %v19 : Int
+    ret %v20
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call low : Int
+    %v1 = call ends : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call wide : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call field : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call permute : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call inverse : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call edges : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call signed : Int
+    %v14 = add %v12, %v13 : Int
+    %v15 = call widePermute : Int
+    %v16 = add %v14, %v15 : Int
+    %v17 = call interleave : Int
+    %v18 = add %v16, %v17 : Int
+    %v19 = call folded : Int
+    %v20 = add %v18, %v19 : Int
+    %v21 = call generic : Int
+    %v22 = add %v20, %v21 : Int
+    ret %v22
+}
+
+fn lowVia(U32)(%value: U32, %count: U32) -> U32 {
+  b0:
+    %v2 = bitsupto %value, %count : U32
+    ret %v2
+}
+
+fn gatherVia(U32)(%value: U32, %mask: U32) -> U32 {
+  b0:
+    %v2 = gatherbits %value, %mask : U32
+    ret %v2
+}

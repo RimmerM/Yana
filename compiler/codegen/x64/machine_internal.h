@@ -90,6 +90,13 @@ enum: MachineFormId {
     FormAddInc, FormAddDec,
     FormSubInc, FormSubDec,
 
+    // The BMI1 pair-replacements. One form each, all four needing the feature - see their
+    // registration in machine_forms_scalar.cpp.
+    FormAndNot,
+    FormLowBitClear, FormLowBitIsolate, FormLowBitMask,
+    FormAndNotMem,
+    FormLowBitClearMem, FormLowBitIsolateMem, FormLowBitMaskMem,
+
     FormMul,
     FormDiv,
     FormIDiv,
@@ -97,6 +104,11 @@ enum: MachineFormId {
     FormIRem,
     FormMulHi,
     FormIMulHi,
+
+    // The BMI2 spelling of the unsigned high product - see the note beside its registration. An
+    // alternative of FormMulHi rather than a row of its own, so nothing selects it by name.
+    FormMulx,
+
     FormIMulReg,
     FormIMulMem,
     FormIMulImm,
@@ -106,6 +118,10 @@ enum: MachineFormId {
     FormSarImm, FormSarOne, FormSarCl,
     FormRolImm, FormRolOne, FormRolCl,
     FormRorImm, FormRorOne, FormRorCl,
+
+    // The BMI2 shifts, which are alternatives of the three `cl` forms above and of the immediate
+    // rotate - the four of the fifteen that have a VEX spelling. See the note beside them.
+    FormShlx, FormShrx, FormSarx, FormRorx,
 
     FormCmpReg,
     FormCmpRegSet,

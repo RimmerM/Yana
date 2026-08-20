@@ -64,6 +64,20 @@ fn Ord.min(Double)(%lhs: Double, %rhs: Double) -> Double {
     ret %v2
 }
 
+fn bitfield(I64)(%value: I64, %start: I64, %count: I64) -> I64 {
+  b0:
+    %v3 = shr %value, %start : I64
+    %v4 = bitsupto %v3, %count : I64
+    ret %v4
+}
+
+fn bitfield(I32)(%value: I32, %start: I32, %count: I32) -> I32 {
+  b0:
+    %v3 = shr %value, %start : I32
+    %v4 = bitsupto %v3, %count : I32
+    ret %v4
+}
+
 fn nearDouble(%got: Double, %want: Double) -> Int {
   b0:
     %difference = sub %got, %want : Double
@@ -1016,12 +1030,11 @@ fn powerOfTwoDouble(%exponent: Double) -> Double {
 fn exponentOfDouble(%value: Double) -> Double {
   b0:
     %bits = bitcast %value : I64
-    %v4 = shr %bits, 52 : I64
-    %v7 = and %v4, 2047 : I64
-    %v8 = cast %v7 : Long
-    %v9 = cast %v8 : Double
-    %v12 = sub %v9, 1023 : Double
-    ret %v12
+    %v6 = call bitfield(I64), %bits, 52, 11 : I64
+    %v7 = cast %v6 : Long
+    %v8 = cast %v7 : Double
+    %v11 = sub %v8, 1023 : Double
+    ret %v11
 }
 
 fn significandOfDouble(%value: Double) -> Double {
@@ -1096,12 +1109,11 @@ fn Real(Float, Bool).scaleByExponent(%value: Float, %exponent: Float) -> Float {
 fn Real(Float, Bool).exponentOf(%value: Float) -> Float {
   b0:
     %bits = bitcast %value : I32
-    %v4 = shr %bits, 23 : I32
-    %v7 = and %v4, 255 : I32
-    %v8 = cast %v7 : Int
-    %v9 = cast %v8 : Float
-    %v12 = sub %v9, 127 : Float
-    ret %v12
+    %v6 = call bitfield(I32), %bits, 23, 8 : I32
+    %v7 = cast %v6 : Int
+    %v8 = cast %v7 : Float
+    %v11 = sub %v8, 127 : Float
+    ret %v11
 }
 
 fn Real(Float, Bool).significandOf(%value: Float) -> Float {

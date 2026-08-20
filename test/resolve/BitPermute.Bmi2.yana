@@ -1,0 +1,172 @@
+{-
+   The same cases at v3, where every one of these is a single instruction.
+
+   # extensions: v3
+
+   `bzhi`, `pext` and `pdep` are BMI2. BitPermute.yana beside this file is the floor, where the
+   compiler spends the arithmetic instead; the numbers here are that file's numbers, because the two
+   levels computing different answers is the failure this pair exists to catch.
+
+   Two things are asserted here that the floor cannot reach:
+
+     - **`bzhi`'s count is a byte and this operation's is not.** The instruction reads the low eight
+       bits of its count register, so 256 is a count of zero to it where the language says every
+       count at or above the width answers the value unchanged. `expandBitOperations` pays the
+       difference with an unsigned saturation in front of the instruction, and `ends` below is what
+       says it paid.
+     - **`pext` and `pdep` take their operands in the *other* order from `bzhi`.** All three are one
+       opcode byte in one map, and the value is VEX.vvvv for the permutations and r/m for `bzhi`. An
+       encoding that read them the wrong way round answers a plausible number for a symmetric mask
+       and a wrong one otherwise, which `permute` and `inverse` are the cases for.
+
+   `main` is 1073741823 when they all pass.
+-}
+
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueI32(x: I32) -> I32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+@noinline fn opaqueInt(x: Int) -> Int = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- The low bits kept. `0xdeadbeef` masked to sixteen is `0xbeef`, which is the field a caller would
+-- otherwise have written a literal mask for.
+fn low() -> Int =
+    check(bitsUpTo(opaqueU32(3735928559), 16) == 48879, 1) +
+    check(bitsUpTo(opaqueU32(3735928559), 4) == 15, 2) +
+    check(bitsUpTo(opaqueU32(3735928559), 1) == 1, 4)
+
+{-
+   The two ends of the count, which is the whole of what the operation had to rule on.
+
+   Zero keeps nothing. The width keeps everything, and so does *any* count above it - 40 and 200 are
+   both "all of them" rather than 40 modulo 32 or 200 modulo 256. The three targets each need
+   something different to make that true, and none of them needs it for a count in range.
+-}
+fn ends() -> Int =
+    check(bitsUpTo(opaqueU32(3735928559), 0) == 0, 8) +
+    check(bitsUpTo(opaqueU32(3735928559), 32) == 3735928559, 16) +
+    check(bitsUpTo(opaqueU32(3735928559), 40) == 3735928559, 32) +
+
+    {- The three counts that only `bzhi` can get wrong, sharing one weight because they are one
+       assertion. 256 and 260 are the whole reason this line exists: the instruction reads its count
+       from a *byte*, so their low bytes are 0 and 4 and an unsaturated `bzhi` answers 0 and 15 where
+       the language answers everything. 200 fits in a byte and is above the width, so it is the case
+       that passes either way and is here to say which of the two the others are about. -}
+    check(bitsUpTo(opaqueU32(3735928559), 200) == 3735928559 &&
+          bitsUpTo(opaqueU32(3735928559), 256) == 3735928559 &&
+          bitsUpTo(opaqueU32(3735928559), 260) == 3735928559, 64)
+
+-- 64 bits, where JS leaves the `number` domain entirely and every operation here is over a `bigint`.
+fn wide() -> Int =
+    check(bitsUpTo(opaqueU64(81985529216486895), 24) == 11259375, 128) +
+    check(bitsUpTo(opaqueU64(81985529216486895), 64) == 81985529216486895, 256) +
+    check(bitsUpTo(opaqueU64(81985529216486895), 0) == 0 &&
+          bitsUpTo(opaqueU64(81985529216486895), 256) == 81985529216486895, 512)
+
+-- The field extraction written over it. `0xdeadbeef`, eight bits from bit 16, is `0xad`.
+fn field() -> Int =
+    check(bitfield(opaqueU32(3735928559), start: 16, count: 8) == 173, 1024) +
+    check(bitfield(opaqueU32(3735928559), start: 0, count: 16) == 48879, 2048) +
+    check(bitfield(opaqueU32(3735928559), start: 28, count: 4) == 13, 4096)
+
+{-
+   The permutation, in both directions.
+
+   `0x12345678` through `0xff00ff00` selects two bytes - `0x12` and `0x56` - and packs them adjacent
+   lowest-first, which is `0x1256`. Depositing that back through the same mask puts each byte where
+   it came from, which is the value masked and nothing else.
+-}
+fn permute() -> Int =
+    check(gatherBits(opaqueU32(305419896), opaqueU32(4278255360)) == 4694, 8192) +
+    check(scatterBits(opaqueU32(4694), opaqueU32(4278255360)) == 302011904, 16384) +
+    check(gatherBits(opaqueU32(3735928559), opaqueU32(65535)) == 48879, 32768) +
+    check(scatterBits(opaqueU32(15), opaqueU32(252645135)) == 15, 65536)
+
+{-
+   The identity the pair has: a deposit undoes an extract through the same mask, up to the bits the
+   mask never named.
+
+       scatterBits(gatherBits(v, m), m) == v and m
+
+   Worth asserting on its own because it holds for *every* mask, so it is the one property a network
+   that got one round wrong cannot pass by accident.
+-}
+fn inverse() -> Int:
+    let value = opaqueU32(305419896)
+    let mask = opaqueU32(4278255360)
+    let wideValue = opaqueU64(81985529216486895)
+    let wideMask = opaqueU64(71776123356119040)
+
+    return check(scatterBits(gatherBits(value, mask), mask) == (value `and` mask), 131072) +
+           check(scatterBits(gatherBits(wideValue, wideMask), wideMask) == (wideValue `and` wideMask), 262144)
+
+-- The two degenerate masks. Nothing selected is nothing moved; everything selected is the value.
+fn edges() -> Int =
+    check(gatherBits(opaqueU32(3735928559), opaqueU32(0)) == 0, 524288) +
+    check(scatterBits(opaqueU32(3735928559), opaqueU32(0)) == 0, 1048576) +
+    check(gatherBits(opaqueU32(3735928559), opaqueU32(4294967295)) == 3735928559, 2097152) +
+    check(scatterBits(opaqueU32(3735928559), opaqueU32(4294967295)) == 3735928559, 4194304)
+
+{-
+   A **signed** mask whose top bit is set, which is the operand a constant folder gets wrong.
+
+   `-16777216` is `0xff000000` at `I32` and selects the top byte; `0x12345678`'s top byte is `0x12`,
+   so the answer is 18. The trap is in how a constant of a signed type is *stored* - sign-extended,
+   so the mask arrives with every bit above the width set as well - and a fold that walked those
+   would iterate sixty-four times where the type has thirty-two bits and shift the answer off the
+   end. Both spellings are here for that reason: `opaqueI32` keeps the operation at run time and the
+   line below it hands the same pair to the folder.
+
+   Sharing a weight because they are one assertion about one operand shape.
+-}
+fn signed() -> Int:
+    let byteMask = opaqueI32(0 - 16777216)
+    return check(gatherBits(opaqueI32(305419896), byteMask) == 18 &&
+                 gatherBits(305419896 :: I32, (0 - 16777216) :: I32) == 18 &&
+                 scatterBits(opaqueI32(18), byteMask) == 301989888 &&
+                 gatherBits(opaqueI32(0 - 1), opaqueI32(0 - 1)) == (0 - 1), 8388608)
+
+-- 64 bits again, where the mask has to be read as unsigned before a loop over its set bits can end.
+fn widePermute() -> Int =
+    check(gatherBits(opaqueU64(81985529216486895), opaqueU64(71776123356119040)) == 2329003 &&
+          scatterBits(opaqueU64(291), opaqueU64(71776123356119040)) == 19070976, 16777216)
+
+{-
+   What the pair is actually for: two sixteen-bit numbers interleaved into one Morton code.
+
+   One deposit each, through the even and the odd mask, and an `or`. Without the instruction this is
+   the five-step shift-and-mask spread every graphics codebase carries a copy of; with it, it is the
+   two lines below - and on a target that has neither, the compiler carries the spread instead of the
+   program.
+-}
+fn morton(x: U32, y: U32) -> U32 =
+    scatterBits(x, 1431655765) `or` scatterBits(y, 2863311530)
+
+fn interleave() -> Int =
+    check(morton(opaqueU32(43981), opaqueU32(4660)) == 1179474545, 33554432)
+
+-- The constant path, which is the one group here that is *meant* to fold: the answer has to be the
+-- one the instruction would have given.
+fn folded() -> Int =
+    check(bitsUpTo(3735928559 :: U32, 16) == 48879, 67108864) +
+    check(bitfield(3735928559 :: U32, start: 16, count: 8) == 173, 134217728)
+
+{-
+   And the same operations reached through a *witness* rather than by name.
+
+   A generated instance is a real function as well as an expansion at the call site, and this is the
+   build that tells the two apart: a fixture with a `.run.expect` is compiled a second time with
+   specialization declined, so each of these is then one body with the instance passed in, calling
+   the class method through the table.
+-}
+@noinline fn (Bits(a)) lowVia(value: a, count: a) -> a = bitsUpTo(value, count)
+@noinline fn (BitPermute(a)) gatherVia(value: a, mask: a) -> a = gatherBits(value, mask)
+
+fn generic() -> Int =
+    check(lowVia(opaqueU32(3735928559), 16) == 48879, 268435456) +
+    check(gatherVia(opaqueU32(305419896), opaqueU32(4278255360)) == 4694, 536870912)
+
+fn main() -> Int =
+    low() + ends() + wide() + field() + permute() + inverse() + edges() + signed() + widePermute() +
+    interleave() + folded() + generic()

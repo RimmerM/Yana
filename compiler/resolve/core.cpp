@@ -314,8 +314,12 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         // its own - see defineEndian, which is where the set is argued.
         if(isByteSwappable(global, type)) defineEndian(module, type);
 
-        // And the bit counts at the two widths the machine has them at - see defineBits.
-        if(hasBitCounts(global, type)) defineBits(module, type);
+        // And the bit counts at the two widths the machine has them at - see defineBits. The
+        // permutations are at the same two and take the same test; see defineBitPermute.
+        if(hasBitCounts(global, type)) {
+            defineBits(module, type);
+            defineBitPermute(module, type);
+        }
     }
 
     // The conversion ladder, over these types and the two integer types they sit alongside. The
@@ -500,9 +504,12 @@ void defineCore(Program& program) {
     defineEndian(*module, program.scalar.int_);
     defineEndian(*module, program.scalar.long_);
 
-    // The bit counts beside them, at exactly the two widths they are declared over.
+    // The bit counts beside them, at exactly the two widths they are declared over, and the
+    // permutations at the same two.
     defineBits(*module, program.scalar.int_);
     defineBits(*module, program.scalar.long_);
+    defineBitPermute(*module, program.scalar.int_);
+    defineBitPermute(*module, program.scalar.long_);
 
     /*
      * The same instances over the vector of each are **not** here - simd.cpp generates them where

@@ -421,6 +421,21 @@ struct Gen {
     Name rotateHelpers[10];
 
     /*
+     * `$bzhi32` and its five partners - `Core.Bits.bitsUpTo` and the two directions of
+     * `Core.BitPermute`, at the two widths those are declared over.
+     *
+     * Helpers for `rotateHelpers`' two reasons and one that is theirs alone. The operand appears
+     * several times in each shape and an operand here may be a call; the two domains a 32-bit and a
+     * 64-bit body work in are different (`int32` operators against `bigint`); and the permutations
+     * are a *loop*, which is not an expression in any domain. There is no 53-bit slot, `Bits` being
+     * declared at 32 and 64 only.
+     *
+     * Indexed by `bitOpHelperSlot`: the operation, then the width. Named lazily, so a program that
+     * asks for none of the three emits none of them.
+     */
+    Name bitOpHelpers[6];
+
+    /*
      * `$div` and `$rem` - the two divisors the language answers for, where the host does not.
      *
      * `x / 0` is 0 and `x % 0` is `x` (doc/spec/types.md, and the ruling beside `Div` in
@@ -1076,6 +1091,10 @@ void emitBitCountHelpers(Gen& g);
 // The rotations a program asked for, one function per (direction, width). See Gen::rotateHelpers.
 void emitRotateHelpers(Gen& g);
 
+// The three BMI2 operations a program asked for, one function per (operation, width). See
+// Gen::bitOpHelpers.
+void emitBitOpHelpers(Gen& g);
+
 /*
  * Which of the ten slots one (direction, width) is, or `kNoRotateHelper` for a width no instance is
  * generated at.
@@ -1099,6 +1118,13 @@ inline Size rotateHelperSlot(Value::Kind kind, U32 bits) {
 // `Math.clz32` and no helper) is simply never filled.
 inline Size bitCountHelperSlot(Value::Kind kind, bool wide) {
     auto op = kind == Value::CountBits ? 0 : kind == Value::LeadingZeros ? 1 : 2;
+    return Size(op * 2 + (wide ? 1 : 0));
+}
+
+// Which of the six slots one (operation, width) is - the same shape `bitCountHelperSlot` has, and
+// the widths are the two `Core.Bits` is declared over.
+inline Size bitOpHelperSlot(Value::Kind kind, bool wide) {
+    auto op = kind == Value::BitsUpTo ? 0 : kind == Value::GatherBits ? 1 : 2;
     return Size(op * 2 + (wide ? 1 : 0));
 }
 

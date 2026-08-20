@@ -1699,6 +1699,10 @@ Ptr<File> genProgram(Context& context, Program& program) {
     emitRoundAwayHelper(g);
     emitByteSwapHelpers(g);
     emitBitCountHelpers(g);
+
+    // The three BMI2 operations, beside the counts and for the same reason - each is a function of
+    // its operands with nothing to order it against.
+    emitBitOpHelpers(g);
     emitDivisionHelpers(g);
     emitGrowHelper(g);
 

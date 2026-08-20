@@ -1,6 +1,7 @@
 #include "build.h"
 
 #include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/IntrinsicsX86.h>
 #include <llvm/IR/MDBuilder.h>
 
 /*
@@ -396,6 +397,158 @@ static void genCmp(FunGen& f, LowerInstCmp& inst) {
 
     // The lower IR has no one-bit type: a comparison answers Int, which is 0 or 1.
     f.define(inst.result, f.builder.CreateZExt(compared, typeOf(f.gen, inst.result.type), nameOf(f, inst.result)));
+}
+
+/*
+ * The three bit operations of `Core.Bits.bitsUpTo` and `Core.BitPermute`, which this backend has to
+ * answer for whatever target the module names.
+ *
+ * `bitsUpTo` is written out and left to LLVM. The select and the mask below are the shape
+ * InstCombine already knows: on a target with BMI2 it becomes `bzhi`, and on one without it becomes
+ * the same four instructions the x64 backend's own expansion emits. Nothing is gained by naming an
+ * x86 intrinsic here, and a target that is not x86 would then have nothing to select.
+ *
+ * The permutations are the opposite case, and it is why they get a helper. There is no target-
+ * independent LLVM intrinsic for an arbitrary bit permutation, so a target that *has* the
+ * instruction can only be reached by naming the x86 one - and a target that does not have it needs a
+ * loop, which is a whole function rather than an expression.
+ */
+
+// The width, the mask type and the constants everything below needs.
+struct BitOpWidth {
+    llvm::IntegerType* type;
+    U32 bits;
+};
+
+static BitOpWidth bitOpWidthOf(FunGen& f, LowerType type) {
+    auto bits = U32(type == LowerType::Int64 ? 64 : 32);
+    return BitOpWidth { llvm::IntegerType::get(f.gen.llvm, bits), bits };
+}
+
+// Whether this module's target has `pext` and `pdep` - which is x86-64 at v3 and nothing else. The
+// level is the *build's* rather than the host's, exactly as `featuresOf` reads it when the target
+// machine is created, so an `-arch arm64` build never reaches the x86 intrinsic.
+static bool hasBitPermute(FunGen& f) {
+    auto& settings = f.context.settings;
+    return settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::V3;
+}
+
+/*
+ * The permutation written as a loop, in a function of its own, created once per module and width.
+ *
+ * A loop rather than the parallel-suffix network the x64 backend expands to, and the difference is
+ * that this one may be *inlined and specialized* by the optimizer: a constant mask makes the trip
+ * count constant and LLVM unrolls it into exactly the moves the mask calls for, which is better than
+ * the network's fixed five rounds. What it cannot do is beat the instruction, which is why the
+ * caller asks `hasBitPermute` first.
+ *
+ *     out = 0; bit = 1;
+ *     while(mask) {
+ *         low = mask & -mask;                             // the lowest set bit of the mask
+ *         out |= gather ? ((value & low) ? bit : 0)       // pack it down to the next free position
+ *                       : ((value & bit) ? low : 0);      // or spread the next bit out to it
+ *         mask ^= low;
+ *         bit <<= 1;
+ *     }
+ *
+ * Internal and `alwaysinline`-free: it is left an ordinary internal function so that the inliner
+ * decides, which is the right answer for a loop whose cost depends entirely on whether the mask
+ * turned out to be a constant at the call site.
+ */
+static llvm::Function* bitPermuteHelper(FunGen& f, bool gather, BitOpWidth width) {
+    // Named rather than formatted, and the four names written out: the helper is looked up by name
+    // to find the one this module already has, so the name is an identity rather than a label.
+    llvm::StringRef named = gather ? (width.bits == 64 ? "__yana_pext64" : "__yana_pext32")
+                                   : (width.bits == 64 ? "__yana_pdep64" : "__yana_pdep32");
+
+    if(auto existing = f.gen.module.getFunction(named)) return existing;
+
+    llvm::Type* args[] = { width.type, width.type };
+    auto signature = llvm::FunctionType::get(width.type, args, false);
+    auto helper = llvm::Function::Create(signature, llvm::Function::InternalLinkage, named, f.gen.module);
+
+    helper->addFnAttr(llvm::Attribute::NoUnwind);
+    helper->addFnAttr(llvm::Attribute::WillReturn);
+
+    auto entry = llvm::BasicBlock::Create(f.gen.llvm, "entry", helper);
+    auto header = llvm::BasicBlock::Create(f.gen.llvm, "loop", helper);
+    auto body = llvm::BasicBlock::Create(f.gen.llvm, "step", helper);
+    auto exit = llvm::BasicBlock::Create(f.gen.llvm, "done", helper);
+
+    llvm::IRBuilder<> b { entry };
+
+    auto zero = llvm::ConstantInt::get(width.type, 0);
+    auto one = llvm::ConstantInt::get(width.type, 1);
+    auto value = helper->getArg(0);
+
+    b.CreateBr(header);
+    b.SetInsertPoint(header);
+
+    auto mask = b.CreatePHI(width.type, 2);
+    auto bit = b.CreatePHI(width.type, 2);
+    auto out = b.CreatePHI(width.type, 2);
+
+    mask->addIncoming(helper->getArg(1), entry);
+    bit->addIncoming(one, entry);
+    out->addIncoming(zero, entry);
+
+    b.CreateCondBr(b.CreateICmpNE(mask, zero), body, exit);
+    b.SetInsertPoint(body);
+
+    auto low = b.CreateAnd(mask, b.CreateNeg(mask));
+    auto tested = gather ? b.CreateAnd(value, low) : b.CreateAnd(value, bit);
+    auto contributed = b.CreateSelect(b.CreateICmpNE(tested, zero), gather ? bit : low, zero);
+
+    auto nextMask = b.CreateXor(mask, low);
+    auto nextBit = b.CreateShl(bit, one);
+    auto nextOut = b.CreateOr(out, contributed);
+
+    mask->addIncoming(nextMask, body);
+    bit->addIncoming(nextBit, body);
+    out->addIncoming(nextOut, body);
+
+    b.CreateBr(header);
+    b.SetInsertPoint(exit);
+    b.CreateRet(out);
+
+    return helper;
+}
+
+static void genBitOperation(FunGen& f, LowerInstBinary& inst) {
+    auto lhs = use(f, inst, inst.lhs);
+    auto rhs = use(f, inst, inst.rhs);
+    auto name = nameOf(f, inst.result);
+    auto width = bitOpWidthOf(f, inst.result.type);
+
+    if(inst.kind == LowerInst::BitsUpTo) {
+        auto limit = llvm::ConstantInt::get(width.type, width.bits);
+        auto small = f.builder.CreateICmpULT(rhs, limit);
+
+        // The count masked to the width before the shift, for the reason the x64 expansion masks it:
+        // the arm the select discards is still *computed*, and a shift by an out-of-range count is
+        // poison in this IR rather than merely unread.
+        auto masked = f.builder.CreateAnd(rhs, llvm::ConstantInt::get(width.type, width.bits - 1));
+        auto one = llvm::ConstantInt::get(width.type, 1);
+        auto mask = f.builder.CreateSub(f.builder.CreateShl(one, masked), one);
+
+        f.define(inst.result, f.builder.CreateSelect(small, f.builder.CreateAnd(lhs, mask), lhs, name));
+        return;
+    }
+
+    auto gather = inst.kind == LowerInst::GatherBits;
+
+    if(hasBitPermute(f)) {
+        auto which = gather
+            ? (width.bits == 64 ? llvm::Intrinsic::x86_bmi_pext_64 : llvm::Intrinsic::x86_bmi_pext_32)
+            : (width.bits == 64 ? llvm::Intrinsic::x86_bmi_pdep_64 : llvm::Intrinsic::x86_bmi_pdep_32);
+
+        llvm::Value* args[] = { lhs, rhs };
+        f.define(inst.result, f.builder.CreateIntrinsic(which, {}, args, nullptr, name));
+        return;
+    }
+
+    llvm::Value* args[] = { lhs, rhs };
+    f.define(inst.result, f.builder.CreateCall(bitPermuteHelper(f, gather, width), args, name));
 }
 
 static void genBinary(FunGen& f, LowerInstBinary& inst) {
@@ -1021,6 +1174,11 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Xor:
             genBinary(f, (LowerInstBinary&)inst);
             break;
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
+            genBitOperation(f, (LowerInstBinary&)inst);
+            break;
         case LowerInst::Cmp:
             genCmp(f, (LowerInstCmp&)inst);
             break;
@@ -1087,6 +1245,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86StoreOp:
         case LowerInst::X86MovbeLoad:
         case LowerInst::X86MovbeStore:
+        case LowerInst::X86AndNot:
+        case LowerInst::X86LowBit:
             // Created by the x64 backend's own transforms, which run on a copy of the IR this
             // backend never sees. Reaching one means two targets were run over one module.
             f.context.diagnostics.error("llvm: a target-lowered instruction reached the LLVM backend"_v, inst.source);

@@ -1,0 +1,76 @@
+# The same three operations at v3, where two of them are an x86 intrinsic.
+#
+# extensions: v3
+#
+# BMI2 is v3, and this backend names it directly: `llvm.x86.bmi.pext.32` and its three siblings are
+# the only way to reach `pext`/`pdep` from LLVM IR, there being no target-independent intrinsic for
+# an arbitrary bit permutation. So the helper functions of BitOps.lower beside this file are gone and
+# the four calls are four intrinsics.
+#
+# `hasBitPermute` in codegen/llvm/inst.cpp is what decides, and it asks the *build's* arch and level
+# rather than the host - the same two fields `featuresOf` reads when the target machine is created,
+# so an `-arch arm64` build never reaches the x86 intrinsic however new the machine compiling it is.
+#
+# `bitsupto` is unchanged and is the point of the contrast: it is written out at every level and left
+# to LLVM, which selects `bzhi` for itself where the target has one. Naming an intrinsic for it would
+# have bought nothing and lost every target that is not x86.
+
+low(%v: Int, %n: Int): Int {
+    {
+        %r = bitsupto %v, %n: Int
+        ret %r
+    }
+}
+
+low64(%v: Long, %n: Long): Long {
+    {
+        %r = bitsupto %v, %n: Long
+        ret %r
+    }
+}
+
+# A constant count, which every tier above this one has already folded into an `and` - so what this
+# asserts is only that the backend is not the thing that would have had to.
+lowConstant(%v: Int): Int {
+    {
+        %r = bitsupto %v, 8: Int
+        ret %r
+    }
+}
+
+gather(%v: Int, %m: Int): Int {
+    {
+        %r = gatherbits %v, %m: Int
+        ret %r
+    }
+}
+
+scatter(%v: Int, %m: Int): Int {
+    {
+        %r = scatterbits %v, %m: Int
+        ret %r
+    }
+}
+
+gather64(%v: Long, %m: Long): Long {
+    {
+        %r = gatherbits %v, %m: Long
+        ret %r
+    }
+}
+
+scatter64(%v: Long, %m: Long): Long {
+    {
+        %r = scatterbits %v, %m: Long
+        ret %r
+    }
+}
+
+# Two calls at one width, which take one helper between them.
+twice(%v: Int, %m: Int): Int {
+    {
+        %a = gatherbits %v, %m: Int
+        %b = gatherbits %a, %m: Int
+        ret %b
+    }
+}

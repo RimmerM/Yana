@@ -1016,6 +1016,40 @@ void Verifier::verifyInstruction(Value& instruction) {
             break;
         }
 
+        /*
+         * The three bit operations, whose rule is the counts' rule above verbatim and for the same
+         * reasons - see the notes in inst.def.
+         *
+         * A scalar integer of 32 or 64 bits. A vector is refused because none of the three has a
+         * lane-wise spelling on any target this compiler has; a narrower width is refused because
+         * the lower IR has no scalar below `Int32`, so "the low `count` bits" and "the set positions
+         * of `mask`" would both be questions about a value's *storage*; and a `@bits` refinement is
+         * refused because `WideInt`'s 53 bits are not the width its register has.
+         *
+         * The *operands* are not checked here. Both take two values of the instruction's own type -
+         * a value and a count, or a value and a mask - which is `InstBinary`'s own rule and is
+         * checked for every binary above.
+         */
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits: {
+            auto type = instruction.type ? global[instruction.type] : nullptr;
+
+            if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
+                fail(instruction.source, "%%@ operates on the bits of a value that is not a scalar integer"_v,
+                     instruction.id);
+            } else {
+                auto& integer = *(IntType*)type;
+
+                if(integer.bits != 32 && integer.bits != 64) {
+                    fail(instruction.source, "%%@ operates on the bits of a %@-bit integer, which is not a width this operation has"_v,
+                         instruction.id, integer.bits);
+                }
+            }
+
+            break;
+        }
+
         case Value::Sqrt:
         case Value::Trunc:
         case Value::Floor:

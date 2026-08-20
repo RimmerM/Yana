@@ -62,16 +62,37 @@ MachineTarget::MachineTarget() {
     name(OpIDiv, "idiv"_v);
     name(OpRem, "rem"_v);
     name(OpIRem, "irem"_v);
-    name(OpMulHi, "mulhi"_v);
+    /*
+     * The five whose BMI2 alternative writes no flags where the legacy form writes them all.
+     *
+     * A third way for an opcode to be flags-selective and the least demanding of the three, which is
+     * why it is worth saying here rather than leaning on either of the ones the field documents:
+     * `selectAlternativeForm` decides from `targetFeatures()` and from nothing else, so which of the
+     * two forms an instruction takes is settled before the first pass runs and cannot move under a
+     * peephole in either direction. Every reader of the answer goes through `selectForm`, which
+     * applies the alternative - so the conservative-until-it-settles rule has nothing to protect.
+     *
+     * `OpRol` is in the set because a left rotation by a constant is rewritten into the right one it
+     * equals wherever `rorx` exists (see transform_peephole.cpp) - so an instruction that is `OpRol`
+     * when the folding asks may be gone by the time the bytes are written. That is a *rewrite*
+     * rather than a form choice, so it happens in the first sweep and settles with the rest of them.
+     */
+    name(OpMulHi, "mulhi"_v, true);
     name(OpIMulHi, "imulhi"_v);
-    name(OpShl, "shl"_v);
-    name(OpShr, "shr"_v);
-    name(OpSar, "sar"_v);
-    name(OpRol, "rol"_v);
-    name(OpRor, "ror"_v);
+    name(OpShl, "shl"_v, true);
+    name(OpShr, "shr"_v, true);
+    name(OpSar, "sar"_v, true);
+    name(OpRol, "rol"_v, true);
+    name(OpRor, "ror"_v, true);
     name(OpAnd, "and"_v);
     name(OpOr, "or"_v);
     name(OpXor, "xor"_v);
+
+    // The two BMI1 rewrites. Each has one form and that form needs the feature, so neither is
+    // flags-selective: what they write is the same at every form they have, and the *pair* they
+    // replaced is gone by the time anything asks.
+    name(OpAndNot, "andnot"_v);
+    name(OpLowBit, "lowbit"_v);
     // A comparison against zero whose answer the arithmetic above it already put in ZF emits
     // nothing and writes no flags, where every other form of this opcode writes them - so the two
     // do differ. Unlike the four selective opcodes above, which a *peephole* decides, this one is

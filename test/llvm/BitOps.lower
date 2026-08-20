@@ -1,0 +1,90 @@
+# The three BMI2 operations through the LLVM backend, where the two halves of the answer are
+# reached in two different ways.
+#
+# `bitsupto` is written out - a guard, a mask and a select - and left to LLVM. That is the shape
+# InstCombine already knows: on a target with BMI2 it selects `bzhi`, and on one without it selects
+# the same four instructions codegen/x64's own expansion emits. Naming the x86 intrinsic here would
+# have bought the first case and lost every target that is not x86.
+#
+# The permutations are the opposite case and it is why they get a *helper*. LLVM has no
+# target-independent intrinsic for an arbitrary bit permutation, so a target that has the instruction
+# can only be reached by naming the x86 one - and a target that does not have it needs a loop, which
+# is a whole function rather than an expression. `__yana_pext32` and its three siblings are that
+# function, created once per module and per width, internal, and left for the inliner to decide about:
+# a constant mask makes the trip count constant and LLVM unrolls it into exactly the moves the mask
+# calls for, which is better than a fixed-round network.
+#
+# This module names no feature level, so it is compiled for the floor and takes the helpers. See
+# `hasBitPermute` in codegen/llvm/inst.cpp for the other half - x86-64 at v3 emits
+# `llvm.x86.bmi.pext.32` and its siblings instead, and nothing else does.
+#
+# What to look for:
+#
+#   - `low` and `low64` are `icmp ult`, a shift, a mask and a `select` - and the mask on the *shift
+#     count* is not the guard repeated. The guard chooses which arm survives; the mask keeps the arm
+#     that does not from being a shift by an out-of-range count, which is poison in this IR rather
+#     than merely unread.
+#   - there are exactly four helpers however many calls there are, and each is looked up by name.
+#   - `__yana_pext64` reads its mask through no conversion at all: an `i64` here is sixty-four bits
+#     and nothing more, which is the one place this backend has less to say than the JS one, whose
+#     `bigint` mask has to be narrowed before a loop over its set bits can end.
+
+low(%v: Int, %n: Int): Int {
+    {
+        %r = bitsupto %v, %n: Int
+        ret %r
+    }
+}
+
+low64(%v: Long, %n: Long): Long {
+    {
+        %r = bitsupto %v, %n: Long
+        ret %r
+    }
+}
+
+# A constant count, which every tier above this one has already folded into an `and` - so what this
+# asserts is only that the backend is not the thing that would have had to.
+lowConstant(%v: Int): Int {
+    {
+        %r = bitsupto %v, 8: Int
+        ret %r
+    }
+}
+
+gather(%v: Int, %m: Int): Int {
+    {
+        %r = gatherbits %v, %m: Int
+        ret %r
+    }
+}
+
+scatter(%v: Int, %m: Int): Int {
+    {
+        %r = scatterbits %v, %m: Int
+        ret %r
+    }
+}
+
+gather64(%v: Long, %m: Long): Long {
+    {
+        %r = gatherbits %v, %m: Long
+        ret %r
+    }
+}
+
+scatter64(%v: Long, %m: Long): Long {
+    {
+        %r = scatterbits %v, %m: Long
+        ret %r
+    }
+}
+
+# Two calls at one width, which take one helper between them.
+twice(%v: Int, %m: Int): Int {
+    {
+        %a = gatherbits %v, %m: Int
+        %b = gatherbits %a, %m: Int
+        ret %b
+    }
+}

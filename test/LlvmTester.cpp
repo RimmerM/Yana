@@ -22,6 +22,7 @@
 #include "../compiler/codegen/llvm/gen.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
+#include "directives.h"
 
 using namespace Tritium;
 
@@ -46,6 +47,13 @@ static bool buildModule(const String& path, StringView content, Net::Writer& wri
 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+
+    // The same `# extensions:` line X64Tester.cpp reads, and for a reason this backend has as well:
+    // the level decides what a target *has*, and one operation here is written two entirely
+    // different ways because of it - `pext` and `pdep` are an x86 intrinsic at v3 and a helper
+    // function with a loop below it (see `hasBitPermute` in codegen/llvm/inst.cpp). A fixture that
+    // could not say which level it wanted could only ever assert the second.
+    applyFixtureDirectives(context.settings, content);
 
     LowerModule module(1024 * 1024);
     LowerLexer lexer(context, diagnostics, content);

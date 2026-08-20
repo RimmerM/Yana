@@ -1060,7 +1060,10 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         case Value::Ror:
         case Value::And:
         case Value::Or:
-        case Value::Xor: {
+        case Value::Xor:
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits: {
             auto& binary = (InstBinary&)inst;
             result = resolver.emit<InstBinary>(inst.source, inst.name, type, inst.kind,
                                                cloneValue(clone, binary.lhs), cloneValue(clone, binary.rhs));

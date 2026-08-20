@@ -529,6 +529,9 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("and"_v), handleBinary<LowerInst::And>());
     instructionSet.add(Context::nameHash("or"_v), handleBinary<LowerInst::Or>());
     instructionSet.add(Context::nameHash("xor"_v), handleBinary<LowerInst::Xor>());
+    instructionSet.add(Context::nameHash("bitsupto"_v), handleBinary<LowerInst::BitsUpTo>());
+    instructionSet.add(Context::nameHash("gatherbits"_v), handleBinary<LowerInst::GatherBits>());
+    instructionSet.add(Context::nameHash("scatterbits"_v), handleBinary<LowerInst::ScatterBits>());
 
     instructionSet.add(Context::nameHash("cmp_eq"_v), handleCmp<LowerCmp::eq>());
     instructionSet.add(Context::nameHash("cmp_neq"_v), handleCmp<LowerCmp::neq>());

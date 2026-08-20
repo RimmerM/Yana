@@ -189,6 +189,35 @@ struct LowerInst {
         Or,                 // int | int, ptr | int
         Xor,                // int ^ int, ptr ^ int
 
+        /*
+         * The three bit operations that are one instruction on a machine with BMI2 and a sequence
+         * everywhere else - `Core.Bits.bitsUpTo` and `Core.BitPermute`. See the notes in
+         * resolve/inst.def, which is where each one's contract is argued.
+         *
+         * `BitsUpTo` keeps the low `rhs` bits of `lhs` and clears the rest. **The count is read as
+         * an unsigned number and saturates at the type's width**, which is the ruling and is *not*
+         * `bzhi`'s own rule: that instruction reads its count from a byte, so a count of 256 is a
+         * count of zero to it and is a count of "all of them" here. Whoever selects a `bzhi` owes it
+         * the difference - see `expandBitsUpTo` in the x64 backend, which is where it is paid.
+         *
+         * `GatherBits` packs the bits of `lhs` at the set positions of `rhs` down into a contiguous
+         * low field; `ScatterBits` spreads a low field back out into those positions. Total, with no
+         * degenerate case to state.
+         *
+         * Real kinds rather than intrinsics, for `Bswap`'s reason: an intrinsic is opaque to folding,
+         * to CSE and to `lower_licm.cpp` (whose `writesStorage` answers true for every one of them),
+         * so a permutation against a loop-invariant mask written as one would be pinned inside the
+         * loop that reads it. As binaries in the range above they are hoistable and CSE-able for
+         * nothing, `isBinary` being what every pass asks.
+         *
+         * Placed after `Xor` and before `Cmp` deliberately: `selectForm` in the x64 backend indexes
+         * its shift table by the distance from `Shl`, so nothing may be inserted between `Shl` and
+         * `Ror`.
+         */
+        BitsUpTo,
+        GatherBits,
+        ScatterBits,
+
         // Comparison (supports any two of the same type):
         Cmp,
         LastBinary = Cmp,
@@ -424,7 +453,51 @@ struct LowerInst {
          */
         X86MovbeLoad,
         X86MovbeStore,
-        LastInst = X86MovbeStore,
+
+        /*
+         * `~lhs & rhs` in one instruction - `andn`, which is BMI1.
+         *
+         * Backend-private on `X86Sext`'s terms: the portable spelling is the two instructions this
+         * replaces, a complement and an `and`, and there is nothing wrong with them. LLVM's own
+         * selection folds the pair for a target that has `andn`, and JS has no complement operator
+         * that is not already `^ -1`, so both of those backends want what they were given.
+         *
+         * What this buys on x86 is what `X86Sext` buys and one more thing. `not r/m` is two-address
+         * and writes over the operand it complements, so a mask with a second reader needs a copy in
+         * front of it; the pair is five or six bytes where `andn` is five and one uop; and the `and`
+         * writes the flags where `andn` writes only ZF and SF, which is the difference between
+         * clearing a comparison's window and leaving it open.
+         *
+         * **The operand order is the machine's**, which is the whole reason this is a kind and not a
+         * flag on `And`: `andn` complements its VEX.vvvv operand and nothing else, so which of the
+         * two was written `not` is a fact about the instruction rather than something an operand
+         * order can be relied on to carry. `lhs` is the complemented one, always.
+         *
+         * `selectAndNot` in codegen/x64/transform_peephole.cpp is what recognizes the pair, from
+         * either side of the `and` - the operation is commutative and the complement may have
+         * arrived on either.
+         */
+        X86AndNot,
+
+        /*
+         * The lowest set bit of a word, in the three forms BMI1 has an instruction for.
+         *
+         * `blsr`, `blsi` and `blsmsk` are one opcode at three extensions, and each of them is an
+         * `and`, a `xor` or a negation away from the operand it reads: `x & (x - 1)` clears the
+         * lowest set bit, `x & -x` isolates it, and `x ^ (x - 1)` is the mask up to and including
+         * it. All three are the arithmetic a loop over the set bits of a word is written out of, and
+         * all three are two instructions and a live copy of `x` without them.
+         *
+         * Backend-private on `X86AndNot`'s terms and with the same three gains - one instruction
+         * instead of two, no tie, and the flags left as ZF and CF rather than a full `and`'s worth.
+         * `selectLowestBitOps` in codegen/x64/transform_peephole.cpp recognizes all three.
+         *
+         * A single operand, which is what makes these worth a kind of their own rather than a form:
+         * the `x` the pair names twice is *one* value here, so the copy the two-address `sub` or
+         * `dec` needed goes with the instruction it fed.
+         */
+        X86LowBit,
+        LastInst = X86LowBit,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -1161,6 +1234,48 @@ struct LowerInstX86Sext: LowerInstSingle {
     LowerPtr<LowerValue> from;
 };
 
+// `~lhs & rhs` - see LowerInst::X86AndNot, which states why the complemented operand is named by
+// the instruction rather than left to an operand order.
+struct LowerInstX86AndNot: LowerInstSingle {
+    LowerInstX86AndNot(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs):
+        LowerInstSingle(X86AndNot, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values. `lhs` is the complemented one.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+/*
+ * Which of the three lowest-bit operations an `X86LowBit` performs - see the kind.
+ *
+ * Named for the answer rather than for the instruction, which is the naming `LowerMinMax` above
+ * uses and the naming `Core.Bits` uses at the language end: `Clear` is `blsr`, `Isolate` is `blsi`
+ * and `Mask` is `blsmsk`, and each name says what the result *is* rather than which three letters
+ * encode it.
+ */
+enum class LowerX86LowBit: U8 {
+    Clear,   // the operand with its lowest set bit cleared - `x & (x - 1)`
+    Isolate, // the lowest set bit alone - `x & -x`
+    Mask,    // every bit below the lowest set one, and that one - `x ^ (x - 1)`
+};
+
+// One of the three lowest-bit operations - see LowerInst::X86LowBit.
+struct LowerInstX86LowBit: LowerInstSingle {
+    LowerInstX86LowBit(StringId name, LowerType type, LowerPtr<LowerValue> from, LowerX86LowBit which):
+        LowerInstSingle(X86LowBit, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = U8(which);
+    }
+
+    LowerX86LowBit getLowBit() const { return (LowerX86LowBit)flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
 // A vector permuted by a vector of lane indices - see LowerInst::X86Permute. The operand order is
 // the machine's: `vpermd ymm1, ymm2, ymm3` reads the indices out of `ymm2`, which the encoding puts
 // in `vvvv`, and the vector being permuted out of the r/m operand.
@@ -1272,6 +1387,28 @@ enum class LowerIntrinsic: U16 {
      * different answer should write its own rather than expand somebody else's.
      */
     Bzhi,
+
+    /*
+     * The two directions of an arbitrary bit permutation - `pext` and `pdep`, BMI2.
+     *
+     * `Pext` packs the bits of its first operand at the set positions of its second down into a
+     * contiguous low field; `Pdep` spreads a low field back out into those positions. Both are total
+     * and neither has a rule the machine and the IR disagree about, which is the difference from
+     * `Bzhi` above: a permutation has no count for a byte to truncate.
+     *
+     * Written only by a backend that has the instructions, on `Bzhi`'s terms and refused by the LLVM
+     * backend the same way. `LowerInst::GatherBits` and `LowerInst::ScatterBits` are what every tier
+     * above a backend carries instead, and `expandBitOperations` in the x64 backend is what turns
+     * one into the other where the feature is present - and into the parallel-suffix network where
+     * it is not.
+     *
+     * **A caution that belongs with the instruction rather than with any caller**: these two are
+     * microcoded on AMD's Zen 1 and Zen 2, at tens of cycles against the three a Zen 3 or an Intel
+     * part takes. A build that names a feature level gets what it asked for; nothing here tries to
+     * detect a vendor.
+     */
+    Pext,
+    Pdep,
     Cpuid,   // query the processor's feature information
     Rdtscp,  // read the processor's timestamp counter and its id
     Rdtsc,   // read the processor's timestamp counter

@@ -146,6 +146,9 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
         case LowerInst::Cmp:
         case LowerInst::Select:
 

@@ -1755,3 +1755,230 @@ void expandVectorRotate(Context&, LowerBase base, LowerFunction& fun) {
         }
     }
 }
+
+/*
+ * The three bit operations of `Core.Bits.bitsUpTo` and `Core.BitPermute`, which are one instruction
+ * each at v3 and a sequence below it.
+ *
+ * `expandBitScans`' case at three more operations, and the same argument: the language committed to
+ * an answer, one level of this target has an instruction for it, the floor does not, and the gap is
+ * spent here so that neither LLVM nor JS pays for x64's feature ladder. What differs is how wide the
+ * gap is, and that is worth reading before the code.
+ *
+ * ## `bitsUpTo`, which is cheap either way
+ *
+ * `bzhi` is the instruction and it *almost* answers the operation. The one place the two part
+ * company is a count at or above the width: `bzhi` reads its count from the low byte of a register,
+ * so 256 is a count of zero there, where `LowerInst::BitsUpTo` says every count at or above the
+ * width answers the value unchanged. The difference is one unsigned saturation:
+ *
+ *     index  = count <u width ? count : width
+ *     result = bzhi(value, index)
+ *
+ * Three instructions, and a *constant* count leaves none of them - `lower_fold.cpp` has folded the
+ * whole operation long before this, into an `and` against a literal mask or into the value itself.
+ * So the saturation is paid exactly where the count is a value, which is the tail-mask case it
+ * exists for.
+ *
+ * Below BMI2 the same guard stands in front of the arithmetic the instruction replaces:
+ *
+ *     small  = count <u width
+ *     masked = count & (width - 1)
+ *     low    = value & ((1 << masked) - 1)
+ *     result = small ? low : value
+ *
+ * The mask on the shift count is not the guard repeated. The guard chooses which arm survives; the
+ * mask is what keeps the arm that does *not* survive from being a shift by an out-of-range count,
+ * which x86 answers by masking and other machines answer differently. Both arms are computed either
+ * way - a select is a `cmov` from here down - so the dead one has to be a defined value rather than
+ * merely an unread one.
+ *
+ * ## The permutations, which are not cheap without the instruction
+ *
+ * `pext` and `pdep` are one instruction at v3. Below it there is no instruction, no short sequence
+ * and no shape a `cmov` can close: what the machine is being asked for is an arbitrary permutation
+ * of bits, and the standard answer is the parallel-suffix network of Hacker's Delight figures 7-6
+ * and 7-11 - five rounds at 32 bits and six at 64, each round about twenty operations.
+ *
+ * **That is ninety to a hundred and thirty instructions, and the number is the honest cost of the
+ * operation on a machine that does not have it.** Two things make it the right answer anyway:
+ *
+ *  - It is straight-line and constant-time. A loop over the set bits of the mask is a dozen
+ *    instructions of *code* and a data-dependent number of iterations, and it would need this pass
+ *    to build a loop inside the backend - which is CFG surgery below the point where the block order,
+ *    the dominators and every phi have already been settled.
+ *  - **It folds away against a constant mask.** Every value in the network above is derived from the
+ *    mask alone, so a `gatherBits(x, 0x0f0f0f0f)` leaves the five rounds of mask arithmetic entirely
+ *    to `lower_fold.cpp` and keeps only the four operations per round that touch the value - about
+ *    twenty instructions, and fewer once the constant rounds that move nothing drop out. A constant
+ *    mask is what a Morton code, a bitfield decoder and a magic-bitboard index all have.
+ *
+ * A runtime mask on a target below v3 is the expensive case, and it is the case the feature level
+ * exists for. Nothing here tries to hide it.
+ */
+
+// The parallel suffix of `x` - every bit set where an odd number of bits at or below it is set, which
+// is `x ^= x << 1; x ^= x << 2; ...` up to half the width. Both networks below open each round with
+// one of these, over the mask alone.
+static LowerValue* parallelSuffix(Expansion& e, LowerType type, LowerValue* x, U32 width) {
+    for(U32 shift = 1; shift < width; shift *= 2) {
+        auto up = e.binary(LowerInst::Shl, type, x, e.integer(type, shift));
+        x = e.binary(LowerInst::Xor, type, x, up);
+    }
+
+    return x;
+}
+
+// `~x`, written as the kind rather than as a `xor` against all ones: the kind is what the BMI1
+// peephole reads, so a complement built here can still become half of an `andn`.
+static LowerValue* complement(Expansion& e, LowerType type, LowerValue* x) {
+    return e.emit(new (e.fun.arena) LowerInstUnary(LowerInst::Not, StringId(), type, x - e.base));
+}
+
+/*
+ * The mask arithmetic both networks share - Hacker's Delight figure 7-6's loop body, minus the two
+ * lines that touch the value.
+ *
+ * Each round works out which bits of the mask move by one, two, four... positions, compresses the
+ * mask by that much, and hands the round's `mv` back so that the caller can do the same to the
+ * value it is permuting. `mk` counts the zeros to the right and is threaded through unchanged.
+ */
+struct PermuteRound {
+    LowerValue* mv;
+    LowerValue* mask;
+    LowerValue* mk;
+};
+
+static PermuteRound permuteRound(Expansion& e, LowerType type, U32 width, U32 step,
+                                 LowerValue* mask, LowerValue* mk)
+{
+    auto mp = parallelSuffix(e, type, mk, width);
+    auto mv = e.binary(LowerInst::And, type, mp, mask);
+
+    auto moved = e.binary(LowerInst::Shr, type, mv, e.integer(type, step));
+    auto kept = e.binary(LowerInst::Xor, type, mask, mv);
+
+    return PermuteRound {
+        mv,
+        e.binary(LowerInst::Or, type, kept, moved),
+        e.binary(LowerInst::And, type, mk, complement(e, type, mp)),
+    };
+}
+
+// The bits of `value` at the set positions of `mask`, packed down - Hacker's Delight figure 7-6.
+static LowerValue* expandGather(Expansion& e, LowerType type, U32 width, LowerValue* value, LowerValue* mask) {
+    auto x = e.binary(LowerInst::And, type, value, mask);
+    auto mk = e.binary(LowerInst::Shl, type, complement(e, type, mask), e.integer(type, 1));
+
+    for(U32 step = 1; step < width; step *= 2) {
+        auto round = permuteRound(e, type, width, step, mask, mk);
+        mask = round.mask;
+        mk = round.mk;
+
+        auto t = e.binary(LowerInst::And, type, x, round.mv);
+        auto moved = e.binary(LowerInst::Shr, type, t, e.integer(type, step));
+        x = e.binary(LowerInst::Or, type, e.binary(LowerInst::Xor, type, x, t), moved);
+    }
+
+    return x;
+}
+
+/*
+ * The inverse - Hacker's Delight figure 7-11.
+ *
+ * The rounds are the same and are run in the same direction, because compressing the mask is what
+ * discovers how far each group of bits has to travel; what changes is that the *value* is moved in a
+ * second pass afterwards, in the opposite order, since a deposit spreads bits out where an extract
+ * packed them in. Each round's `mv` is therefore kept rather than spent as it is produced.
+ *
+ * The trailing `and` against the original mask is not tidiness. The value being deposited may have
+ * bits above the ones the mask has room for, and the network leaves them where the last shift put
+ * them; `pdep` answers zero for every position the mask does not name, so this does too.
+ */
+static LowerValue* expandScatter(Expansion& e, LowerType type, U32 width, LowerValue* value, LowerValue* mask) {
+    auto original = mask;
+    auto mk = e.binary(LowerInst::Shl, type, complement(e, type, mask), e.integer(type, 1));
+
+    SmallArray<LowerValue*, 6> moves;
+    SmallArray<U32, 6> steps;
+
+    for(U32 step = 1; step < width; step *= 2) {
+        auto round = permuteRound(e, type, width, step, mask, mk);
+        mask = round.mask;
+        mk = round.mk;
+
+        moves.push(round.mv);
+        steps.push(step);
+    }
+
+    auto x = value;
+
+    for(auto i = moves.size(); i-- > 0;) {
+        auto mv = moves[i];
+        auto up = e.binary(LowerInst::Shl, type, x, e.integer(type, steps[i]));
+
+        auto stay = e.binary(LowerInst::And, type, x, complement(e, type, mv));
+        auto move = e.binary(LowerInst::And, type, up, mv);
+        x = e.binary(LowerInst::Or, type, stay, move);
+    }
+
+    return e.binary(LowerInst::And, type, x, original);
+}
+
+void expandBitOperations(Context&, LowerBase base, LowerFunction& fun) {
+    auto haveBmi2 = (targetFeatures() & kFeatureBmi2) != 0;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            auto kind = inst->kind;
+            if(kind != LowerInst::BitsUpTo && kind != LowerInst::GatherBits
+                && kind != LowerInst::ScatterBits) continue;
+
+            auto binary = (LowerInstBinary*)inst;
+            auto type = binary->result.type;
+            auto width = U32(is64Bit(type) ? 64 : 32);
+            auto lhs = base[binary->lhs];
+            auto rhs = base[binary->rhs];
+
+            Expansion e { base, fun, block, i };
+            LowerValue* answered = nullptr;
+
+            if(kind == LowerInst::BitsUpTo) {
+                auto limit = e.integer(type, width);
+                auto small = e.compare(LowerCmp::lt, rhs, limit);
+
+                if(haveBmi2) {
+                    auto index = e.select(type, small, rhs, limit);
+                    answered = e.intrinsic2(LowerIntrinsic::Bzhi, type, lhs, index);
+                } else {
+                    auto one = e.integer(type, 1);
+                    auto masked = e.binary(LowerInst::And, type, rhs, e.integer(type, width - 1));
+                    auto bit = e.binary(LowerInst::Shl, type, one, masked);
+                    auto mask = e.binary(LowerInst::Sub, type, bit, e.integer(type, 1));
+                    auto low = e.binary(LowerInst::And, type, lhs, mask);
+
+                    answered = e.select(type, small, low, lhs);
+                }
+            } else if(haveBmi2) {
+                answered = e.intrinsic2(kind == LowerInst::GatherBits ? LowerIntrinsic::Pext
+                                                                     : LowerIntrinsic::Pdep,
+                                        type, lhs, rhs);
+            } else {
+                answered = kind == LowerInst::GatherBits
+                    ? expandGather(e, type, width, lhs, rhs)
+                    : expandScatter(e, type, width, lhs, rhs);
+            }
+
+            replaceAllUses(base, &binary->result, answered);
+            removeInst(base, inst);
+
+            // Past what was added, and back one for the instruction that is no longer there - the
+            // bookkeeping `expandBitScans` does, and for its reason.
+            i = e.at - 1;
+        }
+    }
+}

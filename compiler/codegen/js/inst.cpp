@@ -396,6 +396,8 @@ static JsPtr<Expr> remainderCall(Gen& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
     return divisionHelperCall(g, g.remainderByZeroHelper, "$rem"_v, lhs, rhs);
 }
 
+static JsPtr<Expr> bitOpCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs);
+
 void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
     auto lhs = useValue(g, instruction.lhs);
     auto rhs = useValue(g, instruction.rhs);
@@ -532,6 +534,15 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
         case Value::And: simple(BinaryOp::And); return;
         case Value::Or: simple(BinaryOp::Or); return;
         case Value::Xor: simple(BinaryOp::Xor); return;
+
+        // The three BMI2 operations. Coerced like every other arithmetic result: the helper answers
+        // the raw pattern at 32 or 64 bits and the type's normal form is applied here.
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits:
+            define(g, pointer, coerce(g, type, bitOpCall(g, instruction.kind, type, lhs, rhs)));
+            return;
+
         default:
             g.context.diagnostics.error("internal error: unexpected binary instruction in JS codegen"_v,
                                         instruction.source);
@@ -760,6 +771,38 @@ static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
     auto node = make<CallExpr>(g, variable(g, g.rotateHelpers[slot]));
     node->args.push(g.file.arena, value);
     node->args.push(g.file.arena, count);
+    node->pure = true;
+    return asExpr(g, node);
+}
+
+/*
+ * The three BMI2 operations, each a call to one of six helpers - see Gen::bitOpHelpers.
+ *
+ * `rotateCall`'s shape at a smaller width set. `Core.Bits` is declared at 32 and 64 bits only, so
+ * there are two domains rather than the rotations' three and no width with no slot: whichever of the
+ * two the type is, the helper answers the raw operation there and the caller's coercion takes it to
+ * the type's own normal form.
+ */
+static JsPtr<Expr> bitOpCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    auto integer = intType(g, type);
+    auto bits = integer ? U32(((IntType*)g.global[canonicalType(g.global, type)])->bits) : 32;
+    auto wide = bits == 64;
+    auto slot = bitOpHelperSlot(kind, wide);
+
+    if(!g.bitOpHelpers[slot].text) {
+        auto stem = kind == Value::BitsUpTo ? "$bzhi"_v : kind == Value::GatherBits ? "$pext"_v : "$pdep"_v;
+
+        char buffer[16];
+        Size length = 0;
+        for(Size i = 0; i < stem.length; i++) buffer[length++] = stem.ptr[i];
+        length += show(U64(wide ? 64 : 32), buffer + length, sizeof(buffer) - length);
+
+        g.bitOpHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
+    }
+
+    auto node = make<CallExpr>(g, variable(g, g.bitOpHelpers[slot]));
+    node->args.push(g.file.arena, lhs);
+    node->args.push(g.file.arena, rhs);
     node->pure = true;
     return asExpr(g, node);
 }
@@ -2275,6 +2318,141 @@ void emitBitCountHelpers(Gen& g) {
  * a shift is; above that a value is a `bigint`, whose `>>` is arithmetic, so the right half reads
  * the unsigned form first for the reason the scalar `shr` does.
  */
+/*
+ * The six BMI2 helpers - see Gen::bitOpHelpers.
+ *
+ *     function $bzhi32(v, n) { return (n >>> 0) < 32 ? v & ((1 << n) - 1) : v }
+ *     function $bzhi64(v, n) { var u = BigInt.asUintN(64, n)
+ *                              return u < 64n ? v & ((1n << u) - 1n) : v }
+ *     function $pext32(v, m) { var o = 0; var b = 1
+ *                              $L: for(;;) { if(!m) break $L
+ *                                            var l = m & -m
+ *                                            o = o | ((v & l) ? b : 0)
+ *                                            m = m ^ l; b = b << 1 }
+ *                              return o }
+ *     function $pdep32(v, m) { ... o = o | ((v & b) ? l : 0) ... }
+ *
+ * ## `bitsUpTo`, and why the guard is a ternary rather than a mask
+ *
+ * The operation saturates: a count at or above the width answers the value unchanged
+ * (resolve/inst.def rules on it). JS masks a shift count to five bits, so `1 << 32` is 1 rather than
+ * 0 and the mask arithmetic would answer zero where the language answers everything - which is
+ * exactly the disagreement `bzhi`'s byte-wide count causes on the machine, arriving here through a
+ * different door. The ternary is what makes the shift distance unreachable outside `[0, w-1]`, and
+ * it is short-circuiting, so the out-of-range shift is never evaluated at all.
+ *
+ * `n >>> 0` is the unsigned reading, which is what the ruling says the count is: a negative `I32`
+ * count is a large number and answers the value, not the value masked by a small one.
+ *
+ * ## The permutations, and the one line that keeps the loop finite
+ *
+ * Both loops walk the set bits of the mask lowest-first, and both terminate because `m ^= m & -m`
+ * clears one bit per iteration. At 64 bits that is only true of the *unsigned* reading: a `bigint`'s
+ * bitwise operators are defined on a two's complement representation extended infinitely, so a
+ * negative mask has infinitely many set bits and the loop would never end. `BigInt.asUintN(64, m)`
+ * before the loop is the whole of the fix, and it is the same conversion the 64-bit `shr` makes for
+ * the same reason.
+ *
+ * A loop and not the parallel-suffix network the x64 backend expands to, because the trade is the
+ * other way round here: there is no instruction to lose to, an engine's `bigint` operations are heap
+ * arithmetic, and the loop runs once per set bit where the network runs five or six rounds whatever
+ * the mask is.
+ *
+ * `var` inside the body rather than `let`, for the reason build.h gives beside `declare`: these are
+ * function-scoped and re-entering the block re-assigns rather than re-declares.
+ */
+void emitBitOpHelpers(Gen& g) {
+    auto define = [&](Value::Kind kind, bool wide, void (*body)(Gen&, bool, JsPtr<Expr>, JsPtr<Expr>)) {
+        auto& name = g.bitOpHelpers[bitOpHelperSlot(kind, wide)];
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        // The second parameter is a *count* for one of the three and a *mask* for the other two,
+        // which is worth two letters in the emitted text: `$bzhi32(v, n)` and `$pext32(v, m)`.
+        auto valueName = literalName(g, "v"_v);
+        auto otherName = literalName(g, kind == Value::BitsUpTo ? "n"_v : "m"_v);
+        function->args.push(g.file.arena, valueName);
+        function->args.push(g.file.arena, otherName);
+
+        function->body = collect(g, [&] {
+            body(g, wide, variable(g, valueName), variable(g, otherName));
+        });
+
+        emit(g, function);
+    };
+
+    // A constant in whichever domain the width works in - a `number` below 33 bits and a `bigint`
+    // above, which is the same split every arithmetic emitter here makes.
+    static auto constant = [](Gen& g, bool wide, U64 n) {
+        return wide ? bigInt(g, n, false) : number(g, F64(n));
+    };
+
+    static auto bitsUpTo = [](Gen& g, bool wide, JsPtr<Expr> value, JsPtr<Expr> count) {
+        auto width = U64(wide ? 64 : 32);
+
+        // The count as an unsigned number, which is what the operation's ruling reads it as.
+        auto unsignedCount = wide
+            ? declare(g, literalName(g, "u"_v),
+                      hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), count))
+            : binary(g, BinaryOp::Shr, count, constant(g, false, 0));
+
+        auto small = binary(g, BinaryOp::Lt, unsignedCount, constant(g, wide, width));
+        auto bit = binary(g, BinaryOp::Shl, constant(g, wide, 1), unsignedCount);
+        auto mask = binary(g, BinaryOp::Sub, bit, constant(g, wide, 1));
+
+        emit(g, make<ReturnStmt>(g, ternary(g, small,
+                                            binary(g, BinaryOp::And, value, mask), value)));
+    };
+
+    static auto permute = [](Gen& g, bool wide, bool gather, JsPtr<Expr> value, JsPtr<Expr> maskArg) {
+        auto zero = constant(g, wide, 0);
+        auto one = constant(g, wide, 1);
+
+        // The mask read unsigned, without which a negative 64-bit one has infinitely many set bits
+        // and the loop below never ends. Under a name of its own rather than over the parameter's,
+        // which `var` would have allowed and which reads as a mistake.
+        auto mask = wide
+            ? declare(g, literalName(g, "u"_v),
+                      hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), maskArg))
+            : maskArg;
+
+        auto outName = literalName(g, "o"_v);
+        auto bitName = literalName(g, "b"_v);
+        auto out = declare(g, outName, zero);
+        auto bit = declare(g, bitName, one);
+
+        auto label = literalName(g, "$bp"_v);
+
+        auto body = collect(g, [&] {
+            auto done = collect(g, [&] { emit(g, make<BreakStmt>(g, label)); });
+            emit(g, make<IfStmt>(g, unary(g, UnaryOp::Not, mask), done, StmtList {}));
+
+            auto low = declare(g, literalName(g, "l"_v),
+                               binary(g, BinaryOp::And, mask, unary(g, UnaryOp::Neg, mask)));
+
+            // Which bit is tested and which is contributed is the whole of the difference between
+            // the two directions: an extract asks the mask and answers the next low position, and a
+            // deposit asks the next low position and answers the mask's.
+            auto tested = binary(g, BinaryOp::And, value, gather ? low : bit);
+            auto contributed = ternary(g, tested, gather ? bit : low, constant(g, wide, 0));
+
+            emitExpr(g, assign(g, out, binary(g, BinaryOp::Or, out, contributed)));
+            emitExpr(g, assign(g, mask, binary(g, BinaryOp::Xor, mask, low)));
+            emitExpr(g, assign(g, bit, binary(g, BinaryOp::Shl, bit, constant(g, wide, 1))));
+        });
+
+        emit(g, make<LabelledStmt>(g, label, asStmt(g, make<ForeverStmt>(g, body))));
+        emit(g, make<ReturnStmt>(g, out));
+    };
+
+    define(Value::BitsUpTo, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
+    define(Value::BitsUpTo, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
+    define(Value::GatherBits, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
+    define(Value::GatherBits, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
+    define(Value::ScatterBits, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
+    define(Value::ScatterBits, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
+}
+
 void emitRotateHelpers(Gen& g) {
     auto define = [&](Value::Kind kind, U32 bits) {
         auto slot = rotateHelperSlot(kind, bits);
@@ -3593,6 +3771,12 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::And:
         case Value::Or:
         case Value::Xor:
+        // The three BMI2 operations, which are ordinary binaries here: `genBinary` sends each to one
+        // of the six helpers. Not in `genVectorInst`'s list above, there being no lane-wise spelling
+        // of any of them.
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits:
             genBinary(g, value, (InstBinary&)instruction);
             break;
         case Value::Cmp: {

@@ -1450,7 +1450,7 @@ struct Emitter {
              * inherits it. `emitLoadStore` overrides it where the form carries a real immediate
              * *operand* instead, which validateMachineForms guarantees is never both.
              */
-            .trailing = U8(e.conditionImmediate || e.patternImmediate ? 1 : 0),
+            .trailing = U8(e.conditionImmediate || e.patternImmediate || e.immediateByte ? 1 : 0),
             .kind = e.prefixEncoding, .map = e.opcodeMap,
             .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
         };
@@ -1484,14 +1484,25 @@ struct Emitter {
         }
     }
 
-    // One r/m operand with an opcode extension in the ModRM.reg field.
+    /*
+     * One r/m operand with an opcode extension in the ModRM.reg field.
+     *
+     * Built from `memFormOf` rather than from the three descriptor fields directly, which is what
+     * lets a form here carry a vector prefix. The BMI1 lowest-bit operations are the reason: `blsr`,
+     * `blsi` and `blsmsk` are one opcode at three extensions, and the register they *write* is
+     * VEX.vvvv - so they are this family with a prefix and a `vvvvField`, and nothing else about
+     * them is new. Every legacy form reaches the same bytes it always did: the map is the two-byte
+     * one it already defaulted to, and an extension is never a register, so it contributes no REX.R.
+     */
     void emitRmExt(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         auto& rmOp = field(regs, e.rmField);
+        auto form = memFormOf(e, regs, is64);
+        form.opCode = e.opcode;
 
         if(rmOp.isStack()) {
-            genSlotOperand(to, frame, is64, e.extension, rmOp.at, e.opcode, e.escape, e.prefix);
+            genSlotOperand(to, frame, e.extension, rmOp.at, form);
         } else {
-            genRegExt(to, is64, reg(rmOp), e.opcode, e.extension, e.escape, e.prefix);
+            genRegRegPrefixed(to, form.prefixOf(e.extension), reg(rmOp), e.extension, e.opcode);
         }
     }
 
@@ -3246,6 +3257,15 @@ struct Emitter {
         // access's index - in the same position and for the same reason.
         if(e.patternImmediate) {
             to.buffer.writeByte(packedTrailingByte(inst));
+        }
+
+        // And the one an *operand* supplies, which is `rorx`'s rotation distance and nothing else
+        // today - see EncodingDescriptor::immediateByte for why it is written here rather than by
+        // one of the two families that carry an immediate inside their encoding.
+        if(e.immediateByte) {
+            auto& immOp = field(regs, e.immField);
+            assertTrue(immOp.isImmediate); // a trailing immediate naming an operand that carries no value
+            to.buffer.writeByte(U8(immOp.immediate));
         }
 
         // And the `setcc` itself, which is all that is left where the register was zeroed above and

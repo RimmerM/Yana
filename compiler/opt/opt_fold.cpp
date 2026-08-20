@@ -394,6 +394,79 @@ struct Folder {
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
                 if(sameOperand(instruction.lhs, instruction.rhs)) return zero();
                 break;
+
+            /*
+             * The low bits kept, whose constant count is the whole reason `bitfield` is written over
+             * this operation rather than as a shift and a literal mask - see inst.def.
+             *
+             * A count at or above the width keeps everything and a count of zero keeps nothing,
+             * which the ruling states and this is the only place that has to know it: below here the
+             * operation is three instructions on the machine that has it and eight on the one that
+             * does not, and a constant count reaches neither.
+             *
+             * `facts.bits` is the *declared* width, so a `@bits` refinement saturates at its own
+             * width rather than at its register's - which is the reading its arithmetic already has.
+             */
+            case Value::BitsUpTo: {
+                auto width = facts.bits;
+
+                if(known) return wrap(rhs >= width ? lhs : lhs & ((U64(1) << rhs) - 1));
+                if(isConstantValue(instruction.rhs, 0)) return zero();
+                if(isConstantValue(instruction.lhs, 0)) return zero();
+
+                // A count at or above the width keeps everything, which is the ruling and is the
+                // half of it that needs nothing else known. The other half - a count *below* the
+                // width - is a rewrite rather than an answer and is `narrowBitsUpTo` below.
+                if(auto count = constantValueOf(opt, instruction.rhs)) {
+                    if(count.unwrap() >= width) return instruction.lhs;
+                }
+
+                break;
+            }
+
+            /*
+             * The two permutations. Only the fully-known case and the two degenerate masks are
+             * answered here: a permutation against a *partly* known operand is still a permutation,
+             * and there is no smaller operation to rewrite it into the way a constant count above
+             * becomes an `and`.
+             */
+            case Value::GatherBits:
+            case Value::ScatterBits: {
+                if(known) {
+                    U64 out = 0;
+                    U64 step = 1;
+                    auto gather = instruction.kind == Value::GatherBits;
+
+                    /*
+                     * The mask cut to the type's own width, which is *not* `narrowToWidth`: that
+                     * sign-extends, so a signed mask with its top bit set arrives with every bit
+                     * above the width set as well and the loop would run sixty-four times for a
+                     * thirty-two-bit type.
+                     *
+                     * It is a bound rather than a correction, and the difference is worth stating
+                     * because the clamp looks like a bug fix and is not. Those extra iterations
+                     * test `lhs` at positions above the width and deposit at positions above it,
+                     * and `wrap` below discards both - so the *answer* is the same either way.
+                     * Checked by removing this line, which changed nothing the signed cases in
+                     * test/resolve/BitPermute.yana could see.
+                     */
+                    auto width = facts.bits >= 64 ? ~U64(0) : (U64(1) << facts.bits) - 1;
+
+                    for(auto mask = rhs & width; mask != 0; mask &= mask - 1) {
+                        auto low = mask & (0 - mask);
+                        if(lhs & (gather ? low : step)) out |= gather ? step : low;
+                        step <<= 1;
+                    }
+
+                    return wrap(out);
+                }
+
+                if(isConstantValue(instruction.rhs, 0)) return zero();
+                if(isConstantValue(instruction.lhs, 0)) return zero();
+                if(isConstantValue(instruction.rhs, narrowToWidth(~U64(0), facts))) return instruction.lhs;
+                break;
+            }
+
             default:
                 break;
         }
@@ -585,6 +658,39 @@ struct Folder {
         opt.ir().rewriteOperands(pointer, [&](Value&) {
             instruction.lhs = inner.lhs;
             instruction.rhs = value;
+        });
+
+        opt.changed = true;
+        return true;
+    }
+
+    /*
+     * `bitsUpTo(x, c)` at a constant count below the width, which is an `and` against a literal.
+     *
+     * A rewrite rather than a fold, and it belongs here rather than in any backend: what the three
+     * targets do with this operation is one instruction, a saturating guard and a `bzhi`, or a loop
+     * - and none of those is what a constant count deserves. `bitfield` is written over `bitsUpTo`
+     * precisely so that a field with a literal width costs a shift and a mask, and this is the line
+     * that makes that true.
+     *
+     * Only the count below the width reaches here. At or above it the operation is the identity,
+     * which `foldBinary` above answers with the operand itself; a count of zero is a zero, which it
+     * answers too.
+     *
+     * The operand set is unchanged in size, so this is `reassociate`'s shape: the kind and one
+     * operand are rewritten in place, and the use lists move with the operand. `InstBinary` serves
+     * both kinds, so nothing that has already cast this instruction is invalidated by the change.
+     */
+    bool narrowBitsUpTo(ModulePtr<Inst> pointer, InstBinary& instruction, const IntFacts& facts) {
+        auto count = constantValueOf(opt, instruction.rhs);
+        if(!count || count.unwrap() >= facts.bits) return false;
+
+        auto mask = makeConstant(opt, instruction, instruction.type,
+                                 narrowToWidth((U64(1) << count.unwrap()) - 1, facts));
+
+        opt.ir().rewriteOperands(pointer, [&](Value&) {
+            instruction.kind = Value::And;
+            instruction.rhs = mask;
         });
 
         opt.changed = true;
@@ -1226,6 +1332,19 @@ struct Folder {
                 if(!commute(binary)) reassociate(pointer, binary, facts.unwrap());
                 return nullptr;
             }
+
+            // The three BMI2 operations. Neither commutative nor associative, so the only rewrite
+            // any of them has is the constant count becoming a mask.
+            case Value::BitsUpTo: {
+                auto& binary = (InstBinary&)instruction;
+                if(auto folded = foldBinary(binary, facts.unwrap())) return folded;
+
+                narrowBitsUpTo(pointer, binary, facts.unwrap());
+                return nullptr;
+            }
+
+            case Value::GatherBits: case Value::ScatterBits:
+                return foldBinary((InstBinary&)instruction, facts.unwrap());
             default:
                 return nullptr;
         }

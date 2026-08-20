@@ -1,0 +1,250 @@
+# The same functions at the floor, where every one of them is what BMI replaces.
+#
+# extensions: v2
+#
+# v2 is this backend's baseline - see kFeatureBaseline in codegen/x64/target.h - and it has none of
+# BMI1 or BMI2. So `selectBitOps` in transform_peephole.cpp does nothing at all here and every form
+# selection takes the legacy row, which makes this file the control for BitOpsBmi.lower beside it:
+# the difference between the two is the whole of what the feature level buys.
+#
+# What to look for, reading them side by side:
+#
+#   - each of the four rewrites is two instructions, and each of them has a `mov` in front of it as
+#     well. `not r/m`, `dec r/m` and `neg r/m` are two-address, so a value read twice cannot be one
+#     of them - which is the copy BMI1 removes along with the instruction.
+#   - `shiftVariable` moves its count into rcx and nothing else will do. That copy is invisible in a
+#     byte count of the shift itself and is most of what `shlx` is worth.
+#   - `highProduct` is `mul r/m`, which reads rax, writes rdx:rax and clobbers both. The two copies
+#     around it are the fixed registers, not the multiplication.
+#   - `rotateLeft` is a `rol` by 7 and stays one: the rewrite into a `ror` exists only to reach
+#     `rorx`, so without BMI2 it would trade one instruction for an identical one.
+#   - `clearLowestLoaded` loads into a register first and keeps it there, the pair reading it twice.
+#     That is the fold BMI1 creates rather than one it preserves.
+#   - `rotateAndKeep` has a `mov` in front of its rotation and `rotateSpilled` has a reload. Both are
+#     the two-address form's doing and both are what `rorx` removes.
+
+# `~a & b`, from the side the language writes it: `alignUp` is `(v + a - 1) and not(a - 1)`.
+andNot(%a: Int, %b: Int): Int {
+    {
+        %n = not %a: Int
+        %r = and %n, %b: Int
+        ret %r
+    }
+}
+
+# And from the other side, which is the same instruction with its operands read the other way round.
+# An `and` is commutative and `canonicalizeOperands` only moves immediates, so both orders arrive.
+andNotSwapped(%a: Int, %b: Int): Int {
+    {
+        %n = not %a: Int
+        %r = and %b, %n: Int
+        ret %r
+    }
+}
+
+andNot64(%a: Long, %b: Long): Long {
+    {
+        %n = not %a: Long
+        %r = and %n, %b: Long
+        ret %r
+    }
+}
+
+# The complement is read twice, so it stays and so does the `and`.
+andNotKept(%a: Int, %b: Int): Int {
+    {
+        %n = not %a: Int
+        %r = and %n, %b: Int
+        %s = add %r, %n: Int
+        ret %s
+    }
+}
+
+# The lowest set bit cleared - the step a loop over the set bits of a word takes.
+clearLowest(%x: Int): Int {
+    {
+        %d = sub %x, 1: Int
+        %r = and %x, %d: Int
+        ret %r
+    }
+}
+
+clearLowest64(%x: Long): Long {
+    {
+        %d = sub %x, 1L: Long
+        %r = and %x, %d: Long
+        ret %r
+    }
+}
+
+# The lowest set bit alone, as a mask.
+isolateLowest(%x: Int): Int {
+    {
+        %n = neg %x: Int
+        %r = and %x, %n: Int
+        ret %r
+    }
+}
+
+# The same written as a subtraction from zero, which is how a source program spells it.
+isolateLowestFromZero(%x: Int): Int {
+    {
+        %z = sub 0, %x: Int
+        %r = and %z, %x: Int
+        ret %r
+    }
+}
+
+# Every bit below the lowest set one, and that one.
+maskThroughLowest(%x: Int): Int {
+    {
+        %d = sub %x, 1: Int
+        %r = xor %x, %d: Int
+        ret %r
+    }
+}
+
+# The variable shifts. The count is an argument, so the legacy form would pin it in cl.
+shiftVariable(%x: Int, %n: Int): Int {
+    {
+        %r = shl %x, %n: Int
+        ret %r
+    }
+}
+
+shiftRightVariable(%x: Int, %n: Int): Int {
+    {
+        %r = shr %x, %n: Int
+        ret %r
+    }
+}
+
+shiftArithmeticVariable(%x: Long, %n: Long): Long {
+    {
+        %r = sar %x, %n: Long
+        ret %r
+    }
+}
+
+# An immediate shift keeps its legacy form: there is no `shlx r, r/m, imm` at any level.
+shiftImmediate(%x: Int): Int {
+    {
+        %r = shl %x, 5: Int
+        ret %r
+    }
+}
+
+# The immediate rotation, which is the one BMI2 shift that takes an immediate.
+rotateRight(%x: Int): Int {
+    {
+        %r = ror %x, 7: Int
+        ret %r
+    }
+}
+
+rotateLeft(%x: Int): Int {
+    {
+        %r = rol %x, 7: Int
+        ret %r
+    }
+}
+
+rotateRight64(%x: Long): Long {
+    {
+        %r = ror %x, 7: Long
+        ret %r
+    }
+}
+
+# A rotation by one keeps `ror r/m, 1`, which is two bytes against `rorx`'s six.
+rotateByOne(%x: Int): Int {
+    {
+        %r = ror %x, 1: Int
+        ret %r
+    }
+}
+
+# The top half of an unsigned product, which is what a division by a constant turns into.
+highProduct(%a: Int, %b: Int): Int {
+    {
+        %r = mulhi %a, %b: Int
+        ret %r
+    }
+}
+
+highProduct64(%a: Long, %b: Long): Long {
+    {
+        %r = mulhi %a, %b: Long
+        ret %r
+    }
+}
+
+# The signed one has no BMI2 spelling - `mulx` is unsigned and there is no `imulx` - so this is the
+# group-3 `imul` at every level.
+highProductSigned(%a: Int, %b: Int): Int {
+    {
+        %r = imulhi %a, %b: Int
+        ret %r
+    }
+}
+
+# The r/m side of the forms, which all four of the rewrites have: an operand that came out of memory
+# is read there rather than loaded first.
+andNotLoaded(%a: Int, %p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %n = not %a: Int
+        %r = and %n, %v: Int
+        ret %r
+    }
+}
+
+# A load feeding one of the lowest-bit operations, which is the fold the *rewrite* creates rather
+# than preserves: the pair read `x` twice, so the load had two readers and could not be folded, and
+# `blsr` reads it once.
+clearLowestLoaded(%p: Ptr): Int {
+    {
+        %v = load %p, 4: Int
+        %d = sub %v, 1: Int
+        %r = and %v, %d: Int
+        ret %r
+    }
+}
+
+# The subject is read again afterwards, which is the case `rorx` exists for and the shape every
+# hash-mixing loop has: `ror r/m, imm` writes through the operand it reads, so the legacy form needs
+# a copy in front of it and this one does not. BitOps.lower beside this file is the same function
+# with that copy.
+rotateAndKeep(%x: Int): Int {
+    {
+        %r = ror %x, 3: Int
+        %t = xor %r, %x: Int
+        ret %t
+    }
+}
+
+# The subject in a frame slot, which is the one encoding in this backend whose trailing immediate is
+# written after a displacement rather than after a ModRM byte alone. The call is what puts it there:
+# everything live across one is either callee-saved or spilled, and this backend spills.
+rotateSpilled(%x: Int, %a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+    {
+        %v0 = call_complex rotateAndKeep, %a: Int
+        %v1 = call_complex rotateAndKeep, %b: Int
+        %v2 = call_complex rotateAndKeep, %c: Int
+        %v3 = call_complex rotateAndKeep, %d: Int
+        %v4 = call_complex rotateAndKeep, %e: Int
+        %v5 = call_complex rotateAndKeep, %v0: Int
+        %v6 = call_complex rotateAndKeep, %v1: Int
+        %v7 = call_complex rotateAndKeep, %v2: Int
+        %r = ror %x, 7: Int
+        %s0 = add %v0, %v1: Int
+        %s1 = add %s0, %v2: Int
+        %s2 = add %s1, %v3: Int
+        %s3 = add %s2, %v4: Int
+        %s4 = add %s3, %v5: Int
+        %s5 = add %s4, %v6: Int
+        %s6 = add %s5, %v7: Int
+        %t = add %r, %s6: Int
+        ret %t
+    }
+}

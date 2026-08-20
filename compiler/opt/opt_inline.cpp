@@ -879,6 +879,7 @@ struct Inliner {
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
             // A callee this stage already if-converted. `settle` runs the whole round on a callee
             // before a site is judged against it, so a body reaching here can hold one - and a
             // select is an ordinary pure computation with no decision copied along with it.
@@ -1626,6 +1627,7 @@ struct Inliner {
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
             // A select of decided arms on a decided condition is decided, which is `foldSelect`'s
             // rule read forwards: the site knows which arm survives, so a branch below it on the
             // result is one that does not survive the call either.
@@ -2386,7 +2388,8 @@ struct Inliner {
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
-            case Value::And: case Value::Or: case Value::Xor: {
+            case Value::And: case Value::Or: case Value::Xor:
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: {
                 auto& binary = (InstBinary&)instruction;
                 return (Inst*)createInst<InstBinary>(module, function, into, source, name, type,
                                                      instruction.kind, value(binary.lhs), value(binary.rhs));

@@ -160,6 +160,10 @@ bool isByteSwappable(GlobalBase global, TypePtr type);
 // defineBits' comment is why it is 32 and 64 and nothing else.
 ModulePtr<ClassInstance> defineBits(Module& module, TypePtr type);
 bool hasBitCounts(GlobalBase global, TypePtr type);
+
+// `BitPermute`, over the same set - `hasBitCounts` guards both, and defineBitPermute's comment says
+// why one predicate is right for the two.
+ModulePtr<ClassInstance> defineBitPermute(Module& module, TypePtr type);
 void defineLogic(Module& module, TypePtr type);
 void defineTruth(Module& module, TypePtr type, Emit emit);
 

@@ -119,6 +119,9 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
         case Value::And: return LowerInst::And;
         case Value::Or: return LowerInst::Or;
         case Value::Xor: return LowerInst::Xor;
+        case Value::BitsUpTo: return LowerInst::BitsUpTo;
+        case Value::GatherBits: return LowerInst::GatherBits;
+        case Value::ScatterBits: return LowerInst::ScatterBits;
         default:
             assertTrue("expected binary instruction" == nullptr);
             return LowerInst::Add;
@@ -198,6 +201,9 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Ror:
         case Value::And:
         case Value::Or:
+        case Value::BitsUpTo:
+        case Value::GatherBits:
+        case Value::ScatterBits:
         case Value::Xor:
         case Value::Cmp:
         case Value::Select:

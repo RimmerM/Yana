@@ -270,6 +270,12 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "or"_v;
         case LowerInst::Xor:
             return "xor"_v;
+        case LowerInst::BitsUpTo:
+            return "bitsupto"_v;
+        case LowerInst::GatherBits:
+            return "gatherbits"_v;
+        case LowerInst::ScatterBits:
+            return "scatterbits"_v;
         case LowerInst::Cmp:
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
         case LowerInst::Select:
@@ -312,6 +318,15 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             }
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
+        case LowerInst::X86AndNot:
+            return "x86_andnot"_v;
+        // Named for the answer, the way the enum is - see LowerX86LowBit.
+        case LowerInst::X86LowBit:
+            switch(((LowerInstX86LowBit&)inst).getLowBit()) {
+                case LowerX86LowBit::Clear:   return "x86_lowbit_clear"_v;
+                case LowerX86LowBit::Isolate: return "x86_lowbit_isolate"_v;
+                default:                      return "x86_lowbit_mask"_v;
+            }
         case LowerInst::X86Permute:
             return "x86_permute"_v;
         case LowerInst::X86StoreOp:

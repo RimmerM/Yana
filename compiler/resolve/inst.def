@@ -283,6 +283,53 @@ YANA_INST(Ror,          InstBinary,      "ror"_v,         kInstResult | kInstPur
 YANA_INST(And,          InstBinary,      "and"_v,         kInstResult | kInstPure)
 YANA_INST(Or,           InstBinary,      "or"_v,          kInstResult | kInstPure)
 YANA_INST(Xor,          InstBinary,      "xor"_v,         kInstResult | kInstPure)
+/*
+ * The low `count` bits of a value, with everything above them cleared - `Core.Bits.bitsUpTo`.
+ *
+ * A kind on `Rol`'s grounds and one more of its own. x86 has the instruction (`bzhi`, BMI2), and the
+ * expansion is a shift, a decrement, a mask and a *guard* - so a peephole hunting for it afterwards
+ * would be hunting for four commutative-ish operations the optimizer may rearrange, which is exactly
+ * what `ByteSwap` declined to rely on. The reason of its own is the guard: written in source, the
+ * count-at-or-above-the-width case is a branch or a select that every caller pays and no caller
+ * wrote, and folding it away needs the count to be known - which is a fact this IR has and a
+ * peephole below `opt` no longer does.
+ *
+ * **The count is read as an unsigned number and saturates at the type's width**, and that is the
+ * ruling. `bitsUpTo(x, 0)` is 0, `bitsUpTo(x, width)` is `x`, and so is `bitsUpTo(x, anything above
+ * the width)` - so there is no bound check in front of a call and no value of the count that means
+ * nothing. It is stated here for `Rol`'s reason: it is the one thing about the operation a machine
+ * could plausibly answer differently, and x86's `bzhi` reads its count from a *byte*, so a count of
+ * 256 is a count of zero there and this says it is not.
+ *
+ * Instanced at 32 and 64 bits only, which is `CountBits`' set and for its reason: the low bits of a
+ * value held in a wider register are the low bits of its storage, and which of the two is meant is
+ * settled by the conversion rather than here.
+ */
+YANA_INST(BitsUpTo,     InstBinary,      "bitsupto"_v,    kInstResult | kInstPure)
+/*
+ * An arbitrary bit permutation, in the two directions it has - `Core.BitPermute`.
+ *
+ * `GatherBits` takes the bits of `value` at the set positions of `mask` and packs them into a
+ * contiguous low field; `ScatterBits` is its exact inverse, spreading a low field back out into
+ * those positions. They are `pext` and `pdep`, BMI2, and they are one instruction there and a loop
+ * or a parallel-suffix network everywhere else.
+ *
+ * Kinds rather than a library loop, and this is the pair where that decision is least arguable: no
+ * peephole could ever recognize what they expand to - a loop over the set bits of a mask is a *CFG*,
+ * not a tree - so a target that has the instruction could not reach it from source at all. The
+ * expansion is the backend's, as `Bsr` and `Bzhi` are.
+ *
+ * **Both are total and neither has a degenerate case to state.** A zero mask gathers nothing and
+ * scatters nothing, which is zero either way; a mask with more set bits than the value has is
+ * answered by the value's own zeros. That is the whole of the contract, and it is the same on every
+ * target - the reason `Rol` and `BitsUpTo` above have a ruling is that they have a *count*, and a
+ * permutation has none.
+ *
+ * `scatterBits(gatherBits(v, m), m)` is `v and m`, which is the identity worth knowing and the one a
+ * fixture asserts.
+ */
+YANA_INST(GatherBits,   InstBinary,      "gatherbits"_v,  kInstResult | kInstPure)
+YANA_INST(ScatterBits,  InstBinary,      "scatterbits"_v, kInstResult | kInstPure)
 YANA_INST(Cmp,          InstCmp,         "cmp"_v,         kInstResult | kInstPure)
 // Pure because both of its arms are: a select is only ever built out of values that may be computed
 // unconditionally, so there is nothing in one that recomputing could repeat and nothing that not

@@ -15,6 +15,8 @@ static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     // The value and the bit count, in that order, and the value with everything above that count
     // cleared.
     [Size(LowerIntrinsic::Bzhi)]      = { "bzhi"_v, 1, 2 },
+    [Size(LowerIntrinsic::Pext)]      = { "pext"_v, 1, 2 },
+    [Size(LowerIntrinsic::Pdep)]      = { "pdep"_v, 1, 2 },
 
     // Takes the leaf and subleaf, and returns the four information registers in their usual order.
     [Size(LowerIntrinsic::Cpuid)]  = { "cpuid"_v, 4, 2 },

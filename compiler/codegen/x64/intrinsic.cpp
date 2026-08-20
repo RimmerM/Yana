@@ -222,10 +222,15 @@ void addIntrinsics(MachineTarget& target) {
          * needs the prefix at all. Nothing about it is two-address, so no copy is emitted in front
          * of it and the value it reads stays live afterwards if something else wants it.
          *
-         * `LZ` is a vector length of zero, which is what `vectorLength = 0` already says, and `W0`
-         * is what a 32-bit operation width says. The flags are written (ZF and SF from the result,
-         * CF when the index was out of range) and nothing reads them; the effect is declared so the
-         * window a comparison's flags survive in knows that.
+         * `LZ` is a vector length of zero, which is what `vectorLength = 0` already says. The width
+         * is the result's, which is REX.W in the prefix - this was `Fixed32` while the mask
+         * reductions were its only caller and every one of those works at 32 bits; a 64-bit
+         * `bitsUpTo` is what made the difference visible, and a form fixed at 32 would have cleared
+         * the top half of a `U64` rather than the bits it was asked about.
+         *
+         * The flags are written (ZF and SF from the result, CF when the index was out of range) and
+         * nothing reads them; the effect is declared so the window a comparison's flags survive in
+         * knows that.
          */
         auto b = add(LowerIntrinsic::Bzhi, "bzhi r, r/m, r"_v, kFeatureBmi2);
         b.form.uses.push(regOrMem(MemoryAccessKind::Read));
@@ -236,7 +241,6 @@ void addIntrinsics(MachineTarget& target) {
             .family = EncodingFamily::RegRm,
             .opcode = 0xf5,
             .regField = defRef(0), .rmField = useRef(0), .vvvvField = useRef(1),
-            .width = OperationWidth::Fixed32,
             .prefixEncoding = PrefixEncoding::Vex,
             .opcodeMap = kOpcodeMap0F38,
         };
@@ -244,6 +248,40 @@ void addIntrinsics(MachineTarget& target) {
         b.desc.operands.push(integerRule());
         b.desc.operands.push(integerRule());
         b.desc.results.push(integerRule());
+    }
+
+    {
+        /*
+         * PEXT r32a, r32b, r/m32 (VEX.LZ.F3.0F38.W0 F5) and PDEP (F2 instead of F3) - the two
+         * directions of an arbitrary bit permutation, BMI2.
+         *
+         * The operand roles are **not** `bzhi`'s, despite the same opcode byte and the same map: the
+         * *value* is VEX.vvvv and the *mask* is r/m, where `bzhi` puts its value in r/m and its
+         * index in vvvv. So the mask is the operand that may be read out of a frame slot, which is
+         * the right way round for these - a mask is the operand a loop holds constant.
+         *
+         * Neither writes any flag, which is the other difference from every BMI1 row above.
+         */
+        auto permute = [&](LowerIntrinsic id, StringView formName, U8 prefix) {
+            auto b = add(id, formName, kFeatureBmi2);
+            b.form.uses.push(anyReg());
+            b.form.uses.push(regOrMem(MemoryAccessKind::Read));
+            b.form.defs.push(def());
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = 0xf5, .prefix = prefix,
+                .regField = defRef(0), .rmField = useRef(1), .vvvvField = useRef(0),
+                .prefixEncoding = PrefixEncoding::Vex,
+                .opcodeMap = kOpcodeMap0F38,
+            };
+
+            b.desc.operands.push(integerRule());
+            b.desc.operands.push(integerRule());
+            b.desc.results.push(integerRule());
+        };
+
+        permute(LowerIntrinsic::Pext, "pext r, r, r/m"_v, 0xf3);
+        permute(LowerIntrinsic::Pdep, "pdep r, r, r/m"_v, 0xf2);
     }
 
     {

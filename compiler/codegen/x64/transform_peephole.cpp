@@ -1209,3 +1209,270 @@ void selectSignExtends(Context&, LowerBase base, LowerFunction& fun) {
         removeDeadChain(base, dead);
     }
 }
+
+/*
+ * §3.5.6 The BMI pair-replacements.
+ *
+ * Four shapes this machine has one instruction for above the baseline and two below it, and one
+ * rewrite that exists only to reach a fifth:
+ *
+ *   ~a & b        andn a, b       BMI1
+ *   x & (x - 1)   blsr x          BMI1   the lowest set bit cleared
+ *   x & -x        blsi x          BMI1   the lowest set bit alone
+ *   x ^ (x - 1)   blsmsk x        BMI1   the mask up to and including the lowest set bit
+ *   rol x, k      ror x, w - k    BMI2   so that the immediate rotation reaches `rorx`
+ *
+ * ## Why these are peepholes and not IR
+ *
+ * Every one of the four is arithmetic the *library* already writes, in the form the library should
+ * write it in. `alignUp` is `(v + a - 1) & ~(a - 1)`, `isPowerOf2` is `v != 0 && (v & (v - 1)) == 0`,
+ * and a loop over the set bits of a word clears the lowest one by subtracting one and masking. None
+ * of those wants a spelling of its own: each is correct, portable, and folded by LLVM's own
+ * selection for a target that has the instruction. So the recognition belongs where the instruction
+ * does, which is here.
+ *
+ * That is the argument `LowerInst::Bswap` declined, and the difference is worth stating because it
+ * looks like the same one. A byte reversal written as a shift tree is a *tree* - four shifts, three
+ * masks and three `or`s - and the optimizer above may reassociate it, so a peephole over it stops
+ * finding what it looks for. These four are two instructions each. There is nothing to reassociate:
+ * `x - 1` is a subtraction of a constant, which every fold in this compiler leaves where it is, and
+ * `~a` is one instruction with one operand.
+ *
+ * ## What each one buys
+ *
+ * The same three things `selectSignExtends` buys, in the same order:
+ *
+ *  - **One instruction instead of two**, and one uop instead of two.
+ *  - **No copy.** `not r/m`, `dec r/m` and `neg r/m` are two-address, so each pair needs the operand
+ *    it reads twice copied into the register the result will occupy. The replacement reads its
+ *    operand out of a field of its own and leaves it alone - which is the whole of why a loop over
+ *    the set bits of a word stops needing a scratch register.
+ *  - **The flags.** The pair writes them twice, over two windows; the replacement writes them once.
+ *
+ * ## Where the pass sits
+ *
+ * **Below `selectStoreUpdates`**, and that is the constraint. `mask &= ~bit` is a load, an `and` and
+ * a store to one place, which that pass turns into `and [m], r` - two instructions including the
+ * complement, against three for an `andn`, which has no memory-*destination* form to be folded into.
+ * Running above it would take the `and` out from under it and lose the better of the two.
+ *
+ * **Above `selectMemorySources`**, which is the other half and is what the memory twins registered
+ * beside these forms are for. A load feeding one of the four still folds into the instruction that
+ * replaced the pair - and for the three lowest-bit operations it folds where it could not before:
+ * the pair read its subject twice, so no load feeding it had a single reader, and the replacement
+ * reads it once.
+ *
+ * Nothing has been folded into an address by the time this runs, so the `isMem` guard below is a
+ * cheap statement of what these forms require rather than a case that arises. It is written anyway,
+ * because what a pass requires of its operands should not have to be re-derived from where it sits.
+ */
+
+// The all-ones pattern at a scalar word's own width, which is what a complement written as a `xor`
+// carries and what a decrement written as an addition of minus one carries. Local rather than
+// lower_fold.cpp's `maskOf`, which is file-private there.
+static U64 allOnesFor(LowerType type) {
+    return type.byteWidth() >= 8 ? maxLimit<U64> : (U64(1) << (type.byteWidth() * 8)) - 1;
+}
+
+// The value an instruction complements, or nothing if it complements none. `not x` is what the
+// language's `not` lowers to; `x ^ -1` is the same function and is what a fold that met an all-ones
+// mask can leave behind, so both are read.
+static LowerValue* complementedOperand(LowerBase base, LowerValue* value) {
+    auto inst = value->inst();
+
+    if(inst->kind == LowerInst::Not) return base[((LowerInstUnary*)inst)->from];
+
+    if(inst->kind == LowerInst::Xor) {
+        auto binary = (LowerInstBinary*)inst;
+        auto rhs = base[binary->rhs];
+
+        // At the operation's own width: `x ^ 0xffffffff` complements an `i32` and does something
+        // else to an `i64`.
+        if(rhs->inst()->kind != LowerInst::Imm) return nullptr;
+        if(immValue(rhs) != allOnesFor(binary->result.type)) return nullptr;
+
+        return base[binary->lhs];
+    }
+
+    return nullptr;
+}
+
+// Whether `value` is `subject - 1`, written either way round: the lowering emits a subtraction of
+// one, and a fold that normalized the sign can leave an addition of minus one.
+static bool isDecrementOf(LowerBase base, LowerValue* value, LowerValue* subject) {
+    auto inst = value->inst();
+    if(inst->kind != LowerInst::Sub && inst->kind != LowerInst::Add) return false;
+
+    auto binary = (LowerInstBinary*)inst;
+    if(base[binary->lhs] != subject) return false;
+
+    auto rhs = base[binary->rhs];
+    if(rhs->inst()->kind != LowerInst::Imm) return false;
+
+    auto allOnes = allOnesFor(binary->result.type);
+    return immValue(rhs) == (inst->kind == LowerInst::Sub ? U64(1) : allOnes);
+}
+
+// Whether `value` is `-subject`, as the negation the lowering writes or as the subtraction from zero
+// a source program spells it with.
+static bool isNegationOf(LowerBase base, LowerValue* value, LowerValue* subject) {
+    auto inst = value->inst();
+
+    if(inst->kind == LowerInst::Neg) return base[((LowerInstUnary*)inst)->from] == subject;
+
+    if(inst->kind == LowerInst::Sub) {
+        auto binary = (LowerInstBinary*)inst;
+        if(base[binary->rhs] != subject) return false;
+
+        auto lhs = base[binary->lhs];
+        return lhs->inst()->kind == LowerInst::Imm && immValue(lhs) == 0;
+    }
+
+    return false;
+}
+
+// A scalar integer in a general register, which is every width these forms have. A packed `and` is a
+// different opcode and `isInt` answers false for one by construction.
+static bool isScalarWord(LowerType type) {
+    if(!isInt(type)) return false;
+
+    auto bytes = type.byteWidth();
+    return bytes == 4 || bytes == 8;
+}
+
+/*
+ * One binary instruction replaced by the single instruction it equals.
+ *
+ * `spent` is the operand's own definition, which is now unread - the decrement, the negation or the
+ * complement. It is pushed rather than removed here for `selectSignExtends`' reason: it stands
+ * *above* the instruction being rewritten, and taking it out at this point would renumber the list
+ * the caller is indexing. `removeDeadChain` takes it once the walk is over and only if nothing else
+ * came to read it.
+ */
+static void replaceBinaryWith(LowerBase base, LowerBlock* block, Size at, LowerInstBinary* pair,
+                              LowerInstSingle* replacement, LowerValue* spent, InstChain& dead)
+{
+    insertInstAt(base, block, at, replacement);
+    replaceAllUses(base, &pair->result, &replacement->result);
+    removeInst(base, pair);
+    dead.push(spent->inst());
+}
+
+void selectBitOps(Context&, LowerBase base, LowerFunction& fun) {
+    auto features = targetFeatures();
+    auto bmi1 = (kFeatureBmi1 & ~features) == 0;
+
+    // A left rotation is rewritten only in order to reach `rorx`, so BMI2 is the whole of the reason
+    // to do it: without the alternative the two rotations are the same two bytes at the same form.
+    auto bmi2 = (kFeatureBmi2 & ~features) == 0;
+    if(!bmi1 && !bmi2) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+        InstChain dead;
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            /*
+             * The left rotation, which is not a pair-replacement at all: it is one instruction
+             * rewritten into the one instruction it equals, so that the form selection has a `rorx`
+             * to reach. `rol x, k` and `ror x, w - k` are the same function at every k, the count
+             * being taken modulo the width - see LowerInst::Rol, where that is the ruling.
+             *
+             * A distance of zero is left alone. It is the identity, `w - 0` is `w` which is again
+             * the identity, and rewriting one into the other would trade a rotation that folds away
+             * for a `rorx` that is six bytes.
+             */
+            if(bmi2 && inst->kind == LowerInst::Rol) {
+                auto rol = (LowerInstBinary*)inst;
+                if(!isScalarWord(rol->result.type)) continue;
+
+                auto count = base[rol->rhs];
+                if(count->inst()->kind != LowerInst::Imm) continue;
+
+                auto width = U64(rol->result.type.byteWidth()) * 8;
+                auto distance = immValue(count) % width;
+                if(distance == 0) continue;
+
+                auto imm = new (fun.arena) LowerImm(StringId(), rol->result.type, width - distance);
+                insertInstAt(base, block, i, imm);
+
+                auto ror = new (fun.arena) LowerInstBinary(
+                    rol->result.name, rol->result.type, rol->lhs, &imm->result - base, LowerInst::Ror
+                );
+
+                // Past the new immediate, which the insertion above put where the rotation was.
+                replaceBinaryWith(base, block, i + 1, rol, ror, count, dead);
+                i++;
+                continue;
+            }
+
+            if(!bmi1) continue;
+            if(inst->kind != LowerInst::And && inst->kind != LowerInst::Xor) continue;
+
+            auto binary = (LowerInstBinary*)inst;
+            if(!isScalarWord(binary->result.type)) continue;
+
+            auto lhs = base[binary->lhs];
+            auto rhs = base[binary->rhs];
+            if(isMem(lhs) || isMem(rhs)) continue;
+
+            /*
+             * The three lowest-bit operations, each of which combines a value with something derived
+             * from that same value. Both positions are tried: these operations are commutative and
+             * `canonicalizeOperands` only moves *immediates* to the right, so neither side is
+             * canonical.
+             *
+             * The derived operand must have exactly one reader, on `selectSignExtends`' terms - with
+             * a second reader it has to stay, and the rewrite would then buy one instruction at the
+             * cost of holding one more value live across it.
+             */
+            auto replaced = false;
+
+            for(auto attempt = 0; attempt < 2 && !replaced; attempt++) {
+                auto subject = attempt == 0 ? lhs : rhs;
+                auto derived = attempt == 0 ? rhs : lhs;
+                if(derived->uses.size() != 1) continue;
+
+                auto which = LowerX86LowBit::Clear;
+
+                if(binary->kind == LowerInst::Xor) {
+                    if(!isDecrementOf(base, derived, subject)) continue;
+                    which = LowerX86LowBit::Mask;
+                } else if(isDecrementOf(base, derived, subject)) {
+                    which = LowerX86LowBit::Clear;
+                } else if(isNegationOf(base, derived, subject)) {
+                    which = LowerX86LowBit::Isolate;
+                } else {
+                    continue;
+                }
+
+                replaceBinaryWith(base, block, i, binary, new (fun.arena) LowerInstX86LowBit(
+                    binary->result.name, binary->result.type, subject - base, which
+                ), derived, dead);
+
+                replaced = true;
+            }
+
+            // `~a & b`, which only an `and` has and which the loop above cannot have matched: a
+            // complement is not one of the three shapes it looks for.
+            for(auto attempt = 0; attempt < 2 && !replaced && binary->kind == LowerInst::And; attempt++) {
+                auto negated = attempt == 0 ? lhs : rhs;
+                auto other = attempt == 0 ? rhs : lhs;
+                if(negated->uses.size() != 1) continue;
+
+                auto source = complementedOperand(base, negated);
+                if(!source) continue;
+
+                replaceBinaryWith(base, block, i, binary, new (fun.arena) LowerInstX86AndNot(
+                    binary->result.name, binary->result.type, source - base, other - base
+                ), negated, dead);
+
+                replaced = true;
+            }
+        }
+
+        removeDeadChain(base, dead);
+    }
+}

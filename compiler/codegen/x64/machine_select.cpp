@@ -107,6 +107,19 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // shuffle against a pattern, and the IR has already refused a vector operand.
         case LowerInst::Bswap: return OpBswap;
 
+        /*
+         * The three BMI2 operations, which never reach selection: `expandBitOperations` has replaced
+         * each of them with an intrinsic or with the arithmetic network it stands for, long above
+         * here. Asserted rather than answered, for `expandRoundAway`'s reason - a case that answered
+         * would be a form for an operation this machine has no opcode for.
+         */
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
+            assertTrue("a bit operation reached selection unexpanded" == nullptr);
+            return OpNone;
+
+
         // The two accesses that reverse on the way. Written only where the feature is present, so
         // reaching one of these is already a decision - see selectByteSwapMemory.
         case LowerInst::X86MovbeLoad:  return OpMovbeLoad;
@@ -183,6 +196,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // in this table: what the width picks is a *form*, since it is an opcode byte rather than
         // anything the allocator or the flags window reads.
         case LowerInst::X86Sext:  return OpSext;
+
+        // The two BMI1 rewrites, which are only ever written where the feature is present - see
+        // `selectBitPeepholes`, where the test is.
+        case LowerInst::X86AndNot: return OpAndNot;
+        case LowerInst::X86LowBit: return OpLowBit;
 
         case LowerInst::Copy:       return OpBlockCopy;
         case LowerInst::SetPattern: return OpBlockSet;
@@ -394,6 +412,28 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                 default:
                     assertTrue(is64Bit(((LowerInstX86Sext*)inst)->result.type)); // no 32-to-32 movsxd
                     return FormSext32;
+            }
+
+/*
+         * The three BMI2 operations, which never reach selection: `expandBitOperations` has replaced
+         * each of them with an intrinsic or with the arithmetic network it stands for, long above
+         * here. Asserted rather than answered, for `expandRoundAway`'s reason - a case that answered
+         * would be a form for an operation this machine has no opcode for.
+         */
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
+            assertTrue("a bit operation reached selection unexpanded" == nullptr);
+            return FormNop;
+
+        // The BMI1 pair-replacements, one form each. The lowest-bit family is three forms of one
+        // opcode selected by the instruction's own field, exactly as `X86MinMax` is.
+        case LowerInst::X86AndNot: return FormAndNot;
+        case LowerInst::X86LowBit:
+            switch(((LowerInstX86LowBit*)inst)->getLowBit()) {
+                case LowerX86LowBit::Clear:   return FormLowBitClear;
+                case LowerX86LowBit::Isolate: return FormLowBitIsolate;
+                default:                      return FormLowBitMask;
             }
 
         /*

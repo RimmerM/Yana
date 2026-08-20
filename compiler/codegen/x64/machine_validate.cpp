@@ -340,8 +340,16 @@ bool validateMachineForms(const MachineTarget& target) {
             auto& original = target.forms[form.alternativeOf];
 
             if(original.opcode != form.opcode) fail(form, "is an alternative to a form of another opcode"_v);
-            if(original.flagsEffect != form.flagsEffect) fail(form, "disagrees with the form it replaces about the flags"_v);
             if(original.uses.size() != form.uses.size()) fail(form, "takes a different number of operands than the form it replaces"_v);
+
+            // The flags may differ only where the opcode declared that they do. Which is not a
+            // weakening: whether an alternative is taken depends on `targetFeatures()` alone, so the
+            // answer is settled before the first pass runs and every reader of it goes through
+            // `selectForm` - a stronger guarantee than either of the two MachineOpcodeDesc::
+            // flagsSelective describes, and the one the BMI2 rows rely on.
+            if(original.flagsEffect != form.flagsEffect && !target.opcodes[form.opcode].flagsSelective) {
+                fail(form, "disagrees with the form it replaces about the flags"_v);
+            }
         }
 
         // An immediate field has to name an operand the form declared as one, or - for a constant
@@ -369,6 +377,21 @@ bool validateMachineForms(const MachineTarget& target) {
 
         if((encoding.conditionImmediate || encoding.patternImmediate) && !encoding.immField.isNone()) {
             fail(form, "ends in a trailing byte as well as encoding an immediate operand"_v);
+        }
+
+        // The third writer of that position is the one that *is* an operand - see
+        // EncodingDescriptor::immediateByte. It needs the operand it names and it has to fit in the
+        // byte it writes, which is what declaring the operand `Imm8` says.
+        if(encoding.immediateByte) {
+            if(encoding.conditionImmediate || encoding.patternImmediate) {
+                fail(form, "ends in an immediate operand as well as a trailing byte of its own"_v);
+            }
+
+            if(encoding.immField.isNone()) {
+                fail(form, "writes a trailing immediate with no operand to take it from"_v);
+            } else if(form.immediateWidth() != ImmediateWidth::Imm8) {
+                fail(form, "writes a trailing immediate wider than the one byte it emits"_v);
+            }
         }
 
         // The r/m field is the one that may hold a memory operand, so a form with a memory

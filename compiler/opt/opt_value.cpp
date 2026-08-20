@@ -121,6 +121,9 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
         case Value::Sub: case Value::Div: case Value::Rem:
         case Value::Shl: case Value::Shr: case Value::Sar:
         case Value::Rol: case Value::Ror:
+        // The three bit operations, here and not above: `bitsUpTo` takes a value and a count, and a
+        // permutation takes a value and a mask. Neither pair may be exchanged.
+        case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
             return same(((InstBinary&)a).lhs, ((InstBinary&)b).lhs) &&
                    same(((InstBinary&)a).rhs, ((InstBinary&)b).rhs);
         case Value::Cmp:

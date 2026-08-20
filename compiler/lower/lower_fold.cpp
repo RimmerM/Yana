@@ -152,6 +152,40 @@ bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
         case LowerInst::Or:  into = a | b; break;
         case LowerInst::Xor: into = a ^ b; break;
 
+        /*
+         * The three BMI2 operations, which unlike the shifts have an answer for every operand pair -
+         * see the kinds. The count saturates rather than being refused, and a permutation has no
+         * count at all.
+         */
+        case LowerInst::BitsUpTo: into = b >= bits ? a : a & maskOf(U32(b)); break;
+
+        case LowerInst::GatherBits: {
+            U64 out = 0;
+            U64 target = 1;
+
+            for(auto mask = b & maskOf(bits); mask != 0; mask &= mask - 1) {
+                if(a & (mask & (0 - mask))) out |= target;
+                target <<= 1;
+            }
+
+            into = out;
+            break;
+        }
+
+        case LowerInst::ScatterBits: {
+            U64 out = 0;
+            U64 source = 1;
+
+            for(auto mask = b & maskOf(bits); mask != 0; mask &= mask - 1) {
+                auto low = mask & (0 - mask);
+                if(a & source) out |= low;
+                source <<= 1;
+            }
+
+            into = out;
+            break;
+        }
+
         default: return false;
     }
 
@@ -343,6 +377,40 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
         case LowerInst::Rol:
         case LowerInst::Ror:
             if(knownRhs && (b % bits) == 0) return forward(lhs);
+            if(knownLhs && a == 0) return Folded::value(0);
+            break;
+
+        /*
+         * The mask a constant count comes to, which is what makes `bitfield` worth writing over this
+         * rather than as a shift and a literal.
+         *
+         * A count at or above the width keeps everything and a count of zero keeps nothing; anything
+         * between them is an `and` against a literal, which is one instruction where the operation is
+         * three. That rewrite is the whole of why the count is *stated* as saturating rather than
+         * left to a machine: the saturation is what the fold answers, so a constant count never
+         * reaches a backend at all.
+         *
+         * The mask is compared against `knownZeroBits` on the same terms `And` above is - a count
+         * that covers every bit the value can have set is the identity even where it is below the
+         * width, which is the case a field read out of a narrow load produces.
+         */
+        case LowerInst::BitsUpTo:
+            if(knownRhs) {
+                if(b >= bits) return forward(lhs);
+                if(b == 0) return Folded::value(0);
+                if((maskOf(U32(b)) | knownZeroBits(base, lhs)) == maxLimit<U64>) return forward(lhs);
+            }
+
+            if(knownLhs && a == 0) return Folded::value(0);
+            break;
+
+        // A permutation through a mask that names every position is the value, and through one that
+        // names none is nothing. Neither is a special case of the loop in `evaluate` above: this is
+        // the half where only the *mask* is known, which is what a permutation against a literal is.
+        case LowerInst::GatherBits:
+        case LowerInst::ScatterBits:
+            if(knownRhs && b == all) return forward(lhs);
+            if(knownRhs && b == 0) return Folded::value(0);
             if(knownLhs && a == 0) return Folded::value(0);
             break;
 
@@ -1147,6 +1215,8 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::Shl:   case LowerInst::Shr: case LowerInst::Sar:
         case LowerInst::Rol:   case LowerInst::Ror:
         case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
+        case LowerInst::BitsUpTo:
+        case LowerInst::GatherBits: case LowerInst::ScatterBits:
         case LowerInst::Cmp:
         case LowerInst::Select:
 

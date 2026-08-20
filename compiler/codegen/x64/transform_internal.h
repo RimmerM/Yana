@@ -226,6 +226,10 @@ void tryElideBranchTest(LowerBase base, LowerBlock* block);
 // the vector-constant pooling, which must not pool what needs no pool entry.
 bool onlyFeedsMachineSplats(LowerBase base, LowerImm* imm);
 
+// The pass: the BMI pair-replacements - `andn`, the three lowest-bit operations, and the left
+// rotation rewritten as the right one so that `rorx` is reachable. See §3.5.4 beside it.
+void selectBitOps(Context&, LowerBase base, LowerFunction& fun);
+
 // The pass: `x << k >> k` put back as one `movsx`.
 void selectSignExtends(Context&, LowerBase base, LowerFunction& fun);
 
@@ -266,6 +270,10 @@ void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);
 void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
+
+// The three operations BMI2 has an instruction for and the floor does not - `bitsUpTo` and the two
+// directions of a bit permutation. See the header above the pass.
+void expandBitOperations(Context&, LowerBase base, LowerFunction& fun);
 void expandVectorRotate(Context&, LowerBase base, LowerFunction& fun);
 void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun);
 

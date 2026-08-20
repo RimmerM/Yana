@@ -129,6 +129,8 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
          */
         case LowerIntrinsic::Bsr:
         case LowerIntrinsic::Bzhi:
+        case LowerIntrinsic::Pext:
+        case LowerIntrinsic::Pdep:
             f.context.diagnostics.error("llvm: a target-lowered intrinsic reached the LLVM backend"_v,
                                         inst.source);
             return true;
