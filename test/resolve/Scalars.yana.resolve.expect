@@ -183,9 +183,44 @@ fn roundUpTo(Int)(%value: Int, %multiple: Int) -> Int {
   b0:
     %v2 = add %value, %multiple : Int
     %v5 = sub %v2, 1 : Int
-    %v6 = div %v5, %multiple : Int
-    %v7 = mul %v6, %multiple : Int
-    ret %v7
+    %v7 = cmp_eq %multiple, 0 : Bool
+    call checkCondition, %v7
+    %v9 = div %v5, %multiple : Int
+    %v10 = mul %v9, %multiple : Int
+    ret %v10
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
 }
 
 fn scalarOrder() -> Int {

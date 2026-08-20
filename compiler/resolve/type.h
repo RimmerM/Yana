@@ -1618,6 +1618,10 @@ U32 vectorLanes(GlobalBase base, TypePtr type);
 bool isVectorType(GlobalBase base, TypePtr type);
 bool isMaskType(GlobalBase base, TypePtr type);
 
+// Whether `/` and `%` at this type are the checked, language-defined pair - see the ruling beside
+// `Div` in inst.def. Scalar integers only.
+bool isCheckedDivisionType(GlobalBase base, TypePtr type);
+
 // The mask a comparison of this vector answers - Design-Vector §2.4. Null for anything that is not
 // a vector, so it reads as the test "does a lane comparison of this mean anything".
 TypePtr maskFor(Module& module, TypePtr type);

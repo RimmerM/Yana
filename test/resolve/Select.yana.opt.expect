@@ -128,18 +128,18 @@ fn zero() -> Int {
 fn ratio(%value: Int, %divisor: Int) -> Int {
   b0:
     %v4 = cmp_ne %divisor, 0 : Bool
-    je %v4, b1, b2
+    je %v4, b2, b1
 
   b1:
-    %v6 = div %value, %divisor : Int
     jmp b3
 
   b2:
+    %v9 = div %value, %divisor : Int
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v6], [b2, 0] : Int
-    ret %v10
+    %v13 = phi [b2, %v9], [b1, 0] : Int
+    ret %v13
 }
 
 fn doubled(%value: Int) -> Int {

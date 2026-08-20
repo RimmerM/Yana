@@ -374,6 +374,29 @@ struct Gen {
     Name roundAwayHelper;
 
     /*
+     * `$div` and `$rem` - the two divisors the language answers for, where the host does not.
+     *
+     * `x / 0` is 0 and `x % 0` is `x` (doc/spec/types.md, and the ruling beside `Div` in
+     * resolve/inst.def), and JavaScript agrees with exactly one half of one of them. A 32-bit
+     * quotient is already right for nothing: `a / 0` is an infinity and the `|0` this backend emits
+     * anyway turns any infinity into 0. Everything else disagrees, and disagrees three different
+     * ways - `a % 0` is NaN, the 33-to-53-bit band's `wrap` turns that quotient into NaN too, and
+     * BigInt division *throws* a RangeError rather than answering at all.
+     *
+     * One pair of helpers serves all three bands, which is what `b ? a / b : b` buys: the zero arm
+     * returns the *divisor*, so the answer carries the operand's own type and neither `0` nor `0n`
+     * has to be written. `!b` is true for both zeros and for no other integer.
+     *
+     * Helpers rather than an inline conditional for `roundAwayHelper`'s reason and one more: each
+     * operand appears twice, and an operand here is an expression that may hold a call - but also,
+     * a division is where a program least minds a call, being the slowest arithmetic on any target.
+     *
+     * Named lazily on floatBitsHelper's terms, so a program that never divides emits neither.
+     */
+    Name divideByZeroHelper;
+    Name remainderByZeroHelper;
+
+    /*
      * The one helper the typed row of Implementation-Containers.md §14 needs - see NativeOp::HostGrow.
      *
      * Named lazily and once per program, on the same terms as the two above: a program with no typed
@@ -995,6 +1018,10 @@ void emitFloatBitsHelpers(Gen& g);
 
 // `function $round(v) { return v < 0 ? -Math.round(-v) : Math.round(v) }` - see Gen::roundAwayHelper.
 void emitRoundAwayHelper(Gen& g);
+
+// `function $div(a, b) { return b ? a / b : b }` and `$rem`, where a program asked for one. See
+// Gen::divideByZeroHelper.
+void emitDivisionHelpers(Gen& g);
 
 // The typed array's growth, where a program asked for one. See NativeOp::HostGrow in inst.cpp.
 void emitGrowHelper(Gen& g);

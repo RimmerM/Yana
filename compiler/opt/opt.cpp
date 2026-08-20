@@ -109,6 +109,15 @@ void optimizeRounds(OptContext& opt) {
          */
         runPass(narrowCheckedIndexes);
 
+        /*
+         * And the zero tests something above them already decided - the divisor a guard tested one
+         * line up, or the one an earlier division's check settled. Beside the walk above because it
+         * shares the dominator matrix, and behind the branch folder for the reason every range
+         * question is: the arm carrying the proof has to still be there. What this leaves is a
+         * constant condition, which that folder retires on the next round of the loop.
+         */
+        runPass(foldProvenZeroTests);
+
         runPass(eliminateCommonValues);
         runPass(eliminateDeadValues);
 

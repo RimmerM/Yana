@@ -480,6 +480,25 @@ struct LowerInstCast: LowerInstUnary {
 };
 
 struct LowerInstBinary: LowerInstSingle {
+    /*
+     * Set on a division that answers a zero divisor by *trusting a test above it* rather than by
+     * building the answer itself - see `divisorKnownNonZero` in lower/lower_divide.cpp.
+     *
+     * Every other division this compiler emits is total, which is what lets the passes below treat
+     * the four dividing operations as ordinary arithmetic. One with this bit is the exception, and
+     * the exception is exactly a *position*: it cannot fault where it stands, and would where the
+     * test does not reach. So the only reader is the one pass that moves a computation to a point it
+     * did not run at - `mayFault` in lower_licm.cpp - and the bit says "not above this branch"
+     * rather than "may trap".
+     *
+     * Read only on Div/IDiv/Rem/IRem, where `flags` is otherwise unused: `LowerInstCmp` has the low
+     * four bits and its own kind, and `LowerInstCast` is a unary.
+     */
+    static constexpr U8 kTrustsDivisorTest = 0x40;
+
+    bool trustsDivisorTest() const { return (flags & kTrustsDivisorTest) != 0; }
+    void setTrustsDivisorTest() { flags |= kTrustsDivisorTest; }
+
     LowerInstBinary(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs, Kind kind):
         LowerInstSingle(kind, name, type), lhs(lhs), rhs(rhs)
     {

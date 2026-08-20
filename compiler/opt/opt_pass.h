@@ -506,6 +506,10 @@ void hoistLoopValues(OptContext& opt);
  * reasoning in this directory and is deliberately one fact rather than a lattice.
  */
 void narrowCheckedIndexes(OptContext& opt);
+
+// The zero tests a dominating branch already decided - the second half of opt_range.cpp. Folds the
+// comparison and leaves the branch to `foldBranches` on the next round.
+void foldProvenZeroTests(OptContext& opt);
 void eliminateDeadLoops(OptContext& opt);
 
 /*

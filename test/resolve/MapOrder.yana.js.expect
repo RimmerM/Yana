@@ -382,7 +382,7 @@ function survives(n) {
   L2: for (;;) {
     if (at < v90) {
       seen = seen + 1 | 0;
-      if ((v104[at] % 2 | 0) === 0) {
+      if (($rem(v104[at], 2) | 0) === 0) {
         ok = 0;
       }
       if (v106[at] !== v104[at]) {
@@ -419,6 +419,11 @@ function main() {
     n = n + 10000 | 0;
   }
   return n;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

@@ -1,7 +1,7 @@
 #include "opt_pass.h"
 
 /*
- * What a branch proves about the values below it, and the one rewrite that wants it.
+ * What a branch proves about the values below it, and the two rewrites that want it.
  *
  * Every other fold in this directory reasons about the *operands* an instruction carries - two
  * constants, a reflexive comparison, a shift by a known amount. This one reasons about the edge:
@@ -41,14 +41,36 @@
  * reader has to be dominated by that arm for this to be a replacement at all, which the walk checks
  * rather than assumes.
  *
+ * ## The second rewrite: a zero test something above it already decided
+ *
+ * `foldProvenZeroTests`, and it is the same machinery pointed at a different fact. A division emits
+ * `checkCondition(d == 0)` (see the ruling beside `Div` in resolve/inst.def), the inliner turns that
+ * into a branch, and two shapes then ask the identical question twice:
+ *
+ *     if d != 0 then x / d else 0      -- the guard proves it, the check asks anyway
+ *     x / d + y / d                    -- the first check proves it for the second
+ *
+ * Both are one rule. A comparison of `%v` against zero is answered `false` (or `true`, written the
+ * other way up) wherever some *other* comparison of the same `%v` against zero branches, and the arm
+ * of that branch on which `%v` is not zero dominates this one. The two shapes differ only in which
+ * arm the proof came from - the `else` of an `Eq` and the `then` of a `Ne` - which is why neither
+ * needs a case of its own.
+ *
+ * What it deliberately does not do is remove the *check*. It folds the condition and stops; the
+ * branch folder above it retires the branch on the next round, and the dead arm and its call go with
+ * `eliminateDeadValues`. That keeps this pass to the one thing it can prove, and means an
+ * uninlined `checkCondition` gets a constant argument rather than a special case here.
+ *
  * ## What it is not
  *
- * Not a range analysis. There is no lattice, no fixpoint and no per-block state: one branch is read,
- * one arm is looked at, one fact is used. A real one would carry intervals down the dominator tree
- * and answer questions this cannot - whether the second bounds test of an already-checked index is
- * redundant, which is the item §9 left. The reason to write this one first is that it is the only
- * consumer that exists, and inventing the lattice before the consumer is how a range analysis ends
- * up shaped for nothing in particular.
+ * Still not a range analysis. There is no lattice, no fixpoint and no per-block state: a fact is
+ * found by looking at the *other readers of one value*, which is why two rewrites can share the
+ * machinery without either of them carrying intervals down the dominator tree. A real one would
+ * answer questions neither can - whether the second bounds test of an already-checked index is
+ * redundant, which is the item §9 left, or whether a divisor is non-zero because it is a length.
+ * Both rewrites here are the cases that fall out of one comparison, and the reason to write them
+ * this way first is that inventing the lattice before the consumers is how a range analysis ends up
+ * shaped for nothing in particular.
  */
 
 namespace {
@@ -172,6 +194,100 @@ bool usesBelow(OptContext& opt, Dominance& dominance, ModulePtr<Value> value, U3
  * source-level guard produces. `Le` and `Gt` would give `a <= b`, which is a weaker fact than this
  * needs and one no shape here asks for.
  */
+/*
+ * The value a comparison tests against a literal zero, or null - either operand order, and only the
+ * two comparisons that decide it outright.
+ *
+ * `Lt` and the rest are deliberately absent even though `%v <u 0` is decidable: they are not what
+ * either shape writes, and a comparison this pass answers is one it also has to know the *sense* of.
+ * Integers only, for the same reason `foldableInt` exists - what a refinement does with a value is a
+ * question the targets answer together only for the comparison, not for what led to it.
+ */
+ModulePtr<Value> zeroTestOperand(OptContext& opt, Value& instruction, bool& testsEqual) {
+    if(instruction.kind != Value::Cmp) return nullptr;
+
+    auto& compare = (InstCmp&)instruction;
+    if(compare.cmp != CompareOp::Eq && compare.cmp != CompareOp::Ne) return nullptr;
+
+    testsEqual = compare.cmp == CompareOp::Eq;
+
+    auto left = constantValueOf(opt, compare.lhs);
+    auto right = constantValueOf(opt, compare.rhs);
+
+    // Exactly one side a literal zero. Two literals is a fold `foldFunction` already owns, and
+    // answering it here would report a change on every round of the fixed point.
+    auto tested = ModulePtr<Value>(nullptr);
+    if(!left && right && right.unwrap() == 0) tested = compare.lhs;
+    else if(!right && left && left.unwrap() == 0) tested = compare.rhs;
+
+    if(!tested || !foldableInt(opt, opt.local[tested]->type)) return nullptr;
+
+    return tested;
+}
+
+/*
+ * The arm of the branch this comparison decides on which its operand is *not* zero, or null.
+ *
+ * The comparison has to be the branch's own condition rather than merely sit in the same block: a
+ * value computed above a branch that reads something else is proof of nothing below it.
+ */
+ModulePtr<Block> nonZeroArm(OptContext& opt, ModulePtr<Value> comparison, bool testsEqual) {
+    auto owner = opt.local[opt.local[comparison]->block];
+    if(!owner || !owner->terminator()) return nullptr;
+
+    auto& terminator = *opt.local[owner->terminator()];
+    if(terminator.kind != Value::Je) return nullptr;
+
+    auto& branch = (InstJe&)terminator;
+    if(branch.cond != comparison) return nullptr;
+
+    return testsEqual ? branch.elseBlock : branch.thenBlock;
+}
+
+/*
+ * Whether something above this block has already decided that `tested` is not zero.
+ *
+ * Found through the *use list* of the value rather than by walking the dominator tree, which is what
+ * keeps this to the "no per-block state" rule the header claims: a value is compared against zero
+ * two or three times in the programs this fires on, and every candidate proof is one of those.
+ *
+ * `asking` is excluded because a comparison is not its own proof - and the exclusion has to be by
+ * identity rather than by block, since the two shapes this exists for put the proof and the question
+ * in different blocks in one case and the same value in neither.
+ */
+bool provenNonZero(OptContext& opt, Dominance& dominance, ModulePtr<Value> tested,
+                   ModulePtr<Value> asking, U32 at) {
+    if(at >= dominance.dominators.size()) return false;
+
+    for(auto user: opt.local[tested]->uses(opt.local)) {
+        auto candidate = (ModulePtr<Value>)user;
+        if(candidate == asking) continue;
+
+        auto testsEqual = false;
+        if(zeroTestOperand(opt, *opt.local[candidate], testsEqual) != tested) continue;
+
+        auto armPointer = nonZeroArm(opt, candidate, testsEqual);
+        if(!armPointer) continue;
+
+        auto arm = opt.local[armPointer];
+
+        /*
+         * The fact belongs to the edge, so it may only be used where the edge is the one way in -
+         * `narrowCheckedIndexes` refuses a second predecessor for the identical reason. An arm that
+         * is the branch's own block is a self-loop, whose top is above the comparison rather than
+         * below it.
+         */
+        if(armPointer == opt.local[candidate]->block) continue;
+        if(arm->incoming(opt.local).size() != 1) continue;
+
+        auto index = arm->index;
+        if(index >= dominance.dominators.size()) continue;
+        if(dominance.dominators[at][index]) return true;
+    }
+
+    return false;
+}
+
 ModulePtr<Block> armBelow(OptContext& opt, InstCmp& compare, InstJe& branch) {
     auto facts = foldableInt(opt, opt.local[compare.lhs]->type);
     if(!facts || facts.unwrap().isSigned) return nullptr;
@@ -252,5 +368,39 @@ void narrowCheckedIndexes(OptContext& opt) {
         auto value = (ModulePtr<Value>)(replacement - opt.local);
         opt.ir().replaceValue(extension, value);
         opt.changed = true;
+    }
+}
+
+/*
+ * The second walk - see the header. One pass over the instructions, and the only state is the
+ * dominator matrix the walk above already built.
+ */
+void foldProvenZeroTests(OptContext& opt) {
+    if(opt.function->blocks.isEmpty()) return;
+
+    auto& dominance = dominanceOf(opt);
+
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[blockPointer];
+
+        for(auto instructionPointer: block->instructions(opt.local)) {
+            auto value = (ModulePtr<Value>)instructionPointer;
+            auto& instruction = *opt.local[value];
+
+            auto testsEqual = false;
+            auto tested = zeroTestOperand(opt, instruction, testsEqual);
+            if(!tested) continue;
+
+            // Nothing reading it is nothing to answer, and saying otherwise would report a change on
+            // every round for a value `eliminateDeadValues` is about to take anyway.
+            if(instruction.useCount() == 0) continue;
+            if(!provenNonZero(opt, dominance, tested, value, block->index)) continue;
+
+            // `%v == 0` is false where `%v` is known not to be zero, and `%v != 0` is true. The
+            // constant is built at the comparison's own type, which is `Bool` for both.
+            auto answer = makeConstant(opt, instruction, instruction.type, testsEqual ? 0 : 1);
+            opt.ir().replaceValue(value, answer);
+            opt.changed = true;
+        }
     }
 }

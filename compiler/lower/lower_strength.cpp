@@ -293,14 +293,18 @@ LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
             return r.op(LowerInst::Sub, x, r.opImm(LowerInst::Mul, quotient, d), name);
         }
 
-        // -1 is the pair the machine may trap on, and 0 is the divisor it certainly does. Both are
-        // left alone on purpose - see the header.
+        // -1 is rewritten now that the language says what its quotient is - `neg` on the type's
+        // lowest value wraps back to it, which is the answer rather than an accident. 0 is still
+        // left alone, and deliberately: `makeDivisionTotal` guards it and the fold behind this pass
+        // collapses the guard to the constant, which is a shorter route than a rule here would be.
         case LowerInst::IDiv:
-            if(sd == 0 || sd == 1 || sd == -1) return nullptr;
+            if(sd == 0 || sd == 1) return nullptr;
+            if(sd == -1) return r.neg(x, name);
             return reduceSignedDivide(r, x, sd, bits, name);
 
         case LowerInst::IRem: {
-            if(sd == 0 || sd == 1 || sd == -1) return nullptr;
+            if(sd == 0 || sd == 1) return nullptr;
+            if(sd == -1) return r.imm(x->type, 0, name);
 
             auto magnitude = sd < 0 ? U64(0) - U64(sd) : U64(sd);
             if(auto power = powerOfTwo(magnitude)) {

@@ -52,29 +52,32 @@ main<complex>(): Int {
   }
 
   b_19 {
-    %v_22 = idiv 10, %v_17: Int
+    %v_22 = cmp_eq %v_17, 4294967295: Int
+    %v_23 = select %v_22, 1, %v_17: Int
+    %v_24 = idiv 10, %v_23: Int
+    %v_25 = select %v_22, 4294967286, %v_24: Int
     jmp b_21
   }
 
   b_21 {
-    %v_23 = phi [b_19, %v_22], [b_20, 0]: Int
-    %v_24 = shl %v_23, 10: Int
-    %v_25 = add %v_16, %v_24: Int
-    %v_26 = add %v_25, 10240: Int
-    %v_27 = call_complex doubled, 3: Int
-    %v_28 = shl %v_27, 12: Int
-    %v_29 = add %v_26, %v_28: Int
-    ret %v_29
+    %v_26 = phi [b_19, %v_25], [b_20, 0]: Int
+    %v_27 = shl %v_26, 10: Int
+    %v_28 = add %v_16, %v_27: Int
+    %v_29 = add %v_28, 10240: Int
+    %v_30 = call_complex doubled, 3: Int
+    %v_31 = shl %v_30, 12: Int
+    %v_32 = add %v_29, %v_31: Int
+    ret %v_32
   }
 
   b_9 {
-    %v_30 = phi [b_10, %v_15], [b_0, 100]: Int
-    %v_31 = phi [b_10, %v_12], [b_0, 0]: Int
-    %v_32 = imul %v_31, 3: Int
-    %candidate = sub 40, %v_32: Int
-    %v_33 = cmp_ilt %candidate, %v_30: Int
-    %v_15 = select %v_33, %candidate, %v_30: Int
-    %v_12 = add %v_31, 1: Int
+    %v_33 = phi [b_10, %v_15], [b_0, 100]: Int
+    %v_34 = phi [b_10, %v_12], [b_0, 0]: Int
+    %v_35 = imul %v_34, 3: Int
+    %candidate = sub 40, %v_35: Int
+    %v_36 = cmp_ilt %candidate, %v_33: Int
+    %v_15 = select %v_36, %candidate, %v_33: Int
+    %v_12 = add %v_34, 1: Int
     jmp b_10
   }
 }

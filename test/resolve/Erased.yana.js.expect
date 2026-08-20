@@ -105,7 +105,13 @@ function thunk$Num_Int_mul_2(result, lhs, rhs) {
 }
 
 function thunk$Num_Int_div_3(result, lhs, rhs) {
-  result.$v = lhs.$v / rhs.$v | 0;
+  var v3 = lhs.$v;
+  var v4 = rhs.$v;
+  if (v4 === 0) {
+    throw "yana: a runtime check failed";
+  } else {
+    result.$v = v3 / v4 | 0;
+  }
 }
 
 function thunk$Num_Int_sub_4(result, value) {

@@ -301,78 +301,109 @@ fn signedLong(%x: Long) -> Int {
     %v40 = neg 2 : Long
     %v43 = neg 2 : Int
     %v44 = cast %v43 : Long
-    %v45 = div %x, %v44 : Long
-    %v48 = neg 2 : Int
-    %v49 = cast %v48 : Long
-    %v50 = rem %x, %v49 : Long
-    %v51 = call okL, %x, %v40, %v45, %v50 : Int
-    %v52 = add %v37, %v51 : Int
-    assign %n, %v52
-    %v54 = load %n : Int
-    %v57 = neg 8 : Long
-    %v60 = neg 8 : Int
-    %v61 = cast %v60 : Long
-    %v62 = div %x, %v61 : Long
-    %v65 = neg 8 : Int
-    %v66 = cast %v65 : Long
-    %v67 = rem %x, %v66 : Long
-    %v68 = call okL, %x, %v57, %v62, %v67 : Int
-    %v69 = add %v54, %v68 : Int
-    assign %n, %v69
-    %v71 = load %n : Int
-    %v75 = div %x, 3 : Long
-    %v78 = rem %x, 3 : Long
-    %v79 = call okL, %x, 3, %v75, %v78 : Int
-    %v80 = add %v71, %v79 : Int
-    assign %n, %v80
-    %v82 = load %n : Int
-    %v86 = div %x, 7 : Long
-    %v89 = rem %x, 7 : Long
-    %v90 = call okL, %x, 7, %v86, %v89 : Int
-    %v91 = add %v82, %v90 : Int
-    assign %n, %v91
-    %v93 = load %n : Int
-    %v97 = div %x, 10 : Long
-    %v100 = rem %x, 10 : Long
-    %v101 = call okL, %x, 10, %v97, %v100 : Int
-    %v102 = add %v93, %v101 : Int
-    assign %n, %v102
-    %v104 = load %n : Int
-    %v108 = div %x, 100 : Long
-    %v111 = rem %x, 100 : Long
-    %v112 = call okL, %x, 100, %v108, %v111 : Int
-    %v113 = add %v104, %v112 : Int
-    assign %n, %v113
-    %v115 = load %n : Int
-    %v119 = div %x, 1000000007 : Long
-    %v122 = rem %x, 1000000007 : Long
-    %v123 = call okL, %x, 1000000007, %v119, %v122 : Int
-    %v124 = add %v115, %v123 : Int
-    assign %n, %v124
-    %v126 = load %n : Int
-    %v129 = neg 3 : Long
-    %v132 = neg 3 : Int
-    %v133 = cast %v132 : Long
-    %v134 = div %x, %v133 : Long
-    %v137 = neg 3 : Int
-    %v138 = cast %v137 : Long
-    %v139 = rem %x, %v138 : Long
-    %v140 = call okL, %x, %v129, %v134, %v139 : Int
-    %v141 = add %v126, %v140 : Int
-    assign %n, %v141
-    %v143 = load %n : Int
-    %v146 = neg 10 : Long
-    %v149 = neg 10 : Int
-    %v150 = cast %v149 : Long
-    %v151 = div %x, %v150 : Long
-    %v154 = neg 10 : Int
-    %v155 = cast %v154 : Long
-    %v156 = rem %x, %v155 : Long
-    %v157 = call okL, %x, %v146, %v151, %v156 : Int
-    %v158 = add %v143, %v157 : Int
-    assign %n, %v158
-    %v160 = load %n : Int
-    ret %v160
+    %v46 = cmp_eq %v44, 0 : Bool
+    call checkCondition, %v46
+    %v48 = div %x, %v44 : Long
+    %v51 = neg 2 : Int
+    %v52 = cast %v51 : Long
+    %v54 = cmp_eq %v52, 0 : Bool
+    call checkCondition, %v54
+    %v56 = rem %x, %v52 : Long
+    %v57 = call okL, %x, %v40, %v48, %v56 : Int
+    %v58 = add %v37, %v57 : Int
+    assign %n, %v58
+    %v60 = load %n : Int
+    %v63 = neg 8 : Long
+    %v66 = neg 8 : Int
+    %v67 = cast %v66 : Long
+    %v69 = cmp_eq %v67, 0 : Bool
+    call checkCondition, %v69
+    %v71 = div %x, %v67 : Long
+    %v74 = neg 8 : Int
+    %v75 = cast %v74 : Long
+    %v77 = cmp_eq %v75, 0 : Bool
+    call checkCondition, %v77
+    %v79 = rem %x, %v75 : Long
+    %v80 = call okL, %x, %v63, %v71, %v79 : Int
+    %v81 = add %v60, %v80 : Int
+    assign %n, %v81
+    %v83 = load %n : Int
+    %v87 = div %x, 3 : Long
+    %v90 = rem %x, 3 : Long
+    %v91 = call okL, %x, 3, %v87, %v90 : Int
+    %v92 = add %v83, %v91 : Int
+    assign %n, %v92
+    %v94 = load %n : Int
+    %v98 = div %x, 7 : Long
+    %v101 = rem %x, 7 : Long
+    %v102 = call okL, %x, 7, %v98, %v101 : Int
+    %v103 = add %v94, %v102 : Int
+    assign %n, %v103
+    %v105 = load %n : Int
+    %v109 = div %x, 10 : Long
+    %v112 = rem %x, 10 : Long
+    %v113 = call okL, %x, 10, %v109, %v112 : Int
+    %v114 = add %v105, %v113 : Int
+    assign %n, %v114
+    %v116 = load %n : Int
+    %v120 = div %x, 100 : Long
+    %v123 = rem %x, 100 : Long
+    %v124 = call okL, %x, 100, %v120, %v123 : Int
+    %v125 = add %v116, %v124 : Int
+    assign %n, %v125
+    %v127 = load %n : Int
+    %v131 = div %x, 1000000007 : Long
+    %v134 = rem %x, 1000000007 : Long
+    %v135 = call okL, %x, 1000000007, %v131, %v134 : Int
+    %v136 = add %v127, %v135 : Int
+    assign %n, %v136
+    %v138 = load %n : Int
+    %v141 = neg 3 : Long
+    %v144 = neg 3 : Int
+    %v145 = cast %v144 : Long
+    %v147 = cmp_eq %v145, 0 : Bool
+    call checkCondition, %v147
+    %v149 = div %x, %v145 : Long
+    %v152 = neg 3 : Int
+    %v153 = cast %v152 : Long
+    %v155 = cmp_eq %v153, 0 : Bool
+    call checkCondition, %v155
+    %v157 = rem %x, %v153 : Long
+    %v158 = call okL, %x, %v141, %v149, %v157 : Int
+    %v159 = add %v138, %v158 : Int
+    assign %n, %v159
+    %v161 = load %n : Int
+    %v164 = neg 10 : Long
+    %v167 = neg 10 : Int
+    %v168 = cast %v167 : Long
+    %v170 = cmp_eq %v168, 0 : Bool
+    call checkCondition, %v170
+    %v172 = div %x, %v168 : Long
+    %v175 = neg 10 : Int
+    %v176 = cast %v175 : Long
+    %v178 = cmp_eq %v176, 0 : Bool
+    call checkCondition, %v178
+    %v180 = rem %x, %v176 : Long
+    %v181 = call okL, %x, %v164, %v172, %v180 : Int
+    %v182 = add %v161, %v181 : Int
+    assign %n, %v182
+    %v184 = load %n : Int
+    %v187 = neg 1 : Long
+    %v190 = neg 1 : Int
+    %v191 = cast %v190 : Long
+    %v193 = cmp_eq %v191, 0 : Bool
+    call checkCondition, %v193
+    %v195 = div %x, %v191 : Long
+    %v198 = neg 1 : Int
+    %v199 = cast %v198 : Long
+    %v201 = cmp_eq %v199, 0 : Bool
+    call checkCondition, %v201
+    %v203 = rem %x, %v199 : Long
+    %v204 = call okL, %x, %v187, %v195, %v203 : Int
+    %v205 = add %v184, %v204 : Int
+    assign %n, %v205
+    %v207 = load %n : Int
+    ret %v207
 }
 
 fn signedInt(%x: Int) -> Int {
@@ -394,41 +425,62 @@ fn signedInt(%x: Int) -> Int {
     %v26 = load %n : Int
     %v29 = neg 4 : Int
     %v32 = neg 4 : Int
-    %v33 = div %x, %v32 : Int
-    %v36 = neg 4 : Int
-    %v37 = rem %x, %v36 : Int
-    %v38 = call okI, %x, %v29, %v33, %v37 : Int
-    %v39 = add %v26, %v38 : Int
-    assign %n, %v39
-    %v41 = load %n : Int
-    %v45 = div %x, 3 : Int
-    %v48 = rem %x, 3 : Int
-    %v49 = call okI, %x, 3, %v45, %v48 : Int
-    %v50 = add %v41, %v49 : Int
-    assign %n, %v50
-    %v52 = load %n : Int
-    %v56 = div %x, 10 : Int
-    %v59 = rem %x, 10 : Int
-    %v60 = call okI, %x, 10, %v56, %v59 : Int
-    %v61 = add %v52, %v60 : Int
-    assign %n, %v61
-    %v63 = load %n : Int
-    %v67 = div %x, 65521 : Int
-    %v70 = rem %x, 65521 : Int
-    %v71 = call okI, %x, 65521, %v67, %v70 : Int
-    %v72 = add %v63, %v71 : Int
-    assign %n, %v72
-    %v74 = load %n : Int
-    %v77 = neg 7 : Int
-    %v80 = neg 7 : Int
-    %v81 = div %x, %v80 : Int
-    %v84 = neg 7 : Int
-    %v85 = rem %x, %v84 : Int
-    %v86 = call okI, %x, %v77, %v81, %v85 : Int
-    %v87 = add %v74, %v86 : Int
-    assign %n, %v87
-    %v89 = load %n : Int
-    ret %v89
+    %v34 = cmp_eq %v32, 0 : Bool
+    call checkCondition, %v34
+    %v36 = div %x, %v32 : Int
+    %v39 = neg 4 : Int
+    %v41 = cmp_eq %v39, 0 : Bool
+    call checkCondition, %v41
+    %v43 = rem %x, %v39 : Int
+    %v44 = call okI, %x, %v29, %v36, %v43 : Int
+    %v45 = add %v26, %v44 : Int
+    assign %n, %v45
+    %v47 = load %n : Int
+    %v51 = div %x, 3 : Int
+    %v54 = rem %x, 3 : Int
+    %v55 = call okI, %x, 3, %v51, %v54 : Int
+    %v56 = add %v47, %v55 : Int
+    assign %n, %v56
+    %v58 = load %n : Int
+    %v62 = div %x, 10 : Int
+    %v65 = rem %x, 10 : Int
+    %v66 = call okI, %x, 10, %v62, %v65 : Int
+    %v67 = add %v58, %v66 : Int
+    assign %n, %v67
+    %v69 = load %n : Int
+    %v73 = div %x, 65521 : Int
+    %v76 = rem %x, 65521 : Int
+    %v77 = call okI, %x, 65521, %v73, %v76 : Int
+    %v78 = add %v69, %v77 : Int
+    assign %n, %v78
+    %v80 = load %n : Int
+    %v83 = neg 7 : Int
+    %v86 = neg 7 : Int
+    %v88 = cmp_eq %v86, 0 : Bool
+    call checkCondition, %v88
+    %v90 = div %x, %v86 : Int
+    %v93 = neg 7 : Int
+    %v95 = cmp_eq %v93, 0 : Bool
+    call checkCondition, %v95
+    %v97 = rem %x, %v93 : Int
+    %v98 = call okI, %x, %v83, %v90, %v97 : Int
+    %v99 = add %v80, %v98 : Int
+    assign %n, %v99
+    %v101 = load %n : Int
+    %v104 = neg 1 : Int
+    %v107 = neg 1 : Int
+    %v109 = cmp_eq %v107, 0 : Bool
+    call checkCondition, %v109
+    %v111 = div %x, %v107 : Int
+    %v114 = neg 1 : Int
+    %v116 = cmp_eq %v114, 0 : Bool
+    call checkCondition, %v116
+    %v118 = rem %x, %v114 : Int
+    %v119 = call okI, %x, %v104, %v111, %v118 : Int
+    %v120 = add %v101, %v119 : Int
+    assign %n, %v120
+    %v122 = load %n : Int
+    ret %v122
 }
 
 fn unsignedLong(%x: U64) -> Int {

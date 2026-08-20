@@ -17,6 +17,7 @@
 #include "../lower/lower_licm.h"
 #include "../lower/lower_recover.h"
 #include "../lower/lower_strength.h"
+#include "../lower/lower_divide.h"
 #include "../lower/lower_induction.h"
 #include "../lower/lower_merge.h"
 #include "../lower/lower_thread.h"
@@ -703,6 +704,18 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // *which* operands are literals. See lower_strength.h, and note that it emits arithmetic of
         // its own, so the fold runs again behind it before the dead immediates are swept.
         strengthReduceFunction(lower.lower, lower.to, *target);
+        foldFunctionConstants(lower.lower, lower.to, *target);
+
+        // Then the divisions this machine would raise on, given the answers the language defines
+        // for them - see lower_divide.h. Behind the strength reduction and its fold, so that a
+        // divisor still standing here is a runtime value or the one literal worth guarding, and in
+        // front of everything below because what it leaves is a division that cannot fault: that is
+        // the premise `mayFault` in lower_licm.cpp now rests on, and the reason a division may be
+        // hoisted at all. A correctness pass rather than an optimization - it is not behind a level.
+        //
+        // With a fold behind it for the reason the pair above has one: it emits comparisons and
+        // selects against literals, and a guarded division by a literal zero is a constant.
+        makeDivisionTotal(lower.lower, lower.to, *target);
         foldFunctionConstants(lower.lower, lower.to, *target);
 
         // And the branches whose answer the edge into them already settled - see lower_thread.h.

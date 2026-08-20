@@ -16,8 +16,8 @@ function showSigned(value, to$o, to$k, to$s) {
     var digits = "";
     L0: for (;;) {
       if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, remaining / 10n);
+        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
+        remaining = BigInt.asIntN(64, $div(remaining, 10n));
         continue L0;
       }
       break L0;
@@ -56,5 +56,14 @@ function main$() {
   v23.$v = v23.$v + " final ";
   showSigned(BigInt.asIntN(64, BigInt(v7)), v23, "$v", 1);
   console.log(v23.$v);
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 main$();

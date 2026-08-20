@@ -452,8 +452,10 @@ fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
     %v2 = alloc : Cents
     %v3 = load %lhs@Cents.value : Int
     %v4 = load %rhs@Cents.value : Int
-    %v5 = div %v3, %v4 : Int
-    aggregate %local2@Cents.value = %v5
+    %v6 = cmp_eq %v4, 0 : Bool
+    call checkCondition, %v6
+    %v8 = div %v3, %v4 : Int
+    aggregate %local2@Cents.value = %v8
     ret %v2
 }
 

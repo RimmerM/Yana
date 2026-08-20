@@ -2,6 +2,39 @@ let image$base: () = <none>
 
 let &calls: Int = 0
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
+    ret
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn larger(%a: Int, %b: Int) -> Int {
   b0:
     %v2 = cmp_gt %a, %b : Bool
@@ -226,15 +259,17 @@ fn ratio(%value: Int, %divisor: Int) -> Int {
     je %v4, b1, b2
 
   b1:
-    %v6 = div %value, %divisor : Int
+    %v7 = cmp_eq %divisor, 0 : Bool
+    call checkCondition, %v7
+    %v9 = div %value, %divisor : Int
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v6], [b2, 0] : Int
-    ret %v10
+    %v13 = phi [b1, %v9], [b2, 0] : Int
+    ret %v13
 }
 
 fn doubled(%value: Int) -> Int {

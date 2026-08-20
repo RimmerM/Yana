@@ -79,7 +79,8 @@ I64 signedHighProduct(I64 a, I64 b) {
 }
 
 // Both operands known: the operation itself, at `bits`. False where the answer is not one this may
-// state - a division by zero, or a shift by a distance the machine would have masked.
+// state, which since the division rule below is only a shift by a distance the machine would have
+// masked.
 bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
     auto sa = signedValue(a, bits);
     auto sb = signedValue(b, bits);
@@ -94,17 +95,23 @@ bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
         case LowerInst::Mul:
         case LowerInst::IMul: into = a * b; break;
 
-        case LowerInst::Div: if(!b) return false; into = a / b; break;
-        case LowerInst::Rem: if(!b) return false; into = a % b; break;
+        // `x / 0` is 0 and `x % 0` is `x`, which the language answers rather than the machine - see
+        // the ruling beside `Div` in resolve/inst.def. There is no divisor these may not state.
+        case LowerInst::Div: into = b ? a / b : 0; break;
+        case LowerInst::Rem: into = b ? a % b : a; break;
 
-        // The one signed pair with no answer inside the width, besides the zero divisor.
+        // The signed pair has one more: the quotient the width cannot hold, which wraps back to the
+        // minimum as every other signed overflow does, and whose remainder is 0. Both are written
+        // out rather than computed, `INT64_MIN / -1` being undefined in the C++ this runs in too.
         case LowerInst::IDiv:
-            if(!sb || (sa == lowest && sb == -1)) return false;
-            into = U64(sa / sb);
+            if(!sb) into = 0;
+            else if(sa == lowest && sb == -1) into = U64(lowest);
+            else into = U64(sa / sb);
             break;
         case LowerInst::IRem:
-            if(!sb || (sa == lowest && sb == -1)) return false;
-            into = U64(sa % sb);
+            if(!sb) into = a;
+            else if(sa == lowest && sb == -1) into = 0;
+            else into = U64(sa % sb);
             break;
 
         // The half of the product that does not fit, which is the one thing here that has to be

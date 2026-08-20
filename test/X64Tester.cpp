@@ -62,7 +62,7 @@ static void applyDirectives(CompileSettings& settings, StringView content) {
     // `resolve/` corpus. Shared rather than repeated because those two and this one have to agree:
     // the level decides what `Vec(Float)` *is*, so a table that drifted would not be a difference of
     // encoding but a difference of program.
-    applyExtensionDirective(settings, content);
+    applyFixtureDirectives(settings, content);
 }
 
 struct TestProvider: SourceProvider {

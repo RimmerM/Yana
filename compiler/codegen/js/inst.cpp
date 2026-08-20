@@ -371,6 +371,31 @@ void relocateWith(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type,
                      referenceTo(g, type, target), referenceTo(g, type, source)));
 }
 
+/*
+ * A call to `$div` or `$rem`, naming the helper on its first use - see Gen::divideByZeroHelper.
+ *
+ * Pure, and that is not a formality: the whole point of the ruling these implement is that an
+ * integer division computes a value and does nothing else, so the emitter is free to move one.
+ */
+static JsPtr<Expr> divisionHelperCall(Gen& g, Name& helper, StringView helperName,
+                                      JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    if(!helper.text) helper = uniqueName(g, helperName, false);
+
+    auto node = make<CallExpr>(g, variable(g, helper));
+    node->args.push(g.file.arena, lhs);
+    node->args.push(g.file.arena, rhs);
+    node->pure = true;
+    return asExpr(g, node);
+}
+
+static JsPtr<Expr> divideCall(Gen& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    return divisionHelperCall(g, g.divideByZeroHelper, "$div"_v, lhs, rhs);
+}
+
+static JsPtr<Expr> remainderCall(Gen& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    return divisionHelperCall(g, g.remainderByZeroHelper, "$rem"_v, lhs, rhs);
+}
+
 void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
     auto lhs = useValue(g, instruction.lhs);
     auto rhs = useValue(g, instruction.rhs);
@@ -429,13 +454,18 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
              * quotient is the missing positive, which `Wrap` catches.
              */
             case Value::Div: {
-                auto quotient = hostCall(g, "Math"_v, "trunc"_v, binary(g, BinaryOp::Div, lhs, rhs));
+                // Through `$div`, because a zero divisor is the one pair `Wrap` cannot rescue: the
+                // quotient it is handed is an infinity, and `Infinity % 2^52` is NaN rather than the
+                // 0 the language defines. See Gen::divideByZeroHelper.
+                auto quotient = hostCall(g, "Math"_v, "trunc"_v, divideCall(g, lhs, rhs));
                 define(g, pointer, integer->isSigned
                     ? wideCall(g, WideOp::Wrap, integer, quotient, nullptr) : quotient);
                 return;
             }
             case Value::Rem:
-                define(g, pointer, binary(g, BinaryOp::Rem, lhs, rhs));
+                // And through `$rem`, whose zero arm is `a` - already in range, which is why this
+                // band's remainder needs no coercion here any more than it did before.
+                define(g, pointer, remainderCall(g, lhs, rhs));
                 return;
             default: break;
         }
@@ -463,9 +493,29 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
             // does it: every integer form coerce() emits is a bitwise operator, which is defined on
             // the truncated value. BigInt division truncates on its own and a float must not, so
             // the same statement is right for all three.
+            //
+            // A `Long` divides as a `bigint`, and `0n` is the one divisor BigInt division *throws*
+            // on rather than answering, so that width alone goes through `$div`. Every narrower
+            // integer already produces the defined answer for nothing, the coercion above turning
+            // the infinity `a / 0` yields into the 0 the language asks for.
+            if(integer && integer->width == IntType::Long) {
+                define(g, pointer, coerce(g, type, divideCall(g, lhs, rhs)));
+                return;
+            }
+
             simple(BinaryOp::Div);
             return;
-        case Value::Rem: simple(BinaryOp::Rem); return;
+        case Value::Rem:
+            // The remainder gets no such reprieve at any width: `a % 0` is NaN for a number and a
+            // throw for a `bigint`, and the answer is `a`. A float never reaches here - `%` is
+            // `Integral`'s - but the test is written so that one would be left alone if it did.
+            if(integer) {
+                define(g, pointer, coerce(g, type, remainderCall(g, lhs, rhs)));
+                return;
+            }
+
+            simple(BinaryOp::Rem);
+            return;
         case Value::Shl: simple(BinaryOp::Shl); return;
         case Value::Shr:
             // A logical right shift of a `Long` has to go through the unsigned reading first:
@@ -1930,6 +1980,48 @@ void emitRoundAwayHelper(Gen& g) {
 }
 
 /*
+ * `function $div(a, b) { return b ? a / b : b }` and `function $rem(a, b) { return b ? a % b : a }`.
+ *
+ * The zero arm of the division returns the *divisor* rather than a written zero, which is what lets
+ * one function serve a `number` and a `bigint` both: `0` and `0n` are each their own type's zero,
+ * and the caller's coercion is happy with either. `b` as the condition rather than `b !== 0` for the
+ * same reason - falsy is true of both zeros and of no other integer this backend produces.
+ *
+ * `a / b` is left untruncated deliberately. Every caller already applies the truncation its band
+ * needs - `Math.trunc` in the 33-to-53-bit band, a bitwise coercion below it, and nothing at all for
+ * a `bigint`, whose division truncates itself - so doing it here would be doing it twice.
+ */
+void emitDivisionHelpers(Gen& g) {
+    auto define = [&](Name& name, BinaryOp op, bool zeroIsDividend) {
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        auto left = literalName(g, "a"_v);
+        auto right = literalName(g, "b"_v);
+        function->args.push(g.file.arena, left);
+        function->args.push(g.file.arena, right);
+
+        auto a = variable(g, left);
+        auto b = variable(g, right);
+
+        function->body = collect(g, [&] {
+            emit(g, make<ReturnStmt>(g, ternary(g, b, binary(g, op, a, b),
+                                                zeroIsDividend ? a : b)));
+        });
+
+        emit(g, function);
+    };
+
+    if(g.divideByZeroHelper.text || g.remainderByZeroHelper.text) {
+        emit(g, make<CommentStmt>(g, internText(g,
+            "`x / 0` is 0 and `x % 0` is x - see doc/spec/types.md"_v)));
+    }
+
+    define(g.divideByZeroHelper, BinaryOp::Div, false);
+    define(g.remainderByZeroHelper, BinaryOp::Rem, true);
+}
+
+/*
  * `function $grow(a, n) { var b = new a.constructor(n); b.set(a); return b; }`
  *
  * One helper for every element type, because the array carries its own constructor. `.set` is the
@@ -2264,8 +2356,30 @@ static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
             }
 
             return simple(BinaryOp::Mul);
-        case Value::Div: return simple(BinaryOp::Div);
-        case Value::Rem: return simple(BinaryOp::Rem);
+        /*
+         * The two divisors the language answers for, lane by lane - the same rule the scalar path
+         * applies and the same two helpers, split the same way. See Gen::divideByZeroHelper.
+         *
+         * A float lane is left alone at both: it divides to an IEEE infinity, which is the answer.
+         * An integer lane narrower than 64 bits needs no help with the *quotient* either, the
+         * coercion above turning that infinity into the 0 the rule asks for - `Infinity & 255` is 0
+         * as surely as `Infinity | 0` is. A `Long` lane is a `bigint` and would throw, and no width
+         * gets the remainder right on its own.
+         *
+         * No native backend reaches this: `unsupportedVectorReason` refuses a packed integer
+         * division at every width and level, so a vector divides only where the lanes are already
+         * ordinary variables.
+         */
+        case Value::Div:
+            if(integer && integer->width == IntType::Long) {
+                return coerce(g, type, divideCall(g, lhs, rhs));
+            }
+
+            return simple(BinaryOp::Div);
+        case Value::Rem:
+            if(integer) return coerce(g, type, remainderCall(g, lhs, rhs));
+
+            return simple(BinaryOp::Rem);
         case Value::Shl: return simple(BinaryOp::Shl);
         case Value::Shr:
             // A logical right shift of a 64-bit lane goes through the unsigned reading first, for

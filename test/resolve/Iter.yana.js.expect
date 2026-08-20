@@ -9,7 +9,7 @@ function odds(n) {
   L0: for (;;) {
     if (i < n) {
       var v41 = 0;
-      if ((i % 2 | 0) === 0) {
+      if (($rem(i, 2) | 0) === 0) {
         v41 = 0;
       } else {
         total = total + i | 0;
@@ -153,7 +153,7 @@ function firstOddOver(n, bound) {
   L0: for (;;) {
     if (i < n) {
       var v46 = null;
-      if ((i % 2 | 0) === 0) {
+      if (($rem(i, 2) | 0) === 0) {
         v46 = null;
       } else {
         if (i > bound) {
@@ -288,5 +288,10 @@ function ResolveTest_continuation$30(env, value$) {
     visited = visited + value$ | 0;
     return 0;
   }
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 main();

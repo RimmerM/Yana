@@ -48,11 +48,16 @@
  * first concrete thing named for a lower-IR CSE and it is now what collects it - `lower_cse.cpp` runs
  * immediately behind this pass, for exactly that reason.
  *
- * A division by zero and a signed division by -1 are both left exactly as they were. The machine is
- * entitled to trap on either - `idiv` raises #DE for the second whenever the dividend is the type's
- * lowest value - and `lower_fold.cpp` already declines to fold the same two pairs for the same
- * reason. A pass that turned `x / -1` into `neg x` would be deciding that question rather than
- * leaving it, and it would be deciding it silently.
+ * A signed division by -1 *is* rewritten, as `neg x`, and the note that used to stand here said why
+ * it could not be: the machine raises on that pair whenever the dividend is the type's lowest value,
+ * so a pass that rewrote it would be deciding what the answer is, silently. The language decides it
+ * now - the quotient wraps back to the minimum, as all signed overflow does, and `neg` on the
+ * minimum wraps to the minimum - so the rewrite states the rule instead of inventing one. See the
+ * ruling beside `Div` in resolve/inst.def.
+ *
+ * A division by zero is still left alone here, for a reason that is not caution: lower_divide.cpp
+ * guards it into a select over a constant and the fold behind this pass answers the whole thing, so
+ * a rule here would be a second route to an answer that already arrives.
  */
 
 // Run over a function after `foldFunctionConstants`, so that a divisor that only became a literal

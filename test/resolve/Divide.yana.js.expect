@@ -1,0 +1,138 @@
+"use strict";
+// ResolveTest
+function okL(x, d, q, r) {
+  if (d === 0n) {
+    var v10 = q === 0n;
+    return (v10 ? r === x : v10) ? 1 : 0;
+  } else {
+    if (d === -1n) {
+      var v33 = q === BigInt.asIntN(64, 0n - x);
+      return (v33 ? r === 0n : v33) ? 1 : 0;
+    } else {
+      return BigInt.asIntN(64, BigInt.asIntN(64, q * d) + r) === x ? 1 : 0;
+    }
+  }
+}
+
+function okI(x, d, q, r) {
+  if (d === 0) {
+    var v10 = q === 0;
+    return (v10 ? r === x : v10) ? 1 : 0;
+  } else {
+    if (d === -1) {
+      var v32 = q === (0 - x | 0);
+      return (v32 ? r === 0 : v32) ? 1 : 0;
+    } else {
+      return (Math.imul(q, d) + r | 0) === x ? 1 : 0;
+    }
+  }
+}
+
+function runtimeU(x, d) {
+  var v26;
+  var v2 = BigInt.asUintN(64, $div(x, d));
+  var v3 = BigInt.asUintN(64, $rem(x, d));
+  if (d === 0n) {
+    var v19 = v2 === 0n;
+    v26 = (v19 ? v3 === x : v19) ? 1 : 0;
+  } else {
+    var v11 = BigInt.asUintN(64, BigInt.asUintN(64, v2 * d) + v3) === x;
+    v26 = (v11 ? v3 < d : v11) ? 1 : 0;
+  }
+  return v26;
+}
+
+function runtimeW(x, d) {
+  var v26;
+  var v2 = x / d >>> 0;
+  var v3 = $rem(x, d) >>> 0;
+  if (d === 0) {
+    var v19 = v2 === 0;
+    v26 = (v19 ? v3 === x : v19) ? 1 : 0;
+  } else {
+    var v11 = (Math.imul(v2, d) >>> 0) + v3 >>> 0 === x;
+    v26 = (v11 ? v3 < d : v11) ? 1 : 0;
+  }
+  return v26;
+}
+
+function main() {
+  var v379;
+  var v403;
+  var longs = [0n, 1n, 7n, -7n, -9223372036854775808n, -9223372036854775807n, 9223372036854775807n];
+  var dLongs = [0n, -1n, 1n, 2n, -2n, 3n, 10n];
+  var ints = [0, 1, 7, -7, -2147483648, -2147483647, 2147483647];
+  var dInts = [0, -1, 1, 2, -2, 3, 10];
+  var ulongs = [0n, 1n, 7n, 18446744073709551615n, 9223372036854775808n];
+  var dULongs = [0n, 1n, 2n, 3n, 18446744073709551615n];
+  var uints = [0, 1, 7, 4294967295, 2147483648];
+  var dUInts = [0, 1, 2, 3, 4294967295];
+  var total = 0;
+  var i = 0;
+  var j = 0;
+  L0: for (;;) {
+    if (i < 7) {
+      j = 0;
+      L1: for (;;) {
+        if (j < 7) {
+          var v173 = longs[i];
+          var v189 = dLongs[j];
+          var v191 = total + okL(v173, v189, BigInt.asIntN(64, $div(v173, v189)), BigInt.asIntN(64, $rem(v173, v189))) | 0;
+          var v207 = ints[i];
+          var v223 = dInts[j];
+          total = v191 + okI(v207, v223, v207 / v223 | 0, $rem(v207, v223) | 0) | 0;
+          j = j + 1 | 0;
+          continue L1;
+        }
+        break L1;
+      }
+      var v249 = longs[i];
+      var v384 = BigInt.asIntN(64, $div(v249, -1n)) === BigInt.asIntN(64, 0n - v249);
+      if (v384) {
+        v379 = BigInt.asIntN(64, $rem(v249, -1n)) === 0n;
+      } else {
+        v379 = v384;
+      }
+      var v251 = total + (v379 ? 1 : 0) | 0;
+      var v267 = ints[i];
+      var v408 = (v267 / -1 | 0) === (0 - v267 | 0);
+      if (v408) {
+        v403 = ($rem(v267, -1) | 0) === 0;
+      } else {
+        v403 = v408;
+      }
+      total = v251 + (v403 ? 1 : 0) | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  i = 0;
+  L2: for (;;) {
+    if (i < 5) {
+      j = 0;
+      L3: for (;;) {
+        if (j < 5) {
+          total = (total + runtimeU(ulongs[i], dULongs[j]) | 0) + runtimeW(uints[i], dUInts[j]) | 0;
+          j = j + 1 | 0;
+          continue L3;
+        }
+        break L3;
+      }
+      i = i + 1 | 0;
+      continue L2;
+    }
+    break L2;
+  }
+  return total + 8 | 0;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
+}
+main();

@@ -383,9 +383,23 @@ thunk$Num(Int)./#3<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
     %v_1 = loads %lhs, 4: Int
     %v_2 = loads %rhs, 4: Int
-    %v_3 = idiv %v_1, %v_2: Int
-    store %result, %v_3, 4
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = cmp_eq %v_2, 4294967295: Int
+    %v_7 = select %v_6, 1, %v_2: Int
+    %v_8 = idiv %v_1, %v_7: Int
+    %v_9 = neg %v_1: Int
+    %v_10 = select %v_6, %v_9, %v_8: Int
+    store %result, %v_10, 4
     ret 
+  }
+
+  b_4 {
+    %v_11 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

@@ -1,0 +1,811 @@
+let image$base: () = <none>
+
+fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
+  b0:
+    %v6 = cmp_eq %d, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = cmp_eq %q, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b9
+
+  b3:
+    %v12 = cmp_eq %r, %x : Bool
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b3, %v12], [b4, %v10] : Bool
+    je %v15, b6, b7
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v21 = phi [b6, 1], [b7, 0] : Int
+    ret %v21
+
+  b9:
+    %v26 = neg 1 : Int
+    %v27 = cast %v26 : Long
+    %v28 = cmp_eq %d, %v27 : Bool
+    je %v28, b10, b11
+
+  b10:
+    %v32 = sub 0, %x : Long
+    %v33 = cmp_eq %q, %v32 : Bool
+    je %v33, b12, b13
+
+  b11:
+    jmp b18
+
+  b12:
+    %v37 = cmp_eq %r, 0 : Bool
+    jmp b14
+
+  b13:
+    jmp b14
+
+  b14:
+    %v40 = phi [b12, %v37], [b13, %v33] : Bool
+    je %v40, b15, b16
+
+  b15:
+    jmp b17
+
+  b16:
+    jmp b17
+
+  b17:
+    %v46 = phi [b15, 1], [b16, 0] : Int
+    ret %v46
+
+  b18:
+    %v49 = mul %q, %d : Long
+    %v50 = add %v49, %r : Long
+    %v51 = cmp_eq %v50, %x : Bool
+    je %v51, b19, b20
+
+  b19:
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v57 = phi [b19, 1], [b20, 0] : Int
+    ret %v57
+}
+
+fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
+  b0:
+    %v6 = cmp_eq %d, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = cmp_eq %q, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b9
+
+  b3:
+    %v12 = cmp_eq %r, %x : Bool
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b3, %v12], [b4, %v10] : Bool
+    je %v15, b6, b7
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v21 = phi [b6, 1], [b7, 0] : Int
+    ret %v21
+
+  b9:
+    %v26 = neg 1 : Int
+    %v27 = cmp_eq %d, %v26 : Bool
+    je %v27, b10, b11
+
+  b10:
+    %v31 = sub 0, %x : Int
+    %v32 = cmp_eq %q, %v31 : Bool
+    je %v32, b12, b13
+
+  b11:
+    jmp b18
+
+  b12:
+    %v36 = cmp_eq %r, 0 : Bool
+    jmp b14
+
+  b13:
+    jmp b14
+
+  b14:
+    %v39 = phi [b12, %v36], [b13, %v32] : Bool
+    je %v39, b15, b16
+
+  b15:
+    jmp b17
+
+  b16:
+    jmp b17
+
+  b17:
+    %v45 = phi [b15, 1], [b16, 0] : Int
+    ret %v45
+
+  b18:
+    %v48 = mul %q, %d : Int
+    %v49 = add %v48, %r : Int
+    %v50 = cmp_eq %v49, %x : Bool
+    je %v50, b19, b20
+
+  b19:
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v56 = phi [b19, 1], [b20, 0] : Int
+    ret %v56
+}
+
+fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
+  b0:
+    %v6 = cmp_eq %d, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = cmp_eq %q, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b9
+
+  b3:
+    %v12 = cmp_eq %r, %x : Bool
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b3, %v12], [b4, %v10] : Bool
+    je %v15, b6, b7
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v21 = phi [b6, 1], [b7, 0] : Int
+    ret %v21
+
+  b9:
+    %v24 = mul %q, %d : U64
+    %v25 = add %v24, %r : U64
+    %v26 = cmp_eq %v25, %x : Bool
+    je %v26, b10, b11
+
+  b10:
+    %v28 = cmp_lt %r, %d : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v31 = phi [b10, %v28], [b11, %v26] : Bool
+    je %v31, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v37 = phi [b13, 1], [b14, 0] : Int
+    ret %v37
+}
+
+fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
+  b0:
+    %v6 = cmp_eq %d, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v10 = cmp_eq %q, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b9
+
+  b3:
+    %v12 = cmp_eq %r, %x : Bool
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b3, %v12], [b4, %v10] : Bool
+    je %v15, b6, b7
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v21 = phi [b6, 1], [b7, 0] : Int
+    ret %v21
+
+  b9:
+    %v24 = mul %q, %d : U32
+    %v25 = add %v24, %r : U32
+    %v26 = cmp_eq %v25, %x : Bool
+    je %v26, b10, b11
+
+  b10:
+    %v28 = cmp_lt %r, %d : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v31 = phi [b10, %v28], [b11, %v26] : Bool
+    je %v31, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v37 = phi [b13, 1], [b14, 0] : Int
+    ret %v37
+}
+
+fn runtimeL(%x: Long, %d: Long) -> Int {
+  b0:
+    %v2 = div %x, %d : Long
+    %v3 = rem %x, %d : Long
+    %v4 = call okL, %x, %d, %v2, %v3 : Int
+    ret %v4
+}
+
+fn runtimeI(%x: Int, %d: Int) -> Int {
+  b0:
+    %v2 = div %x, %d : Int
+    %v3 = rem %x, %d : Int
+    %v4 = call okI, %x, %d, %v2, %v3 : Int
+    ret %v4
+}
+
+fn runtimeU(%x: U64, %d: U64) -> Int {
+  b0:
+    %v2 = div %x, %d : U64
+    %v3 = rem %x, %d : U64
+    %v4 = call okU, %x, %d, %v2, %v3 : Int
+    ret %v4
+}
+
+fn runtimeW(%x: U32, %d: U32) -> Int {
+  b0:
+    %v2 = div %x, %d : U32
+    %v3 = rem %x, %d : U32
+    %v4 = call okW, %x, %d, %v2, %v3 : Int
+    ret %v4
+}
+
+fn literalMinusOneL(%x: Long) -> Int {
+  b0:
+    %v3 = neg 1 : Int
+    %v4 = cast %v3 : Long
+    %v5 = div %x, %v4 : Long
+    %v8 = sub 0, %x : Long
+    %v9 = cmp_eq %v5, %v8 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = neg 1 : Int
+    %v14 = cast %v13 : Long
+    %v15 = rem %x, %v14 : Long
+    %v18 = cmp_eq %v15, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = phi [b1, %v18], [b2, %v9] : Bool
+    je %v21, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = phi [b4, 1], [b5, 0] : Int
+    ret %v27
+}
+
+fn literalMinusOneI(%x: Int) -> Int {
+  b0:
+    %v3 = neg 1 : Int
+    %v4 = div %x, %v3 : Int
+    %v7 = sub 0, %x : Int
+    %v8 = cmp_eq %v4, %v7 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = neg 1 : Int
+    %v13 = rem %x, %v12 : Int
+    %v16 = cmp_eq %v13, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = phi [b1, %v16], [b2, %v8] : Bool
+    je %v19, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = phi [b4, 1], [b5, 0] : Int
+    ret %v25
+}
+
+fn byLiteral() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v3 = load %n : Int
+    %v8 = div 7, 0 : Int
+    %v11 = cmp_eq %v8, 0 : Bool
+    je %v11, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = phi [b1, 1], [b2, 0] : Int
+    %v20 = add %v3, %v19 : Int
+    assign %n, %v20
+    %v22 = load %n : Int
+    %v27 = rem 7, 0 : Int
+    %v30 = cmp_eq %v27, 7 : Bool
+    je %v30, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v38 = phi [b4, 1], [b5, 0] : Int
+    %v39 = add %v22, %v38 : Int
+    assign %n, %v39
+    %v41 = load %n : Int
+    %v44 = neg 7 : Int
+    %v47 = div %v44, 0 : Int
+    %v50 = cmp_eq %v47, 0 : Bool
+    je %v50, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v58 = phi [b7, 1], [b8, 0] : Int
+    %v59 = add %v41, %v58 : Int
+    assign %n, %v59
+    %v61 = load %n : Int
+    %v66 = div 0, 0 : Int
+    %v69 = cmp_eq %v66, 0 : Bool
+    je %v69, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v77 = phi [b10, 1], [b11, 0] : Int
+    %v78 = add %v61, %v77 : Int
+    assign %n, %v78
+    %v80 = load %n : Int
+    %v85 = rem 0, 0 : Int
+    %v88 = cmp_eq %v85, 0 : Bool
+    je %v88, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v96 = phi [b13, 1], [b14, 0] : Int
+    %v97 = add %v80, %v96 : Int
+    assign %n, %v97
+    %v99 = load %n : Int
+    %v103 = neg 1 : Int
+    %v105 = div 7, %v103 : Int
+    %v108 = neg 7 : Int
+    %v109 = cmp_eq %v105, %v108 : Bool
+    je %v109, b16, b17
+
+  b16:
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v117 = phi [b16, 1], [b17, 0] : Int
+    %v118 = add %v99, %v117 : Int
+    assign %n, %v118
+    %v120 = load %n : Int
+    %v124 = neg 1 : Int
+    %v126 = rem 7, %v124 : Int
+    %v129 = cmp_eq %v126, 0 : Bool
+    je %v129, b19, b20
+
+  b19:
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v137 = phi [b19, 1], [b20, 0] : Int
+    %v138 = add %v120, %v137 : Int
+    assign %n, %v138
+    %v140 = load %n : Int
+    %v145 = div 100, 7 : Int
+    %v148 = cmp_eq %v145, 14 : Bool
+    je %v148, b22, b23
+
+  b22:
+    %v154 = rem 100, 7 : Int
+    %v157 = cmp_eq %v154, 2 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v160 = phi [b22, %v157], [b23, %v148] : Bool
+    je %v160, b25, b26
+
+  b25:
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v168 = phi [b25, 1], [b26, 0] : Int
+    %v169 = add %v140, %v168 : Int
+    assign %n, %v169
+    %v171 = load %n : Int
+    ret %v171
+}
+
+fn main() -> Int {
+  b0:
+    %minL = shl 1, 63 : Long
+    %minI = shl 1, 31 : Int
+    %v13 = neg 7 : Long
+    %v16 = add %minL, 1 : Long
+    %longs = alloc : [Long *7]
+    aggregate %local0[0] = 0, %local0[1] = 1, %local0[2] = 7, %local0[3] = %v13, %local0[4] = %minL, %local0[5] = %v16, %local0[6] = 9223372036854775807
+    %v30 = neg 1 : Long
+    %v35 = neg 2 : Long
+    %dLongs = alloc : [Long *7]
+    aggregate %local1[0] = 0, %local1[1] = %v30, %local1[2] = 1, %local1[3] = 2, %local1[4] = %v35, %local1[5] = 3, %local1[6] = 10
+    %v52 = neg 7 : Int
+    %v55 = add %minI, 1 : Int
+    %ints = alloc : [Int *7]
+    aggregate %local2[0] = 0, %local2[1] = 1, %local2[2] = 7, %local2[3] = %v52, %local2[4] = %minI, %local2[5] = %v55, %local2[6] = 2147483647
+    %v69 = neg 1 : Int
+    %v74 = neg 2 : Int
+    %dInts = alloc : [Int *7]
+    aggregate %local3[0] = 0, %local3[1] = %v69, %local3[2] = 1, %local3[3] = 2, %local3[4] = %v74, %local3[5] = 3, %local3[6] = 10
+    %ulongs = alloc : [U64 *5]
+    aggregate %local4[0] = 0, %local4[1] = 1, %local4[2] = 7, %local4[3] = 18446744073709551615, %local4[4] = 9223372036854775808
+    %dULongs = alloc : [U64 *5]
+    aggregate %local5[0] = 0, %local5[1] = 1, %local5[2] = 2, %local5[3] = 3, %local5[4] = 18446744073709551615
+    %uints = alloc : [U32 *5]
+    aggregate %local6[0] = 0, %local6[1] = 1, %local6[2] = 7, %local6[3] = 4294967295, %local6[4] = 2147483648
+    %dUInts = alloc : [U32 *5]
+    aggregate %local7[0] = 0, %local7[1] = 1, %local7[2] = 2, %local7[3] = 3, %local7[4] = 4294967295
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    %j = alloc : Int
+    init %j, 0
+    jmp b1
+
+  b1:
+    %v144 = load %i : Int
+    %v147 = cmp_lt %v144, 7 : Bool
+    je %v147, b3, b2
+
+  b2:
+    assign %i, 0
+    jmp b7
+
+  b3:
+    assign %j, 0
+    jmp b4
+
+  b4:
+    %v152 = load %j : Int
+    %v155 = cmp_lt %v152, 7 : Bool
+    je %v155, b6, b5
+
+  b5:
+    %v233 = load %total : Int
+    %v234 = load %i : Int
+    %v235 = borrow %local0 : &[Long *7]
+    %longs = alloc : Flat(Long)
+    %v237 = addressof [%v235] : %Long
+    init %longs@Flat.items, %v237
+    %v239 = countof 7 : Long
+    %v240 = cast %v239 : I64
+    init %longs@Flat.length, %v240
+    %v242 = cast %v234 : I64
+    %v243 = borrow %longs : &Flat(Long)
+    %v244 = load [%v243]@Flat.items : %Long
+    %v245 = strideof Long : Long
+    %v246 = mul %v242, %v245 : Long
+    %v247 = add %v244, %v246 : %Long
+    %v248 = borrow [%v247] : &Long
+    %v249 = load [%v248] : Long
+    %v250 = call literalMinusOneL, %v249 : Int
+    %v251 = add %v233, %v250 : Int
+    %v252 = load %i : Int
+    %v253 = borrow %local2 : &[Int *7]
+    %ints = alloc : Flat(Int)
+    %v255 = addressof [%v253] : %Int
+    init %ints@Flat.items, %v255
+    %v257 = countof 7 : Long
+    %v258 = cast %v257 : I64
+    init %ints@Flat.length, %v258
+    %v260 = cast %v252 : I64
+    %v261 = borrow %ints : &Flat(Int)
+    %v262 = load [%v261]@Flat.items : %Int
+    %v263 = strideof Int : Long
+    %v264 = mul %v260, %v263 : Long
+    %v265 = add %v262, %v264 : %Int
+    %v266 = borrow [%v265] : &Int
+    %v267 = load [%v266] : Int
+    %v268 = call literalMinusOneI, %v267 : Int
+    %v269 = add %v251, %v268 : Int
+    assign %total, %v269
+    %v271 = load %i : Int
+    %v274 = add %v271, 1 : Int
+    assign %i, %v274
+    jmp b1
+
+  b6:
+    %v157 = load %total : Int
+    %v158 = load %i : Int
+    %v159 = borrow %local0 : &[Long *7]
+    %longs = alloc : Flat(Long)
+    %v161 = addressof [%v159] : %Long
+    init %longs@Flat.items, %v161
+    %v163 = countof 7 : Long
+    %v164 = cast %v163 : I64
+    init %longs@Flat.length, %v164
+    %v166 = cast %v158 : I64
+    %v167 = borrow %longs : &Flat(Long)
+    %v168 = load [%v167]@Flat.items : %Long
+    %v169 = strideof Long : Long
+    %v170 = mul %v166, %v169 : Long
+    %v171 = add %v168, %v170 : %Long
+    %v172 = borrow [%v171] : &Long
+    %v173 = load [%v172] : Long
+    %v174 = load %j : Int
+    %v175 = borrow %local1 : &[Long *7]
+    %dLongs = alloc : Flat(Long)
+    %v177 = addressof [%v175] : %Long
+    init %dLongs@Flat.items, %v177
+    %v179 = countof 7 : Long
+    %v180 = cast %v179 : I64
+    init %dLongs@Flat.length, %v180
+    %v182 = cast %v174 : I64
+    %v183 = borrow %dLongs : &Flat(Long)
+    %v184 = load [%v183]@Flat.items : %Long
+    %v185 = strideof Long : Long
+    %v186 = mul %v182, %v185 : Long
+    %v187 = add %v184, %v186 : %Long
+    %v188 = borrow [%v187] : &Long
+    %v189 = load [%v188] : Long
+    %v190 = call runtimeL, %v173, %v189 : Int
+    %v191 = add %v157, %v190 : Int
+    %v192 = load %i : Int
+    %v193 = borrow %local2 : &[Int *7]
+    %ints = alloc : Flat(Int)
+    %v195 = addressof [%v193] : %Int
+    init %ints@Flat.items, %v195
+    %v197 = countof 7 : Long
+    %v198 = cast %v197 : I64
+    init %ints@Flat.length, %v198
+    %v200 = cast %v192 : I64
+    %v201 = borrow %ints : &Flat(Int)
+    %v202 = load [%v201]@Flat.items : %Int
+    %v203 = strideof Int : Long
+    %v204 = mul %v200, %v203 : Long
+    %v205 = add %v202, %v204 : %Int
+    %v206 = borrow [%v205] : &Int
+    %v207 = load [%v206] : Int
+    %v208 = load %j : Int
+    %v209 = borrow %local3 : &[Int *7]
+    %dInts = alloc : Flat(Int)
+    %v211 = addressof [%v209] : %Int
+    init %dInts@Flat.items, %v211
+    %v213 = countof 7 : Long
+    %v214 = cast %v213 : I64
+    init %dInts@Flat.length, %v214
+    %v216 = cast %v208 : I64
+    %v217 = borrow %dInts : &Flat(Int)
+    %v218 = load [%v217]@Flat.items : %Int
+    %v219 = strideof Int : Long
+    %v220 = mul %v216, %v219 : Long
+    %v221 = add %v218, %v220 : %Int
+    %v222 = borrow [%v221] : &Int
+    %v223 = load [%v222] : Int
+    %v224 = call runtimeI, %v207, %v223 : Int
+    %v225 = add %v191, %v224 : Int
+    assign %total, %v225
+    %v227 = load %j : Int
+    %v230 = add %v227, 1 : Int
+    assign %j, %v230
+    jmp b4
+
+  b7:
+    %v280 = load %i : Int
+    %v283 = cmp_lt %v280, 5 : Bool
+    je %v283, b9, b8
+
+  b8:
+    %v375 = load %total : Int
+    %v376 = call byLiteral : Int
+    %v377 = add %v375, %v376 : Int
+    ret %v377
+
+  b9:
+    assign %j, 0
+    jmp b10
+
+  b10:
+    %v288 = load %j : Int
+    %v291 = cmp_lt %v288, 5 : Bool
+    je %v291, b12, b11
+
+  b11:
+    %v369 = load %i : Int
+    %v372 = add %v369, 1 : Int
+    assign %i, %v372
+    jmp b7
+
+  b12:
+    %v293 = load %total : Int
+    %v294 = load %i : Int
+    %v295 = borrow %local4 : &[U64 *5]
+    %ulongs = alloc : Flat(U64)
+    %v297 = addressof [%v295] : %U64
+    init %ulongs@Flat.items, %v297
+    %v299 = countof 5 : Long
+    %v300 = cast %v299 : I64
+    init %ulongs@Flat.length, %v300
+    %v302 = cast %v294 : I64
+    %v303 = borrow %ulongs : &Flat(U64)
+    %v304 = load [%v303]@Flat.items : %U64
+    %v305 = strideof U64 : Long
+    %v306 = mul %v302, %v305 : Long
+    %v307 = add %v304, %v306 : %U64
+    %v308 = borrow [%v307] : &U64
+    %v309 = load [%v308] : U64
+    %v310 = load %j : Int
+    %v311 = borrow %local5 : &[U64 *5]
+    %dULongs = alloc : Flat(U64)
+    %v313 = addressof [%v311] : %U64
+    init %dULongs@Flat.items, %v313
+    %v315 = countof 5 : Long
+    %v316 = cast %v315 : I64
+    init %dULongs@Flat.length, %v316
+    %v318 = cast %v310 : I64
+    %v319 = borrow %dULongs : &Flat(U64)
+    %v320 = load [%v319]@Flat.items : %U64
+    %v321 = strideof U64 : Long
+    %v322 = mul %v318, %v321 : Long
+    %v323 = add %v320, %v322 : %U64
+    %v324 = borrow [%v323] : &U64
+    %v325 = load [%v324] : U64
+    %v326 = call runtimeU, %v309, %v325 : Int
+    %v327 = add %v293, %v326 : Int
+    %v328 = load %i : Int
+    %v329 = borrow %local6 : &[U32 *5]
+    %uints = alloc : Flat(U32)
+    %v331 = addressof [%v329] : %U32
+    init %uints@Flat.items, %v331
+    %v333 = countof 5 : Long
+    %v334 = cast %v333 : I64
+    init %uints@Flat.length, %v334
+    %v336 = cast %v328 : I64
+    %v337 = borrow %uints : &Flat(U32)
+    %v338 = load [%v337]@Flat.items : %U32
+    %v339 = strideof U32 : Long
+    %v340 = mul %v336, %v339 : Long
+    %v341 = add %v338, %v340 : %U32
+    %v342 = borrow [%v341] : &U32
+    %v343 = load [%v342] : U32
+    %v344 = load %j : Int
+    %v345 = borrow %local7 : &[U32 *5]
+    %dUInts = alloc : Flat(U32)
+    %v347 = addressof [%v345] : %U32
+    init %dUInts@Flat.items, %v347
+    %v349 = countof 5 : Long
+    %v350 = cast %v349 : I64
+    init %dUInts@Flat.length, %v350
+    %v352 = cast %v344 : I64
+    %v353 = borrow %dUInts : &Flat(U32)
+    %v354 = load [%v353]@Flat.items : %U32
+    %v355 = strideof U32 : Long
+    %v356 = mul %v352, %v355 : Long
+    %v357 = add %v354, %v356 : %U32
+    %v358 = borrow [%v357] : &U32
+    %v359 = load [%v358] : U32
+    %v360 = call runtimeW, %v343, %v359 : Int
+    %v361 = add %v327, %v360 : Int
+    assign %total, %v361
+    %v363 = load %j : Int
+    %v366 = add %v363, 1 : Int
+    assign %j, %v366
+    jmp b10
+}

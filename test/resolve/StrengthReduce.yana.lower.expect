@@ -201,7 +201,10 @@ signedLong<complex>(%x: Long): Int {
     %v_97 = sub %x, %v_96: Long
     %v_98 = call_complex okL, %x, 18446744073709551606, %v_95, %v_97: Int
     %v_99 = add %v_91, %v_98: Int
-    ret %v_99
+    %v_100 = neg %x: Long
+    %v_101 = call_complex okL, %x, 18446744073709551615, %v_100, 0: Int
+    %v_102 = add %v_99, %v_101: Int
+    ret %v_102
   }
 }
 
@@ -264,7 +267,10 @@ signedInt<complex>(%x: Int): Int {
     %v_55 = sub %x, %v_54: Int
     %v_56 = call_complex okI, %x, 18446744073709551609, %v_53, %v_55: Int
     %v_57 = add %v_48, %v_56: Int
-    ret %v_57
+    %v_58 = neg %x: Int
+    %v_59 = call_complex okI, %x, 18446744073709551615, %v_58, 0: Int
+    %v_60 = add %v_57, %v_59: Int
+    ret %v_60
   }
 }
 

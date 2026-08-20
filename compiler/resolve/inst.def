@@ -154,6 +154,49 @@ YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPur
  * Signedness is the operand type's, exactly as `Mul`'s choice between `IMul` and `Mul` is.
  */
 YANA_INST(MulHi,        InstBinary,      "mulhi"_v,       kInstResult | kInstPure)
+/*
+ * Division and remainder, and the two divisors the language answers for rather than the machine.
+ *
+ * **`x / 0` is 0, and `x % 0` is `x`.** Integers only - a float divided by zero is IEEE 754's
+ * infinity and always was. The remainder follows from the quotient rather than being a second
+ * ruling: `x == (x / b) * b + (x % b)` is the relation lower_strength.cpp computes a remainder *by*,
+ * so a rule that broke it at zero would make the strength-reduced form and the direct form disagree
+ * about the same expression. It is also what an ARM backend produces for nothing, `rem` being
+ * `sdiv` and `msub` there: `x - 0 * 0` is `x`.
+ *
+ * **`INT_MIN / -1` is `INT_MIN`, and `INT_MIN % -1` is 0.** Not a separate decision either. The true
+ * quotient 2^63 is not representable, so this is signed overflow, and doc/spec/types.md already says
+ * overflow wraps. Stating it is what lets lower_strength.cpp rewrite `x / -1` as `neg x`, which it
+ * previously declined precisely because the question was open.
+ *
+ * ## Why the language answers at all
+ *
+ * Because otherwise four targets answer differently and none of them is written down. x86 raises #DE
+ * on both divisors; AArch64 defines both and traps on neither; JS gives 0 for a 32-bit lane through
+ * the `|0` coercion, NaN in the 33-to-53-bit band through wide.cpp's `wrap`, and *throws* a
+ * RangeError for a `bigint`. That is the same shape as the float-to-integer conversion, which was
+ * settled the same way and for the same reason - see `saturationRange` in resolve/type.h, whose
+ * ruling this one is modelled on down to the cost: a compare and a select.
+ *
+ * The alternative was to abort, and it was declined on one ground: this makes division *total*, and
+ * a total division is ordinary pure arithmetic. `mayFault` in lower_licm.cpp is empty because of it,
+ * so a loop-invariant division hoists; lower_fold.cpp folds the two pairs it used to decline; and a
+ * 32-bit integer lane may be divided through the packed float divider, which faults on nothing and
+ * is the only reason vector division can beat scalar code at all. An aborting division buys none of
+ * those, and costs the same compare.
+ *
+ * ## What is still checked
+ *
+ * A zero divisor is a mistake even where it has an answer, so `emitDivision` in resolve/intrinsic.cpp
+ * emits `checkCondition(b == 0)` in front of an integer division exactly as a subscript emits its
+ * bounds test - same flag, same function, same `-no-checks` to remove it. The defined result is what
+ * an unchecked build produces and what the checked build's abort *replaces*; it is not a fallback
+ * nobody sees. Only `b == 0` is checked: the overflowing pair is defined arithmetic rather than a
+ * mistake, and wraps silently as every other overflow does.
+ *
+ * `makeDivisionTotal` in lower/lower_divide.cpp is what makes the native machines agree with all of
+ * this, and it is a correctness pass rather than an optimization - it runs in every build.
+ */
 YANA_INST(Div,          InstBinary,      "div"_v,         kInstResult | kInstPure)
 YANA_INST(Rem,          InstBinary,      "rem"_v,         kInstResult | kInstPure)
 YANA_INST(Shl,          InstBinary,      "shl"_v,         kInstResult | kInstPure)

@@ -217,7 +217,7 @@ function skipped(n) {
   L0: for (;;) {
     var i = v7;
     if (i < n) {
-      if (i % 2 | 0) {
+      if ($rem(i, 2) | 0) {
         total = total + i | 0;
       }
       var v23 = v7;
@@ -311,5 +311,10 @@ function stopped() {
 
 function main() {
   return walked() + stopped() | 0;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 main();

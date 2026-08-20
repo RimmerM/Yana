@@ -80,13 +80,23 @@
  *
  * ## And the three that have to be true for a computation
  *
- * **It has to be a computation that can be moved.** `isRepeatable` is the list, and it is exactly the
- * right one for CSE and dead-value removal, both of which ask their question at a point the
- * instruction already runs at. This one moves it to a point it did not, so the four dividing
- * operations come out: the machine raises on a zero divisor and on `INT_MIN / -1`, and a division a
- * loop performs behind a guard on its divisor is a division the preheader would perform in front of
- * one. Nothing else in that list can fault - a shift count is masked, a float operation answers a
- * NaN, and a vector operation is lane-wise arithmetic.
+ * **It has to be a computation that can be moved.** `isRepeatable` is the list, and this pass takes
+ * it whole. That is a change: the four dividing operations used to come out of it here, because the
+ * machine raises on a zero divisor and on `INT_MIN / -1`, and a division a loop performs behind a
+ * guard on its divisor is a division the preheader would perform in front of one. They go back in
+ * because the fault is gone rather than because the argument was wrong - `makeDivisionTotal` in
+ * lower_divide.cpp has already replaced every division with one that answers both of those divisors
+ * instead of raising on them, which is most of what the language defining them buys. Nothing in the
+ * list can fault now: a shift count is masked, a float operation answers a NaN, a vector operation
+ * is lane-wise arithmetic, and a division answers 0.
+ *
+ * One exception survives, and it is a narrow one: a division `makeDivisionTotal` left *unguarded*
+ * because a test above it had already settled the divisor. That one cannot fault where it stands and
+ * would above the test, so `mayFault` reads the bit it carries and this pass leaves it alone. It is
+ * the only computation here whose safety is a property of its position rather than of its operands,
+ * and it is worth knowing that anything else faulting added to `isRepeatable` would need the same
+ * treatment - while the other two readers of that list, which ask at a point the instruction already
+ * runs at, would need none.
  *
  * **It has to be a computation the loop actually performs.** An address, a comparison and a copy are
  * each free where they stand - a displacement in an addressing mode, a condition code, a coalesced

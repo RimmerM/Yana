@@ -294,7 +294,7 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
     provider.source = source;
     RecordDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    applyExtensionDirective(context.settings, source);
+    applyFixtureDirectives(context.settings, source);
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("ResolveTest", 11);
@@ -337,7 +337,7 @@ static bool runGenericPass(const String& path, StringView source, I64 expected) 
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    applyExtensionDirective(context.settings, source);
+    applyFixtureDirectives(context.settings, source);
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("ResolveTest", 11);
@@ -636,7 +636,7 @@ static bool runJsPass(const String& path, const String& jsPath, StringView sourc
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    applyExtensionDirective(context.settings, source);
+    applyFixtureDirectives(context.settings, source);
     context.settings.mode = CompileMode::JsExecutable;
     provider.context = &context;
 
@@ -746,7 +746,7 @@ static bool runUnoptimizedPass(const String& path, StringView source, bool force
         provider.source = source;
         PrintDiagnostics diagnostics(provider);
         Context context(diagnostics);
-        applyExtensionDirective(context.settings, source);
+        applyFixtureDirectives(context.settings, source);
         context.settings.optimizeIr = false;
         provider.context = &context;
 
@@ -780,7 +780,7 @@ static bool runUnoptimizedPass(const String& path, StringView source, bool force
         provider.source = source;
         PrintDiagnostics diagnostics(provider);
         Context context(diagnostics);
-        applyExtensionDirective(context.settings, source);
+        applyFixtureDirectives(context.settings, source);
         context.settings.mode = CompileMode::JsExecutable;
         context.settings.optimizeIr = false;
         provider.context = &context;
@@ -868,7 +868,7 @@ static bool runTest(const String& path, StringView source, bool generate) {
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    applyExtensionDirective(context.settings, source);
+    applyFixtureDirectives(context.settings, source);
 
     // The `.own.expect` dump is the only reader of a local's live ranges, and asking for them is
     // what makes the ownership passes build them at all - see CompileSettings::ownershipRanges.

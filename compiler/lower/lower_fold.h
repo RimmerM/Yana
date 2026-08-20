@@ -71,11 +71,12 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
  * group instructions by *shape* - `isBinary` includes the comparison and `FirstUnary` starts at
  * `Set` - and this is a different question.
  *
- * The four dividing operations are in it, and that is worth stating because they can trap. The
- * machine raises on a zero divisor and on `INT_MIN / -1`; neither reader of this list is made unsound
- * by that. Removing the *second* of two identical divisions removes no trap, since the first
- * dominates it and the fault has already happened - and a division nothing reads at all is one this
- * compiler never emits, because a division is only ever written down for its answer.
+ * The four dividing operations are in it, and used to need a paragraph defending that: the machine
+ * raises on a zero divisor and on `INT_MIN / -1`, so they could trap where nothing else here could.
+ * They no longer can. `makeDivisionTotal` in lower_divide.cpp runs in front of every reader of this
+ * list and leaves a division that faults on nothing, which is what makes them ordinary members of it
+ * rather than tolerated ones - and what lets lower_licm.cpp *move* one, which no argument about
+ * dominance could have justified.
  */
 bool isRepeatable(LowerInst* inst);
 

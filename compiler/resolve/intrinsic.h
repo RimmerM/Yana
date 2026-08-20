@@ -50,6 +50,32 @@ inline ModulePtr<Value> emitBinary(ExprResolver& resolver, Buffer<ModulePtr<Valu
     return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, kind, args[0], args[1]));
 }
 
+// `checkCondition(divisor == 0)`, or nothing where the checks are off. Not a template, because the
+// condition it builds is the same one for both operations and neither operand's kind reaches it.
+void emitZeroDivisorCheck(ExprResolver& resolver, ModulePtr<Value> divisor, TypePtr type,
+                          LocationId source);
+
+/*
+ * `/` and `%` at an integer type, which are `emitBinary` with a check in front.
+ *
+ * The instruction is unchanged and so is its meaning: what a zero divisor *produces* is decided by
+ * the language rather than here - see the ruling beside `Div` in inst.def - and made true on each
+ * target by lower_divide.cpp and by the JS emitter. So this is not a guard standing between the
+ * program and undefined behaviour. It is the same thing a subscript's bounds test is: an operation
+ * with a defined answer, whose operand is a mistake worth stopping for anyway, on the one flag that
+ * says whether this binary is the checked one.
+ *
+ * Registered for the integer types alone, and `defineNum` is what decides that rather than a test in
+ * here. A float divided by zero is an IEEE infinity and there is nothing to check; a vector's zero
+ * divisor is a question about lanes, and `checkCondition` takes a `Bool`.
+ */
+template<Value::Kind kind>
+inline ModulePtr<Value> emitDivision(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId resultName) {
+    emitZeroDivisorCheck(resolver, args[1], type, source);
+    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, kind, args[0], args[1]));
+}
+
 template<Value::Kind kind>
 inline ModulePtr<Value> emitUnary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                   LocationId source, StringId resultName) {

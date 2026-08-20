@@ -380,22 +380,71 @@ void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
     generateInstance(module, classNamed(module, "Ord"_v), { &type, 1 }, { methods, 4 }, gen);
 }
 
+/*
+ * The divisor test, which is `checkIndexInBounds` for the other operand a program can get wrong.
+ *
+ * Written as the mistake rather than as the invariant - `b == 0`, not `b != 0` - because that is
+ * what `checkCondition` takes and what makes the branch inside it predict the way it will go.
+ *
+ * The zero is a constant at the *divisor's* type rather than at the instance's, and on JS those can
+ * differ: a `@bits` refinement divides at its canonical width, and a comparison built at the wrong
+ * one of the two is a comparison the lowering then has to reconcile. Reading it off the operand is
+ * free and cannot be wrong.
+ */
+void emitZeroDivisorCheck(ExprResolver& resolver, ModulePtr<Value> divisor, TypePtr type,
+                          LocationId source) {
+    if(!divisor || !resolver.checksEnabled()) return;
+
+    // A divisor the program wrote down is one the reader can see, and checking it would emit
+    // `checkCondition(2 == 0)` in front of every `x / 2`. Skipped here rather than left to the fold
+    // so that a division by a literal is the one instruction it reads as in an unoptimized build
+    // too. A literal *zero* is not skipped: it is the mistake this exists to report.
+    auto written = resolver.local[divisor];
+    if(written->kind == Value::ConstInt && ((ConstInt*)written)->value != 0) return;
+
+    auto divisorType = resolver.valueType(divisor);
+    if(!divisorType) return;
+
+    auto zero = resolver.constant<ConstInt>(source, divisorType, 0);
+    if(!zero) return;
+
+    auto failed = resolver.ref(resolver.emit<InstCmp>(source, StringId(), resolver.module.scalar.bool_,
+                                                      divisor, zero, CompareOp::Eq));
+
+    resolver.emitCheck(failed, source);
+}
+
+/*
+ * `Num`, and the one method whose emitter depends on the type it is being generated for.
+ *
+ * An integer `/` carries the check from the ruling beside `Div` in inst.def; a float `/` and a
+ * vector `/` are the bare instruction. The split is here rather than inside the emitter for the
+ * reason `defineFromInt`'s is: the question is answered once per instance, at the type, and a
+ * per-call test would ask it again at every division in the program.
+ */
 ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type) {
+    auto divide = isCheckedDivisionType(*module.types, type) ? emitDivision<Value::Div>
+                                                             : emitBinary<Value::Div>;
     IntrinsicMethod methods[] = {
         { "+"_v, 2, emitBinary<Value::Add> },
         { "-"_v, 2, emitBinary<Value::Sub> },
         { "*"_v, 2, emitBinary<Value::Mul> },
-        { "/"_v, 2, emitBinary<Value::Div> },
+        { "/"_v, 2, divide },
         { "-"_v, 1, emitUnary<Value::Neg> },
     };
 
     return generateInstance(module, classNamed(module, "Num"_v), { &type, 1 }, { methods, 5 });
 }
 
+// The same split, and `Integral` needs it for the same reason `Num` does even though every type it
+// is generated for is an integer one: a vector of integers reaches here too, and its divisor is the
+// per-lane question `checkCondition` cannot ask.
 ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
+    auto remainder = isCheckedDivisionType(*module.types, type) ? emitDivision<Value::Rem>
+                                                                : emitBinary<Value::Rem>;
     IntrinsicMethod methods[] = {
-        { "rem"_v, 2, emitBinary<Value::Rem> },
-        { "%"_v, 2, emitBinary<Value::Rem> },
+        { "rem"_v, 2, remainder },
+        { "%"_v, 2, remainder },
         { "shl"_v, 2, emitBinary<Value::Shl> },
         { "shr"_v, 2, emitBinary<Value::Shr> },
         { "sar"_v, 2, emitBinary<Value::Sar> },

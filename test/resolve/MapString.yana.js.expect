@@ -401,8 +401,8 @@ function showSigned(value, to$o, to$k, to$s) {
     var digits = "";
     L0: for (;;) {
       if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, remaining / 10n);
+        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
+        remaining = BigInt.asIntN(64, $div(remaining, 10n));
         continue L0;
       }
       break L0;
@@ -552,7 +552,7 @@ function main() {
                         s$3.$v = s$3.$v + "k-";
                         showSigned(BigInt.asIntN(64, BigInt(i)), s$3, "$v", 1);
                         var v379 = s$3.$v;
-                        if (findEntry_String_Held(m, v379, hashKey_String(v379)) >= 0 !== ((i % 2 | 0) !== 0)) {
+                        if (findEntry_String_Held(m, v379, hashKey_String(v379)) >= 0 !== (($rem(i, 2) | 0) !== 0)) {
                           Reclaim_Array_a_reclaim_Held(small.values);
                           Reclaim_Array_a_reclaim_Held(m.values);
                           return -10;
@@ -605,6 +605,15 @@ function main() {
       }
     }
   }
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

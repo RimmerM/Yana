@@ -214,6 +214,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_recover.cpp
     lower/lower_strength.h
     lower/lower_strength.cpp
+    lower/lower_divide.h
+    lower/lower_divide.cpp
     lower/lower_induction.h
     lower/lower_induction.cpp
     lower/lower_merge.h

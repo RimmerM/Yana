@@ -212,7 +212,7 @@ static bool runTest(const String& path, StringView source, const String& outputD
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    applyExtensionDirective(context.settings, source);
+    applyFixtureDirectives(context.settings, source);
     provider.context = &context;
 
     // The same settings a `-mode exe -backend local` build runs under. Stated rather than left at

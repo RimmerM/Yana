@@ -205,6 +205,18 @@ bool isMaskType(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Vector && ((VectorType*)base[type])->isMask;
 }
 
+// Whether a division at this type is the one the language answers for - see the ruling beside `Div`
+// in inst.def, and `defineNum`, which is the only caller. A scalar integer and nothing else: a float
+// divided by zero is an IEEE infinity that needs no check and no lowering, and a vector's zero
+// divisor is a question about lanes that `checkCondition` has no shape to ask.
+//
+// Through the canonical type, so that an alias and a `@bits` refinement of an integer are integers.
+// That is the same reading the arithmetic itself gets, a refined value being widened to its
+// canonical width before any operator sees it.
+bool isCheckedDivisionType(GlobalBase base, TypePtr type) {
+    return type && base[canonicalType(base, type)]->kind == Type::Int;
+}
+
 TypePtr vectorLane(GlobalBase base, TypePtr type) {
     if(!type || base[type]->kind != Type::Vector) return nullptr;
     return ((VectorType*)base[type])->content;

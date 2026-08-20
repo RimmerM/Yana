@@ -3,9 +3,10 @@
 #include "../compiler/compiler/settings.h"
 
 /*
- * Codegen settings a fixture selects for itself, written as a comment on any line of its source:
+ * Settings a fixture selects for itself, written as a comment on any line of its source:
  *
  *     # extensions: v3
+ *     # checks: off
  *
  * Read by three drivers - the resolve suite, the ELF suite and the x64 byte listings - which is why
  * it is here rather than in any one of them. **They have to agree**, and not merely for tidiness:
@@ -18,6 +19,13 @@
  * A `#` is not a comment in Yana, so a `.yana` fixture writes the directive inside its own block
  * comment; a `.lower` fixture writes it at the top, where `#` is the comment character. The scan is
  * a plain substring search either way, which is what lets one reader serve both.
+ *
+ * `# checks: off` is `-no-checks` - see CompileSettings::checks. One fixture wants it and the reason
+ * is worth stating, because "turn the checks off" reads like a performance switch: integer division
+ * by zero has a *defined answer* in this language, and the check that reports it is what stands
+ * between a fixture and observing that answer. `Divide.yana` asserts the answer, so it is compiled
+ * the way a program that has decided to live with it would be. The rest of the rule - the pair the
+ * machine would trap on - needs no directive and is asserted in the checked build beside it.
  *
  * **A fixture with no directive is compiled for v2**, which is the floor and the struct's own
  * default - not the host's level, which is what the command line takes when it is told nothing. A
@@ -53,4 +61,26 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
             return;
         }
     }
+}
+
+// `# checks: off`, which is the one directive that is not about the machine. Deliberately only the
+// one direction: on is the default and a fixture that says so would be saying nothing.
+inline void applyChecksDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# checks: off"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.checks = false;
+        return;
+    }
+}
+
+// Every directive at once. The drivers call this rather than either half, which is what keeps the
+// three of them reading the same fixture the same way - see the note above about why that is not
+// merely tidiness.
+inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
+    applyExtensionDirective(settings, content);
+    applyChecksDirective(settings, content);
 }

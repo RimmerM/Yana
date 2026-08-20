@@ -441,7 +441,7 @@ function main() {
               i = 0;
               L3: for (;;) {
                 if (i < 300) {
-                  if (findEntry_Int_Int(m, i, hashKey_Int(i)) >= 0 !== ((i % 3 | 0) !== 0)) {
+                  if (findEntry_Int_Int(m, i, hashKey_Int(i)) >= 0 !== (($rem(i, 3) | 0) !== 0)) {
                     return -7;
                   } else {
                     i = i + 1 | 0;
@@ -607,6 +607,11 @@ function main() {
       break L1;
     }
   }
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

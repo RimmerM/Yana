@@ -29,9 +29,12 @@
  *     answer the same way, and declining that one too would leave a field whose every input was a
  *     literal reaching both backends as arithmetic.
  *
- * Division and remainder decline a zero divisor for the ordinary reason - the program is entitled to
- * whatever the machine does with it, and that is not a constant this pass may invent - and signed
- * division declines the one overflowing pair for the same reason.
+ * Division and remainder fold every pair, including the two the machine refuses. That is not this
+ * pass being braver than the rest of the file: `x / 0` is 0, `x % 0` is `x` and the overflowing
+ * signed pair wraps, all of which the *language* says rather than a target - see the ruling beside
+ * `Div` in resolve/inst.def. The answer is therefore a constant this pass may invent, which is
+ * exactly what it could not do while the question was open. The C++ these are computed in has its
+ * own undefined pair, so the two special answers are written out rather than evaluated.
  *
  * The floating side declines one more thing, and for a different reason: a NaN or an infinity is a
  * value both targets have and *neither emitter can write*, so a fold that produced one would have
@@ -285,25 +288,45 @@ struct Folder {
                 if(isConstantValue(instruction.rhs, 0)) return zero();
                 break;
             case Value::Div:
-                if(known && rhs != 0) {
+                if(known) {
+                    if(rhs == 0) return zero();
+
                     if(facts.isSigned) {
-                        // The one pair whose quotient the type cannot hold. Left to the machine,
-                        // which is entitled to trap on it.
-                        if(!(I64(rhs) == -1 && I64(lhs) == minLimit<I64>)) return wrap(U64(I64(lhs) / I64(rhs)));
-                    } else {
-                        return wrap(lhs / rhs);
+                        // The one pair whose quotient the type cannot hold, which wraps back to the
+                        // minimum as every other signed overflow does. Written rather than computed:
+                        // `INT64_MIN / -1` is undefined in C++ too. A narrower signed type needs no
+                        // case, its operands arriving sign-extended - so the division below is an
+                        // ordinary one and `wrap` truncates the answer back.
+                        if(I64(rhs) == -1 && I64(lhs) == minLimit<I64>) return wrap(lhs);
+
+                        return wrap(U64(I64(lhs) / I64(rhs)));
                     }
+
+                    return wrap(lhs / rhs);
                 }
+
                 if(isConstantValue(instruction.rhs, 1)) return instruction.lhs;
+
+                // A zero divisor needs nothing known about the dividend: the answer is 0 whatever it
+                // was. The remainder below is the same statement with the other operand surviving.
+                if(isConstantValue(instruction.rhs, 0)) return zero();
                 break;
             case Value::Rem:
-                if(known && rhs != 0) {
+                if(known) {
+                    // `x % 0` is `x`, which the identity `x == (x / d) * d + (x % d)` forces once
+                    // the quotient above is 0.
+                    if(rhs == 0) return instruction.lhs;
+
                     if(facts.isSigned) {
-                        if(!(I64(rhs) == -1 && I64(lhs) == minLimit<I64>)) return wrap(U64(I64(lhs) % I64(rhs)));
-                    } else {
-                        return wrap(lhs % rhs);
+                        if(I64(rhs) == -1 && I64(lhs) == minLimit<I64>) return zero();
+
+                        return wrap(U64(I64(lhs) % I64(rhs)));
                     }
+
+                    return wrap(lhs % rhs);
                 }
+
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
                 break;
             case Value::Shl:
                 // A distance the type itself can hold, which is the range every target's shift

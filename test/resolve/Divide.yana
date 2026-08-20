@@ -1,0 +1,138 @@
+{-
+   **Integer division is total.** Every pair of operands has an answer and no divisor stops the
+   program - doc/spec/types.md, and the ruling beside `Div` in compiler/resolve/inst.def.
+
+   # checks: off
+
+   The directive is the point of the fixture rather than an accident of it. A checked build aborts
+   on a zero divisor, which is the right thing for a program that did not mean to write one and
+   makes the defined answer unobservable; this fixture is compiled the way a program that has
+   decided to live with the answer would be, because the answer is what it is asserting.
+
+   **The four rules.**
+
+       x / 0        == 0
+       x % 0        == x          -- forced by `x == (x / d) * d + (x % d)`
+       minimum / -1 == minimum    -- signed overflow, which wraps
+       minimum % -1 == 0
+
+   The last two need no directive - they are defined arithmetic rather than a mistake, and a checked
+   build computes them exactly as this one does. They are here because x86 raises on them just as it
+   raises on a zero divisor, so they exercise the same guard.
+
+   **The divisors have to be runtime values.** A literal pair is folded before `makeDivisionTotal`
+   ever sees it, so a fixture written with literals would asserts the *folder* and leave the guard
+   untested - and the guard is the half that runs on a real machine. They come out of a fixed array
+   indexed by a loop variable, which is the cheapest thing in the language no fold can see through.
+   `byLiteral` is the other half on purpose: it pins the folded path against the same rules, so the
+   two cannot drift apart.
+
+   Each check contributes 1 and `main` is their count, so a failure says how many rather than which.
+   The divisor lists are short enough to bisect by hand.
+-}
+
+-- The defined quotient and remainder, as one answer per divisor rather than as a property. A
+-- property (`q * d + r == x`) cannot be used for the two special divisors: it holds for `x / 0 == 0`
+-- with any remainder at all, which is exactly the freedom this rule exists to remove.
+fn okL(x: Long, d: Long, q: Long, r: Long) -> Int:
+    if d == 0 then return if q == 0 && r == x then 1 else 0
+    if d == -1 then return if q == 0 - x && r == 0 then 1 else 0
+    return if q * d + r == x then 1 else 0
+
+fn okI(x: Int, d: Int, q: Int, r: Int) -> Int:
+    if d == 0 then return if q == 0 && r == x then 1 else 0
+    if d == -1 then return if q == 0 - x && r == 0 then 1 else 0
+    return if q * d + r == x then 1 else 0
+
+-- Unsigned has no overflowing pair: -1 is the largest divisor rather than a negation, and a
+-- quotient by it is 0 or 1 like any other.
+fn okU(x: U64, d: U64, q: U64, r: U64) -> Int:
+    if d == 0 then return if q == 0 && r == x then 1 else 0
+    return if q * d + r == x && r < d then 1 else 0
+
+fn okW(x: U32, d: U32, q: U32, r: U32) -> Int:
+    if d == 0 then return if q == 0 && r == x then 1 else 0
+    return if q * d + r == x && r < d then 1 else 0
+
+-- One dividend against every divisor, which is where the guard is actually exercised: `d` is a
+-- parameter, so nothing in front of the backend knows which of the three cases it is.
+fn runtimeL(x: Long, d: Long) -> Int = okL(x, d, x / d, x % d)
+fn runtimeI(x: Int, d: Int) -> Int = okI(x, d, x / d, x % d)
+fn runtimeU(x: U64, d: U64) -> Int = okU(x, d, x / d, x % d)
+fn runtimeW(x: U32, d: U32) -> Int = okW(x, d, x / d, x % d)
+
+{-
+   The third path, which is neither of the two above: a divisor written as a literal against a
+   dividend that is not one. `lower_strength.cpp` answers this pair - `x / -1` becomes `neg x` and
+   `x % -1` becomes 0 - so no guard and no fold is involved, and it is the only route by which a
+   division by -1 reaches a machine at all.
+
+   The dividend that matters is the type's minimum, whose quotient by -1 is the one value the type
+   cannot hold. Before the rule it was left as an `idiv`, which raises #DE on exactly that pair; the
+   rewrite is correct because `neg` on the minimum wraps back to it.
+-}
+fn literalMinusOneL(x: Long) -> Int = if x / -1 == 0 - x && x % -1 == 0 then 1 else 0
+fn literalMinusOneI(x: Int) -> Int = if x / -1 == 0 - x && x % -1 == 0 then 1 else 0
+
+{-
+   The same rules where both operands are written down, which is the folded path rather than the
+   guarded one - `foldFunctionConstants` answers all eight of these and no division reaches a
+   machine. Worth asserting separately: the fold and the guard are different code with one rule
+   between them, and a fixture that only tested one would let them disagree.
+-}
+fn byLiteral() -> Int:
+    let &n = 0 :: Int
+
+    n = n + (if 7 / 0 == 0 then 1 else 0)
+    n = n + (if 7 % 0 == 7 then 1 else 0)
+    n = n + (if (-7) / 0 == 0 then 1 else 0)
+    n = n + (if 0 / 0 == 0 then 1 else 0)
+    n = n + (if 0 % 0 == 0 then 1 else 0)
+    n = n + (if 7 / (-1) == -7 then 1 else 0)
+    n = n + (if 7 % (-1) == 0 then 1 else 0)
+    n = n + (if 100 / 7 == 14 && 100 % 7 == 2 then 1 else 0)
+
+    return n
+
+fn main() -> Int:
+    -- The type minimum is built rather than written: a decimal literal for it is the magnitude
+    -- 2^63, which is one past the type and not a number the lexer will accept at it.
+    let minL = (1 :: Long) `shl` 63
+    let minI = (1 :: Int) `shl` 31
+
+    let longs = [0, 1, 7, -7, minL, minL + 1, 9223372036854775807] :: [Long *7]
+    let dLongs = [0, -1, 1, 2, -2, 3, 10] :: [Long *7]
+
+    let ints = [0, 1, 7, -7, minI, minI + 1, 2147483647] :: [Int *7]
+    let dInts = [0, -1, 1, 2, -2, 3, 10] :: [Int *7]
+
+    let ulongs = [0, 1, 7, 18446744073709551615, 9223372036854775808] :: [U64 *5]
+    let dULongs = [0, 1, 2, 3, 18446744073709551615] :: [U64 *5]
+
+    let uints = [0, 1, 7, 4294967295, 2147483648] :: [U32 *5]
+    let dUInts = [0, 1, 2, 3, 4294967295] :: [U32 *5]
+
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+    let &j = 0 :: Int
+
+    while i < 7:
+        j = 0
+        while j < 7:
+            total = total + runtimeL(longs[i], dLongs[j]) + runtimeI(ints[i], dInts[j])
+            j = j + 1
+
+        -- Outside the inner loop: one per dividend rather than one per pair, the divisor being
+        -- written into the function rather than passed to it.
+        total = total + literalMinusOneL(longs[i]) + literalMinusOneI(ints[i])
+        i = i + 1
+
+    i = 0
+    while i < 5:
+        j = 0
+        while j < 5:
+            total = total + runtimeU(ulongs[i], dULongs[j]) + runtimeW(uints[i], dUInts[j])
+            j = j + 1
+        i = i + 1
+
+    return total + byLiteral()

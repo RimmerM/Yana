@@ -50,19 +50,23 @@ bool writesStorage(LowerInst* inst) {
 }
 
 /*
- * Whether a computation may fault where nothing has established that it does not.
+ * Whether a computation may fault where it is being moved to.
  *
- * The four dividing operations and nothing else, which is the whole difference between `isRepeatable`
- * and what may be *moved*. That list is written for two readers who ask at a point the instruction
- * already runs at - see lower_fold.h, which states exactly why a division is safe for both of them -
- * and this reader moves it to a point it did not run at. A loop that tests its divisor and divides
- * behind the test is the shape the distinction is for.
+ * One bit on one kind, and it is *not* the old "a division can trap" rule this replaces. Every
+ * division `makeDivisionTotal` leaves is total and hoists freely - that is most of what defining
+ * `x / 0` bought. The exception is the division that pass left unguarded because a test above it had
+ * already settled the divisor: it cannot fault where it stands and would above the test, so it is
+ * the one computation whose safety is a property of its *position* rather than of its operands.
+ * See LowerInstBinary::kTrustsDivisorTest, which is set nowhere else.
+ *
+ * Nothing else in `isRepeatable` can fault: a shift count is masked, a float operation answers a
+ * NaN, and a vector operation is lane-wise arithmetic.
  */
 bool mayFault(LowerInst* inst) {
     switch(inst->kind) {
         case LowerInst::Div: case LowerInst::IDiv:
         case LowerInst::Rem: case LowerInst::IRem:
-            return true;
+            return ((LowerInstBinary*)inst)->trustsDivisorTest();
         default:
             return false;
     }

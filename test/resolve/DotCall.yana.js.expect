@@ -11,7 +11,7 @@ function main() {
   var i = 0;
   L0: for (;;) {
     if (i < 10) {
-      if ((i % 2 | 0) === 0) {
+      if (($rem(i, 2) | 0) === 0) {
         sum = sum + i | 0;
       }
       i = i + 1 | 0;
@@ -35,5 +35,10 @@ function drop$_Int_sub_gt_Int(value$c, value$e) {
   if (v4 != null) {
     v4[0](value$e);
   }
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 main();
