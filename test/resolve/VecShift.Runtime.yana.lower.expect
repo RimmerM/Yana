@@ -32,10 +32,15 @@ main<complex>(): Int {
     %v_17 = sub %m, 1: Long
     %v_18 = vsplat %v_17: i64x2
     %down = shr %up, %v_18: i64x2
-    %v_19 = vlane %down, 0: Long
-    %v_20 = cast %v_19: Int
-    %v_21 = add %v_15, %v_20: Int
-    ret %v_21
+    %v_19 = vsplat 0: i64x2
+    %v_20 = sub %v_19, %b: i64x2
+    %signed = sar %v_20, %v_16: i64x2
+    %v_21 = vlane %down, 0: Long
+    %v_22 = vlane %signed, 0: Long
+    %v_23 = add %v_21, %v_22: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = add %v_15, %v_24: Int
+    ret %v_25
   }
 }
 

@@ -1,0 +1,59 @@
+# The two integer multiplies x86 has no packed form of - `expandByteMul` and `expandQuadwordMul` in
+# transform.cpp.
+#
+# `pmullw` is SSE2 and `pmulld` is SSE4.1, and that is the whole list: there is no packed multiply of
+# a byte or a quadword at any feature level, `vpmullq` being AVX-512DQ.
+#
+# What to look for:
+#
+#   - **the byte lane is `pmullw` twice**, with `pand` against two pooled word masks and a `por`
+#     between them. Six instructions for sixteen lanes. There is no shift putting the odd half back
+#     where it belongs: shifting one *operand* up instead of the product is what saves it, the low
+#     byte of `(ahi << 8) * bhi` being zero by construction.
+#   - **the quadword is `pmuludq` three times** - `66 0f f4` - with two `psrlq` bringing the high
+#     limbs down, a `paddq`, a `psllq` and a final `paddq`. Three and not four: the fourth partial
+#     product is entirely above the bits that survive.
+#   - **`pmuludq` and not `pmuldq` in both signed and unsigned quadword products.** The low 64 bits
+#     of a product are the same bits in two's complement either way, which is why `imul` and `mul`
+#     reach one sequence here exactly as they reach one row at the widths the machine has.
+
+mulByte(%a: i8x16, %b: i8x16): i8x16 {
+    {
+        %r = imul %a, %b: i8x16
+        ret %r
+    }
+}
+
+# The unsigned spelling, which is the same six instructions: a byte product's low eight bits do not
+# depend on how its operands are read.
+mulByteUnsigned(%a: i8x16, %b: i8x16): i8x16 {
+    {
+        %r = mul %a, %b: i8x16
+        ret %r
+    }
+}
+
+mulQuad(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %r = imul %a, %b: i64x2
+        ret %r
+    }
+}
+
+mulQuadUnsigned(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %r = mul %a, %b: i64x2
+        ret %r
+    }
+}
+
+# A quadword product whose operands are still live afterwards, which is where the shifts cost their
+# copies: `psrlq` writes the register it reads.
+mulQuadLive(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %p = imul %a, %b: i64x2
+        %s = add %a, %b: i64x2
+        %r = add %p, %s: i64x2
+        ret %r
+    }
+}

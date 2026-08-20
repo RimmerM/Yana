@@ -3,8 +3,10 @@
 
 namespace {
 
+// The width the operation works at, which for a vector is one lane's - the guard is lane-wise, so
+// the divisor it refuses is all-ones at the *lane* and not at the register.
 U32 widthOf(LowerType type) {
-    return type == LowerType::Int32 ? 32 : 64;
+    return laneBytes(type.lane) * 8;
 }
 
 U64 maskOf(U32 bits) {
@@ -40,13 +42,30 @@ struct Guard {
         return place(new (module.arena) LowerImm(StringId {}, type, value));
     }
 
+    // The same number at whatever shape the division works at: one immediate for a scalar, and a
+    // splat of one for a vector, which every backend and every pooling pass reads as the constant it
+    // is. A bare `LowerImm` of a vector type is not a thing this IR has.
+    LowerValue* constant(LowerType type, U64 value) {
+        if(!isVectorLike(type)) return imm(type, value);
+
+        auto scalar = imm(scalarFormOf(type), value);
+        return place(new (module.arena) LowerInstVecSplat(StringId {}, type, scalar - base));
+    }
+
     // Written as an equality against a literal, which is the only comparison this pass makes. The
     // literal is placed first because it is an operand of the comparison: `place` pushes in the
     // order the block will run.
     LowerValue* equalsImm(LowerValue* value, U64 literal) {
-        auto against = imm(value->type, literal);
+        auto type = value->type;
+        auto against = constant(type, literal);
+
+        // A comparison of two vectors answers a mask of their shape where one of two scalars answers
+        // a Bool, and the select below reads whichever it is handed - so this is the whole of what a
+        // lane-wise guard changes about the shape.
+        auto answer = isVectorLike(type) ? maskType(type.lane, type.lanes()) : LowerType::Int32;
+
         return place(new (module.arena) LowerInstCmp(StringId {}, value - base, against - base,
-                                                     LowerCmp::eq));
+                                                     LowerCmp::eq, answer));
     }
 
     LowerValue* op(LowerInst::Kind kind, LowerValue* lhs, LowerValue* rhs,
@@ -143,24 +162,49 @@ bool divisorKnownNonZero(LowerBase base, LowerBlock* block, LowerValue* divisor)
 LowerValue* guardDivision(Guard& g, LowerInstBinary* inst) {
     auto type = inst->result.type;
 
-    // Integers only: `isInt` is false for a float, a vector and a mask, which is exactly the three
-    // things with no fault to prevent. A float divides to an infinity IEEE 754 defines, and no
-    // backend accepts a packed integer division for a vector to arrive here as.
-    if(!isInt(type)) return nullptr;
+    /*
+     * Integers, scalar or packed - a float is the one thing here with no fault to prevent, dividing
+     * to an infinity IEEE 754 defines.
+     *
+     * A **vector** is guarded exactly as a scalar is, and has to be: the language's rule is lane-wise
+     * and every route a packed division takes below this faults on the same two divisors a scalar
+     * one does. The x64 backend scalarizes it into `idiv`, which raises #DE; LLVM scalarizes it into
+     * `sdiv`, whose division by zero is undefined outright. What changes for a vector is only that
+     * the comparison answers a mask and the constants are splats - there is no branch here to make
+     * lane-wise, the guard having been branchless from the start.
+     */
+    if(!isInt(type) && !isIntVector(type)) return nullptr;
 
     auto x = g.base[inst->lhs];
     auto b = g.base[inst->rhs];
     if(x->type != type || b->type != type) return nullptr;
 
-    // A literal divisor that is not zero cannot fault - including -1, which lower_strength.cpp has
-    // already turned into a negation by the time this runs. A literal zero is guarded like any other
-    // divisor rather than special-cased: the fold behind this pass collapses the whole chain to the
-    // constant it is, and one path through this function is easier to trust than two.
-    if(b->inst()->kind == LowerInst::Imm && (((LowerImm*)b->inst())->i & maskOf(widthOf(type))) != 0) {
-        return nullptr;
+    auto isSigned = inst->kind == LowerInst::IDiv || inst->kind == LowerInst::IRem;
+
+    /*
+     * A literal divisor that cannot fault, which is most of them.
+     *
+     * Read through a splat, so that `v / 3` over a vector is recognized as the constant it is - the
+     * language types both operands as the same `a`, so a packed division by a written-down number
+     * arrives with its divisor wrapped in one.
+     *
+     * **-1 is only safe where something else has already dealt with it.** For a scalar that is
+     * lower_strength.cpp, which has turned `x / -1` into a negation by the time this runs; it does
+     * not run over vectors, so a packed division by -1 keeps the guard and the overflowing pair is
+     * answered there. A literal zero is guarded like any other divisor rather than special-cased:
+     * the fold behind this pass collapses the whole chain to the constant it is, and one path
+     * through this function is easier to trust than two.
+     */
+    auto literal = b->inst();
+    if(literal->kind == LowerInst::VecSplat) literal = g.base[((LowerInstVecSplat*)literal)->from]->inst();
+
+    if(literal->kind == LowerInst::Imm) {
+        auto mask = maskOf(widthOf(type));
+        auto bits = ((LowerImm*)literal)->i & mask;
+
+        if(bits != 0 && !(isSigned && bits == mask)) return nullptr;
     }
 
-    auto isSigned = inst->kind == LowerInst::IDiv || inst->kind == LowerInst::IRem;
     auto isRemainder = inst->kind == LowerInst::Rem || inst->kind == LowerInst::IRem;
 
     auto mayBeZero = !divisorKnownNonZero(g.base, g.base[inst->block], b);
@@ -189,7 +233,7 @@ LowerValue* guardDivision(Guard& g, LowerInstBinary* inst) {
     // One, because it is the divisor that answers both refused cases usefully rather than merely
     // safely: `x / 1` is `x` and `x % 1` is 0, and the second of those is already what a remainder
     // by -1 has to be.
-    auto safe = g.select(refused, g.imm(type, 1), b);
+    auto safe = g.select(refused, g.constant(type, 1), b);
     auto result = g.op(inst->kind, x, safe);
 
     // The division that came out of this is total only where the test that proved the divisor is
@@ -208,7 +252,7 @@ LowerValue* guardDivision(Guard& g, LowerInstBinary* inst) {
         // still wins: -1 and 0 cannot both hold, but the reader should not have to prove that to
         // read the nesting.
         if(isSigned) result = g.select(dividesByNegativeOne, g.neg(x), result);
-        if(mayBeZero) result = g.select(dividesByZero, g.imm(type, 0), result);
+        if(mayBeZero) result = g.select(dividesByZero, g.constant(type, 0), result);
     }
 
     // The name is put on whatever came out last rather than threaded through the arms, which would

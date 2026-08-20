@@ -1,0 +1,161 @@
+{-
+   # extensions: v3
+
+   `VecStrength.yana` again one level up, where the register is twice as wide and the whole sequence
+   is the same one with `L` set - `vpmuludq` reads dwords 0 and 2 of each 128-bit half and lands
+   their products in that half's quadwords, so the two shuffles that gather the high halves stay
+   in-lane and nothing crosses the middle.
+
+   The four checked lanes are the low half of it. What says the *upper* half is gathered correctly is
+   the identity at the bottom, which is written against the lane count rather than against a list of
+   numbers and therefore means the same thing here as it does one level down.
+
+   A packed division by a constant, turned into a multiply and shifts.
+
+   `strengthReduceFunction` was scalars only - `isInt` is false for a vector - so `v / 3` over four
+   lanes was four `pextrd`, four `idiv` and four `pinsrd` where the scalar path is a multiply-high
+   and two shifts. It is lane-wise arithmetic and nothing else, so extending it needed no new shape:
+   the reciprocal is computed for one *lane*, and the constants it builds are splats.
+
+   **The general route is gated on the lane width and the power-of-two route is not.** A reciprocal
+   needs the top half of a product, which is a packed instruction at a 16-bit lane and an expansion
+   at a 32- and a 64-bit one (`expandVectorMulHi`, out of `pmuludq`/`pmuldq`) and neither at a byte.
+   A power of two is shifts, which every lane width has - see `hasWideningProduct` in
+   lower/lower_strength.cpp, which is where that line is drawn.
+
+   **Every lane is checked, and they hold different numbers.** The expansion gathers the high halves
+   of two widening products with a `shufps` and puts them back in order with a `pshufd`, and a
+   gather that names the wrong lane is a wrong answer in *one* lane - the first version of it read
+   lane 1 twice per group and lanes 0, 1 and 2 all came out right.
+
+   The lanes come from `iota` rather than from a chain of inserts, so that the same source says the
+   same thing at both feature levels: `VecStrength.Vex.yana` is this file one directive apart, where
+   the register is twice as wide and the four checked lanes are the low half of it.
+
+   Each check contributes 1 and `main` is their count.
+-}
+
+-- 71, -129, 271, -329 in lanes 0..3, which is two of each sign, one exact multiple of 4 among them
+-- and none of 3 or 7. `iota` is 0, 1, 2, 3 upward, so the alternating sign is what the odd lanes
+-- carry rather than something a lane index has to be tested for.
+fn values() -> Vec(Int):
+    let indices = iota() :: Vec(Int)
+    let steps = indices * splat(200)
+    let alternating = splat(1) - (indices `and` splat(1)) * splat(2)
+    return (splat(71) + steps) * alternating
+
+-- One function per divisor, and the divisor written *inside* it: a constant that arrives as an
+-- argument is not a constant where the reduction runs, so a fixture that passed the divisor in would
+-- assert the scalarized route it is trying to avoid.
+-- The quadword operands, whose every 32-bit limb is set: a sequence that dropped one of the four
+-- partial products answers correctly for anything that fits in 32 bits.
+fn quads() -> Vec(Long):
+    let indices = iota() :: Vec(Long)
+    let steps = indices * splat(1000000000007 :: Long)
+    let alternating = splat(1 :: Long) - (indices `and` splat(1 :: Long)) * splat(2 :: Long)
+    return (splat(123456789012345 :: Long) + steps) * alternating
+
+@noinline
+fn divBy3(v: Vec(Int)) -> Vec(Int) = v / splat(3)
+@noinline
+fn remBy3(v: Vec(Int)) -> Vec(Int) = v % splat(3)
+@noinline
+fn divBy7(v: Vec(Int)) -> Vec(Int) = v / splat(7)
+@noinline
+fn divByMinus3(v: Vec(Int)) -> Vec(Int) = v / splat(0 - 3)
+@noinline
+fn divBy4(v: Vec(Int)) -> Vec(Int) = v / splat(4)
+@noinline
+fn remBy4(v: Vec(Int)) -> Vec(Int) = v % splat(4)
+@noinline
+fn divByMinus8(v: Vec(Int)) -> Vec(Int) = v / splat(0 - 8)
+@noinline
+fn udivBy3(v: Vec(U32)) -> Vec(U32) = v / splat(3 :: U32)
+@noinline
+fn udivBy7(v: Vec(U32)) -> Vec(U32) = v / splat(7 :: U32)
+@noinline
+fn uremBy7(v: Vec(U32)) -> Vec(U32) = v % splat(7 :: U32)
+
+@noinline
+fn divQuadBy3(v: Vec(Long)) -> Vec(Long) = v / splat(3 :: Long)
+@noinline
+fn remQuadBy3(v: Vec(Long)) -> Vec(Long) = v % splat(3 :: Long)
+@noinline
+fn divQuadByMinus7(v: Vec(Long)) -> Vec(Long) = v / splat(0 - 7 :: Long)
+@noinline
+fn udivQuadBy7(v: Vec(U64)) -> Vec(U64) = v / splat(7 :: U64)
+@noinline
+fn uremQuadBy7(v: Vec(U64)) -> Vec(U64) = v % splat(7 :: U64)
+
+fn check(v: Vec(Int), a: Int, b: Int, c: Int, d: Int) -> Int =
+    if lane(v, 0) == a && lane(v, 1) == b && lane(v, 2) == c && lane(v, 3) == d then 1 else 0
+
+fn main() -> Int:
+    let v = values()
+    let &n = 0 :: Int
+
+    -- The lanes themselves, so that a failure below says which half of the fixture is wrong.
+    n = n + check(v, 71, 0 - 271, 471, 0 - 671)
+
+    -- The general route: an odd divisor is a reciprocal, a multiply-high and two shifts, and the
+    -- rounding is toward zero on both signs.
+    n = n + check(divBy3(v), 23, 0 - 90, 157, 0 - 223)
+    n = n + check(remBy3(v), 2, 0 - 1, 0, 0 - 2)
+    n = n + check(divBy7(v), 10, 0 - 38, 67, 0 - 95)
+    n = n + check(divByMinus3(v), 0 - 23, 90, 0 - 157, 223)
+
+    -- The power-of-two route, which is shifts and the bias that makes an arithmetic shift round the
+    -- way a division does.
+    n = n + check(divBy4(v), 17, 0 - 67, 117, 0 - 167)
+    n = n + check(remBy4(v), 3, 0 - 3, 3, 0 - 3)
+    n = n + check(divByMinus8(v), 0 - 8, 33, 0 - 58, 83)
+
+    -- And the unsigned pair at the same width, where the negative lanes are large numbers and the
+    -- reciprocal is the other one of the two Hacker's Delight computes.
+    let u = bitcast(v) :: Vec(U32)
+    let q = udivBy3(u)
+    let r = udivBy7(u)
+
+    n = n + (if (bitcast(lane(q, 0)) :: Int) == 23 then 1 else 0)
+    n = n + (if (bitcast(lane(q, 1)) :: Int) == 1431655675 then 1 else 0)
+    n = n + (if (bitcast(lane(r, 3)) :: Int) == 613566660 then 1 else 0)
+
+    {-
+       And the identity `q * d + r == v` asserted in **every** lane rather than in the four above,
+       which is what says the upper 128-bit group is gathered correctly at a feature level where
+       there is one. It is written as a mask comparison against the lane count computed the same way
+       (`count(v .== v)`), so the same line means the same thing at four lanes and at eight - which a
+       list of expected numbers cannot.
+    -}
+    n = n + (if count(((divBy3(v) * splat(3)) + remBy3(v)) .== v) == count(v .== v) then 1 else 0)
+    n = n + (if count(((divBy4(v) * splat(4)) + remBy4(v)) .== v) == count(v .== v) then 1 else 0)
+    n = n + (if count(((udivBy7(u) * splat(7 :: U32)) + uremBy7(u)) .== u) == count(u .== u) then 1 else 0)
+
+    {-
+       And the quadword lane, whose high half is four widening products and eight instructions of
+       addition - the carry out of bit 63 has to be *computed*, a packed add setting no flags. It is
+       the one width where the measurement decided rather than the instruction count: 2.5x signed and
+       4.0x unsigned against the `idiv` pair it replaces, with nothing hoisted.
+
+       The lanes are large enough that every limb of both operands is set, which is what the four
+       partial products are for - a sequence that dropped one of the cross terms answers correctly
+       for anything that fits in 32 bits.
+    -}
+    let q = quads()
+
+    n = n + (if lane(q, 0) == 123456789012345 && lane(q, 1) == 0 - (124456789012352 :: Long) then 1 else 0)
+    n = n + (if lane(divQuadBy3(q), 0) == 41152263004115 then 1 else 0)
+    n = n + (if lane(divQuadBy3(q), 1) == 0 - (41485596337450 :: Long) then 1 else 0)
+    n = n + (if lane(divQuadByMinus7(q), 1) == 17779541287478 then 1 else 0)
+
+    -- The unsigned reading of the same lanes, where the negative ones are very large numbers and the
+    -- correction the signed sequence ends with is what must *not* be applied.
+    let uq = bitcast(q) :: Vec(U64)
+    n = n + (if (bitcast(lane(udivQuadBy7(uq), 0)) :: Long) == 17636684144620 then 1 else 0)
+    n = n + (if (bitcast(lane(udivQuadBy7(uq), 1)) :: Long) == 2635231373845791323 then 1 else 0)
+
+    -- And the identity in every lane, at both readings.
+    n = n + (if count(((divQuadBy3(q) * splat(3 :: Long)) + remQuadBy3(q)) .== q) == count(q .== q) then 1 else 0)
+    n = n + (if count(((udivQuadBy7(uq) * splat(7 :: U64)) + uremQuadBy7(uq)) .== uq) == count(uq .== uq) then 1 else 0)
+
+    return n

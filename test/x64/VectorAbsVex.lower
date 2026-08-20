@@ -133,3 +133,15 @@ absLoop(%p: Ptr, %n: Int): f32x4 {
         ret %acc
     }
 }
+
+# The quadword integer lane, which has no `pabsq` before AVX-512 and is a comparison against a
+# hoisted zero, a subtraction and a blend instead. This is where that shape pays what it is supposed
+# to: all three are non-destructive under VEX, so the body is exactly three instructions and the
+# `vpxor` that makes the zero is outside it. The legacy listing beside this one is six, `pblendvb`
+# reading its mask out of xmm0 alone and every operation writing one of its own operands.
+absQuad(%q: i64x2): i64x2 {
+    {
+        %r = abs %q: i64x2
+        ret %r
+    }
+}

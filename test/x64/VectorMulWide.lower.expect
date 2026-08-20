@@ -1,0 +1,125 @@
+
+mulByte<complex>(%a: i8x16, %b: i8x16): i8x16 {
+  b_0 {
+    %r = imul %a, %b: i8x16
+    ret %r
+  }
+}
+
+mulByteUnsigned<complex>(%a: i8x16, %b: i8x16): i8x16 {
+  b_0 {
+    %r = mul %a, %b: i8x16
+    ret %r
+  }
+}
+
+mulQuad<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %r = imul %a, %b: i64x2
+    ret %r
+  }
+}
+
+mulQuadUnsigned<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %r = mul %a, %b: i64x2
+    ret %r
+  }
+}
+
+mulQuadLive<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %p = imul %a, %b: i64x2
+    %s = add %a, %b: i64x2
+    %r = add %p, %s: i64x2
+    ret %r
+  }
+}
+
+
+--- codegen: mulByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f15f8000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d00010000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  mul uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660fd5e1
+  and uses=[xmm4, xmm3] creates=[xmm4]  => 660fdbe3
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm1, -] creates=[xmm1]  => 660f71d108
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => 660fd5c1
+  or uses=[xmm4, xmm0] creates=[xmm4]  => 660febe0
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c3
+
+--- codegen: mulByteUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f15c8000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1dd0000000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  mul uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660fd5e1
+  and uses=[xmm4, xmm3] creates=[xmm4]  => 660fdbe3
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm1, -] creates=[xmm1]  => 660f71d108
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => 660fd5c1
+  or uses=[xmm4, xmm0] creates=[xmm4]  => 660febe0
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c3
+
+--- codegen: mulQuad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm2, -] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f73d220
+  shr uses=[xmm3, -] creates=[xmm3] pre=[xmm1->xmm3]  => 0f28d9660f73d320
+  x86_mulwide uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660ff4e3
+  x86_mulwide uses=[xmm2, xmm1] creates=[xmm2]  => 660ff4d1
+  add uses=[xmm2, xmm4] creates=[xmm2]  => 660fd4d4
+  shl uses=[xmm2, -] creates=[xmm2]  => 660f73f220
+  x86_mulwide uses=[xmm0, xmm1] creates=[xmm0]  => 660ff4c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => 660fd4c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulQuadUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm2, -] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f73d220
+  shr uses=[xmm3, -] creates=[xmm3] pre=[xmm1->xmm3]  => 0f28d9660f73d320
+  x86_mulwide uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660ff4e3
+  x86_mulwide uses=[xmm2, xmm1] creates=[xmm2]  => 660ff4d1
+  add uses=[xmm2, xmm4] creates=[xmm2]  => 660fd4d4
+  shl uses=[xmm2, -] creates=[xmm2]  => 660f73f220
+  x86_mulwide uses=[xmm0, xmm1] creates=[xmm0]  => 660ff4c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => 660fd4c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulQuadLive ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm2, -] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f73d220
+  shr uses=[xmm3, -] creates=[xmm3] pre=[xmm1->xmm3]  => 0f28d9660f73d320
+  x86_mulwide uses=[xmm4, xmm3] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660ff4e3
+  x86_mulwide uses=[xmm2, xmm1] creates=[xmm2]  => 660ff4d1
+  add uses=[xmm2, xmm4] creates=[xmm2]  => 660fd4d4
+  shl uses=[xmm2, -] creates=[xmm2]  => 660f73f220
+  x86_mulwide uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660ff4d9
+  add uses=[xmm3, xmm2] creates=[xmm3]  => 660fd4da
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660fd4c1
+  add uses=[xmm3, xmm0] creates=[xmm3]  => 660fd4d8
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 0f28c3c3

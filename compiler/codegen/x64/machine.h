@@ -48,6 +48,13 @@ enum : MachineOpcodeId {
     OpFunctionAddress,
     OpMove,             // Set
     OpCast,
+
+    // The narrow sign-extension `movsx` writes, which is a cast in every way except that the width
+    // it reads is not in any operand's type - see LowerInst::X86Sext. An opcode of its own rather
+    // than a third OpCast form, because OpCast is flags-selective and this never writes the flags at
+    // any of its widths: that is half of what makes the rewrite worth doing.
+    OpSext,
+
     OpBitcast,
     OpNeg,
     OpNot,
@@ -100,6 +107,11 @@ enum : MachineOpcodeId {
     // and `pmulhuw` differ, and the low-half rows do not. See `MulHi`/`IMulHi` in the lower IR.
     OpVMulHi,
     OpVIMulHi,
+    // The widening even-lane product, which is two opcodes for the reason the high half is: what a
+    // widening multiply does to the bits above its operands' width is exactly where the signedness
+    // of a product becomes visible. See LowerInst::X86MulWide.
+    OpVMulWide,
+    OpVIMulWide,
     OpVDiv,
     OpVAnd,
     OpVOr,
@@ -824,6 +836,11 @@ struct EncodingDescriptor {
 
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     bool omitWhenSame = false; // emits nothing when source and destination are already the same register
+
+    // The r/m operand is an 8-bit register, which needs a REX prefix to name spl/bpl/sil/dil rather
+    // than ah/ch/dh/bh - the same rule `MemForm::byteRegField` applies to the ModRM.reg field, on
+    // the other one. Only a byte-source `movsx` sets it; see FormSext8 in machine.cpp.
+    bool byteRmField = false;
 
     /*
      * The form writes part of its destination register and leaves the rest of it alone, and its

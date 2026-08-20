@@ -3,8 +3,41 @@
 
 namespace {
 
+// The width the arithmetic below works at, which for a vector is one lane's: every rewrite here is
+// lane-wise, and a reciprocal is computed for the lane and not for the register.
 U32 widthOf(LowerType type) {
-    return type == LowerType::Int32 ? 32 : 64;
+    return laneBytes(type.lane) * 8;
+}
+
+/*
+ * Whether the general route - a reciprocal and the top half of its product - may be taken at this
+ * type.
+ *
+ * Always, for a scalar: every machine that has a multiply produces the high half beside the low one.
+ * For a **vector** it is a real question, and the answer is the machine's rather than this pass's: a
+ * packed widening product exists at a 16-bit lane on both native targets, and at a 32- and a 64-bit
+ * lane it is built out of the even-lane multiply x86 has and ARM has a widening pair for. **A byte
+ * lane is the one that is left out**, and not for want of an instruction - `pmullw` would serve -
+ * but because a reciprocal at eight bits is a multiply, two shifts and a correction against a
+ * division whose divisor fits in a byte, and nothing in the corpus asks.
+ *
+ * Below the widths named here a division by a constant stays a division, which the backend then
+ * answers however it answers one - a target with more than this loses an optimization rather than
+ * correctness, which is the right way round for a claim about machines in general made in a file
+ * that names none of them.
+ *
+ * The quadword is the one that was measured rather than argued: the sequence is eight instructions
+ * of addition around four widening products, against the two `idiv r64` it replaces, and it comes
+ * out 2.5x ahead signed and 4.0x unsigned at 128 bits with nothing hoisted - see §60.7 of
+ * test/bench/findings.md.
+ *
+ * The power-of-two cases are not gated: they are shifts, and every lane width has those.
+ */
+bool hasWideningProduct(LowerType type) {
+    if(!isVectorLike(type)) return true;
+
+    auto bits = laneBytes(type.lane) * 8;
+    return bits == 16 || bits == 32 || bits == 64;
 }
 
 U64 maskOf(U32 bits) {
@@ -164,6 +197,14 @@ struct Reducer {
     }
 
     LowerValue* imm(LowerType type, U64 value, StringId name = StringId {}) {
+        // The same number at whatever shape the operation works at: one immediate for a scalar, and
+        // a splat of one for a vector, which every backend and every pooling pass reads as the
+        // constant it is. A bare `LowerImm` of a vector type is not a thing this IR has.
+        if(isVectorLike(type)) {
+            auto scalar = place(new (module.arena) LowerImm(StringId {}, scalarFormOf(type), value));
+            return place(new (module.arena) LowerInstVecSplat(name, type, scalar - base));
+        }
+
         return place(new (module.arena) LowerImm(name, type, value));
     }
 
@@ -265,14 +306,26 @@ LowerValue* reduceSignedDivide(Reducer& r, LowerValue* x, I64 d, U32 bits, Strin
 LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
     auto type = inst->result.type;
     auto x = r.base[inst->lhs];
-    if(!isInt(type) || x->type != type) return nullptr;
 
+    /*
+     * Integers, scalar or packed. Every rewrite below is lane-wise arithmetic over shifts, adds and
+     * products, so a vector needs no shape of its own - what it needs is that its constants are
+     * splats and that its reciprocal is computed for one *lane*, both of which are above.
+     */
+    if(!isInt(type) && !isIntVector(type)) return nullptr;
+    if(x->type != type) return nullptr;
+
+    // Read through the splat the language's spelling wraps a divisor in: `Integral(a)` types both
+    // operands as the same `a`, so `v / 3` over a vector arrives as a division by `vsplat(3)`.
     auto divisor = r.base[inst->rhs];
-    if(divisor->inst()->kind != LowerInst::Imm || !isInt(divisor->type)) return nullptr;
+    auto literal = divisor->inst();
+    if(literal->kind == LowerInst::VecSplat) literal = r.base[((LowerInstVecSplat*)literal)->from]->inst();
+
+    if(literal->kind != LowerInst::Imm || divisor->type != type) return nullptr;
 
     auto bits = widthOf(type);
     auto name = inst->result.name;
-    auto d = ((LowerImm*)divisor->inst())->i & maskOf(bits);
+    auto d = ((LowerImm*)literal)->i & maskOf(bits);
     auto sd = signedValue(d, bits);
 
     switch(inst->kind) {
@@ -283,11 +336,13 @@ LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
 
         case LowerInst::Div:
             if(d < 2) return nullptr;
+            if(!powerOfTwo(d) && !hasWideningProduct(type)) return nullptr;
             return reduceUnsignedDivide(r, x, d, bits, name);
 
         case LowerInst::Rem: {
             if(d < 2) return nullptr;
             if(powerOfTwo(d)) return r.opImm(LowerInst::And, x, d - 1, name);
+            if(!hasWideningProduct(type)) return nullptr;
 
             auto quotient = reduceUnsignedDivide(r, x, d, bits, StringId {});
             return r.op(LowerInst::Sub, x, r.opImm(LowerInst::Mul, quotient, d), name);
@@ -297,10 +352,15 @@ LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
         // lowest value wraps back to it, which is the answer rather than an accident. 0 is still
         // left alone, and deliberately: `makeDivisionTotal` guards it and the fold behind this pass
         // collapses the guard to the constant, which is a shorter route than a rule here would be.
-        case LowerInst::IDiv:
+        case LowerInst::IDiv: {
             if(sd == 0 || sd == 1) return nullptr;
             if(sd == -1) return r.neg(x, name);
+
+            auto magnitude = sd < 0 ? U64(0) - U64(sd) : U64(sd);
+            if(!powerOfTwo(magnitude) && !hasWideningProduct(type)) return nullptr;
+
             return reduceSignedDivide(r, x, sd, bits, name);
+        }
 
         case LowerInst::IRem: {
             if(sd == 0 || sd == 1) return nullptr;
@@ -319,6 +379,8 @@ LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
                 auto truncated = r.opImm(LowerInst::And, biased, ~(magnitude - 1) & maskOf(bits));
                 return r.op(LowerInst::Sub, x, truncated, name);
             }
+
+            if(!hasWideningProduct(type)) return nullptr;
 
             auto quotient = reduceSignedDivide(r, x, sd, bits, StringId {});
             return r.op(LowerInst::Sub, x, r.opImm(LowerInst::IMul, quotient, d), name);

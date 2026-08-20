@@ -12,15 +12,22 @@ fn shifts(%a: Vec(Int), %b: Vec(I64)) -> Int {
     %v21 = shl %b, %v20 : Vec(I64)
     %v25 = vsplat 4 : Vec(I64)
     %wide = shr %v21, %v25 : Vec(I64)
-    %v29 = vlane %left, 0 : Int
-    %v32 = vlane %right, 1 : Int
-    %v33 = add %v29, %v32 : Int
-    %v36 = vlane %arith, 2 : Int
-    %v37 = add %v33, %v36 : Int
-    %v40 = vlane %wide, 0 : I64
-    %v41 = cast %v40 : Int
-    %v42 = add %v37, %v41 : Int
-    ret %v42
+    %v30 = vsplat 0 : Vec(I64)
+    %v31 = sub %v30, %b : Vec(I64)
+    %v35 = vsplat 1 : Vec(I64)
+    %deep = sar %v31, %v35 : Vec(I64)
+    %v39 = vlane %left, 0 : Int
+    %v42 = vlane %right, 1 : Int
+    %v43 = add %v39, %v42 : Int
+    %v46 = vlane %arith, 2 : Int
+    %v47 = add %v43, %v46 : Int
+    %v50 = vlane %wide, 0 : I64
+    %v51 = cast %v50 : Int
+    %v52 = add %v47, %v51 : Int
+    %v55 = vlane %deep, 0 : I64
+    %v56 = cast %v55 : Int
+    %v57 = add %v52, %v56 : Int
+    ret %v57
 }
 
 fn main() -> Int {

@@ -90,13 +90,20 @@ absLoop<complex>(%p: Ptr, %n: Int): f32x4 {
   }
 }
 
+absQuad<complex>(%q: i64x2): i64x2 {
+  b_0 {
+    %r = abs %q: i64x2
+    ret %r
+  }
+}
+
 
 --- codegen: abs32 ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr [rip + $v128$ffffff7fffffff7fffffff7fffffff7f] uses=[] creates=[-]  => 
-  and uses=[xmm0, -] creates=[xmm0]  => c5f85405d8000000
+  and uses=[xmm0, -] creates=[xmm0]  => c5f85405f8000000
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: abs64 ---
@@ -104,7 +111,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr [rip + $v128$ffffffffffffff7fffffffffffffff7f] uses=[] creates=[-]  => 
-  and uses=[xmm0, -] creates=[xmm0]  => c5f95405d8000000
+  and uses=[xmm0, -] creates=[xmm0]  => c5f95405f8000000
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: absTwice ---
@@ -112,7 +119,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => c5f81015b8000000
+  load uses=[-] creates=[xmm2]  => c5f81015d8000000
   and uses=[xmm0, xmm2] creates=[xmm0]  => c5f854c2
   and uses=[xmm1, xmm2] creates=[xmm1]  => c5f054ca
   add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
@@ -123,9 +130,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr [rip + $v128$ffffff7fffffff7fffffff7fffffff7f] uses=[] creates=[-]  => 
-  and uses=[xmm0, -] creates=[xmm0]  => c5f8540598000000
+  and uses=[xmm0, -] creates=[xmm0]  => c5f85405b8000000
   x86_addr [rip + $v128$ffffffffffffff7fffffffffffffff7f] uses=[] creates=[-]  => 
-  and uses=[xmm1, -] creates=[xmm1]  => c5f1540da0000000
+  and uses=[xmm1, -] creates=[xmm1]  => c5f1540dc0000000
   bitcast uses=[xmm1] creates=[xmm1]  => 
   add uses=[xmm0, xmm1] creates=[xmm0]  => c5f858c1
   ret uses=[xmm0] creates=[]  => c3
@@ -157,7 +164,7 @@ block #0:
 block #1:
   load uses=[rdi] creates=[xmm0]  => c5f81007
   x86_addr [rip + $v128$ffffff7fffffff7fffffff7fffffff7f] uses=[] creates=[-]  => 
-  and uses=[xmm0, -] creates=[xmm0]  => c5f8540544000000
+  and uses=[xmm0, -] creates=[xmm0]  => c5f8540564000000
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: absLoop ---
@@ -165,7 +172,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block start:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm0]  => c5f8100538000000
+  load uses=[-] creates=[xmm0]  => c5f8100558000000
   imm uses=[] creates=[-]  => 
   vsplat uses=[-] creates=[xmm1]  => c5f1efc9
   imm uses=[] creates=[-]  => 
@@ -184,4 +191,15 @@ block body:
   cmp_ilt uses=[rcx, rsi] creates=[-]  => 39f1
   je uses=[-] creates=[]  => 7ce6
 block end:
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c3
+
+--- codegen: absQuad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm1]  => c5f1efc9
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm2]  => c4e27137d0
+  sub uses=[xmm1, xmm0] creates=[xmm1]  => c5f1fbc8
+  select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => c4e3794cc920
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c3

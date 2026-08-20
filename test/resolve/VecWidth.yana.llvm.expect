@@ -9,7 +9,7 @@ define fastcc <4 x i16> @arithmetic(<4 x i16> %a) {
 
 1:                                                ; preds = %0
   %sum = add <4 x i16> %a, <i16 4, i16 4, i16 4, i16 4>
-  %product = mul <4 x i16> %a, <i16 4, i16 4, i16 4, i16 4>
+  %product = shl <4 x i16> %a, <i16 2, i16 2, i16 2, i16 2>
   %masked = and <4 x i16> %sum, %product
   %shifted = shl <4 x i16> %masked, <i16 4, i16 4, i16 4, i16 4>
   %2 = sub <4 x i16> %shifted, %a

@@ -1,0 +1,65 @@
+{-
+   The two integer multiplies x86 has no packed form of: a byte lane and a quadword one.
+
+   `pmullw` is SSE2 and `pmulld` is SSE4.1, which is the whole list - `vpmullq` is AVX-512DQ, and
+   there is no byte multiply at any level. Both are built out of the products that do exist, and both
+   are worth building rather than refusing for Design-Vector property 5's reason: a multiply inside
+   vector code already has vector operands, so its alternative is `pextr`, the scalar multiply and
+   `pinsr` per lane, which is sixteen of each at a byte lane. See `expandByteMul` and
+   `expandQuadwordMul` in codegen/x64/transform.cpp, and `x64/VectorMulWide.lower` for the bytes.
+
+   **Both need operands that carry.** A byte product that fits in eight bits says nothing about the
+   masking, and a quadword product whose operands fit in 32 bits says nothing about the two cross
+   terms - it is exactly the partial products a wrong sequence drops. So the quadword operands here
+   have both limbs set and the byte ones multiply up past 255.
+
+   The byte answers are read four at a time through a `Vec(Int)` view, since `lane` at a byte lane
+   reads its 32-bit neighbourhood rather than the byte.
+
+   Each check contributes 1 and `main` is their count.
+-}
+
+fn checkBytes(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn checkQuad(v: Vec(Long), expected: Long) -> Int =
+    if lane(v, 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let &n = 0 :: Int
+
+    -- 0x01, 0xff, 0x73, 0x8f from lane zero up: 1, -1, 115 and -113, two of them negative and three
+    -- of them squaring past a byte.
+    let v = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(I8)
+
+    -- 0x07, 0x03, 0xfe, 0x05: 7, 3, -2 and 5.
+    let w = bitcast(splat(100532999)) :: Vec(I8)
+
+    -- 0xe1a90101 - every lane squared, and only the first two fit in a byte on the way.
+    n = n + checkBytes(v * v, 0 - 509017855)
+
+    -- 0xcb1afd07, which is the same expansion with two different operands rather than one twice: an
+    -- expansion that read one operand where it meant the other passes the square and fails this.
+    n = n + checkBytes(v * w, 0 - 887423737)
+
+    -- The identity, which the masking has to leave alone.
+    n = n + checkBytes(v * splat(1 :: I8), 0 - 1888223487)
+
+    {-
+       The quadword, whose operands have both 32-bit limbs set: 0x0000000300000005 and
+       0x000000070000000b. The answer is 0x4400000037 - the low limb from `alo*blo` and the 0x44 from
+       the two cross terms, which is the half of the sequence a wrong one loses.
+    -}
+    let x = splat(12884901893 :: Long) :: Vec(Long)
+    let y = splat(30064771083 :: Long) :: Vec(Long)
+
+    n = n + checkQuad(x * y, 292057776183)
+
+    -- A negative operand, which is where the partial products being unsigned has to not matter: the
+    -- low 64 bits of a product are the same bits read either way.
+    n = n + checkQuad(x * splat(0 - 3 :: Long), 0 - 38654705679)
+
+    -- And the identity again, which reaches the same eight instructions rather than a shortcut.
+    n = n + checkQuad(x * splat(1 :: Long), 12884901893)
+
+    return n

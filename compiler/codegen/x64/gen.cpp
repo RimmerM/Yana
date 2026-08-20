@@ -372,6 +372,7 @@ struct MemForm {
     U8 prefix = 0;             // a mandatory prefix (0x66, 0xf3), which has to come *before* REX
     bool is64 = false;         // REX.W
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
+    bool byteRmField = false;  // the same, for an 8-bit r/m operand - see EncodingDescriptor
     U8 trailing = 0;           // immediate bytes written after the address - see AsmRelocation
 
     // A VEX or EVEX form reading its operand from memory. The three fields above that it shares -
@@ -1433,6 +1434,7 @@ struct Emitter {
     MemForm memFormOf(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         return MemForm {
             .escape = e.escape, .prefix = e.prefix, .is64 = is64 || evexWideElement(e),
+            .byteRmField = e.byteRmField,
             /*
              * A trailing predicate or pattern byte counts toward the displacement a RIP-relative
              * operand is measured from - see AsmRelocation, which takes the distance from the *end*
@@ -1471,7 +1473,14 @@ struct Emitter {
             form.opCode = e.opcode;
             genSlotOperand(to, frame, reg(regOp), rmOp.at, form);
         } else if(!e.omitWhenSame || regOp.at != rmOp.at) {
-            genRegRegPrefixed(to, form.prefixOf(reg(regOp)), reg(rmOp), reg(regOp), e.opcode);
+            auto prefix = form.prefixOf(reg(regOp));
+
+            // The r/m half of the byte-register rule. `prefixOf` answers for ModRM.reg, which is
+            // the field every other byte-operand form here uses; a byte-source `movsx` is the one
+            // that reads its narrow operand out of the other field - see EncodingDescriptor.
+            if(form.byteRmField && (reg(rmOp) & 7) >= 4) prefix.forceRex = true;
+
+            genRegRegPrefixed(to, prefix, reg(rmOp), reg(regOp), e.opcode);
         }
     }
 
@@ -2388,14 +2397,27 @@ struct Emitter {
          * `vextracti128` has made that half a register in its own right and lane zero of it is the
          * lane this reads.
          */
-        auto quad = laneBytes(type.lane) == 8 && !type.isMask();
-        auto low = within == 0;
+        auto width = laneBytes(type.lane);
+        auto quad = width == 8 && !type.isMask();
+
+        /*
+         * A lane narrower than four bytes has to be read at *its* width: `vpextrd` and `vmovd` both
+         * move four, so a byte lane read through either answers the three lanes above it as well.
+         * `vpextrb` and `vpextrw` are the rows, one and two opcodes below `vpextrd` in the same map,
+         * and both zero-extend - which is the contract a narrow lane leaves this backend by, stated
+         * for the 128-bit tier at `FormVExtract8` and true here for the same reason.
+         *
+         * The `vmovd` shortcut is theirs to lose as well as the opcode: it has no index byte, so it
+         * can only mean lane zero *of four*, and lane zero of sixteen is not the same four bytes.
+         */
+        auto narrow = width < 4 && !type.isMask();
+        auto low = within == 0 && !narrow;
 
         writePrefix(to, InstPrefix {
             .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
             .map = low ? kOpcodeMap0F : kOpcodeMap0F3A, .w = quad,
         }, needsRex(held), false, needsRex(destination));
-        to.buffer.writeByte(low ? 0x7e : 0x16);
+        to.buffer.writeByte(low ? 0x7e : narrow ? (width == 1 ? 0x14 : 0x15) : 0x16);
         to.buffer.writeByte(makeMod(3, destination, held));
         if(!low) to.buffer.writeByte(within);
     }

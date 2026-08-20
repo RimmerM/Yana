@@ -13,15 +13,27 @@
 #   `vreduce` - the butterfly needs a shuffle pairing lane `i` with `i ^ s`, and `pshufd` moves
 #   32-bit lanes. So the levels whose partner is a whole 32-bit lane away are that shuffle over the
 #   register read as `i32`, and the one or two levels *inside* a 32-bit lane happen after the `movd`
-#   every reduction ends in anyway. The `and` at the end is not decoration: `count(mask)` answers an
-#   `Int`, so the partial sums the shifts leave above the low lane have to go.
+#   every reduction ends in anyway.
+#
+#   Those last levels **cut the word into its sub-lanes** rather than combining it against itself
+#   shifted down. The shorter form was wrong and quietly so: the argument for it was that a carry
+#   only travels upward, which holds for one step and fails for the next - the second step reads a
+#   higher sub-lane, and the first step's carry landed there. Sixteen byte lanes of 32 summed to 1
+#   rather than to 0. So `add` and the bitwise pair now take the same route `min` and `max` always
+#   had to, and the extra `and` per piece is the whole of the difference.
+#
+#   The `and` at the end is not decoration either: a narrow lane leaves this backend zero-extended,
+#   which is the contract a lane read answers by and the one `outOfLane` writes in the LLVM backend.
+#   `count(mask)` reads the answer as a whole `Int`.
 #
 #   The unsigned comparisons - `biasUnsignedPackedCompares` builds them out of the signed ones by
 #   flipping the top bit of every lane, and the bias is a splat, so it was refused for exactly the
 #   reason above and works for exactly the reason above.
 #
-# What is left refused at a byte lane is the product, and only the product: the pairwise step is a
-# packed multiply and the machine's narrowest is `pmullw`.
+# ~~What is left refused at a byte lane is the product, and only the product: the pairwise step is a
+# packed multiply and the machine's narrowest is `pmullw`.~~ Nothing is left refused: `expandByteMul`
+# builds the byte multiply out of two word ones and runs below the reduction, so the tree this
+# expands is lowered along with every other multiply in the function.
 
 # A splat of a runtime byte. A constant one never reaches the expansion - `poolVectorConstants` runs
 # first and makes it a `.rodata` load - so this is the shape a search for one byte has.
@@ -64,5 +76,29 @@ belowByte(%a: i8x16, %b: i8x16): m8x16 {
     {
         %m = cmp_lt %a, %b: m8x16
         ret %m
+    }
+}
+
+# The signed twin of `minBytes`, which takes the other of the scalar finish's two shapes: an unsigned
+# piece is masked out of the word and a signed one is shifted up until its own sign bit is the
+# register's and arithmetically back down.
+#
+# The *top* piece is already there, so its raise is `x << 0` - the same guard the unsigned half has
+# at index zero, on the other end of the word. Nothing below this file folds one: `lower_fold.cpp`
+# takes a shift by zero to its operand and runs a whole tier above the expansions.
+#
+# Both lane widths, because the zero falls at a different index in each - three for a byte and one
+# for a word - and one of them alone would not say that it is the last piece rather than a number.
+iminBytes(%v: i8x16): Int {
+    {
+        %r = vreduce_imin %v: Int
+        ret %r
+    }
+}
+
+iminWords(%v: i16x8): Int {
+    {
+        %r = vreduce_imin %v: Int
+        ret %r
     }
 }

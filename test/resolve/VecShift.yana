@@ -22,16 +22,19 @@ fn shifts(a: Vec(Int), b: Vec(I64)) -> Int:
     let right = a `shr` 2
     let arith = a `sar` 1
 
-    -- A quadword lane has `shl` and `shr` and no `sar` before AVX-512, so this pair is what says the
-    -- 64-bit rows are reached and reached correctly.
+    -- A quadword lane has `shl` and `shr` as forms and no `psraq` before AVX-512, so this is where
+    -- the 64-bit rows are reached - and where the arithmetic one is reached through the bias
+    -- `expandQuadwordSar` builds instead of through an instruction.
     let wide = (b `shl` 5) `shr` 4
+    let deep = (0 - b) `sar` 1
 
-    return lane(left, 0) + lane(right, 1) + lane(arith, 2) + (truncate(lane(wide, 0)) :: Int)
+    return lane(left, 0) + lane(right, 1) + lane(arith, 2)
+         + (truncate(lane(wide, 0)) :: Int) + (truncate(lane(deep, 0)) :: Int)
 
 fn main() -> Int:
     -- Lane 2 is negative, so `sar` and `shr` disagree about it and the fixture can tell which ran.
     let a = withLane(withLane(withLane(splat(64), 0, 5), 1, 100), 2, 0 - 32)
     let b = splat(3 :: I64)
 
-    -- 5 << 3 = 40; 100 >> 2 = 25; -32 >> 1 (arithmetic) = -16; (3 << 5) >> 4 = 6.
+    -- 5 << 3 = 40; 100 >> 2 = 25; -32 >> 1 (arithmetic) = -16; (3 << 5) >> 4 = 6; -3 >> 1 = -2.
     return shifts(a, b) + 100

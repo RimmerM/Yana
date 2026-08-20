@@ -14,7 +14,8 @@
 #   - **the opcode is one base per direction with the lane width in the low bits**: `psllw/d/q` are
 #     `F1`/`F2`/`F3`, `psrlw/d/q` are `D1`/`D2`/`D3`, `psraw/d` are `E1`/`E2`. There is no `psraq`
 #     before AVX-512 and no byte shift at all, which is why one direction has two widths here and
-#     the others three.
+#     the others three. The missing one is not a refusal - `expandQuadwordSar` builds it out of the
+#     logical shift and a bias, and `VectorQuadSar.lower` is where that is listed.
 #
 # The counts differ per function on purpose: one shared count would pass with the wrong operand read.
 

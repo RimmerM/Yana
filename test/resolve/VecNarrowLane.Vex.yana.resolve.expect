@@ -1,0 +1,260 @@
+let image$base: () = <none>
+
+fn main() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v7 = sub 0, 1888223487 : Int
+    %v8 = vsplat %v7 : Vec(Int)
+    %bytes = bitcast %v8 : Vec(I8)
+    %v14 = sub 0, 1888223487 : Int
+    %v15 = vsplat %v14 : Vec(Int)
+    %unsignedBytes = bitcast %v15 : Vec(U8)
+    %v17 = load %n : Int
+    %v20 = vlane %bytes, 0 : I8
+    %v21 = cast %v20 : Int
+    %v24 = cmp_eq %v21, 1 : Bool
+    je %v24, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v32 = phi [b1, 1], [b2, 0] : Int
+    %v33 = add %v17, %v32 : Int
+    assign %n, %v33
+    %v35 = load %n : Int
+    %v38 = vlane %bytes, 1 : I8
+    %v39 = cast %v38 : Int
+    %v44 = sub 0, 1 : Int
+    %v45 = cmp_eq %v39, %v44 : Bool
+    je %v45, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v53 = phi [b4, 1], [b5, 0] : Int
+    %v54 = add %v35, %v53 : Int
+    assign %n, %v54
+    %v56 = load %n : Int
+    %v59 = vlane %bytes, 3 : I8
+    %v60 = cast %v59 : Int
+    %v65 = sub 0, 113 : Int
+    %v66 = cmp_eq %v60, %v65 : Bool
+    je %v66, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v74 = phi [b7, 1], [b8, 0] : Int
+    %v75 = add %v56, %v74 : Int
+    assign %n, %v75
+    %v77 = load %n : Int
+    %v80 = vlane %unsignedBytes, 1 : U8
+    %v81 = cast %v80 : Int
+    %v84 = cmp_eq %v81, 255 : Bool
+    je %v84, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v92 = phi [b10, 1], [b11, 0] : Int
+    %v93 = add %v77, %v92 : Int
+    assign %n, %v93
+    %v95 = load %n : Int
+    %v98 = vlane %unsignedBytes, 3 : U8
+    %v99 = cast %v98 : Int
+    %v102 = cmp_eq %v99, 143 : Bool
+    je %v102, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v110 = phi [b13, 1], [b14, 0] : Int
+    %v111 = add %v95, %v110 : Int
+    assign %n, %v111
+    %v117 = sub 0, 1888223487 : Int
+    %v118 = vsplat %v117 : Vec(Int)
+    %words = bitcast %v118 : Vec(I16)
+    %v124 = sub 0, 1888223487 : Int
+    %v125 = vsplat %v124 : Vec(Int)
+    %unsignedWords = bitcast %v125 : Vec(U16)
+    %v127 = load %n : Int
+    %v130 = vlane %words, 0 : I16
+    %v131 = cast %v130 : Int
+    %v136 = sub 0, 255 : Int
+    %v137 = cmp_eq %v131, %v136 : Bool
+    je %v137, b16, b17
+
+  b16:
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v145 = phi [b16, 1], [b17, 0] : Int
+    %v146 = add %v127, %v145 : Int
+    assign %n, %v146
+    %v148 = load %n : Int
+    %v151 = vlane %words, 1 : I16
+    %v152 = cast %v151 : Int
+    %v157 = sub 0, 28813 : Int
+    %v158 = cmp_eq %v152, %v157 : Bool
+    je %v158, b19, b20
+
+  b19:
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v166 = phi [b19, 1], [b20, 0] : Int
+    %v167 = add %v148, %v166 : Int
+    assign %n, %v167
+    %v169 = load %n : Int
+    %v172 = vlane %unsignedWords, 0 : U16
+    %v173 = cast %v172 : Int
+    %v176 = cmp_eq %v173, 65281 : Bool
+    je %v176, b22, b23
+
+  b22:
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v184 = phi [b22, 1], [b23, 0] : Int
+    %v185 = add %v169, %v184 : Int
+    assign %n, %v185
+    %v187 = load %n : Int
+    %v190 = vlane %unsignedWords, 1 : U16
+    %v191 = cast %v190 : Int
+    %v194 = cmp_eq %v191, 36723 : Bool
+    je %v194, b25, b26
+
+  b25:
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v202 = phi [b25, 1], [b26, 0] : Int
+    %v203 = add %v187, %v202 : Int
+    assign %n, %v203
+    %v208 = vsplat 538976288 : Vec(Int, 4)
+    %thirties = bitcast %v208 : Vec(I8, 16)
+    %v210 = load %n : Int
+    %v211 = vreduce_add %thirties : I8
+    %v212 = cast %v211 : Int
+    %v215 = cmp_eq %v212, 0 : Bool
+    je %v215, b28, b29
+
+  b28:
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v223 = phi [b28, 1], [b29, 0] : Int
+    %v224 = add %v210, %v223 : Int
+    assign %n, %v224
+    %v230 = vsplat 0 : Vec(Int, 4)
+    %v233 = vsplat 1 : Vec(Int, 4)
+    %v234 = sub %v230, %v233 : Vec(Int, 4)
+    %minusOnes = bitcast %v234 : Vec(I8, 16)
+    %v236 = load %n : Int
+    %v237 = vreduce_add %minusOnes : I8
+    %v238 = cast %v237 : Int
+    %v243 = sub 0, 16 : Int
+    %v244 = cmp_eq %v238, %v243 : Bool
+    je %v244, b31, b32
+
+  b31:
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v252 = phi [b31, 1], [b32, 0] : Int
+    %v253 = add %v236, %v252 : Int
+    assign %n, %v253
+    %v255 = load %n : Int
+    %v256 = vreduce_min %minusOnes : I8
+    %v257 = cast %v256 : Int
+    %v262 = sub 0, 1 : Int
+    %v263 = cmp_eq %v257, %v262 : Bool
+    je %v263, b34, b35
+
+  b34:
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v271 = phi [b34, 1], [b35, 0] : Int
+    %v272 = add %v255, %v271 : Int
+    assign %n, %v272
+    %v277 = vsplat 16843009 : Vec(Int, 4)
+    %ones = bitcast %v277 : Vec(I8, 16)
+    %v279 = load %n : Int
+    %v280 = vreduce_mul %ones : I8
+    %v281 = cast %v280 : Int
+    %v284 = cmp_eq %v281, 1 : Bool
+    je %v284, b37, b38
+
+  b37:
+    jmp b39
+
+  b38:
+    jmp b39
+
+  b39:
+    %v292 = phi [b37, 1], [b38, 0] : Int
+    %v293 = add %v279, %v292 : Int
+    assign %n, %v293
+    %v295 = load %n : Int
+    %v299 = vsplat 3 : Vec(I16, 8)
+    %v300 = vreduce_mul %v299 : I16
+    %v301 = cast %v300 : Int
+    %v304 = cmp_eq %v301, 6561 : Bool
+    je %v304, b40, b41
+
+  b40:
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v312 = phi [b40, 1], [b41, 0] : Int
+    %v313 = add %v295, %v312 : Int
+    assign %n, %v313
+    %v315 = load %n : Int
+    ret %v315
+}

@@ -6,6 +6,15 @@ function main() {
   var b$0 = 3n;
   var c$0 = -9n;
   var c$1 = -9n;
-  return Number(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, a$0 + b$0) + BigInt.asIntN(64, a$0 - b$0)) + BigInt.asIntN(64, a$0 & b$0)) + BigInt.asIntN(64, a$0 | b$0)) + BigInt.asIntN(64, a$0 ^ b$0)) + BigInt.asIntN(64, a$0 << b$0)) + BigInt.asIntN(64, BigInt.asUintN(64, a$0) >> b$0)) + BigInt.asIntN(64, 0n - c$0)) + BigInt.asIntN(64, a$0 + a$1)) + (a$0 > a$1 ? a$0 : a$1)) + (c$0 < c$1 ? c$0 : c$1)) + BigInt.asIntN(64, BigInt.asUintN(64, 4294967296n) >> 32n))) | 0;
+  return Number(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, a$0 + b$0) + BigInt.asIntN(64, a$0 - b$0)) + BigInt.asIntN(64, a$0 & b$0)) + BigInt.asIntN(64, a$0 | b$0)) + BigInt.asIntN(64, a$0 ^ b$0)) + BigInt.asIntN(64, a$0 << b$0)) + BigInt.asIntN(64, BigInt.asUintN(64, a$0) >> b$0)) + BigInt.asIntN(64, c$0 < 0n ? -c$0 : c$0)) + BigInt.asIntN(64, c$0 >> 2n)) + BigInt.asIntN(64, a$0 * b$0)) + BigInt.asIntN(64, $div(a$0, b$0))) + BigInt.asIntN(64, $rem(a$0, b$0))) + BigInt.asIntN(64, $div(a$0, 0n))) + BigInt.asIntN(64, $rem(a$0, 0n))) + BigInt.asIntN(64, a$0 + a$1)) + (a$0 > a$1 ? a$0 : a$1)) + (c$0 < c$1 ? c$0 : c$1)) + BigInt.asIntN(64, BigInt.asUintN(64, 4294967296n) >> 32n))) | 0;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
 }
 main();

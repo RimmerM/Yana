@@ -1,0 +1,83 @@
+{-
+   # extensions: v3
+
+   `VecShift.PerLane.yana` again one level up, which is where the machine has the family:
+   `vpsllvd`/`vpsllvq`, `vpsrlvd`/`vpsrlvq` and `vpsravd`, one instruction each. The two files differ
+   in one line and have to answer the same numbers - a per-lane shift is one instruction here and
+   `pextr`, the scalar shift and `pinsr` per lane one level down, and those are different code with
+   one rule between them. `x64/VectorShiftVar.lower` is the byte-level half.
+
+   The quadword `sar` is the one that is still not an instruction: there is no `vpsravq` before
+   AVX-512, so `expandQuadwordSar` builds it out of `vpsrlvq` and a bias - four instructions rather
+   than two lanes' worth of transfers. Its lanes are the reason the counts below differ per lane at
+   that width too.
+
+   The claim was that the language cannot write one: `class (Num(a)) Integral(a)` declares
+   `shl(lhs: a, rhs: a)`, so a shift by a number arrives with the number wrapped in a splat and
+   `unwrapVectorShiftCounts` takes the splat off. But typing both operands as the same `a` is exactly
+   what makes `v `shl` w` over two *vectors* typecheck, and there the count is a whole vector with a
+   different number in every lane. `VecShift.yana` and `VecShift.Runtime.yana` are the shared-count
+   halves; this is the one that was refused.
+
+   `scalarizeVectorLanes` in codegen/x64/transform.cpp is what it takes: AVX2 has the family
+   (`vpsllvd` and siblings) and v2 has nothing at all, so the general answer is one lane at a time.
+
+   **Every lane holds a different count**, which is the whole point - a shared count and a per-lane
+   one agree whenever the counts happen to be equal, so a fixture whose counts are equal asserts
+   nothing. And `sar` is over a negative value, since that is all that tells it from `shr`.
+
+   Each check contributes 1 and `main` is their count.
+-}
+
+fn counts() -> Vec(Int) =
+    withLane(withLane(withLane(splat(0), 1, 1), 2, 4), 3, 31)
+
+fn main() -> Int:
+    let &n = 0 :: Int
+    let by = counts()
+
+    -- 0x00000100 shifted left by 0, 1, 4 and 31: 256, 512, 4096 and 0, the last shifting its one bit
+    -- clean out of the lane.
+    let v = splat(256 :: Int)
+    let left = v `shl` by
+
+    n = n + (if lane(left, 0) == 256 then 1 else 0)
+    n = n + (if lane(left, 1) == 512 then 1 else 0)
+    n = n + (if lane(left, 2) == 4096 then 1 else 0)
+    n = n + (if lane(left, 3) == 0 then 1 else 0)
+
+    -- The two right shifts over a negative value, which is where they part company: -256 logically
+    -- is a large positive number, arithmetically it stays -256 shifted.
+    let w = splat(0 - 256 :: Int)
+    let logical = w `shr` by
+    let arith = w `sar` by
+
+    n = n + (if lane(logical, 0) == 0 - 256 then 1 else 0)
+    n = n + (if lane(logical, 1) == 2147483520 then 1 else 0)
+    n = n + (if lane(logical, 2) == 268435440 then 1 else 0)
+    n = n + (if lane(logical, 3) == 1 then 1 else 0)
+
+    n = n + (if lane(arith, 0) == 0 - 256 then 1 else 0)
+    n = n + (if lane(arith, 1) == 0 - 128 then 1 else 0)
+    n = n + (if lane(arith, 2) == 0 - 16 then 1 else 0)
+    n = n + (if lane(arith, 3) == 0 - 1 then 1 else 0)
+
+    -- The quadword lane, which is two counts rather than four and the same expansion.
+    let q = splat(0 - 65536 :: Long) :: Vec(Long)
+    let qby = withLane(splat(0 :: Long), 1, 8)
+    let qarith = q `sar` qby
+
+    n = n + (if lane(qarith, 0) == 0 - 65536 then 1 else 0)
+    n = n + (if lane(qarith, 1) == 0 - 256 then 1 else 0)
+
+    -- And a byte lane, where the value has to have its sign put back before the shift and the count
+    -- does not: a count is a distance, and one that does not fit the lane is out of range in any
+    -- reading. 0x8f is -113, and -113 >> 2 is -29.
+    let bytes = bitcast(splat(0 - 1888223487)) :: Vec(I8)
+    let bby = bitcast(splat(33686018)) :: Vec(I8)
+    let barith = bytes `sar` bby
+
+    n = n + (if ((lane(barith, 3) :: I8) :: Int) == 0 - 29 then 1 else 0)
+    n = n + (if ((lane(barith, 0) :: I8) :: Int) == 0 then 1 else 0)
+
+    return n

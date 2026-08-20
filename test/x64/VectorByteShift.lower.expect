@@ -1,0 +1,142 @@
+
+shlByte<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %r = shl %v, 1: i8x16
+    ret %r
+  }
+}
+
+shrByte<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %r = shr %v, 3: i8x16
+    ret %r
+  }
+}
+
+sarByte<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %r = sar %v, 3: i8x16
+    ret %r
+  }
+}
+
+shrByteTwice<complex>(%a: i8x16, %b: i8x16): i8x16 {
+  b_0 {
+    %x = shr %a, 3: i8x16
+    %y = shr %b, 3: i8x16
+    %r = add %x, %y: i8x16
+    ret %r
+  }
+}
+
+shlByteReg<complex>(%v: i8x16, %n: Int): i8x16 {
+  b_0 {
+    %r = shl %v, %n: i8x16
+    ret %r
+  }
+}
+
+sarByteReg<complex>(%v: i8x16, %n: Int): i8x16 {
+  b_0 {
+    %r = sar %v, %n: i8x16
+    ret %r
+  }
+}
+
+
+--- codegen: shlByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d08010000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shl uses=[xmm0, -] creates=[xmm0]  => 660f71f001
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shrByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0df8000000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f71d003
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: sarByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0de8000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f15d0000000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f71d003
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  xor uses=[xmm0, xmm1] creates=[xmm0]  => 660fefc1
+  sub uses=[xmm0, xmm1] creates=[xmm0]  => 660ff8c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shrByteTwice ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f15a8000000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f71d003
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  shr uses=[xmm1, -] creates=[xmm1]  => 660f71d103
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  and uses=[xmm1, xmm2] creates=[xmm1]  => 660fdbca
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffcc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shlByteReg ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  shl uses=[rax, rcx] creates=[rax] pre=[remat:0->rax, rdi->rcx]  => b8ff0000008bcfd3e0
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax]  => 81e0ff000000
+  vsplat uses=[rax] creates=[xmm1]  => 660f6ec866450fefff66410f3800cf
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shl uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410ff1c7
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: sarByteReg ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  shr uses=[rax, rcx] creates=[rax] pre=[remat:0->rax, rdi->rcx]  => b8ff0000008bcfd3e8
+  vsplat uses=[rax] creates=[xmm1]  => 660f6ec866450fefff66410f3800cf
+  imm uses=[] creates=[remat:1]  => 
+  sub uses=[rcx, rdi] creates=[rcx] pre=[remat:1->rcx]  => b90700000029f9
+  imm uses=[] creates=[remat:2]  => 
+  shl uses=[rax, rcx] creates=[rax] pre=[remat:2->rax]  => b801000000d3e0
+  vsplat uses=[rax] creates=[xmm2]  => 660f6ed066450fefff66410f3800d7
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, rdi] creates=[xmm0]  => 66440f6eff66410fd1c7
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => 660fefc2
+  sub uses=[xmm0, xmm2] creates=[xmm0]  => 660ff8c2
+  ret uses=[xmm0] creates=[]  => c3

@@ -1,0 +1,149 @@
+# The *high* half of a product at a 32-bit lane, which is what a division by a constant needs and
+# which `pmulld` does not give - `expandVectorMulHi` in transform.cpp.
+#
+# There is no `pmulhd` at any feature level. What there is instead is the widening even-lane product
+# (`pmuludq`/`pmuldq`, see LowerInst::X86MulWide) run twice and gathered:
+#
+#     t0 = mulwide(a, b)                   -- 64-bit products of lanes 0 and 2
+#     t1 = mulwide(odd(a), odd(b))         -- and of lanes 1 and 3, brought down by a `pshufd`
+#     r  = the four high dwords, put back in lane order
+#
+# What to look for:
+#
+#   - **two `pshufd`, two `pmuludq`, a `shufps` and a `pshufd`** - six instructions for four lanes,
+#     against the four `pextrd`, four `idiv` and four `pinsrd` that a division by a constant costs
+#     without it. `strengthReduceFunction` is where the division becomes this, a whole tier above.
+#   - **`pmuldq` in the signed row and `pmuludq` in the unsigned one.** This is the one place where a
+#     multiplication's signedness is visible in its bits, which is why `X86MulWide` carries its own
+#     rather than reading the type's.
+#   - **every shuffle is in-lane**, which is what makes the 256-bit twin the same sequence with `L`
+#     set: `vpmuludq` reads dwords 0 and 2 of each 128-bit half and lands their products in that
+#     half's quadwords, so nothing here crosses the middle.
+#
+# The **quadword** is the other half of the same idea and four products rather than two: the high
+# half of a 64x64 needs every partial product, where the low half needs three. What to look for
+# there:
+#
+#   - **four `pmuludq` and two `pshufd`**, and the shuffles swap the two dwords of each quadword
+#     (`0xb1`) rather than duplicating one - the widening multiply reads the low dword of each
+#     quadword, so exchanging them is what brings a high limb into reach, with no masking and no
+#     shift.
+#   - **`pmuludq` in the signed row too.** A widening multiply of the *limbs* is unsigned whatever
+#     the whole values are, a limb being 32 bits of a number rather than a number. The signed reading
+#     is a correction at the end - `x <s 0 ? y : 0` subtracted per operand - which is where the two
+#     `psrad` come from, and they are 32-bit shifts on purpose: what is wanted is the sign repeated
+#     across both dwords, not the value shifted.
+#   - **three `psrlq` and a `pand` between the adds**, which is the carry out of bit 63 being
+#     computed. A packed add sets no flags, so there is nothing to read one out of.
+#
+# The 16-bit lane is not here: `pmulhw`/`pmulhuw` are ordinary forms and never reach the expansion.
+# A byte lane is refused, `pmuludq` being the narrowest widening product the machine has.
+
+mulHiQuadSigned(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %r = imulhi %a, %b: i64x2
+        ret %r
+    }
+}
+
+mulHiQuadUnsigned(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %r = mulhi %a, %b: i64x2
+        ret %r
+    }
+}
+
+mulHiSigned(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = imulhi %a, %b: i32x4
+        ret %r
+    }
+}
+
+mulHiUnsigned(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = mulhi %a, %b: i32x4
+        ret %r
+    }
+}
+
+# The 16-bit lane beside them, which is one instruction and is what the expansion above does not
+# touch.
+mulHiWord(%a: i16x8, %b: i16x8): i16x8 {
+    {
+        %r = imulhi %a, %b: i16x8
+        ret %r
+    }
+}
+
+# A multiply-high by a **constant**, in a loop, which is what a strength-reduced division actually is.
+# The two functions below are where the placement rule is visible - see `deriveBeside` in
+# transform.cpp - and there are three things to look for in each:
+#
+#   - **the loop body holds no work derived from the multiplier.** The high limb of a constant and its
+#     sign are as loop-invariant as the constant is, and this pass runs below the last code motion
+#     there was - so what it builds beside the *reader* stays in the loop for ever. Built beside the
+#     constant instead, it lands wherever LICM decided the constant belongs.
+#   - **and then it is not an instruction at all.** `constantVectorBytes` reads through a shuffle and
+#     a shared-count shift now, so `poolVectorConstants` puts the rearranged pattern straight in the
+#     image: what was a `pshufd` in the loop is a second `.rodata` entry outside it.
+#   - **a positive multiplier costs no signed correction.** `x <s 0 ? y : 0` is zero in every lane
+#     when `x` cannot be negative, which is exactly a division by a positive divisor - so the pair of
+#     instructions that would have been `and` against a mask of zeros and `sub` of the result is not
+#     built. The dividend keeps its correction, since it can be negative.
+
+quadByConstant(%p: Ptr, %count: Int): i64x2 {
+    start {
+        %z = imm 0L: Long
+        %acc0 = vsplat %z: i64x2
+        %m = imm 6148914691236517206L: Long
+        %mul = vsplat %m: i64x2
+        jmp head
+    }
+
+    head {
+        %acc = phi [start, %acc0], [body, %acc2]: i64x2
+        %n = phi [start, %count], [body, %n2]: Int
+        je (cmp_le %n, 0), body, end
+    }
+
+    body {
+        %n2 = sub %n, 1: Int
+        %v = load %p, 16: i64x2
+        %q = imulhi %v, %mul: i64x2
+        %acc2 = add %acc, %q: i64x2
+        jmp head
+    }
+
+    end {
+        ret %acc
+    }
+}
+
+wordByConstant(%p: Ptr, %count: Int): i32x4 {
+    start {
+        %z = imm 0: Int
+        %acc0 = vsplat %z: i32x4
+        %m = imm 1431655766: Int
+        %mul = vsplat %m: i32x4
+        jmp head
+    }
+
+    head {
+        %acc = phi [start, %acc0], [body, %acc2]: i32x4
+        %n = phi [start, %count], [body, %n2]: Int
+        je (cmp_le %n, 0), body, end
+    }
+
+    body {
+        %n2 = sub %n, 1: Int
+        %v = load %p, 16: i32x4
+        %q = imulhi %v, %mul: i32x4
+        %acc2 = add %acc, %q: i32x4
+        jmp head
+    }
+
+    end {
+        ret %acc
+    }
+}

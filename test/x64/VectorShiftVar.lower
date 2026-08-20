@@ -1,0 +1,88 @@
+# extensions: v3
+#
+# A shift whose count is one per lane, where the machine has the family - AVX2's `vpsllv` and its
+# siblings, and nothing at all below AVX2.
+#
+# `VectorDivide.lower` is the other half: at v2 this is `pextr`, the scalar shift and `pinsr` per
+# lane, which is what `scalarizeVectorLanes` writes and what the same functions compile to one
+# directive away.
+#
+# What to look for:
+#
+#   - **one instruction**, three-operand and non-destructive, and the operand order is the IR's
+#     without rearrangement: the value being shifted is `vvvv` and the counts are the r/m operand.
+#   - **the lane width is `VEX.W`**, which no other packed family here states that way: `vpsllvd` and
+#     `vpsllvq` are one opcode and one bit apart, so the rows are `Fixed32`/`Fixed64` and
+#     `widthInPrefix` is false - here the width *is* what the prefix bit means.
+#   - **the quadword `sar` is four instructions and not one.** There is no `vpsravq` before AVX-512,
+#     so it is `expandQuadwordSar`'s bias with `vpsrlvq` in place of `psrlq`: the identity is
+#     lane-wise in the count as well as in the value, so `K = 1 << (63 - n)` is the pooled sign bit
+#     shifted right by each lane's own count.
+#   - **the wide twins are the same rows with `L` set**, which is the whole of the difference.
+
+varShl32(%v: i32x4, %n: i32x4): i32x4 {
+    {
+        %r = shl %v, %n: i32x4
+        ret %r
+    }
+}
+
+varShl64(%v: i64x2, %n: i64x2): i64x2 {
+    {
+        %r = shl %v, %n: i64x2
+        ret %r
+    }
+}
+
+varShr32(%v: i32x4, %n: i32x4): i32x4 {
+    {
+        %r = shr %v, %n: i32x4
+        ret %r
+    }
+}
+
+varShr64(%v: i64x2, %n: i64x2): i64x2 {
+    {
+        %r = shr %v, %n: i64x2
+        ret %r
+    }
+}
+
+varSar32(%v: i32x4, %n: i32x4): i32x4 {
+    {
+        %r = sar %v, %n: i32x4
+        ret %r
+    }
+}
+
+# The one with no instruction, built out of the one above it.
+varSar64(%v: i64x2, %n: i64x2): i64x2 {
+    {
+        %r = sar %v, %n: i64x2
+        ret %r
+    }
+}
+
+# The 256-bit tier, which is the same rows with `L` set.
+wideVarShl32(%v: i32x8, %n: i32x8): i32x8 {
+    {
+        %r = shl %v, %n: i32x8
+        ret %r
+    }
+}
+
+wideVarSar64(%v: i64x4, %n: i64x4): i64x4 {
+    {
+        %r = sar %v, %n: i64x4
+        ret %r
+    }
+}
+
+# A byte lane, which AVX2 has no per-lane shift of at any width - so this is the scalarized route
+# even here, and is what says the two are chosen by the lane and not only by the feature level.
+varShlByte(%v: i8x16, %n: i8x16): i8x16 {
+    {
+        %r = shl %v, %n: i8x16
+        ret %r
+    }
+}

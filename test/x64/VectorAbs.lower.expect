@@ -53,13 +53,29 @@ absNonDestructive<complex>(%d: i32x4): i32x4 {
   }
 }
 
+absQuad<complex>(%q: i64x2): i64x2 {
+  b_0 {
+    %r = abs %q: i64x2
+    ret %r
+  }
+}
+
+absQuadTwice<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %x = abs %a: i64x2
+    %y = abs %b: i64x2
+    %r = add %x, %y: i64x2
+    ret %r
+  }
+}
+
 
 --- codegen: abs32 ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm1]  => 0f100d89000000
+  load uses=[-] creates=[xmm1]  => 0f100df9000000
   and uses=[xmm0, xmm1] creates=[xmm0]  => 0f54c1
   ret uses=[xmm0] creates=[]  => c3
 
@@ -68,7 +84,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm1]  => 0f100d89000000
+  load uses=[-] creates=[xmm1]  => 0f100df9000000
   and uses=[xmm0, xmm1] creates=[xmm0]  => 660f54c1
   ret uses=[xmm0] creates=[]  => c3
 
@@ -77,7 +93,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => 0f101569000000
+  load uses=[-] creates=[xmm2]  => 0f1015d9000000
   and uses=[xmm0, xmm2] creates=[xmm0]  => 0f54c2
   and uses=[xmm1, xmm2] creates=[xmm1]  => 0f54ca
   add uses=[xmm0, xmm1] creates=[xmm0]  => 0f58c1
@@ -88,9 +104,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => 0f101559000000
+  load uses=[-] creates=[xmm2]  => 0f1015c9000000
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm3]  => 0f101d42000000
+  load uses=[-] creates=[xmm3]  => 0f101db2000000
   and uses=[xmm0, xmm3] creates=[xmm0]  => 0f54c3
   and uses=[xmm1, xmm2] creates=[xmm1]  => 660f54ca
   bitcast uses=[xmm1] creates=[xmm1]  => 
@@ -117,3 +133,29 @@ block #1:
   abs uses=[xmm0] creates=[xmm1]  => 660f381ec8
   add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: absQuad ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm0->xmm1]  => 0f28c8
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  cmp_igt uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3837d1
+  sub uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660ffbd9
+  select uses=[xmm3, xmm1, xmm2] creates=[xmm1]  => 0f28c2660f3810cb
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: absQuadTwice ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm2, xmm0->xmm1]  => 0f28d10f28c8
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm3]  => 660fefdb
+  cmp_igt uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm3->xmm4]  => 0f28e3660f3837e1
+  sub uses=[xmm5, xmm1] creates=[xmm5] pre=[xmm3->xmm5]  => 0f28eb660ffbe9
+  select uses=[xmm5, xmm1, xmm4] creates=[xmm1]  => 0f28c4660f3810cd
+  cmp_igt uses=[xmm4, xmm2] creates=[xmm4] pre=[xmm3->xmm4]  => 0f28e3660f3837e2
+  sub uses=[xmm3, xmm2] creates=[xmm3]  => 660ffbda
+  select uses=[xmm3, xmm2, xmm4] creates=[xmm2]  => 0f28c4660f3810d3
+  add uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660fd4c2
+  ret uses=[xmm0] creates=[]  => c3

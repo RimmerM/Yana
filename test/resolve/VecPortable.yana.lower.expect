@@ -354,36 +354,42 @@ regrouping<complex>(%v: i32x4): Int {
     %v_2 = cast %other: i16x4
     %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
     %v_3 = vlane %packed, 0: Int
-    %v_4 = cmp_neq %v_3, 2: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    ret 18446744073709551614
-  }
-
-  b_6 {
-    %v_7 = vlane %packed, 4: Int
-    %v_8 = cmp_neq %v_7, 5: Int
-    je %v_8, b_9, b_10
+    %v_4 = imm 16: Int
+    %v_5 = shl %v_3, %v_4: Int
+    %v_6 = sar %v_5, %v_4: Int
+    %v_7 = cmp_neq %v_6, 2: Int
+    %v_8 = imm 16: Int
+    je %v_7, b_9, b_10
   }
 
   b_9 {
-    ret 18446744073709551613
+    ret 18446744073709551614
   }
 
   b_10 {
-    %v_11 = vshuffle %packed, %packed, 0, 1, 2, 3: i16x4
-    %low = cast %v_11: i32x4
-    %v_12 = vshuffle %packed, %packed, 4, 5, 6, 7: i16x4
-    %high = cast %v_12: i32x4
-    %v_13 = vlane %low, 0: Int
-    %v_14 = cmp_neq %v_13, 2: Int
-    %v_15 = vlane %high, 0: Int
-    %v_16 = cmp_neq %v_15, 5: Int
-    %v_17 = select %v_16, 18446744073709551611, 0: Int
-    %v_18 = select %v_14, 18446744073709551612, %v_17: Int
-    ret %v_18
+    %v_11 = vlane %packed, 4: Int
+    %v_12 = shl %v_11, %v_8: Int
+    %v_13 = sar %v_12, %v_8: Int
+    %v_14 = cmp_neq %v_13, 5: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    ret 18446744073709551613
+  }
+
+  b_16 {
+    %v_17 = vshuffle %packed, %packed, 0, 1, 2, 3: i16x4
+    %low = cast %v_17: i32x4
+    %v_18 = vshuffle %packed, %packed, 4, 5, 6, 7: i16x4
+    %high = cast %v_18: i32x4
+    %v_19 = vlane %low, 0: Int
+    %v_20 = cmp_neq %v_19, 2: Int
+    %v_21 = vlane %high, 0: Int
+    %v_22 = cmp_neq %v_21, 5: Int
+    %v_23 = select %v_22, 18446744073709551611, 0: Int
+    %v_24 = select %v_20, 18446744073709551612, %v_23: Int
+    ret %v_24
   }
 }
 

@@ -293,6 +293,17 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "x86_pusharg"_v;
         case LowerInst::X86MinMax:
             return nameForMinMax(((LowerInstX86MinMax&)inst).getMinMax());
+        case LowerInst::X86MulWide:
+            return ((LowerInstX86MulWide&)inst).isSignedLanes() ? "x86_imulwide"_v : "x86_mulwide"_v;
+        // Named by the width read rather than by the width written: the result's type is printed
+        // beside it already, and what this instruction carries that the type does not is the other
+        // end - see LowerInst::X86Sext.
+        case LowerInst::X86Sext:
+            switch(((LowerInstX86Sext&)inst).sourceBytes()) {
+                case 1:  return "x86_sext8"_v;
+                case 2:  return "x86_sext16"_v;
+                default: return "x86_sext32"_v;
+            }
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
         case LowerInst::X86Permute:

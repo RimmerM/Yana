@@ -20,10 +20,18 @@
      - `horizontalMin`/`horizontalMax` are `Math.min`/`Math.max` elsewhere, and throw for the same
        reason. A comparison and a select is what they are here - total, since a bigint has no NaN.
 
-   What is *not* here is the set of operations x64 refuses at this lane width and JS supports:
-   `*`, `/`, `%`, `sar` and `abs` are all AVX-512 or expand-lane-by-lane on x86, and
-   `unsupportedVectorReason` says so at the instruction. A fixture that runs on both targets can
-   only assert their intersection, so `abs` is checked through a subtraction from zero instead.
+   `sar` and `abs` were in that JS-only set until x64 grew them, and they are the reason this note
+   is worth keeping: neither is an instruction on x86 at a quadword lane before AVX-512, and both are
+   built out of ones that are - the shift out of a logical shift and a bias, the magnitude out of a
+   comparison against zero and a blend. See `expandQuadwordSar` and `expandVectorAbs` in
+   codegen/x64/transform.cpp, and `x64/VectorQuadSar.lower` for the bytes.
+
+   `*`, `/` and `%` were the rest of that set and are here too now. x86 has no packed integer form of
+   any of the three at this lane width at any feature level: the product is long multiplication over
+   `pmuludq` (`expandQuadwordMul`) and the division expands one lane at a time
+   (`scalarizeVectorDivision`). So there is nothing left that `a` supports and `Vec(a)` does not, and
+   this fixture is the cross-target half of saying so - `VecMul.yana` and `VecDivide.yana` are where
+   each is pinned in detail.
 -}
 
 fn main() -> Int:
@@ -42,8 +50,24 @@ fn main() -> Int:
     -- The logical shift, which is the one `>>>` cannot spell over a bigint.
     n = n + lane(a `shr` b, 0)
 
-    -- The magnitude, written as the subtraction x64 can emit at this width.
-    n = n + lane(0 - c, 0)
+    -- The magnitude, which both targets now have at this width and reach by different routes: a
+    -- comparison and a blend natively, a conditional over a bigint on JS.
+    n = n + lane(abs(c), 0)
+
+    -- The arithmetic shift, which is the other one x64 used to refuse here. `c` is negative, which
+    -- is the whole of what tells it apart from the logical shift above.
+    n = n + lane(c `sar` splat(2 :: Long), 0)
+
+    -- The product, which is eight instructions natively and one `*` over two bigints on JS.
+    n = n + lane(a * b, 0)
+
+    -- And the division, whose two special divisors are the language's rule rather than the machine's
+    -- - `x / 0` is 0 and `x % 0` is `x` on both targets, reached through a lane-wise guard natively
+    -- and through the `$div`/`$rem` helpers on JS.
+    n = n + lane(a / b, 0)
+    n = n + lane(a % b, 0)
+    n = n + lane(a / splat(0 :: Long), 0)
+    n = n + lane(a % splat(0 :: Long), 0)
 
     -- The three reductions, whose extremum is a comparison here rather than a `Math` call.
     n = n + horizontalSum(a)

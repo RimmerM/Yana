@@ -9,6 +9,29 @@
 
 #include "lower_internal.h"
 
+/*
+ * The sign put back on a value that is one lane of a vector, where the lane is narrower than the
+ * register it arrives in.
+ *
+ * The lower IR's contract for a narrow lane - both `vlane` and the scalar a reduction answers - is
+ * that it arrives **zero-extended**: that is what `pextrb`/`pextrw` do, and what `outOfLane` in the
+ * LLVM backend writes. It has to be a contract rather than a choice, because the lane type below
+ * this point states a *width* and nothing else. `LowerLane::Int8` cannot tell `Vec(I8)` from
+ * `Vec(U8)`, so no backend can know which extension was wanted and this is the last place that does.
+ *
+ * `truncateToWidth` is the same shift pair every narrow scalar is put back through, so a lane read
+ * and a field read of one type reach the same two instructions. It is asked only for the signed
+ * half: the unsigned one is what the contract already guarantees, so calling it there would be a
+ * masking `and` against bits that cannot be set.
+ */
+static LowerInst* signExtendNarrow(LowerContext& lower, LowerBlock& block, LowerInst* result,
+                                   TypePtr type, LowerType lowered, StringId name) {
+    if(lower.global[type]->kind != Type::Int) return result;
+    if(!signedType(lower.global, type) || signShift(lower.global, type) == 0) return result;
+
+    return truncateToWidth(lower, block, result, type, lowered, name);
+}
+
 // See lowerStorageInst for what a null return means.
 LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instruction,
                             ModulePtr<Value> instValue, Function* function) {
@@ -499,10 +522,27 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         }
         case Value::VecLane: {
             auto& lane = (InstVecLane&)instruction;
-            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
-                instruction.name, lowerType(lower.global, instruction.type),
-                mappedValue(lower, lane.from), U8(lane.lane)));
+            auto lowered = lowerType(lower.global, instruction.type);
 
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
+                instruction.name, lowered, mappedValue(lower, lane.from), U8(lane.lane)));
+
+            /*
+             * The sign, put back on a lane narrower than the register it arrives in.
+             *
+             * The lower IR's contract is that an 8- or 16-bit lane is read **zero-extended** - which
+             * is what `pextrb`/`pextrw` do and what the LLVM backend's `outOfLane` writes - because
+             * the lane type it arrives as states a width and not a signedness. `LowerLane::Int8` is
+             * eight bits and nothing else, so no backend can know which extension was wanted; this
+             * is the last place that does.
+             *
+             * `truncateToWidth` is the same shift pair every narrow *scalar* is put back through, so
+             * a lane read and a field read of one type reach the same two instructions. Only the
+             * signed half is asked for: the unsigned one is what the contract already guarantees, so
+             * calling it there would be a masking `and` against bits that cannot be set.
+             */
+            result = signExtendNarrow(lower, block, result, instruction.type, lowered,
+                                      instruction.name);
             break;
         }
         case Value::VecWithLane: {
@@ -567,10 +607,16 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case ReduceOp::Bits: op = LowerReduce::Bits; break;
             }
 
-            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
-                instruction.name, lowerType(lower.global, instruction.type),
-                mappedValue(lower, reduce.from), op));
+            auto lowered = lowerType(lower.global, instruction.type);
 
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
+                instruction.name, lowered, mappedValue(lower, reduce.from), op));
+
+            // A reduction of a narrow lane answers that lane, zero-extended, on the same terms a
+            // lane read does - so it gets its sign back the same way. `count` and `firstSet` answer
+            // an `Int` and this asks nothing of them.
+            result = signExtendNarrow(lower, block, result, instruction.type, lowered,
+                                      instruction.name);
             break;
         }
         case Value::Symbol: {

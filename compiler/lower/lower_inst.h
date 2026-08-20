@@ -248,6 +248,29 @@ struct LowerInst {
         X86MinMax,
 
         /*
+         * The widening multiply of every *other* 32-bit lane into a 64-bit one - `pmuludq`, `pmuldq`.
+         *
+         * Backend-private on `X86MinMax`'s terms and for a reason none of the others has: this is
+         * not a lane-wise operation at all. It reads the even 32-bit lanes of both operands, ignores
+         * the odd ones and answers half as many lanes twice as wide, which is a shape the portable
+         * IR has no way to write and no reason to - it exists because x86's only 32x32 -> 64 packed
+         * product has it.
+         *
+         * It is what the two multiplies the machine does not have are built out of. A quadword
+         * product is three of these and the shifts and adds of long multiplication
+         * (`expandQuadwordMul` in codegen/x64/transform.cpp); a 32-bit lane's *high* half is two,
+         * one per pair of lanes. Both are the standard sequences and neither is expressible without
+         * naming the instruction, a form being unable to change how many lanes its result has.
+         *
+         * The signedness is the instruction's own rather than the type's, exactly as `X86MinMax`'s
+         * is: `pmuludq` and `pmuldq` differ in how they read the 32-bit lanes they widen, and the
+         * quadword product built out of them wants the *unsigned* one for every partial product
+         * regardless of how the program spelled the multiplication - the low 64 bits of a product
+         * being the same bits either way.
+         */
+        X86MulWide,
+
+        /*
          * A vector kept where a mask is set and zeroed where it is not - `pand`, `andps`, `pandn`.
          *
          * Backend-private for the reason `X86MinMax` above is, and arrived at from the same
@@ -315,7 +338,30 @@ struct LowerInst {
          * arrived either way round and is folded from both.
          */
         X86StoreOp,
-        LastInst = X86StoreOp,
+
+        /*
+         * The sign of a narrow value put back into the whole register - `movsx`, `movsxd`.
+         *
+         * Backend-private on `X86StoreOp`'s terms: the portable spelling is the pair
+         * `truncateToWidth` writes (resolve/lower_type.cpp), a left shift and an arithmetic right
+         * shift by the same distance, and there is nothing wrong with it. LLVM folds the pair into a
+         * `sext` for itself and `(x << 16) >> 16` is the idiom a JS engine recognizes, so those two
+         * backends want exactly the two instructions they are given.
+         *
+         * x86 does not. The shifts are two-address (`tiedDef`, see `shift` in codegen/x64/machine.cpp),
+         * so a source with another reader needs a copy in front of them; they are six bytes and two
+         * uops where `movsx` is three or four bytes and one; and they write the flags, which a
+         * sign-extension standing between a comparison and its branch has no business doing.
+         * `selectSignExtends` in codegen/x64/transform.cpp recognizes the pair and writes this.
+         *
+         * `sourceBytes` is how much of the operand is read - one, two, or four. It is the
+         * instruction's own rather than the type's for the reason `X86MulWide`'s signedness is: the
+         * operand arrives in a register whose `LowerType` is the register's width, and the narrow
+         * width being extended from is exactly what that type no longer says. Four is `movsxd` and
+         * is only ever reached at a 64-bit result, there being no 32-to-32 encoding of it.
+         */
+        X86Sext,
+        LastInst = X86Sext,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -1015,6 +1061,41 @@ struct LowerInstX86MinMax: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> lhs, rhs;
+};
+
+// The widening multiply of the even 32-bit lanes - see LowerInst::X86MulWide, which states why this
+// is the backend's own instruction and why its signedness is not the type's.
+struct LowerInstX86MulWide: LowerInstSingle {
+    LowerInstX86MulWide(StringId name, LowerType type, LowerPtr<LowerValue> lhs,
+                        LowerPtr<LowerValue> rhs, bool signedLanes):
+        LowerInstSingle(X86MulWide, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = signedLanes ? 1 : 0;
+    }
+
+    // Whether the 32-bit lanes are widened as signed, which is `pmuldq` against `pmuludq`.
+    bool isSignedLanes() const { return flags != 0; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+// The sign of a narrow value put back into the whole register - see LowerInst::X86Sext, which states
+// why the width read is the instruction's own and not its operand type's.
+struct LowerInstX86Sext: LowerInstSingle {
+    LowerInstX86Sext(StringId name, LowerType type, LowerPtr<LowerValue> from, U8 sourceBytes):
+        LowerInstSingle(X86Sext, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = sourceBytes;
+    }
+
+    // How many bytes of the operand are read: 1, 2 or 4. See LowerInst::X86Sext.
+    U8 sourceBytes() const { return flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
 };
 
 // A vector permuted by a vector of lane indices - see LowerInst::X86Permute. The operand order is

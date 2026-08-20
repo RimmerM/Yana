@@ -1,0 +1,105 @@
+{-
+   Integer division and remainder over a vector, which no x86 and no AArch64 has an instruction for
+   at any lane width or feature level.
+
+   The x64 backend expands one lane at a time - `scalarizeVectorDivision` in
+   codegen/x64/transform.cpp - and that is the one packed operation here that does not beat scalar
+   code on its own: the transfers cost 10-20% against the same loop written over scalars, and
+   vectorizing buys no parallelism, out-of-order execution already overlapping a scalar loop's
+   independent divisions. It is built anyway, because a division inside vector code is almost never
+   alone: refusing it makes the whole surrounding loop scalar rather than making one instruction
+   faster.
+
+   **The four rules are the language's, not the machine's** - `x / 0 == 0`, `x % 0 == x`, and the
+   overflowing signed pair wraps. They hold per lane, and what makes them hold is
+   `makeDivisionTotal` in lower/lower_divide.cpp, which guards a packed division exactly as it guards
+   a scalar one: a comparison against zero answers a *mask* and the two selects are lane-wise, so
+   there is nothing here that a branch would have had to be made per-lane.
+
+   **No `# checks: off`, unlike `Divide.yana`.** `isCheckedDivisionType` is scalar integers only, so
+   a packed division carries no `checkCondition` - a zero lane is a per-lane question and
+   `checkCondition` has no shape for one. The defined answer is what a checked build produces here
+   too, which is why the zero divisors below are observable without a directive.
+
+   Every divisor is opaque, since a written-down one is folded or has its guard skipped before any of
+   this runs. The byte answers are read four at a time through a `Vec(Int)` view. Each check
+   contributes 1 and `main` is their count.
+-}
+
+let &counter = 0 :: Int
+
+@noinline
+fn opaque(n: Int) -> Int:
+    counter = counter + 1
+    if counter > 1000:
+        return 1
+    return n
+
+fn checkBytes(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let &n = 0 :: Int
+
+    let a = splat(100 :: Int) :: Vec(Int)
+    let neg = splat(0 - 100 :: Int) :: Vec(Int)
+    let seven = splat(opaque(7)) :: Vec(Int)
+    let zero = splat(opaque(0)) :: Vec(Int)
+    let minusOne = splat(opaque(0 - 1)) :: Vec(Int)
+
+    -- The ordinary quotient and remainder, and the negative dividend that says which way the
+    -- rounding goes: toward zero, so that `q * d + r == x` holds with a remainder of the dividend's
+    -- sign.
+    n = n + (if lane(a / seven, 0) == 14 then 1 else 0)
+    n = n + (if lane(a % seven, 1) == 2 then 1 else 0)
+    n = n + (if lane(neg / seven, 2) == 0 - 14 then 1 else 0)
+    n = n + (if lane(neg % seven, 3) == 0 - 2 then 1 else 0)
+
+    -- The zero divisor, which is the rule the machine would have raised #DE for.
+    n = n + (if lane(a / zero, 0) == 0 then 1 else 0)
+    n = n + (if lane(a % zero, 0) == 100 then 1 else 0)
+
+    -- And the overflowing signed pair, whose quotient is one past the type: it wraps, which at this
+    -- lane width is the minimum back again.
+    let least = splat(opaque((1 :: Int) `shl` 31)) :: Vec(Int)
+    n = n + (if lane(least / minusOne, 0) == (1 :: Int) `shl` 31 then 1 else 0)
+    n = n + (if lane(least % minusOne, 0) == 0 then 1 else 0)
+
+    -- The unsigned pair at the same width, where -1 is the largest divisor rather than a negation
+    -- and the overflowing case does not exist.
+    let big = splat(bitcast(opaque(0 - 1)) :: U32) :: Vec(U32)
+    n = n + (if lane(big / splat(bitcast(opaque(3)) :: U32), 0) == 1431655765 then 1 else 0)
+    n = n + (if lane(big % splat(bitcast(opaque(0)) :: U32), 0) == 4294967295 then 1 else 0)
+
+    -- The quadword lane, which is the same expansion with two lanes instead of four.
+    let q = splat(1000000000000 :: Long) :: Vec(Long)
+    let e = splat(0 - (opaque(7) :: Long)) :: Vec(Long)
+    n = n + (if lane(q / e, 0) == 0 - (142857142857 :: Long) then 1 else 0)
+    n = n + (if lane(q % e, 1) == 1 then 1 else 0)
+
+    {-
+       And the byte lane, which is where the sign has to be put back on before the division: a lane
+       read arrives zero-extended, so an unsigned byte division wants it exactly as it stands and a
+       signed one does not. The dividend bytes are 0x01, 0xff, 0x73, 0x8f and the divisors 0x07,
+       0x00, 0xfe, 0x05 - which is one zero divisor, one negative divisor and one divisor larger than
+       its dividend, three shapes that answer differently read the two ways.
+    -}
+    let xs = bitcast(splat(opaque(0 - 1888223487))) :: Vec(I8)
+    let ds = bitcast(splat(opaque(100532231))) :: Vec(I8)
+
+    n = n + checkBytes(xs / ds, 0 - 356057088)
+    n = n + checkBytes(xs % ds, 0 - 50200831)
+
+    let us = bitcast(splat(opaque(0 - 1888223487))) :: Vec(U8)
+    let ud = bitcast(splat(opaque(100532231))) :: Vec(U8)
+
+    n = n + (if lane(bitcast(us / ud) :: Vec(Int), 0) == 469762048 then 1 else 0)
+    n = n + (if lane(bitcast(us % ud) :: Vec(Int), 0) == 57933569 then 1 else 0)
+
+    -- The overflowing pair at a byte lane, which the guard answers in the vector domain: `neg` on a
+    -- byte lane wraps the minimum back to itself exactly as it does at every other width.
+    let least8 = bitcast(splat(opaque(0 - 2139062144))) :: Vec(I8)
+    let allOnes = bitcast(splat(opaque(0 - 1))) :: Vec(I8)
+    n = n + checkBytes(least8 / allOnes, 0 - 2139062144)
+
+    return n

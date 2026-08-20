@@ -28,9 +28,12 @@ main$<complex>(): Int {
     %v_11 = cast %v_10: Int
     %v_12 = add %v_9, %v_11: Int
     %v_13 = vlane %summed, 2: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = add %v_12, %v_14: Int
-    ret %v_15
+    %v_14 = imm 16: Int
+    %v_15 = shl %v_13, %v_14: Int
+    %v_16 = sar %v_15, %v_14: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = add %v_12, %v_17: Int
+    ret %v_18
   }
 }
 
@@ -66,7 +69,10 @@ sameCount(4)<complex>(%v: i16x4, %w: i16x4): i16x4 {
 secondLane(4)<complex>(%v: i16x4): Int {
   b_0 {
     %v_1 = vlane %v, 1: Int
-    ret %v_1
+    %v_2 = imm 16: Int
+    %v_3 = shl %v_1, %v_2: Int
+    %v_4 = sar %v_3, %v_2: Int
+    ret %v_4
   }
 }
 

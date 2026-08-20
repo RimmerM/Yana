@@ -164,6 +164,34 @@ allWide<complex>(%a: i8x32, %b: i8x32): Int {
   }
 }
 
+wideQuadSar<complex>(%q: i64x4): i64x4 {
+  b_0 {
+    %r = sar %q, 5: i64x4
+    ret %r
+  }
+}
+
+wideQuadAbs<complex>(%q: i64x4): i64x4 {
+  b_0 {
+    %r = abs %q: i64x4
+    ret %r
+  }
+}
+
+wideQuadMul<complex>(%a: i64x4, %b: i64x4): i64x4 {
+  b_0 {
+    %r = imul %a, %b: i64x4
+    ret %r
+  }
+}
+
+wideByteMul<complex>(%a: i8x32, %b: i8x32): i8x32 {
+  b_0 {
+    %r = imul %a, %b: i8x32
+    ret %r
+  }
+}
+
 
 --- codegen: arith ---
 block #0:
@@ -346,3 +374,59 @@ block #1:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rax, -] creates=[rax]  => 83f8ff0f94c00fb6c0
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: wideQuadSar ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d98000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0]  => c5fd73d005
+  xor uses=[xmm0, xmm1] creates=[xmm0]  => c5fdefc1
+  sub uses=[xmm0, xmm1] creates=[xmm0]  => c5fdfbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wideQuadAbs ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm1]  => c5f5efc9
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm2]  => c4e27537d0
+  sub uses=[xmm1, xmm0] creates=[xmm1]  => c5f5fbc8
+  select uses=[xmm1, xmm0, xmm2] creates=[xmm1]  => c4e37d4cc920
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5fc28c1c3
+
+--- codegen: wideQuadMul ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm2]  => c5ed73d020
+  shr uses=[xmm1, -] creates=[xmm3]  => c5e573d120
+  x86_mulwide uses=[xmm0, xmm3] creates=[xmm3]  => c5fdf4db
+  x86_mulwide uses=[xmm2, xmm1] creates=[xmm2]  => c5edf4d1
+  add uses=[xmm2, xmm3] creates=[xmm2]  => c5edd4d3
+  shl uses=[xmm2, -] creates=[xmm2]  => c5ed73f220
+  x86_mulwide uses=[xmm0, xmm1] creates=[xmm0]  => c5fdf4c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => c5fdd4c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wideByteMul ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  mul uses=[xmm0, xmm1] creates=[xmm2]  => c5fdd5d1
+  x86_addr [rip + $v256$ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00] uses=[] creates=[-]  => 
+  and uses=[xmm2, -] creates=[xmm2]  => c5eddb1564000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm1, -] creates=[xmm1]  => c5f571d108
+  x86_addr [rip + $v256$00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff] uses=[] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => c5fddb0537000000
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => c5fdd5c1
+  or uses=[xmm2, xmm0] creates=[xmm0]  => c5edebc0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3

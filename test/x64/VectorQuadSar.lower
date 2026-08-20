@@ -1,0 +1,83 @@
+# The arithmetic shift of a quadword lane, which the machine does not have and this backend builds -
+# `expandQuadwordSar` in transform.cpp.
+#
+# `psraw` and `psrad` exist and `psraq` does not, which is the shift family's one asymmetry: the left
+# shift and the logical right shift are complete at all three widths. What fills it is the bias
+# identity
+#
+#     x >>a n  ==  ((x >>l n) ^ K) - K        where K = 1 << (63 - n)
+#
+# which is sign extension from bit `63-n` written as arithmetic - `(t ^ K) - K` leaves `t` alone when
+# that bit is clear and subtracts `2K` when it is set. Bit `63-n` is where the operand's own sign bit
+# landed after shifting right by `n`.
+#
+# What to look for:
+#
+#   - **`psrlq`, `pxor`, `psubq`** and no `psra` of any width. Three instructions in the function
+#     body, and the constant is not one of them.
+#   - **the bias is hoisted and pooled.** `K` depends on the count alone, so a written-down count
+#     makes it a `.rodata` entry loaded once at the top of the function - `constantHome` in
+#     transform.cpp is where that placement is argued, and it is the same placement `expandVectorAbs`
+#     makes for its mask.
+#   - **one bias per count, shared.** Two shifts by the same count load one constant; two shifts by
+#     different counts load two.
+#   - **a runtime count is one instruction more**, `K` being the sign-bit splat shifted by that same
+#     count rather than a pooled pattern. The splat is what is hoisted there.
+
+# The written-down count, which is the ordinary case.
+sarConst(%v: i64x2): i64x2 {
+    {
+        %r = sar %v, 5: i64x2
+        ret %r
+    }
+}
+
+# Two shifts by one count, which is one pooled bias between them.
+sarShared(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %x = sar %a, 5: i64x2
+        %y = sar %b, 5: i64x2
+        %r = add %x, %y: i64x2
+    ret %r
+    }
+}
+
+# And two counts, which is two - the bias is a different pattern for each.
+sarTwoCounts(%a: i64x2): i64x2 {
+    {
+        %x = sar %a, 1: i64x2
+        %y = sar %a, 40: i64x2
+        %r = add %x, %y: i64x2
+        ret %r
+    }
+}
+
+# A count of 63, where the bias is 1 and the whole lane becomes the sign bit repeated. The edge of
+# the defined range, and the one count for which the identity's `K` is not a mid-lane bit.
+sarSixtyThree(%v: i64x2): i64x2 {
+    {
+        %r = sar %v, 63: i64x2
+        ret %r
+    }
+}
+
+# The count that is not a constant. `K` is the sign bit shifted by the same count, so this is the
+# function above with one more `psrlq` in it and a splat rather than a pattern in `.rodata`.
+sarRuntime(%v: i64x2, %n: Long): i64x2 {
+    {
+        %r = sar %v, %n: i64x2
+        ret %r
+    }
+}
+
+# The other spelling of the same thing, which is what the language produces: `Integral(a)` types both
+# operands as `a`, so a shift by a runtime count arrives as a shift by a splat of it.
+# `unwrapVectorShiftCounts` runs above this pass and takes the splat off, so this must emit exactly
+# what the function above does.
+sarSplatCount(%v: i64x2, %n: Long): i64x2 {
+    {
+        %c = vsplat %n: i64x2
+        %r = sar %v, %c: i64x2
+        ret %r
+    }
+}

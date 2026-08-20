@@ -40,7 +40,13 @@ fn shifts(a: Vec(Int), n: Int) -> Int:
 fn quad(b: Vec(I64), n: I64) -> I64:
     let up = b `shl` splat(n)
     let down = up `shr` splat(n - 1)
-    return lane(down, 0)
+
+    -- The arithmetic one at this width, which is no instruction on x86 at all: the bias
+    -- `expandQuadwordSar` builds is itself a shift by the runtime count, so this is the one shape
+    -- where the count is read twice. Negative, since that is all that tells it from `shr`.
+    let signed = (0 - b) `sar` splat(n)
+
+    return lane(down, 0) + lane(signed, 0)
 
 fn main() -> Int:
     -- Lane 2 is negative, so `sar` and `shr` disagree about it.
@@ -50,5 +56,5 @@ fn main() -> Int:
     let n = opaque(2)
     let m = (opaque(3) :: I64)
 
-    -- 5 << 2 = 20; 100 >> 2 = 25; -32 >> 2 (arithmetic) = -8; (3 << 3) >> 2 = 6.
+    -- 5 << 2 = 20; 100 >> 2 = 25; -32 >> 2 (arithmetic) = -8; (3 << 3) >> 2 = 6; -3 >> 3 = -1.
     return shifts(a, n) + (truncate(quad(b, m)) :: Int)

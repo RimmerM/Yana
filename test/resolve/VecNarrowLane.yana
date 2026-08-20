@@ -1,0 +1,77 @@
+{-
+   Reading one lane of a vector whose lanes are narrower than a register.
+
+   `movd` and `pextrd` both move **four bytes**, so a byte lane read through either answers its
+   32-bit neighbourhood - a silent wrong number, and one that looks right whenever the three lanes
+   above it happen to be zero. The x64 backend read every integer lane through them until it grew
+   `FormVExtract8` and `FormVExtract16`; the LLVM backend's `outOfLane` already stated the contract
+   this now keeps, which is that an 8- or 16-bit lane arrives in a 32-bit register **zero-extended**.
+
+   The sign is then put back by `Value::VecLane` in resolve/lower_calc.cpp, which is the last place
+   that knows there was one: `LowerLane::Int8` is a width and nothing else, so no backend below can
+   tell `Vec(I8)` from `Vec(U8)`. It is the same shift pair every narrow scalar is put back through,
+   so a lane read and a field read of one type reach the same two instructions.
+
+   A **reduction** of a narrow lane answers on the same terms and had two defects of its own, both
+   fixed with the extract and both asserted below:
+
+     - its last levels happen in a general register, and combined the whole word against itself
+       shifted down. The argument for that was that a carry only travels upward, which holds for one
+       step and fails for the next - the second step reads a higher sub-lane, and the first step's
+       carry landed there. Sixteen byte lanes of 32 summed to **1** rather than to 0.
+     - the answer came back zero-extended for `add` and its bitwise siblings and sign-extended for
+       `min` and `max`, which is two contracts. It is one now, the same one the extract keeps.
+
+   Every lane below is distinct and its neighbours are non-zero, which is what makes a neighbourhood
+   read visible; the signed lanes are negative, which is what makes a missing sign extension visible.
+   Each check contributes 1 and `main` is their count.
+-}
+
+fn main() -> Int:
+    let &n = 0 :: Int
+
+    -- 0x8f73ff01: bytes 0x01, 0xff, 0x73, 0x8f from lane zero up, repeated to fill the register.
+    let bytes = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(I8)
+    let unsignedBytes = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(U8)
+
+    n = n + (if ((lane(bytes, 0) :: I8) :: Int) == 1 then 1 else 0)
+    n = n + (if ((lane(bytes, 1) :: I8) :: Int) == 0 - 1 then 1 else 0)
+    n = n + (if ((lane(bytes, 3) :: I8) :: Int) == 0 - 113 then 1 else 0)
+    n = n + (if ((lane(unsignedBytes, 1) :: U8) :: Int) == 255 then 1 else 0)
+    n = n + (if ((lane(unsignedBytes, 3) :: U8) :: Int) == 143 then 1 else 0)
+
+    -- The same at a 16-bit lane, which reads through `pextrw`: 0xff01 is -255 signed and 65281
+    -- unsigned, 0x8f73 is -28813 and 36723.
+    let words = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(I16)
+    let unsignedWords = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(U16)
+
+    n = n + (if ((lane(words, 0) :: I16) :: Int) == 0 - 255 then 1 else 0)
+    n = n + (if ((lane(words, 1) :: I16) :: Int) == 0 - 28813 then 1 else 0)
+    n = n + (if ((lane(unsignedWords, 0) :: U16) :: Int) == 65281 then 1 else 0)
+    n = n + (if ((lane(unsignedWords, 1) :: U16) :: Int) == 36723 then 1 else 0)
+
+    {-
+       The reductions. `0x20202020` is sixteen byte lanes of 32, whose sum is 512 and therefore 0 in
+       the lane - and whose *first* scalar step carries, which is the case that answered 1.
+
+       **The lane count is written down here and not above.** A reduction's answer depends on how
+       many lanes there are, so the same source at two feature levels would answer two numbers - and
+       the point of the pair of files is that it answers one. The lane *reads* above need no such
+       help: what they assert is at a named index and does not move.
+    -}
+    let thirties = bitcast(538976288 :: Vec(Int, 4)) :: Vec(I8, 16)
+    n = n + (if ((horizontalSum(thirties) :: I8) :: Int) == 0 then 1 else 0)
+
+    -- Sixteen lanes of -1, where the sum is -16 and the minimum is -1: one of the two came back
+    -- zero-extended and the other did not, and both are read at the lane's own signedness now.
+    let minusOnes = bitcast((0 - 1) :: Vec(Int, 4)) :: Vec(I8, 16)
+    n = n + (if ((horizontalSum(minusOnes) :: I8) :: Int) == 0 - 16 then 1 else 0)
+    n = n + (if ((horizontalMin(minusOnes) :: I8) :: Int) == 0 - 1 then 1 else 0)
+
+    -- And the product, which was refused at this lane width until the byte multiply existed: sixteen
+    -- lanes of 1, and eight 16-bit lanes of 3 for the width that has a form.
+    let ones = bitcast(16843009 :: Vec(Int, 4)) :: Vec(I8, 16)
+    n = n + (if ((horizontalProduct(ones) :: I8) :: Int) == 1 then 1 else 0)
+    n = n + (if ((horizontalProduct(3 :: Vec(I16, 8)) :: I16) :: Int) == 6561 then 1 else 0)
+
+    return n

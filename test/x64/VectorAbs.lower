@@ -14,9 +14,10 @@
 #                   narrowed where its bytes are taken and `0x7fffffff` read as a float is a NaN.
 #   8/16/32 int     `pabsb`/`pabsw`/`pabsd`, which are SSSE3 and so inside the v2 floor. Ordinary
 #                   forms, and non-destructive - the destination need not be the source.
-#   64-bit int      nothing: there is no `pabsq` before AVX-512 and no `pcmpgtq` below SSE4.2 to
-#                   build the comparison-and-select fallback from either, so
-#                   `unsupportedVectorReason` refuses it before anything is selected.
+#   64-bit int      a comparison against a hoisted zero, a subtraction and a blend. There is no
+#                   `pabsq` before AVX-512, and this used to be refused on the grounds that there was
+#                   no `pcmpgtq` below SSE4.2 to build the fallback from either - which stopped being
+#                   true when §38 named v2 the floor.
 #
 # This is the baseline listing, where the mask has to be loaded into a register: a legacy-encoded
 # packed operation faults on a memory operand that is not 16-byte aligned. `VectorAbsVex.lower` is
@@ -82,6 +83,29 @@ absNonDestructive(%d: i32x4): i32x4 {
     {
         %a = abs %d: i32x4
         %r = add %a, %d: i32x4
+        ret %r
+    }
+}
+
+# The quadword integer lane, which has no `pabsq` before AVX-512 and used to be refused outright.
+# It is a comparison against a hoisted zero, a negation and a blend - three instructions in the body
+# and a `pxor` at the top, against the eleven-odd a scalarized pair of lanes would cost.
+#
+# The zero is a `pxor` rather than a `.rodata` entry: `poolVectorConstants` leaves an all-zero and an
+# all-ones pattern as a splat for the peephole, those being one instruction each with no memory.
+absQuad(%q: i64x2): i64x2 {
+    {
+        %r = abs %q: i64x2
+        ret %r
+    }
+}
+
+# Two of them, which share the one zero for the reason the float masks above share theirs.
+absQuadTwice(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %x = abs %a: i64x2
+        %y = abs %b: i64x2
+        %r = add %x, %y: i64x2
         ret %r
     }
 }

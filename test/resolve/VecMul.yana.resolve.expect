@@ -1,0 +1,90 @@
+let image$base: () = <none>
+
+fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
+  b0:
+    %v2 = bitcast %v : Vec(Int)
+    %v5 = vlane %v2, 0 : Int
+    %v6 = cmp_eq %v5, %expected : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, 1], [b2, 0] : Int
+    ret %v12
+}
+
+fn checkQuad(%v: Vec(Long), %expected: Long) -> Int {
+  b0:
+    %v4 = vlane %v, 0 : Long
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 0
+    %v7 = sub 0, 1888223487 : Int
+    %v8 = vsplat %v7 : Vec(Int)
+    %v = bitcast %v8 : Vec(I8)
+    %v12 = vsplat 100532999 : Vec(Int)
+    %w = bitcast %v12 : Vec(I8)
+    %v14 = load %n : Int
+    %v15 = mul %v, %v : Vec(I8)
+    %v20 = sub 0, 509017855 : Int
+    %v21 = call checkBytes, %v15, %v20 : Int
+    %v22 = add %v14, %v21 : Int
+    assign %n, %v22
+    %v24 = load %n : Int
+    %v25 = mul %v, %w : Vec(I8)
+    %v30 = sub 0, 887423737 : Int
+    %v31 = call checkBytes, %v25, %v30 : Int
+    %v32 = add %v24, %v31 : Int
+    assign %n, %v32
+    %v34 = load %n : Int
+    %v36 = vsplat 1 : Vec(I8)
+    %v37 = mul %v, %v36 : Vec(I8)
+    %v42 = sub 0, 1888223487 : Int
+    %v43 = call checkBytes, %v37, %v42 : Int
+    %v44 = add %v34, %v43 : Int
+    assign %n, %v44
+    %x = vsplat 12884901893 : Vec(Long)
+    %y = vsplat 30064771083 : Vec(Long)
+    %v50 = load %n : Int
+    %v51 = mul %x, %y : Vec(Long)
+    %v53 = call checkQuad, %v51, 292057776183 : Int
+    %v54 = add %v50, %v53 : Int
+    assign %n, %v54
+    %v56 = load %n : Int
+    %v61 = sub 0, 3 : Int
+    %v62 = cast %v61 : Long
+    %v63 = vsplat %v62 : Vec(Long)
+    %v64 = mul %x, %v63 : Vec(Long)
+    %v69 = sub 0, 38654705679 : Long
+    %v70 = call checkQuad, %v64, %v69 : Int
+    %v71 = add %v56, %v70 : Int
+    assign %n, %v71
+    %v73 = load %n : Int
+    %v75 = vsplat 1 : Vec(Long)
+    %v76 = mul %x, %v75 : Vec(Long)
+    %v78 = call checkQuad, %v76, 12884901893 : Int
+    %v79 = add %v73, %v78 : Int
+    assign %n, %v79
+    %v81 = load %n : Int
+    ret %v81
+}

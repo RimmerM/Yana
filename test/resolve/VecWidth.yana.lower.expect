@@ -5,11 +5,12 @@ arithmetic<complex>(%a: i16x4): i16x4 {
   b_0 {
     %b = vsplat 4: i16x4
     %sum = add %a, %b: i16x4
-    %product = imul %a, %b: i16x4
+    %v_1 = vsplat 2: i16x4
+    %product = shl %a, %v_1: i16x4
     %masked = and %sum, %product: i16x4
     %shifted = shl %masked, %b: i16x4
-    %v_1 = sub %shifted, %a: i16x4
-    ret %v_1
+    %v_2 = sub %shifted, %a: i16x4
+    ret %v_2
   }
 }
 

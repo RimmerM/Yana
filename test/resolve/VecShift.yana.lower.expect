@@ -17,16 +17,23 @@ main<complex>(): Int {
     %v_8 = shl %b, %v_7: i64x2
     %v_9 = vsplat 4: i64x2
     %wide = shr %v_8, %v_9: i64x2
-    %v_10 = vlane %left, 0: Int
-    %v_11 = vlane %right, 1: Int
-    %v_12 = add %v_10, %v_11: Int
-    %v_13 = vlane %arith, 2: Int
-    %v_14 = add %v_12, %v_13: Int
-    %v_15 = vlane %wide, 0: Long
-    %v_16 = cast %v_15: Int
-    %v_17 = add %v_14, %v_16: Int
-    %v_18 = add %v_17, 100: Int
-    ret %v_18
+    %v_10 = vsplat 0: i64x2
+    %v_11 = sub %v_10, %b: i64x2
+    %v_12 = vsplat 1: i64x2
+    %deep = sar %v_11, %v_12: i64x2
+    %v_13 = vlane %left, 0: Int
+    %v_14 = vlane %right, 1: Int
+    %v_15 = add %v_13, %v_14: Int
+    %v_16 = vlane %arith, 2: Int
+    %v_17 = add %v_15, %v_16: Int
+    %v_18 = vlane %wide, 0: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = vlane %deep, 0: Long
+    %v_22 = cast %v_21: Int
+    %v_23 = add %v_20, %v_22: Int
+    %v_24 = add %v_23, 100: Int
+    ret %v_24
   }
 }
 

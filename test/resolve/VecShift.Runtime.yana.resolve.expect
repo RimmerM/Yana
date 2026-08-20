@@ -42,8 +42,14 @@ fn quad(%b: Vec(I64), %n: I64) -> I64 {
     %v6 = sub %n, 1 : I64
     %v7 = vsplat %v6 : Vec(I64)
     %down = shr %up, %v7 : Vec(I64)
-    %v11 = vlane %down, 0 : I64
-    ret %v11
+    %v12 = vsplat 0 : Vec(I64)
+    %v13 = sub %v12, %b : Vec(I64)
+    %v14 = vsplat %n : Vec(I64)
+    %signed = sar %v13, %v14 : Vec(I64)
+    %v18 = vlane %down, 0 : I64
+    %v21 = vlane %signed, 0 : I64
+    %v22 = add %v18, %v21 : I64
+    ret %v22
 }
 
 fn main() -> Int {

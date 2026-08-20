@@ -1052,6 +1052,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:
         case LowerInst::X86MinMax:
+        case LowerInst::X86MulWide:
+        case LowerInst::X86Sext:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
         case LowerInst::X86StoreOp:

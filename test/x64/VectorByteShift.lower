@@ -1,0 +1,70 @@
+# A shift at a byte lane, which the machine has none of in any direction - `expandByteShifts` in
+# transform.cpp.
+#
+# `psllw` is the narrowest packed shift x86 has. Borrowing it gets every byte's own bits into the
+# right places and also carries bits across the boundary between the two bytes of each word, and the
+# whole of the correction is masking those away:
+#
+#     x <<b n  ==  (x <<w n) & (0xff << n)        per byte
+#     x >>b n  ==  (x >>w n) & (0xff >> n)        per byte
+#
+# What to look for:
+#
+#   - **`psllw`/`psrlw` and a `pand`**, two instructions for sixteen lanes, with the mask pooled and
+#     hoisted to the top of the function. The bitcasts either side of the borrowed shift are the same
+#     register read another way and encode to nothing.
+#   - **no `psraw` anywhere.** The arithmetic direction is the logical one plus the bias
+#     `expandQuadwordSar` uses one lane width up - `pxor` then `psubb` - so it is four instructions
+#     and two pooled constants.
+#   - **a runtime count costs general-register work and no more vector work.** `0xff << n` is a
+#     scalar expression and the count is already a scalar, so what appears in front of the shift is a
+#     `shl`, an `and` and a broadcast - once, not per lane.
+
+# The two logical directions, whose whole expansion is the borrowed shift and the mask.
+shlByte(%v: i8x16): i8x16 {
+    {
+        %r = shl %v, 1: i8x16
+        ret %r
+    }
+}
+
+shrByte(%v: i8x16): i8x16 {
+    {
+        %r = shr %v, 3: i8x16
+        ret %r
+    }
+}
+
+# The arithmetic one, which is the logical one with the sign put back.
+sarByte(%v: i8x16): i8x16 {
+    {
+        %r = sar %v, 3: i8x16
+        ret %r
+    }
+}
+
+# Two shifts by one count, which share the one pooled mask - it is built per count and per direction,
+# not per use.
+shrByteTwice(%a: i8x16, %b: i8x16): i8x16 {
+    {
+        %x = shr %a, 3: i8x16
+        %y = shr %b, 3: i8x16
+        %r = add %x, %y: i8x16
+        ret %r
+    }
+}
+
+# The count that is not a constant, where the mask is computed instead of pooled.
+shlByteReg(%v: i8x16, %n: Int): i8x16 {
+    {
+        %r = shl %v, %n: i8x16
+        ret %r
+    }
+}
+
+sarByteReg(%v: i8x16, %n: Int): i8x16 {
+    {
+        %r = sar %v, %n: i8x16
+        ret %r
+    }
+}

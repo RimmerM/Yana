@@ -1,0 +1,166 @@
+
+sext16<complex>(%v: Int): Int {
+  b_0 {
+    %u = shl %v, 16: Int
+    %d = sar %u, 16: Int
+    ret %d
+  }
+}
+
+sext8<complex>(%v: Int): Int {
+  b_0 {
+    %u = shl %v, 24: Int
+    %d = sar %u, 24: Int
+    ret %d
+  }
+}
+
+sext16Long<complex>(%v: Long): Long {
+  b_0 {
+    %u = shl %v, 48: Long
+    %d = sar %u, 48: Long
+    ret %d
+  }
+}
+
+sext8Long<complex>(%v: Long): Long {
+  b_0 {
+    %u = shl %v, 56: Long
+    %d = sar %u, 56: Long
+    ret %d
+  }
+}
+
+sext32Long<complex>(%v: Long): Long {
+  b_0 {
+    %u = shl %v, 32: Long
+    %d = sar %u, 32: Long
+    ret %d
+  }
+}
+
+sourceStillLive<complex>(%v: Int): Int {
+  b_0 {
+    %u = shl %v, 16: Int
+    %d = sar %u, 16: Int
+    %r = add %d, %v: Int
+    ret %r
+  }
+}
+
+sext8Second<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %u = shl %b, 24: Int
+    %d = sar %u, 24: Int
+    %r = add %d, %a: Int
+    ret %r
+  }
+}
+
+keepUnequal<complex>(%v: Int): Int {
+  b_0 {
+    %u = shl %v, 16: Int
+    %d = sar %u, 15: Int
+    ret %d
+  }
+}
+
+keepShared<complex>(%v: Int): Int {
+  b_0 {
+    %u = shl %v, 16: Int
+    %d = sar %u, 16: Int
+    %r = add %d, %u: Int
+    ret %r
+  }
+}
+
+keepPartialByte<complex>(%v: Long): Long {
+  b_0 {
+    %u = shl %v, 40: Long
+    %d = sar %u, 40: Long
+    ret %d
+  }
+}
+
+
+--- codegen: sext16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext16 uses=[rdi] creates=[rax]  => 0fbfc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sext8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext8 uses=[rdi] creates=[rax]  => 400fbec7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sext16Long ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext16 uses=[rdi] creates=[rax]  => 480fbfc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sext8Long ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext8 uses=[rdi] creates=[rax]  => 480fbec7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sext32Long ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext32 uses=[rdi] creates=[rax]  => 4863c7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sourceStillLive ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext16 uses=[rdi] creates=[rax]  => 0fbfc7
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sext8Second ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_sext8 uses=[rsi] creates=[rsi]  => 400fbef6
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 8d043e
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepUnequal ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdi, -] creates=[rdi]  => c1e710
+  imm uses=[] creates=[-]  => 
+  sar uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1f80f
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepShared ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdi, -] creates=[rdi]  => c1e710
+  imm uses=[] creates=[-]  => 
+  sar uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1f810
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepPartialByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdi, -] creates=[rdi]  => 48c1e728
+  imm uses=[] creates=[-]  => 
+  sar uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748c1f828
+  ret uses=[rax] creates=[]  => c3

@@ -1,0 +1,64 @@
+# Integer division over a vector, which no x86 has an instruction for at any width -
+# `scalarizeVectorDivision` in transform.cpp.
+#
+# The one packed operation this backend builds that does not beat scalar code on its own: the
+# transfers cost 10-20% against the same loop written over scalars, and vectorizing buys no
+# parallelism, out-of-order execution already overlapping a scalar loop's independent divisions. What
+# it buys is that `Vec(a)` supports every operation `a` does, so a loop with one division in it among
+# the adds and compares stays vector code instead of becoming scalar code.
+#
+# What to look for:
+#
+#   - **`pextr`, `idiv`, `pinsr`, per lane**, and the dividend as the seed of the insert chain: every
+#     lane is written before the chain ends, so what it held is immaterial and a zero vector would be
+#     a constant materialized for nothing.
+#   - **no guard around the divisions.** `makeDivisionTotal` runs a whole tier above this and has
+#     already answered the zero divisor and the overflowing signed pair in the *vector* domain, so
+#     what reaches the machine is a bare `idiv` on operands neither of which it can raise on. The
+#     fixtures here divide by an argument, which is exactly the case that would have needed one.
+#   - **a byte lane sign-extends first** in the signed forms and not in the unsigned ones: a lane read
+#     arrives zero-extended, which is the whole answer for one and half of it for the other.
+
+divideInt(%v: i32x4, %d: i32x4): i32x4 {
+    {
+        %r = idiv %v, %d: i32x4
+        ret %r
+    }
+}
+
+remainderInt(%v: i32x4, %d: i32x4): i32x4 {
+    {
+        %r = irem %v, %d: i32x4
+        ret %r
+    }
+}
+
+divideUnsigned(%v: i32x4, %d: i32x4): i32x4 {
+    {
+        %r = div %v, %d: i32x4
+        ret %r
+    }
+}
+
+# The quadword, which is two lanes and `pextrq`/`pinsrq`.
+divideQuad(%v: i64x2, %d: i64x2): i64x2 {
+    {
+        %r = idiv %v, %d: i64x2
+        ret %r
+    }
+}
+
+# The byte lane, where the signed form is the one with the shift pair in front of each division.
+divideByte(%v: i8x16, %d: i8x16): i8x16 {
+    {
+        %r = idiv %v, %d: i8x16
+        ret %r
+    }
+}
+
+divideByteUnsigned(%v: i8x16, %d: i8x16): i8x16 {
+    {
+        %r = div %v, %d: i8x16
+        ret %r
+    }
+}

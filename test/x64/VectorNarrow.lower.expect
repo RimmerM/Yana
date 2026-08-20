@@ -34,6 +34,20 @@ belowByte<complex>(%a: i8x16, %b: i8x16): m8x16 {
   }
 }
 
+iminBytes<complex>(%v: i8x16): Int {
+  b_0 {
+    %r = vreduce_imin %v: Int
+    ret %r
+  }
+}
+
+iminWords<complex>(%v: i16x8): Int {
+  b_0 {
+    %r = vreduce_imin %v: Int
+    ret %r
+  }
+}
+
 
 --- codegen: splatByte ---
 block #0:
@@ -64,13 +78,24 @@ block #1:
   bitcast uses=[xmm0] creates=[xmm0]  => 
   vlane uses=[xmm0] creates=[rax]  => 660f7ec0
   imm uses=[] creates=[-]  => 
-  shr uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc8c1e910
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
   imm uses=[] creates=[-]  => 
-  shr uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc8c1e908
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  shr uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 8bd0c1ea08
+  imm uses=[] creates=[-]  => 
+  and uses=[rdx, -] creates=[rdx]  => 81e2ff000000
+  add uses=[rcx, rdx] creates=[rcx]  => 01d1
+  imm uses=[] creates=[-]  => 
+  shr uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 8bd0c1ea10
+  imm uses=[] creates=[-]  => 
+  and uses=[rdx, -] creates=[rdx]  => 81e2ff000000
+  add uses=[rcx, rdx] creates=[rcx]  => 01d1
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e818
   imm uses=[] creates=[-]  => 
   and uses=[rax, -] creates=[rax]  => 81e0ff000000
+  add uses=[rcx, rax] creates=[rcx]  => 01c1
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rcx->rax]  => 8bc181e0ff000000
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: minBytes ---
@@ -107,15 +132,75 @@ block #1:
   and uses=[rax, -] creates=[rax]  => 81e0ff000000
   cmp_lt uses=[rcx, rax] creates=[-]  => 39c1
   select uses=[rcx, rax, -] creates=[rcx]  => 0f43c8
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rcx->rax]  => 8bc181e0ff000000
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: belowByte ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm2]  => f30f6f1518000000
+  load uses=[-] creates=[xmm2]  => f30f6f1598000000
   xor uses=[xmm0, xmm2] creates=[xmm0]  => 660fefc2
   xor uses=[xmm1, xmm2] creates=[xmm1]  => 660fefca
   cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => 660f64c8
   ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: iminBytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c8b1
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660f3838c1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c84e
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660f3838c1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  x86_sext8 uses=[rax] creates=[rcx]  => 0fbec8
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 8bd0c1e210
+  imm uses=[] creates=[-]  => 
+  sar uses=[rdx, -] creates=[rdx]  => c1fa18
+  cmp_ilt uses=[rcx, rdx] creates=[-]  => 39d1
+  select uses=[rcx, rdx, -] creates=[rcx]  => 0f4dca
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 8bd0c1e208
+  imm uses=[] creates=[-]  => 
+  sar uses=[rdx, -] creates=[rdx]  => c1fa18
+  cmp_ilt uses=[rcx, rdx] creates=[-]  => 39d1
+  select uses=[rcx, rdx, -] creates=[rcx]  => 0f4dca
+  imm uses=[] creates=[-]  => 
+  sar uses=[rax, -] creates=[rax]  => c1f818
+  cmp_ilt uses=[rcx, rax] creates=[-]  => 39c1
+  select uses=[rcx, rax, -] creates=[rcx]  => 0f4dc8
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rcx->rax]  => 8bc181e0ff000000
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: iminWords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c8b1
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660feac1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => 660f70c84e
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm0]  => 660feac1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  x86_sext16 uses=[rax] creates=[rcx]  => 0fbfc8
+  imm uses=[] creates=[-]  => 
+  sar uses=[rax, -] creates=[rax]  => c1f810
+  cmp_ilt uses=[rcx, rax] creates=[-]  => 39c1
+  select uses=[rcx, rax, -] creates=[rcx]  => 0f4dc8
+  imm uses=[] creates=[-]  => 
+  and uses=[rax, -] creates=[rax] pre=[rcx->rax]  => 8bc181e0ffff0000
+  ret uses=[rax] creates=[]  => c3

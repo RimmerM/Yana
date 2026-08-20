@@ -53,8 +53,9 @@ bits(%a: i32x4, %b: i32x4): i32x4 {
 }
 
 # A shift by a constant count every lane shares. The count is an immediate operand in the encoding,
-# so it never reaches a register - and there is no arithmetic shift of a quadword before AVX-512,
-# which is why this shifts the 64-bit lanes logically and the 32-bit ones both ways.
+# so it never reaches a register. The 64-bit lanes are shifted logically and the 32-bit ones both
+# ways because the arithmetic quadword shift is no instruction at all - it is an expansion, and
+# `VectorQuadSar.lower` is where it is listed.
 shifts(%w: i32x4, %q: i64x2): i32x4 {
     {
         %l = shl %w, 3: i32x4

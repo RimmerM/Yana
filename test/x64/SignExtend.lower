@@ -1,0 +1,98 @@
+# The shift pair `truncateToWidth` writes for every narrow signed value, and the one instruction it
+# becomes here - see `selectSignExtends` in codegen/x64/transform.cpp.
+#
+# The distance is register-relative, so what a pair says is the width *below* it: 32 - 16 is a
+# 16-bit source in a 32-bit register, 64 - 56 is a byte in a 64-bit one.
+
+sext16(%v: Int): Int {
+    {
+        %u = shl %v, 16: Int
+        %d = sar %u, 16: Int
+        ret %d
+    }
+}
+
+sext8(%v: Int): Int {
+    {
+        %u = shl %v, 24: Int
+        %d = sar %u, 24: Int
+        ret %d
+    }
+}
+
+sext16Long(%v: Long): Long {
+    {
+        %u = shl %v, 48L: Long
+        %d = sar %u, 48L: Long
+        ret %d
+    }
+}
+
+sext8Long(%v: Long): Long {
+    {
+        %u = shl %v, 56L: Long
+        %d = sar %u, 56L: Long
+        ret %d
+    }
+}
+
+# 32 into 64, which is `movsxd` and the one width that already had a form - it is reached from here
+# as well because a form belongs to the opcode it was selected for.
+sext32Long(%v: Long): Long {
+    {
+        %u = shl %v, 32L: Long
+        %d = sar %u, 32L: Long
+        ret %d
+    }
+}
+
+# The source read again below the extension. The shifts are two-address, so this is the shape that
+# needed a `mov` in front of them; `movsx` reads its operand out of a field of its own.
+sourceStillLive(%v: Int): Int {
+    {
+        %u = shl %v, 16: Int
+        %d = sar %u, 16: Int
+        %r = add %d, %v: Int
+        ret %r
+    }
+}
+
+# The second argument, so that the byte source lands in a register whose low byte has no name
+# without a REX prefix: `movsx eax, sil` and `movsx eax, dh` are otherwise the same three bytes.
+sext8Second(%a: Int, %b: Int): Int {
+    {
+        %u = shl %b, 24: Int
+        %d = sar %u, 24: Int
+        %r = add %d, %a: Int
+        ret %r
+    }
+}
+
+# Three that stay as they are.
+#
+# Unequal distances are not an extension of anything; a left shift with a second reader has to stand
+# whatever happens to the right one; and 64 - 40 is 24 bits, which is not a width `movsx` reads.
+keepUnequal(%v: Int): Int {
+    {
+        %u = shl %v, 16: Int
+        %d = sar %u, 15: Int
+        ret %d
+    }
+}
+
+keepShared(%v: Int): Int {
+    {
+        %u = shl %v, 16: Int
+        %d = sar %u, 16: Int
+        %r = add %d, %u: Int
+        ret %r
+    }
+}
+
+keepPartialByte(%v: Long): Long {
+    {
+        %u = shl %v, 40L: Long
+        %d = sar %u, 40L: Long
+        ret %d
+    }
+}

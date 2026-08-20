@@ -6,8 +6,8 @@ main<complex>(): Int {
     %v_1 = loads @seed, 4: Int
     %base = vsplat %v_1: i32x4
     %v_2 = add %base, %base: i32x4
-    %v_3 = vsplat 2: i32x4
-    %v_4 = imul %base, %v_3: i32x4
+    %v_3 = vsplat 1: i32x4
+    %v_4 = shl %base, %v_3: i32x4
     %v_5 = vlane %v_2, 0: Int
     %v_6 = cmp_neq %v_5, 6: Int
     je %v_6, b_7, b_8
@@ -110,30 +110,29 @@ main<complex>(): Int {
   }
 
   b_42 {
-    %v_43 = vsplat 1: i32x4
-    %lanes = vreduce_add %v_43: Int
-    %v_44 = vreduce_add %v_31: Int
-    %v_45 = imul %lanes, 15: Int
-    %v_46 = cmp_neq %v_44, %v_45: Int
-    je %v_46, b_47, b_48
+    %lanes = vreduce_add %v_3: Int
+    %v_43 = vreduce_add %v_31: Int
+    %v_44 = imul %lanes, 15: Int
+    %v_45 = cmp_neq %v_43, %v_44: Int
+    je %v_45, b_46, b_47
   }
 
-  b_47 {
+  b_46 {
     ret 18446744073709551609
   }
 
-  b_48 {
-    jmp b_49
+  b_47 {
+    jmp b_48
   }
 
-  b_49 {
-    %v_50 = vlane %v_2, 1: Int
-    %v_51 = imul %v_50, 100: Int
-    %v_52 = vlane %v_4, 0: Int
-    %v_53 = add %v_51, %v_52: Int
-    %v_54 = vlane %mixed, 0: Int
-    %v_55 = add %v_53, %v_54: Int
-    ret %v_55
+  b_48 {
+    %v_49 = vlane %v_2, 1: Int
+    %v_50 = imul %v_49, 100: Int
+    %v_51 = vlane %v_4, 0: Int
+    %v_52 = add %v_50, %v_51: Int
+    %v_53 = vlane %mixed, 0: Int
+    %v_54 = add %v_52, %v_53: Int
+    ret %v_54
   }
 }
 

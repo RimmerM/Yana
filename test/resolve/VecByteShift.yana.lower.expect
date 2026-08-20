@@ -1,0 +1,78 @@
+@image$base = []
+mut @counter = [0, 0, 0, 0]
+
+opaque<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = loads @counter, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @counter, %v_2, 4
+    %v_3 = cmp_igt %v_2, 1000: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 1
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    ret %n
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 18446744071821328129: i32x4
+    %v_2 = bitcast %v_1: i8x16
+    %v_3 = vsplat 1: i8x16
+    %v_4 = shl %v_2, %v_3: i8x16
+    %v_5 = bitcast %v_4: i32x4
+    %v_6 = vlane %v_5, 0: Int
+    %v_7 = cmp_eq %v_6, 518454786: Int
+    %v_8 = vsplat 3: i8x16
+    %v_9 = shr %v_2, %v_8: i8x16
+    %v_10 = bitcast %v_9: i32x4
+    %v_11 = vlane %v_10, 0: Int
+    %v_12 = cmp_eq %v_11, 286138112: Int
+    %v_13 = add %v_7, %v_12: Int
+    %v_14 = sar %v_2, %v_8: i8x16
+    %v_15 = bitcast %v_14: i32x4
+    %v_16 = vlane %v_15, 0: Int
+    %v_17 = cmp_eq %v_16, 18446744073458876160: Int
+    %v_18 = add %v_13, %v_17: Int
+    %v_19 = vsplat 0: i8x16
+    %v_20 = sar %v_2, %v_19: i8x16
+    %v_21 = bitcast %v_20: i32x4
+    %v_22 = vlane %v_21, 0: Int
+    %v_23 = cmp_eq %v_22, 18446744071821328129: Int
+    %v_24 = add %v_18, %v_23: Int
+    %v_25 = vsplat 7: i8x16
+    %v_26 = sar %v_2, %v_25: i8x16
+    %v_27 = bitcast %v_26: i32x4
+    %v_28 = vlane %v_27, 0: Int
+    %v_29 = cmp_eq %v_28, 18446744073692839680: Int
+    %v_30 = add %v_24, %v_29: Int
+    %k = call_complex opaque, 2: Int
+    %v_31 = vsplat %k: i8x16
+    %v_32 = shl %v_2, %v_31: i8x16
+    %v_33 = bitcast %v_32: i32x4
+    %v_34 = vlane %v_33, 0: Int
+    %v_35 = cmp_eq %v_34, 1020066820: Int
+    %v_36 = add %v_30, %v_35: Int
+    %v_37 = shr %v_2, %v_31: i8x16
+    %v_38 = bitcast %v_37: i32x4
+    %v_39 = vlane %v_38, 0: Int
+    %v_40 = cmp_eq %v_39, 589053696: Int
+    %v_41 = add %v_36, %v_40: Int
+    %v_42 = sar %v_2, %v_31: i8x16
+    %v_43 = bitcast %v_42: i32x4
+    %v_44 = vlane %v_43, 0: Int
+    %v_45 = cmp_eq %v_44, 18446744073224912640: Int
+    %v_46 = add %v_41, %v_45: Int
+    ret %v_46
+  }
+}
+

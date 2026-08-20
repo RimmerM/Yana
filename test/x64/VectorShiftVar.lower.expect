@@ -1,0 +1,200 @@
+
+varShl32<complex>(%v: i32x4, %n: i32x4): i32x4 {
+  b_0 {
+    %r = shl %v, %n: i32x4
+    ret %r
+  }
+}
+
+varShl64<complex>(%v: i64x2, %n: i64x2): i64x2 {
+  b_0 {
+    %r = shl %v, %n: i64x2
+    ret %r
+  }
+}
+
+varShr32<complex>(%v: i32x4, %n: i32x4): i32x4 {
+  b_0 {
+    %r = shr %v, %n: i32x4
+    ret %r
+  }
+}
+
+varShr64<complex>(%v: i64x2, %n: i64x2): i64x2 {
+  b_0 {
+    %r = shr %v, %n: i64x2
+    ret %r
+  }
+}
+
+varSar32<complex>(%v: i32x4, %n: i32x4): i32x4 {
+  b_0 {
+    %r = sar %v, %n: i32x4
+    ret %r
+  }
+}
+
+varSar64<complex>(%v: i64x2, %n: i64x2): i64x2 {
+  b_0 {
+    %r = sar %v, %n: i64x2
+    ret %r
+  }
+}
+
+wideVarShl32<complex>(%v: i32x8, %n: i32x8): i32x8 {
+  b_0 {
+    %r = shl %v, %n: i32x8
+    ret %r
+  }
+}
+
+wideVarSar64<complex>(%v: i64x4, %n: i64x4): i64x4 {
+  b_0 {
+    %r = sar %v, %n: i64x4
+    ret %r
+  }
+}
+
+varShlByte<complex>(%v: i8x16, %n: i8x16): i8x16 {
+  b_0 {
+    %r = shl %v, %n: i8x16
+    ret %r
+  }
+}
+
+
+--- codegen: varShl32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, xmm1] creates=[xmm0]  => c4e27947c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varShl64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, xmm1] creates=[xmm0]  => c4e2f947c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varShr32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shr uses=[xmm0, xmm1] creates=[xmm0]  => c4e27945c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varShr64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shr uses=[xmm0, xmm1] creates=[xmm0]  => c4e2f945c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varSar32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sar uses=[xmm0, xmm1] creates=[xmm0]  => c4e27946c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varSar64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  vsplat uses=[rdi] creates=[xmm2] pre=[remat:0->rdi]  => 48bf0000000000000080c4e1f96ed7c4e27959d2
+  shr uses=[xmm2, xmm1] creates=[xmm2]  => c4e2e945d1
+  shr uses=[xmm0, xmm1] creates=[xmm0]  => c4e2f945c1
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => c5f9efc2
+  sub uses=[xmm0, xmm2] creates=[xmm0]  => c5f9fbc2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wideVarShl32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, xmm1] creates=[xmm0]  => c4e27d47c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wideVarSar64 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  vsplat uses=[rdi] creates=[xmm2] pre=[remat:0->rdi]  => 48bf0000000000000080c4e1f96ed7c4e27d59d2
+  shr uses=[xmm2, xmm1] creates=[xmm2]  => c4e2ed45d1
+  shr uses=[xmm0, xmm1] creates=[xmm0]  => c4e2fd45c1
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => c5fdefc2
+  sub uses=[xmm0, xmm2] creates=[xmm0]  => c5fdfbc2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: varShlByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c000
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c900
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm0, rax] creates=[xmm2]  => c4e37920d000
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c001
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c901
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d001
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c002
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c902
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d002
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c003
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c903
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d003
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c004
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c904
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d004
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c005
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c905
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d005
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c006
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c906
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d006
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c007
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c907
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d007
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c008
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c908
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d008
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c009
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c909
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d009
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00a
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90a
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d00a
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00b
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90b
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d00b
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00c
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90c
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d00c
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00d
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90d
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d00d
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00e
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90e
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => c4e36920d00e
+  vlane uses=[xmm0] creates=[rax]  => c4e37914c00f
+  vlane uses=[xmm1] creates=[rcx]  => c4e37914c90f
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm2, rax] creates=[xmm0]  => c4e36920c00f
+  ret uses=[xmm0] creates=[]  => c3

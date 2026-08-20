@@ -284,3 +284,41 @@ allWide(%a: i8x32, %b: i8x32): Int {
         ret %r
     }
 }
+
+# The two quadword operations the machine has no instruction for at any width, one tier up.
+#
+# Neither is a wide-tier gap of its own: `expandQuadwordSar` and `expandVectorAbs` build both out of
+# operations that have a `wideTwin` each, so what changes here against the 128-bit listing is the VEX
+# `L` bit and nothing else. The magnitude is three instructions and the shift three, both with their
+# constant hoisted out of the body.
+wideQuadSar(%q: i64x4): i64x4 {
+    {
+        %r = sar %q, 5: i64x4
+        ret %r
+    }
+}
+
+wideQuadAbs(%q: i64x4): i64x4 {
+    {
+        %r = abs %q: i64x4
+        ret %r
+    }
+}
+
+# And the two multiplies the machine has no row for, one tier up. Both are built out of operations
+# with a `wideTwin` each - `vpmullw` for the byte lane, `vpmuludq` for the quadword - so what changes
+# against the 128-bit listing in `VectorMulWide.lower` is the VEX `L` bit and nothing else. The
+# quadword is where the tier pays: eight instructions for four lanes rather than for two.
+wideQuadMul(%a: i64x4, %b: i64x4): i64x4 {
+    {
+        %r = imul %a, %b: i64x4
+        ret %r
+    }
+}
+
+wideByteMul(%a: i8x32, %b: i8x32): i8x32 {
+    {
+        %r = imul %a, %b: i8x32
+        ret %r
+    }
+}

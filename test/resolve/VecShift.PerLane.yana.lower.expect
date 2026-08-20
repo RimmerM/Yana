@@ -1,0 +1,81 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 4, 2: i32x4
+    %v_4 = vwithlane %v_3, 31, 3: i32x4
+    %v = vsplat 256: i32x4
+    %left = shl %v, %v_4: i32x4
+    %v_5 = vlane %left, 0: Int
+    %v_6 = cmp_eq %v_5, 256: Int
+    %v_7 = vlane %left, 1: Int
+    %v_8 = cmp_eq %v_7, 512: Int
+    %v_9 = add %v_6, %v_8: Int
+    %v_10 = vlane %left, 2: Int
+    %v_11 = cmp_eq %v_10, 4096: Int
+    %v_12 = add %v_9, %v_11: Int
+    %v_13 = vlane %left, 3: Int
+    %v_14 = cmp_eq %v_13, 0: Int
+    %v_15 = add %v_12, %v_14: Int
+    %w = vsplat 18446744073709551360: i32x4
+    %logical = shr %w, %v_4: i32x4
+    %arith = sar %w, %v_4: i32x4
+    %v_16 = vlane %logical, 0: Int
+    %v_17 = cmp_eq %v_16, 18446744073709551360: Int
+    %v_18 = add %v_15, %v_17: Int
+    %v_19 = vlane %logical, 1: Int
+    %v_20 = cmp_eq %v_19, 2147483520: Int
+    %v_21 = add %v_18, %v_20: Int
+    %v_22 = vlane %logical, 2: Int
+    %v_23 = cmp_eq %v_22, 268435440: Int
+    %v_24 = add %v_21, %v_23: Int
+    %v_25 = vlane %logical, 3: Int
+    %v_26 = cmp_eq %v_25, 1: Int
+    %v_27 = add %v_24, %v_26: Int
+    %v_28 = vlane %arith, 0: Int
+    %v_29 = cmp_eq %v_28, 18446744073709551360: Int
+    %v_30 = add %v_27, %v_29: Int
+    %v_31 = vlane %arith, 1: Int
+    %v_32 = cmp_eq %v_31, 18446744073709551488: Int
+    %v_33 = add %v_30, %v_32: Int
+    %v_34 = vlane %arith, 2: Int
+    %v_35 = cmp_eq %v_34, 18446744073709551600: Int
+    %v_36 = add %v_33, %v_35: Int
+    %v_37 = vlane %arith, 3: Int
+    %v_38 = cmp_eq %v_37, 18446744073709551615: Int
+    %v_39 = add %v_36, %v_38: Int
+    %q = vsplat 18446744073709486080: i64x2
+    %v_40 = vsplat 0: i64x2
+    %qby = vwithlane %v_40, 8, 1: i64x2
+    %qarith = sar %q, %qby: i64x2
+    %v_41 = vlane %qarith, 0: Long
+    %v_42 = cmp_eq %v_41, 18446744073709486080: Int
+    %v_43 = add %v_39, %v_42: Int
+    %v_44 = vlane %qarith, 1: Long
+    %v_45 = cmp_eq %v_44, 18446744073709551360: Int
+    %v_46 = add %v_43, %v_45: Int
+    %v_47 = vsplat 18446744071821328129: i32x4
+    %bytes = bitcast %v_47: i8x16
+    %v_48 = vsplat 33686018: i32x4
+    %bby = bitcast %v_48: i8x16
+    %barith = sar %bytes, %bby: i8x16
+    %v_49 = vlane %barith, 3: Int
+    %v_50 = imm 24: Int
+    %v_51 = shl %v_49, %v_50: Int
+    %v_52 = sar %v_51, %v_50: Int
+    %v_53 = cast %v_52: Int
+    %v_54 = cmp_eq %v_53, 18446744073709551587: Int
+    %v_55 = add %v_46, %v_54: Int
+    %v_56 = vlane %barith, 0: Int
+    %v_57 = imm 24: Int
+    %v_58 = shl %v_56, %v_57: Int
+    %v_59 = sar %v_58, %v_57: Int
+    %v_60 = cast %v_59: Int
+    %v_61 = cmp_eq %v_60, 0: Int
+    %v_62 = add %v_55, %v_61: Int
+    ret %v_62
+  }
+}
+

@@ -45,31 +45,63 @@ fn main() -> Int {
     %v61 = add %v56, %v60 : Long
     assign %n, %v61
     %v63 = load %n : Long
-    %v67 = vsplat 0 : Vec(Long)
-    %v68 = sub %v67, %c : Vec(Long)
-    %v71 = vlane %v68, 0 : Long
-    %v72 = add %v63, %v71 : Long
-    assign %n, %v72
-    %v74 = load %n : Long
-    %v75 = vreduce_add %a : Long
-    %v76 = add %v74, %v75 : Long
-    assign %n, %v76
-    %v78 = load %n : Long
-    %v79 = vreduce_max %a : Long
-    %v80 = add %v78, %v79 : Long
-    assign %n, %v80
-    %v82 = load %n : Long
-    %v83 = vreduce_min %c : Long
-    %v84 = add %v82, %v83 : Long
+    %v64 = abs %c : Vec(Long)
+    %v67 = vlane %v64, 0 : Long
+    %v68 = add %v63, %v67 : Long
+    assign %n, %v68
+    %v70 = load %n : Long
+    %v72 = vsplat 2 : Vec(Long)
+    %v73 = sar %c, %v72 : Vec(Long)
+    %v76 = vlane %v73, 0 : Long
+    %v77 = add %v70, %v76 : Long
+    assign %n, %v77
+    %v79 = load %n : Long
+    %v80 = mul %a, %b : Vec(Long)
+    %v83 = vlane %v80, 0 : Long
+    %v84 = add %v79, %v83 : Long
     assign %n, %v84
+    %v86 = load %n : Long
+    %v87 = div %a, %b : Vec(Long)
+    %v90 = vlane %v87, 0 : Long
+    %v91 = add %v86, %v90 : Long
+    assign %n, %v91
+    %v93 = load %n : Long
+    %v94 = rem %a, %b : Vec(Long)
+    %v97 = vlane %v94, 0 : Long
+    %v98 = add %v93, %v97 : Long
+    assign %n, %v98
+    %v100 = load %n : Long
+    %v102 = vsplat 0 : Vec(Long)
+    %v103 = div %a, %v102 : Vec(Long)
+    %v106 = vlane %v103, 0 : Long
+    %v107 = add %v100, %v106 : Long
+    assign %n, %v107
+    %v109 = load %n : Long
+    %v111 = vsplat 0 : Vec(Long)
+    %v112 = rem %a, %v111 : Vec(Long)
+    %v115 = vlane %v112, 0 : Long
+    %v116 = add %v109, %v115 : Long
+    assign %n, %v116
+    %v118 = load %n : Long
+    %v119 = vreduce_add %a : Long
+    %v120 = add %v118, %v119 : Long
+    assign %n, %v120
+    %v122 = load %n : Long
+    %v123 = vreduce_max %a : Long
+    %v124 = add %v122, %v123 : Long
+    assign %n, %v124
+    %v126 = load %n : Long
+    %v127 = vreduce_min %c : Long
+    %v128 = add %v126, %v127 : Long
+    assign %n, %v128
     %wide = vsplat 4294967296 : Vec(Long)
-    %v88 = load %n : Long
-    %v90 = vsplat 32 : Vec(Long)
-    %v91 = shr %wide, %v90 : Vec(Long)
-    %v94 = vlane %v91, 0 : Long
-    %v95 = add %v88, %v94 : Long
-    assign %n, %v95
-    %v97 = load %n : Long
-    %v98 = cast %v97 : Int
-    ret %v98
+    %v132 = load %n : Long
+    %v134 = vsplat 32 : Vec(Long)
+    %v135 = shr %wide, %v134 : Vec(Long)
+    %v138 = vlane %v135, 0 : Long
+    %v139 = add %v132, %v138 : Long
+    assign %n, %v139
+    %v141 = load %n : Long
+    %v142 = cast %v141 : Int
+    ret %v142
 }

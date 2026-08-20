@@ -1,0 +1,273 @@
+
+mulHiQuadSigned<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %r = imulhi %a, %b: i64x2
+    ret %r
+  }
+}
+
+mulHiQuadUnsigned<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %r = mulhi %a, %b: i64x2
+    ret %r
+  }
+}
+
+mulHiSigned<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = imulhi %a, %b: i32x4
+    ret %r
+  }
+}
+
+mulHiUnsigned<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = mulhi %a, %b: i32x4
+    ret %r
+  }
+}
+
+mulHiWord<complex>(%a: i16x8, %b: i16x8): i16x8 {
+  b_0 {
+    %r = imulhi %a, %b: i16x8
+    ret %r
+  }
+}
+
+quadByConstant<complex>(%p: Ptr, %count: Int): i64x2 {
+  start {
+    %acc0 = vsplat 0: i64x2
+    %mul = vsplat 6148914691236517206: i64x2
+    jmp head
+  }
+
+  head {
+    %acc = phi [start, %acc0], [body, %acc2]: i64x2
+    %n = phi [start, %count], [body, %n2]: Int
+    %v_0 = cmp_le %n, 0: Int
+    je %v_0, body, end
+  }
+
+  body {
+    %n2 = sub %n, 1: Int
+    %v = load %p, 16: i64x2
+    %q = imulhi %v, %mul: i64x2
+    %acc2 = add %acc, %q: i64x2
+    jmp head
+  }
+
+  end {
+    ret %acc
+  }
+}
+
+wordByConstant<complex>(%p: Ptr, %count: Int): i32x4 {
+  start {
+    %acc0 = vsplat 0: i32x4
+    %mul = vsplat 1431655766: i32x4
+    jmp head
+  }
+
+  head {
+    %acc = phi [start, %acc0], [body, %acc2]: i32x4
+    %n = phi [start, %count], [body, %n2]: Int
+    %v_0 = cmp_le %n, 0: Int
+    je %v_0, body, end
+  }
+
+  body {
+    %n2 = sub %n, 1: Int
+    %v = load %p, 16: i32x4
+    %q = imulhi %v, %mul: i32x4
+    %acc2 = add %acc, %q: i32x4
+    jmp head
+  }
+
+  end {
+    ret %acc
+  }
+}
+
+
+--- codegen: mulHiQuadSigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1508020000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm3]  => 660f70d8b1
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  vshuffle uses=[xmm1, xmm1] creates=[xmm4]  => 660f70e1b1
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  x86_mulwide uses=[xmm5, xmm1] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660ff4e9
+  x86_mulwide uses=[xmm6, xmm4] creates=[xmm6] pre=[xmm0->xmm6]  => 0f28f0660ff4f4
+  x86_mulwide uses=[xmm7, xmm1] creates=[xmm7] pre=[xmm3->xmm7]  => 0f28fb660ff4f9
+  x86_mulwide uses=[xmm3, xmm4] creates=[xmm3]  => 660ff4dc
+  shr uses=[xmm5, -] creates=[xmm5]  => 660f73d520
+  add uses=[xmm6, xmm5] creates=[xmm6]  => 660fd4f5
+  and uses=[xmm4, xmm2] creates=[xmm4] pre=[xmm6->xmm4]  => 0f28e6660fdbe2
+  add uses=[xmm7, xmm4] creates=[xmm7]  => 660fd4fc
+  shr uses=[xmm7, -] creates=[xmm7]  => 660f73d720
+  shr uses=[xmm6, -] creates=[xmm6]  => 660f73d620
+  add uses=[xmm3, xmm6] creates=[xmm3]  => 660fd4de
+  add uses=[xmm3, xmm7] creates=[xmm3]  => 660fd4df
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => 660f70d0f5
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm2, -] creates=[xmm2]  => 660f72e21f
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  and uses=[xmm2, xmm1] creates=[xmm2]  => 660fdbd1
+  sub uses=[xmm3, xmm2] creates=[xmm3]  => 660ffbda
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  vshuffle uses=[xmm1, xmm1] creates=[xmm1]  => 660f70c9f5
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm1, -] creates=[xmm1]  => 660f72e11f
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  and uses=[xmm1, xmm0] creates=[xmm1]  => 660fdbc8
+  sub uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm3->xmm0]  => 0f28c3660ffbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulHiQuadUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1588010000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm3]  => 660f70d8b1
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  vshuffle uses=[xmm1, xmm1] creates=[xmm4]  => 660f70e1b1
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  x86_mulwide uses=[xmm5, xmm1] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660ff4e9
+  x86_mulwide uses=[xmm0, xmm4] creates=[xmm0]  => 660ff4c4
+  x86_mulwide uses=[xmm6, xmm1] creates=[xmm6] pre=[xmm3->xmm6]  => 0f28f3660ff4f1
+  x86_mulwide uses=[xmm3, xmm4] creates=[xmm3]  => 660ff4dc
+  shr uses=[xmm5, -] creates=[xmm5]  => 660f73d520
+  add uses=[xmm0, xmm5] creates=[xmm0]  => 660fd4c5
+  and uses=[xmm1, xmm2] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660fdbca
+  add uses=[xmm6, xmm1] creates=[xmm6]  => 660fd4f1
+  shr uses=[xmm6, -] creates=[xmm6]  => 660f73d620
+  shr uses=[xmm0, -] creates=[xmm0]  => 660f73d020
+  add uses=[xmm3, xmm0] creates=[xmm3]  => 660fd4d8
+  add uses=[xmm0, xmm6] creates=[xmm0] pre=[xmm3->xmm0]  => 0f28c3660fd4c6
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulHiSigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => 660f70d0f5
+  vshuffle uses=[xmm1, xmm1] creates=[xmm3]  => 660f70d9f5
+  x86_imulwide uses=[xmm0, xmm1] creates=[xmm0]  => 660f3828c1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_imulwide uses=[xmm2, xmm3] creates=[xmm2]  => 660f3828d3
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  vshuffle uses=[xmm0, xmm2] creates=[xmm0]  => 0fc6c2dd
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 660f70c0d8
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulHiUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => 660f70d0f5
+  vshuffle uses=[xmm1, xmm1] creates=[xmm3]  => 660f70d9f5
+  x86_mulwide uses=[xmm0, xmm1] creates=[xmm0]  => 660ff4c1
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_mulwide uses=[xmm2, xmm3] creates=[xmm2]  => 660ff4d3
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  vshuffle uses=[xmm0, xmm2] creates=[xmm0]  => 0fc6c2dd
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 660f70c0d8
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: mulHiWord ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imulhi uses=[xmm0, xmm1] creates=[xmm0]  => 660fe5c1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: quadByConstant ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f05d8000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm1]  => 660fefc9
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f15dc000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1de4000000
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rsi, -] creates=[-]  => 85f6
+  je uses=[-] creates=[]  => 0f8769000000
+block body:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => ffce
+  load uses=[rdi] creates=[xmm4]  => f30f6f27
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  vshuffle uses=[xmm4, xmm4] creates=[xmm5]  => 660f70ecb1
+  bitcast uses=[xmm5] creates=[xmm5]  => 
+  x86_mulwide uses=[xmm6, xmm2] creates=[xmm6] pre=[xmm4->xmm6]  => 0f28f4660ff4f2
+  x86_mulwide uses=[xmm7, xmm3] creates=[xmm7] pre=[xmm4->xmm7]  => 0f28fc660ff4fb
+  x86_mulwide uses=[xmm8, xmm2] creates=[xmm8] pre=[xmm5->xmm8]  => 440f28c566440ff4c2
+  x86_mulwide uses=[xmm5, xmm3] creates=[xmm5]  => 660ff4eb
+  shr uses=[xmm6, -] creates=[xmm6]  => 660f73d620
+  add uses=[xmm7, xmm6] creates=[xmm7]  => 660fd4fe
+  and uses=[xmm6, xmm0] creates=[xmm6] pre=[xmm7->xmm6]  => 0f28f7660fdbf0
+  add uses=[xmm8, xmm6] creates=[xmm8]  => 66440fd4c6
+  shr uses=[xmm8, -] creates=[xmm8]  => 66410f73d020
+  shr uses=[xmm7, -] creates=[xmm7]  => 660f73d720
+  add uses=[xmm5, xmm7] creates=[xmm5]  => 660fd4ef
+  add uses=[xmm5, xmm8] creates=[xmm5]  => 66410fd4e8
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  vshuffle uses=[xmm4, xmm4] creates=[xmm4]  => 660f70e4f5
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm4, -] creates=[xmm4]  => 660f72e41f
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  and uses=[xmm4, xmm2] creates=[xmm4]  => 660fdbe2
+  sub uses=[xmm5, xmm4] creates=[xmm5]  => 660ffbec
+  add uses=[xmm1, xmm5] creates=[xmm1]  => 660fd4cd
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rsi, -] creates=[-]  => 85f6
+  je uses=[-] creates=[]  => 7697
+block end:
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: wordByConstant ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d64000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f155c000000
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rsi, -] creates=[-]  => 85f6
+  je uses=[-] creates=[]  => 7726
+block body:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => ffce
+  load uses=[rdi] creates=[xmm3]  => f30f6f1f
+  vshuffle uses=[xmm3, xmm3] creates=[xmm4]  => 660f70e3f5
+  x86_imulwide uses=[xmm3, xmm1] creates=[xmm3]  => 660f3828d9
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  x86_imulwide uses=[xmm4, xmm2] creates=[xmm4]  => 660f3828e2
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  vshuffle uses=[xmm3, xmm4] creates=[xmm3]  => 0fc6dcdd
+  vshuffle uses=[xmm3, xmm3] creates=[xmm3]  => 660f70dbd8
+  add uses=[xmm0, xmm3] creates=[xmm0]  => 660ffec3
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rsi, -] creates=[-]  => 85f6
+  je uses=[-] creates=[]  => 76da
+block end:
+  ret uses=[xmm0] creates=[]  => c3

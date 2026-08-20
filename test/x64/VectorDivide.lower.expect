@@ -1,0 +1,295 @@
+
+divideInt<complex>(%v: i32x4, %d: i32x4): i32x4 {
+  b_0 {
+    %r = idiv %v, %d: i32x4
+    ret %r
+  }
+}
+
+remainderInt<complex>(%v: i32x4, %d: i32x4): i32x4 {
+  b_0 {
+    %r = irem %v, %d: i32x4
+    ret %r
+  }
+}
+
+divideUnsigned<complex>(%v: i32x4, %d: i32x4): i32x4 {
+  b_0 {
+    %r = div %v, %d: i32x4
+    ret %r
+  }
+}
+
+divideQuad<complex>(%v: i64x2, %d: i64x2): i64x2 {
+  b_0 {
+    %r = idiv %v, %d: i64x2
+    ret %r
+  }
+}
+
+divideByte<complex>(%v: i8x16, %d: i8x16): i8x16 {
+  b_0 {
+    %r = idiv %v, %d: i8x16
+    ret %r
+  }
+}
+
+divideByteUnsigned<complex>(%v: i8x16, %d: i8x16): i8x16 {
+  b_0 {
+    %r = div %v, %d: i8x16
+    ret %r
+  }
+}
+
+
+--- codegen: divideInt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f7ec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a22d000
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c001
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c901
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a22d001
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c002
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c902
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a22d002
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c903
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm0, rax] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f3a22c003
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: remainderInt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f7ec9
+  irem uses=[rax, rcx] creates=[rdx]  => 99f7f9
+  vwithlane uses=[xmm2, rdx] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a22d200
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c001
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c901
+  irem uses=[rax, rcx] creates=[rdx]  => 99f7f9
+  vwithlane uses=[xmm2, rdx] creates=[xmm2]  => 660f3a22d201
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c002
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c902
+  irem uses=[rax, rcx] creates=[rdx]  => 99f7f9
+  vwithlane uses=[xmm2, rdx] creates=[xmm2]  => 660f3a22d202
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c903
+  irem uses=[rax, rcx] creates=[rdx]  => 99f7f9
+  vwithlane uses=[xmm0, rdx] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f3a22c203
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: divideUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f7ec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f7ec9
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a22d000
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c001
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c901
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a22d001
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c002
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c902
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a22d002
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c003
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a16c903
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm0, rax] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f3a22c003
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: divideQuad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 66480f7ec0
+  vlane uses=[xmm1] creates=[rcx]  => 66480f7ec9
+  idiv uses=[rax, rcx] creates=[rax]  => 489948f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d066480f3a22d000
+  vlane uses=[xmm0] creates=[rax]  => 66480f3a16c001
+  vlane uses=[xmm1] creates=[rcx]  => 66480f3a16c901
+  idiv uses=[rax, rcx] creates=[rax]  => 489948f7f9
+  vwithlane uses=[xmm0, rax] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c266480f3a22c001
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: divideByte ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c000
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c900
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a20d000
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c001
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c901
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d001
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c002
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c902
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d002
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c003
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c903
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d003
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c004
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c904
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d004
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c005
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c905
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d005
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c006
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c906
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d006
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c007
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c907
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d007
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c008
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c908
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d008
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c009
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c909
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d009
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00a
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90a
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00a
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00b
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90b
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00b
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00c
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90c
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00c
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00d
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90d
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00d
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00e
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90e
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00e
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00f
+  x86_sext8 uses=[rax] creates=[rax]  => 0fbec0
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90f
+  x86_sext8 uses=[rcx] creates=[rcx]  => 0fbec9
+  idiv uses=[rax, rcx] creates=[rax]  => 99f7f9
+  vwithlane uses=[xmm0, rax] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f3a20c00f
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: divideByteUnsigned ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c000
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c900
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f3a20d000
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c001
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c901
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d001
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c002
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c902
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d002
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c003
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c903
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d003
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c004
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c904
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d004
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c005
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c905
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d005
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c006
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c906
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d006
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c007
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c907
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d007
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c008
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c908
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d008
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c009
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c909
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d009
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00a
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90a
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00a
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00b
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90b
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00b
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00c
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90c
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00c
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00d
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90d
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00d
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00e
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90e
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm2, rax] creates=[xmm2]  => 660f3a20d00e
+  vlane uses=[xmm0] creates=[rax]  => 660f3a14c00f
+  vlane uses=[xmm1] creates=[rcx]  => 660f3a14c90f
+  div uses=[rax, rcx] creates=[rax]  => 31d2f7f1
+  vwithlane uses=[xmm0, rax] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f3a20c00f
+  ret uses=[xmm0] creates=[]  => c3

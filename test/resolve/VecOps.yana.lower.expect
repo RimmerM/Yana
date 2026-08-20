@@ -184,34 +184,35 @@ main<complex>(): Int {
     %a = vsplat 3: i32x4
     %b = vsplat 4: i32x4
     %sum = add %a, %b: i32x4
-    %product = imul %a, %b: i32x4
+    %v_14 = vsplat 2: i32x4
+    %product = shl %a, %v_14: i32x4
     %difference = sub %b, %a: i32x4
-    %v_14 = vlane %sum, 0: Int
-    %v_15 = imul %v_14, 100: Int
-    %v_16 = vlane %product, 0: Int
-    %v_17 = add %v_15, %v_16: Int
-    %v_18 = vlane %difference, 1: Int
-    %v_19 = add %v_17, %v_18: Int
+    %v_15 = vlane %sum, 0: Int
+    %v_16 = imul %v_15, 100: Int
+    %v_17 = vlane %product, 0: Int
+    %v_18 = add %v_16, %v_17: Int
+    %v_19 = vlane %difference, 1: Int
+    %v_20 = add %v_18, %v_19: Int
     %a = vsplat 12: i32x4
     %b = vsplat 10: i32x4
-    %v_20 = and %a, %b: i32x4
-    %v_21 = vlane %v_20, 0: Int
-    %v_22 = imul %v_21, 100: Int
-    %v_23 = or %a, %b: i32x4
-    %v_24 = vlane %v_23, 0: Int
-    %v_25 = add %v_22, %v_24: Int
-    %v_26 = xor %a, %b: i32x4
-    %v_27 = vlane %v_26, 1: Int
-    %v_28 = add %v_25, %v_27: Int
-    %v_29 = add %v_19, %v_28: Int
+    %v_21 = and %a, %b: i32x4
+    %v_22 = vlane %v_21, 0: Int
+    %v_23 = imul %v_22, 100: Int
+    %v_24 = or %a, %b: i32x4
+    %v_25 = vlane %v_24, 0: Int
+    %v_26 = add %v_23, %v_25: Int
+    %v_27 = xor %a, %b: i32x4
+    %v_28 = vlane %v_27, 1: Int
+    %v_29 = add %v_26, %v_28: Int
+    %v_30 = add %v_20, %v_29: Int
     %v = vsplat 5: i32x4
     %changed = vwithlane %v, 9, 1: i32x4
-    %v_30 = vlane %changed, 0: Int
-    %v_31 = imul %v_30, 100: Int
-    %v_32 = vlane %changed, 1: Int
-    %v_33 = add %v_31, %v_32: Int
-    %v_34 = add %v_29, %v_33: Int
-    ret %v_34
+    %v_31 = vlane %changed, 0: Int
+    %v_32 = imul %v_31, 100: Int
+    %v_33 = vlane %changed, 1: Int
+    %v_34 = add %v_32, %v_33: Int
+    %v_35 = add %v_30, %v_34: Int
+    ret %v_35
   }
 }
 

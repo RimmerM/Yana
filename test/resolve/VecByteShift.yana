@@ -1,0 +1,69 @@
+{-
+   Shifts at a byte lane, which the machine has none of in any direction.
+
+   `psllw` is the narrowest packed shift x86 has, so a byte lane borrows the word one and masks away
+   the bits that crossed the boundary between the two bytes of each word - two instructions and a
+   constant for sixteen lanes at once. The arithmetic direction has no word form to borrow either
+   (`psraw` and `psrad` are the whole family), so it is the logical shift plus the sign-extension
+   bias `expandQuadwordSar` uses one width up. See `expandByteShifts` in codegen/x64/transform.cpp,
+   and `x64/VectorByteShift.lower` for the bytes.
+
+   **The operand has to have a byte that carries.** A shift of a lane whose result still fits in
+   eight bits leaks nothing into its neighbour, so a fixture over such a vector passes with the mask
+   removed entirely and asserts nothing about the half of the expansion that is not the borrowed
+   shift. Every byte of the pattern below is chosen against that: `0xff` shifted left loses a bit
+   into the byte above it, and `0x8f` and `0xff` are negative where `0x01` and `0x73` are not, which
+   is what tells `sar` from `shr`.
+
+   **The result is read four bytes at a time.** `lane` at a byte lane reads its 32-bit neighbourhood
+   rather than the byte - a separate defect, and one that would make every assertion here vacuous -
+   so what each check reads is a `Vec(Int)` view of the answer, which is the four bytes at once and a
+   stricter assertion than one lane would have been.
+
+   Each check contributes 1 and `main` is their count.
+-}
+
+let &counter = 0 :: Int
+
+-- Opaque: the global is written as well as read, so no pass can fold the count into a constant.
+@noinline
+fn opaque(n: I8) -> I8:
+    counter = counter + 1
+    if counter > 1000:
+        return 1
+    return n
+
+-- The four bytes of every lane group, as one 32-bit number: 0x01, 0xff, 0x73, 0x8f from lane zero
+-- up. Written as the `Vec(Int)` it will be read back as, since a byte lane cannot be written one at
+-- a time any more than it can be read one at a time.
+fn pattern() -> Vec(I8) = bitcast(splat(0 - 1888223487) :: Vec(Int))
+
+fn check(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let v = pattern()
+    let &n = 0 :: Int
+
+    -- 0x1ee6fe02: every byte shifted left by one, and the bit `0xff` lost off its top does not
+    -- arrive in the byte above.
+    n = n + check(v `shl` splat(1 :: I8), 518454786)
+
+    -- 0x110e1f00 logical against 0xf10eff00 arithmetic, which is the pair that has to differ: the
+    -- two negative bytes come back with their sign in the second and without it in the first.
+    n = n + check(v `shr` splat(3 :: I8), 286138112)
+    n = n + check(v `sar` splat(3 :: I8), 0 - 250675456)
+
+    -- The two ends of the range. A count of zero is the identity, which the bias has to leave alone;
+    -- a count of seven leaves every byte its own sign repeated.
+    n = n + check(v `sar` splat(0 :: I8), 0 - 1888223487)
+    n = n + check(v `sar` splat(7 :: I8), 0 - 16711936)
+
+    -- And the same three by a count that is only known at run time, where the mask is two
+    -- general-register instructions and a broadcast rather than a pooled constant.
+    let k = opaque(2)
+    n = n + check(v `shl` splat(k), 1020066820)
+    n = n + check(v `shr` splat(k), 589053696)
+    n = n + check(v `sar` splat(k), 0 - 484638976)
+
+    return n

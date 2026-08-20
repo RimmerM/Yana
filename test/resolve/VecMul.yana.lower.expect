@@ -1,0 +1,43 @@
+@image$base = []
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = vsplat 18446744071821328129: i32x4
+    %v = bitcast %v_1: i8x16
+    %v_2 = vsplat 100532999: i32x4
+    %w = bitcast %v_2: i8x16
+    %v_3 = imul %v, %v: i8x16
+    %v_4 = bitcast %v_3: i32x4
+    %v_5 = vlane %v_4, 0: Int
+    %v_6 = cmp_eq %v_5, 18446744073200533761: Int
+    %v_7 = imul %v, %w: i8x16
+    %v_8 = bitcast %v_7: i32x4
+    %v_9 = vlane %v_8, 0: Int
+    %v_10 = cmp_eq %v_9, 18446744072822127879: Int
+    %v_11 = add %v_6, %v_10: Int
+    %v_12 = vsplat 1: i8x16
+    %v_13 = imul %v, %v_12: i8x16
+    %v_14 = bitcast %v_13: i32x4
+    %v_15 = vlane %v_14, 0: Int
+    %v_16 = cmp_eq %v_15, 18446744071821328129: Int
+    %v_17 = add %v_11, %v_16: Int
+    %x = vsplat 12884901893: i64x2
+    %y = vsplat 30064771083: i64x2
+    %v_18 = imul %x, %y: i64x2
+    %v_19 = vlane %v_18, 0: Long
+    %v_20 = cmp_eq %v_19, 292057776183: Int
+    %v_21 = add %v_17, %v_20: Int
+    %v_22 = vsplat 18446744073709551613: i64x2
+    %v_23 = imul %x, %v_22: i64x2
+    %v_24 = vlane %v_23, 0: Long
+    %v_25 = cmp_eq %v_24, 18446744035054845937: Int
+    %v_26 = add %v_21, %v_25: Int
+    %v_27 = vsplat 1: i64x2
+    %v_28 = imul %x, %v_27: i64x2
+    %v_29 = vlane %v_28, 0: Long
+    %v_30 = cmp_eq %v_29, 12884901893: Int
+    %v_31 = add %v_26, %v_30: Int
+    ret %v_31
+  }
+}
+
