@@ -162,7 +162,8 @@ static void checkExportedSignature(Module& module, Function& function, StringId 
  *
  * An `instance` is global and an `infixl`/`infixr` applies wherever its operator is in scope, so
  * neither has a visibility to widen - doc/spec/modules.md lists both under "always visible". A
- * `default Class = Type` is the same: it belongs to the class, which is where a reader looks for it.
+ * class default was the third, until it moved into the class head where the `pub` on the class
+ * already covers it.
  *
  * The fixity case cannot be reached at all, because the parser reads a fixity before it reads the
  * `pub` a declaration may carry - `pub infixl 7 +` is a parse error rather than this one - and that
@@ -171,11 +172,10 @@ static void checkExportedSignature(Module& module, Function& function, StringId 
  */
 static void checkExportMarker(Module& module, ast::Decl& decl) {
     if(!decl.exported) return;
-    if(decl.kind != ast::Decl::Instance && decl.kind != ast::Decl::Default) return;
+    if(decl.kind != ast::Decl::Instance) return;
 
-    module.context.diagnostics.error("`pub` says nothing on %@ - it is reached through its class, which carries the visibility, and there is no spelling that makes this one less visible"_v,
-                                     decl.source,
-                                     decl.kind == ast::Decl::Instance ? "an instance"_v : "a class default"_v);
+    module.context.diagnostics.error("`pub` says nothing on an instance - it is reached through its class, which carries the visibility, and there is no spelling that makes this one less visible"_v,
+                                     decl.source);
 }
 
 void checkModuleExports(Module& module, ast::Module& ast) {

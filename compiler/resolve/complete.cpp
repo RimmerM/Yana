@@ -303,7 +303,7 @@ static bool bindsReceiver(ExprResolver& resolver, GenEnv* env, TypePtr parameter
     if(!parameter || !receiver) return false;
 
     Solution solution;
-    Solver solver(resolver, solution, env ? env->types.size() : 0);
+    Solver solver(resolver, solution, env);
 
     // `widen` is true for the same reason it is true of any argument: needing a conversion is part
     // of fitting, and a receiver is an argument. The asymmetry solve.h describes is about results.

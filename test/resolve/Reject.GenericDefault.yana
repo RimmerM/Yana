@@ -1,0 +1,37 @@
+{-
+   The rules a generic parameter's default has to satisfy - Implementation-Const-Generics.md §1.8.
+
+   Each is checked where the default is *written*, which is the point: a default is part of the
+   declaration's API, so a program that reads the head can tell what an omitted argument gets. A
+   rule checked at the use site instead would report a mistake in a declaration against whoever
+   applied it.
+-}
+
+data Wrapper(a) {value: a}
+
+class Hidden(a):
+  fn conceal(value: a) -> Int
+
+-- A default that names another parameter of the same list. What `b` meant would depend on the order
+-- the arguments were filled in, and there is no reading of that worth having.
+data Chained(a, b = a) {left: a, right: b}
+
+-- The two kinds crossed: a const parameter takes a number, a type parameter takes a type, and which
+-- is which is what the annotation says. `A(4)` and `A(Int)` are told apart by the declaration, so a
+-- default written at the wrong kind is the same mistake as an argument written at it.
+data CountAsType(n: Int = Int) {value: Int}
+data TypeAsCount(a = 4) {value: Int}
+
+-- A defaulted parameter followed by one without a default. An application omits its *last*
+-- arguments, so there is no spelling that reaches `b` while leaving `a` to its default.
+data NotASuffix(a = Int, b) {left: a, right: b}
+
+-- A class default on a head with two parameters. What a default answers is which type an
+-- unconstrained variable settles to, and a class with two has no single variable to settle.
+class Pairwise(a = Int, b):
+  fn pair(x: a, y: b) -> Int
+
+-- And one that names a type with no instance of its own class, which is a default nothing could
+-- ever take.
+class Unimplemented(a = Wrapper(Int)):
+  fn use(x: a) -> Int

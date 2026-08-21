@@ -1,0 +1,146 @@
+let image$base: () = <none>
+
+fn takesNatural(%b: Buffer(Int, 4)) -> Int {
+  b0:
+    %v1 = call countOf(4), %b : Int
+    ret %v1
+}
+
+fn takesHalf(%b: Buffer(Int, 4)) -> Int {
+  b0:
+    %v1 = call countOf(4), %b : Int
+    ret %v1
+}
+
+fn takesFull(%b: Buffer(Int, 4)) -> Int {
+  b0:
+    %v1 = call countOf(4), %b : Int
+    ret %v1
+}
+
+fn takesEight(%b: Buffer(Int, 8)) -> Int {
+  b0:
+    %v1 = call countOf(8), %b : Int
+    ret %v1
+}
+
+fn countOf(%b: Buffer(Int, n)) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = countof n : Int
+    ret %v1
+}
+
+fn tagged(%value: Int) -> Tagged(n) {
+  schema {
+    #0 type Tagged(n)
+    #1 const n: Int
+  }
+
+  b0:
+    %v1 = alloc : Tagged(n)
+    aggregate %local0@Tagged.value = %value
+    ret %v1
+}
+
+fn defaulted() -> Int {
+  b0:
+    %v2 = call tagged(4), 1 : Tagged(4)
+    %v3 = call tagOf(4), %v2 : Int
+    ret %v3
+}
+
+fn ascribed() -> Int {
+  b0:
+    %v2 = call tagged(8), 1 : Tagged(8)
+    %v3 = call tagOf(8), %v2 : Int
+    ret %v3
+}
+
+fn tagOf(%t: Tagged(n)) -> Int {
+  schema {
+    #0 const n: Int
+  }
+
+  b0:
+    %v1 = countof n : Int
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %b = alloc : Buffer(Int, 4)
+    %v5 = alloc : [Int *4]
+    aggregate %local1[0] = 1, %local1[1] = 2, %local1[2] = 3, %local1[3] = 4
+    aggregate %local0@Buffer.items = %v5
+    %wide = alloc : Buffer(Int, 8)
+    %v21 = alloc : [Int *8]
+    aggregate %local3[0] = 1, %local3[1] = 2, %local3[2] = 3, %local3[3] = 4, %local3[4] = 5, %local3[5] = 6, %local3[6] = 7, %local3[7] = 8
+    aggregate %local2@Buffer.items = %v21
+    %v32 = call takesNatural, %b : Int
+    %v33 = call takesHalf, %b : Int
+    %v34 = add %v32, %v33 : Int
+    %v35 = call takesFull, %b : Int
+    %v36 = add %v34, %v35 : Int
+    %v37 = call takesEight, %wide : Int
+    %v38 = add %v36, %v37 : Int
+    %v39 = call defaulted : Int
+    %v40 = add %v38, %v39 : Int
+    %v41 = call ascribed : Int
+    %v42 = add %v40, %v41 : Int
+    %v45 = call Counted(Int).counted, 1 : Int
+    %v46 = add %v42, %v45 : Int
+    ret %v46
+}
+
+fn Counted(Int).counted(%x: Int) -> Int {
+  b0:
+    ret %x
+}
+
+fn Counted(Long).counted(%x: Long) -> Int {
+  b0:
+    %v1 = cast %x : Int
+    ret %v1
+}
+
+fn countOf(4)(%b: Buffer(Int, 4)) -> Int {
+  b0:
+    %v1 = countof 4 : Int
+    ret %v1
+}
+
+fn countOf(8)(%b: Buffer(Int, 8)) -> Int {
+  b0:
+    %v1 = countof 8 : Int
+    ret %v1
+}
+
+fn tagged(4)(%value: Int) -> Tagged(4) {
+  b0:
+    %v1 = alloc : Tagged(4)
+    aggregate %local0@Tagged.value = %value
+    ret %v1
+}
+
+fn tagOf(4)(%t: Tagged(4)) -> Int {
+  b0:
+    %v1 = countof 4 : Int
+    ret %v1
+}
+
+fn tagged(8)(%value: Int) -> Tagged(8) {
+  b0:
+    %v1 = alloc : Tagged(8)
+    aggregate %local0@Tagged.value = %value
+    ret %v1
+}
+
+fn tagOf(8)(%t: Tagged(8)) -> Int {
+  b0:
+    %v1 = countof 8 : Int
+    ret %v1
+}

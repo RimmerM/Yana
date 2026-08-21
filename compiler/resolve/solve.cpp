@@ -12,10 +12,26 @@
  * that is committed to this callee reads it back out and reports from there.
  */
 
-Solver::Solver(ExprResolver& resolver, Solution& solution, Size variables):
-    resolver(resolver), solution(solution) {
+Solver::Solver(ExprResolver& resolver, Solution& solution, GenEnv* declared):
+    resolver(resolver), solution(solution),
+    declared(declared ? declared - resolver.global : GlobalPtr<GenEnv>(nullptr)) {
+    auto variables = declared ? declared->types.size() : 0;
+
     solution.types.clear();
     for(Size i = 0; i < variables; i++) solution.types.push(nullptr);
+}
+
+TypePtr Solver::declaredDefault(Size index) const {
+    if(!declared) return nullptr;
+
+    auto global = resolver.global;
+    auto types = global[declared]->types;
+    if(index >= types.size()) return nullptr;
+
+    // The written form is spent on demand, and a signature reaching a settle is a demand: a caller
+    // that omitted the argument is the first thing to ask what the declaration said it was.
+    resolveGenDefaults(resolver.module, declared);
+    return global[types.get(global, index)]->def;
 }
 
 // One position, into a binding list that is not always the answer's - see bindResult.
@@ -201,6 +217,11 @@ bool Solver::settle(Size from, Size limit) {
         solution.types[i] = resolver.settleType(solution.types[i]);
         if(solution.types[i]) continue;
 
+        // Nothing decided this position and no literal default answered it either, so the
+        // declaration's own default is the last thing asked - see declaredDefault.
+        solution.types[i] = declaredDefault(i);
+        if(solution.types[i]) continue;
+
         if(solution.state == Solution::State::Solved) {
             solution.state = Solution::State::Undecided;
             solution.position = i;
@@ -355,7 +376,7 @@ void solveSignature(ExprResolver& resolver, ModulePtr<Function> callee, Buffer<R
     auto declaration = resolver.local[callee];
     auto env = functionGen(resolver.global, *declaration);
 
-    Solver solver(resolver, out, env ? env->types.size() : 0);
+    Solver solver(resolver, out, env);
     if(!env) return;
 
     solver.bindArguments(callee, args, unresolved);
@@ -385,7 +406,7 @@ void solveClassFun(ExprResolver& resolver, GlobalPtr<TypeClass> typeClass, Modul
     auto declaration = global[typeClass];
     auto env = global[declaration->gen];
 
-    Solver solver(resolver, out, env ? env->types.size() : 0);
+    Solver solver(resolver, out, env);
 
     solver.bindArguments(signature, args, Unresolved::Rejects);
     if(!out.fits()) return;

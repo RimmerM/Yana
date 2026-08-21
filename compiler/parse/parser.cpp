@@ -242,8 +242,6 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
         return parseInstanceDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwAtData) {
         return parseAttrDecl(decls, ::move(attributes), exported);
-    } else if(token.type == Token::kwDefault) {
-        return parseDefaultDecl(decls, ::move(attributes), exported);
     } else {
         auto expr = parseExpr();
 
@@ -456,42 +454,6 @@ void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         .kind = ast::Decl::Alias,
         .exported = exported,
         .qualified = qualified,
-    });
-}
-
-// `default FromInt = Int`. The class is named on its own rather than applied to arguments: a
-// default answers "which type does this class produce when nothing else decides", which is a
-// property of the class and not of one of its instances.
-void Parser::parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
-    WithLocation location(*this);
-    expect(Token::kwDefault, "expected 'default'"_v);
-
-    // The whole declaration is `default Class = Type`, and without the class name none of what
-    // follows means anything on its own - a default is declared *for* a class. So this is one of
-    // the places the recovering expect is right: the rest is discarded rather than reported as a
-    // missing '=' and then a missing type.
-    auto name = expectSync(Token::ConID, "expected a class name"_v, stmtStops());
-    if(!name) {
-        decls.push(arena, ast::Decl {
-            .errorName = StringId(),
-            .attributes = ::move(attributes),
-            .source = context.addLocation(location),
-            .kind = ast::Decl::Error,
-            .exported = exported,
-        });
-        return;
-    }
-
-    auto className = name.unwrap().id;
-    expect(Token::opEquals, "expected '='"_v);
-    auto type = parseType();
-
-    decls.push(arena, ast::Decl {
-        .defaultType = { className, type },
-        .attributes = ::move(attributes),
-        .source = context.addLocation(location),
-        .kind = ast::Decl::Default,
-        .exported = exported,
     });
 }
 
@@ -1944,7 +1906,12 @@ ast::Constraint Parser::parseConstraint() {
             WithLocation constLocation(*this);
             auto type = parseAType(constLocation, nullptr);
 
-            return { .constant = { name, heap(type) }, .source = context.addLocation(location),
+            // `fn (n: Int = 0) vectorAt(...)` - the default, read exactly as a head parameter's is.
+            // A context list is where a function declares its const parameters, so this is where a
+            // function's default is written.
+            auto def = parseGenDefault();
+
+            return { .constant = { name, heap(type), def }, .source = context.addLocation(location),
                      .kind = ast::Constraint::Const };
         }
 
@@ -2024,6 +1991,32 @@ ast::Type Parser::parseTypeApplicationArg() {
     WithLocation location(*this);
     auto literal = heap(toLiteral(location));
     return makeType(Lit, lit, literal, location, nullptr);
+}
+
+/*
+ * `= Int`, `= 4` - a generic parameter's default, or null where none was written.
+ *
+ * The two forms a written type *argument* takes, which is the point: what a default supplies is an
+ * argument, so it is read by the same rules the argument it stands in for would have been. An
+ * integer for a const parameter, an atomic type for a type parameter, and which of the two this
+ * parameter admits is resolve's question rather than the grammar's - the same division
+ * parseTypeApplicationArg already makes.
+ *
+ * `parseAType` and not `parseType`, for the reason the annotation beside it is: it stops before
+ * `->`, so a class head's functional-dependency arrow stays a separator rather than being swallowed
+ * as a function type's. `= (Int) -> Int` is thereby refused, which a default has no use for anyway.
+ */
+ast::ParsePtr<ast::Type> Parser::parseGenDefault() {
+    if(!maybe(Token::opEquals)) return nullptr;
+
+    WithLocation location(*this);
+
+    if(token.type == Token::Integer) {
+        auto literal = heap(toLiteral(location));
+        return heap(makeType(Lit, lit, literal, location, nullptr));
+    }
+
+    return heap(parseAType(location, nullptr));
 }
 
 ast::Type Parser::parseType() {
@@ -2231,6 +2224,7 @@ ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
     } else {
         maybeParens([&] {
             sepBy1([&] {
+                WithLocation paramLocation(*this);
                 auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = StringId() }).id;
 
                 // `n: Int` - the const parameter of §1.1, and one `maybe` per parameter is the whole
@@ -2241,7 +2235,19 @@ ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
                     annotation = heap(parseAType(constLocation, nullptr));
                 }
 
-                if(n) kind.push(arena, ast::GenParam { n, annotation });
+                /*
+                 * `a = Int`, `n: Int = 4` - the default, and one `maybe` per parameter again.
+                 *
+                 * The `=` is unambiguous here even though `data` and `alias` both use one to open
+                 * what follows the head, because a head that declares parameters at all declares
+                 * them inside parentheses and this list ends at the `)`. The unparenthesized
+                 * one-parameter form above takes no default for the same reason it takes no
+                 * annotation: `data Maybe a = ...` would have two readings of its `=` and neither
+                 * is the obvious one.
+                 */
+                auto def = parseGenDefault();
+
+                if(n) kind.push(arena, ast::GenParam { n, annotation, def, context.addLocation(paramLocation) });
             }, [&] {
                 if(allowDependency && token.type == Token::opArrowR) {
                     auto split = U16(kind.size());

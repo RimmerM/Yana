@@ -7,8 +7,10 @@
 #     thirty-two lanes at x86-64-v3 and sixty-four at v4, and native findings §9.2 measured a
 #     thirty-two-lane control group against a sixteen-lane one over the whole map corpus: lookup does
 #     not move, misses get 8-10% worse and build 7-8%, because a control byte holds seven hash bits
-#     and doubling the lanes doubles the false-positive rate. `Native.loadGroup` and
-#     `Native.splatGroup` are what pin it, and this is where the pin is checked.
+#     and doubling the lanes doubles the false-positive rate. The probe writes the width it wants -
+#     `vectorAt(p) :: Vec(U8, 16)` and `splat(b) :: Vec(U8, 16)` - and this is where the pin is
+#     checked. It used to need two declarations of its own, `Native.loadGroup` and
+#     `Native.splatGroup`, because a count could not be asked for in a result position.
 #   - the tag test is `pcmpeqb` and **one** `pmovmskb`. The walk over several matching lanes is then
 #     integer arithmetic on the bitmap - `hits & (hits - 1)` - rather than a mask operation per lane.
 #   - the group load never overreads. §1's index run ends in a cloned copy of its first sixteen

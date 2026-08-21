@@ -9,9 +9,12 @@
    a signature could not quantify over it. What closes it is one const parameter per declaration:
    `fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a` in Core, and the same shape written here.
 
-   `splat`, `zero` and `iota` keep the natural form deliberately. What decides their count is the
-   *result*, so a const parameter there would be one nothing supplies (§1.7) - an explicitly sized
-   vector is built from an integer literal through `FromInt`, which is what `sink` below does.
+   `splat`, `zero` and `iota` are const parameters too, with a default of zero - §1.8. What decides
+   their count is the *result*, which §1.7 names as one of the two things that supplies a const
+   argument, so `zero() :: Vec(I16, 4)` is four lanes; the default answers where nothing does, and
+   zero is the natural form already written down. They used to keep the natural form and nothing
+   else, on the argument that a result supplies nothing - see `sink` below, which builds an
+   explicitly sized vector from an integer literal through `FromInt` instead.
 
    **A const-generic vector body specializes.** `Vec(a, n)` is a register type by resolve's own ABI
    decision, and a register class needs a lane count, so §4.3's erased form is a loop over

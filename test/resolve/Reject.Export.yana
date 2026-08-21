@@ -29,13 +29,12 @@ fn buildsPrivateConstructor() -> Int = match Shapes.Secret {code: 1}:
 
 fn callsPrivateClassFunction() -> Int = Shapes.Hidden.conceal(1)
 
--- An instance is global and a class default belongs to its class, so neither has a visibility for
--- the marker to widen. Accepting and ignoring one would leave a word in the source that says
--- something untrue, which is the state `pub` was in before any of this.
+-- An instance is global, so it has no visibility for the marker to widen. Accepting and ignoring
+-- one would leave a word in the source that says something untrue, which is the state `pub` was in
+-- before any of this. A class default was the other case, until it moved into the class head - and
+-- a head has a `pub` of its own, which does mean something.
 pub instance Hidden(Secret):
   fn conceal(value: Secret) = value.code
-
-pub default Hidden = Secret
 
 -- A `pub` interface that hands out a private type. Each of the four positions an exported
 -- declaration has one: the result, an argument, a field, and a global's type. What makes each of

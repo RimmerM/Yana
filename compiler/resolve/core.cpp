@@ -459,6 +459,30 @@ void defineCore(Program& program) {
     program.vecTypeName = context.addQualifiedName("Vec", 3, 1);
     program.maskTypeName = context.addQualifiedName("Mask", 4, 1);
 
+    /*
+     * And the parameter list they are applied through - see Program::vectorGen.
+     *
+     * Built here rather than parsed, because there is still no declaration: what this replaces is
+     * the hand-written arity check and the two messages beside it, not the reason the constructor
+     * has no body. The defaults are set directly and the context is marked spent, since there is no
+     * written form for `resolveGenDefaults` to read.
+     */
+    {
+        auto env = new (module->types) GenEnv(GenEnv::Record);
+        program.vectorGen = env - *module->types;
+        env->module = module;
+        env->defaultsResolved = true;
+
+        auto lane = new (module->types) GenType(program.vectorGen, context.addUnqualifiedName("a", 1), 0);
+        env->types.push(module->types, lane - *module->types);
+
+        auto count = new (module->types) GenType(program.vectorGen, context.addUnqualifiedName("n", 1), 1);
+        count->kind = GenKind::Const;
+        count->constType = program.scalar.int_;
+        count->def = constType(*module, 0, program.scalar.int_);
+        env->types.push(module->types, count - *module->types);
+    }
+
     program.scalar.signedLanes[0] = coreType(*module, "I8"_v);
     program.scalar.signedLanes[1] = coreType(*module, "I16"_v);
     program.scalar.signedLanes[2] = coreType(*module, "I32"_v);

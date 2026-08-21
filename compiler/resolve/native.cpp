@@ -108,24 +108,6 @@ static ModulePtr<Value> pointerAsVector(ExprResolver& resolver, ModulePtr<Value>
  * result is the `Int` the signature states, for the reason `firstSet`'s is one - sixteen or
  * thirty-two bits of answer are not a value the lane type holds.
  */
-/*
- * `splatGroup` - `Core.splat` with the count stated instead of asked for.
- *
- * The same instruction and the same conversion of the operand into the lane type; what differs is
- * only that the result type is written in the declaration, so nothing has to infer a count in a
- * position §1.7 of Implementation-Const-Generics.md says nothing supplies one in. A copy of four
- * lines rather than an export, because the *reason* it exists is this module's - see the group
- * declarations above.
- */
-static ModulePtr<Value> emitGroupSplat(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                       LocationId source, StringId name) {
-    auto lane = vectorLane(resolver.global, type);
-    auto value = lane ? resolver.convert(args[0], lane, source) : args[0];
-    if(!value) return nullptr;
-
-    return resolver.ref(resolver.emit<InstVecSplat>(source, name, type, value));
-}
-
 static ModulePtr<Value> emitMaskBits(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
     auto mask = resolver.valueType(args[0]);
@@ -430,11 +412,9 @@ static void attachPointerIntrinsics(Module& module) {
         attachIntrinsic(module, "vectorPast"_v, emitVectorPast);
         attachIntrinsic(module, "setVectorAt"_v, emitSetVectorAt);
 
-        // The pinned-width three - see the declarations. `loadGroup` and `splatGroup` are the two
-        // intrinsics beside them with the result type stated rather than asked for, so they need no
-        // emit of their own; `bits` is the one kind above the lower IR that only a machine has.
-        attachIntrinsic(module, "loadGroup"_v, emitVectorAt);
-        attachIntrinsic(module, "splatGroup"_v, emitGroupSplat);
+        // `bits` is the one kind above the lower IR that only a machine has. The two pinned-width
+        // declarations that used to sit here are gone: a probe writes `vectorAt(p) :: Vec(U8, 16)`
+        // now that a count is a const parameter with a default, so there is nothing left to pin.
         attachIntrinsic(module, "bits"_v, emitMaskBits);
     }
 

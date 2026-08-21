@@ -887,6 +887,18 @@ struct Module {
     Array<ClassFunRef> classFunctions;
     Array<ModulePtr<ClassInstance>> instances;
 
+    /*
+     * Every context of this module whose head wrote a generic-parameter default.
+     *
+     * A default is resolved on demand - see `resolveGenDefaults` - because it may name a type
+     * declared further down. But "on demand" is not a place a *diagnostic* may live: a `pub` type
+     * nothing in its own module applies would have its default checked in whichever importer first
+     * used it, or in none at all. So this list is walked once at the end of declaration resolution,
+     * and every default is spent whether or not anybody asked. Whichever came first wins; the flag
+     * on the context makes the second a no-op.
+     */
+    Array<GlobalPtr<GenEnv>> defaultedContexts;
+
     ModuleList<ModulePtr<Function>, false> functionOrder;
     ModuleList<ModulePtr<Global>, false> globalOrder;
 
@@ -985,6 +997,24 @@ struct Program {
      */
     StringId vecTypeName {};
     StringId maskTypeName {};
+
+    /*
+     * The parameter list both of them are applied through - `(a, n: Int = 0)`.
+     *
+     * What a declaration would have carried, carried without one. It exists so that the arity rule,
+     * the count position and the default are the *general* ones rather than a hand-written check
+     * beside `resolveVectorApp`: which argument is a number is read off `GenKind::Const` exactly as
+     * a `data A(width: Int)` is, and `Vec(Float)` is an application that omitted its second argument
+     * exactly as `Pair(Int)` would be.
+     *
+     * `0` is the default because zero is already the natural form written down - `resolveVectorType`
+     * treats a null count and a zero one as one question, "ask the target" - so this names a
+     * sentinel that was already there and already writable rather than introducing one.
+     *
+     * One list for both constructors, because a mask takes the same two arguments for the same
+     * reasons; `isMask` is decided by which name was written and is not a parameter.
+     */
+    GlobalPtr<GenEnv> vectorGen = nullptr;
 
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().

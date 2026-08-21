@@ -578,6 +578,26 @@ struct GenParam {
     // Null for a type parameter. Parsed with parseAType and not parseType, so that the `->` of a
     // class head's functional dependency stays a separator - §1.4.
     ParsePtr<Type> type;
+
+    /*
+     * `a = Int`, `n: Int = 4` - what an application that omits this parameter gets, and null for a
+     * parameter with no default.
+     *
+     * One field for both kinds, because the two spellings are the same question asked of a type and
+     * of a number, and a written type argument is already one production either way - a `Con` and a
+     * `Lit` both arrive here. Which of the two is admissible is decided by the parameter's own kind
+     * when the default is resolved, not here.
+     *
+     * Parsed with parseAType for §1.4's reason, the same one the annotation beside it has: a class
+     * head's `->` has to stay a separator, so `class C(a, b = Int -> c)` is a default of `Int` and
+     * not a default of `Int -> c`.
+     */
+    ParsePtr<Type> def;
+
+    // Where the parameter was written. A head parameter is a declaration like any other and every
+    // diagnostic about one - a repeated name, an inadmissible annotation, a default at the wrong
+    // kind - belongs on it rather than on the declaration it is part of.
+    LocationId source = kNullLocation;
 };
 
 struct SimpleType {
@@ -616,7 +636,6 @@ struct Decl {
         Foreign,
         Stmt,
         Attr,
-        Default,
     };
 
     union {
@@ -631,14 +650,6 @@ struct Decl {
             SimpleType type;
             Type target;
         } alias;
-
-        // `default Class = Type`: which type a class-polymorphic value takes when nothing in
-        // the program says otherwise. Only the class name is written, so this is not a
-        // SimpleType - a default is declared for the class as a whole.
-        struct {
-            StringId className;
-            Type target;
-        } defaultType;
 
         struct {
             SimpleType type;
@@ -741,6 +752,10 @@ struct Constraint {
         struct {
             StringId name;
             ParsePtr<Type> type;
+
+            // `n: Int = 0` - the same default a head parameter carries, and null without one. See
+            // GenParam::def, which this is the context-list spelling of.
+            ParsePtr<Type> def;
         } constant;
     };
 

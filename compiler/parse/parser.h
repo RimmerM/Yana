@@ -25,7 +25,6 @@ struct Parser: BasicParser<Lexer, Token> {
     void parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
-    void parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
 
     ast::Expr parseBlock(bool isFun);
     ast::Expr parseExprSeq();
@@ -72,6 +71,7 @@ struct Parser: BasicParser<Lexer, Token> {
     // One argument of a type application, which is a type or - in the one position a number may be
     // written where a type is - an integer literal. See ast::Type::Lit.
     ast::Type parseTypeApplicationArg();
+    ast::ParsePtr<ast::Type> parseGenDefault();
     ast::Type parseTupleType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
     ast::Type parseArrayType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
     void parseCon(ast::ParseList<ast::Con>& list);

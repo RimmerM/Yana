@@ -154,7 +154,12 @@ enum class Determined: U8 {
  * is worth a diagnostic.
  */
 struct Solver {
-    Solver(ExprResolver& resolver, Solution& solution, Size variables);
+    /*
+     * `declared` is the context being solved for - a function's, or a class's. It is what the
+     * settle reads a parameter's own default off, and null where there is none to read; a solve
+     * over no variables does not need one.
+     */
+    Solver(ExprResolver& resolver, Solution& solution, GenEnv* declared);
 
     /*
      * One position of a signature, against the type the call site has there.
@@ -230,8 +235,23 @@ struct Solver {
     // Whether any variable from `from` on is still undecided.
     bool anyOpen(Size from) const;
 
+    /*
+     * What a variable this solve did not decide falls back to - the `0` of
+     * `fn (n: Int = 0) vectorAt(...)`, or null where the parameter declared no default.
+     *
+     * A *fallback* and not a fill-in, which is the whole reason it is read here rather than where
+     * the signature was resolved. `vectorAt(p) :: Vec(U8, 16)` has to bind `n` to sixteen from the
+     * expected type; a default applied eagerly would have bound zero first and then failed to unify
+     * with it. So inference gets first refusal and this answers only what is left - the same
+     * position, and the same moment, a literal's class default is answered at.
+     */
+    TypePtr declaredDefault(Size index) const;
+
     ExprResolver& resolver;
     Solution& solution;
+
+    // The context whose variables `solution.types` is indexed by - see the constructor.
+    GlobalPtr<GenEnv> declared = nullptr;
 };
 
 /*

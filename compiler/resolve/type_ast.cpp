@@ -211,7 +211,12 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
     auto global = *module.types;
 
     if(auto alias = findAlias(module, name, source)) {
-        return resolveAlias(module, *alias.unwrap(), {}, source);
+        // A head whose parameters all have defaults is applicable with no arguments at all, which is
+        // what makes `Vec` a bad example and `alias Buffer(a = U8, n: Int = 64)` a good one. The
+        // arity check inside reports where they do not.
+        TypeList args;
+        applyGenDefaults(module, alias.unwrap()->gen, args);
+        return resolveAlias(module, *alias.unwrap(), toBuffer(args), source);
     }
 
     auto type = findType(module, name, source);
@@ -231,9 +236,17 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
 
     if(global[type]->kind == Type::Record) {
         auto record = (RecordType*)global[type];
+
         if(record->gen && global[record->gen]->types.size()) {
-            module.context.diagnostics.error("type %@ requires type arguments"_v, source, module.context.findName(name));
-            return module.scalar.error;
+            // As above: a bare name is an application of no arguments, and a declaration every one
+            // of whose parameters has a default is one such application answers.
+            TypeList args;
+            if(!applyGenDefaults(module, record->gen, args)) {
+                module.context.diagnostics.error("type %@ requires type arguments"_v, source, module.context.findName(name));
+                return module.scalar.error;
+            }
+
+            return instantiateRecord(module, record->base(global), toBuffer(args), source);
         }
     }
 
@@ -248,9 +261,13 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
  * that there is no declaration behind the name. There cannot be - what a `Vec(Float)` *is* is a
  * function of the target, so there is nothing for a `data` declaration to say.
  *
- * The count is read the way a fixed array's length is: a literal and nothing else. A count that is a
- * `let`, an expression or a type variable is const generics, which is a separate feature, and saying
- * so is better than folding whatever the parser happened to produce.
+ * What there *is* is a parameter list, `Program::vectorGen`, and everything below this line is
+ * therefore the ordinary path. The count is read by `resolveAppArg`, which knows it is a count
+ * because the parameter at that index is a `GenKind::Const` - the same question it asks of a
+ * `data A(width: Int)`. The omitted second argument is filled by `applyGenDefaults` from that
+ * parameter's `0`, which is the natural form already spelled out. Neither the arity check nor the
+ * literal-or-variable check is written here any more, and the two messages that were are gone with
+ * them: an arity mistake reads as the one every other constructor gives.
  *
  * Nothing here decides whether the element is a lane or what the natural count is - both are
  * `resolveVectorType`'s, so the two spellings and the substituted form all reach one set of rules.
@@ -262,65 +279,28 @@ static Maybe<TypePtr> resolveVectorApp(Module& module, const ast::AppType& app, 
     auto isMask = name == program.maskTypeName;
     if(!isMask && name != program.vecTypeName) return Nothing();
 
-    auto args = app.args;
-    auto count = args.size();
+    TypeList args;
+    auto index = Size(0);
 
-    /*
-     * Both spellings take the same two arguments, and a mask takes the count for the reason a vector
-     * does: it is the shape of the vector it masks, so a mask over a lane count the target did not
-     * choose has to be nameable wherever such a vector is. `Native.bits` is the declaration that
-     * needed it - a movemask is written over whatever width the group is - and the internal form was
-     * already general, since `VectorType` carries `content`, `count` and `isMask` and only this
-     * check said one of the three was fixed.
-     */
-    if(count < 1 || count > 2) {
-        module.context.diagnostics.error(isMask
-            ? "`Mask` takes a lane type, and optionally a lane count - `Mask(Float)` for the target's natural width, `Mask(Float, 4)` for exactly four"_v
-            : "`Vec` takes a lane type, and optionally a lane count - `Vec(Float)` for the target's natural width, `Vec(Float, 4)` for exactly four"_v,
-            source);
+    auto appArgs = app.args;
+    for(auto arg: appArgs.contents(module.parse)) {
+        args.push(resolveAppArg(module, program.vectorGen, index++, arg, env));
+    }
+
+    if(!applyGenDefaults(module, program.vectorGen, args)) {
+        /*
+         * Both spellings take the same two arguments, and a mask takes the count for the reason a
+         * vector does: it is the shape of the vector it masks, so a mask over a lane count the
+         * target did not choose has to be nameable wherever such a vector is. `Native.bits` is the
+         * declaration that needed it - a movemask is written over whatever width the group is.
+         */
+        module.context.diagnostics.error("%@ takes a lane type, and optionally a lane count - `%@(Float)` for the target\'s natural width, `%@(Float, 4)` for exactly four"_v,
+                                         source, module.context.findName(name),
+                                         module.context.findName(name), module.context.findName(name));
         return Just(module.scalar.error);
     }
 
-    auto content = resolveType(module, args.get(module.parse, 0), env);
-    TypePtr lanes = nullptr;
-
-    if(count == 2) {
-        auto written = args.get(module.parse, 1);
-
-        /*
-         * A literal or a bare const parameter, exactly as a fixed array's count is - see
-         * fixedArrayCount, whose reasoning applies verbatim. A type argument that is a lowercase
-         * name already parses as an `ast::Type::Gen`, so `Vec(Float, n)` needs no parser work at all.
-         *
-         * The literal is bounded here as well as in `resolveVectorType`, and the two say different
-         * things. This one is about the *literal* and can name whatever number was written, however
-         * large; the one below is about a lane count and takes a `U32`. Clamping instead and letting
-         * the other report would name a count nobody wrote - `Vec(Float, 128)` came out as "asks for
-         * 65", which is the clamp talking rather than the program.
-         */
-        if(written.kind == ast::Type::Lit) {
-            auto literal = module.parse[written.lit];
-
-            if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
-                module.context.diagnostics.error("a vector's lane count must be an integer literal or a const parameter"_v,
-                                                 written.source);
-                return Just(module.scalar.error);
-            }
-
-            lanes = resolveCountLiteral(module, literal->lit.i(), kMaxVectorLanes, written.source,
-                                        "a vector's lane count"_v);
-        } else if(written.kind == ast::Type::Gen) {
-            lanes = resolveCountVariable(module, env, written.name, written.source);
-        } else {
-            module.context.diagnostics.error("a vector's lane count must be an integer literal or a const parameter - a count that is computed needs const expressions, which this version does not have"_v,
-                                             written.source);
-            return Just(module.scalar.error);
-        }
-
-        if(!lanes) return Just(module.scalar.error);
-    }
-
-    return Just(resolveVectorType(module, content, lanes, isMask, source));
+    return Just(resolveVectorType(module, args[0], args[1], isMask, source));
 }
 
 /*
@@ -338,6 +318,18 @@ TypePtr resolveAppArg(Module& module, GlobalPtr<GenEnv> declared, Size index,
                       const ast::Type& arg, GenEnv* env) {
     auto global = *module.types;
     auto parameters = declared ? global[declared]->types : GlobalList<GlobalPtr<GenType>>();
+
+    /*
+     * A position the declaration does not have, where the declaration is known: nothing to check the
+     * argument against, and the arity message is the whole of what is wrong. Resolving it anyway
+     * would put a second diagnostic on one mistake - `Vec(I16, 4, 4)` is one argument too many, and
+     * the surplus `4` is not also "a number is not a type".
+     *
+     * Only where a declaration was found. A constraint over an *unknown* class has a null `declared`
+     * and every position is a type position there, which is resolveConstraintArgs' deliberate
+     * reading and not this case.
+     */
+    if(declared && index >= parameters.size()) return module.scalar.error;
 
     if(index >= parameters.size() || global[parameters.get(global, index)]->kind != GenKind::Const) {
         return resolveType(module, arg, env);
@@ -366,10 +358,157 @@ TypePtr resolveAppArg(Module& module, GlobalPtr<GenEnv> declared, Size index,
         return count ? count : module.scalar.error;
     }
 
+    /*
+     * Everything else, named rather than described in the abstract - which is what resolving it is
+     * for. A type that does not resolve has already said so, and following that with this would put
+     * a second diagnostic on one mistake: `Vec(I16, Holder)` over a generic `Holder` is a missing
+     * type argument, and it is not also a count written wrong.
+     */
+    auto written = resolveType(module, arg, env);
+    if(global[written]->kind == Type::Error) return module.scalar.error;
+
     module.context.diagnostics.error("this parameter is a const parameter, so it takes an integer literal or a const parameter and not %@"_v,
-                                     arg.source, describeType(module.context, global,
-                                                              resolveType(module, arg, env)));
+                                     arg.source, describeType(module.context, global, written));
     return module.scalar.error;
+}
+
+/*
+ * `a = Int`, `n: Int = 0` - Implementation-Const-Generics.md §1.8.
+ *
+ * Two arms because there are two kinds of parameter, and each reads its default by the rule its own
+ * *arguments* are read by: a const parameter takes an integer literal, a type parameter takes a
+ * type. Everything a written argument would be refused for, a default is refused for here.
+ *
+ * The one rule a default has that an argument does not: **it must be concrete.** A default that
+ * mentioned another parameter of the same list - `data A(a, b = a)` - would be an argument whose
+ * meaning depended on the order the list was filled in, and would have to be substituted through
+ * every time the declaration was applied. Neither is worth a first version, and refusing it here
+ * leaves the room to allow it later, which accepting the wrong reading would not.
+ */
+TypePtr resolveGenDefault(Module& module, GlobalPtr<GenType> variable, const ast::Type& written,
+                          GenEnv* env, LocationId source) {
+    auto global = *module.types;
+    auto& context = module.context;
+    auto name = context.findName(global[variable]->name);
+
+    if(global[variable]->kind == GenKind::Const) {
+        // The literal's kind is encoded in the expression kind, exactly as fixedArrayCount reads it.
+        if(written.kind != ast::Type::Lit) {
+            context.diagnostics.error("%@ is a const parameter, so its default is an integer literal"_v,
+                                      written.source, name);
+            return nullptr;
+        }
+
+        auto literal = module.parse[written.lit];
+
+        if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            context.diagnostics.error("%@ is a const parameter, so its default is an integer literal"_v,
+                                      written.source, name);
+            return nullptr;
+        }
+
+        // Bounded by the parameter's *type* and not by any one position that uses it, which is
+        // resolveAppArg's rule and holds here for its reason: a `[a *n]` inside the declaration
+        // checks the number when it reaches it, where the message can name the array.
+        return resolveCountLiteral(module, literal->lit.i(), maxLimit<U32>, written.source,
+                                   "a default count"_v);
+    }
+
+    if(written.kind == ast::Type::Lit) {
+        context.diagnostics.error("%@ is a type parameter, so its default is a type and not a number - a parameter that takes a number is written `%@: Int`"_v,
+                                  written.source, name, name);
+        return nullptr;
+    }
+
+    auto type = resolveType(module, written, env);
+    if(!type || global[type]->kind == Type::Error) return nullptr;
+
+    if(isGeneric(global, type)) {
+        context.diagnostics.error("the default for %@ must be a concrete type - a default that names another parameter would depend on the order the arguments were filled in"_v,
+                                  written.source, name);
+        return nullptr;
+    }
+
+    return type;
+}
+
+/*
+ * The written defaults of a head, moved onto its variables. Once, on the first application that
+ * needs them.
+ *
+ * In the module that *declared* the context, which is what `GenEnv::module` is carried for: a
+ * default is a piece of the declaration, so the names in it mean what they meant where it was
+ * written and not what they happen to mean at the application. `resolveAlias` makes the same move
+ * for the same reason.
+ */
+void resolveGenDefaults(Module& from, GlobalPtr<GenEnv> declared) {
+    auto context = (*from.types)[declared];
+    if(!context || context->defaultsResolved || !context->module) return;
+
+    auto& module = *context->module;
+    auto global = *module.types;
+
+    // Before the loop, not after it - see GenEnv::defaultsResolved.
+    context->defaultsResolved = true;
+
+    for(auto written: context->writtenDefaults.contents(global)) {
+        if(written.index >= context->types.size()) continue;
+
+        auto variable = context->types.get(global, written.index);
+        auto ast = module.parse[written.written];
+        if(!ast) continue;
+
+        global[variable]->def = resolveGenDefault(module, variable, *ast, context, written.source);
+    }
+
+    /*
+     * And the one rule about the list rather than about any one default: **a defaulted parameter
+     * may be followed only by defaulted parameters.**
+     *
+     * An application writes its arguments in order and stops, so the positions it omitted are a
+     * suffix and there is no spelling that skips one. A head whose defaults are not a suffix has
+     * written a default nothing can ever take, and saying so here is better than an arity message
+     * at every use site that reads as if the default were not there.
+     *
+     * Only where the arguments are positional. A function or an instance declares its parameters by
+     * using them and fills them by inference, so a default of one says nothing about the others -
+     * that flavour is a fallback at the settle and has no order at all. A class is neither: its
+     * arguments are positional but its default is the settle's, and resolveClassDefault already
+     * refuses one on a head with more than a single parameter.
+     */
+    if(context->kind != GenEnv::Record && context->kind != GenEnv::Alias) return;
+
+    auto seen = false;
+    for(auto variable: context->types.contents(global)) {
+        auto type = global[variable];
+
+        if(type->def) {
+            seen = true;
+        } else if(seen) {
+            module.context.diagnostics.error("%@ has no default, and a parameter before it does - an application omits its last arguments, so a default that is not followed by defaults is one nothing can take"_v,
+                                             type->source, module.context.findName(type->name));
+            return;
+        }
+    }
+}
+
+bool applyGenDefaults(Module& module, GlobalPtr<GenEnv> declared, TypeList& args) {
+    auto global = *module.types;
+    if(!declared) return args.size() == 0;
+
+    resolveGenDefaults(module, declared);
+
+    auto parameters = global[declared]->types;
+    if(args.size() > parameters.size()) return false;
+
+    for(auto i = args.size(); i < parameters.size(); i++) {
+        auto def = global[parameters.get(global, i)]->def;
+        if(!def) return false;
+
+        args.push(def);
+    }
+
+    return true;
 }
 
 static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, LocationId source) {
@@ -426,6 +565,18 @@ static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, 
     for(auto arg: appArgs.contents(module.parse)) {
         args.push(resolveAppArg(module, declared, index++, arg, env));
     }
+
+    /*
+     * The positions the application did not write, from the declaration's defaults.
+     *
+     * Here rather than in `instantiateRecord` or `resolveAlias`, because those two are also reached
+     * from `substituteType` with a list that is already complete by construction. A default is a
+     * thing a *written* application omits, so this is the only place that can omit one.
+     *
+     * A failure is left to the arity check below, which is the message that names the constructor
+     * and both numbers - so a parameter with no default reads exactly as it did before this feature.
+     */
+    applyGenDefaults(module, declared, args);
 
     if(alias) return resolveAlias(module, *alias.unwrap(), toBuffer(args), source);
 

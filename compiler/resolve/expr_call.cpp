@@ -726,7 +726,7 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
 
     if(bound > typeArgs.size()) {
         Solution solution;
-        Solver solver(*this, solution, bound);
+        Solver solver(*this, solution, implEnv);
 
         for(Size i = 0; i < typeArgs.size(); i++) solution.types[i] = typeArgs[i];
         solver.bindArguments(implementation, args, Unresolved::Binds);

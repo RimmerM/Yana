@@ -72,7 +72,6 @@ struct Printer {
                 case Decl::Trait: printTraitDecl(decl); break;
                 case Decl::Instance: printInstanceDecl(decl); break;
                 case Decl::Attr: printAttrDecl(decl); break;
-                case Decl::Default: printDefaultDecl(decl); break;
             }
         });
     }
@@ -666,14 +665,6 @@ private:
         removeLevel();
     }
 
-    void printDefaultDecl(Decl& e) {
-        stream.writeString("DefaultDecl "_v);
-        write(stream, context.findName(e.defaultType.className));
-        makeLevel();
-        toString(e.defaultType.target, true);
-        removeLevel();
-    }
-
     void printDataDecl(Decl& e) {
         stream.writeString("DataDecl "_v);
         toString(e.data.type);
@@ -831,6 +822,21 @@ private:
 
                     if(annotation.kind == Type::Con || annotation.kind == Type::Gen) {
                         write(stream, context.findName(annotation.name));
+                    } else {
+                        stream.writeString("<type>"_v);
+                    }
+                }
+
+                // And the default, on the same terms and for the same reason: a name or a number is
+                // what a default is, and both fit on the line the head is printed on.
+                if((*i).def) {
+                    auto& def = *base[(*i).def];
+                    stream.writeString(" = "_v);
+
+                    if(def.kind == Type::Con || def.kind == Type::Gen) {
+                        write(stream, context.findName(def.name));
+                    } else if(def.kind == Type::Lit && base[def.lit]) {
+                        printValue(stream, (I64)base[def.lit]->lit.i());
                     } else {
                         stream.writeString("<type>"_v);
                     }
@@ -1221,7 +1227,8 @@ private:
                 write(stream, context.findName(constraint.constant.name));
 
                 makeLevel();
-                toString(*base[constraint.constant.type], true);
+                toString(*base[constraint.constant.type], !constraint.constant.def);
+                if(constraint.constant.def) toString(*base[constraint.constant.def], true);
                 removeLevel();
                 break;
             }

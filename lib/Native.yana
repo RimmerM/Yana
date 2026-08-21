@@ -79,9 +79,9 @@ pub fn borrowMut(return it: %a) -> &a
    No store overreads, ever. A write past the end of an object is not a read of unspecified bytes,
    it is the destruction of whatever follows.
 -}
-@platform(native) pub fn vectorAt(from: %a) -> Vec(a)
-@platform(native) pub fn vectorPast(from: %a) -> Vec(a)
-@platform(native) pub fn setVectorAt(to: %a, value: Vec(a)) -> {}
+@platform(native) pub fn (n: Int = 0) vectorAt(from: %a) -> Vec(a, n)
+@platform(native) pub fn (n: Int = 0) vectorPast(from: %a) -> Vec(a, n)
+@platform(native) pub fn (n: Int) setVectorAt(to: %a, value: Vec(a, n)) -> {}
 
 {-
    The three operations a Swiss probe is written in, at a width the target did not choose -
@@ -95,18 +95,17 @@ pub fn borrowMut(return it: %a) -> &a
    key compare, which doubling the width doubles. **So the vector library's "widest tier available"
    rule is a pessimization for a probe**, and these are how a probe says so.
 
-   `loadGroup` and `splatGroup` are `vectorAt` and `splat` at a stated result type, which is what
-   pins the count: both intrinsics build their instruction at the type the declaration names, so
-   there is nothing here but a signature. They are not const-generic because nothing supplies a count
-   in a *result* position (Implementation-Const-Generics.md §1.7), and a probe wants exactly one
-   width anyway.
+   **There is no declaration for this any more, and that is the change worth recording.** A probe
+   writes `vectorAt(p) :: Vec(U8, 16)` and `splat(b) :: Vec(U8, 16)`, because the count is a const
+   parameter with a default and a result position is one of the two things that supplies a const
+   argument (Implementation-Const-Generics.md §1.7). `loadGroup` and `splatGroup` were the two
+   declarations that existed only because it was not - one pinned width each, one intrinsic each,
+   and a copy of four lines in native.cpp for the splat.
 
-   `loadGroup` never overreads: §1's index run ends in a cloned copy of its first sixteen control
-   bytes, so a sixteen-byte load at any slot reads sixteen bytes that are inside the allocation. That
-   is what the clone is *for*, and it is why this is `vectorAt` and not `vectorPast`.
+   The load never overreads: §1's index run ends in a cloned copy of its first sixteen control bytes,
+   so a sixteen-byte load at any slot reads sixteen bytes that are inside the allocation. That is
+   what the clone is *for*, and it is why the probe writes `vectorAt` and not `vectorPast`.
 -}
-@platform(native) pub fn loadGroup(from: %U8) -> Vec(U8, 16)
-@platform(native) pub fn splatGroup(value: U8) -> Vec(U8, 16)
 
 {-
    A mask read as an integer - the movemask, and Implementation-Map.md §4.1's step 4.

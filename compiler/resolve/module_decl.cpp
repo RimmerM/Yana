@@ -97,6 +97,7 @@ GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
     auto env = new (module.types) GenEnv(kind);
     auto pointer = env - *module.types;
     env->open = open;
+    env->module = &module;
 
     auto fresh = false;
     auto addVariable = [&](StringId variableName, LocationId source) -> GlobalPtr<GenType> {
@@ -148,9 +149,29 @@ GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
         type->constType = admissibleConstType(module, declared, source) ? declared : module.scalar.int_;
     };
 
+    /*
+     * `a = Int`, `n: Int = 4` - recorded here and resolved on demand, see resolveWrittenDefaults.
+     *
+     * Recorded rather than resolved because a head is built in declaration order and a default may
+     * name a type declared further down. What the index is taken from is the *variable*, not the
+     * loop counter, so a head that named one parameter twice - which is already a diagnostic -
+     * writes its default onto the parameter it names.
+     */
+    auto declareDefault = [&](GlobalPtr<GenType> variable, ast::ParsePtr<ast::Type> written,
+                              LocationId source) {
+        if(!written) return;
+
+        if(env->writtenDefaults.isEmpty()) module.defaultedContexts.push(pointer);
+
+        env->writtenDefaults.push(module.types, GenDefault {
+            (*module.types)[variable]->index, written, source,
+        });
+    };
+
     for(auto variable: variables.contents(module.parse)) {
-        auto added = addVariable(variable.name, kNullLocation);
-        if(variable.type) declareConst(added, fresh, variable.type, kNullLocation);
+        auto added = addVariable(variable.name, variable.source);
+        if(variable.type) declareConst(added, fresh, variable.type, variable.source);
+        declareDefault(added, variable.def, variable.source);
     }
 
     // Pass one - see the header. Every `Const` entry, so that a type resolved below which mentions
@@ -162,6 +183,7 @@ GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
         // in the same list it declares everything else in, so this is one arm and no second list.
         auto variable = addVariable(constraint.constant.name, constraint.source);
         declareConst(variable, fresh, constraint.constant.type, constraint.source);
+        declareDefault(variable, constraint.constant.def, constraint.source);
     }
 
     for(auto constraint: constraints.contents(module.parse)) {

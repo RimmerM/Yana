@@ -1,0 +1,67 @@
+{-
+   Generic parameter defaults - Implementation-Const-Generics.md §1.8.
+
+   `data A(a = Int)` and `fn (n: Int = 0) f(...)` are one production and one field, and what makes
+   them one feature is that a default supplies what an omitted *argument* would have. What makes
+   them two rules is *when* it is read, and that is the whole of what this fixture asserts.
+
+   A head's default is a **fill-in**: a written application that stops short of a parameter takes
+   the declaration's answer where it stands, because a written type has nothing later to decide it.
+   A function's is a **fallback**: it is read at the settle, after inference has had its say, so an
+   expected type still wins. `takesNatural` proves the first, `ascribed` the second - and
+   `defaulted` beside it proves the fallback still fires where nothing decided.
+
+   The count on `Vec` is the same feature seen from the language's side: `Vec(a)` is now an
+   application that omitted its second argument, and the `0` it takes is the natural form that
+   `resolveVectorType` has always spelled a null count as.
+-}
+
+-- A head with a default at each kind. `n` is a count and `a` is a type, and which is which is read
+-- off this declaration rather than off what a use site writes - §1.1.
+data Buffer(a = Int, n: Int = 4) {items: [a *n]}
+
+-- Every arity the head admits: none, one, and both. All three name a type, and the first two name
+-- the same one as the third.
+fn takesNatural(b: Buffer) -> Int = countOf(b)
+fn takesHalf(b: Buffer(Int)) -> Int = countOf(b)
+fn takesFull(b: Buffer(Int, 4)) -> Int = countOf(b)
+
+-- And one that is not the default, so that a written argument is visibly not being ignored.
+fn takesEight(b: Buffer(Int, 8)) -> Int = countOf(b)
+
+fn (n: Int) countOf(b: Buffer(Int, n)) -> Int = n
+
+{-
+   The function flavour, whose default is a fallback rather than a fill-in.
+
+   `n` appears only in the result, so nothing about the call decides it: an expected type does, and
+   the default answers where none is written. Those are §1.7's two paths plus the case where neither
+   reaches, which before this had no answer at all - and the order matters, which is what the two
+   calls below are here to fix. Read eagerly, `tagged(1)` would bind four and `tagged(1) :: Tagged(8)`
+   would then fail to unify with it.
+-}
+data Tagged(n: Int = 4) {value: Int}
+
+fn (n: Int = 4) tagged(value: Int) -> Tagged(n) = Tagged{value}
+
+fn defaulted() -> Int = tagOf(tagged(1))
+fn ascribed() -> Int = tagOf(tagged(1) :: Tagged(8))
+
+fn (n: Int) tagOf(t: Tagged(n)) -> Int = n
+
+-- A class default, which shares the spelling and not the trigger: `1` never writes `Counted`, so
+-- there is no omitted argument here - what the default answers is what an undecided variable is.
+class Counted(a = Int):
+  fn counted(x: a) -> Int
+
+instance Counted(Int):
+  fn counted(x: Int) -> Int = x
+
+instance Counted(Long):
+  fn counted(x: Long) -> Int = truncate(x) :: Int
+
+fn main() -> Int:
+    let b = Buffer{[1, 2, 3, 4]} :: Buffer
+    let wide = Buffer{[1, 2, 3, 4, 5, 6, 7, 8]} :: Buffer(Int, 8)
+    return takesNatural(b) + takesHalf(b) + takesFull(b) + takesEight(wide)
+         + defaulted() + ascribed() + counted(1)

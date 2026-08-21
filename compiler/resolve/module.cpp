@@ -294,7 +294,6 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
                 break;
             case ast::Decl::Fun:
             case ast::Decl::Instance:
-            case ast::Decl::Default:
                 break;
             case ast::Decl::Stmt:
                 // Deferred: a global's type may name a record declared after it.
@@ -418,10 +417,17 @@ void checkModuleClasses(Module& module, ast::Module& ast) {
         checkSuperclasses(module, *(*module.arena)[module.instances[i]]);
     }
 
-    auto decls = ast.decls;
-    for(auto decl: decls.contents(module.parse)) {
-        if(!platformEnabled(module, decl)) continue;
-        if(decl.kind == ast::Decl::Default) resolveDefault(module, decl);
+    // Every default this module wrote, spent whether or not anything applied the declaration -
+    // see Module::defaultedContexts for why a lazily-resolved default still needs a fixed point at
+    // which its diagnostics are reported.
+    for(auto context: module.defaultedContexts) {
+        resolveGenDefaults(module, context);
+    }
+
+    // Over the classes rather than over the declarations, because a default is now written in the
+    // head - so what carries one is a class and not a declaration of its own.
+    for(auto& entry: module.classes) {
+        resolveClassDefault(module, entry);
     }
 }
 

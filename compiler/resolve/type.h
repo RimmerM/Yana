@@ -942,6 +942,24 @@ struct GenType: Type {
     // for a const variable whose kind was inferred from a use position before its type was known;
     // `constVariableType` is what fills it in and what a reader should go through.
     TypePtr constType = nullptr;
+
+    /*
+     * What an application that omits this parameter gets - the `Int` of `a = Int` and the `0` of
+     * `n: Int = 0`. Null for a parameter with no default.
+     *
+     * A resolved type and not the written one, and always a *concrete* one: a default that mentioned
+     * another parameter would be an argument whose meaning depended on the order the list was filled
+     * in, and there is no reading of that worth having in a first version. `genDefault` is what
+     * checks it and what fills this in.
+     *
+     * Read at two different moments, which is the one thing about this feature that is not one rule.
+     * A *type application* that omits an argument takes the default where it is written -
+     * `applyGenDefaults`, at resolve time - because a written type has nothing later to decide it. A
+     * function's or a class's parameter takes it at the **settle** instead - `Solver::settle` - so
+     * that inference gets first refusal: `vectorAt(p) :: Vec(U8, 16)` has to bind `n` to sixteen,
+     * and a default filled in eagerly would have bound zero and then failed to unify with it.
+     */
+    TypePtr def = nullptr;
 };
 
 /*
@@ -1060,6 +1078,23 @@ struct GenSchema {
     U16 constCount = 0;
 };
 
+/*
+ * One parameter's default as it was written, kept until something asks for it.
+ *
+ * Resolved lazily rather than in the pass that builds the head, because a default may name a type
+ * declared further down the file and a head is built in declaration order. That is the same reason
+ * `ClassConstraint::written` exists; what differs is who does the deferred work. A constraint's
+ * class is finished by its owner at a point the owner picks (`resolveConstraintClasses`), which
+ * works because nothing outside asks. A default *is* asked from outside - by every application that
+ * omits an argument, in whatever module wrote it - so it is finished on demand and in the module
+ * that declared it instead.
+ */
+struct GenDefault {
+    U16 index = 0;
+    ast::ParsePtr<ast::Type> written = nullptr;
+    LocationId source = kNullLocation;
+};
+
 struct GenEnv {
     enum Kind: U8 {
         Record,
@@ -1100,12 +1135,26 @@ struct GenEnv {
 
     GlobalList<PropertyConstraint> properties;
     GlobalList<FunctionConstraint> functions;
+
+    // The defaults this head wrote, in parameter order, and only for the parameters that wrote one.
+    // Empty once `defaults` has moved them onto the variables, which is where every reader looks.
+    GlobalList<GenDefault> writtenDefaults;
+
+    // Where this context was declared: what the names in a default mean, and where a diagnostic
+    // about one belongs. Mirrors TypeAlias::module and is set for the same reason.
+    Module* module = nullptr;
+
     Kind kind;
 
     // A function context has no declared variable list: `fn id(x: a) -> a` introduces `a` by
     // using it. An open context adds a variable the first time a type mentions one, which numbers
     // them in order of appearance across the constraints and then the signature.
     bool open = false;
+
+    // Whether `writtenDefaults` has been spent. Set *before* the defaults are resolved, so that a
+    // default written in terms of its own declaration - `data A(a = A)` - ends as the arity
+    // diagnostic it is rather than as a loop. Same shape as TypeAlias::resolving.
+    bool defaultsResolved = false;
 
     // The canonical numbering, built on first request and invalidated by anything that adds a
     // requirement. Deliberately derived rather than maintained: a body infers requirements while it
@@ -1416,6 +1465,43 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr
 // context of whatever is being applied - a record's, an alias's or a class's.
 TypePtr resolveAppArg(Module& module, GlobalPtr<GenEnv> declared, Size index,
                       const ast::Type& arg, GenEnv* env);
+
+/*
+ * One parameter's written default, at whichever kind that parameter is - the `Int` of `a = Int` and
+ * the `0` of `n: Int = 0`. Null where the default was refused, having reported.
+ *
+ * The same two forms `resolveAppArg` reads, because a default *is* an argument: what it supplies is
+ * what the omitted position would have carried, so reading it by a second set of rules would make
+ * `A()` and `A(Int)` two questions.
+ *
+ * `env` is the declaration's own context, which the default is resolved in only so that a name it
+ * mentions is looked up where the declaration is - not so that it may use one. A default must be
+ * concrete, and this is where that is reported.
+ */
+TypePtr resolveGenDefault(Module& module, GlobalPtr<GenType> variable, const ast::Type& written,
+                          GenEnv* env, LocationId source);
+
+/*
+ * The arguments a written application left off, filled in from the declaration's defaults.
+ *
+ * Appends to `args` until it is as long as `declared`'s parameter list or until it reaches a
+ * parameter with no default, and answers whether it got all the way. False leaves `args` as it
+ * found it plus whatever it could fill, and the *caller* reports: an arity message belongs to
+ * whatever was applied, and this function is shared by the record, the alias, the class constraint
+ * and the vector constructor.
+ *
+ * Defaults fill from the right, because an application writes its arguments in order and stops, so
+ * the positions it omitted are a suffix. A declaration whose *defaulted* parameters are not a
+ * suffix is refused where it is written - see resolveGenDefaults - rather than here.
+ */
+bool applyGenDefaults(Module& module, GlobalPtr<GenEnv> declared, TypeList& args);
+
+/*
+ * A head's written defaults, moved onto its variables. Idempotent, and normally reached through
+ * `applyGenDefaults` rather than called - the exception is a reader that wants one parameter's
+ * default rather than a whole argument list, which is what a class default is.
+ */
+void resolveGenDefaults(Module& from, GlobalPtr<GenEnv> declared);
 
 TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source,
                           TypeLayout layout = TypeLayout::Auto, U32 inlineSlots = 0,

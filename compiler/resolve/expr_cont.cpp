@@ -193,7 +193,7 @@ bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Fun
      * diagnostic to report, not this step's.
      */
     Solution solution;
-    Solver solver(resolver, solution, env ? env->types.size() : 0);
+    Solver solver(resolver, solution, env);
 
     auto declaredArgs = target->args.size() - 1;
     solver.bindArguments(callee, { args.ptr, min(args.length, declaredArgs) }, Unresolved::Skips);

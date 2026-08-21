@@ -1313,15 +1313,15 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
 -}
 @platform(native) fn (Hash(k)) indexFind(self: Map(k, v), key: k, h: U32) -> Size:
     let mask = self.mask :: Size
-    let tag = splatGroup(tagOf(h))
-    let empty = splatGroup(ctrlEmpty)
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
 
     let &pos = slotFor(h, self.mask)
     let &step = 0 :: Size
     let &visited = 0 :: Size
 
     while visited <= mask:
-        let group = loadGroup(self.index.items + pos)
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
         let &hits = bits(group .== tag)
 
         while hits != 0:
@@ -1341,15 +1341,15 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
 
 @platform(native) fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
     let mask = self.mask :: Size
-    let tag = splatGroup(tagOf(h))
-    let empty = splatGroup(ctrlEmpty)
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
 
     let &pos = slotFor(h, self.mask)
     let &step = 0 :: Size
     let &visited = 0 :: Size
 
     while visited <= mask:
-        let group = loadGroup(self.index.items + pos)
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
         let &hits = bits(group .== tag)
 
         while hits != 0:
@@ -1376,14 +1376,14 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
 -}
 @platform(native) fn indexFreeSlot(self: Map(k, v), h: U32) -> Size:
     let mask = self.mask :: Size
-    let empty = splatGroup(ctrlEmpty)
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
 
     let &pos = slotFor(h, self.mask)
     let &step = 0 :: Size
     let &visited = 0 :: Size
 
     while visited <= mask:
-        let group = loadGroup(self.index.items + pos)
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
         let free = bits(group .>= empty)
         if free != 0 then return (pos + (trailingZeros(free) :: Size)) `and` mask
 
@@ -1450,14 +1450,14 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
 -}
 @platform(native) fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
     let mask = self.mask :: Size
-    let tag = splatGroup(tagOf(h))
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
 
     let &pos = slotFor(h, self.mask)
     let &step = 0 :: Size
     let &visited = 0 :: Size
 
     while visited <= mask:
-        let group = loadGroup(self.index.items + pos)
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
         let &hits = bits(group .== tag)
 
         while hits != 0:

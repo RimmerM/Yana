@@ -555,57 +555,64 @@ void resolveInstance(Module& module, ast::Decl& decl) {
  * Defaults and superclasses.
  */
 
-// `default Class = Type`. The type is checked here rather than where a literal settles on it, so
-// that a default which nothing implements is reported against the declaration that wrote it.
-void resolveDefault(Module& module, ast::Decl& decl) {
+/*
+ * `class FromInt(a = Int)` - the type an unconstrained variable of this class settles to.
+ *
+ * Written in the head, which is where every other fact about a parameter is written. It used to be
+ * a declaration of its own, `default FromInt = Int`, and folding it in removes a top-level form
+ * without removing anything it said: the four checks below are the four that declaration made, and
+ * three of them are now about the head rather than about a second place that had to agree with it.
+ * A default has to be declared where the class is because it answers for the class everywhere -
+ * that was the coherence rule the old form needed a check for, and a head cannot be written
+ * anywhere else.
+ *
+ * **This is a settle-time default and not the syntactic fill-in of an omitted argument**, which is
+ * the one thing about the shared spelling worth stating rather than assuming. `1 + 1` never writes
+ * `FromInt` at all, so there is no position for a default to stand in; what it answers is "nothing
+ * decided this variable, so what is it". `Solver::settle` reads it, through `literalDefaultType`.
+ * The two triggers meet in the type-parameter default of a `data` head, which does both.
+ *
+ * Late, after the instances, because the last check needs them.
+ */
+void resolveClassDefault(Module& module, GlobalPtr<TypeClass> classPointer) {
     auto& context = module.context;
-    auto classPointer = findClass(module, decl.defaultType.className, decl.source);
+    auto global = *module.types;
+    auto typeClass = global[classPointer];
+    if(typeClass->module != &module || !typeClass->gen) return;
 
-    if(!classPointer) {
-        context.diagnostics.error("unknown class %@"_v, decl.source,
-                                  context.findName(decl.defaultType.className));
-        return;
+    auto env = global[typeClass->gen];
+    resolveGenDefaults(module, typeClass->gen);
+
+    // The parameter that carries one, and the arity rule stated as the search: a class with two
+    // parameters has no single variable for a literal to settle, so a default on either of them
+    // answers a question nobody can ask.
+    GlobalPtr<GenType> defaulted = nullptr;
+    for(auto variable: env->types.contents(global)) {
+        if(!global[variable]->def) continue;
+
+        if(defaulted || env->types.size() != 1) {
+            context.diagnostics.error("only a class with one type argument can have a default"_v,
+                                      global[variable]->source);
+            return;
+        }
+
+        defaulted = variable;
     }
 
-    auto typeClass = (*module.types)[classPointer];
+    if(!defaulted) return;
+    auto type = global[defaulted]->def;
+    auto source = global[defaulted]->source;
 
-    // A default answers for the class everywhere it is used, so it has to be declared where the
-    // class is - the same coherence rule that keeps one instance per type from being a matter of
-    // which module you are looking from.
-    if(typeClass->module != &module) {
-        context.diagnostics.error("a default must be declared in the module that declares %@"_v, decl.source,
-                                  context.findName(decl.defaultType.className));
-        return;
-    }
-
-    if((*module.types)[typeClass->gen]->types.size() != 1) {
-        context.diagnostics.error("only a class with one type argument can have a default"_v, decl.source);
-        return;
-    }
-
-    if(typeClass->defaultType) {
-        context.diagnostics.error("duplicate default for %@"_v, decl.source,
-                                  context.findName(decl.defaultType.className));
-        return;
-    }
-
-    auto type = resolveType(module, decl.defaultType.target, nullptr);
-    if((*module.types)[type]->kind == Type::Error) return;
-
-    if(isGeneric(*module.types, type)) {
-        context.diagnostics.error("a default must name a concrete type"_v, decl.source);
-        return;
-    }
-
+    // The concrete check is resolveGenDefault's and has already run; what is left is the one a
+    // *class* default has and no other default does.
     if(!findInstance(module, classPointer, { &type, 1 })) {
-        context.diagnostics.error("%@ is the default of %@ but has no instance of it"_v, decl.source,
-                                  describeType(context, *module.types, type),
-                                  context.findName(decl.defaultType.className));
+        context.diagnostics.error("%@ is the default of %@ but has no instance of it"_v, source,
+                                  describeType(context, global, type), context.findName(typeClass->name));
         return;
     }
 
     typeClass->defaultType = type;
-    typeClass->defaultSource = decl.source;
+    typeClass->defaultSource = source;
 }
 
 // Every superclass its class declares has to hold for the instance's own types. Without this,

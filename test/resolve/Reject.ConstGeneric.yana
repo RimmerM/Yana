@@ -42,8 +42,15 @@ fn (n: Int) twice(n: Int) -> Int = n
 -- diagnostic says which forms exist rather than which one was written.
 fn computed(xs: [Int *(4 + 1)]) -> Int = 0
 
--- The same for a vector, whose count reaches the same two forms by a different production.
-fn computedLanes(v: Vec(I16, Holder)) -> Int = 0
+-- The same for a vector, which reaches it through the same production now that `Vec` has a
+-- parameter list of its own (Program::vectorGen): the second parameter is a const one, so the
+-- argument at that index is read as a count exactly as `Holder`'s is below.
+fn computedLanes(v: Vec(I16, String)) -> Int = 0
+
+-- And a vector's arity, which is that parameter list's too. `Vec` takes one argument or two - the
+-- second has a default of zero, which is the natural width - so three is the ordinary too-many
+-- message and no longer one written beside the constructor.
+fn tooManyLanes(v: Vec(I16, 4, 4)) -> Int = 0
 
 -- §2.5: an admissible const parameter is an integer. Reported at the declaration, which is where the
 -- inadmissible type was named.

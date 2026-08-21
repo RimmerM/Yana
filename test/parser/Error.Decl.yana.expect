@@ -4,14 +4,12 @@ error 15:0 [463..463]: expected ')'
 error 18:0 [511..511]: expected '=' or '{' after type name
 error 21:0 [591..591]: expected '='
 error 21:0 [591..591]: expected a type
-error 24:0 [672..672]: expected ':' after instance declaration
-error 24:8 [680..681]: expected a class name
-error 28:0 [773..773]: expected '='
-error 28:0 [773..773]: expected a type
-error 29:0 [779..779]: expected identifier
-error 32:0 [848..848]: expected attribute type
-error 32:0 [848..856]: terminating statements cannot be used in a global scope
-error 35:18 [936..937]: expected declaration end
+error 24:0 [674..674]: expected ':' after instance declaration
+error 24:19 [693..694]: expected a type
+error 29:0 [789..789]: expected identifier
+error 32:0 [858..858]: expected attribute type
+error 32:0 [858..866]: terminating statements cannot be used in a global scope
+error 35:18 [946..947]: expected declaration end
 
 Module 
 |-FunDecl noBody
@@ -29,9 +27,12 @@ Module
 | `-AppType 
 |   |-ConType NoBody
 |   `-ConType Int
-|-<parse error>
-|-DefaultDecl FromInt
-| `-<parse error>
+|-TraitDecl NoDefault (a = <type>)
+| `-FunDecl f
+|   |-Arg x
+|   | `-GenType a
+|   `-Result
+|     `-GenType a
 |-<parse error>
 |-<parse error> named
 |-StmtDecl

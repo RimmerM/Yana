@@ -149,14 +149,14 @@ pub class Index(c -> k, v):
   fn get(return self: c, index: k) -> &v
   fn getMut(return &self: c, index: k) -> &v
 
-pub class FromInt(a):
+-- The default in each head is what an integer or decimal literal settles to when nothing in the
+-- program says otherwise: `1 + 1` writes neither class, so there is no argument position for a
+-- default to fill and what it answers is "nothing decided this, so what is it".
+pub class FromInt(a = Int):
   fn fromInt(value: Long) -> a
 
-pub class FromDecimal(a):
+pub class FromDecimal(a = Float):
   fn fromDecimal(value: Double) -> a
-
-default FromInt = Int
-default FromDecimal = Float
 
 -- The bodies below are class defaults: an instance that writes `==` has `!=` already, and one
 -- that writes `compare` has all four comparisons. What each class still asks of an instance is the
@@ -899,10 +899,16 @@ pub fn exchange(&slot: a, ->value: a) -> a
    The count is a const parameter wherever an *argument* supplies it - Implementation-Const-Generics.md
    §5's first row, and Implementation-Vector.md §9.3's gap closed. `Vec(a)` in a parameter is the
    target's natural width and nothing else, so `lane(v, 0)` on a `Vec(I16, 4)` had no overload at all
-   on a target whose natural count is eight. `splat`, `zero` and `iota` keep the natural form: what
-   decides their count is the *result*, and a const parameter there would be one nothing supplies.
+   on a target whose natural count is eight.
+
+   `splat`, `zero` and `iota` are const parameters too, with a **default** of zero. What decides
+   their count is the result, and a result is one of the two things §1.7 says supplies a const
+   argument - so `zero() :: Vec(U8, 16)` is sixteen lanes. What the default answers is the other
+   case, where nothing does: zero is already the natural form written down, so `zero()` on its own
+   means exactly what it meant when the count could not be written at all. The default is read at
+   the settle and not at the call, which is what leaves the ascription its first refusal.
 -}
-pub fn splat(value: a) -> Vec(a)
+pub fn (n: Int = 0) splat(value: a) -> Vec(a, n)
 pub fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a
 pub fn (n: Int) withLane(vector: Vec(a, n), index: Int, value: a) -> Vec(a, n)
 
@@ -923,7 +929,8 @@ pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
    `lanes` is the one that is not an instruction: it answers a number the *type* already carries, so
    the expansion is a constant and there is nothing left of the call. `zero` and `iota` take no
    argument at all and are selected by what the result is asked to be, which is the ordinary
-   return-type selection `truncate(x) :: U8` uses.
+   return-type selection `truncate(x) :: U8` uses - the lane *count* included, since the count is a
+   const parameter with a default rather than the natural form and nothing else.
 
    `min` and `max` are here rather than in `Ord` for the reason `Eq` and `Ord` have no vector
    instances: they are lanewise, they answer a vector, and the class that would relate them to a
@@ -935,8 +942,8 @@ pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
    targets, so a pattern this resolver cannot read is not expressible rather than slow. `rotate`'s
    distance is therefore a constant, checked where it is written.
 -}
-pub fn zero() -> Vec(a)
-pub fn iota() -> Vec(a)
+pub fn (n: Int = 0) zero() -> Vec(a, n)
+pub fn (n: Int = 0) iota() -> Vec(a, n)
 pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
 
 pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)

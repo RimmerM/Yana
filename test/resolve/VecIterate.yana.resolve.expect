@@ -1096,7 +1096,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
   }
 
   b0:
-    %v1 = gencall zero(a) : Vec(a)
+    %v1 = gencall zero(0, a) : Vec(a)
     %acc = alloc : Vec(a)
     init %acc, %v1
     %v4 = alloc : {acc: &mut Vec(a)}
@@ -1127,7 +1127,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
   }
 
   b0:
-    %v2 = gencall splat(a), %floor : Vec(a)
+    %v2 = gencall splat(0, a), %floor : Vec(a)
     %acc = alloc : Vec(a)
     init %acc, %v2
     %v5 = alloc : {acc: &mut Vec(a)}

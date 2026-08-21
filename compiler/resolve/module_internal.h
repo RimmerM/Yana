@@ -67,7 +67,7 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
 void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
 void resolveClassSignatures(Module& module, TypeClass& typeClass);
 void resolveInstance(Module& module, ast::Decl& decl);
-void resolveDefault(Module& module, ast::Decl& decl);
+void resolveClassDefault(Module& module, GlobalPtr<TypeClass> classPointer);
 void checkSuperclasses(Module& module, ClassInstance& instance);
 
 // -- module_default.cpp ------------------------------------------------------------------------

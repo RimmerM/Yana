@@ -1344,7 +1344,7 @@ TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<a
      * the position that mentions it and by nothing after it.
      */
     Solution solution;
-    Solver solver(*this, solution, env->types.size());
+    Solver solver(*this, solution, env);
     auto& bindings = solution.types;
 
     auto content = declaration->constructors.get(global, reference.index).content;
