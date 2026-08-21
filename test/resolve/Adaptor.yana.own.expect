@@ -2,6 +2,14 @@ fn teardown$none {
   arg value readonly
 }
 
+fn moveMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [83, 86) [99, 196) [203, 219)
+  %at: I64 writable live [96, 99) [219, 314) [323, 339)
+}
+
 fn initHeap {
 }
 
@@ -75,9 +83,9 @@ fn checkCondition {
 }
 
 fn remove(Int) {
-  arg self writable addressed
+  arg self writable
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 62)
+  %self: Array(Int) borrowed droppable writable live [0, 6) [9, 62)
   %local1: Maybe(Int) readonly live [6, 9)
   %local2: Int readonly live [17, 20)
   %local3: Int readonly live [18, 64)
@@ -123,7 +131,7 @@ fn double {
 fn main {
   %xs: Array(Int) droppable readonly live [0, 167)
   %local1: Int writable addressed live [1, 7)
-  %out: Array(Int) droppable writable addressed live [8, 151)
+  %out: Array(Int) droppable writable live [8, 151)
   %local3: Int writable addressed live [9, 15)
   %local4: Maybe(Int) readonly live [18, 19)
   %local5: Maybe(Int) readonly live [21, 22)

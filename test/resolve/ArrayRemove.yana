@@ -4,7 +4,7 @@ import Native.Linux
 {-
    `remove` over an element type that has a teardown.
 
-   Closing the gap is a `copyMemory`, which is Native moving bytes rather than an assignment the
+   Closing the gap is a `moveMemory`, which is Native moving bytes rather than an assignment the
    compiler can see - so nothing about it says the element it writes over is over. `remove` now takes
    that element out into a `->` binding first, and the binding is what owes its release.
 

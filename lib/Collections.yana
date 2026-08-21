@@ -768,12 +768,19 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
 {-
    Removes element `index`, moving whatever followed it down over the gap, and answers what it took.
 
-   The element is taken out before the gap is closed, rather than being left to the `copyMemory` that
+   The element is taken out before the gap is closed, rather than being left to the block move that
    writes over it. An assignment releases what it replaces, which is the rule that would have covered
    this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
    bytes moving over a live value is exactly the operation that owes its own bookkeeping.
 
    So `doomed` is where the element goes, and a `->` binding owns what it holds.
+
+   **`moveMemory` and not `copyMemory`**, which is the one line here that is about a contract rather
+   than about ownership. The source of this move is one element above its destination, so the two
+   regions overlap for every array holding more than one element past the gap - and `copyMemory` is
+   the *non-overlapping* form, which says nothing about the order it touches bytes in. It happens to
+   ascend on both of today's backends and would still be within its rights not to, so what was
+   holding this up was the lowering rather than the promise. `moveMemory` is the promise.
 
    Handing it *back* rather than dropping it here is what makes this usable for an element type the
    caller has somewhere else to put - Implementation-Containers.md §13.3. A caller who does not want
@@ -802,7 +809,7 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
 
     let rest = (self.length :: Size) - index - 1
     if rest > 0:
-        copyMemory(bitcast(self.run.items + index) :: %U8, bitcast(self.run.items + index + 1) :: %U8,
+        moveMemory(bitcast(self.run.items + index) :: %U8, bitcast(self.run.items + index + 1) :: %U8,
                    byteSpan(self.run.items, rest))
 
     self.length = truncate((self.length :: Int) - 1) :: Count

@@ -14,6 +14,14 @@ fn -=(I64) {
   %local2: I64 readonly live [1, 3)
 }
 
+fn moveMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [83, 86) [99, 196) [203, 219)
+  %at: I64 writable live [96, 99) [219, 314) [323, 339)
+}
+
 fn initHeap {
 }
 
@@ -137,9 +145,9 @@ fn growArray(Handle) {
 }
 
 fn remove(Handle) {
-  arg self writable addressed
+  arg self writable
   arg index readonly
-  %self: Array(Handle) borrowed droppable writable addressed live [0, 6) [9, 63)
+  %self: Array(Handle) borrowed droppable writable live [0, 6) [9, 63)
   %local1: Maybe(Handle) droppable readonly live [6, 9)
   %local2: Handle droppable readonly live [17, 19)
   %local3: Handle droppable readonly live [19, 65)

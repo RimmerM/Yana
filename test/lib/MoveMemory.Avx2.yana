@@ -1,0 +1,237 @@
+import Native
+import Native.Linux
+
+{-
+   `moveMemory` again, one tier up.
+
+   # extensions: v3
+
+   Everything this asserts is `MoveMemory.yana`'s, and the file is that one with this comment in
+   front of it. What makes it a second fixture is the **width**, and the reason it is a fixture at
+   all is that a directive is the only way to get one: `test/directives.h` compiles every fixture
+   that names no level at **v2**, so the whole suite - this one included - only ever exercised a
+   sixteen-byte register.
+
+   That is not a gap in coverage so much as a gap in what the coverage *meant*. Every boundary in
+   `moveMemory` is stated in widths: the ladder's rungs are `n` transfers of `w` bytes covering
+   `[nw, 2nw)`, and which of them is reachable is a function of the register. At v2 the vector rung
+   starts at sixteen and meets the word rung below it exactly; at v3 it starts at thirty-two and
+   leaves `[16, 32)` for a word rung that reached only sixteen - so **counts of seventeen to
+   thirty-one wrote every byte except the eight in the middle**, in a build nothing here ever made.
+   This file is what makes that build exist.
+
+   v4 would want the same again for `[32, 64)`, and the rung is written; it cannot be a fixture on
+   a host without AVX-512, which is what would have to run it.
+-}
+
+{-
+   `moveMemory` - Analysis-Library.md part 7, finding 1.
+
+   The overlapping block move, which `copyMemory` deliberately is not: the primitive says nothing
+   about the order it touches bytes in, so a caller whose regions overlap - `Array.remove` closing
+   the gap it just made - had no operation to reach for and was relying on the lowering ascending.
+
+   What this asserts is the property that makes it a *move* rather than a copy: every byte of the
+   source is read before the write that could reach it. That is invisible in a golden diff, since a
+   move that clobbered its own source and one that did not are the same instructions, so all of it is
+   read back out of the buffer afterwards.
+
+   Four overlaps and two degenerate cases, named one at a time so that a failure says which shape
+   broke. The two directions are separate tests because they are separate loops with the opposite
+   argument, and each is run at two lengths: one short enough that only the byte tail executes, and
+   one long enough that the wide step does the work and hands a partial tail to the loop below it. A
+   one-byte gap is the worst case for both - it is the distance at which every wide step writes over
+   bytes it has already read - and it is the distance `Array.remove` has for a byte array.
+
+   **And then `sweep`, which is the one that actually holds the implementation down.** The body is a
+   vector loop with an overlapping ragged end, so the shapes that break it are the ones where a
+   length or a gap sits just either side of the register's width - and which width that is depends on
+   the level the target was built for. Naming lengths by hand cannot cover that, so the sweep walks
+   every length to 200 and every gap to 96 in both directions, which crosses sixteen, thirty-two and
+   sixty-four several times over - and `sweepWide` below walks a coarser cross product past it, for
+   the four-register group the dense one never runs twice. It checks three things per move rather than one: the moved bytes,
+   the bytes in front of the destination, and the bytes behind it. The last two are what catch a
+   store that ran wide - a tail transfer placed at `n - W` is only correct because it *stops* at `n`,
+   and nothing about the moved region itself would say if it did not.
+-}
+
+-- The buffer, filled with `0, 1, 2, ...` so that any byte's correct value is its own index and a
+-- clobber shows up as a repeat.
+fn fill(buffer: %U8, count: I64) -> {}:
+    let &i = 0 :: I64
+    while i < count:
+        store(buffer + i, truncate(i) :: U8)
+        i = i + 1
+
+-- Whether `count` bytes from `at` are the ascending run starting at `first`, which is what every
+-- move below leaves behind. The comparison truncates because `fill` does: the sweep reaches past
+-- index 255 and the run wraps there, so an `I64` on the right would fail on the buffer rather than
+-- on the move.
+fn runs(buffer: %U8, at: I64, first: I64, count: I64) -> Bool:
+    let &i = 0 :: I64
+    while i < count:
+        if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
+        i = i + 1
+
+    return True
+
+{-
+   Downwards, which is `Array.remove`'s direction: the destination is below the source, so the loop
+   has to ascend.
+
+   Two lengths and two gaps. 15 bytes at a gap of one runs the wide step once and leaves seven for
+   the tail; 37 at a gap of three runs it four times and leaves five. Both are the case where the
+   write of one step lands on top of bytes the previous step read.
+-}
+fn descending() -> {}:
+    let buffer = allocateHeap(64)
+
+    fill(buffer, 16)
+    moveMemory(buffer, buffer + 1, 15)
+    assert(runs(buffer, 0, 1, 15))
+
+    fill(buffer, 40)
+    moveMemory(buffer, buffer + 3, 37)
+    assert(runs(buffer, 0, 3, 37))
+
+    -- A gap wide enough that the regions never met, which is the one path that is still the block
+    -- operation. It has to answer the same thing.
+    fill(buffer, 64)
+    moveMemory(buffer, buffer + 32, 32)
+    assert(runs(buffer, 0, 32, 32))
+
+    freeHeap(buffer)
+    return
+
+{-
+   And upwards, where the same statement holds with the loop descending.
+
+   The bytes below the destination are left alone, which is checked as well: a loop that ran the
+   wrong way would leave the source's own prefix rewritten, and only reading it back says so.
+-}
+fn ascending() -> {}:
+    let buffer = allocateHeap(64)
+
+    fill(buffer, 16)
+    moveMemory(buffer + 1, buffer, 15)
+    assert(runs(buffer, 1, 0, 15))
+    assert(runs(buffer, 0, 0, 1))
+
+    fill(buffer, 40)
+    moveMemory(buffer + 3, buffer, 37)
+    assert(runs(buffer, 3, 0, 37))
+    assert(runs(buffer, 0, 0, 3))
+
+    fill(buffer, 64)
+    moveMemory(buffer + 32, buffer, 32)
+    assert(runs(buffer, 32, 0, 32))
+
+    freeHeap(buffer)
+    return
+
+-- The two arguments that do nothing, stated because both are reachable from `Array.remove`: removing
+-- the last element leaves nothing to move, and a zero count is what that arrives as.
+fn degenerate() -> {}:
+    let buffer = allocateHeap(64)
+
+    fill(buffer, 16)
+    moveMemory(buffer, buffer + 1, 0)
+    assert(runs(buffer, 0, 0, 16))
+
+    moveMemory(buffer, buffer, 16)
+    assert(runs(buffer, 0, 0, 16))
+
+    freeHeap(buffer)
+    return
+
+{-
+   Every length and every gap, in both directions, checked at all three edges.
+
+   `fill` covers eight bytes past the far end of whichever region is higher, so that "behind the
+   destination" is a real question with an ascending answer rather than whatever the allocator left.
+   The moves themselves are the whole cross product, disjoint pairs included: a gap at or above the
+   length is the `copyMemory` path and has to answer the same thing as the two that overlap.
+-}
+fn sweep() -> {}:
+    let buffer = allocateHeap(512)
+    let &bad = 0 :: Int
+    let &count = 0 :: I64
+
+    while count <= 200:
+        let &gap = 1 :: I64
+
+        while gap <= 96:
+            -- The destination below the source. `[0, count)` becomes the run starting at `gap`, and
+            -- nothing at or above `count` may have been touched.
+            fill(buffer, gap + count + 8)
+            moveMemory(buffer, buffer + gap, count)
+            if !runs(buffer, 0, gap, count) then bad = bad + 1
+            if !runs(buffer, count, count, 8) then bad = bad + 1
+
+            -- And above it. Now it is the prefix below `gap` that has to be intact, and the eight
+            -- bytes past `gap + count` on the other side.
+            fill(buffer, gap + count + 8)
+            moveMemory(buffer + gap, buffer, count)
+            if !runs(buffer, gap, 0, count) then bad = bad + 1
+            if !runs(buffer, 0, 0, gap) then bad = bad + 1
+            if !runs(buffer, gap + count, gap + count, 8) then bad = bad + 1
+
+            gap = gap + 1
+
+        count = count + 1
+
+    freeHeap(buffer)
+    assert(bad == 0)
+    return
+
+{-
+   And the same cross product again over the lengths the *unrolled* group reaches, which the sweep
+   above stops short of.
+
+   The loop moves four registers a turn, so the group is sixty-four bytes at v2, a hundred and
+   twenty-eight at v3 and two hundred and fifty-six at v4 - and above two hundred bytes the sweep
+   above never runs one twice, never leaves a remainder for the one-register loop behind it, and
+   never sees a gap narrower than a whole group. All three are where a four-wide move differs from a
+   one-wide one, and all three are here.
+
+   Coarse on purpose. What the dense sweep is for is the rungs and the ragged end, where every
+   single length is its own case; what this is for is the group, where what matters is the length's
+   residue against sixty-four, a hundred and twenty-eight and two hundred and fifty-six and the
+   gap's size against the same. A step of three and a step of five walk every one of those residues
+   several times over in a few thousand moves rather than a hundred thousand.
+-}
+fn sweepWide() -> {}:
+    let buffer = allocateHeap(1024)
+    let &bad = 0 :: Int
+    let &count = 128 :: I64
+
+    while count <= 640:
+        let &gap = 1 :: I64
+
+        while gap <= 200:
+            fill(buffer, gap + count + 8)
+            moveMemory(buffer, buffer + gap, count)
+            if !runs(buffer, 0, gap, count) then bad = bad + 1
+            if !runs(buffer, count, count, 8) then bad = bad + 1
+
+            fill(buffer, gap + count + 8)
+            moveMemory(buffer + gap, buffer, count)
+            if !runs(buffer, gap, 0, count) then bad = bad + 1
+            if !runs(buffer, 0, 0, gap) then bad = bad + 1
+            if !runs(buffer, gap + count, gap + count, 8) then bad = bad + 1
+
+            gap = gap + 5
+
+        count = count + 3
+
+    freeHeap(buffer)
+    assert(bad == 0)
+    return
+
+fn main() -> Int:
+    descending()
+    ascending()
+    degenerate()
+    sweep()
+    sweepWide()
+    return 0

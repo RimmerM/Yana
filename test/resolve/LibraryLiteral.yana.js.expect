@@ -1,0 +1,423 @@
+"use strict";
+// Text
+function showSigned(value, to$o, to$k, to$s) {
+  if (value === 0n) {
+    var v91 = to$o[to$k] + String.fromCharCode(48);
+    to$o[to$k] = v91;
+  } else {
+    var remaining = value;
+    if (value > 0n) {
+      remaining = BigInt.asIntN(64, 0n - remaining);
+    }
+    var digits = "";
+    L0: for (;;) {
+      if (remaining < 0n) {
+        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
+        remaining = BigInt.asIntN(64, $div(remaining, 10n));
+        continue L0;
+      }
+      break L0;
+    }
+    if (value < 0n) {
+      var v100 = to$o[to$k] + String.fromCharCode(45);
+      to$o[to$k] = v100;
+    }
+    var i = digits.length;
+    L1: for (;;) {
+      if (i > 0) {
+        var v79 = i - 1 | 0;
+        i = v79;
+        var v103 = digits.charCodeAt(v79);
+        var v106 = to$o[to$k] + String.fromCharCode(v103);
+        to$o[to$k] = v106;
+        continue L1;
+      }
+      break L1;
+    }
+  }
+}
+
+function terminatesAt(value, count) {
+  var text = value.toExponential(100);
+  var v77 = text.length;
+  var seen = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v77) {
+      var v78 = text.charCodeAt(i);
+      var v19 = v78 === 101;
+      if (v19 ? v19 : v78 === 69) {
+        return 1;
+      } else {
+        B1: {
+          var v33 = v78 !== 46;
+          var v81 = v33 ? v78 !== 45 : v33;
+          if (v81 ? v78 !== 43 : v81) {
+            var v52 = seen + 1 | 0;
+            seen = v52;
+            var v55 = v52 > count;
+            if (v55 ? v78 !== 48 : v55) {
+              return 0;
+            }
+          }
+        }
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return 1;
+    }
+    break L0;
+  }
+}
+
+function evenAtTie(value, shortest$digits, shortest$exponent) {
+  var shortest = { digits: shortest$digits, exponent: shortest$exponent };
+  if (BigInt.asUintN(64, $rem(shortest$digits, 2n)) === 0n) {
+    return shortest;
+  } else {
+    var count = decimalLength(shortest$digits);
+    var probe = shortestOfText(value.toExponential(count));
+    if (probe.exponent !== (shortest.exponent - 1 | 0)) {
+      return shortest;
+    } else {
+      if (probe.digits !== BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, shortest.digits - 1n) * 10n) + 5n)) {
+        return shortest;
+      } else {
+        if (terminatesAt(value, count + 1 | 0) ^ 1) {
+          return shortest;
+        } else {
+          return { digits: BigInt.asUintN(64, shortest.digits - 1n), exponent: shortest.exponent };
+        }
+      }
+    }
+  }
+}
+
+function shortestOfText(text) {
+  var v178 = text.length;
+  var digits = 0n;
+  var fractional = 0;
+  var afterPoint = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v178) {
+      var v179 = text.charCodeAt(i);
+      var v22 = v179 === 101;
+      if (!(v22 ? v22 : v179 === 69)) {
+        if (v179 === 46) {
+          afterPoint = 1;
+        } else {
+          digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v179 - 48 | 0))));
+          if (afterPoint) {
+            fractional = fractional + 1 | 0;
+          }
+        }
+        i = i + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  var exponent = 0;
+  var negative = 0;
+  var v75 = i + 1 | 0;
+  i = v75;
+  if (v75 < v178) {
+    var v182 = text.charCodeAt(i);
+    if (v182 === 45) {
+      negative = 1;
+      i = i + 1 | 0;
+    } else {
+      if (v182 === 43) {
+        i = i + 1 | 0;
+      }
+    }
+  }
+  L1: for (;;) {
+    if (i < v178) {
+      exponent = Math.imul(exponent, 10) + (text.charCodeAt(i) - 48 | 0) | 0;
+      i = i + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  if (negative) {
+    exponent = 0 - exponent | 0;
+  }
+  exponent = exponent - fractional | 0;
+  L2: for (;;) {
+    if (digits !== 0n) {
+      if (BigInt.asUintN(64, $rem(digits, 10n)) === 0n) {
+        digits = BigInt.asUintN(64, $div(digits, 10n));
+        exponent = exponent + 1 | 0;
+        continue L2;
+      }
+    }
+    break L2;
+  }
+  return { digits: digits, exponent: exponent };
+}
+
+function decimalLength(value) {
+  var limit = 10n;
+  var digits = 1;
+  L0: for (;;) {
+    if (digits < 17) {
+      if (value < limit) {
+        return digits;
+      } else {
+        limit = BigInt.asUintN(64, limit * 10n);
+        digits = digits + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return 17;
+    }
+    break L0;
+  }
+}
+
+function pushDecimalDigits(value, count, pointAt, to$o, to$k, to$s) {
+  var buffer = "";
+  var rest = value;
+  var left = count;
+  L0: for (;;) {
+    if (left > 0) {
+      buffer = buffer + String.fromCharCode((Number(BigInt.asUintN(64, $rem(rest, 10n))) | 0) + 48 | 0);
+      rest = BigInt.asUintN(64, $div(rest, 10n));
+      left = left - 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var written = 0;
+  var k = count;
+  L1: for (;;) {
+    if (k > 0) {
+      k = k - 1 | 0;
+      if (written === pointAt) {
+        var v85 = to$o[to$k] + String.fromCharCode(46);
+        to$o[to$k] = v85;
+      }
+      var v87 = buffer.charCodeAt(k);
+      var v90 = to$o[to$k] + String.fromCharCode(v87);
+      to$o[to$k] = v90;
+      written = written + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+}
+
+function pushExponent(value, to$o, to$k, to$s) {
+  if (value >= 100) {
+    var v71 = to$o[to$k] + String.fromCharCode((value / 100 | 0) + 48 | 0);
+    to$o[to$k] = v71;
+    var v75 = to$o[to$k] + String.fromCharCode(($rem(value / 10 | 0, 10) | 0) + 48 | 0);
+    to$o[to$k] = v75;
+    var v79 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 | 0);
+    to$o[to$k] = v79;
+  } else {
+    if (value >= 10) {
+      var v83 = to$o[to$k] + String.fromCharCode((value / 10 | 0) + 48 | 0);
+      to$o[to$k] = v83;
+      var v87 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 | 0);
+      to$o[to$k] = v87;
+    } else {
+      var v91 = to$o[to$k] + String.fromCharCode(value + 48 | 0);
+      to$o[to$k] = v91;
+    }
+  }
+}
+
+function writeShortest(value$digits, value$exponent, to$o, to$k, to$s) {
+  var count = decimalLength(value$digits);
+  var v5 = value$exponent + count | 0;
+  var exp = v5 - 1 | 0;
+  var v11 = exp < 0;
+  var v15 = 0 - exp | 0;
+  if (v11 ? v15 <= 7 : v11) {
+    var v144 = to$o[to$k] + String.fromCharCode(48);
+    to$o[to$k] = v144;
+    var v148 = to$o[to$k] + String.fromCharCode(46);
+    to$o[to$k] = v148;
+    var zeros = v15 - 1 | 0;
+    L0: for (;;) {
+      if (zeros > 0) {
+        var v152 = to$o[to$k] + String.fromCharCode(48);
+        to$o[to$k] = v152;
+        zeros = zeros - 1 | 0;
+        continue L0;
+      }
+      break L0;
+    }
+    pushDecimalDigits(value$digits, count, count, to$o, to$k, to$s);
+  } else {
+    var v62 = exp >= 0;
+    if (v62 ? exp <= 7 : v62) {
+      if (value$exponent >= 0) {
+        pushDecimalDigits(value$digits, count, count, to$o, to$k, to$s);
+        var zeros$1 = value$exponent;
+        L1: for (;;) {
+          if (zeros$1 > 0) {
+            var v156 = to$o[to$k] + String.fromCharCode(48);
+            to$o[to$k] = v156;
+            zeros$1 = zeros$1 - 1 | 0;
+            continue L1;
+          }
+          break L1;
+        }
+      } else {
+        pushDecimalDigits(value$digits, count, v5, to$o, to$k, to$s);
+      }
+    } else {
+      pushDecimalDigits(value$digits, count, 1, to$o, to$k, to$s);
+      var v160 = to$o[to$k] + String.fromCharCode(69);
+      to$o[to$k] = v160;
+      if (exp < 0) {
+        var v164 = to$o[to$k] + String.fromCharCode(45);
+        to$o[to$k] = v164;
+        pushExponent(v15, to$o, to$k, to$s);
+      } else {
+        pushExponent(exp, to$o, to$k, to$s);
+      }
+    }
+  }
+}
+
+function writeSpecial(value, to$o, to$k, to$s) {
+  if (value !== value) {
+    to$o[to$k] = to$o[to$k] + "NaN";
+    return 1;
+  } else {
+    B0: {
+      B1: {
+        if (!(value < 0)) {
+          B2: {
+            if (value === 0) {
+              if (1 / value < 0) {
+                break B1;
+              }
+            }
+          }
+          break B0;
+        }
+      }
+      var v57 = to$o[to$k] + String.fromCharCode(45);
+      to$o[to$k] = v57;
+    }
+    if (value - value !== 0) {
+      to$o[to$k] = to$o[to$k] + "Inf";
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+}
+
+function Show_Double_show(value, to$o, to$k, to$s) {
+  if (!writeSpecial(value, to$o, to$k, to$s)) {
+    var v30 = value < 0 ? 0 - value : value;
+    if (v30 === 0) {
+      var v33 = to$o[to$k] + String.fromCharCode(48);
+      to$o[to$k] = v33;
+    } else {
+      var v36 = shortestOfText(v30.toExponential());
+      var v39 = evenAtTie(v30, v36.digits, v36.exponent);
+      writeShortest(v39.digits, v39.exponent, to$o, to$k, to$s);
+    }
+  }
+}
+
+function Show_Maybe_a_show_Int(value, to$o, to$k, to$s) {
+  if (!(value === null)) {
+    to$o[to$k] = to$o[to$k] + "Just(";
+    showSigned(BigInt.asIntN(64, BigInt(value)), to$o, to$k, to$s);
+    var v36 = to$o[to$k] + String.fromCharCode(41);
+    to$o[to$k] = v36;
+  } else {
+    to$o[to$k] = to$o[to$k] + "Nothing";
+  }
+}
+
+// ResolveTest
+function markers() {
+  var total = 0;
+  if ("<<<a" === "<<<a") {
+    total = total + 1 | 0;
+  }
+  if ("<<<b" === "<<<b") {
+    total = total + 1 | 0;
+  }
+  if ("<<<c" === "<<<c") {
+    total = total + 1 | 0;
+  }
+  if ("<<<d" === "<<<d") {
+    total = total + 1 | 0;
+  }
+  if ("<<<e" === "<<<e") {
+    total = total + 1 | 0;
+  }
+  if ("<<<f" === "<<<f") {
+    total = total + 1 | 0;
+  }
+  if ("<<<g" === "<<<g") {
+    total = total + 1 | 0;
+  }
+  if ("<<<h" === "<<<h") {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function library() {
+  var total = 0;
+  var sink = { $v: "" };
+  var v12 = 0 / 0;
+  var sink$1 = { $v: "" };
+  Show_Double_show(v12, sink$1, "$v", 1);
+  if (sink$1.$v === "NaN") {
+    total = total + 1 | 0;
+  }
+  var v27 = 1 / 0;
+  var sink$2 = { $v: "" };
+  Show_Double_show(v27, sink$2, "$v", 1);
+  if (sink$2.$v === "Inf") {
+    total = total + 1 | 0;
+  }
+  sink.$v = sink.$v + "True";
+  if (sink.$v === "True") {
+    total = total + 1 | 0;
+  }
+  sink.$v = "";
+  sink.$v = sink.$v + "False";
+  if (sink.$v === "False") {
+    total = total + 1 | 0;
+  }
+  sink.$v = "";
+  Show_Maybe_a_show_Int(null, sink, "$v", 1);
+  if (sink.$v === "Nothing") {
+    total = total + 1 | 0;
+  }
+  sink.$v = "";
+  Show_Maybe_a_show_Int(7, sink, "$v", 1);
+  if (sink.$v === "Just(7)") {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function main() {
+  return markers() + library() | 0;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
+}
+main();

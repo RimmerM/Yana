@@ -1,0 +1,75 @@
+{-
+   A string literal in a library function, and one in this one.
+
+   The bytes of a literal are a global of their own, named by a counter that runs *per module* - and
+   `LowerModule::globals` is one map over the whole program keyed by name. So `string$0` from `Text`
+   and `string$0` from the program that imported it were one entry, the second replaced the first,
+   and both references then pointed at the second's bytes: the right length and the wrong content.
+
+   It went unnoticed for as long as it did because no library function outside a class instance
+   returned or pushed a literal until `Show(Double)` needed to write `Inf`, and because two colliding
+   literals of the *same* content produce the right answer by accident - which is exactly what
+   `FloatShow.yana` does, and is why this file exists beside it.
+
+   The markers are first and are deliberately unlike anything the library writes, so that whichever
+   of the two globals survives the collision, one of the two sides sees the other's bytes. Eight of
+   them rather than two because which index collides depends on the order the library's own bodies
+   were resolved in, which is not this file's to know.
+-}
+
+fn markerA() -> String = "<<<a"
+fn markerB() -> String = "<<<b"
+fn markerC() -> String = "<<<c"
+fn markerD() -> String = "<<<d"
+fn markerE() -> String = "<<<e"
+fn markerF() -> String = "<<<f"
+fn markerG() -> String = "<<<g"
+fn markerH() -> String = "<<<h"
+
+fn markers() -> Int:
+    let &total = 0 :: Int
+
+    if markerA() == "<<<a" then total = total + 1
+    if markerB() == "<<<b" then total = total + 1
+    if markerC() == "<<<c" then total = total + 1
+    if markerD() == "<<<d" then total = total + 1
+    if markerE() == "<<<e" then total = total + 1
+    if markerF() == "<<<f" then total = total + 1
+    if markerG() == "<<<g" then total = total + 1
+    if markerH() == "<<<h" then total = total + 1
+
+    return total
+
+fn shown(value: Double) -> String:
+    let &sink = newStringOfCapacity(16 :: Size)
+    show(value, sink)
+    return sink
+
+-- Every literal the library writes on a path this file can reach, so that all of them are lowered
+-- and all of them are in the collision's way.
+fn library() -> Int:
+    let &total = 0 :: Int
+    let &zero = 0.0 :: Double
+    let &sink = newStringOfCapacity(16 :: Size)
+
+    if shown(zero / zero) == "NaN" then total = total + 1
+    if shown(1.0 / zero) == "Inf" then total = total + 1
+
+    show(True, sink)
+    if sink == "True" then total = total + 1
+
+    sink = newStringOfCapacity(16 :: Size)
+    show(False, sink)
+    if sink == "False" then total = total + 1
+
+    sink = newStringOfCapacity(16 :: Size)
+    show(Nothing :: Maybe(Int), sink)
+    if sink == "Nothing" then total = total + 1
+
+    sink = newStringOfCapacity(16 :: Size)
+    show(Just(7), sink)
+    if sink == "Just(7)" then total = total + 1
+
+    return total
+
+fn main() -> Int = markers() + library()

@@ -1,3 +1,11 @@
+fn moveMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [83, 86) [99, 196) [203, 219)
+  %at: I64 writable live [96, 99) [219, 314) [323, 339)
+}
+
 fn initHeap {
 }
 
@@ -91,9 +99,9 @@ fn growArray(Int) {
 }
 
 fn remove(Int) {
-  arg self writable addressed
+  arg self writable
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 62)
+  %self: Array(Int) borrowed droppable writable live [0, 6) [9, 62)
   %local1: Maybe(Int) readonly live [6, 9)
   %local2: Int readonly live [17, 20)
   %local3: Int readonly live [18, 64)

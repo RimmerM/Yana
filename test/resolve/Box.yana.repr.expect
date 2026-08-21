@@ -20,8 +20,60 @@ Array(U8): size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823
   .0 at 0: Run(U8)
   .1 at 12: @bits(30) U32
 
+Shortest: size 12, align 8, stride 16, niche none
+  .0 at 0: U64
+  .1 at 8: Int
+
+ReadError: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+
+Scanned: size 29, align 8, stride 32, niche at 28 width 1, valid 0..1, free 0 below / 254 above
+  .0 at 0: I64
+  .1 at 8: U64
+  .2 at 16: Int
+  .3 at 20: Int
+  .4 at 28: Bool
+  .5 at 24: Int
+
+Maybe(ReadError): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
+
+Result(ReadError, Long): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+
+Result(ReadError, U64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+
+Maybe(Scanned): size 29, align 8, stride 32, tag folded into constructor 1's niche from 2 up, niche at 28 width 1, valid 0..2, free 0 below / 253 above
+  .0 at 0: I64
+  .1 at 8: U64
+  .2 at 16: Int
+  .3 at 20: Int
+  .4 at 28: Bool
+  .5 at 24: Int
+
+Result(ReadError, I64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+
+Result(ReadError, Int): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
+
+Result(ReadError, I32): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
+
+Result(ReadError, I16): size 4, align 4, stride 4, tag at bits 16..16 of 4 bytes, payload at 0, niche at 0 width 4, valid 0..131071, free 0 below / 4294836224 above
+
+Result(ReadError, I8): size 2, align 2, stride 2, tag at bits 8..8 of 2 bytes, payload at 0, niche at 0 width 2, valid 0..511, free 0 below / 65024 above
+
+Result(ReadError, U32): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
+
+Result(ReadError, U16): size 4, align 4, stride 4, tag at bits 16..16 of 4 bytes, payload at 0, niche at 0 width 4, valid 0..131071, free 0 below / 4294836224 above
+
+Result(ReadError, U8): size 2, align 2, stride 2, tag at bits 8..8 of 2 bytes, payload at 0, niche at 0 width 2, valid 0..511, free 0 below / 65024 above
+
+Result(ReadError, Double): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+
+Result(ReadError, Float): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
+
 Flat(U8): size 16, align 8, stride 16, niche none
   .0 at 0: %U8
+  .1 at 8: I64
+
+Flat(I64): size 16, align 8, stride 16, niche none
+  .0 at 0: %I64
   .1 at 8: I64
 
 Outcome((), Outcome((), Maybe(I64))): size 32, align 8, stride 32, tag word at 0, payload at 8, niche none
