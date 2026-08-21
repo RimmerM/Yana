@@ -8,9 +8,9 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: I64 = 0
 
-let string$0: String = "a"
+let ResolveTest.string$0: String = "a"
 
-let string$1: String = "a"
+let ResolveTest.string$1: String = "a"
 
 fn mix32(%value: U32) -> U32 {
   b0:
@@ -2618,7 +2618,7 @@ fn touchString(%m: Map(String, Int)) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v4 = symbol string$0 : %U8
+    %v4 = symbol ResolveTest.string$0 : %U8
     %v6 = call stringLiteral, %v4, 1 : String
     %v7 = borrow %m : &Map(String, Int)
     %v8 = call find(String, Int), %v7, %v6 : Maybe(&Int)
@@ -2654,7 +2654,7 @@ fn main() -> Int {
     %b = alloc : Map(String, Int)
     init %b, %v10
     %v13 = load %b : Map(String, Int)
-    %v14 = symbol string$1 : %U8
+    %v14 = symbol ResolveTest.string$1 : %U8
     %v16 = call stringLiteral, %v14, 1 : String
     %v19 = borrow_mut %b : &mut Map(String, Int)
     %v20 = call insert(String, Int), %v19, %v16, 6 : Maybe(Int)

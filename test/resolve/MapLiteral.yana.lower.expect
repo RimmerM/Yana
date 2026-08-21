@@ -4,10 +4,10 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @shared = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@string$0 = [120]
-@string$1 = [121]
-@string$2 = [120]
-@string$3 = [121]
+@ResolveTest.string$0 = [120]
+@ResolveTest.string$1 = [121]
+@ResolveTest.string$2 = [120]
+@ResolveTest.string$3 = [121]
 
 mix32<complex>(%value: Int): Int {
   b_0 {
@@ -900,65 +900,64 @@ newMap(Int, Int)<complex>(%v_0: Ptr, %capacity: Long) {
     %v_8 = add %v_2, 12: Ptr
     store %v_8, 0, 4
     store %v_4, %v_7, 8
-    %v_9 = add %v_4, 8: Ptr
-    store %v_9, 0, 4
-    %v_10 = load %v_6, 8: Long
-    %v_11 = and %v_10, 18446744072635809792: Long
-    %v_12 = and %v_11, 13835058058503389184: Long
-    store %v_6, %v_12, 8
+    store %v_5, 0, 4
+    %v_9 = load %v_6, 8: Long
+    %v_10 = and %v_9, 18446744072635809792: Long
+    %v_11 = and %v_10, 13835058058503389184: Long
+    store %v_6, %v_11, 8
     %self = alloca 40, 8: Ptr
     store %self, 0, 8
-    %v_13 = add %self, 8: Ptr
+    %v_12 = add %self, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = add %self, 16: Ptr
     store %v_13, 0, 8
-    %v_14 = add %self, 16: Ptr
+    %v_14 = add %self, 24: Ptr
     store %v_14, 0, 8
-    %v_15 = add %self, 24: Ptr
+    %v_15 = add %self, 32: Ptr
     store %v_15, 0, 8
-    %v_16 = add %self, 32: Ptr
-    store %v_16, 0, 8
     copy %self, %v_2, 40
     call_complex reserve(Entry(Int, Int)), %self, %capacity
-    %v_17 = cmp_igt %capacity, 8: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_20
+    %v_16 = cmp_igt %capacity, 8: Int
+    je %v_16, b_17, b_18
   }
 
   b_18 {
+    jmp b_19
+  }
+
+  b_17 {
     %slots = call_complex indexSlotsFor, %capacity: Long
-    %v_21 = add %self, 32: Ptr
-    %v_22 = load %v_21, 8: Long
-    %v_23 = shr %v_22, 32: Long
-    %v_24 = and %v_23, 1073741823: Long
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Long
-    %v_27 = add %v_26, 1: Long
-    %v_28 = cmp_igt %slots, %v_27: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    %v_31 = cast %v_25: Int
-    %v_32 = cmp_eq %v_31, 0: Int
-    je %v_32, b_29, b_33
-  }
-
-  b_33 {
-    jmp b_34
+    %v_20 = add %self, 32: Ptr
+    %v_21 = load %v_20, 8: Long
+    %v_22 = shr %v_21, 32: Long
+    %v_23 = and %v_22, 1073741823: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = cast %v_24: Long
+    %v_26 = add %v_25, 1: Long
+    %v_27 = cmp_igt %slots, %v_26: Int
+    je %v_27, b_28, b_29
   }
 
   b_29 {
+    %v_30 = cast %v_24: Int
+    %v_31 = cmp_eq %v_30, 0: Int
+    je %v_31, b_28, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_28 {
     call_complex indexRebuild(Int, Int), %self, %slots
-    jmp b_34
+    jmp b_33
   }
 
-  b_34 {
-    jmp b_20
+  b_33 {
+    jmp b_19
   }
 
-  b_20 {
+  b_19 {
     copy %v_0, %self, 40
     ret 
   }
@@ -1597,65 +1596,64 @@ newMap(String, Int)<complex>(%v_0: Ptr, %capacity: Long) {
     %v_8 = add %v_2, 12: Ptr
     store %v_8, 0, 4
     store %v_4, %v_7, 8
-    %v_9 = add %v_4, 8: Ptr
-    store %v_9, 0, 4
-    %v_10 = load %v_6, 8: Long
-    %v_11 = and %v_10, 18446744072635809792: Long
-    %v_12 = and %v_11, 13835058058503389184: Long
-    store %v_6, %v_12, 8
+    store %v_5, 0, 4
+    %v_9 = load %v_6, 8: Long
+    %v_10 = and %v_9, 18446744072635809792: Long
+    %v_11 = and %v_10, 13835058058503389184: Long
+    store %v_6, %v_11, 8
     %self = alloca 40, 8: Ptr
     store %self, 0, 8
-    %v_13 = add %self, 8: Ptr
+    %v_12 = add %self, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = add %self, 16: Ptr
     store %v_13, 0, 8
-    %v_14 = add %self, 16: Ptr
+    %v_14 = add %self, 24: Ptr
     store %v_14, 0, 8
-    %v_15 = add %self, 24: Ptr
+    %v_15 = add %self, 32: Ptr
     store %v_15, 0, 8
-    %v_16 = add %self, 32: Ptr
-    store %v_16, 0, 8
     copy %self, %v_2, 40
     call_complex reserve(Entry(String, Int)), %self, %capacity
-    %v_17 = cmp_igt %capacity, 32: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_20
+    %v_16 = cmp_igt %capacity, 32: Int
+    je %v_16, b_17, b_18
   }
 
   b_18 {
+    jmp b_19
+  }
+
+  b_17 {
     %slots = call_complex indexSlotsFor, %capacity: Long
-    %v_21 = add %self, 32: Ptr
-    %v_22 = load %v_21, 8: Long
-    %v_23 = shr %v_22, 32: Long
-    %v_24 = and %v_23, 1073741823: Long
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Long
-    %v_27 = add %v_26, 1: Long
-    %v_28 = cmp_igt %slots, %v_27: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    %v_31 = cast %v_25: Int
-    %v_32 = cmp_eq %v_31, 0: Int
-    je %v_32, b_29, b_33
-  }
-
-  b_33 {
-    jmp b_34
+    %v_20 = add %self, 32: Ptr
+    %v_21 = load %v_20, 8: Long
+    %v_22 = shr %v_21, 32: Long
+    %v_23 = and %v_22, 1073741823: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = cast %v_24: Long
+    %v_26 = add %v_25, 1: Long
+    %v_27 = cmp_igt %slots, %v_26: Int
+    je %v_27, b_28, b_29
   }
 
   b_29 {
+    %v_30 = cast %v_24: Int
+    %v_31 = cmp_eq %v_30, 0: Int
+    je %v_31, b_28, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_28 {
     call_complex indexRebuild(String, Int), %self, %slots
-    jmp b_34
+    jmp b_33
   }
 
-  b_34 {
-    jmp b_20
+  b_33 {
+    jmp b_19
   }
 
-  b_20 {
+  b_19 {
     copy %v_0, %self, 40
     ret 
   }
@@ -2371,65 +2369,64 @@ newMap(Int, Array(Int))<complex>(%v_0: Ptr, %capacity: Long) {
     %v_8 = add %v_2, 12: Ptr
     store %v_8, 0, 4
     store %v_4, %v_7, 8
-    %v_9 = add %v_4, 8: Ptr
-    store %v_9, 0, 4
-    %v_10 = load %v_6, 8: Long
-    %v_11 = and %v_10, 18446744072635809792: Long
-    %v_12 = and %v_11, 13835058058503389184: Long
-    store %v_6, %v_12, 8
+    store %v_5, 0, 4
+    %v_9 = load %v_6, 8: Long
+    %v_10 = and %v_9, 18446744072635809792: Long
+    %v_11 = and %v_10, 13835058058503389184: Long
+    store %v_6, %v_11, 8
     %self = alloca 40, 8: Ptr
     store %self, 0, 8
-    %v_13 = add %self, 8: Ptr
+    %v_12 = add %self, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = add %self, 16: Ptr
     store %v_13, 0, 8
-    %v_14 = add %self, 16: Ptr
+    %v_14 = add %self, 24: Ptr
     store %v_14, 0, 8
-    %v_15 = add %self, 24: Ptr
+    %v_15 = add %self, 32: Ptr
     store %v_15, 0, 8
-    %v_16 = add %self, 32: Ptr
-    store %v_16, 0, 8
     copy %self, %v_2, 40
     call_complex reserve(Entry(Int, Array(Int))), %self, %capacity
-    %v_17 = cmp_igt %capacity, 8: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_20
+    %v_16 = cmp_igt %capacity, 8: Int
+    je %v_16, b_17, b_18
   }
 
   b_18 {
+    jmp b_19
+  }
+
+  b_17 {
     %slots = call_complex indexSlotsFor, %capacity: Long
-    %v_21 = add %self, 32: Ptr
-    %v_22 = load %v_21, 8: Long
-    %v_23 = shr %v_22, 32: Long
-    %v_24 = and %v_23, 1073741823: Long
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Long
-    %v_27 = add %v_26, 1: Long
-    %v_28 = cmp_igt %slots, %v_27: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    %v_31 = cast %v_25: Int
-    %v_32 = cmp_eq %v_31, 0: Int
-    je %v_32, b_29, b_33
-  }
-
-  b_33 {
-    jmp b_34
+    %v_20 = add %self, 32: Ptr
+    %v_21 = load %v_20, 8: Long
+    %v_22 = shr %v_21, 32: Long
+    %v_23 = and %v_22, 1073741823: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = cast %v_24: Long
+    %v_26 = add %v_25, 1: Long
+    %v_27 = cmp_igt %slots, %v_26: Int
+    je %v_27, b_28, b_29
   }
 
   b_29 {
+    %v_30 = cast %v_24: Int
+    %v_31 = cmp_eq %v_30, 0: Int
+    je %v_31, b_28, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_28 {
     call_complex indexRebuild(Int, Array(Int)), %self, %slots
-    jmp b_34
+    jmp b_33
   }
 
-  b_34 {
-    jmp b_20
+  b_33 {
+    jmp b_19
   }
 
-  b_20 {
+  b_19 {
     copy %v_0, %self, 40
     ret 
   }
@@ -3082,65 +3079,64 @@ newMap(Int, Map(Int, Int))<complex>(%v_0: Ptr, %capacity: Long) {
     %v_8 = add %v_2, 12: Ptr
     store %v_8, 0, 4
     store %v_4, %v_7, 8
-    %v_9 = add %v_4, 8: Ptr
-    store %v_9, 0, 4
-    %v_10 = load %v_6, 8: Long
-    %v_11 = and %v_10, 18446744072635809792: Long
-    %v_12 = and %v_11, 13835058058503389184: Long
-    store %v_6, %v_12, 8
+    store %v_5, 0, 4
+    %v_9 = load %v_6, 8: Long
+    %v_10 = and %v_9, 18446744072635809792: Long
+    %v_11 = and %v_10, 13835058058503389184: Long
+    store %v_6, %v_11, 8
     %self = alloca 40, 8: Ptr
     store %self, 0, 8
-    %v_13 = add %self, 8: Ptr
+    %v_12 = add %self, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = add %self, 16: Ptr
     store %v_13, 0, 8
-    %v_14 = add %self, 16: Ptr
+    %v_14 = add %self, 24: Ptr
     store %v_14, 0, 8
-    %v_15 = add %self, 24: Ptr
+    %v_15 = add %self, 32: Ptr
     store %v_15, 0, 8
-    %v_16 = add %self, 32: Ptr
-    store %v_16, 0, 8
     copy %self, %v_2, 40
     call_complex reserve(Entry(Int, Map(Int, Int))), %self, %capacity
-    %v_17 = cmp_igt %capacity, 8: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_20
+    %v_16 = cmp_igt %capacity, 8: Int
+    je %v_16, b_17, b_18
   }
 
   b_18 {
+    jmp b_19
+  }
+
+  b_17 {
     %slots = call_complex indexSlotsFor, %capacity: Long
-    %v_21 = add %self, 32: Ptr
-    %v_22 = load %v_21, 8: Long
-    %v_23 = shr %v_22, 32: Long
-    %v_24 = and %v_23, 1073741823: Long
-    %v_25 = cast %v_24: Int
-    %v_26 = cast %v_25: Long
-    %v_27 = add %v_26, 1: Long
-    %v_28 = cmp_igt %slots, %v_27: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    %v_31 = cast %v_25: Int
-    %v_32 = cmp_eq %v_31, 0: Int
-    je %v_32, b_29, b_33
-  }
-
-  b_33 {
-    jmp b_34
+    %v_20 = add %self, 32: Ptr
+    %v_21 = load %v_20, 8: Long
+    %v_22 = shr %v_21, 32: Long
+    %v_23 = and %v_22, 1073741823: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = cast %v_24: Long
+    %v_26 = add %v_25, 1: Long
+    %v_27 = cmp_igt %slots, %v_26: Int
+    je %v_27, b_28, b_29
   }
 
   b_29 {
+    %v_30 = cast %v_24: Int
+    %v_31 = cmp_eq %v_30, 0: Int
+    je %v_31, b_28, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_28 {
     call_complex indexRebuild(Int, Map(Int, Int)), %self, %slots
-    jmp b_34
+    jmp b_33
   }
 
-  b_34 {
-    jmp b_20
+  b_33 {
+    jmp b_19
   }
 
-  b_20 {
+  b_19 {
     copy %v_0, %self, 40
     ret 
   }
@@ -4523,9 +4519,9 @@ main<complex>(): Int {
     copy %v_178, %v_177, 40
     call_complex IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v_178, 1, 10
     %v_183 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_183, @string$0, 1
+    call_complex stringLiteral, %v_183, @ResolveTest.string$0, 1
     %v_184 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_184, @string$1, 1
+    call_complex stringLiteral, %v_184, @ResolveTest.string$1, 1
     %two = alloca 40, 8: Ptr
     call_complex pair(String, Int), %two, %v_183, 1, %v_184, 2
     %v_185 = alloca 40, 8: Ptr
@@ -4545,12 +4541,12 @@ main<complex>(): Int {
     %v_192 = loads %v_191, 4: Int
     call_complex reclaim$Map(Int, Int), %v_178
     %v_193 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_193, @string$2, 1
+    call_complex stringLiteral, %v_193, @ResolveTest.string$2, 1
     %v_194 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_193: Ptr
     %v_195 = loads %v_194, 4: Int
     %v_196 = add %v_192, %v_195: Int
     %v_197 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_197, @string$3, 1
+    call_complex stringLiteral, %v_197, @ResolveTest.string$3, 1
     %v_198 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_197: Ptr
     %v_199 = loads %v_198, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Entry(String, Int)), %two

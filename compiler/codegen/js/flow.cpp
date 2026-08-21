@@ -178,6 +178,84 @@ void computeDominators(Gen& g) {
     }
 }
 
+/*
+ * Where control goes when a loop ends - the one block outside it that anything inside branches to.
+ *
+ * **Not the header's immediate post-dominator**, which is what this used to be and is only the same
+ * block when the header is the whole of the exit test. A short-circuit condition is not: `while a &&
+ * b:` compiles the two tests into a diamond whose join holds the branch, so every path out of the
+ * header reaches that join and the join is what post-dominates it - a block *inside* the loop. Used
+ * as the follow it stopped the body being emitted at all, and the pass then met the join a second
+ * time and reported a graph it could not structure. Nothing produced the shape until a `while` in
+ * the library was written with an `&&` in it, and only with the optimizer off: `threadBooleanBranches`
+ * removes the diamond, so the optimized build has a header that is its own test.
+ *
+ * The natural loop is the definition and is what this walks: the header, plus every block that
+ * reaches a back edge into it without passing through it. Its follow is then whatever that set
+ * branches to and does not contain.
+ *
+ * Two answers rather than one - a `break` to somewhere other than the fall-out, say - is a shape
+ * this does not decide, and it hands back the post-dominator that the pass has always used. That is
+ * the previous behaviour exactly, so this can only turn a refusal into a structure.
+ */
+U32 loopFollow(Gen& g, U32 header) {
+    auto count = g.blocks.size();
+
+    IndexSet inLoop;
+    inLoop.reset(count);
+    inLoop.set(header, true);
+
+    Array<U32> pending;
+
+    // The back edges into this header, which are the edges whose target dominates their source -
+    // read off the dominator sets rather than through `dominates`, which walks the tree and is
+    // declared further down this file.
+    for(Size i = 0; i < count; i++) {
+        if(!g.dominators[i][header]) continue;
+
+        U32 successors[2];
+        U32 successorCount;
+        successorsOf(g, U32(i), successors, successorCount);
+
+        for(U32 s = 0; s < successorCount; s++) {
+            if(successors[s] == header) pending.push(U32(i));
+        }
+    }
+
+    while(pending.size()) {
+        auto block = pending[pending.size() - 1];
+        pending.pop();
+
+        if(inLoop[block]) continue;
+        inLoop.set(block, true);
+
+        for(auto predecessor: g.local[g.blocks[block]]->incoming(g.local)) {
+            auto p = blockOf(g, predecessor);
+            if(p != kNoBlock && !inLoop[p]) pending.push(p);
+        }
+    }
+
+    auto follow = kNoBlock;
+
+    for(Size i = 0; i < count; i++) {
+        if(!inLoop[i]) continue;
+
+        U32 successors[2];
+        U32 successorCount;
+        successorsOf(g, U32(i), successors, successorCount);
+
+        for(U32 s = 0; s < successorCount; s++) {
+            auto target = successors[s];
+            if(target == kNoBlock || inLoop[target]) continue;
+
+            if(follow == kNoBlock) follow = target;
+            else if(follow != target) return g.ipdom[header];
+        }
+    }
+
+    return follow == kNoBlock ? g.ipdom[header] : follow;
+}
+
 // Whether this block is the header of a loop currently being emitted, which is what tells entering
 // one from re-entering it.
 bool loopOpen(Gen& g, U32 block) {
@@ -475,7 +553,7 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
         }
 
         if(g.loopHeader[block] && !g.emitted[block] && !loopOpen(g, block)) {
-            auto follow = g.ipdom[block];
+            auto follow = loopFollow(g, block);
             auto label = generatedName(g, "L"_v, g.labelCounter++);
 
             /*

@@ -4,10 +4,10 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @tags = [0, 0, 0, 0]
-@string$0 = [110, 61]
-@string$1 = [33]
-@string$2 = [33]
-@string$3 = [33]
+@ResolveTest.string$0 = [110, 61]
+@ResolveTest.string$1 = [33]
+@ResolveTest.string$2 = [33]
+@ResolveTest.string$3 = [33]
 
 growHeap<complex>(%needed: Long): Int {
   b_0 {
@@ -751,7 +751,7 @@ tagged<complex>(%v_0: Ptr, %n: Int) {
     %v_4 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_4, 13
     %v_5 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_5, @string$0, 2
+    call_complex stringLiteral, %v_5, @ResolveTest.string$0, 2
     call_complex pushString, %v_4, %v_5
     %v_6 = sext %n: Long
     call_complex showSigned, %v_6, %v_4
@@ -765,7 +765,7 @@ built<complex>(%n: Int): Int {
     %text = alloca 16, 8: Ptr
     call_complex tagged, %text, %n
     %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$1, 1
+    call_complex stringLiteral, %v_1, @ResolveTest.string$1, 1
     %v_2 = alloca 16, 8: Ptr
     call_complex Append(String).+, %v_2, %text, %v_1
     call_complex Reclaim(String).reclaim, %text
@@ -788,7 +788,7 @@ inLaterBlock<complex>(%n: Int): Int {
 
   b_2 {
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @string$2, 1
+    call_complex stringLiteral, %v_4, @ResolveTest.string$2, 1
     %v_5 = alloca 16, 8: Ptr
     call_complex Append(String).+, %v_5, %text, %v_4
     call_complex Reclaim(String).reclaim, %text
@@ -831,7 +831,7 @@ inLoop<complex>(%n: Int): Int {
     %text = alloca 16, 8: Ptr
     copy %text, %v_9, 16
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$3, 1
+    call_complex stringLiteral, %v_10, @ResolveTest.string$3, 1
     %v_11 = alloca 16, 8: Ptr
     call_complex Append(String).+, %v_11, %text, %v_10
     call_complex Reclaim(String).reclaim, %text

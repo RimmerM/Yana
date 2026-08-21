@@ -3,22 +3,24 @@ mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
-@string$0 = [110, 111, 32, 104, 111, 108, 101, 115, 32, 104, 101, 114, 101]
-@string$1 = [110, 32, 61, 32]
-@string$2 = [110, 61]
-@string$3 = [33]
-@string$4 = [119, 111, 114, 108, 100]
-@string$5 = [104, 101, 108, 108, 111, 32]
-@string$6 = [97, 98]
-@string$7 = [45]
-@string$8 = [45]
-@string$9 = [45]
-@string$10 = [47]
-@string$11 = [105, 116, 101, 114, 97, 116, 105, 111, 110, 32]
-@string$12 = [102, 111, 114, 109, 97, 116]
-@string$13 = [91]
-@string$14 = [32, 114, 97, 110, 32]
-@string$15 = [32, 116, 105, 109, 101, 115, 93, 10]
+@Text.string$2 = [84, 114, 117, 101]
+@Text.string$3 = [70, 97, 108, 115, 101]
+@ResolveTest.string$0 = [110, 111, 32, 104, 111, 108, 101, 115, 32, 104, 101, 114, 101]
+@ResolveTest.string$1 = [110, 32, 61, 32]
+@ResolveTest.string$2 = [110, 61]
+@ResolveTest.string$3 = [33]
+@ResolveTest.string$4 = [119, 111, 114, 108, 100]
+@ResolveTest.string$5 = [104, 101, 108, 108, 111, 32]
+@ResolveTest.string$6 = [97, 98]
+@ResolveTest.string$7 = [45]
+@ResolveTest.string$8 = [45]
+@ResolveTest.string$9 = [45]
+@ResolveTest.string$10 = [47]
+@ResolveTest.string$11 = [105, 116, 101, 114, 97, 116, 105, 111, 110, 32]
+@ResolveTest.string$12 = [102, 111, 114, 109, 97, 116]
+@ResolveTest.string$13 = [91]
+@ResolveTest.string$14 = [32, 114, 97, 110, 32]
+@ResolveTest.string$15 = [32, 116, 105, 109, 101, 115, 93, 10]
 
 growHeap<complex>(%needed: Long): Int {
   b_0 {
@@ -736,11 +738,11 @@ oneIntText<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_1, 14
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$2, 2
+    call_complex stringLiteral, %v_2, @ResolveTest.string$2, 2
     call_complex pushString, %v_1, %v_2
     call_complex showSigned, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @string$3, 1
+    call_complex stringLiteral, %v_3, @ResolveTest.string$3, 1
     call_complex pushString, %v_1, %v_3
     %v_4 = add %v_1, 12: Ptr
     %v_5 = load %v_4, 4: Int
@@ -842,7 +844,7 @@ oneIntText<complex>(): Int {
 oneString<complex>(): Int {
   b_0 {
     %inner = alloca 16, 8: Ptr
-    call_complex stringLiteral, %inner, @string$4, 5
+    call_complex stringLiteral, %inner, @ResolveTest.string$4, 5
     %v_1 = add %inner, 12: Ptr
     %v_2 = load %v_1, 4: Int
     %units = cast %v_2: Int
@@ -851,7 +853,7 @@ oneString<complex>(): Int {
     %v_5 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_5, %v_4
     %v_6 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_6, @string$5, 6
+    call_complex stringLiteral, %v_6, @ResolveTest.string$5, 6
     call_complex pushString, %v_5, %v_6
     call_complex pushString, %v_5, %inner
     %v_7 = add %v_5, 12: Ptr
@@ -865,7 +867,7 @@ oneString<complex>(): Int {
 mixed<complex>(): Int {
   b_0 {
     %name = alloca 16, 8: Ptr
-    call_complex stringLiteral, %name, @string$6, 2
+    call_complex stringLiteral, %name, @ResolveTest.string$6, 2
     %v_1 = add %name, 12: Ptr
     %v_2 = load %v_1, 4: Int
     %units = cast %v_2: Int
@@ -877,15 +879,15 @@ mixed<complex>(): Int {
     call_complex newStringOfCapacity, %v_7, %v_6
     call_complex pushString, %v_7, %name
     %v_8 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_8, @string$7, 1
+    call_complex stringLiteral, %v_8, @ResolveTest.string$7, 1
     call_complex pushString, %v_7, %v_8
     call_complex showSigned, 12, %v_7
     %v_9 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_9, @string$8, 1
+    call_complex stringLiteral, %v_9, @ResolveTest.string$8, 1
     call_complex pushString, %v_7, %v_9
     call_complex pushString, %v_7, %name
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @string$9, 1
+    call_complex stringLiteral, %v_10, @ResolveTest.string$9, 1
     call_complex pushString, %v_7, %v_10
     call_complex showSigned, 345, %v_7
     %v_11 = add %v_7, 12: Ptr
@@ -901,13 +903,13 @@ boolean<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_1, 11
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @string$0, 4
+    call_complex stringLiteral, %v_2, @Text.string$2, 4
     call_complex pushString, %v_1, %v_2
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @string$10, 1
+    call_complex stringLiteral, %v_3, @ResolveTest.string$10, 1
     call_complex pushString, %v_1, %v_3
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @string$1, 5
+    call_complex stringLiteral, %v_4, @Text.string$3, 5
     call_complex pushString, %v_1, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
@@ -939,7 +941,7 @@ inLoop<complex>(): Int {
     %v_10 = alloca 16, 8: Ptr
     copy %v_10, %v_9, 16
     %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @string$11, 10
+    call_complex stringLiteral, %v_11, @ResolveTest.string$11, 10
     call_complex pushString, %v_10, %v_11
     %v_12 = sext %v_8: Long
     call_complex showSigned, %v_12, %v_10
@@ -956,13 +958,13 @@ inLoop<complex>(): Int {
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @string$0, 13
+    call_complex stringLiteral, %v_1, @ResolveTest.string$0, 13
     %v_2 = call_complex Length(String).length, %v_1: Long
     %v_3 = cast %v_2: Int
     %v_4 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_4, 15
     %v_5 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_5, @string$1, 4
+    call_complex stringLiteral, %v_5, @ResolveTest.string$1, 4
     call_complex pushString, %v_4, %v_5
     call_complex showSigned, 42, %v_4
     %v_6 = add %v_4, 12: Ptr
@@ -997,7 +999,7 @@ main<complex>(): Int {
 printed<complex>(): Int {
   b_0 {
     %name = alloca 16, 8: Ptr
-    call_complex stringLiteral, %name, @string$12, 6
+    call_complex stringLiteral, %name, @ResolveTest.string$12, 6
     %v_1 = add %name, 12: Ptr
     %v_2 = load %v_1, 4: Int
     %units = cast %v_2: Int
@@ -1006,15 +1008,15 @@ printed<complex>(): Int {
     %v_5 = alloca 16, 8: Ptr
     call_complex newStringOfCapacity, %v_5, %v_4
     %v_6 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_6, @string$13, 1
+    call_complex stringLiteral, %v_6, @ResolveTest.string$13, 1
     call_complex pushString, %v_5, %v_6
     call_complex pushString, %v_5, %name
     %v_7 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_7, @string$14, 5
+    call_complex stringLiteral, %v_7, @ResolveTest.string$14, 5
     call_complex pushString, %v_5, %v_7
     call_complex showSigned, 2, %v_5
     %v_8 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_8, @string$15, 8
+    call_complex stringLiteral, %v_8, @ResolveTest.string$15, 8
     call_complex pushString, %v_5, %v_8
     %v_9 = load %v_5, 8: Ptr
     %v_10 = add %v_5, 12: Ptr

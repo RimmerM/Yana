@@ -725,12 +725,43 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
     byAddress.reset(signature->args.size());
 
     for(auto argPointer: signature->args.contents(local)) {
-        auto declared = local[argPointer]->type;
-        auto concrete = substituteType(module, declared, classArgs, source);
-        auto erased = isGeneric(global, declared);
+        auto declared = local[argPointer];
+        auto concrete = substituteType(module, declared->type, classArgs, source);
+
+        /*
+         * A `&` parameter is an address in both worlds, so there is nothing to adapt and nothing to
+         * load - which is the same statement emitGenericDispatch makes from the caller's side.
+         *
+         * What it needs instead is the convention and the slot naming it. The thunk goes on to call
+         * the implementation the ordinary way, and the implementation declared this parameter `&`,
+         * so the argument has to be a place the borrow can be rooted in; a parameter declared here
+         * as a bare value is not one, and `borrowArgument` refuses it with *"a `&` argument must
+         * name storage that can be written back to"*. That is exactly the shape `bindFunctionArgs`
+         * gives an authored body's `&` parameter and `defineInstanceMethod` gives a generated one's,
+         * and this was the third place that needed it.
+         *
+         * Before the generic test rather than beside it, because the two answers differ for `&x: a`:
+         * a mutable borrow of a type variable is already an address, so making it a *pointer* to the
+         * concrete type would put a second indirection in front of an implementation expecting the
+         * first. `&` decides the shape, whatever it is a borrow of.
+         */
+        if(declared->isMutableBorrow()) {
+            auto created = function->addArg(module, declared->name, concrete, source);
+            created->convention = declared->convention;
+            created->returnRoot = declared->returnRoot;
+
+            function->addLocal(module, concrete, declared->name, (ModulePtr<Value>)(created - local),
+                               ast::BindType::Ref, true);
+
+            byAddress.set(parameters.size(), false);
+            parameters.push(created);
+            continue;
+        }
+
+        auto erased = isGeneric(global, declared->type);
 
         byAddress.set(parameters.size(), erased);
-        parameters.push(function->addArg(module, local[argPointer]->name,
+        parameters.push(function->addArg(module, declared->name,
                                          erased ? resolvePointerType(module, concrete) : concrete, source));
     }
 

@@ -474,6 +474,13 @@ bool mergeBlocks(OptContext& opt);
 bool removeUnreachableBlocks(OptContext& opt);
 
 /*
+ * The block list, laid back out in reverse postorder - see opt_branch.cpp, where the invariant it
+ * restores is written down. Owed by any rewrite that moves an edge rather than removing one.
+ * Answers whether the order changed.
+ */
+bool reorderBlocksInRpo(OptContext& opt);
+
+/*
  * A boolean phi used only by a branch, threaded back onto the edges that supplied it - see
  * opt_branch.cpp. Answers whether a join went away.
  */

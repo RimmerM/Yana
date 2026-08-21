@@ -8,43 +8,43 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: I64 = 0
 
-let string$0: String = "hello"
+let ResolveTest.string$0: String = "hello"
 
-let string$1: String = "abc"
+let ResolveTest.string$1: String = "abc"
 
-let string$2: String = <none>
+let ResolveTest.string$2: String = <none>
 
-let string$3: String = "ab"
+let ResolveTest.string$3: String = "ab"
 
-let string$4: String = "cde"
+let ResolveTest.string$4: String = "cde"
 
-let string$5: String = "lit"
+let ResolveTest.string$5: String = "lit"
 
-let string$6: String = "eral"
+let ResolveTest.string$6: String = "eral"
 
-let string$7: String = "abc"
+let ResolveTest.string$7: String = "abc"
 
-let string$8: String = "abc"
+let ResolveTest.string$8: String = "abc"
 
-let string$9: String = "abc"
+let ResolveTest.string$9: String = "abc"
 
-let string$10: String = "abd"
+let ResolveTest.string$10: String = "abd"
 
-let string$11: String = "ab"
+let ResolveTest.string$11: String = "ab"
 
-let string$12: String = "abc"
+let ResolveTest.string$12: String = "abc"
 
-let string$13: String = "abc"
+let ResolveTest.string$13: String = "abc"
 
-let string$14: String = "abd"
+let ResolveTest.string$14: String = "abd"
 
-let string$15: String = "ab"
+let ResolveTest.string$15: String = "ab"
 
-let string$16: String = "abc"
+let ResolveTest.string$16: String = "abc"
 
-let string$17: String = "b"
+let ResolveTest.string$17: String = "b"
 
-let string$18: String = "a"
+let ResolveTest.string$18: String = "a"
 
 fn Ord.<(String)(%lhs: String, %rhs: String) -> Bool {
   b0:
@@ -920,7 +920,7 @@ fn Reclaim(String).reclaim(%value: String) -> () {
 
 fn literalLength() -> Int {
   b0:
-    %v0 = symbol string$0 : %U8
+    %v0 = symbol ResolveTest.string$0 : %U8
     %v2 = call stringLiteral, %v0, 5 : String
     %v3 = call Length(String).length, %v2 : I64
     %v4 = cast %v3 : Int
@@ -929,7 +929,7 @@ fn literalLength() -> Int {
 
 fn firstUnit() -> Int {
   b0:
-    %v0 = symbol string$1 : %U8
+    %v0 = symbol ResolveTest.string$1 : %U8
     %v2 = call stringLiteral, %v0, 3 : String
     %v4 = call stringUnit, %v2, 0 : Int
     ret %v4
@@ -937,7 +937,7 @@ fn firstUnit() -> Int {
 
 fn emptyLength() -> Int {
   b0:
-    %v0 = symbol string$2 : %U8
+    %v0 = symbol ResolveTest.string$2 : %U8
     %v2 = call stringLiteral, %v0, 0 : String
     %v3 = call Length(String).length, %v2 : I64
     %v4 = cast %v3 : Int
@@ -946,9 +946,9 @@ fn emptyLength() -> Int {
 
 fn concatLength() -> Int {
   b0:
-    %v0 = symbol string$3 : %U8
+    %v0 = symbol ResolveTest.string$3 : %U8
     %v2 = call stringLiteral, %v0, 2 : String
-    %v3 = symbol string$4 : %U8
+    %v3 = symbol ResolveTest.string$4 : %U8
     %v5 = call stringLiteral, %v3, 3 : String
     %joined = call Append(String).+, %v2, %v5 : String
     %v7 = call Length(String).length, %joined : I64
@@ -959,12 +959,12 @@ fn concatLength() -> Int {
 
 fn appendToLiteral() -> Int {
   b0:
-    %v0 = symbol string$5 : %U8
+    %v0 = symbol ResolveTest.string$5 : %U8
     %v2 = call stringLiteral, %v0, 3 : String
     %start = alloc : String
     init %start, %v2
     %v5 = load %start : String
-    %v6 = symbol string$6 : %U8
+    %v6 = symbol ResolveTest.string$6 : %U8
     %v8 = call stringLiteral, %v6, 4 : String
     %v9 = borrow_mut %start : &mut String
     call pushString, %v9, %v8
@@ -979,9 +979,9 @@ fn equalityHolds() -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v3 = symbol string$7 : %U8
+    %v3 = symbol ResolveTest.string$7 : %U8
     %v5 = call stringLiteral, %v3, 3 : String
-    %v6 = symbol string$8 : %U8
+    %v6 = symbol ResolveTest.string$8 : %U8
     %v8 = call stringLiteral, %v6, 3 : String
     %v9 = call Eq(String).==, %v5, %v8 : Bool
     je %v9, b1, b2
@@ -996,9 +996,9 @@ fn equalityHolds() -> Int {
     jmp b3
 
   b3:
-    %v18 = symbol string$9 : %U8
+    %v18 = symbol ResolveTest.string$9 : %U8
     %v20 = call stringLiteral, %v18, 3 : String
-    %v21 = symbol string$10 : %U8
+    %v21 = symbol ResolveTest.string$10 : %U8
     %v23 = call stringLiteral, %v21, 3 : String
     %v24 = call Eq(String).==, %v20, %v23 : Bool
     je %v24, b4, b5
@@ -1013,9 +1013,9 @@ fn equalityHolds() -> Int {
     jmp b6
 
   b6:
-    %v33 = symbol string$11 : %U8
+    %v33 = symbol ResolveTest.string$11 : %U8
     %v35 = call stringLiteral, %v33, 2 : String
-    %v36 = symbol string$12 : %U8
+    %v36 = symbol ResolveTest.string$12 : %U8
     %v38 = call stringLiteral, %v36, 3 : String
     %v39 = call Eq(String).==, %v35, %v38 : Bool
     je %v39, b7, b8
@@ -1038,9 +1038,9 @@ fn orderingHolds() -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v3 = symbol string$13 : %U8
+    %v3 = symbol ResolveTest.string$13 : %U8
     %v5 = call stringLiteral, %v3, 3 : String
-    %v6 = symbol string$14 : %U8
+    %v6 = symbol ResolveTest.string$14 : %U8
     %v8 = call stringLiteral, %v6, 3 : String
     %v9 = call Ord.<(String), %v5, %v8 : Bool
     je %v9, b1, b2
@@ -1055,9 +1055,9 @@ fn orderingHolds() -> Int {
     jmp b3
 
   b3:
-    %v18 = symbol string$15 : %U8
+    %v18 = symbol ResolveTest.string$15 : %U8
     %v20 = call stringLiteral, %v18, 2 : String
-    %v21 = symbol string$16 : %U8
+    %v21 = symbol ResolveTest.string$16 : %U8
     %v23 = call stringLiteral, %v21, 3 : String
     %v24 = call Ord.<(String), %v20, %v23 : Bool
     je %v24, b4, b5
@@ -1072,9 +1072,9 @@ fn orderingHolds() -> Int {
     jmp b6
 
   b6:
-    %v33 = symbol string$17 : %U8
+    %v33 = symbol ResolveTest.string$17 : %U8
     %v35 = call stringLiteral, %v33, 1 : String
-    %v36 = symbol string$18 : %U8
+    %v36 = symbol ResolveTest.string$18 : %U8
     %v38 = call stringLiteral, %v36, 1 : String
     %v39 = call Ord.<(String), %v35, %v38 : Bool
     je %v39, b7, b8

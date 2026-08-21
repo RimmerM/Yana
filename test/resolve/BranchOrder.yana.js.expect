@@ -1,0 +1,88 @@
+"use strict";
+// ResolveTest
+function withAnd(text, keep, out$o, out$k, out$s) {
+  var v25;
+  var kept = "";
+  var i = 0;
+  var v113 = text.length;
+  L0: for (;;) {
+    if (i < keep) {
+      if (i < v113) {
+        v25 = text.charCodeAt(i);
+      } else {
+        v25 = 57;
+      }
+      kept = kept + String.fromCharCode(v25);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var at = keep;
+  L1: for (;;) {
+    if (at > 0) {
+      if (kept.charCodeAt(at - 1 | 0) === 57) {
+        at = at - 1 | 0;
+        continue L1;
+      }
+    }
+    break L1;
+  }
+  if (at === 0) {
+    var v122 = out$o[out$k] + String.fromCharCode(49);
+    out$o[out$k] = v122;
+    var zeros = 0;
+    L2: for (;;) {
+      if (zeros < keep) {
+        var v126 = out$o[out$k] + String.fromCharCode(48);
+        out$o[out$k] = v126;
+        zeros = zeros + 1 | 0;
+        continue L2;
+      }
+      break L2;
+    }
+    return keep + 1 | 0;
+  } else {
+    i = 0;
+    L3: for (;;) {
+      if (i < keep) {
+        var v128 = kept.charCodeAt(i);
+        var v131 = out$o[out$k] + String.fromCharCode(v128);
+        out$o[out$k] = v131;
+        i = i + 1 | 0;
+        continue L3;
+      }
+      break L3;
+    }
+    return at;
+  }
+}
+
+function countUp(start) {
+  var value = start;
+  L0: for (;;) {
+    var v7 = value !== 0;
+    if (v7 ? value < 100 : v7) {
+      value = value + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return value;
+}
+
+function main() {
+  var out = { $v: "" };
+  var v37 = (((withAnd("99", 2, out, "$v", 1) + withAnd("19", 2, out, "$v", 1) | 0) + out.$v.length | 0) + countUp(12) | 0) + countUp(0) | 0;
+  var value = 15;
+  L0: for (;;) {
+    var v53 = value > 10;
+    if (v53 ? v53 : value < 0) {
+      value = value - 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return v37 + value | 0;
+}
+main();

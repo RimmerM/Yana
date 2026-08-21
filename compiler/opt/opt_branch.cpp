@@ -226,6 +226,77 @@ bool removeUnreachableBlocks(OptContext& opt) {
     return true;
 }
 
+/*
+ * The block list, laid back out in reverse postorder from the entry.
+ *
+ * The invariant `lowerProgram` reads: it walks a function's blocks in list order and requires every
+ * operand it meets to have been lowered already, phis excepted. Reverse postorder is exactly that
+ * property, because a block precedes everything it dominates and a non-phi use is dominated by its
+ * definition.
+ *
+ * Owed by any rewrite that *moves* an edge rather than removing one - see `threadBooleanBranches`,
+ * which is the caller. The inliner has its own copy of the walk over a callee, since it needs the
+ * order before the blocks are grafted rather than after; this is the one over a function that is
+ * already whole.
+ *
+ * Whatever the walk does not reach is kept, at the end, on `reorderBlocks`' terms: deleting an
+ * unreachable block is `removeUnreachableBlocks`' job and it does it with the phi bookkeeping that
+ * belongs to it. Answers whether the order actually changed, so that a pass that only ever rewrites
+ * a straight line does not renumber for nothing.
+ */
+bool reorderBlocksInRpo(OptContext& opt) {
+    auto count = opt.function->blocks.size();
+    if(count < 2) return false;
+
+    ScratchSet seen(opt.sets, count);
+    SmallArray<ModulePtr<Block>, 32> postorder;
+    SmallArray<ModulePtr<Block>, 32> pending;
+    SmallArray<U32, 32> next;
+
+    seen->set(opt.local[opt.function->blocks.get(opt.local, 0)]->index, true);
+    pending.push(opt.function->blocks.get(opt.local, 0));
+    next.push(0);
+
+    while(pending.size()) {
+        auto pointer = pending[pending.size() - 1];
+        auto block = opt.local[pointer];
+
+        if(next[next.size() - 1] < 2) {
+            auto successor = block->successor(next[next.size() - 1]++);
+            if(!successor) continue;
+
+            auto target = opt.local[successor]->index;
+            if((*seen)[target]) continue;
+
+            seen->set(target, true);
+            pending.push(successor);
+            next.push(0);
+            continue;
+        }
+
+        postorder.push(pointer);
+        pending.pop();
+        next.pop();
+    }
+
+    SmallArray<ModulePtr<Block>, 32> order;
+    for(Size i = postorder.size(); i-- > 0;) order.push(postorder[i]);
+    for(auto pointer: opt.function->blocks.contents(opt.local)) {
+        if(!(*seen)[opt.local[pointer]->index]) order.push(pointer);
+    }
+
+    auto same = true;
+    for(Size i = 0; i < order.size() && same; i++) {
+        same = order[i] == opt.function->blocks.get(opt.local, i);
+    }
+
+    if(same) return false;
+
+    opt.ir().setBlockOrder(Buffer<ModulePtr<Block>>(order.pointer(), order.size()));
+    opt.changed = true;
+    return true;
+}
+
 namespace {
 
 /*
@@ -350,6 +421,28 @@ bool threadBooleanBranches(OptContext& opt) {
     // whatever single-predecessor boundaries that leaves.
     removeUnreachableBlocks(opt);
     mergeBlocks(opt);
+
+    /*
+     * And the order, which is this pass's own to restore and not the cleanup's.
+     *
+     * Everything above *moves* an edge rather than removing one, and that is the operation reverse
+     * postorder does not survive: a predecessor that used to jump to the join now branches to one of
+     * the join's successors, so a block that was reached only through the join can end up listed in
+     * front of blocks the new edges reach first. Removing edges cannot do this - it only adds
+     * domination, and the pairs already in the list were already ordered - which is why
+     * `removeUnreachableBlocks` and `mergeBlocks` filter the list rather than rebuilding it.
+     *
+     * What breaks is invisible here and fatal two stages later: `lowerProgram` walks the blocks in
+     * list order and asserts that every operand it meets has already been lowered, so an out-of-order
+     * list is `resolve value was used before it was lowered` from inside `mappedValue`, or - in a
+     * build without the assertions - a segmentation fault with nothing to point at.
+     *
+     * A `while` inside the taken arm of a short-circuit `&&` is the shape that reaches it, which is
+     * why this went unnoticed: the threading has to move an edge *into* a region whose own blocks
+     * were laid out after the join.
+     */
+    reorderBlocksInRpo(opt);
+
     opt.changed = true;
     return true;
 }

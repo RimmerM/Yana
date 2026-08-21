@@ -720,7 +720,7 @@ static ConstantPtr nativeStringConstant(Module& module, const ast::Expr& expr, S
     auto size = decoded.size();
 
     StringBuilder name;
-    name << "string$";
+    name << context.findName(module.name) << ".string$";
     name.appendValue(module.stringLiteralCount++);
 
     auto blob = module.addGlobal(builtName(context, name), expr.source);

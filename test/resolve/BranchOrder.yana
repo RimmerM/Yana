@@ -1,0 +1,83 @@
+{-
+   Two invariants that no assertion in `compiler/opt` checks and that both fail silently.
+
+   **The block list must stay in reverse postorder.** `lowerProgram` walks a function's blocks in
+   list order and requires every operand it meets to have been lowered already, phis excepted - so an
+   out-of-order list is `resolve value was used before it was lowered` in a build with the assertions
+   on and a segmentation fault in one without. `threadBooleanBranches` *moves* edges rather than
+   removing them, which is the one operation reverse postorder does not survive: a predecessor that
+   used to jump to a threaded join now branches to one of the join's successors, and a block reached
+   only through the join can end up listed in front of the blocks the new edges reach first.
+
+   **A `while` whose condition is a short-circuit `&&` is a loop whose exit test is a diamond.** The
+   JS backend used to take the header's immediate post-dominator as the loop's follow, which is the
+   diamond's join - a block *inside* the loop - so the body was never emitted and the pass met the
+   join twice. Only reachable with the optimizer off, because the threading above removes the diamond.
+
+   `withAnd` is both: an `&&` in a `while`, with a second loop behind an `if` that leaves the
+   function. Neither failure is visible in a dump - the IR prints correctly and walks wrongly - so
+   what asserts them is that this file compiles at all, on both targets and in both build modes.
+-}
+
+-- The shape that put the list out of order: a loop inside the taken arm of a short-circuit `&&`,
+-- which is what makes the threading move an edge into a region laid out after the join. The `&`
+-- parameter is part of it - the writes are what keep the inner loop from being folded away before
+-- the threading runs.
+fn withAnd(text: String, keep: Int, &out: String) -> Int:
+    let &kept = newStringOfCapacity(16 :: Size)
+    let &i = 0 :: Int
+    let count = truncate(length(text)) :: Int
+
+    while i < keep:
+        pushUnit(kept, if i < count then stringUnit(text, i :: Size) else 57)
+        i = i + 1
+
+    let &at = keep
+    while at > 0 && stringUnit(kept, (at - 1) :: Size) == 57:
+        at = at - 1
+
+    if at == 0:
+        pushUnit(out, 49)
+
+        let &zeros = 0 :: Int
+        while zeros < keep:
+            pushUnit(out, 48)
+            zeros = zeros + 1
+
+        return keep + 1
+
+    i = 0
+    while i < keep:
+        pushUnit(out, stringUnit(kept, i :: Size))
+        i = i + 1
+
+    return at
+
+-- The same condition with nothing else in it, which is the JS backend's minimal case.
+fn countUp(start: Int) -> Int:
+    let &value = start
+    while value != 0 && value < 100:
+        value = value + 1
+
+    return value
+
+-- And with the operands the other way round, since `||` threads the other arm.
+fn countDown(start: Int) -> Int:
+    let &value = start
+    while value > 10 || value < 0:
+        value = value - 1
+
+    return value
+
+fn main() -> Int:
+    let &total = 0 :: Int
+    let &out = newStringOfCapacity(32 :: Size)
+
+    total = total + withAnd("99", 2, out)   -- all nines: 3
+    total = total + withAnd("19", 2, out)   -- stops at the 1: 1
+    total = total + (truncate(length(out)) :: Int)
+    total = total + countUp(12)           -- 100
+    total = total + countUp(0)            -- 0
+    total = total + countDown(15)         -- 10
+
+    return total

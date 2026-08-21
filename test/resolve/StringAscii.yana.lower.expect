@@ -1,6 +1,6 @@
 @image$base = []
-@string$0 = [110, 97, 109, 101, 44, 97, 103, 101, 44, 99, 105, 116, 121]
-@string$1 = [104, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 44, 32, 97, 110, 100, 32, 104, 101, 108, 108, 111, 32, 97, 103, 97, 105, 110]
+@ResolveTest.string$0 = [110, 97, 109, 101, 44, 97, 103, 101, 44, 99, 105, 116, 121]
+@ResolveTest.string$1 = [104, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 44, 32, 97, 110, 100, 32, 104, 101, 108, 108, 111, 32, 97, 103, 97, 105, 110]
 
 indexOfVectors(String, U8)<complex>(%v_0: Ptr, %xs: Ptr, %wanted: Int) {
   b_1 {
@@ -237,9 +237,9 @@ stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
 main<complex>(): Int {
   b_0 {
     %line = alloca 16, 8: Ptr
-    call_complex stringLiteral, %line, @string$0, 13
+    call_complex stringLiteral, %line, @ResolveTest.string$0, 13
     %text = alloca 16, 8: Ptr
-    call_complex stringLiteral, %text, @string$1, 29
+    call_complex stringLiteral, %text, @ResolveTest.string$1, 29
     %v_1 = imm 0: Int
     %v_2 = alloca 16, 8: Ptr
     call_complex indexOfVectors(String, U8), %v_2, %line, 44

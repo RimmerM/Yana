@@ -1,11 +1,11 @@
 @image$base = []
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-@string$0 = [97, 110, 110]
-@string$1 = [98, 111, 98]
-@string$2 = [99, 105, 100]
-@string$3 = [98, 111, 98]
-@string$4 = [98, 111, 98]
-@string$5 = [99, 105, 100]
+@ResolveTest.string$0 = [97, 110, 110]
+@ResolveTest.string$1 = [98, 111, 98]
+@ResolveTest.string$2 = [99, 105, 100]
+@ResolveTest.string$3 = [98, 111, 98]
+@ResolveTest.string$4 = [98, 111, 98]
+@ResolveTest.string$5 = [99, 105, 100]
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
@@ -860,13 +860,13 @@ main<complex>(): Int {
     %v_21 = add %heights, 12: Ptr
     store %v_21, 4, 4
     %v_22 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_22, @string$0, 3
+    call_complex stringLiteral, %v_22, @ResolveTest.string$0, 3
     %v_23 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_23, @string$1, 3
+    call_complex stringLiteral, %v_23, @ResolveTest.string$1, 3
     %v_24 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_24, @string$2, 3
+    call_complex stringLiteral, %v_24, @ResolveTest.string$2, 3
     %v_25 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_25, @string$3, 3
+    call_complex stringLiteral, %v_25, @ResolveTest.string$3, 3
     %names = alloca 16, 8: Ptr
     %v_26 = alloca 64, 8: Ptr
     store %names, %v_26, 8
@@ -1000,7 +1000,7 @@ main<complex>(): Int {
   b_87 {
     %v_89 = phi [b_78, %v_83], [b_86, %v_88]: Int
     %v_90 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_90, @string$4, 3
+    call_complex stringLiteral, %v_90, @ResolveTest.string$4, 3
     %v_91 = call_complex occurrencesElements(Array(String), String), %names, %v_90: Int
     %v_92 = cmp_eq %v_91, 2: Int
     je %v_92, b_93, b_94
@@ -1013,7 +1013,7 @@ main<complex>(): Int {
 
   b_93 {
     %v_96 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_96, @string$5, 3
+    call_complex stringLiteral, %v_96, @ResolveTest.string$5, 3
     %v_97 = alloca 16, 8: Ptr
     call_complex indexOfElements(Array(String), String), %v_97, %names, %v_96
     call_complex Reclaim(Array(a)).reclaim(String), %names

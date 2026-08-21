@@ -747,6 +747,67 @@ bool narrowMask(LowerBase base, LowerInst* inst, Masked& into) {
 }
 
 /*
+ * `(p + c1) + c2` over a pointer, restated as `p + (c1 + c2)`.
+ *
+ * Pointer arithmetic only, and that is what makes this a separate rule rather than a line in
+ * `reassociate` in opt/opt_fold.cpp. That one is gated on `foldableInt`, which declines a pointer
+ * type outright, so an offset chain reaches the backends exactly as the front end wrote it - and the
+ * front end writes it left-associatively, which is a *chain*: `p + a + b + c` is three adds each
+ * reading the one above.
+ *
+ * What that costs is visible only in the x64 addressing mode. `foldAddresses` folds `[base + disp]`
+ * into the access that reads it, but only where the value is used as an address and nowhere else -
+ * and every link of a chain is also read by the next link, so none of them qualifies. An unrolled
+ * block move came out as `lea 0x20(%r9),%r9` between every pair of transfers, six instructions of
+ * pure address arithmetic in a loop whose whole body is eight. Restated against one base, each
+ * offset has exactly one reader again, and each becomes a displacement that costs nothing.
+ *
+ * Nothing is required of `p` and nothing about how many readers the inner add has: it stays where it
+ * is, and `removeDeadValues` takes it if this was the last one. That matters here - the first link
+ * of the chain usually *is* still read, by the transfer at offset zero.
+ *
+ * The kind is not rewritten, only the two operands, so a subtraction stays a subtraction and carries
+ * the combined constant with its own sign: `(p ± c1) - c2` is `p - (c2 ∓ c1)`. Both sides wrap at
+ * the same width, and an address wraps with them.
+ */
+struct Offset {
+    LowerValue* pointer;
+    U64 constant;
+};
+
+bool reassociateOffset(LowerBase base, LowerInst* inst, Offset& into) {
+    if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Sub) return false;
+
+    auto binary = (LowerInstBinary*)inst;
+    auto type = binary->result.type;
+    if(!isPtr(type)) return false;
+
+    U64 outer;
+    if(!lowerConstantOf(base, base[binary->rhs], outer)) return false;
+
+    auto lhs = base[binary->lhs];
+    if(lhs->type != type) return false;
+
+    auto source = lhs->inst();
+    if(source->kind != LowerInst::Add && source->kind != LowerInst::Sub) return false;
+
+    auto inner = (LowerInstBinary*)source;
+    U64 middle;
+    if(!lowerConstantOf(base, base[inner->rhs], middle)) return false;
+
+    auto pointer = base[inner->lhs];
+    if(pointer->type != type) return false;
+
+    // The inner constant as this instruction would have to read it: added when the inner operation
+    // added it, negated when it subtracted.
+    auto signed_ = source->kind == LowerInst::Sub ? U64(0) - middle : middle;
+    auto combined = inst->kind == LowerInst::Sub ? outer - signed_ : outer + signed_;
+
+    into = { pointer, combined };
+    return true;
+}
+
+/*
  * A branch on the negation of a truth value, which is the same branch the other way round.
  *
  * `foldBooleanValue` declines the inverses on purpose: `not %b` is a new instruction rather than one
@@ -1127,6 +1188,23 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                 // for the same reason - the answer is another `and`, which `Folded` cannot say. The
                 // fold below then sees whichever of them is the identity, which after this rewrite
                 // is most of them.
+                // And an offset chain restated against the pointer it started from, which is the
+                // same shape of rewrite: two operands replaced in place, the answer being another
+                // add rather than anything `Folded` may say.
+                Offset offset;
+                if(reassociateOffset(base, inst, offset)) {
+                    auto binary = (LowerInstBinary*)inst;
+                    auto imm = new (module.arena) LowerImm(StringId(), base[binary->rhs]->type,
+                                                          offset.constant);
+                    imm->block = blockPtr;
+                    imm->source = inst->source;
+                    kept.push(imm - base);
+
+                    setOperand(base, module.arena, inst, binary->lhs, offset.pointer);
+                    setOperand(base, module.arena, inst, binary->rhs, &imm->result);
+                    rewrote = true;
+                }
+
                 Masked masked;
                 if(narrowMask(base, inst, masked)) {
                     auto binary = (LowerInstBinary*)inst;

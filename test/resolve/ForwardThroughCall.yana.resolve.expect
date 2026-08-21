@@ -10,13 +10,13 @@ let &heapRegionNext: I64 = 0
 
 let &tags: Int = 0
 
-let string$0: String = "n="
+let ResolveTest.string$0: String = "n="
 
-let string$1: String = "!"
+let ResolveTest.string$1: String = "!"
 
-let string$2: String = "!"
+let ResolveTest.string$2: String = "!"
 
-let string$3: String = "!"
+let ResolveTest.string$3: String = "!"
 
 fn initHeap() -> () {
   b0:
@@ -941,7 +941,7 @@ fn tagged(%n: Int) -> String {
     %v10 = call newStringOfCapacity, %v9 : String
     %v11 = alloc : String
     init %local1, %v10
-    %v13 = symbol string$0 : %U8
+    %v13 = symbol ResolveTest.string$0 : %U8
     %v15 = call stringLiteral, %v13, 2 : String
     %v16 = borrow_mut %local1 : &mut String
     call pushString, %v16, %v15
@@ -958,7 +958,7 @@ fn built(%n: Int) -> Int {
     %text = alloc : String
     init %text, %v1
     %v4 = load %text : String
-    %v5 = symbol string$1 : %U8
+    %v5 = symbol ResolveTest.string$1 : %U8
     %v7 = call stringLiteral, %v5, 1 : String
     %v8 = call Append(String).+, %v4, %v7 : String
     drop %text reclaim Reclaim(String).reclaim
@@ -980,7 +980,7 @@ fn inLaterBlock(%n: Int) -> Int {
 
   b1:
     %v8 = load %text : String
-    %v9 = symbol string$2 : %U8
+    %v9 = symbol ResolveTest.string$2 : %U8
     %v11 = call stringLiteral, %v9, 1 : String
     %v12 = call Append(String).+, %v8, %v11 : String
     drop %text reclaim Reclaim(String).reclaim
@@ -1021,7 +1021,7 @@ fn inLoop(%n: Int) -> Int {
     %text = alloc : String
     init %text, %v12
     %v15 = load %text : String
-    %v16 = symbol string$3 : %U8
+    %v16 = symbol ResolveTest.string$3 : %U8
     %v18 = call stringLiteral, %v16, 1 : String
     %v19 = call Append(String).+, %v15, %v18 : String
     drop %text reclaim Reclaim(String).reclaim
