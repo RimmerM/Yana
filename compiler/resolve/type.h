@@ -1787,11 +1787,41 @@ void completePendingInstances(Module& module);
 // an instantiation's constructors and to specialize a class method's signature.
 TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, LocationId source);
 
+/*
+ * How a match resolves a variable that is already bound to a type other than the one this position
+ * carries. Absent - the default - is strict: the two must be one `TypePtr`.
+ *
+ * **Strict is what *selection* means, and it is not what a *call* means.** An instance head that
+ * binds `a` twice binds it to one type, and two spellings of one type are already one pointer. A
+ * call's two argument positions may legitimately disagree in ways something later settles: a
+ * literal that has not chosen a type yet takes the one the other position wrote, and a `@bits`
+ * refinement meets the type it refines at the canonical, which is the load-bearing half of
+ * repr.md's *"`@bits(n)` never participates in typeclass dispatch"*.
+ *
+ * Those rules need an `ExprResolver`, which this file has no business knowing about - so the caller
+ * that has one supplies them, and the structural walk stays in one place. It had not been: both
+ * rules were written into `bindInto`'s own outermost arm, so they held for `f(x: a, y: a)` and
+ * failed for `f(x: Box(a), y: Box(a))` - the same question one constructor deeper.
+ *
+ * `bound` is updated in place where the two meet at a third type, and the caller discards the
+ * binding list if the match then fails elsewhere.
+ */
+struct MatchRebind {
+    bool (*resolve)(void* context, TypePtr& bound, TypePtr concrete) = nullptr;
+    void* context = nullptr;
+
+    bool operator()(TypePtr& bound, TypePtr concrete) const {
+        return resolve && resolve(context, bound, concrete);
+    }
+};
+
 // Structural match of a type written against a generic context (`pattern`) with a concrete type,
 // binding each type variable it meets in `bindings`. Returns false on a mismatch, including a
-// variable that would have to bind to two different types. This is the whole of instance
-// selection's inference, and Milestone 2's call-site inference uses the same function.
-bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings);
+// variable that would have to bind to two different types - unless `rebind` says the two meet, for
+// which see MatchRebind. This is the whole of instance selection's inference, and call-site
+// inference uses the same function with the weaker rule.
+bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings,
+               MatchRebind rebind = {});
 
 // Decides how a record is laid out, from the shape of its constructor list alone. This is
 // deliberately independent of its type arguments: a generic body has to project into `Maybe(a)`

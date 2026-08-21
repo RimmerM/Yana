@@ -310,7 +310,8 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
     }
 }
 
-bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings) {
+bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings,
+               MatchRebind rebind) {
     if(!pattern || !concrete) return false;
 
     if(global[pattern]->kind == Type::Gen) {
@@ -328,9 +329,17 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
         if(isCount != (variable->kind == GenKind::Const)) return false;
 
-        // A variable that is already bound constrains rather than rebinds: `fn f(a, a)` called
-        // with two different types has no instance.
-        if(bindings[index]) return bindings[index] == concrete;
+        /*
+         * A variable that is already bound constrains rather than rebinds: `fn f(a, a)` called with
+         * two different types has no instance.
+         *
+         * `rebind` is where a *call* gets to say the two meet anyway - a literal that has not chosen
+         * a type, a `@bits` refinement against what it refines. Absent, which is every selection
+         * path, this is pointer equality and nothing else. See MatchRebind.
+         */
+        if(bindings[index]) {
+            return bindings[index] == concrete || rebind(bindings[index], concrete);
+        }
 
         bindings[index] = concrete;
         return true;
@@ -366,7 +375,7 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
             for(Size i = 0; i < patternRecord->instanceArgs.size(); i++) {
                 if(!matchType(global, patternRecord->instanceArgs.get(global, i),
-                              concreteRecord->instanceArgs.get(global, i), bindings)) {
+                              concreteRecord->instanceArgs.get(global, i), bindings, rebind)) {
                     return false;
                 }
             }
@@ -383,19 +392,19 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
                 auto concreteField = concreteTuple->fields.get(global, i);
 
                 if(patternField.name != concreteField.name) return false;
-                if(!matchType(global, patternField.type, concreteField.type, bindings)) return false;
+                if(!matchType(global, patternField.type, concreteField.type, bindings, rebind)) return false;
             }
 
             return true;
         }
         case Type::Ptr:
-            return matchType(global, ((PtrType*)global[pattern])->to, ((PtrType*)global[concrete])->to, bindings);
+            return matchType(global, ((PtrType*)global[pattern])->to, ((PtrType*)global[concrete])->to, bindings, rebind);
         case Type::Borrow: {
             auto patternBorrow = (BorrowType*)global[pattern];
             auto concreteBorrow = (BorrowType*)global[concrete];
 
             if(patternBorrow->mut != concreteBorrow->mut) return false;
-            return matchType(global, patternBorrow->to, concreteBorrow->to, bindings);
+            return matchType(global, patternBorrow->to, concreteBorrow->to, bindings, rebind);
         }
         case Type::Array: {
             // The count is recursed into rather than compared, which is what makes `[a *n]` bind its
@@ -404,8 +413,8 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
             auto patternArray = (ArrayType*)global[pattern];
             auto concreteArray = (ArrayType*)global[concrete];
 
-            if(!matchType(global, patternArray->count, concreteArray->count, bindings)) return false;
-            return matchType(global, patternArray->content, concreteArray->content, bindings);
+            if(!matchType(global, patternArray->count, concreteArray->count, bindings, rebind)) return false;
+            return matchType(global, patternArray->content, concreteArray->content, bindings, rebind);
         }
         case Type::Vector: {
             auto patternVector = (VectorType*)global[pattern];
@@ -434,11 +443,11 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
              * caller of this should be able to tell.
              */
             if(!isNaturalCount(global, patternVector->count) &&
-               !matchType(global, patternVector->count, concreteVector->count, bindings)) {
+               !matchType(global, patternVector->count, concreteVector->count, bindings, rebind)) {
                 return false;
             }
 
-            return matchType(global, patternVector->content, concreteVector->content, bindings);
+            return matchType(global, patternVector->content, concreteVector->content, bindings, rebind);
         }
         case Type::Fun: {
             auto patternFun = (FunType*)global[pattern];
@@ -458,10 +467,10 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
                 if(patternArg.convention != concreteArg.convention) return false;
                 if(patternArg.lazy != concreteArg.lazy) return false;
-                if(!matchType(global, patternArg.type, concreteArg.type, bindings)) return false;
+                if(!matchType(global, patternArg.type, concreteArg.type, bindings, rebind)) return false;
             }
 
-            return matchType(global, patternFun->result, concreteFun->result, bindings);
+            return matchType(global, patternFun->result, concreteFun->result, bindings, rebind);
         }
         default:
             // A kind with no structure to walk into matches only itself, which is what the identity

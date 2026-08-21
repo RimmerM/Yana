@@ -34,6 +34,67 @@ TypePtr Solver::declaredDefault(Size index) const {
     return global[types.get(global, index)]->def;
 }
 
+/*
+ * The two ways a *call's* positions may disagree about one variable and still mean one type.
+ *
+ * Neither is a weakening of what a variable means. A **literal** has not chosen a type yet, so a
+ * position that wrote one is not a second opinion - it is the only opinion, and two literals merge
+ * into one variable carrying both their classes, which is what leaves `1 + 2.5` a single question.
+ * A **`@bits` refinement** and the type it refines are one type to everything that dispatches:
+ * [repr.md](doc/spec/repr.md#bit-width-refinements) says *"`@bits(n)` is Repr-only: it never
+ * participates in typeclass dispatch"*, and this is the half of that rule which is code. Without
+ * it, `x == y` on a `@bits(2) U32` and a `U32` bound `a` twice to two types, found no common
+ * `Widen` between them - widening a refinement to its base is structural rather than a conversion
+ * anyone declared - and reported "no class function == accepts (@bits(2) U32, U32)" for an operator
+ * the spec says is the plain `U32` one.
+ *
+ * The variable takes the **canonical** type, which is what makes the arguments converge: widening a
+ * refinement to its base is free (see convertRefinement), and it is what a load of a packed field
+ * already produces - repr.md's "load always widens". So the operation happens at the natural width,
+ * as it does everywhere else, and only a store narrows again.
+ *
+ * **Not widening**, which is the line between this and the arm below it. `f(y: a, xs: [a])` handed
+ * a `Long` and an array of `Int` is two positions that disagree about the element type of an array,
+ * and there is no conversion that settles it - a whole argument may be widened into its parameter,
+ * a type *inside* one may not. So this is the rule every position gets, at any depth, and widening
+ * stays what only an outermost argument position does.
+ */
+static bool meetBinding(ExprResolver& resolver, TypePtr& bound, TypePtr concrete) {
+    auto global = resolver.global;
+
+    if(auto canonical = canonicalType(global, bound); canonical == canonicalType(global, concrete)) {
+        bound = canonical;
+        return true;
+    }
+
+    if(isLiteral(global, concrete)) {
+        if(!isLiteral(global, bound)) return resolver.literalFits(concrete, bound);
+
+        bound = resolver.mergeLiterals(bound, concrete);
+        return true;
+    }
+
+    if(isLiteral(global, bound)) {
+        if(!resolver.literalFits(bound, concrete)) return false;
+
+        bound = concrete;
+        return true;
+    }
+
+    return false;
+}
+
+// `meetBinding` as the hook `matchType` takes, so that every variable the structural walk reaches
+// answers the same question the outermost one does - see MatchRebind.
+static MatchRebind callRebind(ExprResolver& resolver) {
+    return {
+        [](void* context, TypePtr& bound, TypePtr concrete) {
+            return meetBinding(*(ExprResolver*)context, bound, concrete);
+        },
+        &resolver,
+    };
+}
+
 // One position, into a binding list that is not always the answer's - see bindResult.
 static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen) {
     auto& module = resolver.module;
@@ -70,50 +131,15 @@ static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, Ty
 
         if(bindings[index] == actual) return true;
 
+        // The rules every position gets, outermost or not - see meetBinding, which is where the
+        // reasoning for both of them lives.
+        if(meetBinding(resolver, bindings[index], actual)) return true;
+
         /*
-         * A `@bits` refinement and the type it refines are one type here.
-         *
-         * [repr.md](doc/spec/repr.md#bit-width-refinements) says it outright - *"`@bits(n)` is
-         * Repr-only: it never participates in typeclass dispatch"*, and *"everything that dispatches
-         * (instance selection, literal defaulting, overload resolution) canonicalizes first"* - and
-         * `matchType` is the half that was built: an instance head canonicalizes both sides, so
-         * `instance Num(U64)` answers `Num(@bits(53) U64)` and nobody writes an instance per width.
-         *
-         * This is the other half, and without it the rule held only while every position of a call
-         * agreed on the *same* refinement. `x == y` on a `@bits(2) U32` and a `U32` bound `a` twice
-         * to two types, found no common `Widen` between them - there is no instance for a refinement,
-         * since widening one is structural rather than a conversion anyone declared - and reported
-         * "no class function == accepts (@bits(2) U32, U32)" for an operator the spec says is the
-         * plain `U32` one. Two refinements of one type failed the same way.
-         *
-         * The variable takes the *canonical* type, which is what makes the arguments converge:
-         * widening a refinement to its base is free (see convertRefinement), and it is what a load of
-         * a packed field already produces - repr.md's "load always widens". So the operation happens
-         * at the natural width, as it does everywhere else, and only a store narrows again.
+         * And the one an outermost argument position gets on top: a whole argument may be widened
+         * into its parameter, because needing a conversion is part of fitting. `widen` is false for
+         * a result, and false at every depth - see meetBinding's last paragraph.
          */
-        if(auto canonical = canonicalType(global, bindings[index]);
-           canonical == canonicalType(global, actual)) {
-            bindings[index] = canonical;
-            return true;
-        }
-
-        // A literal has no type yet, so meeting one is not a conflict. It takes whatever the
-        // other position decided if its class allows; two literals become one variable carrying
-        // both their classes, which is what leaves `1 + 2.5` a single question to answer.
-        if(isLiteral(global, actual)) {
-            if(!isLiteral(global, bindings[index])) return resolver.literalFits(actual, bindings[index]);
-
-            bindings[index] = resolver.mergeLiterals(bindings[index], actual);
-            return true;
-        }
-
-        if(isLiteral(global, bindings[index])) {
-            if(!resolver.literalFits(bindings[index], actual)) return false;
-
-            bindings[index] = actual;
-            return true;
-        }
-
         if(!widen) return false;
 
         auto common = resolver.commonWiden(bindings[index], actual);
@@ -146,7 +172,8 @@ static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, Ty
         return resolver.convertibleType(actual, pattern);
     }
 
-    return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() });
+    return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() },
+                     callRebind(resolver));
 }
 
 bool Solver::bind(TypePtr pattern, TypePtr actual, bool widen) {

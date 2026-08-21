@@ -1,0 +1,26 @@
+{-
+   What the weaker nested rule still refuses - the other half of `NestedInference.yana`.
+
+   Letting a call's positions meet at a third type is not letting a variable mean two things. The
+   two rules are exactly the two cases where one of the positions has *nothing to say*: a literal
+   that has not chosen a type, and a `@bits` refinement, which repr.md says never participates in
+   dispatch. Two written types that disagree still disagree, at any depth.
+-}
+
+data Box(a) {value: a, tag: Int}
+
+-- Two written types, one constructor deep. Nothing here is a literal and nothing is a refinement,
+-- so there is no third type for them to meet at.
+fn same(->x: Box(a), ->y: Box(a)) -> Int = x.tag
+fn different(->p: Box(Int), ->q: Box(String)) -> Int = same(p, q)
+
+-- A literal that does not fit the type the other position wrote. The literal has no type yet, but
+-- it does have a class, and `String` has no `FromInt` instance.
+fn withLiteral(x: a, ->ys: Box(a)) -> Int = ys.tag
+fn notThatLiteral(->b: Box(String)) -> Int = withLiteral(1, b)
+
+-- A nested variable is not widened, only met. A whole argument may be widened into its parameter
+-- because needing a conversion is part of fitting; the element type of a container may not, since
+-- there is no conversion that rebuilds one.
+fn elementwise(x: a, ->ys: Box(a)) -> Int = ys.tag
+fn noNestedWiden(v: Long, ->b: Box(Int)) -> Int = elementwise(v, b)

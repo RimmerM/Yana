@@ -1,0 +1,57 @@
+{-
+   A type variable bound at one depth and met again at another.
+
+   `bindInto` in solve.cpp knows two things a *call's* positions may disagree by and still mean one
+   type: a **literal** has not chosen a type yet, so a position that wrote one is the only opinion
+   rather than a second; and a **`@bits` refinement** meets the type it refines at the canonical,
+   because repr.md says a refinement never participates in dispatch. Both rules were written into
+   the outermost arm of that function, and everything below it delegated to `matchType`, whose rule
+   is pointer equality.
+
+   So they held for `f(x: a, y: a)` and failed one constructor deeper. `wrap(1) :: Box(Long)` -
+   which is an entirely ordinary thing to write - reported "cannot convert Box(Int) to Box(Long)",
+   because the literal had bound `a` before the expected type was asked and nothing would rebind it.
+
+   The fix is `MatchRebind`: one structural walk, with the conflict rule supplied by the caller that
+   has a resolver. Selection keeps pointer equality, which is what an instance head means; a call
+   gets the weaker rule at every depth. `Reject.NestedInference.yana` is the other half of this -
+   what the weaker rule still refuses.
+-}
+
+data Box(a) {value: a, tag: Int}
+
+alias Packed = @bits(20) U32
+
+fn wrap(->v: a, tag: Int) -> Box(a) = Box{v, tag}
+fn tagOf(->b: Box(a)) -> Int = b.tag
+
+-- A literal binds `a` at a position one constructor deep, and then the expected type asks for
+-- something else. The literal is the position with nothing to say, so `Long` wins.
+fn fromResult() -> Int = tagOf(wrap(1, 1) :: Box(Long))
+
+-- The same disagreement with the depths the other way round: the literal is outermost and the
+-- written type is nested.
+fn literalFirst(x: a, ->ys: Box(a)) -> Int = ys.tag
+fn fromArgument(->b: Box(Long)) -> Int = literalFirst(1, b)
+
+-- And the order that always worked, kept as the control: whichever position is reached first, the
+-- answer has to be the same one.
+fn literalLast(->ys: Box(a), x: a) -> Int = ys.tag
+fn fromArgumentReversed(->b: Box(Long)) -> Int = literalLast(b, 1)
+
+{-
+   A refinement at a scalar position and the type it refines one constructor deep.
+
+   These are one type to everything that dispatches, so the call selects at `U32` - and the scalar
+   argument then converts for free, which is repr.md's "load always widens" seen from the call side.
+   Nested, this used to report that a `Box(U32)` does not fit a `Box(a)`.
+-}
+fn mixedDepth(x: a, ->y: Box(a)) -> Int = y.tag
+fn refined(p: Packed, ->q: Box(U32)) -> Int = mixedDepth(p, q)
+
+fn main() -> Int:
+    let packed = 3 :: Packed
+    return fromResult()
+         + fromArgument(wrap(2, 7))
+         + fromArgumentReversed(wrap(3, 7))
+         + refined(packed, Box{5 :: U32, 9})
