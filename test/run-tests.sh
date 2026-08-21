@@ -49,12 +49,19 @@ for i in $(seq 0 $((parserJobs - 1))); do
     echo "parser.$i|$build/test/YanaParseTest shard:$i/$parserJobs" >> "$jobfile"
 done
 
+# The library suite: fourteen fixtures, each compiled four or five times and run. Sharded on the
+# same terms the two large drivers are, and never into more shards than there are fixtures.
+libJobs=$((jobs < 14 ? jobs : 14))
+for i in $(seq 0 $((libJobs - 1))); do
+    echo "lib.$i|$build/test/YanaLibTest shard:$i/$libJobs" >> "$jobfile"
+done
+
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
 echo "llvm|$build/test/YanaLlvmTest" >> "$jobfile"
 
-# Source to executable file to running process, over the same corpus the resolve driver runs
-# in-process. It compiles every runnable fixture, so it is sharded on the same terms they are.
+# Source to executable file to running process, over both fixture corpora - the resolve driver's and
+# the library one. It compiles every runnable fixture, so it is sharded on the same terms they are.
 for i in $(seq 0 $((jobs - 1))); do
     echo "elf.$i|$build/test/YanaElfTest shard:$i/$jobs" >> "$jobfile"
 done

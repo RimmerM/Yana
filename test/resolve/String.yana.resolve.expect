@@ -14,44 +14,9 @@ let ResolveTest.string$1: String = "abc"
 
 let ResolveTest.string$2: String = <none>
 
-let ResolveTest.string$3: String = "ab"
+let ResolveTest.string$3: String = "lit"
 
-let ResolveTest.string$4: String = "cde"
-
-let ResolveTest.string$5: String = "lit"
-
-let ResolveTest.string$6: String = "eral"
-
-let ResolveTest.string$7: String = "abc"
-
-let ResolveTest.string$8: String = "abc"
-
-let ResolveTest.string$9: String = "abc"
-
-let ResolveTest.string$10: String = "abd"
-
-let ResolveTest.string$11: String = "ab"
-
-let ResolveTest.string$12: String = "abc"
-
-let ResolveTest.string$13: String = "abc"
-
-let ResolveTest.string$14: String = "abd"
-
-let ResolveTest.string$15: String = "ab"
-
-let ResolveTest.string$16: String = "abc"
-
-let ResolveTest.string$17: String = "b"
-
-let ResolveTest.string$18: String = "a"
-
-fn Ord.<(String)(%lhs: String, %rhs: String) -> Bool {
-  b0:
-    %v2 = call Ord(String).compare, %lhs, %rhs : Ordering
-    %v4 = cmp_eq %v2, LT : Bool
-    ret %v4
-}
+let ResolveTest.string$4: String = "eral"
 
 fn initHeap() -> () {
   b0:
@@ -636,28 +601,6 @@ fn stringUnit(%self: String, %index: I64) -> Int {
     ret %v11
 }
 
-fn newStringOfCapacity(%capacity: I64) -> String {
-  b0:
-    %v1 = alloc : StringData
-    %v2 = alloc : Array(U8)
-    %v3 = alloc : Run(U8)
-    %v4 = cast %capacity : Long
-    %v5 = alloc *%v4 heap escaping : U8
-    %v6 = addressof %local3 : %U8
-    %v8 = cast %capacity : U32
-    %v10 = and %v8, 1073741823 : U32
-    %v11 = cast %v10 : @bits(30) U32
-    init %local2@Run.items, %v6
-    init %local2@Run.capacity, %v11
-    init %local2@Run.ownsHeap, 1
-    aggregate %local1@Array.run = %v3, %local1@Array.length = 0
-    aggregate %local0@StringData.bytes = %v2
-    %v18 = move %local0 : StringData
-    %v19 = alloc : String
-    init %local4, %v18
-    ret %v19
-}
-
 fn reserveString(%self: String, %wanted: I64) -> () {
   b0:
     %v2 = load %self : String
@@ -750,164 +693,6 @@ fn Length(String).length(%self: String) -> I64 {
     ret %v6
 }
 
-fn Append(String).+(%lhs: String, %rhs: String) -> String {
-  b0:
-    %leftLength = call Length(String).length, %lhs : I64
-    %rightLength = call Length(String).length, %rhs : I64
-    %v4 = add %leftLength, %rightLength : I64
-    %v5 = call newStringOfCapacity, %v4 : String
-    %fresh = alloc : String
-    init %fresh, %v5
-    %v8 = load %fresh : String
-    %v9 = borrow %lhs : &String
-    %v10 = cast %v9 : &StringData
-    %v11 = load [%v10]@StringData.bytes : Array(U8)
-    %v12 = load [%v10]@StringData.bytes@Array.run : Run(U8)
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %U8
-    %v14 = borrow_mut %fresh : &mut String
-    call appendUnits, %v14, %v13, %leftLength
-    %v16 = load %fresh : String
-    %v17 = borrow %rhs : &String
-    %v18 = cast %v17 : &StringData
-    %v19 = load [%v18]@StringData.bytes : Array(U8)
-    %v20 = load [%v18]@StringData.bytes@Array.run : Run(U8)
-    %v21 = load [%v18]@StringData.bytes@Array.run@Run.items : %U8
-    %v22 = borrow_mut %fresh : &mut String
-    call appendUnits, %v22, %v21, %rightLength
-    %v24 = load %fresh : String
-    %v25 = move %fresh : String
-    ret %v25
-}
-
-fn Eq(String).==(%self: String, %other: String) -> Bool {
-  b0:
-    %count = call Length(String).length, %self : I64
-    %v3 = call Length(String).length, %other : I64
-    %v4 = cmp_ne %count, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    ret False
-
-  b2:
-    jmp b3
-
-  b3:
-    %i = alloc : I64
-    init %i, 0
-    jmp b4
-
-  b4:
-    %v13 = load %i : I64
-    %v14 = cmp_lt %v13, %count : Bool
-    je %v14, b6, b5
-
-  b5:
-    ret True
-
-  b6:
-    %v16 = load %i : I64
-    %v17 = call stringUnit, %self, %v16 : Int
-    %v18 = load %i : I64
-    %v19 = call stringUnit, %other, %v18 : Int
-    %v20 = cmp_ne %v17, %v19 : Bool
-    je %v20, b7, b8
-
-  b7:
-    ret False
-
-  b8:
-    jmp b9
-
-  b9:
-    %v25 = load %i : I64
-    %v28 = add %v25, 1 : I64
-    assign %i, %v28
-    jmp b4
-}
-
-fn Ord(String).compare(%self: String, %other: String) -> Ordering {
-  b0:
-    %leftLength = call Length(String).length, %self : I64
-    %rightLength = call Length(String).length, %other : I64
-    %shared = alloc : I64
-    init %shared, %leftLength
-    %v6 = load %shared : I64
-    %v7 = cmp_lt %rightLength, %v6 : Bool
-    je %v7, b1, b2
-
-  b1:
-    assign %shared, %rightLength
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %i = alloc : I64
-    init %i, 0
-    jmp b4
-
-  b4:
-    %v16 = load %i : I64
-    %v17 = load %shared : I64
-    %v18 = cmp_lt %v16, %v17 : Bool
-    je %v18, b6, b5
-
-  b5:
-    %v40 = cmp_lt %leftLength, %rightLength : Bool
-    je %v40, b13, b14
-
-  b6:
-    %v20 = load %i : I64
-    %left = call stringUnit, %self, %v20 : Int
-    %v22 = load %i : I64
-    %right = call stringUnit, %other, %v22 : Int
-    %v24 = cmp_lt %left, %right : Bool
-    je %v24, b7, b8
-
-  b7:
-    ret LT
-
-  b8:
-    jmp b9
-
-  b9:
-    %v29 = cmp_gt %left, %right : Bool
-    je %v29, b10, b11
-
-  b10:
-    ret GT
-
-  b11:
-    jmp b12
-
-  b12:
-    %v34 = load %i : I64
-    %v37 = add %v34, 1 : I64
-    assign %i, %v37
-    jmp b4
-
-  b13:
-    ret LT
-
-  b14:
-    jmp b15
-
-  b15:
-    %v45 = cmp_gt %leftLength, %rightLength : Bool
-    je %v45, b16, b17
-
-  b16:
-    ret GT
-
-  b17:
-    jmp b18
-
-  b18:
-    ret EQ
-}
-
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : &String
@@ -944,27 +729,14 @@ fn emptyLength() -> Int {
     ret %v4
 }
 
-fn concatLength() -> Int {
-  b0:
-    %v0 = symbol ResolveTest.string$3 : %U8
-    %v2 = call stringLiteral, %v0, 2 : String
-    %v3 = symbol ResolveTest.string$4 : %U8
-    %v5 = call stringLiteral, %v3, 3 : String
-    %joined = call Append(String).+, %v2, %v5 : String
-    %v7 = call Length(String).length, %joined : I64
-    drop %local0 reclaim Reclaim(String).reclaim
-    %v8 = cast %v7 : Int
-    ret %v8
-}
-
 fn appendToLiteral() -> Int {
   b0:
-    %v0 = symbol ResolveTest.string$5 : %U8
+    %v0 = symbol ResolveTest.string$3 : %U8
     %v2 = call stringLiteral, %v0, 3 : String
     %start = alloc : String
     init %start, %v2
     %v5 = load %start : String
-    %v6 = symbol ResolveTest.string$6 : %U8
+    %v6 = symbol ResolveTest.string$4 : %U8
     %v8 = call stringLiteral, %v6, 4 : String
     %v9 = borrow_mut %start : &mut String
     call pushString, %v9, %v8
@@ -973,124 +745,6 @@ fn appendToLiteral() -> Int {
     drop %start reclaim Reclaim(String).reclaim
     %v13 = cast %v12 : Int
     ret %v13
-}
-
-fn equalityHolds() -> Int {
-  b0:
-    %total = alloc : Int
-    init %total, 0
-    %v3 = symbol ResolveTest.string$7 : %U8
-    %v5 = call stringLiteral, %v3, 3 : String
-    %v6 = symbol ResolveTest.string$8 : %U8
-    %v8 = call stringLiteral, %v6, 3 : String
-    %v9 = call Eq(String).==, %v5, %v8 : Bool
-    je %v9, b1, b2
-
-  b1:
-    %v11 = load %total : Int
-    %v14 = add %v11, 1 : Int
-    assign %total, %v14
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v18 = symbol ResolveTest.string$9 : %U8
-    %v20 = call stringLiteral, %v18, 3 : String
-    %v21 = symbol ResolveTest.string$10 : %U8
-    %v23 = call stringLiteral, %v21, 3 : String
-    %v24 = call Eq(String).==, %v20, %v23 : Bool
-    je %v24, b4, b5
-
-  b4:
-    %v26 = load %total : Int
-    %v29 = add %v26, 100 : Int
-    assign %total, %v29
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v33 = symbol ResolveTest.string$11 : %U8
-    %v35 = call stringLiteral, %v33, 2 : String
-    %v36 = symbol ResolveTest.string$12 : %U8
-    %v38 = call stringLiteral, %v36, 3 : String
-    %v39 = call Eq(String).==, %v35, %v38 : Bool
-    je %v39, b7, b8
-
-  b7:
-    %v41 = load %total : Int
-    %v44 = add %v41, 100 : Int
-    assign %total, %v44
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v48 = load %total : Int
-    ret %v48
-}
-
-fn orderingHolds() -> Int {
-  b0:
-    %total = alloc : Int
-    init %total, 0
-    %v3 = symbol ResolveTest.string$13 : %U8
-    %v5 = call stringLiteral, %v3, 3 : String
-    %v6 = symbol ResolveTest.string$14 : %U8
-    %v8 = call stringLiteral, %v6, 3 : String
-    %v9 = call Ord.<(String), %v5, %v8 : Bool
-    je %v9, b1, b2
-
-  b1:
-    %v11 = load %total : Int
-    %v14 = add %v11, 1 : Int
-    assign %total, %v14
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v18 = symbol ResolveTest.string$15 : %U8
-    %v20 = call stringLiteral, %v18, 2 : String
-    %v21 = symbol ResolveTest.string$16 : %U8
-    %v23 = call stringLiteral, %v21, 3 : String
-    %v24 = call Ord.<(String), %v20, %v23 : Bool
-    je %v24, b4, b5
-
-  b4:
-    %v26 = load %total : Int
-    %v29 = add %v26, 1 : Int
-    assign %total, %v29
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v33 = symbol ResolveTest.string$17 : %U8
-    %v35 = call stringLiteral, %v33, 1 : String
-    %v36 = symbol ResolveTest.string$18 : %U8
-    %v38 = call stringLiteral, %v36, 1 : String
-    %v39 = call Ord.<(String), %v35, %v38 : Bool
-    je %v39, b7, b8
-
-  b7:
-    %v41 = load %total : Int
-    %v44 = add %v41, 100 : Int
-    assign %total, %v44
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v48 = load %total : Int
-    ret %v48
 }
 
 fn main() -> Int {
@@ -1110,21 +764,9 @@ fn main() -> Int {
     %v13 = add %v11, %v12 : Int
     assign %total, %v13
     %v15 = load %total : Int
-    %v16 = call concatLength : Int
+    %v16 = call appendToLiteral : Int
     %v17 = add %v15, %v16 : Int
     assign %total, %v17
     %v19 = load %total : Int
-    %v20 = call appendToLiteral : Int
-    %v21 = add %v19, %v20 : Int
-    assign %total, %v21
-    %v23 = load %total : Int
-    %v24 = call equalityHolds : Int
-    %v25 = add %v23, %v24 : Int
-    assign %total, %v25
-    %v27 = load %total : Int
-    %v28 = call orderingHolds : Int
-    %v29 = add %v27, %v28 : Int
-    assign %total, %v29
-    %v31 = load %total : Int
-    ret %v31
+    ret %v19
 }

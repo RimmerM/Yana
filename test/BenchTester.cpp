@@ -73,6 +73,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "corpus.h"
 
 using namespace Tritium;
 
@@ -196,6 +197,11 @@ struct BenchProvider: SourceProvider, ModuleProvider {
     Context* context = nullptr;
     Array<Loaded> loaded;
 
+    // Which directory an `import` this driver has to answer is looked for in - `resolve/modules/`
+    // for a compiler fixture and `lib/modules/` for a library one. Set per fixture, because the two
+    // corpora are compiled by one process here.
+    String moduleRoot = String("resolve/modules/");
+
     ~BenchProvider() override {
         for(auto& entry: loaded) delete entry.ast;
     }
@@ -220,7 +226,7 @@ struct BenchProvider: SourceProvider, ModuleProvider {
         // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
         // so an import this directory does not answer leaves an empty module behind - which then
         // shadows the library module of that name on every run afterwards, silently.
-        auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
+        auto path = moduleRoot + context->findName(name) + String(".yana");
         auto opened = File::openFile(path, readAccess(), File::OpenExisting);
         if(opened.isErr()) return nullptr;
 
@@ -254,6 +260,13 @@ struct Fixture {
 
 // True for a file that exists and has something in it. An empty `.run.expect` is how the resolve
 // driver spells "resolved but not run", so an empty one is not an opt-in here either.
+// The marker files a library fixture opts in with are empty, so existence is the question there
+// rather than content - see hasContent below, which answers the other one.
+static bool fileExists(const String& path) {
+    auto info = File::info(path);
+    return info && !info.unwrapOk().isDirectory;
+}
+
 static bool hasContent(const String& path) {
     auto info = File::info(path);
     return info && !info.unwrapOk().isDirectory && info.unwrapOk().size > 0;
@@ -360,6 +373,7 @@ static void benchNative(const Fixture& fixture) {
     if(gTrace) println("native %@", fixture.path);
     BenchProvider provider;
     provider.source = StringView { fixture.source.get(), fixture.length };
+    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     provider.context = &context;
@@ -427,6 +441,7 @@ static void benchJs(const Fixture& fixture) {
 
     BenchProvider provider;
     provider.source = StringView { fixture.source.get(), fixture.length };
+    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.mode = CompileMode::JsExecutable;
@@ -557,14 +572,28 @@ int main(int argc, const char** argv) {
 
     auto skipped = readSkipList();
 
+    /*
+     * Both corpora, because the compiler's cost is the whole of what it compiles.
+     *
+     * `resolve/` and `lib/` were one directory until the library suite was split out, and the
+     * fixtures that moved are among the heaviest here - `File`, `Real` and the two `MoveMemory`s
+     * are hundreds of lines each. Dropping them would have moved every number in this table for a
+     * reason that has nothing to do with the compiler, which is exactly what a benchmark must not
+     * do. How a fixture opts a backend in is the only thing that differs: a compiler fixture names
+     * its answer in `.run.expect` and its JavaScript in `.js.expect`, and a library fixture has
+     * neither - it runs on amd64 always and on JavaScript where the `.js` marker exists.
+     */
     Array<Fixture> fixtures;
-    listDirectory("resolve", [&](const String& name, bool directory) {
-        if(directory) return;
-        if(auto dot = findLastChar(stringView(name), '.')) {
+
+    auto collect = [&](const char* directory, bool library) {
+        listDirectory(directory, [&](const String& name, bool isDirectory) {
+            if(isDirectory) return;
+            auto dot = findLastChar(stringView(name), '.');
+            if(!dot) return;
             if(String(dot + 1, name.text() + name.size() - dot - 1) != "yana") return;
             if(skipped.contains([&](const String& s) { return s == name; })) return;
 
-            auto path = String("resolve/") + name;
+            auto path = String(directory) + String("/") + name;
             auto opened = File::openFile(path, readAccess());
             if(opened.isErr()) return;
 
@@ -573,11 +602,18 @@ int main(int argc, const char** argv) {
             Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
             file.read({ (Byte*)source.get(), size });
 
-            auto native = hasContent(path + String(".run.expect"));
-            auto js = hasContent(path + String(".js.expect"));
+            auto native = library || hasContent(path + String(".run.expect"));
+            auto js = library ? fileExists(path + String(".js"))
+                              : hasContent(path + String(".js.expect"));
             fixtures.push(Fixture { path, ::move(source), size, native, js });
-        }
-    });
+        });
+    };
+
+    // `lib/` has to be the fixture corpus and not the standard library of that name - see corpus.h.
+    if(reportWrongDirectory()) return 1;
+
+    collect("resolve", false);
+    collect("lib", true);
 
     if(fixtures.isEmpty()) {
         println("no fixtures found - run this from the test directory");

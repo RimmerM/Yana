@@ -1,0 +1,124 @@
+{-
+   `Map(k, v)` - Implementation-Map.md, and the whole of what a map promises, on both targets.
+
+   The dense entries run with a private index over it. What is asserted here is behaviour rather than
+   shape: the shape is `MapRepr.yana`'s and the hash is `MapHash.yana`'s, and this is the file that
+   would catch a probe that loses a key, a rebuild that renumbers wrongly, or a swap-remove that
+   leaves an index slot pointing at an entry that has moved.
+
+   **Three hundred entries, deliberately.** The design has three regimes and a fixture that stays in
+   one of them tests a third of it: below the scan threshold there is no index at all (§4.4), the
+   first index is built when the threshold is crossed, and everything past that is a doubling
+   rebuild. Three hundred `Int` keys crosses the threshold at eight and rebuilds five times.
+
+   Both targets, because the two have different index implementations behind one signature - control
+   bytes and a sixteen-lane group natively, an `Int32Array` of entry numbers on JS - and every
+   answer below is a property of the map rather than of either.
+-}
+
+fn main() -> Int:
+    let &m = emptyMap() :: Map(Int, Int)
+    let &i = 0 :: Int
+
+    while i < 300:
+        insert(m, i, i * 3)
+        i = i + 1
+
+    assert((truncate(length(m)) :: Int) == 300)
+
+    -- Every key still finds its own value, which is what a rebuild must not break.
+    i = 0
+    while i < 300:
+        match find(m, i):
+            Just(v) -> assert(v == i * 3)
+            Nothing -> assert(False)
+        i = i + 1
+
+    -- Removal hands back the whole entry - §4's `Maybe(v)` cannot be written while a partial move is
+    -- rejected, and both halves are what a caller of a swap-remove wants anyway.
+    i = 0
+    while i < 300:
+        match removeKey(m, i):
+            Just(e) -> assert(e.value == i * 3)
+            Nothing -> assert(False)
+        i = i + 3
+
+    assert((truncate(length(m)) :: Int) == 200)
+
+    {-
+       The removals are the interesting half. Every one of them moved the *last* entry into the gap
+       and re-pointed its index slot, so a hundred entries are now at a number other than the one
+       they were inserted at - and the only thing that says the index followed them is that every
+       surviving key is still found and every removed one is not.
+    -}
+    i = 0
+    while i < 300:
+        assert(containsKey(m, i) == (i % 3 != 0))
+        i = i + 1
+
+    -- Inserting into a table full of tombstones takes a deleted slot rather than growing.
+    insert(m, 900, 7)
+    match find(m, 900):
+        Just(v) -> assert(v == 7)
+        Nothing -> assert(False)
+
+    {-
+       `m[k]` is a lookup and `m[k] = v` is an insert - §7's two decisions.
+
+       The second is `IndexInsert` rather than `getMut`, and 901 is the case that says so: there is
+       nothing to borrow for a key the map has not got, so a `getMut` assignment would trap here
+       instead of inserting. The third line is the same subscript overwriting a key that now exists,
+       which is the path that must *not* insert twice.
+    -}
+    assert(m[900] == 7)
+    m[901] = 11
+    assert(m[901] == 11)
+    m[901] = 12
+    assert(m[901] == 12)
+    assert((truncate(length(m)) :: Int) == 202)
+
+    -- Iteration visits every entry exactly once and never touches the index (§5).
+    let &seen = 0 :: Int
+    for e in pairs(m):
+        seen = seen + 1
+    assert(seen == 202)
+
+    -- `insert` over a key that is present replaces the value and answers the old one.
+    match insert(m, 900, 70):
+        Just(old) -> assert(old == 7)
+        Nothing -> assert(False)
+    assert((truncate(length(m)) :: Int) == 202)
+
+    -- `clear` keeps both runs and empties the index, so the map is usable immediately afterwards.
+    clear(m)
+    assert((truncate(length(m)) :: Int) == 0)
+    assert(!containsKey(m, 1))
+
+    insert(m, 42, 43)
+    match find(m, 42):
+        Just(v) -> assert(v == 43)
+        Nothing -> assert(False)
+
+    -- `findMut` writes through the borrow it hands back, which is the one operation that proves the
+    -- result names the map's own storage rather than a copy of it.
+    match findMut(m, 42):
+        Just(v) -> v = v + 1
+        Nothing -> assert(False)
+    assert(m[42] == 44)
+
+    {-
+       And a map sized at construction, which never grows during the fill - §4.5, worth 1.8-2.2x over
+       the whole life of a hundred-entry map. Nothing here can see that it did not grow; what it can
+       see is that the answers are the same either way.
+    -}
+    let &n = newMap(1000) :: Map(Int, Int)
+    i = 0
+    while i < 1000:
+        insert(n, i * 7, i)
+        i = i + 1
+
+    assert((truncate(length(n)) :: Int) == 1000)
+    assert(!containsKey(n, 3))
+    assert(m[42] == 44)
+
+    return 0

@@ -31,6 +31,7 @@
 #include "../compiler/codegen/x64/emit.h"
 #include "shard.h"
 #include "directives.h"
+#include "corpus.h"
 
 #if defined(__linux__) && defined(__x86_64__)
 #include <sys/wait.h>
@@ -61,6 +62,11 @@ struct TestProvider: SourceProvider, ModuleProvider {
     Context* context = nullptr;
     Array<Loaded> loaded;
 
+    // Which directory an `import` this driver has to answer is looked for in - `resolve/modules/`
+    // for a compiler fixture and `lib/modules/` for a library one. Set per fixture, since this
+    // driver runs over both corpora.
+    String moduleRoot = String("resolve/modules/");
+
     ~TestProvider() override {
         for(auto& entry: loaded) delete entry.ast;
     }
@@ -85,7 +91,7 @@ struct TestProvider: SourceProvider, ModuleProvider {
         // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
         // so an import this directory does not answer leaves an empty module behind - which then
         // shadows the library module of that name on every run afterwards, silently.
-        auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
+        auto path = moduleRoot + context->findName(name) + String(".yana");
         auto opened = File::openFile(path, readAccess(), File::OpenExisting);
         if(opened.isErr()) return nullptr;
 
@@ -201,15 +207,33 @@ static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signal
 }
 #endif
 
-static bool runTest(const String& path, StringView source, const String& outputDir) {
-    auto expected = readExpectedRun(path + String(".run.expect"));
+/*
+ * What this fixture's process is expected to report, or nothing where it says nothing.
+ *
+ * The two corpora answer differently, and both answers are the whole of their contract.
+ *
+ * A `resolve/` fixture names a number in `.run.expect` and this compares the **low byte** of it,
+ * since that is all a process exit status carries; the whole number is still asserted in-process by
+ * `YanaResolveTest`. One with no such file is not a failure - most of that corpus asserts IR rather
+ * than behaviour, and this driver has nothing to say about those.
+ *
+ * A `lib/` fixture names nothing, because its `main` answers 0 and states everything else with
+ * `assert` - see the header comment in LibTester.cpp. So the expected status is 0 for every one of
+ * them, and a non-zero one is a failed assertion: `checkFailed` is `exitProcess(134)`, and this is
+ * the driver where that status arrives as itself rather than having to be arranged.
+ */
+static Maybe<I64> expectedStatus(const String& path) {
+    if(stringView(path).startsWith("lib/"_v)) return Just(I64(0));
+    return readExpectedRun(path + String(".run.expect"));
+}
 
-    // A fixture with no expected result is not a failure: most of the corpus asserts IR rather than
-    // behaviour, and this driver has nothing to say about those.
+static bool runTest(const String& path, StringView source, const String& outputDir) {
+    auto expected = expectedStatus(path);
     if(!expected) return true;
 
     TestProvider provider;
     provider.source = source;
+    if(stringView(path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
@@ -310,15 +334,28 @@ int main(int argc, const char** argv) {
 
     Array<String> tests;
 
-    listDirectory("resolve", [&](const String& name, bool directory) {
-        if(directory) return;
-        if(auto dot = findLastChar(stringView(name), '.')) {
-            if(String(dot + 1, name.text() + name.size() - dot - 1) == "yana") {
-                if(only.size() && !stringView(name).startsWith(stringView(only))) return;
-                tests.push(String("resolve/") + name);
-            }
-        }
-    });
+    // Both corpora, and for the same reason this driver exists at all: what only it can see is
+    // everything between the last byte generated and the first instruction executed, and a library
+    // fixture goes through exactly as much of that as a compiler one. `File.yana` in particular is
+    // the only fixture anywhere that touches the file system, so the half of its path that a JIT
+    // never reaches is worth walking.
+    auto collect = [&](const char* directory) {
+        listDirectory(directory, [&](const String& name, bool isDirectory) {
+            if(isDirectory) return;
+            auto dot = findLastChar(stringView(name), '.');
+            if(!dot) return;
+            if(String(dot + 1, name.text() + name.size() - dot - 1) != "yana") return;
+            if(only.size() && !stringView(name).startsWith(stringView(only))) return;
+
+            tests.push(String(directory) + String("/") + name);
+        });
+    };
+
+    // `lib/` has to be the fixture corpus and not the standard library of that name - see corpus.h.
+    if(reportWrongDirectory()) return 1;
+
+    collect("resolve");
+    collect("lib");
 
     if(tests.isEmpty()) {
         println("no elf tests found");

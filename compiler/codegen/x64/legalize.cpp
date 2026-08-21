@@ -1103,7 +1103,7 @@ struct Legalizer {
  * The shape is not exotic and is not a failure of coalescing: the arms of a rotated loop's guard
  * both establish the accumulator's register - one for the loop body's first iteration, the other for
  * the phi that skips it - and the two copies are the same copy because the value and its home are
- * the same on both paths. `productVectors` in `test/resolve/VecBulk.yana` is where it was found, and
+ * the same on both paths. `productVectors` in `test/lib/VecBulk.yana` is where it was found, and
  * every bulk operation in that file has one.
  *
  * ## What makes it sound

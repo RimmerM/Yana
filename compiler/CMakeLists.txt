@@ -21,6 +21,13 @@ set(CORE_SOURCE_FILES
 add_library(YanaCore ${CORE_SOURCE_FILES})
 target_link_libraries(YanaCore PUBLIC TritiumNet TritiumCore ${OTHER_LIBS})
 
+# The standard library's location, baked in as the last of LibrarySource's four candidates. It is
+# what makes a build tree work with nothing configured: every driver in test/ constructs a Context
+# and resolves a program, and none of them has a command line to pass `-lib` on. An installed
+# compiler finds its library beside itself instead - see executableDirectory - so this is a
+# fallback for the tree rather than the answer a shipped compiler relies on.
+target_compile_definitions(YanaCore PRIVATE YANA_LIBRARY_DIR="${CMAKE_SOURCE_DIR}/lib")
+
 set(PARSE_SOURCE_FILES
     parse/lexer.cpp
     parse/lexer.h

@@ -1,47 +1,8 @@
 "use strict";
-// Core
-function Ord_lt_String(lhs, rhs) {
-  var v18;
-  if (lhs < rhs) {
-    v18 = 0;
-  } else {
-    v18 = rhs < lhs ? 2 : 1;
-  }
-  return v18 === 0;
-}
-
 // ResolveTest
-function equalityHolds() {
-  var total = 0;
-  if ("abc" === "abc") {
-    total = total + 1 | 0;
-  }
-  if ("abc" === "abd") {
-    total = total + 100 | 0;
-  }
-  if ("ab" === "abc") {
-    total = total + 100 | 0;
-  }
-  return total;
-}
-
-function orderingHolds() {
-  var total = 0;
-  if (Ord_lt_String("abc", "abd")) {
-    total = total + 1 | 0;
-  }
-  if (Ord_lt_String("ab", "abc")) {
-    total = total + 1 | 0;
-  }
-  if (Ord_lt_String("b", "a")) {
-    total = total + 100 | 0;
-  }
-  return total;
-}
-
 function main() {
   var start = "lit";
   start = start + "eral";
-  return ((start.length + 107 | 0) + equalityHolds() | 0) + orderingHolds() | 0;
+  return start.length + 102 | 0;
 }
 main();

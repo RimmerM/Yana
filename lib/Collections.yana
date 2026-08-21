@@ -40,6 +40,30 @@ pub fn checkCondition(failed: Bool) -> {}:
     return
 
 {-
+   The same stop, written the way a program states an invariant rather than the way a compiler emits
+   a check - `assert(i < length(xs))` instead of `checkCondition(i >= length(xs))`.
+
+   Here rather than beside the tests that use it for the reason `checkFailed` is here at all: this is
+   the lowest module that can reach both targets' way of stopping, and it is implicitly visible
+   everywhere, so an assertion costs no import. It is `checkCondition` with the condition the other
+   way round and nothing else - the same call, the same inlining, the same status 134 natively and
+   the same thrown string on JS.
+
+   **It carries no message, and that is the whole of what makes it provisional.** `checkFailed` has
+   nothing to print with, because printing needs `Text` and `Text` imports this module; so what a
+   failure says today is where the process stopped and not what it expected. The library suite
+   (`test/lib`) is written on this, and it is the piece to replace first when a real unit-testing
+   framework lands - at which point an assertion carries its source location and its two values, and
+   this becomes the bottom of that rather than the whole of it.
+
+   A caller that stops the process is a caller that has decided the program is wrong, so this is not
+   for reporting a failure a program could act on: that is `Result`, and it is what `File` answers.
+-}
+pub fn assert(held: Bool) -> {}:
+    checkCondition(!held)
+    return
+
+{-
    A growable array.
 
    A run of slots and how many of them hold values. That split is the whole of
